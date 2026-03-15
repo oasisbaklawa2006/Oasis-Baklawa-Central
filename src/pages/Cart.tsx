@@ -2,60 +2,11 @@ import AppShell from "@/components/AppShell";
 import CheckoutModal from "@/components/CheckoutModal";
 import { motion, AnimatePresence } from "framer-motion";
 import { useState, useMemo } from "react";
-import { Package, ShoppingCart, AlertTriangle, Sparkles, X, CheckCircle2, Info } from "lucide-react";
+import { Package, ShoppingCart, AlertTriangle, Sparkles, CheckCircle2, Info } from "lucide-react";
 
 import pistachioImg from "@/assets/baklawa-pistachio.jpg";
 import cashewImg from "@/assets/baklawa-cashew.jpg";
 import walnutImg from "@/assets/baklawa-walnut.jpg";
-
-/* ── Starter Sampler Modal ── */
-const StarterSamplerModal = ({ open, onClose }: { open: boolean; onClose: () => void }) => (
-  <AnimatePresence>
-    {open && (
-      <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        exit={{ opacity: 0 }}
-        className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center px-4 pb-4"
-      >
-        <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
-        <motion.div
-          initial={{ y: 60, opacity: 0 }}
-          animate={{ y: 0, opacity: 1 }}
-          exit={{ y: 60, opacity: 0 }}
-          transition={{ type: "spring", damping: 25, stiffness: 300 }}
-          className="relative bg-card rounded-3xl shadow-card w-full max-w-sm overflow-hidden"
-        >
-          <button onClick={onClose} className="absolute top-4 right-4 z-10 w-8 h-8 rounded-full bg-muted/80 flex items-center justify-center">
-            <X size={16} className="text-foreground" />
-          </button>
-          <div className="flex h-36 overflow-hidden">
-            <img src={pistachioImg} alt="" className="w-1/3 object-cover" />
-            <img src={cashewImg} alt="" className="w-1/3 object-cover" />
-            <img src={walnutImg} alt="" className="w-1/3 object-cover" />
-          </div>
-          <div className="p-6 space-y-4">
-            <div className="flex items-center gap-2">
-              <Sparkles size={18} className="text-primary" />
-              <h2 className="font-display text-lg tracking-wide text-foreground">New to Baklawa? Start Here.</h2>
-            </div>
-            <div className="bg-muted/50 rounded-xl p-4 space-y-2">
-              <p className="font-body font-bold text-foreground text-sm">Oasis Starter Sampler Carton</p>
-              <p className="font-body text-xs text-muted-foreground leading-relaxed">
-                Perfectly packed for Category C. Includes 3× Pistachio, 3× Cashew, 3× Chocolate Assiyah.
-              </p>
-              <p className="font-body text-xs text-primary font-semibold">9 Packs · 1 Complete Carton</p>
-            </div>
-            <button onClick={onClose} className="w-full py-3.5 rounded-xl bg-primary text-primary-foreground font-body font-bold text-sm flex items-center justify-center gap-2 hover:bg-primary/90 transition-colors shadow-fab">
-              <ShoppingCart size={16} />
-              Add Starter Kit to Cart
-            </button>
-          </div>
-        </motion.div>
-      </motion.div>
-    )}
-  </AnimatePresence>
-);
 
 /* ── Types ── */
 interface CartItem { name: string; packs: number; pricePerPack: number; packSize: string }
@@ -63,7 +14,7 @@ interface CartonSection {
   id: string;
   label: string;
   packsPerCarton: number;
-  minVariantPacks: number; // minimum packs per variant
+  minVariantPacks: number;
   items: CartItem[];
 }
 
@@ -86,7 +37,7 @@ const initialSections: CartonSection[] = [
     id: "c",
     label: "Category C Cartons",
     packsPerCarton: 9,
-    minVariantPacks: 3, // STRICT: any variant must be min 3 packs
+    minVariantPacks: 3,
     items: [
       { name: "Walnut Diamond Cut", packs: 3, pricePerPack: 1600, packSize: "500g" },
       { name: "Date & Almond Rolls", packs: 3, pricePerPack: 933, packSize: "250g" },
@@ -97,7 +48,6 @@ const initialSections: CartonSection[] = [
 
 const formatPrice = (n: number) => "₹" + n.toLocaleString("en-IN");
 
-/* ── Smart Fill suggestions for Category C (3-pack rule) ── */
 function getSmartFillSuggestions(section: CartonSection): { message: string; action: () => CartonSection }[] {
   const totalPacks = section.items.reduce((s, it) => s + it.packs, 0);
   const remainder = totalPacks % section.packsPerCarton;
@@ -106,7 +56,6 @@ function getSmartFillSuggestions(section: CartonSection): { message: string; act
   const remaining = section.packsPerCarton - remainder;
   const suggestions: { message: string; action: () => CartonSection }[] = [];
 
-  // Check if remaining >= minVariantPacks — can add a new variant
   if (remaining >= section.minVariantPacks) {
     suggestions.push({
       message: `Add ${remaining} × 1kg Packs of Pistachio Baklawa`,
@@ -120,17 +69,12 @@ function getSmartFillSuggestions(section: CartonSection): { message: string; act
     });
   }
 
-  // Suggest adjusting existing items to valid combos
-  // For Category C (9 packs, min 3): valid combos are 3+3+3, 6+3, 9
   if (section.minVariantPacks === 3) {
-    // Find items that violate the 3-pack minimum or can be adjusted
     const violators = section.items.filter((it) => it.packs < section.minVariantPacks && it.packs > 0);
     if (violators.length === 0) {
-      // All items meet minimum but total is wrong — suggest bumping one item
       const adjustableItem = section.items[0];
       if (adjustableItem) {
         const newPacks = adjustableItem.packs + remaining;
-        // Ensure the new count is a multiple of 3 or at least meets minimum
         if (newPacks >= section.minVariantPacks) {
           suggestions.push({
             message: `Change ${adjustableItem.name} from ${adjustableItem.packs} to ${newPacks} packs`,
@@ -144,7 +88,6 @@ function getSmartFillSuggestions(section: CartonSection): { message: string; act
         }
       }
     } else {
-      // Items below minimum exist — suggest raising them to 3
       for (const v of violators) {
         suggestions.push({
           message: `Increase ${v.name} from ${v.packs} to ${section.minVariantPacks} packs`,
@@ -163,7 +106,6 @@ function getSmartFillSuggestions(section: CartonSection): { message: string; act
 }
 
 const Cart = () => {
-  const [showSampler, setShowSampler] = useState(true);
   const [showCheckout, setShowCheckout] = useState(false);
   const [sections, setSections] = useState<CartonSection[]>(initialSections);
 
@@ -185,8 +127,6 @@ const Cart = () => {
 
   return (
     <AppShell>
-      <StarterSamplerModal open={showSampler} onClose={() => setShowSampler(false)} />
-
       <div className="px-5 py-6 space-y-6">
         <motion.h1
           initial={{ opacity: 0, y: 12 }}
@@ -202,8 +142,6 @@ const Cart = () => {
           const isIncomplete = remainder > 0;
           const isComplete = !isIncomplete && totalPacks > 0;
           const suggestions = isIncomplete ? getSmartFillSuggestions(section) : [];
-
-          // Check for variant minimum violations
           const hasVariantViolation = section.minVariantPacks > 1 && section.items.some((it) => it.packs > 0 && it.packs < section.minVariantPacks);
 
           return (
@@ -238,7 +176,6 @@ const Cart = () => {
                       ...sec,
                       items: sec.items.map((it, idx) => {
                         if (idx !== ii) return it;
-                        // If at 0, jump to minVariantPacks
                         if (it.packs === 0 && sec.minVariantPacks > 1) return { ...it, packs: sec.minVariantPacks };
                         return { ...it, packs: it.packs + 1 };
                       }),
@@ -250,7 +187,6 @@ const Cart = () => {
                       ...sec,
                       items: sec.items.map((it, idx) => {
                         if (idx !== ii) return it;
-                        // If at minVariantPacks, drop to 0
                         if (sec.minVariantPacks > 1 && it.packs <= sec.minVariantPacks) return { ...it, packs: 0 };
                         return { ...it, packs: Math.max(0, it.packs - 1) };
                       }),
@@ -281,7 +217,6 @@ const Cart = () => {
                 })}
               </div>
 
-              {/* Smart Fill or Complete */}
               <AnimatePresence mode="wait">
                 {isIncomplete ? (
                   <motion.div
@@ -331,7 +266,7 @@ const Cart = () => {
           );
         })}
 
-        {/* ── Order Summary ── */}
+        {/* Order Summary */}
         <motion.section
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -358,7 +293,6 @@ const Cart = () => {
             </div>
           </div>
 
-          {/* Shipping Warning */}
           <div className="flex items-start gap-2 px-3 py-2.5 rounded-lg bg-muted/60 border border-border/50">
             <Info size={14} className="text-muted-foreground flex-shrink-0 mt-0.5" />
             <p className="font-body text-[11px] text-muted-foreground leading-relaxed">
