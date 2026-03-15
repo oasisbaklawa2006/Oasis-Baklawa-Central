@@ -1,25 +1,26 @@
 import { Home, BookOpen, Package, ShoppingCart, LayoutDashboard } from "lucide-react";
-import { useState } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
 
 const navItems = [
-  { icon: Home, label: "Home" },
-  { icon: BookOpen, label: "Catalogue" },
-  { icon: Package, label: "Orders" },
-  { icon: ShoppingCart, label: "Cart" },
-  { icon: LayoutDashboard, label: "Dashboard" },
+  { icon: Home, label: "Home", path: "/" },
+  { icon: BookOpen, label: "Catalogue", path: "/catalogue" },
+  { icon: Package, label: "Orders", path: "/orders" },
+  { icon: ShoppingCart, label: "Cart", path: "/cart" },
+  { icon: LayoutDashboard, label: "Dashboard", path: "/dashboard" },
 ];
 
 const BottomNavBar = () => {
-  const [active, setActive] = useState(0);
+  const location = useLocation();
+  const navigate = useNavigate();
 
   return (
     <nav className="fixed bottom-0 left-0 right-0 z-50 h-[72px] bg-card shadow-[0_-2px_12px_rgba(0,0,0,0.06)] flex items-center justify-around px-2">
-      {navItems.map((item, i) => {
-        const isActive = active === i;
+      {navItems.map((item) => {
+        const isActive = location.pathname === item.path;
         return (
           <button
             key={item.label}
-            onClick={() => setActive(i)}
+            onClick={() => navigate(item.path)}
             className={`flex flex-col items-center gap-1 py-2 px-3 rounded-xl transition-colors ${
               isActive ? "text-primary" : "text-muted-foreground"
             }`}
