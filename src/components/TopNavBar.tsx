@@ -6,6 +6,7 @@ import NotificationsPanel from "./NotificationsPanel";
 
 const TopNavBar = () => {
   const [showNotifs, setShowNotifs] = useState(false);
+  const navigate = useNavigate();
 
   return (
     <>
