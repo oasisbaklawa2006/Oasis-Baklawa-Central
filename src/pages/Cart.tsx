@@ -335,12 +335,16 @@ const Cart = () => {
             </p>
           </div>
 
-          <button className="w-full py-3.5 rounded-xl bg-primary text-primary-foreground font-body font-bold text-sm flex items-center justify-center gap-2 hover:bg-primary/90 transition-colors shadow-fab">
+          <button
+            onClick={() => setShowCheckout(true)}
+            className="w-full py-3.5 rounded-xl bg-primary text-primary-foreground font-body font-bold text-sm flex items-center justify-center gap-2 hover:bg-primary/90 transition-colors shadow-fab"
+          >
             <ShoppingCart size={18} />
             Proceed to Sales Order
           </button>
         </motion.section>
       </div>
+      <CheckoutModal open={showCheckout} onClose={() => setShowCheckout(false)} grandTotal={subtotal + tax} />
     </AppShell>
   );
 };

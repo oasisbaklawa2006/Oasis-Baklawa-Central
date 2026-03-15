@@ -24,7 +24,7 @@ const TopNavBar = () => {
             <Bell size={20} className="text-muted-foreground" />
             <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-primary rounded-full" />
           </button>
-          <button className="w-9 h-9 rounded-full bg-primary flex items-center justify-center" aria-label="My Account">
+          <button onClick={() => navigate("/account")} className="w-9 h-9 rounded-full bg-primary flex items-center justify-center" aria-label="My Account">
             <User size={18} className="text-primary-foreground" />
           </button>
         </div>

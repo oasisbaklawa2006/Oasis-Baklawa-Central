@@ -28,6 +28,8 @@ const App = () => (
           <Route path="/cart" element={<Cart />} />
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/product/:id" element={<ProductDetail />} />
+          <Route path="/account" element={<Account />} />
+          <Route path="/favorites" element={<Favorites />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </BrowserRouter>
