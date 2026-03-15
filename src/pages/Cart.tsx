@@ -163,6 +163,7 @@ function getSmartFillSuggestions(section: CartonSection): { message: string; act
 
 const Cart = () => {
   const [showSampler, setShowSampler] = useState(true);
+  const [showCheckout, setShowCheckout] = useState(false);
   const [sections, setSections] = useState<CartonSection[]>(initialSections);
 
   const applySuggestion = (sectionId: string, action: () => CartonSection) => {
