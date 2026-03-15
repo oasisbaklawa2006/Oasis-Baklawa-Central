@@ -1,6 +1,7 @@
 import AppShell from "@/components/AppShell";
 import { motion } from "framer-motion";
 import { TrendingUp, Wallet, CreditCard, Share2, Headphones, FileText, ArrowUpRight } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 
 const heroMetrics = [
   { label: "Lifetime Value", value: "₹12,45,000", icon: TrendingUp },
