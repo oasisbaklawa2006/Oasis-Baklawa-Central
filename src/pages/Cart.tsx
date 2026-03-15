@@ -88,8 +88,9 @@ const initialSections: CartonSection[] = [
     packsPerCarton: 9,
     minVariantPacks: 3, // STRICT: any variant must be min 3 packs
     items: [
-      { name: "Walnut Diamond Cut", packs: 4, pricePerPack: 1600, packSize: "500g" },
+      { name: "Walnut Diamond Cut", packs: 3, pricePerPack: 1600, packSize: "500g" },
       { name: "Date & Almond Rolls", packs: 3, pricePerPack: 933, packSize: "250g" },
+      { name: "Chocolate Assiyah", packs: 3, pricePerPack: 1200, packSize: "500g" },
     ],
   },
 ];
@@ -231,12 +232,37 @@ const Cart = () => {
               <div className="space-y-3">
                 {section.items.map((item, ii) => {
                   const isViolating = section.minVariantPacks > 1 && item.packs > 0 && item.packs < section.minVariantPacks;
+
+                  const handleIncrement = () => {
+                    setSections(prev => prev.map(sec => sec.id !== section.id ? sec : {
+                      ...sec,
+                      items: sec.items.map((it, idx) => {
+                        if (idx !== ii) return it;
+                        // If at 0, jump to minVariantPacks
+                        if (it.packs === 0 && sec.minVariantPacks > 1) return { ...it, packs: sec.minVariantPacks };
+                        return { ...it, packs: it.packs + 1 };
+                      }),
+                    }));
+                  };
+
+                  const handleDecrement = () => {
+                    setSections(prev => prev.map(sec => sec.id !== section.id ? sec : {
+                      ...sec,
+                      items: sec.items.map((it, idx) => {
+                        if (idx !== ii) return it;
+                        // If at minVariantPacks, drop to 0
+                        if (sec.minVariantPacks > 1 && it.packs <= sec.minVariantPacks) return { ...it, packs: 0 };
+                        return { ...it, packs: Math.max(0, it.packs - 1) };
+                      }),
+                    }));
+                  };
+
                   return (
-                    <div key={ii} className={`flex items-center justify-between py-2 border-b last:border-0 ${isViolating ? "border-destructive/30" : "border-border/50"}`}>
+                    <div key={ii} className={`flex items-center justify-between py-3 border-b last:border-0 ${isViolating ? "border-destructive/30" : "border-border/50"}`}>
                       <div className="flex-1 min-w-0">
                         <p className="font-body font-semibold text-foreground text-sm">{item.name}</p>
-                        <p className="font-body text-xs text-muted-foreground">
-                          {item.packs} × {item.packSize} Pack{item.packs > 1 ? "s" : ""}
+                        <p className="font-fine text-[11px] text-muted-foreground">
+                          {item.packs} × {item.packSize} Pack{item.packs !== 1 ? "s" : ""}
                         </p>
                         {isViolating && (
                           <p className="font-body text-[11px] text-destructive font-medium mt-0.5">
@@ -244,7 +270,12 @@ const Cart = () => {
                           </p>
                         )}
                       </div>
-                      <p className="font-body font-bold text-foreground text-sm">{formatPrice(item.packs * item.pricePerPack)}</p>
+                      <div className="flex items-center gap-2">
+                        <button onClick={handleDecrement} className="w-8 h-8 rounded-lg bg-muted border border-border flex items-center justify-center hover:border-primary/50 transition-colors text-foreground text-sm font-bold">−</button>
+                        <span className="font-body font-bold text-foreground text-sm w-6 text-center">{item.packs}</span>
+                        <button onClick={handleIncrement} className="w-8 h-8 rounded-lg bg-muted border border-border flex items-center justify-center hover:border-primary/50 transition-colors text-foreground text-sm font-bold">+</button>
+                      </div>
+                      <p className="font-body font-bold text-foreground text-sm ml-3 min-w-[70px] text-right">{formatPrice(item.packs * item.pricePerPack)}</p>
                     </div>
                   );
                 })}

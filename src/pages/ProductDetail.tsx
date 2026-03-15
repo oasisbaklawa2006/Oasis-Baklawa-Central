@@ -85,13 +85,13 @@ const ProductDetail = () => {
             <h1 className="font-display text-2xl tracking-wide text-foreground">
               {product.name}
             </h1>
-            <p className="font-body text-lg text-foreground font-bold">
+            <p className="font-fine text-lg text-foreground font-bold">
               {product.price}{" "}
               <span className="text-sm font-normal text-muted-foreground">
                 {product.priceNote}
               </span>
             </p>
-            <p className="font-body text-xs text-muted-foreground">
+            <p className="font-fine text-xs text-muted-foreground">
               Pack Size: {product.packSize}
             </p>
           </motion.div>

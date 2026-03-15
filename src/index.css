@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@400;500;600;700&family=Montserrat:wght@300;400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;500;600;700;800;900&family=Montserrat:wght@300;400;500;600;700&family=Cinzel:wght@400;500;600;700&display=swap');
 
 @tailwind base;
 @tailwind components;
@@ -41,8 +41,9 @@
     --card-shadow: 0 8px 24px rgba(0,0,0,0.12);
     --fab-shadow: 0 6px 20px rgba(0,0,0,0.15);
 
-    --font-display: 'Cinzel', serif;
+    --font-display: 'Playfair Display', 'Didot', serif;
     --font-body: 'Montserrat', sans-serif;
+    --font-fine: 'Cinzel', serif;
 
     --sidebar-background: 0 0% 98%;
     --sidebar-foreground: 240 5.3% 26.1%;

@@ -12,6 +12,8 @@ import ProductDetail from "./pages/ProductDetail.tsx";
 import Account from "./pages/Account.tsx";
 import Favorites from "./pages/Favorites.tsx";
 import Documents from "./pages/Documents.tsx";
+import Login from "./pages/Login.tsx";
+import Register from "./pages/Register.tsx";
 import NotFound from "./pages/NotFound.tsx";
 
 const queryClient = new QueryClient();
@@ -32,6 +34,8 @@ const App = () => (
           <Route path="/account" element={<Account />} />
           <Route path="/favorites" element={<Favorites />} />
           <Route path="/documents" element={<Documents />} />
+          <Route path="/login" element={<Login />} />
+          <Route path="/register" element={<Register />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </BrowserRouter>

@@ -1,7 +1,7 @@
 import AppShell from "@/components/AppShell";
 import { motion, AnimatePresence } from "framer-motion";
 import { useState } from "react";
-import { ChevronDown, Package, CheckCircle2, Truck, BoxIcon, CreditCard, ClipboardList, FileText, MessageSquare, ArrowRight } from "lucide-react";
+import { ChevronDown, Package, CheckCircle2, Truck, BoxIcon, CreditCard, ClipboardList, FileText, MessageSquare, ArrowRight, Phone } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { Badge } from "@/components/ui/badge";
 
@@ -57,15 +57,15 @@ const orders: Order[] = [
     date: "28 Feb 2026",
     value: "₹1,45,000",
     status: "production",
-    statusLabel: "In Production",
+    statusLabel: "Dispatched",
     image: cashewImg,
     productName: "Cashew Roll Baklawa × 35 Cartons",
     timeline: [
       { label: "Order Placed", done: true },
       { label: "Advance Paid", done: true },
       { label: "Production", done: true },
-      { label: "Packing", done: false },
-      { label: "Dispatched", done: false },
+      { label: "Packing", done: true },
+      { label: "Dispatched", done: true },
       { label: "Delivered", done: false },
     ],
     documents: [
@@ -177,6 +177,36 @@ const Orders = () => {
                           })}
                         </div>
 
+                        {/* Delivery Tracking — shown for dispatched orders */}
+                        {order.timeline.find(s => s.label === "Dispatched")?.done && !order.timeline.find(s => s.label === "Delivered")?.done && (
+                          <div className="border-t border-border pt-4">
+                            <div className="bg-primary/5 rounded-xl p-4 border border-primary/15 space-y-2">
+                              <div className="flex items-center gap-2">
+                                <Truck size={14} className="text-primary" />
+                                <h3 className="font-body font-bold text-foreground text-sm">Live Tracking</h3>
+                              </div>
+                              <div className="space-y-1.5">
+                                <div className="flex justify-between">
+                                  <span className="font-fine text-[11px] text-muted-foreground">Transporter</span>
+                                  <span className="font-body text-xs font-semibold text-foreground">Blue Dart</span>
+                                </div>
+                                <div className="flex justify-between">
+                                  <span className="font-fine text-[11px] text-muted-foreground">Driver</span>
+                                  <span className="font-body text-xs font-semibold text-foreground flex items-center gap-1.5">
+                                    Raj Kumar
+                                    <button className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-green-50 text-green-600 hover:bg-green-100 transition-colors">
+                                      <Phone size={10} /> <span className="font-fine text-[10px]">Call</span>
+                                    </button>
+                                  </span>
+                                </div>
+                                <div className="flex justify-between">
+                                  <span className="font-fine text-[11px] text-muted-foreground">Tracking LR</span>
+                                  <span className="font-body text-xs font-semibold text-primary">849302</span>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        )}
                         {/* Document Center */}
                         <div className="border-t border-border pt-4 space-y-3">
                           <h3 className="font-body font-bold text-foreground text-sm flex items-center gap-2">
