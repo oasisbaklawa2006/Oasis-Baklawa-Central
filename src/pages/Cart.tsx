@@ -1,7 +1,7 @@
 import AppShell from "@/components/AppShell";
 import { motion, AnimatePresence } from "framer-motion";
-import { useState } from "react";
-import { Package, ShoppingCart, AlertTriangle, Sparkles, X } from "lucide-react";
+import { useState, useMemo } from "react";
+import { Package, ShoppingCart, AlertTriangle, Sparkles, X, CheckCircle2 } from "lucide-react";
 
 import pistachioImg from "@/assets/baklawa-pistachio.jpg";
 import cashewImg from "@/assets/baklawa-cashew.jpg";
@@ -28,20 +28,16 @@ const StarterSamplerModal = ({ open, onClose }: { open: boolean; onClose: () => 
           <button onClick={onClose} className="absolute top-4 right-4 z-10 w-8 h-8 rounded-full bg-muted/80 flex items-center justify-center">
             <X size={16} className="text-foreground" />
           </button>
-
-          {/* Hero image strip */}
           <div className="flex h-36 overflow-hidden">
             <img src={pistachioImg} alt="" className="w-1/3 object-cover" />
             <img src={cashewImg} alt="" className="w-1/3 object-cover" />
             <img src={walnutImg} alt="" className="w-1/3 object-cover" />
           </div>
-
           <div className="p-6 space-y-4">
             <div className="flex items-center gap-2">
               <Sparkles size={18} className="text-primary" />
               <h2 className="font-display text-lg tracking-wide text-foreground">New to Baklawa? Start Here.</h2>
             </div>
-
             <div className="bg-muted/50 rounded-xl p-4 space-y-2">
               <p className="font-body font-bold text-foreground text-sm">Oasis Starter Sampler Carton</p>
               <p className="font-body text-xs text-muted-foreground leading-relaxed">
@@ -49,11 +45,7 @@ const StarterSamplerModal = ({ open, onClose }: { open: boolean; onClose: () => 
               </p>
               <p className="font-body text-xs text-primary font-semibold">9 Packs · 1 Complete Carton</p>
             </div>
-
-            <button
-              onClick={onClose}
-              className="w-full py-3.5 rounded-xl bg-primary text-primary-foreground font-body font-bold text-sm flex items-center justify-center gap-2 hover:bg-primary/90 transition-colors shadow-fab"
-            >
+            <button onClick={onClose} className="w-full py-3.5 rounded-xl bg-primary text-primary-foreground font-body font-bold text-sm flex items-center justify-center gap-2 hover:bg-primary/90 transition-colors shadow-fab">
               <ShoppingCart size={16} />
               Add Starter Kit to Cart
             </button>
@@ -64,41 +56,82 @@ const StarterSamplerModal = ({ open, onClose }: { open: boolean; onClose: () => 
   </AnimatePresence>
 );
 
-/* ── Cart Data ── */
-interface CartItem { name: string; packs: number; price: string }
+/* ── Types ── */
+interface CartItem { name: string; packs: number; pricePerPack: number }
 interface CartonSection {
+  id: string;
   label: string;
   packsPerCarton: number;
   items: CartItem[];
 }
 
-const cartonSections: CartonSection[] = [
+const initialSections: CartonSection[] = [
   {
+    id: "a",
     label: "Category A Cartons",
     packsPerCarton: 4,
-    items: [
-      { name: "Turkish Pistachio Baklawa", packs: 4, price: "₹9,000" },
-    ],
+    items: [{ name: "Turkish Pistachio Baklawa", packs: 4, pricePerPack: 2250 }],
   },
   {
+    id: "b",
     label: "Category B Cartons",
     packsPerCarton: 6,
-    items: [
-      { name: "Cashew Roll Baklawa", packs: 6, price: "₹11,400" },
-    ],
+    items: [{ name: "Cashew Roll Baklawa", packs: 6, pricePerPack: 1900 }],
   },
   {
+    id: "c",
     label: "Category C Cartons",
     packsPerCarton: 9,
     items: [
-      { name: "Walnut Diamond Cut", packs: 4, price: "₹6,400" },
-      { name: "Date & Almond Rolls", packs: 3, price: "₹2,800" },
+      { name: "Walnut Diamond Cut", packs: 4, pricePerPack: 1600 },
+      { name: "Date & Almond Rolls", packs: 3, pricePerPack: 933 },
     ],
   },
 ];
 
+const formatPrice = (n: number) => "₹" + n.toLocaleString("en-IN");
+
 const Cart = () => {
   const [showSampler, setShowSampler] = useState(true);
+  const [sections, setSections] = useState<CartonSection[]>(initialSections);
+
+  const smartFill = (sectionId: string, fillType: "pistachio" | "bestseller") => {
+    setSections((prev) =>
+      prev.map((sec) => {
+        if (sec.id !== sectionId) return sec;
+        const totalPacks = sec.items.reduce((s, it) => s + it.packs, 0);
+        const remaining = sec.packsPerCarton - (totalPacks % sec.packsPerCarton);
+        if (remaining === 0 || remaining === sec.packsPerCarton) return sec;
+
+        const fillName = fillType === "pistachio" ? "Pistachio Baklawa" : "Assorted Best Seller";
+        const fillPrice = fillType === "pistachio" ? 2250 : 2000;
+
+        const existing = sec.items.find((it) => it.name === fillName);
+        if (existing) {
+          return {
+            ...sec,
+            items: sec.items.map((it) =>
+              it.name === fillName ? { ...it, packs: it.packs + remaining } : it
+            ),
+          };
+        }
+        return {
+          ...sec,
+          items: [...sec.items, { name: fillName, packs: remaining, pricePerPack: fillPrice }],
+        };
+      })
+    );
+  };
+
+  const subtotal = useMemo(
+    () => sections.reduce((sum, sec) => sum + sec.items.reduce((s, it) => s + it.packs * it.pricePerPack, 0), 0),
+    [sections]
+  );
+  const tax = Math.round(subtotal * 0.18);
+  const totalCartons = sections.reduce((sum, sec) => {
+    const packs = sec.items.reduce((s, it) => s + it.packs, 0);
+    return sum + Math.floor(packs / sec.packsPerCarton);
+  }, 0);
 
   return (
     <AppShell>
@@ -113,14 +146,16 @@ const Cart = () => {
           Your Cart
         </motion.h1>
 
-        {cartonSections.map((section, si) => {
+        {sections.map((section, si) => {
           const totalPacks = section.items.reduce((s, it) => s + it.packs, 0);
-          const remaining = section.packsPerCarton - (totalPacks % section.packsPerCarton);
-          const isIncomplete = remaining > 0 && remaining < section.packsPerCarton;
+          const remainder = totalPacks % section.packsPerCarton;
+          const isIncomplete = remainder > 0;
+          const remaining = section.packsPerCarton - remainder;
+          const isComplete = !isIncomplete && totalPacks > 0;
 
           return (
             <motion.section
-              key={si}
+              key={section.id}
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: si * 0.1 }}
@@ -139,32 +174,56 @@ const Cart = () => {
                       <p className="font-body font-semibold text-foreground text-sm">{item.name}</p>
                       <p className="font-body text-xs text-muted-foreground">{item.packs} Pack{item.packs > 1 ? "s" : ""}</p>
                     </div>
-                    <p className="font-body font-bold text-foreground text-sm">{item.price}</p>
+                    <p className="font-body font-bold text-foreground text-sm">{formatPrice(item.packs * item.pricePerPack)}</p>
                   </div>
                 ))}
               </div>
 
-              {/* Smart Fill Warning */}
-              {isIncomplete && (
-                <div className="rounded-xl bg-destructive/5 border border-destructive/15 p-4 space-y-3">
-                  <div className="flex items-center gap-2">
-                    <AlertTriangle size={14} className="text-destructive" />
-                    <p className="font-body text-xs text-destructive font-semibold">
-                      Incomplete Carton: {section.packsPerCarton} packs required. ({totalPacks} selected)
-                    </p>
-                  </div>
-                  <div className="flex flex-col gap-2">
-                    <button className="w-full py-2.5 px-4 rounded-lg bg-card border border-border text-foreground font-body text-xs font-medium hover:border-primary/50 transition-colors flex items-center gap-2">
-                      <Sparkles size={12} className="text-primary" />
-                      Add {remaining} pack{remaining > 1 ? "s" : ""} of Pistachio Baklawa
-                    </button>
-                    <button className="w-full py-2.5 px-4 rounded-lg bg-card border border-border text-foreground font-body text-xs font-medium hover:border-primary/50 transition-colors flex items-center gap-2">
-                      <Sparkles size={12} className="text-primary" />
-                      Fill remaining space with Best Seller
-                    </button>
-                  </div>
-                </div>
-              )}
+              {/* Smart Fill or Complete */}
+              <AnimatePresence mode="wait">
+                {isIncomplete ? (
+                  <motion.div
+                    key="warning"
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: "auto" }}
+                    exit={{ opacity: 0, height: 0 }}
+                    className="rounded-xl bg-destructive/5 border border-destructive/15 p-4 space-y-3"
+                  >
+                    <div className="flex items-center gap-2">
+                      <AlertTriangle size={14} className="text-destructive" />
+                      <p className="font-body text-xs text-destructive font-semibold">
+                        Incomplete Carton: {section.packsPerCarton} packs required. ({totalPacks} selected)
+                      </p>
+                    </div>
+                    <div className="flex flex-col gap-2">
+                      <button
+                        onClick={() => smartFill(section.id, "pistachio")}
+                        className="w-full py-2.5 px-4 rounded-lg bg-card border border-border text-foreground font-body text-xs font-medium hover:border-primary/50 transition-colors flex items-center gap-2"
+                      >
+                        <Sparkles size={12} className="text-primary" />
+                        Add {remaining} pack{remaining > 1 ? "s" : ""} of Pistachio Baklawa
+                      </button>
+                      <button
+                        onClick={() => smartFill(section.id, "bestseller")}
+                        className="w-full py-2.5 px-4 rounded-lg bg-card border border-border text-foreground font-body text-xs font-medium hover:border-primary/50 transition-colors flex items-center gap-2"
+                      >
+                        <Sparkles size={12} className="text-primary" />
+                        Fill remaining space with Best Seller
+                      </button>
+                    </div>
+                  </motion.div>
+                ) : isComplete ? (
+                  <motion.div
+                    key="complete"
+                    initial={{ opacity: 0, scale: 0.95 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    className="flex items-center gap-2 py-2"
+                  >
+                    <CheckCircle2 size={16} className="text-green-600" />
+                    <p className="font-body text-xs text-green-600 font-semibold">Carton Complete</p>
+                  </motion.div>
+                ) : null}
+              </AnimatePresence>
             </motion.section>
           );
         })}
@@ -180,19 +239,19 @@ const Cart = () => {
           <div className="space-y-2.5">
             <div className="flex justify-between font-body text-sm">
               <span className="text-muted-foreground">Total Cartons</span>
-              <span className="font-semibold text-foreground">3</span>
+              <span className="font-semibold text-foreground">{totalCartons}</span>
             </div>
             <div className="flex justify-between font-body text-sm">
               <span className="text-muted-foreground">Subtotal</span>
-              <span className="font-semibold text-foreground">₹29,600</span>
+              <span className="font-semibold text-foreground">{formatPrice(subtotal)}</span>
             </div>
             <div className="flex justify-between font-body text-sm">
               <span className="text-muted-foreground">Estimated Taxes (18% GST)</span>
-              <span className="font-semibold text-foreground">₹5,328</span>
+              <span className="font-semibold text-foreground">{formatPrice(tax)}</span>
             </div>
             <div className="border-t border-border pt-3 flex justify-between font-body text-base">
               <span className="font-bold text-foreground">Grand Total</span>
-              <span className="font-bold text-foreground">₹34,928</span>
+              <span className="font-bold text-foreground">{formatPrice(subtotal + tax)}</span>
             </div>
           </div>
           <button className="w-full py-3.5 rounded-xl bg-primary text-primary-foreground font-body font-bold text-sm flex items-center justify-center gap-2 hover:bg-primary/90 transition-colors shadow-fab">
