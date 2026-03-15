@@ -57,15 +57,15 @@ const orders: Order[] = [
     date: "28 Feb 2026",
     value: "₹1,45,000",
     status: "production",
-    statusLabel: "In Production",
+    statusLabel: "Dispatched",
     image: cashewImg,
     productName: "Cashew Roll Baklawa × 35 Cartons",
     timeline: [
       { label: "Order Placed", done: true },
       { label: "Advance Paid", done: true },
       { label: "Production", done: true },
-      { label: "Packing", done: false },
-      { label: "Dispatched", done: false },
+      { label: "Packing", done: true },
+      { label: "Dispatched", done: true },
       { label: "Delivered", done: false },
     ],
     documents: [
