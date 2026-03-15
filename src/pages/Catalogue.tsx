@@ -128,9 +128,9 @@ const Catalogue = () => {
                 </div>
                 <div className="p-4 space-y-1.5">
                   <p className="font-body font-bold text-foreground text-sm leading-tight">{product.name}</p>
-                  <p className="font-body text-xs text-muted-foreground">{product.price} per kg + taxes</p>
-                  <p className="font-body text-xs text-muted-foreground">{product.pack}</p>
-                  <p className="font-body text-[11px] text-primary font-semibold">{product.moq}</p>
+                  <p className="font-fine text-[11px] text-muted-foreground">{product.price} per kg + taxes</p>
+                  <p className="font-fine text-[11px] text-muted-foreground">{product.pack}</p>
+                  <p className="font-fine text-[11px] text-primary font-semibold">{product.moq}</p>
                   <button className="mt-2 w-full py-2.5 rounded-lg bg-primary text-primary-foreground font-body font-semibold text-xs flex items-center justify-center gap-1.5 hover:bg-primary/90 transition-colors">
                     <ShoppingCart size={14} />
                     Add to Cart

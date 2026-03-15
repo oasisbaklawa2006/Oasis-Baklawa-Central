@@ -1,5 +1,6 @@
 import { Plus } from "lucide-react";
 import { motion } from "framer-motion";
+import { useNavigate } from "react-router-dom";
 
 import posterSlice from "@/assets/poster-baklawa-slice.jpg";
 import posterKunafa from "@/assets/poster-kunafa.jpg";
@@ -14,6 +15,8 @@ const products = [
 ];
 
 const BestSellers = () => {
+  const navigate = useNavigate();
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
@@ -28,7 +31,8 @@ const BestSellers = () => {
         {products.map((product, i) => (
           <div
             key={i}
-            className="min-w-[200px] max-w-[200px] bg-card rounded-2xl shadow-card overflow-hidden flex-shrink-0"
+            onClick={() => navigate(`/product/${i}`)}
+            className="min-w-[200px] max-w-[200px] bg-card rounded-2xl shadow-card overflow-hidden flex-shrink-0 cursor-pointer"
           >
             <div className="w-full h-[180px] overflow-hidden">
               <img
@@ -41,7 +45,7 @@ const BestSellers = () => {
               <p className="font-body font-semibold text-foreground text-sm leading-tight">
                 {product.name}
               </p>
-              <p className="font-body text-xs text-muted-foreground mt-1.5">
+              <p className="font-fine text-[11px] text-muted-foreground mt-1.5">
                 {product.price}
               </p>
               <button className="mt-3 w-full py-2 rounded-lg bg-primary/10 text-primary font-body font-semibold text-xs flex items-center justify-center gap-1.5 hover:bg-primary hover:text-primary-foreground transition-colors">
