@@ -2,6 +2,7 @@ import AppShell from "@/components/AppShell";
 import { Heart, ShoppingCart } from "lucide-react";
 import { motion } from "framer-motion";
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 
 import posterSpread from "@/assets/poster-spread.jpg";
 import posterKunafa from "@/assets/poster-kunafa.jpg";
@@ -40,6 +41,7 @@ const sampleProducts = [
 
 const Catalogue = () => {
   const [activeSub, setActiveSub] = useState("Baklawa");
+  const navigate = useNavigate();
 
   return (
     <AppShell>
@@ -117,7 +119,7 @@ const Catalogue = () => {
           <h2 className="font-display text-lg tracking-wide text-foreground mb-4">Wholesale Loose Products</h2>
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
             {sampleProducts.map((product, i) => (
-              <div key={i} className="bg-card rounded-2xl shadow-card overflow-hidden relative group">
+              <div key={i} onClick={() => navigate(`/product/${i}`)} className="bg-card rounded-2xl shadow-card overflow-hidden relative group cursor-pointer">
                 <button className="absolute top-3 right-3 z-10 w-8 h-8 rounded-full bg-card/80 backdrop-blur flex items-center justify-center hover:bg-card transition-colors">
                   <Heart size={16} className="text-muted-foreground group-hover:text-primary transition-colors" />
                 </button>

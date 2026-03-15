@@ -6,12 +6,13 @@ interface AIItem {
   name: string;
   qty: number;
   unit: string;
+  packSize: string;
 }
 
 const initialItems: AIItem[] = [
-  { name: "Pistachio Baklawa", qty: 10, unit: "Cartons" },
-  { name: "Cashew Roll Baklawa", qty: 5, unit: "Cartons" },
-  { name: "Assorted Premium Box", qty: 8, unit: "Cartons" },
+  { name: "Pistachio Baklawa", qty: 10, unit: "Cartons", packSize: "1kg" },
+  { name: "Cashew Roll Baklawa", qty: 5, unit: "Cartons", packSize: "500g" },
+  { name: "Assorted Premium Box", qty: 8, unit: "Cartons", packSize: "1kg" },
 ];
 
 const AIOrderReview = ({ open, onClose }: { open: boolean; onClose: () => void }) => {
@@ -69,7 +70,9 @@ const AIOrderReview = ({ open, onClose }: { open: boolean; onClose: () => void }
                   >
                     <div className="flex-1 min-w-0">
                       <p className="font-body font-semibold text-foreground text-sm">{item.name}</p>
-                      <p className="font-body text-[11px] text-muted-foreground">{item.unit}</p>
+                      <p className="font-body text-[11px] text-muted-foreground">
+                        {item.unit} · {item.packSize} Packs
+                      </p>
                     </div>
                     <div className="flex items-center gap-2">
                       <button
