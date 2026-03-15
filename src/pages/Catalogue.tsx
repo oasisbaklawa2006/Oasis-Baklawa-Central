@@ -2,6 +2,7 @@ import AppShell from "@/components/AppShell";
 import { Heart, ShoppingCart } from "lucide-react";
 import { motion } from "framer-motion";
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 
 import posterSpread from "@/assets/poster-spread.jpg";
 import posterKunafa from "@/assets/poster-kunafa.jpg";
