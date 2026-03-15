@@ -31,7 +31,9 @@ const monthlyData = [
   { month: "Mar", value: 90 },
 ];
 
-const Dashboard = () => (
+const Dashboard = () => {
+  const navigate = useNavigate();
+  return (
   <AppShell>
     <div className="px-5 py-6 space-y-6">
       <motion.h1
