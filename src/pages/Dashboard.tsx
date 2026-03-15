@@ -16,9 +16,10 @@ const recentActivity = [
 ];
 
 const quickActions = [
-  { label: "Share Invoice to WhatsApp", icon: Share2 },
-  { label: "Request Support", icon: Headphones },
-  { label: "View Price List", icon: FileText },
+  { label: "Share Invoice to WhatsApp", icon: Share2, route: "" },
+  { label: "Request Support", icon: Headphones, route: "" },
+  { label: "View Price List", icon: FileText, route: "" },
+  { label: "View All Documents", icon: FileText, route: "/documents" },
 ];
 
 const monthlyData = [
