@@ -88,8 +88,9 @@ const initialSections: CartonSection[] = [
     packsPerCarton: 9,
     minVariantPacks: 3, // STRICT: any variant must be min 3 packs
     items: [
-      { name: "Walnut Diamond Cut", packs: 4, pricePerPack: 1600, packSize: "500g" },
+      { name: "Walnut Diamond Cut", packs: 3, pricePerPack: 1600, packSize: "500g" },
       { name: "Date & Almond Rolls", packs: 3, pricePerPack: 933, packSize: "250g" },
+      { name: "Chocolate Assiyah", packs: 3, pricePerPack: 1200, packSize: "500g" },
     ],
   },
 ];
