@@ -1,7 +1,8 @@
 import AppShell from "@/components/AppShell";
 import { motion, AnimatePresence } from "framer-motion";
 import { useState } from "react";
-import { ChevronDown, Package, CheckCircle2, Truck, BoxIcon, CreditCard, ClipboardList, FileText, MessageSquare } from "lucide-react";
+import { ChevronDown, Package, CheckCircle2, Truck, BoxIcon, CreditCard, ClipboardList, FileText, MessageSquare, ArrowRight } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 import { Badge } from "@/components/ui/badge";
 
 import pistachioImg from "@/assets/baklawa-pistachio.jpg";
@@ -99,6 +100,7 @@ const timelineIcons = [ClipboardList, CreditCard, Package, BoxIcon, Truck, Check
 
 const Orders = () => {
   const [expanded, setExpanded] = useState<string | null>(null);
+  const navigate = useNavigate();
 
   return (
     <AppShell>
@@ -196,6 +198,14 @@ const Orders = () => {
                               </button>
                             </div>
                           ))}
+                          <button
+                            onClick={(e) => { e.stopPropagation(); navigate("/documents"); }}
+                            className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl bg-primary/10 hover:bg-primary/15 transition-colors mt-1"
+                          >
+                            <FileText size={14} className="text-primary" />
+                            <span className="font-body text-xs font-semibold text-primary">Go to Document Center</span>
+                            <ArrowRight size={12} className="text-primary" />
+                          </button>
                         </div>
                       </div>
                     </motion.div>

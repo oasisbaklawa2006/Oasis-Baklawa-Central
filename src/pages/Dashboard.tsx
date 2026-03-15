@@ -1,6 +1,7 @@
 import AppShell from "@/components/AppShell";
 import { motion } from "framer-motion";
 import { TrendingUp, Wallet, CreditCard, Share2, Headphones, FileText, ArrowUpRight } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 
 const heroMetrics = [
   { label: "Lifetime Value", value: "₹12,45,000", icon: TrendingUp },
@@ -15,9 +16,10 @@ const recentActivity = [
 ];
 
 const quickActions = [
-  { label: "Share Invoice to WhatsApp", icon: Share2 },
-  { label: "Request Support", icon: Headphones },
-  { label: "View Price List", icon: FileText },
+  { label: "Share Invoice to WhatsApp", icon: Share2, route: "" },
+  { label: "Request Support", icon: Headphones, route: "" },
+  { label: "View Price List", icon: FileText, route: "" },
+  { label: "View All Documents", icon: FileText, route: "/documents" },
 ];
 
 const monthlyData = [
@@ -29,7 +31,9 @@ const monthlyData = [
   { month: "Mar", value: 90 },
 ];
 
-const Dashboard = () => (
+const Dashboard = () => {
+  const navigate = useNavigate();
+  return (
   <AppShell>
     <div className="px-5 py-6 space-y-6">
       <motion.h1
@@ -109,6 +113,7 @@ const Dashboard = () => (
           {quickActions.map((q, i) => (
             <button
               key={i}
+              onClick={() => q.route && navigate(q.route)}
               className="w-full flex items-center gap-3 py-2.5 px-3 rounded-xl hover:bg-muted/50 transition-colors group"
             >
               <div className="w-9 h-9 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
@@ -122,6 +127,7 @@ const Dashboard = () => (
       </div>
     </div>
   </AppShell>
-);
+  );
+};
 
 export default Dashboard;
