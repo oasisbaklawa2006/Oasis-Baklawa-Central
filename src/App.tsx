@@ -25,6 +25,7 @@ const App = () => (
           <Route path="/orders" element={<Orders />} />
           <Route path="/cart" element={<Cart />} />
           <Route path="/dashboard" element={<Dashboard />} />
+          <Route path="/product/:id" element={<ProductDetail />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </BrowserRouter>
