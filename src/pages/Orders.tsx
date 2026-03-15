@@ -100,6 +100,7 @@ const timelineIcons = [ClipboardList, CreditCard, Package, BoxIcon, Truck, Check
 
 const Orders = () => {
   const [expanded, setExpanded] = useState<string | null>(null);
+  const navigate = useNavigate();
 
   return (
     <AppShell>
