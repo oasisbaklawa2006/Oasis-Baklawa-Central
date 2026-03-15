@@ -8,6 +8,7 @@ import Catalogue from "./pages/Catalogue.tsx";
 import Orders from "./pages/Orders.tsx";
 import Cart from "./pages/Cart.tsx";
 import Dashboard from "./pages/Dashboard.tsx";
+import ProductDetail from "./pages/ProductDetail.tsx";
 import NotFound from "./pages/NotFound.tsx";
 
 const queryClient = new QueryClient();
