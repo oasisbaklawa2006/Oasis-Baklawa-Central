@@ -4,7 +4,7 @@ import logoOpen from "@/assets/logo-open.png";
 const TopNavBar = () => {
   return (
     <header className="fixed top-0 left-0 right-0 z-50 h-16 bg-card shadow-nav flex items-center justify-between px-6">
-      <img src={logoOpen} alt="Oasis Baklawa" className="h-9 w-auto" />
+      <img src={logoOpen} alt="Oasis Baklawa" className="h-14 w-auto" />
       <div className="flex items-center gap-5">
         <button className="p-2 rounded-full hover:bg-muted transition-colors" aria-label="Search">
           <Search size={20} className="text-muted-foreground" />
