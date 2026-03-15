@@ -1,4 +1,5 @@
 import AppShell from "@/components/AppShell";
+import CheckoutModal from "@/components/CheckoutModal";
 import { motion, AnimatePresence } from "framer-motion";
 import { useState, useMemo } from "react";
 import { Package, ShoppingCart, AlertTriangle, Sparkles, X, CheckCircle2, Info } from "lucide-react";
