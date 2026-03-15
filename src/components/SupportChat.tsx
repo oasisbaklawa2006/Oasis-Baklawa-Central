@@ -11,7 +11,7 @@ interface ChatMessage {
 const initialMessages: ChatMessage[] = [
   { id: 1, role: "ai", text: "Hello! How can I assist you with your Oasis Baklawa B2B orders today?" },
   { id: 2, role: "user", text: "I need help understanding the Category C MOQ rules." },
-  { id: 3, role: "ai", text: "Certainly! Category C cartons require exactly 9 packs to be filled, and any variant you choose must have a minimum of 3 packs. Valid combinations are: 3+3+3, 6+3, or 9 of a single variant." },
+  { id: 3, role: "ai", text: "Certainly! Category C cartons require exactly 9 packs. Any single variant you choose must have a minimum of 3 packs. Therefore, valid combinations include 3+3+3, 6+3, 4+5, or 9 of a single variant." },
 ];
 
 interface SupportChatProps {

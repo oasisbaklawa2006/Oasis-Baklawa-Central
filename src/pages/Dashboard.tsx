@@ -127,6 +127,7 @@ const Dashboard = () => {
       </div>
     </div>
   </AppShell>
-);
+  );
+};
 
 export default Dashboard;

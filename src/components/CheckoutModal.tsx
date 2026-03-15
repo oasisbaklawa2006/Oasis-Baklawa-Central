@@ -99,17 +99,20 @@ const CheckoutModal = ({ open, onClose, grandTotal }: CheckoutModalProps) => {
                 })}
               </div>
 
-              {/* CTA */}
-              <button
-                onClick={handleConfirm}
-                className="w-full py-4 rounded-xl bg-primary text-primary-foreground font-body font-bold text-sm flex items-center justify-center gap-2 hover:bg-primary/90 transition-colors shadow-fab"
-              >
-                Pay Advance & Confirm Order
-              </button>
-
-              <p className="font-body text-[10px] text-muted-foreground text-center leading-relaxed">
-                By confirming, you agree to Oasis Baklawa's B2B terms. Advance is non-refundable once production begins.
-              </p>
+              {/* CTA - fixed on mobile */}
+              <div className="sm:static fixed bottom-0 left-0 right-0 sm:p-0 p-4 bg-background sm:bg-transparent border-t sm:border-0 border-border/50 space-y-2">
+                <button
+                  onClick={handleConfirm}
+                  className="w-full py-4 rounded-xl bg-primary text-primary-foreground font-body font-bold text-sm flex items-center justify-center gap-2 hover:bg-primary/90 transition-colors shadow-fab"
+                >
+                  Pay Advance & Confirm Order
+                </button>
+                <p className="font-body text-[10px] text-muted-foreground text-center leading-relaxed">
+                  By confirming, you agree to Oasis Baklawa's B2B terms. Advance is non-refundable once production begins.
+                </p>
+              </div>
+              {/* Spacer for fixed CTA on mobile */}
+              <div className="h-20 sm:hidden" />
             </div>
           </motion.div>
         </motion.div>
