@@ -1,5 +1,6 @@
 import { Search, Bell, User } from "lucide-react";
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import logoOpen from "@/assets/logo-open.png";
 import NotificationsPanel from "./NotificationsPanel";
 
