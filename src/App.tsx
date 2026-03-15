@@ -11,6 +11,7 @@ import Dashboard from "./pages/Dashboard.tsx";
 import ProductDetail from "./pages/ProductDetail.tsx";
 import Account from "./pages/Account.tsx";
 import Favorites from "./pages/Favorites.tsx";
+import Documents from "./pages/Documents.tsx";
 import NotFound from "./pages/NotFound.tsx";
 
 const queryClient = new QueryClient();
@@ -30,6 +31,7 @@ const App = () => (
           <Route path="/product/:id" element={<ProductDetail />} />
           <Route path="/account" element={<Account />} />
           <Route path="/favorites" element={<Favorites />} />
+          <Route path="/documents" element={<Documents />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </BrowserRouter>
