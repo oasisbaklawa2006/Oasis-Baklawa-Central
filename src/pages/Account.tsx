@@ -1,7 +1,9 @@
 import AppShell from "@/components/AppShell";
+import WithdrawalModal from "@/components/WithdrawalModal";
 import { motion } from "framer-motion";
-import { Building2, FileText, MapPin, Wallet, Plus, ArrowDownLeft, ArrowUpRight, CreditCard, Users, Truck, Settings } from "lucide-react";
+import { Building2, FileText, MapPin, Wallet, Plus, ArrowDownLeft, ArrowUpRight, CreditCard, Users, Truck, Settings, Globe, BarChart3, HelpCircle, ScrollText } from "lucide-react";
 import { useNavigate } from "react-router-dom";
+import { useState } from "react";
 
 const transactions = [
   { id: 1, type: "credit" as const, label: "Excess Advance Refund", amount: 10000, date: "12 Mar 2026" },
@@ -14,12 +16,15 @@ const settingsMenu = [
   { label: "Manage Users", desc: "Add or remove team members", icon: Users },
   { label: "Delivery Addresses", desc: "Manage shipping locations", icon: MapPin },
   { label: "Preferred Courier", desc: "Set default transporter", icon: Truck },
+  { label: "FAQ", desc: "Frequently asked questions", icon: HelpCircle },
+  { label: "Terms & Conditions", desc: "Legal and compliance info", icon: ScrollText },
 ];
 
 const formatPrice = (n: number) => "₹" + n.toLocaleString("en-IN");
 
 const Account = () => {
   const navigate = useNavigate();
+  const [showWithdrawal, setShowWithdrawal] = useState(false);
 
   return (
     <AppShell>
@@ -62,6 +67,20 @@ const Account = () => {
               <div>
                 <p className="font-fine text-[11px] text-muted-foreground">FSSAI License</p>
                 <p className="font-body text-sm font-semibold text-foreground">13320007000438</p>
+              </div>
+            </div>
+            <div className="flex items-start gap-3 py-2 border-b border-border/50">
+              <Globe size={14} className="text-muted-foreground mt-0.5 flex-shrink-0" />
+              <div>
+                <p className="font-fine text-[11px] text-muted-foreground">Business Website</p>
+                <p className="font-body text-sm font-semibold text-primary">www.tcfchocolates.com</p>
+              </div>
+            </div>
+            <div className="flex items-start gap-3 py-2 border-b border-border/50">
+              <BarChart3 size={14} className="text-muted-foreground mt-0.5 flex-shrink-0" />
+              <div>
+                <p className="font-fine text-[11px] text-muted-foreground">Registered Business Volume</p>
+                <p className="font-body text-sm font-semibold text-foreground">Expected Volume: ₹2 Lakhs/month</p>
               </div>
             </div>
             <div className="flex items-start gap-3 py-2">
@@ -126,6 +145,14 @@ const Account = () => {
               ))}
             </div>
           </div>
+
+          <button
+            onClick={() => setShowWithdrawal(true)}
+            className="w-full py-3 rounded-xl bg-card border border-border text-foreground font-body font-bold text-sm flex items-center justify-center gap-2 hover:border-primary/50 transition-colors"
+          >
+            <Wallet size={16} className="text-primary" />
+            Request Withdrawal
+          </button>
         </motion.section>
 
         {/* Account Settings */}
@@ -173,6 +200,8 @@ const Account = () => {
           </div>
         </motion.section>
       </div>
+
+      <WithdrawalModal open={showWithdrawal} onClose={() => setShowWithdrawal(false)} />
     </AppShell>
   );
 };

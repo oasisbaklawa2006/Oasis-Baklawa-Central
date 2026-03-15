@@ -1,9 +1,10 @@
 import AppShell from "@/components/AppShell";
 import { motion, AnimatePresence } from "framer-motion";
 import { useState } from "react";
-import { ChevronDown, Package, CheckCircle2, Truck, BoxIcon, CreditCard, ClipboardList, FileText, MessageSquare, ArrowRight, Phone } from "lucide-react";
+import { ChevronDown, Package, CheckCircle2, Truck, BoxIcon, CreditCard, ClipboardList, FileText, MessageSquare, ArrowRight, Phone, AlertCircle, Clock } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { Badge } from "@/components/ui/badge";
+import SupportTicketModal from "@/components/SupportTicketModal";
 
 import pistachioImg from "@/assets/baklawa-pistachio.jpg";
 import cashewImg from "@/assets/baklawa-cashew.jpg";
@@ -21,6 +22,8 @@ interface Order {
   productName: string;
   timeline: { label: string; done: boolean }[];
   documents: { name: string; type: string }[];
+  supportDaysRemaining?: number;
+  fulfillment?: { ordered: number; packed: number; shortfall: number };
 }
 
 const statusStyles: Record<OrderStatus, string> = {
@@ -29,6 +32,8 @@ const statusStyles: Record<OrderStatus, string> = {
   delivered: "bg-green-50 text-green-600 border-green-200",
   completed: "bg-muted text-muted-foreground border-border",
 };
+
+const filterChips = ["All", "Unpaid", "Undelivered", "Issues Pending", "Completed"];
 
 const orders: Order[] = [
   {
@@ -60,6 +65,7 @@ const orders: Order[] = [
     statusLabel: "Dispatched",
     image: cashewImg,
     productName: "Cashew Roll Baklawa × 35 Cartons",
+    fulfillment: { ordered: 35, packed: 30, shortfall: 5 },
     timeline: [
       { label: "Order Placed", done: true },
       { label: "Advance Paid", done: true },
@@ -81,6 +87,7 @@ const orders: Order[] = [
     statusLabel: "Delivered - Ticket Open",
     image: walnutImg,
     productName: "Walnut Diamond Cut × 15 Cartons",
+    supportDaysRemaining: 8,
     timeline: [
       { label: "Order Placed", done: true },
       { label: "Advance Paid", done: true },
@@ -100,7 +107,18 @@ const timelineIcons = [ClipboardList, CreditCard, Package, BoxIcon, Truck, Check
 
 const Orders = () => {
   const [expanded, setExpanded] = useState<string | null>(null);
+  const [activeFilter, setActiveFilter] = useState("All");
+  const [ticketOrder, setTicketOrder] = useState<string | null>(null);
   const navigate = useNavigate();
+
+  const filteredOrders = orders.filter((o) => {
+    if (activeFilter === "All") return true;
+    if (activeFilter === "Unpaid") return o.status === "unpaid";
+    if (activeFilter === "Undelivered") return o.status === "production" || o.status === "unpaid";
+    if (activeFilter === "Issues Pending") return o.statusLabel.includes("Ticket");
+    if (activeFilter === "Completed") return o.status === "completed" || o.status === "delivered";
+    return true;
+  });
 
   return (
     <AppShell>
@@ -113,8 +131,25 @@ const Orders = () => {
           Order History
         </motion.h1>
 
+        {/* Filter Chips */}
+        <div className="flex gap-2 overflow-x-auto scrollbar-hide pb-1">
+          {filterChips.map((chip) => (
+            <button
+              key={chip}
+              onClick={() => setActiveFilter(chip)}
+              className={`px-4 py-2 rounded-full font-body text-xs font-semibold whitespace-nowrap transition-colors border ${
+                activeFilter === chip
+                  ? "bg-primary text-primary-foreground border-primary"
+                  : "bg-card text-muted-foreground border-border hover:border-primary/50"
+              }`}
+            >
+              {chip}
+            </button>
+          ))}
+        </div>
+
         <div className="space-y-4">
-          {orders.map((order, i) => {
+          {filteredOrders.map((order, i) => {
             const isOpen = expanded === order.id;
             return (
               <motion.div
@@ -177,7 +212,36 @@ const Orders = () => {
                           })}
                         </div>
 
-                        {/* Delivery Tracking — shown for dispatched orders */}
+                        {/* Fulfillment Summary */}
+                        {order.fulfillment && (
+                          <div className="border-t border-border pt-4">
+                            <div className="bg-primary/5 rounded-xl p-4 border border-primary/15 space-y-3">
+                              <h3 className="font-body font-bold text-foreground text-sm flex items-center gap-2">
+                                <Package size={14} className="text-primary" />
+                                Fulfillment Summary
+                              </h3>
+                              <div className="space-y-2">
+                                <div className="flex justify-between">
+                                  <span className="font-fine text-[11px] text-muted-foreground">Ordered Quantity</span>
+                                  <span className="font-body text-xs font-semibold text-foreground">{order.fulfillment.ordered} Cartons</span>
+                                </div>
+                                <div className="flex justify-between">
+                                  <span className="font-fine text-[11px] text-muted-foreground">Packed / Invoiced Quantity</span>
+                                  <span className="font-body text-xs font-semibold text-foreground">{order.fulfillment.packed} Cartons</span>
+                                </div>
+                                <div className="flex justify-between">
+                                  <span className="font-fine text-[11px] text-muted-foreground">Shortfall / Pending</span>
+                                  <span className="font-body text-xs font-semibold text-destructive">{order.fulfillment.shortfall} Cartons</span>
+                                </div>
+                              </div>
+                              <p className="font-fine text-[10px] text-muted-foreground italic border-t border-border/50 pt-2">
+                                Final Invoice is generated only from the Packed Quantity. Shortfall will dispatch separately.
+                              </p>
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Delivery Tracking */}
                         {order.timeline.find(s => s.label === "Dispatched")?.done && !order.timeline.find(s => s.label === "Delivered")?.done && (
                           <div className="border-t border-border pt-4">
                             <div className="bg-primary/5 rounded-xl p-4 border border-primary/15 space-y-2">
@@ -207,6 +271,30 @@ const Orders = () => {
                             </div>
                           </div>
                         )}
+
+                        {/* 10-Day Support Window */}
+                        {order.status === "delivered" && order.supportDaysRemaining && order.supportDaysRemaining > 0 && (
+                          <div className="border-t border-border pt-4">
+                            <div className="bg-green-50 rounded-xl p-4 border border-green-200 space-y-3">
+                              <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-2">
+                                  <Clock size={14} className="text-green-600" />
+                                  <span className="font-body text-xs font-semibold text-green-600">
+                                    Support Window Open ({order.supportDaysRemaining} Days Remaining)
+                                  </span>
+                                </div>
+                              </div>
+                              <button
+                                onClick={(e) => { e.stopPropagation(); setTicketOrder(order.id); }}
+                                className="w-full py-2.5 rounded-xl bg-card border border-border text-foreground font-body text-xs font-semibold flex items-center justify-center gap-2 hover:border-destructive/50 transition-colors"
+                              >
+                                <AlertCircle size={14} className="text-destructive" />
+                                Raise Ticket / Report Issue
+                              </button>
+                            </div>
+                          </div>
+                        )}
+
                         {/* Document Center */}
                         <div className="border-t border-border pt-4 space-y-3">
                           <h3 className="font-body font-bold text-foreground text-sm flex items-center gap-2">
@@ -246,6 +334,12 @@ const Orders = () => {
           })}
         </div>
       </div>
+
+      <SupportTicketModal
+        open={!!ticketOrder}
+        onClose={() => setTicketOrder(null)}
+        orderId={ticketOrder || ""}
+      />
     </AppShell>
   );
 };
