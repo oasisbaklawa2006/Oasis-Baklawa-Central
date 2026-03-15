@@ -41,6 +41,7 @@ const sampleProducts = [
 
 const Catalogue = () => {
   const [activeSub, setActiveSub] = useState("Baklawa");
+  const navigate = useNavigate();
 
   return (
     <AppShell>
