@@ -1,15 +1,15 @@
 import { Plus } from "lucide-react";
 import { motion } from "framer-motion";
 
-import pistachioImg from "@/assets/baklawa-pistachio.jpg";
-import cashewImg from "@/assets/baklawa-cashew.jpg";
-import walnutImg from "@/assets/baklawa-walnut.jpg";
+import posterSlice from "@/assets/poster-baklawa-slice.jpg";
+import posterKunafa from "@/assets/poster-kunafa.jpg";
+import posterSpread from "@/assets/poster-spread.jpg";
 import assortedImg from "@/assets/baklawa-assorted.jpg";
 
 const products = [
-  { name: "Pistachio Baklawa", price: "₹4,500 / kg", image: pistachioImg },
-  { name: "Cashew Baklawa", price: "₹3,800 / kg", image: cashewImg },
-  { name: "Walnut Baklawa", price: "₹3,200 / kg", image: walnutImg },
+  { name: "Pistachio Baklawa", price: "₹4,500 / kg", image: posterSlice },
+  { name: "Kunafa Classic", price: "₹3,800 / kg", image: posterKunafa },
+  { name: "Assorted Spread", price: "₹5,200 / kg", image: posterSpread },
   { name: "Assorted Box", price: "₹5,200 / kg", image: assortedImg },
 ];
 
