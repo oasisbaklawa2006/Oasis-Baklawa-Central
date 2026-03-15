@@ -1,7 +1,7 @@
 import AppShell from "@/components/AppShell";
 import { motion, AnimatePresence } from "framer-motion";
 import { useState } from "react";
-import { ChevronDown, Package, CheckCircle2, Truck, BoxIcon, CreditCard, ClipboardList } from "lucide-react";
+import { ChevronDown, Package, CheckCircle2, Truck, BoxIcon, CreditCard, ClipboardList, FileText, MessageSquare } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 
 import pistachioImg from "@/assets/baklawa-pistachio.jpg";
@@ -19,6 +19,7 @@ interface Order {
   image: string;
   productName: string;
   timeline: { label: string; done: boolean }[];
+  documents: { name: string; type: string }[];
 }
 
 const statusStyles: Record<OrderStatus, string> = {
@@ -45,6 +46,10 @@ const orders: Order[] = [
       { label: "Dispatched", done: false },
       { label: "Delivered", done: false },
     ],
+    documents: [
+      { name: "Invoice INV-089", type: "invoice" },
+      { name: "LR Copy (Transport)", type: "lr" },
+    ],
   },
   {
     id: "ORD-2026-074",
@@ -62,6 +67,10 @@ const orders: Order[] = [
       { label: "Dispatched", done: false },
       { label: "Delivered", done: false },
     ],
+    documents: [
+      { name: "Invoice INV-074", type: "invoice" },
+      { name: "LR Copy (Transport)", type: "lr" },
+    ],
   },
   {
     id: "ORD-2026-051",
@@ -78,6 +87,10 @@ const orders: Order[] = [
       { label: "Packing", done: true },
       { label: "Dispatched", done: true },
       { label: "Delivered", done: true },
+    ],
+    documents: [
+      { name: "Invoice INV-051", type: "invoice" },
+      { name: "LR Copy (Transport)", type: "lr" },
     ],
   },
 ];
@@ -113,11 +126,7 @@ const Orders = () => {
                   onClick={() => setExpanded(isOpen ? null : order.id)}
                   className="w-full p-4 flex items-center gap-4 text-left"
                 >
-                  <img
-                    src={order.image}
-                    alt={order.productName}
-                    className="w-14 h-14 rounded-xl object-cover flex-shrink-0"
-                  />
+                  <img src={order.image} alt={order.productName} className="w-14 h-14 rounded-xl object-cover flex-shrink-0" />
                   <div className="flex-1 min-w-0">
                     <p className="font-body font-bold text-foreground text-sm">{order.id}</p>
                     <p className="font-body text-xs text-muted-foreground truncate">{order.productName}</p>
@@ -131,10 +140,7 @@ const Orders = () => {
                     <Badge className={`text-[11px] border ${statusStyles[order.status]}`}>
                       {order.statusLabel}
                     </Badge>
-                    <ChevronDown
-                      size={18}
-                      className={`text-muted-foreground transition-transform duration-300 ${isOpen ? "rotate-180" : ""}`}
-                    />
+                    <ChevronDown size={18} className={`text-muted-foreground transition-transform duration-300 ${isOpen ? "rotate-180" : ""}`} />
                   </div>
                 </button>
 
@@ -147,7 +153,8 @@ const Orders = () => {
                       transition={{ duration: 0.3 }}
                       className="overflow-hidden"
                     >
-                      <div className="px-5 pb-5 pt-1">
+                      <div className="px-5 pb-5 pt-1 space-y-5">
+                        {/* Timeline */}
                         <div className="border-t border-border pt-4">
                           {order.timeline.map((step, si) => {
                             const Icon = timelineIcons[si];
@@ -155,31 +162,40 @@ const Orders = () => {
                             return (
                               <div key={si} className="flex gap-3">
                                 <div className="flex flex-col items-center">
-                                  <div
-                                    className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${
-                                      step.done
-                                        ? "bg-primary text-primary-foreground"
-                                        : "bg-muted text-muted-foreground"
-                                    }`}
-                                  >
+                                  <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${step.done ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"}`}>
                                     <Icon size={14} />
                                   </div>
-                                  {!isLast && (
-                                    <div
-                                      className={`w-0.5 h-6 ${step.done ? "bg-primary" : "bg-border"}`}
-                                    />
-                                  )}
+                                  {!isLast && <div className={`w-0.5 h-6 ${step.done ? "bg-primary" : "bg-border"}`} />}
                                 </div>
-                                <p
-                                  className={`font-body text-sm pt-1.5 ${
-                                    step.done ? "text-foreground font-semibold" : "text-muted-foreground"
-                                  }`}
-                                >
+                                <p className={`font-body text-sm pt-1.5 ${step.done ? "text-foreground font-semibold" : "text-muted-foreground"}`}>
                                   {step.label}
                                 </p>
                               </div>
                             );
                           })}
+                        </div>
+
+                        {/* Document Center */}
+                        <div className="border-t border-border pt-4 space-y-3">
+                          <h3 className="font-body font-bold text-foreground text-sm flex items-center gap-2">
+                            <FileText size={14} className="text-primary" />
+                            Document Center
+                          </h3>
+                          {order.documents.map((doc, di) => (
+                            <div key={di} className="flex items-center justify-between py-2.5 px-3 rounded-xl bg-muted/40 border border-border/50">
+                              <div className="flex items-center gap-2.5">
+                                <FileText size={14} className="text-muted-foreground" />
+                                <p className="font-body text-sm text-foreground">{doc.name}</p>
+                              </div>
+                              <button
+                                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-green-500/10 hover:bg-green-500/20 transition-colors"
+                                onClick={(e) => e.stopPropagation()}
+                              >
+                                <MessageSquare size={13} className="text-green-600" />
+                                <span className="font-body text-xs font-semibold text-green-600">Share</span>
+                              </button>
+                            </div>
+                          ))}
                         </div>
                       </div>
                     </motion.div>
