@@ -1,15 +1,25 @@
 import AppShell from "@/components/AppShell";
+import AIOrderUpload from "@/components/home/AIOrderUpload";
+import SmartReorder from "@/components/home/SmartReorder";
+import BestSellers from "@/components/home/BestSellers";
+import PromoBanner from "@/components/home/PromoBanner";
 
 const Index = () => {
   return (
     <AppShell>
-      <div className="flex items-center justify-center min-h-[calc(100vh-136px)] px-6">
-        <div className="text-center">
-          <h1 className="font-display text-3xl md:text-4xl tracking-wide text-foreground mb-3">
-            Oasis Baklawa B2B Portal
+      <div className="px-5 py-6 space-y-7 max-w-3xl mx-auto">
+        {/* Greeting */}
+        <div className="pt-2">
+          <p className="font-body text-sm text-muted-foreground">Welcome back,</p>
+          <h1 className="font-display text-2xl md:text-3xl tracking-wide text-foreground mt-1">
+            Oasis Baklawa
           </h1>
-          <div className="w-16 h-0.5 bg-primary mx-auto mt-4" />
         </div>
+
+        <AIOrderUpload />
+        <SmartReorder />
+        <BestSellers />
+        <PromoBanner />
       </div>
     </AppShell>
   );
