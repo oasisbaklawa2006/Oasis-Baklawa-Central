@@ -1,4 +1,5 @@
 import AppShell from "@/components/AppShell";
+import CheckoutModal from "@/components/CheckoutModal";
 import { motion, AnimatePresence } from "framer-motion";
 import { useState, useMemo } from "react";
 import { Package, ShoppingCart, AlertTriangle, Sparkles, X, CheckCircle2, Info } from "lucide-react";
@@ -162,6 +163,7 @@ function getSmartFillSuggestions(section: CartonSection): { message: string; act
 
 const Cart = () => {
   const [showSampler, setShowSampler] = useState(true);
+  const [showCheckout, setShowCheckout] = useState(false);
   const [sections, setSections] = useState<CartonSection[]>(initialSections);
 
   const applySuggestion = (sectionId: string, action: () => CartonSection) => {
@@ -333,12 +335,16 @@ const Cart = () => {
             </p>
           </div>
 
-          <button className="w-full py-3.5 rounded-xl bg-primary text-primary-foreground font-body font-bold text-sm flex items-center justify-center gap-2 hover:bg-primary/90 transition-colors shadow-fab">
+          <button
+            onClick={() => setShowCheckout(true)}
+            className="w-full py-3.5 rounded-xl bg-primary text-primary-foreground font-body font-bold text-sm flex items-center justify-center gap-2 hover:bg-primary/90 transition-colors shadow-fab"
+          >
             <ShoppingCart size={18} />
             Proceed to Sales Order
           </button>
         </motion.section>
       </div>
+      <CheckoutModal open={showCheckout} onClose={() => setShowCheckout(false)} grandTotal={subtotal + tax} />
     </AppShell>
   );
 };
