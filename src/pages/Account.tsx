@@ -1,9 +1,11 @@
 import AppShell from "@/components/AppShell";
 import WithdrawalModal from "@/components/WithdrawalModal";
 import { motion } from "framer-motion";
-import { Building2, FileText, MapPin, Wallet, Plus, ArrowDownLeft, ArrowUpRight, CreditCard, Users, Truck, Settings, Globe, BarChart3, HelpCircle, ScrollText } from "lucide-react";
+import { Building2, FileText, MapPin, Wallet, Plus, ArrowDownLeft, ArrowUpRight, CreditCard, Users, Truck, Settings, Globe, BarChart3, HelpCircle, ScrollText, LogOut } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useState } from "react";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
 
 const transactions = [
   { id: 1, type: "credit" as const, label: "Excess Advance Refund", amount: 10000, date: "12 Mar 2026" },
@@ -198,6 +200,21 @@ const Account = () => {
               <ArrowUpRight size={14} className="text-muted-foreground group-hover:text-primary transition-colors" />
             </button>
           </div>
+        </motion.section>
+
+        {/* Logout */}
+        <motion.section initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.5 }}>
+          <button
+            onClick={async () => {
+              await supabase.auth.signOut();
+              toast.success("Logged out");
+              navigate("/login");
+            }}
+            className="w-full py-3.5 rounded-xl border border-destructive/30 text-destructive font-body font-bold text-sm flex items-center justify-center gap-2 hover:bg-destructive/5 transition-colors"
+          >
+            <LogOut size={18} />
+            Sign Out
+          </button>
         </motion.section>
       </div>
 
