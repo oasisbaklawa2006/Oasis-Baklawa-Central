@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
 
 export interface CartItem {
@@ -27,32 +28,53 @@ export interface DraftOrder {
 }
 
 export function useCart() {
+  const { user, loading: authLoading } = useAuth();
+  const [companyId, setCompanyId] = useState<string | null>(null);
   const [draftOrder, setDraftOrder] = useState<DraftOrder | null>(null);
   const [items, setItems] = useState<CartItem[]>([]);
   const [loading, setLoading] = useState(true);
 
+  // Step 1: Fetch company_id once auth is ready
+  useEffect(() => {
+    if (authLoading) return;
+    if (!user) {
+      setCompanyId(null);
+      setLoading(false);
+      return;
+    }
+
+    const fetchCompany = async () => {
+      console.log("[useCart] auth user id:", user.id);
+      const { data } = await supabase
+        .from("users")
+        .select("company_id")
+        .eq("id", user.id)
+        .maybeSingle();
+
+      const cid = data?.company_id ?? null;
+      console.log("[useCart] company_id fetched:", cid);
+      setCompanyId(cid);
+    };
+
+    fetchCompany();
+  }, [user, authLoading]);
+
+  // Step 2: Fetch cart only after company_id is resolved
   const fetchCart = useCallback(async () => {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) { setLoading(false); return; }
+    if (!companyId) {
+      setLoading(false);
+      return;
+    }
 
-    // Get user's company_id
-    const { data: userData } = await supabase
-      .from("users")
-      .select("company_id")
-      .eq("id", user.id)
-      .single();
-
-    if (!userData?.company_id) { setLoading(false); return; }
-
-    // Find existing draft order
     const { data: orders } = await supabase
       .from("orders")
       .select("*")
-      .eq("company_id", userData.company_id)
+      .eq("company_id", companyId)
       .eq("status", "draft")
       .limit(1);
 
     const draft = orders?.[0] ?? null;
+    console.log("[useCart] draft order id:", draft?.id ?? "none");
     setDraftOrder(draft);
 
     if (draft) {
@@ -62,35 +84,38 @@ export function useCart() {
         .eq("order_id", draft.id);
 
       setItems((orderItems as unknown as CartItem[]) ?? []);
+    } else {
+      setItems([]);
     }
 
     setLoading(false);
-  }, []);
+  }, [companyId]);
 
-  useEffect(() => { fetchCart(); }, [fetchCart]);
+  useEffect(() => {
+    if (authLoading) return;
+    if (!user) { setLoading(false); return; }
+    if (companyId === null && !authLoading) {
+      // companyId not yet fetched or truly null — wait for the effect above
+      return;
+    }
+    fetchCart();
+  }, [companyId, fetchCart, user, authLoading]);
 
   const getOrCreateDraftOrder = async (): Promise<string | null> => {
     if (draftOrder) return draftOrder.id;
 
-    const { data: { user } } = await supabase.auth.getUser();
     if (!user) { toast.error("Please log in to add items to cart"); return null; }
-
-    const { data: userData } = await supabase
-      .from("users")
-      .select("company_id")
-      .eq("id", user.id)
-      .single();
-
-    if (!userData?.company_id) { toast.error("No company linked to your account"); return null; }
+    if (!companyId) { toast.error("Your account is pending B2B approval."); return null; }
 
     const { data: newOrder, error } = await supabase
       .from("orders")
-      .insert({ status: "draft", company_id: userData.company_id })
+      .insert({ status: "draft", company_id: companyId })
       .select()
       .single();
 
     if (error || !newOrder) { toast.error("Could not create cart order"); return null; }
 
+    console.log("[useCart] created draft order:", newOrder.id);
     setDraftOrder(newOrder);
     return newOrder.id;
   };
@@ -104,7 +129,6 @@ export function useCart() {
     const orderId = await getOrCreateDraftOrder();
     if (!orderId) return false;
 
-    // Check if product already in cart
     const existing = items.find((it) => it.product_id === productId);
 
     if (existing) {
@@ -135,9 +159,7 @@ export function useCart() {
   };
 
   const updateQuantity = async (itemId: string, quantity: number) => {
-    if (quantity <= 0) {
-      return removeItem(itemId);
-    }
+    if (quantity <= 0) return removeItem(itemId);
     const { error } = await supabase
       .from("order_items")
       .update({ quantity })
@@ -157,5 +179,5 @@ export function useCart() {
     await fetchCart();
   };
 
-  return { draftOrder, items, loading, addToCart, updateQuantity, removeItem, fetchCart };
+  return { draftOrder, items, loading: loading || authLoading, addToCart, updateQuantity, removeItem, fetchCart };
 }
