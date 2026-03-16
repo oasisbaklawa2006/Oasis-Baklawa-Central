@@ -1,6 +1,9 @@
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { X, Upload, CheckCircle2 } from "lucide-react";
+import { X, Upload, CheckCircle2, Loader2 } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/useAuth";
+import { toast } from "sonner";
 
 interface Props {
   open: boolean;
@@ -14,9 +17,23 @@ const ClaimModal = ({ open, onClose, orderId }: Props) => {
   const [issueType, setIssueType] = useState("");
   const [description, setDescription] = useState("");
   const [submitted, setSubmitted] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const { user } = useAuth();
 
-  const handleSubmit = () => {
-    if (!issueType) return;
+  const handleSubmit = async () => {
+    if (!issueType || !user) return;
+    setLoading(true);
+    const { error } = await supabase.from("support_tickets").insert({
+      order_id: orderId,
+      issue_type: issueType,
+      description: description || "No description provided",
+      user_id: user.id,
+    });
+    setLoading(false);
+    if (error) {
+      toast.error("Failed to submit claim: " + error.message);
+      return;
+    }
     setSubmitted(true);
     setTimeout(() => {
       setSubmitted(false);
@@ -56,7 +73,6 @@ const ClaimModal = ({ open, onClose, orderId }: Props) => {
                 <>
                   <p className="text-ui-label text-muted-foreground">Order: {orderId}</p>
 
-                  {/* Issue Type */}
                   <div className="space-y-2">
                     <label className="text-ui-label text-foreground">Issue Type</label>
                     <select
@@ -71,7 +87,6 @@ const ClaimModal = ({ open, onClose, orderId }: Props) => {
                     </select>
                   </div>
 
-                  {/* Description */}
                   <div className="space-y-2">
                     <label className="text-ui-label text-foreground">Description</label>
                     <textarea
@@ -83,7 +98,6 @@ const ClaimModal = ({ open, onClose, orderId }: Props) => {
                     />
                   </div>
 
-                  {/* File Upload */}
                   <div className="space-y-2">
                     <label className="text-ui-label text-foreground">Attach Photos (optional)</label>
                     <button className="w-full py-3 rounded-xl border-2 border-dashed border-border text-ui-button text-muted-foreground flex items-center justify-center gap-2 hover:border-primary/50 transition-colors">
@@ -92,13 +106,13 @@ const ClaimModal = ({ open, onClose, orderId }: Props) => {
                     </button>
                   </div>
 
-                  {/* Submit */}
                   <button
                     onClick={handleSubmit}
-                    disabled={!issueType}
-                    className="w-full py-3.5 rounded-xl bg-primary text-primary-foreground text-ui-button hover:bg-primary/90 transition-colors disabled:opacity-50"
+                    disabled={!issueType || loading}
+                    className="w-full py-3.5 rounded-xl bg-primary text-primary-foreground text-ui-button hover:bg-primary/90 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
                   >
-                    Submit Claim
+                    {loading && <Loader2 size={16} className="animate-spin" />}
+                    {loading ? "Submitting…" : "Submit Claim"}
                   </button>
                 </>
               )}

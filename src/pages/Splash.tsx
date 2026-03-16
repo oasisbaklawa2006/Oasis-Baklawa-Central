@@ -22,7 +22,7 @@ const Splash = () => {
         <motion.img
           src={logoImg}
           alt="Oasis Baklawa"
-          className="h-24 mx-auto object-contain"
+          className="w-[145px] sm:w-[190px] md:w-[220px] mx-auto object-contain"
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.3, duration: 0.6 }}

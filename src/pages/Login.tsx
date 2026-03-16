@@ -60,7 +60,7 @@ const Login = () => {
         className="w-full max-w-sm space-y-8"
       >
         <div className="text-center space-y-3">
-          <img src={logoImg} alt="Oasis Baklawa" className="h-16 mx-auto object-contain" />
+          <img src={logoImg} alt="Oasis Baklawa" className="w-[120px] sm:w-[150px] md:w-[175px] mx-auto object-contain" />
           <h1 className="font-display text-3xl tracking-wide text-foreground">Welcome Back</h1>
           <p className="font-body text-sm text-muted-foreground">Sign in to your B2B account</p>
         </div>
