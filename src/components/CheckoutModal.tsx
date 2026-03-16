@@ -1,12 +1,15 @@
 import { motion, AnimatePresence } from "framer-motion";
-import { X, Wallet, Smartphone, Building, CheckCircle2, ShieldCheck } from "lucide-react";
+import { X, Wallet, Smartphone, Building, CheckCircle2, ShieldCheck, Loader2 } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
+import { supabase } from "@/integrations/supabase/client";
 
 interface CheckoutModalProps {
   open: boolean;
   onClose: () => void;
   grandTotal: number;
+  orderId?: string | null;
+  onOrderConfirmed?: () => void;
 }
 
 const formatPrice = (n: number) => "₹" + n.toLocaleString("en-IN");
