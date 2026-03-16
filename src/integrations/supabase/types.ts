@@ -313,6 +313,41 @@ export type Database = {
           },
         ]
       }
+      order_status_history: {
+        Row: {
+          changed_at: string | null
+          changed_by: string | null
+          id: string
+          new_status: string | null
+          old_status: string | null
+          order_id: string | null
+        }
+        Insert: {
+          changed_at?: string | null
+          changed_by?: string | null
+          id?: string
+          new_status?: string | null
+          old_status?: string | null
+          order_id?: string | null
+        }
+        Update: {
+          changed_at?: string | null
+          changed_by?: string | null
+          id?: string
+          new_status?: string | null
+          old_status?: string | null
+          order_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "order_status_history_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       orders: {
         Row: {
           advance_paid: number | null
@@ -353,20 +388,29 @@ export type Database = {
       }
       packing_lists: {
         Row: {
+          carton_type: string | null
           dispatch_id: string | null
           id: string
+          order_item_id: string | null
+          pack_size: string | null
           packed_quantity: number
           product_id: string | null
         }
         Insert: {
+          carton_type?: string | null
           dispatch_id?: string | null
           id?: string
+          order_item_id?: string | null
+          pack_size?: string | null
           packed_quantity?: number
           product_id?: string | null
         }
         Update: {
+          carton_type?: string | null
           dispatch_id?: string | null
           id?: string
+          order_item_id?: string | null
+          pack_size?: string | null
           packed_quantity?: number
           product_id?: string | null
         }
@@ -376,6 +420,13 @@ export type Database = {
             columns: ["dispatch_id"]
             isOneToOne: false
             referencedRelation: "dispatches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "packing_lists_order_item_id_fkey"
+            columns: ["order_item_id"]
+            isOneToOne: false
+            referencedRelation: "order_items"
             referencedColumns: ["id"]
           },
           {
