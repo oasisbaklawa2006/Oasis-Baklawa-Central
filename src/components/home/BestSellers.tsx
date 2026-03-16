@@ -1,7 +1,8 @@
-import { Plus } from "lucide-react";
+import { Plus, Lock } from "lucide-react";
 import { motion } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 import { useProducts } from "@/hooks/useProducts";
+import { useAuth } from "@/hooks/useAuth";
 import { Skeleton } from "@/components/ui/skeleton";
 
 const formatPrice = (price: number) =>
@@ -10,6 +11,7 @@ const formatPrice = (price: number) =>
 const BestSellers = () => {
   const navigate = useNavigate();
   const { products, loading } = useProducts();
+  const { isAuthenticated } = useAuth();
 
   // Show first 4 products as "best sellers"
   const bestSellers = products.slice(0, 4);
@@ -57,13 +59,21 @@ const BestSellers = () => {
                   <p className="font-body font-semibold text-foreground text-sm leading-tight">
                     {product.name}
                   </p>
-                  <p className="font-fine text-[11px] text-muted-foreground mt-1.5">
-                    {formatPrice(product.price_per_kg)}
-                  </p>
-                  <button className="mt-3 w-full py-2 rounded-lg bg-primary/10 text-primary font-body font-semibold text-xs flex items-center justify-center gap-1.5 hover:bg-primary hover:text-primary-foreground transition-colors">
-                    <Plus size={14} />
-                    Add
-                  </button>
+                  {isAuthenticated ? (
+                    <>
+                      <p className="font-fine text-[11px] text-muted-foreground mt-1.5">
+                        {formatPrice(product.price_per_kg)}
+                      </p>
+                      <button className="mt-3 w-full py-2 rounded-lg bg-primary/10 text-primary font-body font-semibold text-xs flex items-center justify-center gap-1.5 hover:bg-primary hover:text-primary-foreground transition-colors">
+                        <Plus size={14} />
+                        Add
+                      </button>
+                    </>
+                  ) : (
+                    <p className="font-fine text-[11px] text-muted-foreground mt-1.5 flex items-center gap-1">
+                      <Lock size={10} /> Login to view pricing
+                    </p>
+                  )}
                 </div>
               </div>
             ))}
