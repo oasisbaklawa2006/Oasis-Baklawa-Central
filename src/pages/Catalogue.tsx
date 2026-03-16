@@ -37,6 +37,7 @@ const Catalogue = () => {
   const [activeSub, setActiveSub] = useState("Baklawa");
   const navigate = useNavigate();
   const { products, loading } = useProducts();
+  const { addToCart } = useCart();
 
   return (
     <AppShell>
