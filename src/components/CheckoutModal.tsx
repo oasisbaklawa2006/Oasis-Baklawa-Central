@@ -1,12 +1,15 @@
 import { motion, AnimatePresence } from "framer-motion";
-import { X, Wallet, Smartphone, Building, CheckCircle2, ShieldCheck } from "lucide-react";
+import { X, Wallet, Smartphone, Building, CheckCircle2, ShieldCheck, Loader2 } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
+import { supabase } from "@/integrations/supabase/client";
 
 interface CheckoutModalProps {
   open: boolean;
   onClose: () => void;
   grandTotal: number;
+  orderId?: string | null;
+  onOrderConfirmed?: () => void;
 }
 
 const formatPrice = (n: number) => "₹" + n.toLocaleString("en-IN");
@@ -17,12 +20,33 @@ const paymentMethods = [
   { id: "wallet", label: "Use Wallet Balance", desc: "Available: ₹45,000", icon: Wallet },
 ];
 
-const CheckoutModal = ({ open, onClose, grandTotal }: CheckoutModalProps) => {
+const CheckoutModal = ({ open, onClose, grandTotal, orderId, onOrderConfirmed }: CheckoutModalProps) => {
   const [selected, setSelected] = useState("upi");
+  const [confirming, setConfirming] = useState(false);
   const advance = Math.round(grandTotal * 0.5);
 
-  const handleConfirm = () => {
+  const handleConfirm = async () => {
+    if (!orderId) {
+      toast.error("No active order found");
+      return;
+    }
+    setConfirming(true);
+    const { error } = await supabase
+      .from("orders")
+      .update({
+        status: "awaiting_advance",
+        sales_order_value: grandTotal,
+        advance_required: advance,
+      })
+      .eq("id", orderId);
+
+    setConfirming(false);
+    if (error) {
+      toast.error("Failed to confirm order. Please try again.");
+      return;
+    }
     toast.success("Order confirmed! Advance payment initiated.");
+    onOrderConfirmed?.();
     onClose();
   };
 
@@ -105,7 +129,8 @@ const CheckoutModal = ({ open, onClose, grandTotal }: CheckoutModalProps) => {
                   onClick={handleConfirm}
                   className="w-full py-4 rounded-xl bg-primary text-primary-foreground font-body font-bold text-sm flex items-center justify-center gap-2 hover:bg-primary/90 transition-colors shadow-fab"
                 >
-                  Pay Advance & Confirm Order
+                  {confirming ? <Loader2 size={16} className="animate-spin" /> : null}
+                  {confirming ? "Confirming…" : "Pay Advance & Confirm Order"}
                 </button>
                 <p className="font-body text-[10px] text-muted-foreground text-center leading-relaxed">
                   By confirming, you agree to Oasis Baklawa's B2B terms. Advance is non-refundable once production begins.

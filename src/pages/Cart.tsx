@@ -44,7 +44,7 @@ function groupByCartonType(items: CartItem[]): GroupedSection[] {
 
 const Cart = () => {
   const [showCheckout, setShowCheckout] = useState(false);
-  const { items, loading, updateQuantity, removeItem } = useCart();
+  const { items, loading, updateQuantity, removeItem, draftOrder } = useCart();
 
   const sections = useMemo(() => groupByCartonType(items), [items]);
 
@@ -261,7 +261,16 @@ const Cart = () => {
           </button>
         </motion.section>
       </div>
-      <CheckoutModal open={showCheckout} onClose={() => setShowCheckout(false)} grandTotal={subtotal + tax} />
+      <CheckoutModal
+        open={showCheckout}
+        onClose={() => setShowCheckout(false)}
+        grandTotal={subtotal + tax}
+        orderId={draftOrder?.id ?? null}
+        onOrderConfirmed={() => {
+          // Reset cart state after order is confirmed
+          window.location.href = "/orders";
+        }}
+      />
     </AppShell>
   );
 };
