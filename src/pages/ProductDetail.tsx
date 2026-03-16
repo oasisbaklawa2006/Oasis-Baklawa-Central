@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Heart, ShoppingCart, Minus, Plus, AlertTriangle } from "lucide-react";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { useNavigate } from "react-router-dom";
+import { useCart } from "@/hooks/useCart";
 
 import pistachioImg from "@/assets/baklawa-pistachio.jpg";
 
@@ -40,6 +41,7 @@ const ProductDetail = () => {
   const [qty, setQty] = useState(product.minPacks);
   const [isFav, setIsFav] = useState(false);
   const navigate = useNavigate();
+  const { addToCart } = useCart();
 
   const adjustQty = (delta: number) => {
     setQty((prev) => {
@@ -216,7 +218,11 @@ const ProductDetail = () => {
             )}
 
             <button
-              onClick={() => navigate("/cart")}
+              onClick={async () => {
+                // TODO: use real product id from route params when ProductDetail fetches from DB
+                const success = await addToCart("placeholder-product-id", qty, product.packSize, `Category ${product.category}`);
+                if (success) navigate("/cart");
+              }}
               className="w-full py-3.5 rounded-xl bg-primary text-primary-foreground font-body font-bold text-sm flex items-center justify-center gap-2 hover:bg-primary/90 transition-colors shadow-fab"
             >
               <ShoppingCart size={18} />

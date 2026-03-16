@@ -2,128 +2,89 @@ import AppShell from "@/components/AppShell";
 import CheckoutModal from "@/components/CheckoutModal";
 import { motion, AnimatePresence } from "framer-motion";
 import { useState, useMemo } from "react";
-import { Package, ShoppingCart, AlertTriangle, Sparkles, CheckCircle2, Info } from "lucide-react";
-
-import pistachioImg from "@/assets/baklawa-pistachio.jpg";
-import cashewImg from "@/assets/baklawa-cashew.jpg";
-import walnutImg from "@/assets/baklawa-walnut.jpg";
-
-/* ── Types ── */
-interface CartItem { name: string; packs: number; pricePerPack: number; packSize: string }
-interface CartonSection {
-  id: string;
-  label: string;
-  packsPerCarton: number;
-  minVariantPacks: number;
-  items: CartItem[];
-}
-
-const initialSections: CartonSection[] = [
-  {
-    id: "a",
-    label: "Category A Cartons",
-    packsPerCarton: 4,
-    minVariantPacks: 1,
-    items: [{ name: "Turkish Pistachio Baklawa", packs: 4, pricePerPack: 2250, packSize: "1kg" }],
-  },
-  {
-    id: "b",
-    label: "Category B Cartons",
-    packsPerCarton: 6,
-    minVariantPacks: 1,
-    items: [{ name: "Cashew Roll Baklawa", packs: 6, pricePerPack: 1900, packSize: "500g" }],
-  },
-  {
-    id: "c",
-    label: "Category C Cartons",
-    packsPerCarton: 9,
-    minVariantPacks: 3,
-    items: [
-      { name: "Walnut Diamond Cut", packs: 3, pricePerPack: 1600, packSize: "500g" },
-      { name: "Date & Almond Rolls", packs: 3, pricePerPack: 933, packSize: "250g" },
-      { name: "Chocolate Assiyah", packs: 3, pricePerPack: 1200, packSize: "500g" },
-    ],
-  },
-];
+import { Package, ShoppingCart, AlertTriangle, Sparkles, CheckCircle2, Info, Loader2, Trash2 } from "lucide-react";
+import { useCart, type CartItem } from "@/hooks/useCart";
+import { Skeleton } from "@/components/ui/skeleton";
 
 const formatPrice = (n: number) => "₹" + n.toLocaleString("en-IN");
 
-function getSmartFillSuggestions(section: CartonSection): { message: string; action: () => CartonSection }[] {
-  const totalPacks = section.items.reduce((s, it) => s + it.packs, 0);
-  const remainder = totalPacks % section.packsPerCarton;
-  if (remainder === 0) return [];
+/* ── Carton rules by carton_type ── */
+interface CartonRule {
+  packsPerCarton: number;
+  minVariantPacks: number;
+}
 
-  const remaining = section.packsPerCarton - remainder;
-  const suggestions: { message: string; action: () => CartonSection }[] = [];
+function getCartonRule(cartonType: string | null): CartonRule {
+  // Category C = 9 packs/carton, min 3 per variant
+  if (cartonType?.toLowerCase().includes("c")) return { packsPerCarton: 9, minVariantPacks: 3 };
+  if (cartonType?.toLowerCase().includes("b")) return { packsPerCarton: 6, minVariantPacks: 1 };
+  if (cartonType?.toLowerCase().includes("a")) return { packsPerCarton: 4, minVariantPacks: 1 };
+  return { packsPerCarton: 1, minVariantPacks: 1 };
+}
 
-  if (remaining >= section.minVariantPacks) {
-    suggestions.push({
-      message: `Add ${remaining} × 1kg Packs of Pistachio Baklawa`,
-      action: () => {
-        const existing = section.items.find((it) => it.name === "Pistachio Baklawa");
-        if (existing) {
-          return { ...section, items: section.items.map((it) => it.name === "Pistachio Baklawa" ? { ...it, packs: it.packs + remaining } : it) };
-        }
-        return { ...section, items: [...section.items, { name: "Pistachio Baklawa", packs: remaining, pricePerPack: 2250, packSize: "1kg" }] };
-      },
-    });
+interface GroupedSection {
+  cartonType: string;
+  rule: CartonRule;
+  items: CartItem[];
+}
+
+function groupByCartonType(items: CartItem[]): GroupedSection[] {
+  const map = new Map<string, CartItem[]>();
+  for (const item of items) {
+    const key = item.product?.carton_type ?? item.carton_type ?? "Other";
+    if (!map.has(key)) map.set(key, []);
+    map.get(key)!.push(item);
   }
-
-  if (section.minVariantPacks === 3) {
-    const violators = section.items.filter((it) => it.packs < section.minVariantPacks && it.packs > 0);
-    if (violators.length === 0) {
-      const adjustableItem = section.items[0];
-      if (adjustableItem) {
-        const newPacks = adjustableItem.packs + remaining;
-        if (newPacks >= section.minVariantPacks) {
-          suggestions.push({
-            message: `Change ${adjustableItem.name} from ${adjustableItem.packs} to ${newPacks} packs`,
-            action: () => ({
-              ...section,
-              items: section.items.map((it) =>
-                it.name === adjustableItem.name ? { ...it, packs: newPacks } : it
-              ),
-            }),
-          });
-        }
-      }
-    } else {
-      for (const v of violators) {
-        suggestions.push({
-          message: `Increase ${v.name} from ${v.packs} to ${section.minVariantPacks} packs`,
-          action: () => ({
-            ...section,
-            items: section.items.map((it) =>
-              it.name === v.name ? { ...it, packs: section.minVariantPacks } : it
-            ),
-          }),
-        });
-      }
-    }
-  }
-
-  return suggestions;
+  return Array.from(map.entries()).map(([cartonType, items]) => ({
+    cartonType,
+    rule: getCartonRule(cartonType),
+    items,
+  }));
 }
 
 const Cart = () => {
   const [showCheckout, setShowCheckout] = useState(false);
-  const [sections, setSections] = useState<CartonSection[]>(initialSections);
+  const { items, loading, updateQuantity, removeItem } = useCart();
 
-  const applySuggestion = (sectionId: string, action: () => CartonSection) => {
-    setSections((prev) =>
-      prev.map((sec) => (sec.id === sectionId ? action() : sec))
-    );
-  };
+  const sections = useMemo(() => groupByCartonType(items), [items]);
 
   const subtotal = useMemo(
-    () => sections.reduce((sum, sec) => sum + sec.items.reduce((s, it) => s + it.packs * it.pricePerPack, 0), 0),
-    [sections]
+    () => items.reduce((sum, it) => sum + it.quantity * (it.product?.price_per_kg ?? 0), 0),
+    [items]
   );
   const tax = Math.round(subtotal * 0.18);
-  const totalCartons = sections.reduce((sum, sec) => {
-    const packs = sec.items.reduce((s, it) => s + it.packs, 0);
-    return sum + Math.floor(packs / sec.packsPerCarton);
-  }, 0);
+
+  const totalCartons = useMemo(() =>
+    sections.reduce((sum, sec) => {
+      const packs = sec.items.reduce((s, it) => s + it.quantity, 0);
+      return sum + Math.floor(packs / sec.rule.packsPerCarton);
+    }, 0),
+    [sections]
+  );
+
+  if (loading) {
+    return (
+      <AppShell>
+        <div className="px-5 py-6 space-y-6">
+          <Skeleton className="h-8 w-40" />
+          <Skeleton className="h-48 w-full rounded-2xl" />
+          <Skeleton className="h-48 w-full rounded-2xl" />
+        </div>
+      </AppShell>
+    );
+  }
+
+  if (items.length === 0) {
+    return (
+      <AppShell>
+        <div className="px-5 py-6 flex flex-col items-center justify-center min-h-[60vh] space-y-4">
+          <ShoppingCart size={48} className="text-muted-foreground" />
+          <h1 className="font-display text-2xl tracking-wide text-foreground">Your Cart is Empty</h1>
+          <p className="font-body text-sm text-muted-foreground text-center">Add products from the catalogue to get started.</p>
+        </div>
+      </AppShell>
+    );
+  }
 
   return (
     <AppShell>
@@ -137,16 +98,16 @@ const Cart = () => {
         </motion.h1>
 
         {sections.map((section, si) => {
-          const totalPacks = section.items.reduce((s, it) => s + it.packs, 0);
-          const remainder = totalPacks % section.packsPerCarton;
-          const isIncomplete = remainder > 0;
+          const totalPacks = section.items.reduce((s, it) => s + it.quantity, 0);
+          const remainder = totalPacks % section.rule.packsPerCarton;
+          const isIncomplete = remainder > 0 && section.rule.packsPerCarton > 1;
           const isComplete = !isIncomplete && totalPacks > 0;
-          const suggestions = isIncomplete ? getSmartFillSuggestions(section) : [];
-          const hasVariantViolation = section.minVariantPacks > 1 && section.items.some((it) => it.packs > 0 && it.packs < section.minVariantPacks);
+          const hasVariantViolation = section.rule.minVariantPacks > 1 &&
+            section.items.some((it) => it.quantity > 0 && it.quantity < section.rule.minVariantPacks);
 
           return (
             <motion.section
-              key={section.id}
+              key={section.cartonType}
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: si * 0.1 }}
@@ -154,64 +115,67 @@ const Cart = () => {
             >
               <div className="flex items-center gap-2">
                 <Package size={18} className="text-primary" />
-                <h2 className="font-body font-bold text-foreground text-sm">{section.label}</h2>
-                <span className="font-body text-xs text-muted-foreground">({section.packsPerCarton} Packs/Carton)</span>
+                <h2 className="font-body font-bold text-foreground text-sm">{section.cartonType} Cartons</h2>
+                <span className="font-body text-xs text-muted-foreground">({section.rule.packsPerCarton} Packs/Carton)</span>
               </div>
 
-              {section.minVariantPacks > 1 && (
+              {section.rule.minVariantPacks > 1 && (
                 <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-primary/5 border border-primary/15">
                   <Info size={12} className="text-primary flex-shrink-0" />
                   <p className="font-body text-[11px] text-primary font-medium">
-                    Min. {section.minVariantPacks} packs per variant · Valid combos: 3+3+3, 6+3, or 9
+                    Min. {section.rule.minVariantPacks} packs per variant · Valid combos: 3+3+3, 6+3, or 9
                   </p>
                 </div>
               )}
 
               <div className="space-y-3">
-                {section.items.map((item, ii) => {
-                  const isViolating = section.minVariantPacks > 1 && item.packs > 0 && item.packs < section.minVariantPacks;
-
-                  const handleIncrement = () => {
-                    setSections(prev => prev.map(sec => sec.id !== section.id ? sec : {
-                      ...sec,
-                      items: sec.items.map((it, idx) => {
-                        if (idx !== ii) return it;
-                        if (it.packs === 0 && sec.minVariantPacks > 1) return { ...it, packs: sec.minVariantPacks };
-                        return { ...it, packs: it.packs + 1 };
-                      }),
-                    }));
-                  };
-
-                  const handleDecrement = () => {
-                    setSections(prev => prev.map(sec => sec.id !== section.id ? sec : {
-                      ...sec,
-                      items: sec.items.map((it, idx) => {
-                        if (idx !== ii) return it;
-                        if (sec.minVariantPacks > 1 && it.packs <= sec.minVariantPacks) return { ...it, packs: 0 };
-                        return { ...it, packs: Math.max(0, it.packs - 1) };
-                      }),
-                    }));
-                  };
+                {section.items.map((item) => {
+                  const isViolating = section.rule.minVariantPacks > 1 && item.quantity > 0 && item.quantity < section.rule.minVariantPacks;
+                  const product = item.product;
+                  const price = product?.price_per_kg ?? 0;
 
                   return (
-                    <div key={ii} className={`flex items-center justify-between py-3 border-b last:border-0 ${isViolating ? "border-destructive/30" : "border-border/50"}`}>
-                      <div className="flex-1 min-w-0">
-                        <p className="font-body font-semibold text-foreground text-sm">{item.name}</p>
-                        <p className="font-fine text-[11px] text-muted-foreground">
-                          {item.packs} × {item.packSize} Pack{item.packs !== 1 ? "s" : ""}
-                        </p>
-                        {isViolating && (
-                          <p className="font-body text-[11px] text-destructive font-medium mt-0.5">
-                            ⚠ Below {section.minVariantPacks}-pack minimum
-                          </p>
+                    <div key={item.id} className={`flex items-center justify-between py-3 border-b last:border-0 ${isViolating ? "border-destructive/30" : "border-border/50"}`}>
+                      <div className="flex items-center gap-3 flex-1 min-w-0">
+                        {product?.image_url && (
+                          <img src={product.image_url} alt={product.name} className="w-12 h-12 rounded-lg object-cover flex-shrink-0" />
                         )}
+                        <div className="min-w-0">
+                          <p className="font-body font-semibold text-foreground text-sm">{product?.name ?? "Unknown Product"}</p>
+                          <p className="font-fine text-[11px] text-muted-foreground">
+                            {item.quantity} × {product?.pack_size ?? item.pack_size ?? "1kg"} Pack{item.quantity !== 1 ? "s" : ""}
+                          </p>
+                          {isViolating && (
+                            <p className="font-body text-[11px] text-destructive font-medium mt-0.5">
+                              ⚠ Below {section.rule.minVariantPacks}-pack minimum
+                            </p>
+                          )}
+                        </div>
                       </div>
                       <div className="flex items-center gap-2">
-                        <button onClick={handleDecrement} className="w-8 h-8 rounded-lg bg-muted border border-border flex items-center justify-center hover:border-primary/50 transition-colors text-foreground text-sm font-bold">−</button>
-                        <span className="font-body font-bold text-foreground text-sm w-6 text-center">{item.packs}</span>
-                        <button onClick={handleIncrement} className="w-8 h-8 rounded-lg bg-muted border border-border flex items-center justify-center hover:border-primary/50 transition-colors text-foreground text-sm font-bold">+</button>
+                        <button
+                          onClick={() => {
+                            if (section.rule.minVariantPacks > 1 && item.quantity <= section.rule.minVariantPacks) {
+                              removeItem(item.id);
+                            } else {
+                              updateQuantity(item.id, item.quantity - 1);
+                            }
+                          }}
+                          className="w-8 h-8 rounded-lg bg-muted border border-border flex items-center justify-center hover:border-primary/50 transition-colors text-foreground text-sm font-bold"
+                        >−</button>
+                        <span className="font-body font-bold text-foreground text-sm w-6 text-center">{item.quantity}</span>
+                        <button
+                          onClick={() => updateQuantity(item.id, item.quantity + 1)}
+                          className="w-8 h-8 rounded-lg bg-muted border border-border flex items-center justify-center hover:border-primary/50 transition-colors text-foreground text-sm font-bold"
+                        >+</button>
+                        <button
+                          onClick={() => removeItem(item.id)}
+                          className="w-8 h-8 rounded-lg flex items-center justify-center hover:bg-destructive/10 transition-colors"
+                        >
+                          <Trash2 size={14} className="text-destructive" />
+                        </button>
                       </div>
-                      <p className="font-body font-bold text-foreground text-sm ml-3 min-w-[70px] text-right">{formatPrice(item.packs * item.pricePerPack)}</p>
+                      <p className="font-body font-bold text-foreground text-sm ml-3 min-w-[70px] text-right">{formatPrice(item.quantity * price)}</p>
                     </div>
                   );
                 })}
@@ -229,26 +193,14 @@ const Cart = () => {
                     <div className="flex items-center gap-2">
                       <AlertTriangle size={14} className="text-destructive" />
                       <p className="font-body text-xs text-destructive font-semibold">
-                        Incomplete Carton: {section.packsPerCarton} packs required. ({totalPacks} selected)
+                        Incomplete Carton: {section.rule.packsPerCarton} packs required. ({totalPacks} selected)
                       </p>
                     </div>
                     {hasVariantViolation && (
                       <p className="font-body text-[11px] text-destructive/80">
-                        Each variant must have at least {section.minVariantPacks} packs. Adjust quantities below.
+                        Each variant must have at least {section.rule.minVariantPacks} packs. Adjust quantities above.
                       </p>
                     )}
-                    <div className="flex flex-col gap-2">
-                      {suggestions.map((sug, idx) => (
-                        <button
-                          key={idx}
-                          onClick={() => applySuggestion(section.id, sug.action)}
-                          className="w-full py-2.5 px-4 rounded-lg bg-card border border-border text-foreground font-body text-xs font-medium hover:border-primary/50 transition-colors flex items-center gap-2"
-                        >
-                          <Sparkles size={12} className="text-primary" />
-                          {sug.message}
-                        </button>
-                      ))}
-                    </div>
                   </motion.div>
                 ) : isComplete ? (
                   <motion.div
