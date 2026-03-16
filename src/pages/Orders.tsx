@@ -5,6 +5,7 @@ import { ChevronDown, Package, CheckCircle2, Truck, BoxIcon, CreditCard, Clipboa
 import { useNavigate } from "react-router-dom";
 import { Badge } from "@/components/ui/badge";
 import SupportTicketModal from "@/components/SupportTicketModal";
+import ClaimModal from "@/components/ClaimModal";
 
 import pistachioImg from "@/assets/baklawa-pistachio.jpg";
 import cashewImg from "@/assets/baklawa-cashew.jpg";
@@ -37,69 +38,36 @@ const filterChips = ["All", "Unpaid", "Undelivered", "Issues Pending", "Complete
 
 const orders: Order[] = [
   {
-    id: "ORD-2026-089",
-    date: "12 Mar 2026",
-    value: "₹82,000",
-    status: "unpaid",
-    statusLabel: "Unpaid Advance",
-    image: pistachioImg,
-    productName: "Pistachio Baklawa × 20 Cartons",
+    id: "ORD-2026-089", date: "12 Mar 2026", value: "₹82,000", status: "unpaid", statusLabel: "Unpaid Advance",
+    image: pistachioImg, productName: "Pistachio Baklawa × 20 Cartons",
     timeline: [
-      { label: "Order Placed", done: true },
-      { label: "Advance Paid", done: false },
-      { label: "Production", done: false },
-      { label: "Packing", done: false },
-      { label: "Dispatched", done: false },
-      { label: "Delivered", done: false },
+      { label: "Order Placed", done: true }, { label: "Advance Paid", done: false },
+      { label: "Production", done: false }, { label: "Packing", done: false },
+      { label: "Dispatched", done: false }, { label: "Delivered", done: false },
     ],
-    documents: [
-      { name: "Invoice INV-089", type: "invoice" },
-      { name: "LR Copy (Transport)", type: "lr" },
-    ],
+    documents: [{ name: "Invoice INV-089", type: "invoice" }, { name: "LR Copy (Transport)", type: "lr" }],
   },
   {
-    id: "ORD-2026-074",
-    date: "28 Feb 2026",
-    value: "₹1,45,000",
-    status: "production",
-    statusLabel: "Dispatched",
-    image: cashewImg,
-    productName: "Cashew Roll Baklawa × 35 Cartons",
+    id: "ORD-2026-074", date: "28 Feb 2026", value: "₹1,45,000", status: "production", statusLabel: "Dispatched",
+    image: cashewImg, productName: "Cashew Roll Baklawa × 35 Cartons",
     fulfillment: { ordered: 35, packed: 30, shortfall: 5 },
     timeline: [
-      { label: "Order Placed", done: true },
-      { label: "Advance Paid", done: true },
-      { label: "Production", done: true },
-      { label: "Packing", done: true },
-      { label: "Dispatched", done: true },
-      { label: "Delivered", done: false },
+      { label: "Order Placed", done: true }, { label: "Advance Paid", done: true },
+      { label: "Production", done: true }, { label: "Packing", done: true },
+      { label: "Dispatched", done: true }, { label: "Delivered", done: false },
     ],
-    documents: [
-      { name: "Invoice INV-074", type: "invoice" },
-      { name: "LR Copy (Transport)", type: "lr" },
-    ],
+    documents: [{ name: "Invoice INV-074", type: "invoice" }, { name: "LR Copy (Transport)", type: "lr" }],
   },
   {
-    id: "ORD-2026-051",
-    date: "10 Feb 2026",
-    value: "₹63,500",
-    status: "delivered",
-    statusLabel: "Delivered - Ticket Open",
-    image: walnutImg,
-    productName: "Walnut Diamond Cut × 15 Cartons",
+    id: "ORD-2026-051", date: "10 Feb 2026", value: "₹63,500", status: "delivered", statusLabel: "Delivered - Ticket Open",
+    image: walnutImg, productName: "Walnut Diamond Cut × 15 Cartons",
     supportDaysRemaining: 8,
     timeline: [
-      { label: "Order Placed", done: true },
-      { label: "Advance Paid", done: true },
-      { label: "Production", done: true },
-      { label: "Packing", done: true },
-      { label: "Dispatched", done: true },
-      { label: "Delivered", done: true },
+      { label: "Order Placed", done: true }, { label: "Advance Paid", done: true },
+      { label: "Production", done: true }, { label: "Packing", done: true },
+      { label: "Dispatched", done: true }, { label: "Delivered", done: true },
     ],
-    documents: [
-      { name: "Invoice INV-051", type: "invoice" },
-      { name: "LR Copy (Transport)", type: "lr" },
-    ],
+    documents: [{ name: "Invoice INV-051", type: "invoice" }, { name: "LR Copy (Transport)", type: "lr" }],
   },
 ];
 
@@ -109,6 +77,7 @@ const Orders = () => {
   const [expanded, setExpanded] = useState<string | null>(null);
   const [activeFilter, setActiveFilter] = useState("All");
   const [ticketOrder, setTicketOrder] = useState<string | null>(null);
+  const [claimOrder, setClaimOrder] = useState<string | null>(null);
   const navigate = useNavigate();
 
   const filteredOrders = orders.filter((o) => {
@@ -123,11 +92,7 @@ const Orders = () => {
   return (
     <AppShell>
       <div className="px-5 py-6 space-y-6">
-        <motion.h1
-          initial={{ opacity: 0, y: 12 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="font-display text-2xl md:text-3xl tracking-wide text-foreground"
-        >
+        <motion.h1 initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="text-display-h1 text-foreground">
           Order History
         </motion.h1>
 
@@ -137,7 +102,7 @@ const Orders = () => {
             <button
               key={chip}
               onClick={() => setActiveFilter(chip)}
-              className={`px-4 py-2 rounded-full font-body text-xs font-semibold whitespace-nowrap transition-colors border ${
+              className={`px-4 py-2 rounded-full text-ui-button whitespace-nowrap transition-colors border ${
                 activeFilter === chip
                   ? "bg-primary text-primary-foreground border-primary"
                   : "bg-card text-muted-foreground border-border hover:border-primary/50"
@@ -151,45 +116,29 @@ const Orders = () => {
         <div className="space-y-4">
           {filteredOrders.map((order, i) => {
             const isOpen = expanded === order.id;
+            const isDispatchedOrDelivered = order.status === "delivered" || order.statusLabel.toLowerCase().includes("dispatched");
             return (
-              <motion.div
-                key={order.id}
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: i * 0.1 }}
-                className="bg-card rounded-2xl shadow-card overflow-hidden"
-              >
-                <button
-                  onClick={() => setExpanded(isOpen ? null : order.id)}
-                  className="w-full p-4 flex items-center gap-4 text-left"
-                >
+              <motion.div key={order.id} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.1 }} className="bg-card rounded-2xl shadow-card overflow-hidden">
+                <button onClick={() => setExpanded(isOpen ? null : order.id)} className="w-full p-4 flex items-center gap-4 text-left">
                   <img src={order.image} alt={order.productName} className="w-14 h-14 rounded-xl object-cover flex-shrink-0" />
                   <div className="flex-1 min-w-0">
-                    <p className="font-body font-bold text-foreground text-sm">{order.id}</p>
-                    <p className="font-body text-xs text-muted-foreground truncate">{order.productName}</p>
+                    <p className="text-ui-h5 text-foreground">{order.id}</p>
+                    <p className="text-ui-cell text-muted-foreground truncate">{order.productName}</p>
                     <div className="flex items-center gap-2 mt-1.5">
-                      <p className="font-body text-xs text-muted-foreground">{order.date}</p>
+                      <p className="text-ui-cell text-muted-foreground">{order.date}</p>
                       <span className="text-muted-foreground">·</span>
-                      <p className="font-body text-sm font-semibold text-foreground">{order.value}</p>
+                      <p className="text-ui-kpi text-sm text-foreground">{order.value}</p>
                     </div>
                   </div>
                   <div className="flex flex-col items-end gap-2 flex-shrink-0">
-                    <Badge className={`text-[11px] border ${statusStyles[order.status]}`}>
-                      {order.statusLabel}
-                    </Badge>
+                    <Badge className={`text-fine border ${statusStyles[order.status]}`}>{order.statusLabel}</Badge>
                     <ChevronDown size={18} className={`text-muted-foreground transition-transform duration-300 ${isOpen ? "rotate-180" : ""}`} />
                   </div>
                 </button>
 
                 <AnimatePresence>
                   {isOpen && (
-                    <motion.div
-                      initial={{ height: 0, opacity: 0 }}
-                      animate={{ height: "auto", opacity: 1 }}
-                      exit={{ height: 0, opacity: 0 }}
-                      transition={{ duration: 0.3 }}
-                      className="overflow-hidden"
-                    >
+                    <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }} transition={{ duration: 0.3 }} className="overflow-hidden">
                       <div className="px-5 pb-5 pt-1 space-y-5">
                         {/* Timeline */}
                         <div className="border-t border-border pt-4">
@@ -204,9 +153,7 @@ const Orders = () => {
                                   </div>
                                   {!isLast && <div className={`w-0.5 h-6 ${step.done ? "bg-primary" : "bg-border"}`} />}
                                 </div>
-                                <p className={`font-body text-sm pt-1.5 ${step.done ? "text-foreground font-semibold" : "text-muted-foreground"}`}>
-                                  {step.label}
-                                </p>
+                                <p className={`text-body-p2 pt-1.5 ${step.done ? "text-foreground font-semibold" : "text-muted-foreground"}`}>{step.label}</p>
                               </div>
                             );
                           })}
@@ -216,27 +163,52 @@ const Orders = () => {
                         {order.fulfillment && (
                           <div className="border-t border-border pt-4">
                             <div className="bg-primary/5 rounded-xl p-4 border border-primary/15 space-y-3">
-                              <h3 className="font-body font-bold text-foreground text-sm flex items-center gap-2">
-                                <Package size={14} className="text-primary" />
-                                Fulfillment Summary
-                              </h3>
+                              <h3 className="text-ui-h5 text-foreground flex items-center gap-2"><Package size={14} className="text-primary" /> Fulfillment Summary</h3>
                               <div className="space-y-2">
-                                <div className="flex justify-between">
-                                  <span className="font-fine text-[11px] text-muted-foreground">Ordered Quantity</span>
-                                  <span className="font-body text-xs font-semibold text-foreground">{order.fulfillment.ordered} Cartons</span>
-                                </div>
-                                <div className="flex justify-between">
-                                  <span className="font-fine text-[11px] text-muted-foreground">Packed / Invoiced Quantity</span>
-                                  <span className="font-body text-xs font-semibold text-foreground">{order.fulfillment.packed} Cartons</span>
-                                </div>
-                                <div className="flex justify-between">
-                                  <span className="font-fine text-[11px] text-muted-foreground">Shortfall / Pending</span>
-                                  <span className="font-body text-xs font-semibold text-destructive">{order.fulfillment.shortfall} Cartons</span>
-                                </div>
+                                {[
+                                  { label: "Ordered Quantity", val: `${order.fulfillment.ordered} Cartons`, cls: "text-foreground" },
+                                  { label: "Packed / Invoiced", val: `${order.fulfillment.packed} Cartons`, cls: "text-foreground" },
+                                  { label: "Shortfall / Pending", val: `${order.fulfillment.shortfall} Cartons`, cls: "text-destructive" },
+                                ].map((r) => (
+                                  <div key={r.label} className="flex justify-between">
+                                    <span className="text-fine text-muted-foreground">{r.label}</span>
+                                    <span className={`text-ui-cell font-semibold ${r.cls}`}>{r.val}</span>
+                                  </div>
+                                ))}
                               </div>
-                              <p className="font-fine text-[10px] text-muted-foreground italic border-t border-border/50 pt-2">
-                                Final Invoice is generated only from the Packed Quantity. Shortfall will dispatch separately.
-                              </p>
+                              <p className="text-fine-xs text-muted-foreground italic border-t border-border/50 pt-2">Final Invoice generated from Packed Quantity only.</p>
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Raise Issue / Claim Button */}
+                        {isDispatchedOrDelivered && (
+                          <div className="border-t border-border pt-4">
+                            <button
+                              onClick={(e) => { e.stopPropagation(); setClaimOrder(order.id); }}
+                              className="w-full py-2.5 rounded-xl bg-destructive/10 border border-destructive/20 text-destructive text-ui-button flex items-center justify-center gap-2 hover:bg-destructive/15 transition-colors"
+                            >
+                              <AlertCircle size={14} />
+                              Raise Issue / Claim
+                            </button>
+                          </div>
+                        )}
+
+                        {/* 10-Day Support Window */}
+                        {order.status === "delivered" && order.supportDaysRemaining && order.supportDaysRemaining > 0 && (
+                          <div className="border-t border-border pt-4">
+                            <div className="bg-green-50 rounded-xl p-4 border border-green-200 space-y-3">
+                              <div className="flex items-center gap-2">
+                                <Clock size={14} className="text-green-600" />
+                                <span className="text-ui-label text-green-600">Support Window Open ({order.supportDaysRemaining} Days Remaining)</span>
+                              </div>
+                              <button
+                                onClick={(e) => { e.stopPropagation(); setTicketOrder(order.id); }}
+                                className="w-full py-2.5 rounded-xl bg-card border border-border text-foreground text-ui-button flex items-center justify-center gap-2 hover:border-destructive/50 transition-colors"
+                              >
+                                <AlertCircle size={14} className="text-destructive" />
+                                Raise Ticket / Report Issue
+                              </button>
                             </div>
                           </div>
                         )}
@@ -247,81 +219,41 @@ const Orders = () => {
                             <div className="bg-primary/5 rounded-xl p-4 border border-primary/15 space-y-2">
                               <div className="flex items-center gap-2">
                                 <Truck size={14} className="text-primary" />
-                                <h3 className="font-body font-bold text-foreground text-sm">Live Tracking</h3>
+                                <h3 className="text-ui-h5 text-foreground">Live Tracking</h3>
                               </div>
                               <div className="space-y-1.5">
-                                <div className="flex justify-between">
-                                  <span className="font-fine text-[11px] text-muted-foreground">Transporter</span>
-                                  <span className="font-body text-xs font-semibold text-foreground">Blue Dart</span>
-                                </div>
-                                <div className="flex justify-between">
-                                  <span className="font-fine text-[11px] text-muted-foreground">Driver</span>
-                                  <span className="font-body text-xs font-semibold text-foreground flex items-center gap-1.5">
-                                    Raj Kumar
-                                    <button className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-green-50 text-green-600 hover:bg-green-100 transition-colors">
-                                      <Phone size={10} /> <span className="font-fine text-[10px]">Call</span>
-                                    </button>
-                                  </span>
-                                </div>
-                                <div className="flex justify-between">
-                                  <span className="font-fine text-[11px] text-muted-foreground">Tracking LR</span>
-                                  <span className="font-body text-xs font-semibold text-primary">849302</span>
-                                </div>
+                                {[
+                                  { label: "Transporter", value: "Blue Dart" },
+                                  { label: "Tracking LR", value: "849302" },
+                                ].map(r => (
+                                  <div key={r.label} className="flex justify-between">
+                                    <span className="text-fine text-muted-foreground">{r.label}</span>
+                                    <span className="text-ui-cell font-semibold text-foreground">{r.value}</span>
+                                  </div>
+                                ))}
                               </div>
-                            </div>
-                          </div>
-                        )}
-
-                        {/* 10-Day Support Window */}
-                        {order.status === "delivered" && order.supportDaysRemaining && order.supportDaysRemaining > 0 && (
-                          <div className="border-t border-border pt-4">
-                            <div className="bg-green-50 rounded-xl p-4 border border-green-200 space-y-3">
-                              <div className="flex items-center justify-between">
-                                <div className="flex items-center gap-2">
-                                  <Clock size={14} className="text-green-600" />
-                                  <span className="font-body text-xs font-semibold text-green-600">
-                                    Support Window Open ({order.supportDaysRemaining} Days Remaining)
-                                  </span>
-                                </div>
-                              </div>
-                              <button
-                                onClick={(e) => { e.stopPropagation(); setTicketOrder(order.id); }}
-                                className="w-full py-2.5 rounded-xl bg-card border border-border text-foreground font-body text-xs font-semibold flex items-center justify-center gap-2 hover:border-destructive/50 transition-colors"
-                              >
-                                <AlertCircle size={14} className="text-destructive" />
-                                Raise Ticket / Report Issue
-                              </button>
                             </div>
                           </div>
                         )}
 
                         {/* Document Center */}
                         <div className="border-t border-border pt-4 space-y-3">
-                          <h3 className="font-body font-bold text-foreground text-sm flex items-center gap-2">
-                            <FileText size={14} className="text-primary" />
-                            Document Center
-                          </h3>
+                          <h3 className="text-ui-h5 text-foreground flex items-center gap-2"><FileText size={14} className="text-primary" /> Document Center</h3>
                           {order.documents.map((doc, di) => (
                             <div key={di} className="flex items-center justify-between py-2.5 px-3 rounded-xl bg-muted/40 border border-border/50">
                               <div className="flex items-center gap-2.5">
                                 <FileText size={14} className="text-muted-foreground" />
-                                <p className="font-body text-sm text-foreground">{doc.name}</p>
+                                <p className="text-body-p2 text-foreground">{doc.name}</p>
                               </div>
-                              <button
-                                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-green-500/10 hover:bg-green-500/20 transition-colors"
-                                onClick={(e) => e.stopPropagation()}
-                              >
+                              <button className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-green-500/10 hover:bg-green-500/20 transition-colors" onClick={(e) => e.stopPropagation()}>
                                 <MessageSquare size={13} className="text-green-600" />
-                                <span className="font-body text-xs font-semibold text-green-600">Share</span>
+                                <span className="text-ui-label text-green-600">Share</span>
                               </button>
                             </div>
                           ))}
-                          <button
-                            onClick={(e) => { e.stopPropagation(); navigate("/documents"); }}
-                            className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl bg-primary/10 hover:bg-primary/15 transition-colors mt-1"
-                          >
+                          <button onClick={(e) => { e.stopPropagation(); navigate("/documents"); }} className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl bg-primary/10 hover:bg-primary/15 transition-colors mt-1">
                             <FileText size={14} className="text-primary" />
-                            <span className="font-body text-xs font-semibold text-primary">Go to Document Center</span>
+                            <span className="text-ui-button text-primary">Go to Document Center</span>
                             <ArrowRight size={12} className="text-primary" />
                           </button>
                         </div>
@@ -335,11 +267,8 @@ const Orders = () => {
         </div>
       </div>
 
-      <SupportTicketModal
-        open={!!ticketOrder}
-        onClose={() => setTicketOrder(null)}
-        orderId={ticketOrder || ""}
-      />
+      <SupportTicketModal open={!!ticketOrder} onClose={() => setTicketOrder(null)} orderId={ticketOrder || ""} />
+      <ClaimModal open={!!claimOrder} onClose={() => setClaimOrder(null)} orderId={claimOrder || ""} />
     </AppShell>
   );
 };

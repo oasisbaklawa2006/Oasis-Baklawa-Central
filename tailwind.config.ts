@@ -16,7 +16,8 @@ export default {
       fontFamily: {
         display: ["var(--font-display)", "serif"],
         body: ["var(--font-body)", "sans-serif"],
-        fine: ["var(--font-fine)", "serif"],
+        ui: ["var(--font-ui)", "sans-serif"],
+        fine: ["var(--font-fine)", "'Arial Narrow'", "sans-serif"],
       },
       colors: {
         border: "hsl(var(--border))",

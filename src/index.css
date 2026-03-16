@@ -1,15 +1,22 @@
-@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;500;600;700;800;900&family=Montserrat:wght@300;400;500;600;700&family=Cinzel:wght@400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;500;600;700;800;900&family=Montserrat:wght@300;400;500;600;700&family=Cinzel:wght@400;500;600;700&family=Inter:wght@300;400;500;600;700;800;900&display=swap');
 
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
+@font-face {
+  font-family: 'Bantayog';
+  src: local('Bantayog'), local('Arial Narrow');
+  font-weight: 400;
+  font-style: normal;
+}
+
 @layer base {
   :root {
-    --background: 222 20% 96%; /* #f3f5f9 */
+    --background: 40 20% 97%; /* soft ivory */
     --foreground: 0 0% 11%; /* #1c1c1c */
 
-    --card: 0 0% 100%;
+    --card: 40 14% 96%;
     --card-foreground: 0 0% 11%;
 
     --popover: 0 0% 100%;
@@ -18,11 +25,11 @@
     --primary: 40 40% 59%; /* #c6a769 */
     --primary-foreground: 0 0% 100%;
 
-    --secondary: 222 20% 96%;
+    --secondary: 35 18% 93%; /* muted beige */
     --secondary-foreground: 0 0% 11%;
 
-    --muted: 220 14% 93%;
-    --muted-foreground: 220 9% 46%; /* #6b7280 */
+    --muted: 35 12% 91%;
+    --muted-foreground: 220 9% 46%;
 
     --accent: 40 40% 59%;
     --accent-foreground: 0 0% 100%;
@@ -30,20 +37,21 @@
     --destructive: 0 84% 60%;
     --destructive-foreground: 0 0% 100%;
 
-    --border: 220 13% 91%;
-    --input: 220 13% 91%;
+    --border: 35 10% 88%;
+    --input: 35 10% 88%;
     --ring: 40 40% 59%;
 
     --radius: 0.75rem;
 
     --nav-bg: 0 0% 100%;
-    --nav-shadow: 0 2px 12px rgba(0,0,0,0.06);
-    --card-shadow: 0 8px 24px rgba(0,0,0,0.12);
-    --fab-shadow: 0 6px 20px rgba(0,0,0,0.15);
+    --nav-shadow: 0 2px 12px rgba(0,0,0,0.04);
+    --card-shadow: 0 4px 16px rgba(0,0,0,0.06);
+    --fab-shadow: 0 4px 14px rgba(0,0,0,0.10);
 
     --font-display: 'Playfair Display', 'Didot', serif;
     --font-body: 'Montserrat', sans-serif;
-    --font-fine: 'Cinzel', serif;
+    --font-ui: 'Inter', sans-serif;
+    --font-fine: 'Bantayog', 'Arial Narrow', sans-serif;
 
     --sidebar-background: 0 0% 98%;
     --sidebar-foreground: 240 5.3% 26.1%;
@@ -66,8 +74,28 @@
     font-family: var(--font-body);
   }
 
-  h1, h2, h3 {
+  h1, h2 {
     font-family: var(--font-display);
+  }
+
+  h3 {
+    font-family: var(--font-body);
+    font-weight: 600;
+    font-size: 20px;
+  }
+
+  h4, h5 {
+    font-family: var(--font-ui);
+  }
+
+  h4 {
+    font-weight: 600;
+    font-size: 17px;
+  }
+
+  h5 {
+    font-weight: 600;
+    font-size: 14px;
   }
 }
 
@@ -78,5 +106,72 @@
   }
   .scrollbar-hide::-webkit-scrollbar {
     display: none;
+  }
+
+  /* Typography utilities */
+  .text-display-h1 {
+    font-family: var(--font-display);
+    font-size: 30px;
+    font-weight: 600;
+  }
+  .text-display-h2 {
+    font-family: var(--font-display);
+    font-size: 24px;
+    font-weight: 600;
+  }
+  .text-body-h3 {
+    font-family: var(--font-body);
+    font-size: 20px;
+    font-weight: 600;
+  }
+  .text-body-p1 {
+    font-family: var(--font-body);
+    font-size: 16px;
+  }
+  .text-body-p2 {
+    font-family: var(--font-body);
+    font-size: 14px;
+  }
+  .text-body-p3 {
+    font-family: var(--font-body);
+    font-size: 13px;
+    font-weight: 500;
+  }
+  .text-ui-h4 {
+    font-family: var(--font-ui);
+    font-size: 17px;
+    font-weight: 600;
+  }
+  .text-ui-h5 {
+    font-family: var(--font-ui);
+    font-size: 14px;
+    font-weight: 600;
+  }
+  .text-ui-button {
+    font-family: var(--font-ui);
+    font-size: 14px;
+    font-weight: 600;
+  }
+  .text-ui-label {
+    font-family: var(--font-ui);
+    font-size: 13px;
+    font-weight: 500;
+  }
+  .text-ui-cell {
+    font-family: var(--font-ui);
+    font-size: 13px;
+    font-weight: 400;
+  }
+  .text-ui-kpi {
+    font-family: var(--font-ui);
+    font-weight: 700;
+  }
+  .text-fine {
+    font-family: var(--font-fine);
+    font-size: 11px;
+  }
+  .text-fine-xs {
+    font-family: var(--font-fine);
+    font-size: 10px;
   }
 }
