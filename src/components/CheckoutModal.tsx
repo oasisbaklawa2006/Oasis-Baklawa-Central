@@ -129,7 +129,8 @@ const CheckoutModal = ({ open, onClose, grandTotal, orderId, onOrderConfirmed }:
                   onClick={handleConfirm}
                   className="w-full py-4 rounded-xl bg-primary text-primary-foreground font-body font-bold text-sm flex items-center justify-center gap-2 hover:bg-primary/90 transition-colors shadow-fab"
                 >
-                  Pay Advance & Confirm Order
+                  {confirming ? <Loader2 size={16} className="animate-spin" /> : null}
+                  {confirming ? "Confirming…" : "Pay Advance & Confirm Order"}
                 </button>
                 <p className="font-body text-[10px] text-muted-foreground text-center leading-relaxed">
                   By confirming, you agree to Oasis Baklawa's B2B terms. Advance is non-refundable once production begins.
