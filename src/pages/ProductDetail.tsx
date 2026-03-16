@@ -41,6 +41,7 @@ const ProductDetail = () => {
   const [qty, setQty] = useState(product.minPacks);
   const [isFav, setIsFav] = useState(false);
   const navigate = useNavigate();
+  const { addToCart } = useCart();
 
   const adjustQty = (delta: number) => {
     setQty((prev) => {
