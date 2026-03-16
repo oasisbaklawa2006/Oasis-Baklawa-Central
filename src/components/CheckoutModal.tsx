@@ -20,12 +20,33 @@ const paymentMethods = [
   { id: "wallet", label: "Use Wallet Balance", desc: "Available: ₹45,000", icon: Wallet },
 ];
 
-const CheckoutModal = ({ open, onClose, grandTotal }: CheckoutModalProps) => {
+const CheckoutModal = ({ open, onClose, grandTotal, orderId, onOrderConfirmed }: CheckoutModalProps) => {
   const [selected, setSelected] = useState("upi");
+  const [confirming, setConfirming] = useState(false);
   const advance = Math.round(grandTotal * 0.5);
 
-  const handleConfirm = () => {
+  const handleConfirm = async () => {
+    if (!orderId) {
+      toast.error("No active order found");
+      return;
+    }
+    setConfirming(true);
+    const { error } = await supabase
+      .from("orders")
+      .update({
+        status: "awaiting_advance",
+        sales_order_value: grandTotal,
+        advance_required: advance,
+      })
+      .eq("id", orderId);
+
+    setConfirming(false);
+    if (error) {
+      toast.error("Failed to confirm order. Please try again.");
+      return;
+    }
     toast.success("Order confirmed! Advance payment initiated.");
+    onOrderConfirmed?.();
     onClose();
   };
 
