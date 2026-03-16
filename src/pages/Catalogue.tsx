@@ -148,23 +148,42 @@ const Catalogue = () => {
                   </div>
                   <div className="p-4 space-y-1.5">
                     <p className="font-body font-bold text-foreground text-sm leading-tight">{product.name}</p>
-                    <p className="font-fine text-[11px] text-muted-foreground">{formatPrice(product.price_per_kg)} per kg + taxes</p>
-                    {product.pack_size && (
-                      <p className="font-fine text-[11px] text-muted-foreground">{product.pack_size}</p>
+                    {isAuthenticated ? (
+                      <>
+                        <p className="font-fine text-[11px] text-muted-foreground">{formatPrice(product.price_per_kg)} per kg + taxes</p>
+                        {product.pack_size && (
+                          <p className="font-fine text-[11px] text-muted-foreground">{product.pack_size}</p>
+                        )}
+                        {product.carton_type && (
+                          <p className="font-fine text-[11px] text-primary font-semibold">MOQ: 1 {product.carton_type}</p>
+                        )}
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            addToCart(product.id, 1, product.pack_size, product.carton_type);
+                          }}
+                          className="mt-2 w-full py-2.5 rounded-lg bg-primary text-primary-foreground font-body font-semibold text-xs flex items-center justify-center gap-1.5 hover:bg-primary/90 transition-colors"
+                        >
+                          <ShoppingCart size={14} />
+                          Add to Cart
+                        </button>
+                      </>
+                    ) : (
+                      <div className="mt-2 space-y-2">
+                        <p className="font-fine text-[11px] text-muted-foreground flex items-center gap-1">
+                          <Lock size={10} /> Trade Members Only — Login to view pricing
+                        </p>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            navigate("/login");
+                          }}
+                          className="w-full py-2 rounded-lg bg-muted text-foreground font-body font-semibold text-xs hover:bg-muted/80 transition-colors"
+                        >
+                          Login / Apply for B2B Access
+                        </button>
+                      </div>
                     )}
-                    {product.carton_type && (
-                      <p className="font-fine text-[11px] text-primary font-semibold">MOQ: 1 {product.carton_type}</p>
-                    )}
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        addToCart(product.id, 1, product.pack_size, product.carton_type);
-                      }}
-                      className="mt-2 w-full py-2.5 rounded-lg bg-primary text-primary-foreground font-body font-semibold text-xs flex items-center justify-center gap-1.5 hover:bg-primary/90 transition-colors"
-                    >
-                       <ShoppingCart size={14} />
-                       Add to Cart
-                     </button>
                   </div>
                 </div>
               ))}

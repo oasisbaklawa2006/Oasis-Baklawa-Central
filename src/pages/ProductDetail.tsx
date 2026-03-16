@@ -1,10 +1,11 @@
 import AppShell from "@/components/AppShell";
 import { motion } from "framer-motion";
 import { useState } from "react";
-import { Heart, ShoppingCart, Minus, Plus, AlertTriangle } from "lucide-react";
+import { Heart, ShoppingCart, Minus, Plus, AlertTriangle, Lock } from "lucide-react";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { useNavigate } from "react-router-dom";
 import { useCart } from "@/hooks/useCart";
+import { useAuth } from "@/hooks/useAuth";
 
 import pistachioImg from "@/assets/baklawa-pistachio.jpg";
 

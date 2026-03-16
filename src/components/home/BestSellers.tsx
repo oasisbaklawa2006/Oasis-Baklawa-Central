@@ -59,13 +59,21 @@ const BestSellers = () => {
                   <p className="font-body font-semibold text-foreground text-sm leading-tight">
                     {product.name}
                   </p>
-                  <p className="font-fine text-[11px] text-muted-foreground mt-1.5">
-                    {formatPrice(product.price_per_kg)}
-                  </p>
-                  <button className="mt-3 w-full py-2 rounded-lg bg-primary/10 text-primary font-body font-semibold text-xs flex items-center justify-center gap-1.5 hover:bg-primary hover:text-primary-foreground transition-colors">
-                    <Plus size={14} />
-                    Add
-                  </button>
+                  {isAuthenticated ? (
+                    <>
+                      <p className="font-fine text-[11px] text-muted-foreground mt-1.5">
+                        {formatPrice(product.price_per_kg)}
+                      </p>
+                      <button className="mt-3 w-full py-2 rounded-lg bg-primary/10 text-primary font-body font-semibold text-xs flex items-center justify-center gap-1.5 hover:bg-primary hover:text-primary-foreground transition-colors">
+                        <Plus size={14} />
+                        Add
+                      </button>
+                    </>
+                  ) : (
+                    <p className="font-fine text-[11px] text-muted-foreground mt-1.5 flex items-center gap-1">
+                      <Lock size={10} /> Login to view pricing
+                    </p>
+                  )}
                 </div>
               </div>
             ))}
