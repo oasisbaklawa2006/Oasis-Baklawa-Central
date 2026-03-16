@@ -11,6 +11,7 @@ const formatPrice = (price: number) =>
 const BestSellers = () => {
   const navigate = useNavigate();
   const { products, loading } = useProducts();
+  const { isAuthenticated } = useAuth();
 
   // Show first 4 products as "best sellers"
   const bestSellers = products.slice(0, 4);
