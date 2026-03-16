@@ -43,6 +43,7 @@ const ProductDetail = () => {
   const [isFav, setIsFav] = useState(false);
   const navigate = useNavigate();
   const { addToCart } = useCart();
+  const { isAuthenticated } = useAuth();
 
   const adjustQty = (delta: number) => {
     setQty((prev) => {
