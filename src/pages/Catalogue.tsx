@@ -153,10 +153,16 @@ const Catalogue = () => {
                     {product.carton_type && (
                       <p className="font-fine text-[11px] text-primary font-semibold">MOQ: 1 {product.carton_type}</p>
                     )}
-                    <button className="mt-2 w-full py-2.5 rounded-lg bg-primary text-primary-foreground font-body font-semibold text-xs flex items-center justify-center gap-1.5 hover:bg-primary/90 transition-colors">
-                      <ShoppingCart size={14} />
-                      Add to Cart
-                    </button>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        addToCart(product.id, 1, product.pack_size, product.carton_type);
+                      }}
+                      className="mt-2 w-full py-2.5 rounded-lg bg-primary text-primary-foreground font-body font-semibold text-xs flex items-center justify-center gap-1.5 hover:bg-primary/90 transition-colors"
+                    >
+                       <ShoppingCart size={14} />
+                       Add to Cart
+                     </button>
                   </div>
                 </div>
               ))}
