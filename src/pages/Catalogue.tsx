@@ -39,6 +39,7 @@ const Catalogue = () => {
   const navigate = useNavigate();
   const { products, loading } = useProducts();
   const { addToCart } = useCart();
+  const { isAuthenticated } = useAuth();
 
   return (
     <AppShell>
