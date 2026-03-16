@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Heart, ShoppingCart, Minus, Plus, AlertTriangle } from "lucide-react";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { useNavigate } from "react-router-dom";
+import { useCart } from "@/hooks/useCart";
 
 import pistachioImg from "@/assets/baklawa-pistachio.jpg";
 
