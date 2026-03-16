@@ -89,15 +89,23 @@ const ProductDetail = () => {
             <h1 className="font-display text-2xl tracking-wide text-foreground">
               {product.name}
             </h1>
-            <p className="font-fine text-lg text-foreground font-bold">
-              {product.price}{" "}
-              <span className="text-sm font-normal text-muted-foreground">
-                {product.priceNote}
-              </span>
-            </p>
-            <p className="font-fine text-xs text-muted-foreground">
-              Pack Size: {product.packSize}
-            </p>
+            {isAuthenticated ? (
+              <>
+                <p className="font-fine text-lg text-foreground font-bold">
+                  {product.price}{" "}
+                  <span className="text-sm font-normal text-muted-foreground">
+                    {product.priceNote}
+                  </span>
+                </p>
+                <p className="font-fine text-xs text-muted-foreground">
+                  Pack Size: {product.packSize}
+                </p>
+              </>
+            ) : (
+              <p className="font-fine text-sm text-muted-foreground flex items-center gap-1.5 mt-1">
+                <Lock size={14} /> Trade Members Only — Login to view pricing
+              </p>
+            )}
           </motion.div>
 
           {/* Tabs */}
