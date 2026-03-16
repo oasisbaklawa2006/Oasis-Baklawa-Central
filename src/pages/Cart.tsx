@@ -44,7 +44,7 @@ function groupByCartonType(items: CartItem[]): GroupedSection[] {
 
 const Cart = () => {
   const [showCheckout, setShowCheckout] = useState(false);
-  const { items, loading, updateQuantity, removeItem } = useCart();
+  const { items, loading, updateQuantity, removeItem, draftOrder } = useCart();
 
   const sections = useMemo(() => groupByCartonType(items), [items]);
 
