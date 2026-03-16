@@ -201,6 +201,21 @@ const Account = () => {
             </button>
           </div>
         </motion.section>
+
+        {/* Logout */}
+        <motion.section initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.5 }}>
+          <button
+            onClick={async () => {
+              await supabase.auth.signOut();
+              toast.success("Logged out");
+              navigate("/login");
+            }}
+            className="w-full py-3.5 rounded-xl border border-destructive/30 text-destructive font-body font-bold text-sm flex items-center justify-center gap-2 hover:bg-destructive/5 transition-colors"
+          >
+            <LogOut size={18} />
+            Sign Out
+          </button>
+        </motion.section>
       </div>
 
       <WithdrawalModal open={showWithdrawal} onClose={() => setShowWithdrawal(false)} />
