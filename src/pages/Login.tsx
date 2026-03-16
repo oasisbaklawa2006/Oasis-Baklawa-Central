@@ -20,13 +20,23 @@ const Login = () => {
       return;
     }
     setLoading(true);
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    const { error, data } = await supabase.auth.signInWithPassword({ email, password });
     setLoading(false);
     if (error) {
       toast.error(error.message);
     } else {
       toast.success("Welcome back!");
-      navigate("/");
+      // Check role for admin redirect
+      const { data: userData } = await supabase
+        .from("users")
+        .select("role")
+        .eq("id", data.user.id)
+        .maybeSingle();
+      if (userData?.role === "admin" || userData?.role === "super_admin") {
+        navigate("/admin");
+      } else {
+        navigate("/");
+      }
     }
   };
 
