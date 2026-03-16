@@ -1,25 +1,23 @@
 import AppShell from "@/components/AppShell";
-import { Heart, ShoppingCart } from "lucide-react";
+import { Heart, ShoppingCart, Loader2 } from "lucide-react";
 import { motion } from "framer-motion";
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { useProducts } from "@/hooks/useProducts";
+import { Skeleton } from "@/components/ui/skeleton";
 
 import posterSpread from "@/assets/poster-spread.jpg";
 import posterKunafa from "@/assets/poster-kunafa.jpg";
 import posterSlice from "@/assets/poster-baklawa-slice.jpg";
-import pistachioImg from "@/assets/baklawa-pistachio.jpg";
-import cashewImg from "@/assets/baklawa-cashew.jpg";
-import walnutImg from "@/assets/baklawa-walnut.jpg";
-import assortedImg from "@/assets/baklawa-assorted.jpg";
 
-/* ── Favorites ── */
+/* ── Favorites (static for now) ── */
 const favorites = [
   { name: "Assorted Baklawa", price: "₹5,200 / kg", image: posterSpread },
   { name: "Stuffed Dates", price: "₹3,600 / kg", image: posterKunafa },
   { name: "Pistachio Baklawa", price: "₹4,500 / kg", image: posterSlice },
 ];
 
-/* ── Main Categories with Unsplash backgrounds ── */
+/* ── Main Categories ── */
 const mainCategories = [
   { name: "Wholesale Loose Products", image: "https://images.unsplash.com/photo-1558961363-fa8fdf82db35?w=600&q=80" },
   { name: "Raw / Unfinished Products", image: "https://images.unsplash.com/photo-1509440159596-0249088772ff?w=600&q=80" },
@@ -31,17 +29,13 @@ const mainCategories = [
 /* ── Sub-categories ── */
 const subCategories = ["Baklawa", "Fusion Sweets", "Chocolates", "Dates", "Dragees & Nuts", "Cookies"];
 
-/* ── Sample products ── */
-const sampleProducts = [
-  { name: "Turkish Pistachio Baklawa", price: "₹4,500", pack: "500g Pack", moq: "MOQ: 1 Carton", image: pistachioImg },
-  { name: "Cashew Roll Baklawa", price: "₹3,800", pack: "250g Pack", moq: "MOQ: 2 Cartons", image: cashewImg },
-  { name: "Walnut Diamond Cut", price: "₹3,200", pack: "500g Pack", moq: "MOQ: 1 Carton", image: walnutImg },
-  { name: "Assorted Premium Box", price: "₹5,200", pack: "1kg Pack", moq: "MOQ: 1 Carton", image: assortedImg },
-];
+const formatPrice = (price: number) =>
+  `₹${price.toLocaleString("en-IN")}`;
 
 const Catalogue = () => {
   const [activeSub, setActiveSub] = useState("Baklawa");
   const navigate = useNavigate();
+  const { products, loading } = useProducts();
 
   return (
     <AppShell>
@@ -114,31 +108,58 @@ const Catalogue = () => {
           </div>
         </motion.section>
 
-        {/* ── Product Grid ── */}
+        {/* ── Product Grid (from Supabase) ── */}
         <motion.section initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5, delay: 0.3 }}>
           <h2 className="font-display text-lg tracking-wide text-foreground mb-4">Wholesale Loose Products</h2>
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-            {sampleProducts.map((product, i) => (
-              <div key={i} onClick={() => navigate(`/product/${i}`)} className="bg-card rounded-2xl shadow-card overflow-hidden relative group cursor-pointer">
-                <button className="absolute top-3 right-3 z-10 w-8 h-8 rounded-full bg-card/80 backdrop-blur flex items-center justify-center hover:bg-card transition-colors">
-                  <Heart size={16} className="text-muted-foreground group-hover:text-primary transition-colors" />
-                </button>
-                <div className="w-full aspect-square overflow-hidden">
-                  <img src={product.image} alt={product.name} className="w-full h-full object-cover" />
+
+          {loading ? (
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+              {[1, 2, 3, 4].map((i) => (
+                <div key={i} className="bg-card rounded-2xl shadow-card overflow-hidden">
+                  <Skeleton className="w-full aspect-square" />
+                  <div className="p-4 space-y-2">
+                    <Skeleton className="h-4 w-3/4" />
+                    <Skeleton className="h-3 w-1/2" />
+                    <Skeleton className="h-3 w-1/3" />
+                    <Skeleton className="h-9 w-full mt-2" />
+                  </div>
                 </div>
-                <div className="p-4 space-y-1.5">
-                  <p className="font-body font-bold text-foreground text-sm leading-tight">{product.name}</p>
-                  <p className="font-fine text-[11px] text-muted-foreground">{product.price} per kg + taxes</p>
-                  <p className="font-fine text-[11px] text-muted-foreground">{product.pack}</p>
-                  <p className="font-fine text-[11px] text-primary font-semibold">{product.moq}</p>
-                  <button className="mt-2 w-full py-2.5 rounded-lg bg-primary text-primary-foreground font-body font-semibold text-xs flex items-center justify-center gap-1.5 hover:bg-primary/90 transition-colors">
-                    <ShoppingCart size={14} />
-                    Add to Cart
+              ))}
+            </div>
+          ) : products.length === 0 ? (
+            <p className="text-muted-foreground font-body text-sm text-center py-8">No products found.</p>
+          ) : (
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+              {products.map((product) => (
+                <div key={product.id} onClick={() => navigate(`/product/${product.id}`)} className="bg-card rounded-2xl shadow-card overflow-hidden relative group cursor-pointer">
+                  <button className="absolute top-3 right-3 z-10 w-8 h-8 rounded-full bg-card/80 backdrop-blur flex items-center justify-center hover:bg-card transition-colors">
+                    <Heart size={16} className="text-muted-foreground group-hover:text-primary transition-colors" />
                   </button>
+                  <div className="w-full aspect-square overflow-hidden bg-muted">
+                    {product.image_url ? (
+                      <img src={product.image_url} alt={product.name} className="w-full h-full object-cover" />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center text-muted-foreground font-body text-xs">No Image</div>
+                    )}
+                  </div>
+                  <div className="p-4 space-y-1.5">
+                    <p className="font-body font-bold text-foreground text-sm leading-tight">{product.name}</p>
+                    <p className="font-fine text-[11px] text-muted-foreground">{formatPrice(product.price_per_kg)} per kg + taxes</p>
+                    {product.pack_size && (
+                      <p className="font-fine text-[11px] text-muted-foreground">{product.pack_size}</p>
+                    )}
+                    {product.carton_type && (
+                      <p className="font-fine text-[11px] text-primary font-semibold">MOQ: 1 {product.carton_type}</p>
+                    )}
+                    <button className="mt-2 w-full py-2.5 rounded-lg bg-primary text-primary-foreground font-body font-semibold text-xs flex items-center justify-center gap-1.5 hover:bg-primary/90 transition-colors">
+                      <ShoppingCart size={14} />
+                      Add to Cart
+                    </button>
+                  </div>
                 </div>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          )}
         </motion.section>
       </div>
     </AppShell>
