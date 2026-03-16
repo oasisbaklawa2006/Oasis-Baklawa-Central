@@ -66,7 +66,7 @@ const AdminLayout = () => {
         style={{ backgroundColor: "#1a1a1a" }}
       >
         <div className="p-5 flex items-center gap-3 border-b" style={{ borderColor: "#2a2a2a" }}>
-          <img src={logoImg} alt="Oasis" className="h-8 object-contain" />
+          <img src={logoImg} alt="Oasis" className="w-[105px] object-contain" />
           <span className="font-display text-sm tracking-wide" style={{ color: "#c6a769" }}>
             Admin
           </span>

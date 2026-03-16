@@ -488,6 +488,36 @@ export type Database = {
           },
         ]
       }
+      support_tickets: {
+        Row: {
+          created_at: string | null
+          description: string
+          id: string
+          issue_type: string
+          order_id: string
+          status: string | null
+          user_id: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          description: string
+          id?: string
+          issue_type: string
+          order_id: string
+          status?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          description?: string
+          id?: string
+          issue_type?: string
+          order_id?: string
+          status?: string | null
+          user_id?: string | null
+        }
+        Relationships: []
+      }
       tickets: {
         Row: {
           company_id: string | null
