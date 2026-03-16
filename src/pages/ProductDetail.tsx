@@ -184,61 +184,79 @@ const ProductDetail = () => {
             </Tabs>
           </motion.div>
 
-          {/* Order Action */}
-          <motion.div
-            initial={{ opacity: 0, y: 16 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.2 }}
-            className="bg-card rounded-2xl shadow-card p-5 space-y-4"
-          >
-            <h3 className="font-body font-bold text-foreground text-sm">Order Quantity</h3>
+          {isAuthenticated ? (
+            <motion.div
+              initial={{ opacity: 0, y: 16 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.2 }}
+              className="bg-card rounded-2xl shadow-card p-5 space-y-4"
+            >
+              <h3 className="font-body font-bold text-foreground text-sm">Order Quantity</h3>
 
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <button
-                  onClick={() => adjustQty(-1)}
-                  className="w-10 h-10 rounded-xl bg-muted border border-border flex items-center justify-center hover:border-primary/50 transition-colors"
-                >
-                  <Minus size={16} className="text-foreground" />
-                </button>
-                <div className="text-center min-w-[60px]">
-                  <p className="font-body font-bold text-foreground text-xl">{qty}</p>
-                  <p className="font-body text-[11px] text-muted-foreground">× {product.packSize} Packs</p>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <button
+                    onClick={() => adjustQty(-1)}
+                    className="w-10 h-10 rounded-xl bg-muted border border-border flex items-center justify-center hover:border-primary/50 transition-colors"
+                  >
+                    <Minus size={16} className="text-foreground" />
+                  </button>
+                  <div className="text-center min-w-[60px]">
+                    <p className="font-body font-bold text-foreground text-xl">{qty}</p>
+                    <p className="font-body text-[11px] text-muted-foreground">× {product.packSize} Packs</p>
+                  </div>
+                  <button
+                    onClick={() => adjustQty(1)}
+                    className="w-10 h-10 rounded-xl bg-muted border border-border flex items-center justify-center hover:border-primary/50 transition-colors"
+                  >
+                    <Plus size={16} className="text-foreground" />
+                  </button>
                 </div>
-                <button
-                  onClick={() => adjustQty(1)}
-                  className="w-10 h-10 rounded-xl bg-muted border border-border flex items-center justify-center hover:border-primary/50 transition-colors"
-                >
-                  <Plus size={16} className="text-foreground" />
-                </button>
-              </div>
-              <p className="font-body font-bold text-foreground text-lg">
-                {product.price}
-                <span className="text-xs font-normal text-muted-foreground"> /pack</span>
-              </p>
-            </div>
-
-            {qty < product.minPacks && (
-              <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-destructive/5 border border-destructive/15">
-                <AlertTriangle size={12} className="text-destructive" />
-                <p className="font-body text-[11px] text-destructive font-medium">
-                  Minimum {product.minPacks} packs required for Category {product.category}
+                <p className="font-body font-bold text-foreground text-lg">
+                  {product.price}
+                  <span className="text-xs font-normal text-muted-foreground"> /pack</span>
                 </p>
               </div>
-            )}
 
-            <button
-              onClick={async () => {
-                // TODO: use real product id from route params when ProductDetail fetches from DB
-                const success = await addToCart("placeholder-product-id", qty, product.packSize, `Category ${product.category}`);
-                if (success) navigate("/cart");
-              }}
-              className="w-full py-3.5 rounded-xl bg-primary text-primary-foreground font-body font-bold text-sm flex items-center justify-center gap-2 hover:bg-primary/90 transition-colors shadow-fab"
+              {qty < product.minPacks && (
+                <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-destructive/5 border border-destructive/15">
+                  <AlertTriangle size={12} className="text-destructive" />
+                  <p className="font-body text-[11px] text-destructive font-medium">
+                    Minimum {product.minPacks} packs required for Category {product.category}
+                  </p>
+                </div>
+              )}
+
+              <button
+                onClick={async () => {
+                  const success = await addToCart("placeholder-product-id", qty, product.packSize, `Category ${product.category}`);
+                  if (success) navigate("/cart");
+                }}
+                className="w-full py-3.5 rounded-xl bg-primary text-primary-foreground font-body font-bold text-sm flex items-center justify-center gap-2 hover:bg-primary/90 transition-colors shadow-fab"
+              >
+                <ShoppingCart size={18} />
+                Add {qty} × {product.packSize} Packs to Cart
+              </button>
+            </motion.div>
+          ) : (
+            <motion.div
+              initial={{ opacity: 0, y: 16 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.2 }}
+              className="bg-card rounded-2xl shadow-card p-5 space-y-3 text-center"
             >
-              <ShoppingCart size={18} />
-              Add {qty} × {product.packSize} Packs to Cart
-            </button>
-          </motion.div>
+              <Lock size={20} className="mx-auto text-muted-foreground" />
+              <p className="font-body text-sm text-muted-foreground">
+                Trade Members Only — Login to view pricing
+              </p>
+              <button
+                onClick={() => navigate("/login")}
+                className="w-full py-3 rounded-xl bg-primary text-primary-foreground font-body font-bold text-sm hover:bg-primary/90 transition-colors"
+              >
+                Login / Apply for B2B Access
+              </button>
+            </motion.div>
+          )}
         </div>
       </div>
     </AppShell>
