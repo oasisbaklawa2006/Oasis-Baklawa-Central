@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { ArrowRight, Loader2, Package } from "lucide-react";
+import { ArrowRight, Loader2, Package, X } from "lucide-react";
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 
 const STATUSES = ["awaiting_advance", "in_production", "assembly", "packing"] as const;
 type OrderStatus = typeof STATUSES[number];
@@ -20,25 +21,37 @@ const STATUS_COLORS: Record<OrderStatus, string> = {
   packing: "#10b981",
 };
 
+interface OrderItem {
+  id: string;
+  quantity: number;
+  pack_size: string | null;
+  carton_type: string | null;
+  product_id: string | null;
+  product?: { name: string } | null;
+}
+
 interface OrderCard {
   id: string;
   status: string;
   sales_order_value: number | null;
   company_id: string | null;
   company?: { business_name: string } | null;
-  order_items?: { quantity: number; carton_type: string | null }[];
+  order_items?: OrderItem[];
 }
 
 const AdminOrders = () => {
   const [orders, setOrders] = useState<OrderCard[]>([]);
   const [loading, setLoading] = useState(true);
   const [updating, setUpdating] = useState<string | null>(null);
+  const [selectedOrder, setSelectedOrder] = useState<OrderCard | null>(null);
+  const [drawerItems, setDrawerItems] = useState<OrderItem[]>([]);
+  const [drawerLoading, setDrawerLoading] = useState(false);
 
   const fetchOrders = async () => {
     setLoading(true);
     const { data } = await supabase
       .from("orders")
-      .select("*, company:companies(business_name), order_items(quantity, carton_type)")
+      .select("*, company:companies(business_name), order_items(id, quantity, pack_size, carton_type, product_id)")
       .in("status", [...STATUSES]);
 
     setOrders((data as unknown as OrderCard[]) ?? []);
@@ -70,7 +83,21 @@ const AdminOrders = () => {
     setUpdating(null);
   };
 
-  const getTotalCartons = (items?: { quantity: number; carton_type: string | null }[]) => {
+  const handleOpenDrawer = async (order: OrderCard) => {
+    setSelectedOrder(order);
+    setDrawerLoading(true);
+
+    // Fetch order items with product names
+    const { data } = await supabase
+      .from("order_items")
+      .select("id, quantity, pack_size, carton_type, product_id, product:products(name)")
+      .eq("order_id", order.id);
+
+    setDrawerItems((data as unknown as OrderItem[]) ?? []);
+    setDrawerLoading(false);
+  };
+
+  const getTotalCartons = (items?: { quantity: number }[]) => {
     if (!items || items.length === 0) return 0;
     return items.reduce((sum, it) => sum + it.quantity, 0);
   };
@@ -109,8 +136,9 @@ const AdminOrders = () => {
                   return (
                     <div
                       key={order.id}
-                      className="rounded-xl p-4 space-y-3 border"
+                      className="rounded-xl p-4 space-y-3 border cursor-pointer hover:border-[#c6a769]/40 transition-colors"
                       style={{ backgroundColor: "#1a1a1a", borderColor: "#2a2a2a" }}
+                      onClick={() => handleOpenDrawer(order)}
                     >
                       <div className="flex items-start justify-between">
                         <div>
@@ -137,7 +165,7 @@ const AdminOrders = () => {
 
                       {next && (
                         <button
-                          onClick={() => handleAdvance(order)}
+                          onClick={(e) => { e.stopPropagation(); handleAdvance(order); }}
                           disabled={updating === order.id}
                           className="w-full flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-semibold transition-colors disabled:opacity-50"
                           style={{ backgroundColor: STATUS_COLORS[next as OrderStatus] + "20", color: STATUS_COLORS[next as OrderStatus] }}
@@ -154,6 +182,87 @@ const AdminOrders = () => {
           );
         })}
       </div>
+
+      {/* Order Details Drawer */}
+      <Sheet open={!!selectedOrder} onOpenChange={(open) => { if (!open) setSelectedOrder(null); }}>
+        <SheetContent className="w-full sm:max-w-lg border-l" style={{ backgroundColor: "#1a1a1a", borderColor: "#2a2a2a" }}>
+          <SheetHeader>
+            <SheetTitle className="font-display text-lg" style={{ color: "#c6a769" }}>
+              Order Details
+            </SheetTitle>
+          </SheetHeader>
+
+          {selectedOrder && (
+            <div className="mt-6 space-y-6">
+              <div className="space-y-1">
+                <p className="font-body font-semibold text-white">
+                  {selectedOrder.company?.business_name ?? "Unknown Company"}
+                </p>
+                <p className="font-body text-xs text-[#666]">
+                  Order ID: {selectedOrder.id}
+                </p>
+                <div className="flex items-center gap-2 mt-2">
+                  <span
+                    className="px-2 py-1 rounded-full text-xs font-semibold"
+                    style={{
+                      backgroundColor: STATUS_COLORS[selectedOrder.status as OrderStatus] + "20",
+                      color: STATUS_COLORS[selectedOrder.status as OrderStatus],
+                    }}
+                  >
+                    {STATUS_LABELS[selectedOrder.status as OrderStatus] ?? selectedOrder.status}
+                  </span>
+                  <span className="text-xs text-[#888] font-body">
+                    ₹{(selectedOrder.sales_order_value ?? 0).toLocaleString("en-IN")}
+                  </span>
+                </div>
+              </div>
+
+              <div className="border-t pt-4" style={{ borderColor: "#2a2a2a" }}>
+                <h3 className="font-body font-semibold text-sm text-white mb-3">Order Items</h3>
+
+                {drawerLoading ? (
+                  <div className="flex justify-center py-8">
+                    <Loader2 size={20} className="animate-spin" style={{ color: "#c6a769" }} />
+                  </div>
+                ) : drawerItems.length === 0 ? (
+                  <p className="text-[#666] text-sm font-body">No items found.</p>
+                ) : (
+                  <div className="space-y-3">
+                    {drawerItems.map((item) => (
+                      <div
+                        key={item.id}
+                        className="flex items-center justify-between p-3 rounded-lg border"
+                        style={{ backgroundColor: "#111111", borderColor: "#2a2a2a" }}
+                      >
+                        <div>
+                          <p className="font-body text-sm text-white">
+                            {(item.product as any)?.name ?? "Unknown Product"}
+                          </p>
+                          <p className="font-body text-xs text-[#666] mt-0.5">
+                            {item.pack_size ?? "—"} · {item.carton_type ?? "—"}
+                          </p>
+                        </div>
+                        <div className="text-right">
+                          <p className="font-body text-sm font-semibold text-white">
+                            ×{item.quantity}
+                          </p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <div className="border-t pt-4 flex justify-between items-center" style={{ borderColor: "#2a2a2a" }}>
+                <span className="font-body font-semibold text-sm text-[#888]">Total Cartons</span>
+                <span className="font-body font-bold text-lg text-white">
+                  {getTotalCartons(drawerItems)}
+                </span>
+              </div>
+            </div>
+          )}
+        </SheetContent>
+      </Sheet>
     </div>
   );
 };

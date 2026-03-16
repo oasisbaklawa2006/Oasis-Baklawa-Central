@@ -1,8 +1,9 @@
-import { NavLink, Outlet } from "react-router-dom";
-import { LayoutDashboard, UserCheck, ClipboardList, Truck, DollarSign, LogOut, Menu, X } from "lucide-react";
-import { useState } from "react";
+import { NavLink, Outlet, Navigate } from "react-router-dom";
+import { LayoutDashboard, UserCheck, ClipboardList, Truck, DollarSign, LogOut, Menu, X, Loader2 } from "lucide-react";
+import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useNavigate } from "react-router-dom";
+import { useAuth } from "@/hooks/useAuth";
 import logoImg from "@/assets/logo-open.png";
 
 const navItems = [
@@ -15,21 +16,49 @@ const navItems = [
 
 const AdminLayout = () => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [role, setRole] = useState<string | null>(null);
+  const [roleLoading, setRoleLoading] = useState(true);
+  const { user, loading: authLoading } = useAuth();
   const navigate = useNavigate();
+
+  useEffect(() => {
+    if (authLoading || !user) return;
+    const fetchRole = async () => {
+      const { data } = await supabase
+        .from("users")
+        .select("role")
+        .eq("id", user.id)
+        .maybeSingle();
+      setRole(data?.role ?? null);
+      setRoleLoading(false);
+    };
+    fetchRole();
+  }, [user, authLoading]);
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
     navigate("/login");
   };
 
+  if (authLoading || roleLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: "#111111" }}>
+        <Loader2 size={24} className="animate-spin" style={{ color: "#c6a769" }} />
+      </div>
+    );
+  }
+
+  // Role gating: only admin/super_admin allowed
+  if (!role || !["admin", "super_admin"].includes(role)) {
+    return <Navigate to="/" replace />;
+  }
+
   return (
     <div className="min-h-screen flex" style={{ backgroundColor: "#111111" }}>
-      {/* Mobile overlay */}
       {sidebarOpen && (
         <div className="fixed inset-0 bg-black/50 z-40 lg:hidden" onClick={() => setSidebarOpen(false)} />
       )}
 
-      {/* Sidebar */}
       <aside
         className={`fixed lg:static inset-y-0 left-0 z-50 w-64 flex flex-col transition-transform lg:translate-x-0 ${
           sidebarOpen ? "translate-x-0" : "-translate-x-full"
@@ -78,7 +107,6 @@ const AdminLayout = () => {
         </div>
       </aside>
 
-      {/* Main */}
       <div className="flex-1 flex flex-col min-h-screen">
         <header
           className="h-14 flex items-center px-5 border-b lg:hidden"
