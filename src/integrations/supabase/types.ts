@@ -14,6 +14,45 @@ export type Database = {
   }
   public: {
     Tables: {
+      b2b_applications: {
+        Row: {
+          business_name: string
+          contact_email: string | null
+          contact_name: string | null
+          contact_phone: string | null
+          created_at: string | null
+          expected_volume: string | null
+          gst_number: string | null
+          id: string
+          status: string
+          user_id: string | null
+        }
+        Insert: {
+          business_name: string
+          contact_email?: string | null
+          contact_name?: string | null
+          contact_phone?: string | null
+          created_at?: string | null
+          expected_volume?: string | null
+          gst_number?: string | null
+          id?: string
+          status?: string
+          user_id?: string | null
+        }
+        Update: {
+          business_name?: string
+          contact_email?: string | null
+          contact_name?: string | null
+          contact_phone?: string | null
+          created_at?: string | null
+          expected_volume?: string | null
+          gst_number?: string | null
+          id?: string
+          status?: string
+          user_id?: string | null
+        }
+        Relationships: []
+      }
       categories: {
         Row: {
           id: string
