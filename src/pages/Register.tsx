@@ -1,13 +1,47 @@
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Upload, CheckCircle2, ArrowLeft } from "lucide-react";
+import { Upload, CheckCircle2, ArrowLeft, Loader2 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { Input } from "@/components/ui/input";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
 import logoImg from "@/assets/logo-open.png";
 
 const Register = () => {
   const [submitted, setSubmitted] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [businessName, setBusinessName] = useState("");
+  const [gstNumber, setGstNumber] = useState("");
+  const [volume, setVolume] = useState("");
   const navigate = useNavigate();
+
+  const handleRegister = async () => {
+    if (!email || !password || !businessName) {
+      toast.error("Please fill in all required fields");
+      return;
+    }
+    setLoading(true);
+    const { error } = await supabase.auth.signUp({
+      email,
+      password,
+      options: {
+        emailRedirectTo: window.location.origin,
+        data: {
+          business_name: businessName,
+          gst_number: gstNumber,
+          business_volume: volume,
+        },
+      },
+    });
+    setLoading(false);
+    if (error) {
+      toast.error(error.message);
+    } else {
+      setSubmitted(true);
+    }
+  };
 
   return (
     <div className="min-h-screen bg-background flex flex-col items-center justify-center px-5 py-10">
@@ -32,23 +66,28 @@ const Register = () => {
               className="bg-card rounded-2xl shadow-card p-6 space-y-5"
             >
               <div className="space-y-2">
-                <label className="font-body text-xs font-semibold text-foreground">Business Name</label>
-                <Input placeholder="Your Company Pvt. Ltd." className="rounded-xl" />
+                <label className="font-body text-xs font-semibold text-foreground">Business Name *</label>
+                <Input placeholder="Your Company Pvt. Ltd." className="rounded-xl" value={businessName} onChange={(e) => setBusinessName(e.target.value)} />
               </div>
 
               <div className="space-y-2">
                 <label className="font-body text-xs font-semibold text-foreground">GST Number</label>
-                <Input placeholder="e.g. 07AAFCT0640R1ZZ" className="rounded-xl" />
+                <Input placeholder="e.g. 07AAFCT0640R1ZZ" className="rounded-xl" value={gstNumber} onChange={(e) => setGstNumber(e.target.value)} />
               </div>
 
               <div className="space-y-2">
-                <label className="font-body text-xs font-semibold text-foreground">Email Address</label>
-                <Input type="email" placeholder="you@business.com" className="rounded-xl" />
+                <label className="font-body text-xs font-semibold text-foreground">Email Address *</label>
+                <Input type="email" placeholder="you@business.com" className="rounded-xl" value={email} onChange={(e) => setEmail(e.target.value)} />
+              </div>
+
+              <div className="space-y-2">
+                <label className="font-body text-xs font-semibold text-foreground">Password *</label>
+                <Input type="password" placeholder="Min 6 characters" className="rounded-xl" value={password} onChange={(e) => setPassword(e.target.value)} />
               </div>
 
               <div className="space-y-2">
                 <label className="font-body text-xs font-semibold text-foreground">Expected Monthly Volume</label>
-                <Input placeholder="e.g. 50 Cartons / Month" className="rounded-xl" />
+                <Input placeholder="e.g. 50 Cartons / Month" className="rounded-xl" value={volume} onChange={(e) => setVolume(e.target.value)} />
               </div>
 
               <div className="grid grid-cols-2 gap-3">
@@ -69,10 +108,12 @@ const Register = () => {
               </div>
 
               <button
-                onClick={() => setSubmitted(true)}
-                className="w-full py-3.5 rounded-xl bg-primary text-primary-foreground font-body font-bold text-sm hover:bg-primary/90 transition-colors shadow-fab"
+                onClick={handleRegister}
+                disabled={loading}
+                className="w-full py-3.5 rounded-xl bg-primary text-primary-foreground font-body font-bold text-sm hover:bg-primary/90 transition-colors shadow-fab disabled:opacity-60 flex items-center justify-center gap-2"
               >
-                Submit Application
+                {loading && <Loader2 size={18} className="animate-spin" />}
+                {loading ? "Submitting…" : "Submit Application"}
               </button>
             </motion.div>
           ) : (
@@ -87,7 +128,7 @@ const Register = () => {
               </div>
               <h2 className="font-display text-xl tracking-wide text-foreground">Application Submitted</h2>
               <p className="font-body text-sm text-muted-foreground leading-relaxed">
-                Your B2B application is now under review. Our team will manually verify your documents and approve your account within 24–48 hours.
+                Check your email to confirm your account. Our team will verify your documents and approve your B2B access within 24–48 hours.
               </p>
               <p className="font-fine text-xs text-muted-foreground">Pending Manual Admin Approval</p>
               <button
