@@ -1,7 +1,8 @@
-import { Plus } from "lucide-react";
+import { Plus, Lock } from "lucide-react";
 import { motion } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 import { useProducts } from "@/hooks/useProducts";
+import { useAuth } from "@/hooks/useAuth";
 import { Skeleton } from "@/components/ui/skeleton";
 
 const formatPrice = (price: number) =>
