@@ -20,12 +20,18 @@ import NotFound from "./pages/NotFound.tsx";
 import Onboarding from "./pages/Onboarding.tsx";
 import AdminLayout from "./components/AdminLayout.tsx";
 import AdminDashboard from "./pages/admin/AdminDashboard.tsx";
-import AdminApprovals from "./pages/admin/AdminApprovals.tsx";
+import AdminClients from "./pages/admin/AdminClients.tsx";
+import AdminProducts from "./pages/admin/AdminProducts.tsx";
+import AdminPricing from "./pages/admin/AdminPricing.tsx";
 import AdminOrders from "./pages/admin/AdminOrders.tsx";
 import AdminDispatch from "./pages/admin/AdminDispatch.tsx";
 import AdminFinance from "./pages/admin/AdminFinance.tsx";
-import AdminSupport from "./pages/admin/AdminSupport.tsx";
 import AdminUsers from "./pages/admin/AdminUsers.tsx";
+import AdminMOQ from "./pages/admin/AdminMOQ.tsx";
+import AdminCurrency from "./pages/admin/AdminCurrency.tsx";
+import AdminSupport from "./pages/admin/AdminSupport.tsx";
+import AdminSettings from "./pages/admin/AdminSettings.tsx";
+import AdminAudit from "./pages/admin/AdminAudit.tsx";
 
 const queryClient = new QueryClient();
 
@@ -53,12 +59,19 @@ const App = () => (
           {/* Admin routes */}
           <Route path="/admin" element={<ProtectedRoute><AdminLayout /></ProtectedRoute>}>
             <Route index element={<AdminDashboard />} />
-            <Route path="approvals" element={<AdminApprovals />} />
+            <Route path="clients" element={<AdminClients />} />
+            <Route path="approvals" element={<AdminClients />} />
+            <Route path="products" element={<AdminProducts />} />
+            <Route path="pricing" element={<AdminPricing />} />
             <Route path="orders" element={<AdminOrders />} />
             <Route path="dispatch" element={<AdminDispatch />} />
             <Route path="finance" element={<AdminFinance />} />
-            <Route path="support" element={<AdminSupport />} />
             <Route path="users" element={<AdminUsers />} />
+            <Route path="moq" element={<AdminMOQ />} />
+            <Route path="currency" element={<AdminCurrency />} />
+            <Route path="support" element={<AdminSupport />} />
+            <Route path="settings" element={<AdminSettings />} />
+            <Route path="audit" element={<AdminAudit />} />
           </Route>
           <Route path="*" element={<NotFound />} />
         </Routes>
