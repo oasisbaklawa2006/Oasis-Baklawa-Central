@@ -8,6 +8,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 
 const formatPrice = (n: number) => "₹" + n.toLocaleString("en-IN");
 
+const PACKS_PER_CARTON = 9;
+
 /* ── Carton rules by carton_type ── */
 interface CartonRule {
   packsPerCarton: number;
@@ -15,11 +17,10 @@ interface CartonRule {
 }
 
 function getCartonRule(cartonType: string | null): CartonRule {
-  // Category C = 9 packs/carton, min 3 per variant
   if (cartonType?.toLowerCase().includes("c")) return { packsPerCarton: 9, minVariantPacks: 3 };
   if (cartonType?.toLowerCase().includes("b")) return { packsPerCarton: 6, minVariantPacks: 1 };
   if (cartonType?.toLowerCase().includes("a")) return { packsPerCarton: 4, minVariantPacks: 1 };
-  return { packsPerCarton: 1, minVariantPacks: 1 };
+  return { packsPerCarton: 9, minVariantPacks: 1 };
 }
 
 interface GroupedSection {
@@ -54,13 +55,8 @@ const Cart = () => {
   );
   const tax = Math.round(subtotal * 0.18);
 
-  const totalCartons = useMemo(() =>
-    sections.reduce((sum, sec) => {
-      const packs = sec.items.reduce((s, it) => s + it.quantity, 0);
-      return sum + Math.floor(packs / sec.rule.packsPerCarton);
-    }, 0),
-    [sections]
-  );
+  const totalPacks = useMemo(() => items.reduce((s, it) => s + it.quantity, 0), [items]);
+  const totalCartons = Math.floor(totalPacks / PACKS_PER_CARTON);
 
   if (loading) {
     return (
@@ -98,10 +94,11 @@ const Cart = () => {
         </motion.h1>
 
         {sections.map((section, si) => {
-          const totalPacks = section.items.reduce((s, it) => s + it.quantity, 0);
-          const remainder = totalPacks % section.rule.packsPerCarton;
+          const sectionPacks = section.items.reduce((s, it) => s + it.quantity, 0);
+          const sectionCartons = Math.floor(sectionPacks / section.rule.packsPerCarton);
+          const remainder = sectionPacks % section.rule.packsPerCarton;
           const isIncomplete = remainder > 0 && section.rule.packsPerCarton > 1;
-          const isComplete = !isIncomplete && totalPacks > 0;
+          const isComplete = !isIncomplete && sectionPacks > 0;
           const hasVariantViolation = section.rule.minVariantPacks > 1 &&
             section.items.some((it) => it.quantity > 0 && it.quantity < section.rule.minVariantPacks);
 
@@ -116,13 +113,13 @@ const Cart = () => {
               <div className="flex items-center gap-2">
                 <Package size={18} className="text-primary" />
                 <h2 className="font-body font-bold text-foreground text-sm">{section.cartonType} Cartons</h2>
-                <span className="font-body text-xs text-muted-foreground">({section.rule.packsPerCarton} Packs/Carton)</span>
+                <span className="font-fine text-[11px] text-muted-foreground">({section.rule.packsPerCarton} Packs = 1 Carton)</span>
               </div>
 
               {section.rule.minVariantPacks > 1 && (
                 <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-primary/5 border border-primary/15">
                   <Info size={12} className="text-primary flex-shrink-0" />
-                  <p className="font-body text-[11px] text-primary font-medium">
+                  <p className="font-fine text-[11px] text-primary font-medium">
                     Min. {section.rule.minVariantPacks} packs per variant · Valid combos: 3+3+3, 6+3, or 9
                   </p>
                 </div>
@@ -163,7 +160,7 @@ const Cart = () => {
                           }}
                           className="w-8 h-8 rounded-lg bg-muted border border-border flex items-center justify-center hover:border-primary/50 transition-colors text-foreground text-sm font-bold"
                         >−</button>
-                        <span className="font-body font-bold text-foreground text-sm w-6 text-center">{item.quantity}</span>
+                        <span className="font-ui font-bold text-foreground text-sm w-6 text-center">{item.quantity}</span>
                         <button
                           onClick={() => updateQuantity(item.id, item.quantity + 1)}
                           className="w-8 h-8 rounded-lg bg-muted border border-border flex items-center justify-center hover:border-primary/50 transition-colors text-foreground text-sm font-bold"
@@ -175,10 +172,15 @@ const Cart = () => {
                           <Trash2 size={14} className="text-destructive" />
                         </button>
                       </div>
-                      <p className="font-body font-bold text-foreground text-sm ml-3 min-w-[70px] text-right">{formatPrice(item.quantity * price)}</p>
+                      <p className="font-ui font-bold text-foreground text-sm ml-3 min-w-[70px] text-right">{formatPrice(item.quantity * price)}</p>
                     </div>
                   );
                 })}
+              </div>
+
+              {/* Carton summary for section */}
+              <div className="flex justify-between text-ui-cell text-sm">
+                <span className="text-muted-foreground">Total Packs: {sectionPacks} | Total Cartons: {sectionCartons}</span>
               </div>
 
               <AnimatePresence mode="wait">
@@ -193,14 +195,9 @@ const Cart = () => {
                     <div className="flex items-center gap-2">
                       <AlertTriangle size={14} className="text-destructive" />
                       <p className="font-body text-xs text-destructive font-semibold">
-                        Incomplete Carton: {section.rule.packsPerCarton} packs required. ({totalPacks} selected)
+                        Incomplete Carton: {section.rule.packsPerCarton} packs required. ({sectionPacks} selected)
                       </p>
                     </div>
-                    {hasVariantViolation && (
-                      <p className="font-body text-[11px] text-destructive/80">
-                        Each variant must have at least {section.rule.minVariantPacks} packs. Adjust quantities above.
-                      </p>
-                    )}
                   </motion.div>
                 ) : isComplete ? (
                   <motion.div
@@ -227,19 +224,23 @@ const Cart = () => {
         >
           <h2 className="font-display text-lg tracking-wide text-foreground">Order Summary</h2>
           <div className="space-y-2.5">
-            <div className="flex justify-between font-body text-sm">
+            <div className="flex justify-between font-ui text-sm">
+              <span className="text-muted-foreground">Total Packs</span>
+              <span className="font-semibold text-foreground">{totalPacks}</span>
+            </div>
+            <div className="flex justify-between font-ui text-sm">
               <span className="text-muted-foreground">Total Cartons</span>
               <span className="font-semibold text-foreground">{totalCartons}</span>
             </div>
-            <div className="flex justify-between font-body text-sm">
+            <div className="flex justify-between font-ui text-sm">
               <span className="text-muted-foreground">Subtotal</span>
               <span className="font-semibold text-foreground">{formatPrice(subtotal)}</span>
             </div>
-            <div className="flex justify-between font-body text-sm">
+            <div className="flex justify-between font-ui text-sm">
               <span className="text-muted-foreground">Estimated Taxes (18% GST)</span>
               <span className="font-semibold text-foreground">{formatPrice(tax)}</span>
             </div>
-            <div className="border-t border-border pt-3 flex justify-between font-body text-base">
+            <div className="border-t border-border pt-3 flex justify-between font-ui text-base">
               <span className="font-bold text-foreground">Grand Total</span>
               <span className="font-bold text-foreground">{formatPrice(subtotal + tax)}</span>
             </div>
@@ -247,14 +248,14 @@ const Cart = () => {
 
           <div className="flex items-start gap-2 px-3 py-2.5 rounded-lg bg-muted/60 border border-border/50">
             <Info size={14} className="text-muted-foreground flex-shrink-0 mt-0.5" />
-            <p className="font-body text-[11px] text-muted-foreground leading-relaxed">
-              Orders dispatch only in fully completed master cartons. Incomplete cartons cannot be shipped.
+            <p className="font-fine text-[11px] text-muted-foreground leading-relaxed">
+              9 Packs = 1 Carton. Orders dispatch only in fully completed master cartons.
             </p>
           </div>
 
           <button
             onClick={() => setShowCheckout(true)}
-            className="w-full py-3.5 rounded-xl bg-primary text-primary-foreground font-body font-bold text-sm flex items-center justify-center gap-2 hover:bg-primary/90 transition-colors shadow-fab"
+            className="w-full py-3.5 rounded-xl bg-primary text-primary-foreground font-ui font-bold text-sm flex items-center justify-center gap-2 hover:bg-primary/90 transition-colors shadow-fab"
           >
             <ShoppingCart size={18} />
             Proceed to Sales Order
@@ -267,7 +268,6 @@ const Cart = () => {
         grandTotal={subtotal + tax}
         orderId={draftOrder?.id ?? null}
         onOrderConfirmed={() => {
-          // Reset cart state after order is confirmed
           window.location.href = "/orders";
         }}
       />

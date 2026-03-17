@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import logoImg from "@/assets/logo-open.png";
@@ -6,31 +6,27 @@ import { supabase } from "@/integrations/supabase/client";
 
 const Splash = () => {
   const navigate = useNavigate();
-  const [ready, setReady] = useState(false);
 
   useEffect(() => {
-    const checkAuth = async () => {
+    const timer = setTimeout(async () => {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) {
-        setTimeout(() => navigate("/login", { replace: true }), 2200);
-      } else {
-        const { data } = await supabase
-          .from("users")
-          .select("role")
-          .eq("id", session.user.id)
-          .maybeSingle();
-        const role = data?.role;
-        setTimeout(() => {
-          if (role === "admin" || role === "super_admin") {
-            navigate("/admin", { replace: true });
-          } else {
-            navigate("/", { replace: true });
-          }
-        }, 2200);
+        navigate("/login", { replace: true });
+        return;
       }
-      setReady(true);
-    };
-    checkAuth();
+      const { data } = await supabase
+        .from("users")
+        .select("role")
+        .eq("id", session.user.id)
+        .maybeSingle();
+      if (data?.role === "admin" || data?.role === "super_admin") {
+        navigate("/admin", { replace: true });
+      } else {
+        navigate("/", { replace: true });
+      }
+    }, 3000);
+
+    return () => clearTimeout(timer);
   }, [navigate]);
 
   return (

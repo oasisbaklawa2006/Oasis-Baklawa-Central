@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Route, Routes } from "react-router-dom";
+import { BrowserRouter, Route, Routes, Navigate } from "react-router-dom";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -25,6 +25,7 @@ import AdminOrders from "./pages/admin/AdminOrders.tsx";
 import AdminDispatch from "./pages/admin/AdminDispatch.tsx";
 import AdminFinance from "./pages/admin/AdminFinance.tsx";
 import AdminSupport from "./pages/admin/AdminSupport.tsx";
+import AdminUsers from "./pages/admin/AdminUsers.tsx";
 
 const queryClient = new QueryClient();
 
@@ -57,6 +58,7 @@ const App = () => (
             <Route path="dispatch" element={<AdminDispatch />} />
             <Route path="finance" element={<AdminFinance />} />
             <Route path="support" element={<AdminSupport />} />
+            <Route path="users" element={<AdminUsers />} />
           </Route>
           <Route path="*" element={<NotFound />} />
         </Routes>
