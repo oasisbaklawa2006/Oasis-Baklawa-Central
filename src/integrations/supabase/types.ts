@@ -14,41 +14,167 @@ export type Database = {
   }
   public: {
     Tables: {
+      app_settings: {
+        Row: {
+          id: string
+          setting_key: string
+          setting_value: Json | null
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          id?: string
+          setting_key: string
+          setting_value?: Json | null
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          id?: string
+          setting_key?: string
+          setting_value?: Json | null
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: []
+      }
+      audit_logs: {
+        Row: {
+          action_type: string | null
+          actor_id: string | null
+          created_at: string
+          entity_id: string | null
+          entity_name: string | null
+          id: string
+          module_name: string | null
+          new_value: Json | null
+          old_value: Json | null
+          reason: string | null
+        }
+        Insert: {
+          action_type?: string | null
+          actor_id?: string | null
+          created_at?: string
+          entity_id?: string | null
+          entity_name?: string | null
+          id?: string
+          module_name?: string | null
+          new_value?: Json | null
+          old_value?: Json | null
+          reason?: string | null
+        }
+        Update: {
+          action_type?: string | null
+          actor_id?: string | null
+          created_at?: string
+          entity_id?: string | null
+          entity_name?: string | null
+          id?: string
+          module_name?: string | null
+          new_value?: Json | null
+          old_value?: Json | null
+          reason?: string | null
+        }
+        Relationships: []
+      }
       b2b_applications: {
         Row: {
+          admin_notes: string | null
+          assigned_price_tier: string | null
           business_name: string
+          business_proof_path: string | null
+          business_type: string | null
+          city: string | null
           contact_email: string | null
           contact_name: string | null
+          contact_person: string | null
           contact_phone: string | null
           created_at: string | null
+          current_brands: string | null
+          data_consent: boolean | null
           expected_volume: string | null
+          gst_certificate_path: string | null
           gst_number: string | null
           id: string
+          mobile_number: string | null
+          pincode: string | null
+          preferred_dispatch: string | null
+          preferred_dispatch_other_name: string | null
+          registered_address: string | null
+          rejection_reason: string | null
+          reviewed_at: string | null
+          reviewed_by: string | null
+          state: string | null
           status: string
+          trade_declaration: boolean | null
+          trade_name: string | null
+          updated_at: string | null
           user_id: string | null
         }
         Insert: {
+          admin_notes?: string | null
+          assigned_price_tier?: string | null
           business_name: string
+          business_proof_path?: string | null
+          business_type?: string | null
+          city?: string | null
           contact_email?: string | null
           contact_name?: string | null
+          contact_person?: string | null
           contact_phone?: string | null
           created_at?: string | null
+          current_brands?: string | null
+          data_consent?: boolean | null
           expected_volume?: string | null
+          gst_certificate_path?: string | null
           gst_number?: string | null
           id?: string
+          mobile_number?: string | null
+          pincode?: string | null
+          preferred_dispatch?: string | null
+          preferred_dispatch_other_name?: string | null
+          registered_address?: string | null
+          rejection_reason?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          state?: string | null
           status?: string
+          trade_declaration?: boolean | null
+          trade_name?: string | null
+          updated_at?: string | null
           user_id?: string | null
         }
         Update: {
+          admin_notes?: string | null
+          assigned_price_tier?: string | null
           business_name?: string
+          business_proof_path?: string | null
+          business_type?: string | null
+          city?: string | null
           contact_email?: string | null
           contact_name?: string | null
+          contact_person?: string | null
           contact_phone?: string | null
           created_at?: string | null
+          current_brands?: string | null
+          data_consent?: boolean | null
           expected_volume?: string | null
+          gst_certificate_path?: string | null
           gst_number?: string | null
           id?: string
+          mobile_number?: string | null
+          pincode?: string | null
+          preferred_dispatch?: string | null
+          preferred_dispatch_other_name?: string | null
+          registered_address?: string | null
+          rejection_reason?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          state?: string | null
           status?: string
+          trade_declaration?: boolean | null
+          trade_name?: string | null
+          updated_at?: string | null
           user_id?: string | null
         }
         Relationships: []
@@ -204,6 +330,36 @@ export type Database = {
           },
         ]
       }
+      exchange_rates: {
+        Row: {
+          base_currency: string
+          exchange_rate: number
+          id: string
+          source_type: string | null
+          target_currency: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          base_currency: string
+          exchange_rate: number
+          id?: string
+          source_type?: string | null
+          target_currency: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          base_currency?: string
+          exchange_rate?: number
+          id?: string
+          source_type?: string | null
+          target_currency?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: []
+      }
       invoices: {
         Row: {
           created_at: string | null
@@ -232,6 +388,56 @@ export type Database = {
             columns: ["dispatch_id"]
             isOneToOne: false
             referencedRelation: "dispatches"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      moq_rules: {
+        Row: {
+          carton_type: string | null
+          category_id: string | null
+          created_at: string
+          customer_type: string | null
+          id: string
+          is_active: boolean | null
+          min_quantity: number | null
+          pack_size: string | null
+          product_id: string | null
+          rule_scope: string
+          validation_mode: string | null
+        }
+        Insert: {
+          carton_type?: string | null
+          category_id?: string | null
+          created_at?: string
+          customer_type?: string | null
+          id?: string
+          is_active?: boolean | null
+          min_quantity?: number | null
+          pack_size?: string | null
+          product_id?: string | null
+          rule_scope: string
+          validation_mode?: string | null
+        }
+        Update: {
+          carton_type?: string | null
+          category_id?: string | null
+          created_at?: string
+          customer_type?: string | null
+          id?: string
+          is_active?: boolean | null
+          min_quantity?: number | null
+          pack_size?: string | null
+          product_id?: string | null
+          rule_scope?: string
+          validation_mode?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "moq_rules_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
             referencedColumns: ["id"]
           },
         ]
@@ -404,6 +610,7 @@ export type Database = {
           advance_paid: number | null
           advance_required: number | null
           closed_at: string | null
+          closed_by: string | null
           company_id: string | null
           created_at: string | null
           id: string
@@ -415,6 +622,7 @@ export type Database = {
           advance_paid?: number | null
           advance_required?: number | null
           closed_at?: string | null
+          closed_by?: string | null
           company_id?: string | null
           created_at?: string | null
           id?: string
@@ -426,6 +634,7 @@ export type Database = {
           advance_paid?: number | null
           advance_required?: number | null
           closed_at?: string | null
+          closed_by?: string | null
           company_id?: string | null
           created_at?: string | null
           id?: string
