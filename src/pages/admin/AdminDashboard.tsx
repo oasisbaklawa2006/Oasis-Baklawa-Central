@@ -14,14 +14,16 @@ const AdminDashboard = () => {
   const [loading, setLoading] = useState(true);
 
   const fetchKpis = useCallback(async () => {
-    const [approvals, awaiting, production, assembly, packing, dispatched, closed] = await Promise.all([
+    const [approvals, awaiting, production, assembly, packing, dispatchReady, paymentPending] = await Promise.all([
       supabase.from("b2b_applications").select("id", { count: "exact", head: true }).eq("status", "pending"),
       supabase.from("orders").select("id", { count: "exact", head: true }).eq("status", "awaiting_advance"),
       supabase.from("orders").select("id", { count: "exact", head: true }).eq("status", "in_production"),
       supabase.from("orders").select("id", { count: "exact", head: true }).eq("status", "assembly"),
       supabase.from("orders").select("id", { count: "exact", head: true }).eq("status", "packing"),
-      supabase.from("orders").select("id", { count: "exact", head: true }).eq("status", "dispatched"),
-      supabase.from("orders").select("id", { count: "exact", head: true }).eq("status", "payment_pending"),
+      // Dispatch Pending = packing or ready_for_dispatch
+      supabase.from("orders").select("id", { count: "exact", head: true }).in("status", ["packing", "ready_for_dispatch"]),
+      // Payment Pending = payment_status != 'paid'
+      supabase.from("orders").select("id", { count: "exact", head: true }).neq("payment_status", "paid"),
     ]);
 
     setKpis([
@@ -30,8 +32,8 @@ const AdminDashboard = () => {
       { label: "In Production", value: production.count ?? 0, icon: Factory, color: "#3b82f6" },
       { label: "Assembly", value: assembly.count ?? 0, icon: Layers, color: "#8b5cf6" },
       { label: "Packing", value: packing.count ?? 0, icon: Package, color: "#10b981" },
-      { label: "Dispatch Pending", value: dispatched.count ?? 0, icon: Truck, color: "#06b6d4" },
-      { label: "Payment Pending", value: closed.count ?? 0, icon: CreditCard, color: "#ec4899" },
+      { label: "Dispatch Pending", value: dispatchReady.count ?? 0, icon: Truck, color: "#06b6d4" },
+      { label: "Payment Pending", value: paymentPending.count ?? 0, icon: CreditCard, color: "#ec4899" },
     ]);
     setLoading(false);
   }, []);
