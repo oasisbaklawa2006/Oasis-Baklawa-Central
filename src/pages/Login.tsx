@@ -24,27 +24,23 @@ const Login = () => {
     setLoading(false);
     if (error) {
       toast.error(error.message);
+      return;
+    }
+    toast.success("Welcome back!");
+    const { data: userData } = await supabase
+      .from("users")
+      .select("role")
+      .eq("id", data.user.id)
+      .maybeSingle();
+    if (userData?.role === "admin" || userData?.role === "super_admin") {
+      navigate("/admin");
     } else {
-      toast.success("Welcome back!");
-      // Check role for admin redirect
-      const { data: userData } = await supabase
-        .from("users")
-        .select("role")
-        .eq("id", data.user.id)
-        .maybeSingle();
-      if (userData?.role === "admin" || userData?.role === "super_admin") {
-        navigate("/admin");
-      } else {
-        navigate("/");
-      }
+      navigate("/");
     }
   };
 
   const handleResetPassword = async () => {
-    if (!email) {
-      toast.error("Enter your email first");
-      return;
-    }
+    if (!email) { toast.error("Enter your email first"); return; }
     const { error } = await supabase.auth.resetPasswordForEmail(email, {
       redirectTo: `${window.location.origin}/reset-password`,
     });
@@ -53,21 +49,21 @@ const Login = () => {
   };
 
   return (
-    <div className="min-h-screen bg-background flex flex-col items-center justify-center px-5">
+    <div className="min-h-screen flex flex-col items-center justify-center px-5" style={{ backgroundColor: "#f3f5f9" }}>
       <motion.div
         initial={{ opacity: 0, y: 24 }}
         animate={{ opacity: 1, y: 0 }}
         className="w-full max-w-sm space-y-8"
       >
         <div className="text-center space-y-3">
-          <img src={logoImg} alt="Oasis Baklawa" className="w-[120px] sm:w-[150px] md:w-[175px] mx-auto object-contain" />
-          <h1 className="font-display text-3xl tracking-wide text-foreground">Welcome Back</h1>
+          <img src={logoImg} alt="Oasis Baklawa" className="h-10 sm:h-12 mx-auto object-contain" />
+          <h1 className="font-display text-3xl tracking-wide" style={{ color: "#1c1c1c" }}>Welcome Back</h1>
           <p className="font-body text-sm text-muted-foreground">Sign in to your B2B account</p>
         </div>
 
-        <div className="bg-card rounded-2xl shadow-card p-6 space-y-5">
+        <div className="bg-white rounded-2xl p-6 space-y-5" style={{ boxShadow: "0 4px 24px rgba(0,0,0,0.08)" }}>
           <div className="space-y-2">
-            <label className="font-body text-xs font-semibold text-foreground">Email Address</label>
+            <label className="font-ui text-xs font-semibold" style={{ color: "#1c1c1c" }}>Email Address</label>
             <Input
               type="email"
               placeholder="you@business.com"
@@ -78,7 +74,7 @@ const Login = () => {
           </div>
 
           <div className="space-y-2">
-            <label className="font-body text-xs font-semibold text-foreground">Password</label>
+            <label className="font-ui text-xs font-semibold" style={{ color: "#1c1c1c" }}>Password</label>
             <div className="relative">
               <Input
                 type={showPwd ? "text" : "password"}
@@ -101,7 +97,8 @@ const Login = () => {
           <button
             onClick={handleLogin}
             disabled={loading}
-            className="w-full py-3.5 rounded-xl bg-primary text-primary-foreground font-body font-bold text-sm flex items-center justify-center gap-2 hover:bg-primary/90 transition-colors shadow-fab disabled:opacity-60"
+            className="w-full py-3.5 rounded-xl font-ui font-bold text-sm flex items-center justify-center gap-2 transition-colors shadow-fab disabled:opacity-60"
+            style={{ backgroundColor: "#c6a769", color: "#ffffff" }}
           >
             {loading ? <Loader2 size={18} className="animate-spin" /> : <LogIn size={18} />}
             {loading ? "Signing in…" : "Login"}
@@ -109,7 +106,7 @@ const Login = () => {
 
           <p className="font-body text-xs text-center text-muted-foreground">
             Forgot password?{" "}
-            <button onClick={handleResetPassword} className="text-primary font-semibold hover:underline">
+            <button onClick={handleResetPassword} className="font-semibold hover:underline" style={{ color: "#c6a769" }}>
               Reset it
             </button>
           </p>
@@ -118,7 +115,7 @@ const Login = () => {
         <div className="text-center">
           <p className="font-body text-sm text-muted-foreground">
             New to Oasis Baklawa?{" "}
-            <button onClick={() => navigate("/register")} className="text-primary font-semibold hover:underline">
+            <button onClick={() => navigate("/register")} className="font-semibold hover:underline" style={{ color: "#c6a769" }}>
               Apply for B2B Access
             </button>
           </p>

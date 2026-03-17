@@ -1,5 +1,5 @@
 import { NavLink, Outlet, Navigate } from "react-router-dom";
-import { LayoutDashboard, UserCheck, ClipboardList, Truck, DollarSign, LogOut, Menu, X, Loader2, Headphones } from "lucide-react";
+import { LayoutDashboard, UserCheck, ClipboardList, Truck, DollarSign, LogOut, Menu, X, Loader2, Headphones, Users } from "lucide-react";
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useNavigate } from "react-router-dom";
@@ -13,6 +13,7 @@ const navItems = [
   { to: "/admin/dispatch", icon: Truck, label: "Dispatch" },
   { to: "/admin/finance", icon: DollarSign, label: "Finance" },
   { to: "/admin/support", icon: Headphones, label: "Support Tickets" },
+  { to: "/admin/users", icon: Users, label: "Manage Users" },
 ];
 
 const AdminLayout = () => {
@@ -25,11 +26,7 @@ const AdminLayout = () => {
   useEffect(() => {
     if (authLoading || !user) return;
     const fetchRole = async () => {
-      const { data } = await supabase
-        .from("users")
-        .select("role")
-        .eq("id", user.id)
-        .maybeSingle();
+      const { data } = await supabase.from("users").select("role").eq("id", user.id).maybeSingle();
       setRole(data?.role ?? null);
       setRoleLoading(false);
     };
@@ -38,41 +35,38 @@ const AdminLayout = () => {
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
-    navigate("/login");
+    navigate("/splash");
   };
 
   if (authLoading || roleLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: "#111111" }}>
-        <Loader2 size={24} className="animate-spin" style={{ color: "#c6a769" }} />
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <Loader2 size={24} className="animate-spin text-primary" />
       </div>
     );
   }
 
-  // Role gating: only admin/super_admin allowed
   if (!role || !["admin", "super_admin"].includes(role)) {
     return <Navigate to="/" replace />;
   }
 
   return (
-    <div className="min-h-screen flex" style={{ backgroundColor: "#111111" }}>
+    <div className="min-h-screen flex bg-background">
       {sidebarOpen && (
-        <div className="fixed inset-0 bg-black/50 z-40 lg:hidden" onClick={() => setSidebarOpen(false)} />
+        <div className="fixed inset-0 bg-black/30 z-40 lg:hidden" onClick={() => setSidebarOpen(false)} />
       )}
 
       <aside
-        className={`fixed lg:static inset-y-0 left-0 z-50 w-64 flex flex-col transition-transform lg:translate-x-0 ${
+        className={`fixed lg:static inset-y-0 left-0 z-50 w-64 flex flex-col bg-white border-r border-border transition-transform lg:translate-x-0 ${
           sidebarOpen ? "translate-x-0" : "-translate-x-full"
         }`}
-        style={{ backgroundColor: "#1a1a1a" }}
+        style={{ boxShadow: "2px 0 12px rgba(0,0,0,0.04)" }}
       >
-        <div className="p-5 flex items-center gap-3 border-b" style={{ borderColor: "#2a2a2a" }}>
-          <img src={logoImg} alt="Oasis" className="w-[105px] object-contain" />
-          <span className="font-display text-sm tracking-wide" style={{ color: "#c6a769" }}>
-            Admin
-          </span>
+        <div className="p-5 flex items-center gap-3 border-b border-border">
+          <img src={logoImg} alt="Oasis" className="h-7 object-contain" />
+          <span className="font-ui text-xs font-semibold tracking-wide text-primary">Admin</span>
           <button className="ml-auto lg:hidden" onClick={() => setSidebarOpen(false)}>
-            <X size={18} style={{ color: "#888" }} />
+            <X size={18} className="text-muted-foreground" />
           </button>
         </div>
 
@@ -84,10 +78,10 @@ const AdminLayout = () => {
               end={item.end}
               onClick={() => setSidebarOpen(false)}
               className={({ isActive }) =>
-                `flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
+                `flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-ui font-medium transition-colors ${
                   isActive
-                    ? "text-[#c6a769] bg-[#c6a769]/10"
-                    : "text-[#999] hover:text-[#ccc] hover:bg-white/5"
+                    ? "text-primary bg-primary/10"
+                    : "text-muted-foreground hover:text-foreground hover:bg-muted"
                 }`
               }
             >
@@ -97,10 +91,10 @@ const AdminLayout = () => {
           ))}
         </nav>
 
-        <div className="p-3 border-t" style={{ borderColor: "#2a2a2a" }}>
+        <div className="p-3 border-t border-border">
           <button
             onClick={handleLogout}
-            className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-[#999] hover:text-red-400 hover:bg-red-400/10 transition-colors w-full"
+            className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-ui font-medium text-muted-foreground hover:text-destructive hover:bg-destructive/5 transition-colors w-full"
           >
             <LogOut size={18} />
             Sign Out
@@ -109,18 +103,13 @@ const AdminLayout = () => {
       </aside>
 
       <div className="flex-1 flex flex-col min-h-screen">
-        <header
-          className="h-14 flex items-center px-5 border-b lg:hidden"
-          style={{ backgroundColor: "#1a1a1a", borderColor: "#2a2a2a" }}
-        >
+        <header className="h-14 flex items-center px-5 border-b border-border bg-white lg:hidden">
           <button onClick={() => setSidebarOpen(true)}>
-            <Menu size={20} style={{ color: "#c6a769" }} />
+            <Menu size={20} className="text-primary" />
           </button>
-          <span className="ml-3 font-display text-sm" style={{ color: "#c6a769" }}>
-            Admin Panel
-          </span>
+          <span className="ml-3 font-ui text-sm font-semibold text-primary">Admin Panel</span>
         </header>
-        <main className="flex-1 p-6 overflow-y-auto" style={{ backgroundColor: "#111111" }}>
+        <main className="flex-1 p-6 overflow-y-auto">
           <Outlet />
         </main>
       </div>

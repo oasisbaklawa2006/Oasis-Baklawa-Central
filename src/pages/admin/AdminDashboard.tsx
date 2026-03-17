@@ -4,7 +4,7 @@ import { Loader2, UserCheck, Clock, Factory, Layers, Package, Truck, CreditCard 
 
 interface KPI {
   label: string;
-  value: number;
+  value: string;
   icon: React.ElementType;
   color: string;
 }
@@ -20,20 +20,25 @@ const AdminDashboard = () => {
       supabase.from("orders").select("id", { count: "exact", head: true }).eq("status", "in_production"),
       supabase.from("orders").select("id", { count: "exact", head: true }).eq("status", "assembly"),
       supabase.from("orders").select("id", { count: "exact", head: true }).eq("status", "packing"),
-      // Dispatch Pending = packing or ready_for_dispatch
-      supabase.from("orders").select("id", { count: "exact", head: true }).in("status", ["packing", "ready_for_dispatch"]),
-      // Payment Pending = payment_status != 'paid'
-      supabase.from("orders").select("id", { count: "exact", head: true }).neq("payment_status", "paid"),
+      // Dispatch Pending = ready_for_dispatch only
+      supabase.from("orders").select("id", { count: "exact", head: true }).eq("status", "ready_for_dispatch"),
+      // Payment Pending = sum of unpaid balances
+      supabase.from("orders").select("sales_order_value, advance_paid").neq("payment_status", "paid"),
     ]);
 
+    // Calculate total unpaid ledger balance
+    const unpaidOrders = (paymentPending.data as { sales_order_value: number | null; advance_paid: number | null }[] | null) ?? [];
+    const totalDue = unpaidOrders.reduce((sum, o) => sum + ((o.sales_order_value ?? 0) - (o.advance_paid ?? 0)), 0);
+    const fmtDue = totalDue > 0 ? `₹${totalDue.toLocaleString("en-IN")}` : "₹0";
+
     setKpis([
-      { label: "Pending Approvals", value: approvals.count ?? 0, icon: UserCheck, color: "#f59e0b" },
-      { label: "Awaiting Advance", value: awaiting.count ?? 0, icon: Clock, color: "#ef4444" },
-      { label: "In Production", value: production.count ?? 0, icon: Factory, color: "#3b82f6" },
-      { label: "Assembly", value: assembly.count ?? 0, icon: Layers, color: "#8b5cf6" },
-      { label: "Packing", value: packing.count ?? 0, icon: Package, color: "#10b981" },
-      { label: "Dispatch Pending", value: dispatchReady.count ?? 0, icon: Truck, color: "#06b6d4" },
-      { label: "Payment Pending", value: paymentPending.count ?? 0, icon: CreditCard, color: "#ec4899" },
+      { label: "Pending Approvals", value: String(approvals.count ?? 0), icon: UserCheck, color: "#f59e0b" },
+      { label: "Awaiting Advance", value: String(awaiting.count ?? 0), icon: Clock, color: "#ef4444" },
+      { label: "In Production", value: String(production.count ?? 0), icon: Factory, color: "#3b82f6" },
+      { label: "Assembly", value: String(assembly.count ?? 0), icon: Layers, color: "#8b5cf6" },
+      { label: "Packing", value: String(packing.count ?? 0), icon: Package, color: "#10b981" },
+      { label: "Dispatch Pending", value: String(dispatchReady.count ?? 0), icon: Truck, color: "#06b6d4" },
+      { label: "Payment Pending", value: fmtDue, icon: CreditCard, color: "#ec4899" },
     ]);
     setLoading(false);
   }, []);
@@ -67,16 +72,16 @@ const AdminDashboard = () => {
         {kpis.map((kpi) => (
           <div
             key={kpi.label}
-            className="rounded-2xl p-5 border space-y-3"
-            style={{ backgroundColor: "#1a1a1a", borderColor: "#2a2a2a" }}
+            className="rounded-2xl p-5 border border-border bg-white space-y-3"
+            style={{ boxShadow: "0 2px 12px rgba(0,0,0,0.06)" }}
           >
             <div className="flex items-center justify-between">
               <kpi.icon size={20} style={{ color: kpi.color }} />
-              <span className="text-ui-kpi text-3xl" style={{ color: kpi.color }}>
+              <span className="text-ui-kpi text-2xl" style={{ color: kpi.color }}>
                 {kpi.value}
               </span>
             </div>
-            <p className="text-ui-label text-[#999]">{kpi.label}</p>
+            <p className="text-ui-label text-muted-foreground">{kpi.label}</p>
           </div>
         ))}
       </div>
