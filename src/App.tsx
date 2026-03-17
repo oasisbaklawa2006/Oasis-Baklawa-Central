@@ -24,6 +24,7 @@ import AdminApprovals from "./pages/admin/AdminApprovals.tsx";
 import AdminOrders from "./pages/admin/AdminOrders.tsx";
 import AdminDispatch from "./pages/admin/AdminDispatch.tsx";
 import AdminFinance from "./pages/admin/AdminFinance.tsx";
+import AdminSupport from "./pages/admin/AdminSupport.tsx";
 
 const queryClient = new QueryClient();
 
@@ -55,6 +56,7 @@ const App = () => (
             <Route path="orders" element={<AdminOrders />} />
             <Route path="dispatch" element={<AdminDispatch />} />
             <Route path="finance" element={<AdminFinance />} />
+            <Route path="support" element={<AdminSupport />} />
           </Route>
           <Route path="*" element={<NotFound />} />
         </Routes>

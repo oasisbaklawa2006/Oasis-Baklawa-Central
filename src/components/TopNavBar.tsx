@@ -13,7 +13,7 @@ const TopNavBar = () => {
 
   const handleSignOut = async () => {
     await supabase.auth.signOut();
-    navigate("/login");
+    navigate("/splash");
   };
 
   return (

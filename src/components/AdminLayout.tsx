@@ -1,5 +1,5 @@
 import { NavLink, Outlet, Navigate } from "react-router-dom";
-import { LayoutDashboard, UserCheck, ClipboardList, Truck, DollarSign, LogOut, Menu, X, Loader2 } from "lucide-react";
+import { LayoutDashboard, UserCheck, ClipboardList, Truck, DollarSign, LogOut, Menu, X, Loader2, Headphones } from "lucide-react";
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useNavigate } from "react-router-dom";
@@ -12,6 +12,7 @@ const navItems = [
   { to: "/admin/orders", icon: ClipboardList, label: "Order Queue" },
   { to: "/admin/dispatch", icon: Truck, label: "Dispatch" },
   { to: "/admin/finance", icon: DollarSign, label: "Finance" },
+  { to: "/admin/support", icon: Headphones, label: "Support Tickets" },
 ];
 
 const AdminLayout = () => {

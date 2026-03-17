@@ -313,6 +313,57 @@ export type Database = {
           },
         ]
       }
+      order_payments: {
+        Row: {
+          amount: number
+          company_id: string | null
+          created_at: string
+          created_by: string | null
+          id: string
+          order_id: string
+          payment_date: string | null
+          payment_type: string
+          reference_no: string | null
+        }
+        Insert: {
+          amount?: number
+          company_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          order_id: string
+          payment_date?: string | null
+          payment_type: string
+          reference_no?: string | null
+        }
+        Update: {
+          amount?: number
+          company_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          order_id?: string
+          payment_date?: string | null
+          payment_type?: string
+          reference_no?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "order_payments_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "order_payments_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       order_status_history: {
         Row: {
           changed_at: string | null
@@ -352,27 +403,33 @@ export type Database = {
         Row: {
           advance_paid: number | null
           advance_required: number | null
+          closed_at: string | null
           company_id: string | null
           created_at: string | null
           id: string
+          payment_status: string | null
           sales_order_value: number | null
           status: string
         }
         Insert: {
           advance_paid?: number | null
           advance_required?: number | null
+          closed_at?: string | null
           company_id?: string | null
           created_at?: string | null
           id?: string
+          payment_status?: string | null
           sales_order_value?: number | null
           status: string
         }
         Update: {
           advance_paid?: number | null
           advance_required?: number | null
+          closed_at?: string | null
           company_id?: string | null
           created_at?: string | null
           id?: string
+          payment_status?: string | null
           sales_order_value?: number | null
           status?: string
         }
