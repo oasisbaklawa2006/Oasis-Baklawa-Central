@@ -9,20 +9,35 @@ import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import logoImg from "@/assets/logo-open.png";
 
-const navItems = [
-  { to: "/admin", icon: LayoutDashboard, label: "Dashboard", end: true },
-  { to: "/admin/clients", icon: UserCheck, label: "Client Governance" },
-  { to: "/admin/products", icon: Package, label: "Product Catalog" },
-  { to: "/admin/pricing", icon: BarChart3, label: "Pricing Matrix" },
-  { to: "/admin/orders", icon: ClipboardList, label: "Order Control" },
-  { to: "/admin/finance", icon: DollarSign, label: "Financial Control" },
-  { to: "/admin/dispatch", icon: Truck, label: "Dispatch" },
-  { to: "/admin/users", icon: Users, label: "User & Role Control" },
-  { to: "/admin/moq", icon: Scale, label: "MOQ Rules" },
-  { to: "/admin/currency", icon: Globe, label: "Currency & Rates" },
-  { to: "/admin/support", icon: Headphones, label: "Support Tickets" },
-  { to: "/admin/settings", icon: Settings, label: "System Settings" },
-  { to: "/admin/audit", icon: Shield, label: "Audit Trail" },
+const navSections = [
+  {
+    title: "Command",
+    items: [
+      { to: "/admin", icon: LayoutDashboard, label: "Dashboard", end: true },
+      { to: "/admin/orders", icon: ClipboardList, label: "Order Pipeline" },
+      { to: "/admin/dispatch", icon: Truck, label: "Packing & Dispatch" },
+      { to: "/admin/finance", icon: DollarSign, label: "Accounts & Release" },
+      { to: "/admin/support", icon: Headphones, label: "Support & Exceptions" },
+    ],
+  },
+  {
+    title: "Governance",
+    items: [
+      { to: "/admin/clients", icon: UserCheck, label: "Client Governance" },
+      { to: "/admin/products", icon: Package, label: "Product Catalog" },
+      { to: "/admin/pricing", icon: BarChart3, label: "Pricing Matrix" },
+      { to: "/admin/users", icon: Users, label: "User & Role Control" },
+    ],
+  },
+  {
+    title: "Controls",
+    items: [
+      { to: "/admin/moq", icon: Scale, label: "MOQ Rules" },
+      { to: "/admin/currency", icon: Globe, label: "Currency & Rates" },
+      { to: "/admin/settings", icon: Settings, label: "System Settings" },
+      { to: "/admin/audit", icon: Shield, label: "Audit Trail" },
+    ],
+  },
 ];
 
 const AdminLayout = () => {
@@ -79,24 +94,31 @@ const AdminLayout = () => {
           </button>
         </div>
 
-        <nav className="flex-1 py-3 space-y-0.5 px-3 overflow-y-auto">
-          {navItems.map((item) => (
-            <NavLink
-              key={item.to}
-              to={item.to}
-              end={item.end}
-              onClick={() => setSidebarOpen(false)}
-              className={({ isActive }) =>
-                `flex items-center gap-3 px-3 py-2 rounded-lg text-xs font-ui font-medium transition-colors ${
-                  isActive
-                    ? "text-primary bg-primary/10"
-                    : "text-muted-foreground hover:text-foreground hover:bg-muted"
-                }`
-              }
-            >
-              <item.icon size={16} />
-              {item.label}
-            </NavLink>
+        <nav className="flex-1 py-3 px-3 overflow-y-auto space-y-4">
+          {navSections.map((section) => (
+            <div key={section.title}>
+              <p className="text-fine text-muted-foreground uppercase tracking-wider px-3 mb-1">{section.title}</p>
+              <div className="space-y-0.5">
+                {section.items.map((item) => (
+                  <NavLink
+                    key={item.to}
+                    to={item.to}
+                    end={item.end}
+                    onClick={() => setSidebarOpen(false)}
+                    className={({ isActive }) =>
+                      `flex items-center gap-3 px-3 py-2 rounded-lg text-xs font-ui font-medium transition-colors ${
+                        isActive
+                          ? "text-primary bg-primary/10"
+                          : "text-muted-foreground hover:text-foreground hover:bg-muted"
+                      }`
+                    }
+                  >
+                    <item.icon size={16} />
+                    {item.label}
+                  </NavLink>
+                ))}
+              </div>
+            </div>
           ))}
         </nav>
 
