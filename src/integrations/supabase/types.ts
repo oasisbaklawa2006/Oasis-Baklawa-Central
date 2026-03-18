@@ -1033,6 +1033,7 @@ export type Database = {
           email: string | null
           full_name: string | null
           id: string
+          invite_status: string | null
           is_active: boolean | null
           joined_at: string | null
           mobile_number: string | null
@@ -1049,6 +1050,7 @@ export type Database = {
           email?: string | null
           full_name?: string | null
           id?: string
+          invite_status?: string | null
           is_active?: boolean | null
           joined_at?: string | null
           mobile_number?: string | null
@@ -1065,6 +1067,7 @@ export type Database = {
           email?: string | null
           full_name?: string | null
           id?: string
+          invite_status?: string | null
           is_active?: boolean | null
           joined_at?: string | null
           mobile_number?: string | null
