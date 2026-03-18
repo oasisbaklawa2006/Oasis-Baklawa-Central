@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Loader2, CheckCircle2 } from "lucide-react";
+import { useAuth } from "@/hooks/useAuth";
 
 interface Ticket {
   id: string;
@@ -13,6 +14,7 @@ interface Ticket {
 }
 
 const AdminSupport = () => {
+  const { user } = useAuth();
   const [tickets, setTickets] = useState<Ticket[]>([]);
   const [loading, setLoading] = useState(true);
   const [resolving, setResolving] = useState<string | null>(null);
@@ -29,14 +31,24 @@ const AdminSupport = () => {
 
   useEffect(() => { fetchTickets(); }, []);
 
-  const handleResolve = async (id: string) => {
-    setResolving(id);
+  const handleResolve = async (ticket: Ticket) => {
+    setResolving(ticket.id);
     const { error } = await supabase
       .from("support_tickets")
       .update({ status: "resolved" })
-      .eq("id", id);
+      .eq("id", ticket.id);
     if (error) toast.error("Failed to update");
-    else { toast.success("Ticket resolved"); fetchTickets(); }
+    else {
+      await supabase.from("audit_logs").insert({
+        action_type: "resolve_support_ticket",
+        module_name: "support",
+        entity_name: ticket.issue_type,
+        entity_id: ticket.id,
+        actor_id: user?.id ?? null,
+      });
+      toast.success("Ticket resolved");
+      fetchTickets();
+    }
     setResolving(null);
   };
 
@@ -80,7 +92,7 @@ const AdminSupport = () => {
                   <td className="px-4 py-3 text-right">
                     {t.status !== "resolved" && (
                       <button
-                        onClick={() => handleResolve(t.id)}
+                        onClick={() => handleResolve(t)}
                         disabled={resolving === t.id}
                         className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-ui-button bg-green-100 text-green-700 hover:bg-green-200 transition-colors disabled:opacity-50"
                       >
