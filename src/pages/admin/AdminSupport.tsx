@@ -92,7 +92,7 @@ const AdminSupport = () => {
                   <td className="px-4 py-3 text-right">
                     {t.status !== "resolved" && (
                       <button
-                        onClick={() => handleResolve(t.id)}
+                        onClick={() => handleResolve(t)}
                         disabled={resolving === t.id}
                         className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-ui-button bg-green-100 text-green-700 hover:bg-green-200 transition-colors disabled:opacity-50"
                       >
