@@ -9,20 +9,35 @@ import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import logoImg from "@/assets/logo-open.png";
 
-const navItems = [
-  { to: "/admin", icon: LayoutDashboard, label: "Dashboard", end: true },
-  { to: "/admin/clients", icon: UserCheck, label: "Client Governance" },
-  { to: "/admin/products", icon: Package, label: "Product Catalog" },
-  { to: "/admin/pricing", icon: BarChart3, label: "Pricing Matrix" },
-  { to: "/admin/orders", icon: ClipboardList, label: "Order Control" },
-  { to: "/admin/finance", icon: DollarSign, label: "Financial Control" },
-  { to: "/admin/dispatch", icon: Truck, label: "Dispatch" },
-  { to: "/admin/users", icon: Users, label: "User & Role Control" },
-  { to: "/admin/moq", icon: Scale, label: "MOQ Rules" },
-  { to: "/admin/currency", icon: Globe, label: "Currency & Rates" },
-  { to: "/admin/support", icon: Headphones, label: "Support Tickets" },
-  { to: "/admin/settings", icon: Settings, label: "System Settings" },
-  { to: "/admin/audit", icon: Shield, label: "Audit Trail" },
+const navSections = [
+  {
+    title: "Command",
+    items: [
+      { to: "/admin", icon: LayoutDashboard, label: "Dashboard", end: true },
+      { to: "/admin/orders", icon: ClipboardList, label: "Order Pipeline" },
+      { to: "/admin/dispatch", icon: Truck, label: "Packing & Dispatch" },
+      { to: "/admin/finance", icon: DollarSign, label: "Accounts & Release" },
+      { to: "/admin/support", icon: Headphones, label: "Support & Exceptions" },
+    ],
+  },
+  {
+    title: "Governance",
+    items: [
+      { to: "/admin/clients", icon: UserCheck, label: "Client Governance" },
+      { to: "/admin/products", icon: Package, label: "Product Catalog" },
+      { to: "/admin/pricing", icon: BarChart3, label: "Pricing Matrix" },
+      { to: "/admin/users", icon: Users, label: "User & Role Control" },
+    ],
+  },
+  {
+    title: "Controls",
+    items: [
+      { to: "/admin/moq", icon: Scale, label: "MOQ Rules" },
+      { to: "/admin/currency", icon: Globe, label: "Currency & Rates" },
+      { to: "/admin/settings", icon: Settings, label: "System Settings" },
+      { to: "/admin/audit", icon: Shield, label: "Audit Trail" },
+    ],
+  },
 ];
 
 const AdminLayout = () => {
