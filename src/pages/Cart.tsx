@@ -218,13 +218,45 @@ const Cart = () => {
                     initial={{ opacity: 0, height: 0 }}
                     animate={{ opacity: 1, height: "auto" }}
                     exit={{ opacity: 0, height: 0 }}
-                    className="rounded-xl bg-destructive/5 border border-destructive/15 p-4 space-y-3"
+                    className="overflow-hidden"
                   >
-                    <div className="flex items-center gap-2">
-                      <AlertTriangle size={14} className="text-destructive" />
-                      <p className="font-body text-xs text-destructive font-semibold">
-                        Incomplete Carton: {section.rule.packsPerCarton} packs required. ({sectionPacks} selected)
-                      </p>
+                    <div className="rounded-xl bg-amber-50 border border-amber-200 p-4 mt-3 flex flex-col gap-3">
+                      <div className="flex items-start gap-3">
+                        <AlertTriangle size={16} className="mt-0.5 shrink-0 text-amber-600" />
+                        <div>
+                          <p className="font-bold text-amber-900 text-sm">
+                            Incomplete Carton: {section.rule.packsPerCarton} packs required.
+                          </p>
+                          <p className="text-amber-700 text-xs mt-0.5">
+                            You have {sectionPacks}. You need <strong>{section.rule.packsPerCarton - remainder}</strong>{" "}
+                            more pack(s) to seal this master carton.
+                          </p>
+                        </div>
+                      </div>
+
+                      {/* Smart Suggestion Fill Engine */}
+                      <div className="flex flex-wrap gap-2 mt-1">
+                        {section.items.map((item) => {
+                          if (item.quantity === 0) return null;
+                          return (
+                            <button
+                              key={"fill-" + item.id}
+                              onClick={() =>
+                                updateQuantity(item.id, item.quantity + (section.rule.packsPerCarton - remainder))
+                              }
+                              className="px-3 py-2 bg-amber-200 hover:bg-amber-300 text-amber-900 rounded-lg text-xs font-bold transition-colors shadow-sm"
+                            >
+                              + Add {section.rule.packsPerCarton - remainder} {(item.product as any)?.name ?? "more"}
+                            </button>
+                          );
+                        })}
+                        <button
+                          onClick={() => (window.location.href = "/catalogue")}
+                          className="px-3 py-2 bg-white border border-amber-300 hover:bg-amber-50 text-amber-900 rounded-lg text-xs font-bold transition-colors shadow-sm"
+                        >
+                          Browse {section.cartonType} sweets →
+                        </button>
+                      </div>
                     </div>
                   </motion.div>
                 ) : isComplete ? (
@@ -232,7 +264,7 @@ const Cart = () => {
                     key="complete"
                     initial={{ opacity: 0, scale: 0.95 }}
                     animate={{ opacity: 1, scale: 1 }}
-                    className="flex items-center gap-2 py-2"
+                    className="flex items-center gap-2 py-3"
                   >
                     <CheckCircle2 size={16} className="text-green-600" />
                     <p className="font-body text-xs text-green-600 font-semibold">Carton Complete</p>
