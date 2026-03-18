@@ -94,24 +94,31 @@ const AdminLayout = () => {
           </button>
         </div>
 
-        <nav className="flex-1 py-3 space-y-0.5 px-3 overflow-y-auto">
-          {navItems.map((item) => (
-            <NavLink
-              key={item.to}
-              to={item.to}
-              end={item.end}
-              onClick={() => setSidebarOpen(false)}
-              className={({ isActive }) =>
-                `flex items-center gap-3 px-3 py-2 rounded-lg text-xs font-ui font-medium transition-colors ${
-                  isActive
-                    ? "text-primary bg-primary/10"
-                    : "text-muted-foreground hover:text-foreground hover:bg-muted"
-                }`
-              }
-            >
-              <item.icon size={16} />
-              {item.label}
-            </NavLink>
+        <nav className="flex-1 py-3 px-3 overflow-y-auto space-y-4">
+          {navSections.map((section) => (
+            <div key={section.title}>
+              <p className="text-fine text-muted-foreground uppercase tracking-wider px-3 mb-1">{section.title}</p>
+              <div className="space-y-0.5">
+                {section.items.map((item) => (
+                  <NavLink
+                    key={item.to}
+                    to={item.to}
+                    end={item.end}
+                    onClick={() => setSidebarOpen(false)}
+                    className={({ isActive }) =>
+                      `flex items-center gap-3 px-3 py-2 rounded-lg text-xs font-ui font-medium transition-colors ${
+                        isActive
+                          ? "text-primary bg-primary/10"
+                          : "text-muted-foreground hover:text-foreground hover:bg-muted"
+                      }`
+                    }
+                  >
+                    <item.icon size={16} />
+                    {item.label}
+                  </NavLink>
+                ))}
+              </div>
+            </div>
           ))}
         </nav>
 
