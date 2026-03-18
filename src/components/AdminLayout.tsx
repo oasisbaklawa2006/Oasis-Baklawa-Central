@@ -9,33 +9,55 @@ import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import logoImg from "@/assets/logo-open.png";
 
-const navSections = [
+/* ─── Role → module permission mapping for nav visibility ─── */
+const ROLE_MODULE_ACCESS: Record<string, string[]> = {
+  super_admin: ["*"], // sees everything
+  admin: ["*"],
+  finance_head: ["dashboard", "finance", "orders", "audit"],
+  dispatch_head: ["dashboard", "dispatch", "orders", "packing"],
+  production_manager: ["dashboard", "orders", "production", "assembly"],
+  assembly_manager: ["dashboard", "assembly", "packing"],
+  packing_supervisor: ["dashboard", "packing", "dispatch"],
+  sales_executive: ["dashboard", "orders", "clients", "products"],
+  support_executive: ["dashboard", "support", "orders"],
+  customer_user: [], // never sees admin
+};
+
+interface NavItem {
+  to: string;
+  icon: React.ElementType;
+  label: string;
+  end?: boolean;
+  moduleKey: string; // for role filtering
+}
+
+const navSections: { title: string; items: NavItem[] }[] = [
   {
     title: "Command",
     items: [
-      { to: "/admin", icon: LayoutDashboard, label: "Dashboard", end: true },
-      { to: "/admin/orders", icon: ClipboardList, label: "Order Pipeline" },
-      { to: "/admin/dispatch", icon: Truck, label: "Packing & Dispatch" },
-      { to: "/admin/finance", icon: DollarSign, label: "Accounts & Release" },
-      { to: "/admin/support", icon: Headphones, label: "Support & Exceptions" },
+      { to: "/admin", icon: LayoutDashboard, label: "Dashboard", end: true, moduleKey: "dashboard" },
+      { to: "/admin/orders", icon: ClipboardList, label: "Order Pipeline", moduleKey: "orders" },
+      { to: "/admin/dispatch", icon: Truck, label: "Packing & Dispatch", moduleKey: "dispatch" },
+      { to: "/admin/finance", icon: DollarSign, label: "Accounts & Release", moduleKey: "finance" },
+      { to: "/admin/support", icon: Headphones, label: "Support & Exceptions", moduleKey: "support" },
     ],
   },
   {
     title: "Governance",
     items: [
-      { to: "/admin/clients", icon: UserCheck, label: "Client Governance" },
-      { to: "/admin/products", icon: Package, label: "Product Catalog" },
-      { to: "/admin/pricing", icon: BarChart3, label: "Pricing Matrix" },
-      { to: "/admin/users", icon: Users, label: "User & Role Control" },
+      { to: "/admin/clients", icon: UserCheck, label: "Client Governance", moduleKey: "clients" },
+      { to: "/admin/products", icon: Package, label: "Product Catalog", moduleKey: "products" },
+      { to: "/admin/pricing", icon: BarChart3, label: "Pricing Matrix", moduleKey: "pricing" },
+      { to: "/admin/users", icon: Users, label: "User & Role Control", moduleKey: "users" },
     ],
   },
   {
     title: "Controls",
     items: [
-      { to: "/admin/moq", icon: Scale, label: "MOQ Rules" },
-      { to: "/admin/currency", icon: Globe, label: "Currency & Rates" },
-      { to: "/admin/settings", icon: Settings, label: "System Settings" },
-      { to: "/admin/audit", icon: Shield, label: "Audit Trail" },
+      { to: "/admin/moq", icon: Scale, label: "MOQ Rules", moduleKey: "moq" },
+      { to: "/admin/currency", icon: Globe, label: "Currency & Rates", moduleKey: "currency" },
+      { to: "/admin/settings", icon: Settings, label: "System Settings", moduleKey: "settings" },
+      { to: "/admin/audit", icon: Shield, label: "Audit Trail", moduleKey: "audit" },
     ],
   },
 ];
@@ -70,9 +92,21 @@ const AdminLayout = () => {
     );
   }
 
-  if (!role || !["admin", "super_admin"].includes(role)) {
+  if (!role || !["admin", "super_admin", "finance_head", "dispatch_head", "production_manager", "assembly_manager", "packing_supervisor", "sales_executive", "support_executive"].includes(role)) {
     return <Navigate to="/" replace />;
   }
+
+  // Filter nav items based on role
+  const allowedModules = ROLE_MODULE_ACCESS[role] ?? [];
+  const hasAccess = (moduleKey: string) =>
+    allowedModules.includes("*") || allowedModules.includes(moduleKey);
+
+  const filteredSections = navSections
+    .map(section => ({
+      ...section,
+      items: section.items.filter(item => hasAccess(item.moduleKey)),
+    }))
+    .filter(section => section.items.length > 0);
 
   return (
     <div className="min-h-screen flex bg-background">
@@ -95,7 +129,7 @@ const AdminLayout = () => {
         </div>
 
         <nav className="flex-1 py-3 px-3 overflow-y-auto space-y-4">
-          {navSections.map((section) => (
+          {filteredSections.map((section) => (
             <div key={section.title}>
               <p className="text-fine text-muted-foreground uppercase tracking-wider px-3 mb-1">{section.title}</p>
               <div className="space-y-0.5">
