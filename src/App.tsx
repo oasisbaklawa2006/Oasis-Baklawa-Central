@@ -24,7 +24,10 @@ import AdminClients from "./pages/admin/AdminClients.tsx";
 import AdminProducts from "./pages/admin/AdminProducts.tsx";
 import AdminPricing from "./pages/admin/AdminPricing.tsx";
 import AdminOrders from "./pages/admin/AdminOrders.tsx";
-import AdminDispatch from "./pages/admin/AdminDispatch.tsx";
+import AdminProduction from "./pages/admin/AdminProduction.tsx";
+import AdminPackingDispatch from "./pages/admin/AdminPackingDispatch.tsx";
+import AdminAccountsRelease from "./pages/admin/AdminAccountsRelease.tsx";
+import AdminExceptions from "./pages/admin/AdminExceptions.tsx";
 import AdminFinance from "./pages/admin/AdminFinance.tsx";
 import AdminUsers from "./pages/admin/AdminUsers.tsx";
 import AdminMOQ from "./pages/admin/AdminMOQ.tsx";
@@ -49,14 +52,12 @@ const App = () => (
           <Route path="/login" element={<Login />} />
           <Route path="/register" element={<Register />} />
           <Route path="/onboarding" element={<Onboarding />} />
-          {/* Protected routes */}
           <Route path="/cart" element={<ProtectedRoute><Cart /></ProtectedRoute>} />
           <Route path="/orders" element={<ProtectedRoute><Orders /></ProtectedRoute>} />
           <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
           <Route path="/account" element={<ProtectedRoute><Account /></ProtectedRoute>} />
           <Route path="/favorites" element={<ProtectedRoute><Favorites /></ProtectedRoute>} />
           <Route path="/documents" element={<ProtectedRoute><Documents /></ProtectedRoute>} />
-          {/* Admin routes */}
           <Route path="/admin" element={<ProtectedRoute><AdminLayout /></ProtectedRoute>}>
             <Route index element={<AdminDashboard />} />
             <Route path="clients" element={<AdminClients />} />
@@ -64,7 +65,11 @@ const App = () => (
             <Route path="products" element={<AdminProducts />} />
             <Route path="pricing" element={<AdminPricing />} />
             <Route path="orders" element={<AdminOrders />} />
-            <Route path="dispatch" element={<AdminDispatch />} />
+            <Route path="production" element={<AdminProduction />} />
+            <Route path="packing-dispatch" element={<AdminPackingDispatch />} />
+            <Route path="accounts-release" element={<AdminAccountsRelease />} />
+            <Route path="exceptions" element={<AdminExceptions />} />
+            <Route path="dispatch" element={<AdminPackingDispatch />} />
             <Route path="finance" element={<AdminFinance />} />
             <Route path="users" element={<AdminUsers />} />
             <Route path="moq" element={<AdminMOQ />} />
