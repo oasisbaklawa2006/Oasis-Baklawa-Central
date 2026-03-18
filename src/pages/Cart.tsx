@@ -51,7 +51,7 @@ const Cart = () => {
 
   const subtotal = useMemo(
     () => items.reduce((sum, it) => sum + it.quantity * (it.product?.price_per_kg ?? 0), 0),
-    [items]
+    [items],
   );
   const tax = Math.round(subtotal * 0.18);
 
@@ -76,7 +76,9 @@ const Cart = () => {
         <div className="px-5 py-6 flex flex-col items-center justify-center min-h-[60vh] space-y-4">
           <ShoppingCart size={48} className="text-muted-foreground" />
           <h1 className="font-display text-2xl tracking-wide text-foreground">Your Cart is Empty</h1>
-          <p className="font-body text-sm text-muted-foreground text-center">Add products from the catalogue to get started.</p>
+          <p className="font-body text-sm text-muted-foreground text-center">
+            Add products from the catalogue to get started.
+          </p>
         </div>
       </AppShell>
     );
@@ -99,7 +101,8 @@ const Cart = () => {
           const remainder = sectionPacks % section.rule.packsPerCarton;
           const isIncomplete = remainder > 0 && section.rule.packsPerCarton > 1;
           const isComplete = !isIncomplete && sectionPacks > 0;
-          const hasVariantViolation = section.rule.minVariantPacks > 1 &&
+          const hasVariantViolation =
+            section.rule.minVariantPacks > 1 &&
             section.items.some((it) => it.quantity > 0 && it.quantity < section.rule.minVariantPacks);
 
           return (
@@ -113,7 +116,9 @@ const Cart = () => {
               <div className="flex items-center gap-2">
                 <Package size={18} className="text-primary" />
                 <h2 className="font-body font-bold text-foreground text-sm">{section.cartonType} Cartons</h2>
-                <span className="font-fine text-[11px] text-muted-foreground">({section.rule.packsPerCarton} Packs = 1 Carton)</span>
+                <span className="font-fine text-[11px] text-muted-foreground">
+                  ({section.rule.packsPerCarton} Packs = 1 Carton)
+                </span>
               </div>
 
               {section.rule.minVariantPacks > 1 && (
@@ -127,20 +132,33 @@ const Cart = () => {
 
               <div className="space-y-3">
                 {section.items.map((item) => {
-                  const isViolating = section.rule.minVariantPacks > 1 && item.quantity > 0 && item.quantity < section.rule.minVariantPacks;
+                  const isViolating =
+                    section.rule.minVariantPacks > 1 &&
+                    item.quantity > 0 &&
+                    item.quantity < section.rule.minVariantPacks;
                   const product = item.product;
                   const price = product?.price_per_kg ?? 0;
 
                   return (
-                    <div key={item.id} className={`flex items-center justify-between py-3 border-b last:border-0 ${isViolating ? "border-destructive/30" : "border-border/50"}`}>
+                    <div
+                      key={item.id}
+                      className={`flex items-center justify-between py-3 border-b last:border-0 ${isViolating ? "border-destructive/30" : "border-border/50"}`}
+                    >
                       <div className="flex items-center gap-3 flex-1 min-w-0">
                         {product?.image_url && (
-                          <img src={product.image_url} alt={product.name} className="w-12 h-12 rounded-lg object-cover flex-shrink-0" />
+                          <img
+                            src={product.image_url}
+                            alt={product.name}
+                            className="w-12 h-12 rounded-lg object-cover flex-shrink-0"
+                          />
                         )}
                         <div className="min-w-0">
-                          <p className="font-body font-semibold text-foreground text-sm">{product?.name ?? "Unknown Product"}</p>
+                          <p className="font-body font-semibold text-foreground text-sm">
+                            {product?.name ?? "Unknown Product"}
+                          </p>
                           <p className="font-fine text-[11px] text-muted-foreground">
-                            {item.quantity} × {product?.pack_size ?? item.pack_size ?? "1kg"} Pack{item.quantity !== 1 ? "s" : ""}
+                            {item.quantity} × {product?.pack_size ?? item.pack_size ?? "1kg"} Pack
+                            {item.quantity !== 1 ? "s" : ""}
                           </p>
                           {isViolating && (
                             <p className="font-body text-[11px] text-destructive font-medium mt-0.5">
@@ -159,12 +177,18 @@ const Cart = () => {
                             }
                           }}
                           className="w-8 h-8 rounded-lg bg-muted border border-border flex items-center justify-center hover:border-primary/50 transition-colors text-foreground text-sm font-bold"
-                        >−</button>
-                        <span className="font-ui font-bold text-foreground text-sm w-6 text-center">{item.quantity}</span>
+                        >
+                          −
+                        </button>
+                        <span className="font-ui font-bold text-foreground text-sm w-6 text-center">
+                          {item.quantity}
+                        </span>
                         <button
                           onClick={() => updateQuantity(item.id, item.quantity + 1)}
                           className="w-8 h-8 rounded-lg bg-muted border border-border flex items-center justify-center hover:border-primary/50 transition-colors text-foreground text-sm font-bold"
-                        >+</button>
+                        >
+                          +
+                        </button>
                         <button
                           onClick={() => removeItem(item.id)}
                           className="w-8 h-8 rounded-lg flex items-center justify-center hover:bg-destructive/10 transition-colors"
@@ -172,7 +196,9 @@ const Cart = () => {
                           <Trash2 size={14} className="text-destructive" />
                         </button>
                       </div>
-                      <p className="font-ui font-bold text-foreground text-sm ml-3 min-w-[70px] text-right">{formatPrice(item.quantity * price)}</p>
+                      <p className="font-ui font-bold text-foreground text-sm ml-3 min-w-[70px] text-right">
+                        {formatPrice(item.quantity * price)}
+                      </p>
                     </div>
                   );
                 })}
@@ -180,7 +206,9 @@ const Cart = () => {
 
               {/* Carton summary for section */}
               <div className="flex justify-between text-ui-cell text-sm">
-                <span className="text-muted-foreground">Total Packs: {sectionPacks} | Total Cartons: {sectionCartons}</span>
+                <span className="text-muted-foreground">
+                  Total Packs: {sectionPacks} | Total Cartons: {sectionCartons}
+                </span>
               </div>
 
               <AnimatePresence mode="wait">
@@ -255,9 +283,16 @@ const Cart = () => {
 
           <button
             onClick={() => setShowCheckout(true)}
-            className="w-full py-3.5 rounded-xl bg-primary text-primary-foreground font-ui font-bold text-sm flex items-center justify-center gap-2 hover:bg-primary/90 transition-colors shadow-fab"
+            disabled={
+              sections.some((section) => {
+                const packs = section.items.reduce((s, it) => s + it.quantity, 0);
+                const remainder = packs % section.rule.packsPerCarton;
+                // Disable if any carton is incomplete
+                return packs > 0 && remainder !== 0 && section.rule.packsPerCarton > 1;
+              }) || items.length === 0
+            }
+            className="w-full py-3.5 rounded-xl bg-primary text-primary-foreground font-ui font-bold text-sm flex items-center justify-center gap-2 hover:bg-primary/90 transition-colors shadow-fab disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            <ShoppingCart size={18} />
             Proceed to Sales Order
           </button>
         </motion.section>
