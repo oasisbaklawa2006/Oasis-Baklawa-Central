@@ -31,14 +31,24 @@ const AdminSupport = () => {
 
   useEffect(() => { fetchTickets(); }, []);
 
-  const handleResolve = async (id: string) => {
-    setResolving(id);
+  const handleResolve = async (ticket: Ticket) => {
+    setResolving(ticket.id);
     const { error } = await supabase
       .from("support_tickets")
       .update({ status: "resolved" })
-      .eq("id", id);
+      .eq("id", ticket.id);
     if (error) toast.error("Failed to update");
-    else { toast.success("Ticket resolved"); fetchTickets(); }
+    else {
+      await supabase.from("audit_logs").insert({
+        action_type: "resolve_support_ticket",
+        module_name: "support",
+        entity_name: ticket.issue_type,
+        entity_id: ticket.id,
+        actor_id: user?.id ?? null,
+      });
+      toast.success("Ticket resolved");
+      fetchTickets();
+    }
     setResolving(null);
   };
 
