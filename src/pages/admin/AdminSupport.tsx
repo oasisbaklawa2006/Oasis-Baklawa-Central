@@ -48,32 +48,32 @@ const AdminSupport = () => {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-display-h2 text-primary">Support Tickets</h1>
+      <h1 className="text-display-h2 text-foreground">Support Tickets</h1>
 
       {tickets.length === 0 ? (
-        <p className="text-ui-label text-[#888]">No support tickets.</p>
+        <p className="text-ui-label text-muted-foreground">No support tickets.</p>
       ) : (
-        <div className="rounded-xl overflow-hidden border" style={{ borderColor: "#2a2a2a" }}>
+        <div className="rounded-xl overflow-hidden border border-border bg-card" style={{ boxShadow: "0 2px 12px rgba(0,0,0,0.06)" }}>
           <table className="w-full">
             <thead>
-              <tr style={{ backgroundColor: "#1a1a1a" }}>
-                <th className="text-left px-4 py-3 text-ui-label text-[#888]">Date</th>
-                <th className="text-left px-4 py-3 text-ui-label text-[#888]">Order ID</th>
-                <th className="text-left px-4 py-3 text-ui-label text-[#888]">Issue Type</th>
-                <th className="text-left px-4 py-3 text-ui-label text-[#888]">Description</th>
-                <th className="text-left px-4 py-3 text-ui-label text-[#888]">Status</th>
-                <th className="text-right px-4 py-3 text-ui-label text-[#888]">Action</th>
+              <tr className="bg-muted/50">
+                <th className="text-left px-4 py-3 text-ui-label text-muted-foreground">Date</th>
+                <th className="text-left px-4 py-3 text-ui-label text-muted-foreground">Order ID</th>
+                <th className="text-left px-4 py-3 text-ui-label text-muted-foreground">Issue Type</th>
+                <th className="text-left px-4 py-3 text-ui-label text-muted-foreground">Description</th>
+                <th className="text-left px-4 py-3 text-ui-label text-muted-foreground">Status</th>
+                <th className="text-right px-4 py-3 text-ui-label text-muted-foreground">Action</th>
               </tr>
             </thead>
             <tbody>
               {tickets.map((t) => (
-                <tr key={t.id} className="border-t" style={{ borderColor: "#2a2a2a" }}>
-                  <td className="px-4 py-3 text-ui-cell text-[#aaa]">{fmtDate(t.created_at)}</td>
-                  <td className="px-4 py-3 text-ui-cell text-[#aaa]">{t.order_id.slice(0, 8)}…</td>
-                  <td className="px-4 py-3 text-ui-cell text-white">{t.issue_type}</td>
-                  <td className="px-4 py-3 text-ui-cell text-[#aaa] max-w-[200px] truncate">{t.description}</td>
+                <tr key={t.id} className="border-t border-border">
+                  <td className="px-4 py-3 text-ui-cell text-muted-foreground">{fmtDate(t.created_at)}</td>
+                  <td className="px-4 py-3 text-ui-cell text-muted-foreground">{t.order_id.slice(0, 8)}…</td>
+                  <td className="px-4 py-3 text-ui-cell text-foreground">{t.issue_type}</td>
+                  <td className="px-4 py-3 text-ui-cell text-muted-foreground max-w-[200px] truncate">{t.description}</td>
                   <td className="px-4 py-3">
-                    <span className={`text-ui-label px-2 py-1 rounded-full ${t.status === "resolved" ? "bg-emerald-500/20 text-emerald-400" : "bg-amber-500/20 text-amber-400"}`}>
+                    <span className={`text-ui-label px-2 py-1 rounded-full ${t.status === "resolved" ? "bg-green-100 text-green-700" : "bg-amber-100 text-amber-700"}`}>
                       {t.status ?? "open"}
                     </span>
                   </td>
@@ -82,7 +82,7 @@ const AdminSupport = () => {
                       <button
                         onClick={() => handleResolve(t.id)}
                         disabled={resolving === t.id}
-                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-ui-button bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30 transition-colors disabled:opacity-50"
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-ui-button bg-green-100 text-green-700 hover:bg-green-200 transition-colors disabled:opacity-50"
                       >
                         {resolving === t.id ? <Loader2 size={14} className="animate-spin" /> : <CheckCircle2 size={14} />}
                         Mark Resolved

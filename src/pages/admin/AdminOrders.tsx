@@ -6,7 +6,7 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sh
 
 const PACKS_PER_CARTON = 9;
 
-const STATUSES = ["awaiting_advance", "in_production", "assembly", "packing"] as const;
+const STATUSES = ["awaiting_advance", "in_production", "assembly", "packing", "ready_for_dispatch", "dispatched", "complaint_window"] as const;
 type OrderStatus = typeof STATUSES[number];
 
 const STATUS_LABELS: Record<OrderStatus, string> = {
@@ -14,13 +14,19 @@ const STATUS_LABELS: Record<OrderStatus, string> = {
   in_production: "In Production",
   assembly: "Assembly",
   packing: "Packing",
+  ready_for_dispatch: "Dispatch Ready",
+  dispatched: "Dispatched",
+  complaint_window: "Complaint Window",
 };
 
 const STATUS_COLORS: Record<OrderStatus, string> = {
-  awaiting_advance: "#f59e0b",
-  in_production: "#3b82f6",
-  assembly: "#8b5cf6",
-  packing: "#10b981",
+  awaiting_advance: "hsl(40, 40%, 59%)",
+  in_production: "hsl(220, 70%, 55%)",
+  assembly: "hsl(280, 60%, 55%)",
+  packing: "hsl(150, 50%, 45%)",
+  ready_for_dispatch: "hsl(30, 70%, 50%)",
+  dispatched: "hsl(170, 55%, 45%)",
+  complaint_window: "hsl(0, 70%, 55%)",
 };
 
 interface OrderItem {
@@ -73,7 +79,15 @@ const AdminOrders = () => {
     setUpdating(order.id);
     const { error } = await supabase.from("orders").update({ status: next }).eq("id", order.id);
     if (error) toast.error("Failed to update status");
-    else { toast.success(`Moved to ${STATUS_LABELS[next as OrderStatus]}`); fetchOrders(); }
+    else {
+      toast.success(`Moved to ${STATUS_LABELS[next as OrderStatus]}`);
+      await supabase.from("order_status_history").insert({
+        order_id: order.id,
+        old_status: order.status,
+        new_status: next,
+      });
+      fetchOrders();
+    }
     setUpdating(null);
   };
 
@@ -95,24 +109,25 @@ const AdminOrders = () => {
     return <div className="flex items-center justify-center py-20"><Loader2 size={24} className="animate-spin text-primary" /></div>;
   }
 
+  // Group by status for pipeline view
   return (
     <div className="space-y-6">
-      <h1 className="text-display-h2 text-primary">Order Queue</h1>
+      <h1 className="text-display-h2 text-foreground">Order Pipeline</h1>
 
-      <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7 gap-3">
         {STATUSES.map((status) => {
           const statusOrders = orders.filter((o) => o.status === status);
           return (
-            <div key={status} className="space-y-3">
+            <div key={status} className="space-y-2">
               <div className="flex items-center gap-2 px-1">
-                <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: STATUS_COLORS[status] }} />
-                <h3 className="text-ui-h5 text-foreground">{STATUS_LABELS[status]}</h3>
-                <span className="text-ui-cell text-muted-foreground">({statusOrders.length})</span>
+                <div className="w-2 h-2 rounded-full" style={{ backgroundColor: STATUS_COLORS[status] }} />
+                <h3 className="text-fine text-foreground font-semibold">{STATUS_LABELS[status]}</h3>
+                <span className="text-fine text-muted-foreground">({statusOrders.length})</span>
               </div>
 
-              <div className="space-y-2 min-h-[100px]">
+              <div className="space-y-2 min-h-[80px]">
                 {statusOrders.length === 0 && (
-                  <p className="text-ui-cell text-muted-foreground px-3 py-6 text-center rounded-xl border border-dashed border-border">No orders</p>
+                  <p className="text-fine text-muted-foreground px-2 py-4 text-center rounded-lg border border-dashed border-border">—</p>
                 )}
                 {statusOrders.map((order) => {
                   const next = nextStatus(order.status);
@@ -121,40 +136,26 @@ const AdminOrders = () => {
                   return (
                     <div
                       key={order.id}
-                      className="rounded-xl p-4 space-y-3 border border-border bg-white cursor-pointer hover:border-primary/40 transition-colors"
-                      style={{ boxShadow: "0 2px 8px rgba(0,0,0,0.04)" }}
+                      className="rounded-xl p-3 space-y-2 border border-border bg-card cursor-pointer hover:border-primary/40 transition-colors"
+                      style={{ boxShadow: "0 1px 6px rgba(0,0,0,0.04)" }}
                       onClick={() => handleOpenDrawer(order)}
                     >
-                      <div className="flex items-start justify-between">
-                        <div>
-                          <p className="text-ui-h5 text-foreground">{order.company?.business_name ?? "Unknown"}</p>
-                          <p className="text-ui-cell text-muted-foreground mt-0.5">{order.id.slice(0, 8)}…</p>
-                        </div>
-                        <Package size={16} style={{ color: STATUS_COLORS[order.status as OrderStatus] }} />
+                      <p className="text-ui-cell text-foreground font-medium truncate">{order.company?.business_name ?? "—"}</p>
+                      <p className="text-fine text-muted-foreground">{order.id.slice(0, 8)}…</p>
+                      <div className="flex justify-between text-fine">
+                        <span className="text-muted-foreground">Packs: {packs}</span>
+                        <span className="text-muted-foreground">Cartons: {cartons}</span>
                       </div>
-
-                      <div className="flex justify-between text-ui-cell">
-                        <span className="text-muted-foreground">Total Packs</span>
-                        <span className="text-ui-kpi text-sm text-foreground">{packs}</span>
-                      </div>
-                      <div className="flex justify-between text-ui-cell">
-                        <span className="text-muted-foreground">Total Cartons</span>
-                        <span className="text-ui-kpi text-sm text-foreground">{cartons}</span>
-                      </div>
-                      <div className="flex justify-between text-ui-cell">
-                        <span className="text-muted-foreground">Value</span>
-                        <span className="text-ui-kpi text-sm text-foreground">₹{(order.sales_order_value ?? 0).toLocaleString("en-IN")}</span>
-                      </div>
+                      <p className="text-fine text-foreground">₹{(order.sales_order_value ?? 0).toLocaleString("en-IN")}</p>
 
                       {next && (
                         <button
                           onClick={(e) => { e.stopPropagation(); handleAdvance(order); }}
                           disabled={updating === order.id}
-                          className="w-full flex items-center justify-center gap-1.5 py-2 rounded-lg text-ui-button transition-colors disabled:opacity-50"
-                          style={{ backgroundColor: STATUS_COLORS[next as OrderStatus] + "18", color: STATUS_COLORS[next as OrderStatus] }}
+                          className="w-full flex items-center justify-center gap-1 py-1.5 rounded-lg text-fine font-semibold transition-colors disabled:opacity-50 bg-primary/10 text-primary hover:bg-primary/20"
                         >
-                          {updating === order.id ? <Loader2 size={12} className="animate-spin" /> : <ArrowRight size={12} />}
-                          Move to {STATUS_LABELS[next as OrderStatus]}
+                          {updating === order.id ? <Loader2 size={10} className="animate-spin" /> : <ArrowRight size={10} />}
+                          → {STATUS_LABELS[next as OrderStatus]}
                         </button>
                       )}
                     </div>
@@ -168,9 +169,9 @@ const AdminOrders = () => {
 
       {/* Order Details Drawer */}
       <Sheet open={!!selectedOrder} onOpenChange={(open) => { if (!open) setSelectedOrder(null); }}>
-        <SheetContent className="w-full sm:max-w-lg border-l border-border bg-white">
+        <SheetContent className="w-full sm:max-w-lg border-l border-border bg-card">
           <SheetHeader>
-            <SheetTitle className="text-display-h2 text-primary">Order Details</SheetTitle>
+            <SheetTitle className="text-display-h2 text-foreground">Order Details</SheetTitle>
           </SheetHeader>
 
           {selectedOrder && (
@@ -179,7 +180,7 @@ const AdminOrders = () => {
                 <p className="text-ui-h4 text-foreground">{selectedOrder.company?.business_name ?? "Unknown"}</p>
                 <p className="text-ui-cell text-muted-foreground">Order ID: {selectedOrder.id}</p>
                 <div className="flex items-center gap-2 mt-2">
-                  <span className="px-2 py-1 rounded-full text-ui-label" style={{ backgroundColor: STATUS_COLORS[selectedOrder.status as OrderStatus] + "18", color: STATUS_COLORS[selectedOrder.status as OrderStatus] }}>
+                  <span className="px-2 py-1 rounded-full text-ui-label bg-primary/10 text-primary">
                     {STATUS_LABELS[selectedOrder.status as OrderStatus] ?? selectedOrder.status}
                   </span>
                   <span className="text-ui-kpi text-sm text-muted-foreground">₹{(selectedOrder.sales_order_value ?? 0).toLocaleString("en-IN")}</span>

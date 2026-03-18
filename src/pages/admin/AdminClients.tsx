@@ -1,10 +1,11 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { Loader2, CheckCircle2, XCircle, Eye, ChevronDown } from "lucide-react";
+import { Loader2, CheckCircle2, XCircle, ChevronDown, Send } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 interface Application {
   id: string;
@@ -26,6 +27,11 @@ interface Application {
   assigned_price_tier: string | null;
 }
 
+interface PricingSlab {
+  id: string;
+  slab_name: string;
+}
+
 const STATUS_TABS = ["pending", "approved", "rejected", "suspended"] as const;
 
 const AdminClients = () => {
@@ -37,6 +43,14 @@ const AdminClients = () => {
   const [notes, setNotes] = useState<Record<string, string>>({});
   const [priceTier, setPriceTier] = useState<Record<string, string>>({});
   const [rejectionReason, setRejectionReason] = useState<Record<string, string>>({});
+  const [pricingSlabs, setPricingSlabs] = useState<PricingSlab[]>([]);
+  const [inviteSending, setInviteSending] = useState<string | null>(null);
+
+  useEffect(() => {
+    supabase.from("pricing_slabs").select("id, slab_name").eq("is_active", true).then(({ data }) => {
+      setPricingSlabs((data as PricingSlab[]) ?? []);
+    });
+  }, []);
 
   const fetchApps = async (status: string) => {
     setLoading(true);
@@ -63,7 +77,6 @@ const AdminClients = () => {
     if (error) { toast.error("Failed to approve"); }
     else {
       toast.success(`${app.business_name} approved`);
-      // Create company
       if (app.user_id) {
         const { data: newCo } = await supabase.from("companies").insert({
           business_name: app.business_name,
@@ -74,7 +87,6 @@ const AdminClients = () => {
           await supabase.from("users").update({ role: "buyer", company_id: newCo.id }).eq("id", app.user_id);
         }
       }
-      // Audit log
       await supabase.from("audit_logs").insert({
         action_type: "approve_client",
         module_name: "client_governance",
@@ -87,11 +99,10 @@ const AdminClients = () => {
   };
 
   const handleReject = async (app: Application) => {
-    if (!rejectionReason[app.id]?.trim()) { toast.error("Please provide a rejection reason"); return; }
     setActionLoading(app.id);
     const { error } = await supabase.from("b2b_applications").update({
       status: "rejected",
-      rejection_reason: rejectionReason[app.id],
+      rejection_reason: rejectionReason[app.id] || null,
       admin_notes: notes[app.id] || null,
       reviewed_at: new Date().toISOString(),
     }).eq("id", app.id);
@@ -104,11 +115,25 @@ const AdminClients = () => {
         module_name: "client_governance",
         entity_name: app.business_name,
         entity_id: app.id,
-        reason: rejectionReason[app.id],
+        reason: rejectionReason[app.id] || null,
       });
       fetchApps(tab);
     }
     setActionLoading(null);
+  };
+
+  const handleSendInvite = async (app: Application) => {
+    if (!app.contact_email) { toast.error("No contact email available"); return; }
+    setInviteSending(app.id);
+    const { error } = await supabase.from("portal_access_invites").insert({
+      application_id: app.id,
+      invite_email: app.contact_email,
+      notes: `Portal access invite for ${app.business_name}`,
+      status: "pending",
+    });
+    if (error) toast.error("Failed to send invite");
+    else toast.success(`Portal access invite queued for ${app.contact_email}`);
+    setInviteSending(null);
   };
 
   return (
@@ -145,7 +170,7 @@ const AdminClients = () => {
                           a.status === "pending" ? "bg-amber-100 text-amber-700" :
                           a.status === "approved" ? "bg-green-100 text-green-700" :
                           a.status === "rejected" ? "bg-red-100 text-red-700" :
-                          "bg-gray-100 text-gray-700"
+                          "bg-muted text-muted-foreground"
                         }`}>{a.status}</span>
                         <ChevronDown size={16} className={`text-muted-foreground transition-transform ${expandedId === a.id ? "rotate-180" : ""}`} />
                       </div>
@@ -165,20 +190,44 @@ const AdminClients = () => {
                           {a.rejection_reason && <div className="col-span-2"><span className="text-ui-label text-muted-foreground block">Rejection Reason</span><span className="text-ui-cell text-destructive">{a.rejection_reason}</span></div>}
                         </div>
 
+                        {/* Approved but not activated — Portal Invite */}
+                        {tab === "approved" && (
+                          <div className="pt-2 border-t border-border">
+                            <button
+                              onClick={() => handleSendInvite(a)}
+                              disabled={inviteSending === a.id}
+                              className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-semibold bg-primary/10 text-primary hover:bg-primary/20 transition-colors disabled:opacity-50"
+                            >
+                              {inviteSending === a.id ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />}
+                              Send Portal Access Invite
+                            </button>
+                            <p className="text-fine text-muted-foreground mt-1">Approved applicants cannot log in until a portal invite is sent and accepted.</p>
+                          </div>
+                        )}
+
                         {tab === "pending" && (
                           <div className="space-y-3 pt-2 border-t border-border">
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                               <div>
                                 <label className="text-ui-label text-muted-foreground">Price Tier Assignment</label>
-                                <Input placeholder="e.g. Tier A, Tier B" className="rounded-lg mt-1" value={priceTier[a.id] || ""} onChange={(e) => setPriceTier({ ...priceTier, [a.id]: e.target.value })} />
+                                <Select value={priceTier[a.id] || ""} onValueChange={(v) => setPriceTier({ ...priceTier, [a.id]: v })}>
+                                  <SelectTrigger className="rounded-lg mt-1">
+                                    <SelectValue placeholder="Select pricing slab" />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    {pricingSlabs.map((slab) => (
+                                      <SelectItem key={slab.id} value={slab.slab_name}>{slab.slab_name}</SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
                               </div>
                               <div>
-                                <label className="text-ui-label text-muted-foreground">Admin Notes</label>
+                                <label className="text-ui-label text-muted-foreground">Admin Notes (optional)</label>
                                 <Input placeholder="Internal notes" className="rounded-lg mt-1" value={notes[a.id] || ""} onChange={(e) => setNotes({ ...notes, [a.id]: e.target.value })} />
                               </div>
                             </div>
                             <div>
-                              <label className="text-ui-label text-muted-foreground">Rejection Reason (required if rejecting)</label>
+                              <label className="text-ui-label text-muted-foreground">Rejection Reason (optional)</label>
                               <Textarea placeholder="Reason for rejection…" className="rounded-lg mt-1" rows={2} value={rejectionReason[a.id] || ""} onChange={(e) => setRejectionReason({ ...rejectionReason, [a.id]: e.target.value })} />
                             </div>
                             <div className="flex gap-2">
