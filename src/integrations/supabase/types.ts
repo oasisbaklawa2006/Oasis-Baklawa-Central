@@ -704,6 +704,105 @@ export type Database = {
           },
         ]
       }
+      permissions: {
+        Row: {
+          created_at: string | null
+          id: string
+          module_name: string
+          permission_key: string
+          permission_name: string
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          module_name: string
+          permission_key: string
+          permission_name: string
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          module_name?: string
+          permission_key?: string
+          permission_name?: string
+        }
+        Relationships: []
+      }
+      portal_access_invites: {
+        Row: {
+          accepted_at: string | null
+          application_id: string | null
+          company_id: string | null
+          created_at: string | null
+          id: string
+          invite_email: string
+          notes: string | null
+          sent_at: string | null
+          status: string | null
+        }
+        Insert: {
+          accepted_at?: string | null
+          application_id?: string | null
+          company_id?: string | null
+          created_at?: string | null
+          id?: string
+          invite_email: string
+          notes?: string | null
+          sent_at?: string | null
+          status?: string | null
+        }
+        Update: {
+          accepted_at?: string | null
+          application_id?: string | null
+          company_id?: string | null
+          created_at?: string | null
+          id?: string
+          invite_email?: string
+          notes?: string | null
+          sent_at?: string | null
+          status?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "portal_access_invites_application_id_fkey"
+            columns: ["application_id"]
+            isOneToOne: false
+            referencedRelation: "b2b_applications"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "portal_access_invites_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      pricing_slabs: {
+        Row: {
+          created_at: string | null
+          description: string | null
+          id: string
+          is_active: boolean | null
+          slab_name: string
+        }
+        Insert: {
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          is_active?: boolean | null
+          slab_name: string
+        }
+        Update: {
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          is_active?: boolean | null
+          slab_name?: string
+        }
+        Relationships: []
+      }
       products: {
         Row: {
           carton_type: string | null
@@ -753,6 +852,66 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      role_permission_map: {
+        Row: {
+          created_at: string | null
+          id: string
+          permission_id: string | null
+          role_id: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          permission_id?: string | null
+          role_id?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          permission_id?: string | null
+          role_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "role_permission_map_permission_id_fkey"
+            columns: ["permission_id"]
+            isOneToOne: false
+            referencedRelation: "permissions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "role_permission_map_role_id_fkey"
+            columns: ["role_id"]
+            isOneToOne: false
+            referencedRelation: "roles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      roles: {
+        Row: {
+          created_at: string | null
+          id: string
+          is_active: boolean | null
+          role_key: string
+          role_name: string
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          is_active?: boolean | null
+          role_key: string
+          role_name: string
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          is_active?: boolean | null
+          role_key?: string
+          role_name?: string
+        }
+        Relationships: []
       }
       support_tickets: {
         Row: {
@@ -829,32 +988,89 @@ export type Database = {
           },
         ]
       }
+      user_role_map: {
+        Row: {
+          created_at: string | null
+          id: string
+          role_id: string | null
+          user_id: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          role_id?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          role_id?: string | null
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_role_map_role_id_fkey"
+            columns: ["role_id"]
+            isOneToOne: false
+            referencedRelation: "roles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "user_role_map_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       users: {
         Row: {
           company_id: string | null
           created_at: string | null
+          department: string | null
+          designation: string | null
           email: string | null
+          full_name: string | null
           id: string
+          is_active: boolean | null
+          joined_at: string | null
+          mobile_number: string | null
           name: string | null
           phone: string | null
+          preferred_language: string | null
           role: string
         }
         Insert: {
           company_id?: string | null
           created_at?: string | null
+          department?: string | null
+          designation?: string | null
           email?: string | null
+          full_name?: string | null
           id?: string
+          is_active?: boolean | null
+          joined_at?: string | null
+          mobile_number?: string | null
           name?: string | null
           phone?: string | null
+          preferred_language?: string | null
           role: string
         }
         Update: {
           company_id?: string | null
           created_at?: string | null
+          department?: string | null
+          designation?: string | null
           email?: string | null
+          full_name?: string | null
           id?: string
+          is_active?: boolean | null
+          joined_at?: string | null
+          mobile_number?: string | null
           name?: string | null
           phone?: string | null
+          preferred_language?: string | null
           role?: string
         }
         Relationships: [
