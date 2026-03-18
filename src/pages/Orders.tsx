@@ -1,275 +1,179 @@
-import AppShell from "@/components/AppShell";
-import { motion, AnimatePresence } from "framer-motion";
-import { useState } from "react";
-import { ChevronDown, Package, CheckCircle2, Truck, BoxIcon, CreditCard, ClipboardList, FileText, MessageSquare, ArrowRight, Phone, AlertCircle, Clock } from "lucide-react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Badge } from "@/components/ui/badge";
-import SupportTicketModal from "@/components/SupportTicketModal";
-import ClaimModal from "@/components/ClaimModal";
+import { supabase } from "@/integrations/supabase/client";
+import { Loader2, Package, ChevronRight, Clock, CheckCircle2 } from "lucide-react";
+import TopNavBar from "@/components/TopNavBar";
+import BottomNavBar from "@/components/BottomNavBar";
 
-import pistachioImg from "@/assets/baklawa-pistachio.jpg";
-import cashewImg from "@/assets/baklawa-cashew.jpg";
-import walnutImg from "@/assets/baklawa-walnut.jpg";
-
-type OrderStatus = "unpaid" | "production" | "delivered" | "completed";
+interface OrderItem {
+  quantity: number;
+  product: { name: string } | null;
+}
 
 interface Order {
   id: string;
-  date: string;
-  value: string;
-  status: OrderStatus;
-  statusLabel: string;
-  image: string;
-  productName: string;
-  timeline: { label: string; done: boolean }[];
-  documents: { name: string; type: string }[];
-  supportDaysRemaining?: number;
-  fulfillment?: { ordered: number; packed: number; shortfall: number };
+  status: string;
+  sales_order_value: number;
+  created_at: string;
+  order_items: OrderItem[];
 }
 
-const statusStyles: Record<OrderStatus, string> = {
-  unpaid: "bg-destructive/10 text-destructive border-destructive/20",
-  production: "bg-blue-50 text-blue-600 border-blue-200",
-  delivered: "bg-green-50 text-green-600 border-green-200",
-  completed: "bg-muted text-muted-foreground border-border",
-};
-
-const filterChips = ["All", "Unpaid", "Undelivered", "Issues Pending", "Completed"];
-
-const orders: Order[] = [
-  {
-    id: "ORD-2026-089", date: "12 Mar 2026", value: "₹82,000", status: "unpaid", statusLabel: "Unpaid Advance",
-    image: pistachioImg, productName: "Pistachio Baklawa × 20 Cartons",
-    timeline: [
-      { label: "Order Placed", done: true }, { label: "Advance Paid", done: false },
-      { label: "Production", done: false }, { label: "Packing", done: false },
-      { label: "Dispatched", done: false }, { label: "Delivered", done: false },
-    ],
-    documents: [{ name: "Invoice INV-089", type: "invoice" }, { name: "LR Copy (Transport)", type: "lr" }],
-  },
-  {
-    id: "ORD-2026-074", date: "28 Feb 2026", value: "₹1,45,000", status: "production", statusLabel: "Dispatched",
-    image: cashewImg, productName: "Cashew Roll Baklawa × 35 Cartons",
-    fulfillment: { ordered: 35, packed: 30, shortfall: 5 },
-    timeline: [
-      { label: "Order Placed", done: true }, { label: "Advance Paid", done: true },
-      { label: "Production", done: true }, { label: "Packing", done: true },
-      { label: "Dispatched", done: true }, { label: "Delivered", done: false },
-    ],
-    documents: [{ name: "Invoice INV-074", type: "invoice" }, { name: "LR Copy (Transport)", type: "lr" }],
-  },
-  {
-    id: "ORD-2026-051", date: "10 Feb 2026", value: "₹63,500", status: "delivered", statusLabel: "Delivered - Ticket Open",
-    image: walnutImg, productName: "Walnut Diamond Cut × 15 Cartons",
-    supportDaysRemaining: 8,
-    timeline: [
-      { label: "Order Placed", done: true }, { label: "Advance Paid", done: true },
-      { label: "Production", done: true }, { label: "Packing", done: true },
-      { label: "Dispatched", done: true }, { label: "Delivered", done: true },
-    ],
-    documents: [{ name: "Invoice INV-051", type: "invoice" }, { name: "LR Copy (Transport)", type: "lr" }],
-  },
-];
-
-const timelineIcons = [ClipboardList, CreditCard, Package, BoxIcon, Truck, CheckCircle2];
-
 const Orders = () => {
-  const [expanded, setExpanded] = useState<string | null>(null);
-  const [activeFilter, setActiveFilter] = useState("All");
-  const [ticketOrder, setTicketOrder] = useState<string | null>(null);
-  const [claimOrder, setClaimOrder] = useState<string | null>(null);
+  const [orders, setOrders] = useState<Order[]>([]);
+  const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
 
-  const filteredOrders = orders.filter((o) => {
-    if (activeFilter === "All") return true;
-    if (activeFilter === "Unpaid") return o.status === "unpaid";
-    if (activeFilter === "Undelivered") return o.status === "production" || o.status === "unpaid";
-    if (activeFilter === "Issues Pending") return o.statusLabel.includes("Ticket");
-    if (activeFilter === "Completed") return o.status === "completed" || o.status === "delivered";
-    return true;
-  });
+  useEffect(() => {
+    const fetchOrders = async () => {
+      // 1. Verify Session
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      if (!session) {
+        navigate("/login");
+        return;
+      }
+
+      // 2. Fetch real orders strictly for this user's company (Enforced by RLS)
+      const { data, error } = await supabase
+        .from("orders")
+        .select(
+          `
+          id, 
+          status, 
+          sales_order_value, 
+          created_at, 
+          order_items (
+            quantity,
+            product:products(name)
+          )
+        `,
+        )
+        .order("created_at", { ascending: false });
+
+      if (!error && data) {
+        setOrders(data as unknown as Order[]);
+      } else if (error) {
+        console.error("Error fetching orders:", error);
+      }
+
+      setLoading(false);
+    };
+
+    fetchOrders();
+  }, [navigate]);
+
+  const formatStatus = (status: string) => {
+    return status.replace(/_/g, " ").replace(/\b\w/g, (l) => l.toUpperCase());
+  };
+
+  const getStatusColor = (status: string) => {
+    const s = status.toLowerCase();
+    if (s.includes("delivered") || s.includes("closed")) return "text-green-700 bg-green-100 border-green-200";
+    if (s.includes("cancelled")) return "text-red-700 bg-red-100 border-red-200";
+    if (s.includes("dispatch") || s.includes("transit")) return "text-blue-700 bg-blue-100 border-blue-200";
+    return "text-amber-700 bg-amber-50 border-amber-200";
+  };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-background flex justify-center items-center">
+        <Loader2 className="animate-spin text-primary" size={32} />
+      </div>
+    );
+  }
 
   return (
-    <AppShell>
-      <div className="px-5 py-6 space-y-6">
-        <motion.h1 initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="text-display-h1 text-foreground">
-          Order History
-        </motion.h1>
+    <div className="min-h-screen bg-background pb-24">
+      <TopNavBar />
 
-        {/* Filter Chips */}
-        <div className="flex gap-2 overflow-x-auto scrollbar-hide pb-1">
-          {filterChips.map((chip) => (
+      <main className="pt-24 px-5 max-w-3xl mx-auto">
+        <div className="mb-8">
+          <h1 className="text-display-h2 text-foreground">Order History</h1>
+          <p className="text-body-p2 text-muted-foreground mt-1">Track your wholesale shipments</p>
+        </div>
+
+        {orders.length === 0 ? (
+          <div className="bg-card border border-border rounded-2xl p-10 text-center flex flex-col items-center justify-center shadow-sm">
+            <Package size={48} className="text-muted-foreground/50 mb-4" />
+            <h3 className="text-ui-h4 text-foreground mb-2">No orders found</h3>
+            <p className="text-body-p2 text-muted-foreground mb-6">You haven't placed any wholesale orders yet.</p>
             <button
-              key={chip}
-              onClick={() => setActiveFilter(chip)}
-              className={`px-4 py-2 rounded-full text-ui-button whitespace-nowrap transition-colors border ${
-                activeFilter === chip
-                  ? "bg-primary text-primary-foreground border-primary"
-                  : "bg-card text-muted-foreground border-border hover:border-primary/50"
-              }`}
+              onClick={() => navigate("/catalogue")}
+              className="px-6 py-3 rounded-xl bg-primary text-primary-foreground font-ui font-semibold text-sm hover:bg-primary/90 transition-colors shadow-sm"
             >
-              {chip}
+              Browse Catalogue
             </button>
-          ))}
-        </div>
+          </div>
+        ) : (
+          <div className="space-y-4">
+            {orders.map((order) => {
+              const totalPacks = order.order_items?.reduce((acc, curr) => acc + (curr.quantity || 0), 0) || 0;
+              const statusColor = getStatusColor(order.status);
 
-        <div className="space-y-4">
-          {filteredOrders.map((order, i) => {
-            const isOpen = expanded === order.id;
-            const isDispatchedOrDelivered = order.status === "delivered" || order.statusLabel.toLowerCase().includes("dispatched");
-            return (
-              <motion.div key={order.id} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.1 }} className="bg-card rounded-2xl shadow-card overflow-hidden">
-                <button onClick={() => setExpanded(isOpen ? null : order.id)} className="w-full p-4 flex items-center gap-4 text-left">
-                  <img src={order.image} alt={order.productName} className="w-14 h-14 rounded-xl object-cover flex-shrink-0" />
-                  <div className="flex-1 min-w-0">
-                    <p className="text-ui-h5 text-foreground">{order.id}</p>
-                    <p className="text-ui-cell text-muted-foreground truncate">{order.productName}</p>
-                    <div className="flex items-center gap-2 mt-1.5">
-                      <p className="text-ui-cell text-muted-foreground">{order.date}</p>
-                      <span className="text-muted-foreground">·</span>
-                      <p className="text-ui-kpi text-sm text-foreground">{order.value}</p>
-                    </div>
-                  </div>
-                  <div className="flex flex-col items-end gap-2 flex-shrink-0">
-                    <Badge className={`text-fine border ${statusStyles[order.status]}`}>{order.statusLabel}</Badge>
-                    <ChevronDown size={18} className={`text-muted-foreground transition-transform duration-300 ${isOpen ? "rotate-180" : ""}`} />
-                  </div>
-                </button>
-
-                <AnimatePresence>
-                  {isOpen && (
-                    <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }} transition={{ duration: 0.3 }} className="overflow-hidden">
-                      <div className="px-5 pb-5 pt-1 space-y-5">
-                        {/* Timeline */}
-                        <div className="border-t border-border pt-4">
-                          {order.timeline.map((step, si) => {
-                            const Icon = timelineIcons[si];
-                            const isLast = si === order.timeline.length - 1;
-                            return (
-                              <div key={si} className="flex gap-3">
-                                <div className="flex flex-col items-center">
-                                  <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${step.done ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"}`}>
-                                    <Icon size={14} />
-                                  </div>
-                                  {!isLast && <div className={`w-0.5 h-6 ${step.done ? "bg-primary" : "bg-border"}`} />}
-                                </div>
-                                <p className={`text-body-p2 pt-1.5 ${step.done ? "text-foreground font-semibold" : "text-muted-foreground"}`}>{step.label}</p>
-                              </div>
-                            );
-                          })}
-                        </div>
-
-                        {/* Fulfillment Summary */}
-                        {order.fulfillment && (
-                          <div className="border-t border-border pt-4">
-                            <div className="bg-primary/5 rounded-xl p-4 border border-primary/15 space-y-3">
-                              <h3 className="text-ui-h5 text-foreground flex items-center gap-2"><Package size={14} className="text-primary" /> Fulfillment Summary</h3>
-                              <div className="space-y-2">
-                                {[
-                                  { label: "Ordered Quantity", val: `${order.fulfillment.ordered} Cartons`, cls: "text-foreground" },
-                                  { label: "Packed / Invoiced", val: `${order.fulfillment.packed} Cartons`, cls: "text-foreground" },
-                                  { label: "Shortfall / Pending", val: `${order.fulfillment.shortfall} Cartons`, cls: "text-destructive" },
-                                ].map((r) => (
-                                  <div key={r.label} className="flex justify-between">
-                                    <span className="text-fine text-muted-foreground">{r.label}</span>
-                                    <span className={`text-ui-cell font-semibold ${r.cls}`}>{r.val}</span>
-                                  </div>
-                                ))}
-                              </div>
-                              <p className="text-fine-xs text-muted-foreground italic border-t border-border/50 pt-2">Final Invoice generated from Packed Quantity only.</p>
-                            </div>
-                          </div>
-                        )}
-
-                        {/* Raise Issue / Claim Button */}
-                        {isDispatchedOrDelivered && (
-                          <div className="border-t border-border pt-4">
-                            <button
-                              onClick={(e) => { e.stopPropagation(); setClaimOrder(order.id); }}
-                              className="w-full py-2.5 rounded-xl bg-destructive/10 border border-destructive/20 text-destructive text-ui-button flex items-center justify-center gap-2 hover:bg-destructive/15 transition-colors"
-                            >
-                              <AlertCircle size={14} />
-                              Raise Issue / Claim
-                            </button>
-                          </div>
-                        )}
-
-                        {/* 10-Day Support Window */}
-                        {order.status === "delivered" && order.supportDaysRemaining && order.supportDaysRemaining > 0 && (
-                          <div className="border-t border-border pt-4">
-                            <div className="bg-green-50 rounded-xl p-4 border border-green-200 space-y-3">
-                              <div className="flex items-center gap-2">
-                                <Clock size={14} className="text-green-600" />
-                                <span className="text-ui-label text-green-600">Support Window Open ({order.supportDaysRemaining} Days Remaining)</span>
-                              </div>
-                              <button
-                                onClick={(e) => { e.stopPropagation(); setTicketOrder(order.id); }}
-                                className="w-full py-2.5 rounded-xl bg-card border border-border text-foreground text-ui-button flex items-center justify-center gap-2 hover:border-destructive/50 transition-colors"
-                              >
-                                <AlertCircle size={14} className="text-destructive" />
-                                Raise Ticket / Report Issue
-                              </button>
-                            </div>
-                          </div>
-                        )}
-
-                        {/* Delivery Tracking */}
-                        {order.timeline.find(s => s.label === "Dispatched")?.done && !order.timeline.find(s => s.label === "Delivered")?.done && (
-                          <div className="border-t border-border pt-4">
-                            <div className="bg-primary/5 rounded-xl p-4 border border-primary/15 space-y-2">
-                              <div className="flex items-center gap-2">
-                                <Truck size={14} className="text-primary" />
-                                <h3 className="text-ui-h5 text-foreground">Live Tracking</h3>
-                              </div>
-                              <div className="space-y-1.5">
-                                {[
-                                  { label: "Transporter", value: "Blue Dart" },
-                                  { label: "Tracking LR", value: "849302" },
-                                ].map(r => (
-                                  <div key={r.label} className="flex justify-between">
-                                    <span className="text-fine text-muted-foreground">{r.label}</span>
-                                    <span className="text-ui-cell font-semibold text-foreground">{r.value}</span>
-                                  </div>
-                                ))}
-                              </div>
-                            </div>
-                          </div>
-                        )}
-
-                        {/* Document Center */}
-                        <div className="border-t border-border pt-4 space-y-3">
-                          <h3 className="text-ui-h5 text-foreground flex items-center gap-2"><FileText size={14} className="text-primary" /> Document Center</h3>
-                          {order.documents.map((doc, di) => (
-                            <div key={di} className="flex items-center justify-between py-2.5 px-3 rounded-xl bg-muted/40 border border-border/50">
-                              <div className="flex items-center gap-2.5">
-                                <FileText size={14} className="text-muted-foreground" />
-                                <p className="text-body-p2 text-foreground">{doc.name}</p>
-                              </div>
-                              <button className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-green-500/10 hover:bg-green-500/20 transition-colors" onClick={(e) => e.stopPropagation()}>
-                                <MessageSquare size={13} className="text-green-600" />
-                                <span className="text-ui-label text-green-600">Share</span>
-                              </button>
-                            </div>
-                          ))}
-                          <button onClick={(e) => { e.stopPropagation(); navigate("/documents"); }} className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl bg-primary/10 hover:bg-primary/15 transition-colors mt-1">
-                            <FileText size={14} className="text-primary" />
-                            <span className="text-ui-button text-primary">Go to Document Center</span>
-                            <ArrowRight size={12} className="text-primary" />
-                          </button>
-                        </div>
+              return (
+                <div
+                  key={order.id}
+                  className="p-5 rounded-2xl border border-border bg-card shadow-sm hover:shadow-md transition-shadow"
+                >
+                  <div className="flex justify-between items-start mb-4">
+                    <div>
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                          Order #{order.id.slice(0, 8)}
+                        </span>
                       </div>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-              </motion.div>
-            );
-          })}
-        </div>
-      </div>
+                      <p className="text-ui-label text-foreground">
+                        {new Date(order.created_at).toLocaleDateString("en-IN", {
+                          day: "numeric",
+                          month: "short",
+                          year: "numeric",
+                          hour: "2-digit",
+                          minute: "2-digit",
+                        })}
+                      </p>
+                    </div>
+                    <span
+                      className={`px-3 py-1 text-[11px] font-bold rounded-lg uppercase tracking-wider border ${statusColor}`}
+                    >
+                      {formatStatus(order.status)}
+                    </span>
+                  </div>
 
-      <SupportTicketModal open={!!ticketOrder} onClose={() => setTicketOrder(null)} orderId={ticketOrder || ""} />
-      <ClaimModal open={!!claimOrder} onClose={() => setClaimOrder(null)} orderId={claimOrder || ""} />
-    </AppShell>
+                  <div className="bg-muted/30 rounded-xl p-4 mb-4">
+                    <p className="text-sm text-foreground font-medium mb-1">{totalPacks} Packs Total</p>
+                    <p className="text-xs text-muted-foreground line-clamp-1">
+                      {order.order_items
+                        ?.map((item) => item.product?.name)
+                        .filter(Boolean)
+                        .join(", ") || "Mixed Sweets"}
+                    </p>
+                  </div>
+
+                  <div className="flex justify-between items-center pt-2">
+                    <div>
+                      <p className="text-xs text-muted-foreground mb-0.5">Order Value</p>
+                      <p className="text-lg font-bold text-foreground">
+                        ₹{order.sales_order_value?.toLocaleString("en-IN")}
+                      </p>
+                    </div>
+
+                    {/* Optional: Add Support/Claim hook here later if needed */}
+                    {order.status === "delivered" && (
+                      <button className="text-xs font-semibold text-primary underline underline-offset-2">
+                        Report Issue
+                      </button>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </main>
+
+      <BottomNavBar />
+    </div>
   );
 };
 
