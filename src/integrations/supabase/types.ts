@@ -916,28 +916,34 @@ export type Database = {
       support_tickets: {
         Row: {
           created_at: string | null
+          created_by: string | null
           description: string
           id: string
           issue_type: string
           order_id: string
+          resolution_notes: string | null
           status: string | null
           user_id: string | null
         }
         Insert: {
           created_at?: string | null
+          created_by?: string | null
           description: string
           id?: string
           issue_type: string
           order_id: string
+          resolution_notes?: string | null
           status?: string | null
           user_id?: string | null
         }
         Update: {
           created_at?: string | null
+          created_by?: string | null
           description?: string
           id?: string
           issue_type?: string
           order_id?: string
+          resolution_notes?: string | null
           status?: string | null
           user_id?: string | null
         }
