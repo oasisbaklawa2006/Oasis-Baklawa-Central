@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { motion, AnimatePresence } from "framer-motion";
-import { toast } from "sonner";
 import {
   Loader2,
   Building2,
@@ -73,7 +72,7 @@ const ClientsGovernance = () => {
   // 1. Fetch live data + Invites (STRICTLY SUPABASE ONLY)
   const fetchApplications = async () => {
     setLoading(true);
-    const { data: appData, error: appError } = await supabase
+    const { data: appData } = await supabase
       .from("b2b_applications")
       .select("*")
       .order("created_at", { ascending: false });
@@ -105,7 +104,7 @@ const ClientsGovernance = () => {
       .eq("id", app.id);
 
     if (error) {
-      toast.error("Failed to approve application");
+      console.error("Failed to approve:", error);
       setProcessingId(null);
       return;
     }
@@ -137,7 +136,6 @@ const ClientsGovernance = () => {
       entity_id: app.id,
     });
 
-    toast.success(`${app.business_name} approved successfully`);
     await fetchApplications();
     setSelectedApp(null);
     setProcessingId(null);
@@ -163,9 +161,10 @@ const ClientsGovernance = () => {
         entity_id: app.id,
         reason: rejectionReason,
       });
-      toast.success(`${app.business_name} rejected`);
       await fetchApplications();
       setSelectedApp(null);
+    } else {
+      console.error("Failed to reject:", error);
     }
     setProcessingId(null);
     setRejectionReason("");
@@ -173,10 +172,7 @@ const ClientsGovernance = () => {
 
   // 4. Portal Invite Engine
   const handleSendInvite = async (app: Application) => {
-    if (!app.email) {
-      toast.error("No contact email found");
-      return;
-    }
+    if (!app.email) return;
 
     setInviteSending(app.id);
     const { error } = await supabase.from("portal_access_invites").insert({
@@ -187,11 +183,10 @@ const ClientsGovernance = () => {
     });
 
     if (!error) {
-      toast.success(`Portal invite sent to ${app.email}`);
       const { data } = await supabase.from("portal_access_invites").select("*");
       setInvites((data as PortalInvite[]) ?? []);
     } else {
-      toast.error("Failed to send invite");
+      console.error("Failed to send invite:", error);
     }
     setInviteSending(null);
   };
