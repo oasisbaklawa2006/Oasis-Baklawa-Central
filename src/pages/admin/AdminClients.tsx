@@ -111,7 +111,7 @@ const ClientsGovernance = () => {
     }
 
     // Auto-create Company Record
-    let companyId = null;
+    let companyId: string | null = null;
     const { data: newCo } = await supabase
       .from("companies")
       .insert({
