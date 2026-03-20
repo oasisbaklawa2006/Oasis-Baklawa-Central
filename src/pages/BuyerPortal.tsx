@@ -70,9 +70,32 @@ const BuyerPortal = () => {
     setIsSubmitting(true);
 
     try {
+      // 1. Fetch the logged-in user and their company_id from your AppGen 'users' table
+      const { data: authData } = await supabase.auth.getUser();
+      const user = authData?.user;
+      let currentCompanyId = null;
+
+      if (user) {
+        const { data: appUser } = await supabase.from("users").select("company_id").eq("id", user.id).maybeSingle();
+
+        if (appUser && "company_id" in appUser) {
+          currentCompanyId = String((appUser as Record<string, unknown>).company_id);
+        }
+      }
+
+      // 2. Build the order payload and safely attach the company_id (No user_id sent!)
+      const orderPayload = {
+        status: "submitted",
+        sales_order_value: totalValue,
+      };
+
+      if (currentCompanyId) {
+        Object.assign(orderPayload, { company_id: currentCompanyId });
+      }
+
       const { data: orderData, error: orderError } = await supabase
         .from("orders")
-        .insert([{ status: "submitted", sales_order_value: totalValue }])
+        .insert([orderPayload])
         .select("id")
         .single();
 
@@ -86,9 +109,7 @@ const BuyerPortal = () => {
         carton_type: item.product.carton_type,
       }));
 
-      const { error: itemsError } = await supabase
-        .from("order_items")
-        .insert(orderItemsPayload);
+      const { error: itemsError } = await supabase.from("order_items").insert(orderItemsPayload);
 
       if (itemsError) throw itemsError;
 
@@ -128,9 +149,7 @@ const BuyerPortal = () => {
           <div className="text-center py-20">
             <Package size={48} className="mx-auto text-muted-foreground/40 mb-4" />
             <p className="font-body text-muted-foreground font-semibold">Catalog is empty</p>
-            <p className="font-body text-xs text-muted-foreground mt-1">
-              No active products are available right now.
-            </p>
+            <p className="font-body text-xs text-muted-foreground mt-1">No active products are available right now.</p>
           </div>
         ) : (
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
@@ -150,11 +169,7 @@ const BuyerPortal = () => {
                   {/* Image */}
                   <div className="aspect-square bg-muted/30 flex items-center justify-center overflow-hidden">
                     {product.image_url ? (
-                      <img
-                        src={product.image_url}
-                        alt={product.name}
-                        className="w-full h-full object-cover"
-                      />
+                      <img src={product.image_url} alt={product.name} className="w-full h-full object-cover" />
                     ) : (
                       <Package size={36} className="text-muted-foreground/30" />
                     )}
@@ -165,9 +180,7 @@ const BuyerPortal = () => {
                     <h3 className="font-body font-bold text-foreground text-sm leading-tight line-clamp-2">
                       {product.name}
                     </h3>
-                    <p className="font-body text-primary font-bold text-sm">
-                      ₹{product.price_per_kg} / pack
-                    </p>
+                    <p className="font-body text-primary font-bold text-sm">₹{product.price_per_kg} / pack</p>
 
                     <div className="flex flex-wrap gap-1">
                       <p className="text-[10px] font-body text-muted-foreground bg-muted/50 px-2 py-0.5 rounded-full">
@@ -232,9 +245,7 @@ const BuyerPortal = () => {
                 </div>
                 <div>
                   <p className="font-body font-bold text-foreground text-sm">Order Total</p>
-                  <p className="font-body text-primary font-bold text-lg">
-                    ₹{totalValue.toLocaleString("en-IN")}
-                  </p>
+                  <p className="font-body text-primary font-bold text-lg">₹{totalValue.toLocaleString("en-IN")}</p>
                 </div>
               </div>
 
