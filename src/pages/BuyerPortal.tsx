@@ -72,21 +72,39 @@ const BuyerPortal = () => {
     setIsSubmitting(true);
 
     try {
-      // Create the Order record
+      // 1. Fetch the logged-in user securely
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      let currentCompanyId = null;
+
+      if (user) {
+        // Fetch their company_id from their profile
+        const { data: profile } = await supabase.from("profiles").select("company_id").eq("id", user.id).maybeSingle();
+
+        // Use 'as any' to bypass Lovable's strict TS build errors
+        currentCompanyId = (profile as any)?.company_id || null;
+      }
+
+      // 2. Build the order payload with the user's ID and Company ID
+      const orderPayload: any = {
+        status: "submitted",
+        sales_order_value: totalValue,
+      };
+
+      if (user) orderPayload.user_id = user.id;
+      if (currentCompanyId) orderPayload.company_id = currentCompanyId;
+
+      // 3. Create the Order record
       const { data: orderData, error: orderError } = await supabase
         .from("orders")
-        .insert([
-          {
-            status: "submitted",
-            sales_order_value: totalValue,
-          },
-        ])
+        .insert([orderPayload])
         .select("id")
         .single();
 
       if (orderError) throw orderError;
 
-      // Create the Order Items records
+      // 4. Create the Order Items records
       const orderItemsPayload = cartItems.map((item) => ({
         order_id: orderData.id,
         product_id: item.product.id,
