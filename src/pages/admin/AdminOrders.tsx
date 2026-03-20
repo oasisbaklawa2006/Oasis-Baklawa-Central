@@ -63,25 +63,24 @@ const STATUS_COLORS: Record<OrderStatus, string> = {
   cancelled: "hsl(0, 50%, 45%)",
 };
 
-// Terminal statuses cannot advance
 const TERMINAL = new Set(["closed", "cancelled", "delivered"]);
 
 interface OrderItem {
   id: string;
   quantity: number;
   product_id: string | null;
-  products?: {
-    name: string;
-    pack_size: string | null;
-    carton_type: string | null;
-  } | null;
+  pack_size?: string | null;
+  carton_type?: string | null;
+  products?: { name: string } | null;
+  product?: { name: string } | null; // AppGen fallback
 }
 
 interface OrderCard {
   id: string;
   status: string;
-  total_amount: number | null;
-  user_id: string | null;
+  sales_order_value: number | null;
+  company_id: string | null;
+  company?: { business_name: string } | null;
   order_items?: OrderItem[];
 }
 
@@ -95,18 +94,24 @@ const AdminOrders = () => {
 
   const fetchOrders = async () => {
     setLoading(true);
-    // Fetching orders and joining order_items directly
-    const { data } = await supabase
+    // USING YOUR EXACT APPGEN COLUMNS HERE
+    const { data, error } = await supabase
       .from("orders")
       .select(
         `
-        id, status, total_amount, user_id,
+        id, status, sales_order_value, company_id,
+        company:companies(business_name),
         order_items ( id, quantity, product_id )
       `,
       )
       .in("status", [...STATUSES]);
 
-    setOrders((data as unknown as OrderCard[]) ?? []);
+    if (error) {
+      console.error("Failed to fetch orders (check database schema):", error);
+      toast.error("Database connection error");
+    } else {
+      setOrders((data as unknown as OrderCard[]) ?? []);
+    }
     setLoading(false);
   };
 
@@ -143,16 +148,18 @@ const AdminOrders = () => {
     setSelectedOrder(order);
     setDrawerLoading(true);
 
-    // Fetch detailed items including product info
-    const { data } = await supabase
+    // Fetching items using AppGen's specific relations
+    const { data, error } = await supabase
       .from("order_items")
       .select(
         `
-        id, quantity, product_id, 
-        products (name, pack_size, carton_type)
+        id, quantity, product_id, pack_size, carton_type,
+        products (name)
       `,
       )
       .eq("order_id", order.id);
+
+    if (error) console.error(error);
 
     setDrawerItems((data as unknown as OrderItem[]) ?? []);
     setDrawerLoading(false);
@@ -165,6 +172,11 @@ const AdminOrders = () => {
 
   const getTotalPacks = (items?: { quantity: number }[]) =>
     items?.reduce((sum, it) => sum + Number(it.quantity), 0) ?? 0;
+
+  // Helper to safely grab the product name regardless of how Supabase returns the join
+  const getProductName = (item: OrderItem) => {
+    return item.products?.name || item.product?.name || "Unknown Product";
+  };
 
   if (loading) {
     return (
@@ -225,13 +237,17 @@ const AdminOrders = () => {
                           onClick={() => handleOpenDrawer(order)}
                         >
                           <div className="flex justify-between items-start mb-2">
-                            <p className="text-xs font-mono font-bold text-muted-foreground uppercase">
+                            <p className="text-xs font-bold text-foreground line-clamp-1 flex-1 pr-2">
+                              {order.company?.business_name || "Unknown Company"}
+                            </p>
+                            <p className="text-xs font-mono font-bold text-muted-foreground uppercase flex-shrink-0">
                               #{order.id.slice(0, 6)}
                             </p>
-                            <p className="text-sm font-bold text-foreground">
-                              ₹{(order.total_amount ?? 0).toLocaleString("en-IN")}
-                            </p>
                           </div>
+
+                          <p className="text-sm font-bold text-foreground mb-3">
+                            ₹{(order.sales_order_value ?? 0).toLocaleString("en-IN")}
+                          </p>
 
                           <div className="flex gap-3 text-xs font-semibold text-muted-foreground bg-muted/30 p-2 rounded-lg mb-3">
                             <span>📦 {packs} Packs</span>
@@ -283,7 +299,9 @@ const AdminOrders = () => {
             >
               <div className="flex items-center justify-between p-6 border-b border-border bg-muted/10">
                 <div>
-                  <h2 className="text-lg font-display tracking-wide text-foreground">Order Details</h2>
+                  <h2 className="text-lg font-display tracking-wide text-foreground">
+                    {selectedOrder.company?.business_name || "Order Details"}
+                  </h2>
                   <p className="text-xs font-mono text-muted-foreground mt-1 uppercase">#{selectedOrder.id}</p>
                 </div>
                 <button
@@ -315,7 +333,7 @@ const AdminOrders = () => {
                       Order Value
                     </p>
                     <p className="text-sm font-bold text-foreground">
-                      ₹{(selectedOrder.total_amount ?? 0).toLocaleString("en-IN")}
+                      ₹{(selectedOrder.sales_order_value ?? 0).toLocaleString("en-IN")}
                     </p>
                   </div>
                 </div>
@@ -337,11 +355,9 @@ const AdminOrders = () => {
                         <div key={item.id} className="p-3 rounded-xl border border-border bg-muted/10">
                           <div className="flex justify-between items-start">
                             <div>
-                              <p className="text-sm font-bold text-foreground">
-                                {item.products?.name ?? "Unknown Product"}
-                              </p>
+                              <p className="text-sm font-bold text-foreground">{getProductName(item)}</p>
                               <p className="text-xs text-muted-foreground mt-1">
-                                Pack: {item.products?.pack_size ?? "—"} • Ctn: {item.products?.carton_type ?? "—"}
+                                Pack: {item.pack_size ?? "—"} • Ctn: {item.carton_type ?? "—"}
                               </p>
                             </div>
                             <p className="text-sm font-bold text-primary bg-primary/10 px-2 py-1 rounded-md">
