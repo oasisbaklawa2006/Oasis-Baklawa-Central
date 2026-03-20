@@ -2,10 +2,7 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "sonner";
-import {
-  Loader2, Package, Plus, Edit2,
-  Power, PowerOff, Image as ImageIcon, X
-} from "lucide-react";
+import { Loader2, Package, Plus, Edit2, Power, PowerOff, Image as ImageIcon, X, UploadCloud } from "lucide-react";
 
 interface Product {
   id: string;
@@ -42,28 +39,54 @@ const AdminProducts = () => {
   const [isPanelOpen, setIsPanelOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [saving, setSaving] = useState(false);
+  const [uploadingImage, setUploadingImage] = useState(false);
   const [formData, setFormData] = useState<ProductForm>({ ...EMPTY_FORM });
 
   const fetchProducts = async () => {
     setLoading(true);
-    const { data, error } = await supabase
-      .from("products")
-      .select("*")
-      .order("created_at", { ascending: false });
+    const { data, error } = await supabase.from("products").select("*").order("created_at", { ascending: false });
     if (!error) setProducts((data as Product[]) ?? []);
     setLoading(false);
   };
 
-  useEffect(() => { fetchProducts(); }, []);
+  useEffect(() => {
+    fetchProducts();
+  }, []);
 
-  const handleInputChange = (
-    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>
-  ) => {
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
     setFormData((prev) => ({
       ...prev,
       [name]: name === "price_per_kg" ? parseFloat(value) || 0 : value,
     }));
+  };
+
+  // NEW: Handle Supabase Image Upload
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    try {
+      if (!e.target.files || e.target.files.length === 0) return;
+
+      const file = e.target.files[0];
+      setUploadingImage(true);
+
+      const fileExt = file.name.split(".").pop();
+      const fileName = `${Math.random().toString(36).substring(2)}-${Date.now()}.${fileExt}`;
+      const filePath = `${fileName}`;
+
+      const { error: uploadError } = await supabase.storage.from("product-images").upload(filePath, file);
+
+      if (uploadError) throw uploadError;
+
+      const { data: publicUrlData } = supabase.storage.from("product-images").getPublicUrl(filePath);
+
+      setFormData((prev) => ({ ...prev, image_url: publicUrlData.publicUrl }));
+      toast.success("Image uploaded successfully!");
+    } catch (error: any) {
+      console.error("Upload error:", error);
+      toast.error(error.message || "Failed to upload image");
+    } finally {
+      setUploadingImage(false);
+    }
   };
 
   const openPanel = (product?: Product) => {
@@ -113,26 +136,32 @@ const AdminProducts = () => {
     };
 
     if (editingProduct) {
-      const { error } = await supabase
-        .from("products")
-        .update(payload)
-        .eq("id", editingProduct.id);
-      if (error) { toast.error("Failed to update product"); console.error(error); }
-      else { toast.success("Product updated"); closePanel(); await fetchProducts(); }
+      const { error } = await supabase.from("products").update(payload).eq("id", editingProduct.id);
+      if (error) {
+        toast.error("Failed to update product");
+        console.error(error);
+      } else {
+        toast.success("Product updated");
+        closePanel();
+        await fetchProducts();
+      }
     } else {
       const { error } = await supabase.from("products").insert([payload]);
-      if (error) { toast.error("Failed to add product"); console.error(error); }
-      else { toast.success("Product added"); closePanel(); await fetchProducts(); }
+      if (error) {
+        toast.error("Failed to add product");
+        console.error(error);
+      } else {
+        toast.success("Product added");
+        closePanel();
+        await fetchProducts();
+      }
     }
     setSaving(false);
   };
 
   const toggleActiveStatus = async (product: Product) => {
     const newStatus = !product.is_active;
-    const { error } = await supabase
-      .from("products")
-      .update({ is_active: newStatus })
-      .eq("id", product.id);
+    const { error } = await supabase.from("products").update({ is_active: newStatus }).eq("id", product.id);
     if (!error) {
       toast.success(`${product.name} is now ${newStatus ? "Active" : "Hidden"}`);
       await fetchProducts();
@@ -155,12 +184,8 @@ const AdminProducts = () => {
         {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
-            <h1 className="text-2xl font-bold text-foreground tracking-tight">
-              Product Catalog
-            </h1>
-            <p className="text-sm text-muted-foreground mt-1">
-              Manage your wholesale inventory and pricing
-            </p>
+            <h1 className="text-2xl font-bold text-foreground tracking-tight">Product Catalog</h1>
+            <p className="text-sm text-muted-foreground mt-1">Manage your wholesale inventory and pricing</p>
           </div>
           <button
             onClick={() => openPanel()}
@@ -234,17 +259,11 @@ const AdminProducts = () => {
 
                 {/* Details */}
                 <div className="p-4 space-y-3">
-                  <h3 className="font-semibold text-foreground text-sm leading-snug truncate">
-                    {product.name}
-                  </h3>
-                  <p className="text-primary font-bold text-sm tabular-nums">
-                    ₹{product.price_per_kg} / kg
-                  </p>
+                  <h3 className="font-semibold text-foreground text-sm leading-snug truncate">{product.name}</h3>
+                  <p className="text-primary font-bold text-sm tabular-nums">₹{product.price_per_kg} / kg</p>
 
                   <div className="space-y-0.5">
-                    {product.pack_size && (
-                      <p className="text-xs text-muted-foreground">Pack: {product.pack_size}</p>
-                    )}
+                    {product.pack_size && <p className="text-xs text-muted-foreground">Pack: {product.pack_size}</p>}
                     {product.shelf_life && (
                       <p className="text-xs text-muted-foreground">Shelf Life: {product.shelf_life}</p>
                     )}
@@ -303,16 +322,70 @@ const AdminProducts = () => {
                 <h2 className="text-lg font-bold text-foreground">
                   {editingProduct ? "Edit Product" : "Add New Product"}
                 </h2>
-                <button
-                  onClick={closePanel}
-                  className="p-1.5 rounded-md hover:bg-muted transition-colors"
-                >
+                <button onClick={closePanel} className="p-1.5 rounded-md hover:bg-muted transition-colors">
                   <X size={18} className="text-muted-foreground" />
                 </button>
               </div>
 
               {/* Panel Body */}
               <div className="flex-1 overflow-y-auto p-6 space-y-6">
+                {/* NEW: Image Uploader */}
+                <div>
+                  <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                    Product Image
+                  </label>
+                  <div className="mt-2 flex items-center gap-4">
+                    {/* Preview Bubble */}
+                    {formData.image_url ? (
+                      <div className="relative w-16 h-16 rounded-lg overflow-hidden border border-border flex-shrink-0 bg-muted/30">
+                        <img src={formData.image_url} alt="Preview" className="w-full h-full object-cover" />
+                        <button
+                          type="button"
+                          onClick={() => setFormData((prev) => ({ ...prev, image_url: "" }))}
+                          className="absolute top-1 right-1 bg-black/60 text-white rounded-full p-0.5 hover:bg-black/80 transition-colors"
+                        >
+                          <X size={10} />
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="w-16 h-16 rounded-lg border border-dashed border-border bg-muted/10 flex items-center justify-center flex-shrink-0">
+                        <ImageIcon size={20} className="text-muted-foreground/40" />
+                      </div>
+                    )}
+
+                    {/* Upload Buttons */}
+                    <div className="flex-1 space-y-2">
+                      <div className="flex items-center gap-2">
+                        {/* File Upload Button */}
+                        <label
+                          className={`flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-lg border border-border bg-background cursor-pointer hover:bg-muted/50 transition-colors text-xs font-semibold text-foreground ${uploadingImage ? "opacity-50 pointer-events-none" : ""}`}
+                        >
+                          {uploadingImage ? <Loader2 size={14} className="animate-spin" /> : <UploadCloud size={14} />}
+                          {uploadingImage ? "Uploading..." : "Upload File"}
+                          <input
+                            type="file"
+                            accept="image/*"
+                            onChange={handleImageUpload}
+                            className="hidden"
+                            disabled={uploadingImage}
+                          />
+                        </label>
+                      </div>
+
+                      {/* URL Fallback */}
+                      <input
+                        name="image_url"
+                        value={formData.image_url ?? ""}
+                        onChange={handleInputChange}
+                        placeholder="...or paste an image URL"
+                        className="w-full px-3 py-1.5 rounded-md border border-border bg-muted/10 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary/30"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <hr className="border-border" />
+
                 {/* Basic Info */}
                 <div className="space-y-4">
                   <div>
@@ -405,20 +478,8 @@ const AdminProducts = () => {
 
                 <hr className="border-border" />
 
-                {/* Media & Details */}
+                {/* Details */}
                 <div className="space-y-4">
-                  <div>
-                    <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-                      Image URL
-                    </label>
-                    <input
-                      name="image_url"
-                      value={formData.image_url ?? ""}
-                      onChange={handleInputChange}
-                      placeholder="https://..."
-                      className="mt-1.5 w-full px-3 py-2.5 rounded-lg border border-border bg-background text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/30"
-                    />
-                  </div>
                   <div>
                     <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
                       Description
@@ -457,7 +518,7 @@ const AdminProducts = () => {
                 </button>
                 <button
                   onClick={handleSaveProduct}
-                  disabled={saving}
+                  disabled={saving || uploadingImage}
                   className="px-6 py-2.5 rounded-lg font-semibold text-sm bg-primary text-primary-foreground hover:bg-primary/90 transition-colors shadow-sm flex items-center gap-2 active:scale-[0.97] disabled:opacity-50"
                 >
                   {saving && <Loader2 size={14} className="animate-spin" />}
