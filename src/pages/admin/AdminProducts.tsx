@@ -99,7 +99,18 @@ const AdminProducts = () => {
       return;
     }
     setSaving(true);
-    const payload: Record<string, unknown> = { ...formData };
+    const payload = {
+      name: formData.name,
+      price_per_kg: formData.price_per_kg,
+      pack_size: formData.pack_size || null,
+      carton_type: formData.carton_type || null,
+      storage_type: formData.storage_type || null,
+      description: formData.description || null,
+      shelf_life: formData.shelf_life || null,
+      image_url: formData.image_url || null,
+      is_active: formData.is_active,
+      category_id: formData.category_id || null,
+    };
 
     if (editingProduct) {
       const { error } = await supabase
