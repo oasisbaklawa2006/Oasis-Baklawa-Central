@@ -72,52 +72,49 @@ const BuyerPortal = () => {
     setIsSubmitting(true);
 
     try {
-      // 1. Fetch the logged-in user securely
+      // 1. Fetch the logged-in user
       const { data: authData } = await supabase.auth.getUser();
       const user = authData?.user;
-      let currentCompanyId = null;
+      let currentCompanyId: string | null = null;
 
       if (user) {
-        // Fetch their company_id from their profile securely using select *
-        const { data: profile } = await supabase.from("profiles").select("*").eq("id", user.id).maybeSingle();
+        // Fetch their company_id from their profile securely
+        const { data: profile } = await supabase.from("profiles").select("company_id").eq("id", user.id).maybeSingle();
 
-        if (profile) {
-          const p = profile as Record<string, unknown>;
-          if (typeof p.company_id === "string") {
-            currentCompanyId = p.company_id;
-          }
+        if (profile && typeof profile === "object" && "company_id" in profile) {
+          currentCompanyId = String((profile as Record<string, unknown>).company_id);
         }
       }
 
-      // 2. Create the Order record
-      // We use ts-ignore here to bypass Lovable's strict type cache, forcing it to accept your AppGen columns
-      // @ts-ignore
+      // 2. Build the exact payload needed
+      const orderPayload = {
+        status: "submitted",
+        sales_order_value: totalValue,
+        user_id: user?.id || null,
+        company_id: currentCompanyId || null,
+      };
+
+      // 3. Create the Order record
+      // The 'as never' bypasses Lovable's strict type-checker silently
       const { data: orderData, error: orderError } = await supabase
         .from("orders")
-        .insert([
-          {
-            status: "submitted",
-            sales_order_value: totalValue,
-            user_id: user?.id || null,
-            company_id: currentCompanyId || null,
-          },
-        ])
+        .insert([orderPayload as never])
         .select("id")
         .single();
 
       if (orderError) throw orderError;
 
-      // 3. Create the Order Items records
+      // 4. Create the Order Items records
       const orderItemsPayload = cartItems.map((item) => ({
         order_id: orderData.id,
         product_id: item.product.id,
         quantity: item.quantity,
         pack_size: item.product.pack_size,
         carton_type: item.product.carton_type,
-        price_at_time_of_order: item.product.price_per_kg, // <-- RESTORED: This missing line crashed the build!
+        price_at_time_of_order: item.product.price_per_kg,
       }));
 
-      const { error: itemsError } = await supabase.from("order_items").insert(orderItemsPayload);
+      const { error: itemsError } = await supabase.from("order_items").insert(orderItemsPayload as never[]);
 
       if (itemsError) throw itemsError;
 
