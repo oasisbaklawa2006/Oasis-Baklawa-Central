@@ -811,6 +811,7 @@ export type Database = {
           description: string | null
           id: string
           image_url: string | null
+          is_active: boolean
           name: string
           pack_size: string | null
           price_per_kg: number
@@ -824,6 +825,7 @@ export type Database = {
           description?: string | null
           id?: string
           image_url?: string | null
+          is_active?: boolean
           name: string
           pack_size?: string | null
           price_per_kg?: number
@@ -837,6 +839,7 @@ export type Database = {
           description?: string | null
           id?: string
           image_url?: string | null
+          is_active?: boolean
           name?: string
           pack_size?: string | null
           price_per_kg?: number
