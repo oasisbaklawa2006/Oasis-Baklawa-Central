@@ -1,233 +1,404 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "sonner";
-import { ArrowRight, Loader2 } from "lucide-react";
-import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
-import { useLanguage } from "@/hooks/useLanguage";
+import { Loader2, ShoppingBag, Clock, Truck, CheckCircle2, X, ChevronRight, PackageOpen, Receipt } from "lucide-react";
+import TopNavBar from "@/components/TopNavBar";
 
-const PACKS_PER_CARTON = 9;
-
-const STATUSES = [
-  "draft", "submitted", "under_review", "awaiting_advance", "approved",
-  "in_production", "assembly", "packing", "ready_for_dispatch",
-  "dispatched", "in_transit", "delivered", "complaint_window", "closed", "cancelled",
-] as const;
-type OrderStatus = typeof STATUSES[number];
-
-const STATUS_LABELS: Record<OrderStatus, string> = {
-  draft: "Draft", submitted: "Submitted", under_review: "Under Review",
-  awaiting_advance: "Awaiting Advance", approved: "Approved",
-  in_production: "In Production", assembly: "Assembly", packing: "Packing",
-  ready_for_dispatch: "Dispatch Ready", dispatched: "Dispatched",
-  in_transit: "In Transit", delivered: "Delivered",
-  complaint_window: "Complaint Window", closed: "Closed", cancelled: "Cancelled",
-};
-
-const STATUS_COLORS: Record<OrderStatus, string> = {
-  draft: "hsl(220, 15%, 60%)", submitted: "hsl(210, 60%, 55%)", under_review: "hsl(250, 50%, 55%)",
-  awaiting_advance: "hsl(40, 40%, 59%)", approved: "hsl(130, 45%, 45%)",
-  in_production: "hsl(220, 70%, 55%)", assembly: "hsl(280, 60%, 55%)",
-  packing: "hsl(150, 50%, 45%)", ready_for_dispatch: "hsl(30, 70%, 50%)",
-  dispatched: "hsl(170, 55%, 45%)", in_transit: "hsl(200, 60%, 50%)",
-  delivered: "hsl(140, 60%, 40%)", complaint_window: "hsl(0, 70%, 55%)",
-  closed: "hsl(0, 0%, 55%)", cancelled: "hsl(0, 50%, 45%)",
-};
-
-// Terminal statuses cannot advance
-const TERMINAL = new Set(["closed", "cancelled", "delivered"]);
-
-interface OrderItem {
-  id: string; quantity: number; pack_size: string | null;
-  carton_type: string | null; product_id: string | null;
-  product?: { name: string } | null;
+// ─── Types ───
+interface Order {
+  id: string;
+  user_id: string;
+  status: string;
+  total_amount: number;
+  payment_status: string;
+  created_at: string;
 }
 
-interface OrderCard {
-  id: string; status: string; sales_order_value: number | null;
-  company_id: string | null; company?: { business_name: string } | null;
-  order_items?: OrderItem[];
+interface OrderItem {
+  id: string;
+  order_id: string;
+  product_id: string;
+  quantity: number;
+  price_at_time_of_order: number;
+  products?: {
+    name: string;
+    image_url: string;
+    pack_size: string;
+  };
 }
 
 const AdminOrders = () => {
-  const [orders, setOrders] = useState<OrderCard[]>([]);
+  const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
-  const [updating, setUpdating] = useState<string | null>(null);
-  const [selectedOrder, setSelectedOrder] = useState<OrderCard | null>(null);
-  const [drawerItems, setDrawerItems] = useState<OrderItem[]>([]);
-  const [drawerLoading, setDrawerLoading] = useState(false);
-  const { t } = useLanguage();
+  const [activeTab, setActiveTab] = useState("pending");
 
+  // Panel State
+  const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
+  const [orderItems, setOrderItems] = useState<OrderItem[]>([]);
+  const [itemsLoading, setItemsLoading] = useState(false);
+  const [updatingStatus, setUpdatingStatus] = useState(false);
+
+  // 1. Fetch live orders
   const fetchOrders = async () => {
     setLoading(true);
-    const { data } = await supabase
-      .from("orders")
-      .select("*, company:companies(business_name), order_items(id, quantity, pack_size, carton_type, product_id)")
-      .in("status", [...STATUSES]);
-    setOrders((data as unknown as OrderCard[]) ?? []);
+    const { data, error } = await supabase.from("orders").select("*").order("created_at", { ascending: false });
+
+    if (!error) {
+      setOrders((data as Order[]) ?? []);
+    } else {
+      console.error("Failed to fetch orders:", error);
+    }
     setLoading(false);
   };
 
-  useEffect(() => { fetchOrders(); }, []);
+  useEffect(() => {
+    fetchOrders();
+  }, []);
 
-  const nextStatus = (current: string): string | null => {
-    if (TERMINAL.has(current)) return null;
-    const idx = STATUSES.indexOf(current as OrderStatus);
-    if (idx < 0 || idx >= STATUSES.length - 1) return null;
-    // Skip cancelled from sequence
-    const next = STATUSES[idx + 1];
-    if (next === "cancelled") return null;
-    return next;
-  };
-
-  const handleAdvance = async (order: OrderCard) => {
-    const next = nextStatus(order.status);
-    if (!next) return;
-    setUpdating(order.id);
-    const { error } = await supabase.from("orders").update({ status: next }).eq("id", order.id);
-    if (error) toast.error("Failed to update status");
-    else {
-      toast.success(`Moved to ${STATUS_LABELS[next as OrderStatus]}`);
-      await supabase.from("order_status_history").insert({
-        order_id: order.id, old_status: order.status, new_status: next,
-      });
-      fetchOrders();
-    }
-    setUpdating(null);
-  };
-
-  const handleOpenDrawer = async (order: OrderCard) => {
-    setSelectedOrder(order);
-    setDrawerLoading(true);
-    const { data } = await supabase
+  // 2. Fetch items for a specific order when the panel opens
+  const fetchOrderItems = async (orderId: string) => {
+    setItemsLoading(true);
+    const { data, error } = await supabase
       .from("order_items")
-      .select("id, quantity, pack_size, carton_type, product_id, product:products(name)")
-      .eq("order_id", order.id);
-    setDrawerItems((data as unknown as OrderItem[]) ?? []);
-    setDrawerLoading(false);
+      .select(
+        `
+        *,
+        products (
+          name,
+          image_url,
+          pack_size
+        )
+      `,
+      )
+      .eq("order_id", orderId);
+
+    if (!error) {
+      setOrderItems((data as unknown as OrderItem[]) ?? []);
+    }
+    setItemsLoading(false);
   };
 
-  const getTotalPacks = (items?: { quantity: number }[]) =>
-    items?.reduce((sum, it) => sum + it.quantity, 0) ?? 0;
+  const openPanel = (order: Order) => {
+    setSelectedOrder(order);
+    fetchOrderItems(order.id);
+  };
+
+  const closePanel = () => {
+    setSelectedOrder(null);
+    setTimeout(() => setOrderItems([]), 300);
+  };
+
+  // 3. Update Order Status
+  const updateOrderStatus = async (newStatus: string) => {
+    if (!selectedOrder) return;
+    setUpdatingStatus(true);
+
+    const { error } = await supabase.from("orders").update({ status: newStatus }).eq("id", selectedOrder.id);
+
+    if (!error) {
+      toast.success(`Order marked as ${newStatus}`);
+      setSelectedOrder({ ...selectedOrder, status: newStatus });
+      await fetchOrders();
+    } else {
+      toast.error("Failed to update status");
+      console.error(error);
+    }
+    setUpdatingStatus(false);
+  };
+
+  // UI Helpers
+  const filteredOrders = orders.filter((o) =>
+    activeTab === "all"
+      ? true
+      : activeTab === "completed"
+        ? o.status === "delivered" || o.status === "cancelled"
+        : o.status === activeTab,
+  );
+
+  const pendingCount = orders.filter((o) => o.status === "pending").length;
+  const processingCount = orders.filter((o) => o.status === "processing" || o.status === "shipped").length;
+
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case "pending":
+        return "bg-amber-100 text-amber-700 border-amber-200";
+      case "processing":
+        return "bg-blue-100 text-blue-700 border-blue-200";
+      case "shipped":
+        return "bg-indigo-100 text-indigo-700 border-indigo-200";
+      case "delivered":
+        return "bg-emerald-100 text-emerald-700 border-emerald-200";
+      case "cancelled":
+        return "bg-red-100 text-red-700 border-red-200";
+      default:
+        return "bg-gray-100 text-gray-700 border-gray-200";
+    }
+  };
 
   if (loading) {
-    return <div className="flex items-center justify-center py-20"><Loader2 size={24} className="animate-spin text-primary" /></div>;
+    return (
+      <div className="min-h-screen flex justify-center items-center bg-background">
+        <Loader2 className="animate-spin text-primary" size={32} />
+      </div>
+    );
   }
 
   return (
-    <div className="space-y-6">
-      <h1 className="text-display-h2 text-foreground">{t("Order Pipeline")}</h1>
+    <div className="min-h-screen bg-background pb-20 overflow-x-hidden">
+      <TopNavBar />
 
-      {/* Scrollable pipeline */}
-      <div className="overflow-x-auto pb-4">
-        <div className="inline-flex gap-3" style={{ minWidth: `${STATUSES.length * 180}px` }}>
-          {STATUSES.map((status) => {
-            const statusOrders = orders.filter((o) => o.status === status);
-            return (
-              <div key={status} className="w-44 flex-shrink-0 space-y-2">
-                <div className="flex items-center gap-2 px-1">
-                  <div className="w-2 h-2 rounded-full" style={{ backgroundColor: STATUS_COLORS[status] }} />
-                  <h3 className="text-fine text-foreground font-semibold truncate">{t(STATUS_LABELS[status])}</h3>
-                  <span className="text-fine text-muted-foreground">({statusOrders.length})</span>
-                </div>
+      <main className="pt-24 px-5 max-w-6xl mx-auto space-y-6">
+        <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}>
+          <h1 className="text-display-h2 text-foreground">Order Management</h1>
+          <p className="text-body-p2 text-muted-foreground mt-1">Track and fulfill B2B wholesale orders</p>
+        </motion.div>
 
-                <div className="space-y-2 min-h-[80px]">
-                  {statusOrders.length === 0 && (
-                    <p className="text-fine text-muted-foreground px-2 py-4 text-center rounded-lg border border-dashed border-border">—</p>
-                  )}
-                  {statusOrders.map((order) => {
-                    const next = nextStatus(order.status);
-                    const packs = getTotalPacks(order.order_items);
-                    const cartons = Math.floor(packs / PACKS_PER_CARTON);
-                    return (
-                      <div
-                        key={order.id}
-                        className="rounded-xl p-3 space-y-2 border border-border bg-card cursor-pointer hover:border-primary/40 transition-colors"
-                        style={{ boxShadow: "0 1px 6px rgba(0,0,0,0.04)" }}
-                        onClick={() => handleOpenDrawer(order)}
-                      >
-                        <p className="text-ui-cell text-foreground font-medium truncate">{order.company?.business_name ?? "—"}</p>
-                        <p className="text-fine text-muted-foreground">{order.id.slice(0, 8)}…</p>
-                        <div className="flex justify-between text-fine">
-                          <span className="text-muted-foreground">Packs: {packs}</span>
-                          <span className="text-muted-foreground">Ctns: {cartons}</span>
-                        </div>
-                        <p className="text-fine text-foreground">₹{(order.sales_order_value ?? 0).toLocaleString("en-IN")}</p>
-                        {next && (
-                          <button
-                            onClick={(e) => { e.stopPropagation(); handleAdvance(order); }}
-                            disabled={updating === order.id}
-                            className="w-full flex items-center justify-center gap-1 py-1.5 rounded-lg text-fine font-semibold transition-colors disabled:opacity-50 bg-primary/10 text-primary hover:bg-primary/20"
-                          >
-                            {updating === order.id ? <Loader2 size={10} className="animate-spin" /> : <ArrowRight size={10} />}
-                            → {STATUS_LABELS[next as OrderStatus]}
-                          </button>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            );
-          })}
+        {/* --- KPI CARDS --- */}
+        <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+          <div className="bg-card p-5 rounded-2xl border border-amber-200/50 shadow-sm">
+            <Clock size={20} className="text-amber-500 mb-2" />
+            <p className="text-2xl font-bold text-foreground">{pendingCount}</p>
+            <p className="text-xs font-bold text-muted-foreground uppercase tracking-wider mt-1">New Orders</p>
+          </div>
+          <div className="bg-card p-5 rounded-2xl border border-blue-200/50 shadow-sm">
+            <Truck size={20} className="text-blue-500 mb-2" />
+            <p className="text-2xl font-bold text-foreground">{processingCount}</p>
+            <p className="text-xs font-bold text-muted-foreground uppercase tracking-wider mt-1">
+              In Transit / Packing
+            </p>
+          </div>
+          <div className="bg-card p-5 rounded-2xl border border-border shadow-sm hidden md:block">
+            <ShoppingBag size={20} className="text-primary mb-2" />
+            <p className="text-2xl font-bold text-foreground">{orders.length}</p>
+            <p className="text-xs font-bold text-muted-foreground uppercase tracking-wider mt-1">Total Lifetime</p>
+          </div>
         </div>
-      </div>
 
-      {/* Order Details Drawer */}
-      <Sheet open={!!selectedOrder} onOpenChange={(open) => { if (!open) setSelectedOrder(null); }}>
-        <SheetContent className="w-full sm:max-w-lg border-l border-border bg-card">
-          <SheetHeader>
-            <SheetTitle className="text-display-h2 text-foreground">Order Details</SheetTitle>
-          </SheetHeader>
-          {selectedOrder && (
-            <div className="mt-6 space-y-6">
-              <div className="space-y-1">
-                <p className="text-ui-h4 text-foreground">{selectedOrder.company?.business_name ?? "Unknown"}</p>
-                <p className="text-ui-cell text-muted-foreground">Order ID: {selectedOrder.id}</p>
-                <div className="flex items-center gap-2 mt-2">
-                  <span className="px-2 py-1 rounded-full text-ui-label bg-primary/10 text-primary">
-                    {STATUS_LABELS[selectedOrder.status as OrderStatus] ?? selectedOrder.status}
-                  </span>
-                  <span className="text-ui-kpi text-sm text-muted-foreground">₹{(selectedOrder.sales_order_value ?? 0).toLocaleString("en-IN")}</span>
-                </div>
+        {/* --- DATA TABLE --- */}
+        <section className="bg-card rounded-2xl border border-border shadow-sm overflow-hidden flex flex-col min-h-[500px]">
+          {/* Tabs */}
+          <div className="flex overflow-x-auto border-b border-border bg-muted/10 no-scrollbar">
+            {["pending", "processing", "shipped", "completed", "all"].map((tab) => (
+              <button
+                key={tab}
+                onClick={() => setActiveTab(tab)}
+                className={`px-6 py-4 text-sm font-bold uppercase tracking-wider transition-colors whitespace-nowrap ${
+                  activeTab === tab
+                    ? "text-primary border-b-2 border-primary bg-background"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                {tab}
+              </button>
+            ))}
+          </div>
+
+          {/* Table Header */}
+          <div className="grid grid-cols-12 gap-4 p-4 border-b border-border bg-muted/20 text-xs font-bold text-muted-foreground uppercase tracking-wider">
+            <div className="col-span-4 md:col-span-3">Order ID</div>
+            <div className="col-span-3 hidden md:block">Date</div>
+            <div className="col-span-3">Status</div>
+            <div className="col-span-3 md:col-span-2 text-right">Amount</div>
+            <div className="col-span-2 text-right hidden md:block">Action</div>
+          </div>
+
+          {/* Table Body */}
+          <div className="divide-y divide-border flex-1 overflow-y-auto">
+            {filteredOrders.length === 0 ? (
+              <div className="p-16 text-center">
+                <PackageOpen size={48} className="mx-auto text-muted-foreground/30 mb-4" />
+                <p className="text-lg font-bold text-foreground">No orders found</p>
+                <p className="text-sm text-muted-foreground">There are no orders matching this status.</p>
               </div>
-              <div className="border-t border-border pt-4">
-                <h3 className="text-ui-h5 text-foreground mb-3">Order Items</h3>
-                {drawerLoading ? (
-                  <div className="flex justify-center py-8"><Loader2 size={20} className="animate-spin text-primary" /></div>
-                ) : drawerItems.length === 0 ? (
-                  <p className="text-ui-cell text-muted-foreground">No items found.</p>
-                ) : (
-                  <div className="space-y-3">
-                    {drawerItems.map((item) => (
-                      <div key={item.id} className="flex items-center justify-between p-3 rounded-xl border border-border bg-muted/30">
-                        <div>
-                          <p className="text-ui-h5 text-foreground">{(item.product as any)?.name ?? "Unknown Product"}</p>
-                          <p className="text-fine text-muted-foreground mt-0.5">
-                            Pack Size: {item.pack_size ?? "—"} · Carton Type: {item.carton_type ?? "—"}
-                          </p>
-                        </div>
-                        <div className="text-right">
-                          <p className="text-ui-kpi text-sm text-foreground">×{item.quantity} packs</p>
-                        </div>
-                      </div>
-                    ))}
+            ) : (
+              filteredOrders.map((order) => (
+                <div
+                  key={order.id}
+                  onClick={() => openPanel(order)}
+                  className="grid grid-cols-12 gap-4 p-4 items-center hover:bg-muted/10 cursor-pointer transition-colors group"
+                >
+                  <div className="col-span-4 md:col-span-3">
+                    <p className="text-sm font-bold text-foreground font-mono uppercase">#{order.id.slice(0, 8)}</p>
+                    <p className="text-xs text-muted-foreground mt-0.5 md:hidden">
+                      {new Date(order.created_at).toLocaleDateString("en-IN", { day: "numeric", month: "short" })}
+                    </p>
                   </div>
-                )}
-              </div>
-              <div className="border-t border-border pt-4 space-y-2">
-                <div className="flex justify-between items-center">
-                  <span className="text-ui-h5 text-muted-foreground">Total Packs</span>
-                  <span className="text-ui-kpi text-lg text-foreground">{getTotalPacks(drawerItems)}</span>
+                  <div className="col-span-3 hidden md:block">
+                    <p className="text-sm text-foreground">
+                      {new Date(order.created_at).toLocaleDateString("en-IN", {
+                        day: "numeric",
+                        month: "short",
+                        year: "numeric",
+                      })}
+                    </p>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      {new Date(order.created_at).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })}
+                    </p>
+                  </div>
+                  <div className="col-span-4 md:col-span-3 flex items-center">
+                    <span
+                      className={`px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider rounded-full border ${getStatusColor(order.status)}`}
+                    >
+                      {order.status}
+                    </span>
+                  </div>
+                  <div className="col-span-4 md:col-span-2 text-right">
+                    <p className="text-sm font-bold text-foreground">₹{order.total_amount.toLocaleString()}</p>
+                    <p className="text-[10px] text-muted-foreground uppercase mt-0.5">{order.payment_status}</p>
+                  </div>
+                  <div className="col-span-2 justify-end hidden md:flex">
+                    <button className="w-8 h-8 rounded-full bg-primary/10 text-primary flex items-center justify-center group-hover:bg-primary group-hover:text-white transition-colors">
+                      <ChevronRight size={16} />
+                    </button>
+                  </div>
                 </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-ui-h5 text-muted-foreground">Total Cartons</span>
-                  <span className="text-ui-kpi text-lg text-foreground">{Math.floor(getTotalPacks(drawerItems) / PACKS_PER_CARTON)}</span>
+              ))
+            )}
+          </div>
+        </section>
+      </main>
+
+      {/* --- SLIDE-OUT PANEL --- */}
+      <AnimatePresence>
+        {selectedOrder && (
+          <>
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={closePanel}
+              className="fixed inset-0 bg-black/40 backdrop-blur-sm z-40"
+            />
+
+            <motion.div
+              initial={{ x: "100%" }}
+              animate={{ x: 0 }}
+              exit={{ x: "100%" }}
+              transition={{ type: "spring", damping: 25, stiffness: 200 }}
+              className="fixed top-0 right-0 bottom-0 w-full max-w-lg bg-background shadow-2xl z-50 border-l border-border flex flex-col"
+            >
+              <div className="flex items-center justify-between p-6 border-b border-border bg-muted/10">
+                <div>
+                  <h2 className="text-lg font-display tracking-wide text-foreground">Order Details</h2>
+                  <p className="text-xs font-mono text-muted-foreground mt-1 uppercase">#{selectedOrder.id}</p>
+                </div>
+                <button
+                  onClick={closePanel}
+                  className="p-2 text-muted-foreground hover:text-foreground rounded-full hover:bg-muted transition-colors"
+                >
+                  <X size={20} />
+                </button>
+              </div>
+
+              <div className="p-6 flex-1 overflow-y-auto space-y-6">
+                {/* Status Updater */}
+                <div className="bg-card p-4 rounded-xl border border-border">
+                  <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-2 block">
+                    Update Fulfillment Status
+                  </label>
+                  <div className="flex gap-2">
+                    <select
+                      value={selectedOrder.status}
+                      onChange={(e) => updateOrderStatus(e.target.value)}
+                      disabled={updatingStatus}
+                      className="flex-1 text-sm p-2.5 bg-background border border-border rounded-lg outline-none focus:border-primary font-bold capitalize"
+                    >
+                      <option value="pending">Pending (New)</option>
+                      <option value="processing">Processing (Packing)</option>
+                      <option value="shipped">Shipped (In Transit)</option>
+                      <option value="delivered">Delivered (Complete)</option>
+                      <option value="cancelled">Cancelled</option>
+                    </select>
+                    {updatingStatus && (
+                      <div className="p-2.5">
+                        <Loader2 size={18} className="animate-spin text-primary" />
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Order Meta */}
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="bg-muted/10 p-4 rounded-xl border border-border">
+                    <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-1">
+                      Total Value
+                    </p>
+                    <p className="text-lg font-bold text-foreground">₹{selectedOrder.total_amount.toLocaleString()}</p>
+                    <p className="text-xs text-muted-foreground capitalize mt-1 border-t border-border pt-1">
+                      Pay: {selectedOrder.payment_status}
+                    </p>
+                  </div>
+                  <div className="bg-muted/10 p-4 rounded-xl border border-border">
+                    <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-1">
+                      Date Placed
+                    </p>
+                    <p className="text-sm font-bold text-foreground">
+                      {new Date(selectedOrder.created_at).toLocaleDateString("en-IN")}
+                    </p>
+                    <p className="text-xs text-muted-foreground mt-1 border-t border-border pt-1">
+                      {new Date(selectedOrder.created_at).toLocaleTimeString("en-IN", {
+                        hour: "2-digit",
+                        minute: "2-digit",
+                      })}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Items List */}
+                <div>
+                  <h3 className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-3 flex items-center gap-2">
+                    <Receipt size={14} /> Purchased Items
+                  </h3>
+
+                  {itemsLoading ? (
+                    <div className="py-8 flex justify-center">
+                      <Loader2 className="animate-spin text-muted-foreground" size={24} />
+                    </div>
+                  ) : orderItems.length === 0 ? (
+                    <div className="p-4 text-center text-sm text-muted-foreground border border-dashed border-border rounded-xl">
+                      No items found for this order.
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      {orderItems.map((item) => (
+                        <div
+                          key={item.id}
+                          className="flex gap-4 p-3 rounded-xl border border-border bg-card items-center"
+                        >
+                          {item.products?.image_url ? (
+                            <img
+                              src={item.products.image_url}
+                              alt="product"
+                              className="w-12 h-12 rounded-md object-cover border border-border"
+                            />
+                          ) : (
+                            <div className="w-12 h-12 rounded-md bg-muted/30 flex items-center justify-center border border-border">
+                              <ImageIcon size={16} className="text-muted-foreground/40" />
+                            </div>
+                          )}
+                          <div className="flex-1">
+                            <p className="text-sm font-bold text-foreground line-clamp-1">
+                              {item.products?.name || "Unknown Product"}
+                            </p>
+                            <p className="text-xs text-muted-foreground mt-0.5">
+                              {item.products?.pack_size || "Custom pack"}
+                            </p>
+                          </div>
+                          <div className="text-right">
+                            <p className="text-sm font-bold text-foreground">{item.quantity}x</p>
+                            <p className="text-xs text-muted-foreground">₹{item.price_at_time_of_order}</p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </div>
-            </div>
-          )}
-        </SheetContent>
-      </Sheet>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
     </div>
   );
 };
