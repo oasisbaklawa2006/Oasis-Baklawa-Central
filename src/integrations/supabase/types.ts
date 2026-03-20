@@ -628,7 +628,7 @@ export type Database = {
           id?: string
           payment_status?: string | null
           sales_order_value?: number | null
-          status: string
+          status?: string
         }
         Update: {
           advance_paid?: number | null
