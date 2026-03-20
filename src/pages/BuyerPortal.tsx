@@ -21,6 +21,14 @@ interface CartItem {
   quantity: number;
 }
 
+// Strictly type the payload so Lovable's compiler doesn't panic
+interface OrderInsertPayload {
+  status: string;
+  sales_order_value: number;
+  user_id?: string;
+  company_id?: string;
+}
+
 const BuyerPortal = () => {
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
@@ -52,7 +60,7 @@ const BuyerPortal = () => {
     setCart((prev) => {
       const currentQty = prev[product.id]?.quantity || 0;
       const newQty = Math.max(0, currentQty + delta);
-
+      
       const newCart = { ...prev };
       if (newQty === 0) {
         delete newCart[product.id];
@@ -65,7 +73,7 @@ const BuyerPortal = () => {
 
   const cartItems = Object.values(cart);
   const totalItems = cartItems.reduce((sum, item) => sum + item.quantity, 0);
-  const totalValue = cartItems.reduce((sum, item) => sum + item.product.price_per_kg * item.quantity, 0);
+  const totalValue = cartItems.reduce((sum, item) => sum + (item.product.price_per_kg * item.quantity), 0);
 
   const handlePlaceOrder = async () => {
     if (totalItems === 0) return;
@@ -73,21 +81,24 @@ const BuyerPortal = () => {
 
     try {
       // 1. Fetch the logged-in user securely
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      let currentCompanyId = null;
+      const { data: { user } } = await supabase.auth.getUser();
+      let currentCompanyId: string | undefined = undefined;
 
       if (user) {
-        // Fetch their company_id from their profile
-        const { data: profile } = await supabase.from("profiles").select("company_id").eq("id", user.id).maybeSingle();
-
-        // Use 'as any' to bypass Lovable's strict TS build errors
-        currentCompanyId = (profile as any)?.company_id || null;
+        // Fetch their company_id from their profile safely
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("company_id")
+          .eq("id", user.id)
+          .maybeSingle();
+        
+        if (profile && typeof profile === 'object' && 'company_id' in profile) {
+          currentCompanyId = (profile as { company_id: string }).company_id;
+        }
       }
 
-      // 2. Build the order payload with the user's ID and Company ID
-      const orderPayload: any = {
+      // 2. Build the strictly typed order payload
+      const orderPayload: OrderInsertPayload = {
         status: "submitted",
         sales_order_value: totalValue,
       };
@@ -105,15 +116,17 @@ const BuyerPortal = () => {
       if (orderError) throw orderError;
 
       // 4. Create the Order Items records
-      const orderItemsPayload = cartItems.map((item) => ({
+      const orderItemsPayload = cartItems.map(item => ({
         order_id: orderData.id,
         product_id: item.product.id,
         quantity: item.quantity,
         pack_size: item.product.pack_size,
-        carton_type: item.product.carton_type,
+        carton_type: item.product.carton_type
       }));
 
-      const { error: itemsError } = await supabase.from("order_items").insert(orderItemsPayload);
+      const { error: itemsError } = await supabase
+        .from("order_items")
+        .insert(orderItemsPayload);
 
       if (itemsError) throw itemsError;
 
@@ -121,8 +134,9 @@ const BuyerPortal = () => {
       setCart({});
       setOrderPlaced(true);
       toast.success("Order placed successfully!");
-
+      
       setTimeout(() => setOrderPlaced(false), 3000);
+
     } catch (error) {
       console.error("Checkout failed:", error);
       toast.error("Failed to place order. Please try again.");
@@ -132,23 +146,17 @@ const BuyerPortal = () => {
   };
 
   if (loading) {
-    return (
-      <div className="min-h-screen flex justify-center items-center bg-background">
-        <Loader2 size={32} className="animate-spin text-primary" />
-      </div>
-    );
+    return <div className="min-h-screen flex justify-center items-center bg-background"><Loader2 size={32} className="animate-spin text-primary" /></div>;
   }
 
   return (
     <div className="min-h-screen bg-background pb-32 overflow-x-hidden">
       <TopNavBar />
-
+      
       <main className="pt-24 px-5 max-w-6xl mx-auto space-y-8">
         <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}>
           <h1 className="text-display-h2 text-foreground">Wholesale Catalog</h1>
-          <p className="text-body-p2 text-muted-foreground mt-1">
-            Select products and adjust quantities for your bulk order.
-          </p>
+          <p className="text-body-p2 text-muted-foreground mt-1">Select products and adjust quantities for your bulk order.</p>
         </motion.div>
 
         {products.length === 0 ? (
@@ -161,46 +169,33 @@ const BuyerPortal = () => {
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
             {products.map((product, i) => {
               const qty = cart[product.id]?.quantity || 0;
-
+              
               return (
-                <motion.div
+                <motion.div 
                   key={product.id}
-                  initial={{ opacity: 0, y: 16 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: i * 0.05 }}
-                  className={`bg-card border rounded-2xl overflow-hidden shadow-sm transition-all ${qty > 0 ? "border-primary shadow-md" : "border-border"}`}
+                  initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.05 }}
+                  className={`bg-card border rounded-2xl overflow-hidden shadow-sm transition-all ${qty > 0 ? 'border-primary shadow-md' : 'border-border'}`}
                 >
                   <div className="h-48 bg-muted/30 relative flex items-center justify-center border-b border-border overflow-hidden">
                     {product.image_url ? (
-                      <img
-                        src={product.image_url}
-                        alt={product.name}
-                        className="w-full h-full object-cover hover:scale-105 transition-transform duration-500"
-                      />
+                      <img src={product.image_url} alt={product.name} className="w-full h-full object-cover hover:scale-105 transition-transform duration-500" />
                     ) : (
                       <Package size={32} className="text-muted-foreground/30" />
                     )}
                   </div>
-
+                  
                   <div className="p-5 flex flex-col">
                     <h3 className="text-sm font-bold text-foreground line-clamp-2 min-h-[40px]">{product.name}</h3>
-                    <p className="text-primary font-bold mt-2 text-lg">
-                      ₹{product.price_per_kg} <span className="text-xs text-muted-foreground font-normal">/ pack</span>
-                    </p>
-
+                    <p className="text-primary font-bold mt-2 text-lg">₹{product.price_per_kg} <span className="text-xs text-muted-foreground font-normal">/ pack</span></p>
+                    
                     <div className="mt-2 space-y-1 mb-6">
-                      <p className="text-xs text-muted-foreground">
-                        <span className="font-semibold text-foreground">Pack:</span> {product.pack_size || "Standard"}
-                      </p>
-                      <p className="text-xs text-muted-foreground">
-                        <span className="font-semibold text-foreground">Carton:</span>{" "}
-                        {product.carton_type || "Standard"}
-                      </p>
+                      <p className="text-xs text-muted-foreground"><span className="font-semibold text-foreground">Pack:</span> {product.pack_size || "Standard"}</p>
+                      <p className="text-xs text-muted-foreground"><span className="font-semibold text-foreground">Carton:</span> {product.carton_type || "Standard"}</p>
                     </div>
 
                     <div className="mt-auto border-t border-border pt-4">
                       {qty === 0 ? (
-                        <button
+                        <button 
                           onClick={() => updateQuantity(product, 1)}
                           className="w-full py-2.5 rounded-lg font-bold text-sm bg-primary/10 text-primary hover:bg-primary hover:text-white transition-colors flex items-center justify-center gap-2"
                         >
@@ -208,89 +203,13 @@ const BuyerPortal = () => {
                         </button>
                       ) : (
                         <div className="flex items-center justify-between bg-muted/30 rounded-lg p-1 border border-border">
-                          <button
+                          <button 
                             onClick={() => updateQuantity(product, -1)}
                             className="w-8 h-8 flex items-center justify-center rounded-md bg-background text-foreground shadow-sm border border-border hover:bg-muted transition-colors"
                           >
                             <Minus size={14} />
                           </button>
                           <span className="font-bold text-sm w-12 text-center">{qty}</span>
-                          <button
+                          <button 
                             onClick={() => updateQuantity(product, 1)}
-                            className="w-8 h-8 flex items-center justify-center rounded-md bg-primary text-primary-foreground shadow-sm hover:bg-primary/90 transition-colors"
-                          >
-                            <Plus size={14} />
-                          </button>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </motion.div>
-              );
-            })}
-          </div>
-        )}
-      </main>
-
-      <AnimatePresence>
-        {totalItems > 0 && !orderPlaced && (
-          <motion.div
-            initial={{ y: 100, opacity: 0 }}
-            animate={{ y: 0, opacity: 1 }}
-            exit={{ y: 100, opacity: 0 }}
-            className="fixed bottom-6 left-0 right-0 z-50 px-4 flex justify-center"
-          >
-            <div className="bg-foreground text-background shadow-2xl rounded-2xl p-4 w-full max-w-3xl flex items-center justify-between border border-border/10">
-              <div className="flex items-center gap-4">
-                <div className="w-12 h-12 bg-background/20 rounded-full flex items-center justify-center relative">
-                  <ShoppingCart size={20} className="text-background" />
-                  <span className="absolute -top-1 -right-1 bg-primary text-white text-[10px] font-bold w-5 h-5 flex items-center justify-center rounded-full border-2 border-foreground">
-                    {totalItems}
-                  </span>
-                </div>
-                <div>
-                  <p className="text-xs font-bold text-background/70 uppercase tracking-wider">Order Total</p>
-                  <p className="text-xl font-bold">₹{totalValue.toLocaleString("en-IN")}</p>
-                </div>
-              </div>
-
-              <button
-                onClick={handlePlaceOrder}
-                disabled={isSubmitting}
-                className="bg-primary text-primary-foreground px-6 py-3 rounded-xl font-bold text-sm hover:bg-primary/90 transition-all active:scale-95 flex items-center gap-2 disabled:opacity-70"
-              >
-                {isSubmitting ? <Loader2 size={18} className="animate-spin" /> : "Submit Order"}
-                {!isSubmitting && <ArrowRight size={18} />}
-              </button>
-            </div>
-          </motion.div>
-        )}
-
-        {orderPlaced && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[100] bg-background/80 backdrop-blur-md flex items-center justify-center"
-          >
-            <motion.div
-              initial={{ scale: 0.9, y: 20 }}
-              animate={{ scale: 1, y: 0 }}
-              className="bg-card p-8 rounded-3xl border border-border shadow-2xl text-center max-w-sm w-full mx-4"
-            >
-              <div className="w-20 h-20 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mx-auto mb-6">
-                <CheckCircle2 size={40} />
-              </div>
-              <h2 className="text-2xl font-bold text-foreground mb-2">Order Submitted!</h2>
-              <p className="text-muted-foreground text-sm">
-                Your wholesale order has been sent to the production team.
-              </p>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-    </div>
-  );
-};
-
-export default BuyerPortal;
+                            className="w-8 h-8 flex items-center justify-center rounded-md bg-primary text-primary-foreground shadow-sm hover:
