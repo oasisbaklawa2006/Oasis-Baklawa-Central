@@ -131,7 +131,7 @@ const AdminProducts = () => {
     const newStatus = !product.is_active;
     const { error } = await supabase
       .from("products")
-      .update({ is_active: newStatus } as Record<string, unknown>)
+      .update({ is_active: newStatus })
       .eq("id", product.id);
     if (!error) {
       toast.success(`${product.name} is now ${newStatus ? "Active" : "Hidden"}`);
