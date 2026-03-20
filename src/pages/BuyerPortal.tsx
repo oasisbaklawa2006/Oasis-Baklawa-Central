@@ -28,38 +28,8 @@ const BuyerPortal = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [orderPlaced, setOrderPlaced] = useState(false);
 
-  // NEW: Store the logged-in buyer's context
-  const [buyerInfo, setBuyerInfo] = useState<{ userId: string | null; companyId: string | null }>({
-    userId: null,
-    companyId: null,
-  });
-
-  const initializePortal = async () => {
+  const fetchProducts = async () => {
     setLoading(true);
-
-    // 1. Fetch Logged-In User & Company ID
-    try {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      if (user) {
-        // Look up their company_id safely
-        const { data: profile, error: profileError } = await supabase
-          .from("profiles")
-          .select("company_id")
-          .eq("id", user.id)
-          .maybeSingle();
-
-        setBuyerInfo({
-          userId: user.id,
-          companyId: !profileError && profile ? profile.company_id : null,
-        });
-      }
-    } catch (err) {
-      console.warn("Could not fetch user profile context", err);
-    }
-
-    // 2. Fetch Active Products
     const { data, error } = await supabase
       .from("products")
       .select("*")
@@ -75,10 +45,9 @@ const BuyerPortal = () => {
   };
 
   useEffect(() => {
-    initializePortal();
+    fetchProducts();
   }, []);
 
-  // Cart Logic
   const updateQuantity = (product: Product, delta: number) => {
     setCart((prev) => {
       const currentQty = prev[product.id]?.quantity || 0;
@@ -98,21 +67,18 @@ const BuyerPortal = () => {
   const totalItems = cartItems.reduce((sum, item) => sum + item.quantity, 0);
   const totalValue = cartItems.reduce((sum, item) => sum + item.product.price_per_kg * item.quantity, 0);
 
-  // Submit Order
   const handlePlaceOrder = async () => {
     if (totalItems === 0) return;
     setIsSubmitting(true);
 
     try {
-      // Step A: Create the Order record WITH User Context
+      // Create the Order record
       const { data: orderData, error: orderError } = await supabase
         .from("orders")
         .insert([
           {
             status: "submitted",
             sales_order_value: totalValue,
-            user_id: buyerInfo.userId, // Mapped!
-            company_id: buyerInfo.companyId, // Mapped!
           },
         ])
         .select("id")
@@ -120,21 +86,20 @@ const BuyerPortal = () => {
 
       if (orderError) throw orderError;
 
-      // Step B: Create the Order Items records
+      // Create the Order Items records
       const orderItemsPayload = cartItems.map((item) => ({
         order_id: orderData.id,
         product_id: item.product.id,
         quantity: item.quantity,
         pack_size: item.product.pack_size,
         carton_type: item.product.carton_type,
-        price_at_time_of_order: item.product.price_per_kg,
       }));
 
       const { error: itemsError } = await supabase.from("order_items").insert(orderItemsPayload);
 
       if (itemsError) throw itemsError;
 
-      // Step C: Success!
+      // Success Reset
       setCart({});
       setOrderPlaced(true);
       toast.success("Order placed successfully!");
