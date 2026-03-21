@@ -28,6 +28,7 @@ import AdminProducts from "./pages/admin/AdminProducts.tsx";
 import AdminPricing from "./pages/admin/AdminPricing.tsx";
 import AdminOrders from "./pages/admin/AdminOrders.tsx";
 import AdminProduction from "./pages/admin/AdminProduction.tsx";
+import AdminOperations from "./pages/admin/AdminOperations.tsx";
 import AdminPackingDispatch from "./pages/admin/AdminPackingDispatch.tsx";
 import AdminAccountsRelease from "./pages/admin/AdminAccountsRelease.tsx";
 import AdminExceptions from "./pages/admin/AdminExceptions.tsx";
