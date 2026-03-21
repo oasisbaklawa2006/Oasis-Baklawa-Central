@@ -142,6 +142,7 @@ const App = () => (
               <Route path="support" element={<AdminSupport />} />
               <Route path="settings" element={<AdminSettings />} />
               <Route path="audit" element={<AdminAudit />} />
+              <Route path="department" element={<AdminDepartment />} />
             </Route>
             <Route path="*" element={<NotFound />} />
           </Routes>
