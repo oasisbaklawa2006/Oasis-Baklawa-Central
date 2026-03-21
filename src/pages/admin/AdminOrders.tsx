@@ -72,11 +72,12 @@ interface OrderItem {
   pack_size?: string | null;
   carton_type?: string | null;
   products?: { name: string } | null;
-  product?: { name: string } | null; // AppGen fallback
+  product?: { name: string } | null;
 }
 
 interface OrderCard {
   id: string;
+  created_at: string; // <-- MUST BE HERE
   status: string;
   sales_order_value: number | null;
   company_id: string | null;
