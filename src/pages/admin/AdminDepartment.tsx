@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Loader2, MonitorPlay, CheckSquare, ChefHat, Clock } from "lucide-react";
+import TopNavBar from "@/components/TopNavBar";
 
 const DEPARTMENTS = ["Baklawa", "Chocolate", "Laddu", "Bakery", "Hampers", "Packaging Store"];
 
@@ -14,16 +15,15 @@ interface DeptItem {
   production_status: string | null;
   products?: { name: string } | null;
   product?: { name: string } | null;
-  order?: {
+  orders?: {
     id: string;
-    dispatch_date: string | null;
     created_at: string;
     status: string;
   };
 }
 
 const AdminDepartment = () => {
-  const [activeDept, setActiveDept] = useState("Baklawa");
+  const [activeDept, setActiveDept] = useState<string>("Baklawa");
   const [items, setItems] = useState<DeptItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [completingId, setCompletingId] = useState<string | null>(null);
@@ -31,22 +31,26 @@ const AdminDepartment = () => {
   const fetchDepartmentItems = async () => {
     setLoading(true);
 
+    // CRITICAL FIX: Removed 'dispatch_date' and fixed the 'orders' join syntax
     const { data, error } = await supabase
       .from("order_items")
-      .select(`
+      .select(
+        `
         id, order_id, quantity, pack_size, carton_type, production_status,
         products ( name ),
-        order:orders ( id, dispatch_date, created_at, status )
-      `)
+        orders ( id, created_at, status )
+      `,
+      )
       .eq("department", activeDept)
       .eq("production_status", "pending");
 
     if (error) {
       console.error("Fetch Error:", error);
-      toast.error("Failed to load department tasks.");
+      toast.error(`Error: ${error.message}`);
     } else {
+      // Filter out items where the parent order isn't active
       const validItems = (data as any[]).filter(
-        (item) => item.order?.status === "in_production" || item.order?.status === "assembly"
+        (item) => item.orders?.status === "in_production" || item.orders?.status === "assembly",
       );
       setItems(validItems);
     }
@@ -61,6 +65,7 @@ const AdminDepartment = () => {
     setCompletingId(itemId);
 
     try {
+      // 1. Mark this specific item as completed
       const { error: itemError } = await supabase
         .from("order_items")
         .update({ production_status: "completed" })
@@ -69,31 +74,30 @@ const AdminDepartment = () => {
       if (itemError) throw itemError;
 
       toast.success("Item marked as completed!");
+
+      // 2. Remove it from the TV screen immediately
       setItems((current) => current.filter((i) => i.id !== itemId));
 
+      // 3. THE MAGIC: Check if the entire order is now finished
       const { data: siblingItems } = await supabase
         .from("order_items")
         .select("production_status")
         .eq("order_id", orderId);
 
-      const isEntireOrderDone = siblingItems?.every(
-        (item) => item.production_status === "completed"
-      );
+      const isEntireOrderDone = siblingItems?.every((item) => item.production_status === "completed");
 
+      // If every single item in this order is done, auto-push the master order to packing!
       if (isEntireOrderDone) {
-        await supabase
-          .from("orders")
-          .update({ status: "packing" })
-          .eq("id", orderId);
+        await supabase.from("orders").update({ status: "packing" }).eq("id", orderId);
 
         await supabase
           .from("order_status_history")
           .insert({ order_id: orderId, old_status: "in_production", new_status: "packing" });
 
-        toast.success(
-          `Factory Order #${orderId.split("-")[0].toUpperCase()} is fully prepped and sent to Packing!`,
-          { duration: 5000, icon: "🎉" }
-        );
+        toast.success(`Factory Order #${orderId.split("-")[0].toUpperCase()} is fully prepped and sent to Packing!`, {
+          duration: 5000,
+          icon: "🎉",
+        });
       }
     } catch (error) {
       console.error("Completion Error:", error);
@@ -109,29 +113,35 @@ const AdminDepartment = () => {
     return "Unknown Item";
   };
 
-  const groupedItems = items.reduce((acc, item) => {
-    const key = item.order_id;
-    if (!acc[key]) acc[key] = [];
-    acc[key].push(item);
-    return acc;
-  }, {} as Record<string, DeptItem[]>);
+  // Group items by Order ID so the kitchen sees them organized by ticket
+  const groupedItems = items.reduce(
+    (acc, item) => {
+      const key = item.order_id;
+      if (!acc[key]) acc[key] = [];
+      acc[key].push(item);
+      return acc;
+    },
+    {} as Record<string, DeptItem[]>,
+  );
 
   return (
-    <div className="min-h-screen bg-background pb-20">
-      <main className="pt-6 px-5 max-w-5xl mx-auto space-y-8">
+    <div className="min-h-screen bg-slate-50 pb-20">
+      <TopNavBar />
+
+      <main className="pt-24 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto space-y-8">
         {/* Kiosk Header & Dept Selector */}
-        <div className="space-y-5">
+        <div className="bg-white rounded-[2rem] p-4 shadow-sm border border-slate-200 flex flex-col md:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">
-              <MonitorPlay size={20} className="text-primary" />
+            <div className="bg-slate-900 text-white p-3 rounded-2xl">
+              <MonitorPlay size={24} />
             </div>
             <div>
-              <h1 className="text-2xl font-bold text-foreground">Floor Kiosk</h1>
-              <p className="text-sm text-muted-foreground">Live production queue</p>
+              <h1 className="text-2xl font-display font-bold text-slate-900">Floor Kiosk</h1>
+              <p className="text-sm text-slate-500 font-medium">Live production queue</p>
             </div>
           </div>
 
-          <div className="flex gap-2 overflow-x-auto pb-2">
+          <div className="flex overflow-x-auto gap-2 w-full md:w-auto pb-2 md:pb-0 no-scrollbar">
             {DEPARTMENTS.map((dept) => (
               <button
                 key={dept}
@@ -139,7 +149,7 @@ const AdminDepartment = () => {
                 className={`whitespace-nowrap px-6 py-3 rounded-xl font-bold text-sm transition-all ${
                   activeDept === dept
                     ? "bg-primary text-primary-foreground shadow-md"
-                    : "bg-muted text-muted-foreground hover:bg-muted/80"
+                    : "bg-slate-100 text-slate-600 hover:bg-slate-200"
                 }`}
               >
                 {dept}
@@ -149,65 +159,60 @@ const AdminDepartment = () => {
         </div>
 
         {loading ? (
-          <div className="flex items-center justify-center py-20">
-            <Loader2 size={24} className="animate-spin text-primary" />
+          <div className="flex items-center justify-center py-32">
+            <Loader2 size={48} className="animate-spin text-primary" />
           </div>
         ) : Object.keys(groupedItems).length === 0 ? (
-          <div className="text-center py-16 space-y-3">
-            <ChefHat size={40} className="mx-auto text-muted-foreground/40" />
-            <p className="text-lg font-semibold text-foreground">Queue is clear</p>
-            <p className="text-sm text-muted-foreground">
-              No pending items for {activeDept}.
-            </p>
+          <div className="text-center py-32 bg-white rounded-[3rem] border border-dashed border-slate-200 shadow-sm">
+            <ChefHat size={64} className="mx-auto text-slate-200 mb-6" />
+            <h3 className="text-2xl font-display font-bold text-slate-900">Queue is clear</h3>
+            <p className="text-slate-500 mt-2 text-lg">No pending items for {activeDept}.</p>
           </div>
         ) : (
-          <div className="space-y-6">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             {Object.entries(groupedItems).map(([orderId, orderItems]) => {
-              const dispatchDate =
-                orderItems[0].order?.dispatch_date || orderItems[0].order?.created_at;
-              const formattedDate = new Intl.DateTimeFormat("en-IN", {
-                day: "numeric",
-                month: "short",
-              }).format(new Date(dispatchDate!));
+              // Fallback to created_at since dispatch_date doesn't exist yet
+              const orderDate = orderItems[0].orders?.created_at;
+              const formattedDate = orderDate
+                ? new Intl.DateTimeFormat("en-IN", {
+                    day: "numeric",
+                    month: "short",
+                  }).format(new Date(orderDate))
+                : "TBD";
 
               return (
                 <div
                   key={orderId}
-                  className="bg-card border border-border rounded-xl overflow-hidden"
-                  style={{ boxShadow: "0 2px 10px rgba(0,0,0,0.04)" }}
+                  className="bg-white rounded-[2rem] border border-slate-200 shadow-sm overflow-hidden"
                 >
                   {/* Blind Order Header */}
-                  <div className="p-4 border-b border-border flex items-center justify-between">
+                  <div className="bg-slate-900 px-6 py-4 flex justify-between items-center text-white">
                     <div>
-                      <p className="text-xs text-muted-foreground">Factory Order</p>
-                      <p className="text-lg font-bold text-foreground">
-                        #{orderId.split("-")[0].toUpperCase()}
-                      </p>
+                      <p className="text-xs uppercase tracking-widest text-slate-400 font-bold mb-1">Factory Order</p>
+                      <p className="font-mono text-xl font-bold">#{orderId.split("-")[0].toUpperCase()}</p>
                     </div>
                     <div className="text-right">
-                      <p className="text-xs text-muted-foreground">Dispatch</p>
-                      <p className="flex items-center gap-1 text-sm font-semibold text-foreground">
-                        <Clock size={12} /> {formattedDate}
+                      <p className="text-xs uppercase tracking-widest text-slate-400 font-bold mb-1">Order Date</p>
+                      <p className="font-bold flex items-center justify-end gap-1.5">
+                        <Clock size={14} className="text-amber-400" /> {formattedDate}
                       </p>
                     </div>
                   </div>
 
                   {/* Tasks */}
-                  <div className="divide-y divide-border">
+                  <div className="p-4 space-y-3">
                     {orderItems.map((item) => (
                       <div
                         key={item.id}
-                        className="p-4 flex flex-col sm:flex-row sm:items-center gap-4"
+                        className="flex flex-col sm:flex-row items-center justify-between gap-4 p-4 rounded-2xl bg-slate-50 border border-slate-100"
                       >
-                        <div className="flex-1">
-                          <p className="font-bold text-lg text-foreground">
-                            {getProductName(item)}
-                          </p>
-                          <div className="flex gap-3 mt-1 text-sm text-muted-foreground">
-                            <span className="bg-muted px-2 py-0.5 rounded font-medium">
+                        <div className="w-full sm:w-auto flex-1">
+                          <h3 className="text-xl font-bold text-slate-900 mb-2">{getProductName(item)}</h3>
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className="bg-primary/10 text-primary px-3 py-1 rounded-lg text-sm font-bold">
                               {item.quantity}x Units
                             </span>
-                            <span className="bg-muted px-2 py-0.5 rounded font-medium">
+                            <span className="bg-slate-200 text-slate-700 px-3 py-1 rounded-lg text-sm font-medium">
                               {item.pack_size || "Standard"}
                             </span>
                           </div>
@@ -216,13 +221,13 @@ const AdminDepartment = () => {
                         <button
                           onClick={() => handleMarkCompleted(item.id, item.order_id)}
                           disabled={completingId === item.id}
-                          className="w-full sm:w-auto active:scale-95 transition-transform flex items-center justify-center gap-2 px-8 py-4 bg-green-600 hover:bg-green-700 text-white rounded-xl font-bold text-lg shadow-sm disabled:opacity-50"
+                          className="w-full sm:w-auto active:scale-95 transition-transform flex items-center justify-center gap-2 px-8 py-4 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl font-bold text-lg shadow-sm shadow-emerald-500/20 disabled:opacity-50"
                         >
                           {completingId === item.id ? (
-                            <Loader2 size={20} className="animate-spin" />
+                            <Loader2 size={24} className="animate-spin" />
                           ) : (
                             <>
-                              <CheckSquare size={20} />
+                              <CheckSquare size={24} />
                               COMPLETE
                             </>
                           )}
