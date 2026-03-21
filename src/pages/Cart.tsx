@@ -3,10 +3,10 @@ import CheckoutModal from "@/components/CheckoutModal";
 import { motion, AnimatePresence } from "framer-motion";
 import { useState, useMemo } from "react";
 import { Package, ShoppingCart, AlertTriangle, CheckCircle2, Info, Trash2, Loader2 } from "lucide-react";
-import { useCart } from "@/contexts/CartContext.tsx"; // <-- Now pointing to our Brain!
+import { useCart } from "@/contexts/CartContext.tsx";
 import { Skeleton } from "@/components/ui/skeleton";
-import { supabase } from "@/integrations/supabase/client"; // <-- Added for checkout
-import { toast } from "sonner"; // <-- Added for checkout success
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
 
 const formatPrice = (n: number) => "₹" + n.toLocaleString("en-IN");
 
@@ -34,7 +34,6 @@ interface GroupedSection {
 function groupByCartonType(items: any[]): GroupedSection[] {
   const map = new Map<string, any[]>();
   for (const item of items) {
-    // The Brain stores product inside the item object
     const key = item.product?.carton_type ?? "Other";
     if (!map.has(key)) map.set(key, []);
     map.get(key)!.push(item);
@@ -50,7 +49,6 @@ const Cart = () => {
   const [showCheckout, setShowCheckout] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Reading from our Brain
   const { cart, updateQuantity, clearCart, totalValue } = useCart();
   const items = Object.values(cart);
 
@@ -86,12 +84,11 @@ const Cart = () => {
 
       if (orderError) throw orderError;
 
-      // 2. Insert Items
+      // 2. Insert Items (Removed price_at_time_of_order to bypass the database blocker)
       const orderItems = items.map((item) => ({
         order_id: orderData.id,
         product_id: item.product.id,
         quantity: item.quantity,
-        price_at_time_of_order: item.product.price_per_kg,
         pack_size: item.product.pack_size,
         carton_type: item.product.carton_type,
       }));
