@@ -4,7 +4,7 @@ import { motion } from "framer-motion";
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useProducts } from "@/hooks/useProducts";
-import { useCart } from "@/contexts/CartContext.tsx"; // <-- Now pointing to our Brain!
+import { useCart } from "@/contexts/CartContext.tsx";
 import { useAuth } from "@/hooks/useAuth";
 import { Skeleton } from "@/components/ui/skeleton";
 
@@ -37,12 +37,14 @@ const Catalogue = () => {
   const [activeSub, setActiveSub] = useState("Baklawa");
   const navigate = useNavigate();
   const { products, loading } = useProducts();
-  const { addToCart } = useCart(); // <-- Pulled from our Brain
+
+  // <-- We pull the live 'cart' and 'updateQuantity' from the Brain to show visual feedback
+  const { cart, addToCart, updateQuantity } = useCart();
   const { isAuthenticated } = useAuth();
 
   return (
     <AppShell>
-      <div className="px-5 py-6 space-y-8">
+      <div className="px-5 py-6 space-y-8 pb-24">
         {/* Header */}
         <motion.h1
           initial={{ opacity: 0, y: 12 }}
@@ -157,78 +159,114 @@ const Catalogue = () => {
             <p className="text-body-p2 text-muted-foreground text-center py-8">No products found.</p>
           ) : (
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-              {products.map((product) => (
-                <div
-                  key={product.id}
-                  onClick={() => navigate(`/product/${product.id}`)}
-                  className="bg-card rounded-2xl shadow-card overflow-hidden relative group cursor-pointer"
-                >
-                  <button className="absolute top-3 right-3 z-10 w-8 h-8 rounded-full bg-card/80 backdrop-blur flex items-center justify-center hover:bg-card transition-colors">
-                    <Heart size={16} className="text-muted-foreground group-hover:text-primary transition-colors" />
-                  </button>
-                  <div className="w-full aspect-square overflow-hidden bg-muted">
-                    {product.image_url ? (
-                      <img src={product.image_url} alt={product.name} className="w-full h-full object-cover" />
-                    ) : (
-                      <div className="w-full h-full flex items-center justify-center text-muted-foreground text-fine">
-                        No Image
-                      </div>
-                    )}
+              {products.map((product) => {
+                // Read the quantity directly from the Brain
+                const qty = cart[product.id]?.quantity || 0;
+
+                return (
+                  <div
+                    key={product.id}
+                    onClick={() => navigate(`/product/${product.id}`)}
+                    className={`bg-card rounded-2xl overflow-hidden relative group cursor-pointer transition-all duration-300 ${qty > 0 ? "border border-primary shadow-md ring-1 ring-primary/20" : "shadow-card border border-transparent"}`}
+                  >
+                    <button className="absolute top-3 right-3 z-10 w-8 h-8 rounded-full bg-card/80 backdrop-blur flex items-center justify-center hover:bg-card transition-colors">
+                      <Heart size={16} className="text-muted-foreground group-hover:text-primary transition-colors" />
+                    </button>
+                    <div className="w-full aspect-square overflow-hidden bg-muted">
+                      {product.image_url ? (
+                        <img
+                          src={product.image_url}
+                          alt={product.name}
+                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                        />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center text-muted-foreground text-fine">
+                          No Image
+                        </div>
+                      )}
+                    </div>
+                    <div className="p-4 space-y-1.5">
+                      <p className="text-ui-h5 text-foreground leading-tight">{product.name}</p>
+                      {isAuthenticated ? (
+                        <>
+                          <p className="text-ui-kpi text-sm text-foreground">
+                            {formatPrice(product.price_per_kg)}{" "}
+                            <span className="text-fine text-muted-foreground">per kg</span>
+                          </p>
+                          <p className="text-fine text-muted-foreground">+ taxes extra</p>
+                          {product.pack_size && <p className="text-fine text-muted-foreground">{product.pack_size}</p>}
+                          {product.carton_type && (
+                            <p className="text-fine-xs text-primary font-semibold">MOQ: 1 {product.carton_type}</p>
+                          )}
+
+                          {/* VISUAL FEEDBACK ADDED HERE */}
+                          <div className="mt-3" onClick={(e) => e.stopPropagation()}>
+                            {qty === 0 ? (
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  addToCart(
+                                    {
+                                      id: product.id,
+                                      name: product.name,
+                                      price_per_kg: product.price_per_kg,
+                                      pack_size: product.pack_size,
+                                      carton_type: product.carton_type,
+                                      image_url: product.image_url,
+                                    },
+                                    1,
+                                  );
+                                }}
+                                className="w-full py-2.5 rounded-xl bg-primary text-primary-foreground text-ui-button flex items-center justify-center gap-1.5 hover:bg-primary/90 transition-colors shadow-sm active:scale-95"
+                              >
+                                <ShoppingCart size={14} />
+                                Add to Cart
+                              </button>
+                            ) : (
+                              <div className="flex items-center justify-between bg-muted/60 rounded-xl p-1 border border-border">
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    updateQuantity(product.id, -1);
+                                  }}
+                                  className="w-9 h-9 flex items-center justify-center rounded-lg bg-background text-foreground shadow-sm border border-border/50 hover:bg-muted transition-colors font-bold"
+                                >
+                                  −
+                                </button>
+                                <span className="font-bold text-sm text-foreground">{qty}</span>
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    updateQuantity(product.id, 1);
+                                  }}
+                                  className="w-9 h-9 flex items-center justify-center rounded-lg bg-primary text-primary-foreground shadow-sm hover:bg-primary/90 transition-colors font-bold"
+                                >
+                                  +
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                        </>
+                      ) : (
+                        <div className="mt-2 space-y-2">
+                          <p className="text-fine text-muted-foreground flex items-center gap-1">
+                            <Lock size={10} /> Trade Members Only
+                          </p>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              navigate("/login");
+                            }}
+                            className="w-full py-2 rounded-xl bg-muted text-foreground text-ui-button hover:bg-muted/80 transition-colors"
+                          >
+                            Login / Apply
+                          </button>
+                        </div>
+                      )}
+                    </div>
                   </div>
-                  <div className="p-4 space-y-1.5">
-                    <p className="text-ui-h5 text-foreground leading-tight">{product.name}</p>
-                    {isAuthenticated ? (
-                      <>
-                        <p className="text-ui-kpi text-sm text-foreground">
-                          {formatPrice(product.price_per_kg)}{" "}
-                          <span className="text-fine text-muted-foreground">per kg</span>
-                        </p>
-                        <p className="text-fine text-muted-foreground">+ taxes extra</p>
-                        {product.pack_size && <p className="text-fine text-muted-foreground">{product.pack_size}</p>}
-                        {product.carton_type && (
-                          <p className="text-fine-xs text-primary font-semibold">MOQ: 1 {product.carton_type}</p>
-                        )}
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            // <-- Passing the full product object to our Brain
-                            addToCart(
-                              {
-                                id: product.id,
-                                name: product.name,
-                                price_per_kg: product.price_per_kg,
-                                pack_size: product.pack_size,
-                                carton_type: product.carton_type,
-                                image_url: product.image_url,
-                              },
-                              1,
-                            );
-                          }}
-                          className="mt-2 w-full py-2.5 rounded-xl bg-primary text-primary-foreground text-ui-button flex items-center justify-center gap-1.5 hover:bg-primary/90 transition-colors"
-                        >
-                          <ShoppingCart size={14} />
-                          Add to Cart
-                        </button>
-                      </>
-                    ) : (
-                      <div className="mt-2 space-y-2">
-                        <p className="text-fine text-muted-foreground flex items-center gap-1">
-                          <Lock size={10} /> Trade Members Only
-                        </p>
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            navigate("/login");
-                          }}
-                          className="w-full py-2 rounded-xl bg-muted text-foreground text-ui-button hover:bg-muted/80 transition-colors"
-                        >
-                          Login / Apply
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </motion.section>
