@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, ReactNode } from "react";
+import { createContext, useContext, useState, useEffect, ReactNode } from "react";
 
 export interface Product {
   id: string;
@@ -26,7 +26,20 @@ interface CartContextType {
 const CartContext = createContext<CartContextType | undefined>(undefined);
 
 export const CartProvider = ({ children }: { children: ReactNode }) => {
-  const [cart, setCart] = useState<Record<string, CartItem>>({});
+  // 1. UPGRADE: Check Long-Term Memory when the app opens
+  const [cart, setCart] = useState<Record<string, CartItem>>(() => {
+    try {
+      const savedCart = localStorage.getItem("oasis_cart");
+      return savedCart ? JSON.parse(savedCart) : {};
+    } catch (error) {
+      return {};
+    }
+  });
+
+  // 2. UPGRADE: Save to Long-Term Memory every single time a button is clicked
+  useEffect(() => {
+    localStorage.setItem("oasis_cart", JSON.stringify(cart));
+  }, [cart]);
 
   const addToCart = (product: Product, quantity = 1) => {
     setCart((prev) => {
@@ -55,7 +68,10 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
     });
   };
 
-  const clearCart = () => setCart({});
+  const clearCart = () => {
+    setCart({});
+    localStorage.removeItem("oasis_cart"); // Wipe memory after successful order
+  };
 
   const cartItems = Object.values(cart);
   const totalItems = cartItems.reduce((sum, item) => sum + item.quantity, 0);
