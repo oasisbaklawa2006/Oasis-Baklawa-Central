@@ -28,6 +28,7 @@ import AdminProducts from "./pages/admin/AdminProducts.tsx";
 import AdminPricing from "./pages/admin/AdminPricing.tsx";
 import AdminOrders from "./pages/admin/AdminOrders.tsx";
 import AdminProduction from "./pages/admin/AdminProduction.tsx";
+import AdminOperations from "./pages/admin/AdminOperations.tsx";
 import AdminPackingDispatch from "./pages/admin/AdminPackingDispatch.tsx";
 import AdminAccountsRelease from "./pages/admin/AdminAccountsRelease.tsx";
 import AdminExceptions from "./pages/admin/AdminExceptions.tsx";
@@ -128,6 +129,7 @@ const App = () => (
               <Route path="pricing" element={<AdminPricing />} />
               <Route path="orders" element={<AdminOrders />} />
               <Route path="production" element={<AdminProduction />} />
+              <Route path="operations" element={<AdminOperations />} />
               <Route path="packing-dispatch" element={<AdminPackingDispatch />} />
               <Route path="accounts-release" element={<AdminAccountsRelease />} />
               <Route path="exceptions" element={<AdminExceptions />} />

@@ -477,29 +477,35 @@ export type Database = {
       order_items: {
         Row: {
           carton_type: string | null
+          department: string | null
           id: string
           notes: string | null
           order_id: string | null
           pack_size: string | null
           product_id: string | null
+          production_status: string | null
           quantity: number
         }
         Insert: {
           carton_type?: string | null
+          department?: string | null
           id?: string
           notes?: string | null
           order_id?: string | null
           pack_size?: string | null
           product_id?: string | null
+          production_status?: string | null
           quantity?: number
         }
         Update: {
           carton_type?: string | null
+          department?: string | null
           id?: string
           notes?: string | null
           order_id?: string | null
           pack_size?: string | null
           product_id?: string | null
+          production_status?: string | null
           quantity?: number
         }
         Relationships: [
