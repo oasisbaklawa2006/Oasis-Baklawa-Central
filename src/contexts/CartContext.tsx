@@ -1,8 +1,5 @@
-import { CartProvider } from "@/contexts/CartContext";
-import React, { createContext, useContext, useState } from "react";
-import { toast } from "sonner";
+import { createContext, useContext, useState, ReactNode } from "react";
 
-// The shape of our product data
 export interface Product {
   id: string;
   name: string;
@@ -17,7 +14,6 @@ interface CartItem {
   quantity: number;
 }
 
-// What the Brain can do
 interface CartContextType {
   cart: Record<string, CartItem>;
   addToCart: (product: Product, quantity?: number) => void;
@@ -29,14 +25,12 @@ interface CartContextType {
 
 const CartContext = createContext<CartContextType | undefined>(undefined);
 
-export const CartProvider = ({ children }: { children: React.ReactNode }) => {
+export const CartProvider = ({ children }: { children: ReactNode }) => {
   const [cart, setCart] = useState<Record<string, CartItem>>({});
 
-  // Add an item and show a premium notification
   const addToCart = (product: Product, quantity = 1) => {
     setCart((prev) => {
       const currentQty = prev[product.id]?.quantity || 0;
-      toast.success(`${product.name} added to your batch.`);
       return {
         ...prev,
         [product.id]: { product, quantity: currentQty + quantity },
@@ -44,7 +38,6 @@ export const CartProvider = ({ children }: { children: React.ReactNode }) => {
     });
   };
 
-  // Adjust quantities (+ or -)
   const updateQuantity = (productId: string, delta: number) => {
     setCart((prev) => {
       const item = prev[productId];
@@ -62,10 +55,8 @@ export const CartProvider = ({ children }: { children: React.ReactNode }) => {
     });
   };
 
-  // Wipe the cart clean after a successful order
   const clearCart = () => setCart({});
 
-  // Live Math calculations
   const cartItems = Object.values(cart);
   const totalItems = cartItems.reduce((sum, item) => sum + item.quantity, 0);
   const totalValue = cartItems.reduce((sum, item) => sum + item.product.price_per_kg * item.quantity, 0);
@@ -77,7 +68,6 @@ export const CartProvider = ({ children }: { children: React.ReactNode }) => {
   );
 };
 
-// Custom hook so any page can talk to the Brain
 export const useCart = () => {
   const context = useContext(CartContext);
   if (context === undefined) {
