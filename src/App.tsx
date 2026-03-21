@@ -39,6 +39,7 @@ import AdminCurrency from "./pages/admin/AdminCurrency.tsx";
 import AdminSupport from "./pages/admin/AdminSupport.tsx";
 import AdminSettings from "./pages/admin/AdminSettings.tsx";
 import AdminAudit from "./pages/admin/AdminAudit.tsx";
+import AdminDepartment from "./pages/admin/AdminDepartment.tsx";
 
 const queryClient = new QueryClient();
 
@@ -141,6 +142,7 @@ const App = () => (
               <Route path="support" element={<AdminSupport />} />
               <Route path="settings" element={<AdminSettings />} />
               <Route path="audit" element={<AdminAudit />} />
+              <Route path="department" element={<AdminDepartment />} />
             </Route>
             <Route path="*" element={<NotFound />} />
           </Routes>
