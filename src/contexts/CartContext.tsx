@@ -1,4 +1,4 @@
-import { CartProvider } from "./contexts/CartContext";
+import { CartProvider } from "@/contexts/CartContext";
 import React, { createContext, useContext, useState } from "react";
 import { toast } from "sonner";
 
