@@ -1,3 +1,4 @@
+import { CartProvider } from "./contexts/CartContext";
 import React, { createContext, useContext, useState } from "react";
 import { toast } from "sonner";
 
@@ -48,10 +49,10 @@ export const CartProvider = ({ children }: { children: React.ReactNode }) => {
     setCart((prev) => {
       const item = prev[productId];
       if (!item) return prev;
-      
+
       const newQty = Math.max(0, item.quantity + delta);
       const newCart = { ...prev };
-      
+
       if (newQty === 0) {
         delete newCart[productId];
       } else {
@@ -67,7 +68,7 @@ export const CartProvider = ({ children }: { children: React.ReactNode }) => {
   // Live Math calculations
   const cartItems = Object.values(cart);
   const totalItems = cartItems.reduce((sum, item) => sum + item.quantity, 0);
-  const totalValue = cartItems.reduce((sum, item) => sum + (item.product.price_per_kg * item.quantity), 0);
+  const totalValue = cartItems.reduce((sum, item) => sum + item.product.price_per_kg * item.quantity, 0);
 
   return (
     <CartContext.Provider value={{ cart, addToCart, updateQuantity, clearCart, totalItems, totalValue }}>
