@@ -3,7 +3,7 @@ import { BrowserRouter, Route, Routes, Navigate } from "react-router-dom";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { CartProvider } from "@/contexts/CartContext"; // <-- The Brain is imported here!
+import { CartProvider } from "./contexts/CartContext.tsx";
 
 import ProtectedRoute from "@/components/ProtectedRoute";
 import Splash from "./pages/Splash.tsx";
@@ -47,7 +47,6 @@ const App = () => (
       <Toaster />
       <Sonner />
       <BrowserRouter>
-        {/* We wrap the Routes in the CartProvider so every page shares the same memory */}
         <CartProvider>
           <Routes>
             <Route path="/splash" element={<Splash />} />
@@ -114,7 +113,6 @@ const App = () => (
               }
             />
 
-            {/* Admin Routes */}
             <Route
               path="/admin"
               element={
