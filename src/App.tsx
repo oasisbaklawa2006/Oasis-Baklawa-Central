@@ -3,6 +3,8 @@ import { BrowserRouter, Route, Routes, Navigate } from "react-router-dom";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { CartProvider } from "@/contexts/CartContext"; // <-- The Brain is imported here!
+
 import ProtectedRoute from "@/components/ProtectedRoute";
 import Splash from "./pages/Splash.tsx";
 import Index from "./pages/Index.tsx";
@@ -45,43 +47,104 @@ const App = () => (
       <Toaster />
       <Sonner />
       <BrowserRouter>
-        <Routes>
-          <Route path="/splash" element={<Splash />} />
-          <Route path="/" element={<Index />} />
-          <Route path="/catalogue" element={<Catalogue />} />
-          <Route path="/product/:id" element={<ProductDetail />} />
-          <Route path="/login" element={<Login />} />
-          <Route path="/register" element={<Register />} />
-          <Route path="/onboarding" element={<Onboarding />} />
-          <Route path="/buyer-portal" element={<ProtectedRoute><BuyerPortal /></ProtectedRoute>} />
-          <Route path="/cart" element={<ProtectedRoute><Cart /></ProtectedRoute>} />
-          <Route path="/orders" element={<ProtectedRoute><Orders /></ProtectedRoute>} />
-          <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
-          <Route path="/account" element={<ProtectedRoute><Account /></ProtectedRoute>} />
-          <Route path="/favorites" element={<ProtectedRoute><Favorites /></ProtectedRoute>} />
-          <Route path="/documents" element={<ProtectedRoute><Documents /></ProtectedRoute>} />
-          <Route path="/admin" element={<ProtectedRoute><AdminLayout /></ProtectedRoute>}>
-            <Route index element={<AdminDashboard />} />
-            <Route path="clients" element={<AdminClients />} />
-            <Route path="approvals" element={<AdminClients />} />
-            <Route path="products" element={<AdminProducts />} />
-            <Route path="pricing" element={<AdminPricing />} />
-            <Route path="orders" element={<AdminOrders />} />
-            <Route path="production" element={<AdminProduction />} />
-            <Route path="packing-dispatch" element={<AdminPackingDispatch />} />
-            <Route path="accounts-release" element={<AdminAccountsRelease />} />
-            <Route path="exceptions" element={<AdminExceptions />} />
-            <Route path="dispatch" element={<AdminPackingDispatch />} />
-            <Route path="finance" element={<AdminFinance />} />
-            <Route path="users" element={<AdminUsers />} />
-            <Route path="moq" element={<AdminMOQ />} />
-            <Route path="currency" element={<AdminCurrency />} />
-            <Route path="support" element={<AdminSupport />} />
-            <Route path="settings" element={<AdminSettings />} />
-            <Route path="audit" element={<AdminAudit />} />
-          </Route>
-          <Route path="*" element={<NotFound />} />
-        </Routes>
+        {/* We wrap the Routes in the CartProvider so every page shares the same memory */}
+        <CartProvider>
+          <Routes>
+            <Route path="/splash" element={<Splash />} />
+            <Route path="/" element={<Index />} />
+            <Route path="/catalogue" element={<Catalogue />} />
+            <Route path="/product/:id" element={<ProductDetail />} />
+            <Route path="/login" element={<Login />} />
+            <Route path="/register" element={<Register />} />
+            <Route path="/onboarding" element={<Onboarding />} />
+            <Route
+              path="/buyer-portal"
+              element={
+                <ProtectedRoute>
+                  <BuyerPortal />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/cart"
+              element={
+                <ProtectedRoute>
+                  <Cart />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/orders"
+              element={
+                <ProtectedRoute>
+                  <Orders />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/dashboard"
+              element={
+                <ProtectedRoute>
+                  <Dashboard />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/account"
+              element={
+                <ProtectedRoute>
+                  <Account />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/favorites"
+              element={
+                <ProtectedRoute>
+                  <Favorites />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/documents"
+              element={
+                <ProtectedRoute>
+                  <Documents />
+                </ProtectedRoute>
+              }
+            />
+
+            {/* Admin Routes */}
+            <Route
+              path="/admin"
+              element={
+                <ProtectedRoute>
+                  <AdminLayout />
+                </ProtectedRoute>
+              }
+            >
+              <Route index element={<AdminDashboard />} />
+              <Route path="clients" element={<AdminClients />} />
+              <Route path="approvals" element={<AdminClients />} />
+              <Route path="products" element={<AdminProducts />} />
+              <Route path="pricing" element={<AdminPricing />} />
+              <Route path="orders" element={<AdminOrders />} />
+              <Route path="production" element={<AdminProduction />} />
+              <Route path="packing-dispatch" element={<AdminPackingDispatch />} />
+              <Route path="accounts-release" element={<AdminAccountsRelease />} />
+              <Route path="exceptions" element={<AdminExceptions />} />
+              <Route path="dispatch" element={<AdminPackingDispatch />} />
+              <Route path="finance" element={<AdminFinance />} />
+              <Route path="users" element={<AdminUsers />} />
+              <Route path="moq" element={<AdminMOQ />} />
+              <Route path="currency" element={<AdminCurrency />} />
+              <Route path="support" element={<AdminSupport />} />
+              <Route path="settings" element={<AdminSettings />} />
+              <Route path="audit" element={<AdminAudit />} />
+            </Route>
+            <Route path="*" element={<NotFound />} />
+          </Routes>
+        </CartProvider>
       </BrowserRouter>
     </TooltipProvider>
   </QueryClientProvider>
