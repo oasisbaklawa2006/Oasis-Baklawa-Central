@@ -94,22 +94,23 @@ const AdminOrders = () => {
 
   const fetchOrders = async () => {
     setLoading(true);
-    // USING YOUR EXACT APPGEN COLUMNS HERE
+    // BULLETPROOF QUERY: We temporarily removed the 'company:companies' join
+    // to see if that was crashing the board.
     const { data, error } = await supabase
       .from("orders")
       .select(
         `
         id, status, sales_order_value, company_id,
-        company:companies(business_name),
         order_items ( id, quantity, product_id )
       `,
       )
       .in("status", [...STATUSES]);
 
     if (error) {
-      console.error("Failed to fetch orders (check database schema):", error);
-      toast.error("Database connection error");
+      console.error("Database Error Details:", error);
+      toast.error(`Database Error: ${error.message}`);
     } else {
+      console.log("Orders successfully fetched:", data);
       setOrders((data as unknown as OrderCard[]) ?? []);
     }
     setLoading(false);
