@@ -65,16 +65,23 @@ const STATUS_COLORS: Record<OrderStatus, string> = {
 
 const TERMINAL = new Set(["closed", "cancelled", "delivered"]);
 
-// Safety Net Interface: We use 'any' so TypeScript stops breaking your build
+interface OrderItem {
+  id: string;
+  quantity: number;
+  product_id: string | null;
+  pack_size?: string | null;
+  carton_type?: string | null;
+  products?: { name: string } | null;
+  product?: { name: string } | null; // AppGen fallback
+}
+
 interface OrderCard {
   id: string;
   status: string;
   sales_order_value: number | null;
   company_id: string | null;
-  created_at?: string;
-  companies?: any;
-  company?: any;
-  order_items?: any[];
+  company?: { business_name: string } | null;
+  order_items?: OrderItem[];
 }
 
 const AdminOrders = () => {
@@ -82,30 +89,29 @@ const AdminOrders = () => {
   const [loading, setLoading] = useState(true);
   const [updating, setUpdating] = useState<string | null>(null);
   const [selectedOrder, setSelectedOrder] = useState<OrderCard | null>(null);
-  const [drawerItems, setDrawerItems] = useState<any[]>([]);
+  const [drawerItems, setDrawerItems] = useState<OrderItem[]>([]);
   const [drawerLoading, setDrawerLoading] = useState(false);
 
   const fetchOrders = async () => {
     setLoading(true);
-
-    // The "Catch-All" Query
+    // BULLETPROOF QUERY: We temporarily removed the 'company:companies' join
+    // to see if that was crashing the board.
     const { data, error } = await supabase
       .from("orders")
       .select(
         `
-        id, status, sales_order_value, company_id, created_at,
-        companies ( business_name ),
+        id, status, sales_order_value, company_id,
         order_items ( id, quantity, product_id )
       `,
       )
-      .in("status", [...STATUSES])
-      .order("created_at", { ascending: false });
+      .in("status", [...STATUSES]);
 
     if (error) {
-      console.error("Database Error:", error);
-      toast.error("Database connection error");
+      console.error("Database Error Details:", error);
+      toast.error(`Database Error: ${error.message}`);
     } else {
-      setOrders((data as any[]) || []);
+      console.log("Orders successfully fetched:", data);
+      setOrders((data as unknown as OrderCard[]) ?? []);
     }
     setLoading(false);
   };
@@ -127,9 +133,12 @@ const AdminOrders = () => {
     const next = nextStatus(order.status);
     if (!next) return;
     setUpdating(order.id);
+
     const { error } = await supabase.from("orders").update({ status: next }).eq("id", order.id);
-    if (error) toast.error("Failed to update status");
-    else {
+
+    if (error) {
+      toast.error("Failed to update status");
+    } else {
       toast.success(`Moved to ${STATUS_LABELS[next as OrderStatus]}`);
       await fetchOrders();
     }
@@ -139,12 +148,21 @@ const AdminOrders = () => {
   const handleOpenDrawer = async (order: OrderCard) => {
     setSelectedOrder(order);
     setDrawerLoading(true);
+
+    // Fetching items using AppGen's specific relations
     const { data, error } = await supabase
       .from("order_items")
-      .select(`id, quantity, product_id, pack_size, carton_type, products (name)`)
+      .select(
+        `
+        id, quantity, product_id, pack_size, carton_type,
+        products (name)
+      `,
+      )
       .eq("order_id", order.id);
+
     if (error) console.error(error);
-    setDrawerItems((data as any[]) || []);
+
+    setDrawerItems((data as unknown as OrderItem[]) ?? []);
     setDrawerLoading(false);
   };
 
@@ -153,39 +171,33 @@ const AdminOrders = () => {
     setTimeout(() => setDrawerItems([]), 300);
   };
 
-  const getTotalPacks = (items?: any[]) => items?.reduce((sum, it) => sum + Number(it.quantity || 0), 0) ?? 0;
+  const getTotalPacks = (items?: { quantity: number }[]) =>
+    items?.reduce((sum, it) => sum + Number(it.quantity), 0) ?? 0;
 
-  // Smart extractors that won't crash if data is weird
-  const getCompanyName = (order: OrderCard) => {
-    if (order.company?.business_name) return order.company.business_name;
-    if (order.companies?.business_name) return order.companies.business_name;
-    if (Array.isArray(order.companies) && order.companies[0]?.business_name) return order.companies[0].business_name;
-    return "Unknown Company";
+  // Helper to safely grab the product name regardless of how Supabase returns the join
+  const getProductName = (item: OrderItem) => {
+    return item.products?.name || item.product?.name || "Unknown Product";
   };
 
-  const getProductName = (item: any) => {
-    if (item.products?.name) return item.products.name;
-    if (item.product?.name) return item.product.name;
-    if (Array.isArray(item.products) && item.products[0]?.name) return item.products[0].name;
-    return "Unknown Product";
-  };
-
-  if (loading)
+  if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
+      <div className="flex items-center justify-center min-h-screen bg-background">
         <Loader2 size={32} className="animate-spin text-primary" />
       </div>
     );
+  }
 
   return (
     <div className="min-h-screen bg-background pb-20 overflow-x-hidden flex flex-col">
       <TopNavBar />
+
       <main className="pt-24 px-5 flex-1 max-w-[100vw] overflow-hidden flex flex-col">
         <div className="mb-6">
           <h1 className="text-display-h2 text-foreground">Order Pipeline</h1>
           <p className="text-body-p2 text-muted-foreground mt-1">Drag-and-drop fulfillment flow</p>
         </div>
 
+        {/* Scrollable pipeline */}
         <div className="overflow-x-auto flex-1 pb-4 no-scrollbar cursor-grab active:cursor-grabbing">
           <div className="flex gap-4 min-h-[600px]" style={{ minWidth: "max-content" }}>
             {STATUSES.map((status) => {
@@ -213,10 +225,12 @@ const AdminOrders = () => {
                         <p className="text-xs font-bold text-muted-foreground/50 uppercase">Empty</p>
                       </div>
                     )}
+
                     {statusOrders.map((order) => {
                       const next = nextStatus(order.status);
                       const packs = getTotalPacks(order.order_items);
                       const cartons = Math.floor(packs / PACKS_PER_CARTON);
+
                       return (
                         <div
                           key={order.id}
@@ -225,19 +239,22 @@ const AdminOrders = () => {
                         >
                           <div className="flex justify-between items-start mb-2">
                             <p className="text-xs font-bold text-foreground line-clamp-1 flex-1 pr-2">
-                              {getCompanyName(order)}
+                              {order.company?.business_name || "Unknown Company"}
                             </p>
                             <p className="text-xs font-mono font-bold text-muted-foreground uppercase flex-shrink-0">
                               #{order.id.slice(0, 6)}
                             </p>
                           </div>
+
                           <p className="text-sm font-bold text-foreground mb-3">
                             ₹{(order.sales_order_value ?? 0).toLocaleString("en-IN")}
                           </p>
+
                           <div className="flex gap-3 text-xs font-semibold text-muted-foreground bg-muted/30 p-2 rounded-lg mb-3">
                             <span>📦 {packs} Packs</span>
                             <span>📦 {cartons} Ctns</span>
                           </div>
+
                           {next && (
                             <button
                               onClick={(e) => {
@@ -262,6 +279,7 @@ const AdminOrders = () => {
         </div>
       </main>
 
+      {/* --- SLIDE-OUT PANEL --- */}
       <AnimatePresence>
         {selectedOrder && (
           <>
@@ -272,6 +290,7 @@ const AdminOrders = () => {
               onClick={closeDrawer}
               className="fixed inset-0 bg-black/40 backdrop-blur-sm z-40"
             />
+
             <motion.div
               initial={{ x: "100%" }}
               animate={{ x: 0 }}
@@ -282,7 +301,7 @@ const AdminOrders = () => {
               <div className="flex items-center justify-between p-6 border-b border-border bg-muted/10">
                 <div>
                   <h2 className="text-lg font-display tracking-wide text-foreground">
-                    {getCompanyName(selectedOrder)}
+                    {selectedOrder.company?.business_name || "Order Details"}
                   </h2>
                   <p className="text-xs font-mono text-muted-foreground mt-1 uppercase">#{selectedOrder.id}</p>
                 </div>
@@ -293,6 +312,7 @@ const AdminOrders = () => {
                   <X size={20} />
                 </button>
               </div>
+
               <div className="p-6 flex-1 overflow-y-auto space-y-6">
                 <div className="grid grid-cols-2 gap-4">
                   <div className="bg-card p-4 rounded-xl border border-border">
@@ -321,6 +341,7 @@ const AdminOrders = () => {
 
                 <div>
                   <h3 className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-3">Order Items</h3>
+
                   {drawerLoading ? (
                     <div className="py-8 flex justify-center">
                       <Loader2 className="animate-spin text-primary" size={24} />
