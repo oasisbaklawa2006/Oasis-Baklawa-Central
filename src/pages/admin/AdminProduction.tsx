@@ -1,9 +1,9 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { Loader2, ArrowRight, Factory, Wrench } from "lucide-react";
+import { Loader2, ArrowRight, Factory, Wrench, Package } from "lucide-react";
 import { useLanguage } from "@/hooks/useLanguage";
-import TopNavBar from "@/components/TopNavBar"; // <-- Fixed missing import
+import TopNavBar from "@/components/TopNavBar";
 
 interface ProdOrder {
   id: string;
@@ -51,19 +51,24 @@ const AdminProduction = () => {
   const prodCount = orders.filter((o) => o.status === "in_production").length;
   const asmCount = orders.filter((o) => o.status === "assembly").length;
 
-  const handleAdvance = async (order: ProdOrder) => {
-    const next = order.status === "in_production" ? "assembly" : "packing";
+  // SMART ROUTING LOGIC ADDED HERE
+  const handleAdvance = async (order: ProdOrder, targetStatus: string) => {
     setUpdating(order.id);
-    const { error } = await supabase.from("orders").update({ status: next }).eq("id", order.id);
+    const { error } = await supabase.from("orders").update({ status: targetStatus }).eq("id", order.id);
+
     if (error) {
-      toast.error("Failed");
+      toast.error("Failed to move order");
       setUpdating(null);
       return;
     }
+
     await supabase
       .from("order_status_history")
-      .insert({ order_id: order.id, old_status: order.status, new_status: next });
-    toast.success(`Moved to ${next === "assembly" ? t("Assembly") : t("Packing")}`);
+      .insert({ order_id: order.id, old_status: order.status, new_status: targetStatus });
+
+    const statusName = targetStatus.replace("_", " ");
+    toast.success(`Moved to ${statusName.charAt(0).toUpperCase() + statusName.slice(1)}`);
+
     setUpdating(null);
     fetchOrders();
   };
@@ -128,15 +133,15 @@ const AdminProduction = () => {
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {filtered.map((order) => {
               const packs = order.order_items?.reduce((s, i) => s + i.quantity, 0) ?? 0;
-              const nextLabel = order.status === "in_production" ? t("Assembly") : t("Packing");
               const daysSince = order.created_at
                 ? Math.floor((Date.now() - new Date(order.created_at).getTime()) / 86400000)
                 : 0;
               const isDelayed = daysSince > 5;
+
               return (
                 <div
                   key={order.id}
-                  className={`bg-card border rounded-xl p-4 space-y-3 ${isDelayed ? "border-destructive/40" : "border-border"}`}
+                  className={`bg-card border rounded-xl p-4 flex flex-col space-y-3 ${isDelayed ? "border-destructive/40" : "border-border"}`}
                   style={{ boxShadow: "0 1px 6px rgba(0,0,0,0.04)" }}
                 >
                   <div className="flex justify-between items-start">
@@ -148,25 +153,60 @@ const AdminProduction = () => {
                       <span className="text-fine text-destructive font-semibold">Delayed {daysSince}d</span>
                     )}
                   </div>
+
                   <div className="flex justify-between text-fine text-muted-foreground">
                     <span>{packs} packs</span>
                     <span>₹{(order.sales_order_value ?? 0).toLocaleString("en-IN")}</span>
                   </div>
+
                   {/* Item workload bar */}
-                  <div className="h-1.5 bg-muted rounded-full overflow-hidden">
+                  <div className="h-1.5 bg-muted rounded-full overflow-hidden mb-auto">
                     <div
                       className="h-full bg-primary/60 rounded-full"
                       style={{ width: `${Math.min((packs / maxItems) * 100, 100)}%` }}
                     />
                   </div>
-                  <button
-                    onClick={() => handleAdvance(order)}
-                    disabled={updating === order.id}
-                    className="w-full flex items-center justify-center gap-1 py-2 rounded-lg text-ui-button text-sm bg-primary/10 text-primary hover:bg-primary/20 transition-colors disabled:opacity-50"
-                  >
-                    {updating === order.id ? <Loader2 size={12} className="animate-spin" /> : <ArrowRight size={12} />}
-                    {nextLabel}
-                  </button>
+
+                  {/* SMART ROUTING BUTTONS */}
+                  <div className="mt-4 pt-3 border-t border-border flex gap-2">
+                    {order.status === "in_production" ? (
+                      <>
+                        <button
+                          onClick={() => handleAdvance(order, "assembly")}
+                          disabled={updating === order.id}
+                          className="flex-1 flex items-center justify-center gap-1 py-2 rounded-lg text-xs font-bold bg-blue-50 text-blue-700 hover:bg-blue-100 transition-colors disabled:opacity-50"
+                        >
+                          {updating === order.id ? (
+                            <Loader2 size={12} className="animate-spin" />
+                          ) : (
+                            <Wrench size={12} />
+                          )}
+                          To Assembly
+                        </button>
+                        <button
+                          onClick={() => handleAdvance(order, "packing")}
+                          disabled={updating === order.id}
+                          className="flex-1 flex items-center justify-center gap-1 py-2 rounded-lg text-xs font-bold bg-primary/10 text-primary hover:bg-primary/20 transition-colors disabled:opacity-50"
+                        >
+                          {updating === order.id ? (
+                            <Loader2 size={12} className="animate-spin" />
+                          ) : (
+                            <Package size={12} />
+                          )}
+                          To Packing
+                        </button>
+                      </>
+                    ) : (
+                      <button
+                        onClick={() => handleAdvance(order, "packing")}
+                        disabled={updating === order.id}
+                        className="w-full flex items-center justify-center gap-1 py-2 rounded-lg text-xs font-bold bg-primary/10 text-primary hover:bg-primary/20 transition-colors disabled:opacity-50"
+                      >
+                        {updating === order.id ? <Loader2 size={12} className="animate-spin" /> : <Package size={12} />}
+                        Assembly Complete ➔ Packing
+                      </button>
+                    )}
+                  </div>
                 </div>
               );
             })}
