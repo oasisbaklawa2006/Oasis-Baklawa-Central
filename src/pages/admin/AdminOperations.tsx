@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { Loader2, Settings2, Calendar, LayoutGrid, CheckCircle2, PackageSearch } from "lucide-react";
+import { Loader2, Settings2, Calendar, LayoutGrid, CheckCircle2, PackageSearch, Plus, Zap } from "lucide-react";
 import TopNavBar from "@/components/TopNavBar";
 
 const DEPARTMENTS = ["Baklawa", "Chocolate", "Laddu", "Bakery", "Hampers", "Packaging Store"];
@@ -47,10 +47,16 @@ const AdminOperations = () => {
   const [adjustNotes, setAdjustNotes] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  // Factory Task State
+  const [isTaskModalOpen, setIsTaskModalOpen] = useState(false);
+  const [taskType, setTaskType] = useState("standby");
+  const [taskProduct, setTaskProduct] = useState("");
+  const [taskQty, setTaskQty] = useState<number | "">("");
+  const [taskDept, setTaskDept] = useState("");
+
   const fetchOpsData = async () => {
     setLoading(true);
 
-    // 1. Fetch Routing Orders
     const { data: orderData, error } = await supabase
       .from("orders")
       .select(
@@ -71,11 +77,9 @@ const AdminOperations = () => {
       setOrders((orderData as any[]) || []);
     }
 
-    // 2. Fetch Ready Goods Store (Bypassing strict TS for new table)
-    const { data: productData } = await (supabase as any).from("products").select(`
-        id, name,
-        factory_inventory ( quantity )
-      `);
+    const { data: productData } = await (supabase as any)
+      .from("products")
+      .select(`id, name, factory_inventory ( quantity )`);
 
     if (productData) {
       const formattedInventory = productData.map((p: any) => ({
@@ -93,25 +97,19 @@ const AdminOperations = () => {
     fetchOpsData();
   }, []);
 
-  // --- ROUTING ACTIONS ---
   const handleAssignDepartment = async (itemId: string, department: string) => {
     const { error } = await supabase
       .from("order_items")
-      .update({
-        department: department,
-        production_status: "pending",
-      })
+      .update({ department: department, production_status: "pending" })
       .eq("id", itemId);
 
-    if (error) {
-      toast.error("Failed to assign department");
-    } else {
+    if (error) toast.error("Failed to assign department");
+    else {
       toast.success(`Item routed to ${department}`);
-      fetchOpsData(); // Silent refresh to sync
+      fetchOpsData();
     }
   };
 
-  // --- STORE ACTIONS ---
   const handleAdjustStock = async () => {
     if (!adjustingProduct || adjustAmount === "" || Number(adjustAmount) <= 0) {
       toast.error("Please enter a valid amount.");
@@ -131,7 +129,6 @@ const AdminOperations = () => {
     }
 
     try {
-      // Bypassing strict TS for the new factory_inventory table
       const { data: existingStock } = await (supabase as any)
         .from("factory_inventory")
         .select("id")
@@ -149,7 +146,6 @@ const AdminOperations = () => {
           .insert({ product_id: adjustingProduct.id, quantity: newStockLevel });
       }
 
-      // Bypassing strict TS for the new inventory_adjustments table
       await (supabase as any).from("inventory_adjustments").insert({
         product_id: adjustingProduct.id,
         adjustment_type: adjustReason,
@@ -164,6 +160,48 @@ const AdminOperations = () => {
       fetchOpsData();
     } catch (error) {
       toast.error("Failed to update inventory.");
+    }
+    setIsSubmitting(false);
+  };
+
+  const handleCreateTask = async () => {
+    if (!taskProduct || !taskDept || !taskQty) {
+      toast.error("Please fill in all task details.");
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      // 1. Create a "Phantom Order" to hold the internal task
+      const { data: orderData, error: orderError } = await (supabase as any)
+        .from("orders")
+        .insert({ status: "in_production", sales_order_value: 0 })
+        .select("id")
+        .single();
+
+      if (orderError) throw orderError;
+
+      // 2. Insert the item and route it directly to the TV screen
+      const { error: itemError } = await (supabase as any).from("order_items").insert({
+        order_id: orderData.id,
+        product_id: taskProduct,
+        quantity: taskQty,
+        department: taskDept,
+        production_status: "pending",
+        task_type: taskType,
+      });
+
+      if (itemError) throw itemError;
+
+      toast.success("Task beamed to factory TV!", { icon: "🚀" });
+      setIsTaskModalOpen(false);
+      setTaskProduct("");
+      setTaskQty("");
+      setTaskDept("");
+      fetchOpsData();
+    } catch (error) {
+      console.error(error);
+      toast.error("Failed to beam task.");
     }
     setIsSubmitting(false);
   };
@@ -205,27 +243,38 @@ const AdminOperations = () => {
             <p className="text-sm text-muted-foreground mt-1">Route materials and manage physical inventory.</p>
           </div>
 
-          <div className="flex bg-muted/50 p-1 rounded-xl border border-border">
+          <div className="flex items-center gap-3">
+            {/* THE NEW BEAM TASK BUTTON */}
             <button
-              onClick={() => setActiveTab("routing")}
-              className={`flex-1 flex items-center justify-center gap-2 px-6 py-2 rounded-lg text-sm font-semibold transition-all ${
-                activeTab === "routing"
-                  ? "bg-background text-foreground shadow-sm border border-border"
-                  : "text-muted-foreground hover:text-foreground"
-              }`}
+              onClick={() => setIsTaskModalOpen(true)}
+              className="flex items-center gap-2 px-5 py-2.5 bg-slate-900 hover:bg-black text-white rounded-xl text-sm font-bold shadow-sm transition-transform active:scale-95"
             >
-              <LayoutGrid size={16} /> Routing
+              <Zap size={16} className="text-amber-400" />
+              Beam Task
             </button>
-            <button
-              onClick={() => setActiveTab("store")}
-              className={`flex-1 flex items-center justify-center gap-2 px-6 py-2 rounded-lg text-sm font-semibold transition-all ${
-                activeTab === "store"
-                  ? "bg-background text-foreground shadow-sm border border-border"
-                  : "text-muted-foreground hover:text-foreground"
-              }`}
-            >
-              <PackageSearch size={16} /> Ready Goods
-            </button>
+
+            <div className="flex bg-muted/50 p-1 rounded-xl border border-border">
+              <button
+                onClick={() => setActiveTab("routing")}
+                className={`flex-1 flex items-center justify-center gap-2 px-6 py-2 rounded-lg text-sm font-semibold transition-all ${
+                  activeTab === "routing"
+                    ? "bg-background text-foreground shadow-sm border border-border"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                <LayoutGrid size={16} /> Routing
+              </button>
+              <button
+                onClick={() => setActiveTab("store")}
+                className={`flex-1 flex items-center justify-center gap-2 px-6 py-2 rounded-lg text-sm font-semibold transition-all ${
+                  activeTab === "store"
+                    ? "bg-background text-foreground shadow-sm border border-border"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                <PackageSearch size={16} /> Ready Goods
+              </button>
+            </div>
           </div>
         </div>
 
@@ -243,6 +292,9 @@ const AdminOperations = () => {
                 const totalItems = order.order_items?.length || 0;
                 const assignedItems = order.order_items?.filter((i) => i.department).length || 0;
                 const isFullyRouted = totalItems > 0 && assignedItems === totalItems;
+                const isInternalTask = order.order_items?.some(
+                  (i) => i.task_type === "standby" || i.task_type === "interdepartmental",
+                );
 
                 return (
                   <div
@@ -250,17 +302,22 @@ const AdminOperations = () => {
                     className="bg-card border border-border rounded-xl overflow-hidden"
                     style={{ boxShadow: "0 2px 10px rgba(0,0,0,0.04)" }}
                   >
-                    {/* Order Header */}
                     <div className="p-4 border-b border-border flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
                       <div>
-                        <p className="text-xs text-muted-foreground">Factory Order ID</p>
-                        <p className="text-lg font-bold text-foreground">#{order.id.split("-")[0].toUpperCase()}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {isInternalTask ? "Internal Dispatch Auth" : "Factory Order ID"}
+                        </p>
+                        <p className="text-lg font-bold text-foreground">
+                          {isInternalTask ? "AUTO-GENERATED" : `#${order.id.split("-")[0].toUpperCase()}`}
+                        </p>
                       </div>
                       <div className="flex items-center gap-3">
-                        <span className="flex items-center gap-1 text-xs text-muted-foreground">
-                          <Calendar size={12} />
-                          Dispatch: {formatDate(order.dispatch_date || order.created_at)}
-                        </span>
+                        {!isInternalTask && (
+                          <span className="flex items-center gap-1 text-xs text-muted-foreground">
+                            <Calendar size={12} />
+                            Dispatch: {formatDate(order.dispatch_date || order.created_at)}
+                          </span>
+                        )}
                         {isFullyRouted && (
                           <span className="flex items-center gap-1 text-xs font-semibold text-green-600">
                             <CheckCircle2 size={14} /> Fully Routed
@@ -269,21 +326,19 @@ const AdminOperations = () => {
                       </div>
                     </div>
 
-                    {/* Items Routing List */}
                     <div className="divide-y divide-border">
                       {order.order_items?.map((item) => (
                         <div key={item.id} className="p-4 flex flex-col sm:flex-row sm:items-center gap-3">
-                          {/* Item Details */}
                           <div className="flex-1">
                             <p className="font-semibold text-foreground flex items-center gap-2">
                               {getProductName(item)}
                               {item.task_type === "standby" && (
-                                <span className="text-[10px] bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full font-bold uppercase tracking-wider">
+                                <span className="text-[10px] bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full font-bold uppercase tracking-wider">
                                   Standby
                                 </span>
                               )}
                               {item.task_type === "interdepartmental" && (
-                                <span className="text-[10px] bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full font-bold uppercase tracking-wider">
+                                <span className="text-[10px] bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full font-bold uppercase tracking-wider">
                                   Internal
                                 </span>
                               )}
@@ -295,7 +350,6 @@ const AdminOperations = () => {
                             </div>
                           </div>
 
-                          {/* Status & Routing Dropdown */}
                           <div className="flex items-center gap-2">
                             {item.production_status === "completed" && (
                               <span className="flex items-center gap-1 text-xs font-semibold text-green-600">
@@ -339,7 +393,6 @@ const AdminOperations = () => {
               <h2 className="text-lg font-bold text-foreground">Physical Inventory</h2>
               <p className="text-sm text-muted-foreground">Adjust levels for the Ready Goods Store.</p>
             </div>
-
             <div className="divide-y divide-border">
               {inventory.map((item) => (
                 <div key={item.id} className="p-4 flex items-center justify-between">
@@ -363,7 +416,93 @@ const AdminOperations = () => {
           </div>
         )}
 
-        {/* MODAL */}
+        {/* FACTORY TASK MODAL (NEW) */}
+        {isTaskModalOpen && (
+          <div className="fixed inset-0 bg-background/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+            <div className="bg-card w-full max-w-sm rounded-2xl p-6 border border-border shadow-lg">
+              <div className="flex items-center gap-2 mb-1">
+                <Zap size={20} className="text-amber-500" />
+                <h3 className="text-lg font-bold">Beam Factory Task</h3>
+              </div>
+              <p className="text-sm text-muted-foreground mb-6">Send a direct order to a department TV.</p>
+
+              <div className="space-y-4 mb-6">
+                <div>
+                  <label className="text-xs text-muted-foreground mb-1 block">Priority / Task Type</label>
+                  <select
+                    value={taskType}
+                    onChange={(e) => setTaskType(e.target.value)}
+                    className="w-full p-2.5 rounded-lg border border-border bg-background text-sm font-semibold outline-none"
+                  >
+                    <option value="interdepartmental">🟡 Priority 2: Internal Assembly</option>
+                    <option value="standby">🟢 Priority 3: Standby (Stock Fill)</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="text-xs text-muted-foreground mb-1 block">Product</label>
+                  <select
+                    value={taskProduct}
+                    onChange={(e) => setTaskProduct(e.target.value)}
+                    className="w-full p-2.5 rounded-lg border border-border bg-background text-sm outline-none"
+                  >
+                    <option value="">Select a product...</option>
+                    {inventory.map((inv) => (
+                      <option key={inv.id} value={inv.id}>
+                        {inv.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-xs text-muted-foreground mb-1 block">Quantity</label>
+                    <input
+                      type="number"
+                      min="1"
+                      value={taskQty}
+                      onChange={(e) => setTaskQty(Number(e.target.value))}
+                      placeholder="0"
+                      className="w-full p-2.5 rounded-lg border border-border bg-background text-sm outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs text-muted-foreground mb-1 block">Target Dept.</label>
+                    <select
+                      value={taskDept}
+                      onChange={(e) => setTaskDept(e.target.value)}
+                      className="w-full p-2.5 rounded-lg border border-border bg-background text-sm outline-none"
+                    >
+                      <option value="">Select...</option>
+                      {DEPARTMENTS.map((d) => (
+                        <option key={d} value={d}>
+                          {d}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setIsTaskModalOpen(false)}
+                  className="flex-1 py-2.5 rounded-lg font-semibold text-muted-foreground bg-muted hover:bg-muted/80 transition-colors text-sm"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleCreateTask}
+                  disabled={isSubmitting}
+                  className="flex-1 py-2.5 rounded-lg font-semibold text-background bg-foreground hover:bg-foreground/90 transition-colors text-sm flex items-center justify-center"
+                >
+                  {isSubmitting ? <Loader2 size={16} className="animate-spin" /> : "Beam to TV"}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ADJUST STOCK MODAL */}
         {adjustingProduct && (
           <div className="fixed inset-0 bg-background/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
             <div className="bg-card w-full max-w-sm rounded-2xl p-6 border border-border shadow-lg">
@@ -393,16 +532,6 @@ const AdminOperations = () => {
                     min="1"
                     value={adjustAmount}
                     onChange={(e) => setAdjustAmount(Number(e.target.value))}
-                    className="w-full p-2.5 rounded-lg border border-border bg-background text-sm outline-none"
-                  />
-                </div>
-                <div>
-                  <label className="text-xs text-muted-foreground mb-1 block">Notes</label>
-                  <input
-                    type="text"
-                    value={adjustNotes}
-                    onChange={(e) => setAdjustNotes(e.target.value)}
-                    placeholder="Optional details"
                     className="w-full p-2.5 rounded-lg border border-border bg-background text-sm outline-none"
                   />
                 </div>
