@@ -1,13 +1,14 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { Loader2, Settings2, Calendar, LayoutGrid, CheckCircle2, PackageSearch, Plus, Zap } from "lucide-react";
+import { Loader2, Settings2, Calendar, LayoutGrid, CheckCircle2, PackageSearch, Plus, Zap, Wand2 } from "lucide-react";
 import TopNavBar from "@/components/TopNavBar";
 
 const DEPARTMENTS = ["Baklawa", "Chocolate", "Laddu", "Bakery", "Hampers", "Packaging Store"];
 
 interface OpsOrderItem {
   id: string;
+  product_id?: string; // Added to match inventory
   quantity: number;
   pack_size: string | null;
   carton_type: string | null;
@@ -38,6 +39,7 @@ const AdminOperations = () => {
   // Routing State
   const [orders, setOrders] = useState<OpsOrder[]>([]);
   const [loading, setLoading] = useState(true);
+  const [splittingOrder, setSplittingOrder] = useState<string | null>(null);
 
   // Store State
   const [inventory, setInventory] = useState<InventoryItem[]>([]);
@@ -61,9 +63,9 @@ const AdminOperations = () => {
       .from("orders")
       .select(
         `
-        id, status, created_at,
+        id, status, created_at, dispatch_date,
         order_items (
-          id, quantity, pack_size, carton_type, department, production_status, task_type,
+          id, product_id, quantity, pack_size, carton_type, department, production_status, task_type,
           products ( name )
         )
       `,
@@ -96,6 +98,73 @@ const AdminOperations = () => {
   useEffect(() => {
     fetchOpsData();
   }, []);
+
+  // --- NEW: SMART SPLITTER FUNCTION ---
+  const handleSmartSplit = async (order: OpsOrder) => {
+    setSplittingOrder(order.id);
+    try {
+      let itemsOptimized = 0;
+
+      for (const item of order.order_items || []) {
+        if (item.production_status === 'completed' || !item.product_id) continue;
+
+        const invItem = inventory.find(i => i.id === item.product_id);
+        if (!invItem || invItem.stock <= 0) continue;
+
+        const allocateQty = Math.min(invItem.stock, item.quantity);
+        const newStockLevel = invItem.stock - allocateQty;
+        const remainingQtyToBake = item.quantity - allocateQty;
+
+        // 1. Deduct from Physical Virtual Store
+        await (supabase as any).from("factory_inventory")
+          .update({ quantity: newStockLevel })
+          .eq("product_id", item.product_id);
+
+        await (supabase as any).from("inventory_adjustments")
+          .insert({
+            product_id: item.product_id,
+            adjustment_type: "smart_fulfillment",
+            quantity: -allocateQty,
+            notes: `Auto-fulfilled for Order #${order.id.split('-')[0].toUpperCase()}`
+          });
+
+        // 2. Execute the Split
+        if (remainingQtyToBake === 0) {
+          await supabase.from("order_items")
+            .update({ production_status: "completed", department: "Ready Goods Store" })
+            .eq("id", item.id);
+        } else {
+          await supabase.from("order_items")
+            .update({ quantity: remainingQtyToBake })
+            .eq("id", item.id);
+
+          await supabase.from("order_items")
+            .insert({
+              order_id: order.id,
+              product_id: item.product_id,
+              quantity: allocateQty,
+              pack_size: item.pack_size,
+              carton_type: item.carton_type,
+              department: "Ready Goods Store", 
+              production_status: "completed",
+              task_type: item.task_type
+            });
+        }
+        itemsOptimized++;
+      }
+
+      if (itemsOptimized > 0) {
+        toast.success(`Smart Split complete! Items pulled from Ready Goods.`, { icon: '✨' });
+        await fetchOpsData(); 
+      } else {
+        toast.info("No items could be fulfilled from current stock.");
+      }
+    } catch (error) {
+      toast.error("Error during Smart Split.");
+      console.error(error);
+    }
+    setSplittingOrder(null);
+  };
 
   const handleAssignDepartment = async (itemId: string, department: string) => {
     const { error } = await supabase
@@ -296,6 +365,13 @@ const AdminOperations = () => {
                   (i) => i.task_type === "standby" || i.task_type === "interdepartmental",
                 );
 
+                // --- NEW: Check if items can be fulfilled from store ---
+                const canBeOptimized = !isInternalTask && order.order_items?.some(item => {
+                  if (item.production_status === 'completed' || !item.product_id) return false;
+                  const stockAvailable = inventory.find(i => i.id === item.product_id)?.stock || 0;
+                  return stockAvailable > 0;
+                });
+
                 return (
                   <div
                     key={order.id}
@@ -312,6 +388,18 @@ const AdminOperations = () => {
                         </p>
                       </div>
                       <div className="flex items-center gap-3">
+                        {/* THE SMART SPLIT BUTTON */}
+                        {canBeOptimized && (
+                          <button
+                            onClick={() => handleSmartSplit(order)}
+                            disabled={splittingOrder === order.id}
+                            className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-50 text-indigo-700 hover:bg-indigo-100 border border-indigo-200 rounded-lg text-xs font-bold transition-all disabled:opacity-50"
+                          >
+                            {splittingOrder === order.id ? <Loader2 size={14} className="animate-spin" /> : <Wand2 size={14} />}
+                            Auto-Fill
+                          </button>
+                        )}
+                        
                         {!isInternalTask && (
                           <span className="flex items-center gap-1 text-xs text-muted-foreground">
                             <Calendar size={12} />
@@ -351,28 +439,29 @@ const AdminOperations = () => {
                           </div>
 
                           <div className="flex items-center gap-2">
-                            {item.production_status === "completed" && (
-                              <span className="flex items-center gap-1 text-xs font-semibold text-green-600">
-                                <CheckCircle2 size={14} /> Done
+                            {/* NEW: Displays "Pulled from Store" if auto-filled */}
+                            {item.production_status === "completed" ? (
+                              <span className="flex items-center justify-center w-full sm:w-48 gap-1 px-3 py-2 text-xs font-semibold text-emerald-600 bg-emerald-50 rounded-lg border border-emerald-100">
+                                <CheckCircle2 size={14} /> {item.department === "Ready Goods Store" ? "Pulled from Store" : "Done"}
                               </span>
+                            ) : (
+                              <select
+                                value={item.department || ""}
+                                onChange={(e) => handleAssignDepartment(item.id, e.target.value)}
+                                className={`flex-1 sm:w-48 px-3 py-2.5 rounded-lg text-sm font-semibold border outline-none transition-colors ${
+                                  item.department
+                                    ? "bg-foreground text-background border-foreground"
+                                    : "bg-background text-muted-foreground border-border hover:border-primary focus:ring-2 focus:ring-primary/20"
+                                }`}
+                              >
+                                <option value="">Route to Dept...</option>
+                                {DEPARTMENTS.map((dept) => (
+                                  <option key={dept} value={dept}>
+                                    {dept}
+                                  </option>
+                                ))}
+                              </select>
                             )}
-                            <select
-                              value={item.department || ""}
-                              onChange={(e) => handleAssignDepartment(item.id, e.target.value)}
-                              disabled={item.production_status === "completed"}
-                              className={`flex-1 sm:w-48 px-3 py-2.5 rounded-lg text-sm font-semibold border outline-none transition-colors ${
-                                item.department
-                                  ? "bg-foreground text-background border-foreground"
-                                  : "bg-background text-muted-foreground border-border hover:border-primary focus:ring-2 focus:ring-primary/20"
-                              }`}
-                            >
-                              <option value="">Route to Dept...</option>
-                              {DEPARTMENTS.map((dept) => (
-                                <option key={dept} value={dept}>
-                                  {dept}
-                                </option>
-                              ))}
-                            </select>
                           </div>
                         </div>
                       ))}
@@ -549,15 +638,4 @@ const AdminOperations = () => {
                   disabled={isSubmitting}
                   className="flex-1 py-2.5 rounded-lg font-semibold text-background bg-foreground hover:bg-foreground/90 transition-colors text-sm flex items-center justify-center"
                 >
-                  {isSubmitting ? <Loader2 size={16} className="animate-spin" /> : "Save"}
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-      </main>
-    </div>
-  );
-};
-
-export default AdminOperations;
+                  {isSubmitting ? <Loader2 size={
