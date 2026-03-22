@@ -41,12 +41,10 @@ const getCartonSize = (cartonType: string | null) => {
   return 4;
 };
 
-// THE UPGRADED LUXURY PRODUCT CARD
 const ProductCard = ({ product }: { product: any }) => {
   const navigate = useNavigate();
   const { addToCart } = useCart();
   const { isAuthenticated } = useAuth();
-
   const [boxes, setBoxes] = useState(1);
   const [isAdding, setIsAdding] = useState(false);
 
@@ -61,7 +59,7 @@ const ProductCard = ({ product }: { product: any }) => {
     const success = await addToCart(product.id, boxes, product.pack_size, product.carton_type);
     setIsAdding(false);
     if (success) {
-      toast.success(`Added ${boxes} packs to your order!`, { icon: "📦" });
+      toast.success(`Added ${boxes} packs of ${product.name}!`, { icon: "📦" });
       setBoxes(1);
     }
   };
@@ -69,20 +67,23 @@ const ProductCard = ({ product }: { product: any }) => {
   return (
     <div
       onClick={() => navigate(`/product/${product.id}`)}
-      className="bg-white rounded-3xl overflow-hidden relative group cursor-pointer transition-all duration-300 shadow-sm border border-slate-100 hover:shadow-xl hover:border-slate-200 flex flex-col h-full"
+      className="bg-white rounded-[2rem] overflow-hidden relative group cursor-pointer transition-all duration-300 shadow-sm border border-slate-100 hover:shadow-xl hover:border-[#B8860B]/30 flex flex-col h-full"
     >
-      {/* Floating Badges */}
-      <div className="absolute top-3 left-3 right-3 z-10 flex justify-between items-start">
-        <div className="bg-white/80 backdrop-blur-md px-2.5 py-1 rounded-lg text-[9px] font-black text-slate-600 uppercase tracking-widest flex items-center gap-1 shadow-sm border border-white/50">
-          <Package size={10} className="text-[#B8860B]" /> {packsPerCarton} / Ctn
-        </div>
-        <button className="w-8 h-8 rounded-full bg-white/80 backdrop-blur-md flex items-center justify-center shadow-sm border border-white/50 text-slate-400 hover:text-rose-500 transition-colors">
-          <Heart size={14} />
-        </button>
+      {/* Luxury Badges */}
+      <div className="absolute top-3 left-3 bg-[#B8860B] text-white text-[9px] font-black px-2.5 py-1 rounded shadow-sm tracking-widest uppercase z-10">
+        {packsPerCarton} / Ctn
       </div>
+      <button
+        onClick={(e) => {
+          e.stopPropagation();
+        }}
+        className="absolute top-3 right-3 w-8 h-8 bg-white/90 backdrop-blur rounded-full flex items-center justify-center shadow-sm text-slate-400 hover:text-rose-500 transition-colors z-10"
+      >
+        <Heart size={14} />
+      </button>
 
-      {/* Premium Image Area */}
-      <div className="w-full aspect-square bg-gradient-to-b from-slate-50/50 to-white pt-10 pb-4 px-6 flex items-center justify-center">
+      {/* Cinematic Image Frame */}
+      <div className="w-full aspect-square bg-gradient-to-b from-slate-50 to-white flex items-center justify-center p-6">
         {product.image_url ? (
           <img
             src={product.image_url}
@@ -94,65 +95,66 @@ const ProductCard = ({ product }: { product: any }) => {
         )}
       </div>
 
-      {/* Details & Action Area */}
-      <div className="p-4 flex flex-col flex-1 bg-white">
-        <p className="font-display font-bold text-slate-900 text-sm leading-tight group-hover:text-[#B8860B] transition-colors line-clamp-2">
+      {/* Product Details & Action Area */}
+      <div className="p-4 flex flex-col flex-1">
+        <h3 className="font-display text-[15px] font-bold text-slate-900 leading-tight mb-1 truncate group-hover:text-[#B8860B] transition-colors">
           {product.name}
-        </p>
+        </h3>
 
         {isAuthenticated ? (
-          <div className="mt-1 flex flex-col flex-1">
-            <p className="text-[10px] text-slate-500 font-medium">{product.pack_size || "700g"} • Wt 22g/pc</p>
+          <div className="flex flex-col flex-1">
+            <p className="text-[10px] text-slate-500 font-medium mb-3">{product.pack_size || "700g"} • Wt 22g/pc</p>
 
-            <div className="mt-2 flex justify-between items-end">
+            {/* Price & Slab Tag */}
+            <div className="flex justify-between items-end mb-4">
               <div>
-                <p className="text-[10px] text-slate-400 line-through leading-none mb-0.5">
-                  {formatPrice(baseWholesalePrice)}
-                </p>
-                <p className="text-lg font-black text-slate-900 leading-none">{formatPrice(mySlabPrice)}</p>
+                <p className="text-[10px] text-slate-400 line-through mb-0.5">{formatPrice(baseWholesalePrice)}</p>
+                <p className="text-xl font-black text-slate-900 leading-none">{formatPrice(mySlabPrice)}</p>
+              </div>
+              <div className="text-right">
+                <span className="text-[9px] font-bold bg-[#B8860B]/10 text-[#B8860B] px-1.5 py-0.5 rounded border border-[#B8860B]/20 uppercase tracking-wide">
+                  Save {clientDiscountRate * 100}%
+                </span>
               </div>
             </div>
 
-            {/* The Sleek Unified Action Row */}
-            <div className="mt-auto pt-4" onClick={(e) => e.stopPropagation()}>
-              <div className="flex items-center gap-2">
-                <div className="flex items-center bg-slate-100/70 rounded-full p-1 h-10 w-[90px]">
-                  <button
-                    onClick={() => setBoxes((b) => Math.max(1, b - 1))}
-                    className="w-7 h-full rounded-full hover:bg-white hover:shadow-sm font-medium text-slate-600 transition-all"
-                  >
-                    −
-                  </button>
-                  <span className="font-bold text-xs flex-1 text-center text-slate-900">{boxes}</span>
-                  <button
-                    onClick={() => setBoxes((b) => b + 1)}
-                    className="w-7 h-full rounded-full bg-white shadow-sm font-bold text-slate-900 active:scale-95 transition-all"
-                  >
-                    +
-                  </button>
-                </div>
+            {/* Re-designed Stepper & Add Button */}
+            <div className="mt-auto flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
+              <div className="flex items-center bg-slate-50 rounded-xl p-1 border border-slate-200 flex-1 h-11">
                 <button
-                  onClick={handleAdd}
-                  disabled={isAdding}
-                  className="flex-1 h-10 rounded-full bg-slate-900 text-white flex items-center justify-center gap-1.5 shadow-md active:scale-95 hover:bg-[#B8860B] transition-colors disabled:opacity-50"
+                  onClick={() => setBoxes((b) => Math.max(1, b - 1))}
+                  className="w-9 h-full rounded-lg bg-white shadow-sm font-black text-slate-600 active:scale-95 flex items-center justify-center"
                 >
-                  {isAdding ? <Loader2 size={14} className="animate-spin" /> : <ShoppingCart size={14} />}
-                  <span className="text-xs font-bold">Add</span>
+                  −
+                </button>
+                <span className="font-black text-sm flex-1 text-center text-slate-900">{boxes}</span>
+                <button
+                  onClick={() => setBoxes((b) => b + 1)}
+                  className="w-9 h-full rounded-lg bg-slate-900 text-white shadow-sm font-black active:scale-95 flex items-center justify-center"
+                >
+                  +
                 </button>
               </div>
+              <button
+                onClick={handleAdd}
+                disabled={isAdding}
+                className="w-11 h-11 rounded-xl bg-[#B8860B] text-white flex items-center justify-center shadow-lg shadow-[#B8860B]/30 active:scale-95 hover:bg-[#9A7009] transition-colors flex-shrink-0 disabled:opacity-50"
+              >
+                {isAdding ? <Loader2 size={16} className="animate-spin" /> : <ShoppingCart size={18} />}
+              </button>
             </div>
           </div>
         ) : (
-          <div className="mt-auto pt-4">
+          <div className="mt-auto pt-4 flex flex-col justify-end flex-1">
             <p className="text-[10px] text-slate-500 flex items-center gap-1 mb-2 font-medium">
-              <Lock size={10} /> Members Only
+              <Lock size={10} /> Trade Members Only
             </p>
             <button
               onClick={(e) => {
                 e.stopPropagation();
                 navigate("/login");
               }}
-              className="w-full py-2.5 rounded-full bg-slate-100 text-slate-700 font-bold text-xs hover:bg-slate-200 transition-colors"
+              className="w-full py-2.5 rounded-xl bg-slate-100 text-slate-700 font-bold text-xs hover:bg-slate-200 transition-colors"
             >
               Login to View
             </button>
