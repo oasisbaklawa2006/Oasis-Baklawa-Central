@@ -27,9 +27,9 @@ const SmartReorder = () => {
       }
 
       try {
-        // Bypassing TS for the orders fetch
-        const { data, error } = await (supabase as any)
-          .from("orders")
+        // @ts-ignore - Bypassing strict TS checks
+        const { data, error } = await supabase
+          .from("orders" as any)
           .select(
             `
             id,
@@ -78,8 +78,8 @@ const SmartReorder = () => {
         quantity: item.quantity,
       }));
 
-      // Bypassing TS for the cart_items insert
-      const { error } = await (supabase as any).from("cart_items").insert(cartInserts);
+      // @ts-ignore - Bypassing strict TS checks
+      const { error } = await supabase.from("cart_items" as any).insert(cartInserts);
 
       if (error) throw error;
 
