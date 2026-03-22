@@ -70,7 +70,7 @@ const ProductDetail = () => {
     setIsAdding(true);
     const success = await addToCart(product.id, boxes, product.pack_size, product.carton_type);
     setIsAdding(false);
-    if (success) navigate("/cart");
+    if (success) navigate("/catalogue"); // <-- Change this to /catalogue!
   };
 
   return (
