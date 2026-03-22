@@ -20,10 +20,8 @@ import {
   Download,
   Sparkles,
   Settings,
-  Info,
-  MapPin,
-  Scale,
   ChevronRight,
+  Globe,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useEffect, useState } from "react";
@@ -49,7 +47,7 @@ const Dashboard = () => {
         .single();
       if (userData?.company) setCompany(userData.company);
       const { data: orders } = await supabase.from("orders").select("*").order("created_at", { ascending: false });
-      if (orders?.length) setActiveOrder(orders.find((o) => o.status !== "delivered"));
+      if (orders?.length) setActiveOrder(orders.find((o) => o.status !== "delivered" && o.status !== "cancelled"));
       setLoading(false);
     };
     fetchData();
@@ -65,181 +63,147 @@ const Dashboard = () => {
   return (
     <AppShell>
       <div className="min-h-screen bg-slate-50 px-5 pt-8 pb-32 max-w-3xl mx-auto space-y-6">
-        {/* HEADER SECTION */}
-        <header className="flex justify-between items-start pt-4">
+        {/* HEADER */}
+        <header className="flex justify-between items-center pt-4">
           <div>
-            <h1 className="font-display text-2xl font-bold text-slate-900 tracking-tight">
-              {company?.business_name || "Partner Portal"}
-            </h1>
-            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] mt-1">
-              Wholesale Command Center
+            <h1 className="font-display text-2xl font-bold text-slate-900">{company?.business_name || "Portal"}</h1>
+            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-0.5 flex items-center gap-1.5">
+              <ShieldCheck size={12} className="text-emerald-500" /> Verified Wholesale Account
             </p>
           </div>
-          <button
-            onClick={() => navigate("/settings")}
-            className="p-3 bg-white rounded-2xl shadow-sm border border-slate-100 hover:bg-slate-50 transition-colors"
-          >
-            <Settings size={20} className="text-slate-600" />
-          </button>
+          <div className="w-10 h-10 rounded-full bg-[#B8860B]/10 flex items-center justify-center border border-[#B8860B]/20">
+            <TrendingUp size={18} className="text-[#B8860B]" />
+          </div>
         </header>
 
-        {/* ── AI ORDER FETCHER (SMART TOOL) ── */}
+        {/* AI ORDER FETCH TOOL */}
         <motion.section
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="bg-gradient-to-br from-slate-900 to-slate-800 rounded-[2.5rem] p-6 text-white relative overflow-hidden shadow-2xl"
+          initial={{ opacity: 0, scale: 0.98 }}
+          animate={{ opacity: 1, scale: 1 }}
+          className="bg-slate-900 rounded-[2rem] p-6 text-white relative overflow-hidden"
         >
           <div className="absolute top-0 right-0 p-6 opacity-10">
-            <Sparkles size={100} />
+            <Sparkles size={80} />
           </div>
           <div className="relative z-10">
-            <div className="flex items-center gap-2 mb-4">
-              <div className="px-2 py-1 bg-[#B8860B] rounded text-[9px] font-black uppercase tracking-widest text-white">
-                AI Suggestion
-              </div>
-            </div>
-            <h2 className="text-xl font-bold leading-tight mb-2">Replenish your inventory?</h2>
-            <p className="text-slate-400 text-xs mb-5 max-w-[200px]">
-              Based on your last 3 orders, you're likely running low on{" "}
-              <span className="text-white font-bold">Pyramid Baklawa</span>.
+            <h2 className="text-lg font-bold mb-1">AI Smart-Restock</h2>
+            <p className="text-slate-400 text-[11px] mb-4">
+              Predicted low stock on <span className="text-[#B8860B] font-bold text-xs uppercase">Finger Baklawa</span>{" "}
+              based on your velocity.
             </p>
             <button
               onClick={() => navigate("/catalogue")}
-              className="bg-white text-slate-900 px-5 py-3 rounded-xl text-xs font-bold flex items-center gap-2 shadow-xl hover:scale-105 transition-transform active:scale-95"
+              className="bg-[#B8860B] text-white px-4 py-2.5 rounded-xl text-[11px] font-bold flex items-center gap-2 active:scale-95 transition-transform shadow-lg shadow-[#B8860B]/20"
             >
-              Quick Load Next Batch <ArrowUpRight size={14} />
+              Add Suggested Items <ChevronRight size={14} />
             </button>
           </div>
         </motion.section>
 
-        {/* ── TRACKER ── */}
+        {/* LIVE TRACKER */}
         {activeOrder && (
-          <div className="bg-white rounded-3xl p-5 shadow-sm border border-slate-100">
-            <div className="flex justify-between items-center mb-4 text-[10px] font-black uppercase text-slate-400 tracking-widest">
-              <span>Live Tracking: ORD-{activeOrder.id.split("-")[0]}</span>
-              <span className="text-[#B8860B]">In Kitchen</span>
+          <div className="bg-white rounded-[2rem] p-5 shadow-sm border border-slate-100">
+            <div className="flex justify-between items-center mb-4">
+              <span className="text-[10px] font-black uppercase text-slate-400">
+                Order Tracking: #{activeOrder.id.slice(0, 6)}
+              </span>
+              <span className="text-[10px] font-bold bg-amber-50 text-amber-600 px-2 py-1 rounded">Processing</span>
             </div>
-            <div className="flex justify-between gap-1 h-1.5 mb-2">
+            <div className="flex gap-1.5 h-1.5 mb-3">
               <div className="flex-1 bg-[#B8860B] rounded-full" />
               <div className="flex-1 bg-[#B8860B] rounded-full" />
-              <div className="flex-1 bg-slate-100 rounded-full overflow-hidden">
-                <motion.div initial={{ width: 0 }} animate={{ width: "60%" }} className="h-full bg-[#B8860B]" />
-              </div>
+              <div className="flex-1 bg-slate-100 rounded-full" />
               <div className="flex-1 bg-slate-100 rounded-full" />
             </div>
-            <p className="text-[11px] text-slate-600 font-medium">Chef is currently preparing your artisanal batch.</p>
+            <p className="text-[11px] text-slate-500 font-medium">
+              Your batch is being handcrafted by our master chefs.
+            </p>
           </div>
         )}
 
-        {/* ── BUSINESS DATA TOOLS ── */}
+        {/* KEY PERFORMANCE METRICS */}
         <div className="grid grid-cols-2 gap-4">
-          <div className="bg-white p-5 rounded-3xl border border-slate-100 shadow-sm space-y-3">
-            <div className="w-10 h-10 bg-emerald-50 rounded-2xl flex items-center justify-center text-emerald-600">
-              <TrendingUp size={20} />
+          <div className="bg-white p-5 rounded-[2rem] border border-slate-100 shadow-sm flex items-center gap-4">
+            <div className="w-10 h-10 bg-slate-50 rounded-2xl flex items-center justify-center text-slate-400">
+              <Wallet size={20} />
             </div>
             <div>
-              <p className="text-[10px] font-bold text-slate-400 uppercase">Sales Volume</p>
-              <p className="text-lg font-black text-slate-900">{formatPrice(activeOrder?.sales_order_value || 0)}</p>
+              <p className="text-[9px] font-bold text-slate-400 uppercase">Spend LTV</p>
+              <p className="text-sm font-black text-slate-900">
+                ₹{activeOrder?.sales_order_value?.toLocaleString() || "0"}
+              </p>
             </div>
           </div>
-          <div className="bg-white p-5 rounded-3xl border border-slate-100 shadow-sm space-y-3">
-            <div className="w-10 h-10 bg-amber-50 rounded-2xl flex items-center justify-center text-amber-600">
-              <Scale size={20} />
+          <button
+            onClick={() => navigate("/orders")}
+            className="bg-white p-5 rounded-[2rem] border border-slate-100 shadow-sm flex items-center gap-4 hover:bg-slate-50 transition-colors"
+          >
+            <div className="w-10 h-10 bg-slate-50 rounded-2xl flex items-center justify-center text-slate-400">
+              <Package size={20} />
             </div>
-            <div>
-              <p className="text-[10px] font-bold text-slate-400 uppercase">Total Weight</p>
-              <p className="text-lg font-black text-slate-900">42.5 KG</p>
+            <div className="text-left">
+              <p className="text-[9px] font-bold text-slate-400 uppercase">History</p>
+              <p className="text-sm font-black text-slate-900">View All</p>
             </div>
-          </div>
+          </button>
         </div>
 
-        {/* ── SETTINGS & UTILITIES (FORMERLY FOOTER) ── */}
-        <section className="space-y-3">
-          <h2 className="text-[11px] font-black text-slate-400 uppercase tracking-widest px-1">
-            Settings & Transparency
-          </h2>
-          <div className="bg-white rounded-3xl shadow-sm border border-slate-100 divide-y divide-slate-50 overflow-hidden">
+        {/* CONCIERGE HELP */}
+        <section className="bg-white rounded-[2rem] p-5 shadow-sm border border-slate-100 flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            <div className="w-12 h-12 bg-emerald-50 rounded-2xl flex items-center justify-center text-emerald-600">
+              <MessageCircle size={24} />
+            </div>
+            <div>
+              <p className="text-sm font-bold text-slate-900 leading-none">Support Desk</p>
+              <p className="text-[11px] text-slate-400 mt-1">Available 10 AM - 8 PM</p>
+            </div>
+          </div>
+          <a
+            href="https://wa.me/919891162212"
+            className="bg-emerald-500 text-white px-4 py-2.5 rounded-xl text-[11px] font-bold shadow-md active:scale-95"
+          >
+            Chat Now
+          </a>
+        </section>
+
+        {/* COMPACT FOOTER SETTINGS (Moved to bottom) */}
+        <section className="pt-4 space-y-4">
+          <div className="bg-white rounded-3xl border border-slate-100 overflow-hidden divide-y divide-slate-50">
             <button className="w-full p-4 flex items-center justify-between hover:bg-slate-50 transition-colors">
               <div className="flex items-center gap-3">
-                <div className="w-9 h-9 bg-slate-50 rounded-xl flex items-center justify-center text-slate-500">
-                  <ShieldCheck size={18} />
-                </div>
-                <div className="text-left">
-                  <p className="text-sm font-bold text-slate-900">Business Profile</p>
-                  <p className="text-[10px] text-slate-400">GST: {company?.gst_number || "Add GSTIN"}</p>
-                </div>
+                <Settings size={18} className="text-slate-400" />
+                <span className="text-[13px] font-bold text-slate-700">Account Settings</span>
               </div>
-              <ChevronRight size={18} className="text-slate-300" />
+              <ChevronRight size={16} className="text-slate-300" />
             </button>
-
-            <button className="w-full p-4 flex items-center justify-between hover:bg-slate-50 transition-colors text-left">
-              <div className="flex items-center gap-3">
-                <div className="w-9 h-9 bg-slate-50 rounded-xl flex items-center justify-center text-slate-500">
-                  <MapPin size={18} />
-                </div>
-                <div>
-                  <p className="text-sm font-bold text-slate-900">Registered Address</p>
-                  <p className="text-[10px] text-slate-400 truncate w-40">Oasis Baklawa HQ, New Delhi</p>
-                </div>
-              </div>
-              <ChevronRight size={18} className="text-slate-300" />
-            </button>
-
             <button className="w-full p-4 flex items-center justify-between hover:bg-slate-50 transition-colors">
               <div className="flex items-center gap-3">
-                <div className="w-9 h-9 bg-slate-50 rounded-xl flex items-center justify-center text-slate-500">
-                  <Download size={18} />
-                </div>
-                <p className="text-sm font-bold text-slate-900">Download Price List</p>
+                <Globe size={18} className="text-slate-400" />
+                <span className="text-[13px] font-bold text-slate-700">Company Credentials</span>
               </div>
-              <ArrowUpRight size={18} className="text-slate-300" />
+              <ChevronRight size={16} className="text-slate-300" />
             </button>
-
-            <div className="p-6 bg-slate-50/50">
-              <div className="flex flex-wrap gap-x-6 gap-y-2 mb-4">
-                <button className="text-[10px] font-bold text-slate-400 uppercase tracking-widest hover:text-slate-900">
-                  Privacy Policy
+            <div className="p-5 bg-slate-50/50">
+              <div className="flex gap-4 mb-4">
+                <button className="text-[9px] font-black text-slate-400 uppercase tracking-widest hover:text-slate-900">
+                  Privacy
                 </button>
-                <button className="text-[10px] font-bold text-slate-400 uppercase tracking-widest hover:text-slate-900">
-                  Terms of Trade
+                <button className="text-[9px] font-black text-slate-400 uppercase tracking-widest hover:text-slate-900">
+                  Terms
                 </button>
-                <button className="text-[10px] font-bold text-slate-400 uppercase tracking-widest hover:text-slate-900">
-                  Refund Policy
+                <button className="text-[9px] font-black text-slate-400 uppercase tracking-widest hover:text-slate-900">
+                  Tax Info
                 </button>
               </div>
-              <div className="flex items-center justify-between">
-                <p className="text-[10px] text-slate-400 font-medium">© 2026 Oasis Baklawa B2B Portal</p>
-                <div className="flex gap-3">
-                  <div className="w-6 h-6 rounded-md bg-slate-200" />
-                  <div className="w-6 h-6 rounded-md bg-slate-200" />
+              <div className="flex items-center justify-between opacity-50">
+                <p className="text-[9px] font-bold text-slate-400">© 2026 OASIS BAKLAWA • B2B V2.1</p>
+                <div className="flex gap-1">
+                  <div className="w-4 h-4 bg-slate-200 rounded-sm" />
+                  <div className="w-4 h-4 bg-slate-200 rounded-sm" />
                 </div>
               </div>
             </div>
-          </div>
-        </section>
-
-        {/* ── CONCIERGE (THE VITAL PAGE FEEL) ── */}
-        <section className="bg-slate-900 rounded-[2.5rem] p-8 text-white relative overflow-hidden shadow-2xl">
-          <div className="absolute top-0 right-0 opacity-10 -mt-10 -mr-10">
-            <Headphones size={200} />
-          </div>
-          <h2 className="text-2xl font-bold mb-2">VIP Concierge</h2>
-          <p className="text-slate-400 text-xs mb-6">Need a custom wholesale blend? Contact your manager.</p>
-          <div className="grid grid-cols-2 gap-3">
-            <a
-              href="https://wa.me/919891162212"
-              className="bg-white/10 p-4 rounded-2xl flex flex-col items-center gap-2 hover:bg-white/20 transition-colors border border-white/5 shadow-xl backdrop-blur-md"
-            >
-              <MessageCircle className="text-[#25D366]" size={24} />
-              <span className="text-[10px] font-black uppercase tracking-widest">WhatsApp</span>
-            </a>
-            <a
-              href="tel:+919999792959"
-              className="bg-white/10 p-4 rounded-2xl flex flex-col items-center gap-2 hover:bg-white/20 transition-colors border border-white/5 shadow-xl backdrop-blur-md"
-            >
-              <Phone className="text-[#B8860B]" size={24} />
-              <span className="text-[10px] font-black uppercase tracking-widest">Call Desk</span>
-            </a>
           </div>
         </section>
       </div>
@@ -247,7 +211,5 @@ const Dashboard = () => {
     </AppShell>
   );
 };
-
-const formatPrice = (val: number) => "₹" + Math.round(val).toLocaleString("en-IN");
 
 export default Dashboard;
