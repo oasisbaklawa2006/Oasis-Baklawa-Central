@@ -1,37 +1,50 @@
-import { Home, BookOpen, Package, ShoppingCart, LayoutDashboard } from "lucide-react";
-import { useLocation, useNavigate } from "react-router-dom";
-
-const navItems = [
-  { icon: Home, label: "Home", path: "/" },
-  { icon: BookOpen, label: "Catalogue", path: "/catalogue" },
-  { icon: Package, label: "Orders", path: "/orders" },
-  { icon: ShoppingCart, label: "Cart", path: "/cart" },
-  { icon: LayoutDashboard, label: "Dashboard", path: "/dashboard" },
-];
+import { useNavigate, useLocation } from "react-router-dom";
+import { Home, BookOpen, LayoutDashboard, ShoppingCart, History } from "lucide-react";
 
 const BottomNavBar = () => {
-  const location = useLocation();
   const navigate = useNavigate();
+  const location = useLocation();
+
+  const navItems = [
+    { icon: <Home size={20} />, label: "Home", path: "/" },
+    { icon: <BookOpen size={20} />, label: "Catalog", path: "/catalogue" },
+    { icon: <LayoutDashboard size={28} />, label: "Portal", path: "/dashboard", isCenter: true },
+    { icon: <ShoppingCart size={20} />, label: "Cart", path: "/cart" },
+    { icon: <History size={20} />, label: "Orders", path: "/orders" },
+  ];
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 z-50 h-[72px] bg-card shadow-[0_-2px_12px_rgba(0,0,0,0.06)] flex items-center justify-around px-2">
-      {navItems.map((item) => {
-        const isActive = location.pathname === item.path;
-        return (
-          <button
-            key={item.label}
-            onClick={() => navigate(item.path)}
-            className={`flex flex-col items-center gap-1 py-2 px-3 rounded-xl transition-colors ${
-              isActive ? "text-primary" : "text-muted-foreground"
-            }`}
-          >
-            <item.icon size={22} strokeWidth={isActive ? 2.5 : 1.8} />
-            <span className={`text-[11px] font-body ${isActive ? "font-semibold" : "font-medium"}`}>
-              {item.label}
-            </span>
-          </button>
-        );
-      })}
+    <nav className="fixed bottom-0 left-0 right-0 bg-white/80 backdrop-blur-lg border-t border-slate-100 px-6 pb-6 pt-3 z-50 shadow-[0_-10px_40px_rgba(0,0,0,0.03)]">
+      <div className="max-w-md mx-auto flex justify-between items-end">
+        {navItems.map((item) => {
+          const isActive = location.pathname === item.path;
+          if (item.isCenter) {
+            return (
+              <button
+                key={item.path}
+                onClick={() => navigate(item.path)}
+                className={`relative -top-6 flex flex-col items-center justify-center w-16 h-16 rounded-full shadow-2xl transition-all duration-300 ${
+                  isActive ? "bg-slate-900 text-white scale-110" : "bg-[#B8860B] text-white"
+                }`}
+              >
+                {item.icon}
+              </button>
+            );
+          }
+          return (
+            <button
+              key={item.path}
+              onClick={() => navigate(item.path)}
+              className={`flex flex-col items-center gap-1 transition-colors ${
+                isActive ? "text-slate-900" : "text-slate-400"
+              }`}
+            >
+              {item.icon}
+              <span className="text-[10px] font-bold uppercase tracking-tighter">{item.label}</span>
+            </button>
+          );
+        })}
+      </div>
     </nav>
   );
 };
