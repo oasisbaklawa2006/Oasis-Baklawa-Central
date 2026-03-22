@@ -2,7 +2,7 @@ import AppShell from "@/components/AppShell";
 import { motion, AnimatePresence } from "framer-motion";
 import { useState, useMemo } from "react";
 import { Package, ShoppingCart, AlertTriangle, CheckCircle2, Trash2, Loader2, Wand2 } from "lucide-react";
-import { useCart } from "@/hooks/useCart"; // Strictly using DB Cart
+import { useCart } from "@/hooks/useCart";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
@@ -40,49 +40,45 @@ const Cart = () => {
   const [isOptimizing, setIsOptimizing] = useState(false);
 
   const { draftOrder, items, updateQuantity, fetchCart } = useCart();
-  const sections = useMemo(() => groupByCartonType(items), [items]);
 
-  const subtotal = items.reduce((sum, item) => sum + item.quantity * (item.product?.price_per_kg || 0), 0);
+  // BUG FIX 1: Sort items alphabetically by name so they never shape-shift!
+  const sortedItems = useMemo(() => {
+    return [...items].sort((a, b) => (a.product?.name || "").localeCompare(b.product?.name || ""));
+  }, [items]);
+
+  const sections = useMemo(() => groupByCartonType(sortedItems), [sortedItems]);
+
+  const subtotal = sortedItems.reduce((sum, item) => sum + item.quantity * (item.product?.price_per_kg || 0), 0);
   const tax = Math.round(subtotal * 0.18);
   const grandTotal = subtotal + tax;
-  const totalPacks = items.reduce((s, it) => s + it.quantity, 0);
+  const totalPacks = sortedItems.reduce((s, it) => s + it.quantity, 0);
 
-  // The Magic Auto-Optimizer
-  const handleAutoOptimize = async () => {
+  // BUG FIX 2: Check if ANY section has an incomplete carton
+  const hasIncompleteCartons = sections.some((section) => {
+    const packs = section.items.reduce((s, it) => s + it.quantity, 0);
+    return packs > 0 && packs % section.rule.packsPerCarton !== 0;
+  });
+
+  const handleAutoOptimize = async (section: any) => {
     setIsOptimizing(true);
-    let optimizedCount = 0;
+    const sectionPacks = section.items.reduce((s: number, it: any) => s + it.quantity, 0);
+    const remainder = sectionPacks % section.rule.packsPerCarton;
 
-    for (const section of sections) {
-      const sectionPacks = section.items.reduce((s, it) => s + it.quantity, 0);
-      const remainder = sectionPacks % section.rule.packsPerCarton;
-
-      if (remainder > 0) {
-        const neededToFill = section.rule.packsPerCarton - remainder;
-        // Find the most popular item in this category to round up
-        const targetItem = [...section.items].sort((a, b) => b.quantity - a.quantity)[0];
-
-        await updateQuantity(targetItem.id, targetItem.quantity + neededToFill);
-        optimizedCount++;
-      }
+    if (remainder > 0) {
+      const neededToFill = section.rule.packsPerCarton - remainder;
+      const targetItem = [...section.items].sort((a, b) => b.quantity - a.quantity)[0];
+      await updateQuantity(targetItem.id, targetItem.quantity + neededToFill);
+      await fetchCart();
+      toast.success(`✨ Carton auto-filled securely!`, { icon: "📦" });
     }
-
-    await fetchCart();
     setIsOptimizing(false);
-
-    if (optimizedCount > 0) {
-      toast.success("✨ Cartons auto-optimized for transit!", { icon: "📦" });
-    } else {
-      toast.info("All cartons are already perfectly sealed.");
-    }
   };
 
-  // The BUG KILLER Checkout Logic
   const handleCheckout = async () => {
-    if (!draftOrder || items.length === 0) return;
+    if (!draftOrder || sortedItems.length === 0 || hasIncompleteCartons) return;
     setIsSubmitting(true);
 
     try {
-      // Instead of inserting a new order, we simply push the Draft forward!
       const { error } = await supabase
         .from("orders")
         .update({
@@ -93,24 +89,24 @@ const Cart = () => {
 
       if (error) throw error;
 
-      toast.success("Order Successfully Sent to Accounts!");
+      toast.success("Batch Successfully Sent to Accounts!");
       setTimeout(() => navigate("/orders"), 2000);
     } catch (error) {
-      console.error(error);
-      toast.error("Failed to submit order.");
+      toast.error("Failed to submit batch.");
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  if (items.length === 0) {
+  if (sortedItems.length === 0) {
     return (
       <AppShell>
         <div className="px-5 py-6 flex flex-col items-center justify-center min-h-[60vh] space-y-4">
           <ShoppingCart size={48} className="text-muted-foreground/30" />
           <h1 className="font-display text-2xl tracking-wide text-foreground">Your Batch is Empty</h1>
-          <button onClick={() => navigate("/catalog")} className="text-primary font-bold hover:underline">
-            Browse Catalog
+          {/* BUG FIX 3: Corrected the route from /catalog to /catalogue */}
+          <button onClick={() => navigate("/catalogue")} className="text-primary font-bold hover:underline">
+            Browse Catalogue
           </button>
         </div>
       </AppShell>
@@ -120,24 +116,13 @@ const Cart = () => {
   return (
     <AppShell>
       <div className="px-5 py-6 space-y-6 pb-24 max-w-3xl mx-auto">
-        <div className="flex items-center justify-between">
-          <motion.h1
-            initial={{ opacity: 0, y: 12 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="font-display text-2xl md:text-3xl tracking-wide text-foreground"
-          >
-            Review Batch
-          </motion.h1>
-
-          <button
-            onClick={handleAutoOptimize}
-            disabled={isOptimizing}
-            className="flex items-center gap-1.5 bg-[#B8860B]/10 text-[#B8860B] px-4 py-2 rounded-xl text-xs font-bold hover:bg-[#B8860B]/20 transition-colors"
-          >
-            {isOptimizing ? <Loader2 size={14} className="animate-spin" /> : <Wand2 size={14} />}
-            Auto-Optimize Cartons
-          </button>
-        </div>
+        <motion.h1
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="font-display text-2xl md:text-3xl tracking-wide text-foreground"
+        >
+          Review Batch
+        </motion.h1>
 
         {sections.map((section, si) => {
           const sectionPacks = section.items.reduce((s, it) => s + it.quantity, 0);
@@ -202,33 +187,54 @@ const Cart = () => {
                 })}
               </div>
 
-              {/* SECTION PROGRESS BAR */}
+              {/* SECTION PROGRESS BAR & AUTO-OPTIMIZE */}
               <div className="pt-2 border-t border-slate-50">
                 <div className="flex items-center justify-between mb-2">
                   <p className="text-xs font-bold text-slate-500">Carton Status</p>
                   <p className="text-xs font-bold text-slate-800">{sectionCartons} Sealed Cartons</p>
                 </div>
-                {isIncomplete ? (
-                  <div className="bg-amber-50 border border-amber-200 rounded-xl p-3">
-                    <div className="h-1.5 w-full bg-amber-200/50 rounded-full overflow-hidden mb-2">
-                      <div
-                        className="h-full bg-amber-500"
-                        style={{ width: `${(remainder / section.rule.packsPerCarton) * 100}%` }}
-                      />
-                    </div>
-                    <p className="text-[11px] font-bold text-amber-800">
-                      <AlertTriangle size={12} className="inline mr-1 -mt-0.5" />
-                      Add {neededToFill} more packs from this category to seal the next carton.
-                    </p>
-                  </div>
-                ) : (
-                  <div className="bg-emerald-50 border border-emerald-100 rounded-xl p-3 flex items-center gap-2">
-                    <CheckCircle2 size={16} className="text-emerald-600" />
-                    <p className="text-[11px] font-bold text-emerald-800 uppercase tracking-wider">
-                      All Cartons Perfectly Sealed
-                    </p>
-                  </div>
-                )}
+
+                <AnimatePresence mode="wait">
+                  {isIncomplete ? (
+                    <motion.div
+                      initial={{ opacity: 0, height: 0 }}
+                      animate={{ opacity: 1, height: "auto" }}
+                      exit={{ opacity: 0, height: 0 }}
+                    >
+                      <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 space-y-3">
+                        <div className="h-1.5 w-full bg-amber-200/50 rounded-full overflow-hidden">
+                          <div
+                            className="h-full bg-amber-500"
+                            style={{ width: `${(remainder / section.rule.packsPerCarton) * 100}%` }}
+                          />
+                        </div>
+                        <p className="text-[11px] font-bold text-amber-800 text-center">
+                          <AlertTriangle size={12} className="inline mr-1 -mt-0.5" />
+                          Add {neededToFill} more packs to seal the next carton.
+                        </p>
+
+                        {/* BUG FIX 4: Put the Auto-Optimize button right inside the warning! */}
+                        <button
+                          onClick={() => handleAutoOptimize(section)}
+                          disabled={isOptimizing}
+                          className="w-full bg-[#B8860B] hover:bg-[#9A7009] text-white py-2.5 rounded-lg text-xs font-bold shadow-sm flex items-center justify-center gap-2 transition-all active:scale-95"
+                        >
+                          {isOptimizing ? <Loader2 size={14} className="animate-spin" /> : <Wand2 size={14} />}
+                          Auto-Fill Carton
+                        </button>
+                      </div>
+                    </motion.div>
+                  ) : (
+                    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+                      <div className="bg-emerald-50 border border-emerald-100 rounded-xl p-3 flex items-center gap-2">
+                        <CheckCircle2 size={16} className="text-emerald-600" />
+                        <p className="text-[11px] font-bold text-emerald-800 uppercase tracking-wider">
+                          All Cartons Perfectly Sealed
+                        </p>
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
               </div>
             </motion.section>
           );
@@ -259,12 +265,19 @@ const Cart = () => {
             <span className="font-bold text-2xl text-[#B8860B]">{formatPrice(grandTotal)}</span>
           </div>
 
+          {/* BUG FIX 5: Hard-locked checkout button. Cannot proceed if incomplete. */}
           <button
             onClick={handleCheckout}
-            disabled={isSubmitting}
-            className="w-full mt-4 py-4 rounded-2xl bg-white text-slate-900 font-bold text-sm flex items-center justify-center gap-2 hover:bg-slate-100 transition-all active:scale-95 disabled:opacity-50 shadow-lg"
+            disabled={isSubmitting || hasIncompleteCartons}
+            className="w-full mt-4 py-4 rounded-2xl bg-white text-slate-900 font-bold text-sm flex items-center justify-center gap-2 hover:bg-slate-100 transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed shadow-lg"
           >
-            {isSubmitting ? <Loader2 size={18} className="animate-spin" /> : "Confirm & Send to Accounts"}
+            {isSubmitting ? (
+              <Loader2 size={18} className="animate-spin" />
+            ) : hasIncompleteCartons ? (
+              "Seal Cartons to Continue"
+            ) : (
+              "Confirm & Send to Accounts"
+            )}
           </button>
         </motion.section>
       </div>
