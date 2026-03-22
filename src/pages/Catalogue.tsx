@@ -26,9 +26,11 @@ const mainCategories = [
     image: "https://images.unsplash.com/photo-1509440159596-0249088772ff?w=600&q=80",
   },
   { name: "Pre Packed Products", image: "https://images.unsplash.com/photo-1548848221-0c2e497ed557?w=600&q=80" },
+  { name: "Gift Articles", image: "https://images.unsplash.com/photo-1513885535751-8b9238bd345a?w=600&q=80" },
+  { name: "Packaging Supplies", image: "https://images.unsplash.com/photo-1607344645866-009c320b63e0?w=600&q=80" },
 ];
 
-const subCategories = ["Baklawa", "Fusion Sweets", "Chocolates", "Dates", "Dragees & Nuts"];
+const subCategories = ["Baklawa", "Fusion Sweets", "Chocolates", "Dates", "Dragees & Nuts", "Cookies"];
 
 const formatPrice = (price: number) => `₹${Math.round(price).toLocaleString("en-IN")}`;
 
@@ -50,6 +52,9 @@ const ProductCard = ({ product }: { product: any }) => {
   const baseWholesalePrice = product.price_per_kg || 0;
   const clientDiscountRate = 0.15;
   const mySlabPrice = baseWholesalePrice * (1 - clientDiscountRate);
+
+  // DYNAMIC TOTAL calculation for the stepper
+  const currentTotal = boxes * mySlabPrice;
 
   const handleAdd = async (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -95,45 +100,54 @@ const ProductCard = ({ product }: { product: any }) => {
 
         {isAuthenticated ? (
           <div className="flex flex-col flex-1">
-            <p className="text-[10px] text-slate-500 font-medium mb-2 flex items-center gap-1">
-              <Package size={10} className="text-[#B8860B]" /> {packsPerCarton} Packs / Ctn
-            </p>
+            {/* Added back QTY per pack info */}
+            <p className="text-[9px] text-slate-500 font-medium mb-1.5">{product.pack_size || "700g"} • Avg 22g/pc</p>
 
-            <div className="flex justify-between items-end mb-3">
+            <div className="flex justify-between items-end mb-2">
               <div>
                 <p className="text-[9px] text-slate-400 line-through leading-none mb-0.5">
                   {formatPrice(baseWholesalePrice)}
                 </p>
-                <p className="text-sm font-black text-slate-900 leading-none">{formatPrice(mySlabPrice)}</p>
+                <p className="text-[13px] font-black text-slate-900 leading-none">
+                  {formatPrice(mySlabPrice)} <span className="text-[8px] font-bold text-slate-500">/pack</span>
+                </p>
               </div>
-              <span className="text-[9px] font-bold bg-emerald-50 text-emerald-600 px-1.5 py-0.5 rounded border border-emerald-100">
-                -{clientDiscountRate * 100}%
+              <span className="text-[8px] font-bold bg-emerald-50 text-emerald-600 px-1.5 py-0.5 rounded border border-emerald-100 uppercase tracking-wider">
+                -{clientDiscountRate * 100}% Slab
               </span>
             </div>
 
-            <div className="mt-auto flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
-              <div className="flex items-center bg-slate-50 rounded-lg border border-slate-200 flex-1 h-9">
+            <div className="mt-auto flex flex-col gap-1.5" onClick={(e) => e.stopPropagation()}>
+              {/* Added Dynamic Total Bar */}
+              <div className="flex justify-between items-center px-1.5 bg-slate-50 rounded py-1">
+                <span className="text-[8px] font-bold text-slate-400 uppercase tracking-widest">Total</span>
+                <span className="text-[10px] font-black text-[#B8860B]">{formatPrice(currentTotal)}</span>
+              </div>
+
+              <div className="flex items-center gap-1.5">
+                <div className="flex items-center bg-slate-50 rounded-lg border border-slate-200 flex-1 h-8">
+                  <button
+                    onClick={() => setBoxes((b) => Math.max(1, b - 1))}
+                    className="w-7 h-full flex items-center justify-center text-slate-500 font-bold active:bg-slate-200 rounded-l-lg"
+                  >
+                    −
+                  </button>
+                  <span className="font-bold text-[11px] flex-1 text-center text-slate-900">{boxes}</span>
+                  <button
+                    onClick={() => setBoxes((b) => b + 1)}
+                    className="w-7 h-full flex items-center justify-center text-slate-700 font-bold active:bg-slate-200 rounded-r-lg"
+                  >
+                    +
+                  </button>
+                </div>
                 <button
-                  onClick={() => setBoxes((b) => Math.max(1, b - 1))}
-                  className="w-7 h-full flex items-center justify-center text-slate-500 font-bold active:bg-slate-200 rounded-l-lg"
+                  onClick={handleAdd}
+                  disabled={isAdding}
+                  className="w-8 h-8 rounded-lg bg-[#B8860B] text-white flex items-center justify-center shadow-sm active:scale-95 hover:bg-[#9A7009] transition-colors flex-shrink-0 disabled:opacity-50"
                 >
-                  −
-                </button>
-                <span className="font-bold text-[11px] flex-1 text-center text-slate-900">{boxes}</span>
-                <button
-                  onClick={() => setBoxes((b) => b + 1)}
-                  className="w-7 h-full flex items-center justify-center text-slate-700 font-bold active:bg-slate-200 rounded-r-lg"
-                >
-                  +
+                  {isAdding ? <Loader2 size={12} className="animate-spin" /> : <ShoppingCart size={12} />}
                 </button>
               </div>
-              <button
-                onClick={handleAdd}
-                disabled={isAdding}
-                className="w-9 h-9 rounded-lg bg-[#B8860B] text-white flex items-center justify-center shadow-sm active:scale-95 hover:bg-[#9A7009] transition-colors flex-shrink-0 disabled:opacity-50"
-              >
-                {isAdding ? <Loader2 size={14} className="animate-spin" /> : <ShoppingCart size={14} />}
-              </button>
             </div>
           </div>
         ) : (
