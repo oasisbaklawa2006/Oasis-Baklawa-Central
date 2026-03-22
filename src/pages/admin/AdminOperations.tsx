@@ -36,6 +36,67 @@ interface InventoryItem {
 const AdminOperations = () => {
   const [activeTab, setActiveTab] = useState<"routing" | "store">("routing");
 
+  const [orders, setOrders] = useState<OpsOrder[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [splittingOrder, setSplittingOrder] = useState<string | null>(null);
+
+  const [inventory, setInventory] = useState<InventoryItem[]>([]);
+  const [adjustingProduct, setAdjustingProduct] = useState<InventoryItem | null>(null);
+  const [adjustAmount, setAdjustAmount] = useState<number | "">("");
+  const [adjustReason, setAdjustReason] = useState<string>("excess_production");
+  const [adjustNotes, setAdjustNotes] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const [isTaskModalOpen, setIsTaskModalOpen] = useState(false);
+  const [taskType, setTaskType] = useState("standby");
+  const [taskProduct, setTaskProduct] = useState("");
+  const [taskQty, setTaskQty] = useState<number | "">("");
+  const [taskDept, setTaskDept] = useState("");
+
+  const fetchOpsData = async () => {
+    try {
+      setLoading(true);
+      
+      const { data: orderData, error: orderError } = await supabase
+        .from("orders")
+        .select(`
+          id, status, created_at, dispatch_date,
+          order_items (
+            id, product_id, quantity, pack_size, carton_type, department, production_status, task_type,
+            products ( name )
+          )
+        `)
+        .eq("status", "in_production")
+        .order("created_at", { ascending: true });
+
+      if (orderError) throw orderError;
+      setOrders((orderData as any[]) || []);
+
+      const { data: productData, error: productError } = await (supabase as any)
+        .from("products")
+        .select(`id, name, factory_inventory ( quantity )`);
+
+      if (productError) throw productError;
+      
+      if (productData) {
+        const formattedInventory = productData.map((p: any) => ({
+          id: p.id,
+          name: p.name,
+          stock: p.factory_inventory?.[0]?.quantity || 0,
+        }));
+        setInventory(formattedInventory);
+      }
+    } catch (error) {
+      console.error(error);
+      toast.error("Failed to load operations data.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchOpsData  const [activeTab, setActiveTab] = useState<"routing" | "store">("routing");
+
   // Routing State
   const [orders, setOrders] = useState<OpsOrder[]>([]);
   const [loading, setLoading] = useState(true);
