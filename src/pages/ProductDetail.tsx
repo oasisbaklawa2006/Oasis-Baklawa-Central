@@ -5,8 +5,9 @@ import { Heart, ShoppingCart, Minus, Plus, Loader2, ChevronLeft, Package } from 
 import { useNavigate, useParams } from "react-router-dom";
 import { useCart } from "@/hooks/useCart";
 import { useAuth } from "@/hooks/useAuth";
-import { useProducts } from "@/hooks/useProducts"; // <-- Pulled in to get suggestions
 import { supabase } from "@/integrations/supabase/client";
+
+const formatPrice = (n: number) => "₹" + n.toLocaleString("en-IN");
 
 const getCartonSize = (cartonType: string | null) => {
   if (cartonType?.toLowerCase().includes("c")) return 9;
@@ -26,11 +27,9 @@ const ProductDetail = () => {
   const navigate = useNavigate();
   const { addToCart } = useCart();
   const { isAuthenticated } = useAuth();
-  const { products } = useProducts(); // Fetching all products for the carousel
 
   useEffect(() => {
     if (!id) return;
-    setLoading(true);
     supabase
       .from("products")
       .select("*")
@@ -39,7 +38,6 @@ const ProductDetail = () => {
       .then(({ data, error }) => {
         if (!error && data) setProduct(data);
         setLoading(false);
-        window.scrollTo(0, 0); // Ensure page scrolls to top when navigating to a new product
       });
   }, [id]);
 
@@ -47,7 +45,7 @@ const ProductDetail = () => {
     return (
       <AppShell>
         <div className="flex items-center justify-center min-h-[60vh]">
-          <Loader2 className="w-8 h-8 animate-spin text-primary" />
+          <Loader2 className="w-8 h-8 animate-spin text-[#B8860B]" />
         </div>
       </AppShell>
     );
@@ -65,8 +63,9 @@ const ProductDetail = () => {
   const neededToFill = remainder === 0 ? 0 : packsPerCarton - remainder;
   const progressPercentage = remainder === 0 ? 100 : (remainder / packsPerCarton) * 100;
 
-  // Filter out the current product to show in the "You May Also Like" carousel
-  const suggestedProducts = products.filter((p) => p.id !== product.id).slice(0, 6);
+  // Dynamic pricing calculation
+  const currentTotal = boxes * (product.price_per_kg || 0);
+  const images = [product.image_url, product.image_url, product.image_url].filter(Boolean);
 
   const handleAddToCart = async () => {
     setIsAdding(true);
@@ -82,7 +81,7 @@ const ProductDetail = () => {
         <div className="sticky top-0 z-20 bg-white/90 backdrop-blur-md px-4 py-3 flex items-center justify-between border-b border-slate-100 shadow-sm">
           <button
             onClick={() => navigate(-1)}
-            className="flex items-center gap-1 text-slate-700 font-bold text-sm hover:text-primary transition-colors"
+            className="flex items-center gap-1 text-slate-700 font-bold text-sm hover:text-[#B8860B] transition-colors"
           >
             <ChevronLeft size={20} /> Back
           </button>
@@ -94,18 +93,22 @@ const ProductDetail = () => {
           </button>
         </div>
 
-        {/* CLEAN HERO IMAGE */}
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          className="w-full bg-slate-50 aspect-square flex items-center justify-center p-8"
-        >
-          <img
-            src={product.image_url || "/placeholder.svg"}
-            alt={product.name}
-            className="w-full h-full object-contain drop-shadow-xl"
-          />
-        </motion.div>
+        {/* SWIPEABLE IMAGE CAROUSEL */}
+        <div className="w-full bg-slate-50 pt-6 pb-8 overflow-hidden">
+          <div
+            className="flex overflow-x-auto snap-x snap-mandatory scrollbar-hide px-4 gap-4"
+            style={{ paddingRight: "20%" }}
+          >
+            {images.map((img, idx) => (
+              <div
+                key={idx}
+                className="w-[85%] flex-shrink-0 snap-center bg-white rounded-2xl shadow-sm p-4 aspect-square flex items-center justify-center border border-slate-100"
+              >
+                <img src={img} alt={product.name} className="w-full h-full object-contain drop-shadow-lg" />
+              </div>
+            ))}
+          </div>
+        </div>
 
         {/* The Golden Buy Box */}
         <div className="bg-[#B8860B] text-white px-6 py-5 flex flex-col items-center text-center">
@@ -125,10 +128,16 @@ const ProductDetail = () => {
             <div className="p-3 text-sm font-bold text-slate-800 text-center">{product.shelf_life || "9 Months"}</div>
           </div>
 
+          {/* Future Info Placeholder Row */}
+          <div className="grid grid-cols-2 border-b border-slate-100">
+            <div className="p-3 text-sm font-medium text-slate-500 border-r border-slate-100">More Details</div>
+            <div className="p-3 text-xs font-medium text-slate-400 text-center italic">To be updated...</div>
+          </div>
+
           {isAuthenticated && (
             <div className="grid grid-cols-2 border-b border-slate-100">
               <div className="p-4 text-base font-bold text-slate-900 border-r border-slate-100 flex items-center">
-                Price/kg
+                Price/Pack
               </div>
               <div className="p-4 text-xl font-bold text-[#B8860B] bg-[#FFF8DC] text-center">
                 ₹{product.price_per_kg?.toLocaleString("en-IN")}
@@ -139,28 +148,35 @@ const ProductDetail = () => {
 
         {isAuthenticated && (
           <div className="p-6 space-y-6">
-            <div className="flex flex-col items-center gap-2">
-              <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">Select Packs</p>
-              <div className="flex items-center gap-4 bg-slate-50 border border-slate-200 rounded-full p-1.5 w-full max-w-[250px]">
+            {/* Dynamic Pricing & Stepper */}
+            <div className="flex flex-col items-center gap-3">
+              <div className="flex items-center justify-between w-full px-2">
+                <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">Select Packs</p>
+                <p className="text-sm font-black text-slate-900">
+                  Total: <span className="text-[#B8860B]">{formatPrice(currentTotal)}</span>
+                </p>
+              </div>
+
+              <div className="flex items-center gap-4 bg-slate-50 border border-slate-200 rounded-full p-1.5 w-full">
                 <button
                   onClick={() => setBoxes((b) => Math.max(1, b - 1))}
-                  className="w-12 h-12 rounded-full bg-white border border-slate-200 flex items-center justify-center text-slate-600 font-bold text-xl active:scale-95"
+                  className="w-14 h-14 rounded-full bg-white border border-slate-200 flex items-center justify-center text-slate-600 font-bold text-2xl active:scale-95"
                 >
                   −
                 </button>
                 <div className="flex-1 text-center">
-                  <p className="text-2xl font-bold text-slate-900">{boxes}</p>
+                  <p className="text-3xl font-black text-slate-900">{boxes}</p>
                 </div>
                 <button
                   onClick={() => setBoxes((b) => b + 1)}
-                  className="w-12 h-12 rounded-full bg-[#B8860B] text-white flex items-center justify-center font-bold text-xl active:scale-95"
+                  className="w-14 h-14 rounded-full bg-[#B8860B] text-white flex items-center justify-center font-bold text-2xl shadow-md active:scale-95"
                 >
                   +
                 </button>
               </div>
             </div>
 
-            {/* Gamified Progress on Product Page */}
+            {/* Gamified Progress */}
             <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 space-y-3">
               <p className="text-xs font-bold text-slate-500 flex items-center justify-between">
                 <span>{packsPerCarton} Packs = 1 Master Carton</span>
@@ -187,38 +203,8 @@ const ProductDetail = () => {
               disabled={isAdding}
               className="w-full py-4 rounded-2xl bg-slate-900 text-white font-bold text-base shadow-xl flex items-center justify-center gap-2 active:scale-95"
             >
-              {isAdding ? <Loader2 size={20} className="animate-spin" /> : <ShoppingCart size={20} />} Add to Batch
+              {isAdding ? <Loader2 size={20} className="animate-spin" /> : <ShoppingCart size={20} />} Add to Order
             </button>
-          </div>
-        )}
-
-        {/* CROSS-SELL PRODUCT CAROUSEL */}
-        {suggestedProducts.length > 0 && (
-          <div className="pt-2 pb-8">
-            <div className="px-6 mb-4 flex items-center justify-between">
-              <h2 className="font-display text-lg font-bold text-slate-900">You may also like</h2>
-            </div>
-            <div className="flex gap-4 overflow-x-auto pb-4 scrollbar-hide px-6">
-              {suggestedProducts.map((p) => (
-                <div
-                  key={p.id}
-                  onClick={() => navigate(`/product/${p.id}`)}
-                  className="min-w-[140px] max-w-[140px] bg-white border border-slate-100 rounded-2xl shadow-sm overflow-hidden flex-shrink-0 cursor-pointer hover:shadow-md transition-all"
-                >
-                  <div className="w-full h-[110px] bg-slate-50 p-2 flex items-center justify-center">
-                    {p.image_url ? (
-                      <img src={p.image_url} alt={p.name} className="w-full h-full object-contain" />
-                    ) : (
-                      <Package size={24} className="text-slate-300" />
-                    )}
-                  </div>
-                  <div className="p-3">
-                    <p className="font-bold text-slate-900 text-xs leading-tight line-clamp-2 mb-1">{p.name}</p>
-                    {isAuthenticated && <p className="text-[10px] font-bold text-[#B8860B]">₹{p.price_per_kg}/kg</p>}
-                  </div>
-                </div>
-              ))}
-            </div>
           </div>
         )}
       </div>
