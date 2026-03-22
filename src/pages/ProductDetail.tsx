@@ -4,20 +4,20 @@ import { useState, useEffect, useMemo } from "react";
 import {
   Heart,
   ShoppingCart,
-  Minus,
-  Plus,
   Loader2,
   ChevronLeft,
   ChevronRight,
   Package,
   Maximize2,
   X,
+  ShieldCheck,
 } from "lucide-react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useCart } from "@/hooks/useCart";
 import { useAuth } from "@/hooks/useAuth";
-import { useProducts } from "@/hooks/useProducts"; // Needed for Next/Prev & Related
+import { useProducts } from "@/hooks/useProducts";
 import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
 
 const formatPrice = (n: number) => "₹" + Math.round(n).toLocaleString("en-IN");
 
@@ -41,15 +41,17 @@ const ProductDetail = () => {
   const [isFav, setIsFav] = useState(false);
   const [isAdding, setIsAdding] = useState(false);
 
-  // Image Viewer State
   const [activeImage, setActiveImage] = useState(0);
   const [showImageModal, setShowImageModal] = useState(false);
 
+  const clientCategory = "Premium Distributor";
+  const clientDiscountRate = 0.15;
+
   useEffect(() => {
     if (!id) return;
-    window.scrollTo(0, 0); // Reset scroll on product change
+    window.scrollTo(0, 0);
     setLoading(true);
-    setBoxes(1); // Reset qty
+    setBoxes(1);
 
     supabase
       .from("products")
@@ -62,7 +64,6 @@ const ProductDetail = () => {
       });
   }, [id]);
 
-  // Product Navigation & Related Products Logic
   const currentIndex = products.findIndex((p) => p.id === id);
   const prevProduct = currentIndex > 0 ? products[currentIndex - 1] : null;
   const nextProduct = currentIndex < products.length - 1 ? products[currentIndex + 1] : null;
@@ -88,37 +89,32 @@ const ProductDetail = () => {
       </AppShell>
     );
 
-  // Math & Logistics
   const packsPerCarton = getCartonSize(product.carton_type);
   const remainder = boxes % packsPerCarton;
   const neededToFill = remainder === 0 ? 0 : packsPerCarton - remainder;
   const progressPercentage = remainder === 0 ? 100 : (remainder / packsPerCarton) * 100;
-  const currentCartons = Math.ceil(boxes / packsPerCarton);
 
-  // MOCKING MULTIPLE IMAGES (Since DB only has one for now)
   const images = [product.image_url, product.image_url, product.image_url].filter(Boolean);
 
-  // B2B PRICE SLAB LOGIC (Dynamic Discounts)
-  const basePrice = product.price_per_kg || 0;
-  let activeDiscount = 0;
-  if (currentCartons >= 10)
-    activeDiscount = 0.05; // 5% off for 10+ Cartons
-  else if (currentCartons >= 5) activeDiscount = 0.03; // 3% off for 5-9 Cartons
-
-  const discountedPricePerKg = basePrice * (1 - activeDiscount);
-  const currentTotal = boxes * discountedPricePerKg;
+  const baseWholesalePrice = product.price_per_kg || 0;
+  const mySlabPrice = baseWholesalePrice * (1 - clientDiscountRate);
+  const currentTotal = boxes * mySlabPrice;
 
   const handleAddToCart = async () => {
     setIsAdding(true);
     const success = await addToCart(product.id, boxes, product.pack_size, product.carton_type);
     setIsAdding(false);
-    if (success) navigate("/cart");
+    if (success) {
+      toast.success(`Added ${boxes} packs to your order!`, { icon: "📦" });
+      setBoxes(1); // Reset stepper so they can browse the next item cleanly
+      // We explicitly DO NOT navigate to the cart here, so they can keep browsing!
+    }
   };
 
   return (
     <AppShell>
-      <div className="max-w-md mx-auto bg-slate-50 min-h-screen pb-24 shadow-sm border-x border-slate-200">
-        {/* GLOBAL BACK BUTTON & NAV */}
+      {/* Added extra bottom padding so the sticky footer doesn't cover content */}
+      <div className="max-w-md mx-auto bg-slate-50 min-h-screen pb-40 shadow-sm border-x border-slate-200 relative">
         <div className="sticky top-0 z-20 bg-white/90 backdrop-blur-md px-4 py-3 flex items-center justify-between border-b border-slate-100 shadow-sm">
           <button
             onClick={() => navigate("/catalogue")}
@@ -134,7 +130,6 @@ const ProductDetail = () => {
           </button>
         </div>
 
-        {/* IMAGE VIEWER WITH PAGINATION & MODAL */}
         <div className="w-full bg-white relative aspect-square group">
           <div className="absolute top-4 right-4 z-10">
             <button
@@ -144,15 +139,13 @@ const ProductDetail = () => {
               <Maximize2 size={18} />
             </button>
           </div>
-
           <img
             src={images[activeImage] || "/placeholder.svg"}
-            alt={product.name}
             onClick={() => setShowImageModal(true)}
+            alt={product.name}
             className="w-full h-full object-contain p-8 cursor-pointer drop-shadow-xl"
           />
 
-          {/* Image Pagination Dots */}
           {images.length > 1 && (
             <div className="absolute bottom-4 left-0 right-0 flex justify-center gap-2">
               {images.map((_, idx) => (
@@ -166,7 +159,6 @@ const ProductDetail = () => {
           )}
         </div>
 
-        {/* NEXT / PREV PRODUCT BAR */}
         <div className="flex items-center justify-between bg-slate-900 text-white px-4 py-2 text-xs font-bold uppercase tracking-wider">
           <button
             onClick={() => prevProduct && navigate(`/product/${prevProduct.id}`)}
@@ -185,7 +177,6 @@ const ProductDetail = () => {
           </button>
         </div>
 
-        {/* The Golden Buy Box */}
         <div className="bg-[#B8860B] text-white px-6 py-5 flex flex-col items-center text-center">
           <h1 className="font-display text-2xl font-bold tracking-wide">{product.name}</h1>
           <div className="flex items-center gap-2 mt-2 bg-white/20 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider">
@@ -193,42 +184,31 @@ const ProductDetail = () => {
           </div>
         </div>
 
-        {/* VOLUME PRICE SLABS (Intelligent Upselling) */}
         {isAuthenticated && (
-          <div className="bg-white p-5 border-b border-slate-100">
-            <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-3 flex justify-between">
-              <span>Volume Pricing Slabs</span>
-              {activeDiscount > 0 && <span className="text-emerald-500">Active: {activeDiscount * 100}% Off</span>}
-            </p>
-            <div className="grid grid-cols-3 gap-2">
-              <div
-                className={`p-2 rounded-xl border text-center transition-colors ${currentCartons < 5 ? "border-[#B8860B] bg-[#FFF8DC]" : "border-slate-100 bg-slate-50"}`}
-              >
-                <p className="text-[10px] font-bold text-slate-500 uppercase">1-4 Cartons</p>
-                <p className={`font-black text-sm ${currentCartons < 5 ? "text-[#B8860B]" : "text-slate-800"}`}>
-                  {formatPrice(basePrice)}
-                  <span className="text-[10px] font-normal">/kg</span>
+          <div className="bg-slate-900 p-5 text-white">
+            <div className="flex items-center justify-between mb-3 border-b border-white/10 pb-3">
+              <div className="flex items-center gap-2">
+                <ShieldCheck size={18} className="text-[#B8860B]" />
+                <p className="text-xs font-bold text-slate-300 uppercase tracking-widest">Active Price Slab</p>
+              </div>
+              <span className="bg-[#B8860B]/20 text-[#B8860B] px-2 py-1 rounded text-[10px] font-bold uppercase border border-[#B8860B]/30">
+                {clientCategory}
+              </span>
+            </div>
+
+            <div className="flex justify-between items-end">
+              <div>
+                <p className="text-xs text-slate-400 line-through mb-0.5">
+                  Standard: {formatPrice(baseWholesalePrice)} /kg
+                </p>
+                <p className="text-2xl font-black text-white">
+                  {formatPrice(mySlabPrice)} <span className="text-xs font-bold text-[#B8860B]">/pack</span>
                 </p>
               </div>
-              <div
-                className={`p-2 rounded-xl border text-center transition-colors ${currentCartons >= 5 && currentCartons < 10 ? "border-[#B8860B] bg-[#FFF8DC]" : "border-slate-100 bg-slate-50"}`}
-              >
-                <p className="text-[10px] font-bold text-slate-500 uppercase">5-9 Cartons</p>
-                <p
-                  className={`font-black text-sm ${currentCartons >= 5 && currentCartons < 10 ? "text-[#B8860B]" : "text-slate-800"}`}
-                >
-                  {formatPrice(basePrice * 0.97)}
-                  <span className="text-[10px] font-normal">/kg</span>
-                </p>
-              </div>
-              <div
-                className={`p-2 rounded-xl border text-center transition-colors ${currentCartons >= 10 ? "border-[#B8860B] bg-[#FFF8DC]" : "border-slate-100 bg-slate-50"}`}
-              >
-                <p className="text-[10px] font-bold text-slate-500 uppercase">10+ Cartons</p>
-                <p className={`font-black text-sm ${currentCartons >= 10 ? "text-[#B8860B]" : "text-slate-800"}`}>
-                  {formatPrice(basePrice * 0.95)}
-                  <span className="text-[10px] font-normal">/kg</span>
-                </p>
+              <div className="text-right">
+                <span className="text-[10px] font-bold bg-emerald-500/20 text-emerald-400 px-2 py-1 rounded-full">
+                  You Save {clientDiscountRate * 100}%
+                </span>
               </div>
             </div>
           </div>
@@ -245,76 +225,31 @@ const ProductDetail = () => {
           </div>
         </div>
 
-        {/* THE ORDER ENGINE */}
-        {isAuthenticated && (
-          <div className="p-6 bg-white space-y-6 shadow-sm border-y border-slate-100">
-            <div className="flex flex-col items-center gap-3">
-              <div className="flex items-center justify-between w-full px-2">
-                <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">Select Packs</p>
-                <div className="text-right">
-                  <p className="text-lg font-black text-[#B8860B]">{formatPrice(currentTotal)}</p>
-                  {activeDiscount > 0 && (
-                    <p className="text-[10px] text-emerald-600 font-bold">
-                      Includes {activeDiscount * 100}% Volume Discount
-                    </p>
-                  )}
-                </div>
-              </div>
-
-              <div className="flex items-center gap-4 bg-slate-50 border border-slate-200 rounded-full p-1.5 w-full">
-                <button
-                  onClick={() => setBoxes((b) => Math.max(1, b - 1))}
-                  className="w-14 h-14 rounded-full bg-white border border-slate-200 flex items-center justify-center text-slate-600 font-bold text-2xl active:scale-95"
-                >
-                  −
-                </button>
-                <div className="flex-1 text-center">
-                  <p className="text-3xl font-black text-slate-900">{boxes}</p>
-                </div>
-                <button
-                  onClick={() => setBoxes((b) => b + 1)}
-                  className="w-14 h-14 rounded-full bg-[#B8860B] text-white flex items-center justify-center font-bold text-2xl shadow-md active:scale-95"
-                >
-                  +
-                </button>
-              </div>
+        <div className="p-6 bg-white shadow-sm border-y border-slate-100">
+          <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 space-y-3">
+            <p className="text-xs font-bold text-slate-500 flex items-center justify-between">
+              <span>{packsPerCarton} Packs = 1 Master Carton</span>
+              <span className="text-[#B8860B]">
+                {remainder === 0 ? packsPerCarton : remainder} / {packsPerCarton}
+              </span>
+            </p>
+            <div className="h-2 w-full bg-slate-200 rounded-full overflow-hidden">
+              <motion.div
+                initial={{ width: 0 }}
+                animate={{ width: `${progressPercentage}%` }}
+                className={`h-full ${remainder === 0 ? "bg-emerald-500" : "bg-[#B8860B]"}`}
+              />
             </div>
-
-            {/* Gamified Progress on Product Page */}
-            <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 space-y-3">
-              <p className="text-xs font-bold text-slate-500 flex items-center justify-between">
-                <span>{packsPerCarton} Packs = 1 Master Carton</span>
-                <span className="text-[#B8860B]">
-                  {remainder === 0 ? packsPerCarton : remainder} / {packsPerCarton}
-                </span>
-              </p>
-              <div className="h-2 w-full bg-slate-200 rounded-full overflow-hidden">
-                <motion.div
-                  initial={{ width: 0 }}
-                  animate={{ width: `${progressPercentage}%` }}
-                  className={`h-full ${remainder === 0 ? "bg-emerald-500" : "bg-[#B8860B]"}`}
-                />
-              </div>
-              <p className="text-[11px] font-bold text-center text-slate-600">
-                {remainder === 0
-                  ? "✨ Perfect! Master Carton Filled."
-                  : `Add ${neededToFill} more packs for secure carton shipping.`}
-              </p>
-            </div>
-
-            <button
-              onClick={handleAddToCart}
-              disabled={isAdding}
-              className="w-full py-4 rounded-2xl bg-slate-900 text-white font-bold text-base shadow-xl flex items-center justify-center gap-2 active:scale-95"
-            >
-              {isAdding ? <Loader2 size={20} className="animate-spin" /> : <ShoppingCart size={20} />} Add to Order
-            </button>
+            <p className="text-[11px] font-bold text-center text-slate-600">
+              {remainder === 0
+                ? "✨ Perfect! Master Carton Filled."
+                : `Add ${neededToFill} more packs for secure carton shipping.`}
+            </p>
           </div>
-        )}
+        </div>
 
-        {/* YOU MAY ALSO LIKE (Cross-Selling) */}
         {relatedProducts.length > 0 && (
-          <div className="pt-8 pb-4">
+          <div className="pt-8 pb-4 bg-white mt-2">
             <h3 className="px-5 text-lg font-display font-bold text-slate-900 mb-4">You May Also Like</h3>
             <div className="flex overflow-x-auto gap-4 px-5 pb-4 scrollbar-hide">
               {relatedProducts.map((rp) => (
@@ -331,17 +266,49 @@ const ProductDetail = () => {
                     )}
                   </div>
                   <p className="font-bold text-slate-800 text-xs leading-tight line-clamp-2">{rp.name}</p>
-                  {isAuthenticated && (
-                    <p className="text-[10px] font-bold text-[#B8860B] mt-1">{formatPrice(rp.price_per_kg || 0)} /kg</p>
-                  )}
                 </div>
               ))}
             </div>
           </div>
         )}
+
+        {/* THE NEW STICKY ACTION BAR */}
+        {isAuthenticated && (
+          <div className="fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur-md border-t border-slate-200 p-4 z-40 pb-safe shadow-[0_-10px_40px_rgba(0,0,0,0.05)]">
+            <div className="max-w-md mx-auto">
+              <div className="flex justify-between items-end mb-3 px-1">
+                <span className="text-xs font-bold text-slate-500 uppercase tracking-widest">Total Price</span>
+                <span className="text-xl font-black text-[#B8860B]">{formatPrice(currentTotal)}</span>
+              </div>
+              <div className="flex items-center gap-3">
+                <div className="flex items-center bg-slate-50 rounded-xl p-1 border border-slate-200 h-14">
+                  <button
+                    onClick={() => setBoxes((b) => Math.max(1, b - 1))}
+                    className="w-12 h-full rounded-lg bg-white shadow-sm font-bold text-xl active:scale-95 text-slate-700"
+                  >
+                    −
+                  </button>
+                  <span className="font-bold text-lg w-10 text-center text-slate-900">{boxes}</span>
+                  <button
+                    onClick={() => setBoxes((b) => b + 1)}
+                    className="w-12 h-full rounded-lg bg-slate-900 text-white shadow-sm font-bold text-xl active:scale-95"
+                  >
+                    +
+                  </button>
+                </div>
+                <button
+                  onClick={handleAddToCart}
+                  disabled={isAdding}
+                  className="flex-1 h-14 rounded-xl bg-[#B8860B] text-white font-bold text-sm shadow-xl flex items-center justify-center gap-2 active:scale-95 hover:bg-[#9A7009] transition-colors"
+                >
+                  {isAdding ? <Loader2 size={20} className="animate-spin" /> : <ShoppingCart size={20} />} Add to Order
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
-      {/* FULL SCREEN IMAGE MODAL */}
       <AnimatePresence>
         {showImageModal && (
           <motion.div
@@ -357,9 +324,6 @@ const ProductDetail = () => {
               <X size={24} />
             </button>
             <img src={images[activeImage]} alt="Zoomed" className="w-full max-w-lg object-contain max-h-[80vh]" />
-            <p className="absolute bottom-10 text-white/50 text-sm tracking-widest font-bold uppercase">
-              {product.name}
-            </p>
           </motion.div>
         )}
       </AnimatePresence>
