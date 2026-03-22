@@ -41,10 +41,12 @@ const getCartonSize = (cartonType: string | null) => {
   return 4;
 };
 
+// THE UPGRADED LUXURY PRODUCT CARD
 const ProductCard = ({ product }: { product: any }) => {
   const navigate = useNavigate();
   const { addToCart } = useCart();
   const { isAuthenticated } = useAuth();
+
   const [boxes, setBoxes] = useState(1);
   const [isAdding, setIsAdding] = useState(false);
 
@@ -59,7 +61,7 @@ const ProductCard = ({ product }: { product: any }) => {
     const success = await addToCart(product.id, boxes, product.pack_size, product.carton_type);
     setIsAdding(false);
     if (success) {
-      toast.success(`Added ${boxes} packs of ${product.name}!`, { icon: "📦" });
+      toast.success(`Added ${boxes} packs to your order!`, { icon: "📦" });
       setBoxes(1);
     }
   };
@@ -67,51 +69,64 @@ const ProductCard = ({ product }: { product: any }) => {
   return (
     <div
       onClick={() => navigate(`/product/${product.id}`)}
-      className="bg-card rounded-2xl overflow-hidden relative group cursor-pointer transition-all duration-300 shadow-card border border-transparent hover:shadow-md hover:border-slate-200 flex flex-col h-full"
+      className="bg-white rounded-3xl overflow-hidden relative group cursor-pointer transition-all duration-300 shadow-sm border border-slate-100 hover:shadow-xl hover:border-slate-200 flex flex-col h-full"
     >
-      <button className="absolute top-3 right-3 z-10 w-8 h-8 rounded-full bg-card/80 backdrop-blur flex items-center justify-center hover:bg-card transition-colors shadow-sm">
-        <Heart size={16} className="text-muted-foreground group-hover:text-rose-500 transition-colors" />
-      </button>
-      <div className="absolute top-3 left-3 z-10 bg-white/90 backdrop-blur px-2 py-1 rounded-md text-[10px] font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1 shadow-sm">
-        <Package size={12} /> {packsPerCarton}/Carton
+      {/* Floating Badges */}
+      <div className="absolute top-3 left-3 right-3 z-10 flex justify-between items-start">
+        <div className="bg-white/80 backdrop-blur-md px-2.5 py-1 rounded-lg text-[9px] font-black text-slate-600 uppercase tracking-widest flex items-center gap-1 shadow-sm border border-white/50">
+          <Package size={10} className="text-[#B8860B]" /> {packsPerCarton} / Ctn
+        </div>
+        <button className="w-8 h-8 rounded-full bg-white/80 backdrop-blur-md flex items-center justify-center shadow-sm border border-white/50 text-slate-400 hover:text-rose-500 transition-colors">
+          <Heart size={14} />
+        </button>
       </div>
-      <div className="w-full aspect-square overflow-hidden bg-muted p-4 flex items-center justify-center">
+
+      {/* Premium Image Area */}
+      <div className="w-full aspect-square bg-gradient-to-b from-slate-50/50 to-white pt-10 pb-4 px-6 flex items-center justify-center">
         {product.image_url ? (
           <img
             src={product.image_url}
             alt={product.name}
-            className="w-full h-full object-contain group-hover:scale-105 transition-transform duration-500 drop-shadow-md"
+            className="w-full h-full object-contain group-hover:scale-110 transition-transform duration-700 drop-shadow-xl"
           />
         ) : (
-          <div className="w-full h-full flex items-center justify-center text-muted-foreground text-fine">No Image</div>
+          <div className="text-slate-300 font-medium text-xs">No Image</div>
         )}
       </div>
-      <div className="p-4 flex flex-col flex-1">
-        <p className="text-ui-h5 text-foreground leading-tight group-hover:text-[#B8860B] transition-colors line-clamp-2">
+
+      {/* Details & Action Area */}
+      <div className="p-4 flex flex-col flex-1 bg-white">
+        <p className="font-display font-bold text-slate-900 text-sm leading-tight group-hover:text-[#B8860B] transition-colors line-clamp-2">
           {product.name}
         </p>
+
         {isAuthenticated ? (
-          <div className="mt-2 space-y-1 flex-1">
-            <p className="text-fine text-muted-foreground">{product.pack_size || "700g"} • Avg 22g/pc</p>
-            <div className="pt-1 flex items-end gap-2">
-              <p className="text-lg font-black text-[#B8860B] leading-none">{formatPrice(mySlabPrice)}</p>
-              <p className="text-[10px] text-slate-400 line-through leading-none mb-0.5">
-                {formatPrice(baseWholesalePrice)}
-              </p>
+          <div className="mt-1 flex flex-col flex-1">
+            <p className="text-[10px] text-slate-500 font-medium">{product.pack_size || "700g"} • Wt 22g/pc</p>
+
+            <div className="mt-2 flex justify-between items-end">
+              <div>
+                <p className="text-[10px] text-slate-400 line-through leading-none mb-0.5">
+                  {formatPrice(baseWholesalePrice)}
+                </p>
+                <p className="text-lg font-black text-slate-900 leading-none">{formatPrice(mySlabPrice)}</p>
+              </div>
             </div>
-            <div className="pt-3 mt-auto" onClick={(e) => e.stopPropagation()}>
+
+            {/* The Sleek Unified Action Row */}
+            <div className="mt-auto pt-4" onClick={(e) => e.stopPropagation()}>
               <div className="flex items-center gap-2">
-                <div className="flex items-center bg-slate-50 rounded-xl p-1 border border-slate-200 h-10 flex-1">
+                <div className="flex items-center bg-slate-100/70 rounded-full p-1 h-10 w-[90px]">
                   <button
                     onClick={() => setBoxes((b) => Math.max(1, b - 1))}
-                    className="w-8 h-full rounded-lg bg-white shadow-sm font-bold text-slate-700 active:scale-95"
+                    className="w-7 h-full rounded-full hover:bg-white hover:shadow-sm font-medium text-slate-600 transition-all"
                   >
                     −
                   </button>
-                  <span className="font-bold text-sm flex-1 text-center text-slate-900">{boxes}</span>
+                  <span className="font-bold text-xs flex-1 text-center text-slate-900">{boxes}</span>
                   <button
                     onClick={() => setBoxes((b) => b + 1)}
-                    className="w-8 h-full rounded-lg bg-slate-900 text-white shadow-sm font-bold active:scale-95"
+                    className="w-7 h-full rounded-full bg-white shadow-sm font-bold text-slate-900 active:scale-95 transition-all"
                   >
                     +
                   </button>
@@ -119,26 +134,27 @@ const ProductCard = ({ product }: { product: any }) => {
                 <button
                   onClick={handleAdd}
                   disabled={isAdding}
-                  className="w-10 h-10 rounded-xl bg-[#B8860B] text-white flex items-center justify-center shadow-md active:scale-95 hover:bg-[#9A7009] transition-colors flex-shrink-0 disabled:opacity-50"
+                  className="flex-1 h-10 rounded-full bg-slate-900 text-white flex items-center justify-center gap-1.5 shadow-md active:scale-95 hover:bg-[#B8860B] transition-colors disabled:opacity-50"
                 >
-                  {isAdding ? <Loader2 size={16} className="animate-spin" /> : <ShoppingCart size={16} />}
+                  {isAdding ? <Loader2 size={14} className="animate-spin" /> : <ShoppingCart size={14} />}
+                  <span className="text-xs font-bold">Add</span>
                 </button>
               </div>
             </div>
           </div>
         ) : (
-          <div className="mt-2 space-y-2 flex-1 flex flex-col justify-end">
-            <p className="text-fine text-muted-foreground flex items-center gap-1">
-              <Lock size={10} /> Trade Members Only
+          <div className="mt-auto pt-4">
+            <p className="text-[10px] text-slate-500 flex items-center gap-1 mb-2 font-medium">
+              <Lock size={10} /> Members Only
             </p>
             <button
               onClick={(e) => {
                 e.stopPropagation();
                 navigate("/login");
               }}
-              className="w-full py-2 rounded-xl bg-muted text-foreground text-ui-button hover:bg-muted/80 transition-colors"
+              className="w-full py-2.5 rounded-full bg-slate-100 text-slate-700 font-bold text-xs hover:bg-slate-200 transition-colors"
             >
-              Login / Apply
+              Login to View
             </button>
           </div>
         )}
@@ -166,9 +182,9 @@ const Catalogue = () => {
           initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.4 }}
-          className="text-display-h1 text-foreground"
+          className="text-display-h1 text-slate-900 font-bold"
         >
-          Product Catalogue
+          Catalogue
         </motion.h1>
 
         <motion.section
@@ -176,23 +192,18 @@ const Catalogue = () => {
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5, delay: 0.1 }}
         >
-          <h2 className="text-display-h2 text-foreground mb-4 flex items-center gap-2">
-            <span className="text-primary">⭐</span> My Favorites
+          <h2 className="text-sm uppercase tracking-widest font-bold text-slate-400 mb-4 flex items-center gap-2">
+            <span className="text-[#B8860B]">⭐</span> My Favorites
           </h2>
-          <div className="bg-card rounded-2xl shadow-card p-5">
-            <div className="flex gap-4 overflow-x-auto pb-2 scrollbar-hide -mx-1 px-1">
+          <div className="bg-white rounded-3xl shadow-sm border border-slate-100 p-4">
+            <div className="flex gap-4 overflow-x-auto pb-2 scrollbar-hide">
               {favorites.map((item, i) => (
-                <div
-                  key={i}
-                  className="min-w-[170px] max-w-[170px] flex-shrink-0 rounded-xl overflow-hidden border border-border/40"
-                >
-                  <div className="h-[130px] overflow-hidden">
+                <div key={i} className="min-w-[150px] max-w-[150px] flex-shrink-0">
+                  <div className="h-[120px] rounded-2xl overflow-hidden mb-3">
                     <img src={item.image} alt={item.name} className="w-full h-full object-cover" />
                   </div>
-                  <div className="p-3">
-                    <p className="text-ui-h5 text-foreground leading-tight">{item.name}</p>
-                    <p className="text-fine text-muted-foreground mt-1">{item.price}</p>
-                  </div>
+                  <p className="font-bold text-slate-900 text-sm leading-tight">{item.name}</p>
+                  <p className="text-[10px] text-slate-500 mt-0.5">{item.price}</p>
                 </div>
               ))}
             </div>
@@ -204,21 +215,21 @@ const Catalogue = () => {
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5, delay: 0.2 }}
         >
-          <h2 className="text-display-h2 text-foreground mb-4">Categories</h2>
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
+          <h2 className="text-sm uppercase tracking-widest font-bold text-slate-400 mb-4">Categories</h2>
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
             {mainCategories.map((cat, i) => (
-              <button key={i} className="relative rounded-2xl overflow-hidden shadow-card aspect-[4/3] group">
+              <button
+                key={i}
+                className="relative rounded-2xl overflow-hidden shadow-sm border border-slate-100 aspect-[4/3] group"
+              >
                 <img
                   src={cat.image}
                   alt={cat.name}
-                  className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                  className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-700"
                 />
-                <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent" />
-                <div
-                  className="absolute bottom-0 left-0 right-0 px-3 py-2.5"
-                  style={{ background: "linear-gradient(to top, hsl(40 40% 59% / 0.85), transparent)" }}
-                >
-                  <p className="text-ui-h5 text-white text-left">{cat.name}</p>
+                <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
+                <div className="absolute bottom-0 left-0 right-0 p-3 text-left">
+                  <p className="font-bold text-white text-xs leading-tight">{cat.name}</p>
                 </div>
               </button>
             ))}
@@ -230,12 +241,12 @@ const Catalogue = () => {
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5, delay: 0.25 }}
         >
-          <div className="flex gap-2.5 overflow-x-auto pb-2 scrollbar-hide">
+          <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
             {subCategories.map((sub) => (
               <button
                 key={sub}
                 onClick={() => setActiveSub(sub)}
-                className={`flex-shrink-0 px-5 py-2 rounded-full text-ui-button transition-all ${activeSub === sub ? "bg-primary text-primary-foreground shadow-fab" : "bg-card text-foreground shadow-card hover:shadow-fab"}`}
+                className={`flex-shrink-0 px-5 py-2.5 rounded-full text-xs font-bold transition-all shadow-sm ${activeSub === sub ? "bg-slate-900 text-white" : "bg-white text-slate-600 border border-slate-100 hover:border-slate-300"}`}
               >
                 {sub}
               </button>
@@ -248,24 +259,24 @@ const Catalogue = () => {
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5, delay: 0.3 }}
         >
-          <h2 className="text-display-h2 text-foreground mb-4">Wholesale Loose Products</h2>
+          <h2 className="text-sm uppercase tracking-widest font-bold text-slate-400 mb-4">Wholesale Products</h2>
           {productsLoading ? (
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
               {[1, 2, 3, 4].map((i) => (
-                <div key={i} className="bg-card rounded-2xl shadow-card overflow-hidden">
-                  <Skeleton className="w-full aspect-square" />
-                  <div className="p-4 space-y-2">
+                <div key={i} className="bg-white rounded-3xl shadow-sm border border-slate-100 overflow-hidden p-4">
+                  <Skeleton className="w-full aspect-square rounded-2xl" />
+                  <div className="space-y-2 mt-4">
                     <Skeleton className="h-4 w-3/4" />
                     <Skeleton className="h-3 w-1/2" />
-                    <Skeleton className="h-9 w-full mt-2" />
+                    <Skeleton className="h-10 w-full mt-4 rounded-full" />
                   </div>
                 </div>
               ))}
             </div>
           ) : products.length === 0 ? (
-            <p className="text-body-p2 text-muted-foreground text-center py-8">No products found.</p>
+            <p className="text-sm font-medium text-slate-500 text-center py-10">No products found.</p>
           ) : (
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 items-stretch">
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 items-stretch">
               {products.map((product) => (
                 <ProductCard key={product.id} product={product} />
               ))}
