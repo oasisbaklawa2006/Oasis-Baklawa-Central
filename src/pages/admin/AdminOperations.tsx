@@ -1,40 +1,158 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { Loader2, MonitorPlay, CheckSquare, ChefHat, Clock } from "lucide-react";
+import { Loader2, Settings2, Calendar, LayoutGrid, CheckCircle2, PackageSearch, Zap, Wand2 } from "lucide-react";
 import TopNavBar from "@/components/TopNavBar";
 
 const DEPARTMENTS = ["Baklawa", "Chocolate", "Laddu", "Bakery", "Hampers", "Packaging Store"];
 
-interface DeptItem {
+interface OpsOrderItem {
   id: string;
-  order_id: string;
+  product_id: string;
   quantity: number;
   pack_size: string | null;
   carton_type: string | null;
+  department: string | null;
   production_status: string | null;
+  task_type?: string | null;
   products?: { name: string } | null;
   product?: { name: string } | null;
-  orders?: {
-    id: string;
-    created_at: string;
-    status: string;
-  };
 }
 
-const AdminDepartment = () => {
-  const [activeDept, setActiveDept] = useState<string>("Baklawa");
-  const [items, setItems] = useState<DeptItem[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [completingId, setCompletingId] = useState<string | null>(null);
+interface OpsOrder {
+  id: string;
+  status: string;
+  created_at: string;
+  dispatch_date?: string | null;
+  order_items?: OpsOrderItem[];
+}
 
-  const fetchDepartmentItems = async () => {
+interface InventoryItem {
+  id: string;
+  name: string;
+  stock: number;
+}
+
+const AdminOperations = () => {
+  const [activeTab, setActiveTab] = useState<"routing" | "store">("routing");
+
+  // Routing State
+  const [orders, setOrders] = useState<OpsOrder[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [splittingOrder, setSplittingOrder] = useState<string | null>(null);
+
+  // Store State
+  const [inventory, setInventory] = useState<InventoryItem[]>([]);
+  const [adjustingProduct, setAdjustingProduct] = useState<InventoryItem | null>(null);
+  const [adjustAmount, setAdjustAmount] = useState<number | "">("");
+  const [adjustReason, setAdjustReason] = useState<string>("excess_production");
+  const [adjustNotes, setAdjustNotes] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Factory Task State
+  const [isTaskModalOpen, setIsTaskModalOpen] = useState(false);
+  const [taskType, setTaskType] = useState("standby");
+  const [taskProduct, setTaskProduct] = useState("");
+  const [taskQty, setTaskQty] = useState<number | "">("");
+  const [taskDept, setTaskDept] = useState("");
+
+  const fetchOpsData = async () => {
     setLoading(true);
     
-    // CRITICAL FIX: Removed 'dispatch_date' and fixed the 'orders' join syntax
-    const { data, error } = await supabase
-      .from("order_items")
+    const { data: orderData, error } = await supabase
+      .from("orders")
       .select(`
+        id, status, created_at, dispatch_date,
+        order_items (
+          id, product_id, quantity, pack_size, carton_type, department, production_status, task_type,
+          products ( name )
+        )
+      `)
+      .eq("status", "in_production")
+      .order("created_at", { ascending: true });
+
+    if (error) {
+      toast.error("Failed to load routing data.");
+    } else {
+      setOrders((orderData as any[]) || []);
+    }
+
+    const { data: productData } = await (supabase as any)
+      .from("products")
+      .select(`id, name, factory_inventory ( quantity )`);
+
+    if (productData) {
+      const formattedInventory = productData.map((p: any) => ({
+        id: p.id,
+        name: p.name,
+        stock: p.factory_inventory?.[0]?.quantity || 0,
+      }));
+      setInventory(formattedInventory);
+    }
+
+    setLoading(false);
+  };
+
+  useEffect(() => {
+    fetchOpsData();
+  }, []);
+
+  // --- THE SMART SPLITTER ENGINE ---
+  const handleSmartSplit = async (order: OpsOrder) => {
+    setSplittingOrder(order.id);
+    try {
+      let itemsOptimized = 0;
+
+      for (const item of order.order_items || []) {
+        if (item.production_status === 'completed') continue;
+
+        const invItem = inventory.find(i => i.id === item.product_id);
+        if (!invItem || invItem.stock <= 0) continue;
+
+        const allocateQty = Math.min(invItem.stock, item.quantity);
+        const newStockLevel = invItem.stock - allocateQty;
+        const remainingQtyToBake = item.quantity - allocateQty;
+
+        // 1. Deduct from Physical Virtual Store
+        await (supabase as any).from("factory_inventory")
+          .update({ quantity: newStockLevel })
+          .eq("product_id", item.product_id);
+
+        await (supabase as any).from("inventory_adjustments")
+          .insert({
+            product_id: item.product_id,
+            adjustment_type: "smart_fulfillment",
+            quantity: -allocateQty,
+            notes: `Auto-fulfilled for Order #${order.id.split('-')[0].toUpperCase()}`
+          });
+
+        // 2. The Split
+        if (remainingQtyToBake === 0) {
+          await supabase.from("order_items")
+            .update({ production_status: "completed", department: "Ready Goods Store" })
+            .eq("id", item.id);
+        } else {
+          await supabase.from("order_items")
+            .update({ quantity: remainingQtyToBake })
+            .eq("id", item.id);
+
+          await supabase.from("order_items")
+            .insert({
+              order_id: order.id,
+              product_id: item.product_id,
+              quantity: allocateQty,
+              pack_size: item.pack_size,
+              carton_type: item.carton_type,
+              department: "Ready Goods Store", 
+              production_status: "completed",
+              task_type: item.task_type
+            });
+        }
+        itemsOptimized++;
+      }
+
+      if (itemsOptimized > 0) {
+        toast.success      .select(`
         id, order_id, quantity, pack_size, carton_type, production_status,
         products ( name ),
         orders ( id, created_at, status )
