@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+// ADDED 'Package' TO THE IMPORTS BELOW
 import {
   Loader2,
   CheckCircle2,
@@ -15,6 +16,7 @@ import {
   Banknote,
   Calculator,
   Link,
+  Package,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
