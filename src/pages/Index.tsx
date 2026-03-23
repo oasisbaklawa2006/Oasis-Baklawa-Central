@@ -19,7 +19,7 @@ import {
   Ticket,
   TrendingUp,
   IndianRupee,
-  Sparkles, // Added Sparkles here!
+  Sparkles, // <-- Sparkles is imported right here
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "sonner";
@@ -41,7 +41,6 @@ const Dashboard = () => {
   const [loading, setLoading] = useState(true);
   const [companyName, setCompanyName] = useState("Oasis Partner");
 
-  // Moved this INSIDE the component where React expects it!
   const [isAiModalOpen, setIsAiModalOpen] = useState(false);
 
   // UTR Modal State
