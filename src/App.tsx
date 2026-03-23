@@ -55,6 +55,7 @@ const App = () => (
           <Routes>
             <Route path="/splash" element={<Splash />} />
             <Route path="/operations-controller" element={<OperationsController />} />
+            <Route path="/security-gate" element={<AdminSecurityGate />} />
             <Route path="/" element={<Index />} />
             <Route path="/catalogue" element={<Catalogue />} />
             <Route path="/product/:id" element={<ProductDetail />} />
