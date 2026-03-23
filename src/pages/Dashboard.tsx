@@ -19,7 +19,9 @@ import {
   Ticket,
   TrendingUp,
   IndianRupee,
+  Sparkles,
 } from "lucide-react";
+
 import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
