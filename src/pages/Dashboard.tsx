@@ -435,6 +435,7 @@ const Dashboard = () => {
           </div>
         )}
       </AnimatePresence>
+      <AiOrderModal isOpen={isAiModalOpen} onClose={() => setIsAiModalOpen(false)} />
     </AppShell>
   );
 };
