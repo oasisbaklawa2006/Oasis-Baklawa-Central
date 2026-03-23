@@ -360,6 +360,70 @@ export type Database = {
         }
         Relationships: []
       }
+      factory_inventory: {
+        Row: {
+          id: string
+          last_updated: string | null
+          product_id: string | null
+          quantity: number | null
+        }
+        Insert: {
+          id?: string
+          last_updated?: string | null
+          product_id?: string | null
+          quantity?: number | null
+        }
+        Update: {
+          id?: string
+          last_updated?: string | null
+          product_id?: string | null
+          quantity?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "factory_inventory_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      inventory_adjustments: {
+        Row: {
+          adjustment_type: string | null
+          created_at: string | null
+          id: string
+          notes: string | null
+          product_id: string | null
+          quantity: number | null
+        }
+        Insert: {
+          adjustment_type?: string | null
+          created_at?: string | null
+          id?: string
+          notes?: string | null
+          product_id?: string | null
+          quantity?: number | null
+        }
+        Update: {
+          adjustment_type?: string | null
+          created_at?: string | null
+          id?: string
+          notes?: string | null
+          product_id?: string | null
+          quantity?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "inventory_adjustments_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       invoices: {
         Row: {
           created_at: string | null
@@ -485,6 +549,7 @@ export type Database = {
           product_id: string | null
           production_status: string | null
           quantity: number
+          task_type: string | null
         }
         Insert: {
           carton_type?: string | null
@@ -496,6 +561,7 @@ export type Database = {
           product_id?: string | null
           production_status?: string | null
           quantity?: number
+          task_type?: string | null
         }
         Update: {
           carton_type?: string | null
@@ -507,6 +573,7 @@ export type Database = {
           product_id?: string | null
           production_status?: string | null
           quantity?: number
+          task_type?: string | null
         }
         Relationships: [
           {
