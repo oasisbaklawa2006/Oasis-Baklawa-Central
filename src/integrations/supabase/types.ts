@@ -211,8 +211,11 @@ export type Database = {
           business_volume: string | null
           created_at: string | null
           credit_limit: number | null
+          current_balance: number | null
+          discount_percentage: number | null
           gst_number: string | null
           id: string
+          status: string | null
           wallet_balance: number | null
           website: string | null
         }
@@ -221,8 +224,11 @@ export type Database = {
           business_volume?: string | null
           created_at?: string | null
           credit_limit?: number | null
+          current_balance?: number | null
+          discount_percentage?: number | null
           gst_number?: string | null
           id?: string
+          status?: string | null
           wallet_balance?: number | null
           website?: string | null
         }
@@ -231,8 +237,11 @@ export type Database = {
           business_volume?: string | null
           created_at?: string | null
           credit_limit?: number | null
+          current_balance?: number | null
+          discount_percentage?: number | null
           gst_number?: string | null
           id?: string
+          status?: string | null
           wallet_balance?: number | null
           website?: string | null
         }
@@ -474,6 +483,36 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      inventory_items: {
+        Row: {
+          category: string
+          current_stock: number | null
+          id: string
+          last_restocked: string | null
+          min_threshold: number | null
+          name: string
+          unit: string
+        }
+        Insert: {
+          category: string
+          current_stock?: number | null
+          id?: string
+          last_restocked?: string | null
+          min_threshold?: number | null
+          name: string
+          unit: string
+        }
+        Update: {
+          category?: string
+          current_stock?: number | null
+          id?: string
+          last_restocked?: string | null
+          min_threshold?: number | null
+          name?: string
+          unit?: string
+        }
+        Relationships: []
       }
       invoices: {
         Row: {
@@ -1051,6 +1090,38 @@ export type Database = {
           role_name?: string
         }
         Relationships: []
+      }
+      stock_logs: {
+        Row: {
+          created_at: string | null
+          id: string
+          item_id: string | null
+          notes: string | null
+          quantity_added: number
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          item_id?: string | null
+          notes?: string | null
+          quantity_added: number
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          item_id?: string | null
+          notes?: string | null
+          quantity_added?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "stock_logs_item_id_fkey"
+            columns: ["item_id"]
+            isOneToOne: false
+            referencedRelation: "inventory_items"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       support_tickets: {
         Row: {
