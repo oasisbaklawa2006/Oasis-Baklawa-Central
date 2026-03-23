@@ -3,7 +3,6 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Loader2, Truck, Package, Printer, FileText, Globe, CheckCircle2, Shield, MapPin, QrCode } from "lucide-react";
 import TopNavBar from "@/components/TopNavBar";
-import Barcode from "react-barcode";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -66,7 +65,7 @@ const AdminDispatch = () => {
       setTimeout(() => {
         window.print();
         setPrintMode("none");
-      }, 300); // Small delay to let DOM render the printable area
+      }, 500); // Small delay to let DOM render the printable area and load external barcodes
     }
   }, [printMode]);
 
@@ -78,7 +77,7 @@ const AdminDispatch = () => {
 
     // Auto-generate carton data for barcodes
     const totalPacks = order.order_items?.reduce((s, i) => s + i.quantity, 0) || 0;
-    const totalCartons = Math.ceil(totalPacks / PACKS_PER_CARTON);
+    const totalCartons = Math.ceil(totalPacks / PACKS_PER_CARTON) || 1; // Fallback to 1 if empty
     const shortOrderId = order.id.split("-")[0].toUpperCase();
 
     const cartons = [];
@@ -126,6 +125,7 @@ const AdminDispatch = () => {
     }
 
     // 2. Save the Physical Cartons to DB for the Security Guard Scanner
+    // using (supabase as any) bypasses the TS error if your types haven't refreshed yet.
     const cartonInserts = generatedCartons.map((c) => ({
       order_id: selectedOrder.id,
       dispatch_id: dispatch.id,
@@ -134,7 +134,7 @@ const AdminDispatch = () => {
       total_boxes: c.total,
       status: "labeled", // Guard will change this to 'scanned_at_gate'
     }));
-    await supabase.from("dispatch_cartons").insert(cartonInserts);
+    await (supabase as any).from("dispatch_cartons").insert(cartonInserts);
 
     // 3. Mark Order as Dispatched
     await supabase.from("orders").update({ status: "dispatched" }).eq("id", selectedOrder.id);
@@ -182,10 +182,16 @@ const AdminDispatch = () => {
                 className="page-break flex flex-col justify-center items-center w-[100mm] h-[50mm] bg-white text-black p-2 box-border border-b border-dashed border-gray-300"
               >
                 <h1 className="text-sm font-black uppercase tracking-widest text-center">Oasis Baklawa</h1>
-                <p className="text-[10px] font-bold text-gray-600 mb-1">
+                <p className="text-[10px] font-bold text-gray-600 mb-2">
                   Carton {carton.boxNum} of {carton.total}
                 </p>
-                <Barcode value={carton.barcode} width={1.8} height={40} fontSize={12} margin={0} displayValue={true} />
+                {/* Dependency-Free Barcode Generator API */}
+                <img
+                  src={`https://barcode.orcascan.com/?type=code128&data=${carton.barcode}`}
+                  alt="Barcode"
+                  className="h-12 object-contain"
+                />
+                <p className="text-[10px] font-mono font-bold mt-1">{carton.barcode}</p>
                 <p className="text-[8px] font-bold mt-1 max-w-full truncate">{selectedOrder.company?.business_name}</p>
               </div>
             ))}
@@ -219,14 +225,12 @@ const AdminDispatch = () => {
                 <p className="text-sm font-bold uppercase tracking-widest text-gray-500">Total Cartons</p>
                 <p className="text-4xl font-black">{generatedCartons.length}</p>
               </div>
-              <div className="text-right">
-                <p className="text-sm font-bold uppercase tracking-widest text-gray-500">Master Barcode</p>
-                <Barcode
-                  value={`MASTER-${selectedOrder.id.split("-")[0].toUpperCase()}`}
-                  width={1.5}
-                  height={30}
-                  fontSize={10}
-                  margin={0}
+              <div className="text-right flex flex-col items-end">
+                <p className="text-sm font-bold uppercase tracking-widest text-gray-500 mb-2">Master Barcode</p>
+                <img
+                  src={`https://barcode.orcascan.com/?type=code128&data=MASTER-${selectedOrder.id.split("-")[0].toUpperCase()}`}
+                  alt="Master Barcode"
+                  className="h-10 object-contain"
                 />
               </div>
             </div>
@@ -312,7 +316,7 @@ const AdminDispatch = () => {
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
               {orders.map((order) => {
                 const totalPacks = order.order_items?.reduce((s, i) => s + i.quantity, 0) ?? 0;
-                const totalCartons = Math.ceil(totalPacks / PACKS_PER_CARTON);
+                const totalCartons = Math.ceil(totalPacks / PACKS_PER_CARTON) || 1;
                 const companyName = order.company?.business_name ?? "Direct Customer";
 
                 return (
