@@ -40,6 +40,7 @@ import AdminSupport from "./pages/admin/AdminSupport.tsx";
 import AdminSettings from "./pages/admin/AdminSettings.tsx";
 import AdminAudit from "./pages/admin/AdminAudit.tsx";
 import AdminDepartment from "./pages/admin/AdminDepartment.tsx";
+import OperationsController from "./pages/OperationsController.tsx";
 
 const queryClient = new QueryClient();
 
