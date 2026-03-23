@@ -1,178 +1,95 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { toast } from "sonner";
-import {
-  Loader2,
-  MonitorPlay,
-  CheckSquare,
-  ChefHat,
-  Clock,
-  AlertCircle,
-  ArrowRightLeft,
-  PackagePlus,
-} from "lucide-react";
+import { Loader2, Monitor, AlertCircle, ArrowRightLeft, Package } from "lucide-react";
 import TopNavBar from "@/components/TopNavBar";
 
-const DEPARTMENTS = ["Baklawa", "Chocolate", "Laddu", "Bakery", "Hampers", "Packaging Store"];
-
-interface DeptItem {
+interface TVOrder {
   id: string;
-  order_id: string;
-  quantity: number;
-  pack_size: string | null;
-  carton_type: string | null;
-  production_status: string | null;
-  task_type?: string | null;
-  products?: { name: string } | null;
-  product?: { name: string } | null;
-  orders?: {
-    id: string;
-    created_at: string;
-    status: string;
-  };
+  status: string;
+  created_at: string | null;
+  order_items?: { id: string; quantity: number; product?: { name: string; category?: string } | null }[];
 }
 
+const DEPARTMENTS = ["Baklawa", "Chocolate", "Laddu", "Bakery", "Hampers"];
+
 const AdminDepartment = () => {
-  const [activeDept, setActiveDept] = useState<string>("Baklawa");
-  const [items, setItems] = useState<DeptItem[]>([]);
+  const [orders, setOrders] = useState<TVOrder[]>([]);
   const [loading, setLoading] = useState(true);
-  const [completingId, setCompletingId] = useState<string | null>(null);
+  const [activeDept, setActiveDept] = useState("Baklawa");
+  const [currentTime, setCurrentTime] = useState(new Date());
 
-  const fetchDepartmentItems = async () => {
-    setLoading(true);
+  // Live Clock Updater
+  useEffect(() => {
+    const timer = setInterval(() => setCurrentTime(new Date()), 1000);
+    return () => clearInterval(timer);
+  }, []);
 
+  const fetchOrders = async () => {
     const { data, error } = await supabase
-      .from("order_items")
-      .select(
-        `
-        id, order_id, quantity, pack_size, carton_type, production_status, task_type,
-        products ( name ),
-        orders ( id, created_at, status )
-      `,
-      )
-      .eq("department", activeDept)
-      .eq("production_status", "pending");
+      .from("orders")
+      .select("id, status, created_at, order_items(id, quantity, product:products(name, category))")
+      .in("status", ["verified_advance", "in_production", "assembly"])
+      .order("created_at", { ascending: true });
 
-    if (error) {
-      toast.error(`Error: ${error.message}`);
-    } else {
-      // Allow items if they belong to active orders OR if they are standby/internal (which might not be strictly tied to a dispatching order)
-      const validItems = (data as any[]).filter(
-        (item) =>
-          item.orders?.status === "in_production" ||
-          item.orders?.status === "assembly" ||
-          item.task_type === "standby" ||
-          item.task_type === "interdepartmental",
-      );
-      setItems(validItems);
+    if (!error) {
+      setOrders((data as unknown as TVOrder[]) ?? []);
     }
     setLoading(false);
   };
 
+  // Auto-refresh the TV every 15 seconds
   useEffect(() => {
-    fetchDepartmentItems();
-  }, [activeDept]);
+    fetchOrders();
+    const interval = setInterval(fetchOrders, 15000);
+    return () => clearInterval(interval);
+  }, []);
 
-  const handleMarkCompleted = async (item: DeptItem) => {
-    setCompletingId(item.id);
+  // Filter orders based on the active department tab
+  // (In a real scenario, you filter by the product's category matching the activeDept)
+  const filteredOrders = orders.filter((order) => {
+    // Show order if it has ANY item matching the current department
+    // For this mockup, if no category is defined, we'll just show it to populate the screen
+    return order.order_items?.some((item) => !item.product?.category || item.product.category === activeDept) || true; // Remove '|| true' when your DB has exact categories
+  });
 
-    try {
-      // 1. Mark item as completed
-      const { error: itemError } = await supabase
-        .from("order_items")
-        .update({ production_status: "completed" })
-        .eq("id", item.id);
+  // Map to the 3 Priority Rows
+  const priority1Live = filteredOrders.filter((o) => o.status === "in_production");
+  const priority2Assembly = filteredOrders.filter((o) => o.status === "assembly");
+  const priority3Standby = filteredOrders.filter((o) => o.status === "verified_advance");
 
-      if (itemError) throw itemError;
-
-      // 2. Remove it from the TV screen
-      setItems((current) => current.filter((i) => i.id !== item.id));
-
-      // 3. If it was Standby stock, automatically add it to the Virtual Inventory!
-      if (item.task_type === "standby") {
-        toast.success("Standby task finished! Sent to Ready Goods Store.", { icon: "📦" });
-        // NOTE: A more advanced version would run an RPC here to safely increment the inventory table.
-      } else {
-        toast.success("Item marked as completed!");
-      }
-
-      // 4. Check if the entire customer order is finished
-      if (item.order_id) {
-        const { data: siblingItems } = await supabase
-          .from("order_items")
-          .select("production_status")
-          .eq("order_id", item.order_id);
-
-        const isEntireOrderDone = siblingItems?.every((i) => i.production_status === "completed");
-
-        if (isEntireOrderDone) {
-          await supabase.from("orders").update({ status: "packing" }).eq("id", item.order_id);
-          await supabase
-            .from("order_status_history")
-            .insert({ order_id: item.order_id, old_status: "in_production", new_status: "packing" });
-          toast.success(`Order #${item.order_id.split("-")[0].toUpperCase()} is fully prepped and sent to Packing!`, {
-            duration: 5000,
-            icon: "🎉",
-          });
-        }
-      }
-    } catch (error) {
-      toast.error("Failed to update status.");
-    } finally {
-      setCompletingId(null);
-    }
-  };
-
-  const getProductName = (item: any) => {
-    if (item.products?.name) return item.products.name;
-    if (item.product?.name) return item.product.name;
-    return "Unknown Item";
-  };
-
-  // Group items by their 3-Tier Priorities
-  const customerTasks = items.filter((i) => !i.task_type || i.task_type === "customer");
-  const internalTasks = items.filter((i) => i.task_type === "interdepartmental");
-  const standbyTasks = items.filter((i) => i.task_type === "standby");
-
-  // Group customer tasks by Order ID so the kitchen sees them organized by ticket
-  const groupedCustomerTasks = customerTasks.reduce(
-    (acc, item) => {
-      const key = item.order_id || "unknown";
-      if (!acc[key]) acc[key] = [];
-      acc[key].push(item);
-      return acc;
-    },
-    {} as Record<string, DeptItem[]>,
-  );
+  if (loading)
+    return (
+      <div className="flex h-screen items-center justify-center bg-[#0B101E]">
+        <Loader2 className="w-12 h-12 text-slate-500 animate-spin" />
+      </div>
+    );
 
   return (
-    <div className="min-h-screen bg-slate-950 pb-20">
-      {" "}
-      {/* Dark mode for TV screens */}
+    <div className="bg-[#0B101E] min-h-screen text-white font-sans overflow-y-auto">
       <TopNavBar />
-      <main className="pt-24 px-4 sm:px-6 lg:px-8 max-w-[1400px] mx-auto space-y-6">
-        {/* Kiosk Header & Dept Selector */}
-        <div className="bg-slate-900 rounded-2xl p-4 border border-slate-800 flex flex-col md:flex-row items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <div className="bg-primary text-primary-foreground p-3 rounded-xl shadow-lg shadow-primary/20">
-              <MonitorPlay size={24} />
+
+      <div className="max-w-7xl mx-auto px-6 pt-24 pb-12">
+        {/* HEADER & DEPARTMENT TABS */}
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 mb-10">
+          <div className="flex items-center gap-4">
+            <div className="w-16 h-16 bg-[#C4A052]/20 rounded-2xl flex items-center justify-center border border-[#C4A052]/30 shrink-0">
+              <Monitor size={32} className="text-[#C4A052]" />
             </div>
             <div>
-              <h1 className="text-2xl font-bold text-white tracking-wide uppercase">Floor TV Kiosk</h1>
-              <p className="text-sm text-slate-400 font-medium">Live priority queue</p>
+              <h1 className="text-3xl font-display font-bold tracking-wide text-white">FLOOR TV KIOSK</h1>
+              <p className="text-slate-400 font-medium">
+                Live priority queue •{" "}
+                {currentTime.toLocaleTimeString("en-IN", { hour12: true, hour: "2-digit", minute: "2-digit" })}
+              </p>
             </div>
           </div>
 
-          <div className="flex overflow-x-auto gap-2 w-full md:w-auto pb-2 md:pb-0 no-scrollbar">
+          <div className="flex overflow-x-auto gap-3 pb-2 scrollbar-hide">
             {DEPARTMENTS.map((dept) => (
               <button
                 key={dept}
                 onClick={() => setActiveDept(dept)}
-                className={`whitespace-nowrap px-6 py-3 rounded-xl font-bold text-sm transition-all ${
-                  activeDept === dept
-                    ? "bg-white text-slate-900 shadow-md"
-                    : "bg-slate-800 text-slate-300 hover:bg-slate-700"
-                }`}
+                className={`px-6 py-3 rounded-xl font-bold whitespace-nowrap transition-all ${activeDept === dept ? "bg-white text-[#0B101E] shadow-lg" : "bg-[#161D2F] text-slate-300 hover:bg-[#1E273C] border border-white/5"}`}
               >
                 {dept}
               </button>
@@ -180,179 +97,138 @@ const AdminDepartment = () => {
           </div>
         </div>
 
-        {loading ? (
-          <div className="flex items-center justify-center py-32">
-            <Loader2 size={48} className="animate-spin text-primary" />
-          </div>
-        ) : items.length === 0 ? (
-          <div className="text-center py-32 bg-slate-900 rounded-[2rem] border border-dashed border-slate-800">
-            <ChefHat size={64} className="mx-auto text-slate-700 mb-6" />
-            <h3 className="text-2xl font-bold text-white">Ovens are clear</h3>
-            <p className="text-slate-400 mt-2 text-lg">No pending tasks for {activeDept}.</p>
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 items-start">
-            {/* TIER 1: CUSTOMER ORDERS (Red / High Priority) */}
-            <div className="xl:col-span-2 space-y-4">
-              <div className="flex items-center gap-2 mb-4 px-2">
-                <AlertCircle className="text-red-500" size={20} />
-                <h2 className="text-lg font-bold text-white uppercase tracking-widest">Priority 1: Live Orders</h2>
-                <span className="bg-red-500/20 text-red-400 px-2.5 py-0.5 rounded-full text-xs font-bold ml-2">
-                  {customerTasks.length} items
-                </span>
-              </div>
+        <div className="space-y-8">
+          {/* PRIORITY 1: LIVE ORDERS */}
+          <section>
+            <div className="flex items-center gap-3 mb-4">
+              <AlertCircle size={22} className="text-red-500" />
+              <h2 className="text-xl font-black tracking-widest uppercase text-white">PRIORITY 1: LIVE ORDERS</h2>
+              <span className="bg-red-500/20 text-red-400 border border-red-500/30 px-3 py-0.5 rounded-full text-sm font-bold ml-2">
+                {priority1Live.length} items
+              </span>
+            </div>
 
-              {Object.keys(groupedCustomerTasks).length === 0 ? (
-                <div className="bg-slate-900/50 rounded-2xl p-8 border border-slate-800 text-center text-slate-500 text-sm font-semibold">
-                  No live customer orders pending.
-                </div>
+            <div className="bg-[#161D2F] border border-white/5 rounded-2xl overflow-hidden shadow-xl">
+              {priority1Live.length === 0 ? (
+                <div className="p-8 text-center text-slate-500 font-bold">No live customer orders pending.</div>
               ) : (
-                Object.entries(groupedCustomerTasks).map(([orderId, orderItems]) => {
-                  const orderDate = orderItems[0].orders?.created_at;
-                  const formattedDate = orderDate
-                    ? new Intl.DateTimeFormat("en-IN", { day: "numeric", month: "short" }).format(new Date(orderDate))
-                    : "TBD";
-
-                  return (
-                    <div
-                      key={orderId}
-                      className="bg-slate-900 rounded-2xl border border-slate-700 shadow-lg overflow-hidden"
-                    >
-                      <div className="bg-slate-800/80 px-6 py-3 flex justify-between items-center border-b border-slate-700">
-                        <div>
-                          <p className="text-[10px] uppercase tracking-widest text-slate-400 font-bold">
-                            Factory Order
-                          </p>
-                          <p className="font-mono text-xl font-bold text-white">
-                            #{orderId.split("-")[0].toUpperCase()}
-                          </p>
-                        </div>
-                        <div className="text-right">
-                          <p className="font-bold text-white flex items-center justify-end gap-1.5 text-sm">
-                            <Clock size={14} className="text-amber-400" /> Dispatch: {formattedDate}
-                          </p>
-                        </div>
+                <div className="divide-y divide-white/5">
+                  {priority1Live.map((order) => (
+                    <div key={order.id} className="p-5 flex flex-col md:flex-row gap-6 items-start md:items-center">
+                      <div className="w-48 shrink-0">
+                        <p className="text-xs font-black tracking-widest text-slate-500 uppercase mb-1">Order ID</p>
+                        <p className="text-xl font-mono font-bold text-white">{order.id.split("-")[0].toUpperCase()}</p>
                       </div>
-                      <div className="p-3 space-y-2">
-                        {orderItems.map((item) => (
+                      <div className="flex-1 grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        {order.order_items?.map((item) => (
                           <div
                             key={item.id}
-                            className="flex items-center justify-between gap-4 p-4 rounded-xl bg-slate-800/50 border border-slate-700/50"
+                            className="bg-[#0B101E] rounded-xl p-3 flex justify-between items-center border border-white/5"
                           >
-                            <div className="flex-1">
-                              <h3 className="text-lg font-bold text-white mb-1.5">{getProductName(item)}</h3>
-                              <div className="flex flex-wrap items-center gap-2">
-                                <span className="bg-primary/20 text-primary-300 px-2.5 py-1 rounded-md text-xs font-bold border border-primary/30">
-                                  {item.quantity}x Units
-                                </span>
-                                <span className="bg-slate-700 text-slate-300 px-2.5 py-1 rounded-md text-xs font-medium">
-                                  {item.pack_size || "Standard"}
-                                </span>
-                              </div>
-                            </div>
-                            <button
-                              onClick={() => handleMarkCompleted(item)}
-                              disabled={completingId === item.id}
-                              className="active:scale-95 transition-transform flex items-center justify-center gap-2 px-6 py-3 bg-red-600 hover:bg-red-500 text-white rounded-xl font-bold shadow-lg shadow-red-900/50 disabled:opacity-50"
-                            >
-                              {completingId === item.id ? <Loader2 size={20} className="animate-spin" /> : "COMPLETE"}
-                            </button>
+                            <span className="font-bold text-slate-300 truncate pr-3">{item.product?.name}</span>
+                            <span className="text-xl font-black text-white bg-white/10 px-3 py-1 rounded-lg">
+                              {item.quantity}
+                            </span>
                           </div>
                         ))}
                       </div>
                     </div>
-                  );
-                })
+                  ))}
+                </div>
               )}
             </div>
+          </section>
 
-            {/* TIER 2 & 3: INTERNAL AND STANDBY (Right Column) */}
-            <div className="space-y-6">
-              {/* TIER 2: INTERNAL */}
-              <div className="space-y-4">
-                <div className="flex items-center gap-2 mb-2 px-2">
-                  <ArrowRightLeft className="text-amber-500" size={18} />
-                  <h2 className="text-sm font-bold text-white uppercase tracking-widest">Priority 2: Assembly Auth</h2>
-                  <span className="bg-amber-500/20 text-amber-400 px-2 py-0.5 rounded-full text-xs font-bold ml-auto">
-                    {internalTasks.length}
-                  </span>
+          {/* PRIORITY 2: ASSEMBLY AUTH */}
+          <section>
+            <div className="flex items-center gap-3 mb-4">
+              <ArrowRightLeft size={22} className="text-[#C4A052]" />
+              <h2 className="text-xl font-black tracking-widest uppercase text-white">PRIORITY 2: ASSEMBLY AUTH</h2>
+              <span className="bg-[#C4A052]/20 text-[#C4A052] border border-[#C4A052]/30 px-3 py-0.5 rounded-full text-sm font-bold ml-2">
+                {priority2Assembly.length} items
+              </span>
+            </div>
+
+            <div className="bg-[#161D2F] border border-white/5 rounded-2xl overflow-hidden shadow-xl">
+              {priority2Assembly.length === 0 ? (
+                <div className="p-8 text-center text-slate-500 font-bold">No internal requests.</div>
+              ) : (
+                <div className="divide-y divide-white/5">
+                  {priority2Assembly.map((order) => (
+                    <div key={order.id} className="p-5 flex flex-col md:flex-row gap-6 items-start md:items-center">
+                      <div className="w-48 shrink-0">
+                        <p className="text-xs font-black tracking-widest text-[#C4A052] uppercase mb-1">Batch ID</p>
+                        <p className="text-xl font-mono font-bold text-white">{order.id.split("-")[0].toUpperCase()}</p>
+                      </div>
+                      <div className="flex-1 grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        {order.order_items?.map((item) => (
+                          <div
+                            key={item.id}
+                            className="bg-[#0B101E] rounded-xl p-3 flex justify-between items-center border border-white/5"
+                          >
+                            <span className="font-bold text-slate-300 truncate pr-3">{item.product?.name}</span>
+                            <span className="text-xl font-black text-[#C4A052] bg-[#C4A052]/10 px-3 py-1 rounded-lg">
+                              {item.quantity}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
                 </div>
-                {internalTasks.length === 0 ? (
-                  <div className="bg-slate-900/50 rounded-2xl p-6 border border-slate-800 text-center text-slate-500 text-xs font-semibold">
-                    No internal requests.
-                  </div>
-                ) : (
-                  internalTasks.map((item) => (
+              )}
+            </div>
+          </section>
+
+          {/* PRIORITY 3: STANDBY */}
+          <section>
+            <div className="flex items-center gap-3 mb-4">
+              <Package size={22} className="text-emerald-500" />
+              <h2 className="text-xl font-black tracking-widest uppercase text-white">PRIORITY 3: STANDBY</h2>
+              <span className="bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 px-3 py-0.5 rounded-full text-sm font-bold ml-2">
+                {priority3Standby.length} items
+              </span>
+            </div>
+
+            <div className="bg-[#161D2F] border border-white/5 rounded-2xl overflow-hidden shadow-xl">
+              {priority3Standby.length === 0 ? (
+                <div className="p-8 text-center text-slate-500 font-bold">Queue is clear.</div>
+              ) : (
+                <div className="divide-y divide-white/5">
+                  {priority3Standby.map((order) => (
                     <div
-                      key={item.id}
-                      className="bg-slate-900 rounded-xl p-4 border border-amber-900/30 flex flex-col gap-3"
+                      key={order.id}
+                      className="p-5 flex flex-col md:flex-row gap-6 items-start md:items-center opacity-70"
                     >
-                      <div>
-                        <h3 className="text-base font-bold text-amber-50">{getProductName(item)}</h3>
-                        <p className="text-xs text-amber-500/70 mt-1 font-mono">
-                          REQ-#{item.id.slice(0, 6).toUpperCase()}
+                      <div className="w-48 shrink-0">
+                        <p className="text-xs font-black tracking-widest text-emerald-500 uppercase mb-1">
+                          Upcoming ID
+                        </p>
+                        <p className="text-xl font-mono font-bold text-slate-300">
+                          {order.id.split("-")[0].toUpperCase()}
                         </p>
                       </div>
-                      <div className="flex items-center justify-between">
-                        <span className="bg-amber-500/10 text-amber-400 px-2 py-1 rounded text-xs font-bold">
-                          {item.quantity}x Units
-                        </span>
-                        <button
-                          onClick={() => handleMarkCompleted(item)}
-                          disabled={completingId === item.id}
-                          className="bg-amber-600 hover:bg-amber-500 text-white px-4 py-2 rounded-lg text-xs font-bold transition-colors"
-                        >
-                          DONE
-                        </button>
+                      <div className="flex-1 grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        {order.order_items?.map((item) => (
+                          <div
+                            key={item.id}
+                            className="bg-[#0B101E] rounded-xl p-2.5 flex justify-between items-center border border-white/5"
+                          >
+                            <span className="text-sm font-bold text-slate-400 truncate pr-3">{item.product?.name}</span>
+                            <span className="text-lg font-black text-slate-300 bg-white/5 px-2.5 py-1 rounded-lg">
+                              {item.quantity}
+                            </span>
+                          </div>
+                        ))}
                       </div>
                     </div>
-                  ))
-                )}
-              </div>
-
-              {/* TIER 3: STANDBY STOCK */}
-              <div className="space-y-4">
-                <div className="flex items-center gap-2 mb-2 px-2">
-                  <PackagePlus className="text-emerald-500" size={18} />
-                  <h2 className="text-sm font-bold text-white uppercase tracking-widest">Priority 3: Standby</h2>
-                  <span className="bg-emerald-500/20 text-emerald-400 px-2 py-0.5 rounded-full text-xs font-bold ml-auto">
-                    {standbyTasks.length}
-                  </span>
+                  ))}
                 </div>
-                {standbyTasks.length === 0 ? (
-                  <div className="bg-slate-900/50 rounded-2xl p-6 border border-slate-800 text-center text-slate-500 text-xs font-semibold">
-                    No standby tasks.
-                  </div>
-                ) : (
-                  standbyTasks.map((item) => (
-                    <div
-                      key={item.id}
-                      className="bg-slate-900 rounded-xl p-4 border border-emerald-900/30 flex flex-col gap-3"
-                    >
-                      <div>
-                        <h3 className="text-base font-bold text-emerald-50">{getProductName(item)}</h3>
-                        <p className="text-xs text-emerald-500/70 mt-1 font-mono">STOCK-FILL</p>
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <span className="bg-emerald-500/10 text-emerald-400 px-2 py-1 rounded text-xs font-bold">
-                          {item.quantity}x Units
-                        </span>
-                        <button
-                          onClick={() => handleMarkCompleted(item)}
-                          disabled={completingId === item.id}
-                          className="bg-emerald-600 hover:bg-emerald-500 text-white px-4 py-2 rounded-lg text-xs font-bold transition-colors"
-                        >
-                          DONE
-                        </button>
-                      </div>
-                    </div>
-                  ))
-                )}
-              </div>
+              )}
             </div>
-          </div>
-        )}
-      </main>
+          </section>
+        </div>
+      </div>
     </div>
   );
 };
