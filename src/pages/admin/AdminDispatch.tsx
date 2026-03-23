@@ -1,14 +1,10 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { Loader2, Truck, Package, CheckCircle2, Shield } from "lucide-react";
+import { Loader2, Truck, Package, CheckCircle2, Shield, MapPin, Printer } from "lucide-react";
 import { useNavigate } from "react-router-dom";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+import TopNavBar from "@/components/TopNavBar";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
@@ -26,7 +22,7 @@ interface DispatchOrder {
   status: string;
   sales_order_value: number | null;
   company_id: string | null;
-  company?: { business_name: string } | null;
+  company?: { business_name: string; billing_address?: string; phone?: string } | null;
   order_items?: OrderItem[];
 }
 
@@ -40,9 +36,10 @@ const AdminDispatch = () => {
   const [modalLoading, setModalLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
+
+  // Dispatch Form State
   const [partialDispatch, setPartialDispatch] = useState(false);
   const [addInsurance, setAddInsurance] = useState(false);
-
   const [transporterName, setTransporterName] = useState("");
   const [trackingNumber, setTrackingNumber] = useState("");
   const [driverName, setDriverName] = useState("");
@@ -52,16 +49,22 @@ const AdminDispatch = () => {
 
   const fetchOrders = async () => {
     setLoading(true);
+    // Added packed_ready just in case the floor controller uses that status
     const { data } = await supabase
       .from("orders")
-      .select("*, company:companies(business_name), order_items(id, quantity, pack_size, carton_type, product_id)")
-      .in("status", ["packing", "ready_for_dispatch"])
+      .select(
+        "*, company:companies(business_name, billing_address, phone), order_items(id, quantity, pack_size, carton_type, product_id)",
+      )
+      .in("status", ["packing", "ready_for_dispatch", "packed_ready"])
       .order("created_at", { ascending: false });
+
     setOrders((data as unknown as DispatchOrder[]) ?? []);
     setLoading(false);
   };
 
-  useEffect(() => { fetchOrders(); }, []);
+  useEffect(() => {
+    fetchOrders();
+  }, []);
 
   const openDispatchModal = async (order: DispatchOrder) => {
     setSelectedOrder(order);
@@ -79,16 +82,21 @@ const AdminDispatch = () => {
       .select("id, quantity, pack_size, carton_type, product_id, product:products(name)")
       .eq("order_id", order.id);
 
-    setModalItems(((data as unknown as OrderItem[]) ?? []).map((it) => ({
-      ...it,
-      packed_qty: it.quantity,
-    })));
+    setModalItems(
+      ((data as unknown as OrderItem[]) ?? []).map((it) => ({
+        ...it,
+        packed_qty: it.quantity,
+      })),
+    );
     setModalLoading(false);
   };
 
   const handleSubmitDispatch = async () => {
     if (!selectedOrder) return;
-    if (!transporterName.trim()) { toast.error("Transporter name is required"); return; }
+    if (!transporterName.trim()) {
+      toast.error("Transporter name is required");
+      return;
+    }
     setSubmitting(true);
 
     const { data: dispatch, error: dispatchErr } = await supabase
@@ -123,9 +131,11 @@ const AdminDispatch = () => {
 
     await supabase.from("packing_lists").insert(packingEntries);
 
-    // If partial dispatch, keep order open; otherwise mark dispatched
     if (!partialDispatch) {
       await supabase.from("orders").update({ status: "dispatched" }).eq("id", selectedOrder.id);
+      await supabase
+        .from("order_status_history")
+        .insert({ order_id: selectedOrder.id, old_status: selectedOrder.status, new_status: "dispatched" });
     }
 
     setSubmitting(false);
@@ -136,153 +146,258 @@ const AdminDispatch = () => {
     setSelectedOrder(null);
     setShowSuccess(false);
     fetchOrders();
-    navigate("/admin/dispatch");
   };
 
   const totalPacked = modalItems.reduce((s, i) => s + i.packed_qty, 0);
+  const totalPendingPacks = orders.reduce(
+    (sum, order) => sum + (order.order_items?.reduce((itemSum, item) => itemSum + item.quantity, 0) || 0),
+    0,
+  );
 
-  if (loading) {
-    return <div className="flex items-center justify-center py-20"><Loader2 size={24} className="animate-spin text-primary" /></div>;
-  }
+  if (loading)
+    return (
+      <div className="flex items-center justify-center py-20 min-h-screen bg-slate-50">
+        <Loader2 size={32} className="animate-spin text-[#B8860B]" />
+      </div>
+    );
 
   return (
-    <div className="space-y-6">
-      <h1 className="text-display-h2 text-primary">Dispatch</h1>
-
-      {orders.length === 0 ? (
-        <p className="text-ui-label text-muted-foreground">No orders ready for dispatch.</p>
-      ) : (
-        <div className="rounded-xl overflow-hidden border border-border bg-white" style={{ boxShadow: "0 2px 12px rgba(0,0,0,0.06)" }}>
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="bg-muted/50">
-                <th className="text-left px-4 py-3 text-ui-label text-muted-foreground">Company</th>
-                <th className="text-left px-4 py-3 text-ui-label text-muted-foreground">Order ID</th>
-                <th className="text-left px-4 py-3 text-ui-label text-muted-foreground">Status</th>
-                <th className="text-left px-4 py-3 text-ui-label text-muted-foreground">Value</th>
-                <th className="text-left px-4 py-3 text-ui-label text-muted-foreground">Packs / Cartons</th>
-                <th className="text-right px-4 py-3 text-ui-label text-muted-foreground">Action</th>
-              </tr>
-            </thead>
-            <tbody>
-              {orders.map((order) => {
-                const totalPacks = order.order_items?.reduce((s, i) => s + i.quantity, 0) ?? 0;
-                const totalCartons = Math.floor(totalPacks / PACKS_PER_CARTON);
-                return (
-                  <tr key={order.id} className="border-t border-border">
-                    <td className="px-4 py-3 text-ui-cell text-foreground">{order.company?.business_name ?? "Unknown"}</td>
-                    <td className="px-4 py-3 text-ui-cell text-muted-foreground text-xs">{order.id.slice(0, 8)}…</td>
-                    <td className="px-4 py-3">
-                      <span className="px-2 py-1 rounded-full text-xs font-semibold bg-primary/10 text-primary">{order.status}</span>
-                    </td>
-                    <td className="px-4 py-3 text-ui-cell text-foreground">₹{(order.sales_order_value ?? 0).toLocaleString("en-IN")}</td>
-                    <td className="px-4 py-3 text-ui-cell text-muted-foreground">
-                      {totalPacks} Packs · {totalCartons} Cartons
-                    </td>
-                    <td className="px-4 py-3 text-right">
-                      <button
-                        onClick={() => openDispatchModal(order)}
-                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-primary/10 text-primary hover:bg-primary/20 transition-colors"
-                      >
-                        <Truck size={14} /> Create Dispatch
-                      </button>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+    <div className="min-h-screen bg-slate-50 pb-20 font-sans">
+      <TopNavBar />
+      <main className="pt-24 px-4 sm:px-6 max-w-6xl mx-auto space-y-6">
+        {/* HEADER */}
+        <div>
+          <h1 className="text-display-h2 text-slate-900 font-bold flex items-center gap-3">
+            <Truck className="text-[#B8860B]" size={32} /> Dispatch & Logistics
+          </h1>
+          <p className="text-sm font-bold text-slate-500 mt-1">
+            Generate packing slips, assign transporters, and ship.
+          </p>
         </div>
-      )}
 
-      <Dialog open={!!selectedOrder} onOpenChange={(open) => { if (!open) { setSelectedOrder(null); setShowSuccess(false); } }}>
-        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto bg-white border-border">
+        {/* KPI BAR */}
+        <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm flex flex-col sm:flex-row justify-between sm:items-center gap-4">
+          <div>
+            <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">Outbound Workload</span>
+            <p className="text-lg font-black text-slate-900 mt-0.5">{orders.length} Deliveries Pending</p>
+          </div>
+          <div className="flex items-center gap-3 bg-slate-50 px-4 py-2 rounded-xl border border-slate-100">
+            <Package size={20} className="text-slate-400" />
+            <div>
+              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Total Volume</p>
+              <p className="text-sm font-black text-slate-900">{totalPendingPacks} Packs/Cartons</p>
+            </div>
+          </div>
+        </div>
+
+        {/* DISPATCH LIST */}
+        {orders.length === 0 ? (
+          <div className="text-center py-16 bg-white rounded-3xl border border-slate-200 shadow-sm">
+            <Truck size={48} className="mx-auto text-slate-300 mb-4" />
+            <p className="text-slate-500 font-bold uppercase tracking-widest">Dispatch Bay is Empty</p>
+            <p className="text-xs text-slate-400 font-medium mt-1">Waiting for production to finish batches.</p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            {orders.map((order) => {
+              const totalPacks = order.order_items?.reduce((s, i) => s + i.quantity, 0) ?? 0;
+              const totalCartons = Math.floor(totalPacks / PACKS_PER_CARTON);
+              const companyName = order.company?.business_name ?? "Direct Customer";
+
+              return (
+                <div
+                  key={order.id}
+                  className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm flex flex-col justify-between"
+                >
+                  <div>
+                    <div className="flex justify-between items-start mb-3">
+                      <div>
+                        <span className="bg-emerald-50 text-emerald-600 px-2 py-1 rounded text-[10px] font-black uppercase tracking-widest mb-2 inline-block border border-emerald-100">
+                          Ready for Dispatch
+                        </span>
+                        <h3 className="text-xl font-black text-slate-900 leading-tight">{companyName}</h3>
+                        <p className="text-xs font-bold text-slate-400 mt-1 font-mono uppercase">
+                          ID: {order.id.split("-")[0]}
+                        </p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Value</p>
+                        <p className="text-lg font-black text-[#B8860B]">
+                          ₹{(order.sales_order_value ?? 0).toLocaleString("en-IN")}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-start gap-2 text-xs font-bold text-slate-500 bg-slate-50 p-2.5 rounded-lg border border-slate-100 mb-4">
+                      <MapPin size={14} className="shrink-0 mt-0.5" />
+                      <span className="line-clamp-2">
+                        {order.company?.billing_address || "No shipping address provided."}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center justify-between border-t border-slate-100 pt-4 mt-auto">
+                    <div>
+                      <p className="text-sm font-black text-slate-900">{totalPacks} Packs</p>
+                      <p className="text-xs font-bold text-slate-500">~{totalCartons} Cartons</p>
+                    </div>
+                    <button
+                      onClick={() => openDispatchModal(order)}
+                      className="px-5 py-2.5 rounded-xl bg-slate-900 text-white font-bold text-sm hover:bg-black transition-colors flex items-center gap-2"
+                    >
+                      <Printer size={16} /> Process Dispatch
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </main>
+
+      {/* DISPATCH PROCESSING MODAL */}
+      <Dialog
+        open={!!selectedOrder}
+        onOpenChange={(open) => {
+          if (!open) {
+            setSelectedOrder(null);
+            setShowSuccess(false);
+          }
+        }}
+      >
+        <DialogContent className="max-w-xl max-h-[90vh] overflow-y-auto bg-white border-slate-200 rounded-3xl p-0 overflow-hidden">
           {showSuccess ? (
-            <div className="text-center py-10 space-y-4">
-              <CheckCircle2 size={56} className="mx-auto text-green-500" />
-              <h2 className="text-display-h2 text-foreground">Dispatch Created Successfully</h2>
-              <p className="text-body-p2 text-muted-foreground">Invoice & Waybill have been generated.</p>
+            <div className="text-center py-16 px-6 bg-slate-50 space-y-4">
+              <CheckCircle2 size={64} className="mx-auto text-emerald-500" />
+              <h2 className="text-2xl font-black text-slate-900">Dispatch Created Successfully!</h2>
+              <p className="text-sm font-bold text-slate-500">Invoice & Waybill have been generated and logged.</p>
               <button
                 onClick={handleSuccessClose}
-                className="px-6 py-2.5 rounded-xl bg-primary text-primary-foreground font-ui font-semibold text-sm hover:bg-primary/90 transition-colors"
+                className="mt-4 px-8 py-3 rounded-xl bg-[#B8860B] text-white font-bold text-sm hover:bg-[#9A7009] transition-colors shadow-lg shadow-[#B8860B]/20"
               >
-                View Documents
+                Done
               </button>
             </div>
           ) : (
             <>
-              <DialogHeader>
-                <DialogTitle className="text-display-h2 text-primary">Create Dispatch</DialogTitle>
+              <DialogHeader className="p-6 pb-0">
+                <DialogTitle className="text-2xl font-black text-slate-900 flex items-center gap-2">
+                  <Truck className="text-[#B8860B]" /> Create Dispatch
+                </DialogTitle>
               </DialogHeader>
+
               {selectedOrder && (
-                <div className="space-y-5 mt-2">
-                  <div className="space-y-1">
-                    <p className="text-ui-h5 text-foreground">{selectedOrder.company?.business_name ?? "Unknown"}</p>
-                    <p className="text-ui-cell text-muted-foreground">Order: {selectedOrder.id.slice(0, 12)}…</p>
+                <div className="px-6 pb-6 space-y-6 mt-4">
+                  {/* Client Info */}
+                  <div className="bg-slate-50 p-4 rounded-xl border border-slate-100">
+                    <p className="text-lg font-black text-slate-900 leading-tight">
+                      {selectedOrder.company?.business_name ?? "Unknown"}
+                    </p>
+                    <p className="text-xs font-bold text-slate-500 mt-1 uppercase tracking-widest">
+                      Order: {selectedOrder.id.split("-")[0]}
+                    </p>
                   </div>
 
-                  {/* Dispatch type toggle */}
-                  <div className="flex items-center gap-3 p-3 rounded-xl bg-muted/50 border border-border">
-                    <label className="text-ui-label text-foreground flex items-center gap-2 cursor-pointer">
+                  {/* Transport Details Form */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-1.5">
+                      <Label className="text-xs font-bold text-slate-500 uppercase tracking-widest">
+                        Transporter Name *
+                      </Label>
+                      <Input
+                        value={transporterName}
+                        onChange={(e) => setTransporterName(e.target.value)}
+                        className="rounded-xl bg-slate-50 font-bold"
+                        placeholder="e.g. VRL Logistics"
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label className="text-xs font-bold text-slate-500 uppercase tracking-widest">
+                        LR / Bilty Number
+                      </Label>
+                      <Input
+                        value={trackingNumber}
+                        onChange={(e) => setTrackingNumber(e.target.value)}
+                        className="rounded-xl bg-slate-50 font-bold"
+                        placeholder="LR-00123"
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label className="text-xs font-bold text-slate-500 uppercase tracking-widest">Driver Name</Label>
+                      <Input
+                        value={driverName}
+                        onChange={(e) => setDriverName(e.target.value)}
+                        className="rounded-xl bg-slate-50 font-bold"
+                        placeholder="Driver name"
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label className="text-xs font-bold text-slate-500 uppercase tracking-widest">Driver Phone</Label>
+                      <Input
+                        value={driverPhone}
+                        onChange={(e) => setDriverPhone(e.target.value)}
+                        className="rounded-xl bg-slate-50 font-bold"
+                        placeholder="+91 98765 43210"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Toggles */}
+                  <div className="flex flex-col gap-3">
+                    <label className="flex items-start gap-3 p-3 rounded-xl bg-slate-50 border border-slate-200 cursor-pointer hover:bg-slate-100 transition-colors">
                       <input
                         type="checkbox"
                         checked={partialDispatch}
                         onChange={(e) => setPartialDispatch(e.target.checked)}
-                        className="rounded border-border"
+                        className="mt-1 w-4 h-4 text-[#B8860B] rounded border-slate-300"
                       />
-                      Partial Dispatch
+                      <div>
+                        <span className="font-bold text-sm text-slate-900 block">Partial Dispatch</span>
+                        <span className="text-xs text-slate-500 font-medium">
+                          Order stays open for future dispatches.
+                        </span>
+                      </div>
                     </label>
-                    <span className="text-fine text-muted-foreground">
-                      {partialDispatch ? "Order stays open for future dispatches" : "Full dispatch — order will be closed"}
-                    </span>
+
+                    <label className="flex items-center gap-3 p-3 rounded-xl bg-slate-50 border border-slate-200 cursor-pointer hover:bg-slate-100 transition-colors">
+                      <input
+                        type="checkbox"
+                        checked={addInsurance}
+                        onChange={(e) => setAddInsurance(e.target.checked)}
+                        className="w-4 h-4 text-[#B8860B] rounded border-slate-300"
+                      />
+                      <Shield size={16} className="text-[#B8860B]" />
+                      <span className="font-bold text-sm text-slate-900 block">Add Transit Insurance</span>
+                    </label>
                   </div>
 
-                  {/* Transport Details */}
-                  <div className="grid grid-cols-2 gap-3">
-                    <div className="space-y-1.5">
-                      <Label className="text-ui-label text-muted-foreground">Transporter Name *</Label>
-                      <Input value={transporterName} onChange={(e) => setTransporterName(e.target.value)} className="rounded-xl" placeholder="e.g. VRL Logistics" />
-                    </div>
-                    <div className="space-y-1.5">
-                      <Label className="text-ui-label text-muted-foreground">LR / Bilty Number</Label>
-                      <Input value={trackingNumber} onChange={(e) => setTrackingNumber(e.target.value)} className="rounded-xl" placeholder="LR-00123" />
-                    </div>
-                    <div className="space-y-1.5">
-                      <Label className="text-ui-label text-muted-foreground">Driver Name</Label>
-                      <Input value={driverName} onChange={(e) => setDriverName(e.target.value)} className="rounded-xl" placeholder="Driver name" />
-                    </div>
-                    <div className="space-y-1.5">
-                      <Label className="text-ui-label text-muted-foreground">Driver Phone</Label>
-                      <Input value={driverPhone} onChange={(e) => setDriverPhone(e.target.value)} className="rounded-xl" placeholder="+91 98765 43210" />
-                    </div>
-                  </div>
+                  {/* Packing List Adjustments */}
+                  <div className="border-t border-slate-100 pt-4">
+                    <h3 className="text-sm font-bold text-slate-900 mb-3 flex items-center justify-between">
+                      <span>Packing List Verification</span>
+                      {modalLoading && <Loader2 size={16} className="animate-spin text-slate-400" />}
+                    </h3>
 
-                  {/* Insurance */}
-                  <label className="flex items-center gap-2 text-ui-label text-foreground cursor-pointer">
-                    <input type="checkbox" checked={addInsurance} onChange={(e) => setAddInsurance(e.target.checked)} className="rounded border-border" />
-                    <Shield size={14} className="text-primary" />
-                    Add Insurance
-                  </label>
-
-                  {/* Packing Items */}
-                  <div className="border-t border-border pt-4">
-                    <h3 className="text-ui-h5 text-foreground mb-3">Packing List — Actual Packed Quantity</h3>
-                    {modalLoading ? (
-                      <div className="flex justify-center py-6"><Loader2 size={20} className="animate-spin text-primary" /></div>
-                    ) : (
-                      <div className="space-y-2">
+                    {!modalLoading && (
+                      <div className="space-y-2 max-h-[200px] overflow-y-auto pr-2 custom-scrollbar">
                         {modalItems.map((item, idx) => {
-                          const itemPacks = item.packed_qty;
-                          const itemCartons = Math.floor(itemPacks / PACKS_PER_CARTON);
                           return (
-                            <div key={item.id} className="flex items-center justify-between p-3 rounded-xl border border-border bg-muted/30">
-                              <div className="flex-1">
-                                <p className="text-ui-h5 text-foreground">{(item.product as any)?.name ?? "Unknown"}</p>
-                                <p className="text-fine text-muted-foreground">
-                                  {item.pack_size ?? "—"} · {item.carton_type ?? "—"} · Ordered: {item.quantity} packs
+                            <div
+                              key={item.id}
+                              className="flex items-center justify-between p-3 rounded-xl border border-slate-200 bg-white"
+                            >
+                              <div className="flex-1 pr-4">
+                                <p className="text-sm font-bold text-slate-900 truncate">
+                                  {(item.product as any)?.name ?? "Unknown Item"}
+                                </p>
+                                <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mt-1">
+                                  Ordered: {item.quantity} units
                                 </p>
                               </div>
-                              <div className="w-20 ml-3">
+                              <div className="w-24 shrink-0 flex flex-col items-end">
+                                <Label className="text-[10px] font-bold text-slate-400 uppercase mb-1">
+                                  Packed Qty
+                                </Label>
                                 <Input
                                   type="number"
                                   min={0}
@@ -292,7 +407,7 @@ const AdminDispatch = () => {
                                     updated[idx] = { ...updated[idx], packed_qty: Number(e.target.value) || 0 };
                                     setModalItems(updated);
                                   }}
-                                  className="text-sm text-center h-8 rounded-lg"
+                                  className="text-center h-9 rounded-lg font-black bg-slate-50 border-slate-200 focus:border-[#B8860B]"
                                 />
                               </div>
                             </div>
@@ -302,26 +417,44 @@ const AdminDispatch = () => {
                     )}
                   </div>
 
-                  <div className="border-t border-border pt-4 flex justify-between items-center">
-                    <span className="text-ui-label text-muted-foreground">Total Packed</span>
-                    <span className="text-ui-kpi text-foreground">
-                      {totalPacked} Packs · {Math.floor(totalPacked / PACKS_PER_CARTON)} Cartons
-                    </span>
-                  </div>
+                  {/* Footer Actions */}
+                  <div className="border-t border-slate-100 pt-4">
+                    <div className="flex justify-between items-center mb-4 bg-slate-900 text-white p-4 rounded-xl">
+                      <span className="text-xs font-bold uppercase tracking-widest text-slate-400">Total Outbound</span>
+                      <span className="text-lg font-black">
+                        {totalPacked} Packs{" "}
+                        <span className="text-slate-500 text-sm ml-1 font-bold">
+                          ~{Math.floor(totalPacked / PACKS_PER_CARTON)} Cartons
+                        </span>
+                      </span>
+                    </div>
 
-                  <button
-                    onClick={handleSubmitDispatch}
-                    disabled={submitting}
-                    className="w-full py-3 rounded-xl font-ui font-semibold text-sm transition-colors disabled:opacity-50 bg-primary text-primary-foreground hover:bg-primary/90"
-                  >
-                    {submitting ? <Loader2 size={16} className="animate-spin mx-auto" /> : "Submit Dispatch"}
-                  </button>
+                    <button
+                      onClick={handleSubmitDispatch}
+                      disabled={submitting}
+                      className="w-full py-4 rounded-xl font-bold text-sm transition-colors disabled:opacity-50 bg-[#B8860B] text-white hover:bg-[#9A7009] shadow-lg shadow-[#B8860B]/20 flex items-center justify-center gap-2"
+                    >
+                      {submitting ? (
+                        <Loader2 size={18} className="animate-spin" />
+                      ) : (
+                        <>
+                          <Truck size={18} /> Confirm & Generate Waybill
+                        </>
+                      )}
+                    </button>
+                  </div>
                 </div>
               )}
             </>
           )}
         </DialogContent>
       </Dialog>
+
+      <style>{`
+        .custom-scrollbar::-webkit-scrollbar { width: 6px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: #f1f5f9; border-radius: 10px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
+      `}</style>
     </div>
   );
 };
