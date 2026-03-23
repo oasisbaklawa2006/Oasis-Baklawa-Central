@@ -8,13 +8,13 @@ import {
   FileText,
   Search,
   ShieldCheck,
-  ShieldAlert,
-  Truck,
   Receipt,
   UploadCloud,
   FileUp,
   X,
   Banknote,
+  Calculator,
+  Link,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
@@ -23,6 +23,7 @@ interface FinanceOrder {
   status: string;
   payment_status: string | null;
   sales_order_value: number | null;
+  advance_paid: number | null;
   created_at: string;
   company_id: string | null;
   company?: { business_name: string } | null;
@@ -37,26 +38,28 @@ const formatDate = (dateString: string) =>
     minute: "2-digit",
   });
 
-type FinanceQueue = "validation" | "approvals" | "dispatch_hold";
+type FinanceQueue = "validation" | "approvals" | "invoicing";
 
 const AdminFinance = () => {
   const [orders, setOrders] = useState<FinanceOrder[]>([]);
   const [loading, setLoading] = useState(true);
   const [acting, setActing] = useState<string | null>(null);
-  const [search, setSearch] = useState("");
   const [activeQueue, setActiveQueue] = useState<FinanceQueue>("validation");
 
-  // Document Hub Modal State
+  // Invoicing Modal State
   const [docOrder, setDocOrder] = useState<FinanceOrder | null>(null);
-  const [finalInvoiceValue, setFinalInvoiceValue] = useState<string>("");
+  const [tallyAmount, setTallyAmount] = useState("");
+  const [tallyInvoiceNo, setTallyInvoiceNo] = useState("");
+  const [soNumber, setSoNumber] = useState("");
   const [invoiceUploaded, setInvoiceUploaded] = useState(false);
-  const [ewayUploaded, setEwayUploaded] = useState(false);
 
   const fetchOrders = async () => {
     setLoading(true);
     const { data, error } = await supabase
       .from("orders")
-      .select("id, status, payment_status, sales_order_value, created_at, company_id, company:companies(business_name)")
+      .select(
+        "id, status, payment_status, sales_order_value, advance_paid, created_at, company_id, company:companies(business_name)",
+      )
       .order("created_at", { ascending: false });
 
     if (!error && data) setOrders(data as unknown as FinanceOrder[]);
@@ -74,7 +77,7 @@ const AdminFinance = () => {
         .from("orders")
         .update({ payment_status: "verified_advance", status: "in_production" })
         .eq("id", orderId);
-      toast.success("Payment Validated. Cleared for Production.");
+      toast.success("Advance Verified. Cleared for Dispatch Team to pack.");
       fetchOrders();
     } catch (err) {
       toast.error("Action failed.");
@@ -82,31 +85,27 @@ const AdminFinance = () => {
     setActing(null);
   };
 
-  // THE NEW DOCUMENT HUB SUBMIT LOGIC
-  const handleFinalizeDocuments = async () => {
-    if (!docOrder || !finalInvoiceValue || !invoiceUploaded) {
-      toast.error("You must upload the Tally Invoice and enter the final amount.");
+  // THE NEW EXACT WORKFLOW SUBMIT
+  const handleRequestBalance = async () => {
+    if (!docOrder || !tallyAmount || !tallyInvoiceNo || !invoiceUploaded) {
+      toast.error("Please fill all Tally details and attach the PDF.");
       return;
     }
     setActing(docOrder.id);
     try {
-      // In a real app, we would calculate logic here:
-      // If Final Invoice > Advance Paid -> status = 'awaiting_final_payment'
-      // If Fully Paid -> status = 'cleared_for_dispatch'
-
       await supabase
         .from("orders")
         .update({
-          sales_order_value: parseFloat(finalInvoiceValue), // Update to real Tally value
-          status: "awaiting_final_payment", // Assuming they need to pay balance
+          sales_order_value: parseFloat(tallyAmount), // Overwrite with exact Tally amount
+          status: "awaiting_final_payment",
         })
         .eq("id", docOrder.id);
 
-      toast.success("Tally Invoice Uploaded! Customer notified to pay final balance.");
+      toast.success("Invoice Locked! Payment request sent to customer.");
       setDocOrder(null);
       setInvoiceUploaded(false);
-      setEwayUploaded(false);
-      setFinalInvoiceValue("");
+      setTallyAmount("");
+      setTallyInvoiceNo("");
       fetchOrders();
     } catch (err) {
       toast.error("Upload failed.");
@@ -114,9 +113,12 @@ const AdminFinance = () => {
     setActing(null);
   };
 
+  // Queues
   const validationQueue = orders.filter((o) => o.payment_status === "awaiting_utr");
   const approvalQueue = orders.filter((o) => o.payment_status === "credit_requested");
-  const dispatchHoldQueue = orders.filter((o) => o.status === "in_production" || o.status === "awaiting_final_payment");
+  // Assuming 'packed_ready' is the status Operations sets after putting items in boxes
+  const invoicingQueue = orders.filter((o) => o.status === "in_production" || o.status === "packed_ready");
+
   const totalValueToday = orders.reduce((sum, o) => sum + (o.sales_order_value || 0), 0);
 
   if (loading)
@@ -130,16 +132,14 @@ const AdminFinance = () => {
     <div className="bg-slate-50 min-h-screen pb-12">
       {/* HEADER */}
       <div className="bg-slate-900 text-white pt-8 pb-16 px-6">
-        <div className="max-w-7xl mx-auto">
-          <div className="flex justify-between items-end mb-8">
-            <div>
-              <h1 className="font-display text-3xl font-bold">Finance Control Tower</h1>
-              <p className="text-sm text-slate-400 mt-1">Approval, risk, and payment validation.</p>
-            </div>
-            <div className="text-right">
-              <p className="text-xs text-slate-400 uppercase tracking-widest font-bold">Total Exposure (Active)</p>
-              <p className="text-2xl font-black text-[#B8860B]">{formatPrice(totalValueToday)}</p>
-            </div>
+        <div className="max-w-7xl mx-auto flex justify-between items-end mb-8">
+          <div>
+            <h1 className="font-display text-3xl font-bold">Finance Control Tower</h1>
+            <p className="text-sm text-slate-400 mt-1">Approval, invoicing, and payment validation.</p>
+          </div>
+          <div className="text-right">
+            <p className="text-xs text-slate-400 uppercase tracking-widest font-bold">Total Exposure</p>
+            <p className="text-2xl font-black text-[#B8860B]">{formatPrice(totalValueToday)}</p>
           </div>
         </div>
       </div>
@@ -148,9 +148,9 @@ const AdminFinance = () => {
       <div className="max-w-7xl mx-auto px-6 -mt-6">
         <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-2 flex overflow-x-auto scrollbar-hide gap-2">
           {[
-            { id: "validation", label: "Advance Payments", count: validationQueue.length, icon: Banknote },
-            { id: "approvals", label: "Commercial Approvals", count: approvalQueue.length, icon: ShieldCheck },
-            { id: "dispatch_hold", label: "Final Invoices & Dispatch", count: dispatchHoldQueue.length, icon: Receipt },
+            { id: "validation", label: "Advance UTRs", count: validationQueue.length, icon: Banknote },
+            { id: "approvals", label: "Credit Approvals", count: approvalQueue.length, icon: ShieldCheck },
+            { id: "invoicing", label: "Post-Pack Invoicing", count: invoicingQueue.length, icon: Calculator },
           ].map((tab) => (
             <button
               key={tab.id}
@@ -180,7 +180,7 @@ const AdminFinance = () => {
                   <div key={order.id} className="bg-white border-l-4 border-amber-400 rounded-xl p-5 shadow-sm">
                     <div className="flex justify-between items-start border-b border-slate-100 pb-3 mb-3">
                       <div>
-                        <p className="text-xs text-slate-400 font-bold uppercase">Order #{order.id.split("-")[0]}</p>
+                        <p className="text-xs text-slate-400 font-bold uppercase">SO #{order.id.split("-")[0]}</p>
                         <p className="font-black text-slate-900 text-lg">{order.company?.business_name}</p>
                       </div>
                     </div>
@@ -203,7 +203,7 @@ const AdminFinance = () => {
                           <Loader2 size={14} className="animate-spin" />
                         ) : (
                           <>
-                            <CheckCircle2 size={14} /> Validate
+                            <CheckCircle2 size={14} /> Verify Advance
                           </>
                         )}
                       </button>
@@ -214,52 +214,38 @@ const AdminFinance = () => {
             </div>
           )}
 
-          {/* QUEUE 3: INVOICE & DISPATCH HOLD */}
-          {activeQueue === "dispatch_hold" && (
+          {/* QUEUE 3: POST-PACK INVOICING */}
+          {activeQueue === "invoicing" && (
             <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {dispatchHoldQueue.length === 0 ? (
-                <p className="text-slate-500 font-bold p-4">No orders awaiting invoicing.</p>
+              {invoicingQueue.length === 0 ? (
+                <p className="text-slate-500 font-bold p-4">No orders packed and awaiting invoice.</p>
               ) : (
-                dispatchHoldQueue.map((order) => (
+                invoicingQueue.map((order) => (
                   <div key={order.id} className="bg-white border-l-4 border-[#B8860B] rounded-xl p-5 shadow-sm">
                     <div className="flex justify-between items-start border-b border-slate-100 pb-3 mb-3">
                       <div>
-                        <p className="text-xs text-slate-400 font-bold uppercase">Order #{order.id.split("-")[0]}</p>
+                        <p className="text-xs text-slate-400 font-bold uppercase">SO #{order.id.split("-")[0]}</p>
                         <p className="font-black text-slate-900 text-lg">{order.company?.business_name}</p>
                       </div>
                     </div>
                     <div className="flex justify-between items-center mb-5">
                       <div>
-                        <p className="text-[10px] text-slate-500 font-bold uppercase">Est. Value</p>
+                        <p className="text-[10px] text-slate-500 font-bold uppercase">Packed Value Est.</p>
                         <p className="text-lg font-black text-slate-900">{formatPrice(order.sales_order_value || 0)}</p>
                       </div>
-                      {order.status === "awaiting_final_payment" ? (
-                        <span className="bg-red-50 text-red-600 px-2 py-1 rounded text-[10px] font-bold uppercase">
-                          Awaiting Final UTR
-                        </span>
-                      ) : (
-                        <span className="bg-blue-50 text-blue-600 px-2 py-1 rounded text-[10px] font-bold uppercase">
-                          Packed by Ops
-                        </span>
-                      )}
+                      <span className="bg-blue-50 text-blue-600 px-2 py-1 rounded text-[10px] font-bold uppercase flex items-center gap-1">
+                        <Package size={12} /> Packed by Ops
+                      </span>
                     </div>
-                    <div className="flex gap-2">
-                      {order.status === "awaiting_final_payment" ? (
-                        <button
-                          onClick={() => handleValidatePayment(order.id)}
-                          className="w-full py-2.5 bg-emerald-600 text-white rounded-lg text-xs font-bold hover:bg-emerald-700 flex justify-center items-center gap-1"
-                        >
-                          Verify Final UTR & Dispatch
-                        </button>
-                      ) : (
-                        <button
-                          onClick={() => setDocOrder(order)}
-                          className="w-full py-2.5 bg-slate-900 text-white rounded-lg text-xs font-bold hover:bg-black flex justify-center items-center gap-1"
-                        >
-                          <UploadCloud size={14} /> Upload Tally Docs
-                        </button>
-                      )}
-                    </div>
+                    <button
+                      onClick={() => {
+                        setDocOrder(order);
+                        setSoNumber(`SO-${order.id.split("-")[0].toUpperCase()}`);
+                      }}
+                      className="w-full py-2.5 bg-slate-900 text-white rounded-lg text-xs font-bold hover:bg-black flex justify-center items-center gap-1.5"
+                    >
+                      <Calculator size={14} /> Process Final Invoice
+                    </button>
                   </div>
                 ))
               )}
@@ -268,96 +254,150 @@ const AdminFinance = () => {
         </div>
       </div>
 
-      {/* FINANCE DOCUMENT HUB MODAL */}
+      {/* FINANCE INVOICING MODAL (EXACT WORKFLOW) */}
       <AnimatePresence>
         {docOrder && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm overflow-y-auto">
             <motion.div
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95 }}
-              className="bg-white rounded-2xl p-6 w-full max-w-lg shadow-2xl"
+              className="bg-white rounded-3xl w-full max-w-2xl shadow-2xl my-8"
             >
-              <div className="flex justify-between items-center mb-5">
+              {/* Modal Header */}
+              <div className="flex justify-between items-center p-6 border-b border-slate-100">
                 <div>
-                  <h3 className="font-display text-xl font-bold text-slate-900">Upload Final Documents</h3>
-                  <p className="text-xs text-slate-500">
-                    Order #{docOrder.id.split("-")[0]} • {docOrder.company?.business_name}
-                  </p>
+                  <h3 className="font-display text-2xl font-bold text-slate-900">Process Final Invoice</h3>
+                  <p className="text-sm text-slate-500 mt-1">{docOrder.company?.business_name}</p>
                 </div>
                 <button
                   onClick={() => setDocOrder(null)}
-                  className="w-8 h-8 bg-slate-100 rounded-full flex items-center justify-center text-slate-500 hover:bg-slate-200"
+                  className="w-10 h-10 bg-slate-100 rounded-full flex items-center justify-center text-slate-500 hover:bg-slate-200"
                 >
-                  <X size={18} />
+                  <X size={20} />
                 </button>
               </div>
 
-              <div className="space-y-4">
-                {/* Final Value Input */}
-                <div>
-                  <label className="block text-xs font-bold text-slate-500 uppercase mb-1">
-                    Final Tally Invoice Amount (₹)
-                  </label>
-                  <input
-                    type="number"
-                    placeholder="Enter exact total from Tally"
-                    value={finalInvoiceValue}
-                    onChange={(e) => setFinalInvoiceValue(e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 font-bold text-lg outline-none focus:border-[#B8860B] focus:ring-1 focus:ring-[#B8860B]"
-                  />
-                  <p className="text-[10px] text-slate-400 mt-1">
-                    This will update the order value and calculate any pending balance automatically.
-                  </p>
+              <div className="p-6 space-y-6">
+                {/* 1. INTERNAL AUTO-CALCULATION (Read-Only) */}
+                <div className="bg-slate-50 rounded-2xl border border-slate-200 p-5">
+                  <h4 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-4 flex items-center gap-2">
+                    <Calculator size={14} /> Internal Reconciliation Sheet
+                  </h4>
+
+                  <div className="space-y-2 text-sm">
+                    <div className="flex justify-between text-slate-600">
+                      <span>Packed Items Value (As per Slab)</span>
+                      <span className="font-bold">{formatPrice((docOrder.sales_order_value || 0) * 0.82)}</span>
+                    </div>
+                    <div className="flex justify-between text-slate-600 border-b border-slate-200 pb-3">
+                      <span>Estimated GST (18%)</span>
+                      <span className="font-bold">{formatPrice((docOrder.sales_order_value || 0) * 0.18)}</span>
+                    </div>
+                    <div className="flex justify-between text-slate-900 font-bold pt-1">
+                      <span>Gross Invoice Value</span>
+                      <span>{formatPrice(docOrder.sales_order_value || 0)}</span>
+                    </div>
+                    <div className="flex justify-between text-emerald-600 font-bold">
+                      <span>Less: Advance Paid</span>
+                      <span>- {formatPrice(docOrder.advance_paid || 0)}</span>
+                    </div>
+                    <div className="flex justify-between text-blue-600 font-bold border-b border-slate-200 pb-3">
+                      <span>Less: Wallet / Previous Credit</span>
+                      <span>- ₹0</span>
+                    </div>
+                    <div className="flex justify-between items-center pt-2">
+                      <span className="text-xs uppercase tracking-widest text-slate-500 font-bold">
+                        Calculated Due Balance
+                      </span>
+                      <span className="font-black text-xl text-[#B8860B]">
+                        {formatPrice((docOrder.sales_order_value || 0) - (docOrder.advance_paid || 0))}
+                      </span>
+                    </div>
+                  </div>
                 </div>
 
-                {/* Upload Buttons */}
-                <div className="grid grid-cols-2 gap-3 pt-2">
+                {/* 2. TALLY DATA ENTRY (Manual Input) */}
+                <div className="space-y-4">
+                  <h4 className="text-xs font-bold text-slate-400 uppercase tracking-widest flex items-center gap-2">
+                    <Receipt size={14} /> Enter Official Tally Details
+                  </h4>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-[11px] font-bold text-slate-500 uppercase mb-1.5">
+                        Generated Against SO #
+                      </label>
+                      <input
+                        type="text"
+                        value={soNumber}
+                        onChange={(e) => setSoNumber(e.target.value)}
+                        className="w-full bg-white border border-slate-200 rounded-xl p-3 text-sm font-bold outline-none focus:border-[#B8860B]"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[11px] font-bold text-slate-500 uppercase mb-1.5">
+                        Official Tally Inv #
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="e.g. INV/25-26/042"
+                        value={tallyInvoiceNo}
+                        onChange={(e) => setTallyInvoiceNo(e.target.value)}
+                        className="w-full bg-white border border-slate-200 rounded-xl p-3 text-sm font-bold outline-none focus:border-[#B8860B]"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-500 uppercase mb-1.5">
+                      Exact Tally Amount (₹)
+                    </label>
+                    <input
+                      type="number"
+                      placeholder="Enter final amount to adjust round-offs"
+                      value={tallyAmount}
+                      onChange={(e) => setTallyAmount(e.target.value)}
+                      className="w-full bg-white border border-slate-200 rounded-xl p-3 text-lg font-black text-[#B8860B] outline-none focus:border-[#B8860B]"
+                    />
+                  </div>
+                </div>
+
+                {/* 3. FILE UPLOAD */}
+                <div>
                   <button
                     onClick={() => {
                       setInvoiceUploaded(true);
-                      toast.success("Invoice Attached");
+                      toast.success("Tally PDF Attached");
                     }}
-                    className={`flex flex-col items-center justify-center p-4 border-2 border-dashed rounded-xl transition-colors ${invoiceUploaded ? "border-emerald-500 bg-emerald-50" : "border-slate-300 hover:border-[#B8860B] bg-slate-50"}`}
+                    className={`w-full flex items-center justify-center gap-3 p-4 border-2 border-dashed rounded-xl transition-all ${invoiceUploaded ? "border-emerald-500 bg-emerald-50 text-emerald-700" : "border-slate-300 hover:border-[#B8860B] bg-slate-50 text-slate-500"}`}
                   >
-                    <FileUp size={24} className={invoiceUploaded ? "text-emerald-500" : "text-slate-400"} />
-                    <span className="text-xs font-bold mt-2 text-slate-700">
-                      {invoiceUploaded ? "Tax Invoice Added" : "Upload Tally Invoice"}
-                    </span>
-                  </button>
-
-                  <button
-                    onClick={() => {
-                      setEwayUploaded(true);
-                      toast.success("E-Way Bill Attached");
-                    }}
-                    className={`flex flex-col items-center justify-center p-4 border-2 border-dashed rounded-xl transition-colors ${ewayUploaded ? "border-emerald-500 bg-emerald-50" : "border-slate-300 hover:border-[#B8860B] bg-slate-50"}`}
-                  >
-                    <Truck size={24} className={ewayUploaded ? "text-emerald-500" : "text-slate-400"} />
-                    <span className="text-xs font-bold mt-2 text-slate-700">
-                      {ewayUploaded ? "E-Way Bill Added" : "Upload E-Way Bill"}
+                    {invoiceUploaded ? <CheckCircle2 size={20} /> : <FileUp size={20} />}
+                    <span className="text-sm font-bold">
+                      {invoiceUploaded ? "Tax Invoice Attached" : "Upload Tally Tax Invoice (PDF)"}
                     </span>
                   </button>
                 </div>
               </div>
 
-              <div className="pt-6 mt-4 border-t border-slate-100 flex gap-3">
+              {/* ACTION FOOTER */}
+              <div className="p-6 border-t border-slate-100 flex gap-3 bg-slate-50 rounded-b-3xl">
                 <button
                   onClick={() => setDocOrder(null)}
-                  className="flex-1 py-3 bg-slate-100 text-slate-600 font-bold rounded-xl hover:bg-slate-200"
+                  className="px-6 py-4 bg-white border border-slate-200 text-slate-600 font-bold rounded-xl hover:bg-slate-100"
                 >
                   Cancel
                 </button>
                 <button
-                  onClick={handleFinalizeDocuments}
+                  onClick={handleRequestBalance}
                   disabled={acting === docOrder.id}
-                  className="flex-[2] py-3 bg-slate-900 text-white font-bold rounded-xl hover:bg-black flex justify-center items-center gap-2 shadow-lg"
+                  className="flex-1 py-4 bg-slate-900 text-white font-bold rounded-xl hover:bg-black flex justify-center items-center gap-2 shadow-xl shadow-slate-900/20 active:scale-95 transition-all"
                 >
                   {acting === docOrder.id ? (
-                    <Loader2 size={16} className="animate-spin" />
+                    <Loader2 size={18} className="animate-spin" />
                   ) : (
                     <>
-                      <Receipt size={16} /> Lock Invoice & Request Balance
+                      <Link size={18} /> Lock Invoice & Request Balance
                     </>
                   )}
                 </button>
