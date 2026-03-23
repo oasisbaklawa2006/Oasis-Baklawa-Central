@@ -193,6 +193,20 @@ const Dashboard = () => {
             </div>
             <Ticket size={20} className="text-rose-500" />
           </button>
+          <button
+            onClick={() => setIsAiModalOpen(true)}
+            className="bg-[#B8860B] text-white p-4 rounded-2xl flex items-center justify-between hover:bg-[#9A7009] active:scale-95 transition-all shadow-md col-span-2 mt-3"
+          >
+            <div className="text-left">
+              <p className="font-bold text-sm flex items-center gap-2">
+                <Sparkles size={16} /> Quick Order via AI
+              </p>
+              <p className="text-[10px] text-white/80 mt-0.5">
+                Type or paste a Purchase Order to build your cart instantly.
+              </p>
+            </div>
+            <ChevronRight size={20} className="text-white/50" />
+          </button>
         </section>
 
         {/* LIVE TRACKING TIMELINE */}
