@@ -7,11 +7,8 @@ import TopNavBar from "@/components/TopNavBar";
 interface ProdOrder {
   id: string;
   status: string;
-  sales_order_value: number | null;
-  company_id: string | null;
   created_at: string | null;
-  company?: { business_name: string } | null;
-  order_items?: { id: string; quantity: number; product_id: string | null; product?: { name: string } | null }[];
+  order_items?: { id: string; quantity: number; product?: { name: string } | null }[];
 }
 
 type Urgency = "critical" | "warning" | "safe";
@@ -22,59 +19,48 @@ const AdminProduction = () => {
   const [currentTime, setCurrentTime] = useState(new Date());
   const { t } = useLanguage();
 
-  // Live Clock Updater for TV
   useEffect(() => {
     const timer = setInterval(() => setCurrentTime(new Date()), 1000);
     return () => clearInterval(timer);
   }, []);
 
   const fetchOrders = async () => {
-    // Fetching active factory orders
     const { data, error } = await supabase
       .from("orders")
-      .select(
-        "id, status, sales_order_value, company_id, created_at, company:companies(business_name), order_items(id, quantity, product:products(name))",
-      )
+      .select("id, status, created_at, order_items(id, quantity, product:products(name))")
       .in("status", ["verified_advance", "in_production", "assembly"])
       .order("created_at", { ascending: true });
 
-    if (error) {
-      console.error(error);
-    } else {
-      setOrders((data as unknown as ProdOrder[]) ?? []);
-    }
+    if (!error) setOrders((data as unknown as ProdOrder[]) ?? []);
     setLoading(false);
   };
 
-  // Auto-refresh the TV every 15 seconds
   useEffect(() => {
     fetchOrders();
     const interval = setInterval(fetchOrders, 15000);
     return () => clearInterval(interval);
   }, []);
 
-  // Calculate Urgency based on actual DB creation time
   const getUrgency = (createdAt: string | null): Urgency => {
     if (!createdAt) return "safe";
     const hoursSince = (Date.now() - new Date(createdAt).getTime()) / 3600000;
-    if (hoursSince > 48) return "critical"; // > 48 hours = Red
-    if (hoursSince > 24) return "warning"; // > 24 hours = Yellow
-    return "safe"; // Green
+    if (hoursSince > 48) return "critical";
+    if (hoursSince > 24) return "warning";
+    return "safe";
   };
 
   const getUrgencyColors = (urgency: Urgency) => {
-    if (urgency === "critical") return "bg-red-950/40 border-red-500 text-red-100";
-    if (urgency === "warning") return "bg-amber-950/40 border-amber-500 text-amber-100";
-    return "bg-emerald-950/20 border-emerald-500/50 text-emerald-100";
+    if (urgency === "critical") return "bg-red-950/40 border-red-500/50 text-red-100";
+    if (urgency === "warning") return "bg-amber-950/40 border-amber-500/50 text-amber-100";
+    return "bg-emerald-950/20 border-emerald-500/30 text-emerald-100";
   };
 
   const getUrgencyIcon = (urgency: Urgency) => {
-    if (urgency === "critical") return <Flame className="text-red-500 animate-pulse" size={24} />;
-    if (urgency === "warning") return <AlertTriangle className="text-amber-500" size={24} />;
-    return <Clock className="text-emerald-500" size={24} />;
+    if (urgency === "critical") return <Flame className="text-red-500 animate-pulse" size={18} />;
+    if (urgency === "warning") return <AlertTriangle className="text-amber-500" size={18} />;
+    return <Clock className="text-emerald-500" size={18} />;
   };
 
-  // Splitting real data into the 3 TV Panes
   const productionOrders = orders.filter((o) => o.status === "in_production");
   const assemblyOrders = orders.filter((o) => o.status === "assembly");
   const upcomingOrders = orders.filter((o) => o.status === "verified_advance");
@@ -82,7 +68,7 @@ const AdminProduction = () => {
   if (loading)
     return (
       <div className="flex h-screen items-center justify-center bg-black">
-        <Loader2 className="w-16 h-16 text-slate-500 animate-spin" />
+        <Loader2 className="w-12 h-12 text-slate-500 animate-spin" />
       </div>
     );
 
@@ -91,68 +77,59 @@ const AdminProduction = () => {
       <TopNavBar />
 
       {/* TV HEADER */}
-      <div className="bg-slate-900 border-b border-slate-800 p-4 flex justify-between items-center shrink-0 mt-14">
-        <div className="flex items-center gap-4">
-          <div className="w-4 h-4 rounded-full bg-emerald-500 animate-pulse shadow-[0_0_15px_rgba(16,185,129,0.5)]"></div>
-          <h1 className="text-3xl font-black tracking-widest uppercase text-slate-100">{t("Live Production Floor")}</h1>
+      <div className="bg-slate-900 border-b border-slate-800 p-3 flex justify-between items-center shrink-0 mt-14">
+        <div className="flex items-center gap-3">
+          <div className="w-3 h-3 rounded-full bg-emerald-500 animate-pulse shadow-[0_0_10px_rgba(16,185,129,0.5)]"></div>
+          <h1 className="text-xl font-black tracking-widest uppercase text-slate-100">{t("Production Display")}</h1>
         </div>
-        <div className="text-right flex items-center gap-6">
+        <div className="text-right flex items-center gap-4">
           <div className="flex items-center gap-3">
-            <span className="flex items-center gap-1 text-sm font-bold text-red-400">
-              <Flame size={14} /> &gt; 48 Hrs
+            <span className="flex items-center gap-1 text-xs font-bold text-red-400">
+              <Flame size={12} /> &gt; 48 Hrs
             </span>
-            <span className="flex items-center gap-1 text-sm font-bold text-amber-400">
-              <AlertTriangle size={14} /> &gt; 24 Hrs
+            <span className="flex items-center gap-1 text-xs font-bold text-amber-400">
+              <AlertTriangle size={12} /> &gt; 24 Hrs
             </span>
           </div>
-          <p className="text-4xl font-black font-mono text-[#B8860B] tracking-tight bg-black/50 px-4 py-1 rounded-xl">
+          <p className="text-2xl font-black font-mono text-[#B8860B] tracking-tight bg-black/50 px-3 py-1 rounded-lg">
             {currentTime.toLocaleTimeString("en-IN", { hour12: true, hour: "2-digit", minute: "2-digit" })}
           </p>
         </div>
       </div>
 
       {/* 3-COLUMN TV GRID */}
-      <div className="flex-1 grid grid-cols-3 gap-6 p-6 h-full overflow-hidden pb-10">
-        {/* COLUMN 1: LIVE PRODUCTION (Baking/Making) */}
-        <div className="flex flex-col bg-slate-900/50 rounded-3xl border border-slate-800 overflow-hidden shadow-2xl">
-          <div className="bg-slate-800 p-4 flex items-center justify-between shadow-lg">
-            <h2 className="text-2xl font-black uppercase tracking-wider flex items-center gap-3">
-              <Factory size={28} className="text-[#B8860B]" /> {t("In Production")}
+      <div className="flex-1 grid grid-cols-3 gap-4 p-4 h-full overflow-hidden pb-6">
+        {/* COLUMN 1: LIVE PRODUCTION */}
+        <div className="flex flex-col bg-slate-900/50 rounded-2xl border border-slate-800 overflow-hidden shadow-2xl">
+          <div className="bg-slate-800 p-3 flex items-center justify-between shadow-sm">
+            <h2 className="text-lg font-black uppercase tracking-wider flex items-center gap-2 text-slate-100">
+              <Factory size={18} className="text-[#B8860B]" /> {t("Production")}
             </h2>
-            <span className="bg-slate-700 text-white px-3 py-1 rounded-lg text-xl font-bold">
+            <span className="bg-slate-700 text-white px-2.5 py-0.5 rounded text-sm font-bold">
               {productionOrders.length}
             </span>
           </div>
-          <div className="p-4 space-y-4 overflow-y-auto custom-scrollbar h-full">
-            {productionOrders.length === 0 && (
-              <p className="text-center text-slate-600 font-bold mt-10 text-xl uppercase tracking-widest">
-                No Active Orders
-              </p>
-            )}
+          <div className="p-3 space-y-3 overflow-y-auto custom-scrollbar h-full">
             {productionOrders.map((order) => {
               const urgency = getUrgency(order.created_at);
               return (
-                <div
-                  key={order.id}
-                  className={`rounded-2xl border-l-[12px] p-5 shadow-lg ${getUrgencyColors(urgency)}`}
-                >
-                  <div className="flex justify-between items-start mb-4">
-                    <div>
-                      <p className="text-sm font-black opacity-60 tracking-widest mb-1">{order.id.slice(0, 8)}</p>
-                      <h3 className="text-3xl font-black leading-tight">
-                        {order.company?.business_name ?? "Walk-In / Direct"}
-                      </h3>
-                    </div>
+                <div key={order.id} className={`rounded-xl border-l-[8px] p-3 shadow-md ${getUrgencyColors(urgency)}`}>
+                  <div className="flex justify-between items-center mb-2">
+                    <h3 className="text-lg font-black tracking-widest leading-none">
+                      ID: {order.id.split("-")[0].toUpperCase()}
+                    </h3>
                     {getUrgencyIcon(urgency)}
                   </div>
-                  <div className="space-y-2 bg-black/40 rounded-xl p-4">
+                  <div className="space-y-1.5 bg-black/30 rounded-lg p-2.5">
                     {order.order_items?.map((item) => (
                       <div
                         key={item.id}
-                        className="flex justify-between items-center border-b border-white/5 last:border-0 pb-2 last:pb-0"
+                        className="flex justify-between items-center border-b border-white/5 last:border-0 pb-1.5 last:pb-0"
                       >
-                        <p className="text-xl font-bold text-slate-200">{item.product?.name ?? "Unknown Item"}</p>
-                        <span className="text-3xl font-black text-white ml-4">{item.quantity}</span>
+                        <p className="text-sm font-bold text-slate-200 truncate pr-2">
+                          {item.product?.name ?? "Unknown Item"}
+                        </p>
+                        <span className="text-lg font-black text-white shrink-0">{item.quantity}</span>
                       </div>
                     ))}
                   </div>
@@ -163,43 +140,36 @@ const AdminProduction = () => {
         </div>
 
         {/* COLUMN 2: ASSEMBLY LINE */}
-        <div className="flex flex-col bg-slate-900/50 rounded-3xl border border-slate-800 overflow-hidden shadow-2xl">
-          <div className="bg-blue-950/40 border-b border-blue-900/50 p-4 flex items-center justify-between shadow-lg">
-            <h2 className="text-2xl font-black uppercase tracking-wider flex items-center gap-3 text-blue-100">
-              <Wrench size={28} className="text-blue-500" /> {t("Assembly")}
+        <div className="flex flex-col bg-slate-900/50 rounded-2xl border border-slate-800 overflow-hidden shadow-2xl">
+          <div className="bg-blue-950/40 border-b border-blue-900/50 p-3 flex items-center justify-between shadow-sm">
+            <h2 className="text-lg font-black uppercase tracking-wider flex items-center gap-2 text-blue-100">
+              <Wrench size={18} className="text-blue-500" /> {t("Assembly")}
             </h2>
-            <span className="bg-blue-900/50 text-blue-200 px-3 py-1 rounded-lg text-xl font-bold">
+            <span className="bg-blue-900/50 text-blue-200 px-2.5 py-0.5 rounded text-sm font-bold">
               {assemblyOrders.length}
             </span>
           </div>
-          <div className="p-4 space-y-4 overflow-y-auto custom-scrollbar h-full">
-            {assemblyOrders.length === 0 && (
-              <p className="text-center text-blue-900 font-bold mt-10 text-xl uppercase tracking-widest">Queue Clear</p>
-            )}
+          <div className="p-3 space-y-3 overflow-y-auto custom-scrollbar h-full">
             {assemblyOrders.map((order) => {
               const urgency = getUrgency(order.created_at);
               return (
-                <div
-                  key={order.id}
-                  className={`rounded-2xl border-l-[12px] p-5 shadow-lg ${getUrgencyColors(urgency)}`}
-                >
-                  <div className="flex justify-between items-start mb-4">
-                    <div>
-                      <p className="text-sm font-black opacity-60 tracking-widest mb-1">{order.id.slice(0, 8)}</p>
-                      <h3 className="text-3xl font-black leading-tight text-blue-50">
-                        {order.company?.business_name ?? "Walk-In / Direct"}
-                      </h3>
-                    </div>
+                <div key={order.id} className={`rounded-xl border-l-[8px] p-3 shadow-md ${getUrgencyColors(urgency)}`}>
+                  <div className="flex justify-between items-center mb-2">
+                    <h3 className="text-lg font-black tracking-widest leading-none text-blue-50">
+                      ID: {order.id.split("-")[0].toUpperCase()}
+                    </h3>
                     {getUrgencyIcon(urgency)}
                   </div>
-                  <div className="space-y-2 bg-black/40 rounded-xl p-4">
+                  <div className="space-y-1.5 bg-black/30 rounded-lg p-2.5">
                     {order.order_items?.map((item) => (
                       <div
                         key={item.id}
-                        className="flex justify-between items-center border-b border-white/5 last:border-0 pb-2 last:pb-0"
+                        className="flex justify-between items-center border-b border-white/5 last:border-0 pb-1.5 last:pb-0"
                       >
-                        <p className="text-xl font-bold text-blue-100">{item.product?.name ?? "Unknown Item"}</p>
-                        <span className="text-3xl font-black text-blue-300 ml-4">{item.quantity}</span>
+                        <p className="text-sm font-bold text-blue-100 truncate pr-2">
+                          {item.product?.name ?? "Unknown Item"}
+                        </p>
+                        <span className="text-lg font-black text-blue-300 shrink-0">{item.quantity}</span>
                       </div>
                     ))}
                   </div>
@@ -209,40 +179,32 @@ const AdminProduction = () => {
           </div>
         </div>
 
-        {/* COLUMN 3: UPCOMING / PENDING */}
-        <div className="flex flex-col bg-slate-900/50 rounded-3xl border border-slate-800 overflow-hidden shadow-2xl">
-          <div className="bg-slate-800 p-4 flex items-center justify-between shadow-lg">
-            <h2 className="text-2xl font-black uppercase tracking-wider flex items-center gap-3 text-slate-300">
-              <Package size={28} className="text-slate-500" /> {t("Upcoming")}
+        {/* COLUMN 3: UPCOMING */}
+        <div className="flex flex-col bg-slate-900/50 rounded-2xl border border-slate-800 overflow-hidden shadow-2xl">
+          <div className="bg-slate-800 p-3 flex items-center justify-between shadow-sm">
+            <h2 className="text-lg font-black uppercase tracking-wider flex items-center gap-2 text-slate-300">
+              <Package size={18} className="text-slate-500" /> {t("Upcoming")}
             </h2>
-            <span className="bg-slate-700 text-slate-300 px-3 py-1 rounded-lg text-xl font-bold">
+            <span className="bg-slate-700 text-slate-300 px-2.5 py-0.5 rounded text-sm font-bold">
               {upcomingOrders.length}
             </span>
           </div>
-          <div className="p-4 space-y-4 overflow-y-auto custom-scrollbar h-full">
-            {upcomingOrders.length === 0 && (
-              <p className="text-center text-slate-700 font-bold mt-10 text-xl uppercase tracking-widest">
-                No Pending Orders
-              </p>
-            )}
+          <div className="p-3 space-y-3 overflow-y-auto custom-scrollbar h-full">
             {upcomingOrders.map((order) => (
-              <div key={order.id} className="bg-slate-800/50 border border-slate-700 rounded-2xl p-4 opacity-80">
-                <div className="flex justify-between items-start mb-3">
-                  <div>
-                    <p className="text-xs font-black text-slate-500 tracking-widest mb-1">{order.id.slice(0, 8)}</p>
-                    <h3 className="text-xl font-black text-slate-300 leading-tight">
-                      {order.company?.business_name ?? "Walk-In / Direct"}
-                    </h3>
-                  </div>
-                </div>
-                <div className="bg-black/30 rounded-lg p-3">
+              <div key={order.id} className="bg-slate-800/50 border border-slate-700 rounded-xl p-3 opacity-90">
+                <h3 className="text-base font-black tracking-widest text-slate-400 mb-2">
+                  ID: {order.id.split("-")[0].toUpperCase()}
+                </h3>
+                <div className="bg-black/30 rounded-lg p-2">
                   {order.order_items?.map((item) => (
                     <div
                       key={item.id}
-                      className="flex justify-between items-center text-sm border-b border-white/5 last:border-0 pb-1.5 last:pb-0"
+                      className="flex justify-between items-center border-b border-white/5 last:border-0 pb-1 last:pb-0 mt-1 first:mt-0"
                     >
-                      <p className="font-bold text-slate-400">{item.product?.name ?? "Unknown Item"}</p>
-                      <span className="font-black text-slate-300 ml-2">{item.quantity}</span>
+                      <p className="text-xs font-bold text-slate-400 truncate pr-2">
+                        {item.product?.name ?? "Unknown Item"}
+                      </p>
+                      <span className="text-sm font-black text-slate-300 shrink-0">{item.quantity}</span>
                     </div>
                   ))}
                 </div>
@@ -252,7 +214,6 @@ const AdminProduction = () => {
         </div>
       </div>
 
-      {/* Global CSS for the invisible scrollbar styling specific to this TV screen */}
       <style>{`
         .custom-scrollbar::-webkit-scrollbar { width: 0px; background: transparent; }
         .custom-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
