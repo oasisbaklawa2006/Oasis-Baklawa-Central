@@ -147,6 +147,7 @@ const App = () => (
               <Route path="settings" element={<AdminSettings />} />
               <Route path="audit" element={<AdminAudit />} />
               <Route path="department" element={<AdminDepartment />} />
+              <Route path="inventory" element={<AdminInventory />} />
             </Route>
             <Route path="*" element={<NotFound />} />
           </Routes>
