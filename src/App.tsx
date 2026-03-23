@@ -42,6 +42,7 @@ import AdminAudit from "./pages/admin/AdminAudit.tsx";
 import AdminDepartment from "./pages/admin/AdminDepartment.tsx";
 import OperationsController from "./pages/admin/OperationsController.tsx";
 import AdminSecurityGate from "./pages/admin/AdminSecurityGate.tsx";
+import AdminInventory from "./pages/admin/AdminInventory.tsx";
 
 const queryClient = new QueryClient();
 
