@@ -21,6 +21,10 @@ import {
   CreditCard,
   Percent,
   Edit,
+  ShieldCheck,
+  ShieldAlert,
+  Building,
+  X,
 } from "lucide-react";
 import TopNavBar from "@/components/TopNavBar";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
