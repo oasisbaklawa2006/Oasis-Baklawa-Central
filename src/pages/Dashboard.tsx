@@ -24,6 +24,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
 
+const [isAiModalOpen, setIsAiModalOpen] = useState(false);
 const formatPrice = (n: number) => "₹" + n.toLocaleString("en-IN");
 const formatDate = (dateString: string) =>
   new Date(dateString).toLocaleDateString("en-IN", {
