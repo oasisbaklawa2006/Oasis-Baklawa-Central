@@ -41,6 +41,7 @@ import AdminSettings from "./pages/admin/AdminSettings.tsx";
 import AdminAudit from "./pages/admin/AdminAudit.tsx";
 import AdminDepartment from "./pages/admin/AdminDepartment.tsx";
 import OperationsController from "./pages/admin/OperationsController.tsx";
+import AdminSecurityGate from "./pages/admin/AdminSecurityGate.tsx";
 
 const queryClient = new QueryClient();
 
@@ -54,6 +55,7 @@ const App = () => (
           <Routes>
             <Route path="/splash" element={<Splash />} />
             <Route path="/operations-controller" element={<OperationsController />} />
+            <Route path="/security-gate" element={<AdminSecurityGate />} />
             <Route path="/" element={<Index />} />
             <Route path="/catalogue" element={<Catalogue />} />
             <Route path="/product/:id" element={<ProductDetail />} />

@@ -238,6 +238,57 @@ export type Database = {
         }
         Relationships: []
       }
+      dispatch_cartons: {
+        Row: {
+          barcode_string: string
+          box_number: number | null
+          dispatch_id: string | null
+          id: string
+          order_id: string | null
+          scanned_out_at: string | null
+          status: string | null
+          total_boxes: number | null
+          weight_kg: number | null
+        }
+        Insert: {
+          barcode_string: string
+          box_number?: number | null
+          dispatch_id?: string | null
+          id?: string
+          order_id?: string | null
+          scanned_out_at?: string | null
+          status?: string | null
+          total_boxes?: number | null
+          weight_kg?: number | null
+        }
+        Update: {
+          barcode_string?: string
+          box_number?: number | null
+          dispatch_id?: string | null
+          id?: string
+          order_id?: string | null
+          scanned_out_at?: string | null
+          status?: string | null
+          total_boxes?: number | null
+          weight_kg?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "dispatch_cartons_dispatch_id_fkey"
+            columns: ["dispatch_id"]
+            isOneToOne: false
+            referencedRelation: "dispatches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "dispatch_cartons_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       dispatches: {
         Row: {
           company_id: string | null
@@ -685,9 +736,12 @@ export type Database = {
           closed_at: string | null
           closed_by: string | null
           company_id: string | null
+          country_of_origin: string | null
           created_at: string | null
           id: string
+          is_export: boolean | null
           payment_status: string | null
+          port_of_discharge: string | null
           sales_order_value: number | null
           status: string
         }
@@ -697,9 +751,12 @@ export type Database = {
           closed_at?: string | null
           closed_by?: string | null
           company_id?: string | null
+          country_of_origin?: string | null
           created_at?: string | null
           id?: string
+          is_export?: boolean | null
           payment_status?: string | null
+          port_of_discharge?: string | null
           sales_order_value?: number | null
           status?: string
         }
@@ -709,9 +766,12 @@ export type Database = {
           closed_at?: string | null
           closed_by?: string | null
           company_id?: string | null
+          country_of_origin?: string | null
           created_at?: string | null
           id?: string
+          is_export?: boolean | null
           payment_status?: string | null
+          port_of_discharge?: string | null
           sales_order_value?: number | null
           status?: string
         }
@@ -879,6 +939,7 @@ export type Database = {
       products: {
         Row: {
           carton_type: string | null
+          category: string | null
           category_id: string | null
           created_at: string | null
           description: string | null
@@ -893,6 +954,7 @@ export type Database = {
         }
         Insert: {
           carton_type?: string | null
+          category?: string | null
           category_id?: string | null
           created_at?: string | null
           description?: string | null
@@ -907,6 +969,7 @@ export type Database = {
         }
         Update: {
           carton_type?: string | null
+          category?: string | null
           category_id?: string | null
           created_at?: string | null
           description?: string | null
