@@ -19,7 +19,7 @@ import {
   Ticket,
   TrendingUp,
   IndianRupee,
-  Sparkles, // <-- Sparkles is imported right here
+  Sparkles,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "sonner";
@@ -36,11 +36,11 @@ const formatDate = (dateString: string) =>
   });
 
 const Dashboard = () => {
+  // ALL hooks must be inside this function block!
   const navigate = useNavigate();
   const [orders, setOrders] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [companyName, setCompanyName] = useState("Oasis Partner");
-
   const [isAiModalOpen, setIsAiModalOpen] = useState(false);
 
   // UTR Modal State
