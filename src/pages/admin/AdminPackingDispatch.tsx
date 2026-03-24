@@ -103,7 +103,7 @@ const AdminPackingDispatch = () => {
     })));
     if (!partialDispatch) {
       await supabase.from("orders").update({ status: "dispatched" }).eq("id", selectedOrder.id);
-      await supabase.from("order_status_history").insert({ order_id: selectedOrder.id, old_status: "ready_for_dispatch", new_status: "dispatched" });
+      await supabase.from("order_status_history").insert({ order_id: selectedOrder.id, old_status: "cleared_for_dispatch", new_status: "dispatched" });
     }
     setSubmitting(false);
     setShowSuccess(true);
