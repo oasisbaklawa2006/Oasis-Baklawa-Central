@@ -68,8 +68,8 @@ const AdminPackingDispatch = () => {
 
   const handleAdvanceToPacking = async (order: DispatchOrder) => {
     setUpdating(order.id);
-    await supabase.from("orders").update({ status: "ready_for_dispatch" }).eq("id", order.id);
-    await supabase.from("order_status_history").insert({ order_id: order.id, old_status: "packing", new_status: "ready_for_dispatch" });
+    await supabase.from("orders").update({ status: "cleared_for_dispatch" }).eq("id", order.id);
+    await supabase.from("order_status_history").insert({ order_id: order.id, old_status: "packed_ready", new_status: "cleared_for_dispatch" });
     toast.success(`Moved to ${t("Dispatch Ready")}`);
     setUpdating(null);
     fetchOrders();
