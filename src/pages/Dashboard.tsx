@@ -74,15 +74,10 @@ const Dashboard = () => {
   }, []);
 
   const handleUploadReceipt = async () => {
-    if (!utrRef) {
-      toast.error("Please enter the Bank Reference No. / Transaction ID.");
+    if (!utrRef || !selectedFile || !utrModal.orderId) {
+      toast.error("Please ensure you have entered a reference number and attached a file.");
       return;
     }
-    if (!selectedFile) {
-      toast.error("Please attach a screenshot or PDF of the receipt.");
-      return;
-    }
-    if (!utrModal.orderId) return;
 
     setIsUploading(true);
 
@@ -94,12 +89,376 @@ const Dashboard = () => {
       const { error: uploadError } = await supabase.storage.from("trade_documents").upload(filePath, selectedFile);
       if (uploadError) throw uploadError;
 
-      // 2. Get the public URL safely without complex destructuring
-      const urlResponse = supabase.storage.from("trade_documents").getPublicUrl(filePath);
-      const publicUrl = urlResponse.data.publicUrl;
+      // 2. Update the Order in the database (Pipeline update)
+      const nextPaymentStatus = utrModal.type === "advance" ? "awaiting_verification" : "final_payment_review";
 
-      // 3. Update the Order in the database
       const { error: updateError } = await supabase
         .from("orders")
-        .update({
-          payment_status: utrModal
+        .update({ payment_status: nextPaymentStatus })
+        .eq("id", utrModal.orderId);
+
+      if (updateError) throw updateError;
+
+      toast.success("Payment Receipt Uploaded! Awaiting Finance Verification.", { icon: "✅" });
+      setUtrModal({ isOpen: false, orderId: null, type: "advance" });
+      setUtrRef("");
+      setSelectedFile(null);
+      fetchDashboardData();
+    } catch (err: any) {
+      toast.error(err.message || "Failed to upload receipt.");
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
+  const totalBusiness = orders.reduce((sum, o) => sum + (o.sales_order_value || 0), 0);
+  const totalOrders = orders.length;
+
+  const productCounts: Record<string, number> = {};
+  orders.forEach((o) => {
+    o.order_items?.forEach((item: any) => {
+      const name = item.product?.name;
+      if (name) productCounts[name] = (productCounts[name] || 0) + item.quantity;
+    });
+  });
+  const topProduct = Object.entries(productCounts).sort((a, b) => b[1] - a[1])[0]?.[0] || "N/A";
+
+  const activeOrders = orders.filter((o) => o.status !== "delivered" && o.status !== "cancelled");
+  const latestOrder = activeOrders[0];
+
+  const getTimelineStep = (order: any) => {
+    if (order.status === "dispatched") return 4;
+    if (order.status === "awaiting_final_payment" || order.status === "cleared_for_dispatch") return 3;
+    if (order.status === "in_production" || order.status === "packed_ready") return 2;
+    return 1;
+  };
+
+  if (loading)
+    return (
+      <AppShell>
+        <div className="flex flex-col items-center justify-center min-h-[60vh]">
+          <Loader2 size={32} className="animate-spin text-[#B8860B]" />
+          <p className="mt-4 text-slate-500 font-bold text-xs uppercase tracking-widest">Loading Dashboard...</p>
+        </div>
+      </AppShell>
+    );
+
+  return (
+    <AppShell>
+      <div className="bg-[#B8860B] text-white text-xs font-bold py-2 overflow-hidden relative flex items-center">
+        <div className="absolute left-2 z-10 bg-[#B8860B] pr-2">
+          <Megaphone size={14} />
+        </div>
+        <div className="whitespace-nowrap animate-[marquee_15s_linear_infinite] ml-8">
+          Welcome to the new Oasis B2B Portal! • Dispatch SLAs are currently 48 hours from advance payment • Festive
+          Pre-Booking opens next week! • Contact support for volume discounts.
+        </div>
+      </div>
+
+      <style>{`
+        @keyframes marquee {
+          0% { transform: translateX(100%); }
+          100% { transform: translateX(-100%); }
+        }
+      `}</style>
+
+      <div className="max-w-4xl mx-auto pb-24 px-4 sm:px-6 pt-6 space-y-8">
+        <section>
+          <h1 className="font-display text-2xl font-bold text-slate-900">Welcome back, {companyName}</h1>
+          <p className="text-sm font-medium text-slate-500 mt-1 mb-6">Here is your business overview.</p>
+
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm">
+              <TrendingUp size={16} className="text-[#B8860B] mb-2" />
+              <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Total Business</p>
+              <p className="font-black text-lg text-slate-900">{formatPrice(totalBusiness)}</p>
+            </div>
+            <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm">
+              <Package size={16} className="text-blue-500 mb-2" />
+              <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Total Orders</p>
+              <p className="font-black text-lg text-slate-900">{totalOrders} Batches</p>
+            </div>
+            <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm">
+              <IndianRupee size={16} className="text-emerald-500 mb-2" />
+              <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Wallet Balance</p>
+              <p className="font-black text-lg text-slate-900">
+                ₹0 <span className="text-[10px] font-medium text-slate-400 block">No pending refunds</span>
+              </p>
+            </div>
+            <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm">
+              <TrendingUp size={16} className="text-purple-500 mb-2" />
+              <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Most Ordered</p>
+              <p className="font-black text-sm text-slate-900 leading-tight mt-1">{topProduct}</p>
+            </div>
+          </div>
+        </section>
+
+        <section className="grid grid-cols-2 gap-3">
+          <button
+            onClick={() => toast.info("Opening Document Library...")}
+            className="bg-slate-900 text-white p-4 rounded-2xl flex items-center justify-between hover:bg-black active:scale-95 transition-all shadow-md"
+          >
+            <div className="text-left">
+              <p className="font-bold text-sm">Download Docs</p>
+              <p className="text-[10px] text-slate-400">Invoices & E-Way Bills</p>
+            </div>
+            <Download size={20} className="text-[#B8860B]" />
+          </button>
+          <button
+            onClick={() => toast.info("Opening Support Desk...")}
+            className="bg-white border border-slate-200 text-slate-800 p-4 rounded-2xl flex items-center justify-between hover:bg-slate-50 active:scale-95 transition-all shadow-sm"
+          >
+            <div className="text-left">
+              <p className="font-bold text-sm">Raise Ticket</p>
+              <p className="text-[10px] text-slate-500">Support & Complaints</p>
+            </div>
+            <Ticket size={20} className="text-rose-500" />
+          </button>
+          <button
+            onClick={() => setIsAiModalOpen(true)}
+            className="bg-[#B8860B] text-white p-4 rounded-2xl flex items-center justify-between hover:bg-[#9A7009] active:scale-95 transition-all shadow-md col-span-2 mt-3"
+          >
+            <div className="text-left">
+              <p className="font-bold text-sm flex items-center gap-2">
+                <Sparkles size={16} /> Quick Order via AI
+              </p>
+              <p className="text-[10px] text-white/80 mt-0.5">
+                Type or paste a Purchase Order to build your cart instantly.
+              </p>
+            </div>
+            <ChevronRight size={20} className="text-white/50" />
+          </button>
+        </section>
+
+        <section>
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-sm font-bold text-slate-800 uppercase tracking-widest flex items-center gap-2">
+              <Clock size={16} className="text-[#B8860B]" /> Live Order Tracker
+            </h2>
+            <button onClick={() => navigate("/orders")} className="text-xs font-bold text-[#B8860B] hover:underline">
+              View All
+            </button>
+          </div>
+
+          {!latestOrder ? (
+            <div className="bg-white rounded-3xl border border-slate-200 p-8 text-center shadow-sm">
+              <Package size={32} className="mx-auto text-slate-300 mb-3" />
+              <p className="text-slate-500 text-sm font-medium mb-4">No active shipments in transit.</p>
+              <button
+                onClick={() => navigate("/catalogue")}
+                className="px-6 py-2.5 bg-[#B8860B] text-white rounded-xl font-bold text-xs shadow-md"
+              >
+                Start New Order
+              </button>
+            </div>
+          ) : (
+            <div className="bg-white rounded-[2rem] border border-slate-200 shadow-md overflow-hidden relative">
+              <div className="bg-slate-50 border-b border-slate-100 p-5 flex justify-between items-center">
+                <div>
+                  <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mb-0.5">
+                    SO #{latestOrder.id.split("-")[0].toUpperCase()}
+                  </p>
+                  <p className="font-black text-lg text-slate-900">{formatPrice(latestOrder.sales_order_value || 0)}</p>
+                </div>
+                <div className="text-right">
+                  <p className="text-[10px] text-slate-500 font-bold mb-0.5">Placed On</p>
+                  <p className="text-xs font-bold text-slate-800">{formatDate(latestOrder.created_at)}</p>
+                </div>
+              </div>
+
+              <div className="p-6 relative">
+                <div className="absolute left-10 top-10 bottom-10 w-0.5 bg-slate-100"></div>
+
+                <div className="relative flex items-start gap-4 mb-8">
+                  <div
+                    className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 z-10 ${getTimelineStep(latestOrder) >= 1 ? "bg-emerald-500 text-white shadow-md shadow-emerald-500/20" : "bg-slate-100 text-slate-400"}`}
+                  >
+                    <CheckCircle2 size={16} />
+                  </div>
+                  <div className="flex-1 pt-1.5">
+                    <h4 className="font-bold text-slate-900 text-sm">Order Logged</h4>
+
+                    {latestOrder.payment_status === "awaiting_receipt" ? (
+                      <div className="mt-3 bg-amber-50 border border-amber-200 rounded-xl p-4 shadow-inner">
+                        <p className="text-xs font-bold text-amber-800 flex items-center gap-1.5 mb-2">
+                          <AlertTriangle size={14} /> Action Required
+                        </p>
+                        <p className="text-[11px] text-amber-700 mb-3">
+                          Please transfer the 50% advance and upload the payment receipt to push this to the kitchen.
+                        </p>
+                        <button
+                          onClick={() => setUtrModal({ isOpen: true, orderId: latestOrder.id, type: "advance" })}
+                          className="w-full py-2 bg-[#B8860B] text-white rounded-lg text-xs font-bold shadow-sm flex justify-center items-center gap-2"
+                        >
+                          <UploadCloud size={14} /> Upload Advance Receipt
+                        </button>
+                      </div>
+                    ) : (
+                      <p className="text-xs text-slate-500 font-medium mt-0.5">Financials verified. Sent to kitchen.</p>
+                    )}
+                  </div>
+                </div>
+
+                <div className="relative flex items-start gap-4 mb-8">
+                  <div
+                    className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 z-10 transition-colors ${getTimelineStep(latestOrder) >= 2 ? "bg-[#B8860B] text-white shadow-md shadow-[#B8860B]/20" : "bg-slate-100 text-slate-300"}`}
+                  >
+                    <Package size={16} />
+                  </div>
+                  <div className="flex-1 pt-1.5">
+                    <h4
+                      className={`font-bold text-sm ${getTimelineStep(latestOrder) >= 2 ? "text-slate-900" : "text-slate-400"}`}
+                    >
+                      Baking & Packing
+                    </h4>
+                    {getTimelineStep(latestOrder) === 2 && (
+                      <p className="text-xs text-[#B8860B] font-bold mt-1 flex items-center gap-1">
+                        <Loader2 size={12} className="animate-spin" /> Operations is packing your boxes
+                      </p>
+                    )}
+                  </div>
+                </div>
+
+                <div className="relative flex items-start gap-4 mb-8">
+                  <div
+                    className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 z-10 transition-colors ${getTimelineStep(latestOrder) >= 3 ? "bg-blue-500 text-white shadow-md shadow-blue-500/20" : "bg-slate-100 text-slate-300"}`}
+                  >
+                    <Receipt size={16} />
+                  </div>
+                  <div className="flex-1 pt-1.5">
+                    <h4
+                      className={`font-bold text-sm ${getTimelineStep(latestOrder) >= 3 ? "text-slate-900" : "text-slate-400"}`}
+                    >
+                      Final Invoicing
+                    </h4>
+
+                    {latestOrder.status === "awaiting_final_payment" && (
+                      <div className="mt-3 bg-blue-50 border border-blue-200 rounded-xl p-4 shadow-inner">
+                        <p className="text-xs font-bold text-blue-800 flex items-center gap-1.5 mb-2">
+                          <AlertTriangle size={14} /> Final Payment Required
+                        </p>
+                        <p className="text-[11px] text-blue-700 mb-3">
+                          Finance has generated the final tax invoice based on actual packed weights. Please clear the
+                          due balance.
+                        </p>
+                        <div className="flex gap-2">
+                          <button className="flex-1 py-2 bg-white border border-blue-200 text-blue-800 rounded-lg text-[10px] font-bold shadow-sm flex justify-center items-center gap-1 hover:bg-blue-100">
+                            <FileText size={12} /> View Invoice
+                          </button>
+                          <button
+                            onClick={() => setUtrModal({ isOpen: true, orderId: latestOrder.id, type: "final" })}
+                            className="flex-1 py-2 bg-blue-600 text-white rounded-lg text-[10px] font-bold shadow-sm hover:bg-blue-700 flex justify-center items-center gap-1"
+                          >
+                            <UploadCloud size={12} /> Upload Final Receipt
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                <div className="relative flex items-start gap-4">
+                  <div
+                    className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 z-10 transition-colors ${getTimelineStep(latestOrder) >= 4 ? "bg-emerald-600 text-white shadow-md shadow-emerald-600/30" : "bg-slate-100 text-slate-300"}`}
+                  >
+                    <Truck size={16} />
+                  </div>
+                  <div className="flex-1 pt-1.5">
+                    <h4
+                      className={`font-bold text-sm ${getTimelineStep(latestOrder) >= 4 ? "text-slate-900" : "text-slate-400"}`}
+                    >
+                      Dispatched
+                    </h4>
+                    {getTimelineStep(latestOrder) >= 4 && (
+                      <div className="mt-3 bg-slate-50 border border-slate-200 rounded-xl p-3">
+                        <div className="flex justify-between items-center text-[10px] font-bold text-slate-600 border-b border-slate-200 pb-2 mb-2">
+                          <span>
+                            Courier: <span className="text-slate-900">Delhivery Surface</span>
+                          </span>
+                          <span>
+                            AWB: <span className="text-[#B8860B]">13884849200</span>
+                          </span>
+                        </div>
+                        <div className="flex gap-2">
+                          <button className="flex-1 py-1.5 bg-white border border-slate-200 text-slate-600 rounded-lg text-[10px] font-bold hover:bg-slate-100 shadow-sm flex justify-center items-center gap-1">
+                            <Truck size={10} /> Track Status
+                          </button>
+                          <button className="flex-1 py-1.5 bg-white border border-slate-200 text-slate-600 rounded-lg text-[10px] font-bold hover:bg-slate-100 shadow-sm flex justify-center items-center gap-1">
+                            <FileText size={10} /> E-Way Bill
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+        </section>
+      </div>
+
+      <AnimatePresence>
+        {utrModal.isOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="bg-white rounded-3xl p-6 w-full max-w-sm shadow-2xl"
+            >
+              <div className="flex justify-between items-center mb-5">
+                <h3 className="font-display text-xl font-bold text-slate-900">Upload Payment Receipt</h3>
+                <button
+                  onClick={() => setUtrModal({ isOpen: false, orderId: null, type: "advance" })}
+                  className="w-8 h-8 bg-slate-100 rounded-full flex items-center justify-center text-slate-500 hover:bg-slate-200"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+
+              <div className="space-y-4">
+                <label className="bg-slate-50 p-4 border-2 border-dashed border-slate-300 rounded-2xl flex flex-col items-center justify-center text-center cursor-pointer hover:border-[#B8860B] transition-colors relative">
+                  <input
+                    type="file"
+                    accept="image/*,.pdf"
+                    className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                    onChange={(e) => setSelectedFile(e.target.files?.[0] || null)}
+                  />
+                  <UploadCloud size={32} className={selectedFile ? "text-[#B8860B] mb-2" : "text-slate-400 mb-2"} />
+                  <p className="text-sm font-bold text-slate-700">
+                    {selectedFile ? selectedFile.name : "Tap to browse files"}
+                  </p>
+                  <p className="text-[10px] text-slate-500 mt-1">Upload Bank Screenshot (JPG, PNG, PDF)</p>
+                </label>
+
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-500 uppercase mb-1.5">
+                    Bank Reference No. / Transaction ID
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="e.g., REF1234567890"
+                    value={utrRef}
+                    onChange={(e) => setUtrRef(e.target.value)}
+                    className="w-full bg-white border border-slate-200 rounded-xl p-3 text-sm font-bold outline-none focus:border-[#B8860B]"
+                  />
+                </div>
+              </div>
+
+              <button
+                onClick={handleUploadReceipt}
+                disabled={isUploading || !utrRef || !selectedFile}
+                className="w-full mt-6 py-4 bg-slate-900 text-white font-bold rounded-xl hover:bg-black flex justify-center items-center gap-2 shadow-lg disabled:opacity-50 transition-all"
+              >
+                {isUploading ? <Loader2 size={18} className="animate-spin" /> : "Submit Receipt for Verification"}
+              </button>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+      <AiOrderModal isOpen={isAiModalOpen} onClose={() => setIsAiModalOpen(false)} />
+    </AppShell>
+  );
+};
+
+export default Dashboard;
