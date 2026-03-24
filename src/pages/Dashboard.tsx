@@ -110,7 +110,7 @@ const Dashboard = () => {
     if (order.status === "dispatched") return 4;
     if (order.status === "awaiting_final_payment" || order.status === "cleared_for_dispatch") return 3;
     if (order.status === "in_production" || order.status === "packed_ready") return 2;
-    return 1; // submitted / awaiting_utr
+    return 1; // submitted / awaiting_receipt
   };
 
   if (loading)
