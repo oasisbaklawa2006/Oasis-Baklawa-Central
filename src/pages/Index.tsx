@@ -383,7 +383,6 @@ const Dashboard = () => {
             </div>
           )}
         </section>
-      </div>
 
         {/* TOOLS DIRECTORY GRID */}
         <section>
