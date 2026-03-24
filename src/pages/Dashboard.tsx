@@ -294,7 +294,7 @@ const Dashboard = () => {
                         </button>
                       </div>
                     ) : (
-                      <p className="text-xs text-slate-500 font-medium mt-0.5">Financials verified. Sent to kitchen.</p>
+                      <p className="text-xs text-slate-500 font-medium mt-0.5">Financials verified. Released to Production.</p>
                     )}
                   </div>
                 </div>
