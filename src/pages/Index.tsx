@@ -396,7 +396,7 @@ const Dashboard = () => {
               className="bg-white rounded-3xl p-6 w-full max-w-sm shadow-2xl"
             >
               <div className="flex justify-between items-center mb-5">
-                <h3 className="font-display text-xl font-bold text-slate-900">Upload UTR Receipt</h3>
+                <h3 className="font-display text-xl font-bold text-slate-900">Upload Payment Receipt</h3>
                 <button
                   onClick={() => setUtrModal({ isOpen: false, orderId: null, type: "advance" })}
                   className="w-8 h-8 bg-slate-100 rounded-full flex items-center justify-center text-slate-500 hover:bg-slate-200"
