@@ -108,7 +108,7 @@ const Cart = () => {
         })
         .eq("id", draftOrder.id);
       if (error) throw error;
-      toast.success("Order logged! Awaiting UTR verification.");
+      toast.success("Order logged! Awaiting payment receipt verification.");
       setShowPaymentModal(false);
       setTimeout(() => navigate("/orders"), 1500);
     } catch (error) {
