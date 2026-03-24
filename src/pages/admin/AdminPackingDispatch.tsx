@@ -60,8 +60,8 @@ const AdminPackingDispatch = () => {
     return advReq > 0 && advPaid < advReq;
   };
 
-  const packingOrders = orders.filter(o => o.status === "packing");
-  const dispatchReady = orders.filter(o => o.status === "ready_for_dispatch" && !isFinanceBlocked(o));
+  const packingOrders = orders.filter(o => o.status === "packed_ready");
+  const dispatchReady = orders.filter(o => o.status === "cleared_for_dispatch" && !isFinanceBlocked(o));
   const blockedOrders = orders.filter(o => isFinanceBlocked(o));
 
   const displayed = tab === "packing" ? packingOrders : tab === "dispatch_ready" ? dispatchReady : blockedOrders;
