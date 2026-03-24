@@ -150,7 +150,7 @@ const AdminFinance = () => {
       <div className="max-w-7xl mx-auto px-6 -mt-6">
         <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-2 flex overflow-x-auto scrollbar-hide gap-2">
           {[
-            { id: "validation", label: "Advance UTRs", count: validationQueue.length, icon: Banknote },
+            { id: "validation", label: "Advance Receipts", count: validationQueue.length, icon: Banknote },
             { id: "approvals", label: "Credit Approvals", count: approvalQueue.length, icon: ShieldCheck },
             { id: "invoicing", label: "Post-Pack Invoicing", count: invoicingQueue.length, icon: Calculator },
           ].map((tab) => (
