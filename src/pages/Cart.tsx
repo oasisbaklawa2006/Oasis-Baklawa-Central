@@ -104,7 +104,7 @@ const Cart = () => {
         .update({
           status: "submitted",
           sales_order_value: grandTotal,
-          payment_status: "awaiting_utr",
+          payment_status: "awaiting_receipt",
         })
         .eq("id", draftOrder.id);
       if (error) throw error;
