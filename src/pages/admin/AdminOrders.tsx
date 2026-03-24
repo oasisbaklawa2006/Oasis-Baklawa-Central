@@ -8,58 +8,37 @@ import TopNavBar from "@/components/TopNavBar";
 const PACKS_PER_CARTON = 9;
 
 const STATUSES = [
-  "draft",
   "submitted",
-  "under_review",
-  "awaiting_advance",
-  "approved",
   "in_production",
-  "assembly",
-  "packing",
-  "ready_for_dispatch",
+  "packed_ready",
+  "awaiting_final_payment",
+  "cleared_for_dispatch",
   "dispatched",
-  "in_transit",
   "delivered",
-  "complaint_window",
-  "closed",
   "cancelled",
 ] as const;
 
 type OrderStatus = (typeof STATUSES)[number];
 
 const STATUS_LABELS: Record<OrderStatus, string> = {
-  draft: "Draft",
   submitted: "Submitted",
-  under_review: "Under Review",
-  awaiting_advance: "Awaiting Advance",
-  approved: "Approved",
   in_production: "In Production",
-  assembly: "Assembly",
-  packing: "Packing",
-  ready_for_dispatch: "Dispatch Ready",
+  packed_ready: "Packed Ready",
+  awaiting_final_payment: "Awaiting Final Payment",
+  cleared_for_dispatch: "Cleared for Dispatch",
   dispatched: "Dispatched",
-  in_transit: "In Transit",
   delivered: "Delivered",
-  complaint_window: "Complaint Window",
-  closed: "Closed",
   cancelled: "Cancelled",
 };
 
 const STATUS_COLORS: Record<OrderStatus, string> = {
-  draft: "hsl(220, 15%, 60%)",
   submitted: "hsl(210, 60%, 55%)",
-  under_review: "hsl(250, 50%, 55%)",
-  awaiting_advance: "hsl(40, 40%, 59%)",
-  approved: "hsl(130, 45%, 45%)",
   in_production: "hsl(220, 70%, 55%)",
-  assembly: "hsl(280, 60%, 55%)",
-  packing: "hsl(150, 50%, 45%)",
-  ready_for_dispatch: "hsl(30, 70%, 50%)",
+  packed_ready: "hsl(150, 50%, 45%)",
+  awaiting_final_payment: "hsl(40, 40%, 59%)",
+  cleared_for_dispatch: "hsl(30, 70%, 50%)",
   dispatched: "hsl(170, 55%, 45%)",
-  in_transit: "hsl(200, 60%, 50%)",
   delivered: "hsl(140, 60%, 40%)",
-  complaint_window: "hsl(0, 70%, 55%)",
-  closed: "hsl(0, 0%, 55%)",
   cancelled: "hsl(0, 50%, 45%)",
 };
 

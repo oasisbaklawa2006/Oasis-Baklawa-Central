@@ -15,9 +15,9 @@ interface AlertItem { label: string; count: number; route: string; severity: "hi
 interface AuditEntry { id: string; action_type: string | null; module_name: string | null; entity_name: string | null; created_at: string; }
 
 const ALL_STATUSES = [
-  "draft", "submitted", "under_review", "awaiting_advance", "approved",
-  "in_production", "assembly", "packing", "ready_for_dispatch",
-  "dispatched", "in_transit", "delivered", "complaint_window", "closed", "cancelled",
+  "submitted", "in_production", "packed_ready",
+  "awaiting_final_payment", "cleared_for_dispatch",
+  "dispatched", "delivered", "cancelled",
 ];
 
 const AdminDashboard = () => {
@@ -65,8 +65,8 @@ const AdminDashboard = () => {
 
     const a: AlertItem[] = [];
     if ((pendingApps.count ?? 0) > 0) a.push({ label: "Pending Approvals", count: pendingApps.count ?? 0, route: "/admin/clients", severity: "high" });
-    if (pc.awaiting_advance > 0) a.push({ label: t("Awaiting Advance"), count: pc.awaiting_advance, route: "/admin/accounts-release", severity: "high" });
-    if (pc.ready_for_dispatch > 0) a.push({ label: t("Dispatch Ready"), count: pc.ready_for_dispatch, route: "/admin/packing-dispatch", severity: "medium" });
+    if (pc.awaiting_final_payment > 0) a.push({ label: "Awaiting Final Payment", count: pc.awaiting_final_payment, route: "/admin/accounts-release", severity: "high" });
+    if (pc.cleared_for_dispatch > 0) a.push({ label: t("Dispatch Ready"), count: pc.cleared_for_dispatch, route: "/admin/packing-dispatch", severity: "medium" });
     if (financeHold > 0) a.push({ label: "Finance Hold", count: financeHold, route: "/admin/accounts-release", severity: "high" });
     if ((supportOpen.count ?? 0) > 0) a.push({ label: "Support Escalations", count: supportOpen.count ?? 0, route: "/admin/exceptions", severity: "medium" });
     setAlerts(a);
@@ -94,34 +94,33 @@ const AdminDashboard = () => {
   const operationalTiles = [
     { key: "pipeline", label: t("Order Pipeline"), icon: ShoppingCart, subtitle: "Stage-wise order flow",
       metrics: [
-        { l: "Draft/Submitted", v: (pipeline.draft ?? 0) + (pipeline.submitted ?? 0) },
-        { l: t("Awaiting Advance"), v: pipeline.awaiting_advance ?? 0 },
+        { l: "Submitted", v: pipeline.submitted ?? 0 },
         { l: t("In Production"), v: pipeline.in_production ?? 0 },
-        { l: t("Assembly"), v: pipeline.assembly ?? 0 },
-        { l: t("Packing"), v: pipeline.packing ?? 0 },
-        { l: t("Dispatch Ready"), v: pipeline.ready_for_dispatch ?? 0 },
+        { l: "Packed Ready", v: pipeline.packed_ready ?? 0 },
+        { l: "Awaiting Payment", v: pipeline.awaiting_final_payment ?? 0 },
+        { l: "Cleared", v: pipeline.cleared_for_dispatch ?? 0 },
         { l: t("Dispatched"), v: pipeline.dispatched ?? 0 },
       ],
       route: "/admin/orders",
     },
     { key: "production", label: t("Production & Assembly"), icon: Factory, subtitle: "Manufacturing workload",
       metrics: [
-        { l: "Production Pending", v: pipeline.in_production ?? 0 },
-        { l: "Assembly Pending", v: pipeline.assembly ?? 0 },
+        { l: "In Production", v: pipeline.in_production ?? 0 },
+        { l: "Packed Ready", v: pipeline.packed_ready ?? 0 },
       ],
       route: "/admin/production",
     },
     { key: "packing", label: t("Packing & Dispatch"), icon: PackageCheck, subtitle: "Fulfillment workload",
       metrics: [
-        { l: t("Packing"), v: pipeline.packing ?? 0 },
-        { l: t("Dispatch Ready"), v: pipeline.ready_for_dispatch ?? 0 },
+        { l: "Packed Ready", v: pipeline.packed_ready ?? 0 },
+        { l: "Cleared for Dispatch", v: pipeline.cleared_for_dispatch ?? 0 },
         { l: "Blocked", v: Number(counts.financeHold) || 0 },
       ],
       route: "/admin/packing-dispatch",
     },
     { key: "accounts", label: t("Accounts & Release"), icon: Landmark, subtitle: "Finance release control",
       metrics: [
-        { l: "Advance Pending", v: pipeline.awaiting_advance ?? 0 },
+        { l: "Awaiting Payment", v: pipeline.awaiting_final_payment ?? 0 },
         { l: "Finance Hold", v: Number(counts.financeHold) || 0 },
       ],
       route: "/admin/accounts-release",

@@ -46,7 +46,7 @@ const AdminPackingDispatch = () => {
     const { data } = await supabase
       .from("orders")
       .select("id, status, sales_order_value, payment_status, advance_paid, advance_required, company_id, company:companies(business_name), order_items(id, quantity, pack_size, carton_type, product_id)")
-      .in("status", ["packing", "ready_for_dispatch"])
+      .in("status", ["packed_ready", "cleared_for_dispatch"])
       .order("created_at", { ascending: true });
     setOrders((data as unknown as DispatchOrder[]) ?? []);
     setLoading(false);
@@ -60,16 +60,16 @@ const AdminPackingDispatch = () => {
     return advReq > 0 && advPaid < advReq;
   };
 
-  const packingOrders = orders.filter(o => o.status === "packing");
-  const dispatchReady = orders.filter(o => o.status === "ready_for_dispatch" && !isFinanceBlocked(o));
+  const packingOrders = orders.filter(o => o.status === "packed_ready");
+  const dispatchReady = orders.filter(o => o.status === "cleared_for_dispatch" && !isFinanceBlocked(o));
   const blockedOrders = orders.filter(o => isFinanceBlocked(o));
 
   const displayed = tab === "packing" ? packingOrders : tab === "dispatch_ready" ? dispatchReady : blockedOrders;
 
   const handleAdvanceToPacking = async (order: DispatchOrder) => {
     setUpdating(order.id);
-    await supabase.from("orders").update({ status: "ready_for_dispatch" }).eq("id", order.id);
-    await supabase.from("order_status_history").insert({ order_id: order.id, old_status: "packing", new_status: "ready_for_dispatch" });
+    await supabase.from("orders").update({ status: "cleared_for_dispatch" }).eq("id", order.id);
+    await supabase.from("order_status_history").insert({ order_id: order.id, old_status: "packed_ready", new_status: "cleared_for_dispatch" });
     toast.success(`Moved to ${t("Dispatch Ready")}`);
     setUpdating(null);
     fetchOrders();
@@ -103,7 +103,7 @@ const AdminPackingDispatch = () => {
     })));
     if (!partialDispatch) {
       await supabase.from("orders").update({ status: "dispatched" }).eq("id", selectedOrder.id);
-      await supabase.from("order_status_history").insert({ order_id: selectedOrder.id, old_status: "ready_for_dispatch", new_status: "dispatched" });
+      await supabase.from("order_status_history").insert({ order_id: selectedOrder.id, old_status: "cleared_for_dispatch", new_status: "dispatched" });
     }
     setSubmitting(false);
     setShowSuccess(true);
@@ -169,13 +169,13 @@ const AdminPackingDispatch = () => {
                     </td>
                     <td className="px-4 py-3 text-ui-cell text-foreground">₹{(order.sales_order_value ?? 0).toLocaleString("en-IN")}</td>
                     <td className="px-4 py-3 text-right space-x-2">
-                      {order.status === "packing" && !blocked && (
+                      {order.status === "packed_ready" && !blocked && (
                         <button onClick={() => handleAdvanceToPacking(order)} disabled={updating === order.id}
                           className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold bg-primary/10 text-primary hover:bg-primary/20 disabled:opacity-50">
                           {updating === order.id ? <Loader2 size={12} className="animate-spin" /> : <ArrowRight size={12} />} → Ready
                         </button>
                       )}
-                      {order.status === "ready_for_dispatch" && !blocked && (
+                      {order.status === "cleared_for_dispatch" && !blocked && (
                         <button onClick={() => openDispatchModal(order)}
                           className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold bg-primary/10 text-primary hover:bg-primary/20">
                           <Truck size={12} /> {t("Create Dispatch")}

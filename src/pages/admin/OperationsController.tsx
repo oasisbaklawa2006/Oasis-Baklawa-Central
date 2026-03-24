@@ -65,7 +65,7 @@ const OperationsController = () => {
       .select(
         "id, status, created_at, order_items(id, quantity, product_id, product:products(name, category, image_url))",
       )
-      .in("status", ["in_production", "assembly"])
+      .in("status", ["in_production", "packed_ready"])
       .order("created_at", { ascending: true });
 
     if (!orderError && orderData) {
@@ -156,7 +156,7 @@ const OperationsController = () => {
       if (isPartial) {
         toast.warning(`${activeOrder.batch_id}: Partial Fulfillment Logged.`, { icon: "⚠️" });
       } else {
-        const targetStatus = activeOrder.status === "in_production" ? "assembly" : "packed_ready";
+        const targetStatus = activeOrder.status === "in_production" ? "packed_ready" : "packed_ready";
         await supabase.from("orders").update({ status: targetStatus }).eq("id", activeOrder.id);
         toast.success(`${activeOrder.batch_id}: Department Items Completed!`, { icon: "✅" });
       }

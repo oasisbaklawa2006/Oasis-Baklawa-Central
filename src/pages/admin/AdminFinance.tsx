@@ -116,7 +116,7 @@ const AdminFinance = () => {
   };
 
   // Queues
-  const validationQueue = orders.filter((o) => o.payment_status === "awaiting_utr");
+  const validationQueue = orders.filter((o) => o.payment_status === "awaiting_receipt");
   const approvalQueue = orders.filter((o) => o.payment_status === "credit_requested");
   // Assuming 'packed_ready' is the status Operations sets after putting items in boxes
   const invoicingQueue = orders.filter((o) => o.status === "in_production" || o.status === "packed_ready");
@@ -150,7 +150,7 @@ const AdminFinance = () => {
       <div className="max-w-7xl mx-auto px-6 -mt-6">
         <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-2 flex overflow-x-auto scrollbar-hide gap-2">
           {[
-            { id: "validation", label: "Advance UTRs", count: validationQueue.length, icon: Banknote },
+            { id: "validation", label: "Advance Receipts", count: validationQueue.length, icon: Banknote },
             { id: "approvals", label: "Credit Approvals", count: approvalQueue.length, icon: ShieldCheck },
             { id: "invoicing", label: "Post-Pack Invoicing", count: invoicingQueue.length, icon: Calculator },
           ].map((tab) => (
@@ -176,7 +176,7 @@ const AdminFinance = () => {
           {activeQueue === "validation" && (
             <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
               {validationQueue.length === 0 ? (
-                <p className="text-slate-500 font-bold p-4">No UTRs pending validation.</p>
+                <p className="text-slate-500 font-bold p-4">No receipts pending validation.</p>
               ) : (
                 validationQueue.map((order) => (
                   <div key={order.id} className="bg-white border-l-4 border-amber-400 rounded-xl p-5 shadow-sm">
@@ -189,12 +189,12 @@ const AdminFinance = () => {
                     <div className="flex justify-between items-center mb-5">
                       <p className="text-xl font-black text-amber-600">{formatPrice(order.sales_order_value || 0)}</p>
                       <span className="bg-amber-50 text-amber-700 px-2 py-1 rounded text-[10px] font-bold uppercase flex items-center gap-1">
-                        <AlertTriangle size={12} /> Advance UTR
+                        <AlertTriangle size={12} /> Advance Receipt
                       </span>
                     </div>
                     <div className="flex gap-2">
                       <button className="flex-1 py-2.5 border border-slate-200 text-slate-600 rounded-lg text-xs font-bold hover:bg-slate-50">
-                        View UTR
+                        View Receipt
                       </button>
                       <button
                         onClick={() => handleValidatePayment(order.id)}

@@ -111,7 +111,7 @@ const AdminAccountsRelease = () => {
   const advPendingCount = orders.filter(o => getReleaseStatus(o) === "advance_pending").length;
   const balPendingCount = orders.filter(o => getReleaseStatus(o) === "balance_pending").length;
   const totalDue = orders.reduce((s, o) => s + ((o.sales_order_value ?? 0) - (o.advance_paid ?? 0)), 0);
-  const dispatchBlocked = orders.filter(o => ["ready_for_dispatch", "packing"].includes(o.status) && getReleaseStatus(o) === "finance_hold").length;
+  const dispatchBlocked = orders.filter(o => ["cleared_for_dispatch", "packed_ready"].includes(o.status) && getReleaseStatus(o) === "finance_hold").length;
 
   const filtered = tab === "hold" ? orders.filter(o => getReleaseStatus(o) === "finance_hold")
     : tab === "overdue" ? orders.filter(o => getReleaseStatus(o) === "balance_pending")

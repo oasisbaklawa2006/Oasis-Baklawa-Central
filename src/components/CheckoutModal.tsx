@@ -34,9 +34,10 @@ const CheckoutModal = ({ open, onClose, grandTotal, orderId, onOrderConfirmed }:
     const { error } = await supabase
       .from("orders")
       .update({
-        status: "awaiting_advance",
+        status: "submitted",
         sales_order_value: grandTotal,
         advance_required: advance,
+        payment_status: "awaiting_receipt",
       })
       .eq("id", orderId);
 

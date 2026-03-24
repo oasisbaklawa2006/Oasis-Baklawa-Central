@@ -73,14 +73,14 @@ const Dashboard = () => {
     fetchDashboardData();
   }, []);
 
-  const handleUploadUTR = async () => {
+  const handleUploadReceipt = async () => {
     if (!utrRef) {
-      toast.error("Please enter the UTR Reference Number.");
+      toast.error("Please enter the Bank Reference No. / Transaction ID.");
       return;
     }
     setIsUploading(true);
     setTimeout(() => {
-      toast.success("UTR Uploaded Successfully! Awaiting Finance Verification.", { icon: "✅" });
+      toast.success("Payment Receipt Uploaded Successfully! Awaiting Finance Verification.", { icon: "✅" });
       setUtrModal({ isOpen: false, orderId: null, type: "advance" });
       setUtrRef("");
       setIsUploading(false);
@@ -108,7 +108,7 @@ const Dashboard = () => {
     if (order.status === "dispatched") return 4;
     if (order.status === "awaiting_final_payment" || order.status === "cleared_for_dispatch") return 3;
     if (order.status === "in_production" || order.status === "packed_ready") return 2;
-    return 1; // submitted / awaiting_utr
+    return 1; // submitted / awaiting_receipt
   };
 
   if (loading)
@@ -263,19 +263,19 @@ const Dashboard = () => {
                   <div className="flex-1 pt-1.5">
                     <h4 className="font-bold text-slate-900 text-sm">Order Logged</h4>
 
-                    {latestOrder.payment_status === "awaiting_utr" ? (
+                    {latestOrder.payment_status === "awaiting_receipt" ? (
                       <div className="mt-3 bg-amber-50 border border-amber-200 rounded-xl p-4 shadow-inner">
                         <p className="text-xs font-bold text-amber-800 flex items-center gap-1.5 mb-2">
                           <AlertTriangle size={14} /> Action Required
                         </p>
                         <p className="text-[11px] text-amber-700 mb-3">
-                          Please transfer the 50% advance and upload the UTR receipt to push this to the kitchen.
+                          Please transfer the 50% advance and upload the payment receipt to push this to the kitchen.
                         </p>
                         <button
                           onClick={() => setUtrModal({ isOpen: true, orderId: latestOrder.id, type: "advance" })}
                           className="w-full py-2 bg-[#B8860B] text-white rounded-lg text-xs font-bold shadow-sm flex justify-center items-center gap-2"
                         >
-                          <UploadCloud size={14} /> Upload Advance UTR
+                          <UploadCloud size={14} /> Upload Advance Receipt
                         </button>
                       </div>
                     ) : (
@@ -336,7 +336,7 @@ const Dashboard = () => {
                             onClick={() => setUtrModal({ isOpen: true, orderId: latestOrder.id, type: "final" })}
                             className="flex-1 py-2 bg-blue-600 text-white rounded-lg text-[10px] font-bold shadow-sm hover:bg-blue-700 flex justify-center items-center gap-1"
                           >
-                            <UploadCloud size={12} /> Upload Final UTR
+                            <UploadCloud size={12} /> Upload Final Receipt
                           </button>
                         </div>
                       </div>
@@ -396,7 +396,7 @@ const Dashboard = () => {
               className="bg-white rounded-3xl p-6 w-full max-w-sm shadow-2xl"
             >
               <div className="flex justify-between items-center mb-5">
-                <h3 className="font-display text-xl font-bold text-slate-900">Upload UTR Receipt</h3>
+                <h3 className="font-display text-xl font-bold text-slate-900">Upload Payment Receipt</h3>
                 <button
                   onClick={() => setUtrModal({ isOpen: false, orderId: null, type: "advance" })}
                   className="w-8 h-8 bg-slate-100 rounded-full flex items-center justify-center text-slate-500 hover:bg-slate-200"
@@ -414,11 +414,11 @@ const Dashboard = () => {
 
                 <div>
                   <label className="block text-[11px] font-bold text-slate-500 uppercase mb-1.5">
-                    Bank Reference / UTR Number
+                    Bank Reference No. / Transaction ID
                   </label>
                   <input
                     type="text"
-                    placeholder="e.g., UTR1234567890"
+                    placeholder="e.g., REF1234567890"
                     value={utrRef}
                     onChange={(e) => setUtrRef(e.target.value)}
                     className="w-full bg-white border border-slate-200 rounded-xl p-3 text-sm font-bold outline-none focus:border-[#B8860B]"
@@ -427,7 +427,7 @@ const Dashboard = () => {
               </div>
 
               <button
-                onClick={handleUploadUTR}
+                onClick={handleUploadReceipt}
                 disabled={isUploading || !utrRef}
                 className="w-full mt-6 py-4 bg-slate-900 text-white font-bold rounded-xl hover:bg-black flex justify-center items-center gap-2 shadow-lg disabled:opacity-50 transition-all"
               >
