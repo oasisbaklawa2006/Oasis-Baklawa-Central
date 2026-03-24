@@ -336,7 +336,7 @@ const Dashboard = () => {
                             onClick={() => setUtrModal({ isOpen: true, orderId: latestOrder.id, type: "final" })}
                             className="flex-1 py-2 bg-blue-600 text-white rounded-lg text-[10px] font-bold shadow-sm hover:bg-blue-700 flex justify-center items-center gap-1"
                           >
-                            <UploadCloud size={12} /> Upload Final UTR
+                            <UploadCloud size={12} /> Upload Final Receipt
                           </button>
                         </div>
                       </div>
