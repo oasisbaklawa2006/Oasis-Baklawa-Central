@@ -16,7 +16,6 @@ import {
   Info,
 } from "lucide-react";
 
-// Updated to include B2B schema fields
 interface Product {
   id: string;
   name: string;
@@ -54,7 +53,7 @@ const EMPTY_FORM = {
   category: CATEGORIES[0],
   price_per_kg: "",
   pack_size: "1 kg pack",
-  carton_type: "4 Box",
+  carton_type: "",
   storage_type: "ambient",
   description: "",
   shelf_life: "90",
@@ -94,7 +93,7 @@ const AdminProducts = () => {
     fetchProducts();
   }, []);
 
-  // AUTO-GENERATE SKU logic
+  // 1. AUTO-GENERATE SKU
   useEffect(() => {
     if (formData.name && formData.net_weight_grams && !editingProduct) {
       const prefix = formData.name
@@ -104,6 +103,22 @@ const AdminProducts = () => {
       setFormData((prev: any) => ({ ...prev, sku: `OAS-${prefix}-${prev.net_weight_grams}` }));
     }
   }, [formData.name, formData.net_weight_grams, editingProduct]);
+
+  // 2. AUTO-GENERATE CARTON TYPE (Based on packs_per_master_carton)
+  useEffect(() => {
+    const packs = Number(formData.packs_per_master_carton);
+    if (packs > 0) {
+      let autoCarton = `${packs} Box`;
+
+      // Smart factory naming conventions (You can tweak these!)
+      if (packs <= 4) autoCarton = `Small Master (${packs} Box)`;
+      else if (packs <= 6) autoCarton = `Medium Master (${packs} Box)`;
+      else if (packs <= 9) autoCarton = `Large Master (${packs} Box)`;
+      else if (packs >= 12) autoCarton = `Jumbo Master (${packs} Box)`;
+
+      setFormData((prev: any) => ({ ...prev, carton_type: autoCarton }));
+    }
+  }, [formData.packs_per_master_carton]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
@@ -225,7 +240,6 @@ const AdminProducts = () => {
     }
     setSaving(true);
 
-    // Cast to correct types for database payload
     const payload = {
       name: formData.name,
       sku: formData.sku || null,
@@ -373,7 +387,7 @@ const AdminProducts = () => {
 
                   <div className="space-y-0.5">
                     <p className="text-xs text-muted-foreground font-mono">SKU: {product.sku || "N/A"}</p>
-                    <p className="text-xs text-muted-foreground">Pack: {product.pack_size || "N/A"}</p>
+                    <p className="text-xs text-muted-foreground">Carton: {product.carton_type || "N/A"}</p>
                     <p className="text-xs text-muted-foreground">MOQ: {product.moq || 1} packs</p>
                   </div>
 
@@ -419,7 +433,6 @@ const AdminProducts = () => {
               transition={{ type: "spring", damping: 30, stiffness: 300 }}
               className="fixed top-0 right-0 z-50 h-full w-full max-w-xl bg-background border-l border-border shadow-2xl flex flex-col"
             >
-              {/* Panel Header */}
               <div className="flex items-center justify-between p-6 border-b border-border bg-card">
                 <h2 className="text-xl font-black text-foreground flex items-center gap-2">
                   <Package className="text-primary" size={20} />
@@ -430,7 +443,6 @@ const AdminProducts = () => {
                 </button>
               </div>
 
-              {/* Panel Body */}
               <div className="flex-1 overflow-y-auto p-6 space-y-8">
                 {/* AI MAGIC FILL */}
                 <div className="bg-primary/5 border border-primary/20 rounded-xl p-4">
@@ -466,7 +478,6 @@ const AdminProducts = () => {
                     1. Identity & Visuals
                   </h3>
 
-                  {/* Image Uploader */}
                   <div className="mt-2 flex items-center gap-4">
                     {formData.image_url ? (
                       <div className="relative w-16 h-16 rounded-lg overflow-hidden border border-border flex-shrink-0 bg-muted/30">
@@ -525,7 +536,7 @@ const AdminProducts = () => {
                       <input
                         name="sku"
                         value={formData.sku}
-                        onChange={handleInputChange}
+                        readOnly
                         className="w-full bg-muted/30 border border-border rounded-lg p-2.5 text-sm text-foreground outline-none focus:ring-1 focus:ring-primary"
                       />
                     </div>
@@ -664,18 +675,6 @@ const AdminProducts = () => {
                     </div>
                     <div>
                       <label className="block text-[10px] font-semibold text-muted-foreground uppercase mb-1.5">
-                        Carton Type String
-                      </label>
-                      <input
-                        name="carton_type"
-                        placeholder="e.g. 4 Box"
-                        value={formData.carton_type}
-                        onChange={handleInputChange}
-                        className="w-full bg-background border border-border rounded-lg p-2.5 text-sm outline-none focus:ring-1 focus:ring-primary"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-[10px] font-semibold text-muted-foreground uppercase mb-1.5">
                         Packs / Master Carton
                       </label>
                       <input
@@ -684,6 +683,18 @@ const AdminProducts = () => {
                         value={formData.packs_per_master_carton}
                         onChange={handleInputChange}
                         className="w-full bg-background border border-border rounded-lg p-2.5 text-sm outline-none focus:ring-1 focus:ring-primary"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] font-semibold text-muted-foreground uppercase tracking-wide mb-1.5 flex justify-between">
+                        Carton Type <span className="text-primary">Auto</span>
+                      </label>
+                      <input
+                        name="carton_type"
+                        placeholder="e.g. 4 Box"
+                        value={formData.carton_type}
+                        readOnly
+                        className="w-full bg-muted/30 border border-border rounded-lg p-2.5 text-sm text-foreground outline-none focus:ring-1 focus:ring-primary"
                       />
                     </div>
                     <div>
@@ -721,7 +732,7 @@ const AdminProducts = () => {
                   <div className="grid grid-cols-2 gap-4 mb-4">
                     <div>
                       <label className="block text-[10px] font-semibold text-muted-foreground uppercase mb-1.5">
-                        Shelf Life (Days/String)
+                        Shelf Life (Days)
                       </label>
                       <input
                         name="shelf_life"
