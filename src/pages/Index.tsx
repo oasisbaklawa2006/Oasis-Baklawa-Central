@@ -295,7 +295,7 @@ const Dashboard = () => {
                     <h4
                       className={`font-bold text-sm ${getTimelineStep(latestOrder) >= 2 ? "text-slate-900" : "text-slate-400"}`}
                     >
-                      Baking & Packing
+                      Production & Assembly
                     </h4>
                     {getTimelineStep(latestOrder) === 2 && (
                       <p className="text-xs text-[#B8860B] font-bold mt-1 flex items-center gap-1">
