@@ -120,7 +120,7 @@ const AdminDashboard = () => {
     },
     { key: "accounts", label: t("Accounts & Release"), icon: Landmark, subtitle: "Finance release control",
       metrics: [
-        { l: "Advance Pending", v: pipeline.awaiting_advance ?? 0 },
+        { l: "Awaiting Payment", v: pipeline.awaiting_final_payment ?? 0 },
         { l: "Finance Hold", v: Number(counts.financeHold) || 0 },
       ],
       route: "/admin/accounts-release",

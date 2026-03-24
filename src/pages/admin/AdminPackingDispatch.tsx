@@ -175,7 +175,7 @@ const AdminPackingDispatch = () => {
                           {updating === order.id ? <Loader2 size={12} className="animate-spin" /> : <ArrowRight size={12} />} → Ready
                         </button>
                       )}
-                      {order.status === "ready_for_dispatch" && !blocked && (
+                      {order.status === "cleared_for_dispatch" && !blocked && (
                         <button onClick={() => openDispatchModal(order)}
                           className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold bg-primary/10 text-primary hover:bg-primary/20">
                           <Truck size={12} /> {t("Create Dispatch")}
