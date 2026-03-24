@@ -1,8 +1,9 @@
 import TopNavBar from "@/components/TopNavBar";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { ArrowRight, ChevronLeft, Star, TrendingUp, Package, Gift, ShoppingCart, Box } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import AppShell from "@/components/AppShell";
+import { supabase } from "@/integrations/supabase/client";
 
 // --- MOCK DATA ---
 const SMART_REORDER = [
@@ -56,6 +57,21 @@ const PACKAGING = [
 
 const Index = () => {
   const navigate = useNavigate();
+  const [companyName, setCompanyName] = useState("");
+
+  // Fetch the logged-in user's company name
+  useEffect(() => {
+    const fetchCompany = async () => {
+      const { data } = await supabase.from("orders").select("company:companies(business_name)").limit(1);
+
+      if (data && data[0]?.company?.business_name) {
+        setCompanyName(data[0].company.business_name);
+      } else {
+        setCompanyName("Valued Partner"); // Fallback
+      }
+    };
+    fetchCompany();
+  }, []);
 
   return (
     <AppShell>
@@ -72,13 +88,19 @@ const Index = () => {
 
         <main className="pt-24 px-4 sm:px-6 max-w-5xl mx-auto space-y-12">
           {/* HELLO GRAPHIC SIMULATION */}
-          <div className="text-center mb-8">
-            <h1 className="text-6xl md:text-8xl font-serif text-gray-900 tracking-tighter mb-4">Hello</h1>
-            <p className="text-sm md:text-base font-medium text-gray-800 tracking-wide">
+          <div className="text-center mb-12 mt-4">
+            <h1 className="text-8xl md:text-[140px] leading-none font-serif text-gray-900 tracking-tighter mb-4">
+              Hello
+            </h1>
+            <p className="text-sm md:text-lg font-medium text-gray-800 tracking-wide leading-relaxed">
               नमस्ते, सति स्री अकाल, السَّلَامُ عَلَيْكُمْ, வணக்கம்,
               <br className="hidden md:block" />
               নমস্কার, કેમ છો, నమస్కారం, खाम माणी, Chibai.........
             </p>
+            {/* Dynamic Company Name */}
+            <h2 className="text-2xl md:text-4xl font-serif text-[#C5A059] mt-6 font-bold tracking-tight">
+              {companyName}
+            </h2>
           </div>
 
           {/* 1. SEASON'S SPECIAL HERO (Auto-swiping container) */}
