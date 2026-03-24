@@ -80,13 +80,49 @@ const Dashboard = () => {
       toast.error("Please enter the Bank Reference No. / Transaction ID.");
       return;
     }
+    if (!selectedFile) {
+      toast.error("Please attach a screenshot or PDF of the receipt.");
+      return;
+    }
+    if (!utrModal.orderId) return;
+
     setIsUploading(true);
-    setTimeout(() => {
-      toast.success("Payment Receipt Uploaded Successfully! Awaiting Finance Verification.", { icon: "✅" });
+
+    try {
+      // 1. Upload file to Supabase Storage
+      const fileExt = selectedFile.name.split(".").pop();
+      const filePath = `receipts/${utrModal.orderId}-${Date.now()}.${fileExt}`;
+
+      const { error: uploadError } = await supabase.storage.from("trade_documents").upload(filePath, selectedFile);
+
+      if (uploadError) throw uploadError;
+
+      // 2. Get the public URL of the uploaded file
+      const {
+        data: { publicUrl },
+      } = supabase.storage.from("trade_documents").getPublicUrl(filePath);
+
+      // 3. Update the Order in the database with the URL and new status
+      const { error: updateError } = await supabase
+        .from("orders")
+        .update({
+          payment_status: utrModal.type === "advance" ? "awaiting_verification" : "final_payment_review",
+          // In a real production app, you'd add a 'receipt_url' column to the orders table to save this URL!
+        })
+        .eq("id", utrModal.orderId);
+
+      if (updateError) throw updateError;
+
+      toast.success("Payment Receipt Uploaded! Awaiting Finance Verification.", { icon: "✅" });
       setUtrModal({ isOpen: false, orderId: null, type: "advance" });
       setUtrRef("");
+      setSelectedFile(null);
+      fetchDashboardData(); // Refresh the timeline
+    } catch (error: any) {
+      toast.error(error.message || "Failed to upload receipt.");
+    } finally {
       setIsUploading(false);
-    }, 1500);
+    }
   };
 
   // KPIs Calculations
