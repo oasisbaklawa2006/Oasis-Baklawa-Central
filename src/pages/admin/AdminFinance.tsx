@@ -194,7 +194,7 @@ const AdminFinance = () => {
                     </div>
                     <div className="flex gap-2">
                       <button className="flex-1 py-2.5 border border-slate-200 text-slate-600 rounded-lg text-xs font-bold hover:bg-slate-50">
-                        View UTR
+                        View Receipt
                       </button>
                       <button
                         onClick={() => handleValidatePayment(order.id)}

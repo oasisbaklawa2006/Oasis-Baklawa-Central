@@ -353,7 +353,7 @@ const Cart = () => {
                     <Banknote size={20} className={paymentMethod === "utr" ? "text-[#B8860B]" : "text-slate-500"} />
                   </div>
                   <div className="ml-4 flex-1">
-                    <p className="font-bold text-slate-900 text-sm">Submit Order & Upload UTR</p>
+                    <p className="font-bold text-slate-900 text-sm">Submit Order & Upload Payment Receipt</p>
                     <p className="text-[11px] text-slate-500 mt-0.5 leading-relaxed">
                       Secure the order now. Transfer via NEFT/RTGS and upload the receipt in your dashboard later.
                     </p>

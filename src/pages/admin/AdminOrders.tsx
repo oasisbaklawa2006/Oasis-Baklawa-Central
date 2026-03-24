@@ -32,20 +32,13 @@ const STATUS_LABELS: Record<OrderStatus, string> = {
 };
 
 const STATUS_COLORS: Record<OrderStatus, string> = {
-  draft: "hsl(220, 15%, 60%)",
   submitted: "hsl(210, 60%, 55%)",
-  under_review: "hsl(250, 50%, 55%)",
-  awaiting_advance: "hsl(40, 40%, 59%)",
-  approved: "hsl(130, 45%, 45%)",
   in_production: "hsl(220, 70%, 55%)",
-  assembly: "hsl(280, 60%, 55%)",
-  packing: "hsl(150, 50%, 45%)",
-  ready_for_dispatch: "hsl(30, 70%, 50%)",
+  packed_ready: "hsl(150, 50%, 45%)",
+  awaiting_final_payment: "hsl(40, 40%, 59%)",
+  cleared_for_dispatch: "hsl(30, 70%, 50%)",
   dispatched: "hsl(170, 55%, 45%)",
-  in_transit: "hsl(200, 60%, 50%)",
   delivered: "hsl(140, 60%, 40%)",
-  complaint_window: "hsl(0, 70%, 55%)",
-  closed: "hsl(0, 0%, 55%)",
   cancelled: "hsl(0, 50%, 45%)",
 };
 
