@@ -8,20 +8,13 @@ import TopNavBar from "@/components/TopNavBar";
 const PACKS_PER_CARTON = 9;
 
 const STATUSES = [
-  "draft",
   "submitted",
-  "under_review",
-  "awaiting_advance",
-  "approved",
   "in_production",
-  "assembly",
-  "packing",
-  "ready_for_dispatch",
+  "packed_ready",
+  "awaiting_final_payment",
+  "cleared_for_dispatch",
   "dispatched",
-  "in_transit",
   "delivered",
-  "complaint_window",
-  "closed",
   "cancelled",
 ] as const;
 
