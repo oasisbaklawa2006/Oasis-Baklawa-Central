@@ -17,9 +17,18 @@ import {
   User,
   Download,
   Headphones,
+  Megaphone,
+  AlertTriangle,
+  UploadCloud,
+  X,
+  Loader2,
+  CheckCircle2,
+  Receipt,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import AiOrderModal from "@/components/AiOrderModal";
+import { motion, AnimatePresence } from "framer-motion";
+import { toast } from "sonner";
 
 const formatPrice = (n: number) => "₹" + n.toLocaleString("en-IN");
 const formatDate = (dateString: string) =>
@@ -37,22 +46,70 @@ const Dashboard = () => {
   const [companyName, setCompanyName] = useState("Oasis Admin Master");
   const [isAiModalOpen, setIsAiModalOpen] = useState(false);
 
+  // Modal & Upload State
+  const [utrModal, setUtrModal] = useState<{ isOpen: boolean; orderId: string | null; type: "advance" | "final" }>({
+    isOpen: false,
+    orderId: null,
+    type: "advance",
+  });
+  const [utrRef, setUtrRef] = useState("");
+  const [isUploading, setIsUploading] = useState(false);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+
+  const fetchDashboardData = async () => {
+    const { data } = await supabase
+      .from("orders")
+      .select("*, company:companies(business_name), order_items(*, product:products(name))")
+      .order("created_at", { ascending: false });
+    if (data) {
+      setOrders(data);
+      if (data[0]?.company?.business_name) setCompanyName(data[0].company.business_name);
+    }
+  };
+
   useEffect(() => {
-    const fetchDashboardData = async () => {
-      const { data } = await supabase
-        .from("orders")
-        .select("*, company:companies(business_name), order_items(*, product:products(name))")
-        .order("created_at", { ascending: false });
-      if (data) {
-        setOrders(data);
-        if (data[0]?.company?.business_name) setCompanyName(data[0].company.business_name);
-      }
-    };
     fetchDashboardData();
   }, []);
 
+  const handleUploadReceipt = async () => {
+    if (!utrRef || !selectedFile || !utrModal.orderId) {
+      toast.error("Please ensure you have entered a reference number and attached a file.");
+      return;
+    }
+
+    setIsUploading(true);
+
+    try {
+      const fileExt = selectedFile.name.split(".").pop();
+      const filePath = `receipts/${utrModal.orderId}-${Date.now()}.${fileExt}`;
+
+      const { error: uploadError } = await supabase.storage.from("trade_documents").upload(filePath, selectedFile);
+      if (uploadError) throw uploadError;
+
+      const nextPaymentStatus = utrModal.type === "advance" ? "awaiting_verification" : "final_payment_review";
+
+      const { error: updateError } = await supabase
+        .from("orders")
+        .update({ payment_status: nextPaymentStatus })
+        .eq("id", utrModal.orderId);
+
+      if (updateError) throw updateError;
+
+      toast.success("Payment Receipt Uploaded! Awaiting Finance Verification.", { icon: "✅" });
+      setUtrModal({ isOpen: false, orderId: null, type: "advance" });
+      setUtrRef("");
+      setSelectedFile(null);
+      fetchDashboardData();
+    } catch (err: any) {
+      toast.error(err.message || "Failed to upload receipt.");
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
   const totalBusiness = orders.reduce((sum, o) => sum + (o.sales_order_value || 0), 0);
-  const latestOrder = orders.filter((o) => o.status !== "delivered" && o.status !== "cancelled")[0];
+  const activeOrders = orders.filter((o) => o.status !== "delivered" && o.status !== "cancelled");
+  const latestOrder = activeOrders[0];
 
   const getTimelineStep = (order: any) => {
     if (order.status === "dispatched") return 4;
@@ -72,8 +129,25 @@ const Dashboard = () => {
 
   return (
     <AppShell>
+      {/* GLOBAL MARQUEE BANNER */}
+      <div className="bg-[#C5A059] text-white text-xs font-bold py-2.5 overflow-hidden relative flex items-center mt-16 lg:mt-0 shadow-sm z-30">
+        <div className="absolute left-4 z-10 bg-[#C5A059] pr-3 border-r border-white/20">
+          <Megaphone size={14} />
+        </div>
+        <div className="whitespace-nowrap animate-[marquee_15s_linear_infinite] ml-12">
+          Welcome to the new Oasis B2B Portal! • Dispatch SLAs are currently 48 hours from advance payment • Festive
+          Pre-Booking opens next week! • Contact support for volume discounts.
+        </div>
+      </div>
+      <style>{`
+        @keyframes marquee {
+          0% { transform: translateX(100%); }
+          100% { transform: translateX(-100%); }
+        }
+      `}</style>
+
       <div className="min-h-screen bg-[#FDFCF8] font-sans pb-24">
-        <main className="pt-24 px-4 sm:px-6 max-w-5xl mx-auto space-y-8">
+        <main className="pt-8 px-4 sm:px-6 max-w-5xl mx-auto space-y-8">
           {/* HEADER & KPIs */}
           <section>
             <h1 className="font-serif text-3xl font-bold text-gray-900 tracking-tight">Welcome back, {companyName}</h1>
@@ -169,7 +243,7 @@ const Dashboard = () => {
               </button>
             </div>
 
-            {latestOrder && (
+            {latestOrder ? (
               <div className="bg-white rounded-[2rem] border border-gray-100 shadow-[0_4px_20px_-4px_rgba(0,0,0,0.05)] overflow-hidden">
                 <div className="bg-gray-50/50 border-b border-gray-100 p-6 flex justify-between items-center">
                   <div>
@@ -197,9 +271,29 @@ const Dashboard = () => {
                     </div>
                     <div className="flex-1 pt-2">
                       <h4 className="font-bold text-gray-900 text-base">Order Logged</h4>
-                      <p className="text-xs text-gray-500 font-medium mt-1">
-                        Financials verified. Released to Production.
-                      </p>
+
+                      {/* ACTION BOX: Advance Receipt */}
+                      {latestOrder.payment_status === "awaiting_receipt" ? (
+                        <div className="mt-4 bg-[#FDFCF8] border border-[#C5A059]/30 rounded-xl p-4 shadow-sm">
+                          <p className="text-xs font-bold text-[#C5A059] flex items-center gap-1.5 mb-2">
+                            <AlertTriangle size={14} /> Action Required
+                          </p>
+                          <p className="text-[11px] text-gray-600 mb-4 font-medium">
+                            Please transfer the 50% advance and upload the payment receipt to release this to
+                            Production.
+                          </p>
+                          <button
+                            onClick={() => setUtrModal({ isOpen: true, orderId: latestOrder.id, type: "advance" })}
+                            className="w-full py-2.5 bg-[#C5A059] text-white rounded-xl text-xs font-bold shadow-md hover:bg-[#B38F48] flex justify-center items-center gap-2 transition-colors"
+                          >
+                            <UploadCloud size={14} /> Upload Advance Receipt
+                          </button>
+                        </div>
+                      ) : (
+                        <p className="text-xs text-gray-500 font-medium mt-1">
+                          Financials verified. Released to Production.
+                        </p>
+                      )}
                     </div>
                   </div>
 
@@ -215,6 +309,12 @@ const Dashboard = () => {
                       >
                         Production & Assembly
                       </h4>
+                      {getTimelineStep(latestOrder) === 2 && (
+                        <p className="text-xs text-[#C5A059] font-bold mt-1 flex items-center gap-1">
+                          <Loader2 size={12} className="animate-spin" /> Packaging division is assembling your master
+                          cartons
+                        </p>
+                      )}
                     </div>
                   </div>
 
@@ -230,6 +330,30 @@ const Dashboard = () => {
                       >
                         Final Invoicing
                       </h4>
+
+                      {/* ACTION BOX: Final Receipt */}
+                      {latestOrder.status === "awaiting_final_payment" && (
+                        <div className="mt-4 bg-[#F8FAFC] border border-[#3B82F6]/30 rounded-xl p-4 shadow-sm">
+                          <p className="text-xs font-bold text-[#3B82F6] flex items-center gap-1.5 mb-2">
+                            <AlertTriangle size={14} /> Final Payment Required
+                          </p>
+                          <p className="text-[11px] text-gray-600 mb-4 font-medium">
+                            Finance has generated the final tax invoice based on actual packed weights. Please clear the
+                            balance.
+                          </p>
+                          <div className="flex gap-2">
+                            <button className="flex-1 py-2 bg-white border border-gray-200 text-gray-700 rounded-lg text-[10px] font-bold shadow-sm flex justify-center items-center gap-1 hover:bg-gray-50">
+                              <FileText size={12} /> View Invoice
+                            </button>
+                            <button
+                              onClick={() => setUtrModal({ isOpen: true, orderId: latestOrder.id, type: "final" })}
+                              className="flex-1 py-2 bg-[#3B82F6] text-white rounded-lg text-[10px] font-bold shadow-md hover:bg-[#2563EB] flex justify-center items-center gap-1"
+                            >
+                              <UploadCloud size={12} /> Upload Final Receipt
+                            </button>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   </div>
 
@@ -259,10 +383,83 @@ const Dashboard = () => {
                   </div>
                 </div>
               </div>
+            ) : (
+              <div className="bg-white rounded-[2rem] border border-gray-100 p-10 text-center shadow-[0_4px_20px_-4px_rgba(0,0,0,0.05)]">
+                <Package size={40} className="mx-auto text-gray-300 mb-4" />
+                <p className="text-gray-500 text-sm font-medium mb-5">No active shipments in transit.</p>
+                <button
+                  onClick={() => navigate("/catalogue")}
+                  className="px-6 py-2.5 bg-[#C5A059] text-white rounded-xl font-bold text-xs shadow-md hover:bg-[#B38F48] transition-colors"
+                >
+                  Start New Order
+                </button>
+              </div>
             )}
           </section>
         </main>
       </div>
+
+      {/* UPLOAD MODAL (AnimatePresence) */}
+      <AnimatePresence>
+        {utrModal.isOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="bg-white rounded-3xl p-6 md:p-8 w-full max-w-sm shadow-2xl border border-gray-100"
+            >
+              <div className="flex justify-between items-center mb-6">
+                <h3 className="font-serif text-xl font-bold text-gray-900">Upload Receipt</h3>
+                <button
+                  onClick={() => setUtrModal({ isOpen: false, orderId: null, type: "advance" })}
+                  className="w-8 h-8 bg-gray-50 rounded-full flex items-center justify-center text-gray-500 hover:bg-gray-100 hover:text-gray-900 transition-colors"
+                >
+                  <X size={16} />
+                </button>
+              </div>
+
+              <div className="space-y-5">
+                <label className="bg-[#FDFCF8] p-5 border-2 border-dashed border-[#C5A059]/30 rounded-2xl flex flex-col items-center justify-center text-center cursor-pointer hover:border-[#C5A059] hover:bg-[#C5A059]/5 transition-all relative">
+                  <input
+                    type="file"
+                    accept="image/*,.pdf"
+                    className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                    onChange={(e) => setSelectedFile(e.target.files?.[0] || null)}
+                  />
+                  <UploadCloud size={32} className={selectedFile ? "text-[#C5A059] mb-3" : "text-gray-300 mb-3"} />
+                  <p className="text-sm font-bold text-gray-700">
+                    {selectedFile ? selectedFile.name : "Tap to browse files"}
+                  </p>
+                  <p className="text-[10px] text-gray-400 mt-1.5 uppercase tracking-wider">JPG, PNG, PDF</p>
+                </label>
+
+                <div>
+                  <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2">
+                    Bank Reference No. / Transaction ID
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="e.g., REF1234567890"
+                    value={utrRef}
+                    onChange={(e) => setUtrRef(e.target.value)}
+                    className="w-full bg-white border border-gray-200 rounded-xl p-3 text-sm font-bold outline-none focus:border-[#C5A059] focus:ring-1 focus:ring-[#C5A059] transition-all"
+                  />
+                </div>
+              </div>
+
+              <button
+                onClick={handleUploadReceipt}
+                disabled={isUploading || !utrRef || !selectedFile}
+                className="w-full mt-8 py-3.5 bg-[#1A1A1A] text-white font-bold rounded-xl hover:bg-black flex justify-center items-center gap-2 shadow-lg disabled:opacity-50 transition-all text-sm"
+              >
+                {isUploading ? <Loader2 size={16} className="animate-spin" /> : "Submit for Verification"}
+              </button>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
       <AiOrderModal isOpen={isAiModalOpen} onClose={() => setIsAiModalOpen(false)} />
     </AppShell>
   );
