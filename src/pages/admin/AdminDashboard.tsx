@@ -15,9 +15,9 @@ interface AlertItem { label: string; count: number; route: string; severity: "hi
 interface AuditEntry { id: string; action_type: string | null; module_name: string | null; entity_name: string | null; created_at: string; }
 
 const ALL_STATUSES = [
-  "draft", "submitted", "under_review", "awaiting_advance", "approved",
-  "in_production", "assembly", "packing", "ready_for_dispatch",
-  "dispatched", "in_transit", "delivered", "complaint_window", "closed", "cancelled",
+  "submitted", "in_production", "packed_ready",
+  "awaiting_final_payment", "cleared_for_dispatch",
+  "dispatched", "delivered", "cancelled",
 ];
 
 const AdminDashboard = () => {
