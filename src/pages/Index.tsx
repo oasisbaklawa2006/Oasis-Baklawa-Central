@@ -284,7 +284,7 @@ const Dashboard = () => {
                   </div>
                 </div>
 
-                {/* Step 2: Kitchen & Packing */}
+                {/* Step 2: Production & Assembly */}
                 <div className="relative flex items-start gap-4 mb-8">
                   <div
                     className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 z-10 transition-colors ${getTimelineStep(latestOrder) >= 2 ? "bg-[#B8860B] text-white shadow-md shadow-[#B8860B]/20" : "bg-slate-100 text-slate-300"}`}
