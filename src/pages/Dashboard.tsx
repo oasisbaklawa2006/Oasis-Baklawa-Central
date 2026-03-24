@@ -284,7 +284,7 @@ const Dashboard = () => {
                           <AlertTriangle size={14} /> Action Required
                         </p>
                         <p className="text-[11px] text-amber-700 mb-3">
-                          Please transfer the 50% advance and upload the payment receipt to push this to the kitchen.
+                          Please transfer the 50% advance and upload the payment receipt to release this to Production.
                         </p>
                         <button
                           onClick={() => setUtrModal({ isOpen: true, orderId: latestOrder.id, type: "advance" })}
