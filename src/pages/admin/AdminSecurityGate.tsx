@@ -86,7 +86,7 @@ const AdminSecurityGate = () => {
           .eq("id", carton.id);
 
         setScreenState("success");
-        setLastMessage(`AUTHORIZED: ${companyName} (Box ${carton.box_number}/${carton.total_boxes})`);
+        setLastMessage(`AUTHORIZED: ${companyName} (Master Carton ${carton.box_number}/${carton.total_boxes})`);
         addToHistory(barcode, companyName, "success", "Authorized and dispatched.");
         playAudio("success");
       }

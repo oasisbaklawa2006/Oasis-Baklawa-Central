@@ -299,7 +299,7 @@ const Dashboard = () => {
                     </h4>
                     {getTimelineStep(latestOrder) === 2 && (
                       <p className="text-xs text-[#B8860B] font-bold mt-1 flex items-center gap-1">
-                        <Loader2 size={12} className="animate-spin" /> Operations is packing your boxes
+                        <Loader2 size={12} className="animate-spin" /> Packaging division is assembling your master cartons
                       </p>
                     )}
                   </div>
