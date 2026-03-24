@@ -169,7 +169,7 @@ const AdminPackingDispatch = () => {
                     </td>
                     <td className="px-4 py-3 text-ui-cell text-foreground">₹{(order.sales_order_value ?? 0).toLocaleString("en-IN")}</td>
                     <td className="px-4 py-3 text-right space-x-2">
-                      {order.status === "packing" && !blocked && (
+                      {order.status === "packed_ready" && !blocked && (
                         <button onClick={() => handleAdvanceToPacking(order)} disabled={updating === order.id}
                           className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold bg-primary/10 text-primary hover:bg-primary/20 disabled:opacity-50">
                           {updating === order.id ? <Loader2 size={12} className="animate-spin" /> : <ArrowRight size={12} />} → Ready
