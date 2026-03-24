@@ -134,7 +134,6 @@ const Catalogue = () => {
       return;
     }
     toast.success(`Purchase Order Generated for ${totalItems} Cartons!`, { icon: "📝" });
-    // In a real app, this would save to DB and navigate to Checkout/Cart
     navigate("/cart");
   };
 
@@ -149,7 +148,7 @@ const Catalogue = () => {
         <div className="fixed top-20 left-4 z-40 lg:hidden">
           <button
             onClick={() => navigate(-1)}
-            className="w-10 h-10 bg-white/80 backdrop-blur-md rounded-full shadow-sm border border-gray-100 flex items-center justify-center text-gray-600 hover:text-[#C5A059] transition-colors"
+            className="w-10 h-10 bg-white/80 backdrop-blur-md rounded-full shadow-md border border-[#C5A059]/20 flex items-center justify-center text-[#C5A059] hover:bg-[#C5A059] hover:text-white transition-colors"
           >
             <ChevronLeft size={20} />
           </button>
@@ -158,34 +157,41 @@ const Catalogue = () => {
         <main className="pt-24 px-4 sm:px-6 max-w-5xl mx-auto space-y-12">
           {/* HEADER & SEARCH */}
           <div>
-            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">PROCUREMENT</p>
+            <p className="text-[10px] font-bold text-[#C5A059] uppercase tracking-widest mb-1">PROCUREMENT</p>
             <h1 className="text-3xl md:text-4xl font-serif text-gray-900 tracking-tight mb-6">Master Catalogue</h1>
 
-            <div className="relative">
+            <div className="relative group">
               <input
                 type="text"
                 placeholder="Search by SKU, Product Name, or Category..."
-                className="w-full bg-white border border-gray-200 rounded-2xl py-4 pl-12 pr-4 text-sm font-medium shadow-sm focus:border-[#C5A059] focus:ring-1 focus:ring-[#C5A059] outline-none transition-all"
+                className="w-full bg-white border border-gray-200 rounded-2xl py-4 pl-12 pr-4 text-sm font-medium shadow-sm focus:border-[#C5A059] focus:ring-2 focus:ring-[#C5A059]/30 outline-none transition-all"
               />
-              <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={20} />
+              <Search
+                className="absolute left-4 top-1/2 -translate-y-1/2 text-[#C5A059] group-focus-within:text-[#D4AF37] transition-colors"
+                size={20}
+              />
             </div>
           </div>
 
           {/* 1. QUICK ORDER (LIST VIEW) */}
-          <section className="bg-white rounded-3xl border border-[#C5A059]/20 shadow-[0_8px_30px_-4px_rgba(197,160,89,0.1)] overflow-hidden">
-            <div className="bg-[#FDFCF8] border-b border-[#C5A059]/20 p-5 md:p-6 flex justify-between items-center">
-              <div>
-                <h2 className="text-lg font-serif text-gray-900 flex items-center gap-2">
-                  <span className="text-[#C5A059]">⚡</span> Quick Order Form
+          <section className="bg-white rounded-3xl border border-[#C5A059]/30 shadow-[0_8px_30px_-4px_rgba(197,160,89,0.15)] overflow-hidden">
+            {/* GOLD BANNER HEADER */}
+            <div className="bg-gradient-to-r from-[#C5A059] to-[#D4AF37] p-5 md:p-6 flex justify-between items-center relative overflow-hidden">
+              <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] opacity-10"></div>
+              <div className="relative z-10">
+                <h2 className="text-xl font-serif text-white flex items-center gap-2 font-bold">
+                  <Sparkles size={20} className="text-white/80" /> Quick Order Form
                 </h2>
-                <p className="text-xs text-gray-500 mt-1">Enter Master Carton quantities for rapid PO generation.</p>
+                <p className="text-xs text-white/90 mt-1 font-medium">
+                  Enter Master Carton quantities for rapid PO generation.
+                </p>
               </div>
             </div>
 
             <div className="p-0 overflow-x-auto">
               <table className="w-full text-left border-collapse min-w-[600px]">
                 <thead>
-                  <tr className="bg-gray-50 border-b border-gray-100 text-[10px] font-bold text-gray-400 uppercase tracking-widest">
+                  <tr className="bg-[#FDFCF8] border-b border-[#C5A059]/20 text-[10px] font-bold text-[#C5A059] uppercase tracking-widest">
                     <th className="p-4 pl-6 font-medium">Product & SKU</th>
                     <th className="p-4 font-medium">Logistics</th>
                     <th className="p-4 font-medium">Price/Carton</th>
@@ -195,12 +201,12 @@ const Catalogue = () => {
                 </thead>
                 <tbody className="divide-y divide-gray-100">
                   {QUICK_ORDER_ITEMS.map((item) => (
-                    <tr key={item.id} className="hover:bg-gray-50/50 transition-colors">
+                    <tr key={item.id} className="hover:bg-[#C5A059]/5 transition-colors">
                       <td className="p-4 pl-6 flex items-center gap-4">
                         <img
                           src={item.image}
                           alt={item.name}
-                          className="w-12 h-12 rounded-lg object-cover border border-gray-100 mix-blend-multiply"
+                          className="w-12 h-12 rounded-lg object-cover border border-[#C5A059]/20 mix-blend-multiply"
                         />
                         <div>
                           <p className="font-bold text-sm text-gray-900">{item.name}</p>
@@ -210,10 +216,10 @@ const Catalogue = () => {
                       <td className="p-4 text-xs font-medium text-gray-500">{item.cartonSize}</td>
                       <td className="p-4 text-sm font-bold text-gray-900">₹{item.price.toLocaleString("en-IN")}</td>
                       <td className="p-4">
-                        <div className="flex items-center justify-center gap-3 bg-white border border-gray-200 rounded-xl px-2 py-1 w-28 mx-auto shadow-sm">
+                        <div className="flex items-center justify-center gap-3 bg-white border border-[#C5A059]/30 rounded-xl px-2 py-1 w-28 mx-auto shadow-sm focus-within:ring-2 focus-within:ring-[#C5A059]/20 transition-all">
                           <button
                             onClick={() => updateQuantity(item.id, -1)}
-                            className="text-gray-400 hover:text-[#C5A059] p-1"
+                            className="text-[#C5A059] hover:bg-[#C5A059]/10 rounded p-1 transition-colors"
                           >
                             <Minus size={14} />
                           </button>
@@ -222,13 +228,13 @@ const Catalogue = () => {
                           </span>
                           <button
                             onClick={() => updateQuantity(item.id, 1)}
-                            className="text-gray-400 hover:text-[#C5A059] p-1"
+                            className="text-[#C5A059] hover:bg-[#C5A059]/10 rounded p-1 transition-colors"
                           >
                             <Plus size={14} />
                           </button>
                         </div>
                       </td>
-                      <td className="p-4 pr-6 text-right font-black text-[#C5A059]">
+                      <td className="p-4 pr-6 text-right font-black text-[#C5A059] text-base">
                         ₹{((quantities[item.id] || 0) * item.price).toLocaleString("en-IN")}
                       </td>
                     </tr>
@@ -237,16 +243,16 @@ const Catalogue = () => {
               </table>
             </div>
 
-            <div className="bg-gray-50 p-6 flex flex-col md:flex-row justify-between items-center gap-4 border-t border-gray-100">
+            <div className="bg-[#FDFCF8] p-6 flex flex-col md:flex-row justify-between items-center gap-4 border-t border-[#C5A059]/20">
               <div className="text-center md:text-left">
-                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Order Subtotal</p>
+                <p className="text-[10px] font-bold text-[#C5A059] uppercase tracking-widest mb-1">Order Subtotal</p>
                 <p className="text-2xl font-serif text-gray-900 font-bold">
                   ₹{quickOrderTotal.toLocaleString("en-IN")}
                 </p>
               </div>
               <button
                 onClick={handleGenerateOrder}
-                className="w-full md:w-auto px-8 py-3.5 bg-[#1A1A1A] text-white rounded-xl text-sm font-bold shadow-lg hover:bg-black transition-all flex items-center justify-center gap-2"
+                className="w-full md:w-auto px-8 py-3.5 bg-gradient-to-r from-[#C5A059] to-[#D4AF37] text-white rounded-xl text-sm font-bold shadow-lg shadow-[#C5A059]/30 hover:shadow-[#C5A059]/50 hover:-translate-y-0.5 transition-all flex items-center justify-center gap-2"
               >
                 Generate Purchase Order <ArrowRight size={16} />
               </button>
@@ -256,21 +262,21 @@ const Catalogue = () => {
           {/* 2. MY FAVORITES */}
           <section>
             <h2 className="text-xl font-serif text-gray-900 flex items-center gap-2 mb-6">
-              <Star className="text-[#C5A059] fill-[#C5A059]/20" size={20} /> My Favorites
+              <Star className="text-[#C5A059] fill-[#C5A059]" size={20} /> My Favorites
             </h2>
             <div className="flex overflow-x-auto scrollbar-hide gap-5 pb-4 snap-x">
               {FAVORITES.map((item) => (
                 <div
                   key={item.id}
-                  className="min-w-[240px] bg-white border border-gray-100 rounded-2xl p-4 snap-start shadow-sm hover:shadow-md transition-shadow cursor-pointer group"
+                  className="min-w-[240px] bg-white border border-[#C5A059]/10 rounded-2xl p-4 snap-start shadow-sm hover:border-[#C5A059]/50 hover:shadow-[0_4px_20px_rgba(197,160,89,0.15)] transition-all cursor-pointer group"
                 >
-                  <div className="h-36 mb-4 rounded-xl overflow-hidden bg-[#FDFCF8] flex items-center justify-center p-2 relative">
+                  <div className="h-36 mb-4 rounded-xl overflow-hidden bg-[#FDFCF8] flex items-center justify-center p-2 relative border border-transparent group-hover:border-[#C5A059]/20 transition-colors">
                     <img
                       src={item.image}
-                      className="w-full h-full object-contain drop-shadow-sm group-hover:scale-105 transition-transform duration-300"
+                      className="w-full h-full object-contain drop-shadow-sm group-hover:scale-105 transition-transform duration-500"
                       alt={item.name}
                     />
-                    <button className="absolute top-2 right-2 p-1.5 bg-white/80 backdrop-blur-sm rounded-full text-[#C5A059] shadow-sm">
+                    <button className="absolute top-2 right-2 p-1.5 bg-white/90 backdrop-blur-sm rounded-full text-[#C5A059] shadow-sm">
                       <Star size={14} fill="currentColor" />
                     </button>
                   </div>
@@ -278,7 +284,7 @@ const Catalogue = () => {
                   <p className="text-[10px] text-gray-500 font-medium uppercase tracking-wider mb-3">{item.pack}</p>
                   <div className="flex items-center justify-between">
                     <p className="font-black text-sm text-gray-900">₹{item.price.toLocaleString("en-IN")}</p>
-                    <button className="w-8 h-8 rounded-full bg-slate-900 text-white flex items-center justify-center hover:bg-[#C5A059] transition-colors">
+                    <button className="w-8 h-8 rounded-full bg-gradient-to-r from-[#C5A059] to-[#D4AF37] text-white flex items-center justify-center shadow-md hover:scale-110 transition-transform">
                       <ShoppingCart size={14} />
                     </button>
                   </div>
@@ -296,14 +302,14 @@ const Catalogue = () => {
               {CATEGORIES.map((category) => (
                 <div
                   key={category.id}
-                  className="bg-white rounded-3xl shadow-sm border border-gray-100 overflow-hidden flex flex-col group"
+                  className="bg-white rounded-3xl shadow-sm border border-gray-100 overflow-hidden flex flex-col group hover:shadow-[0_8px_30px_rgba(197,160,89,0.1)] transition-shadow"
                 >
                   {/* Category Image Header */}
                   <div
                     onClick={() => setActiveCategory(activeCategory === category.id ? null : category.id)}
-                    className="h-40 relative cursor-pointer overflow-hidden"
+                    className="h-40 relative cursor-pointer overflow-hidden border-b border-transparent group-hover:border-[#C5A059]/30 transition-colors"
                   >
-                    <div className="absolute inset-0 bg-gray-900/40 group-hover:bg-gray-900/30 transition-colors z-10"></div>
+                    <div className="absolute inset-0 bg-gray-900/40 group-hover:bg-[#C5A059]/30 transition-colors z-10 mix-blend-multiply"></div>
                     <img
                       src={category.image}
                       className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700"
@@ -311,9 +317,9 @@ const Catalogue = () => {
                     />
                     <div className="absolute inset-0 z-20 p-6 flex flex-col justify-end">
                       <div className="flex items-center justify-between">
-                        <h3 className="font-serif text-xl text-white font-bold">{category.title}</h3>
+                        <h3 className="font-serif text-xl text-white font-bold drop-shadow-md">{category.title}</h3>
                         <div
-                          className={`w-8 h-8 rounded-full bg-white/20 backdrop-blur-md flex items-center justify-center text-white transition-transform duration-300 ${activeCategory === category.id ? "rotate-180" : ""}`}
+                          className={`w-8 h-8 rounded-full bg-[#C5A059] flex items-center justify-center text-white transition-transform duration-300 shadow-lg ${activeCategory === category.id ? "rotate-180" : ""}`}
                         >
                           <ChevronDown size={18} />
                         </div>
@@ -328,22 +334,21 @@ const Catalogue = () => {
                         initial={{ height: 0, opacity: 0 }}
                         animate={{ height: "auto", opacity: 1 }}
                         exit={{ height: 0, opacity: 0 }}
-                        className="bg-white border-t border-gray-100"
+                        className="bg-[#FDFCF8]"
                       >
                         <div className="p-3 grid grid-cols-2 gap-2">
                           {category.subcategories.map((sub) => (
                             <button
                               key={sub.id}
-                              onClick={() => {
-                                toast.info(`Opening ${sub.name}...`);
-                                // navigate(`/catalogue/${sub.id}`)
-                              }}
-                              className="flex flex-col items-center justify-center p-4 rounded-xl border border-gray-100 hover:border-[#C5A059] hover:bg-[#FDFCF8] hover:shadow-sm transition-all text-gray-600 hover:text-[#C5A059] group/sub"
+                              onClick={() => toast.info(`Opening ${sub.name}...`)}
+                              className="flex flex-col items-center justify-center p-4 rounded-xl border border-[#C5A059]/20 hover:border-[#C5A059] bg-white hover:bg-[#C5A059]/5 hover:shadow-sm transition-all text-[#C5A059] group/sub"
                             >
-                              <sub.icon size={24} strokeWidth={1.5} className="mb-2" />
-                              <span className="text-[11px] font-bold text-center text-gray-800 group-hover/sub:text-[#C5A059]">
-                                {sub.name}
-                              </span>
+                              <sub.icon
+                                size={24}
+                                strokeWidth={1.5}
+                                className="mb-2 group-hover/sub:scale-110 transition-transform"
+                              />
+                              <span className="text-[11px] font-bold text-center text-gray-800">{sub.name}</span>
                             </button>
                           ))}
                         </div>
