@@ -142,7 +142,6 @@ const Catalogue = () => {
   return (
     <AppShell>
       <div className="min-h-screen bg-[#FDFCF8] font-sans pb-32">
-        <TopNavBar />
 
         {/* Universal Back Button */}
         <div className="fixed top-20 left-4 z-40 lg:hidden">
@@ -154,7 +153,7 @@ const Catalogue = () => {
           </button>
         </div>
 
-        <main className="pt-24 px-4 sm:px-6 max-w-5xl mx-auto space-y-12">
+        <main className="px-4 sm:px-6 max-w-5xl mx-auto space-y-12">
           {/* HEADER & SEARCH */}
           <div>
             <p className="text-[10px] font-bold text-[#C5A059] uppercase tracking-widest mb-1">PROCUREMENT</p>

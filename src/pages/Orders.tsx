@@ -73,7 +73,7 @@ const Orders = () => {
 
   return (
     <AppShell>
-      <div className="max-w-4xl mx-auto pb-24 px-4 sm:px-6 pt-8 space-y-6">
+      <div className="max-w-4xl mx-auto pb-24 px-4 sm:px-6 space-y-6">
         {/* HEADER */}
         <div>
           <h1 className="font-display text-3xl font-bold text-slate-900">Order History</h1>
