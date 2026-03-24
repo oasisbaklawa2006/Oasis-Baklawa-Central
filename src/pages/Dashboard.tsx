@@ -21,12 +21,11 @@ import {
   IndianRupee,
   Sparkles,
 } from "lucide-react";
-
 import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
 
-const [isAiModalOpen, setIsAiModalOpen] = useState(false);
+// Notice: isAiModalOpen is REMOVED from here!
 const formatPrice = (n: number) => "₹" + n.toLocaleString("en-IN");
 const formatDate = (dateString: string) =>
   new Date(dateString).toLocaleDateString("en-IN", {
@@ -42,6 +41,9 @@ const Dashboard = () => {
   const [orders, setOrders] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [companyName, setCompanyName] = useState("Oasis Partner");
+
+  // ✅ SAFELY INSIDE THE COMPONENT:
+  const [isAiModalOpen, setIsAiModalOpen] = useState(false);
 
   // UTR Modal State
   const [utrModal, setUtrModal] = useState<{ isOpen: boolean; orderId: string | null; type: "advance" | "final" }>({
