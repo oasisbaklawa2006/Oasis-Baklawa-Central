@@ -26,11 +26,29 @@ interface DispatchOrder {
 
 const PACKS_PER_CARTON = 9;
 
+interface ActiveShipment {
+  id: string;
+  status: string;
+  sales_order_value: number | null;
+  created_at: string;
+  company?: { business_name: string } | null;
+  dispatches?: {
+    id: string;
+    transporter_name: string | null;
+    tracking_number: string | null;
+    driver_phone: string | null;
+    dispatch_date: string | null;
+    status: string | null;
+  }[];
+}
+
 const AdminDispatch = () => {
   const [orders, setOrders] = useState<DispatchOrder[]>([]);
+  const [shipments, setShipments] = useState<ActiveShipment[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedOrder, setSelectedOrder] = useState<DispatchOrder | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [activeTab, setActiveTab] = useState<"dispatch" | "shipments">("dispatch");
 
   // Print Engine State
   const [printMode, setPrintMode] = useState<"none" | "barcodes" | "consignee" | "packing_list" | "invoice">("none");
@@ -43,15 +61,25 @@ const AdminDispatch = () => {
 
   const fetchOrders = async () => {
     setLoading(true);
-    const { data } = await supabase
-      .from("orders")
-      .select(
-        "*, company:companies(business_name, billing_address, phone), order_items(id, quantity, product:products(name))",
-      )
-      .in("status", ["packing", "ready_for_dispatch", "packed_ready"])
-      .order("created_at", { ascending: false });
+    const [dispatchRes, shipmentRes] = await Promise.all([
+      supabase
+        .from("orders")
+        .select(
+          "*, company:companies(business_name, billing_address, phone), order_items(id, quantity, product:products(name))",
+        )
+        .in("status", ["packing", "ready_for_dispatch", "packed_ready", "cleared_for_dispatch"])
+        .order("created_at", { ascending: false }),
+      supabase
+        .from("orders")
+        .select(
+          "id, status, sales_order_value, created_at, company:companies(business_name), dispatches(id, transporter_name, tracking_number, driver_phone, dispatch_date, status)",
+        )
+        .eq("status", "dispatched")
+        .order("created_at", { ascending: false }),
+    ]);
 
-    setOrders((data as unknown as DispatchOrder[]) ?? []);
+    setOrders((dispatchRes.data as unknown as DispatchOrder[]) ?? []);
+    setShipments((shipmentRes.data as unknown as ActiveShipment[]) ?? []);
     setLoading(false);
   };
 

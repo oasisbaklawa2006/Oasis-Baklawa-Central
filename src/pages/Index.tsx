@@ -385,6 +385,34 @@ const Dashboard = () => {
         </section>
       </div>
 
+        {/* TOOLS DIRECTORY GRID */}
+        <section>
+          <h2 className="text-sm font-bold text-slate-800 uppercase tracking-widest flex items-center gap-2 mb-4">
+            <Package size={16} className="text-[#B8860B]" /> Quick Tools
+          </h2>
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+            {[
+              { label: "Product Catalogue", desc: "Browse & order products", path: "/catalogue", icon: "📦" },
+              { label: "My Orders", desc: "Track all your batches", path: "/orders", icon: "📋" },
+              { label: "Buyer Portal", desc: "Account & company info", path: "/buyer-portal", icon: "🏢" },
+              { label: "Documents", desc: "Invoices & E-Way Bills", path: "/documents", icon: "📄" },
+              { label: "Favorites", desc: "Quick reorder list", path: "/favorites", icon: "⭐" },
+              { label: "My Account", desc: "Profile & settings", path: "/account", icon: "👤" },
+            ].map((tool) => (
+              <button
+                key={tool.path}
+                onClick={() => navigate(tool.path)}
+                className="bg-white border border-slate-200 rounded-2xl p-4 text-left hover:border-[#B8860B]/40 hover:shadow-md active:scale-[0.98] transition-all shadow-sm"
+              >
+                <span className="text-2xl mb-2 block">{tool.icon}</span>
+                <p className="font-bold text-sm text-slate-900">{tool.label}</p>
+                <p className="text-[10px] text-slate-500 font-medium mt-0.5">{tool.desc}</p>
+              </button>
+            ))}
+          </div>
+        </section>
+      </div>
+
       {/* UTR UPLOAD MODAL */}
       <AnimatePresence>
         {utrModal.isOpen && (
