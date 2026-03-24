@@ -142,7 +142,6 @@ const Catalogue = () => {
   return (
     <AppShell>
       <div className="min-h-screen bg-[#FDFCF8] font-sans pb-32">
-        <TopNavBar />
 
         {/* Universal Back Button */}
         <div className="fixed top-20 left-4 z-40 lg:hidden">
