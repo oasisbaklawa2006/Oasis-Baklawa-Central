@@ -46,7 +46,7 @@ const AdminPackingDispatch = () => {
     const { data } = await supabase
       .from("orders")
       .select("id, status, sales_order_value, payment_status, advance_paid, advance_required, company_id, company:companies(business_name), order_items(id, quantity, pack_size, carton_type, product_id)")
-      .in("status", ["packing", "ready_for_dispatch"])
+      .in("status", ["packed_ready", "cleared_for_dispatch"])
       .order("created_at", { ascending: true });
     setOrders((data as unknown as DispatchOrder[]) ?? []);
     setLoading(false);
