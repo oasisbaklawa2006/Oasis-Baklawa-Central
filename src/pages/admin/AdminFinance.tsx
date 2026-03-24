@@ -176,7 +176,7 @@ const AdminFinance = () => {
           {activeQueue === "validation" && (
             <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
               {validationQueue.length === 0 ? (
-                <p className="text-slate-500 font-bold p-4">No UTRs pending validation.</p>
+                <p className="text-slate-500 font-bold p-4">No receipts pending validation.</p>
               ) : (
                 validationQueue.map((order) => (
                   <div key={order.id} className="bg-white border-l-4 border-amber-400 rounded-xl p-5 shadow-sm">
