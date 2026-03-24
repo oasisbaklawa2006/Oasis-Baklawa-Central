@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { ChevronLeft, Star, TrendingUp, ShoppingCart, Box, Gift, ChevronRight, PhoneCall } from "lucide-react";
+import { Star, TrendingUp, ShoppingCart, Box, Gift, ChevronRight } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import AppShell from "@/components/AppShell";
 import { supabase } from "@/integrations/supabase/client";
@@ -85,29 +85,11 @@ const Index = () => {
   return (
     <AppShell>
       <div className="min-h-screen bg-[#FDFCF8] font-sans pb-24 relative">
-        {/* Universal Back Button (Top Left) */}
-        <div className="fixed top-20 left-4 z-40 lg:hidden">
-          <button
-            onClick={() => navigate(-1)}
-            className="w-10 h-10 bg-white/80 backdrop-blur-md rounded-full shadow-sm border border-gray-100 flex items-center justify-center text-gray-600 hover:text-[#B8860B] transition-colors"
-          >
-            <ChevronLeft size={20} />
-          </button>
-        </div>
-
-        {/* FLOATING CALL BUTTON */}
-        <button
-          onClick={() => window.open("tel:+919876543210")}
-          className="fixed right-4 top-24 w-12 h-12 bg-[#B8860B] rounded-full shadow-lg flex items-center justify-center text-white hover:bg-[#9A7009] transition-transform active:scale-95 z-40"
-        >
-          <PhoneCall size={20} />
-        </button>
-
         <main className="pt-24 px-4 sm:px-6 max-w-5xl mx-auto space-y-12">
           {/* PERFECTLY CENTERED MULTILINGUAL HELLO */}
-          <div className="flex flex-col items-center justify-center text-center mt-6 mb-12 space-y-4">
+          <div className="flex flex-col items-center justify-center text-center pt-4 mb-10 space-y-5">
             <h1 className="font-display text-7xl md:text-8xl font-bold text-[#B8860B] tracking-tight">Hello</h1>
-            <p className="text-xs md:text-sm font-medium text-slate-500 leading-relaxed px-4 max-w-2xl">
+            <p className="text-xs md:text-sm font-medium text-slate-500 leading-relaxed px-4 max-w-lg">
               नमस्ते, सति श्री अकाल, السَّلَامُ عَلَيْكُمْ, வணக்கம், নমস্কার, કેમ છો, నమస్కారం, खम्मा घणी, Chibai...
             </p>
             <h2 className="font-display text-xl md:text-3xl font-bold text-[#9A7009] mt-2">{companyName}</h2>
@@ -140,10 +122,10 @@ const Index = () => {
             </div>
           </section>
 
-          {/* 1. SEASON'S SPECIAL HERO */}
+          {/* 1. SEASON'S SPECIAL HERO (Using Dark Grey instead of Black) */}
           <div
             onClick={() => navigate("/catalogue?featured=true")}
-            className="relative rounded-3xl overflow-hidden shadow-xl bg-gradient-to-r from-slate-900 to-slate-800 flex cursor-pointer active:scale-[0.98] transition-transform"
+            className="relative rounded-3xl overflow-hidden shadow-xl bg-gradient-to-r from-slate-800 to-slate-700 flex cursor-pointer active:scale-[0.98] transition-transform"
           >
             <div className="min-w-full relative p-8 md:p-12 flex flex-col items-start w-2/3 z-10">
               <p className="text-[#B8860B] text-[10px] font-bold uppercase tracking-widest mb-2 flex items-center gap-2">
@@ -163,31 +145,31 @@ const Index = () => {
 
           {/* 2. SMART REORDER */}
           <section>
-            <h2 className="text-xl font-display font-bold text-gray-900 flex items-center gap-2 mb-1">
+            <h2 className="text-xl font-display font-bold text-slate-800 flex items-center gap-2 mb-1">
               <span className="text-[#B8860B]">⚡</span> Smart Reorder
             </h2>
-            <p className="text-xs text-gray-500 mb-6 font-medium">Based on your frequent orders</p>
+            <p className="text-xs text-slate-500 mb-6 font-medium">Based on your frequent orders</p>
             <div className="flex overflow-x-auto scrollbar-hide gap-5 pb-4 snap-x">
               {SMART_REORDER.map((item) => (
                 <div
                   key={item.id}
-                  className="min-w-[220px] bg-white border border-gray-100 rounded-2xl p-4 snap-start shadow-sm hover:shadow-md transition-shadow cursor-pointer"
+                  className="min-w-[220px] bg-white border border-slate-100 rounded-2xl p-4 snap-start shadow-sm hover:shadow-md transition-shadow cursor-pointer"
                   onClick={() => navigate(`/catalogue`)}
                 >
-                  <div className="h-32 mb-4 rounded-xl overflow-hidden bg-gray-50">
+                  <div className="h-32 mb-4 rounded-xl overflow-hidden bg-slate-50">
                     <img src={item.image} className="w-full h-full object-cover mix-blend-multiply" alt={item.name} />
                   </div>
-                  <h3 className="font-bold text-gray-900 text-sm mb-3">{item.name}</h3>
+                  <h3 className="font-bold text-slate-800 text-sm mb-3">{item.name}</h3>
                   <div className="flex items-center justify-between">
-                    <p className="font-medium text-sm text-gray-900">
-                      ₹{item.price.toLocaleString("en-IN")} <span className="text-gray-400 text-[10px]">/ kg</span>
+                    <p className="font-medium text-sm text-slate-800">
+                      ₹{item.price.toLocaleString("en-IN")} <span className="text-slate-400 text-[10px]">/ kg</span>
                     </p>
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
                         navigate("/cart");
                       }}
-                      className="w-8 h-8 rounded-full bg-slate-900 text-white flex items-center justify-center hover:bg-[#B8860B] transition-colors"
+                      className="w-8 h-8 rounded-full bg-slate-800 text-white flex items-center justify-center hover:bg-[#B8860B] transition-colors"
                     >
                       <ShoppingCart size={14} />
                     </button>
@@ -203,13 +185,15 @@ const Index = () => {
             className="bg-white rounded-3xl p-6 md:p-8 shadow-sm border border-[#B8860B]/20 relative overflow-hidden cursor-pointer hover:shadow-md transition-shadow"
           >
             <div className="absolute right-0 top-0 w-1/3 h-full bg-gradient-to-l from-[#B8860B]/10 to-transparent"></div>
-            <h2 className="text-2xl font-display font-bold text-gray-900 mb-2 relative z-10">
+            <h2 className="text-2xl font-display font-bold text-slate-800 mb-2 relative z-10">
               Private Label & Retail Ready
             </h2>
-            <p className="text-sm text-gray-500 mb-6 relative z-10">Premium branded products ready for your shelves.</p>
+            <p className="text-sm text-slate-500 mb-6 relative z-10">
+              Premium branded products ready for your shelves.
+            </p>
 
             <div className="flex overflow-x-auto scrollbar-hide gap-5 pb-4 relative z-10">
-              <div className="min-w-[280px] md:min-w-[320px] flex gap-4 items-center bg-gray-50 p-4 rounded-2xl border border-gray-100">
+              <div className="min-w-[280px] md:min-w-[320px] flex gap-4 items-center bg-slate-50 p-4 rounded-2xl border border-slate-100">
                 <div className="w-24 h-24 rounded-xl overflow-hidden shrink-0">
                   <img
                     src="https://images.unsplash.com/photo-1549465220-1a8b9238cd48?auto=format&fit=crop&q=80&w=200"
@@ -221,43 +205,43 @@ const Index = () => {
                     <span className="text-[9px] font-bold bg-[#B8860B] text-white px-2 py-0.5 rounded uppercase tracking-wider">
                       Retail Ready
                     </span>
-                    <span className="text-[9px] font-bold bg-slate-900 text-white px-2 py-0.5 rounded uppercase tracking-wider">
+                    <span className="text-[9px] font-bold bg-slate-700 text-white px-2 py-0.5 rounded uppercase tracking-wider">
                       Export
                     </span>
                   </div>
-                  <h3 className="font-bold text-gray-900 text-sm mb-1">Royal Assorted Hamper</h3>
-                  <p className="text-xs text-gray-500">Premium Tin / 750g</p>
+                  <h3 className="font-bold text-slate-800 text-sm mb-1">Royal Assorted Hamper</h3>
+                  <p className="text-xs text-slate-500">Premium Tin / 750g</p>
                 </div>
               </div>
             </div>
-            <p className="text-[10px] text-gray-400 mt-2 font-medium italic text-right">
+            <p className="text-[10px] text-slate-400 mt-2 font-medium italic text-right">
               * Available for private labeling at MOQ
             </p>
           </section>
 
           {/* 4. RECOMMENDED FOR YOU */}
           <section>
-            <h2 className="text-xl font-display font-bold text-gray-900 flex items-center gap-2 mb-1">
+            <h2 className="text-xl font-display font-bold text-slate-800 flex items-center gap-2 mb-1">
               <TrendingUp className="text-[#B8860B]" size={20} /> Recommended for You
             </h2>
-            <p className="text-xs text-gray-500 mb-6 font-medium">Based on your business profile</p>
+            <p className="text-xs text-slate-500 mb-6 font-medium">Based on your business profile</p>
             <div className="flex overflow-x-auto scrollbar-hide gap-5 pb-4 snap-x">
               {RECOMMENDED.map((item) => (
                 <div
                   key={item.id}
                   onClick={() => navigate("/catalogue")}
-                  className="min-w-[240px] bg-white border border-gray-100 rounded-2xl p-4 snap-start shadow-sm hover:shadow-md transition-shadow cursor-pointer"
+                  className="min-w-[240px] bg-white border border-slate-100 rounded-2xl p-4 snap-start shadow-sm hover:shadow-md transition-shadow cursor-pointer"
                 >
-                  <div className="h-36 mb-4 rounded-xl overflow-hidden bg-gray-50 relative">
+                  <div className="h-36 mb-4 rounded-xl overflow-hidden bg-slate-50 relative">
                     <img src={item.image} className="w-full h-full object-cover" alt={item.name} />
-                    <span className="absolute top-2 left-2 bg-slate-900 text-white text-[9px] font-bold uppercase tracking-widest px-2 py-1 rounded shadow-sm">
+                    <span className="absolute top-2 left-2 bg-slate-800 text-white text-[9px] font-bold uppercase tracking-widest px-2 py-1 rounded shadow-sm">
                       {item.tag}
                     </span>
                   </div>
-                  <h3 className="font-bold text-gray-900 text-sm mb-1">{item.name}</h3>
-                  <p className="text-[10px] text-gray-500 font-medium uppercase tracking-wider mb-3">{item.pack}</p>
+                  <h3 className="font-bold text-slate-800 text-sm mb-1">{item.name}</h3>
+                  <p className="text-[10px] text-slate-500 font-medium uppercase tracking-wider mb-3">{item.pack}</p>
                   <div className="flex items-center justify-between">
-                    <p className="font-black text-sm text-gray-900">₹{item.price.toLocaleString("en-IN")}</p>
+                    <p className="font-black text-sm text-slate-800">₹{item.price.toLocaleString("en-IN")}</p>
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
@@ -273,8 +257,8 @@ const Index = () => {
             </div>
           </section>
 
-          {/* 5. EMPTY PACKAGING SOLUTIONS */}
-          <section className="bg-slate-900 rounded-3xl p-6 md:p-8 text-white relative overflow-hidden shadow-xl mb-8">
+          {/* 5. EMPTY PACKAGING SOLUTIONS (Using Dark Grey) */}
+          <section className="bg-slate-800 rounded-3xl p-6 md:p-8 text-white relative overflow-hidden shadow-xl mb-8">
             <div className="absolute inset-0 opacity-10 bg-[radial-gradient(circle_at_top_right,rgba(184,134,11,0.8)_0,transparent_60%)]"></div>
             <div className="relative z-10">
               <div className="flex justify-between items-start mb-2">
@@ -289,7 +273,7 @@ const Index = () => {
                 </button>
               </div>
 
-              <p className="text-sm text-gray-400 mb-8 font-medium">
+              <p className="text-sm text-slate-300 mb-8 font-medium">
                 Perfect for wrapping your own products. Premium rigid boxes, trays, and jars.
               </p>
 
@@ -298,7 +282,7 @@ const Index = () => {
                   <div
                     key={item.id}
                     onClick={() => navigate("/catalogue")}
-                    className="min-w-[200px] flex gap-3 items-center bg-white/10 p-3 rounded-2xl border border-white/10 backdrop-blur-sm cursor-pointer hover:bg-white/20 transition-colors"
+                    className="min-w-[200px] flex gap-3 items-center bg-white/5 p-3 rounded-2xl border border-white/10 backdrop-blur-sm cursor-pointer hover:bg-white/10 transition-colors"
                   >
                     <div className="w-16 h-16 rounded-lg overflow-hidden shrink-0">
                       <img src={item.image} className="w-full h-full object-cover" />
