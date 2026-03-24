@@ -65,8 +65,8 @@ const AdminDashboard = () => {
 
     const a: AlertItem[] = [];
     if ((pendingApps.count ?? 0) > 0) a.push({ label: "Pending Approvals", count: pendingApps.count ?? 0, route: "/admin/clients", severity: "high" });
-    if (pc.awaiting_advance > 0) a.push({ label: t("Awaiting Advance"), count: pc.awaiting_advance, route: "/admin/accounts-release", severity: "high" });
-    if (pc.ready_for_dispatch > 0) a.push({ label: t("Dispatch Ready"), count: pc.ready_for_dispatch, route: "/admin/packing-dispatch", severity: "medium" });
+    if (pc.awaiting_final_payment > 0) a.push({ label: "Awaiting Final Payment", count: pc.awaiting_final_payment, route: "/admin/accounts-release", severity: "high" });
+    if (pc.cleared_for_dispatch > 0) a.push({ label: t("Dispatch Ready"), count: pc.cleared_for_dispatch, route: "/admin/packing-dispatch", severity: "medium" });
     if (financeHold > 0) a.push({ label: "Finance Hold", count: financeHold, route: "/admin/accounts-release", severity: "high" });
     if ((supportOpen.count ?? 0) > 0) a.push({ label: "Support Escalations", count: supportOpen.count ?? 0, route: "/admin/exceptions", severity: "medium" });
     setAlerts(a);
