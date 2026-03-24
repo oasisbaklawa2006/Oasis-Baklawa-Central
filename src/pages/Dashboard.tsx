@@ -265,19 +265,19 @@ const Dashboard = () => {
                   <div className="flex-1 pt-1.5">
                     <h4 className="font-bold text-slate-900 text-sm">Order Logged</h4>
 
-                    {latestOrder.payment_status === "awaiting_utr" ? (
+                    {latestOrder.payment_status === "awaiting_receipt" ? (
                       <div className="mt-3 bg-amber-50 border border-amber-200 rounded-xl p-4 shadow-inner">
                         <p className="text-xs font-bold text-amber-800 flex items-center gap-1.5 mb-2">
                           <AlertTriangle size={14} /> Action Required
                         </p>
                         <p className="text-[11px] text-amber-700 mb-3">
-                          Please transfer the 50% advance and upload the UTR receipt to push this to the kitchen.
+                          Please transfer the 50% advance and upload the payment receipt to push this to the kitchen.
                         </p>
                         <button
                           onClick={() => setUtrModal({ isOpen: true, orderId: latestOrder.id, type: "advance" })}
                           className="w-full py-2 bg-[#B8860B] text-white rounded-lg text-xs font-bold shadow-sm flex justify-center items-center gap-2"
                         >
-                          <UploadCloud size={14} /> Upload Advance UTR
+                          <UploadCloud size={14} /> Upload Advance Receipt
                         </button>
                       </div>
                     ) : (
