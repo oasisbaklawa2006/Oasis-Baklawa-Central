@@ -189,7 +189,7 @@ const AdminFinance = () => {
                     <div className="flex justify-between items-center mb-5">
                       <p className="text-xl font-black text-amber-600">{formatPrice(order.sales_order_value || 0)}</p>
                       <span className="bg-amber-50 text-amber-700 px-2 py-1 rounded text-[10px] font-bold uppercase flex items-center gap-1">
-                        <AlertTriangle size={12} /> Advance UTR
+                        <AlertTriangle size={12} /> Advance Receipt
                       </span>
                     </div>
                     <div className="flex gap-2">
