@@ -72,7 +72,7 @@ const AdminSecurityGate = () => {
       } else if (carton.status === "physically_dispatched") {
         // ERROR: Already scanned out
         setScreenState("duplicate");
-        setLastMessage(`ALREADY DISPATCHED: Box ${carton.box_number} of ${carton.total_boxes}`);
+        setLastMessage(`ALREADY DISPATCHED: Master Carton ${carton.box_number} of ${carton.total_boxes}`);
         addToHistory(barcode, companyName, "duplicate", "This box has already left the building.");
         playAudio("error");
       } else {
