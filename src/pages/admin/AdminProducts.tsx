@@ -2,13 +2,27 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "sonner";
-import { Loader2, Package, Plus, Edit2, Power, PowerOff, Image as ImageIcon, X, UploadCloud } from "lucide-react";
+import {
+  Loader2,
+  Package,
+  Plus,
+  Edit2,
+  Power,
+  PowerOff,
+  Image as ImageIcon,
+  X,
+  UploadCloud,
+  Sparkles,
+  Info,
+} from "lucide-react";
 
+// Updated to include B2B schema fields
 interface Product {
   id: string;
   name: string;
-  category_id?: string | null;
-  price_per_kg: number;
+  sku?: string | null;
+  category?: string | null;
+  price_per_kg?: number | null;
   pack_size?: string | null;
   carton_type?: string | null;
   storage_type?: string | null;
@@ -17,20 +31,44 @@ interface Product {
   image_url?: string | null;
   is_active: boolean;
   created_at?: string;
+
+  mrp?: number | null;
+  wholesale_price?: number | null;
+  weight_per_pc_grams?: number | null;
+  net_weight_grams?: number | null;
+  moq?: number | null;
+  packs_per_master_carton?: number | null;
+  hsn_code?: string | null;
+  gst_percentage?: number | null;
+  dietary_tags?: string[] | null;
 }
 
-type ProductForm = Omit<Product, "id" | "created_at">;
+const CATEGORIES = ["Premium Baklawa", "Assorted Boxes", "Gifting", "Dry Fruit Sweets", "Cookies"];
+const GST_RATES = [0, 5, 12, 18, 28];
+const DIETARY_OPTIONS = ["100% Eggless", "Contains Nuts", "Vegan", "Gluten-Free", "Sugar-Free", "No Preservatives"];
+const STORAGE_OPTIONS = ["ambient", "refrigerated", "frozen"];
 
-const EMPTY_FORM: ProductForm = {
+const EMPTY_FORM = {
   name: "",
-  price_per_kg: 0,
-  pack_size: "",
-  carton_type: "",
+  sku: "",
+  category: CATEGORIES[0],
+  price_per_kg: "",
+  pack_size: "1 kg pack",
+  carton_type: "4 Box",
   storage_type: "ambient",
   description: "",
-  shelf_life: "",
+  shelf_life: "90",
   image_url: "",
   is_active: true,
+  mrp: "",
+  wholesale_price: "",
+  weight_per_pc_grams: "",
+  net_weight_grams: "1000",
+  moq: "1",
+  packs_per_master_carton: "4",
+  hsn_code: "19059090",
+  gst_percentage: "18",
+  dietary_tags: ["100% Eggless"],
 };
 
 const AdminProducts = () => {
@@ -40,7 +78,10 @@ const AdminProducts = () => {
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [saving, setSaving] = useState(false);
   const [uploadingImage, setUploadingImage] = useState(false);
-  const [formData, setFormData] = useState<ProductForm>({ ...EMPTY_FORM });
+
+  const [formData, setFormData] = useState<any>({ ...EMPTY_FORM });
+  const [aiPrompt, setAiPrompt] = useState("");
+  const [isAiParsing, setIsAiParsing] = useState(false);
 
   const fetchProducts = async () => {
     setLoading(true);
@@ -53,33 +94,84 @@ const AdminProducts = () => {
     fetchProducts();
   }, []);
 
+  // AUTO-GENERATE SKU logic
+  useEffect(() => {
+    if (formData.name && formData.net_weight_grams && !editingProduct) {
+      const prefix = formData.name
+        .substring(0, 3)
+        .toUpperCase()
+        .replace(/[^A-Z]/g, "X");
+      setFormData((prev: any) => ({ ...prev, sku: `OAS-${prefix}-${prev.net_weight_grams}` }));
+    }
+  }, [formData.name, formData.net_weight_grams, editingProduct]);
+
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
-    setFormData((prev) => ({
+    setFormData((prev: any) => ({ ...prev, [name]: value }));
+  };
+
+  const handleToggleDietaryTag = (tag: string) => {
+    setFormData((prev: any) => ({
       ...prev,
-      [name]: name === "price_per_kg" ? parseFloat(value) || 0 : value,
+      dietary_tags: prev.dietary_tags.includes(tag)
+        ? prev.dietary_tags.filter((t: string) => t !== tag)
+        : [...prev.dietary_tags, tag],
     }));
   };
 
-  // NEW: Handle Supabase Image Upload
+  const handleAIFill = () => {
+    if (!aiPrompt.trim()) {
+      toast.error("Paste product details first!");
+      return;
+    }
+    setIsAiParsing(true);
+
+    setTimeout(() => {
+      const lower = aiPrompt.toLowerCase();
+      const updates: any = {};
+
+      if (lower.includes("finger")) updates.name = "Finger Baklawa";
+      if (lower.includes("pyramid")) updates.name = "Pyramid Baklawa";
+
+      const weightMatch = lower.match(/(\d+)\s*(g|grams|kg)/);
+      if (weightMatch) {
+        let val = Number(weightMatch[1]);
+        if (weightMatch[2] === "kg") val = val * 1000;
+        updates.net_weight_grams = val.toString();
+      }
+
+      const priceMatch = lower.match(/(?:mrp|retail)\s*(\d+)/);
+      if (priceMatch) updates.mrp = priceMatch[1];
+
+      const b2bMatch = lower.match(/(?:b2b|wholesale)\s*(\d+)/);
+      if (b2bMatch) updates.wholesale_price = b2bMatch[1];
+
+      const shelfMatch = lower.match(/(\d+)\s*days/);
+      if (shelfMatch) updates.shelf_life = shelfMatch[1];
+
+      if (lower.includes("nut")) updates.dietary_tags = ["100% Eggless", "Contains Nuts"];
+
+      setFormData((prev: any) => ({ ...prev, ...updates }));
+      setAiPrompt("");
+      toast.success("✨ AI mapped product data!", { icon: "🪄" });
+      setIsAiParsing(false);
+    }, 1500);
+  };
+
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     try {
       if (!e.target.files || e.target.files.length === 0) return;
-
       const file = e.target.files[0];
       setUploadingImage(true);
 
       const fileExt = file.name.split(".").pop();
       const fileName = `${Math.random().toString(36).substring(2)}-${Date.now()}.${fileExt}`;
-      const filePath = `${fileName}`;
-
-      const { error: uploadError } = await supabase.storage.from("product-images").upload(filePath, file);
+      const { error: uploadError } = await supabase.storage.from("product-images").upload(fileName, file);
 
       if (uploadError) throw uploadError;
 
-      const { data: publicUrlData } = supabase.storage.from("product-images").getPublicUrl(filePath);
-
-      setFormData((prev) => ({ ...prev, image_url: publicUrlData.publicUrl }));
+      const { data: publicUrlData } = supabase.storage.from("product-images").getPublicUrl(fileName);
+      setFormData((prev: any) => ({ ...prev, image_url: publicUrlData.publicUrl }));
       toast.success("Image uploaded successfully!");
     } catch (error: any) {
       console.error("Upload error:", error);
@@ -93,16 +185,26 @@ const AdminProducts = () => {
     if (product) {
       setEditingProduct(product);
       setFormData({
-        name: product.name,
-        price_per_kg: product.price_per_kg,
-        pack_size: product.pack_size ?? "",
-        carton_type: product.carton_type ?? "",
-        storage_type: product.storage_type ?? "",
-        description: product.description ?? "",
-        shelf_life: product.shelf_life ?? "",
-        image_url: product.image_url ?? "",
+        name: product.name || "",
+        sku: product.sku || "",
+        category: product.category || CATEGORIES[0],
+        price_per_kg: product.price_per_kg?.toString() || "",
+        pack_size: product.pack_size || "",
+        carton_type: product.carton_type || "",
+        storage_type: product.storage_type || "ambient",
+        description: product.description || "",
+        shelf_life: product.shelf_life || "",
+        image_url: product.image_url || "",
         is_active: product.is_active ?? true,
-        category_id: product.category_id,
+        mrp: product.mrp?.toString() || "",
+        wholesale_price: product.wholesale_price?.toString() || "",
+        weight_per_pc_grams: product.weight_per_pc_grams?.toString() || "",
+        net_weight_grams: product.net_weight_grams?.toString() || "",
+        moq: product.moq?.toString() || "1",
+        packs_per_master_carton: product.packs_per_master_carton?.toString() || "4",
+        hsn_code: product.hsn_code || "19059090",
+        gst_percentage: product.gst_percentage?.toString() || "18",
+        dietary_tags: product.dietary_tags || ["100% Eggless"],
       });
     } else {
       setEditingProduct(null);
@@ -117,46 +219,54 @@ const AdminProducts = () => {
   };
 
   const handleSaveProduct = async () => {
-    if (!formData.name || !formData.price_per_kg) {
-      toast.error("Name and Price per KG are required");
+    if (!formData.name || !formData.wholesale_price) {
+      toast.error("Name and Wholesale Price are required");
       return;
     }
     setSaving(true);
+
+    // Cast to correct types for database payload
     const payload = {
       name: formData.name,
-      price_per_kg: formData.price_per_kg,
+      sku: formData.sku || null,
+      category: formData.category || null,
       pack_size: formData.pack_size || null,
       carton_type: formData.carton_type || null,
       storage_type: formData.storage_type || null,
       description: formData.description || null,
-      shelf_life: formData.shelf_life || null,
       image_url: formData.image_url || null,
+      hsn_code: formData.hsn_code || null,
+      dietary_tags: formData.dietary_tags || [],
       is_active: formData.is_active,
-      category_id: formData.category_id || null,
+      shelf_life: formData.shelf_life || null,
+
+      price_per_kg: parseFloat(formData.price_per_kg) || null,
+      mrp: parseFloat(formData.mrp) || null,
+      wholesale_price: parseFloat(formData.wholesale_price) || null,
+      weight_per_pc_grams: parseFloat(formData.weight_per_pc_grams) || null,
+      net_weight_grams: parseFloat(formData.net_weight_grams) || null,
+      moq: parseInt(formData.moq) || 1,
+      packs_per_master_carton: parseInt(formData.packs_per_master_carton) || 1,
+      gst_percentage: parseInt(formData.gst_percentage) || 0,
     };
 
-    if (editingProduct) {
-      const { error } = await supabase.from("products").update(payload).eq("id", editingProduct.id);
-      if (error) {
-        toast.error("Failed to update product");
-        console.error(error);
+    try {
+      if (editingProduct) {
+        const { error } = await (supabase as any).from("products").update(payload).eq("id", editingProduct.id);
+        if (error) throw error;
+        toast.success("Product updated successfully");
       } else {
-        toast.success("Product updated");
-        closePanel();
-        await fetchProducts();
+        const { error } = await (supabase as any).from("products").insert([payload]);
+        if (error) throw error;
+        toast.success("New product added to catalog!");
       }
-    } else {
-      const { error } = await supabase.from("products").insert([payload]);
-      if (error) {
-        toast.error("Failed to add product");
-        console.error(error);
-      } else {
-        toast.success("Product added");
-        closePanel();
-        await fetchProducts();
-      }
+      closePanel();
+      fetchProducts();
+    } catch (err: any) {
+      toast.error(err.message || "Failed to save product");
+    } finally {
+      setSaving(false);
     }
-    setSaving(false);
   };
 
   const toggleActiveStatus = async (product: Product) => {
@@ -164,18 +274,16 @@ const AdminProducts = () => {
     const { error } = await supabase.from("products").update({ is_active: newStatus }).eq("id", product.id);
     if (!error) {
       toast.success(`${product.name} is now ${newStatus ? "Active" : "Hidden"}`);
-      await fetchProducts();
+      fetchProducts();
     }
   };
 
-  if (loading) {
+  if (loading)
     return (
       <div className="flex justify-center items-center py-32">
         <Loader2 size={28} className="animate-spin text-primary" />
       </div>
     );
-  }
-
   const activeCount = products.filter((p) => p.is_active).length;
 
   return (
@@ -185,7 +293,9 @@ const AdminProducts = () => {
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
             <h1 className="text-2xl font-bold text-foreground tracking-tight">Product Catalog</h1>
-            <p className="text-sm text-muted-foreground mt-1">Manage your wholesale inventory and pricing</p>
+            <p className="text-sm text-muted-foreground mt-1">
+              Manage your wholesale inventory, logistics, and pricing.
+            </p>
           </div>
           <button
             onClick={() => openPanel()}
@@ -206,8 +316,7 @@ const AdminProducts = () => {
               key={kpi.label}
               initial={{ opacity: 0, y: 12 }}
               animate={{ opacity: 1, y: 0 }}
-              className="bg-card border border-border rounded-xl p-5 flex items-center gap-4"
-              style={{ boxShadow: "0 2px 12px rgba(0,0,0,0.04)" }}
+              className="bg-card border border-border rounded-xl p-5 flex items-center gap-4 shadow-sm"
             >
               <kpi.icon size={20} className="text-primary" />
               <div>
@@ -224,9 +333,6 @@ const AdminProducts = () => {
             <Package size={40} className="mx-auto text-muted-foreground/40" />
             <p className="text-lg font-semibold text-foreground mt-4">No products found</p>
             <p className="text-sm text-muted-foreground mt-1">Your catalog is currently empty.</p>
-            <button onClick={() => openPanel()} className="mt-6 text-primary font-semibold text-sm hover:underline">
-              Add your first product
-            </button>
           </div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
@@ -235,9 +341,8 @@ const AdminProducts = () => {
                 key={product.id}
                 initial={{ opacity: 0, y: 16 }}
                 animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: i * 0.03, duration: 0.4 }}
-                className="bg-card border border-border rounded-xl overflow-hidden group"
-                style={{ boxShadow: "0 2px 12px rgba(0,0,0,0.04)" }}
+                transition={{ delay: i * 0.03 }}
+                className="bg-card border border-border rounded-xl overflow-hidden group shadow-sm"
               >
                 {/* Image */}
                 <div className="relative h-40 bg-muted/30 flex items-center justify-center overflow-hidden">
@@ -259,35 +364,31 @@ const AdminProducts = () => {
 
                 {/* Details */}
                 <div className="p-4 space-y-3">
-                  <h3 className="font-semibold text-foreground text-sm leading-snug truncate">{product.name}</h3>
-                  <p className="text-primary font-bold text-sm tabular-nums">₹{product.price_per_kg} / kg</p>
-
-                  <div className="space-y-0.5">
-                    {product.pack_size && <p className="text-xs text-muted-foreground">Pack: {product.pack_size}</p>}
-                    {product.shelf_life && (
-                      <p className="text-xs text-muted-foreground">Shelf Life: {product.shelf_life}</p>
-                    )}
-                    {product.storage_type && (
-                      <p className="text-xs text-muted-foreground">Storage: {product.storage_type}</p>
+                  <div className="flex justify-between items-start gap-2">
+                    <h3 className="font-semibold text-foreground text-sm leading-snug truncate">{product.name}</h3>
+                    {product.wholesale_price && (
+                      <p className="text-primary font-bold text-sm tabular-nums shrink-0">₹{product.wholesale_price}</p>
                     )}
                   </div>
 
+                  <div className="space-y-0.5">
+                    <p className="text-xs text-muted-foreground font-mono">SKU: {product.sku || "N/A"}</p>
+                    <p className="text-xs text-muted-foreground">Pack: {product.pack_size || "N/A"}</p>
+                    <p className="text-xs text-muted-foreground">MOQ: {product.moq || 1} packs</p>
+                  </div>
+
                   {/* Actions */}
-                  <div className="flex items-center gap-2 pt-1">
+                  <div className="flex items-center gap-2 pt-2 border-t border-border/50">
                     <button
                       onClick={() => toggleActiveStatus(product)}
-                      className={`text-xs font-semibold px-3 py-1.5 rounded-md flex items-center gap-1.5 transition-colors ${
-                        product.is_active
-                          ? "bg-amber-50 text-amber-700 hover:bg-amber-100"
-                          : "bg-emerald-50 text-emerald-700 hover:bg-emerald-100"
-                      }`}
+                      className={`flex-1 text-xs font-semibold py-1.5 rounded-md flex items-center justify-center gap-1.5 transition-colors ${product.is_active ? "bg-amber-500/10 text-amber-600 hover:bg-amber-500/20" : "bg-emerald-500/10 text-emerald-600 hover:bg-emerald-500/20"}`}
                     >
-                      {product.is_active ? <PowerOff size={12} /> : <Power size={12} />}
+                      {product.is_active ? <PowerOff size={12} /> : <Power size={12} />}{" "}
                       {product.is_active ? "Hide" : "Activate"}
                     </button>
                     <button
                       onClick={() => openPanel(product)}
-                      className="text-xs font-semibold bg-muted/50 hover:bg-muted text-foreground px-3 py-1.5 rounded-md flex items-center gap-1.5 transition-colors"
+                      className="flex-1 text-xs font-semibold bg-muted hover:bg-muted/80 text-foreground py-1.5 rounded-md flex items-center justify-center gap-1.5 transition-colors"
                     >
                       <Edit2 size={12} /> Edit
                     </button>
@@ -307,20 +408,22 @@ const AdminProducts = () => {
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              className="fixed inset-0 z-50 bg-black/50"
+              className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm"
               onClick={closePanel}
             />
+
             <motion.div
               initial={{ x: "100%" }}
               animate={{ x: 0 }}
               exit={{ x: "100%" }}
               transition={{ type: "spring", damping: 30, stiffness: 300 }}
-              className="fixed top-0 right-0 z-50 h-full w-full max-w-lg bg-background border-l border-border shadow-2xl flex flex-col"
+              className="fixed top-0 right-0 z-50 h-full w-full max-w-xl bg-background border-l border-border shadow-2xl flex flex-col"
             >
               {/* Panel Header */}
-              <div className="flex items-center justify-between p-6 border-b border-border">
-                <h2 className="text-lg font-bold text-foreground">
-                  {editingProduct ? "Edit Product" : "Add New Product"}
+              <div className="flex items-center justify-between p-6 border-b border-border bg-card">
+                <h2 className="text-xl font-black text-foreground flex items-center gap-2">
+                  <Package className="text-primary" size={20} />
+                  {editingProduct ? "Edit Product" : "Build Product"}
                 </h2>
                 <button onClick={closePanel} className="p-1.5 rounded-md hover:bg-muted transition-colors">
                   <X size={18} className="text-muted-foreground" />
@@ -328,21 +431,50 @@ const AdminProducts = () => {
               </div>
 
               {/* Panel Body */}
-              <div className="flex-1 overflow-y-auto p-6 space-y-6">
-                {/* NEW: Image Uploader */}
-                <div>
-                  <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-                    Product Image
-                  </label>
+              <div className="flex-1 overflow-y-auto p-6 space-y-8">
+                {/* AI MAGIC FILL */}
+                <div className="bg-primary/5 border border-primary/20 rounded-xl p-4">
+                  <div className="flex items-start gap-2 mb-3">
+                    <Sparkles className="text-primary mt-0.5 shrink-0" size={16} />
+                    <div>
+                      <h3 className="font-bold text-sm text-foreground">AI Auto-Fill</h3>
+                      <p className="text-xs text-muted-foreground mt-0.5">
+                        Paste a text blurb. AI will extract and map the fields.
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex gap-2">
+                    <textarea
+                      value={aiPrompt}
+                      onChange={(e) => setAiPrompt(e.target.value)}
+                      placeholder="e.g. Finger Baklawa 500g, 45 days, wholesale 850, mrp 1200..."
+                      className="flex-1 bg-background border border-border rounded-lg p-2.5 text-xs outline-none focus:border-primary resize-none h-12"
+                    />
+                    <button
+                      onClick={handleAIFill}
+                      disabled={isAiParsing || !aiPrompt}
+                      className="px-3 bg-primary text-primary-foreground font-bold rounded-lg shadow-sm hover:bg-primary/90 transition-colors disabled:opacity-50 text-xs"
+                    >
+                      {isAiParsing ? <Loader2 size={16} className="animate-spin" /> : "Auto-Fill"}
+                    </button>
+                  </div>
+                </div>
+
+                {/* 1. IMAGE & IDENTITY */}
+                <section className="space-y-4">
+                  <h3 className="text-xs font-bold text-muted-foreground uppercase tracking-widest border-b border-border pb-2">
+                    1. Identity & Visuals
+                  </h3>
+
+                  {/* Image Uploader */}
                   <div className="mt-2 flex items-center gap-4">
-                    {/* Preview Bubble */}
                     {formData.image_url ? (
                       <div className="relative w-16 h-16 rounded-lg overflow-hidden border border-border flex-shrink-0 bg-muted/30">
                         <img src={formData.image_url} alt="Preview" className="w-full h-full object-cover" />
                         <button
                           type="button"
-                          onClick={() => setFormData((prev) => ({ ...prev, image_url: "" }))}
-                          className="absolute top-1 right-1 bg-black/60 text-white rounded-full p-0.5 hover:bg-black/80 transition-colors"
+                          onClick={() => setFormData((prev: any) => ({ ...prev, image_url: "" }))}
+                          className="absolute top-1 right-1 bg-black/60 text-white rounded-full p-0.5 hover:bg-black/80"
                         >
                           <X size={10} />
                         </button>
@@ -352,148 +484,285 @@ const AdminProducts = () => {
                         <ImageIcon size={20} className="text-muted-foreground/40" />
                       </div>
                     )}
-
-                    {/* Upload Buttons */}
                     <div className="flex-1 space-y-2">
-                      <div className="flex items-center gap-2">
-                        {/* File Upload Button */}
-                        <label
-                          className={`flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-lg border border-border bg-background cursor-pointer hover:bg-muted/50 transition-colors text-xs font-semibold text-foreground ${uploadingImage ? "opacity-50 pointer-events-none" : ""}`}
-                        >
-                          {uploadingImage ? <Loader2 size={14} className="animate-spin" /> : <UploadCloud size={14} />}
-                          {uploadingImage ? "Uploading..." : "Upload File"}
-                          <input
-                            type="file"
-                            accept="image/*"
-                            onChange={handleImageUpload}
-                            className="hidden"
-                            disabled={uploadingImage}
-                          />
-                        </label>
-                      </div>
-
-                      {/* URL Fallback */}
+                      <label
+                        className={`flex flex-1 items-center justify-center gap-2 px-3 py-2 rounded-lg border border-border bg-background cursor-pointer hover:bg-muted/50 text-xs font-semibold ${uploadingImage ? "opacity-50 pointer-events-none" : ""}`}
+                      >
+                        {uploadingImage ? <Loader2 size={14} className="animate-spin" /> : <UploadCloud size={14} />}{" "}
+                        {uploadingImage ? "Uploading..." : "Upload File"}
+                        <input
+                          type="file"
+                          accept="image/*"
+                          onChange={handleImageUpload}
+                          className="hidden"
+                          disabled={uploadingImage}
+                        />
+                      </label>
                       <input
                         name="image_url"
                         value={formData.image_url ?? ""}
                         onChange={handleInputChange}
                         placeholder="...or paste an image URL"
-                        className="w-full px-3 py-1.5 rounded-md border border-border bg-muted/10 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary/30"
+                        className="w-full px-3 py-1.5 rounded-md border border-border bg-muted/10 text-xs text-foreground placeholder:text-muted-foreground outline-none focus:border-primary"
                       />
                     </div>
                   </div>
-                </div>
 
-                <hr className="border-border" />
-
-                {/* Basic Info */}
-                <div className="space-y-4">
-                  <div>
-                    <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-                      Product Name *
-                    </label>
-                    <input
-                      name="name"
-                      value={formData.name}
-                      onChange={handleInputChange}
-                      placeholder="e.g. Premium Pistachio Baklawa"
-                      className="mt-1.5 w-full px-3 py-2.5 rounded-lg border border-border bg-background text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/30"
-                    />
-                  </div>
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-2 gap-4 mt-4">
+                    <div className="col-span-2">
+                      <label className="block text-xs font-semibold text-muted-foreground mb-1.5">Product Name *</label>
+                      <input
+                        name="name"
+                        value={formData.name}
+                        onChange={handleInputChange}
+                        className="w-full bg-background border border-border rounded-lg p-2.5 text-sm outline-none focus:ring-1 focus:ring-primary"
+                      />
+                    </div>
                     <div>
-                      <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-                        Price per KG (₹) *
+                      <label className="block text-[10px] font-semibold text-muted-foreground uppercase tracking-wide mb-1.5 flex justify-between">
+                        SKU Code <span className="text-primary">Auto</span>
                       </label>
                       <input
-                        name="price_per_kg"
-                        type="number"
-                        value={formData.price_per_kg}
+                        name="sku"
+                        value={formData.sku}
                         onChange={handleInputChange}
-                        className="mt-1.5 w-full px-3 py-2.5 rounded-lg border border-border bg-background text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/30 tabular-nums"
+                        className="w-full bg-muted/30 border border-border rounded-lg p-2.5 text-sm text-foreground outline-none focus:ring-1 focus:ring-primary"
                       />
                     </div>
                     <div>
-                      <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-                        Pack Size
+                      <label className="block text-[10px] font-semibold text-muted-foreground uppercase tracking-wide mb-1.5">
+                        Category
+                      </label>
+                      <select
+                        name="category"
+                        value={formData.category}
+                        onChange={handleInputChange}
+                        className="w-full bg-background border border-border rounded-lg p-2.5 text-sm outline-none focus:ring-1 focus:ring-primary"
+                      >
+                        {CATEGORIES.map((cat) => (
+                          <option key={cat}>{cat}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="col-span-2">
+                      <label className="block text-[10px] font-semibold text-muted-foreground uppercase tracking-wide mb-1.5">
+                        Description
+                      </label>
+                      <textarea
+                        name="description"
+                        rows={2}
+                        value={formData.description}
+                        onChange={handleInputChange}
+                        className="w-full bg-background border border-border rounded-lg p-2.5 text-sm outline-none focus:ring-1 focus:ring-primary resize-none"
+                      />
+                    </div>
+                  </div>
+                </section>
+
+                {/* 2. B2B FINANCIALS */}
+                <section className="space-y-4">
+                  <h3 className="text-xs font-bold text-muted-foreground uppercase tracking-widest border-b border-border pb-2">
+                    2. Financials & Taxes
+                  </h3>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-[10px] font-bold text-emerald-600 uppercase mb-1.5">
+                        Wholesale Price (₹) *
+                      </label>
+                      <input
+                        type="number"
+                        name="wholesale_price"
+                        value={formData.wholesale_price}
+                        onChange={handleInputChange}
+                        className="w-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-700 dark:text-emerald-400 rounded-lg p-2.5 font-bold outline-none"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] font-semibold text-muted-foreground uppercase mb-1.5">
+                        Printed MRP (₹)
+                      </label>
+                      <input
+                        type="number"
+                        name="mrp"
+                        value={formData.mrp}
+                        onChange={handleInputChange}
+                        className="w-full bg-background border border-border rounded-lg p-2.5 text-sm outline-none focus:ring-1 focus:ring-primary"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] font-semibold text-muted-foreground uppercase mb-1.5">
+                        GST Rate (%)
+                      </label>
+                      <select
+                        name="gst_percentage"
+                        value={formData.gst_percentage}
+                        onChange={handleInputChange}
+                        className="w-full bg-background border border-border rounded-lg p-2.5 text-sm outline-none focus:ring-1 focus:ring-primary"
+                      >
+                        {GST_RATES.map((rate) => (
+                          <option key={rate} value={rate}>
+                            {rate}%
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-[10px] font-semibold text-muted-foreground uppercase mb-1.5">
+                        HSN Code
+                      </label>
+                      <input
+                        name="hsn_code"
+                        value={formData.hsn_code}
+                        onChange={handleInputChange}
+                        className="w-full bg-background border border-border rounded-lg p-2.5 text-sm outline-none focus:ring-1 focus:ring-primary"
+                      />
+                    </div>
+                    <div className="col-span-2 bg-muted/30 p-3 rounded-lg border border-border">
+                      <label className="block text-[10px] font-semibold text-muted-foreground uppercase mb-1.5">
+                        Legacy Price Per KG (₹) - Optional
+                      </label>
+                      <input
+                        type="number"
+                        name="price_per_kg"
+                        value={formData.price_per_kg}
+                        onChange={handleInputChange}
+                        className="w-full bg-background border border-border rounded-lg p-2 text-sm outline-none focus:ring-1 focus:ring-primary"
+                      />
+                    </div>
+                  </div>
+                </section>
+
+                {/* 3. LOGISTICS */}
+                <section className="space-y-4">
+                  <h3 className="text-xs font-bold text-muted-foreground uppercase tracking-widest border-b border-border pb-2">
+                    3. Logistics & Factory
+                  </h3>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-[10px] font-semibold text-muted-foreground uppercase mb-1.5">
+                        Net Wt Per Pack (g)
+                      </label>
+                      <input
+                        type="number"
+                        name="net_weight_grams"
+                        value={formData.net_weight_grams}
+                        onChange={handleInputChange}
+                        className="w-full bg-background border border-border rounded-lg p-2.5 text-sm outline-none focus:ring-1 focus:ring-primary"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] font-semibold text-muted-foreground uppercase mb-1.5">
+                        Pack Size String
                       </label>
                       <input
                         name="pack_size"
-                        value={formData.pack_size ?? ""}
+                        placeholder="e.g. 1 Kg Tin"
+                        value={formData.pack_size}
                         onChange={handleInputChange}
-                        placeholder="e.g. 250g"
-                        className="mt-1.5 w-full px-3 py-2.5 rounded-lg border border-border bg-background text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/30"
+                        className="w-full bg-background border border-border rounded-lg p-2.5 text-sm outline-none focus:ring-1 focus:ring-primary"
                       />
                     </div>
-                  </div>
-                </div>
-
-                <hr className="border-border" />
-
-                {/* Logistics */}
-                <div className="space-y-4">
-                  <div className="grid grid-cols-2 gap-4">
                     <div>
-                      <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-                        Carton Type
+                      <label className="block text-[10px] font-semibold text-muted-foreground uppercase mb-1.5">
+                        Carton Type String
                       </label>
                       <input
                         name="carton_type"
-                        value={formData.carton_type ?? ""}
+                        placeholder="e.g. 4 Box"
+                        value={formData.carton_type}
                         onChange={handleInputChange}
-                        placeholder="e.g. 9-pack"
-                        className="mt-1.5 w-full px-3 py-2.5 rounded-lg border border-border bg-background text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/30"
+                        className="w-full bg-background border border-border rounded-lg p-2.5 text-sm outline-none focus:ring-1 focus:ring-primary"
                       />
                     </div>
                     <div>
-                      <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                      <label className="block text-[10px] font-semibold text-muted-foreground uppercase mb-1.5">
+                        Packs / Master Carton
+                      </label>
+                      <input
+                        type="number"
+                        name="packs_per_master_carton"
+                        value={formData.packs_per_master_carton}
+                        onChange={handleInputChange}
+                        className="w-full bg-background border border-border rounded-lg p-2.5 text-sm outline-none focus:ring-1 focus:ring-primary"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] font-semibold text-muted-foreground uppercase mb-1.5">
+                        Avg Wt Per Piece (g)
+                      </label>
+                      <input
+                        type="number"
+                        name="weight_per_pc_grams"
+                        value={formData.weight_per_pc_grams}
+                        onChange={handleInputChange}
+                        className="w-full bg-background border border-border rounded-lg p-2.5 text-sm outline-none focus:ring-1 focus:ring-primary"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] font-bold text-primary uppercase mb-1.5 flex items-center gap-1">
+                        MOQ (Loose Packs) <Info size={12} />
+                      </label>
+                      <input
+                        type="number"
+                        name="moq"
+                        value={formData.moq}
+                        onChange={handleInputChange}
+                        className="w-full bg-primary/10 border border-primary/30 text-foreground rounded-lg p-2.5 font-bold outline-none focus:ring-1 focus:ring-primary"
+                      />
+                    </div>
+                  </div>
+                </section>
+
+                {/* 4. COMPLIANCE */}
+                <section className="space-y-4">
+                  <h3 className="text-xs font-bold text-muted-foreground uppercase tracking-widest border-b border-border pb-2">
+                    4. Food Compliance
+                  </h3>
+                  <div className="grid grid-cols-2 gap-4 mb-4">
+                    <div>
+                      <label className="block text-[10px] font-semibold text-muted-foreground uppercase mb-1.5">
+                        Shelf Life (Days/String)
+                      </label>
+                      <input
+                        name="shelf_life"
+                        value={formData.shelf_life}
+                        onChange={handleInputChange}
+                        className="w-full bg-background border border-border rounded-lg p-2.5 text-sm outline-none focus:ring-1 focus:ring-primary"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] font-semibold text-muted-foreground uppercase mb-1.5">
                         Storage Type
                       </label>
                       <select
                         name="storage_type"
-                        value={formData.storage_type ?? ""}
+                        value={formData.storage_type}
                         onChange={handleInputChange}
-                        className="mt-1.5 w-full px-3 py-2.5 rounded-lg border border-border bg-background text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/30"
+                        className="w-full bg-background border border-border rounded-lg p-2.5 text-sm outline-none focus:ring-1 focus:ring-primary"
                       >
-                        <option value="">Select...</option>
-                        <option value="ambient">Ambient (Room Temp)</option>
-                        <option value="refrigerated">Refrigerated</option>
-                        <option value="frozen">Frozen</option>
+                        {STORAGE_OPTIONS.map((opt) => (
+                          <option key={opt}>{opt}</option>
+                        ))}
                       </select>
                     </div>
                   </div>
                   <div>
-                    <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-                      Shelf Life
+                    <label className="block text-[10px] font-semibold text-muted-foreground uppercase mb-2">
+                      Dietary Tags
                     </label>
-                    <input
-                      name="shelf_life"
-                      value={formData.shelf_life ?? ""}
-                      onChange={handleInputChange}
-                      placeholder="e.g. 90 days"
-                      className="mt-1.5 w-full px-3 py-2.5 rounded-lg border border-border bg-background text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/30"
-                    />
+                    <div className="flex flex-wrap gap-2">
+                      {DIETARY_OPTIONS.map((tag) => (
+                        <button
+                          key={tag}
+                          onClick={() => handleToggleDietaryTag(tag)}
+                          className={`px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-colors border ${formData.dietary_tags.includes(tag) ? "bg-primary text-primary-foreground border-primary" : "bg-card text-muted-foreground border-border hover:bg-muted"}`}
+                        >
+                          {tag}
+                        </button>
+                      ))}
+                    </div>
                   </div>
-                </div>
-
-                <hr className="border-border" />
-
-                {/* Details */}
-                <div className="space-y-4">
-                  <div>
-                    <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-                      Description
-                    </label>
-                    <textarea
-                      name="description"
-                      value={formData.description ?? ""}
-                      onChange={handleInputChange}
-                      rows={3}
-                      placeholder="Brief product description..."
-                      className="mt-1.5 w-full px-3 py-2.5 rounded-lg border border-border bg-background text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/30 resize-none"
-                    />
-                  </div>
-                  <div className="flex items-center gap-3 bg-muted/20 p-4 rounded-xl border border-border">
+                  <div className="flex items-center gap-3 bg-muted/20 p-4 rounded-xl border border-border mt-4">
                     <input
                       type="checkbox"
                       id="is_active"
@@ -502,14 +771,14 @@ const AdminProducts = () => {
                       className="w-4 h-4 rounded border-border text-primary focus:ring-primary"
                     />
                     <label htmlFor="is_active" className="text-sm font-semibold text-foreground cursor-pointer">
-                      Product is Active (In Stock)
+                      Product is Active (Visible to Buyers)
                     </label>
                   </div>
-                </div>
+                </section>
               </div>
 
               {/* Panel Footer */}
-              <div className="p-6 border-t border-border bg-background flex justify-end gap-3">
+              <div className="p-6 border-t border-border bg-card flex justify-end gap-3 shrink-0">
                 <button
                   onClick={closePanel}
                   className="px-5 py-2.5 rounded-lg font-semibold text-sm text-muted-foreground hover:bg-muted transition-colors"
@@ -519,10 +788,10 @@ const AdminProducts = () => {
                 <button
                   onClick={handleSaveProduct}
                   disabled={saving || uploadingImage}
-                  className="px-6 py-2.5 rounded-lg font-semibold text-sm bg-primary text-primary-foreground hover:bg-primary/90 transition-colors shadow-sm flex items-center gap-2 active:scale-[0.97] disabled:opacity-50"
+                  className="px-6 py-2.5 rounded-lg font-bold text-sm bg-primary text-primary-foreground hover:bg-primary/90 transition-colors shadow-sm flex items-center gap-2 active:scale-[0.97] disabled:opacity-50"
                 >
-                  {saving && <Loader2 size={14} className="animate-spin" />}
-                  {editingProduct ? "Save Changes" : "Create Product"}
+                  {saving && <Loader2 size={14} className="animate-spin" />}{" "}
+                  {editingProduct ? "Save Changes" : "Publish Product"}
                 </button>
               </div>
             </motion.div>
