@@ -41,10 +41,9 @@ const Dashboard = () => {
   const [loading, setLoading] = useState(true);
   const [companyName, setCompanyName] = useState("Oasis Partner");
 
-  // SAFELY INSIDE THE COMPONENT:
   const [isAiModalOpen, setIsAiModalOpen] = useState(false);
 
-  // UTR Modal State
+  // Modal & Upload State
   const [utrModal, setUtrModal] = useState<{ isOpen: boolean; orderId: string | null; type: "advance" | "final" }>({
     isOpen: false,
     orderId: null,
@@ -52,13 +51,10 @@ const Dashboard = () => {
   });
   const [utrRef, setUtrRef] = useState("");
   const [isUploading, setIsUploading] = useState(false);
-  
-  // FIXED: State for the actual physical file is correctly placed here!
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
 
   const fetchDashboardData = async () => {
     setLoading(true);
-    // Fetch orders with item details to calculate Top Sellers
     const { data: orderData, error } = await supabase
       .from("orders")
       .select("*, company:companies(business_name), order_items(*, product:products(name))")
@@ -96,10 +92,14 @@ const Dashboard = () => {
       const filePath = `receipts/${utrModal.orderId}-${Date.now()}.${fileExt}`;
 
       const { error: uploadError } = await supabase.storage.from("trade_documents").upload(filePath, selectedFile);
-
       if (uploadError) throw uploadError;
 
-      // 2. Get the public URL of the uploaded file
-      const {
-        data: { publicUrl },
-      } = supabase.storage.
+      // 2. Get the public URL safely without complex destructuring
+      const urlResponse = supabase.storage.from("trade_documents").getPublicUrl(filePath);
+      const publicUrl = urlResponse.data.publicUrl;
+
+      // 3. Update the Order in the database
+      const { error: updateError } = await supabase
+        .from("orders")
+        .update({
+          payment_status: utrModal
