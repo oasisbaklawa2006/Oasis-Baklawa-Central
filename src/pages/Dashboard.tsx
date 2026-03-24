@@ -416,11 +416,11 @@ const Dashboard = () => {
 
                 <div>
                   <label className="block text-[11px] font-bold text-slate-500 uppercase mb-1.5">
-                    Bank Reference / UTR Number
+                    Bank Reference No. / Transaction ID
                   </label>
                   <input
                     type="text"
-                    placeholder="e.g., UTR1234567890"
+                    placeholder="e.g., REF1234567890"
                     value={utrRef}
                     onChange={(e) => setUtrRef(e.target.value)}
                     className="w-full bg-white border border-slate-200 rounded-xl p-3 text-sm font-bold outline-none focus:border-[#B8860B]"
