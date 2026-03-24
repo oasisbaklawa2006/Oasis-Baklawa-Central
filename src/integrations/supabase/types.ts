@@ -982,14 +982,24 @@ export type Database = {
           category_id: string | null
           created_at: string | null
           description: string | null
+          dietary_tags: string[] | null
+          gst_percentage: number | null
+          hsn_code: string | null
           id: string
           image_url: string | null
           is_active: boolean
+          moq: number | null
+          mrp: number | null
           name: string
+          net_weight_grams: number | null
           pack_size: string | null
+          packs_per_master_carton: number | null
           price_per_kg: number
           shelf_life: string | null
+          sku: string | null
           storage_type: string | null
+          weight_per_pc_grams: number | null
+          wholesale_price: number | null
         }
         Insert: {
           carton_type?: string | null
@@ -997,14 +1007,24 @@ export type Database = {
           category_id?: string | null
           created_at?: string | null
           description?: string | null
+          dietary_tags?: string[] | null
+          gst_percentage?: number | null
+          hsn_code?: string | null
           id?: string
           image_url?: string | null
           is_active?: boolean
+          moq?: number | null
+          mrp?: number | null
           name: string
+          net_weight_grams?: number | null
           pack_size?: string | null
+          packs_per_master_carton?: number | null
           price_per_kg?: number
           shelf_life?: string | null
+          sku?: string | null
           storage_type?: string | null
+          weight_per_pc_grams?: number | null
+          wholesale_price?: number | null
         }
         Update: {
           carton_type?: string | null
@@ -1012,14 +1032,24 @@ export type Database = {
           category_id?: string | null
           created_at?: string | null
           description?: string | null
+          dietary_tags?: string[] | null
+          gst_percentage?: number | null
+          hsn_code?: string | null
           id?: string
           image_url?: string | null
           is_active?: boolean
+          moq?: number | null
+          mrp?: number | null
           name?: string
+          net_weight_grams?: number | null
           pack_size?: string | null
+          packs_per_master_carton?: number | null
           price_per_kg?: number
           shelf_life?: string | null
+          sku?: string | null
           storage_type?: string | null
+          weight_per_pc_grams?: number | null
+          wholesale_price?: number | null
         }
         Relationships: [
           {
