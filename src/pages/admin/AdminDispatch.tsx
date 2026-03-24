@@ -26,11 +26,29 @@ interface DispatchOrder {
 
 const PACKS_PER_CARTON = 9;
 
+interface ActiveShipment {
+  id: string;
+  status: string;
+  sales_order_value: number | null;
+  created_at: string;
+  company?: { business_name: string } | null;
+  dispatches?: {
+    id: string;
+    transporter_name: string | null;
+    tracking_number: string | null;
+    driver_phone: string | null;
+    dispatch_date: string | null;
+    status: string | null;
+  }[];
+}
+
 const AdminDispatch = () => {
   const [orders, setOrders] = useState<DispatchOrder[]>([]);
+  const [shipments, setShipments] = useState<ActiveShipment[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedOrder, setSelectedOrder] = useState<DispatchOrder | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [activeTab, setActiveTab] = useState<"dispatch" | "shipments">("dispatch");
 
   // Print Engine State
   const [printMode, setPrintMode] = useState<"none" | "barcodes" | "consignee" | "packing_list" | "invoice">("none");
@@ -43,15 +61,25 @@ const AdminDispatch = () => {
 
   const fetchOrders = async () => {
     setLoading(true);
-    const { data } = await supabase
-      .from("orders")
-      .select(
-        "*, company:companies(business_name, billing_address, phone), order_items(id, quantity, product:products(name))",
-      )
-      .in("status", ["packing", "ready_for_dispatch", "packed_ready"])
-      .order("created_at", { ascending: false });
+    const [dispatchRes, shipmentRes] = await Promise.all([
+      supabase
+        .from("orders")
+        .select(
+          "*, company:companies(business_name, billing_address, phone), order_items(id, quantity, product:products(name))",
+        )
+        .in("status", ["packing", "ready_for_dispatch", "packed_ready", "cleared_for_dispatch"])
+        .order("created_at", { ascending: false }),
+      supabase
+        .from("orders")
+        .select(
+          "id, status, sales_order_value, created_at, company:companies(business_name), dispatches(id, transporter_name, tracking_number, driver_phone, dispatch_date, status)",
+        )
+        .eq("status", "dispatched")
+        .order("created_at", { ascending: false }),
+    ]);
 
-    setOrders((data as unknown as DispatchOrder[]) ?? []);
+    setOrders((dispatchRes.data as unknown as DispatchOrder[]) ?? []);
+    setShipments((shipmentRes.data as unknown as ActiveShipment[]) ?? []);
     setLoading(false);
   };
 
@@ -306,56 +334,182 @@ const AdminDispatch = () => {
             <p className="text-sm font-bold text-slate-500 mt-1">Generate barcodes, packing lists, and export docs.</p>
           </div>
 
-          {/* DISPATCH QUEUE */}
-          {orders.length === 0 ? (
-            <div className="text-center py-16 bg-white rounded-3xl border border-slate-200 shadow-sm">
-              <Truck size={48} className="mx-auto text-slate-300 mb-4" />
-              <p className="text-slate-500 font-bold uppercase tracking-widest">Dispatch Bay is Empty</p>
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-              {orders.map((order) => {
-                const totalPacks = order.order_items?.reduce((s, i) => s + i.quantity, 0) ?? 0;
-                const totalCartons = Math.ceil(totalPacks / PACKS_PER_CARTON) || 1;
-                const companyName = order.company?.business_name ?? "Direct Customer";
+          {/* TABS */}
+          <div className="flex gap-2">
+            <button
+              onClick={() => setActiveTab("dispatch")}
+              className={`px-5 py-2.5 rounded-xl font-bold text-sm transition-all ${activeTab === "dispatch" ? "bg-slate-900 text-white shadow-lg" : "bg-white border border-slate-200 text-slate-600 hover:bg-slate-50"}`}
+            >
+              Dispatch Bay ({orders.length})
+            </button>
+            <button
+              onClick={() => setActiveTab("shipments")}
+              className={`px-5 py-2.5 rounded-xl font-bold text-sm transition-all ${activeTab === "shipments" ? "bg-emerald-600 text-white shadow-lg" : "bg-white border border-slate-200 text-slate-600 hover:bg-slate-50"}`}
+            >
+              Active Shipments ({shipments.length})
+            </button>
+          </div>
 
-                return (
-                  <div
-                    key={order.id}
-                    className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm flex flex-col justify-between hover:border-[#B8860B]/30 transition-colors"
-                  >
-                    <div>
-                      <div className="flex justify-between items-start mb-3">
+          {/* DISPATCH TAB */}
+          {activeTab === "dispatch" && (
+            <>
+              {orders.length === 0 ? (
+                <div className="text-center py-16 bg-white rounded-3xl border border-slate-200 shadow-sm">
+                  <Truck size={48} className="mx-auto text-slate-300 mb-4" />
+                  <p className="text-slate-500 font-bold uppercase tracking-widest">Dispatch Bay is Empty</p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                  {orders.map((order) => {
+                    const totalPacks = order.order_items?.reduce((s, i) => s + i.quantity, 0) ?? 0;
+                    const totalCartons = Math.ceil(totalPacks / PACKS_PER_CARTON) || 1;
+                    const companyName = order.company?.business_name ?? "Direct Customer";
+
+                    return (
+                      <div
+                        key={order.id}
+                        className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm flex flex-col justify-between hover:border-[#B8860B]/30 transition-colors"
+                      >
                         <div>
-                          <span className="bg-emerald-50 text-emerald-600 px-2 py-1 rounded text-[10px] font-black uppercase tracking-widest mb-2 inline-block border border-emerald-100">
-                            Ready for Dispatch
-                          </span>
-                          <h3 className="text-xl font-black text-slate-900 leading-tight">{companyName}</h3>
-                          <p className="text-xs font-bold text-slate-400 mt-1 font-mono uppercase">
-                            ID: {order.id.split("-")[0]}
-                          </p>
+                          <div className="flex justify-between items-start mb-3">
+                            <div>
+                              <span className="bg-emerald-50 text-emerald-600 px-2 py-1 rounded text-[10px] font-black uppercase tracking-widest mb-2 inline-block border border-emerald-100">
+                                Ready for Dispatch
+                              </span>
+                              <h3 className="text-xl font-black text-slate-900 leading-tight">{companyName}</h3>
+                              <p className="text-xs font-bold text-slate-400 mt-1 font-mono uppercase">
+                                ID: {order.id.split("-")[0]}
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center justify-between border-t border-slate-100 pt-4 mt-4">
+                          <div>
+                            <p className="text-sm font-black text-slate-900">{totalPacks} Packs</p>
+                            <p className="text-xs font-bold text-[#B8860B] bg-[#B8860B]/10 px-2 py-0.5 rounded mt-1 inline-block">
+                              {totalCartons} Cartons
+                            </p>
+                          </div>
+                          <button
+                            onClick={() => openDispatchModal(order)}
+                            className="px-5 py-2.5 rounded-xl bg-slate-900 text-white font-bold text-sm hover:bg-black transition-colors flex items-center gap-2 shadow-lg"
+                          >
+                            <Printer size={16} /> Process & Print
+                          </button>
                         </div>
                       </div>
-                    </div>
+                    );
+                  })}
+                </div>
+              )}
+            </>
+          )}
 
-                    <div className="flex items-center justify-between border-t border-slate-100 pt-4 mt-4">
-                      <div>
-                        <p className="text-sm font-black text-slate-900">{totalPacks} Packs</p>
-                        <p className="text-xs font-bold text-[#B8860B] bg-[#B8860B]/10 px-2 py-0.5 rounded mt-1 inline-block">
-                          {totalCartons} Cartons
-                        </p>
-                      </div>
-                      <button
-                        onClick={() => openDispatchModal(order)}
-                        className="px-5 py-2.5 rounded-xl bg-slate-900 text-white font-bold text-sm hover:bg-black transition-colors flex items-center gap-2 shadow-lg"
+          {/* ACTIVE SHIPMENTS TAB */}
+          {activeTab === "shipments" && (
+            <>
+              {shipments.length === 0 ? (
+                <div className="text-center py-16 bg-white rounded-3xl border border-slate-200 shadow-sm">
+                  <Truck size={48} className="mx-auto text-slate-300 mb-4" />
+                  <p className="text-slate-500 font-bold uppercase tracking-widest">No Active Shipments</p>
+                  <p className="text-xs text-slate-400 mt-2">Orders will appear here once dispatched.</p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                  {shipments.map((shipment) => {
+                    const dispatch = shipment.dispatches?.[0];
+                    const companyName = shipment.company?.business_name ?? "Direct Customer";
+
+                    return (
+                      <div
+                        key={shipment.id}
+                        className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm hover:shadow-md transition-shadow"
                       >
-                        <Printer size={16} /> Process & Print
-                      </button>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
+                        {/* Header */}
+                        <div className="bg-emerald-50 border-b border-emerald-100 px-5 py-4 flex justify-between items-center">
+                          <div>
+                            <h3 className="text-lg font-black text-slate-900">{companyName}</h3>
+                            <p className="text-xs font-bold text-slate-500 font-mono uppercase mt-0.5">
+                              SO #{shipment.id.split("-")[0]}
+                            </p>
+                          </div>
+                          <span className="bg-emerald-600 text-white px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest">
+                            In Transit
+                          </span>
+                        </div>
+
+                        <div className="p-5 space-y-4">
+                          {/* Mini Tracking Timeline */}
+                          <div className="flex items-center gap-2">
+                            <div className="w-6 h-6 rounded-full bg-emerald-500 text-white flex items-center justify-center shrink-0">
+                              <CheckCircle2 size={12} />
+                            </div>
+                            <div className="flex-1 h-1 bg-emerald-400 rounded-full" />
+                            <div className="w-6 h-6 rounded-full bg-emerald-500 text-white flex items-center justify-center shrink-0">
+                              <Package size={12} />
+                            </div>
+                            <div className="flex-1 h-1 bg-emerald-400 rounded-full" />
+                            <div className="w-6 h-6 rounded-full bg-[#B8860B] text-white flex items-center justify-center shrink-0 animate-pulse">
+                              <Truck size={12} />
+                            </div>
+                            <div className="flex-1 h-1 bg-slate-200 rounded-full" />
+                            <div className="w-6 h-6 rounded-full bg-slate-200 text-slate-400 flex items-center justify-center shrink-0">
+                              <CheckCircle2 size={12} />
+                            </div>
+                          </div>
+                          <div className="flex justify-between text-[9px] font-bold text-slate-400 uppercase tracking-widest px-1">
+                            <span>Packed</span>
+                            <span>Cleared</span>
+                            <span className="text-[#B8860B]">In Transit</span>
+                            <span>Delivered</span>
+                          </div>
+
+                          {/* Logistics Details */}
+                          <div className="bg-slate-50 border border-slate-100 rounded-xl p-4 space-y-2">
+                            <div className="flex justify-between text-sm">
+                              <span className="text-slate-500 font-medium">Logistics Partner</span>
+                              <span className="font-black text-slate-900">{dispatch?.transporter_name || "—"}</span>
+                            </div>
+                            <div className="flex justify-between text-sm">
+                              <span className="text-slate-500 font-medium">AWB / LR Number</span>
+                              <span className="font-black text-[#B8860B]">{dispatch?.tracking_number || "—"}</span>
+                            </div>
+                            <div className="flex justify-between text-sm">
+                              <span className="text-slate-500 font-medium">Dispatch Date</span>
+                              <span className="font-bold text-slate-700">{dispatch?.dispatch_date || "—"}</span>
+                            </div>
+                            {shipment.sales_order_value && (
+                              <div className="flex justify-between text-sm border-t border-slate-200 pt-2 mt-2">
+                                <span className="text-slate-500 font-medium">Order Value</span>
+                                <span className="font-black text-slate-900">₹{shipment.sales_order_value.toLocaleString("en-IN")}</span>
+                              </div>
+                            )}
+                          </div>
+
+                          {/* Contact Support Button */}
+                          {dispatch?.driver_phone ? (
+                            <a
+                              href={`tel:${dispatch.driver_phone}`}
+                              className="w-full py-3 rounded-xl bg-slate-900 text-white font-bold text-sm flex items-center justify-center gap-2 hover:bg-black transition-colors shadow-lg"
+                            >
+                              <Truck size={16} /> Contact Logistics Support
+                            </a>
+                          ) : (
+                            <button
+                              disabled
+                              className="w-full py-3 rounded-xl bg-slate-100 text-slate-400 font-bold text-sm flex items-center justify-center gap-2 cursor-not-allowed"
+                            >
+                              No Contact Available
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </>
           )}
         </main>
       </div>
