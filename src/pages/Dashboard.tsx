@@ -284,7 +284,7 @@ const Dashboard = () => {
                           <AlertTriangle size={14} /> Action Required
                         </p>
                         <p className="text-[11px] text-amber-700 mb-3">
-                          Please transfer the 50% advance and upload the payment receipt to push this to the kitchen.
+                          Please transfer the 50% advance and upload the payment receipt to release this to Production.
                         </p>
                         <button
                           onClick={() => setUtrModal({ isOpen: true, orderId: latestOrder.id, type: "advance" })}
@@ -294,7 +294,7 @@ const Dashboard = () => {
                         </button>
                       </div>
                     ) : (
-                      <p className="text-xs text-slate-500 font-medium mt-0.5">Financials verified. Sent to kitchen.</p>
+                      <p className="text-xs text-slate-500 font-medium mt-0.5">Financials verified. Released to Production.</p>
                     )}
                   </div>
                 </div>
@@ -309,11 +309,11 @@ const Dashboard = () => {
                     <h4
                       className={`font-bold text-sm ${getTimelineStep(latestOrder) >= 2 ? "text-slate-900" : "text-slate-400"}`}
                     >
-                      Baking & Packing
+                      Production & Assembly
                     </h4>
                     {getTimelineStep(latestOrder) === 2 && (
                       <p className="text-xs text-[#B8860B] font-bold mt-1 flex items-center gap-1">
-                        <Loader2 size={12} className="animate-spin" /> Operations is packing your boxes
+                        <Loader2 size={12} className="animate-spin" /> Packaging division is assembling your master cartons
                       </p>
                     )}
                   </div>

@@ -372,7 +372,7 @@ const AdminDispatch = () => {
             <>
               <DialogHeader className="p-6 pb-0 bg-white border-b border-slate-100">
                 <DialogTitle className="text-2xl font-black text-slate-900 flex items-center gap-2">
-                  <Package className="text-[#B8860B]" /> Logistics Command Center
+                  <Package className="text-[#B8860B]" /> Production & Logistics Command
                 </DialogTitle>
                 <div className="mt-4 pb-4">
                   <p className="text-lg font-black text-slate-900 leading-tight">

@@ -118,7 +118,7 @@ const AdminFinance = () => {
   // Queues
   const validationQueue = orders.filter((o) => o.payment_status === "awaiting_receipt");
   const approvalQueue = orders.filter((o) => o.payment_status === "credit_requested");
-  // Assuming 'packed_ready' is the status Operations sets after putting items in boxes
+  // Assuming 'packed_ready' is the status Operations sets after assembling master cartons
   const invoicingQueue = orders.filter((o) => o.status === "in_production" || o.status === "packed_ready");
 
   const totalValueToday = orders.reduce((sum, o) => sum + (o.sales_order_value || 0), 0);
