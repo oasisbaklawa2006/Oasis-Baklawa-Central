@@ -427,7 +427,7 @@ const Dashboard = () => {
               </div>
 
               <button
-                onClick={handleUploadUTR}
+                onClick={handleUploadReceipt}
                 disabled={isUploading || !utrRef}
                 className="w-full mt-6 py-4 bg-slate-900 text-white font-bold rounded-xl hover:bg-black flex justify-center items-center gap-2 shadow-lg disabled:opacity-50 transition-all"
               >
