@@ -73,14 +73,14 @@ const Dashboard = () => {
     fetchDashboardData();
   }, []);
 
-  const handleUploadUTR = async () => {
+  const handleUploadReceipt = async () => {
     if (!utrRef) {
-      toast.error("Please enter the UTR Reference Number.");
+      toast.error("Please enter the Bank Reference No. / Transaction ID.");
       return;
     }
     setIsUploading(true);
     setTimeout(() => {
-      toast.success("UTR Uploaded Successfully! Awaiting Finance Verification.", { icon: "✅" });
+      toast.success("Payment Receipt Uploaded Successfully! Awaiting Finance Verification.", { icon: "✅" });
       setUtrModal({ isOpen: false, orderId: null, type: "advance" });
       setUtrRef("");
       setIsUploading(false);
