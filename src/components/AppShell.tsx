@@ -12,7 +12,7 @@ const AppShell = ({ children }: AppShellProps) => {
     <div className="min-h-screen bg-background flex flex-col">
       <SystemAlertBanner />
       <TopNavBar />
-      <main className="pt-16 pb-[72px] min-h-screen flex-1">
+      <main className="pt-24 pb-[72px] min-h-screen flex-1">
         {children}
       </main>
       <FloatingActions />

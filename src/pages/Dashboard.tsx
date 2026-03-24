@@ -130,7 +130,7 @@ const Dashboard = () => {
   return (
     <AppShell>
       {/* GLOBAL MARQUEE BANNER */}
-      <div className="bg-[#C5A059] text-white text-xs font-bold py-2.5 overflow-hidden relative flex items-center mt-16 lg:mt-0 shadow-sm z-30">
+      <div className="bg-[#C5A059] text-white text-xs font-bold py-2.5 overflow-hidden relative flex items-center shadow-sm z-30">
         <div className="absolute left-4 z-10 bg-[#C5A059] pr-3 border-r border-white/20">
           <Megaphone size={14} />
         </div>
@@ -147,7 +147,7 @@ const Dashboard = () => {
       `}</style>
 
       <div className="min-h-screen bg-[#FDFCF8] font-sans pb-24">
-        <main className="pt-8 px-4 sm:px-6 max-w-5xl mx-auto space-y-8">
+        <main className="px-4 sm:px-6 max-w-5xl mx-auto space-y-8">
           {/* HEADER & KPIs */}
           <section>
             <h1 className="font-serif text-3xl font-bold text-gray-900 tracking-tight">Welcome back, {companyName}</h1>

@@ -154,7 +154,7 @@ const Catalogue = () => {
           </button>
         </div>
 
-        <main className="pt-24 px-4 sm:px-6 max-w-5xl mx-auto space-y-12">
+        <main className="px-4 sm:px-6 max-w-5xl mx-auto space-y-12">
           {/* HEADER & SEARCH */}
           <div>
             <p className="text-[10px] font-bold text-[#C5A059] uppercase tracking-widest mb-1">PROCUREMENT</p>

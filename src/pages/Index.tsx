@@ -85,7 +85,7 @@ const Index = () => {
   return (
     <AppShell>
       <div className="min-h-screen bg-[#FDFCF8] font-sans pb-24 relative">
-        <main className="pt-24 px-4 sm:px-6 max-w-5xl mx-auto space-y-12">
+        <main className="px-4 sm:px-6 max-w-5xl mx-auto space-y-12">
           {/* PERFECTLY CENTERED MULTILINGUAL HELLO */}
           <div className="flex flex-col items-center justify-center text-center pt-4 mb-10 space-y-5">
             <h1 className="font-display text-7xl md:text-8xl font-bold text-[#B8860B] tracking-tight">Hello</h1>
