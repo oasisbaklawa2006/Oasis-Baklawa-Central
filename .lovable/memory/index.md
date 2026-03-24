@@ -1,14 +1,11 @@
-Design system & business rules for Oasis Baklawa B2B ERP
+# Memory: index.md
+Updated: now
 
-- Fonts: Playfair Display (display), Montserrat (body), Inter (UI/numbers/labels), Bantayog (fine print)
-- Palette: #f3f5f9 bg, #ffffff cards, #1c1c1c foreground, #c6a769 primary (Champagne Gold)
-- Admin theme: light (bg-background, white cards, border-border) — NOT dark
-- 9 Packs = 1 Carton (global rule). Always show "Total Packs: X | Total Cartons: Y"
+Design system: #f3f5f9 bg, #ffffff cards with box-shadow 0 8px 24px rgba(0,0,0,0.12), Cinzel headers, Montserrat body, champagne gold #c6a769 primary
 - Category C MOQ: 9 packs/carton, min 3 per variant, valid combos: 3+3+3, 6+3, 4+5, 9
 - 50% advance required for production
 - Company: TCF Chocolates & Gifts Private Limited
-- Splash shows for 3 seconds, routes by role: admin→/admin, buyer→/, unauth→/login
-- Logout button is inside avatar dropdown only (TopNavBar)
-- Finance uses dynamic action dropdown (request advance, mark advance paid, request balance, mark fully paid)
-- Register writes to b2b_applications table directly
-- Logo sizing: Splash 145-220px, Login h-10/h-12, Navbar h-8/h-9, Admin sidebar h-7
+- All colors use HSL design tokens from index.css
+- Golden Pipeline: submitted → in_production → packed_ready → awaiting_final_payment → cleared_for_dispatch → dispatched → delivered (+ cancelled)
+- payment_status uses "awaiting_receipt" not "awaiting_utr"
+- UI terminology: "Upload Payment Receipt" not "Upload UTR", "Bank Reference No. / Transaction ID" not "UTR Number"
