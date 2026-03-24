@@ -17,7 +17,7 @@ const AdminSecurityGate = () => {
   const [screenState, setScreenState] = useState<"idle" | "success" | "error" | "duplicate">("idle");
   const [lastMessage, setLastMessage] = useState("Ready to scan barcodes.");
   const [scanHistory, setScanHistory] = useState<ScannedCarton[]>([]);
-  
+
   const inputRef = useRef<HTMLInputElement>(null);
 
   // Keep the hidden input focused at all times so the USB scanner always works
@@ -49,13 +49,15 @@ const AdminSecurityGate = () => {
       // 1. Look up the carton (Using 'as any' safely since this table is new)
       const { data: carton, error } = await (supabase as any)
         .from("dispatch_cartons")
-        .select(`
+        .select(
+          `
           id, 
           status, 
           box_number, 
           total_boxes,
           orders ( company:companies(business_name) )
-        `)
+        `,
+        )
         .eq("barcode_string", barcode)
         .single();
 
@@ -67,21 +69,19 @@ const AdminSecurityGate = () => {
         setLastMessage(`INVALID BARCODE: ${barcode}`);
         addToHistory(barcode, "Unknown", "error", "Barcode not recognized by the system.");
         playAudio("error");
-      } 
-      else if (carton.status === "physically_dispatched") {
+      } else if (carton.status === "physically_dispatched") {
         // ERROR: Already scanned out
         setScreenState("duplicate");
         setLastMessage(`ALREADY DISPATCHED: Box ${carton.box_number} of ${carton.total_boxes}`);
         addToHistory(barcode, companyName, "duplicate", "This box has already left the building.");
         playAudio("error");
-      } 
-      else {
+      } else {
         // SUCCESS: Mark as dispatched out the gate
         await (supabase as any)
           .from("dispatch_cartons")
-          .update({ 
-            status: "physically_dispatched", 
-            scanned_out_at: new Date().toISOString() 
+          .update({
+            status: "physically_dispatched",
+            scanned_out_at: new Date().toISOString(),
           })
           .eq("id", carton.id);
 
@@ -100,10 +100,12 @@ const AdminSecurityGate = () => {
   };
 
   const addToHistory = (barcode: string, company: string, status: "success" | "error" | "duplicate", msg: string) => {
-    setScanHistory(prev => [
-      { id: Math.random().toString(), barcode, company_name: company, status, message: msg, scanned_at: new Date() },
-      ...prev
-    ].slice(0, 10)); // Keep only the last 10 scans
+    setScanHistory((prev) =>
+      [
+        { id: Math.random().toString(), barcode, company_name: company, status, message: msg, scanned_at: new Date() },
+        ...prev,
+      ].slice(0, 10),
+    ); // Keep only the last 10 scans
   };
 
   // Optional: Add simple web audio beeps for physical feedback
@@ -114,7 +116,7 @@ const AdminSecurityGate = () => {
       const gain = ctx.createGain();
       osc.connect(gain);
       gain.connect(ctx.destination);
-      
+
       if (type === "success") {
         osc.type = "sine";
         osc.frequency.setValueAtTime(800, ctx.currentTime);
@@ -153,14 +155,18 @@ const AdminSecurityGate = () => {
       {/* Main content */}
       <div className="flex-1 flex flex-col lg:flex-row">
         {/* LEFT PANEL - THE SCANNER UI */}
-        <div className={`flex-1 flex flex-col items-center justify-center p-8 transition-colors duration-500 ${bgClass}`}>
+        <div
+          className={`flex-1 flex flex-col items-center justify-center p-8 transition-colors duration-500 ${bgClass}`}
+        >
           {/* Icon */}
           <div className={`mb-6 transition-all duration-300 ${textClass}`}>
             <Icon size={120} strokeWidth={1.5} />
           </div>
 
           {/* Status Text */}
-          <h1 className={`text-5xl md:text-7xl font-black tracking-tight mb-4 text-center transition-colors duration-300 ${textClass}`}>
+          <h1
+            className={`text-5xl md:text-7xl font-black tracking-tight mb-4 text-center transition-colors duration-300 ${textClass}`}
+          >
             {screenState === "idle" && "SCAN CARTON"}
             {screenState === "success" && "AUTHORIZED"}
             {screenState === "error" && "INVALID CARTON"}
@@ -168,11 +174,13 @@ const AdminSecurityGate = () => {
           </h1>
 
           {/* Message */}
-          <p className={`text-lg md:text-2xl font-medium text-center max-w-xl transition-colors duration-300 ${screenState === "idle" ? "text-slate-500" : "text-white/80"}`}>
+          <p
+            className={`text-lg md:text-2xl font-medium text-center max-w-xl transition-colors duration-300 ${screenState === "idle" ? "text-slate-500" : "text-white/80"}`}
+          >
             {lastMessage}
           </p>
 
-          {/* HIDDEN INPUT FOR USB SCANNER */}
+          {/* HIDDEN INPUT FOR USB SCANNER (Fixed structure!) */}
           <form onSubmit={handleScan} className="mt-10 w-full max-w-md">
             <input
               ref={inputRef}
@@ -211,21 +219,29 @@ const AdminSecurityGate = () => {
                     scan.status === "success"
                       ? "bg-emerald-950/50 border-emerald-800"
                       : scan.status === "duplicate"
-                      ? "bg-amber-950/50 border-amber-800"
-                      : "bg-red-950/50 border-red-800"
+                        ? "bg-amber-950/50 border-amber-800"
+                        : "bg-red-950/50 border-red-800"
                   }`}
                 >
                   <div className="flex items-center justify-between mb-1">
                     <span
                       className={`text-xs font-bold uppercase ${
-                        scan.status === "success" ? "text-emerald-400" : scan.status === "duplicate" ? "text-amber-400" : "text-red-400"
+                        scan.status === "success"
+                          ? "text-emerald-400"
+                          : scan.status === "duplicate"
+                            ? "text-amber-400"
+                            : "text-red-400"
                       }`}
                     >
                       {scan.status}
                     </span>
                     <span className="text-xs text-slate-500 flex items-center gap-1">
                       <Clock size={10} />
-                      {scan.scanned_at.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" })}
+                      {scan.scanned_at.toLocaleTimeString([], {
+                        hour: "2-digit",
+                        minute: "2-digit",
+                        second: "2-digit",
+                      })}
                     </span>
                   </div>
                   <p className="text-sm font-semibold text-slate-200">{scan.company_name}</p>
