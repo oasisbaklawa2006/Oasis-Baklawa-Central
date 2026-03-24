@@ -112,8 +112,8 @@ const AdminDashboard = () => {
     },
     { key: "packing", label: t("Packing & Dispatch"), icon: PackageCheck, subtitle: "Fulfillment workload",
       metrics: [
-        { l: t("Packing"), v: pipeline.packing ?? 0 },
-        { l: t("Dispatch Ready"), v: pipeline.ready_for_dispatch ?? 0 },
+        { l: "Packed Ready", v: pipeline.packed_ready ?? 0 },
+        { l: "Cleared for Dispatch", v: pipeline.cleared_for_dispatch ?? 0 },
         { l: "Blocked", v: Number(counts.financeHold) || 0 },
       ],
       route: "/admin/packing-dispatch",
