@@ -284,7 +284,7 @@ const Account = () => {
             {settingsMenu.map((item, i) => (
               <button
                 key={i}
-                onClick={() => toast.info(`Navigating to ${item.label}...`)}
+                onClick={() => item.path ? navigate(item.path) : toast.info(`Navigating to ${item.label}...`)}
                 className="w-full flex items-center gap-4 py-3 px-4 rounded-2xl hover:bg-gray-50 border border-transparent hover:border-gray-100 transition-all group"
               >
                 <div className="w-10 h-10 rounded-full bg-[#C5A059]/10 flex items-center justify-center flex-shrink-0 group-hover:bg-[#C5A059] group-hover:text-white transition-colors">
