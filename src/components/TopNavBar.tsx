@@ -89,6 +89,7 @@ const TopNavBar = () => {
             </span>
           </button>
 
+          <button onClick={() => setShowSearch(true)} className="p-2 rounded-full hover:bg-muted transition-colors" aria-label="Search">
             <Search size={20} className="text-muted-foreground" />
           </button>
           <button
