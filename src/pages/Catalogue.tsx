@@ -14,7 +14,7 @@ import {
   ArrowRight,
   Loader2,
 } from "lucide-react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
 
 const getProductPrice = (p: any): number =>
