@@ -1033,6 +1033,8 @@ export type Database = {
       }
       products: {
         Row: {
+          avg_weight_per_pack: number | null
+          avg_weight_per_pc: number | null
           base_price: number | null
           carton_type: string | null
           category: string | null
@@ -1047,25 +1049,34 @@ export type Database = {
           image_url: string | null
           is_active: boolean
           moq: number | null
+          moq_packs: number | null
           mrp: number | null
+          mrp_per_pc: number | null
           name: string
           net_weight_grams: number | null
+          nutrition_facts: string | null
           pack_size: string | null
+          packs_per_carton: number | null
           packs_per_master_carton: number | null
           price_b2b: number | null
           price_bulk: number | null
           price_horeca: number | null
-          price_per_kg: number
+          price_per_kg: number | null
           price_special: number | null
           price_wholesale: number | null
+          private_label_moq: number | null
+          private_label_price: number | null
           shelf_life: string | null
           sku: string | null
           storage_type: string | null
           sub_category: string | null
+          uom: string | null
           weight_per_pc_grams: number | null
           wholesale_price: number | null
         }
         Insert: {
+          avg_weight_per_pack?: number | null
+          avg_weight_per_pc?: number | null
           base_price?: number | null
           carton_type?: string | null
           category?: string | null
@@ -1080,25 +1091,34 @@ export type Database = {
           image_url?: string | null
           is_active?: boolean
           moq?: number | null
+          moq_packs?: number | null
           mrp?: number | null
+          mrp_per_pc?: number | null
           name: string
           net_weight_grams?: number | null
+          nutrition_facts?: string | null
           pack_size?: string | null
+          packs_per_carton?: number | null
           packs_per_master_carton?: number | null
           price_b2b?: number | null
           price_bulk?: number | null
           price_horeca?: number | null
-          price_per_kg?: number
+          price_per_kg?: number | null
           price_special?: number | null
           price_wholesale?: number | null
+          private_label_moq?: number | null
+          private_label_price?: number | null
           shelf_life?: string | null
           sku?: string | null
           storage_type?: string | null
           sub_category?: string | null
+          uom?: string | null
           weight_per_pc_grams?: number | null
           wholesale_price?: number | null
         }
         Update: {
+          avg_weight_per_pack?: number | null
+          avg_weight_per_pc?: number | null
           base_price?: number | null
           carton_type?: string | null
           category?: string | null
@@ -1113,21 +1133,28 @@ export type Database = {
           image_url?: string | null
           is_active?: boolean
           moq?: number | null
+          moq_packs?: number | null
           mrp?: number | null
+          mrp_per_pc?: number | null
           name?: string
           net_weight_grams?: number | null
+          nutrition_facts?: string | null
           pack_size?: string | null
+          packs_per_carton?: number | null
           packs_per_master_carton?: number | null
           price_b2b?: number | null
           price_bulk?: number | null
           price_horeca?: number | null
-          price_per_kg?: number
+          price_per_kg?: number | null
           price_special?: number | null
           price_wholesale?: number | null
+          private_label_moq?: number | null
+          private_label_price?: number | null
           shelf_life?: string | null
           sku?: string | null
           storage_type?: string | null
           sub_category?: string | null
+          uom?: string | null
           weight_per_pc_grams?: number | null
           wholesale_price?: number | null
         }
