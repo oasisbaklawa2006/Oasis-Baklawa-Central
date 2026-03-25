@@ -977,6 +977,7 @@ export type Database = {
       }
       products: {
         Row: {
+          base_price: number | null
           carton_type: string | null
           category: string | null
           category_id: string | null
@@ -995,7 +996,12 @@ export type Database = {
           net_weight_grams: number | null
           pack_size: string | null
           packs_per_master_carton: number | null
+          price_b2b: number | null
+          price_bulk: number | null
+          price_horeca: number | null
           price_per_kg: number
+          price_special: number | null
+          price_wholesale: number | null
           shelf_life: string | null
           sku: string | null
           storage_type: string | null
@@ -1004,6 +1010,7 @@ export type Database = {
           wholesale_price: number | null
         }
         Insert: {
+          base_price?: number | null
           carton_type?: string | null
           category?: string | null
           category_id?: string | null
@@ -1022,7 +1029,12 @@ export type Database = {
           net_weight_grams?: number | null
           pack_size?: string | null
           packs_per_master_carton?: number | null
+          price_b2b?: number | null
+          price_bulk?: number | null
+          price_horeca?: number | null
           price_per_kg?: number
+          price_special?: number | null
+          price_wholesale?: number | null
           shelf_life?: string | null
           sku?: string | null
           storage_type?: string | null
@@ -1031,6 +1043,7 @@ export type Database = {
           wholesale_price?: number | null
         }
         Update: {
+          base_price?: number | null
           carton_type?: string | null
           category?: string | null
           category_id?: string | null
@@ -1049,7 +1062,12 @@ export type Database = {
           net_weight_grams?: number | null
           pack_size?: string | null
           packs_per_master_carton?: number | null
+          price_b2b?: number | null
+          price_bulk?: number | null
+          price_horeca?: number | null
           price_per_kg?: number
+          price_special?: number | null
+          price_wholesale?: number | null
           shelf_life?: string | null
           sku?: string | null
           storage_type?: string | null
@@ -1063,6 +1081,53 @@ export type Database = {
             columns: ["category_id"]
             isOneToOne: false
             referencedRelation: "categories"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      profiles: {
+        Row: {
+          company_id: string | null
+          created_at: string
+          credit_limit: number | null
+          department: string | null
+          email: string | null
+          full_name: string | null
+          id: string
+          is_approved: boolean | null
+          price_tier: string | null
+          role: string | null
+        }
+        Insert: {
+          company_id?: string | null
+          created_at?: string
+          credit_limit?: number | null
+          department?: string | null
+          email?: string | null
+          full_name?: string | null
+          id: string
+          is_approved?: boolean | null
+          price_tier?: string | null
+          role?: string | null
+        }
+        Update: {
+          company_id?: string | null
+          created_at?: string
+          credit_limit?: number | null
+          department?: string | null
+          email?: string | null
+          full_name?: string | null
+          id?: string
+          is_approved?: boolean | null
+          price_tier?: string | null
+          role?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "profiles_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
             referencedColumns: ["id"]
           },
         ]
