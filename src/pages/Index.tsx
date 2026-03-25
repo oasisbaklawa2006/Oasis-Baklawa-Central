@@ -3,6 +3,7 @@ import { Star, TrendingUp, ShoppingCart, Box, Gift, ChevronRight } from "lucide-
 import { useNavigate } from "react-router-dom";
 import AppShell from "@/components/AppShell";
 import { supabase } from "@/integrations/supabase/client";
+import { useLanguage } from "@/contexts/LanguageContext";
 
 // --- MOCK DATA ---
 const SMART_REORDER = [
@@ -57,8 +58,8 @@ const PACKAGING = [
 const Index = () => {
   const navigate = useNavigate();
   const [companyName, setCompanyName] = useState("");
+  const { t } = useLanguage();
 
-  // Category Array explicitly mapped for your custom SVGs
   const categories = [
     { id: "dates", name: "Dates", iconSrc: "/icons/date-palm.svg", fallback: "🌴" },
     { id: "chocolate", name: "Chocolates", iconSrc: "/icons/cacao.svg", fallback: "🍫" },
@@ -68,15 +69,13 @@ const Index = () => {
     { id: "fusion", name: "Fusion Sweets", iconSrc: "/icons/mithai.svg", fallback: "🍡" },
   ];
 
-  // Fetch the logged-in user's company name
   useEffect(() => {
     const fetchCompany = async () => {
       const { data } = await supabase.from("orders").select("company:companies(business_name)").limit(1);
-
       if (data && data[0]?.company?.business_name) {
         setCompanyName(data[0].company.business_name);
       } else {
-        setCompanyName("TCF Chocolates and Gifts Pvt Ltd"); // Fallback
+        setCompanyName("TCF Chocolates and Gifts Pvt Ltd");
       }
     };
     fetchCompany();
@@ -86,21 +85,20 @@ const Index = () => {
     <AppShell>
       <div className="min-h-screen bg-[#FDFCF8] font-sans pb-24 relative">
         <main className="px-4 sm:px-6 max-w-5xl mx-auto space-y-12">
-          {/* PERFECTLY CENTERED MULTILINGUAL HELLO */}
+          {/* HELLO */}
           <div className="flex flex-col items-center justify-center text-center pt-4 mb-10 space-y-5">
-            <h1 className="font-display text-7xl md:text-8xl font-bold text-[#B8860B] tracking-tight">Hello</h1>
+            <h1 className="font-display text-7xl md:text-8xl font-bold text-[#B8860B] tracking-tight">{t("home.hello")}</h1>
             <p className="text-xs md:text-sm font-medium text-slate-500 leading-relaxed px-4 max-w-lg">
               नमस्ते, सति श्री अकाल, السَّلَامُ عَلَيْكُمْ, வணக்கம், নমস্কার, કેમ છો, నమస్కారం, खम्मा घणी, Chibai...
             </p>
             <h2 className="font-display text-xl md:text-3xl font-bold text-[#9A7009] mt-2">{companyName}</h2>
           </div>
 
-          {/* CUSTOM ICON CATEGORY GRID */}
+          {/* CATEGORY GRID */}
           <section>
             <div className="flex justify-between items-center mb-4">
-              <h3 className="text-sm font-bold text-slate-400 uppercase tracking-widest">Browse by Category</h3>
+              <h3 className="text-sm font-bold text-slate-400 uppercase tracking-widest">{t("home.browseCategories")}</h3>
             </div>
-
             <div className="grid grid-cols-3 md:grid-cols-6 gap-3">
               {categories.map((cat) => (
                 <button
@@ -108,47 +106,40 @@ const Index = () => {
                   onClick={() => navigate(`/catalogue?category=${cat.id}`)}
                   className="flex flex-col items-center justify-center bg-white p-4 rounded-2xl border border-slate-100 shadow-sm hover:border-[#B8860B]/50 hover:shadow-md transition-all active:scale-95"
                 >
-                  {/* To use your real SVGs, upload them to public/icons/ and uncomment the img tag below */}
-                  {/* <img src={cat.iconSrc} alt={cat.name} className="w-10 h-10 object-contain mb-2" /> */}
-
-                  {/* Remove this span once your real images are uploaded */}
                   <span className="text-3xl mb-2">{cat.fallback}</span>
-
-                  <span className="text-[10px] md:text-xs font-bold text-slate-700 uppercase tracking-wider">
-                    {cat.name}
-                  </span>
+                  <span className="text-[10px] md:text-xs font-bold text-slate-700 uppercase tracking-wider">{cat.name}</span>
                 </button>
               ))}
             </div>
           </section>
 
-          {/* 1. SEASON'S SPECIAL HERO (Using Dark Grey instead of Black) */}
+          {/* FESTIVE SPECIAL */}
           <div
             onClick={() => navigate("/catalogue?featured=true")}
             className="relative rounded-3xl overflow-hidden shadow-xl bg-gradient-to-r from-slate-800 to-slate-700 flex cursor-pointer active:scale-[0.98] transition-transform"
           >
             <div className="min-w-full relative p-8 md:p-12 flex flex-col items-start w-2/3 z-10">
               <p className="text-[#B8860B] text-[10px] font-bold uppercase tracking-widest mb-2 flex items-center gap-2">
-                <Star size={12} fill="currentColor" /> Limited Edition
+                <Star size={12} fill="currentColor" /> {t("home.limitedEdition")}
               </p>
               <h2 className="text-3xl md:text-5xl font-display font-bold text-white leading-tight mb-6">
-                Festive Special
+                {t("home.festiveSpecial")}
                 <br />
-                Gifting Collection
+                {t("home.giftingCollection")}
               </h2>
               <button className="flex items-center gap-2 px-6 py-2.5 bg-[#B8860B] text-white rounded-xl text-sm font-bold hover:bg-[#9A7009] transition-colors shadow-lg">
-                Explore Collection <ChevronRight size={16} />
+                {t("home.exploreCollection")} <ChevronRight size={16} />
               </button>
             </div>
             <div className="absolute top-0 right-0 w-1/2 h-full bg-[url('https://images.unsplash.com/photo-1599598425947-33002629671e?auto=format&fit=crop&q=80')] bg-cover bg-left opacity-30 mix-blend-overlay"></div>
           </div>
 
-          {/* 2. SMART REORDER */}
+          {/* SMART REORDER */}
           <section>
             <h2 className="text-xl font-display font-bold text-slate-800 flex items-center gap-2 mb-1">
-              <span className="text-[#B8860B]">⚡</span> Smart Reorder
+              <span className="text-[#B8860B]">⚡</span> {t("home.smartReorder")}
             </h2>
-            <p className="text-xs text-slate-500 mb-6 font-medium">Based on your frequent orders</p>
+            <p className="text-xs text-slate-500 mb-6 font-medium">{t("home.smartReorderSub")}</p>
             <div className="flex overflow-x-auto scrollbar-hide gap-5 pb-4 snap-x">
               {SMART_REORDER.map((item) => (
                 <div
@@ -165,10 +156,7 @@ const Index = () => {
                       ₹{item.price.toLocaleString("en-IN")} <span className="text-slate-400 text-[10px]">/ kg</span>
                     </p>
                     <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        navigate("/cart");
-                      }}
+                      onClick={(e) => { e.stopPropagation(); navigate("/cart"); }}
                       className="w-8 h-8 rounded-full bg-slate-800 text-white flex items-center justify-center hover:bg-[#B8860B] transition-colors"
                     >
                       <ShoppingCart size={14} />
@@ -179,52 +167,38 @@ const Index = () => {
             </div>
           </section>
 
-          {/* 3. PREPACKED / PRIVATE LABEL (Hero Product) */}
+          {/* PRIVATE LABEL */}
           <section
             onClick={() => navigate("/catalogue?category=fusion")}
             className="bg-white rounded-3xl p-6 md:p-8 shadow-sm border border-[#B8860B]/20 relative overflow-hidden cursor-pointer hover:shadow-md transition-shadow"
           >
             <div className="absolute right-0 top-0 w-1/3 h-full bg-gradient-to-l from-[#B8860B]/10 to-transparent"></div>
-            <h2 className="text-2xl font-display font-bold text-slate-800 mb-2 relative z-10">
-              Private Label & Retail Ready
-            </h2>
-            <p className="text-sm text-slate-500 mb-6 relative z-10">
-              Premium branded products ready for your shelves.
-            </p>
-
+            <h2 className="text-2xl font-display font-bold text-slate-800 mb-2 relative z-10">{t("home.privateLabel")}</h2>
+            <p className="text-sm text-slate-500 mb-6 relative z-10">{t("home.privateLabelSub")}</p>
             <div className="flex overflow-x-auto scrollbar-hide gap-5 pb-4 relative z-10">
               <div className="min-w-[280px] md:min-w-[320px] flex gap-4 items-center bg-slate-50 p-4 rounded-2xl border border-slate-100">
                 <div className="w-24 h-24 rounded-xl overflow-hidden shrink-0">
-                  <img
-                    src="https://images.unsplash.com/photo-1549465220-1a8b9238cd48?auto=format&fit=crop&q=80&w=200"
-                    className="w-full h-full object-cover"
-                  />
+                  <img src="https://images.unsplash.com/photo-1549465220-1a8b9238cd48?auto=format&fit=crop&q=80&w=200" className="w-full h-full object-cover" />
                 </div>
                 <div>
                   <div className="flex gap-1 mb-2">
-                    <span className="text-[9px] font-bold bg-[#B8860B] text-white px-2 py-0.5 rounded uppercase tracking-wider">
-                      Retail Ready
-                    </span>
-                    <span className="text-[9px] font-bold bg-slate-700 text-white px-2 py-0.5 rounded uppercase tracking-wider">
-                      Export
-                    </span>
+                    <span className="text-[9px] font-bold bg-[#B8860B] text-white px-2 py-0.5 rounded uppercase tracking-wider">Retail Ready</span>
+                    <span className="text-[9px] font-bold bg-slate-700 text-white px-2 py-0.5 rounded uppercase tracking-wider">Export</span>
                   </div>
                   <h3 className="font-bold text-slate-800 text-sm mb-1">Royal Assorted Hamper</h3>
                   <p className="text-xs text-slate-500">Premium Tin / 750g</p>
                 </div>
               </div>
             </div>
-            <p className="text-[10px] text-slate-400 mt-2 font-medium italic text-right">
-              * Available for private labeling at MOQ
-            </p>
+            <p className="text-[10px] text-slate-400 mt-2 font-medium italic text-right">* Available for private labeling at MOQ</p>
           </section>
 
-          {/* 4. RECOMMENDED FOR YOU */}
+          {/* RECOMMENDED */}
           <section>
             <h2 className="text-xl font-display font-bold text-slate-800 flex items-center gap-2 mb-1">
-              <TrendingUp className="text-[#B8860B]" size={20} /> Recommended for You
+              <TrendingUp className="text-[#B8860B]" size={20} /> {t("home.recommendedForYou")}
             </h2>
-            <p className="text-xs text-slate-500 mb-6 font-medium">Based on your business profile</p>
+            <p className="text-xs text-slate-500 mb-6 font-medium">{t("home.recommendedSub")}</p>
             <div className="flex overflow-x-auto scrollbar-hide gap-5 pb-4 snap-x">
               {RECOMMENDED.map((item) => (
                 <div
@@ -234,22 +208,17 @@ const Index = () => {
                 >
                   <div className="h-36 mb-4 rounded-xl overflow-hidden bg-slate-50 relative">
                     <img src={item.image} className="w-full h-full object-cover" alt={item.name} />
-                    <span className="absolute top-2 left-2 bg-slate-800 text-white text-[9px] font-bold uppercase tracking-widest px-2 py-1 rounded shadow-sm">
-                      {item.tag}
-                    </span>
+                    <span className="absolute top-2 left-2 bg-slate-800 text-white text-[9px] font-bold uppercase tracking-widest px-2 py-1 rounded shadow-sm">{item.tag}</span>
                   </div>
                   <h3 className="font-bold text-slate-800 text-sm mb-1">{item.name}</h3>
                   <p className="text-[10px] text-slate-500 font-medium uppercase tracking-wider mb-3">{item.pack}</p>
                   <div className="flex items-center justify-between">
                     <p className="font-black text-sm text-slate-800">₹{item.price.toLocaleString("en-IN")}</p>
                     <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        navigate("/cart");
-                      }}
+                      onClick={(e) => { e.stopPropagation(); navigate("/cart"); }}
                       className="px-4 py-1.5 rounded-full bg-[#B8860B]/10 text-[#B8860B] text-xs font-bold hover:bg-[#B8860B] hover:text-white transition-colors"
                     >
-                      Quick Add
+                      {t("home.quickAdd")}
                     </button>
                   </div>
                 </div>
@@ -257,26 +226,17 @@ const Index = () => {
             </div>
           </section>
 
-          {/* 5. EMPTY PACKAGING SOLUTIONS (Using Dark Grey) */}
+          {/* PACKAGING */}
           <section className="bg-slate-800 rounded-3xl p-6 md:p-8 text-white relative overflow-hidden shadow-xl mb-8">
             <div className="absolute inset-0 opacity-10 bg-[radial-gradient(circle_at_top_right,rgba(184,134,11,0.8)_0,transparent_60%)]"></div>
             <div className="relative z-10">
               <div className="flex justify-between items-start mb-2">
                 <h2 className="text-2xl font-display font-bold text-white flex items-center gap-3">
-                  <Gift className="text-[#B8860B]" /> Packaging Solutions
+                  <Gift className="text-[#B8860B]" /> {t("home.packagingSolutions")}
                 </h2>
-                <button
-                  onClick={() => navigate("/catalogue")}
-                  className="text-[#B8860B] text-xs font-bold hover:underline"
-                >
-                  View All
-                </button>
+                <button onClick={() => navigate("/catalogue")} className="text-[#B8860B] text-xs font-bold hover:underline">{t("home.viewAll")}</button>
               </div>
-
-              <p className="text-sm text-slate-300 mb-8 font-medium">
-                Perfect for wrapping your own products. Premium rigid boxes, trays, and jars.
-              </p>
-
+              <p className="text-sm text-slate-300 mb-8 font-medium">{t("home.packagingSub")}</p>
               <div className="flex overflow-x-auto scrollbar-hide gap-5 pb-2">
                 {PACKAGING.map((item) => (
                   <div

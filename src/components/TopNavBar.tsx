@@ -1,10 +1,11 @@
-import { Search, Bell, User, LogOut, ChevronDown } from "lucide-react";
+import { Search, Bell, User, LogOut } from "lucide-react";
 import { useState, useRef, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import logoOpen from "@/assets/logo-open.png";
 import NotificationsPanel from "./NotificationsPanel";
 import SearchOverlay from "./SearchOverlay";
 import { supabase } from "@/integrations/supabase/client";
+import { useLanguage } from "@/contexts/LanguageContext";
 
 const TopNavBar = () => {
   const [showNotifs, setShowNotifs] = useState(false);
@@ -12,6 +13,7 @@ const TopNavBar = () => {
   const [showMenu, setShowMenu] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
+  const { lang, setLang, t } = useLanguage();
 
   const handleSignOut = async () => {
     await supabase.auth.signOut();
@@ -30,7 +32,34 @@ const TopNavBar = () => {
     <>
       <header className="fixed top-0 left-0 right-0 z-50 h-16 bg-card shadow-nav flex items-center justify-between px-6">
         <img src={logoOpen} alt="Oasis Baklawa" className="h-8 sm:h-9 object-contain" />
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-3">
+          {/* Language Toggle Pill */}
+          <button
+            onClick={() => setLang(lang === "en" ? "hi" : "en")}
+            className="relative flex items-center h-8 w-[68px] rounded-full border border-border bg-muted/60 p-0.5 transition-colors hover:border-primary/40"
+            aria-label="Toggle language"
+          >
+            <span
+              className={`absolute top-0.5 h-7 w-8 rounded-full bg-primary shadow-sm transition-transform duration-200 ${
+                lang === "hi" ? "translate-x-[34px]" : "translate-x-0.5"
+              }`}
+            />
+            <span
+              className={`relative z-10 flex-1 text-center text-[11px] font-bold transition-colors ${
+                lang === "en" ? "text-primary-foreground" : "text-muted-foreground"
+              }`}
+            >
+              EN
+            </span>
+            <span
+              className={`relative z-10 flex-1 text-center text-[11px] font-bold transition-colors ${
+                lang === "hi" ? "text-primary-foreground" : "text-muted-foreground"
+              }`}
+            >
+              HI
+            </span>
+          </button>
+
           <button onClick={() => setShowSearch(true)} className="p-2 rounded-full hover:bg-muted transition-colors" aria-label="Search">
             <Search size={20} className="text-muted-foreground" />
           </button>
@@ -57,14 +86,14 @@ const TopNavBar = () => {
                   onClick={() => { setShowMenu(false); navigate("/account"); }}
                   className="w-full text-left px-4 py-2.5 text-sm font-ui text-foreground hover:bg-muted transition-colors flex items-center gap-2"
                 >
-                  <User size={14} /> My Account
+                  <User size={14} /> {t("nav.myAccount")}
                 </button>
                 <div className="border-t border-border mx-2" />
                 <button
                   onClick={() => { setShowMenu(false); handleSignOut(); }}
                   className="w-full text-left px-4 py-2.5 text-sm font-ui text-destructive hover:bg-destructive/5 transition-colors flex items-center gap-2"
                 >
-                  <LogOut size={14} /> Sign Out
+                  <LogOut size={14} /> {t("nav.signOut")}
                 </button>
               </div>
             )}
