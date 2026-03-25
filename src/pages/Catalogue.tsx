@@ -14,7 +14,7 @@ import {
   ArrowRight,
   Loader2,
 } from "lucide-react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
 
 const getProductPrice = (p: any): number =>
@@ -24,9 +24,13 @@ const getPackInfo = (p: any): string =>
   [p.pack_size, p.carton_type].filter(Boolean).join(" · ") || "Standard";
 
 const Catalogue = () => {
+  const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const [quantities, setQuantities] = useState<Record<string, number>>({});
-  const [activeCategory, setActiveCategory] = useState<string | null>(null);
+  const [activeCategory, setActiveCategory] = useState<string | null>(
+    searchParams.get("category")
+  );
+  const [activeSubCategory, setActiveSubCategory] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const { formatPrice } = useCurrency();
   const { addToCart } = useCart();
@@ -38,10 +42,25 @@ const Catalogue = () => {
     return [...new Set(products.map((p) => p.category).filter(Boolean))] as string[];
   }, [products]);
 
-  // Filter products by search + category
+  // Sub-categories for the active category
+  const subCategories = useMemo(() => {
+    if (!activeCategory) return [];
+    return [...new Set(
+      products
+        .filter((p) => p.category === activeCategory)
+        .map((p) => p.sub_category)
+        .filter(Boolean)
+    )] as string[];
+  }, [products, activeCategory]);
+
+  // Reset sub-category when primary category changes
+  const effectiveSubCategory = activeCategory ? activeSubCategory : null;
+
+  // Filter products by search + category + sub-category
   const filtered = useMemo(() => {
     return products.filter((p) => {
       if (activeCategory && p.category !== activeCategory) return false;
+      if (effectiveSubCategory && p.sub_category !== effectiveSubCategory) return false;
       if (!searchQuery) return true;
       const q = searchQuery.toLowerCase();
       return (
@@ -50,7 +69,7 @@ const Catalogue = () => {
         (p.category?.toLowerCase().includes(q))
       );
     });
-  }, [products, activeCategory, searchQuery]);
+  }, [products, activeCategory, effectiveSubCategory, searchQuery]);
 
   // Quick order uses first 6 filtered products
   const quickOrderProducts = filtered.slice(0, 6);
@@ -116,7 +135,10 @@ const Catalogue = () => {
               {categories.length > 0 && (
                 <div className="flex flex-wrap gap-2">
                   <button
-                    onClick={() => setActiveCategory(null)}
+                    onClick={() => {
+                      setActiveCategory(null);
+                      setActiveSubCategory(null);
+                    }}
                     className={`px-4 py-2 rounded-full text-xs font-bold border transition-all ${
                       !activeCategory
                         ? "bg-primary text-primary-foreground border-primary shadow-md"
@@ -130,7 +152,10 @@ const Catalogue = () => {
                     return (
                       <button
                         key={cat}
-                        onClick={() => setActiveCategory(activeCategory === cat ? null : cat)}
+                        onClick={() => {
+                          setActiveCategory(activeCategory === cat ? null : cat);
+                          setActiveSubCategory(null);
+                        }}
                         className={`px-4 py-2 rounded-full text-xs font-bold border transition-all ${
                           activeCategory === cat
                             ? "bg-primary text-primary-foreground border-primary shadow-md"
@@ -138,6 +163,40 @@ const Catalogue = () => {
                         }`}
                       >
                         {cat} ({count})
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+
+              {/* SUB-CATEGORY PILLS */}
+              {subCategories.length > 0 && activeCategory && (
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    onClick={() => setActiveSubCategory(null)}
+                    className={`px-3 py-1.5 rounded-full text-[11px] font-bold border transition-all ${
+                      !activeSubCategory
+                        ? "bg-foreground text-background border-foreground shadow-sm"
+                        : "bg-card text-muted-foreground border-border hover:border-foreground/50"
+                    }`}
+                  >
+                    All {activeCategory}
+                  </button>
+                  {subCategories.map((sub) => {
+                    const count = products.filter(
+                      (p) => p.category === activeCategory && p.sub_category === sub
+                    ).length;
+                    return (
+                      <button
+                        key={sub}
+                        onClick={() => setActiveSubCategory(activeSubCategory === sub ? null : sub)}
+                        className={`px-3 py-1.5 rounded-full text-[11px] font-bold border transition-all ${
+                          activeSubCategory === sub
+                            ? "bg-foreground text-background border-foreground shadow-sm"
+                            : "bg-card text-muted-foreground border-border hover:border-foreground/50"
+                        }`}
+                      >
+                        {sub} ({count})
                       </button>
                     );
                   })}

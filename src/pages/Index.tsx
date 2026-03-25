@@ -63,12 +63,12 @@ const Index = () => {
   const { formatPrice } = useCurrency();
 
   const categories = [
-    { id: "dates", name: "Dates", iconSrc: "/icons/date-palm.svg", fallback: "🌴" },
-    { id: "chocolate", name: "Chocolates", iconSrc: "/icons/cacao.svg", fallback: "🍫" },
-    { id: "baklawa", name: "Baklawa", iconSrc: "/icons/baklava.svg", fallback: "🍯" },
-    { id: "nuts", name: "Nuts", iconSrc: "/icons/acorn.svg", fallback: "🌰" },
-    { id: "dragees", name: "Dragees", iconSrc: "/icons/chocolate-almond.svg", fallback: "🍬" },
-    { id: "fusion", name: "Fusion Sweets", iconSrc: "/icons/mithai.svg", fallback: "🍡" },
+    { id: "Gifting", name: "Gifting", fallback: "🎁" },
+    { id: "Bulk Sweets & Nuts", name: "Bulk Sweets & Nuts", fallback: "🍬" },
+    { id: "Dates", name: "Dates", fallback: "🌴" },
+    { id: "Chocolates", name: "Chocolates", fallback: "🍫" },
+    { id: "Baklawa", name: "Baklawa", fallback: "🍯" },
+    { id: "Nuts & Dragees", name: "Nuts & Dragees", fallback: "🌰" },
   ];
 
   useEffect(() => {
