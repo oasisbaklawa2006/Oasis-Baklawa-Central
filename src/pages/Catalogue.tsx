@@ -1,6 +1,7 @@
 import AppShell from "@/components/AppShell";
 import TopNavBar from "@/components/TopNavBar";
 import { useState } from "react";
+import { useCurrency } from "@/contexts/CurrencyContext";
 import {
   ChevronLeft,
   Search,
@@ -118,6 +119,7 @@ const Catalogue = () => {
   const navigate = useNavigate();
   const [quantities, setQuantities] = useState<Record<string, number>>({});
   const [activeCategory, setActiveCategory] = useState<string | null>(null);
+  const { formatPrice } = useCurrency();
 
   const updateQuantity = (id: string, delta: number) => {
     setQuantities((prev) => {
@@ -213,7 +215,7 @@ const Catalogue = () => {
                         </div>
                       </td>
                       <td className="p-4 text-xs font-medium text-gray-500">{item.cartonSize}</td>
-                      <td className="p-4 text-sm font-bold text-gray-900">₹{item.price.toLocaleString("en-IN")}</td>
+                      <td className="p-4 text-sm font-bold text-gray-900">{formatPrice(item.price)}</td>
                       <td className="p-4">
                         <div className="flex items-center justify-center gap-3 bg-white border border-[#C5A059]/30 rounded-xl px-2 py-1 w-28 mx-auto shadow-sm focus-within:ring-2 focus-within:ring-[#C5A059]/20 transition-all">
                           <button
@@ -234,7 +236,7 @@ const Catalogue = () => {
                         </div>
                       </td>
                       <td className="p-4 pr-6 text-right font-black text-[#C5A059] text-base">
-                        ₹{((quantities[item.id] || 0) * item.price).toLocaleString("en-IN")}
+                        {formatPrice((quantities[item.id] || 0) * item.price)}
                       </td>
                     </tr>
                   ))}
@@ -246,7 +248,7 @@ const Catalogue = () => {
               <div className="text-center md:text-left">
                 <p className="text-[10px] font-bold text-[#C5A059] uppercase tracking-widest mb-1">Order Subtotal</p>
                 <p className="text-2xl font-serif text-gray-900 font-bold">
-                  ₹{quickOrderTotal.toLocaleString("en-IN")}
+                  {formatPrice(quickOrderTotal)}
                 </p>
               </div>
               <button
@@ -282,7 +284,7 @@ const Catalogue = () => {
                   <h3 className="font-bold text-gray-900 text-sm mb-1">{item.name}</h3>
                   <p className="text-[10px] text-gray-500 font-medium uppercase tracking-wider mb-3">{item.pack}</p>
                   <div className="flex items-center justify-between">
-                    <p className="font-black text-sm text-gray-900">₹{item.price.toLocaleString("en-IN")}</p>
+                    <p className="font-black text-sm text-gray-900">{formatPrice(item.price)}</p>
                     <button className="w-8 h-8 rounded-full bg-gradient-to-r from-[#C5A059] to-[#D4AF37] text-white flex items-center justify-center shadow-md hover:scale-110 transition-transform">
                       <ShoppingCart size={14} />
                     </button>

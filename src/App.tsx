@@ -5,6 +5,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { CartProvider } from "./contexts/CartContext.tsx";
 import { LanguageProvider } from "./contexts/LanguageContext.tsx";
+import { CurrencyProvider } from "./contexts/CurrencyContext.tsx";
 
 import ProtectedRoute from "@/components/ProtectedRoute";
 import Splash from "./pages/Splash.tsx";
@@ -54,6 +55,7 @@ const App = () => (
       <Sonner />
       <BrowserRouter>
         <LanguageProvider>
+        <CurrencyProvider>
         <CartProvider>
           <Routes>
             <Route path="/splash" element={<Splash />} />
@@ -155,6 +157,7 @@ const App = () => (
             <Route path="*" element={<NotFound />} />
           </Routes>
         </CartProvider>
+        </CurrencyProvider>
         </LanguageProvider>
       </BrowserRouter>
     </TooltipProvider>

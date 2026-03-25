@@ -4,6 +4,7 @@ import { useNavigate } from "react-router-dom";
 import AppShell from "@/components/AppShell";
 import { supabase } from "@/integrations/supabase/client";
 import { useLanguage } from "@/contexts/LanguageContext";
+import { useCurrency } from "@/contexts/CurrencyContext";
 
 // --- MOCK DATA ---
 const SMART_REORDER = [
@@ -59,6 +60,7 @@ const Index = () => {
   const navigate = useNavigate();
   const [companyName, setCompanyName] = useState("");
   const { t } = useLanguage();
+  const { formatPrice } = useCurrency();
 
   const categories = [
     { id: "dates", name: "Dates", iconSrc: "/icons/date-palm.svg", fallback: "🌴" },
@@ -153,7 +155,7 @@ const Index = () => {
                   <h3 className="font-bold text-slate-800 text-sm mb-3">{item.name}</h3>
                   <div className="flex items-center justify-between">
                     <p className="font-medium text-sm text-slate-800">
-                      ₹{item.price.toLocaleString("en-IN")} <span className="text-slate-400 text-[10px]">/ kg</span>
+                      {formatPrice(item.price)} <span className="text-slate-400 text-[10px]">/ kg</span>
                     </p>
                     <button
                       onClick={(e) => { e.stopPropagation(); navigate("/cart"); }}
@@ -213,7 +215,7 @@ const Index = () => {
                   <h3 className="font-bold text-slate-800 text-sm mb-1">{item.name}</h3>
                   <p className="text-[10px] text-slate-500 font-medium uppercase tracking-wider mb-3">{item.pack}</p>
                   <div className="flex items-center justify-between">
-                    <p className="font-black text-sm text-slate-800">₹{item.price.toLocaleString("en-IN")}</p>
+                    <p className="font-black text-sm text-slate-800">{formatPrice(item.price)}</p>
                     <button
                       onClick={(e) => { e.stopPropagation(); navigate("/cart"); }}
                       className="px-4 py-1.5 rounded-full bg-[#B8860B]/10 text-[#B8860B] text-xs font-bold hover:bg-[#B8860B] hover:text-white transition-colors"
