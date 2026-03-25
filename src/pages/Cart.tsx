@@ -44,10 +44,10 @@ function groupByCartonType(items: any[]) {
     if (!map.has(key)) map.set(key, []);
     map.get(key)!.push(item);
   }
-  return Array.from(map.entries()).map(([cartonType, items]) => ({
+  return Array.from(map.entries()).map(([cartonType, groupItems]) => ({
     cartonType,
-    rule: getCartonRule(cartonType),
-    items,
+    rule: getCartonRule(cartonType, groupItems),
+    items: groupItems,
   }));
 }
 

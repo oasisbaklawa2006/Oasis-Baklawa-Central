@@ -39,10 +39,25 @@ const Catalogue = () => {
     return [...new Set(products.map((p) => p.category).filter(Boolean))] as string[];
   }, [products]);
 
-  // Filter products by search + category
+  // Sub-categories for the active category
+  const subCategories = useMemo(() => {
+    if (!activeCategory) return [];
+    return [...new Set(
+      products
+        .filter((p) => p.category === activeCategory)
+        .map((p) => p.sub_category)
+        .filter(Boolean)
+    )] as string[];
+  }, [products, activeCategory]);
+
+  // Reset sub-category when primary category changes
+  const effectiveSubCategory = activeCategory ? activeSubCategory : null;
+
+  // Filter products by search + category + sub-category
   const filtered = useMemo(() => {
     return products.filter((p) => {
       if (activeCategory && p.category !== activeCategory) return false;
+      if (effectiveSubCategory && p.sub_category !== effectiveSubCategory) return false;
       if (!searchQuery) return true;
       const q = searchQuery.toLowerCase();
       return (
@@ -51,7 +66,7 @@ const Catalogue = () => {
         (p.category?.toLowerCase().includes(q))
       );
     });
-  }, [products, activeCategory, searchQuery]);
+  }, [products, activeCategory, effectiveSubCategory, searchQuery]);
 
   // Quick order uses first 6 filtered products
   const quickOrderProducts = filtered.slice(0, 6);
