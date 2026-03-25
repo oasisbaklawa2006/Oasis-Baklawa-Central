@@ -28,10 +28,12 @@ import { useNavigate } from "react-router-dom";
 
 const formatPrice = (n: number) => "₹" + n.toLocaleString("en-IN");
 
-function getCartonRule(cartonType: string | null) {
-  if (cartonType?.toLowerCase().includes("c")) return { packsPerCarton: 9 };
-  if (cartonType?.toLowerCase().includes("b")) return { packsPerCarton: 6 };
-  if (cartonType?.toLowerCase().includes("a")) return { packsPerCarton: 4 };
+function getCartonRule(cartonType: string | null, items: any[]) {
+  // Use the actual packs_per_master_carton from the first item's product in this group
+  const firstItem = items.find((it: any) => it.product?.packs_per_master_carton);
+  const dbValue = firstItem?.product?.packs_per_master_carton;
+  if (dbValue && dbValue > 0) return { packsPerCarton: dbValue };
+  // Fallback only if DB value is missing
   return { packsPerCarton: 4 };
 }
 

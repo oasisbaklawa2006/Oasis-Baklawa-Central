@@ -27,6 +27,7 @@ const Catalogue = () => {
   const navigate = useNavigate();
   const [quantities, setQuantities] = useState<Record<string, number>>({});
   const [activeCategory, setActiveCategory] = useState<string | null>(null);
+  const [activeSubCategory, setActiveSubCategory] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const { formatPrice } = useCurrency();
   const { addToCart } = useCart();
