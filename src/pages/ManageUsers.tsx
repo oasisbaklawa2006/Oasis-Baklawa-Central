@@ -16,7 +16,6 @@ interface TeamMember {
   id: string;
   full_name: string | null;
   email: string | null;
-  mobile_number: string | null;
   role: string;
 }
 
@@ -63,11 +62,11 @@ const ManageUsers = () => {
 
         const { data: teamData } = await supabase
           .from("profiles")
-          .select("id, full_name, email, mobile_number, role")
+          .select("id, full_name, email, role")
           .eq("company_id", profile.company_id)
           .order("created_at", { ascending: true });
 
-        if (teamData) setTeam(teamData as TeamMember[]);
+        if (teamData) setTeam(teamData as unknown as TeamMember[]);
       }
     } catch (error) {
       console.error("Error fetching team:", error);
