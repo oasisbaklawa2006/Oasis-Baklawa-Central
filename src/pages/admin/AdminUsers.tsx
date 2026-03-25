@@ -53,11 +53,25 @@ interface RolePermMap {
   permission_id: string | null;
 }
 
-/* ─── module list (display order) ─── */
+/* ─── Constants ─── */
 const MODULES = [
   "Client Governance", "Product Catalog", "Pricing Matrix", "Orders",
   "Production", "Assembly", "Packing", "Dispatch",
   "Finance", "Support", "Settings", "Audit",
+];
+
+// NEW: The strict list of departments for the ERP
+const DEPARTMENTS = [
+  "Assembly", 
+  "Packaging Store", 
+  "Bakery", 
+  "Chocolate", 
+  "Baklawa", 
+  "Fusion Sweets", 
+  "Nuts and Mixes", 
+  "Dragees", 
+  "Operations", 
+  "Ready Goods Store"
 ];
 
 /* default permission modules per role key */
@@ -177,7 +191,6 @@ const AdminUsers = () => {
     }
 
     // Save individual permissions via role_permission_map for this role
-    // (we save selected permissions for the role if not already mapped)
     if (roleRecord && selectedPermIds.length > 0) {
       const existingForRole = getRolePermIds(roleRecord.id);
       const newPerms = selectedPermIds.filter(pid => !existingForRole.includes(pid));
@@ -277,260 +290,46 @@ const AdminUsers = () => {
       <div className="flex items-center justify-between">
         <h1 className="text-display-h2 text-foreground">User & Role Control</h1>
         <button onClick={() => setShowModal(true)}
-          className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-semibold bg-primary text-primary-foreground hover:bg-primary/90 transition-colors">
+          className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-semibold bg-primary text-primary-foreground hover:bg-primary/90 transition-colors shadow-sm hover:shadow-md">
           <UserPlus size={14} /> Invite Employee
         </button>
       </div>
 
       <Tabs value={tab} onValueChange={setTab}>
-        <TabsList className="bg-muted/50">
-          <TabsTrigger value="employees" className="text-ui-label">Employees</TabsTrigger>
-          <TabsTrigger value="companies" className="text-ui-label">Companies & Credit</TabsTrigger>
-          <TabsTrigger value="roles" className="text-ui-label">Roles & Permissions</TabsTrigger>
+        <TabsList className="bg-muted/50 rounded-xl p-1">
+          <TabsTrigger value="employees" className="text-ui-label rounded-lg">Employees</TabsTrigger>
+          <TabsTrigger value="companies" className="text-ui-label rounded-lg">Companies & Credit</TabsTrigger>
+          <TabsTrigger value="roles" className="text-ui-label rounded-lg">Roles & Permissions</TabsTrigger>
         </TabsList>
 
         {/* ─── Employees Tab ─── */}
         <TabsContent value="employees">
           {users.length === 0 ? (
-            <p className="text-ui-label text-muted-foreground py-8">No users found.</p>
+            <div className="bg-card border border-border rounded-xl p-8 text-center">
+              <p className="text-ui-label text-muted-foreground">No users found.</p>
+            </div>
           ) : (
-            <div className="rounded-xl overflow-hidden border border-border bg-card" style={{ boxShadow: "0 2px 12px rgba(0,0,0,0.06)" }}>
+            <div className="rounded-xl overflow-hidden border border-border bg-card shadow-sm">
               <table className="w-full">
                 <thead>
-                  <tr className="bg-muted/50">
-                    <th className="text-left px-4 py-3 text-ui-label text-muted-foreground">Name</th>
-                    <th className="text-left px-4 py-3 text-ui-label text-muted-foreground">Email</th>
-                    <th className="text-left px-4 py-3 text-ui-label text-muted-foreground">Role</th>
-                    <th className="text-left px-4 py-3 text-ui-label text-muted-foreground">Dept</th>
-                    <th className="text-left px-4 py-3 text-ui-label text-muted-foreground">Status</th>
+                  <tr className="bg-muted/30">
+                    <th className="text-left px-5 py-4 text-xs font-bold uppercase tracking-wider text-muted-foreground">Name</th>
+                    <th className="text-left px-5 py-4 text-xs font-bold uppercase tracking-wider text-muted-foreground">Email</th>
+                    <th className="text-left px-5 py-4 text-xs font-bold uppercase tracking-wider text-muted-foreground">Role</th>
+                    <th className="text-left px-5 py-4 text-xs font-bold uppercase tracking-wider text-muted-foreground">Dept</th>
+                    <th className="text-left px-5 py-4 text-xs font-bold uppercase tracking-wider text-muted-foreground">Status</th>
                   </tr>
                 </thead>
-                <tbody>
+                <tbody className="divide-y divide-border">
                   {users.map((u) => {
                     const st = INVITE_STATUS_LABELS[u.invite_status ?? (u.is_active ? "active" : "inactive")] ?? INVITE_STATUS_LABELS.active;
                     return (
-                      <tr key={u.id} className="border-t border-border">
-                        <td className="px-4 py-3 text-ui-cell text-foreground font-medium">{u.full_name || u.email || "—"}</td>
-                        <td className="px-4 py-3 text-ui-cell text-muted-foreground text-xs">{u.email ?? "—"}</td>
-                        <td className="px-4 py-3">
-                          <span className="px-2 py-1 rounded-full text-xs font-semibold bg-primary/10 text-primary">{u.role}</span>
+                      <tr key={u.id} className="hover:bg-muted/20 transition-colors">
+                        <td className="px-5 py-4 text-sm text-foreground font-semibold">{u.full_name || u.email || "—"}</td>
+                        <td className="px-5 py-4 text-sm text-muted-foreground">{u.email ?? "—"}</td>
+                        <td className="px-5 py-4">
+                          <span className="px-2.5 py-1 rounded-md text-[11px] font-bold uppercase tracking-wide bg-primary/10 text-primary border border-primary/20">{u.role}</span>
                         </td>
-                        <td className="px-4 py-3 text-ui-cell text-muted-foreground">{u.department ?? "—"}</td>
-                        <td className="px-4 py-3">
-                          <span className={`px-2 py-1 rounded-full text-xs font-semibold ${st.color}`}>{st.label}</span>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </TabsContent>
-
-        {/* ─── Companies Tab ─── */}
-        <TabsContent value="companies">
-          {companies.length === 0 ? (
-            <p className="text-ui-label text-muted-foreground py-8">No approved companies.</p>
-          ) : (
-            <div className="rounded-xl overflow-hidden border border-border bg-card" style={{ boxShadow: "0 2px 12px rgba(0,0,0,0.06)" }}>
-              <table className="w-full">
-                <thead>
-                  <tr className="bg-muted/50">
-                    <th className="text-left px-4 py-3 text-ui-label text-muted-foreground">Company</th>
-                    <th className="text-left px-4 py-3 text-ui-label text-muted-foreground">GST</th>
-                    <th className="text-right px-4 py-3 text-ui-label text-muted-foreground">Wallet</th>
-                    <th className="text-right px-4 py-3 text-ui-label text-muted-foreground">Credit Limit</th>
-                    <th className="text-right px-4 py-3 text-ui-label text-muted-foreground">Action</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {companies.map((c) => (
-                    <tr key={c.id} className="border-t border-border">
-                      <td className="px-4 py-3 text-ui-cell text-foreground font-medium">{c.business_name}</td>
-                      <td className="px-4 py-3 text-ui-cell text-muted-foreground">{c.gst_number ?? "—"}</td>
-                      <td className="px-4 py-3 text-right text-ui-kpi text-sm text-foreground">{fmt(c.wallet_balance)}</td>
-                      <td className="px-4 py-3 text-right">
-                        <Input type="number" className="w-28 text-right text-sm inline-block rounded-lg"
-                          value={editingCredit[c.id] ?? c.credit_limit ?? 0}
-                          onChange={(e) => setEditingCredit({ ...editingCredit, [c.id]: Number(e.target.value) || 0 })} />
-                      </td>
-                      <td className="px-4 py-3 text-right">
-                        <button onClick={() => handleSaveCredit(c)} disabled={saving === c.id}
-                          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-ui-button bg-primary/10 text-primary hover:bg-primary/20 transition-colors disabled:opacity-50">
-                          {saving === c.id ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />} Save
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </TabsContent>
-
-        {/* ─── Roles & Permissions Tab ─── */}
-        <TabsContent value="roles">
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {roles.map((r) => {
-              const permIds = getRolePermIds(r.id);
-              const permModules = [...new Set(allPermissions.filter(p => permIds.includes(p.id)).map(p => p.module_name))];
-              return (
-                <div key={r.id} className="bg-card border border-border rounded-xl p-4" style={{ boxShadow: "0 2px 10px rgba(0,0,0,0.04)" }}>
-                  <div className="flex items-center justify-between mb-2">
-                    <h3 className="text-ui-h5 text-foreground">{r.role_name}</h3>
-                    <span className={`w-2 h-2 rounded-full ${r.is_active ? "bg-green-500" : "bg-muted-foreground"}`} />
-                  </div>
-                  <p className="text-fine text-muted-foreground mb-2">Key: {r.role_key} · {permIds.length} permissions</p>
-                  <div className="flex flex-wrap gap-1 mb-3">
-                    {permModules.length > 0 ? permModules.map(m => (
-                      <span key={m} className="text-fine px-1.5 py-0.5 rounded bg-primary/10 text-primary">{m}</span>
-                    )) : (
-                      <span className="text-fine text-muted-foreground">No permissions configured</span>
-                    )}
-                  </div>
-                  <button onClick={() => openRolePermEdit(r)}
-                    className="text-ui-label text-primary hover:underline">
-                    Edit Permissions →
-                  </button>
-                </div>
-              );
-            })}
-          </div>
-        </TabsContent>
-      </Tabs>
-
-      {/* ─── Role Permission Editor Dialog ─── */}
-      <Dialog open={!!selectedRoleId} onOpenChange={(open) => { if (!open) setSelectedRoleId(null); }}>
-        <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto bg-card border-border">
-          <DialogHeader>
-            <DialogTitle className="text-display-h2 text-foreground">
-              Edit Permissions: {roles.find(r => r.id === selectedRoleId)?.role_name}
-            </DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4 mt-2">
-            {MODULES.map((mod) => {
-              const modPerms = permsByModule(mod);
-              if (modPerms.length === 0) return null;
-              return (
-                <div key={mod} className="border border-border rounded-lg p-3">
-                  <p className="text-ui-h5 text-foreground mb-2">{mod}</p>
-                  <div className="space-y-1.5">
-                    {modPerms.map((p) => (
-                      <label key={p.id} className="flex items-center gap-2 text-ui-cell text-foreground cursor-pointer p-1 rounded hover:bg-muted/50">
-                        <Checkbox checked={rolePermsEditing.includes(p.id)} onCheckedChange={() => toggleRolePerm(p.id)} />
-                        <span className="text-xs">{p.permission_name}</span>
-                      </label>
-                    ))}
-                  </div>
-                </div>
-              );
-            })}
-            <button onClick={saveRolePerms} disabled={savingRole}
-              className="w-full py-2.5 rounded-xl bg-primary text-primary-foreground font-ui font-semibold text-sm hover:bg-primary/90 transition-colors disabled:opacity-50">
-              {savingRole ? <Loader2 size={16} className="animate-spin mx-auto" /> : "Save Permissions"}
-            </button>
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      {/* ─── Invite Employee Dialog ─── */}
-      <Dialog open={showModal} onOpenChange={setShowModal}>
-        <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto bg-card border-border">
-          <DialogHeader>
-            <DialogTitle className="text-display-h2 text-foreground">Invite Employee</DialogTitle>
-          </DialogHeader>
-          <p className="text-fine text-muted-foreground">
-            This creates an employee record. A separate auth account and login credentials will need to be provisioned.
-          </p>
-          <div className="space-y-4 mt-2">
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1.5">
-                <Label className="text-ui-label text-muted-foreground">Full Name *</Label>
-                <Input value={nf.name} onChange={(e) => setNf(p => ({ ...p, name: e.target.value }))} className="rounded-lg" placeholder="Full name" />
-              </div>
-              <div className="space-y-1.5">
-                <Label className="text-ui-label text-muted-foreground">Email *</Label>
-                <Input value={nf.email} onChange={(e) => setNf(p => ({ ...p, email: e.target.value }))} className="rounded-lg" placeholder="email@company.com" />
-              </div>
-            </div>
-            <div className="grid grid-cols-3 gap-3">
-              <div className="space-y-1.5">
-                <Label className="text-ui-label text-muted-foreground">Mobile</Label>
-                <Input value={nf.mobile} onChange={(e) => setNf(p => ({ ...p, mobile: e.target.value }))} className="rounded-lg" placeholder="+91…" />
-              </div>
-              <div className="space-y-1.5">
-                <Label className="text-ui-label text-muted-foreground">Department</Label>
-                <Input value={nf.dept} onChange={(e) => setNf(p => ({ ...p, dept: e.target.value }))} className="rounded-lg" placeholder="Finance" />
-              </div>
-              <div className="space-y-1.5">
-                <Label className="text-ui-label text-muted-foreground">Designation</Label>
-                <Input value={nf.designation} onChange={(e) => setNf(p => ({ ...p, designation: e.target.value }))} className="rounded-lg" placeholder="Manager" />
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1.5">
-                <Label className="text-ui-label text-muted-foreground">Role *</Label>
-                <Select value={nf.role} onValueChange={handleNewRoleChange}>
-                  <SelectTrigger className="rounded-lg"><SelectValue placeholder="Select role" /></SelectTrigger>
-                  <SelectContent>
-                    {roles.map(r => <SelectItem key={r.id} value={r.role_key}>{r.role_name}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-1.5">
-                <Label className="text-ui-label text-muted-foreground">Initial Status</Label>
-                <Select value={nf.status} onValueChange={(v) => setNf(p => ({ ...p, status: v }))}>
-                  <SelectTrigger className="rounded-lg"><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="invited">Invited</SelectItem>
-                    <SelectItem value="active">Active</SelectItem>
-                    <SelectItem value="inactive">Inactive</SelectItem>
-                    <SelectItem value="blocked">Blocked</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-
-            {/* Permission Matrix */}
-            {nf.role && (
-              <div>
-                <Label className="text-ui-label text-muted-foreground mb-2 block">Module Permissions (pre-filled from role defaults)</Label>
-                <div className="grid grid-cols-2 gap-1.5 max-h-48 overflow-y-auto">
-                  {MODULES.map((mod) => {
-                    const modPerms = permsByModule(mod);
-                    const allSelected = modPerms.every(p => selectedPermIds.includes(p.id));
-                    const someSelected = modPerms.some(p => selectedPermIds.includes(p.id));
-                    return (
-                      <label key={mod} className="flex items-center gap-2 text-ui-cell text-foreground cursor-pointer p-1.5 rounded-lg hover:bg-muted/50">
-                        <Checkbox
-                          checked={allSelected}
-                          onCheckedChange={() => {
-                            if (allSelected) {
-                              setSelectedPermIds(prev => prev.filter(id => !modPerms.map(p => p.id).includes(id)));
-                            } else {
-                              setSelectedPermIds(prev => [...new Set([...prev, ...modPerms.map(p => p.id)])]);
-                            }
-                          }}
-                        />
-                        <span className="text-xs">{mod}</span>
-                        {someSelected && !allSelected && <span className="text-fine text-primary">(partial)</span>}
-                      </label>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
-
-            <button onClick={handleCreateEmployee} disabled={saving === "new"}
-              className="w-full py-2.5 rounded-xl bg-primary text-primary-foreground font-ui font-semibold text-sm hover:bg-primary/90 transition-colors disabled:opacity-50">
-              {saving === "new" ? <Loader2 size={16} className="animate-spin mx-auto" /> : "Create & Invite Employee"}
-            </button>
-          </div>
-        </DialogContent>
-      </Dialog>
-    </div>
-  );
-};
-
-export default AdminUsers;
+                        <td className="px-5 py-4 text-sm font-medium text-muted-foreground">{u.department ?? "—"}</td>
+                        <td className="px-5 py-4">
+                          <span className={`px-
