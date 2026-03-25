@@ -2,7 +2,7 @@ import AppShell from "@/components/AppShell";
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { MapPin, Plus, Trash2, Loader2, ArrowLeft, Star } from "lucide-react";
+import { MapPin, Plus, Trash2, Loader2, Star } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -98,10 +98,6 @@ const ManageAddresses = () => {
   return (
     <AppShell>
       <div className="px-5 py-6 space-y-6 pt-24 max-w-4xl mx-auto pb-32">
-        <button onClick={() => navigate("/account")} className="flex items-center gap-2 text-sm font-bold text-gray-500 hover:text-[#C5A059] transition-colors mb-4">
-          <ArrowLeft size={16} /> Back to Account
-        </button>
-
         <div className="flex items-center justify-between">
           <div>
             <h1 className="font-serif text-2xl md:text-3xl font-bold text-gray-900">Delivery Addresses</h1>

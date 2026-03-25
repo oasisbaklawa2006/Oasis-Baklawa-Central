@@ -4,7 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import {
   Users, UserPlus, Shield, Mail, Trash2,
-  Loader2, ArrowLeft, Building2
+  Loader2, Building2
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { Input } from "@/components/ui/input";
@@ -139,12 +139,7 @@ const ManageUsers = () => {
   return (
     <AppShell>
       <div className="px-5 py-6 space-y-6 pt-24 max-w-4xl mx-auto pb-32">
-        <button
-          onClick={() => navigate("/account")}
-          className="flex items-center gap-2 text-sm font-bold text-muted-foreground hover:text-primary transition-colors mb-4"
-        >
-          <ArrowLeft size={16} /> Back to Account
-        </button>
+
 
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
