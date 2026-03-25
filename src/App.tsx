@@ -157,6 +157,7 @@ const App = () => (
             <Route path="*" element={<NotFound />} />
           </Routes>
         </CartProvider>
+        </CurrencyProvider>
         </LanguageProvider>
       </BrowserRouter>
     </TooltipProvider>
