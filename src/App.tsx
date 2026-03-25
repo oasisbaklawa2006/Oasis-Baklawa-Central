@@ -45,6 +45,7 @@ import AdminDepartment from "./pages/admin/AdminDepartment.tsx";
 import OperationsController from "./pages/admin/OperationsController.tsx";
 import AdminSecurityGate from "./pages/admin/AdminSecurityGate.tsx";
 import AdminInventory from "./pages/admin/AdminInventory.tsx";
+import ManageUsers from "./pages/ManageUsers.tsx";
 
 const queryClient = new QueryClient();
 
@@ -112,6 +113,14 @@ const App = () => (
               element={
                 <ProtectedRoute>
                   <Favorites />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/account/users"
+              element={
+                <ProtectedRoute>
+                  <ManageUsers />
                 </ProtectedRoute>
               }
             />
