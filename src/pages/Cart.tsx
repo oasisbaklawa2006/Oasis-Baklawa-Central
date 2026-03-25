@@ -122,10 +122,13 @@ const Cart = () => {
   );
   const sections = useMemo(() => groupByCartonType(sortedItems), [sortedItems]);
 
-  const subtotal = sortedItems.reduce(
-    (sum, item) => sum + item.quantity * (item.product?.wholesale_price || item.product?.mrp || 0),
-    0,
-  );
+  // FIX: Safely cast to any to bypass strict TS check, checking new pricing fields first, then falling back to price_per_kg
+  const subtotal = sortedItems.reduce((sum, item) => {
+    const itemPrice =
+      (item.product as any)?.wholesale_price || (item.product as any)?.mrp || item.product?.price_per_kg || 0;
+    return sum + item.quantity * itemPrice;
+  }, 0);
+
   const tax = Math.round(subtotal * 0.05);
   const grandTotal = subtotal + tax;
 
@@ -232,7 +235,7 @@ const Cart = () => {
           status: "submitted",
           sales_order_value: grandTotal,
           payment_status: "awaiting_receipt",
-          delivery_address_id: selectedAddress || null, // Saving the selected logistics
+          delivery_address_id: selectedAddress || null,
         })
         .eq("id", draftOrder.id);
       if (error) throw error;
@@ -336,7 +339,14 @@ const Cart = () => {
                 </h2>
                 <div className="space-y-4">
                   {section.items.map((item) => {
-                    const itemTotal = item.quantity * (item.product?.wholesale_price || item.product?.mrp || 0);
+                    // FIX: Safe check for pricing here too
+                    const itemPrice =
+                      (item.product as any)?.wholesale_price ||
+                      (item.product as any)?.mrp ||
+                      item.product?.price_per_kg ||
+                      0;
+                    const itemTotal = item.quantity * itemPrice;
+
                     return (
                       <div key={item.id} className="flex items-center justify-between">
                         <div className="flex-1 pr-4">
@@ -409,7 +419,7 @@ const Cart = () => {
           })}
         </div>
 
-        {/* LOGISTICS SECTION (NEW) */}
+        {/* LOGISTICS SECTION */}
         <motion.section className="bg-white rounded-[2rem] p-6 border border-slate-100 shadow-sm space-y-6">
           <div className="flex items-center gap-2 border-b border-gray-100 pb-3">
             <MapPin className="text-[#C5A059]" size={20} />
@@ -482,7 +492,8 @@ const Cart = () => {
           </div>
           <button
             onClick={() => {
-              if (!selectedAddress) return toast.error("Please select a delivery address to proceed.");
+              if (!selectedAddress && addresses.length > 0)
+                return toast.error("Please select a delivery address to proceed.");
               setShowPaymentModal(true);
             }}
             disabled={hasIncompleteCartons || hasHardStop || addresses.length === 0}
