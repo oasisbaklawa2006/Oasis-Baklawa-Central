@@ -111,7 +111,7 @@ const Cart = () => {
         }
       } else if (rule.rule_scope === "category" && rule.category_id) {
         // Per-category rule
-        const matchingItems = sortedItems.filter((it) => it.product?.category_id === rule.category_id);
+        const matchingItems = sortedItems.filter((it) => (it.product as any)?.category_id === rule.category_id);
         const totalQty = matchingItems.reduce((s, it) => s + it.quantity, 0);
         if (matchingItems.length > 0 && totalQty < minQty) {
           violations.push({
