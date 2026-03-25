@@ -21,6 +21,8 @@ interface Product {
   name: string;
   sku?: string | null;
   category?: string | null;
+  sub_category?: string | null;
+  department?: string | null;
   price_per_kg?: number | null;
   pack_size?: string | null;
   carton_type?: string | null;
@@ -46,11 +48,22 @@ const CATEGORIES = ["Premium Baklawa", "Assorted Boxes", "Gifting", "Dry Fruit S
 const GST_RATES = [0, 5, 12, 18, 28];
 const DIETARY_OPTIONS = ["100% Eggless", "Contains Nuts", "Vegan", "Gluten-Free", "Sugar-Free", "No Preservatives"];
 const STORAGE_OPTIONS = ["ambient", "refrigerated", "frozen"];
+const DEPARTMENTS = [
+  "Bakery Department",
+  "Arabic Sweets Department",
+  "Confectionery & Chocolates Department",
+  "Fusion Sweets Department",
+  "Packaging Assembly Department",
+  "Nuts Roasting and Coating Department",
+  "Packing Material Department",
+];
 
 const EMPTY_FORM = {
   name: "",
   sku: "",
   category: CATEGORIES[0],
+  sub_category: "",
+  department: "",
   price_per_kg: "",
   pack_size: "1 kg pack",
   carton_type: "",
@@ -203,6 +216,8 @@ const AdminProducts = () => {
         name: product.name || "",
         sku: product.sku || "",
         category: product.category || CATEGORIES[0],
+        sub_category: product.sub_category || "",
+        department: product.department || "",
         price_per_kg: product.price_per_kg?.toString() || "",
         pack_size: product.pack_size || "",
         carton_type: product.carton_type || "",
@@ -244,6 +259,8 @@ const AdminProducts = () => {
       name: formData.name,
       sku: formData.sku || null,
       category: formData.category || null,
+      sub_category: formData.sub_category || null,
+      department: formData.department || null,
       pack_size: formData.pack_size || null,
       carton_type: formData.carton_type || null,
       storage_type: formData.storage_type || null,
@@ -552,6 +569,34 @@ const AdminProducts = () => {
                       >
                         {CATEGORIES.map((cat) => (
                           <option key={cat}>{cat}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-[10px] font-semibold text-muted-foreground uppercase tracking-wide mb-1.5">
+                        Sub-Category
+                      </label>
+                      <input
+                        name="sub_category"
+                        placeholder="e.g. Turkish, Lebanese, Mixed"
+                        value={formData.sub_category}
+                        onChange={handleInputChange}
+                        className="w-full bg-background border border-border rounded-lg p-2.5 text-sm outline-none focus:ring-1 focus:ring-primary"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] font-semibold text-muted-foreground uppercase tracking-wide mb-1.5">
+                        Production Allocation (Department)
+                      </label>
+                      <select
+                        name="department"
+                        value={formData.department}
+                        onChange={handleInputChange}
+                        className="w-full bg-background border border-border rounded-lg p-2.5 text-sm outline-none focus:ring-1 focus:ring-primary"
+                      >
+                        <option value="">— Select Department —</option>
+                        {DEPARTMENTS.map((dept) => (
+                          <option key={dept} value={dept}>{dept}</option>
                         ))}
                       </select>
                     </div>
