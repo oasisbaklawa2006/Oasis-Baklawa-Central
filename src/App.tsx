@@ -127,6 +127,22 @@ const App = () => (
               }
             />
             <Route
+              path="/account/addresses"
+              element={
+                <ProtectedRoute>
+                  <ManageAddresses />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/account/logistics"
+              element={
+                <ProtectedRoute>
+                  <ManageLogistics />
+                </ProtectedRoute>
+              }
+            />
+            <Route
               path="/documents"
               element={
                 <ProtectedRoute>
