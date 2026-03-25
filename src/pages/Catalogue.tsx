@@ -1,5 +1,5 @@
 import AppShell from "@/components/AppShell";
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useCurrency } from "@/contexts/CurrencyContext";
 import { useCart } from "@/hooks/useCart";
 import { useProducts } from "@/hooks/useProducts";
@@ -9,67 +9,13 @@ import {
   ShoppingCart,
   Plus,
   Minus,
-  Box,
-  Gift,
   Package,
-  Layers,
   Sparkles,
   ArrowRight,
-  ChevronDown,
   Loader2,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
-import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "sonner";
-
-const CATEGORIES = [
-  {
-    id: "loose",
-    title: "Wholesale Loose Sweets",
-    image: "https://images.unsplash.com/photo-1599598425947-33002629671e?auto=format&fit=crop&q=80&w=400",
-    subcategories: [
-      { id: "baklawa", name: "Classic Baklawa", icon: Layers },
-      { id: "tart", name: "Nut Tarts", icon: Sparkles },
-      { id: "mamoul", name: "Stuffed Mamoul", icon: Box },
-    ],
-  },
-  {
-    id: "prepacked",
-    title: "Prepacked Boxes",
-    image: "https://images.unsplash.com/photo-1549465220-1a8b9238cd48?auto=format&fit=crop&q=80&w=400",
-    subcategories: [
-      { id: "retail", name: "Retail Ready", icon: Package },
-      { id: "export", name: "Export Tins", icon: Box },
-    ],
-  },
-  {
-    id: "gifting",
-    title: "Gifting Products",
-    image: "https://images.unsplash.com/photo-1605697843475-430263690d0e?auto=format&fit=crop&q=80&w=400",
-    subcategories: [
-      { id: "hampers", name: "Luxury Hampers", icon: Gift },
-      { id: "corporate", name: "Corporate Kits", icon: Package },
-    ],
-  },
-  {
-    id: "raw",
-    title: "Raw Unprepared Baklawa",
-    image: "https://images.unsplash.com/photo-1558961363-fa8fdf82db35?auto=format&fit=crop&q=80&w=400",
-    subcategories: [
-      { id: "frozen", name: "Frozen Dough", icon: Layers },
-      { id: "syrup", name: "Syrups & Nuts", icon: Sparkles },
-    ],
-  },
-  {
-    id: "packaging",
-    title: "Packing Accessories",
-    image: "https://images.unsplash.com/photo-1607344645866-009c320b63e0?auto=format&fit=crop&q=80&w=400",
-    subcategories: [
-      { id: "rigid", name: "Rigid Boxes", icon: Box },
-      { id: "trays", name: "Insert Trays", icon: Layers },
-    ],
-  },
-];
 
 const getProductPrice = (p: any): number =>
   p.wholesale_price ?? p.mrp ?? p.price_per_kg ?? 0;
@@ -87,18 +33,26 @@ const Catalogue = () => {
   const { products, loading: productsLoading } = useProducts();
   const [isAddingToCart, setIsAddingToCart] = useState(false);
 
-  // Filter products by search
-  const filtered = products.filter((p) => {
-    if (!searchQuery) return true;
-    const q = searchQuery.toLowerCase();
-    return (
-      p.name.toLowerCase().includes(q) ||
-      (p.sku?.toLowerCase().includes(q)) ||
-      (p.category?.toLowerCase().includes(q))
-    );
-  });
+  // Dynamic categories from real data
+  const categories = useMemo(() => {
+    return [...new Set(products.map((p) => p.category).filter(Boolean))] as string[];
+  }, [products]);
 
-  // Quick order uses first 6 products
+  // Filter products by search + category
+  const filtered = useMemo(() => {
+    return products.filter((p) => {
+      if (activeCategory && p.category !== activeCategory) return false;
+      if (!searchQuery) return true;
+      const q = searchQuery.toLowerCase();
+      return (
+        p.name.toLowerCase().includes(q) ||
+        (p.sku?.toLowerCase().includes(q)) ||
+        (p.category?.toLowerCase().includes(q))
+      );
+    });
+  }, [products, activeCategory, searchQuery]);
+
+  // Quick order uses first 6 filtered products
   const quickOrderProducts = filtered.slice(0, 6);
 
   const updateQuantity = (id: string, delta: number) => {
@@ -158,6 +112,38 @@ const Catalogue = () => {
             </div>
           ) : (
             <>
+              {/* CATEGORY FILTER PILLS */}
+              {categories.length > 0 && (
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    onClick={() => setActiveCategory(null)}
+                    className={`px-4 py-2 rounded-full text-xs font-bold border transition-all ${
+                      !activeCategory
+                        ? "bg-primary text-primary-foreground border-primary shadow-md"
+                        : "bg-card text-muted-foreground border-border hover:border-primary/50"
+                    }`}
+                  >
+                    All ({products.length})
+                  </button>
+                  {categories.map((cat) => {
+                    const count = products.filter((p) => p.category === cat).length;
+                    return (
+                      <button
+                        key={cat}
+                        onClick={() => setActiveCategory(activeCategory === cat ? null : cat)}
+                        className={`px-4 py-2 rounded-full text-xs font-bold border transition-all ${
+                          activeCategory === cat
+                            ? "bg-primary text-primary-foreground border-primary shadow-md"
+                            : "bg-card text-muted-foreground border-border hover:border-primary/50"
+                        }`}
+                      >
+                        {cat} ({count})
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+
               {/* 1. QUICK ORDER */}
               <section className="bg-card rounded-3xl border border-primary/30 shadow-[0_8px_30px_-4px_hsl(var(--primary)/0.15)] overflow-hidden">
                 <div className="bg-gradient-to-r from-primary to-primary/80 p-5 md:p-6 flex justify-between items-center relative overflow-hidden">
@@ -239,7 +225,7 @@ const Catalogue = () => {
               {/* 2. ALL PRODUCTS GRID */}
               <section>
                 <h2 className="text-xl font-serif text-foreground flex items-center gap-2 mb-6">
-                  <Star className="text-primary fill-primary" size={20} /> All Products ({filtered.length})
+                  <Star className="text-primary fill-primary" size={20} /> {activeCategory ? `${activeCategory}` : "All Products"} ({filtered.length})
                 </h2>
                 <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
                   {filtered.map((item) => (
@@ -257,6 +243,7 @@ const Catalogue = () => {
                       </div>
                       <h3 className="font-bold text-foreground text-sm mb-1 line-clamp-2">{item.name}</h3>
                       <p className="text-[10px] text-muted-foreground font-medium uppercase tracking-wider mb-1">{getPackInfo(item)}</p>
+                      {item.category && <p className="text-[10px] text-primary font-bold mb-1">{item.category}</p>}
                       {item.sku && <p className="text-[10px] text-muted-foreground font-mono mb-3">{item.sku}</p>}
                       <div className="flex items-center justify-between">
                         <p className="font-black text-sm text-foreground">{formatPrice(getProductPrice(item))}</p>
@@ -276,51 +263,6 @@ const Catalogue = () => {
                 {filtered.length === 0 && !productsLoading && (
                   <p className="text-center text-muted-foreground py-12">No products match your search.</p>
                 )}
-              </section>
-
-              {/* 3. BROWSE BY CATEGORY */}
-              <section className="pt-8 border-t border-border">
-                <h2 className="text-2xl font-serif text-foreground mb-2">Browse by Category</h2>
-                <p className="text-sm text-muted-foreground mb-8">Explore our complete manufacturing capabilities.</p>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                  {CATEGORIES.map((category) => (
-                    <div key={category.id} className="bg-card rounded-3xl shadow-sm border border-border overflow-hidden flex flex-col group hover:shadow-md transition-shadow">
-                      <div
-                        onClick={() => setActiveCategory(activeCategory === category.id ? null : category.id)}
-                        className="h-40 relative cursor-pointer overflow-hidden"
-                      >
-                        <div className="absolute inset-0 bg-gray-900/40 group-hover:bg-primary/30 transition-colors z-10 mix-blend-multiply"></div>
-                        <img src={category.image} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700" alt={category.title} />
-                        <div className="absolute inset-0 z-20 p-6 flex flex-col justify-end">
-                          <div className="flex items-center justify-between">
-                            <h3 className="font-serif text-xl text-white font-bold drop-shadow-md">{category.title}</h3>
-                            <div className={`w-8 h-8 rounded-full bg-primary flex items-center justify-center text-primary-foreground transition-transform duration-300 shadow-lg ${activeCategory === category.id ? "rotate-180" : ""}`}>
-                              <ChevronDown size={18} />
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                      <AnimatePresence>
-                        {activeCategory === category.id && (
-                          <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="bg-muted">
-                            <div className="p-3 grid grid-cols-2 gap-2">
-                              {category.subcategories.map((sub) => (
-                                <button
-                                  key={sub.id}
-                                  onClick={() => navigate(`/catalogue?category=${sub.id}`)}
-                                  className="flex flex-col items-center justify-center p-4 rounded-xl border border-primary/20 hover:border-primary bg-card hover:bg-primary/5 transition-all text-primary group/sub"
-                                >
-                                  <sub.icon size={24} strokeWidth={1.5} className="mb-2 group-hover/sub:scale-110 transition-transform" />
-                                  <span className="text-[11px] font-bold text-center text-foreground">{sub.name}</span>
-                                </button>
-                              ))}
-                            </div>
-                          </motion.div>
-                        )}
-                      </AnimatePresence>
-                    </div>
-                  ))}
-                </div>
               </section>
             </>
           )}
