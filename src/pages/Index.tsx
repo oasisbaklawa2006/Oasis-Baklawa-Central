@@ -1,267 +1,954 @@
-import { useState, useEffect } from "react";
-import { Star, TrendingUp, ShoppingCart, Box, Gift, ChevronRight } from "lucide-react";
-import { useNavigate } from "react-router-dom";
-import AppShell from "@/components/AppShell";
+import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { useLanguage } from "@/contexts/LanguageContext";
-import { useCurrency } from "@/contexts/CurrencyContext";
+import { motion, AnimatePresence } from "framer-motion";
+import { toast } from "sonner";
+import {
+  Loader2,
+  Package,
+  Plus,
+  Edit2,
+  Power,
+  PowerOff,
+  Image as ImageIcon,
+  X,
+  UploadCloud,
+  Sparkles,
+  Info,
+  Wand2,
+  Calculator,
+  Leaf,
+} from "lucide-react";
 
-// --- MOCK DATA ---
-const SMART_REORDER = [
-  {
-    id: "pyramid-baklawa",
-    name: "Pyramid Baklawa",
-    price: 2000,
-    image: "https://images.unsplash.com/photo-1599598425947-33002629671e?auto=format&fit=crop&q=80&w=400",
-  },
-  {
-    id: "finger-baklawa",
-    name: "Finger Baklawa",
-    price: 2000,
-    image: "https://images.unsplash.com/photo-1558961363-fa8fdf82db35?auto=format&fit=crop&q=80&w=400",
-  },
+interface Product {
+  id: string;
+  name: string;
+  sku?: string | null;
+  category?: string | null;
+  sub_category?: string | null;
+  department?: string | null;
+  price_per_kg?: number | null;
+  pack_size?: string | null;
+  carton_type?: string | null;
+  storage_type?: string | null;
+  description?: string | null;
+  shelf_life?: string | null;
+  image_url?: string | null;
+  is_active: boolean;
+  created_at?: string;
+
+  mrp?: number | null;
+  wholesale_price?: number | null;
+  weight_per_pc_grams?: number | null;
+  net_weight_grams?: number | null;
+  moq?: number | null;
+  packs_per_master_carton?: number | null;
+  hsn_code?: string | null;
+  gst_percentage?: number | null;
+  dietary_tags?: string[] | null;
+
+  uom?: string | null;
+  private_label_moq?: number | null;
+  private_label_price?: number | null;
+  nutrition_facts?: string | null;
+}
+
+const CATEGORIES = [
+  "Bulk Sweets & Nuts",
+  "Ready packs",
+  "Premium Gift Packs",
+  "Semi-Prepared & Frozen Range",
+  "Packaging & Decoration Material",
 ];
 
-const RECOMMENDED = [
-  {
-    id: "pistachio-tart",
-    name: "Pistachio Tart",
-    pack: "9 Retail Units",
-    price: 3500,
-    tag: "High Margin",
-    image: "https://images.unsplash.com/photo-1605697843475-430263690d0e?auto=format&fit=crop&q=80&w=400",
-  },
-  {
-    id: "cashew-square",
-    name: "Cashew Square",
-    pack: "12 Retail Units",
-    price: 2800,
-    tag: "Bestseller",
-    image: "https://images.unsplash.com/photo-1549465220-1a8b9238cd48?auto=format&fit=crop&q=80&w=400",
-  },
+const GST_RATES = [0, 5, 12, 18, 28];
+const DIETARY_OPTIONS = ["100% Eggless", "Contains Nuts", "Vegan", "Gluten-Free", "Sugar-Free", "No Preservatives"];
+const STORAGE_OPTIONS = ["ambient", "refrigerated", "frozen"];
+const DEPARTMENTS = [
+  "Bakery Department",
+  "Arabic Sweets Department",
+  "Confectionery & Chocolates Department",
+  "Fusion Sweets Department",
+  "Packaging Assembly Department",
+  "Nuts Roasting and Coating Department",
+  "Packing Material Department",
 ];
 
-const PACKAGING = [
-  {
-    id: "rigid-box",
-    name: "Premium Rigid Boxes",
-    type: "Gold Foil / Embossed",
-    image: "https://images.unsplash.com/photo-1607344645866-009c320b63e0?auto=format&fit=crop&q=80&w=400",
-  },
-  {
-    id: "tin-jar",
-    name: "Airtight Tin Jars",
-    type: "Food Grade / Printed",
-    image: "https://images.unsplash.com/photo-1615486171448-4fb651475c74?auto=format&fit=crop&q=80&w=400",
-  },
-];
+const EMPTY_FORM = {
+  name: "",
+  sku: "",
+  category: CATEGORIES[0],
+  sub_category: "",
+  department: "",
+  price_per_kg: "",
+  pack_size: "",
+  carton_type: "",
+  storage_type: "ambient",
+  description: "",
+  shelf_life: "90",
+  image_url: "",
+  is_active: true,
+  mrp: "",
+  wholesale_price: "",
+  weight_per_pc_grams: "",
+  net_weight_grams: "",
+  moq: "1",
+  packs_per_master_carton: "",
+  hsn_code: "19059090",
+  gst_percentage: "18",
+  dietary_tags: ["100% Eggless"],
+  uom: "Kg",
+  private_label_moq: "",
+  private_label_price: "",
+  nutrition_facts: "",
+};
 
-const Index = () => {
-  const navigate = useNavigate();
-  const [companyName, setCompanyName] = useState("");
-  const { t } = useLanguage();
-  const { formatPrice } = useCurrency();
+const AdminProducts = () => {
+  const [products, setProducts] = useState<Product[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [isPanelOpen, setIsPanelOpen] = useState(false);
+  const [editingProduct, setEditingProduct] = useState<Product | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [uploadingImage, setUploadingImage] = useState(false);
 
-  const categories = [
-    { id: "dates", name: "Dates", iconSrc: "/icons/date-palm.svg", fallback: "🌴" },
-    { id: "chocolate", name: "Chocolates", iconSrc: "/icons/cacao.svg", fallback: "🍫" },
-    { id: "baklawa", name: "Baklawa", iconSrc: "/icons/baklava.svg", fallback: "🍯" },
-    { id: "nuts", name: "Nuts", iconSrc: "/icons/acorn.svg", fallback: "🌰" },
-    { id: "dragees", name: "Dragees", iconSrc: "/icons/chocolate-almond.svg", fallback: "🍬" },
-    { id: "fusion", name: "Fusion Sweets", iconSrc: "/icons/mithai.svg", fallback: "🍡" },
-  ];
+  const [isAiLoading, setIsAiLoading] = useState<string | null>(null);
+  const [formData, setFormData] = useState<any>({ ...EMPTY_FORM });
+
+  const fetchProducts = async () => {
+    setLoading(true);
+    const { data, error } = await supabase.from("products").select("*").order("created_at", { ascending: false });
+    if (!error) setProducts((data as Product[]) ?? []);
+    setLoading(false);
+  };
 
   useEffect(() => {
-    const fetchCompany = async () => {
-      const { data } = await supabase.from("orders").select("company:companies(business_name)").limit(1);
-      if (data && data[0]?.company?.business_name) {
-        setCompanyName(data[0].company.business_name);
-      } else {
-        setCompanyName("TCF Chocolates and Gifts Pvt Ltd");
-      }
-    };
-    fetchCompany();
+    fetchProducts();
   }, []);
 
+  // AUTO-GENERATE SKU
+  useEffect(() => {
+    if (formData.name && formData.net_weight_grams && !editingProduct) {
+      const prefix = formData.name
+        .substring(0, 3)
+        .toUpperCase()
+        .replace(/[^A-Z]/g, "X");
+      setFormData((prev: any) => ({ ...prev, sku: `OAS-${prefix}-${prev.net_weight_grams}` }));
+    }
+  }, [formData.name, formData.net_weight_grams, editingProduct]);
+
+  // AUTO-GENERATE CARTON TYPE
+  useEffect(() => {
+    const packs = Number(formData.packs_per_master_carton);
+    if (packs > 0) {
+      let autoCarton = `${packs} Box`;
+      if (packs <= 4) autoCarton = `Small Master (${packs} Box)`;
+      else if (packs <= 6) autoCarton = `Medium Master (${packs} Box)`;
+      else if (packs <= 9) autoCarton = `Large Master (${packs} Box)`;
+      else if (packs >= 12) autoCarton = `Jumbo Master (${packs} Box)`;
+      setFormData((prev: any) => ({ ...prev, carton_type: autoCarton }));
+    } else {
+      setFormData((prev: any) => ({ ...prev, carton_type: "" }));
+    }
+  }, [formData.packs_per_master_carton]);
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
+    const { name, value } = e.target;
+    setFormData((prev: any) => ({ ...prev, [name]: value }));
+  };
+
+  const handleToggleDietaryTag = (tag: string) => {
+    setFormData((prev: any) => ({
+      ...prev,
+      dietary_tags: prev.dietary_tags.includes(tag)
+        ? prev.dietary_tags.filter((t: string) => t !== tag)
+        : [...prev.dietary_tags, tag],
+    }));
+  };
+
+  // AI GENERATORS
+  const handleAiDescription = async () => {
+    if (!formData.name) return toast.error("Enter Product Name first.");
+    setIsAiLoading("desc");
+    await new Promise((r) => setTimeout(r, 1500));
+    setFormData((prev: any) => ({
+      ...prev,
+      description: `A premium, handcrafted ${formData.name} made with the finest ingredients. Perfect for luxury gifting and high-end retail, maintaining authentic flavors and a crisp texture. Delivered in standard wholesale packaging ensuring maximum freshness.`,
+    }));
+    toast.success("AI Description Generated!", { icon: "✨" });
+    setIsAiLoading(null);
+  };
+
+  const handleAiNutrition = async () => {
+    if (!formData.name) return toast.error("Enter Product Name first.");
+    setIsAiLoading("nutrition");
+    await new Promise((r) => setTimeout(r, 1500));
+    const fssaiTable = `NUTRITIONAL INFORMATION (Per 100g)\n-----------------------------------\nEnergy: 480 kcal (24% DV)\nProtein: 8.5g (17% DV)\nTotal Fat: 22g (33% DV)\n - Saturated Fat: 8g (40% DV)\nCarbohydrates: 62g (20% DV)\n - Total Sugars: 38g\n - Added Sugars: 25g (50% DV)\nSodium: 45mg (2% DV)\n\n*Percent Daily Values (DV) are based on FSSAI guidelines for a 2000 calorie diet.`;
+    setFormData((prev: any) => ({ ...prev, nutrition_facts: fssaiTable }));
+    toast.success("FSSAI Nutrition Table Generated!", { icon: "✨" });
+    setIsAiLoading(null);
+  };
+
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    try {
+      if (!e.target.files || e.target.files.length === 0) return;
+      const file = e.target.files[0];
+      setUploadingImage(true);
+      const fileExt = file.name.split(".").pop();
+      const fileName = `${Math.random().toString(36).substring(2)}-${Date.now()}.${fileExt}`;
+      const { error: uploadError } = await supabase.storage.from("product-images").upload(fileName, file);
+      if (uploadError) throw uploadError;
+      const { data: publicUrlData } = supabase.storage.from("product-images").getPublicUrl(fileName);
+      setFormData((prev: any) => ({ ...prev, image_url: publicUrlData.publicUrl }));
+      toast.success("Image uploaded successfully!");
+    } catch (error: any) {
+      toast.error(error.message || "Failed to upload image");
+    } finally {
+      setUploadingImage(false);
+    }
+  };
+
+  const openPanel = (product?: Product) => {
+    if (product) {
+      setEditingProduct(product);
+      setFormData({
+        name: product.name || "",
+        sku: product.sku || "",
+        category: product.category || CATEGORIES[0],
+        sub_category: product.sub_category || "",
+        department: product.department || "",
+        price_per_kg: product.price_per_kg?.toString() || "",
+        pack_size: product.pack_size || "",
+        carton_type: product.carton_type || "",
+        storage_type: product.storage_type || "ambient",
+        description: product.description || "",
+        shelf_life: product.shelf_life || "",
+        image_url: product.image_url || "",
+        is_active: product.is_active ?? true,
+        mrp: product.mrp?.toString() || "",
+        wholesale_price: product.wholesale_price?.toString() || "",
+        weight_per_pc_grams: product.weight_per_pc_grams?.toString() || "",
+        net_weight_grams: product.net_weight_grams?.toString() || "",
+        moq: product.moq?.toString() || "1",
+        packs_per_master_carton: product.packs_per_master_carton?.toString() || "",
+        hsn_code: product.hsn_code || "19059090",
+        gst_percentage: product.gst_percentage?.toString() || "18",
+        dietary_tags: product.dietary_tags || ["100% Eggless"],
+        uom: product.uom || "Kg",
+        private_label_moq: product.private_label_moq?.toString() || "",
+        private_label_price: product.private_label_price?.toString() || "",
+        nutrition_facts: product.nutrition_facts || "",
+      });
+    } else {
+      setEditingProduct(null);
+      setFormData({ ...EMPTY_FORM });
+    }
+    setIsPanelOpen(true);
+  };
+
+  const closePanel = () => {
+    setIsPanelOpen(false);
+    setTimeout(() => setEditingProduct(null), 300);
+  };
+
+  const handleSaveProduct = async () => {
+    if (!formData.name || !formData.wholesale_price) return toast.error("Name and B2B Base Price are required");
+    setSaving(true);
+
+    const payload = {
+      name: formData.name,
+      sku: formData.sku || null,
+      category: formData.category || null,
+      sub_category: formData.sub_category || null,
+      department: formData.department || null,
+      pack_size: formData.pack_size || null,
+      carton_type: formData.carton_type || null,
+      storage_type: formData.storage_type || null,
+      description: formData.description || null,
+      image_url: formData.image_url || null,
+      hsn_code: formData.hsn_code || null,
+      dietary_tags: formData.dietary_tags || [],
+      is_active: formData.is_active,
+      shelf_life: formData.shelf_life || null,
+      price_per_kg: parseFloat(formData.price_per_kg) || null,
+      mrp: parseFloat(formData.mrp) || null,
+      wholesale_price: parseFloat(formData.wholesale_price) || null,
+      weight_per_pc_grams: parseFloat(formData.weight_per_pc_grams) || null,
+      net_weight_grams: parseFloat(formData.net_weight_grams) || null,
+      moq: parseInt(formData.moq) || 1,
+      packs_per_master_carton: parseInt(formData.packs_per_master_carton) || null,
+      gst_percentage: parseInt(formData.gst_percentage) || 0,
+      uom: formData.uom || "Kg",
+      private_label_moq: parseInt(formData.private_label_moq) || null,
+      private_label_price: parseFloat(formData.private_label_price) || null,
+      nutrition_facts: formData.nutrition_facts || null,
+    };
+
+    try {
+      if (editingProduct) {
+        const { error } = await (supabase as any).from("products").update(payload).eq("id", editingProduct.id);
+        if (error) throw error;
+        toast.success("Product updated successfully");
+      } else {
+        const { error } = await (supabase as any).from("products").insert([payload]);
+        if (error) throw error;
+        toast.success("New product added to catalog!");
+      }
+      closePanel();
+      fetchProducts();
+    } catch (err: any) {
+      toast.error(err.message || "Failed to save product");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const toggleActiveStatus = async (product: Product) => {
+    const newStatus = !product.is_active;
+    const { error } = await supabase.from("products").update({ is_active: newStatus }).eq("id", product.id);
+    if (!error) {
+      toast.success(`${product.name} is now ${newStatus ? "Active" : "Hidden"}`);
+      fetchProducts();
+    }
+  };
+
+  // ECONOMICS CALCULATOR LOGIC
+  const calculateEconomics = () => {
+    const mrp = Number(formData.mrp) || 0;
+    const b2b = Number(formData.wholesale_price) || 0;
+    const uom = formData.uom || "Kg";
+    const wtPc = Number(formData.weight_per_pc_grams) || 0;
+    const wtPack = Number(formData.net_weight_grams) || 0;
+
+    let costPerPc: number | string = "—";
+    let costPerKg: number | string = "—";
+
+    if (wtPc > 0) {
+      if (uom === "Kg") {
+        costPerPc = ((b2b / 1000) * wtPc).toFixed(2);
+        costPerKg = b2b.toFixed(2);
+      } else if (uom === "Piece") {
+        costPerPc = b2b.toFixed(2);
+        costPerKg = ((b2b / wtPc) * 1000).toFixed(2);
+      } else if (uom === "Pack" || uom === "Box") {
+        if (wtPack > 0) {
+          const piecesPerPack = wtPack / wtPc;
+          costPerPc = (b2b / piecesPerPack).toFixed(2);
+          costPerKg = ((b2b / wtPack) * 1000).toFixed(2);
+        }
+      }
+    }
+
+    return {
+      bulk: (mrp * 0.8).toFixed(2),
+      wholesale: (mrp * 0.7).toFixed(2),
+      costPerPc,
+      costPerKg,
+      uom,
+    };
+  };
+
+  const eco = calculateEconomics();
+
+  if (loading)
+    return (
+      <div className="flex justify-center items-center py-32">
+        <Loader2 size={28} className="animate-spin text-[#C5A059]" />
+      </div>
+    );
+  const activeCount = products.filter((p) => p.is_active).length;
+
   return (
-    <AppShell>
-      <div className="min-h-screen bg-[#FDFCF8] font-sans pb-24 relative">
-        <main className="px-4 sm:px-6 max-w-5xl mx-auto space-y-12">
-          {/* HELLO */}
-          <div className="flex flex-col items-center justify-center text-center pt-4 mb-10 space-y-5">
-            <h1 className="font-display text-7xl md:text-8xl font-bold text-[#B8860B] tracking-tight">{t("home.hello")}</h1>
-            <p className="text-xs md:text-sm font-medium text-slate-500 leading-relaxed px-4 max-w-lg">
-              नमस्ते, सति श्री अकाल, السَّلَامُ عَلَيْكُمْ, வணக்கம், নমস্কার, કેમ છો, నమస్కారం, खम्मा घणी, Chibai...
-            </p>
-            <h2 className="font-display text-xl md:text-3xl font-bold text-[#9A7009] mt-2">{companyName}</h2>
+    <div className="min-h-screen bg-background">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 py-8 space-y-8">
+        {/* Header */}
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div>
+            <h1 className="text-2xl font-bold text-foreground tracking-tight">Product Catalog</h1>
+            <p className="text-sm text-muted-foreground mt-1">Manage wholesale inventory, logistics, and pricing.</p>
           </div>
-
-          {/* CATEGORY GRID */}
-          <section>
-            <div className="flex justify-between items-center mb-4">
-              <h3 className="text-sm font-bold text-slate-400 uppercase tracking-widest">{t("home.browseCategories")}</h3>
-            </div>
-            <div className="grid grid-cols-3 md:grid-cols-6 gap-3">
-              {categories.map((cat) => (
-                <button
-                  key={cat.id}
-                  onClick={() => navigate(`/catalogue?category=${cat.id}`)}
-                  className="flex flex-col items-center justify-center bg-white p-4 rounded-2xl border border-slate-100 shadow-sm hover:border-[#B8860B]/50 hover:shadow-md transition-all active:scale-95"
-                >
-                  <span className="text-3xl mb-2">{cat.fallback}</span>
-                  <span className="text-[10px] md:text-xs font-bold text-slate-700 uppercase tracking-wider">{cat.name}</span>
-                </button>
-              ))}
-            </div>
-          </section>
-
-          {/* FESTIVE SPECIAL */}
-          <div
-            onClick={() => navigate("/catalogue?featured=true")}
-            className="relative rounded-3xl overflow-hidden shadow-xl bg-gradient-to-r from-slate-800 to-slate-700 flex cursor-pointer active:scale-[0.98] transition-transform"
+          <button
+            onClick={() => openPanel()}
+            className="flex items-center gap-2 bg-[#C5A059] text-white px-5 py-2.5 rounded-lg font-semibold text-sm hover:bg-[#B38F48] transition-colors shadow-sm active:scale-[0.97]"
           >
-            <div className="min-w-full relative p-8 md:p-12 flex flex-col items-start w-2/3 z-10">
-              <p className="text-[#B8860B] text-[10px] font-bold uppercase tracking-widest mb-2 flex items-center gap-2">
-                <Star size={12} fill="currentColor" /> {t("home.limitedEdition")}
-              </p>
-              <h2 className="text-3xl md:text-5xl font-display font-bold text-white leading-tight mb-6">
-                {t("home.festiveSpecial")}
-                <br />
-                {t("home.giftingCollection")}
-              </h2>
-              <button className="flex items-center gap-2 px-6 py-2.5 bg-[#B8860B] text-white rounded-xl text-sm font-bold hover:bg-[#9A7009] transition-colors shadow-lg">
-                {t("home.exploreCollection")} <ChevronRight size={16} />
-              </button>
-            </div>
-            <div className="absolute top-0 right-0 w-1/2 h-full bg-[url('https://images.unsplash.com/photo-1599598425947-33002629671e?auto=format&fit=crop&q=80')] bg-cover bg-left opacity-30 mix-blend-overlay"></div>
-          </div>
+            <Plus size={16} /> Add New Product
+          </button>
+        </div>
 
-          {/* SMART REORDER */}
-          <section>
-            <h2 className="text-xl font-display font-bold text-slate-800 flex items-center gap-2 mb-1">
-              <span className="text-[#B8860B]">⚡</span> {t("home.smartReorder")}
-            </h2>
-            <p className="text-xs text-slate-500 mb-6 font-medium">{t("home.smartReorderSub")}</p>
-            <div className="flex overflow-x-auto scrollbar-hide gap-5 pb-4 snap-x">
-              {SMART_REORDER.map((item) => (
-                <div
-                  key={item.id}
-                  className="min-w-[220px] bg-white border border-slate-100 rounded-2xl p-4 snap-start shadow-sm hover:shadow-md transition-shadow cursor-pointer"
-                  onClick={() => navigate(`/catalogue`)}
-                >
-                  <div className="h-32 mb-4 rounded-xl overflow-hidden bg-slate-50">
-                    <img src={item.image} className="w-full h-full object-cover mix-blend-multiply" alt={item.name} />
+        {/* KPI Cards */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          {[
+            { label: "Total Products", value: products.length, icon: Package },
+            { label: "Active (In Stock)", value: activeCount, icon: Power },
+            { label: "Hidden (Out of Stock)", value: products.length - activeCount, icon: PowerOff },
+          ].map((kpi) => (
+            <motion.div
+              key={kpi.label}
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="bg-card border border-border rounded-xl p-5 flex items-center gap-4 shadow-sm"
+            >
+              <kpi.icon size={20} className="text-[#C5A059]" />
+              <div>
+                <p className="text-xl font-bold text-foreground tabular-nums">{kpi.value}</p>
+                <p className="text-xs text-muted-foreground">{kpi.label}</p>
+              </div>
+            </motion.div>
+          ))}
+        </div>
+
+        {/* Product Grid */}
+        {products.length === 0 ? (
+          <div className="text-center py-20">
+            <Package size={40} className="mx-auto text-muted-foreground/40" />
+            <p className="text-lg font-semibold text-foreground mt-4">No products found</p>
+            <p className="text-sm text-muted-foreground mt-1">Your catalog is currently empty.</p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
+            {products.map((product, i) => (
+              <motion.div
+                key={product.id}
+                initial={{ opacity: 0, y: 16 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: i * 0.03 }}
+                className="bg-card border border-border rounded-xl overflow-hidden group shadow-sm"
+              >
+                <div className="relative h-40 bg-muted/30 flex items-center justify-center overflow-hidden">
+                  {product.image_url ? (
+                    <img
+                      src={product.image_url}
+                      alt={product.name}
+                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                    />
+                  ) : (
+                    <ImageIcon size={32} className="text-muted-foreground/30" />
+                  )}
+                  {!product.is_active && (
+                    <span className="absolute top-2 right-2 bg-destructive/90 text-destructive-foreground text-[10px] font-bold px-2 py-0.5 rounded">
+                      Hidden
+                    </span>
+                  )}
+                </div>
+                <div className="p-4 space-y-3">
+                  <div className="flex justify-between items-start gap-2">
+                    <h3 className="font-semibold text-foreground text-sm leading-snug truncate">{product.name}</h3>
+                    {product.wholesale_price && (
+                      <p className="text-[#C5A059] font-bold text-sm tabular-nums shrink-0">
+                        ₹{product.wholesale_price}
+                      </p>
+                    )}
                   </div>
-                  <h3 className="font-bold text-slate-800 text-sm mb-3">{item.name}</h3>
-                  <div className="flex items-center justify-between">
-                    <p className="font-medium text-sm text-slate-800">
-                      {formatPrice(item.price)} <span className="text-slate-400 text-[10px]">/ kg</span>
+                  <div className="space-y-0.5">
+                    <p className="text-xs text-muted-foreground font-mono">SKU: {product.sku || "N/A"}</p>
+                    <p className="text-xs text-muted-foreground">Carton: {product.carton_type || "N/A"}</p>
+                    <p className="text-xs text-muted-foreground">
+                      MOQ: {product.moq || 1} {product.uom || "packs"}
                     </p>
+                  </div>
+                  <div className="flex items-center gap-2 pt-2 border-t border-border/50">
                     <button
-                      onClick={(e) => { e.stopPropagation(); navigate("/cart"); }}
-                      className="w-8 h-8 rounded-full bg-slate-800 text-white flex items-center justify-center hover:bg-[#B8860B] transition-colors"
+                      onClick={() => toggleActiveStatus(product)}
+                      className={`flex-1 text-xs font-semibold py-1.5 rounded-md flex items-center justify-center gap-1.5 transition-colors ${product.is_active ? "bg-amber-500/10 text-amber-600 hover:bg-amber-500/20" : "bg-emerald-500/10 text-emerald-600 hover:bg-emerald-500/20"}`}
                     >
-                      <ShoppingCart size={14} />
+                      {product.is_active ? <PowerOff size={12} /> : <Power size={12} />}{" "}
+                      {product.is_active ? "Hide" : "Activate"}
+                    </button>
+                    <button
+                      onClick={() => openPanel(product)}
+                      className="flex-1 text-xs font-semibold bg-muted hover:bg-muted/80 text-foreground py-1.5 rounded-md flex items-center justify-center gap-1.5 transition-colors"
+                    >
+                      <Edit2 size={12} /> Edit
                     </button>
                   </div>
                 </div>
-              ))}
-            </div>
-          </section>
+              </motion.div>
+            ))}
+          </div>
+        )}
+      </div>
 
-          {/* PRIVATE LABEL */}
-          <section
-            onClick={() => navigate("/catalogue?category=fusion")}
-            className="bg-white rounded-3xl p-6 md:p-8 shadow-sm border border-[#B8860B]/20 relative overflow-hidden cursor-pointer hover:shadow-md transition-shadow"
-          >
-            <div className="absolute right-0 top-0 w-1/3 h-full bg-gradient-to-l from-[#B8860B]/10 to-transparent"></div>
-            <h2 className="text-2xl font-display font-bold text-slate-800 mb-2 relative z-10">{t("home.privateLabel")}</h2>
-            <p className="text-sm text-slate-500 mb-6 relative z-10">{t("home.privateLabelSub")}</p>
-            <div className="flex overflow-x-auto scrollbar-hide gap-5 pb-4 relative z-10">
-              <div className="min-w-[280px] md:min-w-[320px] flex gap-4 items-center bg-slate-50 p-4 rounded-2xl border border-slate-100">
-                <div className="w-24 h-24 rounded-xl overflow-hidden shrink-0">
-                  <img src="https://images.unsplash.com/photo-1549465220-1a8b9238cd48?auto=format&fit=crop&q=80&w=200" className="w-full h-full object-cover" />
-                </div>
-                <div>
-                  <div className="flex gap-1 mb-2">
-                    <span className="text-[9px] font-bold bg-[#B8860B] text-white px-2 py-0.5 rounded uppercase tracking-wider">Retail Ready</span>
-                    <span className="text-[9px] font-bold bg-slate-700 text-white px-2 py-0.5 rounded uppercase tracking-wider">Export</span>
-                  </div>
-                  <h3 className="font-bold text-slate-800 text-sm mb-1">Royal Assorted Hamper</h3>
-                  <p className="text-xs text-slate-500">Premium Tin / 750g</p>
-                </div>
-              </div>
-            </div>
-            <p className="text-[10px] text-slate-400 mt-2 font-medium italic text-right">* Available for private labeling at MOQ</p>
-          </section>
-
-          {/* RECOMMENDED */}
-          <section>
-            <h2 className="text-xl font-display font-bold text-slate-800 flex items-center gap-2 mb-1">
-              <TrendingUp className="text-[#B8860B]" size={20} /> {t("home.recommendedForYou")}
-            </h2>
-            <p className="text-xs text-slate-500 mb-6 font-medium">{t("home.recommendedSub")}</p>
-            <div className="flex overflow-x-auto scrollbar-hide gap-5 pb-4 snap-x">
-              {RECOMMENDED.map((item) => (
-                <div
-                  key={item.id}
-                  onClick={() => navigate("/catalogue")}
-                  className="min-w-[240px] bg-white border border-slate-100 rounded-2xl p-4 snap-start shadow-sm hover:shadow-md transition-shadow cursor-pointer"
-                >
-                  <div className="h-36 mb-4 rounded-xl overflow-hidden bg-slate-50 relative">
-                    <img src={item.image} className="w-full h-full object-cover" alt={item.name} />
-                    <span className="absolute top-2 left-2 bg-slate-800 text-white text-[9px] font-bold uppercase tracking-widest px-2 py-1 rounded shadow-sm">{item.tag}</span>
-                  </div>
-                  <h3 className="font-bold text-slate-800 text-sm mb-1">{item.name}</h3>
-                  <p className="text-[10px] text-slate-500 font-medium uppercase tracking-wider mb-3">{item.pack}</p>
-                  <div className="flex items-center justify-between">
-                    <p className="font-black text-sm text-slate-800">{formatPrice(item.price)}</p>
-                    <button
-                      onClick={(e) => { e.stopPropagation(); navigate("/cart"); }}
-                      className="px-4 py-1.5 rounded-full bg-[#B8860B]/10 text-[#B8860B] text-xs font-bold hover:bg-[#B8860B] hover:text-white transition-colors"
-                    >
-                      {t("home.quickAdd")}
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </section>
-
-          {/* PACKAGING */}
-          <section className="bg-slate-800 rounded-3xl p-6 md:p-8 text-white relative overflow-hidden shadow-xl mb-8">
-            <div className="absolute inset-0 opacity-10 bg-[radial-gradient(circle_at_top_right,rgba(184,134,11,0.8)_0,transparent_60%)]"></div>
-            <div className="relative z-10">
-              <div className="flex justify-between items-start mb-2">
-                <h2 className="text-2xl font-display font-bold text-white flex items-center gap-3">
-                  <Gift className="text-[#B8860B]" /> {t("home.packagingSolutions")}
+      {/* Slide-out Panel */}
+      <AnimatePresence>
+        {isPanelOpen && (
+          <>
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm"
+              onClick={closePanel}
+            />
+            <motion.div
+              initial={{ x: "100%" }}
+              animate={{ x: 0 }}
+              exit={{ x: "100%" }}
+              transition={{ type: "spring", damping: 30, stiffness: 300 }}
+              className="fixed top-0 right-0 z-50 h-full w-full max-w-2xl bg-background border-l border-border shadow-2xl flex flex-col"
+            >
+              <div className="flex items-center justify-between p-6 border-b border-border bg-card">
+                <h2 className="text-xl font-black text-foreground flex items-center gap-2">
+                  <Package className="text-[#C5A059]" size={20} /> {editingProduct ? "Edit Product" : "Build Product"}
                 </h2>
-                <button onClick={() => navigate("/catalogue")} className="text-[#B8860B] text-xs font-bold hover:underline">{t("home.viewAll")}</button>
+                <button onClick={closePanel} className="p-1.5 rounded-md hover:bg-muted transition-colors">
+                  <X size={18} className="text-muted-foreground" />
+                </button>
               </div>
-              <p className="text-sm text-slate-300 mb-8 font-medium">{t("home.packagingSub")}</p>
-              <div className="flex overflow-x-auto scrollbar-hide gap-5 pb-2">
-                {PACKAGING.map((item) => (
-                  <div
-                    key={item.id}
-                    onClick={() => navigate("/catalogue")}
-                    className="min-w-[200px] flex gap-3 items-center bg-white/5 p-3 rounded-2xl border border-white/10 backdrop-blur-sm cursor-pointer hover:bg-white/10 transition-colors"
-                  >
-                    <div className="w-16 h-16 rounded-lg overflow-hidden shrink-0">
-                      <img src={item.image} className="w-full h-full object-cover" />
+
+              <div className="flex-1 overflow-y-auto p-6 space-y-8">
+                {/* 1. IDENTITY & VISUALS */}
+                <section className="space-y-4">
+                  <h3 className="text-xs font-bold text-muted-foreground uppercase tracking-widest border-b border-border pb-2 flex items-center gap-2">
+                    <ImageIcon size={14} className="text-[#C5A059]" /> 1. Identity & Visuals
+                  </h3>
+
+                  <div className="mt-2 flex items-center gap-4">
+                    {formData.image_url ? (
+                      <div className="relative w-16 h-16 rounded-lg overflow-hidden border border-border flex-shrink-0 bg-muted/30">
+                        <img src={formData.image_url} alt="Preview" className="w-full h-full object-cover" />
+                        <button
+                          type="button"
+                          onClick={() => setFormData((prev: any) => ({ ...prev, image_url: "" }))}
+                          className="absolute top-1 right-1 bg-black/60 text-white rounded-full p-0.5 hover:bg-black/80"
+                        >
+                          <X size={10} />
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="w-16 h-16 rounded-lg border border-dashed border-border bg-muted/10 flex items-center justify-center flex-shrink-0">
+                        <ImageIcon size={20} className="text-muted-foreground/40" />
+                      </div>
+                    )}
+                    <div className="flex-1 space-y-2">
+                      <label
+                        className={`flex flex-1 items-center justify-center gap-2 px-3 py-2 rounded-lg border border-border bg-background cursor-pointer hover:bg-muted/50 text-xs font-semibold ${uploadingImage ? "opacity-50 pointer-events-none" : ""}`}
+                      >
+                        {uploadingImage ? (
+                          <Loader2 size={14} className="animate-spin text-[#C5A059]" />
+                        ) : (
+                          <UploadCloud size={14} className="text-[#C5A059]" />
+                        )}{" "}
+                        {uploadingImage ? "Uploading..." : "Upload Image"}
+                        <input
+                          type="file"
+                          accept="image/*"
+                          onChange={handleImageUpload}
+                          className="hidden"
+                          disabled={uploadingImage}
+                        />
+                      </label>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4 mt-4">
+                    <div className="col-span-2">
+                      <label className="block text-xs font-semibold text-muted-foreground mb-1.5">Product Name *</label>
+                      <input
+                        name="name"
+                        value={formData.name}
+                        onChange={handleInputChange}
+                        className="w-full bg-background border border-border rounded-lg p-2.5 text-sm outline-none focus:ring-1 focus:ring-[#C5A059]"
+                      />
                     </div>
                     <div>
-                      <h3 className="font-bold text-white text-xs mb-1">{item.name}</h3>
-                      <p className="text-[10px] text-[#B8860B] uppercase tracking-wider font-bold">{item.type}</p>
+                      <label className="block text-[10px] font-semibold text-muted-foreground uppercase tracking-wide mb-1.5 flex justify-between">
+                        SKU Code <span className="text-[#C5A059]">Auto</span>
+                      </label>
+                      <input
+                        name="sku"
+                        value={formData.sku}
+                        readOnly
+                        className="w-full bg-muted/30 border border-border rounded-lg p-2.5 text-sm text-foreground outline-none"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] font-semibold text-muted-foreground uppercase tracking-wide mb-1.5">
+                        Category
+                      </label>
+                      <select
+                        name="category"
+                        value={formData.category}
+                        onChange={handleInputChange}
+                        className="w-full bg-background border border-border rounded-lg p-2.5 text-sm outline-none focus:ring-1 focus:ring-[#C5A059]"
+                      >
+                        {CATEGORIES.map((cat) => (
+                          <option key={cat} value={cat}>
+                            {cat}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-[10px] font-semibold text-muted-foreground uppercase tracking-wide mb-1.5">
+                        Sub-Category
+                      </label>
+                      <input
+                        name="sub_category"
+                        placeholder="e.g. Classic Baklawa"
+                        value={formData.sub_category}
+                        onChange={handleInputChange}
+                        className="w-full bg-background border border-border rounded-lg p-2.5 text-sm outline-none focus:ring-1 focus:ring-[#C5A059]"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] font-semibold text-muted-foreground uppercase tracking-wide mb-1.5">
+                        Production Allocation
+                      </label>
+                      <select
+                        name="department"
+                        value={formData.department}
+                        onChange={handleInputChange}
+                        className="w-full bg-background border border-border rounded-lg p-2.5 text-sm outline-none focus:ring-1 focus:ring-[#C5A059]"
+                      >
+                        <option value="">— Select Department —</option>
+                        {DEPARTMENTS.map((dept) => (
+                          <option key={dept} value={dept}>
+                            {dept}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="col-span-2">
+                      <div className="flex justify-between items-end mb-1.5">
+                        <label className="block text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">
+                          Description
+                        </label>
+                        <button
+                          onClick={handleAiDescription}
+                          disabled={isAiLoading === "desc"}
+                          className="text-[10px] font-bold text-[#C5A059] hover:underline flex items-center gap-1"
+                        >
+                          {isAiLoading === "desc" ? (
+                            <Loader2 size={10} className="animate-spin" />
+                          ) : (
+                            <Wand2 size={10} />
+                          )}{" "}
+                          Auto-Generate
+                        </button>
+                      </div>
+                      <textarea
+                        name="description"
+                        rows={3}
+                        value={formData.description}
+                        onChange={handleInputChange}
+                        className="w-full bg-background border border-border rounded-lg p-2.5 text-sm outline-none focus:ring-1 focus:ring-[#C5A059] resize-none"
+                      />
                     </div>
                   </div>
-                ))}
+                </section>
+
+                {/* 2. COMMERCIALS & LOGISTICS (Unit Economics Calculator) */}
+                <section className="space-y-4">
+                  <h3 className="text-xs font-bold text-muted-foreground uppercase tracking-widest border-b border-border pb-2 flex items-center gap-2">
+                    <Calculator size={14} className="text-[#C5A059]" /> 2. Commercials & Logistics
+                  </h3>
+                  <div className="grid grid-cols-3 gap-4">
+                    <div>
+                      <label className="block text-[10px] font-semibold text-muted-foreground uppercase mb-1.5">
+                        Unit of Measure
+                      </label>
+                      <select
+                        name="uom"
+                        value={formData.uom}
+                        onChange={handleInputChange}
+                        className="w-full bg-background border border-border rounded-lg p-2.5 text-sm outline-none focus:ring-1 focus:ring-[#C5A059]"
+                      >
+                        <option value="Kg">Kg</option>
+                        <option value="Pack">Pack</option>
+                        <option value="Piece">Piece</option>
+                        <option value="Box">Box</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-[10px] font-semibold text-muted-foreground uppercase mb-1.5">
+                        Printed MRP (₹) *
+                      </label>
+                      <input
+                        type="number"
+                        name="mrp"
+                        value={formData.mrp}
+                        onChange={handleInputChange}
+                        className="w-full bg-background border border-border rounded-lg p-2.5 text-sm outline-none focus:ring-1 focus:ring-[#C5A059] font-bold"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] font-bold text-[#C5A059] uppercase mb-1.5">
+                        B2B Base (₹) *
+                      </label>
+                      <input
+                        type="number"
+                        name="wholesale_price"
+                        value={formData.wholesale_price}
+                        onChange={handleInputChange}
+                        className="w-full bg-[#C5A059]/10 border border-[#C5A059]/30 text-foreground rounded-lg p-2.5 font-bold outline-none focus:ring-1 focus:ring-[#C5A059]"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-[10px] font-semibold text-muted-foreground uppercase mb-1.5">
+                        Avg Wt / Pack (g)
+                      </label>
+                      <input
+                        type="number"
+                        name="net_weight_grams"
+                        value={formData.net_weight_grams}
+                        onChange={handleInputChange}
+                        className="w-full bg-background border border-border rounded-lg p-2.5 text-sm outline-none focus:ring-1 focus:ring-[#C5A059]"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] font-semibold text-muted-foreground uppercase mb-1.5">
+                        Avg Wt / Pc (g)
+                      </label>
+                      <input
+                        type="number"
+                        name="weight_per_pc_grams"
+                        value={formData.weight_per_pc_grams}
+                        onChange={handleInputChange}
+                        className="w-full bg-background border border-border rounded-lg p-2.5 text-sm outline-none focus:ring-1 focus:ring-[#C5A059]"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] font-semibold text-muted-foreground uppercase mb-1.5">
+                        Packs / Carton
+                      </label>
+                      <input
+                        type="number"
+                        name="packs_per_master_carton"
+                        value={formData.packs_per_master_carton}
+                        onChange={handleInputChange}
+                        className="w-full bg-background border border-border rounded-lg p-2.5 text-sm outline-none focus:ring-1 focus:ring-[#C5A059]"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-[10px] font-semibold text-muted-foreground uppercase mb-1.5">
+                        GST Rate (%)
+                      </label>
+                      <select
+                        name="gst_percentage"
+                        value={formData.gst_percentage}
+                        onChange={handleInputChange}
+                        className="w-full bg-background border border-border rounded-lg p-2.5 text-sm outline-none focus:ring-1 focus:ring-[#C5A059]"
+                      >
+                        {GST_RATES.map((rate) => (
+                          <option key={rate} value={rate}>
+                            {rate}%
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-[10px] font-bold text-[#C5A059] uppercase mb-1.5 flex items-center gap-1">
+                        MOQ (No. of Packs)
+                      </label>
+                      <input
+                        type="number"
+                        name="moq"
+                        value={formData.moq}
+                        onChange={handleInputChange}
+                        className="w-full bg-background border border-[#C5A059]/50 text-foreground rounded-lg p-2.5 font-bold outline-none focus:ring-1 focus:ring-[#C5A059]"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] font-semibold text-muted-foreground uppercase mb-1.5">
+                        Carton Type (Auto)
+                      </label>
+                      <input
+                        name="carton_type"
+                        value={formData.carton_type}
+                        readOnly
+                        className="w-full bg-muted/30 border border-border rounded-lg p-2.5 text-sm text-muted-foreground outline-none"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Live Economics Summary */}
+                  {Number(formData.mrp) > 0 && (
+                    <div className="bg-[#C5A059]/5 border border-[#C5A059]/20 rounded-xl p-4 mt-4">
+                      <p className="text-[10px] font-bold text-[#C5A059] uppercase tracking-widest mb-3">
+                        Live Unit Economics
+                      </p>
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                        <div>
+                          <p className="text-[10px] text-muted-foreground uppercase">Bulk (-20%)</p>
+                          <p className="text-sm font-bold text-foreground">
+                            ₹{eco.bulk}{" "}
+                            <span className="text-[10px] font-normal text-muted-foreground">/ {eco.uom}</span>
+                          </p>
+                        </div>
+                        <div>
+                          <p className="text-[10px] text-muted-foreground uppercase">Wholesale (-30%)</p>
+                          <p className="text-sm font-bold text-foreground">
+                            ₹{eco.wholesale}{" "}
+                            <span className="text-[10px] font-normal text-muted-foreground">/ {eco.uom}</span>
+                          </p>
+                        </div>
+                        <div>
+                          <p className="text-[10px] text-muted-foreground uppercase">B2B Cost / Piece</p>
+                          <p className="text-sm font-bold text-foreground">₹{eco.costPerPc}</p>
+                        </div>
+                        <div>
+                          <p className="text-[10px] text-muted-foreground uppercase">B2B Cost / Kg</p>
+                          <p className="text-sm font-bold text-foreground">₹{eco.costPerKg}</p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </section>
+
+                {/* 3. CONDITIONAL: PRIVATE LABEL */}
+                {formData.category === "Ready packs" && (
+                  <section className="space-y-4">
+                    <h3 className="text-xs font-bold text-muted-foreground uppercase tracking-widest border-b border-border pb-2 flex items-center gap-2">
+                      <Package size={14} className="text-[#C5A059]" /> 3. Private Label Config
+                    </h3>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-[10px] font-semibold text-muted-foreground uppercase mb-1.5">
+                          MOQ for Private Label
+                        </label>
+                        <input
+                          type="number"
+                          name="private_label_moq"
+                          value={formData.private_label_moq}
+                          onChange={handleInputChange}
+                          placeholder="e.g. 500"
+                          className="w-full bg-background border border-border rounded-lg p-2.5 text-sm outline-none focus:ring-1 focus:ring-[#C5A059]"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[10px] font-semibold text-muted-foreground uppercase mb-1.5">
+                          Cost Per Unit (Label) ₹
+                        </label>
+                        <input
+                          type="number"
+                          name="private_label_price"
+                          value={formData.private_label_price}
+                          onChange={handleInputChange}
+                          placeholder="e.g. 15"
+                          className="w-full bg-background border border-border rounded-lg p-2.5 text-sm outline-none focus:ring-1 focus:ring-[#C5A059]"
+                        />
+                      </div>
+                    </div>
+                  </section>
+                )}
+
+                {/* 4. FOOD COMPLIANCE */}
+                <section className="space-y-4">
+                  <h3 className="text-xs font-bold text-muted-foreground uppercase tracking-widest border-b border-border pb-2 flex items-center gap-2">
+                    <Leaf size={14} className="text-green-600" /> 4. Food Compliance
+                  </h3>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-[10px] font-semibold text-muted-foreground uppercase mb-1.5">
+                        Shelf Life (Days)
+                      </label>
+                      <input
+                        name="shelf_life"
+                        value={formData.shelf_life}
+                        onChange={handleInputChange}
+                        className="w-full bg-background border border-border rounded-lg p-2.5 text-sm outline-none focus:ring-1 focus:ring-primary"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] font-semibold text-muted-foreground uppercase mb-1.5">
+                        Storage Type
+                      </label>
+                      <select
+                        name="storage_type"
+                        value={formData.storage_type}
+                        onChange={handleInputChange}
+                        className="w-full bg-background border border-border rounded-lg p-2.5 text-sm outline-none focus:ring-1 focus:ring-primary"
+                      >
+                        {STORAGE_OPTIONS.map((opt) => (
+                          <option key={opt}>{opt}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="col-span-2">
+                      <label className="block text-[10px] font-semibold text-muted-foreground uppercase mb-2">
+                        Dietary Tags
+                      </label>
+                      <div className="flex flex-wrap gap-2">
+                        {DIETARY_OPTIONS.map((tag) => (
+                          <button
+                            key={tag}
+                            type="button"
+                            onClick={() => handleToggleDietaryTag(tag)}
+                            className={`px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-colors border ${formData.dietary_tags.includes(tag) ? "bg-[#C5A059] text-white border-[#C5A059]" : "bg-card text-muted-foreground border-border hover:bg-muted"}`}
+                          >
+                            {tag}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                    <div className="col-span-2">
+                      <div className="flex justify-between items-end mb-1.5">
+                        <label className="block text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">
+                          FSSAI Nutrition Panel
+                        </label>
+                        <button
+                          onClick={handleAiNutrition}
+                          disabled={isAiLoading === "nutrition"}
+                          className="text-[10px] font-bold text-green-600 hover:underline flex items-center gap-1"
+                        >
+                          {isAiLoading === "nutrition" ? (
+                            <Loader2 size={10} className="animate-spin" />
+                          ) : (
+                            <Wand2 size={10} />
+                          )}{" "}
+                          Generate Table
+                        </button>
+                      </div>
+                      <textarea
+                        name="nutrition_facts"
+                        rows={5}
+                        value={formData.nutrition_facts}
+                        onChange={handleInputChange}
+                        className="w-full bg-background border border-border rounded-lg p-2.5 text-xs font-mono outline-none focus:ring-1 focus:ring-green-600 resize-none"
+                        placeholder="Nutrition details per 100g..."
+                      />
+                    </div>
+                  </div>
+                </section>
+
+                {/* Active Toggle */}
+                <div className="flex items-center gap-3 bg-muted/20 p-4 rounded-xl border border-border mt-4">
+                  <input
+                    type="checkbox"
+                    id="is_active"
+                    checked={formData.is_active}
+                    onChange={(e) => setFormData({ ...formData, is_active: e.target.checked })}
+                    className="w-4 h-4 rounded border-border text-[#C5A059] focus:ring-[#C5A059]"
+                  />
+                  <label htmlFor="is_active" className="text-sm font-semibold text-foreground cursor-pointer">
+                    Product is Active (Visible to Buyers)
+                  </label>
+                </div>
               </div>
-            </div>
-          </section>
-        </main>
-      </div>
-    </AppShell>
+
+              {/* Panel Footer */}
+              <div className="p-6 border-t border-border bg-card flex justify-end gap-3 shrink-0">
+                <button
+                  onClick={closePanel}
+                  className="px-5 py-2.5 rounded-lg font-semibold text-sm text-muted-foreground hover:bg-muted transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleSaveProduct}
+                  disabled={saving || uploadingImage}
+                  className="px-6 py-2.5 rounded-lg font-bold text-sm bg-[#C5A059] text-white hover:bg-[#B38F48] transition-colors shadow-sm flex items-center gap-2 active:scale-[0.97] disabled:opacity-50"
+                >
+                  {saving && <Loader2 size={14} className="animate-spin" />}{" "}
+                  {editingProduct ? "Save Changes" : "Publish Product"}
+                </button>
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
+    </div>
   );
 };
 
-export default Index;
+export default AdminProducts;
