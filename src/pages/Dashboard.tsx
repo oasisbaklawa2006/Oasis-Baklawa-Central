@@ -11,8 +11,8 @@ import AiOrderModal from "@/components/AiOrderModal";
 import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "sonner";
 import { useLanguage } from "@/contexts/LanguageContext";
+import { useCurrency } from "@/contexts/CurrencyContext";
 
-const formatPrice = (n: number) => "₹" + n.toLocaleString("en-IN");
 const formatDate = (dateString: string) =>
   new Date(dateString).toLocaleDateString("en-IN", {
     day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit",
@@ -21,6 +21,7 @@ const formatDate = (dateString: string) =>
 const Dashboard = () => {
   const navigate = useNavigate();
   const { t } = useLanguage();
+  const { formatPrice } = useCurrency();
   const [orders, setOrders] = useState<any[]>([]);
   const [companyName, setCompanyName] = useState("Oasis Admin Master");
   const [isAiModalOpen, setIsAiModalOpen] = useState(false);

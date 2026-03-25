@@ -4,6 +4,7 @@ import { useNavigate } from "react-router-dom";
 import AppShell from "@/components/AppShell";
 import { supabase } from "@/integrations/supabase/client";
 import { useLanguage } from "@/contexts/LanguageContext";
+import { useCurrency } from "@/contexts/CurrencyContext";
 
 // --- MOCK DATA ---
 const SMART_REORDER = [
@@ -59,6 +60,7 @@ const Index = () => {
   const navigate = useNavigate();
   const [companyName, setCompanyName] = useState("");
   const { t } = useLanguage();
+  const { formatPrice } = useCurrency();
 
   const categories = [
     { id: "dates", name: "Dates", iconSrc: "/icons/date-palm.svg", fallback: "🌴" },
