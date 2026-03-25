@@ -209,12 +209,14 @@ export type Database = {
         Row: {
           business_name: string
           business_volume: string | null
+          courier_account_number: string | null
           created_at: string | null
           credit_limit: number | null
           current_balance: number | null
           discount_percentage: number | null
           gst_number: string | null
           id: string
+          preferred_courier: string | null
           status: string | null
           wallet_balance: number | null
           website: string | null
@@ -222,12 +224,14 @@ export type Database = {
         Insert: {
           business_name: string
           business_volume?: string | null
+          courier_account_number?: string | null
           created_at?: string | null
           credit_limit?: number | null
           current_balance?: number | null
           discount_percentage?: number | null
           gst_number?: string | null
           id?: string
+          preferred_courier?: string | null
           status?: string | null
           wallet_balance?: number | null
           website?: string | null
@@ -235,17 +239,69 @@ export type Database = {
         Update: {
           business_name?: string
           business_volume?: string | null
+          courier_account_number?: string | null
           created_at?: string | null
           credit_limit?: number | null
           current_balance?: number | null
           discount_percentage?: number | null
           gst_number?: string | null
           id?: string
+          preferred_courier?: string | null
           status?: string | null
           wallet_balance?: number | null
           website?: string | null
         }
         Relationships: []
+      }
+      delivery_addresses: {
+        Row: {
+          city: string
+          company_id: string | null
+          contact_person: string | null
+          contact_phone: string | null
+          created_at: string
+          id: string
+          is_default: boolean | null
+          label: string
+          pincode: string
+          state: string
+          street_address: string
+        }
+        Insert: {
+          city: string
+          company_id?: string | null
+          contact_person?: string | null
+          contact_phone?: string | null
+          created_at?: string
+          id?: string
+          is_default?: boolean | null
+          label: string
+          pincode: string
+          state: string
+          street_address: string
+        }
+        Update: {
+          city?: string
+          company_id?: string | null
+          contact_person?: string | null
+          contact_phone?: string | null
+          created_at?: string
+          id?: string
+          is_default?: boolean | null
+          label?: string
+          pincode?: string
+          state?: string
+          street_address?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "delivery_addresses_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       dispatch_cartons: {
         Row: {
@@ -1095,6 +1151,7 @@ export type Database = {
           full_name: string | null
           id: string
           is_approved: boolean | null
+          mobile_number: string | null
           price_tier: string | null
           role: string | null
         }
@@ -1107,6 +1164,7 @@ export type Database = {
           full_name?: string | null
           id: string
           is_approved?: boolean | null
+          mobile_number?: string | null
           price_tier?: string | null
           role?: string | null
         }
@@ -1119,6 +1177,7 @@ export type Database = {
           full_name?: string | null
           id?: string
           is_approved?: boolean | null
+          mobile_number?: string | null
           price_tier?: string | null
           role?: string | null
         }
