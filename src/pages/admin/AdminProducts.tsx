@@ -37,6 +37,7 @@ interface Product {
   created_at?: string;
 
   mrp?: number | null;
+  mrp_per_pc?: number | null;
   wholesale_price?: number | null;
   weight_per_pc_grams?: number | null;
   net_weight_grams?: number | null;
@@ -88,6 +89,7 @@ const EMPTY_FORM = {
   image_url: "",
   is_active: true,
   mrp: "",
+  mrp_per_pc: "",
   wholesale_price: "",
   weight_per_pc_grams: "",
   net_weight_grams: "",
@@ -96,7 +98,7 @@ const EMPTY_FORM = {
   hsn_code: "19059090",
   gst_percentage: "18",
   dietary_tags: ["100% Eggless"],
-  uom: "Pack",
+  uom: "Kg",
   private_label_moq: "",
   private_label_price: "",
   nutrition_facts: "",
@@ -124,7 +126,7 @@ const AdminProducts = () => {
     fetchProducts();
   }, []);
 
-  // 1. AUTO-GENERATE SKU
+  // AUTO-GENERATE SKU
   useEffect(() => {
     if (formData.name && formData.net_weight_grams && !editingProduct) {
       const prefix = formData.name
@@ -135,7 +137,7 @@ const AdminProducts = () => {
     }
   }, [formData.name, formData.net_weight_grams, editingProduct]);
 
-  // 2. AUTO-GENERATE CARTON TYPE
+  // AUTO-GENERATE CARTON TYPE
   useEffect(() => {
     const packs = Number(formData.packs_per_master_carton);
     if (packs > 0) {
@@ -224,6 +226,7 @@ const AdminProducts = () => {
         image_url: product.image_url || "",
         is_active: product.is_active ?? true,
         mrp: product.mrp?.toString() || "",
+        mrp_per_pc: product.mrp_per_pc?.toString() || "",
         wholesale_price: product.wholesale_price?.toString() || "",
         weight_per_pc_grams: product.weight_per_pc_grams?.toString() || "",
         net_weight_grams: product.net_weight_grams?.toString() || "",
@@ -232,7 +235,7 @@ const AdminProducts = () => {
         hsn_code: product.hsn_code || "19059090",
         gst_percentage: product.gst_percentage?.toString() || "18",
         dietary_tags: product.dietary_tags || ["100% Eggless"],
-        uom: product.uom || "Pack",
+        uom: product.uom || "Kg",
         private_label_moq: product.private_label_moq?.toString() || "",
         private_label_price: product.private_label_price?.toString() || "",
         nutrition_facts: product.nutrition_facts || "",
@@ -250,7 +253,7 @@ const AdminProducts = () => {
   };
 
   const handleSaveProduct = async () => {
-    if (!formData.name || !formData.wholesale_price) return toast.error("Name and Wholesale Price are required");
+    if (!formData.name || !formData.wholesale_price) return toast.error("Name and B2B Base Price are required");
     setSaving(true);
 
     const payload = {
@@ -270,13 +273,14 @@ const AdminProducts = () => {
       shelf_life: formData.shelf_life || null,
       price_per_kg: parseFloat(formData.price_per_kg) || null,
       mrp: parseFloat(formData.mrp) || null,
+      mrp_per_pc: parseFloat(formData.mrp_per_pc) || null,
       wholesale_price: parseFloat(formData.wholesale_price) || null,
       weight_per_pc_grams: parseFloat(formData.weight_per_pc_grams) || null,
       net_weight_grams: parseFloat(formData.net_weight_grams) || null,
       moq: parseInt(formData.moq) || 1,
       packs_per_master_carton: parseInt(formData.packs_per_master_carton) || null,
       gst_percentage: parseInt(formData.gst_percentage) || 0,
-      uom: formData.uom || "Pack",
+      uom: formData.uom || "Kg",
       private_label_moq: parseInt(formData.private_label_moq) || null,
       private_label_price: parseFloat(formData.private_label_price) || null,
       nutrition_facts: formData.nutrition_facts || null,
@@ -310,10 +314,55 @@ const AdminProducts = () => {
     }
   };
 
+  // CORRECTED: EXACT ECONOMICS ENGINE (Pc vs Kg)
+  const calculateEconomics = () => {
+    const uom = formData.uom || "Kg";
+    const wtPc = Number(formData.weight_per_pc_grams) || 0;
+    const wtPack = Number(formData.net_weight_grams) || 0;
+
+    let mrpPerUom = Number(formData.mrp) || 0;
+    let mrpPerPc = Number(formData.mrp_per_pc) || 0;
+    const b2bPerUom = Number(formData.wholesale_price) || 0;
+
+    let b2bPerPc = 0;
+
+    // Cross-calculate MRP if one field is missing but piece weight is known
+    if (wtPc > 0) {
+      if (uom === "Kg") {
+        if (mrpPerPc > 0 && mrpPerUom === 0) mrpPerUom = (mrpPerPc / wtPc) * 1000;
+        if (mrpPerUom > 0 && mrpPerPc === 0) mrpPerPc = (mrpPerUom / 1000) * wtPc;
+        b2bPerPc = (b2bPerUom / 1000) * wtPc; // The 14.875 calculation
+      } else if (uom === "Pack" || uom === "Box") {
+        const pcsPerPack = wtPack > 0 ? wtPack / wtPc : 1;
+        if (mrpPerPc > 0 && mrpPerUom === 0) mrpPerUom = mrpPerPc * pcsPerPack;
+        if (mrpPerUom > 0 && mrpPerPc === 0) mrpPerPc = mrpPerUom / pcsPerPack;
+        b2bPerPc = b2bPerUom / pcsPerPack;
+      } else if (uom === "Piece") {
+        mrpPerPc = mrpPerUom; // They are essentially the same field here
+        b2bPerPc = b2bPerUom;
+      }
+    }
+
+    return {
+      uom,
+      mrpPerUom: mrpPerUom > 0 ? mrpPerUom.toFixed(2) : "—",
+      bulkPerUom: mrpPerUom > 0 ? (mrpPerUom * 0.8).toFixed(2) : "—",
+      wholesalePerUom: mrpPerUom > 0 ? (mrpPerUom * 0.7).toFixed(2) : "—",
+      b2bPerUom: b2bPerUom > 0 ? b2bPerUom.toFixed(2) : "0.00",
+
+      mrpPerPc: mrpPerPc > 0 ? mrpPerPc.toFixed(2) : "—",
+      bulkPerPc: mrpPerPc > 0 ? (mrpPerPc * 0.8).toFixed(2) : "—",
+      wholesalePerPc: mrpPerPc > 0 ? (mrpPerPc * 0.7).toFixed(2) : "—",
+      b2bPerPc: b2bPerPc > 0 ? b2bPerPc.toFixed(3) : "—", // 3 decimals for precision (e.g. 14.875)
+    };
+  };
+
+  const eco = calculateEconomics();
+
   if (loading)
     return (
       <div className="flex justify-center items-center py-32">
-        <Loader2 size={28} className="animate-spin text-primary" />
+        <Loader2 size={28} className="animate-spin text-[#C5A059]" />
       </div>
     );
   const activeCount = products.filter((p) => p.is_active).length;
@@ -329,7 +378,7 @@ const AdminProducts = () => {
           </div>
           <button
             onClick={() => openPanel()}
-            className="flex items-center gap-2 bg-primary text-primary-foreground px-5 py-2.5 rounded-lg font-semibold text-sm hover:bg-primary/90 transition-colors shadow-sm active:scale-[0.97]"
+            className="flex items-center gap-2 bg-[#C5A059] text-white px-5 py-2.5 rounded-lg font-semibold text-sm hover:bg-[#B38F48] transition-colors shadow-sm active:scale-[0.97]"
           >
             <Plus size={16} /> Add New Product
           </button>
@@ -348,7 +397,7 @@ const AdminProducts = () => {
               animate={{ opacity: 1, y: 0 }}
               className="bg-card border border-border rounded-xl p-5 flex items-center gap-4 shadow-sm"
             >
-              <kpi.icon size={20} className="text-primary" />
+              <kpi.icon size={20} className="text-[#C5A059]" />
               <div>
                 <p className="text-xl font-bold text-foreground tabular-nums">{kpi.value}</p>
                 <p className="text-xs text-muted-foreground">{kpi.label}</p>
@@ -394,15 +443,15 @@ const AdminProducts = () => {
                   <div className="flex justify-between items-start gap-2">
                     <h3 className="font-semibold text-foreground text-sm leading-snug truncate">{product.name}</h3>
                     {product.wholesale_price && (
-                      <p className="text-primary font-bold text-sm tabular-nums shrink-0">₹{product.wholesale_price}</p>
+                      <p className="text-[#C5A059] font-bold text-sm tabular-nums shrink-0">
+                        ₹{product.wholesale_price}
+                      </p>
                     )}
                   </div>
                   <div className="space-y-0.5">
                     <p className="text-xs text-muted-foreground font-mono">SKU: {product.sku || "N/A"}</p>
                     <p className="text-xs text-muted-foreground">Carton: {product.carton_type || "N/A"}</p>
-                    <p className="text-xs text-muted-foreground">
-                      MOQ: {product.moq || 1} {product.uom || "packs"}
-                    </p>
+                    <p className="text-xs text-muted-foreground">MOQ: {product.moq || 1} packs</p>
                   </div>
                   <div className="flex items-center gap-2 pt-2 border-t border-border/50">
                     <button
@@ -446,7 +495,7 @@ const AdminProducts = () => {
             >
               <div className="flex items-center justify-between p-6 border-b border-border bg-card">
                 <h2 className="text-xl font-black text-foreground flex items-center gap-2">
-                  <Package className="text-primary" size={20} /> {editingProduct ? "Edit Product" : "Build Product"}
+                  <Package className="text-[#C5A059]" size={20} /> {editingProduct ? "Edit Product" : "Build Product"}
                 </h2>
                 <button onClick={closePanel} className="p-1.5 rounded-md hover:bg-muted transition-colors">
                   <X size={18} className="text-muted-foreground" />
@@ -457,10 +506,9 @@ const AdminProducts = () => {
                 {/* 1. IDENTITY & VISUALS */}
                 <section className="space-y-4">
                   <h3 className="text-xs font-bold text-muted-foreground uppercase tracking-widest border-b border-border pb-2 flex items-center gap-2">
-                    <ImageIcon size={14} className="text-primary" /> 1. Identity & Visuals
+                    <ImageIcon size={14} className="text-[#C5A059]" /> 1. Identity & Visuals
                   </h3>
 
-                  {/* Image Upload */}
                   <div className="mt-2 flex items-center gap-4">
                     {formData.image_url ? (
                       <div className="relative w-16 h-16 rounded-lg overflow-hidden border border-border flex-shrink-0 bg-muted/30">
@@ -482,8 +530,12 @@ const AdminProducts = () => {
                       <label
                         className={`flex flex-1 items-center justify-center gap-2 px-3 py-2 rounded-lg border border-border bg-background cursor-pointer hover:bg-muted/50 text-xs font-semibold ${uploadingImage ? "opacity-50 pointer-events-none" : ""}`}
                       >
-                        {uploadingImage ? <Loader2 size={14} className="animate-spin" /> : <UploadCloud size={14} />}{" "}
-                        {uploadingImage ? "Uploading..." : "Upload File"}
+                        {uploadingImage ? (
+                          <Loader2 size={14} className="animate-spin text-[#C5A059]" />
+                        ) : (
+                          <UploadCloud size={14} className="text-[#C5A059]" />
+                        )}{" "}
+                        {uploadingImage ? "Uploading..." : "Upload Image"}
                         <input
                           type="file"
                           accept="image/*"
@@ -502,12 +554,12 @@ const AdminProducts = () => {
                         name="name"
                         value={formData.name}
                         onChange={handleInputChange}
-                        className="w-full bg-background border border-border rounded-lg p-2.5 text-sm outline-none focus:ring-1 focus:ring-primary"
+                        className="w-full bg-background border border-border rounded-lg p-2.5 text-sm outline-none focus:ring-1 focus:ring-[#C5A059]"
                       />
                     </div>
                     <div>
                       <label className="block text-[10px] font-semibold text-muted-foreground uppercase tracking-wide mb-1.5 flex justify-between">
-                        SKU Code <span className="text-primary">Auto</span>
+                        SKU Code <span className="text-[#C5A059]">Auto</span>
                       </label>
                       <input
                         name="sku"
@@ -524,7 +576,7 @@ const AdminProducts = () => {
                         name="category"
                         value={formData.category}
                         onChange={handleInputChange}
-                        className="w-full bg-background border border-border rounded-lg p-2.5 text-sm outline-none focus:ring-1 focus:ring-primary"
+                        className="w-full bg-background border border-border rounded-lg p-2.5 text-sm outline-none focus:ring-1 focus:ring-[#C5A059]"
                       >
                         {CATEGORIES.map((cat) => (
                           <option key={cat} value={cat}>
@@ -542,7 +594,7 @@ const AdminProducts = () => {
                         placeholder="e.g. Classic Baklawa"
                         value={formData.sub_category}
                         onChange={handleInputChange}
-                        className="w-full bg-background border border-border rounded-lg p-2.5 text-sm outline-none focus:ring-1 focus:ring-primary"
+                        className="w-full bg-background border border-border rounded-lg p-2.5 text-sm outline-none focus:ring-1 focus:ring-[#C5A059]"
                       />
                     </div>
                     <div>
@@ -553,7 +605,7 @@ const AdminProducts = () => {
                         name="department"
                         value={formData.department}
                         onChange={handleInputChange}
-                        className="w-full bg-background border border-border rounded-lg p-2.5 text-sm outline-none focus:ring-1 focus:ring-primary"
+                        className="w-full bg-background border border-border rounded-lg p-2.5 text-sm outline-none focus:ring-1 focus:ring-[#C5A059]"
                       >
                         <option value="">— Select Department —</option>
                         {DEPARTMENTS.map((dept) => (
@@ -571,7 +623,7 @@ const AdminProducts = () => {
                         <button
                           onClick={handleAiDescription}
                           disabled={isAiLoading === "desc"}
-                          className="text-[10px] font-bold text-primary hover:underline flex items-center gap-1"
+                          className="text-[10px] font-bold text-[#C5A059] hover:underline flex items-center gap-1"
                         >
                           {isAiLoading === "desc" ? (
                             <Loader2 size={10} className="animate-spin" />
@@ -586,7 +638,7 @@ const AdminProducts = () => {
                         rows={3}
                         value={formData.description}
                         onChange={handleInputChange}
-                        className="w-full bg-background border border-border rounded-lg p-2.5 text-sm outline-none focus:ring-1 focus:ring-primary resize-none"
+                        className="w-full bg-background border border-border rounded-lg p-2.5 text-sm outline-none focus:ring-1 focus:ring-[#C5A059] resize-none"
                       />
                     </div>
                   </div>
@@ -595,18 +647,18 @@ const AdminProducts = () => {
                 {/* 2. COMMERCIALS & LOGISTICS (Unit Economics Calculator) */}
                 <section className="space-y-4">
                   <h3 className="text-xs font-bold text-muted-foreground uppercase tracking-widest border-b border-border pb-2 flex items-center gap-2">
-                    <Calculator size={14} className="text-primary" /> 2. Commercials & Logistics
+                    <Calculator size={14} className="text-[#C5A059]" /> 2. Commercials & Logistics
                   </h3>
-                  <div className="grid grid-cols-3 gap-4">
-                    <div>
+                  <div className="grid grid-cols-4 gap-4">
+                    <div className="col-span-2">
                       <label className="block text-[10px] font-semibold text-muted-foreground uppercase mb-1.5">
-                        Unit of Measure
+                        Unit of Measure (UOM)
                       </label>
                       <select
                         name="uom"
                         value={formData.uom}
                         onChange={handleInputChange}
-                        className="w-full bg-background border border-border rounded-lg p-2.5 text-sm outline-none focus:ring-1 focus:ring-primary"
+                        className="w-full bg-background border border-border rounded-lg p-2.5 text-sm outline-none focus:ring-1 focus:ring-[#C5A059]"
                       >
                         <option value="Kg">Kg</option>
                         <option value="Pack">Pack</option>
@@ -614,28 +666,53 @@ const AdminProducts = () => {
                         <option value="Box">Box</option>
                       </select>
                     </div>
+                    <div className="col-span-2">
+                      <label className="block text-[10px] font-bold text-[#C5A059] uppercase mb-1.5 flex items-center gap-1">
+                        MOQ (No. of Packs) <Info size={12} />
+                      </label>
+                      <input
+                        type="number"
+                        name="moq"
+                        value={formData.moq}
+                        onChange={handleInputChange}
+                        className="w-full bg-background border border-[#C5A059]/50 text-foreground rounded-lg p-2.5 font-bold outline-none focus:ring-1 focus:ring-[#C5A059]"
+                      />
+                    </div>
+
                     <div>
                       <label className="block text-[10px] font-semibold text-muted-foreground uppercase mb-1.5">
-                        Printed MRP (₹) *
+                        Printed MRP (₹) / {formData.uom}
                       </label>
                       <input
                         type="number"
                         name="mrp"
                         value={formData.mrp}
                         onChange={handleInputChange}
-                        className="w-full bg-background border border-border rounded-lg p-2.5 text-sm outline-none focus:ring-1 focus:ring-primary font-bold"
+                        className="w-full bg-background border border-border rounded-lg p-2.5 text-sm outline-none focus:ring-1 focus:ring-[#C5A059] font-bold"
                       />
                     </div>
                     <div>
-                      <label className="block text-[10px] font-bold text-primary uppercase mb-1.5">
-                        B2B Base (₹) *
+                      <label className="block text-[10px] font-semibold text-muted-foreground uppercase mb-1.5">
+                        MRP / Piece (₹)
+                      </label>
+                      <input
+                        type="number"
+                        name="mrp_per_pc"
+                        value={formData.mrp_per_pc}
+                        onChange={handleInputChange}
+                        className="w-full bg-background border border-border rounded-lg p-2.5 text-sm outline-none focus:ring-1 focus:ring-[#C5A059]"
+                      />
+                    </div>
+                    <div className="col-span-2">
+                      <label className="block text-[10px] font-bold text-[#C5A059] uppercase mb-1.5">
+                        B2B Base (₹) / {formData.uom} *
                       </label>
                       <input
                         type="number"
                         name="wholesale_price"
                         value={formData.wholesale_price}
                         onChange={handleInputChange}
-                        className="w-full bg-primary/10 border border-primary/30 text-foreground rounded-lg p-2.5 font-bold outline-none focus:ring-1 focus:ring-primary"
+                        className="w-full bg-[#C5A059]/10 border border-[#C5A059]/30 text-foreground rounded-lg p-2.5 font-bold outline-none focus:ring-1 focus:ring-[#C5A059]"
                       />
                     </div>
 
@@ -648,7 +725,7 @@ const AdminProducts = () => {
                         name="net_weight_grams"
                         value={formData.net_weight_grams}
                         onChange={handleInputChange}
-                        className="w-full bg-background border border-border rounded-lg p-2.5 text-sm outline-none focus:ring-1 focus:ring-primary"
+                        className="w-full bg-background border border-border rounded-lg p-2.5 text-sm outline-none focus:ring-1 focus:ring-[#C5A059]"
                       />
                     </div>
                     <div>
@@ -660,7 +737,7 @@ const AdminProducts = () => {
                         name="weight_per_pc_grams"
                         value={formData.weight_per_pc_grams}
                         onChange={handleInputChange}
-                        className="w-full bg-background border border-border rounded-lg p-2.5 text-sm outline-none focus:ring-1 focus:ring-primary"
+                        className="w-full bg-background border border-border rounded-lg p-2.5 text-sm outline-none focus:ring-1 focus:ring-[#C5A059]"
                       />
                     </div>
                     <div>
@@ -672,37 +749,7 @@ const AdminProducts = () => {
                         name="packs_per_master_carton"
                         value={formData.packs_per_master_carton}
                         onChange={handleInputChange}
-                        className="w-full bg-background border border-border rounded-lg p-2.5 text-sm outline-none focus:ring-1 focus:ring-primary"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block text-[10px] font-semibold text-muted-foreground uppercase mb-1.5">
-                        GST Rate (%)
-                      </label>
-                      <select
-                        name="gst_percentage"
-                        value={formData.gst_percentage}
-                        onChange={handleInputChange}
-                        className="w-full bg-background border border-border rounded-lg p-2.5 text-sm outline-none focus:ring-1 focus:ring-primary"
-                      >
-                        {GST_RATES.map((rate) => (
-                          <option key={rate} value={rate}>
-                            {rate}%
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                    <div>
-                      <label className="block text-[10px] font-bold text-primary uppercase mb-1.5 flex items-center gap-1">
-                        MOQ (in {formData.uom}s) <Info size={12} />
-                      </label>
-                      <input
-                        type="number"
-                        name="moq"
-                        value={formData.moq}
-                        onChange={handleInputChange}
-                        className="w-full bg-background border border-primary/50 text-foreground rounded-lg p-2.5 font-bold outline-none focus:ring-1 focus:ring-primary"
+                        className="w-full bg-background border border-border rounded-lg p-2.5 text-sm outline-none focus:ring-1 focus:ring-[#C5A059]"
                       />
                     </div>
                     <div>
@@ -716,34 +763,70 @@ const AdminProducts = () => {
                         className="w-full bg-muted/30 border border-border rounded-lg p-2.5 text-sm text-muted-foreground outline-none"
                       />
                     </div>
+
+                    <div className="col-span-4">
+                      <label className="block text-[10px] font-semibold text-muted-foreground uppercase mb-1.5">
+                        GST Rate (%)
+                      </label>
+                      <select
+                        name="gst_percentage"
+                        value={formData.gst_percentage}
+                        onChange={handleInputChange}
+                        className="w-full bg-background border border-border rounded-lg p-2.5 text-sm outline-none focus:ring-1 focus:ring-[#C5A059]"
+                      >
+                        {GST_RATES.map((rate) => (
+                          <option key={rate} value={rate}>
+                            {rate}%
+                          </option>
+                        ))}
+                      </select>
+                    </div>
                   </div>
 
-                  {/* Live Economics Summary */}
-                  {Number(formData.mrp) > 0 && (
-                    <div className="bg-primary/5 border border-primary/20 rounded-xl p-4 mt-4">
-                      <p className="text-[10px] font-bold text-primary uppercase tracking-widest mb-2">
-                        Live Unit Economics
+                  {/* UPDATED: Dynamic Unit Economics Summary (Pc vs UOM) */}
+                  {(Number(formData.mrp) > 0 || Number(formData.mrp_per_pc) > 0) && (
+                    <div className="bg-[#C5A059]/5 border border-[#C5A059]/20 rounded-xl p-5 mt-4">
+                      <p className="text-[10px] font-bold text-[#C5A059] uppercase tracking-widest mb-4 flex items-center gap-1">
+                        <Calculator size={12} /> Live Unit Economics (Piece vs {eco.uom})
                       </p>
-                      <div className="grid grid-cols-3 gap-2">
+
+                      {/* Per UOM Row */}
+                      <div className="grid grid-cols-4 gap-3 border-b border-[#C5A059]/20 pb-3 mb-3">
                         <div>
-                          <p className="text-[10px] text-muted-foreground uppercase">Bulk (-20%)</p>
-                          <p className="text-sm font-bold text-foreground">
-                            ₹{(Number(formData.mrp) * 0.8).toFixed(2)}
-                          </p>
+                          <p className="text-[10px] text-muted-foreground uppercase">MRP / {eco.uom}</p>
+                          <p className="text-sm font-bold text-foreground">₹{eco.mrpPerUom}</p>
                         </div>
                         <div>
-                          <p className="text-[10px] text-muted-foreground uppercase">Wholesale (-30%)</p>
-                          <p className="text-sm font-bold text-foreground">
-                            ₹{(Number(formData.mrp) * 0.7).toFixed(2)}
-                          </p>
+                          <p className="text-[10px] text-muted-foreground uppercase">Bulk (-20%) / {eco.uom}</p>
+                          <p className="text-sm font-bold text-foreground">₹{eco.bulkPerUom}</p>
                         </div>
                         <div>
-                          <p className="text-[10px] text-muted-foreground uppercase">Cost / Piece</p>
-                          <p className="text-sm font-bold text-foreground">
-                            {Number(formData.net_weight_grams) > 0 && Number(formData.weight_per_pc_grams) > 0
-                              ? `₹${(Number(formData.mrp) / (Number(formData.net_weight_grams) / Number(formData.weight_per_pc_grams))).toFixed(2)}`
-                              : "—"}
-                          </p>
+                          <p className="text-[10px] text-muted-foreground uppercase">Wholesale (-30%) / {eco.uom}</p>
+                          <p className="text-sm font-bold text-foreground">₹{eco.wholesalePerUom}</p>
+                        </div>
+                        <div>
+                          <p className="text-[10px] text-[#C5A059] font-bold uppercase">B2B Base / {eco.uom}</p>
+                          <p className="text-sm font-bold text-[#C5A059]">₹{eco.b2bPerUom}</p>
+                        </div>
+                      </div>
+
+                      {/* Per Piece Row */}
+                      <div className="grid grid-cols-4 gap-3">
+                        <div>
+                          <p className="text-[10px] text-muted-foreground uppercase">MRP / Piece</p>
+                          <p className="text-sm font-bold text-foreground">₹{eco.mrpPerPc}</p>
+                        </div>
+                        <div>
+                          <p className="text-[10px] text-muted-foreground uppercase">Bulk / Piece</p>
+                          <p className="text-sm font-bold text-foreground">₹{eco.bulkPerPc}</p>
+                        </div>
+                        <div>
+                          <p className="text-[10px] text-muted-foreground uppercase">Wholesale / Piece</p>
+                          <p className="text-sm font-bold text-foreground">₹{eco.wholesalePerPc}</p>
+                        </div>
+                        <div>
+                          <p className="text-[10px] text-[#C5A059] font-bold uppercase">B2B Cost / Piece</p>
+                          <p className="text-sm font-bold text-[#C5A059]">₹{eco.b2bPerPc}</p>
                         </div>
                       </div>
                     </div>
@@ -754,7 +837,7 @@ const AdminProducts = () => {
                 {formData.category === "Ready packs" && (
                   <section className="space-y-4">
                     <h3 className="text-xs font-bold text-muted-foreground uppercase tracking-widest border-b border-border pb-2 flex items-center gap-2">
-                      <Package size={14} className="text-primary" /> 3. Private Label Config
+                      <Package size={14} className="text-[#C5A059]" /> 3. Private Label Config
                     </h3>
                     <div className="grid grid-cols-2 gap-4">
                       <div>
@@ -767,7 +850,7 @@ const AdminProducts = () => {
                           value={formData.private_label_moq}
                           onChange={handleInputChange}
                           placeholder="e.g. 500"
-                          className="w-full bg-background border border-border rounded-lg p-2.5 text-sm outline-none focus:ring-1 focus:ring-primary"
+                          className="w-full bg-background border border-border rounded-lg p-2.5 text-sm outline-none focus:ring-1 focus:ring-[#C5A059]"
                         />
                       </div>
                       <div>
@@ -780,7 +863,7 @@ const AdminProducts = () => {
                           value={formData.private_label_price}
                           onChange={handleInputChange}
                           placeholder="e.g. 15"
-                          className="w-full bg-background border border-border rounded-lg p-2.5 text-sm outline-none focus:ring-1 focus:ring-primary"
+                          className="w-full bg-background border border-border rounded-lg p-2.5 text-sm outline-none focus:ring-1 focus:ring-[#C5A059]"
                         />
                       </div>
                     </div>
@@ -829,7 +912,7 @@ const AdminProducts = () => {
                             key={tag}
                             type="button"
                             onClick={() => handleToggleDietaryTag(tag)}
-                            className={`px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-colors border ${formData.dietary_tags.includes(tag) ? "bg-primary text-primary-foreground border-primary" : "bg-card text-muted-foreground border-border hover:bg-muted"}`}
+                            className={`px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-colors border ${formData.dietary_tags.includes(tag) ? "bg-[#C5A059] text-white border-[#C5A059]" : "bg-card text-muted-foreground border-border hover:bg-muted"}`}
                           >
                             {tag}
                           </button>
@@ -859,7 +942,7 @@ const AdminProducts = () => {
                         rows={5}
                         value={formData.nutrition_facts}
                         onChange={handleInputChange}
-                        className="w-full bg-background border border-border rounded-lg p-2.5 text-xs font-mono outline-none focus:ring-1 focus:ring-primary resize-none"
+                        className="w-full bg-background border border-border rounded-lg p-2.5 text-xs font-mono outline-none focus:ring-1 focus:ring-green-600 resize-none"
                         placeholder="Nutrition details per 100g..."
                       />
                     </div>
@@ -873,7 +956,7 @@ const AdminProducts = () => {
                     id="is_active"
                     checked={formData.is_active}
                     onChange={(e) => setFormData({ ...formData, is_active: e.target.checked })}
-                    className="w-4 h-4 rounded border-border text-primary focus:ring-primary"
+                    className="w-4 h-4 rounded border-border text-[#C5A059] focus:ring-[#C5A059]"
                   />
                   <label htmlFor="is_active" className="text-sm font-semibold text-foreground cursor-pointer">
                     Product is Active (Visible to Buyers)
@@ -892,7 +975,7 @@ const AdminProducts = () => {
                 <button
                   onClick={handleSaveProduct}
                   disabled={saving || uploadingImage}
-                  className="px-6 py-2.5 rounded-lg font-bold text-sm bg-primary text-primary-foreground hover:bg-primary/90 transition-colors shadow-sm flex items-center gap-2 active:scale-[0.97] disabled:opacity-50"
+                  className="px-6 py-2.5 rounded-lg font-bold text-sm bg-[#C5A059] text-white hover:bg-[#B38F48] transition-colors shadow-sm flex items-center gap-2 active:scale-[0.97] disabled:opacity-50"
                 >
                   {saving && <Loader2 size={14} className="animate-spin" />}{" "}
                   {editingProduct ? "Save Changes" : "Publish Product"}
