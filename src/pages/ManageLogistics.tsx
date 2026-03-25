@@ -2,7 +2,7 @@ import AppShell from "@/components/AppShell";
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { Truck, Save, Loader2, ArrowLeft, Info } from "lucide-react";
+import { Truck, Save, Loader2, Info } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -69,10 +69,6 @@ const ManageLogistics = () => {
   return (
     <AppShell>
       <div className="px-5 py-6 space-y-6 pt-24 max-w-4xl mx-auto pb-32">
-        <button onClick={() => navigate("/account")} className="flex items-center gap-2 text-sm font-bold text-gray-500 hover:text-[#C5A059] transition-colors mb-4">
-          <ArrowLeft size={16} /> Back to Account
-        </button>
-
         <div>
           <h1 className="font-serif text-2xl md:text-3xl font-bold text-gray-900">Preferred Transporter</h1>
           <p className="text-sm text-gray-500 mt-1">Setup your default logistics partner for bulk shipments.</p>
