@@ -132,7 +132,10 @@ const Catalogue = () => {
               {categories.length > 0 && (
                 <div className="flex flex-wrap gap-2">
                   <button
-                    onClick={() => setActiveCategory(null)}
+                    onClick={() => {
+                      setActiveCategory(null);
+                      setActiveSubCategory(null);
+                    }}
                     className={`px-4 py-2 rounded-full text-xs font-bold border transition-all ${
                       !activeCategory
                         ? "bg-primary text-primary-foreground border-primary shadow-md"
@@ -146,7 +149,10 @@ const Catalogue = () => {
                     return (
                       <button
                         key={cat}
-                        onClick={() => setActiveCategory(activeCategory === cat ? null : cat)}
+                        onClick={() => {
+                          setActiveCategory(activeCategory === cat ? null : cat);
+                          setActiveSubCategory(null);
+                        }}
                         className={`px-4 py-2 rounded-full text-xs font-bold border transition-all ${
                           activeCategory === cat
                             ? "bg-primary text-primary-foreground border-primary shadow-md"
