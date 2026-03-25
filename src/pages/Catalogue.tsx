@@ -1,9 +1,8 @@
 import AppShell from "@/components/AppShell";
-import TopNavBar from "@/components/TopNavBar";
 import { useState } from "react";
 import { useCurrency } from "@/contexts/CurrencyContext";
+import { useCart } from "@/contexts/CartContext";
 import {
-  ChevronLeft,
   Search,
   Star,
   ShoppingCart,
@@ -120,6 +119,7 @@ const Catalogue = () => {
   const [quantities, setQuantities] = useState<Record<string, number>>({});
   const [activeCategory, setActiveCategory] = useState<string | null>(null);
   const { formatPrice } = useCurrency();
+  const { addToCart } = useCart();
 
   const updateQuantity = (id: string, delta: number) => {
     setQuantities((prev) => {
@@ -135,6 +135,20 @@ const Catalogue = () => {
       toast.error("Please add at least 1 carton to generate an order.");
       return;
     }
+    // Add each item to the global CartContext
+    QUICK_ORDER_ITEMS.forEach((item) => {
+      const qty = quantities[item.id] || 0;
+      if (qty > 0) {
+        addToCart({
+          id: item.id,
+          name: item.name,
+          price_per_kg: item.price,
+          pack_size: item.cartonSize,
+          carton_type: null,
+          image_url: item.image,
+        }, qty);
+      }
+    });
     toast.success(`Purchase Order Generated for ${totalItems} Cartons!`, { icon: "📝" });
     navigate("/cart");
   };
@@ -277,7 +291,10 @@ const Catalogue = () => {
                       className="w-full h-full object-contain drop-shadow-sm group-hover:scale-105 transition-transform duration-500"
                       alt={item.name}
                     />
-                    <button className="absolute top-2 right-2 p-1.5 bg-white/90 backdrop-blur-sm rounded-full text-[#C5A059] shadow-sm">
+                    <button
+                      onClick={(e) => { e.stopPropagation(); }}
+                      className="absolute top-2 right-2 p-1.5 bg-white/90 backdrop-blur-sm rounded-full text-[#C5A059] shadow-sm"
+                    >
                       <Star size={14} fill="currentColor" />
                     </button>
                   </div>
@@ -285,8 +302,21 @@ const Catalogue = () => {
                   <p className="text-[10px] text-gray-500 font-medium uppercase tracking-wider mb-3">{item.pack}</p>
                   <div className="flex items-center justify-between">
                     <p className="font-black text-sm text-gray-900">{formatPrice(item.price)}</p>
-                    <button className="w-8 h-8 rounded-full bg-gradient-to-r from-[#C5A059] to-[#D4AF37] text-white flex items-center justify-center shadow-md hover:scale-110 transition-transform">
-                      <ShoppingCart size={14} />
+                    <button
+                      onClick={() => {
+                        addToCart({
+                          id: item.id,
+                          name: item.name,
+                          price_per_kg: item.price,
+                          pack_size: item.pack,
+                          carton_type: null,
+                          image_url: item.image,
+                        }, 1);
+                        toast.success(`${item.name} added to cart`);
+                      }}
+                      className="w-8 h-8 rounded-full bg-gradient-to-r from-[#C5A059] to-[#D4AF37] text-white flex items-center justify-center shadow-md hover:scale-110 transition-transform"
+                    >
+                       <ShoppingCart size={14} />
                     </button>
                   </div>
                 </div>
@@ -341,7 +371,7 @@ const Catalogue = () => {
                           {category.subcategories.map((sub) => (
                             <button
                               key={sub.id}
-                              onClick={() => toast.info(`Opening ${sub.name}...`)}
+                              onClick={() => navigate(`/catalogue?category=${sub.id}`)}
                               className="flex flex-col items-center justify-center p-4 rounded-xl border border-[#C5A059]/20 hover:border-[#C5A059] bg-white hover:bg-[#C5A059]/5 hover:shadow-sm transition-all text-[#C5A059] group/sub"
                             >
                               <sub.icon
