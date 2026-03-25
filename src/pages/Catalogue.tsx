@@ -166,6 +166,40 @@ const Catalogue = () => {
                 </div>
               )}
 
+              {/* SUB-CATEGORY PILLS */}
+              {subCategories.length > 0 && activeCategory && (
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    onClick={() => setActiveSubCategory(null)}
+                    className={`px-3 py-1.5 rounded-full text-[11px] font-bold border transition-all ${
+                      !activeSubCategory
+                        ? "bg-foreground text-background border-foreground shadow-sm"
+                        : "bg-card text-muted-foreground border-border hover:border-foreground/50"
+                    }`}
+                  >
+                    All {activeCategory}
+                  </button>
+                  {subCategories.map((sub) => {
+                    const count = products.filter(
+                      (p) => p.category === activeCategory && p.sub_category === sub
+                    ).length;
+                    return (
+                      <button
+                        key={sub}
+                        onClick={() => setActiveSubCategory(activeSubCategory === sub ? null : sub)}
+                        className={`px-3 py-1.5 rounded-full text-[11px] font-bold border transition-all ${
+                          activeSubCategory === sub
+                            ? "bg-foreground text-background border-foreground shadow-sm"
+                            : "bg-card text-muted-foreground border-border hover:border-foreground/50"
+                        }`}
+                      >
+                        {sub} ({count})
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+
               {/* 1. QUICK ORDER */}
               <section className="bg-card rounded-3xl border border-primary/30 shadow-[0_8px_30px_-4px_hsl(var(--primary)/0.15)] overflow-hidden">
                 <div className="bg-gradient-to-r from-primary to-primary/80 p-5 md:p-6 flex justify-between items-center relative overflow-hidden">
