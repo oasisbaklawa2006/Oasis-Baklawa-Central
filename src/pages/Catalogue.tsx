@@ -24,9 +24,12 @@ const getPackInfo = (p: any): string =>
   [p.pack_size, p.carton_type].filter(Boolean).join(" · ") || "Standard";
 
 const Catalogue = () => {
+  const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const [quantities, setQuantities] = useState<Record<string, number>>({});
-  const [activeCategory, setActiveCategory] = useState<string | null>(null);
+  const [activeCategory, setActiveCategory] = useState<string | null>(
+    searchParams.get("category")
+  );
   const [activeSubCategory, setActiveSubCategory] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const { formatPrice } = useCurrency();
