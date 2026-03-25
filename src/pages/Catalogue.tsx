@@ -130,26 +130,21 @@ const Catalogue = () => {
     });
   };
 
-  const handleGenerateOrder = () => {
+  const handleGenerateOrder = async () => {
     const totalItems = Object.values(quantities).reduce((a, b) => a + b, 0);
     if (totalItems === 0) {
       toast.error("Please add at least 1 carton to generate an order.");
       return;
     }
-    // Add each item to the global CartContext
-    QUICK_ORDER_ITEMS.forEach((item) => {
+    setIsAddingToCart(true);
+    // Add each item to the Supabase-backed draft order
+    for (const item of QUICK_ORDER_ITEMS) {
       const qty = quantities[item.id] || 0;
       if (qty > 0) {
-        addToCart({
-          id: item.id,
-          name: item.name,
-          price_per_kg: item.price,
-          pack_size: item.cartonSize,
-          carton_type: null,
-          image_url: item.image,
-        }, qty);
+        await addToCart(item.id, qty, item.cartonSize, null);
       }
-    });
+    }
+    setIsAddingToCart(false);
     toast.success(`Purchase Order Generated for ${totalItems} Cartons!`, { icon: "📝" });
     navigate("/cart");
   };
@@ -295,16 +290,8 @@ const Catalogue = () => {
                   <div className="flex items-center justify-between">
                     <p className="font-black text-sm text-gray-900">{formatPrice(item.price)}</p>
                     <button
-                      onClick={() => {
-                        addToCart({
-                          id: item.id,
-                          name: item.name,
-                          price_per_kg: item.price,
-                          pack_size: item.pack,
-                          carton_type: null,
-                          image_url: item.image,
-                        }, 1);
-                        toast.success(`${item.name} added to cart`);
+                      onClick={async () => {
+                        await addToCart(item.id, 1, item.pack, null);
                       }}
                       className="w-8 h-8 rounded-full bg-gradient-to-r from-[#C5A059] to-[#D4AF37] text-white flex items-center justify-center shadow-md hover:scale-110 transition-transform"
                     >
