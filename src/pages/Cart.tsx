@@ -1,21 +1,9 @@
 import AppShell from "@/components/AppShell";
 import { motion, AnimatePresence } from "framer-motion";
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import {
-  Package,
-  ShoppingCart,
-  AlertTriangle,
-  CheckCircle2,
-  Trash2,
-  Loader2,
-  Wand2,
-  ChevronLeft,
-  CreditCard,
-  Banknote,
-  Smartphone,
-  X,
-  Lock,
-  Printer,
+  Package, ShoppingCart, AlertTriangle, CheckCircle2, Trash2, Loader2, Wand2,
+  ChevronLeft, CreditCard, Banknote, Smartphone, X, Lock, Printer, ShieldAlert,
 } from "lucide-react";
 import { useCart } from "@/hooks/useCart";
 import { supabase } from "@/integrations/supabase/client";
@@ -45,13 +33,44 @@ function groupByCartonType(items: any[]) {
   }));
 }
 
+interface MoqRule {
+  id: string;
+  rule_scope: string;
+  min_quantity: number | null;
+  product_id: string | null;
+  category_id: string | null;
+  customer_type: string | null;
+  pack_size: string | null;
+  carton_type: string | null;
+  validation_mode: string | null;
+}
+
+interface MoqViolation {
+  ruleName: string;
+  message: string;
+  mode: "hard_stop" | "warning";
+}
+
 const Cart = () => {
   const navigate = useNavigate();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState("utr");
+  const [moqRules, setMoqRules] = useState<MoqRule[]>([]);
 
   const { draftOrder, items, updateQuantity, fetchCart, loading: cartLoading } = useCart();
+
+  // Fetch active MOQ rules
+  useEffect(() => {
+    const fetchRules = async () => {
+      const { data } = await supabase
+        .from("moq_rules")
+        .select("*")
+        .eq("is_active", true);
+      if (data) setMoqRules(data as MoqRule[]);
+    };
+    fetchRules();
+  }, []);
 
   const sortedItems = useMemo(
     () => [...items].sort((a, b) => (a.product?.name || "").localeCompare(b.product?.name || "")),
@@ -67,6 +86,81 @@ const Cart = () => {
     const packs = section.items.reduce((s, it) => s + it.quantity, 0);
     return packs > 0 && packs % section.rule.packsPerCarton !== 0;
   });
+
+  // MOQ Validation
+  const moqViolations = useMemo((): MoqViolation[] => {
+    if (!moqRules.length || !sortedItems.length) return [];
+    const violations: MoqViolation[] = [];
+
+    for (const rule of moqRules) {
+      const minQty = rule.min_quantity ?? 0;
+      if (minQty <= 0) continue;
+      const mode = (rule.validation_mode === "warning" ? "warning" : "hard_stop") as "hard_stop" | "warning";
+
+      if (rule.rule_scope === "product" && rule.product_id) {
+        // Per-product rule
+        const matchingItems = sortedItems.filter((it) => it.product_id === rule.product_id);
+        const totalQty = matchingItems.reduce((s, it) => s + it.quantity, 0);
+        if (matchingItems.length > 0 && totalQty < minQty) {
+          const productName = matchingItems[0]?.product?.name || "Product";
+          violations.push({
+            ruleName: productName,
+            message: `${productName} requires minimum ${minQty} packs (you have ${totalQty})`,
+            mode,
+          });
+        }
+      } else if (rule.rule_scope === "category" && rule.category_id) {
+        // Per-category rule
+        const matchingItems = sortedItems.filter((it) => it.product?.category_id === rule.category_id);
+        const totalQty = matchingItems.reduce((s, it) => s + it.quantity, 0);
+        if (matchingItems.length > 0 && totalQty < minQty) {
+          violations.push({
+            ruleName: `Category`,
+            message: `This category requires minimum ${minQty} packs (you have ${totalQty})`,
+            mode,
+          });
+        }
+      } else if (rule.rule_scope === "global") {
+        // Global rule — total cart quantity
+        const totalQty = sortedItems.reduce((s, it) => s + it.quantity, 0);
+        if (totalQty < minQty) {
+          violations.push({
+            ruleName: "Global MOQ",
+            message: `Minimum order quantity is ${minQty} packs (you have ${totalQty})`,
+            mode,
+          });
+        }
+      } else if (rule.rule_scope === "carton_type" && rule.carton_type) {
+        // Per carton-type rule
+        const matchingSection = sections.find(
+          (s) => s.cartonType.toLowerCase() === rule.carton_type!.toLowerCase()
+        );
+        if (matchingSection) {
+          const totalQty = matchingSection.items.reduce((s, it) => s + it.quantity, 0);
+          if (totalQty < minQty) {
+            violations.push({
+              ruleName: `Carton ${rule.carton_type}`,
+              message: `Carton type ${rule.carton_type} requires minimum ${minQty} packs (you have ${totalQty})`,
+              mode,
+            });
+          }
+        }
+      }
+    }
+
+    return violations;
+  }, [moqRules, sortedItems, sections]);
+
+  const hardStopViolations = moqViolations.filter((v) => v.mode === "hard_stop");
+  const warningViolations = moqViolations.filter((v) => v.mode === "warning");
+  const hasHardStop = hardStopViolations.length > 0;
+
+  // Show warning toasts once
+  useEffect(() => {
+    warningViolations.forEach((v) => {
+      toast.warning(`Note: ${v.message}`, { id: `moq-warn-${v.ruleName}` });
+    });
+  }, [warningViolations.length]);
 
   const handleAutoOptimize = async (section: any) => {
     const sectionPacks = section.items.reduce((s: number, it: any) => s + it.quantity, 0);
@@ -158,6 +252,30 @@ const Cart = () => {
             <Printer size={14} /> Pro-Forma
           </button>
         </div>
+
+        {/* MOQ Hard Stop Violations */}
+        {hardStopViolations.length > 0 && (
+          <div className="bg-red-50 border border-red-200 rounded-2xl p-4 space-y-2">
+            <p className="text-xs font-bold text-red-800 flex items-center gap-1.5 uppercase tracking-wider">
+              <ShieldAlert size={14} /> MOQ Requirements Not Met
+            </p>
+            {hardStopViolations.map((v, i) => (
+              <p key={i} className="text-[11px] text-red-700 font-medium pl-5">• {v.message}</p>
+            ))}
+          </div>
+        )}
+
+        {/* MOQ Warning Violations */}
+        {warningViolations.length > 0 && (
+          <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 space-y-2">
+            <p className="text-xs font-bold text-amber-800 flex items-center gap-1.5 uppercase tracking-wider">
+              <AlertTriangle size={14} /> MOQ Advisory
+            </p>
+            {warningViolations.map((v, i) => (
+              <p key={i} className="text-[11px] text-amber-700 font-medium pl-5">• {v.message}</p>
+            ))}
+          </div>
+        )}
 
         {sections.map((section) => {
           const sectionPacks = section.items.reduce((s, it) => s + it.quantity, 0);
@@ -263,10 +381,14 @@ const Cart = () => {
           </div>
           <button
             onClick={() => setShowPaymentModal(true)}
-            disabled={hasIncompleteCartons}
+            disabled={hasIncompleteCartons || hasHardStop}
             className="w-full mt-5 py-4 rounded-2xl bg-white text-slate-900 font-bold text-sm hover:bg-slate-100 active:scale-95 disabled:opacity-50 transition-all shadow-xl"
           >
-            {hasIncompleteCartons ? "Fill Cartons to Continue" : "Proceed to Checkout"}
+            {hasHardStop
+              ? "MOQ Requirements Not Met"
+              : hasIncompleteCartons
+                ? "Fill Cartons to Continue"
+                : "Proceed to Checkout"}
           </button>
         </motion.section>
       </div>
@@ -313,50 +435,25 @@ const Cart = () => {
                 <label
                   className={`flex items-start p-4 border rounded-2xl cursor-pointer transition-all ${paymentMethod === "gateway" ? "border-[#B8860B] bg-[#FFF8DC]" : "border-slate-200 hover:border-slate-300"}`}
                 >
-                  <input
-                    type="radio"
-                    name="payment"
-                    value="gateway"
-                    checked={paymentMethod === "gateway"}
-                    onChange={() => setPaymentMethod("gateway")}
-                    className="hidden"
-                  />
-                  <div
-                    className={`mt-0.5 p-2 rounded-xl flex-shrink-0 ${paymentMethod === "gateway" ? "bg-[#B8860B]/10" : "bg-slate-100"}`}
-                  >
-                    <CreditCard
-                      size={20}
-                      className={paymentMethod === "gateway" ? "text-[#B8860B]" : "text-slate-500"}
-                    />
+                  <input type="radio" name="payment" value="gateway" checked={paymentMethod === "gateway"} onChange={() => setPaymentMethod("gateway")} className="hidden" />
+                  <div className={`mt-0.5 p-2 rounded-xl flex-shrink-0 ${paymentMethod === "gateway" ? "bg-[#B8860B]/10" : "bg-slate-100"}`}>
+                    <CreditCard size={20} className={paymentMethod === "gateway" ? "text-[#B8860B]" : "text-slate-500"} />
                   </div>
                   <div className="ml-4 flex-1">
                     <p className="font-bold text-slate-900 text-sm">Pay Online (Instant)</p>
-                    <p className="text-xs text-slate-500 mt-0.5 leading-relaxed">
-                      Credit/Debit Cards, UPI, Netbanking, Wallets & more.
-                    </p>
+                    <p className="text-xs text-slate-500 mt-0.5 leading-relaxed">Credit/Debit Cards, UPI, Netbanking, Wallets & more.</p>
                   </div>
                 </label>
                 <label
                   className={`flex items-start p-4 border rounded-2xl cursor-pointer transition-all ${paymentMethod === "utr" ? "border-[#B8860B] bg-[#FFF8DC]" : "border-slate-200 hover:border-slate-300"}`}
                 >
-                  <input
-                    type="radio"
-                    name="payment"
-                    value="utr"
-                    checked={paymentMethod === "utr"}
-                    onChange={() => setPaymentMethod("utr")}
-                    className="hidden"
-                  />
-                  <div
-                    className={`mt-0.5 p-2 rounded-xl flex-shrink-0 ${paymentMethod === "utr" ? "bg-[#B8860B]/10" : "bg-slate-100"}`}
-                  >
+                  <input type="radio" name="payment" value="utr" checked={paymentMethod === "utr"} onChange={() => setPaymentMethod("utr")} className="hidden" />
+                  <div className={`mt-0.5 p-2 rounded-xl flex-shrink-0 ${paymentMethod === "utr" ? "bg-[#B8860B]/10" : "bg-slate-100"}`}>
                     <Banknote size={20} className={paymentMethod === "utr" ? "text-[#B8860B]" : "text-slate-500"} />
                   </div>
                   <div className="ml-4 flex-1">
                     <p className="font-bold text-slate-900 text-sm">Submit Order & Upload Payment Receipt</p>
-                    <p className="text-[11px] text-slate-500 mt-0.5 leading-relaxed">
-                      Secure the order now. Transfer via NEFT/RTGS and upload the receipt in your dashboard later.
-                    </p>
+                    <p className="text-[11px] text-slate-500 mt-0.5 leading-relaxed">Secure the order now. Transfer via NEFT/RTGS and upload the receipt in your dashboard later.</p>
                   </div>
                 </label>
                 <label className="flex items-start p-4 border border-slate-100 bg-slate-50 rounded-2xl opacity-60 cursor-not-allowed">
