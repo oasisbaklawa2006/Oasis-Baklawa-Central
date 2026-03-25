@@ -59,7 +59,7 @@ const App = () => (
       <BrowserRouter>
         <LanguageProvider>
         <CurrencyProvider>
-        <CartProvider>
+        
           <Routes>
             <Route path="/splash" element={<Splash />} />
             <Route path="/operations-controller" element={<OperationsController />} />
@@ -183,7 +183,7 @@ const App = () => (
             </Route>
             <Route path="*" element={<NotFound />} />
           </Routes>
-        </CartProvider>
+        
         </CurrencyProvider>
         </LanguageProvider>
       </BrowserRouter>

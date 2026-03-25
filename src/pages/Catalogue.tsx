@@ -120,6 +120,7 @@ const Catalogue = () => {
   const [activeCategory, setActiveCategory] = useState<string | null>(null);
   const { formatPrice } = useCurrency();
   const { addToCart } = useCart();
+  const [isAddingToCart, setIsAddingToCart] = useState(false);
 
   const updateQuantity = (id: string, delta: number) => {
     setQuantities((prev) => {
