@@ -117,6 +117,14 @@ const App = () => (
               }
             />
             <Route
+              path="/account/users"
+              element={
+                <ProtectedRoute>
+                  <ManageUsers />
+                </ProtectedRoute>
+              }
+            />
+            <Route
               path="/documents"
               element={
                 <ProtectedRoute>

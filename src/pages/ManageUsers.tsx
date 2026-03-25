@@ -192,11 +192,6 @@ const ManageUsers = () => {
                       <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
                         <Mail size={12} /> {member.email}
                       </div>
-                      {member.mobile_number && (
-                        <div className="flex items-center gap-1.5 text-xs text-muted-foreground mt-1">
-                          <Phone size={12} /> {member.mobile_number}
-                        </div>
-                      )}
                     </td>
                     <td className="py-4 pr-4">
                       <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-primary/10 text-primary text-xs font-bold">
