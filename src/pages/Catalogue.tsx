@@ -1,7 +1,7 @@
 import AppShell from "@/components/AppShell";
 import { useState } from "react";
 import { useCurrency } from "@/contexts/CurrencyContext";
-import { useCart } from "@/contexts/CartContext";
+import { useCart } from "@/hooks/useCart";
 import {
   Search,
   Star,
