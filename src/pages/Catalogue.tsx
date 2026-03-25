@@ -159,15 +159,6 @@ const Catalogue = () => {
     <AppShell>
       <div className="min-h-screen bg-[#FDFCF8] font-sans pb-32">
 
-        {/* Universal Back Button */}
-        <div className="fixed top-20 left-4 z-40 lg:hidden">
-          <button
-            onClick={() => navigate(-1)}
-            className="w-10 h-10 bg-white/80 backdrop-blur-md rounded-full shadow-md border border-[#C5A059]/20 flex items-center justify-center text-[#C5A059] hover:bg-[#C5A059] hover:text-white transition-colors"
-          >
-            <ChevronLeft size={20} />
-          </button>
-        </div>
 
         <main className="px-4 sm:px-6 max-w-5xl mx-auto space-y-12">
           {/* HEADER & SEARCH */}
