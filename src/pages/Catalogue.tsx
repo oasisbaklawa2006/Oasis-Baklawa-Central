@@ -120,7 +120,6 @@ const Catalogue = () => {
   const [quantities, setQuantities] = useState<Record<string, number>>({});
   const [activeCategory, setActiveCategory] = useState<string | null>(null);
   const { formatPrice } = useCurrency();
-  const [activeCategory, setActiveCategory] = useState<string | null>(null);
 
   const updateQuantity = (id: string, delta: number) => {
     setQuantities((prev) => {
