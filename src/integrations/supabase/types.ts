@@ -981,6 +981,7 @@ export type Database = {
           category: string | null
           category_id: string | null
           created_at: string | null
+          department: string | null
           description: string | null
           dietary_tags: string[] | null
           gst_percentage: number | null
@@ -998,6 +999,7 @@ export type Database = {
           shelf_life: string | null
           sku: string | null
           storage_type: string | null
+          sub_category: string | null
           weight_per_pc_grams: number | null
           wholesale_price: number | null
         }
@@ -1006,6 +1008,7 @@ export type Database = {
           category?: string | null
           category_id?: string | null
           created_at?: string | null
+          department?: string | null
           description?: string | null
           dietary_tags?: string[] | null
           gst_percentage?: number | null
@@ -1023,6 +1026,7 @@ export type Database = {
           shelf_life?: string | null
           sku?: string | null
           storage_type?: string | null
+          sub_category?: string | null
           weight_per_pc_grams?: number | null
           wholesale_price?: number | null
         }
@@ -1031,6 +1035,7 @@ export type Database = {
           category?: string | null
           category_id?: string | null
           created_at?: string | null
+          department?: string | null
           description?: string | null
           dietary_tags?: string[] | null
           gst_percentage?: number | null
@@ -1048,6 +1053,7 @@ export type Database = {
           shelf_life?: string | null
           sku?: string | null
           storage_type?: string | null
+          sub_category?: string | null
           weight_per_pc_grams?: number | null
           wholesale_price?: number | null
         }
