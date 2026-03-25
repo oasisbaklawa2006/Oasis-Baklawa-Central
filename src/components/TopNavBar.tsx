@@ -6,6 +6,7 @@ import NotificationsPanel from "./NotificationsPanel";
 import SearchOverlay from "./SearchOverlay";
 import { supabase } from "@/integrations/supabase/client";
 import { useLanguage } from "@/contexts/LanguageContext";
+import { useCurrency } from "@/contexts/CurrencyContext";
 
 const TopNavBar = () => {
   const [showNotifs, setShowNotifs] = useState(false);
@@ -14,6 +15,7 @@ const TopNavBar = () => {
   const menuRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
   const { lang, setLang, t } = useLanguage();
+  const { currency, setCurrency } = useCurrency();
 
   const handleSignOut = async () => {
     await supabase.auth.signOut();
@@ -60,7 +62,33 @@ const TopNavBar = () => {
             </span>
           </button>
 
-          <button onClick={() => setShowSearch(true)} className="p-2 rounded-full hover:bg-muted transition-colors" aria-label="Search">
+          {/* Currency Toggle Pill */}
+          <button
+            onClick={() => setCurrency(currency === "INR" ? "USD" : "INR")}
+            className="relative flex items-center h-8 w-[68px] rounded-full border border-border bg-muted/60 p-0.5 transition-colors hover:border-primary/40"
+            aria-label="Toggle currency"
+          >
+            <span
+              className={`absolute top-0.5 h-7 w-8 rounded-full bg-primary shadow-sm transition-transform duration-200 ${
+                currency === "USD" ? "translate-x-[34px]" : "translate-x-0.5"
+              }`}
+            />
+            <span
+              className={`relative z-10 flex-1 text-center text-[11px] font-bold transition-colors ${
+                currency === "INR" ? "text-primary-foreground" : "text-muted-foreground"
+              }`}
+            >
+              ₹
+            </span>
+            <span
+              className={`relative z-10 flex-1 text-center text-[11px] font-bold transition-colors ${
+                currency === "USD" ? "text-primary-foreground" : "text-muted-foreground"
+              }`}
+            >
+              $
+            </span>
+          </button>
+
             <Search size={20} className="text-muted-foreground" />
           </button>
           <button
