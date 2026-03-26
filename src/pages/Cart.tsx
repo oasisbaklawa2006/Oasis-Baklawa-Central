@@ -112,12 +112,13 @@ const Cart = () => {
         data: { user },
       } = await supabase.auth.getUser();
       if (user) {
-        const { data: profile } = await supabase.from("profiles").select("company_id").eq("id", user.id).single();
-        if (profile?.company_id) {
+        const { data: userRow } = await supabase.from("users").select("company_id").eq("id", user.id).maybeSingle();
+        const companyId = userRow?.company_id;
+        if (companyId) {
           const { data: addrs } = await supabase
             .from("delivery_addresses")
             .select("*")
-            .eq("company_id", profile.company_id);
+            .eq("company_id", companyId);
           if (addrs && addrs.length > 0) {
             setAddresses(addrs);
             const defaultAddr = addrs.find((a) => a.is_default);
@@ -126,7 +127,7 @@ const Cart = () => {
           const { data: comp } = await supabase
             .from("companies")
             .select("preferred_courier, courier_account_number")
-            .eq("id", profile.company_id)
+            .eq("id", companyId)
             .single();
           if (comp) setTransporter({ name: comp.preferred_courier || "", account: comp.courier_account_number || "" });
         }
