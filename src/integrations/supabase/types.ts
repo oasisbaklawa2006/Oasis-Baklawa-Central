@@ -266,6 +266,7 @@ export type Database = {
           pincode: string
           state: string
           street_address: string
+          user_id: string | null
         }
         Insert: {
           city: string
@@ -279,6 +280,7 @@ export type Database = {
           pincode: string
           state: string
           street_address: string
+          user_id?: string | null
         }
         Update: {
           city?: string
@@ -292,6 +294,7 @@ export type Database = {
           pincode?: string
           state?: string
           street_address?: string
+          user_id?: string | null
         }
         Relationships: [
           {
@@ -838,6 +841,7 @@ export type Database = {
           id: string
           is_export: boolean | null
           payment_cleared: boolean | null
+          payment_receipt_url: string | null
           payment_status: string | null
           port_of_discharge: string | null
           sales_order_value: number | null
@@ -856,6 +860,7 @@ export type Database = {
           id?: string
           is_export?: boolean | null
           payment_cleared?: boolean | null
+          payment_receipt_url?: string | null
           payment_status?: string | null
           port_of_discharge?: string | null
           sales_order_value?: number | null
@@ -874,6 +879,7 @@ export type Database = {
           id?: string
           is_export?: boolean | null
           payment_cleared?: boolean | null
+          payment_receipt_url?: string | null
           payment_status?: string | null
           port_of_discharge?: string | null
           sales_order_value?: number | null
