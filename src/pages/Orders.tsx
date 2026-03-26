@@ -227,6 +227,11 @@ const Orders = () => {
                           </span>
                         )}
 
+                        {/* Document Stage Badge */}
+                        <span className={`px-2.5 py-1 rounded-md text-[10px] font-bold uppercase flex items-center gap-1 border ${getDocStageStyle(order.document_stage)}`}>
+                          {getDocStageLabel(order.document_stage)}
+                        </span>
+
                         {/* Issue Tracking Tag */}
                         {hasIssue ? (
                           <span className="bg-rose-50 text-rose-600 px-2.5 py-1 rounded-md text-[10px] font-bold uppercase flex items-center gap-1 border border-rose-100">
@@ -238,6 +243,13 @@ const Orders = () => {
                           </span>
                         )}
                       </div>
+
+                      {/* E-Way Bill */}
+                      {order.eway_bill_number && (
+                        <p className="text-[10px] font-bold text-slate-500 mt-2">
+                          E-Way Bill: <span className="text-slate-800">{order.eway_bill_number}</span>
+                        </p>
+                      )}
                     </div>
 
                     {/* RIGHT/BOTTOM: Actions */}
@@ -249,10 +261,10 @@ const Orders = () => {
                         <RotateCcw size={14} /> Reorder
                       </button>
                       <button
-                        onClick={() => toast.info("Downloading Tally Invoice...")}
+                        onClick={() => toast.info(`Downloading ${getDownloadLabel(order.document_stage)}...`)}
                         className="flex-1 md:w-full py-2.5 px-4 bg-card border border-border text-foreground rounded-xl text-xs font-bold hover:bg-muted flex items-center justify-center gap-1.5 shadow-sm"
                       >
-                        <Download size={14} /> Invoice
+                        <Download size={14} /> {getDownloadLabel(order.document_stage)}
                       </button>
                       <button
                         onClick={() => toast.info("Opening order details...")}
