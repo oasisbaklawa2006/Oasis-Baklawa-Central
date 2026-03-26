@@ -352,12 +352,15 @@ const Cart = () => {
                 </h2>
                 <div className="space-y-4">
                   {section.items.map((item) => {
-                    // FIX: Safe check for pricing here too
-                    const itemPrice =
-                      (item.product as any)?.wholesale_price ||
-                      (item.product as any)?.mrp ||
-                      item.product?.price_per_kg ||
-                      0;
+                    const p = item.product as any;
+                    const pricePerKg = p?.price_per_kg || 0;
+                    const boxWeightKg = p?.avg_weight_per_pack || (p?.net_weight_grams ? p.net_weight_grams / 1000 : 0);
+                    let itemPrice: number;
+                    if (pricePerKg > 0 && boxWeightKg > 0) {
+                      itemPrice = pricePerKg * boxWeightKg;
+                    } else {
+                      itemPrice = p?.wholesale_price || p?.mrp || pricePerKg || 0;
+                    }
                     const itemTotal = item.quantity * itemPrice;
 
                     const boxWeight = (item.product as any)?.avg_weight_per_pack || ((item.product as any)?.net_weight_grams ? (item.product as any).net_weight_grams / 1000 : null);
