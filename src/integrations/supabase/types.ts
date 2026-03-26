@@ -207,6 +207,7 @@ export type Database = {
       }
       companies: {
         Row: {
+          allow_credit: boolean | null
           business_name: string
           business_volume: string | null
           courier_account_number: string | null
@@ -222,6 +223,7 @@ export type Database = {
           website: string | null
         }
         Insert: {
+          allow_credit?: boolean | null
           business_name: string
           business_volume?: string | null
           courier_account_number?: string | null
@@ -237,6 +239,7 @@ export type Database = {
           website?: string | null
         }
         Update: {
+          allow_credit?: boolean | null
           business_name?: string
           business_volume?: string | null
           courier_account_number?: string | null
