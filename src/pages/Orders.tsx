@@ -243,6 +243,12 @@ const Orders = () => {
           </div>
         )}
       </div>
+
+      <SmartReorderModal
+        open={!!reorderOrder}
+        onClose={() => setReorderOrder(null)}
+        order={reorderOrder}
+      />
     </AppShell>
   );
 };
