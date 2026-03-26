@@ -17,16 +17,16 @@ import {
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
 
-import { calculatePackPrice, calculateCartonPrice, getDisplayPrice, getProductCategory, getPacksPerCarton, getMinOrderQty, getPrimaryPackWeightKg } from "@/utils/pricing";
+import { calculatePackPrice, calculateCartonPrice, getDisplayPrice, getProductCategory, getPacksPerCarton, getMinOrderQty, getPrimaryPackWeightKg, getBasePricePerKg, getBasePricePerPc } from "@/utils/pricing";
 
-const getPackInfo = (p: any): string => {
+const getPackSubtitle = (p: any): string => {
   const cat = getProductCategory(p);
   const perCarton = getPacksPerCarton(p);
   const weightKg = getPrimaryPackWeightKg(p);
   if (cat === "bulk_kg" && weightKg > 0) {
-    return `${weightKg}kg/pack · ${perCarton} packs/carton`;
+    return `${weightKg}kg / box · ${perCarton} boxes / carton`;
   }
-  return `${perCarton} pcs/carton`;
+  return `${perCarton} pcs / carton`;
 };
 
 const Catalogue = () => {
@@ -272,7 +272,7 @@ const Catalogue = () => {
                               <p className="text-[10px] text-muted-foreground font-mono mt-0.5">{item.sku || "—"}</p>
                             </div>
                           </td>
-                          <td className="p-4 text-xs font-medium text-muted-foreground">{getPackInfo(item)}</td>
+                          <td className="p-4 text-xs font-medium text-muted-foreground">{getPackSubtitle(item)}</td>
                           <td className="p-4 text-sm font-bold text-foreground">
                             {formatPrice(getDisplayPrice(item).price)}
                             <span className="text-[10px] text-muted-foreground font-normal ml-1">{getDisplayPrice(item).unit}</span>
@@ -327,22 +327,34 @@ const Catalogue = () => {
                       onClick={() => navigate(`/product/${item.id}`)}
                       className="bg-card border border-border rounded-2xl p-4 shadow-sm hover:border-primary/50 hover:shadow-md transition-all cursor-pointer group"
                     >
-                      <div className="h-36 mb-4 rounded-xl overflow-hidden bg-muted flex items-center justify-center p-2">
+                      <div className="h-36 mb-4 rounded-xl overflow-hidden bg-slate-100 flex items-center justify-center p-2">
                         <img
                           src={item.image_url || "/placeholder.svg"}
-                          className="w-full h-full object-contain group-hover:scale-105 transition-transform duration-500"
+                          className="w-full h-full object-contain mix-blend-multiply group-hover:scale-105 transition-transform duration-500"
                           alt={item.name}
                         />
                       </div>
                       <h3 className="font-bold text-foreground text-sm mb-1 line-clamp-2">{item.name}</h3>
-                      <p className="text-[10px] text-muted-foreground font-medium uppercase tracking-wider mb-1">{getPackInfo(item)}</p>
-                      {item.category && <p className="text-[10px] text-primary font-bold mb-1">{item.category}</p>}
-                      {item.sku && <p className="text-[10px] text-muted-foreground font-mono mb-3">{item.sku}</p>}
+                      <p className="text-xs text-muted-foreground font-medium capitalize mb-3">{getPackSubtitle(item)}</p>
                       <div className="flex items-center justify-between">
-                        <p className="font-black text-sm text-foreground">
-                          {formatPrice(getDisplayPrice(item).price)}
-                          <span className="text-[9px] text-muted-foreground font-normal ml-0.5">{getDisplayPrice(item).unit}</span>
-                        </p>
+                        <div>
+                          {getProductCategory(item) === "bulk_kg" ? (
+                            <>
+                              <p className="text-lg font-bold text-foreground">
+                                {formatPrice(calculatePackPrice(item))}
+                                <span className="text-xs text-muted-foreground font-normal ml-1">/ box</span>
+                              </p>
+                              <p className="text-xs text-muted-foreground">
+                                (₹{getBasePricePerKg(item).toLocaleString("en-IN")} / kg)
+                              </p>
+                            </>
+                          ) : (
+                            <p className="text-lg font-bold text-foreground">
+                              {formatPrice(getBasePricePerPc(item))}
+                              <span className="text-xs text-muted-foreground font-normal ml-1">/ pc</span>
+                            </p>
+                          )}
+                        </div>
                         <button
                           onClick={async (e) => {
                             e.stopPropagation();
