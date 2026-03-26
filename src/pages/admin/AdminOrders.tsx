@@ -75,6 +75,8 @@ const AdminOrders = () => {
   const [selectedOrder, setSelectedOrder] = useState<OrderCard | null>(null);
   const [drawerItems, setDrawerItems] = useState<OrderItem[]>([]);
   const [drawerLoading, setDrawerLoading] = useState(false);
+  const [ewayInput, setEwayInput] = useState("");
+  const [financeUpdating, setFinanceUpdating] = useState(false);
 
   const fetchOrders = async () => {
     setLoading(true);
