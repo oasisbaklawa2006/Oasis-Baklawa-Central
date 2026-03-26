@@ -352,13 +352,13 @@ const Cart = () => {
                 <div className="space-y-4">
                   {section.items.map((item) => {
                     const p = item.product as any;
-                    const pricePerKg = p?.price_per_kg || 0;
+                    const perKg = p?.price_per_kg || p?.wholesale_price || p?.base_price || 0;
                     const boxWeightKg = p?.avg_weight_per_pack || (p?.net_weight_grams ? p.net_weight_grams / 1000 : 0);
                     let itemPrice: number;
-                    if (pricePerKg > 0 && boxWeightKg > 0) {
-                      itemPrice = pricePerKg * boxWeightKg;
+                    if (perKg > 0 && boxWeightKg > 0) {
+                      itemPrice = perKg * boxWeightKg;
                     } else {
-                      itemPrice = p?.wholesale_price || p?.mrp || pricePerKg || 0;
+                      itemPrice = p?.mrp || perKg || 0;
                     }
                     const itemTotal = item.quantity * itemPrice;
 
