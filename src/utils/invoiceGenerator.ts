@@ -169,8 +169,8 @@ export function generateProFormaInvoice(
     styles: {
       fontSize: 7,
       cellPadding: 2.5,
-      textColor: darkText as unknown as number[],
-      lineColor: [220, 220, 220],
+      textColor: [30, 30, 30] as [number, number, number],
+      lineColor: [220, 220, 220] as [number, number, number],
       lineWidth: 0.2,
     },
     headStyles: {
