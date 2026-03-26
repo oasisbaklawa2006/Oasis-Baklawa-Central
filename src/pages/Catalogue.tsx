@@ -32,6 +32,7 @@ const Catalogue = () => {
   );
   const [activeSubCategory, setActiveSubCategory] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
+  const activeFestival = searchParams.get("festival");
   const { formatPrice } = useCurrency();
   const { addToCart } = useCart();
   const { products, loading: productsLoading } = useProducts();
@@ -56,9 +57,16 @@ const Catalogue = () => {
   // Reset sub-category when primary category changes
   const effectiveSubCategory = activeCategory ? activeSubCategory : null;
 
-  // Filter products by search + category + sub-category
+  const clearFestivalFilter = () => {
+    const newParams = new URLSearchParams(searchParams);
+    newParams.delete("festival");
+    navigate({ search: newParams.toString() }, { replace: true });
+  };
+
+  // Filter products by search + category + sub-category + festival
   const filtered = useMemo(() => {
     return products.filter((p) => {
+      if (activeFestival && !(p.festival_tags || "").toLowerCase().includes(activeFestival.toLowerCase())) return false;
       if (activeCategory && p.category !== activeCategory) return false;
       if (effectiveSubCategory && p.sub_category !== effectiveSubCategory) return false;
       if (!searchQuery) return true;
@@ -69,7 +77,7 @@ const Catalogue = () => {
         (p.category?.toLowerCase().includes(q))
       );
     });
-  }, [products, activeCategory, effectiveSubCategory, searchQuery]);
+  }, [products, activeCategory, effectiveSubCategory, searchQuery, activeFestival]);
 
   // Quick order uses first 6 filtered products
   const quickOrderProducts = filtered.slice(0, 6);
