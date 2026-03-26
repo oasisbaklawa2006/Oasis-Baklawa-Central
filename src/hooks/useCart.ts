@@ -54,6 +54,7 @@ export function useCart() {
       const cid = data?.company_id ?? null;
       console.log("[useCart] company_id fetched:", cid);
       setCompanyId(cid);
+      setCompanyIdResolved(true);
     };
 
     fetchCompany();
