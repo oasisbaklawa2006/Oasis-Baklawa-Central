@@ -12,14 +12,13 @@ import {
   ChevronLeft,
   CreditCard,
   Banknote,
-  Smartphone,
   X,
-  Lock,
   Printer,
   ShieldAlert,
   MapPin,
   Truck,
-  Building2,
+  Plus,
+  Wallet,
 } from "lucide-react";
 import { useCart } from "@/hooks/useCart";
 import { supabase } from "@/integrations/supabase/client";
@@ -88,17 +87,29 @@ interface MoqViolation {
   mode: "hard_stop" | "warning";
 }
 
+const emptyAddress = { label: "", street_address: "", city: "", state: "", pincode: "", contact_person: "", contact_phone: "" };
+
 const Cart = () => {
   const navigate = useNavigate();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
-  const [paymentMethod, setPaymentMethod] = useState("utr");
+  const [paymentMethod, setPaymentMethod] = useState("upload_receipt");
   const [moqRules, setMoqRules] = useState<MoqRule[]>([]);
 
   // Logistics State
   const [addresses, setAddresses] = useState<any[]>([]);
   const [selectedAddress, setSelectedAddress] = useState("");
   const [transporter, setTransporter] = useState({ name: "", account: "" });
+  const [companyId, setCompanyId] = useState<string | null>(null);
+  const [allowCredit, setAllowCredit] = useState(false);
+
+  // Quick-add address form
+  const [showAddressForm, setShowAddressForm] = useState(false);
+  const [newAddress, setNewAddress] = useState(emptyAddress);
+  const [savingAddress, setSavingAddress] = useState(false);
+
+  // Token deposit
+  const [depositAmount, setDepositAmount] = useState("");
 
   const { draftOrder, items, updateQuantity, fetchCart, loading: cartLoading } = useCart();
 
@@ -107,27 +118,32 @@ const Cart = () => {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
     const { data: userRow } = await supabase.from("users").select("company_id").eq("id", user.id).maybeSingle();
-    const companyId = userRow?.company_id;
-    if (!companyId) return;
+    const cid = userRow?.company_id;
+    if (!cid) return;
+    setCompanyId(cid);
 
     const { data: addrs } = await supabase
       .from("delivery_addresses")
       .select("*")
-      .eq("company_id", companyId);
+      .eq("company_id", cid);
     if (addrs && addrs.length > 0) {
       setAddresses(addrs);
       const defaultAddr = addrs.find((a: any) => a.is_default);
       setSelectedAddress(defaultAddr ? defaultAddr.id : addrs[0].id);
     } else {
       setAddresses([]);
+      setShowAddressForm(true); // Auto-show form if no addresses
     }
 
     const { data: comp } = await supabase
       .from("companies")
-      .select("preferred_courier, courier_account_number")
-      .eq("id", companyId)
+      .select("preferred_courier, courier_account_number, allow_credit")
+      .eq("id", cid)
       .single();
-    if (comp) setTransporter({ name: comp.preferred_courier || "", account: comp.courier_account_number || "" });
+    if (comp) {
+      setTransporter({ name: comp.preferred_courier || "", account: comp.courier_account_number || "" });
+      setAllowCredit(!!(comp as any).allow_credit);
+    }
   }, []);
 
   // Fetch active MOQ rules & Logistics
@@ -156,14 +172,13 @@ const Cart = () => {
   }, 0);
 
   const grandTotal = Math.round(subtotal + totalTax);
+  const minimumToken = Math.ceil(grandTotal * 0.2);
 
   // Sealed carton check across all sections
   const hasIncompleteCartons = sections.some((section) => {
     if (section.category === "premium_pc") {
-      // Premium: each item must be individually sealed
       return section.items.some((item) => !isCartonSealed(item.product, item.quantity));
     }
-    // Bulk & Ready: group total must be sealed
     const totalQty = section.items.reduce((s, it) => s + it.quantity, 0);
     return totalQty > 0 && totalQty % section.perCarton !== 0;
   });
@@ -183,41 +198,25 @@ const Cart = () => {
         const totalQty = matchingItems.reduce((s, it) => s + it.quantity, 0);
         if (matchingItems.length > 0 && totalQty < minQty) {
           const productName = matchingItems[0]?.product?.name || "Product";
-          violations.push({
-            ruleName: productName,
-            message: `${productName} requires minimum ${minQty} units (you have ${totalQty})`,
-            mode,
-          });
+          violations.push({ ruleName: productName, message: `${productName} requires minimum ${minQty} units (you have ${totalQty})`, mode });
         }
       } else if (rule.rule_scope === "category" && rule.category_id) {
         const matchingItems = sortedItems.filter((it) => (it.product as any)?.category_id === rule.category_id);
         const totalQty = matchingItems.reduce((s, it) => s + it.quantity, 0);
         if (matchingItems.length > 0 && totalQty < minQty) {
-          violations.push({
-            ruleName: `Category`,
-            message: `This category requires minimum ${minQty} units (you have ${totalQty})`,
-            mode,
-          });
+          violations.push({ ruleName: `Category`, message: `This category requires minimum ${minQty} units (you have ${totalQty})`, mode });
         }
       } else if (rule.rule_scope === "global") {
         const totalQty = sortedItems.reduce((s, it) => s + it.quantity, 0);
         if (totalQty < minQty) {
-          violations.push({
-            ruleName: "Global MOQ",
-            message: `Minimum order quantity is ${minQty} units (you have ${totalQty})`,
-            mode,
-          });
+          violations.push({ ruleName: "Global MOQ", message: `Minimum order quantity is ${minQty} units (you have ${totalQty})`, mode });
         }
       } else if (rule.rule_scope === "carton_type" && rule.carton_type) {
         const matchingSection = sections.find((s) => s.cartonType.toLowerCase() === rule.carton_type!.toLowerCase());
         if (matchingSection) {
           const totalQty = matchingSection.items.reduce((s, it) => s + it.quantity, 0);
           if (totalQty < minQty) {
-            violations.push({
-              ruleName: `Carton ${rule.carton_type}`,
-              message: `Carton type ${rule.carton_type} requires minimum ${minQty} units (you have ${totalQty})`,
-              mode,
-            });
+            violations.push({ ruleName: `Carton ${rule.carton_type}`, message: `Carton type ${rule.carton_type} requires minimum ${minQty} units (you have ${totalQty})`, mode });
           }
         }
       }
@@ -251,18 +250,38 @@ const Cart = () => {
     const increment = getQtyIncrement(product);
     const minQty = getMinOrderQty(product);
     const newQty = currentQty + (delta > 0 ? increment : -increment);
-    
+
     if (newQty <= 0) {
-      await updateQuantity(itemId, 0); // remove
+      await updateQuantity(itemId, 0);
     } else if (newQty < minQty) {
-      await updateQuantity(itemId, 0); // below MOQ = remove
+      await updateQuantity(itemId, 0);
     } else {
       await updateQuantity(itemId, newQty);
     }
   };
 
+  const handleSaveAddress = async () => {
+    if (!companyId) { toast.error("Company not found. Please contact support."); return; }
+    if (!newAddress.label || !newAddress.street_address || !newAddress.city || !newAddress.state || !newAddress.pincode) {
+      toast.error("Please fill all required fields.");
+      return;
+    }
+    setSavingAddress(true);
+    const isFirst = addresses.length === 0;
+    const { error } = await supabase.from("delivery_addresses").insert({
+      ...newAddress,
+      company_id: companyId,
+      is_default: isFirst,
+    });
+    setSavingAddress(false);
+    if (error) { toast.error("Failed to save address."); return; }
+    toast.success("Address saved!");
+    setNewAddress(emptyAddress);
+    setShowAddressForm(false);
+    await fetchAddresses();
+  };
+
   const handlePrintSO = async () => {
-    // Fetch company details for the invoice
     let companyDetails: { business_name: string; gst_number?: string | null } | null = null;
     const { data: { user } } = await supabase.auth.getUser();
     if (user) {
@@ -278,23 +297,46 @@ const Cart = () => {
   };
 
   const handleFinalSubmit = async () => {
-    if (paymentMethod === "gateway") {
-      toast.info("Payment Gateway Integration Pending");
+    if (paymentMethod === "pay_online") {
+      toast.info("Online Payment Gateway — Coming Soon");
       return;
     }
     if (!draftOrder) return;
+
+    // Validate deposit for non-credit paths
+    if (paymentMethod !== "credit") {
+      const deposit = parseFloat(depositAmount);
+      if (isNaN(deposit) || deposit < minimumToken) {
+        toast.error(`Confirmation Deposit must be at least ${formatPrice(minimumToken)} (20% of order value).`);
+        return;
+      }
+    }
+
     setIsSubmitting(true);
     try {
+      const updatePayload: any = {
+        status: "submitted",
+        sales_order_value: grandTotal,
+        document_stage: "SO",
+        payment_status: paymentMethod === "credit" ? "on_credit" : "awaiting_receipt",
+      };
+
+      if (paymentMethod !== "credit") {
+        const deposit = parseFloat(depositAmount);
+        updatePayload.advance_required = deposit;
+      }
+
       const { error } = await supabase
         .from("orders")
-        .update({
-          status: "submitted",
-          sales_order_value: grandTotal,
-          payment_status: "awaiting_receipt",
-        })
+        .update(updatePayload)
         .eq("id", draftOrder.id);
       if (error) throw error;
-      toast.success("Order logged! Awaiting payment receipt verification.");
+
+      if (paymentMethod === "credit") {
+        toast.success("Sales Order confirmed on credit terms!");
+      } else {
+        toast.success("Sales Order submitted! Please upload your payment receipt.");
+      }
       setShowPaymentModal(false);
       setTimeout(() => navigate("/orders"), 1500);
     } catch (error) {
@@ -308,8 +350,8 @@ const Cart = () => {
     return (
       <AppShell>
         <div className="px-5 py-6 flex flex-col items-center justify-center min-h-[60vh]">
-          <Loader2 className="w-8 h-8 animate-spin text-[#C5A059]" />
-          <p className="mt-4 text-slate-500 font-medium">Fetching your order...</p>
+          <Loader2 className="w-8 h-8 animate-spin text-primary" />
+          <p className="mt-4 text-muted-foreground font-medium">Fetching your order...</p>
         </div>
       </AppShell>
     );
@@ -318,9 +360,9 @@ const Cart = () => {
     return (
       <AppShell>
         <div className="px-5 pt-10 flex flex-col items-center justify-start min-h-[60vh] space-y-4">
-          <ShoppingCart size={48} className="text-slate-300" />
+          <ShoppingCart size={48} className="text-muted-foreground/30" />
           <h1 className="font-display text-2xl tracking-wide">Your Order is Empty</h1>
-          <button onClick={() => navigate("/catalogue")} className="text-[#C5A059] font-bold">
+          <button onClick={() => navigate("/catalogue")} className="text-primary font-bold">
             Browse Catalogue
           </button>
         </div>
@@ -346,14 +388,14 @@ const Cart = () => {
       <div className="px-5 pt-8 space-y-6 pb-32 max-w-3xl mx-auto flex flex-col justify-start min-h-screen">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <button onClick={() => navigate(-1)} className="p-2 -ml-2 hover:bg-slate-100 rounded-full">
+            <button onClick={() => navigate(-1)} className="p-2 -ml-2 hover:bg-muted rounded-full">
               <ChevronLeft size={24} />
             </button>
-            <h1 className="font-display text-2xl tracking-wide">Review Order</h1>
+            <h1 className="font-display text-2xl tracking-wide">Sales Order (SO)</h1>
           </div>
           <button
             onClick={handlePrintSO}
-            className="flex items-center gap-1.5 bg-slate-100 text-slate-700 px-3 py-2 rounded-xl text-xs font-bold hover:bg-slate-200 transition-colors"
+            className="flex items-center gap-1.5 bg-muted text-muted-foreground px-3 py-2 rounded-xl text-xs font-bold hover:bg-muted/80 transition-colors"
           >
             <Printer size={14} /> Pro-Forma
           </button>
@@ -366,9 +408,7 @@ const Cart = () => {
               <ShieldAlert size={14} /> MOQ Requirements Not Met
             </p>
             {hardStopViolations.map((v, i) => (
-              <p key={i} className="text-[11px] text-red-700 font-medium pl-5">
-                • {v.message}
-              </p>
+              <p key={i} className="text-[11px] text-red-700 font-medium pl-5">• {v.message}</p>
             ))}
           </div>
         )}
@@ -380,9 +420,7 @@ const Cart = () => {
               <AlertTriangle size={14} /> MOQ Advisory
             </p>
             {warningViolations.map((v, i) => (
-              <p key={i} className="text-[11px] text-amber-700 font-medium pl-5">
-                • {v.message}
-              </p>
+              <p key={i} className="text-[11px] text-amber-700 font-medium pl-5">• {v.message}</p>
             ))}
           </div>
         )}
@@ -394,7 +432,6 @@ const Cart = () => {
             const isPremium = section.category === "premium_pc";
             const isBulk = section.category === "bulk_kg";
 
-            // For premium, check each item individually
             const sectionSealed = isPremium
               ? section.items.every((item) => isCartonSealed(item.product, item.quantity))
               : sectionQty % section.perCarton === 0;
@@ -405,16 +442,16 @@ const Cart = () => {
             return (
               <motion.section
                 key={section.key}
-                className={`bg-white rounded-[2rem] p-5 border shadow-sm ${!sectionSealed ? "border-amber-200" : "border-slate-100"}`}
+                className={`bg-card rounded-[2rem] p-5 border shadow-sm ${!sectionSealed ? "border-amber-200" : "border-border"}`}
               >
-                <h2 className="font-bold text-slate-800 text-sm mb-1">
+                <h2 className="font-bold text-foreground text-sm mb-1">
                   {categoryLabel} — 1 Carton = {section.perCarton} {isBulk ? "Packs" : "Pcs"}
                   {isBulk && (() => {
                     const w = getPrimaryPackWeightKg(section.items[0]?.product);
                     return w ? ` of ${w} Kg Each` : "";
                   })()}
                 </h2>
-                <p className="text-[10px] text-slate-400 mb-4 uppercase tracking-wider">
+                <p className="text-[10px] text-muted-foreground mb-4 uppercase tracking-wider">
                   {section.cartonType}
                 </p>
 
@@ -426,19 +463,16 @@ const Cart = () => {
                     const lineTax = calculateLineTax(p, item.quantity);
                     const gstRate = getGstRate(p);
                     const hsn = getHsnCode(p);
-                    const cat = getProductCategory(p);
                     const weightKg = getPrimaryPackWeightKg(p);
                     const perCarton = getPacksPerCarton(p);
                     const increment = getQtyIncrement(p);
 
-                    // For premium, individual sealed check
                     const itemSealed = isPremium ? isCartonSealed(p, item.quantity) : true;
                     const itemNeeded = isPremium ? unitsToFillCarton(p, item.quantity) : 0;
 
                     return (
                       <div key={item.id}>
                         <div className="flex items-center justify-between">
-                          {/* Product Thumbnail */}
                           <div className="w-16 h-16 rounded-xl bg-muted/30 flex items-center justify-center flex-shrink-0 mr-3 overflow-hidden">
                             {p?.image_url ? (
                               <img src={p.image_url} alt={p?.name || ""} className="w-full h-full object-contain mix-blend-multiply" />
@@ -451,35 +485,34 @@ const Cart = () => {
                               {p?.name}
                               {isBulk && weightKg ? ` (${weightKg}kg)` : ""}
                             </p>
-                            <p className="text-[10px] text-slate-500 font-medium mt-0.5">
+                            <p className="text-[10px] text-muted-foreground font-medium mt-0.5">
                               {isBulk
                                 ? `₹${getDisplayPrice(p).price}/kg × ${weightKg}kg = ${formatPrice(unitPrice)}/pack`
                                 : `${formatPrice(unitPrice)}/pc`}
                             </p>
-                            <p className="text-[10px] text-slate-500 font-bold mt-0.5">
-                              Qty: {item.quantity} × {formatPrice(unitPrice)} = <span className="text-slate-800">{formatPrice(lineTotal)}</span>
+                            <p className="text-[10px] text-muted-foreground font-bold mt-0.5">
+                              Qty: {item.quantity} × {formatPrice(unitPrice)} = <span className="text-foreground">{formatPrice(lineTotal)}</span>
                             </p>
-                            <p className="text-[9px] text-slate-400 mt-0.5">
+                            <p className="text-[9px] text-muted-foreground mt-0.5">
                               GST @{gstRate}%: {formatPrice(lineTax)} {hsn ? `| HSN: ${hsn}` : ""}
                             </p>
                           </div>
-                          <div className="flex items-center bg-slate-50 rounded-xl p-1 border border-slate-200">
+                          <div className="flex items-center bg-muted/50 rounded-xl p-1 border border-border">
                             <button
                               onClick={() => handleQtyChange(item.id, item.quantity, -1, p)}
-                              className="w-8 h-8 rounded-lg bg-white shadow-sm font-bold"
+                              className="w-8 h-8 rounded-lg bg-card shadow-sm font-bold"
                             >
-                              {item.quantity <= increment ? <Trash2 size={12} className="text-red-500 mx-auto" /> : "−"}
+                              {item.quantity <= increment ? <Trash2 size={12} className="text-destructive mx-auto" /> : "−"}
                             </button>
                             <span className="font-bold text-xs w-8 text-center">{item.quantity}</span>
                             <button
                               onClick={() => handleQtyChange(item.id, item.quantity, 1, p)}
-                              className="w-8 h-8 rounded-lg bg-[#C5A059] text-white shadow-sm font-bold"
+                              className="w-8 h-8 rounded-lg bg-primary text-primary-foreground shadow-sm font-bold"
                             >
                               +
                             </button>
                           </div>
                         </div>
-                        {/* Premium individual carton warning */}
                         {isPremium && !itemSealed && (
                           <div className="mt-2 bg-amber-50 rounded-lg p-2 border border-amber-200">
                             <p className="text-[10px] text-amber-800 font-bold">
@@ -494,7 +527,7 @@ const Cart = () => {
 
                 {/* Section carton status (for non-premium) */}
                 {!isPremium && (
-                  <div className="pt-4 mt-5 border-t border-slate-100">
+                  <div className="pt-4 mt-5 border-t border-border">
                     {!sectionSealed ? (
                       <div className="bg-amber-50 rounded-xl p-4 border border-amber-200 shadow-inner">
                         <p className="text-xs font-bold text-amber-900 mb-3 flex items-center gap-1.5">
@@ -511,14 +544,14 @@ const Cart = () => {
                             <button
                               key={`suggest-${item.id}`}
                               onClick={() => handleSmartAdd(item.id, item.quantity, sectionNeeded)}
-                              className="px-3 py-2 bg-white border border-amber-200 text-amber-900 rounded-lg text-[10px] font-bold shadow-sm hover:bg-amber-100 transition-colors flex-1 min-w-[120px]"
+                              className="px-3 py-2 bg-card border border-amber-200 text-amber-900 rounded-lg text-[10px] font-bold shadow-sm hover:bg-amber-100 transition-colors flex-1 min-w-[120px]"
                             >
                               +{sectionNeeded} {item.product?.name}
                             </button>
                           ))}
                           <button
                             onClick={() => handleAutoOptimize(section)}
-                            className="w-full mt-1 bg-[#C5A059] text-white py-2.5 rounded-lg text-xs font-bold flex justify-center items-center gap-2 shadow-sm hover:bg-[#B38F48]"
+                            className="w-full mt-1 bg-primary text-primary-foreground py-2.5 rounded-lg text-xs font-bold flex justify-center items-center gap-2 shadow-sm hover:bg-primary/90"
                           >
                             <Wand2 size={14} /> Auto-Fill Mix
                           </button>
@@ -540,42 +573,30 @@ const Cart = () => {
         </div>
 
         {/* LOGISTICS SECTION */}
-        <motion.section className="bg-white rounded-[2rem] p-6 border border-slate-100 shadow-sm space-y-6">
-          <div className="flex items-center gap-2 border-b border-gray-100 pb-3">
-            <MapPin className="text-[#C5A059]" size={20} />
-            <h2 className="font-serif text-xl font-bold text-gray-900">Delivery Logistics</h2>
+        <motion.section className="bg-card rounded-[2rem] p-6 border border-border shadow-sm space-y-6">
+          <div className="flex items-center gap-2 border-b border-border pb-3">
+            <MapPin className="text-primary" size={20} />
+            <h2 className="font-serif text-xl font-bold text-foreground">Delivery Logistics</h2>
           </div>
 
           <div>
-            <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-3">
+            <label className="block text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-3">
               Select Delivery Warehouse
             </label>
-            {addresses.length === 0 ? (
-              <div className="flex items-center justify-between text-xs text-amber-600 font-bold bg-amber-50 p-3 rounded-xl border border-amber-100">
-                <span>No addresses found. Add one in Account Settings to continue.</span>
-                <button onClick={fetchAddresses} className="ml-2 underline hover:text-amber-800 whitespace-nowrap">↻ Retry</button>
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            {addresses.length > 0 && (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
                 {addresses.map((addr) => (
                   <label
                     key={addr.id}
-                    className={`flex items-start gap-3 p-4 rounded-2xl border-2 cursor-pointer transition-all ${selectedAddress === addr.id ? "border-[#C5A059] bg-[#C5A059]/5" : "border-gray-100 hover:border-gray-200"}`}
+                    className={`flex items-start gap-3 p-4 rounded-2xl border-2 cursor-pointer transition-all ${selectedAddress === addr.id ? "border-primary bg-primary/5" : "border-border hover:border-primary/30"}`}
                   >
-                    <input
-                      type="radio"
-                      checked={selectedAddress === addr.id}
-                      onChange={() => setSelectedAddress(addr.id)}
-                      className="hidden"
-                    />
-                    <div
-                      className={`w-4 h-4 rounded-full border-2 mt-0.5 flex items-center justify-center shrink-0 ${selectedAddress === addr.id ? "border-[#C5A059]" : "border-gray-300"}`}
-                    >
-                      {selectedAddress === addr.id && <div className="w-2 h-2 bg-[#C5A059] rounded-full" />}
+                    <input type="radio" checked={selectedAddress === addr.id} onChange={() => setSelectedAddress(addr.id)} className="hidden" />
+                    <div className={`w-4 h-4 rounded-full border-2 mt-0.5 flex items-center justify-center shrink-0 ${selectedAddress === addr.id ? "border-primary" : "border-muted-foreground/30"}`}>
+                      {selectedAddress === addr.id && <div className="w-2 h-2 bg-primary rounded-full" />}
                     </div>
                     <div>
-                      <p className="font-bold text-sm text-gray-900">{addr.label}</p>
-                      <p className="text-[11px] text-gray-500 mt-1 line-clamp-2">
+                      <p className="font-bold text-sm text-foreground">{addr.label}</p>
+                      <p className="text-[11px] text-muted-foreground mt-1 line-clamp-2">
                         {addr.street_address}, {addr.city}
                       </p>
                     </div>
@@ -583,16 +604,104 @@ const Cart = () => {
                 ))}
               </div>
             )}
+
+            {/* Add New Address toggle */}
+            {!showAddressForm && (
+              <button
+                onClick={() => setShowAddressForm(true)}
+                className="w-full flex items-center justify-center gap-2 p-3 border-2 border-dashed border-primary/30 rounded-2xl text-primary text-xs font-bold hover:bg-primary/5 transition-colors"
+              >
+                <Plus size={14} /> Add New Delivery Address
+              </button>
+            )}
+
+            {/* Quick Add Address Form */}
+            <AnimatePresence>
+              {showAddressForm && (
+                <motion.div
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: "auto" }}
+                  exit={{ opacity: 0, height: 0 }}
+                  className="overflow-hidden"
+                >
+                  <div className="bg-muted/30 rounded-2xl p-4 border border-border space-y-3 mt-3">
+                    <p className="text-xs font-bold text-foreground uppercase tracking-wider">Quick Add Address</p>
+                    <div className="grid grid-cols-2 gap-3">
+                      <input
+                        placeholder="Label (e.g. Main Warehouse)*"
+                        value={newAddress.label}
+                        onChange={(e) => setNewAddress({ ...newAddress, label: e.target.value })}
+                        className="col-span-2 text-xs p-3 rounded-xl border border-border bg-card focus:ring-2 focus:ring-primary/30 outline-none"
+                      />
+                      <input
+                        placeholder="Street Address*"
+                        value={newAddress.street_address}
+                        onChange={(e) => setNewAddress({ ...newAddress, street_address: e.target.value })}
+                        className="col-span-2 text-xs p-3 rounded-xl border border-border bg-card focus:ring-2 focus:ring-primary/30 outline-none"
+                      />
+                      <input
+                        placeholder="City*"
+                        value={newAddress.city}
+                        onChange={(e) => setNewAddress({ ...newAddress, city: e.target.value })}
+                        className="text-xs p-3 rounded-xl border border-border bg-card focus:ring-2 focus:ring-primary/30 outline-none"
+                      />
+                      <input
+                        placeholder="State*"
+                        value={newAddress.state}
+                        onChange={(e) => setNewAddress({ ...newAddress, state: e.target.value })}
+                        className="text-xs p-3 rounded-xl border border-border bg-card focus:ring-2 focus:ring-primary/30 outline-none"
+                      />
+                      <input
+                        placeholder="Pincode*"
+                        value={newAddress.pincode}
+                        onChange={(e) => setNewAddress({ ...newAddress, pincode: e.target.value })}
+                        className="text-xs p-3 rounded-xl border border-border bg-card focus:ring-2 focus:ring-primary/30 outline-none"
+                      />
+                      <input
+                        placeholder="Contact Person"
+                        value={newAddress.contact_person}
+                        onChange={(e) => setNewAddress({ ...newAddress, contact_person: e.target.value })}
+                        className="text-xs p-3 rounded-xl border border-border bg-card focus:ring-2 focus:ring-primary/30 outline-none"
+                      />
+                      <input
+                        placeholder="Contact Phone"
+                        value={newAddress.contact_phone}
+                        onChange={(e) => setNewAddress({ ...newAddress, contact_phone: e.target.value })}
+                        className="col-span-2 text-xs p-3 rounded-xl border border-border bg-card focus:ring-2 focus:ring-primary/30 outline-none"
+                      />
+                    </div>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={handleSaveAddress}
+                        disabled={savingAddress}
+                        className="flex-1 py-2.5 bg-primary text-primary-foreground rounded-xl text-xs font-bold hover:bg-primary/90 disabled:opacity-50 flex items-center justify-center gap-1.5"
+                      >
+                        {savingAddress ? <Loader2 size={12} className="animate-spin" /> : <CheckCircle2 size={12} />}
+                        Save Address
+                      </button>
+                      {addresses.length > 0 && (
+                        <button
+                          onClick={() => { setShowAddressForm(false); setNewAddress(emptyAddress); }}
+                          className="px-4 py-2.5 bg-muted text-muted-foreground rounded-xl text-xs font-bold hover:bg-muted/80"
+                        >
+                          Cancel
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
           </div>
 
-          <div className="pt-4 border-t border-gray-100">
-            <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-3 flex items-center gap-1">
+          <div className="pt-4 border-t border-border">
+            <label className="block text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-3 flex items-center gap-1">
               <Truck size={12} /> Assigned Transporter
             </label>
-            <div className="bg-gray-50 p-4 rounded-2xl border border-gray-100">
-              <p className="font-bold text-gray-900 text-sm">{transporter.name || "Default Oasis Logistics"}</p>
-              {transporter.account && <p className="text-[11px] text-gray-500 mt-1">A/C: {transporter.account}</p>}
-              <p className="text-[10px] text-[#C5A059] font-bold uppercase tracking-wider mt-2 bg-[#C5A059]/10 inline-block px-2 py-1 rounded">
+            <div className="bg-muted/30 p-4 rounded-2xl border border-border">
+              <p className="font-bold text-foreground text-sm">{transporter.name || "Default Oasis Logistics"}</p>
+              {transporter.account && <p className="text-[11px] text-muted-foreground mt-1">A/C: {transporter.account}</p>}
+              <p className="text-[10px] text-primary font-bold uppercase tracking-wider mt-2 bg-primary/10 inline-block px-2 py-1 rounded">
                 Freight: To Pay at Destination
               </p>
             </div>
@@ -604,15 +713,15 @@ const Cart = () => {
 
         {/* TAX BREAKDOWN */}
         {Object.keys(taxBreakdown).length > 0 && (
-          <motion.section className="bg-white rounded-[2rem] p-5 border border-slate-100 shadow-sm">
-            <h3 className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-3">GST Breakdown</h3>
+          <motion.section className="bg-card rounded-[2rem] p-5 border border-border shadow-sm">
+            <h3 className="text-xs font-bold text-muted-foreground uppercase tracking-widest mb-3">GST Breakdown</h3>
             <div className="space-y-2">
               {Object.values(taxBreakdown).map((row, i) => (
                 <div key={i} className="flex justify-between text-[11px]">
-                  <span className="text-slate-600">
+                  <span className="text-muted-foreground">
                     {row.hsn ? `HSN ${row.hsn}` : "General"} @ {row.rate}%
                   </span>
-                  <span className="text-slate-800 font-bold">{formatPrice(row.tax)}</span>
+                  <span className="text-foreground font-bold">{formatPrice(row.tax)}</span>
                 </div>
               ))}
             </div>
@@ -639,21 +748,24 @@ const Cart = () => {
             onClick={() => {
               if (!selectedAddress && addresses.length > 0)
                 return toast.error("Please select a delivery address to proceed.");
+              if (addresses.length === 0)
+                return toast.error("Please add a delivery address first.");
+              setDepositAmount(String(minimumToken));
               setShowPaymentModal(true);
             }}
-            disabled={hasIncompleteCartons || hasHardStop || addresses.length === 0}
+            disabled={hasIncompleteCartons || hasHardStop}
             className="w-full mt-5 py-4 rounded-2xl bg-gradient-to-r from-[#D4AF37] to-[#F3E5AB] text-[#005F5F] font-bold text-sm hover:brightness-105 active:scale-95 disabled:opacity-50 transition-all shadow-lg shadow-black/20"
           >
             {hasHardStop
               ? "MOQ Requirements Not Met"
               : hasIncompleteCartons
                 ? "FILL CARTONS TO CONTINUE"
-                : "PROCEED TO PAYMENT"}
+                : "PROCEED TO ORDER CONFIRMATION"}
           </button>
         </motion.section>
       </div>
 
-      {/* PAYMENT MODAL */}
+      {/* ORDER CONFIRMATION MODAL */}
       <AnimatePresence>
         {showPaymentModal && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4 print:hidden">
@@ -662,102 +774,138 @@ const Cart = () => {
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 10 }}
               transition={{ duration: 0.2 }}
-              className="w-full max-w-md bg-white rounded-3xl p-6 flex flex-col max-h-[90vh] shadow-2xl"
+              className="w-full max-w-md bg-card rounded-3xl p-6 flex flex-col max-h-[90vh] overflow-y-auto shadow-2xl"
             >
               <div className="flex items-center justify-between mb-5">
                 <div>
-                  <h3 className="font-display text-2xl font-bold text-slate-900">Checkout</h3>
-                  <p className="text-sm text-slate-500 mt-1">Select your settlement method.</p>
+                  <h3 className="font-display text-2xl font-bold text-foreground">Confirm Sales Order</h3>
+                  <p className="text-sm text-muted-foreground mt-1">Review & submit your SO.</p>
                 </div>
                 <button
                   onClick={() => setShowPaymentModal(false)}
-                  className="w-10 h-10 bg-slate-100 rounded-full flex items-center justify-center text-slate-500 hover:bg-slate-200"
+                  className="w-10 h-10 bg-muted rounded-full flex items-center justify-center text-muted-foreground hover:bg-muted/80"
                 >
                   <X size={20} />
                 </button>
               </div>
 
-              <div className="bg-slate-50 p-5 rounded-2xl border border-slate-200 mb-6 flex flex-col gap-2">
-                <div className="flex justify-between items-center text-sm text-slate-600">
+              {/* Order Summary */}
+              <div className="bg-muted/30 p-5 rounded-2xl border border-border mb-4 flex flex-col gap-2">
+                <div className="flex justify-between items-center text-sm text-muted-foreground">
                   <span>Subtotal</span>
-                  <span className="font-bold text-slate-800">{formatPrice(subtotal)}</span>
+                  <span className="font-bold text-foreground">{formatPrice(subtotal)}</span>
                 </div>
-                <div className="flex justify-between items-center text-sm text-slate-600 border-b border-slate-200 pb-3">
+                <div className="flex justify-between items-center text-sm text-muted-foreground border-b border-border pb-3">
                   <span>Total GST</span>
-                  <span className="font-bold text-slate-800">{formatPrice(totalTax)}</span>
+                  <span className="font-bold text-foreground">{formatPrice(totalTax)}</span>
                 </div>
                 <div className="flex justify-between items-center mt-2">
-                  <span className="font-bold text-slate-900 uppercase tracking-wide text-xs">Amount Payable</span>
-                  <span className="font-black text-2xl text-[#C5A059]">{formatPrice(grandTotal)}</span>
+                  <span className="font-bold text-foreground uppercase tracking-wide text-xs">SO Value</span>
+                  <span className="font-black text-2xl text-primary">{formatPrice(grandTotal)}</span>
                 </div>
               </div>
 
-              <div className="space-y-3 overflow-y-auto pr-1 pb-4">
-                <label
-                  className={`flex items-start p-4 border rounded-2xl cursor-pointer transition-all ${paymentMethod === "gateway" ? "border-[#C5A059] bg-[#C5A059]/5" : "border-slate-200 hover:border-slate-300"}`}
-                >
-                  <input
-                    type="radio"
-                    name="payment"
-                    value="gateway"
-                    checked={paymentMethod === "gateway"}
-                    onChange={() => setPaymentMethod("gateway")}
-                    className="hidden"
-                  />
-                  <div
-                    className={`mt-0.5 p-2 rounded-xl flex-shrink-0 ${paymentMethod === "gateway" ? "bg-[#C5A059]/10" : "bg-slate-100"}`}
-                  >
-                    <CreditCard
-                      size={20}
-                      className={paymentMethod === "gateway" ? "text-[#C5A059]" : "text-slate-500"}
+              {/* Token Deposit Section */}
+              <div className="bg-primary/5 border border-primary/20 rounded-2xl p-4 mb-4 space-y-3">
+                <p className="text-xs font-bold text-foreground uppercase tracking-wider">Confirmation Deposit</p>
+                <div className="flex justify-between text-[11px] text-muted-foreground">
+                  <span>Minimum Token (20%)</span>
+                  <span className="font-bold text-foreground">{formatPrice(minimumToken)}</span>
+                </div>
+                {paymentMethod !== "credit" && (
+                  <div>
+                    <label className="text-[10px] text-muted-foreground font-bold block mb-1">Enter Deposit Amount</label>
+                    <input
+                      type="number"
+                      value={depositAmount}
+                      onChange={(e) => setDepositAmount(e.target.value)}
+                      min={minimumToken}
+                      className="w-full text-sm p-3 rounded-xl border border-border bg-card font-bold focus:ring-2 focus:ring-primary/30 outline-none"
+                      placeholder={`Min. ${formatPrice(minimumToken)}`}
                     />
+                    {parseFloat(depositAmount) > 0 && parseFloat(depositAmount) < minimumToken && (
+                      <p className="text-[10px] text-destructive font-bold mt-1">
+                        Must be at least {formatPrice(minimumToken)}
+                      </p>
+                    )}
                   </div>
-                  <div className="ml-4 flex-1">
-                    <p className="font-bold text-slate-900 text-sm">Pay Online (Instant)</p>
-                    <p className="text-xs text-slate-500 mt-0.5 leading-relaxed">
-                      Credit/Debit Cards, UPI, Netbanking, Wallets & more.
-                    </p>
-                  </div>
-                </label>
-                <label
-                  className={`flex items-start p-4 border rounded-2xl cursor-pointer transition-all ${paymentMethod === "utr" ? "border-[#C5A059] bg-[#C5A059]/5" : "border-slate-200 hover:border-slate-300"}`}
-                >
-                  <input
-                    type="radio"
-                    name="payment"
-                    value="utr"
-                    checked={paymentMethod === "utr"}
-                    onChange={() => setPaymentMethod("utr")}
-                    className="hidden"
-                  />
-                  <div
-                    className={`mt-0.5 p-2 rounded-xl flex-shrink-0 ${paymentMethod === "utr" ? "bg-[#C5A059]/10" : "bg-slate-100"}`}
-                  >
-                    <Banknote size={20} className={paymentMethod === "utr" ? "text-[#C5A059]" : "text-slate-500"} />
-                  </div>
-                  <div className="ml-4 flex-1">
-                    <p className="font-bold text-slate-900 text-sm">Submit Order & Upload Payment Receipt</p>
-                    <p className="text-[11px] text-slate-500 mt-0.5 leading-relaxed">
-                      Secure the order now. Transfer via NEFT/RTGS and upload the receipt later.
-                    </p>
-                  </div>
-                </label>
+                )}
               </div>
 
-              <div className="pt-4 mt-auto border-t border-slate-100">
+              {/* Payment Methods */}
+              <div className="space-y-3 pb-4">
+                <p className="text-xs font-bold text-foreground uppercase tracking-wider">Choose Settlement Path</p>
+
+                {/* Pay Token Online */}
+                <label
+                  className={`flex items-start p-4 border rounded-2xl cursor-pointer transition-all ${paymentMethod === "pay_online" ? "border-primary bg-primary/5" : "border-border hover:border-primary/30"}`}
+                >
+                  <input type="radio" name="payment" value="pay_online" checked={paymentMethod === "pay_online"} onChange={() => setPaymentMethod("pay_online")} className="hidden" />
+                  <div className={`mt-0.5 p-2 rounded-xl flex-shrink-0 ${paymentMethod === "pay_online" ? "bg-primary/10" : "bg-muted"}`}>
+                    <CreditCard size={20} className={paymentMethod === "pay_online" ? "text-primary" : "text-muted-foreground"} />
+                  </div>
+                  <div className="ml-4 flex-1">
+                    <p className="font-bold text-foreground text-sm">Pay Token Online</p>
+                    <p className="text-xs text-muted-foreground mt-0.5 leading-relaxed">
+                      Pay the deposit instantly via UPI, Cards, or Netbanking.
+                    </p>
+                  </div>
+                </label>
+
+                {/* Submit SO & Upload Receipt */}
+                <label
+                  className={`flex items-start p-4 border rounded-2xl cursor-pointer transition-all ${paymentMethod === "upload_receipt" ? "border-primary bg-primary/5" : "border-border hover:border-primary/30"}`}
+                >
+                  <input type="radio" name="payment" value="upload_receipt" checked={paymentMethod === "upload_receipt"} onChange={() => setPaymentMethod("upload_receipt")} className="hidden" />
+                  <div className={`mt-0.5 p-2 rounded-xl flex-shrink-0 ${paymentMethod === "upload_receipt" ? "bg-primary/10" : "bg-muted"}`}>
+                    <Banknote size={20} className={paymentMethod === "upload_receipt" ? "text-primary" : "text-muted-foreground"} />
+                  </div>
+                  <div className="ml-4 flex-1">
+                    <p className="font-bold text-foreground text-sm">Submit SO & Upload Receipt</p>
+                    <p className="text-[11px] text-muted-foreground mt-0.5 leading-relaxed">
+                      Confirm the SO now. Transfer via NEFT/RTGS and upload the receipt from your Orders page.
+                    </p>
+                  </div>
+                </label>
+
+                {/* Credit Option - only if allowed */}
+                {allowCredit && (
+                  <label
+                    className={`flex items-start p-4 border rounded-2xl cursor-pointer transition-all ${paymentMethod === "credit" ? "border-primary bg-primary/5" : "border-border hover:border-primary/30"}`}
+                  >
+                    <input type="radio" name="payment" value="credit" checked={paymentMethod === "credit"} onChange={() => setPaymentMethod("credit")} className="hidden" />
+                    <div className={`mt-0.5 p-2 rounded-xl flex-shrink-0 ${paymentMethod === "credit" ? "bg-primary/10" : "bg-muted"}`}>
+                      <Wallet size={20} className={paymentMethod === "credit" ? "text-primary" : "text-muted-foreground"} />
+                    </div>
+                    <div className="ml-4 flex-1">
+                      <p className="font-bold text-foreground text-sm">Pay Later / On Credit</p>
+                      <p className="text-[11px] text-muted-foreground mt-0.5 leading-relaxed">
+                        Your company has approved credit terms. No token deposit required.
+                      </p>
+                    </div>
+                  </label>
+                )}
+              </div>
+
+              <div className="pt-4 mt-auto border-t border-border">
                 <button
                   onClick={handleFinalSubmit}
                   disabled={isSubmitting}
-                  className="w-full py-4 rounded-xl font-bold text-white bg-slate-900 flex justify-center items-center shadow-lg shadow-slate-900/20 active:scale-95 transition-all disabled:opacity-50"
+                  className="w-full py-4 rounded-xl font-bold text-primary-foreground bg-foreground flex justify-center items-center shadow-lg active:scale-95 transition-all disabled:opacity-50"
                 >
                   {isSubmitting ? (
                     <Loader2 size={18} className="animate-spin" />
-                  ) : paymentMethod === "gateway" ? (
-                    `Pay ${formatPrice(grandTotal)}`
+                  ) : paymentMethod === "pay_online" ? (
+                    `Pay ${formatPrice(parseFloat(depositAmount) || minimumToken)} Online`
+                  ) : paymentMethod === "credit" ? (
+                    "Confirm SO on Credit"
                   ) : (
-                    "Finalize Order"
+                    "Submit Sales Order"
                   )}
                 </button>
+                <p className="text-[10px] text-muted-foreground text-center mt-2 leading-relaxed">
+                  By confirming, you agree to Oasis Baklawa's B2B terms. Document stage: Sales Order (SO).
+                </p>
               </div>
             </motion.div>
           </div>
