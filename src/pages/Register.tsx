@@ -146,7 +146,6 @@ const Register = () => {
         gst_certificate_path: gstPath,
         business_proof_path: proofPath,
         trade_declaration: tradeDeclaration,
-        trade_declaration: tradeDeclaration,
         data_consent: dataConsent,
         status: "pending",
       });
