@@ -1068,6 +1068,7 @@ export type Database = {
           pack_size: string | null
           packs_per_carton: number | null
           packs_per_master_carton: number | null
+          pcs_per_master_carton: number | null
           price_b2b: number | null
           price_bulk: number | null
           price_horeca: number | null
@@ -1111,6 +1112,7 @@ export type Database = {
           pack_size?: string | null
           packs_per_carton?: number | null
           packs_per_master_carton?: number | null
+          pcs_per_master_carton?: number | null
           price_b2b?: number | null
           price_bulk?: number | null
           price_horeca?: number | null
@@ -1154,6 +1156,7 @@ export type Database = {
           pack_size?: string | null
           packs_per_carton?: number | null
           packs_per_master_carton?: number | null
+          pcs_per_master_carton?: number | null
           price_b2b?: number | null
           price_bulk?: number | null
           price_horeca?: number | null

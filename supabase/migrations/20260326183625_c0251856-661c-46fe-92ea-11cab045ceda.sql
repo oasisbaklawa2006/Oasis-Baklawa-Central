@@ -1,0 +1,1 @@
+ALTER TABLE public.products ADD COLUMN IF NOT EXISTS pcs_per_master_carton numeric DEFAULT NULL;
