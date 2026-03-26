@@ -17,9 +17,7 @@ import {
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
 
-import { calculatePackPrice, getDisplayPrice, getProductCategory, getPacksPerCarton } from "@/utils/pricing";
-
-const getProductPrice = (p: any): number => calculatePackPrice(p);
+import { calculatePackPrice, calculateCartonPrice, getDisplayPrice, getProductCategory, getPacksPerCarton, getMinOrderQty, getPrimaryPackWeightKg } from "@/utils/pricing";
 
 const getPackInfo = (p: any): string => {
   const cat = getProductCategory(p);
@@ -103,17 +101,19 @@ const Catalogue = () => {
     }
     setIsAddingToCart(true);
     for (const item of itemsToOrder) {
-      const qty = quantities[item.id] || 0;
-      await addToCart(item.id, qty, item.pack_size ?? null, item.carton_type ?? null);
+      const cartonQty = quantities[item.id] || 0;
+      const packsPerCarton = getPacksPerCarton(item);
+      const totalPacks = cartonQty * packsPerCarton;
+      await addToCart(item.id, totalPacks, item.pack_size ?? null, item.carton_type ?? null);
     }
     setIsAddingToCart(false);
-    const totalItems = itemsToOrder.reduce((s, p) => s + (quantities[p.id] || 0), 0);
-    toast.success(`Purchase Order Generated for ${totalItems} Cartons!`, { icon: "📝" });
+    const totalCartons = itemsToOrder.reduce((s, p) => s + (quantities[p.id] || 0), 0);
+    toast.success(`Purchase Order Generated for ${totalCartons} Cartons!`, { icon: "📝" });
     navigate("/cart");
   };
 
   const quickOrderTotal = quickOrderProducts.reduce(
-    (sum, p) => sum + getProductPrice(p) * (quantities[p.id] || 0),
+    (sum, p) => sum + calculateCartonPrice(p) * (quantities[p.id] || 0),
     0
   );
 
@@ -271,7 +271,7 @@ const Catalogue = () => {
                           </td>
                           <td className="p-4 text-xs font-medium text-muted-foreground">{getPackInfo(item)}</td>
                           <td className="p-4 text-sm font-bold text-foreground">
-                            {formatPrice(getProductPrice(item))}
+                            {formatPrice(getDisplayPrice(item).price)}
                             <span className="text-[10px] text-muted-foreground font-normal ml-1">{getDisplayPrice(item).unit}</span>
                           </td>
                           <td className="p-4">
@@ -286,7 +286,7 @@ const Catalogue = () => {
                             </div>
                           </td>
                           <td className="p-4 pr-6 text-right font-black text-primary text-base">
-                            {formatPrice((quantities[item.id] || 0) * getProductPrice(item))}
+                            {formatPrice((quantities[item.id] || 0) * calculateCartonPrice(item))}
                           </td>
                         </tr>
                       ))}
@@ -337,13 +337,14 @@ const Catalogue = () => {
                       {item.sku && <p className="text-[10px] text-muted-foreground font-mono mb-3">{item.sku}</p>}
                       <div className="flex items-center justify-between">
                         <p className="font-black text-sm text-foreground">
-                          {formatPrice(getProductPrice(item))}
+                          {formatPrice(getDisplayPrice(item).price)}
                           <span className="text-[9px] text-muted-foreground font-normal ml-0.5">{getDisplayPrice(item).unit}</span>
                         </p>
                         <button
                           onClick={async (e) => {
                             e.stopPropagation();
-                            await addToCart(item.id, 1, item.pack_size ?? null, item.carton_type ?? null);
+                            const moq = getMinOrderQty(item);
+                            await addToCart(item.id, moq, item.pack_size ?? null, item.carton_type ?? null);
                           }}
                           className="w-8 h-8 rounded-full bg-gradient-to-r from-primary to-primary/80 text-primary-foreground flex items-center justify-center shadow-md hover:scale-110 transition-transform"
                         >
