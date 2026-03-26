@@ -24,6 +24,7 @@ import { useCurrency } from "@/contexts/CurrencyContext";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
+import ProductRecommendations from "@/components/ProductRecommendations";
 
 const getCartonSize = (product: any) => {
   return product.packs_per_master_carton || product.packs_per_carton || 4;
@@ -71,12 +72,6 @@ const ProductDetail = () => {
   const prevProduct = currentIndex > 0 ? products[currentIndex - 1] : null;
   const nextProduct = currentIndex < products.length - 1 ? products[currentIndex + 1] : null;
 
-  const relatedProducts = useMemo(() => {
-    if (!product) return [];
-    return products
-      .filter((p) => p.id !== id && p.category === product.category)
-      .slice(0, 4);
-  }, [products, id, product]);
 
   if (loading)
     return (
@@ -351,30 +346,7 @@ const ProductDetail = () => {
           )}
 
           {/* Related Products */}
-          {relatedProducts.length > 0 && (
-            <div className="pt-8 pb-4 bg-card mt-2">
-              <h3 className="px-5 text-lg font-serif font-bold text-foreground mb-4">You May Also Like</h3>
-              <div className="flex overflow-x-auto gap-4 px-5 pb-4 scrollbar-hide">
-                {relatedProducts.map((rp) => (
-                  <div
-                    key={rp.id}
-                    onClick={() => navigate(`/product/${rp.id}`)}
-                    className="min-w-[140px] max-w-[140px] bg-card rounded-2xl border border-border p-3 shadow-sm flex-shrink-0 cursor-pointer active:scale-95 transition-transform"
-                  >
-                    <div className="w-full aspect-square bg-muted rounded-xl mb-3 p-2 flex items-center justify-center">
-                      {rp.image_url ? (
-                        <img src={rp.image_url} alt={rp.name} className="w-full h-full object-contain" />
-                      ) : (
-                        <Package size={24} className="text-muted-foreground" />
-                      )}
-                    </div>
-                    <p className="font-bold text-foreground text-xs leading-tight line-clamp-2">{rp.name}</p>
-                    <p className="text-xs font-bold text-primary mt-1">{formatPrice(getProductPrice(rp))}</p>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
+          <ProductRecommendations title="You May Also Like" excludeProductId={id} />
         </div>
 
         {/* Image Modal */}

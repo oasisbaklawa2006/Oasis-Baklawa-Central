@@ -25,6 +25,7 @@ import { useCart } from "@/hooks/useCart";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
+import ProductRecommendations from "@/components/ProductRecommendations";
 
 const formatPrice = (n: number) => "₹" + n.toLocaleString("en-IN");
 
@@ -479,6 +480,9 @@ const Cart = () => {
             </div>
           </div>
         </motion.section>
+
+        {/* CROSS-SELL */}
+        <ProductRecommendations title="Frequently Bought Together" />
 
         {/* SUMMARY & CHECKOUT BUTTON */}
         <motion.section className="bg-[#1A1A1A] text-white rounded-[2rem] shadow-2xl p-6 relative overflow-hidden print:hidden">
