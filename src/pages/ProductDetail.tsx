@@ -72,12 +72,6 @@ const ProductDetail = () => {
   const prevProduct = currentIndex > 0 ? products[currentIndex - 1] : null;
   const nextProduct = currentIndex < products.length - 1 ? products[currentIndex + 1] : null;
 
-  const relatedProducts = useMemo(() => {
-    if (!product) return [];
-    return products
-      .filter((p) => p.id !== id && p.category === product.category)
-      .slice(0, 4);
-  }, [products, id, product]);
 
   if (loading)
     return (
