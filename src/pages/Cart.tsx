@@ -551,9 +551,10 @@ const Cart = () => {
               Select Delivery Warehouse
             </label>
             {addresses.length === 0 ? (
-              <p className="text-xs text-amber-600 font-bold bg-amber-50 p-3 rounded-xl border border-amber-100">
-                No addresses found. Add one in Account Settings to continue.
-              </p>
+              <div className="flex items-center justify-between text-xs text-amber-600 font-bold bg-amber-50 p-3 rounded-xl border border-amber-100">
+                <span>No addresses found. Add one in Account Settings to continue.</span>
+                <button onClick={fetchAddresses} className="ml-2 underline hover:text-amber-800 whitespace-nowrap">↻ Retry</button>
+              </div>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 {addresses.map((addr) => (
