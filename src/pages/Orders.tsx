@@ -216,16 +216,22 @@ const Orders = () => {
                     </div>
 
                     {/* RIGHT/BOTTOM: Actions */}
-                    <div className="flex w-full md:w-auto md:flex-col gap-2 shrink-0 border-t border-slate-100 md:border-none pt-4 md:pt-0 mt-2 md:mt-0">
+                    <div className="flex w-full md:w-auto md:flex-col gap-2 shrink-0 border-t border-border md:border-none pt-4 md:pt-0 mt-2 md:mt-0">
+                      <button
+                        onClick={() => setReorderOrder(order)}
+                        className="flex-1 md:w-full py-2.5 px-4 bg-primary text-primary-foreground rounded-xl text-xs font-bold hover:opacity-90 flex items-center justify-center gap-1.5 shadow-sm"
+                      >
+                        <RotateCcw size={14} /> Reorder
+                      </button>
                       <button
                         onClick={() => toast.info("Downloading Tally Invoice...")}
-                        className="flex-1 md:w-full py-2.5 px-4 bg-white border border-slate-200 text-slate-700 rounded-xl text-xs font-bold hover:bg-slate-50 flex items-center justify-center gap-1.5 shadow-sm"
+                        className="flex-1 md:w-full py-2.5 px-4 bg-card border border-border text-foreground rounded-xl text-xs font-bold hover:bg-muted flex items-center justify-center gap-1.5 shadow-sm"
                       >
                         <Download size={14} /> Invoice
                       </button>
                       <button
                         onClick={() => toast.info("Opening order details...")}
-                        className="flex-1 md:w-full py-2.5 px-4 bg-slate-900 text-white rounded-xl text-xs font-bold hover:bg-black flex items-center justify-center gap-1.5 shadow-sm"
+                        className="flex-1 md:w-full py-2.5 px-4 bg-foreground text-background rounded-xl text-xs font-bold hover:opacity-90 flex items-center justify-center gap-1.5 shadow-sm"
                       >
                         View Details <ChevronRight size={14} />
                       </button>
