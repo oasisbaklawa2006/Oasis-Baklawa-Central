@@ -174,13 +174,13 @@ export function generateProFormaInvoice(
       lineWidth: 0.2,
     },
     headStyles: {
-      fillColor: teal as unknown as number[],
-      textColor: [255, 255, 255],
+      fillColor: [0, 95, 95] as [number, number, number],
+      textColor: [255, 255, 255] as [number, number, number],
       fontStyle: "bold",
       fontSize: 7,
     },
     alternateRowStyles: {
-      fillColor: [248, 248, 248],
+      fillColor: [248, 248, 248] as [number, number, number],
     },
     columnStyles: {
       0: { cellWidth: 8, halign: "center" },
@@ -219,7 +219,7 @@ export function generateProFormaInvoice(
   const drawTotalRow = (label: string, value: string, bold = false) => {
     doc.setFont("helvetica", bold ? "bold" : "normal");
     doc.setFontSize(bold ? 9 : 8);
-    doc.setTextColor(...(bold ? teal : darkText));
+    doc.setTextColor(bold ? teal[0] : darkText[0], bold ? teal[1] : darkText[1], bold ? teal[2] : darkText[2]);
     doc.text(label, totalsX, y);
     doc.text(value, valX, y, { align: "right" });
     y += 5;
