@@ -128,14 +128,13 @@ const Cart = () => {
   // FIX: Safely cast to any to bypass strict TS check, checking new pricing fields first, then falling back to price_per_kg
   const subtotal = sortedItems.reduce((sum, item) => {
     const p = item.product as any;
-    const pricePerKg = p?.price_per_kg || 0;
+    const perKg = p?.price_per_kg || p?.wholesale_price || p?.base_price || 0;
     const boxWeightKg = p?.avg_weight_per_pack || (p?.net_weight_grams ? p.net_weight_grams / 1000 : 0);
-    // If price_per_kg and weight exist, use weight-based calc; otherwise use wholesale/mrp as flat per-box price
     let itemPrice: number;
-    if (pricePerKg > 0 && boxWeightKg > 0) {
-      itemPrice = pricePerKg * boxWeightKg;
+    if (perKg > 0 && boxWeightKg > 0) {
+      itemPrice = perKg * boxWeightKg;
     } else {
-      itemPrice = p?.wholesale_price || p?.mrp || pricePerKg || 0;
+      itemPrice = p?.mrp || perKg || 0;
     }
     return sum + item.quantity * itemPrice;
   }, 0);
