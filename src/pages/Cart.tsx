@@ -26,6 +26,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
 import ProductRecommendations from "@/components/ProductRecommendations";
+import { generateProFormaInvoice } from "@/utils/invoiceGenerator";
 import {
   calculatePackPrice,
   calculateLineTotal,
