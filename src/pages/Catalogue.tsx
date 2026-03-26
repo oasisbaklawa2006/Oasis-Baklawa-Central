@@ -32,6 +32,7 @@ const Catalogue = () => {
   );
   const [activeSubCategory, setActiveSubCategory] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
+  const activeFestival = searchParams.get("festival");
   const { formatPrice } = useCurrency();
   const { addToCart } = useCart();
   const { products, loading: productsLoading } = useProducts();
@@ -56,9 +57,16 @@ const Catalogue = () => {
   // Reset sub-category when primary category changes
   const effectiveSubCategory = activeCategory ? activeSubCategory : null;
 
-  // Filter products by search + category + sub-category
+  const clearFestivalFilter = () => {
+    const newParams = new URLSearchParams(searchParams);
+    newParams.delete("festival");
+    navigate({ search: newParams.toString() }, { replace: true });
+  };
+
+  // Filter products by search + category + sub-category + festival
   const filtered = useMemo(() => {
     return products.filter((p) => {
+      if (activeFestival && !(p.festival_tags || "").toLowerCase().includes(activeFestival.toLowerCase())) return false;
       if (activeCategory && p.category !== activeCategory) return false;
       if (effectiveSubCategory && p.sub_category !== effectiveSubCategory) return false;
       if (!searchQuery) return true;
@@ -69,7 +77,7 @@ const Catalogue = () => {
         (p.category?.toLowerCase().includes(q))
       );
     });
-  }, [products, activeCategory, effectiveSubCategory, searchQuery]);
+  }, [products, activeCategory, effectiveSubCategory, searchQuery, activeFestival]);
 
   // Quick order uses first 6 filtered products
   const quickOrderProducts = filtered.slice(0, 6);
@@ -131,6 +139,21 @@ const Catalogue = () => {
             </div>
           ) : (
             <>
+              {/* FESTIVAL FILTER BADGE */}
+              {activeFestival && (
+                <div className="flex items-center gap-2 bg-amber-50 border border-amber-200 rounded-xl px-4 py-2.5">
+                  <span className="text-xs font-bold text-amber-800">
+                    🎉 Showing products for: <span className="text-primary">{activeFestival}</span>
+                  </span>
+                  <button
+                    onClick={clearFestivalFilter}
+                    className="ml-2 text-[10px] font-bold text-amber-600 hover:text-red-600 underline transition-colors"
+                  >
+                    Clear Filter
+                  </button>
+                </div>
+              )}
+
               {/* CATEGORY FILTER PILLS */}
               {categories.length > 0 && (
                 <div className="flex flex-wrap gap-2">

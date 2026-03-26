@@ -1043,6 +1043,7 @@ export type Database = {
           department: string | null
           description: string | null
           dietary_tags: string[] | null
+          festival_tags: string | null
           gst_percentage: number | null
           hsn_code: string | null
           id: string
@@ -1085,6 +1086,7 @@ export type Database = {
           department?: string | null
           description?: string | null
           dietary_tags?: string[] | null
+          festival_tags?: string | null
           gst_percentage?: number | null
           hsn_code?: string | null
           id?: string
@@ -1127,6 +1129,7 @@ export type Database = {
           department?: string | null
           description?: string | null
           dietary_tags?: string[] | null
+          festival_tags?: string | null
           gst_percentage?: number | null
           hsn_code?: string | null
           id?: string

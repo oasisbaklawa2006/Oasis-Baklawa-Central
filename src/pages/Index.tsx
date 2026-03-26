@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Star, TrendingUp, ShoppingCart, Box, Gift, ChevronRight } from "lucide-react";
+import { Star, TrendingUp, ShoppingCart, Box, Gift, ChevronRight, CalendarDays } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import AppShell from "@/components/AppShell";
 import { supabase } from "@/integrations/supabase/client";
@@ -95,6 +95,32 @@ const Index = () => {
             </p>
             <h2 className="font-display text-xl md:text-3xl font-bold text-[#9A7009] mt-2">{companyName}</h2>
           </div>
+
+          {/* FESTIVAL CALENDAR */}
+          <section>
+            <h3 className="text-sm font-bold text-slate-400 uppercase tracking-widest mb-4 flex items-center gap-2">
+              <CalendarDays size={14} className="text-[#B8860B]" /> Upcoming Festivals & Events
+            </h3>
+            <div className="flex overflow-x-auto scrollbar-hide gap-4 pb-4 snap-x">
+              {[
+                { name: "Eid", date: "Mar 30 – 31", emoji: "🌙", gradient: "from-emerald-800 to-emerald-900" },
+                { name: "Raksha Bandhan", date: "Aug 9", emoji: "🪢", gradient: "from-rose-800 to-rose-900" },
+                { name: "Diwali", date: "Oct 20 – 24", emoji: "🪔", gradient: "from-amber-800 to-amber-900" },
+                { name: "Wedding Season", date: "Nov – Feb", emoji: "💍", gradient: "from-purple-800 to-purple-900" },
+                { name: "Christmas", date: "Dec 25", emoji: "🎄", gradient: "from-red-800 to-red-900" },
+              ].map((fest) => (
+                <button
+                  key={fest.name}
+                  onClick={() => navigate(`/catalogue?festival=${encodeURIComponent(fest.name)}`)}
+                  className={`min-w-[160px] snap-start rounded-2xl bg-gradient-to-br ${fest.gradient} p-5 text-left shadow-lg hover:shadow-xl transition-all active:scale-95 border border-white/10`}
+                >
+                  <span className="text-3xl block mb-3">{fest.emoji}</span>
+                  <h4 className="text-white font-bold text-sm mb-1">{fest.name}</h4>
+                  <p className="text-white/60 text-[10px] font-medium uppercase tracking-wider">{fest.date}</p>
+                </button>
+              ))}
+            </div>
+          </section>
 
           {/* CATEGORY GRID */}
           <section>
