@@ -16,10 +16,35 @@ import {
 import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "sonner";
 import SmartReorderModal from "@/components/SmartReorderModal";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 const formatPrice = (n: number) => "₹" + n.toLocaleString("en-IN");
 const formatDate = (dateString: string) =>
   new Date(dateString).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" });
+
+const getDocStageLabel = (stage: string | null) => {
+  switch (stage) {
+    case "PI": return "Proforma Invoice (Awaiting Payment)";
+    case "Final": return "Final Invoice Generated";
+    default: return "Sales Order (Processing)";
+  }
+};
+
+const getDocStageStyle = (stage: string | null) => {
+  switch (stage) {
+    case "PI": return "bg-orange-50 text-orange-700 border-orange-100";
+    case "Final": return "bg-emerald-50 text-emerald-700 border-emerald-100";
+    default: return "bg-indigo-50 text-indigo-700 border-indigo-100";
+  }
+};
+
+const getDownloadLabel = (stage: string | null) => {
+  switch (stage) {
+    case "PI": return "Download PI";
+    case "Final": return "Download Final Invoice";
+    default: return "Download SO";
+  }
+};
 
 type TimeFilter = "30days" | "6months" | "2026" | "all";
 
@@ -35,8 +60,8 @@ const Orders = () => {
     // Fetching orders AND their nested items and product images
     const { data, error } = await supabase
       .from("orders")
-      .select("*, order_items(*, product:products(name, image_url, pack_size, carton_type, wholesale_price, mrp, price_per_kg))")
-      .neq("status", "draft")
+    .select("id, status, created_at, sales_order_value, document_stage, payment_cleared, eway_bill_number, order_items(*, product:products(name, image_url, pack_size, carton_type, wholesale_price, mrp, price_per_kg))")
+    .neq("status", "draft")
       .order("created_at", { ascending: false });
 
     if (!error && data) setOrders(data);
@@ -202,6 +227,11 @@ const Orders = () => {
                           </span>
                         )}
 
+                        {/* Document Stage Badge */}
+                        <span className={`px-2.5 py-1 rounded-md text-[10px] font-bold uppercase flex items-center gap-1 border ${getDocStageStyle(order.document_stage)}`}>
+                          {getDocStageLabel(order.document_stage)}
+                        </span>
+
                         {/* Issue Tracking Tag */}
                         {hasIssue ? (
                           <span className="bg-rose-50 text-rose-600 px-2.5 py-1 rounded-md text-[10px] font-bold uppercase flex items-center gap-1 border border-rose-100">
@@ -213,6 +243,13 @@ const Orders = () => {
                           </span>
                         )}
                       </div>
+
+                      {/* E-Way Bill */}
+                      {order.eway_bill_number && (
+                        <p className="text-[10px] font-bold text-slate-500 mt-2">
+                          E-Way Bill: <span className="text-slate-800">{order.eway_bill_number}</span>
+                        </p>
+                      )}
                     </div>
 
                     {/* RIGHT/BOTTOM: Actions */}
@@ -224,10 +261,10 @@ const Orders = () => {
                         <RotateCcw size={14} /> Reorder
                       </button>
                       <button
-                        onClick={() => toast.info("Downloading Tally Invoice...")}
+                        onClick={() => toast.info(`Downloading ${getDownloadLabel(order.document_stage)}...`)}
                         className="flex-1 md:w-full py-2.5 px-4 bg-card border border-border text-foreground rounded-xl text-xs font-bold hover:bg-muted flex items-center justify-center gap-1.5 shadow-sm"
                       >
-                        <Download size={14} /> Invoice
+                        <Download size={14} /> {getDownloadLabel(order.document_stage)}
                       </button>
                       <button
                         onClick={() => toast.info("Opening order details...")}

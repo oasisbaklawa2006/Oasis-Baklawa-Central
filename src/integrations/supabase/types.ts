@@ -833,8 +833,11 @@ export type Database = {
           company_id: string | null
           country_of_origin: string | null
           created_at: string | null
+          document_stage: string | null
+          eway_bill_number: string | null
           id: string
           is_export: boolean | null
+          payment_cleared: boolean | null
           payment_status: string | null
           port_of_discharge: string | null
           sales_order_value: number | null
@@ -848,8 +851,11 @@ export type Database = {
           company_id?: string | null
           country_of_origin?: string | null
           created_at?: string | null
+          document_stage?: string | null
+          eway_bill_number?: string | null
           id?: string
           is_export?: boolean | null
+          payment_cleared?: boolean | null
           payment_status?: string | null
           port_of_discharge?: string | null
           sales_order_value?: number | null
@@ -863,8 +869,11 @@ export type Database = {
           company_id?: string | null
           country_of_origin?: string | null
           created_at?: string | null
+          document_stage?: string | null
+          eway_bill_number?: string | null
           id?: string
           is_export?: boolean | null
+          payment_cleared?: boolean | null
           payment_status?: string | null
           port_of_discharge?: string | null
           sales_order_value?: number | null
