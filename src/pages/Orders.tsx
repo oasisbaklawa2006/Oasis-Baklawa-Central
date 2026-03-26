@@ -35,7 +35,8 @@ const Orders = () => {
     // Fetching orders AND their nested items and product images
     const { data, error } = await supabase
       .from("orders")
-      .select("*, order_items(*, product:products(name, image_url))")
+      .select("*, order_items(*, product:products(name, image_url, pack_size, carton_type, wholesale_price, mrp, price_per_kg))")
+      .neq("status", "draft")
       .order("created_at", { ascending: false });
 
     if (!error && data) setOrders(data);
