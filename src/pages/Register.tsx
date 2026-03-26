@@ -45,7 +45,6 @@ const Register = () => {
   const [pincode, setPincode] = useState("");
   const [gstNumber, setGstNumber] = useState("");
   const [tradeDeclaration, setTradeDeclaration] = useState(false);
-  const [tradeDeclaration, setTradeDeclaration] = useState(false);
   const [dataConsent, setDataConsent] = useState(false);
 
   // Files
@@ -146,10 +145,7 @@ const Register = () => {
         gst_number: gstNumber.trim() || null,
         gst_certificate_path: gstPath,
         business_proof_path: proofPath,
-        expected_volume: expectedVolume || null,
-        current_brands: currentBrands.trim() || null,
-        preferred_dispatch: preferredDispatch || null,
-        preferred_dispatch_other_name: preferredDispatch === "Own Transporter" ? preferredDispatchOther.trim() || null : null,
+        trade_declaration: tradeDeclaration,
         trade_declaration: tradeDeclaration,
         data_consent: dataConsent,
         status: "pending",
