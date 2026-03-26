@@ -256,9 +256,20 @@ const Cart = () => {
     }
   };
 
-  const handlePrintSO = () => {
-    window.print();
-    toast.success("Generating Pro-Forma Invoice...");
+  const handlePrintSO = async () => {
+    // Fetch company details for the invoice
+    let companyDetails: { business_name: string; gst_number?: string | null } | null = null;
+    const { data: { user } } = await supabase.auth.getUser();
+    if (user) {
+      const { data: profile } = await supabase.from("profiles").select("company_id").eq("id", user.id).single();
+      if (profile?.company_id) {
+        const { data: comp } = await supabase.from("companies").select("business_name, gst_number").eq("id", profile.company_id).single();
+        if (comp) companyDetails = comp;
+      }
+    }
+    const addr = addresses.find((a) => a.id === selectedAddress) || null;
+    generateProFormaInvoice(sortedItems, companyDetails, addr);
+    toast.success("Pro-Forma Invoice downloaded!");
   };
 
   const handleFinalSubmit = async () => {
