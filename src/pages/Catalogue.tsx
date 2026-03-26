@@ -22,8 +22,11 @@ import { calculatePackPrice, calculateCartonPrice, getDisplayPrice, getProductCa
 const getPackInfo = (p: any): string => {
   const cat = getProductCategory(p);
   const perCarton = getPacksPerCarton(p);
-  const parts = [p.pack_size, p.carton_type].filter(Boolean).join(" · ") || "Standard";
-  return `${parts} | ${perCarton}/${cat === "bulk_kg" ? "carton" : "carton"}`;
+  const weightKg = getPrimaryPackWeightKg(p);
+  if (cat === "bulk_kg" && weightKg > 0) {
+    return `${weightKg}kg/pack · ${perCarton} packs/carton`;
+  }
+  return `${perCarton} pcs/carton`;
 };
 
 const Catalogue = () => {
