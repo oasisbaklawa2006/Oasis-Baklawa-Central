@@ -401,6 +401,79 @@ const AdminOrders = () => {
                     </span>
                   </div>
                 </div>
+
+                {/* Financial Actions */}
+                <div className="bg-card p-4 rounded-xl border border-border space-y-3">
+                  <h3 className="text-xs font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-2">
+                    <FileText size={14} /> Financial Actions
+                  </h3>
+
+                  {/* Stage badge */}
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-semibold text-muted-foreground">Document Stage:</span>
+                    <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${
+                      selectedOrder.document_stage === "Final" ? "bg-green-100 text-green-700" :
+                      selectedOrder.document_stage === "PI" ? "bg-orange-100 text-orange-700" :
+                      "bg-blue-100 text-blue-700"
+                    }`}>
+                      {selectedOrder.document_stage === "Final" ? "Final Invoice" :
+                       selectedOrder.document_stage === "PI" ? "Proforma Invoice" : "Sales Order"}
+                    </span>
+                  </div>
+
+                  {/* State 1: SO → Generate PI */}
+                  {(!selectedOrder.document_stage || selectedOrder.document_stage === "SO") && (
+                    <Button
+                      onClick={() => handleGeneratePI(selectedOrder.id)}
+                      disabled={financeUpdating}
+                      className="w-full"
+                    >
+                      {financeUpdating ? <Loader2 size={14} className="animate-spin mr-2" /> : <FileText size={14} className="mr-2" />}
+                      Generate Proforma Invoice (PI)
+                    </Button>
+                  )}
+
+                  {/* State 2: PI → Mark Payment Cleared */}
+                  {selectedOrder.document_stage === "PI" && !selectedOrder.payment_cleared && (
+                    <Button
+                      onClick={() => handleMarkPaymentCleared(selectedOrder.id)}
+                      disabled={financeUpdating}
+                      className="w-full"
+                    >
+                      {financeUpdating ? <Loader2 size={14} className="animate-spin mr-2" /> : <CheckCircle2 size={14} className="mr-2" />}
+                      Mark Payment Cleared
+                    </Button>
+                  )}
+
+                  {/* State 3: Final → E-Way Bill */}
+                  {selectedOrder.document_stage === "Final" && (
+                    <>
+                      {selectedOrder.eway_bill_number ? (
+                        <div className="flex items-center gap-2 bg-muted/30 p-3 rounded-lg">
+                          <Truck size={14} className="text-primary" />
+                          <span className="text-xs font-semibold text-muted-foreground">E-Way Bill:</span>
+                          <span className="text-sm font-bold text-foreground">{selectedOrder.eway_bill_number}</span>
+                        </div>
+                      ) : (
+                        <div className="flex gap-2">
+                          <Input
+                            placeholder="Enter E-Way Bill Number"
+                            value={ewayInput}
+                            onChange={(e) => setEwayInput(e.target.value)}
+                            className="flex-1 text-sm"
+                          />
+                          <Button
+                            onClick={() => handleSaveEwayBill(selectedOrder.id)}
+                            disabled={financeUpdating}
+                            size="sm"
+                          >
+                            {financeUpdating ? <Loader2 size={14} className="animate-spin" /> : "Save"}
+                          </Button>
+                        </div>
+                      )}
+                    </>
+                  )}
+                </div>
               </div>
             </motion.div>
           </>
