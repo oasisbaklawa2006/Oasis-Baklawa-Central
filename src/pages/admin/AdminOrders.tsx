@@ -87,6 +87,7 @@ const AdminOrders = () => {
       .select(
         `
         id, status, sales_order_value, company_id,
+        document_stage, payment_cleared, eway_bill_number,
         order_items ( id, quantity, product_id )
       `,
       )
