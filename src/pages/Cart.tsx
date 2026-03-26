@@ -127,8 +127,16 @@ const Cart = () => {
 
   // FIX: Safely cast to any to bypass strict TS check, checking new pricing fields first, then falling back to price_per_kg
   const subtotal = sortedItems.reduce((sum, item) => {
-    const itemPrice =
-      (item.product as any)?.wholesale_price || (item.product as any)?.mrp || item.product?.price_per_kg || 0;
+    const p = item.product as any;
+    const pricePerKg = p?.price_per_kg || 0;
+    const boxWeightKg = p?.avg_weight_per_pack || (p?.net_weight_grams ? p.net_weight_grams / 1000 : 0);
+    // If price_per_kg and weight exist, use weight-based calc; otherwise use wholesale/mrp as flat per-box price
+    let itemPrice: number;
+    if (pricePerKg > 0 && boxWeightKg > 0) {
+      itemPrice = pricePerKg * boxWeightKg;
+    } else {
+      itemPrice = p?.wholesale_price || p?.mrp || pricePerKg || 0;
+    }
     return sum + item.quantity * itemPrice;
   }, 0);
 
@@ -334,11 +342,13 @@ const Cart = () => {
                 key={section.cartonType}
                 className={`bg-white rounded-[2rem] p-5 border shadow-sm ${isIncomplete ? "border-amber-200" : "border-slate-100"}`}
               >
-                <h2 className="font-bold text-slate-800 text-sm mb-4">
-                  Category {section.cartonType}{" "}
-                  <span className="text-slate-400 font-medium text-xs">
-                    ({section.rule.packsPerCarton} Packs = 1 Carton)
-                  </span>
+              <h2 className="font-bold text-slate-800 text-sm mb-4">
+                  1 Carton = {section.rule.packsPerCarton} Boxes of{" "}
+                  {(() => {
+                    const firstWithWeight = section.items.find((it: any) => it.product?.avg_weight_per_pack || it.product?.net_weight_grams);
+                    const weight = firstWithWeight?.product?.avg_weight_per_pack || (firstWithWeight?.product?.net_weight_grams ? firstWithWeight.product.net_weight_grams / 1000 : null);
+                    return weight ? `${weight} Kg Each` : "Standard Size";
+                  })()}
                 </h2>
                 <div className="space-y-4">
                   {section.items.map((item) => {
@@ -350,12 +360,20 @@ const Cart = () => {
                       0;
                     const itemTotal = item.quantity * itemPrice;
 
+                    const boxWeight = (item.product as any)?.avg_weight_per_pack || ((item.product as any)?.net_weight_grams ? (item.product as any).net_weight_grams / 1000 : null);
+                    const packsPerCarton = (item.product as any)?.packs_per_master_carton || (item.product as any)?.packs_per_carton || section.rule.packsPerCarton;
+
                     return (
                       <div key={item.id} className="flex items-center justify-between">
                         <div className="flex-1 pr-4">
-                          <p className="font-bold text-sm truncate">{item.product?.name}</p>
+                          <p className="font-bold text-sm truncate">
+                            {item.product?.name}{boxWeight ? ` - Box (${boxWeight}kg Approx)` : ""}
+                          </p>
+                          <p className="text-[10px] text-slate-500 font-medium mt-0.5">
+                            Packing: {packsPerCarton} Boxes per Carton
+                          </p>
                           <p className="text-[10px] text-slate-500 font-bold mt-0.5">
-                            Total: <span className="text-slate-800">{formatPrice(itemTotal)}</span>
+                            Qty: {item.quantity} Boxes • Total: <span className="text-slate-800">{formatPrice(itemTotal)}</span>
                           </p>
                         </div>
                         <div className="flex items-center bg-slate-50 rounded-xl p-1 border border-slate-200">
@@ -382,7 +400,7 @@ const Cart = () => {
                   {isIncomplete ? (
                     <div className="bg-amber-50 rounded-xl p-4 border border-amber-200 shadow-inner">
                       <p className="text-xs font-bold text-amber-900 mb-3 flex items-center gap-1.5">
-                        <AlertTriangle size={14} /> Add {neededToFill} more packs to fill carton.
+                        <AlertTriangle size={14} /> Add {neededToFill} more Boxes to fill carton.
                       </p>
                       <div className="h-1.5 w-full bg-amber-200/50 rounded-full overflow-hidden mb-4">
                         <div
@@ -397,7 +415,7 @@ const Cart = () => {
                             onClick={() => handleSmartAdd(item.id, item.quantity, neededToFill)}
                             className="px-3 py-2 bg-white border border-amber-200 text-amber-900 rounded-lg text-[10px] font-bold shadow-sm hover:bg-amber-100 transition-colors flex-1 min-w-[120px]"
                           >
-                            + {neededToFill} {item.product?.name.split(" ")[0]}
+                            +{neededToFill} Boxes {item.product?.name}
                           </button>
                         ))}
                         <button
