@@ -1,6 +1,6 @@
 import AppShell from "@/components/AppShell";
 import { motion, AnimatePresence } from "framer-motion";
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useCallback } from "react";
 import {
   Package,
   ShoppingCart,
@@ -102,39 +102,43 @@ const Cart = () => {
 
   const { draftOrder, items, updateQuantity, fetchCart, loading: cartLoading } = useCart();
 
+  // Extracted address fetch for reuse & retry
+  const fetchAddresses = useCallback(async () => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+    const { data: userRow } = await supabase.from("users").select("company_id").eq("id", user.id).maybeSingle();
+    const companyId = userRow?.company_id;
+    if (!companyId) return;
+
+    const { data: addrs } = await supabase
+      .from("delivery_addresses")
+      .select("*")
+      .eq("company_id", companyId);
+    if (addrs && addrs.length > 0) {
+      setAddresses(addrs);
+      const defaultAddr = addrs.find((a: any) => a.is_default);
+      setSelectedAddress(defaultAddr ? defaultAddr.id : addrs[0].id);
+    } else {
+      setAddresses([]);
+    }
+
+    const { data: comp } = await supabase
+      .from("companies")
+      .select("preferred_courier, courier_account_number")
+      .eq("id", companyId)
+      .single();
+    if (comp) setTransporter({ name: comp.preferred_courier || "", account: comp.courier_account_number || "" });
+  }, []);
+
   // Fetch active MOQ rules & Logistics
   useEffect(() => {
     const fetchCheckoutData = async () => {
       const { data: moqData } = await supabase.from("moq_rules").select("*").eq("is_active", true);
       if (moqData) setMoqRules(moqData as MoqRule[]);
-
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      if (user) {
-        const { data: userRow } = await supabase.from("users").select("company_id").eq("id", user.id).maybeSingle();
-        const companyId = userRow?.company_id;
-        if (companyId) {
-          const { data: addrs } = await supabase
-            .from("delivery_addresses")
-            .select("*")
-            .eq("company_id", companyId);
-          if (addrs && addrs.length > 0) {
-            setAddresses(addrs);
-            const defaultAddr = addrs.find((a) => a.is_default);
-            setSelectedAddress(defaultAddr ? defaultAddr.id : addrs[0].id);
-          }
-          const { data: comp } = await supabase
-            .from("companies")
-            .select("preferred_courier, courier_account_number")
-            .eq("id", companyId)
-            .single();
-          if (comp) setTransporter({ name: comp.preferred_courier || "", account: comp.courier_account_number || "" });
-        }
-      }
+      await fetchAddresses();
     };
     fetchCheckoutData();
-  }, []);
+  }, [fetchAddresses]);
 
   const sortedItems = useMemo(
     () => [...items].sort((a, b) => (a.product?.name || "").localeCompare(b.product?.name || "")),
@@ -547,9 +551,10 @@ const Cart = () => {
               Select Delivery Warehouse
             </label>
             {addresses.length === 0 ? (
-              <p className="text-xs text-amber-600 font-bold bg-amber-50 p-3 rounded-xl border border-amber-100">
-                No addresses found. Add one in Account Settings to continue.
-              </p>
+              <div className="flex items-center justify-between text-xs text-amber-600 font-bold bg-amber-50 p-3 rounded-xl border border-amber-100">
+                <span>No addresses found. Add one in Account Settings to continue.</span>
+                <button onClick={fetchAddresses} className="ml-2 underline hover:text-amber-800 whitespace-nowrap">↻ Retry</button>
+              </div>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 {addresses.map((addr) => (
