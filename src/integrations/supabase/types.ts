@@ -1054,6 +1054,7 @@ export type Database = {
           dietary_tags: string[] | null
           festival_tags: string | null
           gst_percentage: number | null
+          gst_rate: number | null
           hsn_code: string | null
           id: string
           image_url: string | null
@@ -1075,6 +1076,7 @@ export type Database = {
           price_per_kg: number | null
           price_special: number | null
           price_wholesale: number | null
+          primary_pack_weight_kg: number | null
           private_label_moq: number | null
           private_label_price: number | null
           shelf_life: string | null
@@ -1098,6 +1100,7 @@ export type Database = {
           dietary_tags?: string[] | null
           festival_tags?: string | null
           gst_percentage?: number | null
+          gst_rate?: number | null
           hsn_code?: string | null
           id?: string
           image_url?: string | null
@@ -1119,6 +1122,7 @@ export type Database = {
           price_per_kg?: number | null
           price_special?: number | null
           price_wholesale?: number | null
+          primary_pack_weight_kg?: number | null
           private_label_moq?: number | null
           private_label_price?: number | null
           shelf_life?: string | null
@@ -1142,6 +1146,7 @@ export type Database = {
           dietary_tags?: string[] | null
           festival_tags?: string | null
           gst_percentage?: number | null
+          gst_rate?: number | null
           hsn_code?: string | null
           id?: string
           image_url?: string | null
@@ -1163,6 +1168,7 @@ export type Database = {
           price_per_kg?: number | null
           price_special?: number | null
           price_wholesale?: number | null
+          primary_pack_weight_kg?: number | null
           private_label_moq?: number | null
           private_label_price?: number | null
           shelf_life?: string | null
