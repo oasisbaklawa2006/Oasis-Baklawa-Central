@@ -9,12 +9,6 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import logoImg from "@/assets/logo-open.png";
 
-const VOLUME_OPTIONS = [
-  "₹50,000 - ₹1 Lakh",
-  "₹1 Lakh - ₹5 Lakhs",
-  "₹5 Lakhs+",
-];
-
 const BUSINESS_TYPES = [
   "Retailer",
   "Wholesaler / Distributor",
@@ -22,12 +16,6 @@ const BUSINESS_TYPES = [
   "Gifting / Corporate",
   "E-commerce Reseller",
   "Other",
-];
-
-const DISPATCH_OPTIONS = [
-  "Company Logistics",
-  "Own Transporter",
-  "Third-Party Courier",
 ];
 
 const INDIAN_STATES = [
@@ -56,10 +44,7 @@ const Register = () => {
   const [state, setState] = useState("");
   const [pincode, setPincode] = useState("");
   const [gstNumber, setGstNumber] = useState("");
-  const [expectedVolume, setExpectedVolume] = useState("");
-  const [currentBrands, setCurrentBrands] = useState("");
-  const [preferredDispatch, setPreferredDispatch] = useState("");
-  const [preferredDispatchOther, setPreferredDispatchOther] = useState("");
+  const [tradeDeclaration, setTradeDeclaration] = useState(false);
   const [tradeDeclaration, setTradeDeclaration] = useState(false);
   const [dataConsent, setDataConsent] = useState(false);
 
