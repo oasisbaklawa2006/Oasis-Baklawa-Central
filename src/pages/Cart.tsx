@@ -118,7 +118,7 @@ const Cart = () => {
           const { data: addrs } = await supabase
             .from("delivery_addresses")
             .select("*")
-            .eq("company_id", profile.company_id);
+            .eq("company_id", companyId);
           if (addrs && addrs.length > 0) {
             setAddresses(addrs);
             const defaultAddr = addrs.find((a) => a.is_default);
@@ -127,7 +127,7 @@ const Cart = () => {
           const { data: comp } = await supabase
             .from("companies")
             .select("preferred_courier, courier_account_number")
-            .eq("id", profile.company_id)
+            .eq("id", companyId)
             .single();
           if (comp) setTransporter({ name: comp.preferred_courier || "", account: comp.courier_account_number || "" });
         }
