@@ -9,12 +9,6 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import logoImg from "@/assets/logo-open.png";
 
-const VOLUME_OPTIONS = [
-  "₹50,000 - ₹1 Lakh",
-  "₹1 Lakh - ₹5 Lakhs",
-  "₹5 Lakhs+",
-];
-
 const BUSINESS_TYPES = [
   "Retailer",
   "Wholesaler / Distributor",
@@ -22,12 +16,6 @@ const BUSINESS_TYPES = [
   "Gifting / Corporate",
   "E-commerce Reseller",
   "Other",
-];
-
-const DISPATCH_OPTIONS = [
-  "Company Logistics",
-  "Own Transporter",
-  "Third-Party Courier",
 ];
 
 const INDIAN_STATES = [
@@ -56,10 +44,6 @@ const Register = () => {
   const [state, setState] = useState("");
   const [pincode, setPincode] = useState("");
   const [gstNumber, setGstNumber] = useState("");
-  const [expectedVolume, setExpectedVolume] = useState("");
-  const [currentBrands, setCurrentBrands] = useState("");
-  const [preferredDispatch, setPreferredDispatch] = useState("");
-  const [preferredDispatchOther, setPreferredDispatchOther] = useState("");
   const [tradeDeclaration, setTradeDeclaration] = useState(false);
   const [dataConsent, setDataConsent] = useState(false);
 
@@ -161,10 +145,6 @@ const Register = () => {
         gst_number: gstNumber.trim() || null,
         gst_certificate_path: gstPath,
         business_proof_path: proofPath,
-        expected_volume: expectedVolume || null,
-        current_brands: currentBrands.trim() || null,
-        preferred_dispatch: preferredDispatch || null,
-        preferred_dispatch_other_name: preferredDispatch === "Own Transporter" ? preferredDispatchOther.trim() || null : null,
         trade_declaration: tradeDeclaration,
         data_consent: dataConsent,
         status: "pending",
@@ -321,36 +301,7 @@ const Register = () => {
                 </div>
               </div>
 
-              {/* Section 5: Trade Details */}
-              <SectionTitle>Trade Details</SectionTitle>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="text-ui-label text-foreground">Expected Monthly Volume</label>
-                  <select value={expectedVolume} onChange={(e) => setExpectedVolume(e.target.value)} className={`${selectClass} mt-1`}>
-                    <option value="">Select range…</option>
-                    {VOLUME_OPTIONS.map((v) => <option key={v} value={v}>{v}</option>)}
-                  </select>
-                </div>
-                <div>
-                  <label className="text-ui-label text-foreground">Current Brands Stocked</label>
-                  <Input placeholder="e.g. Brand A, Brand B" className="rounded-xl mt-1" value={currentBrands} onChange={(e) => setCurrentBrands(e.target.value)} />
-                </div>
-              </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="text-ui-label text-foreground">Preferred Dispatch</label>
-                  <select value={preferredDispatch} onChange={(e) => setPreferredDispatch(e.target.value)} className={`${selectClass} mt-1`}>
-                    <option value="">Select…</option>
-                    {DISPATCH_OPTIONS.map((d) => <option key={d} value={d}>{d}</option>)}
-                  </select>
-                </div>
-                {preferredDispatch === "Own Transporter" && (
-                  <div>
-                    <label className="text-ui-label text-foreground">Transporter Name</label>
-                    <Input placeholder="Transporter name" className="rounded-xl mt-1" value={preferredDispatchOther} onChange={(e) => setPreferredDispatchOther(e.target.value)} />
-                  </div>
-                )}
-              </div>
+              {/* Trade Details section removed per business request */}
 
               {/* Section 6: Declarations */}
               <SectionTitle>Declarations</SectionTitle>
@@ -393,9 +344,27 @@ const Register = () => {
               </div>
               <h2 className="text-display-h2 text-foreground">Application Submitted</h2>
               <p className="text-body-p2 text-muted-foreground leading-relaxed">
-                Our team will review your trade application and verify your documents. You will receive an email confirmation within 24–48 hours.
+                Your account will be verified very soon.
               </p>
               <p className="text-fine text-muted-foreground">Status: Pending Manual Review</p>
+
+              <div className="flex flex-col sm:flex-row gap-3 pt-2">
+                <a
+                  href="tel:+919999999999"
+                  className="flex-1 py-3 rounded-xl bg-primary text-primary-foreground font-ui font-bold text-sm flex items-center justify-center gap-2 transition-colors hover:bg-primary/90"
+                >
+                  📞 Call Our Helpline
+                </a>
+                <a
+                  href="https://wa.me/919999999999"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex-1 py-3 rounded-xl bg-[hsl(142,70%,40%)] text-white font-ui font-bold text-sm flex items-center justify-center gap-2 transition-colors hover:bg-[hsl(142,70%,35%)]"
+                >
+                  💬 WhatsApp Us
+                </a>
+              </div>
+
               <button
                 onClick={() => navigate("/login")}
                 className="flex items-center gap-2 mx-auto text-primary text-body-p2 font-semibold hover:underline mt-2"
