@@ -261,7 +261,7 @@ const Orders = () => {
                         <RotateCcw size={14} /> Reorder
                       </button>
                       <button
-                        onClick={() => toast.info(`Downloading ${getDownloadLabel(order.document_stage)}...`)}
+                        onClick={() => toast.info(`Downloading ${stage === "PI" ? "PI" : stage === "Final" ? "Final Invoice" : "SO"}...`)}
                         className="flex-1 md:w-full py-2.5 px-4 bg-card border border-border text-foreground rounded-xl text-xs font-bold hover:bg-muted flex items-center justify-center gap-1.5 shadow-sm"
                       >
                         <Download size={14} /> {getDownloadLabel(order.document_stage)}
