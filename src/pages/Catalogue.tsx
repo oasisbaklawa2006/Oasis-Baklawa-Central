@@ -139,6 +139,21 @@ const Catalogue = () => {
             </div>
           ) : (
             <>
+              {/* FESTIVAL FILTER BADGE */}
+              {activeFestival && (
+                <div className="flex items-center gap-2 bg-amber-50 border border-amber-200 rounded-xl px-4 py-2.5">
+                  <span className="text-xs font-bold text-amber-800">
+                    🎉 Showing products for: <span className="text-primary">{activeFestival}</span>
+                  </span>
+                  <button
+                    onClick={clearFestivalFilter}
+                    className="ml-2 text-[10px] font-bold text-amber-600 hover:text-red-600 underline transition-colors"
+                  >
+                    Clear Filter
+                  </button>
+                </div>
+              )}
+
               {/* CATEGORY FILTER PILLS */}
               {categories.length > 0 && (
                 <div className="flex flex-wrap gap-2">
