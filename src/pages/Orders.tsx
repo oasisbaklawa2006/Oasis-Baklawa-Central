@@ -11,9 +11,11 @@ import {
   CheckCircle2,
   Ticket,
   Truck,
+  RotateCcw,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "sonner";
+import SmartReorderModal from "@/components/SmartReorderModal";
 
 const formatPrice = (n: number) => "₹" + n.toLocaleString("en-IN");
 const formatDate = (dateString: string) =>
