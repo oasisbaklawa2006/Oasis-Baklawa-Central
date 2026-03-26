@@ -91,15 +91,16 @@ export function useCart() {
     setLoading(false);
   }, [companyId]);
 
+  // Track whether company_id has been resolved (null means "not yet fetched", undefined would mean "fetched but empty")
+  const [companyIdResolved, setCompanyIdResolved] = useState(false);
+
   useEffect(() => {
     if (authLoading) return;
     if (!user) { setLoading(false); return; }
-    if (companyId === null && !authLoading) {
-      // companyId not yet fetched or truly null — wait for the effect above
-      return;
-    }
+    if (!companyIdResolved) return; // still waiting for company fetch
+    if (!companyId) { setLoading(false); return; } // company is truly null
     fetchCart();
-  }, [companyId, fetchCart, user, authLoading]);
+  }, [companyId, companyIdResolved, fetchCart, user, authLoading]);
 
   const getOrCreateDraftOrder = async (): Promise<string | null> => {
     if (draftOrder) return draftOrder.id;
