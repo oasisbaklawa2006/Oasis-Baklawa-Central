@@ -26,6 +26,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
 import ProductRecommendations from "@/components/ProductRecommendations";
+import { calculatePackPrice, calculateLineTotal } from "@/utils/pricing";
 
 const formatPrice = (n: number) => "₹" + n.toLocaleString("en-IN");
 
@@ -127,16 +128,7 @@ const Cart = () => {
 
   // FIX: Safely cast to any to bypass strict TS check, checking new pricing fields first, then falling back to price_per_kg
   const subtotal = sortedItems.reduce((sum, item) => {
-    const p = item.product as any;
-    const perKg = p?.price_per_kg || p?.wholesale_price || p?.base_price || 0;
-    const boxWeightKg = p?.avg_weight_per_pack || (p?.net_weight_grams ? p.net_weight_grams / 1000 : 0);
-    let itemPrice: number;
-    if (perKg > 0 && boxWeightKg > 0) {
-      itemPrice = perKg * boxWeightKg;
-    } else {
-      itemPrice = p?.mrp || perKg || 0;
-    }
-    return sum + item.quantity * itemPrice;
+    return sum + calculateLineTotal(item.product, item.quantity);
   }, 0);
 
   const tax = Math.round(subtotal * 0.05);
@@ -352,15 +344,8 @@ const Cart = () => {
                 <div className="space-y-4">
                   {section.items.map((item) => {
                     const p = item.product as any;
-                    const perKg = p?.price_per_kg || p?.wholesale_price || p?.base_price || 0;
-                    const boxWeightKg = p?.avg_weight_per_pack || (p?.net_weight_grams ? p.net_weight_grams / 1000 : 0);
-                    let itemPrice: number;
-                    if (perKg > 0 && boxWeightKg > 0) {
-                      itemPrice = perKg * boxWeightKg;
-                    } else {
-                      itemPrice = p?.mrp || perKg || 0;
-                    }
-                    const itemTotal = item.quantity * itemPrice;
+                    const itemPrice = calculatePackPrice(p);
+                    const itemTotal = calculateLineTotal(p, item.quantity);
 
                     const boxWeight = (item.product as any)?.avg_weight_per_pack || ((item.product as any)?.net_weight_grams ? (item.product as any).net_weight_grams / 1000 : null);
                     const packsPerCarton = (item.product as any)?.packs_per_master_carton || (item.product as any)?.packs_per_carton || section.rule.packsPerCarton;

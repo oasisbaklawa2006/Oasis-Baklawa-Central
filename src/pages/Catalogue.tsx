@@ -17,8 +17,9 @@ import {
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
 
-const getProductPrice = (p: any): number =>
-  p.wholesale_price ?? p.mrp ?? p.price_per_kg ?? 0;
+import { calculatePackPrice } from "@/utils/pricing";
+
+const getProductPrice = (p: any): number => calculatePackPrice(p);
 
 const getPackInfo = (p: any): string =>
   [p.pack_size, p.carton_type].filter(Boolean).join(" · ") || "Standard";

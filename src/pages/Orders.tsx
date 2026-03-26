@@ -60,7 +60,7 @@ const Orders = () => {
     // Fetching orders AND their nested items and product images
     const { data, error } = await supabase
       .from("orders")
-    .select("id, status, created_at, sales_order_value, document_stage, payment_cleared, eway_bill_number, order_items(*, product:products(name, image_url, pack_size, carton_type, wholesale_price, mrp, price_per_kg))")
+    .select("id, status, created_at, sales_order_value, document_stage, payment_cleared, eway_bill_number, order_items(*, product:products(name, image_url, pack_size, carton_type, wholesale_price, mrp, price_per_kg, avg_weight_per_pack, net_weight_grams))")
     .neq("status", "draft")
       .order("created_at", { ascending: false });
 
