@@ -69,19 +69,19 @@ const ProductRecommendations = ({
       <h3 className="px-5 text-lg font-serif font-bold text-foreground mb-4">
         {title}
       </h3>
-      <div className="flex overflow-x-auto gap-4 px-5 pb-4 scrollbar-hide">
+      <div className="flex flex-row overflow-x-auto gap-4 px-5 pb-4 scrollbar-hide" style={{ WebkitOverflowScrolling: 'touch' }}>
         {products.map((p) => (
           <div
             key={p.id}
             onClick={() => navigate(`/product/${p.id}`)}
             className="min-w-[140px] max-w-[140px] bg-card rounded-2xl border border-border p-3 shadow-sm flex-shrink-0 cursor-pointer active:scale-95 transition-transform"
           >
-            <div className="w-full aspect-square bg-muted rounded-xl mb-3 p-2 flex items-center justify-center">
+            <div className="w-full aspect-square bg-muted/30 rounded-xl mb-3 p-2 flex items-center justify-center">
               {p.image_url ? (
                 <img
                   src={p.image_url}
                   alt={p.name}
-                  className="w-full h-full object-contain"
+                  className="w-full h-full object-contain mix-blend-multiply"
                 />
               ) : (
                 <Package size={24} className="text-muted-foreground" />

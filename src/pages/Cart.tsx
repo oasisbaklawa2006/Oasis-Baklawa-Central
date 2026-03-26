@@ -368,7 +368,15 @@ const Cart = () => {
 
                     return (
                       <div key={item.id} className="flex items-center justify-between">
-                        <div className="flex-1 pr-4">
+                        {/* Product Thumbnail */}
+                        <div className="w-16 h-16 rounded-xl bg-muted/30 flex items-center justify-center flex-shrink-0 mr-3 overflow-hidden">
+                          {p?.image_url ? (
+                            <img src={p.image_url} alt={p?.name || ""} className="w-full h-full object-contain mix-blend-multiply" />
+                          ) : (
+                            <Package size={20} className="text-muted-foreground" />
+                          )}
+                        </div>
+                        <div className="flex-1 pr-4 min-w-0">
                           <p className="font-bold text-sm truncate">
                             {item.product?.name}{boxWeight ? ` - Box (${boxWeight}kg Approx)` : ""}
                           </p>
@@ -505,17 +513,21 @@ const Cart = () => {
         {/* CROSS-SELL */}
         <ProductRecommendations title="Frequently Bought Together" />
 
-        {/* SUMMARY & CHECKOUT BUTTON */}
-        <motion.section className="bg-[#1A1A1A] text-white rounded-[2rem] shadow-2xl p-6 relative overflow-hidden print:hidden">
-          <div className="absolute top-0 right-0 opacity-5 pointer-events-none">
-            <Package size={120} className="-mt-4 -mr-4" />
-          </div>
-          <div className="relative z-10 flex justify-between items-end pb-4 border-b border-white/10">
-            <div>
-              <span className="text-xs uppercase tracking-widest text-slate-400 font-bold block mb-1">Grand Total</span>
-              <span className="text-[10px] text-slate-500">Includes 5% GST</span>
+        {/* SUMMARY & CHECKOUT BAR */}
+        <motion.section className="bg-[#005F5F] text-white rounded-[2rem] shadow-2xl p-6 relative overflow-hidden print:hidden">
+          <div className="relative z-10 space-y-2">
+            <div className="flex justify-between items-center text-sm">
+              <span className="text-white/80 font-medium uppercase tracking-wider text-xs">Sub Total (Items)</span>
+              <span className="text-white font-bold">{formatPrice(subtotal)}</span>
             </div>
-            <span className="font-black text-3xl text-[#C5A059]">{formatPrice(grandTotal)}</span>
+            <div className="flex justify-between items-center text-sm pb-3 border-b border-[#C5A059]/40">
+              <span className="text-white/80 font-medium uppercase tracking-wider text-xs">Tax (GST@5%)</span>
+              <span className="text-white font-bold">{formatPrice(tax)}</span>
+            </div>
+            <div className="flex justify-between items-center pt-2">
+              <span className="text-white font-bold uppercase tracking-wider text-xs">Grand Total</span>
+              <span className="font-black text-3xl text-[#D4AF37]">{formatPrice(grandTotal)}</span>
+            </div>
           </div>
           <button
             onClick={() => {
@@ -524,13 +536,13 @@ const Cart = () => {
               setShowPaymentModal(true);
             }}
             disabled={hasIncompleteCartons || hasHardStop || addresses.length === 0}
-            className="w-full mt-5 py-4 rounded-2xl bg-white text-slate-900 font-bold text-sm hover:bg-slate-100 active:scale-95 disabled:opacity-50 transition-all shadow-xl"
+            className="w-full mt-5 py-4 rounded-2xl bg-gradient-to-r from-[#D4AF37] to-[#F3E5AB] text-[#005F5F] font-bold text-sm hover:brightness-105 active:scale-95 disabled:opacity-50 transition-all shadow-lg shadow-black/20"
           >
             {hasHardStop
               ? "MOQ Requirements Not Met"
               : hasIncompleteCartons
-                ? "Fill Cartons to Continue"
-                : "Proceed to Payment"}
+                ? "FILL CARTONS TO CONTINUE"
+                : "PROCEED TO PAYMENT"}
           </button>
         </motion.section>
       </div>
