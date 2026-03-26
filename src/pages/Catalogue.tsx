@@ -17,12 +17,16 @@ import {
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
 
-import { calculatePackPrice } from "@/utils/pricing";
+import { calculatePackPrice, getDisplayPrice, getProductCategory, getPacksPerCarton } from "@/utils/pricing";
 
 const getProductPrice = (p: any): number => calculatePackPrice(p);
 
-const getPackInfo = (p: any): string =>
-  [p.pack_size, p.carton_type].filter(Boolean).join(" · ") || "Standard";
+const getPackInfo = (p: any): string => {
+  const cat = getProductCategory(p);
+  const perCarton = getPacksPerCarton(p);
+  const parts = [p.pack_size, p.carton_type].filter(Boolean).join(" · ") || "Standard";
+  return `${parts} | ${perCarton}/${cat === "bulk_kg" ? "carton" : "carton"}`;
+};
 
 const Catalogue = () => {
   const [searchParams] = useSearchParams();
@@ -266,7 +270,10 @@ const Catalogue = () => {
                             </div>
                           </td>
                           <td className="p-4 text-xs font-medium text-muted-foreground">{getPackInfo(item)}</td>
-                          <td className="p-4 text-sm font-bold text-foreground">{formatPrice(getProductPrice(item))}</td>
+                          <td className="p-4 text-sm font-bold text-foreground">
+                            {formatPrice(getProductPrice(item))}
+                            <span className="text-[10px] text-muted-foreground font-normal ml-1">{getDisplayPrice(item).unit}</span>
+                          </td>
                           <td className="p-4">
                             <div className="flex items-center justify-center gap-3 bg-card border border-primary/30 rounded-xl px-2 py-1 w-28 mx-auto shadow-sm">
                               <button onClick={() => updateQuantity(item.id, -1)} className="text-primary hover:bg-primary/10 rounded p-1 transition-colors">
@@ -329,7 +336,10 @@ const Catalogue = () => {
                       {item.category && <p className="text-[10px] text-primary font-bold mb-1">{item.category}</p>}
                       {item.sku && <p className="text-[10px] text-muted-foreground font-mono mb-3">{item.sku}</p>}
                       <div className="flex items-center justify-between">
-                        <p className="font-black text-sm text-foreground">{formatPrice(getProductPrice(item))}</p>
+                        <p className="font-black text-sm text-foreground">
+                          {formatPrice(getProductPrice(item))}
+                          <span className="text-[9px] text-muted-foreground font-normal ml-0.5">{getDisplayPrice(item).unit}</span>
+                        </p>
                         <button
                           onClick={async (e) => {
                             e.stopPropagation();

@@ -30,7 +30,7 @@ const getCartonSize = (product: any) => {
   return product.packs_per_master_carton || product.packs_per_carton || 4;
 };
 
-import { calculatePackPrice } from "@/utils/pricing";
+import { calculatePackPrice, getDisplayPrice, getProductCategory, getPacksPerCarton, getMinOrderQty, getQtyIncrement, getGstRate, getHsnCode, getPrimaryPackWeightKg } from "@/utils/pricing";
 
 const getProductPrice = (p: any): number => calculatePackPrice(p);
 
@@ -44,7 +44,7 @@ const ProductDetail = () => {
 
   const [product, setProduct] = useState<any>(null);
   const [loading, setLoading] = useState(true);
-  const [boxes, setBoxes] = useState(1);
+  const [boxes, setBoxes] = useState(0); // will be set to minQty once product loads
   const [isFav, setIsFav] = useState(false);
   const [isAdding, setIsAdding] = useState(false);
 
@@ -55,7 +55,6 @@ const ProductDetail = () => {
     if (!id) return;
     window.scrollTo(0, 0);
     setLoading(true);
-    setBoxes(1);
     setActiveImage(0);
 
     supabase
@@ -64,7 +63,10 @@ const ProductDetail = () => {
       .eq("id", id)
       .single()
       .then(({ data, error }) => {
-        if (!error && data) setProduct(data);
+        if (!error && data) {
+          setProduct(data);
+          setBoxes(getMinOrderQty(data));
+        }
         setLoading(false);
       });
   }, [id]);
@@ -91,15 +93,25 @@ const ProductDetail = () => {
       </AppShell>
     );
 
-  const packsPerCarton = getCartonSize(product);
+  const cat = getProductCategory(product);
+  const packsPerCarton = getPacksPerCarton(product);
+  const minQty = getMinOrderQty(product);
+  const increment = getQtyIncrement(product);
+  const gstRate = getGstRate(product);
+  const hsn = getHsnCode(product);
+  const weightKg = getPrimaryPackWeightKg(product);
   const remainder = boxes % packsPerCarton;
   const neededToFill = remainder === 0 ? 0 : packsPerCarton - remainder;
   const progressPercentage = remainder === 0 ? 100 : (remainder / packsPerCarton) * 100;
 
   const images = [product.image_url].filter(Boolean);
   const price = getProductPrice(product);
+  const displayPriceInfo = getDisplayPrice(product);
   const currentTotal = boxes * price;
+  const currentTax = currentTotal * (gstRate / 100);
   const dietaryTags: string[] = product.dietary_tags || [];
+  const isBulk = cat === "bulk_kg";
+  const isPremium = cat === "premium_pc";
 
   const handleAddToCart = async () => {
     setIsAdding(true);
@@ -216,8 +228,13 @@ const ProductDetail = () => {
                     </p>
                   )}
                   <p className="text-2xl font-black text-background">
-                    {formatPrice(price)} <span className="text-xs font-bold text-primary">/pack</span>
+                    {formatPrice(price)} <span className="text-xs font-bold text-primary">{displayPriceInfo.unit}</span>
                   </p>
+                  {isBulk && weightKg > 0 && (
+                    <p className="text-[10px] text-muted mt-0.5">
+                      Pack price: ₹{displayPriceInfo.price}/kg × {weightKg}kg = {formatPrice(price)}
+                    </p>
+                  )}
                 </div>
                 {product.mrp && product.wholesale_price && product.mrp > product.wholesale_price && (
                   <div className="text-right">
@@ -315,20 +332,25 @@ const ProductDetail = () => {
 
               <div className="space-y-4">
                 <div className="flex justify-between items-end px-1">
-                  <span className="text-xs font-bold text-muted-foreground uppercase tracking-widest">Total Price</span>
-                  <span className="text-2xl font-black text-primary">{formatPrice(currentTotal)}</span>
+                  <div>
+                    <span className="text-xs font-bold text-muted-foreground uppercase tracking-widest">Total Price</span>
+                    <p className="text-[10px] text-muted-foreground mt-0.5">
+                      + GST @{gstRate}%: {formatPrice(currentTax)} {hsn ? `(HSN: ${hsn})` : ""}
+                    </p>
+                  </div>
+                  <span className="text-2xl font-black text-primary">{formatPrice(currentTotal + currentTax)}</span>
                 </div>
                 <div className="flex items-center gap-3">
                   <div className="flex items-center bg-muted rounded-xl p-1 border border-border h-14">
                     <button
-                      onClick={() => setBoxes((b) => Math.max(1, b - 1))}
+                      onClick={() => setBoxes((b) => Math.max(minQty, b - increment))}
                       className="w-12 h-full rounded-lg bg-card shadow-sm font-bold text-xl active:scale-95 text-foreground"
                     >
                       −
                     </button>
                     <span className="font-bold text-xl w-10 text-center text-foreground">{boxes}</span>
                     <button
-                      onClick={() => setBoxes((b) => b + 1)}
+                      onClick={() => setBoxes((b) => b + increment)}
                       className="w-12 h-full rounded-lg bg-foreground text-background shadow-sm font-bold text-xl active:scale-95"
                     >
                       +

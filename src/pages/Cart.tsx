@@ -26,31 +26,47 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
 import ProductRecommendations from "@/components/ProductRecommendations";
-import { calculatePackPrice, calculateLineTotal } from "@/utils/pricing";
+import {
+  calculatePackPrice,
+  calculateLineTotal,
+  calculateLineTax,
+  getGstRate,
+  getHsnCode,
+  getProductCategory,
+  getPacksPerCarton,
+  isCartonSealed,
+  unitsToFillCarton,
+  getDisplayPrice,
+  getPrimaryPackWeightKg,
+  getMinOrderQty,
+  getQtyIncrement,
+} from "@/utils/pricing";
 
-const formatPrice = (n: number) => "₹" + n.toLocaleString("en-IN");
+const formatPrice = (n: number) => "₹" + n.toLocaleString("en-IN", { maximumFractionDigits: 0 });
 
-function getCartonRule(cartonType: string | null, items: any[]) {
-  // Use the actual packs_per_master_carton from the first item's product in this group
-  const firstItem = items.find((it: any) => it.product?.packs_per_master_carton);
-  const dbValue = firstItem?.product?.packs_per_master_carton;
-  if (dbValue && dbValue > 0) return { packsPerCarton: dbValue };
-  // Fallback only if DB value is missing
-  return { packsPerCarton: 4 };
-}
-
-function groupByCartonType(items: any[]) {
+// Group items by their carton family (packs_per_carton value)
+function groupByCartonFamily(items: any[]) {
   const map = new Map<string, any[]>();
   for (const item of items) {
-    const key = item.product?.carton_type ?? "Standard";
+    const p = item.product;
+    const cat = getProductCategory(p);
+    const perCarton = getPacksPerCarton(p);
+    const key = `${cat}_${perCarton}_${p?.carton_type || "Standard"}`;
     if (!map.has(key)) map.set(key, []);
     map.get(key)!.push(item);
   }
-  return Array.from(map.entries()).map(([cartonType, groupItems]) => ({
-    cartonType,
-    rule: getCartonRule(cartonType, groupItems),
-    items: groupItems,
-  }));
+  return Array.from(map.entries()).map(([key, groupItems]) => {
+    const firstProduct = groupItems[0]?.product;
+    const cat = getProductCategory(firstProduct);
+    const perCarton = getPacksPerCarton(firstProduct);
+    return {
+      key,
+      category: cat,
+      perCarton,
+      cartonType: firstProduct?.carton_type || "Standard",
+      items: groupItems,
+    };
+  });
 }
 
 interface MoqRule {
@@ -88,11 +104,9 @@ const Cart = () => {
   // Fetch active MOQ rules & Logistics
   useEffect(() => {
     const fetchCheckoutData = async () => {
-      // 1. Get MOQ Rules
       const { data: moqData } = await supabase.from("moq_rules").select("*").eq("is_active", true);
       if (moqData) setMoqRules(moqData as MoqRule[]);
 
-      // 2. Get User Logistics
       const {
         data: { user },
       } = await supabase.auth.getUser();
@@ -124,19 +138,28 @@ const Cart = () => {
     () => [...items].sort((a, b) => (a.product?.name || "").localeCompare(b.product?.name || "")),
     [items],
   );
-  const sections = useMemo(() => groupByCartonType(sortedItems), [sortedItems]);
+  const sections = useMemo(() => groupByCartonFamily(sortedItems), [sortedItems]);
 
-  // FIX: Safely cast to any to bypass strict TS check, checking new pricing fields first, then falling back to price_per_kg
+  // Per-line item tax calculations
   const subtotal = sortedItems.reduce((sum, item) => {
     return sum + calculateLineTotal(item.product, item.quantity);
   }, 0);
 
-  const tax = Math.round(subtotal * 0.05);
-  const grandTotal = subtotal + tax;
+  const totalTax = sortedItems.reduce((sum, item) => {
+    return sum + calculateLineTax(item.product, item.quantity);
+  }, 0);
 
+  const grandTotal = Math.round(subtotal + totalTax);
+
+  // Sealed carton check across all sections
   const hasIncompleteCartons = sections.some((section) => {
-    const packs = section.items.reduce((s, it) => s + it.quantity, 0);
-    return packs > 0 && packs % section.rule.packsPerCarton !== 0;
+    if (section.category === "premium_pc") {
+      // Premium: each item must be individually sealed
+      return section.items.some((item) => !isCartonSealed(item.product, item.quantity));
+    }
+    // Bulk & Ready: group total must be sealed
+    const totalQty = section.items.reduce((s, it) => s + it.quantity, 0);
+    return totalQty > 0 && totalQty % section.perCarton !== 0;
   });
 
   // MOQ Validation
@@ -156,7 +179,7 @@ const Cart = () => {
           const productName = matchingItems[0]?.product?.name || "Product";
           violations.push({
             ruleName: productName,
-            message: `${productName} requires minimum ${minQty} packs (you have ${totalQty})`,
+            message: `${productName} requires minimum ${minQty} units (you have ${totalQty})`,
             mode,
           });
         }
@@ -166,7 +189,7 @@ const Cart = () => {
         if (matchingItems.length > 0 && totalQty < minQty) {
           violations.push({
             ruleName: `Category`,
-            message: `This category requires minimum ${minQty} packs (you have ${totalQty})`,
+            message: `This category requires minimum ${minQty} units (you have ${totalQty})`,
             mode,
           });
         }
@@ -175,7 +198,7 @@ const Cart = () => {
         if (totalQty < minQty) {
           violations.push({
             ruleName: "Global MOQ",
-            message: `Minimum order quantity is ${minQty} packs (you have ${totalQty})`,
+            message: `Minimum order quantity is ${minQty} units (you have ${totalQty})`,
             mode,
           });
         }
@@ -186,7 +209,7 @@ const Cart = () => {
           if (totalQty < minQty) {
             violations.push({
               ruleName: `Carton ${rule.carton_type}`,
-              message: `Carton type ${rule.carton_type} requires minimum ${minQty} packs (you have ${totalQty})`,
+              message: `Carton type ${rule.carton_type} requires minimum ${minQty} units (you have ${totalQty})`,
               mode,
             });
           }
@@ -201,11 +224,11 @@ const Cart = () => {
   const hasHardStop = hardStopViolations.length > 0;
 
   const handleAutoOptimize = async (section: any) => {
-    const sectionPacks = section.items.reduce((s: number, it: any) => s + it.quantity, 0);
-    const remainder = sectionPacks % section.rule.packsPerCarton;
+    const sectionQty = section.items.reduce((s: number, it: any) => s + it.quantity, 0);
+    const remainder = sectionQty % section.perCarton;
     if (remainder > 0) {
-      const neededToFill = section.rule.packsPerCarton - remainder;
-      const targetItem = [...section.items].sort((a, b) => b.quantity - a.quantity)[0];
+      const neededToFill = section.perCarton - remainder;
+      const targetItem = [...section.items].sort((a: any, b: any) => b.quantity - a.quantity)[0];
       await updateQuantity(targetItem.id, targetItem.quantity + neededToFill);
       await fetchCart();
       toast.success(`✨ Carton perfectly optimized!`, { icon: "📦" });
@@ -215,7 +238,21 @@ const Cart = () => {
   const handleSmartAdd = async (itemId: string, currentQty: number, needed: number) => {
     await updateQuantity(itemId, currentQty + needed);
     await fetchCart();
-    toast.success(`Added ${needed} packs to fill carton!`);
+    toast.success(`Added ${needed} units to fill carton!`);
+  };
+
+  const handleQtyChange = async (itemId: string, currentQty: number, delta: number, product: any) => {
+    const increment = getQtyIncrement(product);
+    const minQty = getMinOrderQty(product);
+    const newQty = currentQty + (delta > 0 ? increment : -increment);
+    
+    if (newQty <= 0) {
+      await updateQuantity(itemId, 0); // remove
+    } else if (newQty < minQty) {
+      await updateQuantity(itemId, 0); // below MOQ = remove
+    } else {
+      await updateQuantity(itemId, newQty);
+    }
   };
 
   const handlePrintSO = () => {
@@ -237,7 +274,6 @@ const Cart = () => {
           status: "submitted",
           sales_order_value: grandTotal,
           payment_status: "awaiting_receipt",
-          delivery_address_id: selectedAddress || null,
         })
         .eq("id", draftOrder.id);
       if (error) throw error;
@@ -273,6 +309,20 @@ const Cart = () => {
         </div>
       </AppShell>
     );
+
+  // Build per-line tax breakdown for display
+  const taxBreakdown = sortedItems.reduce<Record<string, { hsn: string; rate: number; taxable: number; tax: number }>>((acc, item) => {
+    const p = item.product;
+    const hsn = getHsnCode(p);
+    const rate = getGstRate(p);
+    const lineTotal = calculateLineTotal(p, item.quantity);
+    const lineTax = calculateLineTax(p, item.quantity);
+    const key = `${hsn}_${rate}`;
+    if (!acc[key]) acc[key] = { hsn, rate, taxable: 0, tax: 0 };
+    acc[key].taxable += lineTotal;
+    acc[key].tax += lineTax;
+    return acc;
+  }, {});
 
   return (
     <AppShell>
@@ -323,113 +373,150 @@ const Cart = () => {
         {/* CART ITEMS LIST */}
         <div className="space-y-4">
           {sections.map((section) => {
-            const sectionPacks = section.items.reduce((s, it) => s + it.quantity, 0);
-            const remainder = sectionPacks % section.rule.packsPerCarton;
-            const neededToFill = section.rule.packsPerCarton - remainder;
-            const isIncomplete = remainder > 0;
+            const sectionQty = section.items.reduce((s, it) => s + it.quantity, 0);
+            const isPremium = section.category === "premium_pc";
+            const isBulk = section.category === "bulk_kg";
+
+            // For premium, check each item individually
+            const sectionSealed = isPremium
+              ? section.items.every((item) => isCartonSealed(item.product, item.quantity))
+              : sectionQty % section.perCarton === 0;
+            const sectionNeeded = isPremium ? 0 : unitsToFillCarton(section.items[0]?.product, sectionQty);
+
+            const categoryLabel = isBulk ? "Bulk (Kg)" : isPremium ? "Premium" : "Ready Packs (Pc)";
 
             return (
               <motion.section
-                key={section.cartonType}
-                className={`bg-white rounded-[2rem] p-5 border shadow-sm ${isIncomplete ? "border-amber-200" : "border-slate-100"}`}
+                key={section.key}
+                className={`bg-white rounded-[2rem] p-5 border shadow-sm ${!sectionSealed ? "border-amber-200" : "border-slate-100"}`}
               >
-              <h2 className="font-bold text-slate-800 text-sm mb-4">
-                  1 Carton = {section.rule.packsPerCarton} Boxes of{" "}
-                  {(() => {
-                    const firstWithWeight = section.items.find((it: any) => it.product?.avg_weight_per_pack || it.product?.net_weight_grams);
-                    const weight = firstWithWeight?.product?.avg_weight_per_pack || (firstWithWeight?.product?.net_weight_grams ? firstWithWeight.product.net_weight_grams / 1000 : null);
-                    return weight ? `${weight} Kg Each` : "Standard Size";
+                <h2 className="font-bold text-slate-800 text-sm mb-1">
+                  {categoryLabel} — 1 Carton = {section.perCarton} {isBulk ? "Packs" : "Pcs"}
+                  {isBulk && (() => {
+                    const w = getPrimaryPackWeightKg(section.items[0]?.product);
+                    return w ? ` of ${w} Kg Each` : "";
                   })()}
                 </h2>
+                <p className="text-[10px] text-slate-400 mb-4 uppercase tracking-wider">
+                  {section.cartonType}
+                </p>
+
                 <div className="space-y-4">
                   {section.items.map((item) => {
                     const p = item.product as any;
-                    const itemPrice = calculatePackPrice(p);
-                    const itemTotal = calculateLineTotal(p, item.quantity);
+                    const unitPrice = calculatePackPrice(p);
+                    const lineTotal = calculateLineTotal(p, item.quantity);
+                    const lineTax = calculateLineTax(p, item.quantity);
+                    const gstRate = getGstRate(p);
+                    const hsn = getHsnCode(p);
+                    const cat = getProductCategory(p);
+                    const weightKg = getPrimaryPackWeightKg(p);
+                    const perCarton = getPacksPerCarton(p);
+                    const increment = getQtyIncrement(p);
 
-                    const boxWeight = (item.product as any)?.avg_weight_per_pack || ((item.product as any)?.net_weight_grams ? (item.product as any).net_weight_grams / 1000 : null);
-                    const packsPerCarton = (item.product as any)?.packs_per_master_carton || (item.product as any)?.packs_per_carton || section.rule.packsPerCarton;
+                    // For premium, individual sealed check
+                    const itemSealed = isPremium ? isCartonSealed(p, item.quantity) : true;
+                    const itemNeeded = isPremium ? unitsToFillCarton(p, item.quantity) : 0;
 
                     return (
-                      <div key={item.id} className="flex items-center justify-between">
-                        {/* Product Thumbnail */}
-                        <div className="w-16 h-16 rounded-xl bg-muted/30 flex items-center justify-center flex-shrink-0 mr-3 overflow-hidden">
-                          {p?.image_url ? (
-                            <img src={p.image_url} alt={p?.name || ""} className="w-full h-full object-contain mix-blend-multiply" />
-                          ) : (
-                            <Package size={20} className="text-muted-foreground" />
-                          )}
+                      <div key={item.id}>
+                        <div className="flex items-center justify-between">
+                          {/* Product Thumbnail */}
+                          <div className="w-16 h-16 rounded-xl bg-muted/30 flex items-center justify-center flex-shrink-0 mr-3 overflow-hidden">
+                            {p?.image_url ? (
+                              <img src={p.image_url} alt={p?.name || ""} className="w-full h-full object-contain mix-blend-multiply" />
+                            ) : (
+                              <Package size={20} className="text-muted-foreground" />
+                            )}
+                          </div>
+                          <div className="flex-1 pr-4 min-w-0">
+                            <p className="font-bold text-sm truncate">
+                              {p?.name}
+                              {isBulk && weightKg ? ` (${weightKg}kg)` : ""}
+                            </p>
+                            <p className="text-[10px] text-slate-500 font-medium mt-0.5">
+                              {isBulk
+                                ? `₹${getDisplayPrice(p).price}/kg × ${weightKg}kg = ${formatPrice(unitPrice)}/pack`
+                                : `${formatPrice(unitPrice)}/pc`}
+                            </p>
+                            <p className="text-[10px] text-slate-500 font-bold mt-0.5">
+                              Qty: {item.quantity} × {formatPrice(unitPrice)} = <span className="text-slate-800">{formatPrice(lineTotal)}</span>
+                            </p>
+                            <p className="text-[9px] text-slate-400 mt-0.5">
+                              GST @{gstRate}%: {formatPrice(lineTax)} {hsn ? `| HSN: ${hsn}` : ""}
+                            </p>
+                          </div>
+                          <div className="flex items-center bg-slate-50 rounded-xl p-1 border border-slate-200">
+                            <button
+                              onClick={() => handleQtyChange(item.id, item.quantity, -1, p)}
+                              className="w-8 h-8 rounded-lg bg-white shadow-sm font-bold"
+                            >
+                              {item.quantity <= increment ? <Trash2 size={12} className="text-red-500 mx-auto" /> : "−"}
+                            </button>
+                            <span className="font-bold text-xs w-8 text-center">{item.quantity}</span>
+                            <button
+                              onClick={() => handleQtyChange(item.id, item.quantity, 1, p)}
+                              className="w-8 h-8 rounded-lg bg-[#C5A059] text-white shadow-sm font-bold"
+                            >
+                              +
+                            </button>
+                          </div>
                         </div>
-                        <div className="flex-1 pr-4 min-w-0">
-                          <p className="font-bold text-sm truncate">
-                            {item.product?.name}{boxWeight ? ` - Box (${boxWeight}kg Approx)` : ""}
-                          </p>
-                          <p className="text-[10px] text-slate-500 font-medium mt-0.5">
-                            Packing: {packsPerCarton} Boxes per Carton
-                          </p>
-                          <p className="text-[10px] text-slate-500 font-bold mt-0.5">
-                            Qty: {item.quantity} Boxes • Total: <span className="text-slate-800">{formatPrice(itemTotal)}</span>
-                          </p>
-                        </div>
-                        <div className="flex items-center bg-slate-50 rounded-xl p-1 border border-slate-200">
-                          <button
-                            onClick={() => updateQuantity(item.id, item.quantity - 1)}
-                            className="w-8 h-8 rounded-lg bg-white shadow-sm font-bold"
-                          >
-                            {item.quantity === 1 ? <Trash2 size={12} className="text-red-500 mx-auto" /> : "−"}
-                          </button>
-                          <span className="font-bold text-xs w-8 text-center">{item.quantity}</span>
-                          <button
-                            onClick={() => updateQuantity(item.id, item.quantity + 1)}
-                            className="w-8 h-8 rounded-lg bg-[#C5A059] text-white shadow-sm font-bold"
-                          >
-                            +
-                          </button>
-                        </div>
+                        {/* Premium individual carton warning */}
+                        {isPremium && !itemSealed && (
+                          <div className="mt-2 bg-amber-50 rounded-lg p-2 border border-amber-200">
+                            <p className="text-[10px] text-amber-800 font-bold">
+                              ⚠ Add {itemNeeded} more to complete carton ({perCarton}/carton)
+                            </p>
+                          </div>
+                        )}
                       </div>
                     );
                   })}
                 </div>
 
-                <div className="pt-4 mt-5 border-t border-slate-100">
-                  {isIncomplete ? (
-                    <div className="bg-amber-50 rounded-xl p-4 border border-amber-200 shadow-inner">
-                      <p className="text-xs font-bold text-amber-900 mb-3 flex items-center gap-1.5">
-                        <AlertTriangle size={14} /> Add {neededToFill} more Boxes to fill carton.
-                      </p>
-                      <div className="h-1.5 w-full bg-amber-200/50 rounded-full overflow-hidden mb-4">
-                        <div
-                          className="h-full bg-amber-500"
-                          style={{ width: `${(remainder / section.rule.packsPerCarton) * 100}%` }}
-                        />
-                      </div>
-                      <div className="flex flex-wrap gap-2">
-                        {section.items.map((item) => (
+                {/* Section carton status (for non-premium) */}
+                {!isPremium && (
+                  <div className="pt-4 mt-5 border-t border-slate-100">
+                    {!sectionSealed ? (
+                      <div className="bg-amber-50 rounded-xl p-4 border border-amber-200 shadow-inner">
+                        <p className="text-xs font-bold text-amber-900 mb-3 flex items-center gap-1.5">
+                          <AlertTriangle size={14} /> Add {sectionNeeded} more to fill carton.
+                        </p>
+                        <div className="h-1.5 w-full bg-amber-200/50 rounded-full overflow-hidden mb-4">
+                          <div
+                            className="h-full bg-amber-500"
+                            style={{ width: `${((sectionQty % section.perCarton) / section.perCarton) * 100}%` }}
+                          />
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                          {section.items.map((item) => (
+                            <button
+                              key={`suggest-${item.id}`}
+                              onClick={() => handleSmartAdd(item.id, item.quantity, sectionNeeded)}
+                              className="px-3 py-2 bg-white border border-amber-200 text-amber-900 rounded-lg text-[10px] font-bold shadow-sm hover:bg-amber-100 transition-colors flex-1 min-w-[120px]"
+                            >
+                              +{sectionNeeded} {item.product?.name}
+                            </button>
+                          ))}
                           <button
-                            key={`suggest-${item.id}`}
-                            onClick={() => handleSmartAdd(item.id, item.quantity, neededToFill)}
-                            className="px-3 py-2 bg-white border border-amber-200 text-amber-900 rounded-lg text-[10px] font-bold shadow-sm hover:bg-amber-100 transition-colors flex-1 min-w-[120px]"
+                            onClick={() => handleAutoOptimize(section)}
+                            className="w-full mt-1 bg-[#C5A059] text-white py-2.5 rounded-lg text-xs font-bold flex justify-center items-center gap-2 shadow-sm hover:bg-[#B38F48]"
                           >
-                            +{neededToFill} Boxes {item.product?.name}
+                            <Wand2 size={14} /> Auto-Fill Mix
                           </button>
-                        ))}
-                        <button
-                          onClick={() => handleAutoOptimize(section)}
-                          className="w-full mt-1 bg-[#C5A059] text-white py-2.5 rounded-lg text-xs font-bold flex justify-center items-center gap-2 shadow-sm hover:bg-[#B38F48]"
-                        >
-                          <Wand2 size={14} /> Auto-Fill Mix
-                        </button>
+                        </div>
                       </div>
-                    </div>
-                  ) : (
-                    <div className="bg-emerald-50 rounded-xl p-3 flex justify-center items-center gap-2 border border-emerald-100">
-                      <CheckCircle2 size={16} className="text-emerald-600" />
-                      <p className="text-[11px] font-bold text-emerald-800 uppercase tracking-wider">
-                        All Cartons Filled & Sealed
-                      </p>
-                    </div>
-                  )}
-                </div>
+                    ) : (
+                      <div className="bg-emerald-50 rounded-xl p-3 flex justify-center items-center gap-2 border border-emerald-100">
+                        <CheckCircle2 size={16} className="text-emerald-600" />
+                        <p className="text-[11px] font-bold text-emerald-800 uppercase tracking-wider">
+                          All Cartons Filled & Sealed
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                )}
               </motion.section>
             );
           })}
@@ -497,16 +584,33 @@ const Cart = () => {
         {/* CROSS-SELL */}
         <ProductRecommendations title="Frequently Bought Together" />
 
+        {/* TAX BREAKDOWN */}
+        {Object.keys(taxBreakdown).length > 0 && (
+          <motion.section className="bg-white rounded-[2rem] p-5 border border-slate-100 shadow-sm">
+            <h3 className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-3">GST Breakdown</h3>
+            <div className="space-y-2">
+              {Object.values(taxBreakdown).map((row, i) => (
+                <div key={i} className="flex justify-between text-[11px]">
+                  <span className="text-slate-600">
+                    {row.hsn ? `HSN ${row.hsn}` : "General"} @ {row.rate}%
+                  </span>
+                  <span className="text-slate-800 font-bold">{formatPrice(row.tax)}</span>
+                </div>
+              ))}
+            </div>
+          </motion.section>
+        )}
+
         {/* SUMMARY & CHECKOUT BAR */}
         <motion.section className="bg-[#005F5F] text-white rounded-[2rem] shadow-2xl p-6 relative overflow-hidden print:hidden">
           <div className="relative z-10 space-y-2">
             <div className="flex justify-between items-center text-sm">
-              <span className="text-white/80 font-medium uppercase tracking-wider text-xs">Sub Total (Items)</span>
+              <span className="text-white/80 font-medium uppercase tracking-wider text-xs">Sub Total (Before Tax)</span>
               <span className="text-white font-bold">{formatPrice(subtotal)}</span>
             </div>
             <div className="flex justify-between items-center text-sm pb-3 border-b border-[#C5A059]/40">
-              <span className="text-white/80 font-medium uppercase tracking-wider text-xs">Tax (GST@5%)</span>
-              <span className="text-white font-bold">{formatPrice(tax)}</span>
+              <span className="text-white/80 font-medium uppercase tracking-wider text-xs">Total GST</span>
+              <span className="text-white font-bold">{formatPrice(totalTax)}</span>
             </div>
             <div className="flex justify-between items-center pt-2">
               <span className="text-white font-bold uppercase tracking-wider text-xs">Grand Total</span>
@@ -561,8 +665,8 @@ const Cart = () => {
                   <span className="font-bold text-slate-800">{formatPrice(subtotal)}</span>
                 </div>
                 <div className="flex justify-between items-center text-sm text-slate-600 border-b border-slate-200 pb-3">
-                  <span>GST (5%)</span>
-                  <span className="font-bold text-slate-800">{formatPrice(tax)}</span>
+                  <span>Total GST</span>
+                  <span className="font-bold text-slate-800">{formatPrice(totalTax)}</span>
                 </div>
                 <div className="flex justify-between items-center mt-2">
                   <span className="font-bold text-slate-900 uppercase tracking-wide text-xs">Amount Payable</span>
