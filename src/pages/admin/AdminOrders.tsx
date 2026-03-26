@@ -135,20 +135,14 @@ const AdminOrders = () => {
   const handleOpenDrawer = async (order: OrderCard) => {
     setSelectedOrder(order);
     setDrawerLoading(true);
+    setEwayInput(order.eway_bill_number ?? "");
 
-    // Fetching items using AppGen's specific relations
     const { data, error } = await supabase
       .from("order_items")
-      .select(
-        `
-        id, quantity, product_id, pack_size, carton_type,
-        products (name)
-      `,
-      )
+      .select(`id, quantity, product_id, pack_size, carton_type, products (name)`)
       .eq("order_id", order.id);
 
     if (error) console.error(error);
-
     setDrawerItems((data as unknown as OrderItem[]) ?? []);
     setDrawerLoading(false);
   };
@@ -156,6 +150,43 @@ const AdminOrders = () => {
   const closeDrawer = () => {
     setSelectedOrder(null);
     setTimeout(() => setDrawerItems([]), 300);
+  };
+
+  const handleGeneratePI = async (orderId: string) => {
+    setFinanceUpdating(true);
+    const { error } = await supabase.from("orders").update({ document_stage: "PI" }).eq("id", orderId);
+    if (error) toast.error("Failed to generate PI");
+    else {
+      toast.success("Proforma Invoice generated");
+      setSelectedOrder(prev => prev ? { ...prev, document_stage: "PI" } : prev);
+      await fetchOrders();
+    }
+    setFinanceUpdating(false);
+  };
+
+  const handleMarkPaymentCleared = async (orderId: string) => {
+    setFinanceUpdating(true);
+    const { error } = await supabase.from("orders").update({ payment_cleared: true, document_stage: "Final" }).eq("id", orderId);
+    if (error) toast.error("Failed to mark payment");
+    else {
+      toast.success("Payment cleared — Final Invoice generated");
+      setSelectedOrder(prev => prev ? { ...prev, payment_cleared: true, document_stage: "Final" } : prev);
+      await fetchOrders();
+    }
+    setFinanceUpdating(false);
+  };
+
+  const handleSaveEwayBill = async (orderId: string) => {
+    if (!ewayInput.trim()) return toast.error("Enter an E-Way Bill number");
+    setFinanceUpdating(true);
+    const { error } = await supabase.from("orders").update({ eway_bill_number: ewayInput.trim() }).eq("id", orderId);
+    if (error) toast.error("Failed to save E-Way Bill");
+    else {
+      toast.success("E-Way Bill saved");
+      setSelectedOrder(prev => prev ? { ...prev, eway_bill_number: ewayInput.trim() } : prev);
+      await fetchOrders();
+    }
+    setFinanceUpdating(false);
   };
 
   const getTotalPacks = (items?: { quantity: number }[]) =>
