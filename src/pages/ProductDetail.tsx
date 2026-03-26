@@ -30,8 +30,9 @@ const getCartonSize = (product: any) => {
   return product.packs_per_master_carton || product.packs_per_carton || 4;
 };
 
-const getProductPrice = (p: any): number =>
-  p.wholesale_price ?? p.mrp ?? p.price_per_kg ?? 0;
+import { calculatePackPrice } from "@/utils/pricing";
+
+const getProductPrice = (p: any): number => calculatePackPrice(p);
 
 const ProductDetail = () => {
   const { id } = useParams<{ id: string }>();

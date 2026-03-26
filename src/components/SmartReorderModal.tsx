@@ -5,6 +5,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { useCart } from "@/hooks/useCart";
 import { Package, Plus, Minus, ShoppingCart, Loader2 } from "lucide-react";
 import { toast } from "sonner";
+import { calculatePackPrice } from "@/utils/pricing";
 
 interface OrderItem {
   id: string;
@@ -21,6 +22,8 @@ interface OrderItem {
     carton_type: string | null;
     wholesale_price?: number | null;
     mrp?: number | null;
+    avg_weight_per_pack?: number | null;
+    net_weight_grams?: number | null;
   };
 }
 
@@ -115,7 +118,7 @@ const SmartReorderModal = ({ open, onClose, order }: SmartReorderModalProps) => 
           )}
 
           {items.map((item) => {
-            const price = item.product?.wholesale_price ?? item.product?.mrp ?? item.product?.price_per_kg ?? 0;
+            const price = calculatePackPrice(item.product);
             const qty = quantities[item.id] ?? item.quantity;
             const checked = selectedIds.has(item.id);
 

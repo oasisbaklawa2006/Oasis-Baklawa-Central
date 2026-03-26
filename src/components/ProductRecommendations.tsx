@@ -4,6 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useCurrency } from "@/contexts/CurrencyContext";
 import { Package } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
+import { calculatePackPrice } from "@/utils/pricing";
 
 interface RecommendedProduct {
   id: string;
@@ -12,6 +13,8 @@ interface RecommendedProduct {
   wholesale_price: number | null;
   mrp: number | null;
   price_per_kg: number | null;
+  avg_weight_per_pack: number | null;
+  net_weight_grams: number | null;
 }
 
 interface Props {
@@ -19,8 +22,7 @@ interface Props {
   excludeProductId?: string;
 }
 
-const getPrice = (p: RecommendedProduct) =>
-  p.wholesale_price ?? p.mrp ?? p.price_per_kg ?? 0;
+const getPrice = (p: RecommendedProduct) => calculatePackPrice(p);
 
 const ProductRecommendations = ({
   title = "You May Also Like",
@@ -34,7 +36,7 @@ const ProductRecommendations = ({
   useEffect(() => {
     supabase
       .from("products")
-      .select("id, name, image_url, wholesale_price, mrp, price_per_kg")
+      .select("id, name, image_url, wholesale_price, mrp, price_per_kg, avg_weight_per_pack, net_weight_grams")
       .eq("is_active", true)
       .limit(20)
       .then(({ data }) => {
