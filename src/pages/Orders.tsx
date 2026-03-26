@@ -28,6 +28,7 @@ const Orders = () => {
   const [loading, setLoading] = useState(true);
   const [timeFilter, setTimeFilter] = useState<TimeFilter>("30days");
   const [searchQuery, setSearchQuery] = useState("");
+  const [reorderOrder, setReorderOrder] = useState<any | null>(null);
 
   const fetchOrders = async () => {
     setLoading(true);
