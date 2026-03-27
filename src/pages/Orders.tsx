@@ -86,6 +86,27 @@ const Orders = () => {
     fetchOrders();
   }, []);
 
+  const handleDownloadDocument = (order: any) => {
+    const stage = order.document_stage;
+    if (stage === "Final") {
+      if (order.final_invoice_url) {
+        window.open(order.final_invoice_url, "_blank");
+      } else {
+        toast.info("Final Invoice is being prepared by the accounts team.");
+      }
+      return;
+    }
+    if (stage === "PI") {
+      if (order.proforma_invoice_url) {
+        window.open(order.proforma_invoice_url, "_blank");
+      } else {
+        toast.info("Proforma Invoice is being prepared by the accounts team.");
+      }
+      return;
+    }
+    generateSOPdf(order);
+  };
+
   const handleFileUpload = async (orderId: string, file: File) => {
     try {
       setUploadingId(orderId);
