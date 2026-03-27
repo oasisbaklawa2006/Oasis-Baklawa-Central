@@ -1,6 +1,7 @@
 import AppShell from "@/components/AppShell";
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { generateSOPdf } from "@/utils/soGenerator";
 import {
   Loader2,
   Package,
