@@ -72,7 +72,7 @@ const Orders = () => {
     const { data, error } = await supabase
       .from("orders")
       .select(
-        "id, status, payment_status, payment_receipt_url, created_at, sales_order_value, document_stage, payment_cleared, eway_bill_number, order_items(*, product:products(name, image_url, pack_size, carton_type, wholesale_price, mrp, price_per_kg, avg_weight_per_pack, net_weight_grams))",
+        "id, status, payment_status, payment_receipt_url, created_at, sales_order_value, document_stage, payment_cleared, eway_bill_number, proforma_invoice_url, final_invoice_url, eway_bill_url, order_items(*, product:products(name, image_url, pack_size, carton_type, wholesale_price, mrp, price_per_kg, avg_weight_per_pack, net_weight_grams))",
       )
       .neq("status", "draft")
       .order("created_at", { ascending: false });
@@ -349,6 +349,38 @@ const Orders = () => {
                       >
                         <Download size={14} /> {getDownloadLabel(order.document_stage)}
                       </button>
+
+                      {/* Conditional Document Buttons */}
+                      {order.proforma_invoice_url && (
+                        <a
+                          href={order.proforma_invoice_url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="flex-1 md:w-full py-2.5 px-4 bg-card border border-border text-foreground rounded-xl text-xs font-bold hover:bg-muted flex items-center justify-center gap-1.5 shadow-sm"
+                        >
+                          <Receipt size={14} /> Download PI
+                        </a>
+                      )}
+                      {order.final_invoice_url && (
+                        <a
+                          href={order.final_invoice_url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="flex-1 md:w-full py-2.5 px-4 bg-card border border-border text-foreground rounded-xl text-xs font-bold hover:bg-muted flex items-center justify-center gap-1.5 shadow-sm"
+                        >
+                          <Receipt size={14} /> Tax Invoice
+                        </a>
+                      )}
+                      {order.eway_bill_url && (
+                        <a
+                          href={order.eway_bill_url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="flex-1 md:w-full py-2.5 px-4 bg-card border border-border text-foreground rounded-xl text-xs font-bold hover:bg-muted flex items-center justify-center gap-1.5 shadow-sm"
+                        >
+                          <Truck size={14} /> E-Way Bill
+                        </a>
+                      )}
                     </div>
                   </div>
                 </motion.div>
