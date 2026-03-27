@@ -2,11 +2,11 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "sonner";
-import { ArrowRight, Loader2, X, FileText, CheckCircle2, Truck } from "lucide-react";
+import { ArrowRight, Loader2, X, FileText, CheckCircle2, Truck, Printer } from "lucide-react";
 import TopNavBar from "@/components/TopNavBar";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-
+import { generateProFormaInvoice } from "@/utils/invoiceGenerator";
 const PACKS_PER_CARTON = 9;
 
 const STATUSES = [
@@ -64,7 +64,7 @@ interface OrderCard {
   document_stage: string | null;
   payment_cleared: boolean | null;
   eway_bill_number: string | null;
-  company?: { business_name: string } | null;
+  company?: { business_name: string; gst_number?: string | null } | null;
   order_items?: OrderItem[];
 }
 
@@ -189,10 +189,43 @@ const AdminOrders = () => {
     setFinanceUpdating(false);
   };
 
+  const handlePrintInvoice = async (order: OrderCard) => {
+    try {
+      // Fetch full product details for each order item
+      const { data: items, error: itemsErr } = await supabase
+        .from("order_items")
+        .select(`id, quantity, product_id, pack_size, carton_type, products (*)`)
+        .eq("order_id", order.id);
+      if (itemsErr) throw itemsErr;
+
+      // Fetch company details
+      let companyDetails: { business_name: string; gst_number?: string | null } | null = null;
+      if (order.company_id) {
+        const { data: co } = await supabase
+          .from("companies")
+          .select("business_name, gst_number")
+          .eq("id", order.company_id)
+          .maybeSingle();
+        companyDetails = co;
+      }
+
+      // Map to the shape the invoice generator expects
+      const cartItems = (items || []).map((item: any) => ({
+        id: item.id,
+        quantity: item.quantity,
+        product: item.products,
+      }));
+
+      generateProFormaInvoice(cartItems, companyDetails, null);
+      toast.success("Proforma Invoice PDF generated");
+    } catch (err: any) {
+      toast.error(err.message || "Failed to generate invoice");
+    }
+  };
+
   const getTotalPacks = (items?: { quantity: number }[]) =>
     items?.reduce((sum, it) => sum + Number(it.quantity), 0) ?? 0;
 
-  // Helper to safely grab the product name regardless of how Supabase returns the join
   const getProductName = (item: OrderItem) => {
     return item.products?.name || item.product?.name || "Unknown Product";
   };
@@ -432,6 +465,16 @@ const AdminOrders = () => {
                       Generate Proforma Invoice (PI)
                     </Button>
                   )}
+
+                  {/* Print / Download PI PDF */}
+                  <Button
+                    variant="outline"
+                    onClick={() => handlePrintInvoice(selectedOrder)}
+                    className="w-full"
+                  >
+                    <Printer size={14} className="mr-2" />
+                    Print / Download Proforma PDF
+                  </Button>
 
                   {/* State 2: PI → Mark Payment Cleared */}
                   {selectedOrder.document_stage === "PI" && !selectedOrder.payment_cleared && (
