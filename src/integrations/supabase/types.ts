@@ -482,6 +482,27 @@ export type Database = {
         }
         Relationships: []
       }
+      factory_holidays: {
+        Row: {
+          created_at: string | null
+          description: string | null
+          holiday_date: string
+          id: string
+        }
+        Insert: {
+          created_at?: string | null
+          description?: string | null
+          holiday_date: string
+          id?: string
+        }
+        Update: {
+          created_at?: string | null
+          description?: string | null
+          holiday_date?: string
+          id?: string
+        }
+        Relationships: []
+      }
       factory_inventory: {
         Row: {
           id: string
@@ -833,6 +854,7 @@ export type Database = {
       orders: {
         Row: {
           actual_despatch_date: string | null
+          admin_promised_date: string | null
           advance_paid: number | null
           advance_required: number | null
           closed_at: string | null
@@ -841,6 +863,7 @@ export type Database = {
           country_of_origin: string | null
           courier_name: string | null
           created_at: string | null
+          dispatch_urgency: string | null
           document_stage: string | null
           estimated_despatch_date: string | null
           eway_bill_number: string | null
@@ -853,12 +876,15 @@ export type Database = {
           payment_status: string | null
           port_of_discharge: string | null
           proforma_invoice_url: string | null
+          requested_dispatch_date: string | null
           sales_order_value: number | null
           status: string
+          system_estimated_date: string | null
           tracking_number: string | null
         }
         Insert: {
           actual_despatch_date?: string | null
+          admin_promised_date?: string | null
           advance_paid?: number | null
           advance_required?: number | null
           closed_at?: string | null
@@ -867,6 +893,7 @@ export type Database = {
           country_of_origin?: string | null
           courier_name?: string | null
           created_at?: string | null
+          dispatch_urgency?: string | null
           document_stage?: string | null
           estimated_despatch_date?: string | null
           eway_bill_number?: string | null
@@ -879,12 +906,15 @@ export type Database = {
           payment_status?: string | null
           port_of_discharge?: string | null
           proforma_invoice_url?: string | null
+          requested_dispatch_date?: string | null
           sales_order_value?: number | null
           status?: string
+          system_estimated_date?: string | null
           tracking_number?: string | null
         }
         Update: {
           actual_despatch_date?: string | null
+          admin_promised_date?: string | null
           advance_paid?: number | null
           advance_required?: number | null
           closed_at?: string | null
@@ -893,6 +923,7 @@ export type Database = {
           country_of_origin?: string | null
           courier_name?: string | null
           created_at?: string | null
+          dispatch_urgency?: string | null
           document_stage?: string | null
           estimated_despatch_date?: string | null
           eway_bill_number?: string | null
@@ -905,8 +936,10 @@ export type Database = {
           payment_status?: string | null
           port_of_discharge?: string | null
           proforma_invoice_url?: string | null
+          requested_dispatch_date?: string | null
           sales_order_value?: number | null
           status?: string
+          system_estimated_date?: string | null
           tracking_number?: string | null
         }
         Relationships: [
@@ -1394,6 +1427,24 @@ export type Database = {
           resolution_notes?: string | null
           status?: string | null
           user_id?: string | null
+        }
+        Relationships: []
+      }
+      system_settings: {
+        Row: {
+          global_buffer_days: number | null
+          id: number
+          updated_at: string | null
+        }
+        Insert: {
+          global_buffer_days?: number | null
+          id?: number
+          updated_at?: string | null
+        }
+        Update: {
+          global_buffer_days?: number | null
+          id?: number
+          updated_at?: string | null
         }
         Relationships: []
       }
