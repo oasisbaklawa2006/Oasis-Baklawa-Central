@@ -339,8 +339,10 @@ const Cart = () => {
       }
       setShowPaymentModal(false);
       setTimeout(() => navigate("/orders"), 1500);
-    } catch (error) {
-      toast.error("Transaction failed. Please try again.");
+    } catch (error: any) {
+      console.error("[Cart] Order submission failed:", error);
+      toast.error(error?.message || "Failed to submit order to database. Please try again.");
+      return;
     } finally {
       setIsSubmitting(false);
     }
