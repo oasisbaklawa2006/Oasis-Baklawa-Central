@@ -1076,7 +1076,7 @@ export type Database = {
           avg_weight_per_pc: number | null
           base_price: number | null
           carton_type: string | null
-          category: string | null
+          category: string
           category_id: string | null
           created_at: string | null
           department: string | null
@@ -1085,7 +1085,7 @@ export type Database = {
           festival_tags: string | null
           gst_percentage: number | null
           gst_rate: number | null
-          hsn_code: string | null
+          hsn_code: string
           id: string
           image_url: string | null
           is_active: boolean
@@ -1106,11 +1106,11 @@ export type Database = {
           price_per_kg: number | null
           price_special: number | null
           price_wholesale: number | null
-          primary_pack_weight_kg: number | null
+          primary_pack_weight_kg: number
           private_label_moq: number | null
           private_label_price: number | null
           shelf_life: string | null
-          sku: string | null
+          sku: string
           storage_type: string | null
           sub_category: string | null
           uom: string | null
@@ -1122,7 +1122,7 @@ export type Database = {
           avg_weight_per_pc?: number | null
           base_price?: number | null
           carton_type?: string | null
-          category?: string | null
+          category: string
           category_id?: string | null
           created_at?: string | null
           department?: string | null
@@ -1131,7 +1131,7 @@ export type Database = {
           festival_tags?: string | null
           gst_percentage?: number | null
           gst_rate?: number | null
-          hsn_code?: string | null
+          hsn_code: string
           id?: string
           image_url?: string | null
           is_active?: boolean
@@ -1152,11 +1152,11 @@ export type Database = {
           price_per_kg?: number | null
           price_special?: number | null
           price_wholesale?: number | null
-          primary_pack_weight_kg?: number | null
+          primary_pack_weight_kg?: number
           private_label_moq?: number | null
           private_label_price?: number | null
           shelf_life?: string | null
-          sku?: string | null
+          sku: string
           storage_type?: string | null
           sub_category?: string | null
           uom?: string | null
@@ -1168,7 +1168,7 @@ export type Database = {
           avg_weight_per_pc?: number | null
           base_price?: number | null
           carton_type?: string | null
-          category?: string | null
+          category?: string
           category_id?: string | null
           created_at?: string | null
           department?: string | null
@@ -1177,7 +1177,7 @@ export type Database = {
           festival_tags?: string | null
           gst_percentage?: number | null
           gst_rate?: number | null
-          hsn_code?: string | null
+          hsn_code?: string
           id?: string
           image_url?: string | null
           is_active?: boolean
@@ -1198,11 +1198,11 @@ export type Database = {
           price_per_kg?: number | null
           price_special?: number | null
           price_wholesale?: number | null
-          primary_pack_weight_kg?: number | null
+          primary_pack_weight_kg?: number
           private_label_moq?: number | null
           private_label_price?: number | null
           shelf_life?: string | null
-          sku?: string | null
+          sku?: string
           storage_type?: string | null
           sub_category?: string | null
           uom?: string | null
