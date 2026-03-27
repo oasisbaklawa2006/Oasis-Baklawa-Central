@@ -45,6 +45,7 @@ import AdminDepartment from "./pages/admin/AdminDepartment.tsx";
 import OperationsController from "./pages/admin/OperationsController.tsx";
 import AdminSecurityGate from "./pages/admin/AdminSecurityGate.tsx";
 import AdminInventory from "./pages/admin/AdminInventory.tsx";
+import AdminLogistics from "./pages/admin/AdminLogistics.tsx";
 import ManageUsers from "./pages/ManageUsers.tsx";
 import ManageAddresses from "./pages/ManageAddresses.tsx";
 import ManageLogistics from "./pages/ManageLogistics.tsx";
@@ -180,6 +181,7 @@ const App = () => (
               <Route path="audit" element={<AdminAudit />} />
               <Route path="department" element={<AdminDepartment />} />
               <Route path="inventory" element={<AdminInventory />} />
+              <Route path="logistics" element={<AdminLogistics />} />
             </Route>
             <Route path="*" element={<NotFound />} />
           </Routes>
