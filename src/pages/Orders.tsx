@@ -1,6 +1,7 @@
 import AppShell from "@/components/AppShell";
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { generateSOPdf } from "@/utils/soGenerator";
 import {
   Loader2,
   Package,
@@ -84,6 +85,27 @@ const Orders = () => {
   useEffect(() => {
     fetchOrders();
   }, []);
+
+  const handleDownloadDocument = (order: any) => {
+    const stage = order.document_stage;
+    if (stage === "Final") {
+      if (order.final_invoice_url) {
+        window.open(order.final_invoice_url, "_blank");
+      } else {
+        toast.info("Final Invoice is being prepared by the accounts team.");
+      }
+      return;
+    }
+    if (stage === "PI") {
+      if (order.proforma_invoice_url) {
+        window.open(order.proforma_invoice_url, "_blank");
+      } else {
+        toast.info("Proforma Invoice is being prepared by the accounts team.");
+      }
+      return;
+    }
+    generateSOPdf(order);
+  };
 
   const handleFileUpload = async (orderId: string, file: File) => {
     try {
@@ -340,11 +362,7 @@ const Orders = () => {
                       )}
 
                       <button
-                        onClick={() =>
-                          toast.info(
-                            `Downloading ${order.document_stage === "PI" ? "PI" : order.document_stage === "Final" ? "Final Invoice" : "SO"}...`,
-                          )
-                        }
+                        onClick={() => handleDownloadDocument(order)}
                         className="flex-1 md:w-full py-2.5 px-4 bg-card border border-border text-foreground rounded-xl text-xs font-bold hover:bg-muted flex items-center justify-center gap-1.5 shadow-sm"
                       >
                         <Download size={14} /> {getDownloadLabel(order.document_stage)}
