@@ -177,16 +177,21 @@ const Cart = () => {
       const holidayDates = (holidaysRes.data || []).map((h: any) => (h.holiday_date as string).split('T')[0]);
       setHolidays(holidayDates);
 
-      // Calculate estimated dispatch date
+      // Calculate estimated dispatch date – count only working days
       const baseLead = 3;
       const totalLead = baseLead + buffer;
-      let target = addDays(startOfDay(new Date()), totalLead);
-      // Skip holidays and Sundays
       const holidaySet = new Set(holidayDates);
+      let target = startOfDay(new Date());
+      let counted = 0;
       let safety = 0;
-      while ((holidaySet.has(format(target, "yyyy-MM-dd")) || target.getDay() === 0) && safety < 60) {
+      while (counted < totalLead && safety < 120) {
         target = addDays(target, 1);
         safety++;
+        // Skip Sundays and holidays
+        if (target.getDay() === 0 || holidaySet.has(format(target, "yyyy-MM-dd"))) {
+          continue;
+        }
+        counted++;
       }
       setSystemEstimatedDate(target);
     };

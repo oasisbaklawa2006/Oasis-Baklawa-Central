@@ -74,7 +74,7 @@ export function generateProFormaInvoice(
   doc.setFont("helvetica", "bold");
   doc.setFontSize(11);
   doc.setTextColor(...teal);
-  doc.text("PRO-FORMA INVOICE", pageW - margin, y + 6, { align: "right" });
+  doc.text("PROFORMA INVOICE", pageW - margin, y + 6, { align: "right" });
 
   const today = new Date();
   const docDate = today.toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
