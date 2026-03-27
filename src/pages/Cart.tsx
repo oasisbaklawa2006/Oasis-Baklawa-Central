@@ -775,6 +775,74 @@ const Cart = () => {
           </motion.section>
         )}
 
+        {/* DELIVERY REQUIREMENTS */}
+        <motion.section className="bg-card rounded-[2rem] p-5 border border-border shadow-sm space-y-4">
+          <h3 className="text-xs font-bold text-muted-foreground uppercase tracking-widest flex items-center gap-1.5">
+            <Clock size={12} /> Delivery Requirements
+          </h3>
+
+          {/* System Estimated Dispatch */}
+          {systemEstimatedDate && (
+            <div className="bg-primary/5 border border-primary/20 rounded-2xl p-4 flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center flex-shrink-0">
+                <Truck size={18} className="text-primary" />
+              </div>
+              <div>
+                <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">System Estimated Dispatch</p>
+                <p className="font-bold text-foreground text-lg">{format(systemEstimatedDate, "EEE, dd MMM yyyy")}</p>
+                <p className="text-[10px] text-muted-foreground">Base 3 days + {bufferDays} buffer day(s), holidays excluded</p>
+              </div>
+            </div>
+          )}
+
+          {/* Requested Dispatch Date */}
+          <div>
+            <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider block mb-2">
+              Preferred Dispatch Date (Optional)
+            </label>
+            <Popover>
+              <PopoverTrigger asChild>
+                <button
+                  className={cn(
+                    "w-full flex items-center gap-2 p-3 rounded-xl border border-border bg-card text-sm font-medium text-left hover:border-primary/30 transition-colors",
+                    !requestedDispatchDate && "text-muted-foreground"
+                  )}
+                >
+                  <CalendarIcon size={14} className="text-muted-foreground" />
+                  {requestedDispatchDate ? format(requestedDispatchDate, "dd MMM yyyy") : "Select a date"}
+                </button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0" align="start">
+                <Calendar
+                  mode="single"
+                  selected={requestedDispatchDate}
+                  onSelect={setRequestedDispatchDate}
+                  disabled={(date) => isBefore(startOfDay(date), startOfDay(new Date()))}
+                  initialFocus
+                  className={cn("p-3 pointer-events-auto")}
+                />
+              </PopoverContent>
+            </Popover>
+          </div>
+
+          {/* Dispatch Urgency */}
+          <div>
+            <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider block mb-2">
+              Dispatch Urgency
+            </label>
+            <Select value={dispatchUrgency} onValueChange={setDispatchUrgency}>
+              <SelectTrigger className="w-full rounded-xl">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="standard">Standard</SelectItem>
+                <SelectItem value="expedited">Expedited</SelectItem>
+                <SelectItem value="strict_deadline">Strict Deadline</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </motion.section>
+
         {/* SUMMARY & CHECKOUT BAR */}
         <motion.section className="bg-[#005F5F] text-white rounded-[2rem] shadow-2xl p-6 relative overflow-hidden print:hidden">
           <div className="relative z-10 space-y-2">
