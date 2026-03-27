@@ -66,6 +66,7 @@ const AdminLayout = () => {
         { to: "/admin/support", icon: Headphones, label: t("Support Tickets"), moduleKey: "support" },
         { to: "/admin/settings", icon: Settings, label: t("System Settings"), moduleKey: "settings" },
         { to: "/admin/audit", icon: Shield, label: t("Audit Trail"), moduleKey: "audit" },
+        { to: "/admin/inventory", icon: PackageCheck, label: t("Factory Stock"), moduleKey: "inventory" },
       ],
     },
   ];
