@@ -64,7 +64,7 @@ interface OrderCard {
   document_stage: string | null;
   payment_cleared: boolean | null;
   eway_bill_number: string | null;
-  company?: { business_name: string } | null;
+  company?: { business_name: string; gst_number?: string | null } | null;
   order_items?: OrderItem[];
 }
 
