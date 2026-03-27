@@ -832,14 +832,17 @@ export type Database = {
       }
       orders: {
         Row: {
+          actual_despatch_date: string | null
           advance_paid: number | null
           advance_required: number | null
           closed_at: string | null
           closed_by: string | null
           company_id: string | null
           country_of_origin: string | null
+          courier_name: string | null
           created_at: string | null
           document_stage: string | null
+          estimated_despatch_date: string | null
           eway_bill_number: string | null
           id: string
           is_export: boolean | null
@@ -849,16 +852,20 @@ export type Database = {
           port_of_discharge: string | null
           sales_order_value: number | null
           status: string
+          tracking_number: string | null
         }
         Insert: {
+          actual_despatch_date?: string | null
           advance_paid?: number | null
           advance_required?: number | null
           closed_at?: string | null
           closed_by?: string | null
           company_id?: string | null
           country_of_origin?: string | null
+          courier_name?: string | null
           created_at?: string | null
           document_stage?: string | null
+          estimated_despatch_date?: string | null
           eway_bill_number?: string | null
           id?: string
           is_export?: boolean | null
@@ -868,16 +875,20 @@ export type Database = {
           port_of_discharge?: string | null
           sales_order_value?: number | null
           status?: string
+          tracking_number?: string | null
         }
         Update: {
+          actual_despatch_date?: string | null
           advance_paid?: number | null
           advance_required?: number | null
           closed_at?: string | null
           closed_by?: string | null
           company_id?: string | null
           country_of_origin?: string | null
+          courier_name?: string | null
           created_at?: string | null
           document_stage?: string | null
+          estimated_despatch_date?: string | null
           eway_bill_number?: string | null
           id?: string
           is_export?: boolean | null
@@ -887,6 +898,7 @@ export type Database = {
           port_of_discharge?: string | null
           sales_order_value?: number | null
           status?: string
+          tracking_number?: string | null
         }
         Relationships: [
           {

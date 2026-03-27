@@ -217,9 +217,18 @@ const Orders = () => {
                   initial={{ opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}
                   key={order.id}
-                  className={`bg-white rounded-2xl border ${needsReceipt ? "border-amber-300 shadow-amber-100" : "border-slate-200"} p-5 shadow-sm hover:shadow-md transition-shadow`}
+                  className={`bg-white rounded-2xl border ${needsReceipt ? "border-amber-300 shadow-amber-100" : "border-slate-200"} p-5 shadow-sm hover:shadow-md transition-shadow relative`}
                 >
-                  <div className="flex flex-col md:flex-row gap-5 items-start md:items-center">
+                  {/* Top-right Reorder shortcut */}
+                  <button
+                    onClick={() => setReorderOrder(order)}
+                    className="absolute top-3 right-3 p-2 rounded-lg bg-primary/10 text-primary hover:bg-primary/20 transition-colors"
+                    title="Smart Reorder"
+                  >
+                    <RotateCcw size={16} />
+                  </button>
+
+                  <div className="flex flex-col md:flex-row gap-5 items-start md:items-center pr-10">
                     {/* LEFT: Overlapping Images Cluster */}
                     <div className="flex -space-x-3 shrink-0">
                       {displayImages.length > 0 ? (
