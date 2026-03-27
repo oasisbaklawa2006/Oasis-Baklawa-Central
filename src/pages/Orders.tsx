@@ -74,7 +74,7 @@ const Orders = () => {
       .select(
         "id, status, payment_status, payment_receipt_url, created_at, sales_order_value, document_stage, payment_cleared, eway_bill_number, proforma_invoice_url, final_invoice_url, eway_bill_url, order_items(*, product:products(name, image_url, pack_size, carton_type, wholesale_price, mrp, price_per_kg, avg_weight_per_pack, net_weight_grams))",
       )
-      .neq("status", "draft")
+      .in("status", ["submitted", "pending", "processing", "dispatched", "delivered", "cancelled"])
       .order("created_at", { ascending: false });
 
     if (!error && data) setOrders(data);
