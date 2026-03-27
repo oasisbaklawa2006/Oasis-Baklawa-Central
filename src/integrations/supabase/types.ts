@@ -844,12 +844,15 @@ export type Database = {
           document_stage: string | null
           estimated_despatch_date: string | null
           eway_bill_number: string | null
+          eway_bill_url: string | null
+          final_invoice_url: string | null
           id: string
           is_export: boolean | null
           payment_cleared: boolean | null
           payment_receipt_url: string | null
           payment_status: string | null
           port_of_discharge: string | null
+          proforma_invoice_url: string | null
           sales_order_value: number | null
           status: string
           tracking_number: string | null
@@ -867,12 +870,15 @@ export type Database = {
           document_stage?: string | null
           estimated_despatch_date?: string | null
           eway_bill_number?: string | null
+          eway_bill_url?: string | null
+          final_invoice_url?: string | null
           id?: string
           is_export?: boolean | null
           payment_cleared?: boolean | null
           payment_receipt_url?: string | null
           payment_status?: string | null
           port_of_discharge?: string | null
+          proforma_invoice_url?: string | null
           sales_order_value?: number | null
           status?: string
           tracking_number?: string | null
@@ -890,12 +896,15 @@ export type Database = {
           document_stage?: string | null
           estimated_despatch_date?: string | null
           eway_bill_number?: string | null
+          eway_bill_url?: string | null
+          final_invoice_url?: string | null
           id?: string
           is_export?: boolean | null
           payment_cleared?: boolean | null
           payment_receipt_url?: string | null
           payment_status?: string | null
           port_of_discharge?: string | null
+          proforma_invoice_url?: string | null
           sales_order_value?: number | null
           status?: string
           tracking_number?: string | null
