@@ -81,21 +81,19 @@ const AdminSecurityGate = () => {
         setLastMessage("STOP: FINANCIAL CLEARANCE PENDING");
         addToHistory(barcode, companyName, "error", "Payment not cleared. Cannot dispatch.");
         playAudio("error");
-      } else if (() => {
+      } else {
         // RULE 2: Dynamic E-Way Bill compliance
         const destState = (carton.orders?.company?.state || "").trim().toLowerCase();
         const isIntrastate = destState === "delhi" || destState === "new delhi";
-        const threshold = isIntrastate ? 100000 : 50000;
+        const ewayThreshold = isIntrastate ? 100000 : 50000;
         const orderValue = Number(carton.orders?.sales_order_value) || 0;
-        return orderValue > threshold && !carton.orders?.eway_bill_number;
-      })() {
-        const destState = (carton.orders?.company?.state || "").trim().toLowerCase();
-        const isIntrastate = destState === "delhi" || destState === "new delhi";
-        const threshold = isIntrastate ? 100000 : 50000;
-        setScreenState("error");
-        setLastMessage(`STOP: E-WAY BILL REQUIRED (₹${threshold.toLocaleString("en-IN")} threshold). DO NOT LOAD.`);
-        addToHistory(barcode, companyName, "error", "E-Way Bill missing. Dispatch blocked.");
-        playAudio("error");
+        const needsEway = orderValue > ewayThreshold && !carton.orders?.eway_bill_number;
+
+        if (needsEway) {
+          setScreenState("error");
+          setLastMessage(`STOP: E-WAY BILL REQUIRED (₹${ewayThreshold.toLocaleString("en-IN")} threshold). DO NOT LOAD.`);
+          addToHistory(barcode, companyName, "error", "E-Way Bill missing. Dispatch blocked.");
+          playAudio("error");
       } else {
         // SUCCESS: Mark as dispatched out the gate
         await (supabase as any)
