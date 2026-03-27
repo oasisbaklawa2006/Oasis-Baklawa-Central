@@ -199,7 +199,7 @@ export function generateProFormaInvoice(
       doc.setFontSize(6.5);
       doc.setTextColor(150, 150, 150);
       doc.text(
-        "This is a computer-generated Pro-Forma Invoice and does not require a physical signature.",
+        "This is a computer-generated Proforma Invoice and does not require a physical signature.",
         pageW / 2,
         doc.internal.pageSize.getHeight() - 8,
         { align: "center" }
@@ -266,7 +266,7 @@ export function generateProFormaInvoice(
   doc.setFontSize(6.5);
   doc.setTextColor(...mutedText);
   const terms = [
-    "1. This is a Pro-Forma Invoice for reference only. Final invoice will be issued upon dispatch.",
+    "1. This is a Proforma Invoice for reference only. Final invoice will be issued upon dispatch.",
     "2. 50% advance payment is required to confirm the order and initiate production.",
     "3. Prices are ex-factory. Freight and insurance charges are additional.",
     "4. Goods once sold will not be taken back. Claims within 48 hours of delivery only.",
