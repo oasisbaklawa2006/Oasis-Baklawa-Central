@@ -94,20 +94,21 @@ const AdminSecurityGate = () => {
           setLastMessage(`STOP: E-WAY BILL REQUIRED (₹${ewayThreshold.toLocaleString("en-IN")} threshold). DO NOT LOAD.`);
           addToHistory(barcode, companyName, "error", "E-Way Bill missing. Dispatch blocked.");
           playAudio("error");
-      } else {
-        // SUCCESS: Mark as dispatched out the gate
-        await (supabase as any)
-          .from("dispatch_cartons")
-          .update({
-            status: "physically_dispatched",
-            scanned_out_at: new Date().toISOString(),
-          })
-          .eq("id", carton.id);
+        } else {
+          // SUCCESS: Mark as dispatched out the gate
+          await (supabase as any)
+            .from("dispatch_cartons")
+            .update({
+              status: "physically_dispatched",
+              scanned_out_at: new Date().toISOString(),
+            })
+            .eq("id", carton.id);
 
-        setScreenState("success");
-        setLastMessage(`AUTHORIZED: ${companyName} (Master Carton ${carton.box_number}/${carton.total_boxes})`);
-        addToHistory(barcode, companyName, "success", "Authorized and dispatched.");
-        playAudio("success");
+          setScreenState("success");
+          setLastMessage(`AUTHORIZED: ${companyName} (Master Carton ${carton.box_number}/${carton.total_boxes})`);
+          addToHistory(barcode, companyName, "success", "Authorized and dispatched.");
+          playAudio("success");
+        }
       }
     } catch (err) {
       setScreenState("error");
