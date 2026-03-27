@@ -55,7 +55,7 @@ const AdminSecurityGate = () => {
           status, 
           box_number, 
           total_boxes,
-          orders ( company:companies(business_name) )
+          orders ( company:companies(business_name, state), payment_status, payment_cleared, eway_bill_number, sales_order_value )
         `,
         )
         .eq("barcode_string", barcode)
@@ -75,20 +75,40 @@ const AdminSecurityGate = () => {
         setLastMessage(`ALREADY DISPATCHED: Master Carton ${carton.box_number} of ${carton.total_boxes}`);
         addToHistory(barcode, companyName, "duplicate", "This box has already left the building.");
         playAudio("error");
+      } else if (carton.orders?.payment_status === "unpaid" || carton.orders?.payment_cleared === false) {
+        // RULE 1: Financial clearance check
+        setScreenState("error");
+        setLastMessage("STOP: FINANCIAL CLEARANCE PENDING");
+        addToHistory(barcode, companyName, "error", "Payment not cleared. Cannot dispatch.");
+        playAudio("error");
       } else {
-        // SUCCESS: Mark as dispatched out the gate
-        await (supabase as any)
-          .from("dispatch_cartons")
-          .update({
-            status: "physically_dispatched",
-            scanned_out_at: new Date().toISOString(),
-          })
-          .eq("id", carton.id);
+        // RULE 2: Dynamic E-Way Bill compliance
+        const destState = (carton.orders?.company?.state || "").trim().toLowerCase();
+        const isIntrastate = destState === "delhi" || destState === "new delhi";
+        const ewayThreshold = isIntrastate ? 100000 : 50000;
+        const orderValue = Number(carton.orders?.sales_order_value) || 0;
+        const needsEway = orderValue > ewayThreshold && !carton.orders?.eway_bill_number;
 
-        setScreenState("success");
-        setLastMessage(`AUTHORIZED: ${companyName} (Master Carton ${carton.box_number}/${carton.total_boxes})`);
-        addToHistory(barcode, companyName, "success", "Authorized and dispatched.");
-        playAudio("success");
+        if (needsEway) {
+          setScreenState("error");
+          setLastMessage(`STOP: E-WAY BILL REQUIRED (₹${ewayThreshold.toLocaleString("en-IN")} threshold). DO NOT LOAD.`);
+          addToHistory(barcode, companyName, "error", "E-Way Bill missing. Dispatch blocked.");
+          playAudio("error");
+        } else {
+          // SUCCESS: Mark as dispatched out the gate
+          await (supabase as any)
+            .from("dispatch_cartons")
+            .update({
+              status: "physically_dispatched",
+              scanned_out_at: new Date().toISOString(),
+            })
+            .eq("id", carton.id);
+
+          setScreenState("success");
+          setLastMessage(`AUTHORIZED: ${companyName} (Master Carton ${carton.box_number}/${carton.total_boxes})`);
+          addToHistory(barcode, companyName, "success", "Authorized and dispatched.");
+          playAudio("success");
+        }
       }
     } catch (err) {
       setScreenState("error");
