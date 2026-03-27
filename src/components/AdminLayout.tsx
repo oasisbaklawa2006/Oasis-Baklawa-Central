@@ -15,7 +15,7 @@ const ROLE_MODULE_ACCESS: Record<string, string[]> = {
   super_admin: ["*"],
   admin: ["*"],
   finance_head: ["dashboard", "finance", "accounts", "orders", "audit"],
-  dispatch_head: ["dashboard", "packing", "dispatch", "orders"],
+  dispatch_head: ["dashboard", "packing", "dispatch", "orders", "inventory"],
   production_manager: ["dashboard", "orders", "production"],
   assembly_manager: ["dashboard", "production", "orders"],
   packing_supervisor: ["dashboard", "packing", "dispatch"],
