@@ -111,7 +111,7 @@ const Cart = () => {
   // Token deposit
   const [depositAmount, setDepositAmount] = useState("");
 
-  const { draftOrder, items, updateQuantity, fetchCart, loading: cartLoading } = useCart();
+  const { draftOrder, items, updateQuantity, fetchCart, clearCart, loading: cartLoading } = useCart();
 
   // Extracted address fetch for reuse & retry
   const fetchAddresses = useCallback(async () => {
@@ -326,11 +326,19 @@ const Cart = () => {
         updatePayload.advance_required = deposit;
       }
 
-      const { error } = await supabase
+      const { data: updatedOrders, error: updateError } = await supabase
         .from("orders")
         .update(updatePayload)
-        .eq("id", draftOrder.id);
-      if (error) throw error;
+        .eq("id", draftOrder.id)
+        .eq("status", "draft")
+        .select("id");
+
+      if (updateError) throw updateError;
+      if (!updatedOrders || updatedOrders.length === 0) {
+        throw new Error("Failed to submit order to database: no draft order was updated.");
+      }
+
+      clearCart();
 
       if (paymentMethod === "credit") {
         toast.success("Sales Order confirmed on credit terms!");
