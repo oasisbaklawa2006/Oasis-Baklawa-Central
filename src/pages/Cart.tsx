@@ -19,7 +19,14 @@ import {
   Truck,
   Plus,
   Wallet,
+  CalendarIcon,
+  Clock,
 } from "lucide-react";
+import { format, addDays, isBefore, startOfDay } from "date-fns";
+import { Calendar } from "@/components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { cn } from "@/lib/utils";
 import { useCart } from "@/hooks/useCart";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -111,6 +118,13 @@ const Cart = () => {
   // Token deposit
   const [depositAmount, setDepositAmount] = useState("");
 
+  // Predictive Dispatch State
+  const [bufferDays, setBufferDays] = useState(0);
+  const [holidays, setHolidays] = useState<string[]>([]);
+  const [systemEstimatedDate, setSystemEstimatedDate] = useState<Date | null>(null);
+  const [requestedDispatchDate, setRequestedDispatchDate] = useState<Date | undefined>(undefined);
+  const [dispatchUrgency, setDispatchUrgency] = useState("standard");
+
   const { draftOrder, items, updateQuantity, fetchCart, clearCart, loading: cartLoading } = useCart();
 
   // Extracted address fetch for reuse & retry
@@ -146,12 +160,35 @@ const Cart = () => {
     }
   }, []);
 
-  // Fetch active MOQ rules & Logistics
+  // Fetch active MOQ rules, Logistics & Dispatch estimation data
   useEffect(() => {
     const fetchCheckoutData = async () => {
       const { data: moqData } = await supabase.from("moq_rules").select("*").eq("is_active", true);
       if (moqData) setMoqRules(moqData as MoqRule[]);
       await fetchAddresses();
+
+      // Fetch logistics estimation data
+      const [settingsRes, holidaysRes] = await Promise.all([
+        supabase.from("system_settings").select("global_buffer_days").eq("id", 1).maybeSingle(),
+        supabase.from("factory_holidays").select("holiday_date").gte("holiday_date", new Date().toISOString().split("T")[0]),
+      ]);
+      const buffer = settingsRes.data?.global_buffer_days ?? 0;
+      setBufferDays(buffer);
+      const holidayDates = (holidaysRes.data || []).map((h: any) => h.holiday_date as string);
+      setHolidays(holidayDates);
+
+      // Calculate estimated dispatch date
+      const baseLead = 3;
+      const totalLead = baseLead + buffer;
+      let target = addDays(startOfDay(new Date()), totalLead);
+      // Skip holidays
+      const holidaySet = new Set(holidayDates);
+      let safety = 0;
+      while (holidaySet.has(format(target, "yyyy-MM-dd")) && safety < 60) {
+        target = addDays(target, 1);
+        safety++;
+      }
+      setSystemEstimatedDate(target);
     };
     fetchCheckoutData();
   }, [fetchAddresses]);
