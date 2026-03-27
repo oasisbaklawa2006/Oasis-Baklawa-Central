@@ -67,6 +67,7 @@ const AdminLayout = () => {
         { to: "/admin/settings", icon: Settings, label: t("System Settings"), moduleKey: "settings" },
         { to: "/admin/audit", icon: Shield, label: t("Audit Trail"), moduleKey: "audit" },
         { to: "/admin/inventory", icon: PackageCheck, label: t("Factory Stock"), moduleKey: "inventory" },
+        { to: "/admin/logistics", icon: Truck, label: t("Logistics & Capacity"), moduleKey: "settings" },
       ],
     },
   ];
