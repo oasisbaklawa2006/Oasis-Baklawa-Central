@@ -355,16 +355,20 @@ const Catalogue = () => {
                             </p>
                           )}
                         </div>
-                        <button
-                          onClick={async (e) => {
-                            e.stopPropagation();
-                            const moq = getMinOrderQty(item);
-                            await addToCart(item.id, moq, item.pack_size ?? null, item.carton_type ?? null);
-                          }}
-                          className="w-8 h-8 rounded-full bg-gradient-to-r from-primary to-primary/80 text-primary-foreground flex items-center justify-center shadow-md hover:scale-110 transition-transform"
-                        >
-                          <ShoppingCart size={14} />
-                        </button>
+                        {(item.stock ?? 1) > 0 ? (
+                          <button
+                            onClick={async (e) => {
+                              e.stopPropagation();
+                              const moq = getMinOrderQty(item);
+                              await addToCart(item.id, moq, item.pack_size ?? null, item.carton_type ?? null);
+                            }}
+                            className="w-8 h-8 rounded-full bg-gradient-to-r from-primary to-primary/80 text-primary-foreground flex items-center justify-center shadow-md hover:scale-110 transition-transform"
+                          >
+                            <ShoppingCart size={14} />
+                          </button>
+                        ) : (
+                          <span className="text-[10px] font-bold text-destructive uppercase">Out of Stock</span>
+                        )}
                       </div>
                     </div>
                   ))}
