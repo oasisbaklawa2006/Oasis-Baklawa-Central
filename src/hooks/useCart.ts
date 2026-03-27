@@ -181,5 +181,26 @@ export function useCart() {
     await fetchCart();
   };
 
-  return { draftOrder, items, loading: loading || authLoading, addToCart, updateQuantity, removeItem, fetchCart };
+  const clearCart = useCallback(() => {
+    setDraftOrder(null);
+    setItems([]);
+    setLoading(false);
+
+    if (typeof window !== "undefined") {
+      localStorage.removeItem("oasis_cart");
+      localStorage.removeItem("cart");
+      localStorage.removeItem("draftOrderId");
+    }
+  }, []);
+
+  return {
+    draftOrder,
+    items,
+    loading: loading || authLoading,
+    addToCart,
+    updateQuantity,
+    removeItem,
+    fetchCart,
+    clearCart,
+  };
 }
