@@ -340,11 +340,7 @@ const Orders = () => {
                       )}
 
                       <button
-                        onClick={() =>
-                          toast.info(
-                            `Downloading ${order.document_stage === "PI" ? "PI" : order.document_stage === "Final" ? "Final Invoice" : "SO"}...`,
-                          )
-                        }
+                        onClick={() => handleDownloadDocument(order)}
                         className="flex-1 md:w-full py-2.5 px-4 bg-card border border-border text-foreground rounded-xl text-xs font-bold hover:bg-muted flex items-center justify-center gap-1.5 shadow-sm"
                       >
                         <Download size={14} /> {getDownloadLabel(order.document_stage)}
