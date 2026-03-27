@@ -8,11 +8,12 @@ import {
   Loader2, LogOut, AlertTriangle, ArrowRight, ClipboardList,
   ShoppingCart, Factory, PackageCheck, Landmark, AlertCircle,
   UserCheck, Package, BarChart3, DollarSign, Users, Scale, Globe,
-  Languages, Settings, Shield
+  Languages, Settings, Shield, Clock
 } from "lucide-react";
 
 interface AlertItem { label: string; count: number; route: string; severity: "high" | "medium" | "info"; }
 interface AuditEntry { id: string; action_type: string | null; module_name: string | null; entity_name: string | null; created_at: string; }
+interface MetricItem { l: string; v: number; actionable?: boolean; }
 
 const ALL_STATUSES = [
   "submitted", "in_production", "packed_ready",
@@ -26,13 +27,14 @@ const AdminDashboard = () => {
   const [recentActions, setRecentActions] = useState<AuditEntry[]>([]);
   const [pipeline, setPipeline] = useState<Record<string, number>>({});
   const [counts, setCounts] = useState<Record<string, number | string>>({});
+  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   const { user } = useAuth();
   const navigate = useNavigate();
   const { t } = useLanguage();
   const { format } = useCurrency();
 
   const fetchData = useCallback(async () => {
-    const [pendingApps, products, allOrders, unpaidOrders, supportOpen, users, moqRules, exchangeRates, auditLogs, pricingSlabs] = await Promise.all([
+    const [pendingApps, products, allOrders, unpaidOrders, supportOpen, users, moqRules, exchangeRates, auditLogs, pricingSlabs, inventoryRes] = await Promise.all([
       supabase.from("b2b_applications").select("id", { count: "exact", head: true }).eq("status", "pending"),
       supabase.from("products").select("id", { count: "exact", head: true }),
       supabase.from("orders").select("id, status, payment_status, sales_order_value, advance_paid, advance_required"),
@@ -43,6 +45,7 @@ const AdminDashboard = () => {
       supabase.from("exchange_rates").select("id", { count: "exact", head: true }),
       supabase.from("audit_logs").select("id, action_type, module_name, entity_name, created_at").order("created_at", { ascending: false }).limit(10),
       supabase.from("pricing_slabs").select("id", { count: "exact", head: true }),
+      supabase.from("factory_inventory").select("product_id, quantity"),
     ]);
 
     const orders = (allOrders.data ?? []) as { id: string; status: string; payment_status: string | null; sales_order_value: number | null; advance_paid: number | null; advance_required: number | null }[];
@@ -50,6 +53,23 @@ const AdminDashboard = () => {
     ALL_STATUSES.forEach(s => pc[s] = 0);
     orders.forEach(o => { if (o.status in pc) pc[o.status]++; });
     setPipeline(pc);
+
+    // Inventory aggregation
+    const invRows = (inventoryRes.data ?? []) as { product_id: string | null; quantity: number | null }[];
+    const stockMap: Record<string, number> = {};
+    invRows.forEach(r => {
+      if (r.product_id) stockMap[r.product_id] = (stockMap[r.product_id] || 0) + (Number(r.quantity) || 0);
+    });
+    const totalPhysicalStock = Object.values(stockMap).reduce((s, v) => s + v, 0);
+    const lowStockCount = Object.values(stockMap).filter(v => v < 10).length;
+
+    // Financial splits
+    const immediateCash = orders
+      .filter(o => o.status === "submitted")
+      .reduce((s, o) => s + (o.advance_required ?? 0), 0);
+    const pendingCollections = orders
+      .filter(o => o.status === "dispatched")
+      .reduce((s, o) => s + ((o.sales_order_value ?? 0) - (o.advance_paid ?? 0)), 0);
 
     const unpaid = (unpaidOrders.data ?? []) as { sales_order_value: number | null; advance_paid: number | null }[];
     const totalDue = unpaid.reduce((s, o) => s + ((o.sales_order_value ?? 0) - (o.advance_paid ?? 0)), 0);
@@ -60,7 +80,7 @@ const AdminDashboard = () => {
       pricingSlabs: pricingSlabs.count ?? 0, totalOrders: orders.length,
       users: users.count ?? 0, moqRules: moqRules.count ?? 0,
       exchangeRates: exchangeRates.count ?? 0, supportOpen: supportOpen.count ?? 0,
-      totalDue, financeHold,
+      totalDue, financeHold, totalPhysicalStock, lowStockCount, immediateCash, pendingCollections,
     });
 
     const a: AlertItem[] = [];
@@ -69,8 +89,14 @@ const AdminDashboard = () => {
     if (pc.cleared_for_dispatch > 0) a.push({ label: t("Dispatch Ready"), count: pc.cleared_for_dispatch, route: "/admin/packing-dispatch", severity: "medium" });
     if (financeHold > 0) a.push({ label: "Finance Hold", count: financeHold, route: "/admin/accounts-release", severity: "high" });
     if ((supportOpen.count ?? 0) > 0) a.push({ label: "Support Escalations", count: supportOpen.count ?? 0, route: "/admin/exceptions", severity: "medium" });
+    if (lowStockCount > 0) a.push({ label: "Low Stock Products", count: lowStockCount, route: "/admin/inventory", severity: "high" });
+    // Bottleneck detection
+    if (pc.packed_ready > 0 && pc.packed_ready > 3 * (pc.dispatched || 1)) {
+      a.push({ label: "Dispatch Bottleneck: Logistics delay detected", count: pc.packed_ready, route: "/admin/packing-dispatch", severity: "medium" });
+    }
     setAlerts(a);
     setRecentActions((auditLogs.data as AuditEntry[]) ?? []);
+    setLastUpdated(new Date());
     setLoading(false);
   }, [t]);
 
@@ -80,6 +106,7 @@ const AdminDashboard = () => {
       .on("postgres_changes", { event: "*", schema: "public", table: "orders" }, () => fetchData())
       .on("postgres_changes", { event: "*", schema: "public", table: "b2b_applications" }, () => fetchData())
       .on("postgres_changes", { event: "*", schema: "public", table: "audit_logs" }, () => fetchData())
+      .on("postgres_changes", { event: "*", schema: "public", table: "factory_inventory" }, () => fetchData())
       .subscribe();
     return () => { supabase.removeChannel(ch); };
   }, [fetchData]);
@@ -91,45 +118,54 @@ const AdminDashboard = () => {
   const severityColor = (s: string) => s === "high" ? "bg-destructive/10 text-destructive border-destructive/20" : s === "medium" ? "bg-amber-50 text-amber-700 border-amber-200" : "bg-blue-50 text-blue-700 border-blue-200";
   const fmtNum = (n: number) => n > 99999 ? `₹${(n / 100000).toFixed(1)}L` : n.toLocaleString("en-IN");
 
+  const metricColor = (m: MetricItem) => {
+    if (m.v === 0) return "text-muted-foreground";
+    if (m.actionable) return "text-primary font-semibold";
+    return "text-foreground";
+  };
+
   const operationalTiles = [
     { key: "pipeline", label: t("Order Pipeline"), icon: ShoppingCart, subtitle: "Stage-wise order flow",
       metrics: [
         { l: "Submitted", v: pipeline.submitted ?? 0 },
         { l: t("In Production"), v: pipeline.in_production ?? 0 },
-        { l: "Packed Ready", v: pipeline.packed_ready ?? 0 },
-        { l: "Awaiting Payment", v: pipeline.awaiting_final_payment ?? 0 },
+        { l: "Packed Ready", v: pipeline.packed_ready ?? 0, actionable: true },
+        { l: "Awaiting Payment", v: pipeline.awaiting_final_payment ?? 0, actionable: true },
         { l: "Cleared", v: pipeline.cleared_for_dispatch ?? 0 },
         { l: t("Dispatched"), v: pipeline.dispatched ?? 0 },
-      ],
+      ] as MetricItem[],
       route: "/admin/orders",
     },
-    { key: "production", label: t("Production & Assembly"), icon: Factory, subtitle: "Manufacturing workload",
+    { key: "production", label: t("Production & Assembly"), icon: Factory, subtitle: "Manufacturing & stock",
       metrics: [
         { l: "In Production", v: pipeline.in_production ?? 0 },
         { l: "Packed Ready", v: pipeline.packed_ready ?? 0 },
-      ],
+        { l: "Total Stock", v: Number(counts.totalPhysicalStock) || 0 },
+        { l: "Low Stock ⚠", v: Number(counts.lowStockCount) || 0, actionable: true },
+      ] as MetricItem[],
       route: "/admin/production",
     },
     { key: "packing", label: t("Packing & Dispatch"), icon: PackageCheck, subtitle: "Fulfillment workload",
       metrics: [
         { l: "Packed Ready", v: pipeline.packed_ready ?? 0 },
         { l: "Cleared for Dispatch", v: pipeline.cleared_for_dispatch ?? 0 },
-        { l: "Blocked", v: Number(counts.financeHold) || 0 },
-      ],
+        { l: "Blocked", v: Number(counts.financeHold) || 0, actionable: true },
+      ] as MetricItem[],
       route: "/admin/packing-dispatch",
     },
     { key: "accounts", label: t("Accounts & Release"), icon: Landmark, subtitle: "Finance release control",
       metrics: [
-        { l: "Awaiting Payment", v: pipeline.awaiting_final_payment ?? 0 },
-        { l: "Finance Hold", v: Number(counts.financeHold) || 0 },
-      ],
+        { l: "Immediate Cash", v: Number(counts.immediateCash) || 0, actionable: true },
+        { l: "Pending Collections", v: Number(counts.pendingCollections) || 0, actionable: true },
+        { l: "Finance Hold", v: Number(counts.financeHold) || 0, actionable: true },
+      ] as MetricItem[],
       route: "/admin/accounts-release",
     },
     { key: "exceptions", label: t("Exception Center"), icon: AlertCircle, subtitle: "Escalations & overrides",
       metrics: [
-        { l: "Support Open", v: Number(counts.supportOpen) || 0 },
+        { l: "Support Open", v: Number(counts.supportOpen) || 0, actionable: true },
         { l: "Cancelled", v: pipeline.cancelled ?? 0 },
-      ],
+      ] as MetricItem[],
       route: "/admin/exceptions",
     },
   ];
@@ -149,7 +185,7 @@ const AdminDashboard = () => {
     { key: "settings", label: t("System Settings"), subtitle: "Defaults, numbering, dispatch", icon: Settings, route: "/admin/settings", count: "—" },
   ];
 
-  const maxMetric = (metrics: { v: number }[]) => Math.max(...metrics.map(m => m.v), 1);
+  const maxMetric = (metrics: MetricItem[]) => Math.max(...metrics.map(m => m.v), 1);
 
   return (
     <div className="space-y-6">
@@ -166,6 +202,14 @@ const AdminDashboard = () => {
               <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
               <span className="text-fine text-muted-foreground">System Active</span>
             </div>
+            {lastUpdated && (
+              <div className="flex items-center gap-1 justify-end mt-0.5">
+                <Clock size={10} className="text-muted-foreground" />
+                <span className="text-fine text-muted-foreground">
+                  Last Updated: {lastUpdated.toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", second: "2-digit" })}
+                </span>
+              </div>
+            )}
           </div>
           <button onClick={handleLogout} className="flex items-center gap-1.5 text-ui-label text-muted-foreground hover:text-destructive transition-colors">
             <LogOut size={14} /> {t("Sign Out")}
@@ -208,7 +252,7 @@ const AdminDashboard = () => {
                       <div className="flex-1 h-1.5 bg-muted rounded-full overflow-hidden">
                         <div className="h-full bg-primary/60 rounded-full transition-all" style={{ width: `${Math.min((m.v / max) * 100, 100)}%` }} />
                       </div>
-                      <span className="text-fine text-foreground w-5 text-right">{m.v}</span>
+                      <span className={`text-fine w-5 text-right ${metricColor(m)}`}>{m.v}</span>
                     </div>
                   ))}
                 </div>
