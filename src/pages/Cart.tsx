@@ -356,6 +356,9 @@ const Cart = () => {
         sales_order_value: grandTotal,
         document_stage: "SO",
         payment_status: paymentMethod === "credit" ? "on_credit" : "awaiting_receipt",
+        dispatch_urgency: dispatchUrgency,
+        system_estimated_date: systemEstimatedDate ? format(systemEstimatedDate, "yyyy-MM-dd") : null,
+        requested_dispatch_date: requestedDispatchDate ? format(requestedDispatchDate, "yyyy-MM-dd") : null,
       };
 
       if (paymentMethod !== "credit") {
