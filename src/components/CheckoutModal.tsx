@@ -43,7 +43,8 @@ const CheckoutModal = ({ open, onClose, grandTotal, orderId, onOrderConfirmed }:
 
     setConfirming(false);
     if (error) {
-      toast.error("Failed to confirm order. Please try again.");
+      console.error("[Checkout] Order confirm failed:", error);
+      toast.error(error.message || "Failed to confirm order. Please try again.");
       return;
     }
     toast.success("Order confirmed! Advance payment initiated.");
