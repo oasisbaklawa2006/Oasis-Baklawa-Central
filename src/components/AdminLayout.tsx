@@ -15,7 +15,7 @@ const ROLE_MODULE_ACCESS: Record<string, string[]> = {
   super_admin: ["*"],
   admin: ["*"],
   finance_head: ["dashboard", "finance", "accounts", "orders", "audit"],
-  dispatch_head: ["dashboard", "packing", "dispatch", "orders"],
+  dispatch_head: ["dashboard", "packing", "dispatch", "orders", "inventory"],
   production_manager: ["dashboard", "orders", "production"],
   assembly_manager: ["dashboard", "production", "orders"],
   packing_supervisor: ["dashboard", "packing", "dispatch"],
@@ -66,6 +66,7 @@ const AdminLayout = () => {
         { to: "/admin/support", icon: Headphones, label: t("Support Tickets"), moduleKey: "support" },
         { to: "/admin/settings", icon: Settings, label: t("System Settings"), moduleKey: "settings" },
         { to: "/admin/audit", icon: Shield, label: t("Audit Trail"), moduleKey: "audit" },
+        { to: "/admin/inventory", icon: PackageCheck, label: t("Factory Stock"), moduleKey: "inventory" },
       ],
     },
   ];
