@@ -90,7 +90,16 @@ const formatDate = (dateString: string) =>
     minute: "2-digit",
   });
 
-type FinanceQueue = "validation" | "approvals" | "invoicing" | "returns" | "returns_scrutiny";
+type FinanceQueue = "validation" | "approvals" | "invoicing" | "returns" | "returns_scrutiny" | "commission_payouts";
+
+interface SalesExecPayout {
+  id: string;
+  full_name: string | null;
+  name: string | null;
+  commission_rate_percentage: number | null;
+  earned: number;
+  paid: number;
+}
 
 const AdminFinance = () => {
   const { user } = useAuth();
@@ -119,6 +128,12 @@ const AdminFinance = () => {
   const [scrutinyDept, setScrutinyDept] = useState("");
   const [scrutinySettlement, setScrutinySettlement] = useState("");
   const [scrutinySaving, setScrutinySaving] = useState(false);
+
+  // Commission Payouts State
+  const [salesExecPayouts, setSalesExecPayouts] = useState<SalesExecPayout[]>([]);
+  const [payoutActing, setPayoutActing] = useState<string | null>(null);
+  const [payoutAmounts, setPayoutAmounts] = useState<Record<string, string>>({});
+  const [payoutRefs, setPayoutRefs] = useState<Record<string, string>>({});
 
   const fetchOrders = async () => {
     const { data, error } = await supabase
@@ -331,9 +346,73 @@ const AdminFinance = () => {
     setScrutinySaving(false);
   };
 
+  // Fetch commission payouts data
+  const fetchCommissionPayouts = async () => {
+    // Get all sales executives
+    const { data: execs } = await supabase
+      .from("users")
+      .select("id, full_name, name, commission_rate_percentage")
+      .in("role", ["sales_executive"]);
+    if (!execs || execs.length === 0) { setSalesExecPayouts([]); return; }
+
+    // For each exec, get delivered orders for their companies + payouts
+    const results: SalesExecPayout[] = [];
+    for (const exec of execs) {
+      const { data: comps } = await supabase.from("companies").select("id").eq("account_manager_id", exec.id);
+      const compIds = (comps || []).map((c: any) => c.id);
+      let earned = 0;
+      if (compIds.length > 0) {
+        const { data: ords } = await supabase
+          .from("orders")
+          .select("sales_order_value")
+          .in("company_id", compIds)
+          .eq("status", "delivered");
+        const totalDelivered = (ords || []).reduce((s: number, o: any) => s + (o.sales_order_value || 0), 0);
+        earned = totalDelivered * ((exec.commission_rate_percentage || 0) / 100);
+      }
+      const { data: payouts } = await supabase
+        .from("commission_payouts")
+        .select("amount_paid")
+        .eq("executive_id", exec.id);
+      const totalPaid = (payouts || []).reduce((s: number, p: any) => s + (p.amount_paid || 0), 0);
+      results.push({ ...exec, earned, paid: totalPaid });
+    }
+    setSalesExecPayouts(results);
+  };
+
+  const handleSettleCommission = async (exec: SalesExecPayout) => {
+    const amount = parseFloat(payoutAmounts[exec.id] || "0");
+    if (amount <= 0) { toast.error("Enter a valid amount."); return; }
+    setPayoutActing(exec.id);
+    const { error } = await supabase.from("commission_payouts").insert({
+      executive_id: exec.id,
+      amount_paid: amount,
+      paid_by: user?.id || null,
+      payment_ref: payoutRefs[exec.id] || null,
+    });
+    if (error) {
+      toast.error("Payout failed: " + error.message);
+    } else {
+      await supabase.from("audit_logs").insert({
+        action_type: "commission_payout_settled",
+        module_name: "finance",
+        entity_name: "commission_payouts",
+        entity_id: exec.id,
+        actor_id: user?.id || null,
+        risk_level: "high",
+        new_value: { executive: exec.full_name || exec.name, amount, ref: payoutRefs[exec.id] || null },
+      });
+      toast.success(`₹${amount.toLocaleString("en-IN")} paid to ${exec.full_name || exec.name}.`);
+      setPayoutAmounts((p) => ({ ...p, [exec.id]: "" }));
+      setPayoutRefs((p) => ({ ...p, [exec.id]: "" }));
+      fetchCommissionPayouts();
+    }
+    setPayoutActing(null);
+  };
+
   const fetchAll = async () => {
     setLoading(true);
-    await Promise.all([fetchOrders(), fetchCreditRequests(), fetchReturns(), fetchScrutiny()]);
+    await Promise.all([fetchOrders(), fetchCreditRequests(), fetchReturns(), fetchScrutiny(), fetchCommissionPayouts()]);
     setLoading(false);
   };
 
