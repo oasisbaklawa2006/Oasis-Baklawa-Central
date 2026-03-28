@@ -907,6 +907,72 @@ const AdminFinance = () => {
               )}
             </div>
           )}
+
+          {/* QUEUE 6: COMMISSION PAYOUTS */}
+          {activeQueue === "commission_payouts" && (
+            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {salesExecPayouts.length === 0 ? (
+                <p className="text-slate-500 font-bold p-4">No sales executives found.</p>
+              ) : (
+                salesExecPayouts.map((exec) => {
+                  const pending = exec.earned - exec.paid;
+                  return (
+                    <div key={exec.id} className="bg-white border-l-4 border-[#B8860B] rounded-xl p-5 shadow-sm">
+                      <div className="border-b border-slate-100 pb-3 mb-3">
+                        <p className="font-black text-slate-900 text-lg">{exec.full_name || exec.name || "—"}</p>
+                        <p className="text-xs text-slate-400 mt-0.5">Rate: {exec.commission_rate_percentage || 0}%</p>
+                      </div>
+                      <div className="space-y-1 text-sm mb-4">
+                        <div className="flex justify-between">
+                          <span className="text-slate-500">Earned</span>
+                          <span className="font-bold text-emerald-600">{formatPrice(exec.earned)}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-slate-500">Paid</span>
+                          <span className="font-bold text-slate-700">{formatPrice(exec.paid)}</span>
+                        </div>
+                        <div className="flex justify-between border-t border-slate-100 pt-1">
+                          <span className="text-slate-800 font-bold">Pending</span>
+                          <span className={`font-black ${pending > 0 ? "text-[#B8860B]" : "text-slate-400"}`}>{formatPrice(pending > 0 ? pending : 0)}</span>
+                        </div>
+                      </div>
+                      {pending > 0 && (
+                        <div className="space-y-2">
+                          <input
+                            type="number"
+                            min="0"
+                            max={pending}
+                            placeholder="Amount to pay"
+                            value={payoutAmounts[exec.id] || ""}
+                            onChange={(e) => setPayoutAmounts((p) => ({ ...p, [exec.id]: e.target.value }))}
+                            className="w-full bg-white border border-slate-200 rounded-lg p-2.5 text-sm font-bold outline-none focus:border-[#B8860B]"
+                          />
+                          <input
+                            type="text"
+                            placeholder="Payment ref (optional)"
+                            value={payoutRefs[exec.id] || ""}
+                            onChange={(e) => setPayoutRefs((p) => ({ ...p, [exec.id]: e.target.value }))}
+                            className="w-full bg-white border border-slate-200 rounded-lg p-2.5 text-sm outline-none focus:border-[#B8860B]"
+                          />
+                          <button
+                            onClick={() => handleSettleCommission(exec)}
+                            disabled={payoutActing === exec.id}
+                            className="w-full py-2.5 bg-emerald-600 text-white rounded-lg text-xs font-bold hover:bg-emerald-700 flex justify-center items-center gap-1.5"
+                          >
+                            {payoutActing === exec.id ? (
+                              <Loader2 size={14} className="animate-spin" />
+                            ) : (
+                              <><IndianRupee size={14} /> Settle Payment</>
+                            )}
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })
+              )}
+            </div>
+          )}
         </div>
       </div>
 
