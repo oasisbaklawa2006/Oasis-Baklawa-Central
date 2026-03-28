@@ -111,6 +111,14 @@ const AdminFinance = () => {
   const [returnCreditValues, setReturnCreditValues] = useState<Record<string, string>>({});
   const [returnApprovals, setReturnApprovals] = useState<Record<string, boolean>>({});
 
+  // Returns Scrutiny State
+  const [scrutinyRecords, setScrutinyRecords] = useState<ScrutinyRecord[]>([]);
+  const [scrutinyTarget, setScrutinyTarget] = useState<ScrutinyRecord | null>(null);
+  const [scrutinyFault, setScrutinyFault] = useState("");
+  const [scrutinyDept, setScrutinyDept] = useState("");
+  const [scrutinySettlement, setScrutinySettlement] = useState("");
+  const [scrutinySaving, setScrutinySaving] = useState(false);
+
   const fetchOrders = async () => {
     const { data, error } = await supabase
       .from("orders")
