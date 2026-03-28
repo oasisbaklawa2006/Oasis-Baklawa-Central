@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-// ADDED 'Package' TO THE IMPORTS BELOW
 import {
   Loader2,
   CheckCircle2,
@@ -17,8 +16,10 @@ import {
   Calculator,
   Link,
   Package,
+  XCircle,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
+import { useAuth } from "@/hooks/useAuth";
 
 interface FinanceOrder {
   id: string;
@@ -29,6 +30,19 @@ interface FinanceOrder {
   created_at: string;
   company_id: string | null;
   company?: { business_name: string } | null;
+}
+
+interface CreditRequest {
+  id: string;
+  company_id: string | null;
+  credit_type: string | null;
+  requested_amount: number;
+  notes: string | null;
+  status: string | null;
+  created_at: string | null;
+  requested_by: string | null;
+  company?: { business_name: string } | null;
+  requester?: { full_name: string | null; email: string | null } | null;
 }
 
 const formatPrice = (n: number) => "₹" + n.toLocaleString("en-IN");
@@ -43,7 +57,9 @@ const formatDate = (dateString: string) =>
 type FinanceQueue = "validation" | "approvals" | "invoicing";
 
 const AdminFinance = () => {
+  const { user } = useAuth();
   const [orders, setOrders] = useState<FinanceOrder[]>([]);
+  const [creditRequests, setCreditRequests] = useState<CreditRequest[]>([]);
   const [loading, setLoading] = useState(true);
   const [acting, setActing] = useState<string | null>(null);
   const [activeQueue, setActiveQueue] = useState<FinanceQueue>("validation");
@@ -56,7 +72,6 @@ const AdminFinance = () => {
   const [invoiceUploaded, setInvoiceUploaded] = useState(false);
 
   const fetchOrders = async () => {
-    setLoading(true);
     const { data, error } = await supabase
       .from("orders")
       .select(
@@ -65,11 +80,28 @@ const AdminFinance = () => {
       .order("created_at", { ascending: false });
 
     if (!error && data) setOrders(data as unknown as FinanceOrder[]);
+  };
+
+  const fetchCreditRequests = async () => {
+    const { data, error } = await supabase
+      .from("credit_requests")
+      .select(
+        "id, company_id, credit_type, requested_amount, notes, status, created_at, requested_by, company:companies(business_name), requester:users!credit_requests_requested_by_fkey(full_name, email)",
+      )
+      .eq("status", "pending")
+      .order("created_at", { ascending: false });
+
+    if (!error && data) setCreditRequests(data as unknown as CreditRequest[]);
+  };
+
+  const fetchAll = async () => {
+    setLoading(true);
+    await Promise.all([fetchOrders(), fetchCreditRequests()]);
     setLoading(false);
   };
 
   useEffect(() => {
-    fetchOrders();
+    fetchAll();
   }, []);
 
   const handleValidatePayment = async (orderId: string) => {
@@ -87,7 +119,54 @@ const AdminFinance = () => {
     setActing(null);
   };
 
-  // THE NEW EXACT WORKFLOW SUBMIT
+  const handleCreditAction = async (req: CreditRequest, action: "approved" | "rejected") => {
+    setActing(req.id);
+    try {
+      // Update credit request status
+      await supabase
+        .from("credit_requests")
+        .update({ status: action })
+        .eq("id", req.id);
+
+      if (action === "approved" && req.company_id) {
+        // If long_term_limit, update the company's credit_limit
+        if (req.credit_type === "long_term_limit") {
+          await supabase
+            .from("companies")
+            .update({ credit_limit: req.requested_amount, allow_credit: true })
+            .eq("id", req.company_id);
+        }
+        // For short_term_so, just log it (no credit_limit change)
+      }
+
+      // Audit log
+      await supabase.from("audit_logs").insert({
+        module_name: "finance",
+        action_type: `credit_request_${action}`,
+        entity_name: "credit_requests",
+        entity_id: req.id,
+        actor_id: user?.id || null,
+        new_value: {
+          company_id: req.company_id,
+          credit_type: req.credit_type,
+          requested_amount: req.requested_amount,
+          decision: action,
+        },
+      });
+
+      toast.success(
+        action === "approved"
+          ? `Credit approved for ${req.company?.business_name}. ${req.credit_type === "long_term_limit" ? "Limit updated." : "Short-term SO logged."}`
+          : `Credit request rejected.`,
+      );
+      fetchCreditRequests();
+    } catch (err) {
+      toast.error("Action failed.");
+    }
+    setActing(null);
+  };
+
+  // Invoicing submit
   const handleRequestBalance = async () => {
     if (!docOrder || !tallyAmount || !tallyInvoiceNo || !invoiceUploaded) {
       toast.error("Please fill all Tally details and attach the PDF.");
@@ -98,7 +177,7 @@ const AdminFinance = () => {
       await supabase
         .from("orders")
         .update({
-          sales_order_value: parseFloat(tallyAmount), // Overwrite with exact Tally amount
+          sales_order_value: parseFloat(tallyAmount),
           status: "awaiting_final_payment",
         })
         .eq("id", docOrder.id);
@@ -117,8 +196,6 @@ const AdminFinance = () => {
 
   // Queues
   const validationQueue = orders.filter((o) => o.payment_status === "awaiting_receipt");
-  const approvalQueue = orders.filter((o) => o.payment_status === "credit_requested");
-  // Assuming 'packed_ready' is the status Operations sets after assembling master cartons
   const invoicingQueue = orders.filter((o) => o.status === "in_production" || o.status === "packed_ready");
 
   const totalValueToday = orders.reduce((sum, o) => sum + (o.sales_order_value || 0), 0);
@@ -151,7 +228,7 @@ const AdminFinance = () => {
         <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-2 flex overflow-x-auto scrollbar-hide gap-2">
           {[
             { id: "validation", label: "Advance Receipts", count: validationQueue.length, icon: Banknote },
-            { id: "approvals", label: "Credit Approvals", count: approvalQueue.length, icon: ShieldCheck },
+            { id: "approvals", label: "Credit Approvals", count: creditRequests.length, icon: ShieldCheck },
             { id: "invoicing", label: "Post-Pack Invoicing", count: invoicingQueue.length, icon: Calculator },
           ].map((tab) => (
             <button
@@ -216,6 +293,70 @@ const AdminFinance = () => {
             </div>
           )}
 
+          {/* QUEUE 2: CREDIT APPROVALS */}
+          {activeQueue === "approvals" && (
+            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {creditRequests.length === 0 ? (
+                <p className="text-slate-500 font-bold p-4">No credit requests pending approval.</p>
+              ) : (
+                creditRequests.map((req) => (
+                  <div key={req.id} className="bg-white border-l-4 border-violet-400 rounded-xl p-5 shadow-sm">
+                    <div className="border-b border-slate-100 pb-3 mb-3">
+                      <p className="font-black text-slate-900 text-lg">{req.company?.business_name || "Unknown"}</p>
+                      <p className="text-xs text-slate-400 mt-0.5">
+                        Requested by: {req.requester?.full_name || req.requester?.email || "N/A"}
+                      </p>
+                    </div>
+                    <div className="flex justify-between items-center mb-2">
+                      <p className="text-xl font-black text-[#B8860B]">{formatPrice(req.requested_amount)}</p>
+                      <span
+                        className={`px-2 py-1 rounded text-[10px] font-bold uppercase ${
+                          req.credit_type === "long_term_limit"
+                            ? "bg-violet-50 text-violet-700"
+                            : "bg-blue-50 text-blue-600"
+                        }`}
+                      >
+                        {req.credit_type === "long_term_limit" ? "Long-Term Limit" : "Short-Term SO"}
+                      </span>
+                    </div>
+                    {req.notes && (
+                      <p className="text-xs text-slate-500 italic mb-4 line-clamp-2">"{req.notes}"</p>
+                    )}
+                    {!req.notes && <div className="mb-4" />}
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => handleCreditAction(req, "rejected")}
+                        disabled={acting === req.id}
+                        className="flex-1 py-2.5 border border-red-200 text-red-600 rounded-lg text-xs font-bold hover:bg-red-50 flex justify-center items-center gap-1"
+                      >
+                        {acting === req.id ? (
+                          <Loader2 size={14} className="animate-spin" />
+                        ) : (
+                          <>
+                            <XCircle size={14} /> Reject
+                          </>
+                        )}
+                      </button>
+                      <button
+                        onClick={() => handleCreditAction(req, "approved")}
+                        disabled={acting === req.id}
+                        className="flex-1 py-2.5 bg-emerald-600 text-white rounded-lg text-xs font-bold hover:bg-emerald-700 flex justify-center items-center gap-1"
+                      >
+                        {acting === req.id ? (
+                          <Loader2 size={14} className="animate-spin" />
+                        ) : (
+                          <>
+                            <CheckCircle2 size={14} /> Approve
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          )}
+
           {/* QUEUE 3: POST-PACK INVOICING */}
           {activeQueue === "invoicing" && (
             <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -256,7 +397,7 @@ const AdminFinance = () => {
         </div>
       </div>
 
-      {/* FINANCE INVOICING MODAL (EXACT WORKFLOW) */}
+      {/* FINANCE INVOICING MODAL */}
       <AnimatePresence>
         {docOrder && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm overflow-y-auto">
@@ -266,7 +407,6 @@ const AdminFinance = () => {
               exit={{ opacity: 0, scale: 0.95 }}
               className="bg-white rounded-3xl w-full max-w-2xl shadow-2xl my-8"
             >
-              {/* Modal Header */}
               <div className="flex justify-between items-center p-6 border-b border-slate-100">
                 <div>
                   <h3 className="font-display text-2xl font-bold text-slate-900">Process Final Invoice</h3>
@@ -281,12 +421,10 @@ const AdminFinance = () => {
               </div>
 
               <div className="p-6 space-y-6">
-                {/* 1. INTERNAL AUTO-CALCULATION (Read-Only) */}
                 <div className="bg-slate-50 rounded-2xl border border-slate-200 p-5">
                   <h4 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-4 flex items-center gap-2">
                     <Calculator size={14} /> Internal Reconciliation Sheet
                   </h4>
-
                   <div className="space-y-2 text-sm">
                     <div className="flex justify-between text-slate-600">
                       <span>Packed Items Value (As per Slab)</span>
@@ -319,12 +457,10 @@ const AdminFinance = () => {
                   </div>
                 </div>
 
-                {/* 2. TALLY DATA ENTRY (Manual Input) */}
                 <div className="space-y-4">
                   <h4 className="text-xs font-bold text-slate-400 uppercase tracking-widest flex items-center gap-2">
                     <Receipt size={14} /> Enter Official Tally Details
                   </h4>
-
                   <div className="grid grid-cols-2 gap-4">
                     <div>
                       <label className="block text-[11px] font-bold text-slate-500 uppercase mb-1.5">
@@ -350,7 +486,6 @@ const AdminFinance = () => {
                       />
                     </div>
                   </div>
-
                   <div>
                     <label className="block text-[11px] font-bold text-slate-500 uppercase mb-1.5">
                       Exact Tally Amount (₹)
@@ -365,7 +500,6 @@ const AdminFinance = () => {
                   </div>
                 </div>
 
-                {/* 3. FILE UPLOAD */}
                 <div>
                   <button
                     onClick={() => {
@@ -382,7 +516,6 @@ const AdminFinance = () => {
                 </div>
               </div>
 
-              {/* ACTION FOOTER */}
               <div className="p-6 border-t border-slate-100 flex gap-3 bg-slate-50 rounded-b-3xl">
                 <button
                   onClick={() => setDocOrder(null)}
