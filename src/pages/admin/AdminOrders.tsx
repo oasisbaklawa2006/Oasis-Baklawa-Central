@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "sonner";
-import { ArrowRight, Loader2, X, FileText, CheckCircle2, Truck, Printer } from "lucide-react";
+import { ArrowRight, Loader2, X, FileText, CheckCircle2, Truck, Printer, Package, ClipboardList } from "lucide-react";
 import TopNavBar from "@/components/TopNavBar";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -46,14 +46,18 @@ const STATUS_COLORS: Record<OrderStatus, string> = {
 
 const TERMINAL = new Set(["closed", "cancelled", "delivered"]);
 
+// Statuses at or after packed_ready
+const PACKED_OR_LATER = new Set(["packed_ready", "awaiting_final_payment", "cleared_for_dispatch", "dispatched", "delivered"]);
+
 interface OrderItem {
   id: string;
   quantity: number;
+  actual_packed_qty: number | null;
   product_id: string | null;
   pack_size?: string | null;
   carton_type?: string | null;
-  products?: { name: string } | null;
-  product?: { name: string } | null; // AppGen fallback
+  products?: { name: string; hsn_code?: string; gst_rate?: number; gst_percentage?: number; price_per_kg?: number; primary_pack_weight_kg?: number; category?: string; [key: string]: any } | null;
+  product?: { name: string } | null;
 }
 
 interface OrderCard {
@@ -64,6 +68,7 @@ interface OrderCard {
   document_stage: string | null;
   payment_cleared: boolean | null;
   eway_bill_number: string | null;
+  gate_pass_number: string | null;
   company?: { business_name: string; gst_number?: string | null } | null;
   order_items?: OrderItem[];
 }
@@ -76,19 +81,22 @@ const AdminOrders = () => {
   const [drawerItems, setDrawerItems] = useState<OrderItem[]>([]);
   const [drawerLoading, setDrawerLoading] = useState(false);
   const [ewayInput, setEwayInput] = useState("");
+  const [gatePassInput, setGatePassInput] = useState("");
   const [financeUpdating, setFinanceUpdating] = useState(false);
+
+  // Packing list state: map of item id -> actual packed qty
+  const [packingQtys, setPackingQtys] = useState<Record<string, number>>({});
+  const [packingSaving, setPackingSaving] = useState(false);
 
   const fetchOrders = async () => {
     setLoading(true);
-    // BULLETPROOF QUERY: We temporarily removed the 'company:companies' join
-    // to see if that was crashing the board.
     const { data, error } = await supabase
       .from("orders")
       .select(
         `
         id, status, sales_order_value, company_id,
-        document_stage, payment_cleared, eway_bill_number,
-        order_items ( id, quantity, product_id )
+        document_stage, payment_cleared, eway_bill_number, gate_pass_number,
+        order_items ( id, quantity, product_id, actual_packed_qty )
       `,
       )
       .in("status", [...STATUSES]);
@@ -97,7 +105,6 @@ const AdminOrders = () => {
       console.error("Database Error Details:", error);
       toast.error(`Database Error: ${error.message}`);
     } else {
-      console.log("Orders successfully fetched:", data);
       setOrders((data as unknown as OrderCard[]) ?? []);
     }
     setLoading(false);
@@ -136,20 +143,64 @@ const AdminOrders = () => {
     setSelectedOrder(order);
     setDrawerLoading(true);
     setEwayInput(order.eway_bill_number ?? "");
+    setGatePassInput(order.gate_pass_number ?? "");
 
     const { data, error } = await supabase
       .from("order_items")
-      .select(`id, quantity, product_id, pack_size, carton_type, products (name)`)
+      .select(`id, quantity, actual_packed_qty, product_id, pack_size, carton_type, products (*)`)
       .eq("order_id", order.id);
 
     if (error) console.error(error);
-    setDrawerItems((data as unknown as OrderItem[]) ?? []);
+    const items = (data as unknown as OrderItem[]) ?? [];
+    setDrawerItems(items);
+
+    // Init packing qtys from items
+    const initQtys: Record<string, number> = {};
+    items.forEach(i => {
+      initQtys[i.id] = i.actual_packed_qty ?? i.quantity;
+    });
+    setPackingQtys(initQtys);
+
     setDrawerLoading(false);
   };
 
   const closeDrawer = () => {
     setSelectedOrder(null);
     setTimeout(() => setDrawerItems([]), 300);
+  };
+
+  // Save packing list & mark packed_ready
+  const handleSavePackingList = async () => {
+    if (!selectedOrder) return;
+    setPackingSaving(true);
+
+    try {
+      // Update each item's actual_packed_qty
+      for (const item of drawerItems) {
+        const qty = packingQtys[item.id] ?? item.quantity;
+        await supabase
+          .from("order_items")
+          .update({ actual_packed_qty: qty })
+          .eq("id", item.id);
+      }
+
+      // Move order to packed_ready
+      await supabase
+        .from("orders")
+        .update({ status: "packed_ready" })
+        .eq("id", selectedOrder.id);
+
+      await supabase
+        .from("order_status_history")
+        .insert({ order_id: selectedOrder.id, old_status: selectedOrder.status, new_status: "packed_ready" });
+
+      toast.success("Packing list saved — Order marked Packed Ready");
+      setSelectedOrder(prev => prev ? { ...prev, status: "packed_ready" } : prev);
+      await fetchOrders();
+    } catch (err: any) {
+      toast.error(err.message || "Failed to save packing list");
+    }
+    setPackingSaving(false);
   };
 
   const handleGeneratePI = async (orderId: string) => {
@@ -189,16 +240,27 @@ const AdminOrders = () => {
     setFinanceUpdating(false);
   };
 
+  const handleSaveGatePass = async (orderId: string) => {
+    if (!gatePassInput.trim()) return toast.error("Enter a Gate Pass number");
+    setFinanceUpdating(true);
+    const { error } = await supabase.from("orders").update({ gate_pass_number: gatePassInput.trim() }).eq("id", orderId);
+    if (error) toast.error("Failed to save Gate Pass");
+    else {
+      toast.success("Gate Pass saved");
+      setSelectedOrder(prev => prev ? { ...prev, gate_pass_number: gatePassInput.trim() } : prev);
+      await fetchOrders();
+    }
+    setFinanceUpdating(false);
+  };
+
   const handlePrintInvoice = async (order: OrderCard) => {
     try {
-      // Fetch full product details for each order item
       const { data: items, error: itemsErr } = await supabase
         .from("order_items")
-        .select(`id, quantity, product_id, pack_size, carton_type, products (*)`)
+        .select(`id, quantity, actual_packed_qty, product_id, pack_size, carton_type, products (*)`)
         .eq("order_id", order.id);
       if (itemsErr) throw itemsErr;
 
-      // Fetch company details
       let companyDetails: { business_name: string; gst_number?: string | null } | null = null;
       if (order.company_id) {
         const { data: co } = await supabase
@@ -209,10 +271,10 @@ const AdminOrders = () => {
         companyDetails = co;
       }
 
-      // Map to the shape the invoice generator expects
+      // Use actual_packed_qty for PI (falls back to quantity)
       const cartItems = (items || []).map((item: any) => ({
         id: item.id,
-        quantity: item.quantity,
+        quantity: item.actual_packed_qty ?? item.quantity,
         product: item.products,
       }));
 
@@ -238,6 +300,10 @@ const AdminOrders = () => {
     );
   }
 
+  const isPackedOrLater = selectedOrder ? PACKED_OR_LATER.has(selectedOrder.status) : false;
+  const isClearedForDispatch = selectedOrder?.status === "cleared_for_dispatch";
+  const isInProduction = selectedOrder?.status === "in_production";
+
   return (
     <div className="min-h-screen bg-background pb-20 overflow-x-hidden flex flex-col">
       <TopNavBar />
@@ -248,7 +314,6 @@ const AdminOrders = () => {
           <p className="text-body-p2 text-muted-foreground mt-1">Drag-and-drop fulfillment flow</p>
         </div>
 
-        {/* Scrollable pipeline */}
         <div className="overflow-x-auto flex-1 pb-4 no-scrollbar cursor-grab active:cursor-grabbing">
           <div className="flex gap-4 min-h-[600px]" style={{ minWidth: "max-content" }}>
             {STATUSES.map((status) => {
@@ -390,6 +455,7 @@ const AdminOrders = () => {
                   </div>
                 </div>
 
+                {/* Order Items */}
                 <div>
                   <h3 className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-3">Order Items</h3>
 
@@ -412,9 +478,16 @@ const AdminOrders = () => {
                                 Pack: {item.pack_size ?? "—"} • Ctn: {item.carton_type ?? "—"}
                               </p>
                             </div>
-                            <p className="text-sm font-bold text-primary bg-primary/10 px-2 py-1 rounded-md">
-                              {item.quantity}x
-                            </p>
+                            <div className="text-right">
+                              <p className="text-sm font-bold text-primary bg-primary/10 px-2 py-1 rounded-md">
+                                {item.quantity}x
+                              </p>
+                              {item.actual_packed_qty != null && item.actual_packed_qty !== item.quantity && (
+                                <p className="text-[10px] font-semibold text-muted-foreground mt-1">
+                                  Packed: {item.actual_packed_qty}
+                                </p>
+                              )}
+                            </div>
                           </div>
                         </div>
                       ))}
@@ -422,6 +495,7 @@ const AdminOrders = () => {
                   )}
                 </div>
 
+                {/* Totals */}
                 <div className="bg-muted/30 p-4 rounded-xl border border-border space-y-2">
                   <div className="flex justify-between items-center">
                     <span className="text-xs font-bold text-muted-foreground uppercase">Total Packs</span>
@@ -435,7 +509,48 @@ const AdminOrders = () => {
                   </div>
                 </div>
 
-                {/* Financial Actions */}
+                {/* ═══ PACKING LIST CONFIRMATION (in_production only) ═══ */}
+                {isInProduction && !drawerLoading && drawerItems.length > 0 && (
+                  <div className="bg-card p-4 rounded-xl border-2 border-primary/30 space-y-4">
+                    <h3 className="text-xs font-bold text-primary uppercase tracking-wider flex items-center gap-2">
+                      <ClipboardList size={14} /> Confirm Packing List
+                    </h3>
+                    <p className="text-xs text-muted-foreground">
+                      Verify actual packed quantities before marking ready.
+                    </p>
+
+                    <div className="space-y-3">
+                      {drawerItems.map((item) => (
+                        <div key={item.id} className="flex items-center justify-between gap-3 p-2 rounded-lg bg-muted/20">
+                          <div className="flex-1 min-w-0">
+                            <p className="text-xs font-bold text-foreground truncate">{getProductName(item)}</p>
+                            <p className="text-[10px] text-muted-foreground">Requested: {item.quantity}</p>
+                          </div>
+                          <Input
+                            type="number"
+                            min={0}
+                            value={packingQtys[item.id] ?? item.quantity}
+                            onChange={(e) =>
+                              setPackingQtys(prev => ({ ...prev, [item.id]: Number(e.target.value) || 0 }))
+                            }
+                            className="w-20 text-center text-sm font-bold"
+                          />
+                        </div>
+                      ))}
+                    </div>
+
+                    <Button
+                      onClick={handleSavePackingList}
+                      disabled={packingSaving}
+                      className="w-full"
+                    >
+                      {packingSaving ? <Loader2 size={14} className="animate-spin mr-2" /> : <Package size={14} className="mr-2" />}
+                      Save Packing List & Mark Ready
+                    </Button>
+                  </div>
+                )}
+
+                {/* ═══ FINANCIAL ACTIONS ═══ */}
                 <div className="bg-card p-4 rounded-xl border border-border space-y-3">
                   <h3 className="text-xs font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-2">
                     <FileText size={14} /> Financial Actions
@@ -454,8 +569,8 @@ const AdminOrders = () => {
                     </span>
                   </div>
 
-                  {/* State 1: SO → Generate PI */}
-                  {(!selectedOrder.document_stage || selectedOrder.document_stage === "SO") && (
+                  {/* Generate PI — only visible at packed_ready or later */}
+                  {isPackedOrLater && (!selectedOrder.document_stage || selectedOrder.document_stage === "SO") && (
                     <Button
                       onClick={() => handleGeneratePI(selectedOrder.id)}
                       disabled={financeUpdating}
@@ -466,17 +581,19 @@ const AdminOrders = () => {
                     </Button>
                   )}
 
-                  {/* Print / Download PI PDF */}
-                  <Button
-                    variant="outline"
-                    onClick={() => handlePrintInvoice(selectedOrder)}
-                    className="w-full"
-                  >
-                    <Printer size={14} className="mr-2" />
-                    Print / Download Proforma PDF
-                  </Button>
+                  {/* Print / Download PI PDF — only at packed_ready or later */}
+                  {isPackedOrLater && (
+                    <Button
+                      variant="outline"
+                      onClick={() => handlePrintInvoice(selectedOrder)}
+                      className="w-full"
+                    >
+                      <Printer size={14} className="mr-2" />
+                      Print / Download Proforma PDF
+                    </Button>
+                  )}
 
-                  {/* State 2: PI → Mark Payment Cleared */}
+                  {/* Mark Payment Cleared */}
                   {selectedOrder.document_stage === "PI" && !selectedOrder.payment_cleared && (
                     <Button
                       onClick={() => handleMarkPaymentCleared(selectedOrder.id)}
@@ -488,7 +605,7 @@ const AdminOrders = () => {
                     </Button>
                   )}
 
-                  {/* State 3: Final → E-Way Bill */}
+                  {/* E-Way Bill (Final stage) */}
                   {selectedOrder.document_stage === "Final" && (
                     <>
                       {selectedOrder.eway_bill_number ? (
@@ -517,6 +634,65 @@ const AdminOrders = () => {
                     </>
                   )}
                 </div>
+
+                {/* ═══ DISPATCH DOCUMENTS (cleared_for_dispatch) ═══ */}
+                {isClearedForDispatch && (
+                  <div className="bg-card p-4 rounded-xl border-2 border-accent/40 space-y-4">
+                    <h3 className="text-xs font-bold text-primary uppercase tracking-wider flex items-center gap-2">
+                      <Truck size={14} /> Dispatch Documents
+                    </h3>
+
+                    {/* E-Way Bill */}
+                    {selectedOrder.eway_bill_number ? (
+                      <div className="flex items-center gap-2 bg-muted/30 p-3 rounded-lg">
+                        <span className="text-xs font-semibold text-muted-foreground">E-Way Bill:</span>
+                        <span className="text-sm font-bold text-foreground">{selectedOrder.eway_bill_number}</span>
+                      </div>
+                    ) : (
+                      <div className="flex gap-2">
+                        <Input
+                          placeholder="E-Way Bill Number"
+                          value={ewayInput}
+                          onChange={(e) => setEwayInput(e.target.value)}
+                          className="flex-1 text-sm"
+                        />
+                        <Button onClick={() => handleSaveEwayBill(selectedOrder.id)} disabled={financeUpdating} size="sm">
+                          {financeUpdating ? <Loader2 size={14} className="animate-spin" /> : "Save"}
+                        </Button>
+                      </div>
+                    )}
+
+                    {/* Gate Pass */}
+                    {selectedOrder.gate_pass_number ? (
+                      <div className="flex items-center gap-2 bg-muted/30 p-3 rounded-lg">
+                        <span className="text-xs font-semibold text-muted-foreground">Gate Pass:</span>
+                        <span className="text-sm font-bold text-foreground">{selectedOrder.gate_pass_number}</span>
+                      </div>
+                    ) : (
+                      <div className="flex gap-2">
+                        <Input
+                          placeholder="Gate Pass Number"
+                          value={gatePassInput}
+                          onChange={(e) => setGatePassInput(e.target.value)}
+                          className="flex-1 text-sm"
+                        />
+                        <Button onClick={() => handleSaveGatePass(selectedOrder.id)} disabled={financeUpdating} size="sm">
+                          {financeUpdating ? <Loader2 size={14} className="animate-spin" /> : "Save"}
+                        </Button>
+                      </div>
+                    )}
+
+                    {/* Placeholder print buttons */}
+                    <div className="flex gap-2">
+                      <Button variant="outline" className="flex-1 text-xs" onClick={() => toast.info("Final Tax Invoice generation coming soon")}>
+                        <Printer size={12} className="mr-1" /> Print Final Invoice
+                      </Button>
+                      <Button variant="outline" className="flex-1 text-xs" onClick={() => toast.info("Packing List print coming soon")}>
+                        <ClipboardList size={12} className="mr-1" /> Print Packing List
+                      </Button>
+                    </div>
+                  </div>
+                )}
               </div>
             </motion.div>
           </>
