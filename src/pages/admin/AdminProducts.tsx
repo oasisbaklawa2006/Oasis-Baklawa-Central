@@ -17,7 +17,17 @@ import {
   Wand2,
   Calculator,
   Leaf,
+  Tag,
+  Filter,
 } from "lucide-react";
+
+interface ProductTagItem {
+  id: string;
+  tag_key: string;
+  tag_label: string;
+  is_active: boolean;
+}
+
 
 interface Product {
   id: string;
