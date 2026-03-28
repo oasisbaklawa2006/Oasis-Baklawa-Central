@@ -361,9 +361,36 @@ const AdminUsers = () => {
                         </td>
                         <td className="px-5 py-4 text-sm text-muted-foreground">{u.email ?? "—"}</td>
                         <td className="px-5 py-4">
-                          <span className="px-2.5 py-1 rounded-md text-[11px] font-bold uppercase tracking-wide bg-primary/10 text-primary border border-primary/20">
-                            {u.role}
-                          </span>
+                          <Select
+                            value={u.role}
+                            onValueChange={async (newRole) => {
+                              const { error } = await supabase.from("users").update({ role: newRole }).eq("id", u.id);
+                              if (error) {
+                                toast.error("Failed to update role: " + error.message);
+                                return;
+                              }
+                              toast.success(`${u.full_name || u.email} → ${newRole}`);
+                              setUsers((prev) => prev.map((x) => (x.id === u.id ? { ...x, role: newRole } : x)));
+                              await supabase.from("audit_logs").insert({
+                                action_type: "update_role",
+                                module_name: "user_role_control",
+                                entity_name: u.full_name || u.email || u.id,
+                                entity_id: u.id,
+                                actor_id: user?.id ?? null,
+                                old_value: { role: u.role },
+                                new_value: { role: newRole },
+                              });
+                            }}
+                          >
+                            <SelectTrigger className="w-[160px] h-8 text-xs font-bold uppercase">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {["super_admin", "admin", "finance_head", "dispatch_head", "production_manager", "assembly_manager", "packing_supervisor", "sales_executive", "support_executive", "buyer"].map((r) => (
+                                <SelectItem key={r} value={r} className="text-xs font-semibold uppercase">{r.replace(/_/g, " ")}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
                         </td>
                         <td className="px-5 py-4 text-sm font-medium text-muted-foreground">{u.department ?? "—"}</td>
                         <td className="px-5 py-4">
