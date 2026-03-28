@@ -2183,7 +2183,15 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      cmd_department_health: {
+        Row: {
+          department: string | null
+          total_produced: number | null
+          total_wastage: number | null
+          wastage_rate: number | null
+        }
+        Relationships: []
+      }
     }
     Functions: {
       [_ in never]: never
