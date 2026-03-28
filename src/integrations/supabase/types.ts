@@ -1001,30 +1001,45 @@ export type Database = {
       }
       order_returns: {
         Row: {
+          admin_approval: boolean | null
           created_at: string | null
+          final_credit_value: number | null
           id: string
+          inspection_notes: string | null
           logged_by: string | null
+          loss_amount: number | null
           order_id: string | null
+          original_value: number | null
           product_id: string | null
           quantity_returned: number
           reason: string | null
           status: string | null
         }
         Insert: {
+          admin_approval?: boolean | null
           created_at?: string | null
+          final_credit_value?: number | null
           id?: string
+          inspection_notes?: string | null
           logged_by?: string | null
+          loss_amount?: number | null
           order_id?: string | null
+          original_value?: number | null
           product_id?: string | null
           quantity_returned: number
           reason?: string | null
           status?: string | null
         }
         Update: {
+          admin_approval?: boolean | null
           created_at?: string | null
+          final_credit_value?: number | null
           id?: string
+          inspection_notes?: string | null
           logged_by?: string | null
+          loss_amount?: number | null
           order_id?: string | null
+          original_value?: number | null
           product_id?: string | null
           quantity_returned?: number
           reason?: string | null
@@ -1706,6 +1721,7 @@ export type Database = {
           created_at: string | null
           fulfilled_at: string | null
           id: string
+          is_panic_order: boolean | null
           notes: string | null
           order_id: string
           status: string | null
@@ -1715,6 +1731,7 @@ export type Database = {
           created_at?: string | null
           fulfilled_at?: string | null
           id?: string
+          is_panic_order?: boolean | null
           notes?: string | null
           order_id: string
           status?: string | null
@@ -1724,6 +1741,7 @@ export type Database = {
           created_at?: string | null
           fulfilled_at?: string | null
           id?: string
+          is_panic_order?: boolean | null
           notes?: string | null
           order_id?: string
           status?: string | null
