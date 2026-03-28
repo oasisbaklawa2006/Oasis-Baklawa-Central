@@ -14,6 +14,36 @@ export type Database = {
   }
   public: {
     Tables: {
+      admin_manual_entries: {
+        Row: {
+          created_at: string | null
+          description: string | null
+          id: string
+          image_snapshot_url: string | null
+          role_target: string | null
+          step_order: number | null
+          tool_name: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          image_snapshot_url?: string | null
+          role_target?: string | null
+          step_order?: number | null
+          tool_name?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          image_snapshot_url?: string | null
+          role_target?: string | null
+          step_order?: number | null
+          tool_name?: string | null
+        }
+        Relationships: []
+      }
       app_settings: {
         Row: {
           id: string
@@ -2264,6 +2294,7 @@ export type Database = {
           designation: string | null
           email: string | null
           full_name: string | null
+          has_seen_tutorial: boolean | null
           id: string
           invite_status: string | null
           is_active: boolean | null
@@ -2282,6 +2313,7 @@ export type Database = {
           designation?: string | null
           email?: string | null
           full_name?: string | null
+          has_seen_tutorial?: boolean | null
           id?: string
           invite_status?: string | null
           is_active?: boolean | null
@@ -2300,6 +2332,7 @@ export type Database = {
           designation?: string | null
           email?: string | null
           full_name?: string | null
+          has_seen_tutorial?: boolean | null
           id?: string
           invite_status?: string | null
           is_active?: boolean | null
