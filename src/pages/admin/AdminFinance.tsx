@@ -609,6 +609,7 @@ const AdminFinance = () => {
             { id: "invoicing", label: "Post-Pack Invoicing", count: invoicingQueue.length, icon: Calculator },
             { id: "returns", label: "Returns Settlement", count: returnRecords.length, icon: RotateCcw },
             { id: "returns_scrutiny", label: "Returns Scrutiny", count: scrutinyRecords.length, icon: ShieldAlert },
+            { id: "commission_payouts", label: "Commission Payouts", count: salesExecPayouts.length, icon: IndianRupee },
           ].map((tab) => (
             <button
               key={tab.id}
