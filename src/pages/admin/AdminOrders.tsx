@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "sonner";
-import { ArrowRight, Loader2, X, FileText, CheckCircle2, Truck, Printer, Package, ClipboardList } from "lucide-react";
+import { ArrowRight, Loader2, X, FileText, CheckCircle2, Truck, Printer, Package, ClipboardList, Zap, LayoutList } from "lucide-react";
 import TopNavBar from "@/components/TopNavBar";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -88,6 +88,11 @@ const AdminOrders = () => {
   const [packingQtys, setPackingQtys] = useState<Record<string, number>>({});
   const [packingSaving, setPackingSaving] = useState(false);
 
+  // Auto-splitter state
+  const [requisitions, setRequisitions] = useState<any[]>([]);
+  const [reqLoading, setReqLoading] = useState(false);
+  const [splitting, setSplitting] = useState(false);
+
   const fetchOrders = async () => {
     setLoading(true);
     const { data, error } = await supabase
@@ -139,11 +144,83 @@ const AdminOrders = () => {
     setUpdating(null);
   };
 
+  // ═══ AUTO-SPLITTER LOGIC ═══
+  const fetchRequisitions = async (orderId: string) => {
+    setReqLoading(true);
+    const { data } = await supabase
+      .from("store_requisitions")
+      .select("id, target_store, status, store_requisition_items(id, product_id, requested_qty)")
+      .eq("order_id", orderId);
+    setRequisitions(data ?? []);
+    setReqLoading(false);
+  };
+
+  const handleAutoSplitOrder = async (orderId: string, items: OrderItem[]) => {
+    setSplitting(true);
+    try {
+      // Fetch product default_store for each item
+      const productIds = items.map(i => i.product_id).filter(Boolean) as string[];
+      const { data: products } = await supabase
+        .from("products")
+        .select("id, default_store")
+        .in("id", productIds);
+
+      const storeMap: Record<string, string> = {};
+      (products ?? []).forEach((p: any) => {
+        storeMap[p.id] = p.default_store || "ready_goods";
+      });
+
+      // Group items by target store
+      const groups: Record<string, { product_id: string; requested_qty: number }[]> = {};
+      for (const item of items) {
+        const store = item.product_id ? (storeMap[item.product_id] || "ready_goods") : "ready_goods";
+        if (!groups[store]) groups[store] = [];
+        groups[store].push({ product_id: item.product_id!, requested_qty: item.quantity });
+      }
+
+      // Insert requisitions + items per group
+      for (const [store, storeItems] of Object.entries(groups)) {
+        const { data: req, error: reqErr } = await supabase
+          .from("store_requisitions")
+          .insert({ order_id: orderId, target_store: store, status: "pending" })
+          .select("id")
+          .single();
+
+        if (reqErr || !req) {
+          toast.error(`Failed to create requisition for ${store}`);
+          continue;
+        }
+
+        const itemsToInsert = storeItems
+          .filter(si => si.product_id)
+          .map(si => ({
+            requisition_id: req.id,
+            product_id: si.product_id,
+            requested_qty: si.requested_qty,
+          }));
+
+        if (itemsToInsert.length > 0) {
+          const { error: itemErr } = await supabase
+            .from("store_requisition_items")
+            .insert(itemsToInsert);
+          if (itemErr) toast.error(`Failed to insert items for ${store}`);
+        }
+      }
+
+      toast.success("Order auto-split & routed to stores!");
+      await fetchRequisitions(orderId);
+    } catch (err: any) {
+      toast.error(err.message || "Auto-split failed");
+    }
+    setSplitting(false);
+  };
+
   const handleOpenDrawer = async (order: OrderCard) => {
     setSelectedOrder(order);
     setDrawerLoading(true);
     setEwayInput(order.eway_bill_number ?? "");
     setGatePassInput(order.gate_pass_number ?? "");
+    setRequisitions([]);
 
     const { data, error } = await supabase
       .from("order_items")
@@ -160,6 +237,9 @@ const AdminOrders = () => {
       initQtys[i.id] = i.actual_packed_qty ?? i.quantity;
     });
     setPackingQtys(initQtys);
+
+    // Fetch existing requisitions
+    await fetchRequisitions(order.id);
 
     setDrawerLoading(false);
   };
@@ -508,6 +588,62 @@ const AdminOrders = () => {
                     </span>
                   </div>
                 </div>
+
+                {/* ═══ OPERATIONS & ROUTING ═══ */}
+                {(selectedOrder.status === "submitted" || selectedOrder.status === "in_production") && !drawerLoading && (
+                  <div className="bg-card p-4 rounded-xl border border-border space-y-3">
+                    <h3 className="text-xs font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-2">
+                      <LayoutList size={14} /> Operations & Routing
+                    </h3>
+
+                    {reqLoading ? (
+                      <div className="py-4 flex justify-center">
+                        <Loader2 size={16} className="animate-spin text-primary" />
+                      </div>
+                    ) : requisitions.length === 0 ? (
+                      <div className="space-y-2">
+                        <p className="text-xs text-muted-foreground">
+                          No store requisitions created yet. Split this order to route items to the correct factory departments.
+                        </p>
+                        <Button
+                          onClick={() => handleAutoSplitOrder(selectedOrder.id, drawerItems)}
+                          disabled={splitting || drawerItems.length === 0}
+                          className="w-full"
+                        >
+                          {splitting ? <Loader2 size={14} className="animate-spin mr-2" /> : <Zap size={14} className="mr-2" />}
+                          ⚡ Auto-Split & Route to Stores
+                        </Button>
+                      </div>
+                    ) : (
+                      <div className="space-y-2">
+                        {requisitions.map((req: any) => {
+                          const itemCount = req.store_requisition_items?.length ?? 0;
+                          const storeLabel: Record<string, string> = {
+                            ready_goods: "Ready Goods Store",
+                            packing_assembly: "Packing & Assembly",
+                            "3rd_party": "3rd Party Sourcing",
+                          };
+                          return (
+                            <div key={req.id} className="flex items-center justify-between p-3 rounded-lg bg-muted/20 border border-border">
+                              <div className="flex items-center gap-2">
+                                <div className={`w-2 h-2 rounded-full ${req.status === "pending" ? "bg-amber-400" : req.status === "fulfilled" ? "bg-green-500" : "bg-muted-foreground"}`} />
+                                <span className="text-xs font-bold text-foreground">
+                                  {storeLabel[req.target_store] || req.target_store}
+                                </span>
+                              </div>
+                              <span className="text-[10px] font-semibold text-muted-foreground uppercase">
+                                {req.status} ({itemCount} {itemCount === 1 ? "item" : "items"})
+                              </span>
+                            </div>
+                          );
+                        })}
+                        <p className="text-[10px] text-muted-foreground italic">
+                          SO-{selectedOrder.id.slice(0, 8).toUpperCase()} routed successfully.
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                )}
 
                 {/* ═══ PACKING LIST CONFIRMATION (in_production only) ═══ */}
                 {isInProduction && !drawerLoading && drawerItems.length > 0 && (
