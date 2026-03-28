@@ -713,14 +713,67 @@ const AdminOrders = () => {
                       ))}
                     </div>
 
+                    {/* 📸 Packing Proof Capture */}
+                    <div className="bg-muted/20 p-3 rounded-xl border border-border space-y-3">
+                      <p className="text-xs font-bold text-foreground flex items-center gap-2">
+                        <Camera size={14} className="text-primary" /> Capture Packing Proof
+                      </p>
+                      <p className="text-[10px] text-muted-foreground">
+                        Photo required to proceed. Take a clear photo of the open box before sealing.
+                      </p>
+                      <input
+                        ref={fileInputRef}
+                        type="file"
+                        accept="image/*"
+                        capture="environment"
+                        className="hidden"
+                        onChange={handlePhotoCapture}
+                      />
+                      {capturedPhotoUrl ? (
+                        <div className="flex items-center gap-3">
+                          <img
+                            src={capturedPhotoUrl}
+                            alt="Packing proof"
+                            className="w-20 h-20 rounded-lg object-cover border-2 border-primary/40"
+                          />
+                          <div className="flex-1">
+                            <p className="text-xs font-bold text-primary flex items-center gap-1">
+                              <CheckCircle2 size={12} /> Proof Captured
+                            </p>
+                            <button
+                              onClick={() => fileInputRef.current?.click()}
+                              className="text-[10px] text-muted-foreground underline mt-1"
+                            >
+                              Retake
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <Button
+                          variant="outline"
+                          onClick={() => fileInputRef.current?.click()}
+                          disabled={uploadingPhoto}
+                          className="w-full"
+                        >
+                          {uploadingPhoto ? <Loader2 size={14} className="animate-spin mr-2" /> : <Camera size={14} className="mr-2" />}
+                          {uploadingPhoto ? "Uploading..." : "Take / Upload Photo"}
+                        </Button>
+                      )}
+                    </div>
+
                     <Button
                       onClick={handleSavePackingList}
-                      disabled={packingSaving}
+                      disabled={packingSaving || !capturedPhotoUrl}
                       className="w-full"
                     >
                       {packingSaving ? <Loader2 size={14} className="animate-spin mr-2" /> : <Package size={14} className="mr-2" />}
                       Save Packing List & Mark Ready
                     </Button>
+                    {!capturedPhotoUrl && (
+                      <p className="text-[10px] text-destructive font-bold text-center uppercase tracking-wider">
+                        ⚠ Photo required to proceed
+                      </p>
+                    )}
                   </div>
                 )}
 
