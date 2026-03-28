@@ -589,7 +589,62 @@ const AdminOrders = () => {
                   </div>
                 </div>
 
-                {/* ═══ PACKING LIST CONFIRMATION (in_production only) ═══ */}
+                {/* ═══ OPERATIONS & ROUTING ═══ */}
+                {(selectedOrder.status === "submitted" || selectedOrder.status === "in_production") && !drawerLoading && (
+                  <div className="bg-card p-4 rounded-xl border border-border space-y-3">
+                    <h3 className="text-xs font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-2">
+                      <LayoutList size={14} /> Operations & Routing
+                    </h3>
+
+                    {reqLoading ? (
+                      <div className="py-4 flex justify-center">
+                        <Loader2 size={16} className="animate-spin text-primary" />
+                      </div>
+                    ) : requisitions.length === 0 ? (
+                      <div className="space-y-2">
+                        <p className="text-xs text-muted-foreground">
+                          No store requisitions created yet. Split this order to route items to the correct factory departments.
+                        </p>
+                        <Button
+                          onClick={() => handleAutoSplitOrder(selectedOrder.id, drawerItems)}
+                          disabled={splitting || drawerItems.length === 0}
+                          className="w-full"
+                        >
+                          {splitting ? <Loader2 size={14} className="animate-spin mr-2" /> : <Zap size={14} className="mr-2" />}
+                          ⚡ Auto-Split & Route to Stores
+                        </Button>
+                      </div>
+                    ) : (
+                      <div className="space-y-2">
+                        {requisitions.map((req: any) => {
+                          const itemCount = req.store_requisition_items?.length ?? 0;
+                          const storeLabel: Record<string, string> = {
+                            ready_goods: "Ready Goods Store",
+                            packing_assembly: "Packing & Assembly",
+                            "3rd_party": "3rd Party Sourcing",
+                          };
+                          return (
+                            <div key={req.id} className="flex items-center justify-between p-3 rounded-lg bg-muted/20 border border-border">
+                              <div className="flex items-center gap-2">
+                                <div className={`w-2 h-2 rounded-full ${req.status === "pending" ? "bg-amber-400" : req.status === "fulfilled" ? "bg-green-500" : "bg-muted-foreground"}`} />
+                                <span className="text-xs font-bold text-foreground">
+                                  {storeLabel[req.target_store] || req.target_store}
+                                </span>
+                              </div>
+                              <span className="text-[10px] font-semibold text-muted-foreground uppercase">
+                                {req.status} ({itemCount} {itemCount === 1 ? "item" : "items"})
+                              </span>
+                            </div>
+                          );
+                        })}
+                        <p className="text-[10px] text-muted-foreground italic">
+                          SO-{selectedOrder.id.slice(0, 8).toUpperCase()} routed successfully.
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                )}
+
                 {isInProduction && !drawerLoading && drawerItems.length > 0 && (
                   <div className="bg-card p-4 rounded-xl border-2 border-primary/30 space-y-4">
                     <h3 className="text-xs font-bold text-primary uppercase tracking-wider flex items-center gap-2">
