@@ -17,7 +17,17 @@ import {
   Wand2,
   Calculator,
   Leaf,
+  Tag,
+  Filter,
 } from "lucide-react";
+
+interface ProductTagItem {
+  id: string;
+  tag_key: string;
+  tag_label: string;
+  is_active: boolean;
+}
+
 
 interface Product {
   id: string;
@@ -115,6 +125,14 @@ const AdminProducts = () => {
   const [isAiLoading, setIsAiLoading] = useState<string | null>(null);
   const [formData, setFormData] = useState<any>({ ...EMPTY_FORM });
 
+  // Tag management state
+  const [allTags, setAllTags] = useState<ProductTagItem[]>([]);
+  const [tagModalProduct, setTagModalProduct] = useState<Product | null>(null);
+  const [selectedTagIds, setSelectedTagIds] = useState<string[]>([]);
+  const [savingTags, setSavingTags] = useState(false);
+  const [filterTag, setFilterTag] = useState<string>("");
+  const [taggedProductIds, setTaggedProductIds] = useState<string[]>([]);
+
   const fetchProducts = async () => {
     setLoading(true);
     const { data, error } = await supabase.from("products").select("*").order("created_at", { ascending: false });
@@ -122,9 +140,61 @@ const AdminProducts = () => {
     setLoading(false);
   };
 
+  const fetchTags = async () => {
+    const { data } = await supabase.from("product_tags").select("*").eq("is_active", true).order("sort_order");
+    setAllTags(data || []);
+  };
+
   useEffect(() => {
     fetchProducts();
+    fetchTags();
   }, []);
+
+  // When filter tag changes, fetch product IDs for that tag
+  useEffect(() => {
+    if (!filterTag) { setTaggedProductIds([]); return; }
+    const loadFiltered = async () => {
+      const { data } = await supabase
+        .from("product_tag_mapping")
+        .select("product_id")
+        .eq("tag_id", filterTag);
+      setTaggedProductIds((data || []).map(d => d.product_id).filter(Boolean) as string[]);
+    };
+    loadFiltered();
+  }, [filterTag]);
+
+  const openTagModal = async (product: Product) => {
+    setTagModalProduct(product);
+    const { data } = await supabase
+      .from("product_tag_mapping")
+      .select("tag_id")
+      .eq("product_id", product.id);
+    setSelectedTagIds((data || []).map(d => d.tag_id).filter(Boolean) as string[]);
+  };
+
+  const toggleTagSelection = (tagId: string) => {
+    setSelectedTagIds(prev =>
+      prev.includes(tagId) ? prev.filter(id => id !== tagId) : [...prev, tagId]
+    );
+  };
+
+  const saveTagMappings = async () => {
+    if (!tagModalProduct) return;
+    setSavingTags(true);
+    // Delete existing mappings
+    await supabase.from("product_tag_mapping").delete().eq("product_id", tagModalProduct.id);
+    // Insert new ones
+    if (selectedTagIds.length > 0) {
+      const rows = selectedTagIds.map(tag_id => ({
+        product_id: tagModalProduct.id,
+        tag_id,
+      }));
+      await supabase.from("product_tag_mapping").insert(rows);
+    }
+    toast.success(`Tags updated for ${tagModalProduct.name}`);
+    setSavingTags(false);
+    setTagModalProduct(null);
+  };
 
   // AUTO-GENERATE SKU
   useEffect(() => {
@@ -406,16 +476,36 @@ const AdminProducts = () => {
           ))}
         </div>
 
+        {/* Filter by Tag */}
+        {allTags.length > 0 && (
+          <div className="flex items-center gap-3">
+            <Filter size={16} className="text-muted-foreground" />
+            <select
+              value={filterTag}
+              onChange={e => setFilterTag(e.target.value)}
+              className="bg-card border border-border rounded-lg px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-[#C5A059]"
+            >
+              <option value="">All Products</option>
+              {allTags.map(tag => (
+                <option key={tag.id} value={tag.id}>{tag.tag_label}</option>
+              ))}
+            </select>
+            {filterTag && (
+              <span className="text-xs text-muted-foreground">{taggedProductIds.length} product(s)</span>
+            )}
+          </div>
+        )}
+
         {/* Product Grid */}
-        {products.length === 0 ? (
+        {(filterTag ? products.filter(p => taggedProductIds.includes(p.id)) : products).length === 0 ? (
           <div className="text-center py-20">
             <Package size={40} className="mx-auto text-muted-foreground/40" />
             <p className="text-lg font-semibold text-foreground mt-4">No products found</p>
-            <p className="text-sm text-muted-foreground mt-1">Your catalog is currently empty.</p>
+            <p className="text-sm text-muted-foreground mt-1">{filterTag ? "No products with this tag." : "Your catalog is currently empty."}</p>
           </div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
-            {products.map((product, i) => (
+            {(filterTag ? products.filter(p => taggedProductIds.includes(p.id)) : products).map((product, i) => (
               <motion.div
                 key={product.id}
                 initial={{ opacity: 0, y: 16 }}
@@ -453,19 +543,25 @@ const AdminProducts = () => {
                     <p className="text-xs text-muted-foreground">Carton: {product.carton_type || "N/A"}</p>
                     <p className="text-xs text-muted-foreground">MOQ: {product.moq || 1} packs</p>
                   </div>
-                  <div className="flex items-center gap-2 pt-2 border-t border-border/50">
+                  <div className="flex items-center gap-1.5 pt-2 border-t border-border/50">
                     <button
                       onClick={() => toggleActiveStatus(product)}
-                      className={`flex-1 text-xs font-semibold py-1.5 rounded-md flex items-center justify-center gap-1.5 transition-colors ${product.is_active ? "bg-amber-500/10 text-amber-600 hover:bg-amber-500/20" : "bg-emerald-500/10 text-emerald-600 hover:bg-emerald-500/20"}`}
+                      className={`flex-1 text-[10px] font-semibold py-1.5 rounded-md flex items-center justify-center gap-1 transition-colors ${product.is_active ? "bg-amber-500/10 text-amber-600 hover:bg-amber-500/20" : "bg-emerald-500/10 text-emerald-600 hover:bg-emerald-500/20"}`}
                     >
-                      {product.is_active ? <PowerOff size={12} /> : <Power size={12} />}{" "}
-                      {product.is_active ? "Hide" : "Activate"}
+                      {product.is_active ? <PowerOff size={10} /> : <Power size={10} />}
+                      {product.is_active ? "Hide" : "Show"}
+                    </button>
+                    <button
+                      onClick={() => openTagModal(product)}
+                      className="flex-1 text-[10px] font-semibold bg-[#C5A059]/10 text-[#C5A059] hover:bg-[#C5A059]/20 py-1.5 rounded-md flex items-center justify-center gap-1 transition-colors"
+                    >
+                      <Tag size={10} /> Tags
                     </button>
                     <button
                       onClick={() => openPanel(product)}
-                      className="flex-1 text-xs font-semibold bg-muted hover:bg-muted/80 text-foreground py-1.5 rounded-md flex items-center justify-center gap-1.5 transition-colors"
+                      className="flex-1 text-[10px] font-semibold bg-muted hover:bg-muted/80 text-foreground py-1.5 rounded-md flex items-center justify-center gap-1 transition-colors"
                     >
-                      <Edit2 size={12} /> Edit
+                      <Edit2 size={10} /> Edit
                     </button>
                   </div>
                 </div>
@@ -979,6 +1075,69 @@ const AdminProducts = () => {
                 >
                   {saving && <Loader2 size={14} className="animate-spin" />}{" "}
                   {editingProduct ? "Save Changes" : "Publish Product"}
+                </button>
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
+
+      {/* Tag Management Modal */}
+      <AnimatePresence>
+        {tagModalProduct && (
+          <>
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm"
+              onClick={() => setTagModalProduct(null)}
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-50 w-full max-w-md bg-card border border-border rounded-2xl shadow-2xl p-6 space-y-5"
+            >
+              <div className="flex items-center justify-between">
+                <h3 className="text-lg font-bold text-foreground flex items-center gap-2">
+                  <Tag size={18} className="text-[#C5A059]" /> Manage Tags
+                </h3>
+                <button onClick={() => setTagModalProduct(null)} className="p-1 hover:bg-muted rounded-md">
+                  <X size={16} className="text-muted-foreground" />
+                </button>
+              </div>
+              <p className="text-sm text-muted-foreground">
+                Assigning tags to: <span className="font-semibold text-foreground">{tagModalProduct.name}</span>
+              </p>
+              <div className="flex flex-wrap gap-2">
+                {allTags.map(tag => (
+                  <button
+                    key={tag.id}
+                    onClick={() => toggleTagSelection(tag.id)}
+                    className={`px-4 py-2 rounded-xl text-xs font-bold border transition-all ${
+                      selectedTagIds.includes(tag.id)
+                        ? "bg-[#C5A059] text-white border-[#C5A059]"
+                        : "bg-background text-muted-foreground border-border hover:border-[#C5A059]/50"
+                    }`}
+                  >
+                    {tag.tag_label}
+                  </button>
+                ))}
+                {allTags.length === 0 && (
+                  <p className="text-xs text-muted-foreground">No tags found. Create tags in Product Tags settings.</p>
+                )}
+              </div>
+              <div className="flex justify-end gap-3 pt-2">
+                <button onClick={() => setTagModalProduct(null)} className="px-4 py-2 text-sm font-medium text-muted-foreground hover:bg-muted rounded-lg">
+                  Cancel
+                </button>
+                <button
+                  onClick={saveTagMappings}
+                  disabled={savingTags}
+                  className="px-5 py-2 rounded-lg font-bold text-sm bg-[#C5A059] text-white hover:bg-[#B38F48] transition-colors flex items-center gap-2 disabled:opacity-50"
+                >
+                  {savingTags && <Loader2 size={14} className="animate-spin" />} Save Tags
                 </button>
               </div>
             </motion.div>

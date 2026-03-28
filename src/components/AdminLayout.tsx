@@ -2,7 +2,7 @@ import { NavLink, Outlet, Navigate } from "react-router-dom";
 import {
   LayoutDashboard, UserCheck, ClipboardList, Truck, DollarSign, LogOut, Menu, X, Loader2,
   Headphones, Users, Package, BarChart3, Scale, Globe, Settings, Shield,
-  Factory, PackageCheck, Landmark, AlertCircle, Languages, Bell, Crown
+  Factory, PackageCheck, Landmark, AlertCircle, Languages, Bell, Crown, Sparkles
 } from "lucide-react";
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
@@ -58,6 +58,7 @@ const AdminLayout = () => {
       items: [
         { to: "/admin/clients", icon: UserCheck, label: t("Client Governance"), moduleKey: "clients" },
         { to: "/admin/products", icon: Package, label: t("Product Catalog"), moduleKey: "products" },
+        { to: "/admin/merchandising", icon: Sparkles, label: t("Merchandising"), moduleKey: "products" },
         { to: "/admin/pricing", icon: BarChart3, label: t("Pricing Matrix"), moduleKey: "pricing" },
         { to: "/admin/finance", icon: DollarSign, label: t("Financial Control"), moduleKey: "finance" },
         { to: "/admin/users", icon: Users, label: t("User & Role Control"), moduleKey: "users" },
