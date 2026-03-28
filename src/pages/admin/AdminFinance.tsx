@@ -213,7 +213,68 @@ const AdminFinance = () => {
     setActing(null);
   };
 
-  // Invoicing submit
+  // Execute Wallet Credit for a return
+  const handleExecuteWalletCredit = async (ret: ReturnRecord) => {
+    const creditValue = parseFloat(returnCreditValues[ret.id] || "0");
+    if (creditValue <= 0) {
+      toast.error("Enter a valid credit value.");
+      return;
+    }
+    if (!returnApprovals[ret.id]) {
+      toast.error("Admin approval must be toggled ON before executing credit.");
+      return;
+    }
+    setActing(ret.id);
+    try {
+      const companyId = (ret.order as any)?.company_id;
+      const productValue = (ret.product?.base_price || 0) * ret.quantity_returned;
+      const lossAmount = productValue - creditValue;
+
+      // Update the return record
+      await supabase
+        .from("order_returns")
+        .update({
+          final_credit_value: creditValue,
+          loss_amount: lossAmount > 0 ? lossAmount : 0,
+          original_value: productValue,
+          admin_approval: true,
+          status: "settled",
+        })
+        .eq("id", ret.id);
+
+      // Credit company wallet
+      if (companyId) {
+        const currentBalance = (ret.order as any)?.company?.wallet_balance || 0;
+        await supabase
+          .from("companies")
+          .update({ wallet_balance: currentBalance + creditValue })
+          .eq("id", companyId);
+      }
+
+      // Audit log
+      await supabase.from("audit_logs").insert({
+        module_name: "finance",
+        action_type: "wallet_credit_executed",
+        entity_name: "order_returns",
+        entity_id: ret.id,
+        actor_id: user?.id || null,
+        new_value: {
+          credit_value: creditValue,
+          loss_amount: lossAmount > 0 ? lossAmount : 0,
+          company_id: companyId,
+          product_id: ret.product_id,
+        },
+      });
+
+      toast.success(`₹${creditValue.toLocaleString("en-IN")} credited to wallet.`, { icon: "💰" });
+      fetchReturns();
+    } catch (err) {
+      toast.error("Failed to execute wallet credit.");
+    }
+    setActing(null);
+  };
+
+
   const handleRequestBalance = async () => {
     if (!docOrder || !tallyAmount || !tallyInvoiceNo || !invoiceUploaded) {
       toast.error("Please fill all Tally details and attach the PDF.");
