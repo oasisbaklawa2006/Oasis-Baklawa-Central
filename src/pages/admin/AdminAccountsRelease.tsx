@@ -81,6 +81,8 @@ const AdminAccountsRelease = () => {
   const [trackingNumber, setTrackingNumber] = useState("");
   const [driverPhone, setDriverPhone] = useState("");
   const [submittingGatePass, setSubmittingGatePass] = useState(false);
+  const [agreedFreight, setAgreedFreight] = useState<string>("");
+  const [freightAdvance, setFreightAdvance] = useState<string>("");
 
   const fetchOrders = async () => {
     setLoading(true);
@@ -100,10 +102,18 @@ const AdminAccountsRelease = () => {
     setTransporterName("");
     setTrackingNumber("");
     setDriverPhone("");
+    setAgreedFreight("");
+    setFreightAdvance("");
   };
 
   const handleGatePassSubmit = async () => {
     if (!gatePassOrder) return;
+    const freightAmt = parseFloat(agreedFreight);
+    const freightAdv = parseFloat(freightAdvance);
+    if (isNaN(freightAmt) || isNaN(freightAdv)) {
+      toast.error("Freight amounts are required");
+      return;
+    }
     setSubmittingGatePass(true);
     try {
       const orderId = gatePassOrder.id;
@@ -142,6 +152,16 @@ const AdminAccountsRelease = () => {
       }));
 
       await supabase.from("dispatch_cartons").insert(cartonRows);
+
+      // Insert freight ledger
+      await supabase.from("freight_ledger").insert({
+        order_id: orderId,
+        transporter_name: transporterName || null,
+        total_freight_amt: freightAmt,
+        advance_paid_amt: freightAdv,
+        balance_due_amt: freightAmt - freightAdv,
+        payment_status: freightAdv >= freightAmt ? "paid" : "pending",
+      });
 
       // Update order status
       await supabase.from("orders").update({ status: "dispatched" }).eq("id", orderId);
