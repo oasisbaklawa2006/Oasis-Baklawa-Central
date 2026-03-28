@@ -304,6 +304,54 @@ export type Database = {
           },
         ]
       }
+      daily_production_logs: {
+        Row: {
+          created_at: string | null
+          department: string
+          id: string
+          log_date: string | null
+          logged_by: string | null
+          produced_qty: number
+          product_id: string
+          wastage_qty: number | null
+        }
+        Insert: {
+          created_at?: string | null
+          department: string
+          id?: string
+          log_date?: string | null
+          logged_by?: string | null
+          produced_qty: number
+          product_id: string
+          wastage_qty?: number | null
+        }
+        Update: {
+          created_at?: string | null
+          department?: string
+          id?: string
+          log_date?: string | null
+          logged_by?: string | null
+          produced_qty?: number
+          product_id?: string
+          wastage_qty?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "daily_production_logs_logged_by_fkey"
+            columns: ["logged_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "daily_production_logs_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       delivery_addresses: {
         Row: {
           city: string
@@ -1202,6 +1250,7 @@ export type Database = {
           primary_pack_weight_kg: number
           private_label_moq: number | null
           private_label_price: number | null
+          production_department: string | null
           shelf_life: string | null
           shelf_life_days: number | null
           sku: string
@@ -1256,6 +1305,7 @@ export type Database = {
           primary_pack_weight_kg?: number
           private_label_moq?: number | null
           private_label_price?: number | null
+          production_department?: string | null
           shelf_life?: string | null
           shelf_life_days?: number | null
           sku: string
@@ -1310,6 +1360,7 @@ export type Database = {
           primary_pack_weight_kg?: number
           private_label_moq?: number | null
           private_label_price?: number | null
+          production_department?: string | null
           shelf_life?: string | null
           shelf_life_days?: number | null
           sku?: string
