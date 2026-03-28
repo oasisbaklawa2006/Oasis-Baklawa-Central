@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
 import {
   Loader2,
@@ -19,23 +20,32 @@ import {
 import { motion, AnimatePresence } from "framer-motion";
 import TopNavBar from "@/components/TopNavBar";
 
-const DEPARTMENTS = ["Baklawa", "Chocolate", "Laddu", "Bakery", "Hampers"];
+const DEPARTMENTS: { value: string; label: string }[] = [
+  { value: "arabic_sweets", label: "Arabic Sweets" },
+  { value: "dragees", label: "Dragees" },
+  { value: "fusion_sweets", label: "Fusion Sweets" },
+  { value: "chocolate", label: "Chocolate" },
+  { value: "bakery", label: "Bakery" },
+  { value: "nuts_mixes", label: "Nuts & Mixes" },
+  { value: "ready_goods", label: "Ready Goods" },
+  { value: "packing_assembly", label: "Packing & Assembly" },
+];
 
-interface OrderItem {
+interface RequisitionItem {
   id: string;
   product_id: string;
   product_name: string;
-  category: string;
-  quantity_ordered: number;
   image_url?: string;
+  requested_qty: number;
 }
 
-interface OperationOrder {
+interface Requisition {
   id: string;
-  status: string;
+  order_id: string;
   batch_id: string;
+  status: string;
   created_at: string;
-  items: OrderItem[];
+  items: RequisitionItem[];
 }
 
 interface Product {
@@ -46,55 +56,63 @@ interface Product {
 }
 
 const OperationsController = () => {
+  const { user } = useAuth();
   const [loading, setLoading] = useState(true);
-  const [myDepartment, setMyDepartment] = useState("Baklawa");
+  const [myDepartment, setMyDepartment] = useState("arabic_sweets");
   const [activeTab, setActiveTab] = useState<"tasks" | "store_log">("tasks");
-  const [orders, setOrders] = useState<OperationOrder[]>([]);
+  const [requisitions, setRequisitions] = useState<Requisition[]>([]);
   const [departmentProducts, setDepartmentProducts] = useState<Product[]>([]);
-  const [activeOrder, setActiveOrder] = useState<OperationOrder | null>(null);
+  const [activeRequisition, setActiveRequisition] = useState<Requisition | null>(null);
   const [packData, setPackData] = useState<Record<string, number>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [storeLogData, setStoreLogData] = useState<Record<string, number>>({});
 
+  const deptLabel = DEPARTMENTS.find((d) => d.value === myDepartment)?.label || myDepartment;
+
   const fetchData = async () => {
     setLoading(true);
 
-    // 1. Fetch Orders
-    const { data: orderData, error: orderError } = await supabase
-      .from("orders")
-      .select(
-        "id, status, created_at, order_items(id, quantity, product_id, product:products(name, category, image_url))",
-      )
-      .in("status", ["in_production", "packed_ready"])
+    // 1. Fetch pending store_requisitions for this department
+    const { data: reqData, error: reqError } = await supabase
+      .from("store_requisitions")
+      .select("id, order_id, status, created_at, store_requisition_items(id, product_id, requested_qty, product:products(name, image_url))")
+      .eq("target_store", myDepartment)
+      .eq("status", "pending")
       .order("created_at", { ascending: true });
 
-    if (!orderError && orderData) {
-      const formattedOrders: OperationOrder[] = orderData.map((o: any) => ({
-        id: o.id,
-        status: o.status,
-        batch_id: `BATCH-${o.id.split("-")[0].toUpperCase()}`,
-        created_at: o.created_at,
-        items: o.order_items.map((item: any) => ({
+    if (!reqError && reqData) {
+      const formatted: Requisition[] = (reqData as any[]).map((r) => ({
+        id: r.id,
+        order_id: r.order_id,
+        batch_id: `REQ-${r.id.split("-")[0].toUpperCase()}`,
+        status: r.status,
+        created_at: r.created_at,
+        items: (r.store_requisition_items || []).map((item: any) => ({
           id: item.id,
           product_id: item.product_id,
           product_name: item.product?.name || "Unknown Product",
-          category: item.product?.category || "Uncategorized",
-          quantity_ordered: item.quantity,
           image_url: item.product?.image_url,
+          requested_qty: item.requested_qty,
         })),
       }));
-      setOrders(formattedOrders);
+      setRequisitions(formatted);
     }
 
-    // 2. Fetch Products
-    const { data: prodData } = await supabase.from("products").select("id, name, category, image_url");
+    // 2. Fetch Products for store log (filter by production_department matching myDepartment)
+    const { data: prodData } = await supabase
+      .from("products")
+      .select("id, name, category, image_url, production_department")
+      .eq("is_active", true);
+
     if (prodData) {
-      const mappedProducts: Product[] = prodData.map((p: any) => ({
-        id: p.id,
-        name: p.name,
-        category: p.category || "Uncategorized",
-        image_url: p.image_url,
-      }));
+      const mappedProducts: Product[] = (prodData as any[])
+        .filter((p) => (p.production_department || "").toLowerCase() === myDepartment)
+        .map((p) => ({
+          id: p.id,
+          name: p.name,
+          category: p.category || "Uncategorized",
+          image_url: p.image_url,
+        }));
       setDepartmentProducts(mappedProducts);
 
       const initialStoreData: Record<string, number> = {};
@@ -111,22 +129,15 @@ const OperationsController = () => {
     fetchData();
     const interval = setInterval(fetchData, 30000);
     return () => clearInterval(interval);
-  }, []);
+  }, [myDepartment]);
 
-  const myDepartmentOrders = orders.filter((order) => order.items.some((item) => item.category === myDepartment));
-
-  const myDepartmentProducts = departmentProducts.filter((p) => p.category === myDepartment);
-
-  const openPackingScreen = (order: OperationOrder) => {
+  const openPackingScreen = (req: Requisition) => {
     const initialPack: Record<string, number> = {};
-    order.items
-      .filter((item) => item.category === myDepartment)
-      .forEach((item) => {
-        initialPack[item.id] = 0;
-      });
-
+    req.items.forEach((item) => {
+      initialPack[item.id] = 0;
+    });
     setPackData(initialPack);
-    setActiveOrder(order);
+    setActiveRequisition(req);
   };
 
   const adjustPack = (itemId: string, delta: number) => {
@@ -138,57 +149,73 @@ const OperationsController = () => {
   };
 
   const handleProcessOrder = async () => {
-    if (!activeOrder) return;
+    if (!activeRequisition) return;
     setIsSubmitting(true);
 
-    let isPartial = false;
-    let extraToStore = 0;
+    try {
+      // Update store_requisitions status to 'fulfilled'
+      await supabase
+        .from("store_requisitions")
+        .update({ status: "fulfilled", fulfilled_at: new Date().toISOString() })
+        .eq("id", activeRequisition.id);
 
-    activeOrder.items
-      .filter((item) => item.category === myDepartment)
-      .forEach((item) => {
+      // Update fulfilled_qty on each item
+      for (const item of activeRequisition.items) {
         const produced = packData[item.id] || 0;
-        if (produced < item.quantity_ordered) isPartial = true;
-        if (produced > item.quantity_ordered) extraToStore += produced - item.quantity_ordered;
-      });
-
-    setTimeout(async () => {
-      if (isPartial) {
-        toast.warning(`${activeOrder.batch_id}: Partial Fulfillment Logged.`, { icon: "⚠️" });
-      } else {
-        const targetStatus = activeOrder.status === "in_production" ? "packed_ready" : "packed_ready";
-        await supabase.from("orders").update({ status: targetStatus }).eq("id", activeOrder.id);
-        toast.success(`${activeOrder.batch_id}: Department Items Completed!`, { icon: "✅" });
+        await supabase
+          .from("store_requisition_items")
+          .update({ fulfilled_qty: produced })
+          .eq("id", item.id);
       }
 
-      if (extraToStore > 0) {
-        toast.info(`${extraToStore} units routed to Store Inventory.`, { icon: "📦" });
-      }
-
-      setActiveOrder(null);
-      setIsSubmitting(false);
+      toast.success(`${activeRequisition.batch_id}: Requisition Fulfilled!`, { icon: "✅" });
+      setActiveRequisition(null);
       fetchData();
-    }, 1000);
+    } catch (err) {
+      toast.error("Failed to update requisition.");
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
-  const handleLogToStore = () => {
+  const handleLogToStore = async () => {
     setIsSubmitting(true);
-    let totalLogged = 0;
-    Object.values(storeLogData).forEach((val) => {
-      totalLogged += val;
-    });
 
-    setTimeout(() => {
-      toast.success(`${totalLogged} units logged directly to Store Inventory.`, { icon: "🏭" });
+    try {
+      const rows = Object.entries(storeLogData)
+        .filter(([, qty]) => qty > 0)
+        .map(([productId, qty]) => ({
+          product_id: productId,
+          department: myDepartment,
+          produced_qty: qty,
+          logged_by: user?.id || null,
+        }));
 
-      const resetData: Record<string, number> = {};
-      myDepartmentProducts.forEach((p) => {
-        resetData[p.id] = 0;
-      });
-      setStoreLogData(resetData);
+      if (rows.length === 0) {
+        toast.warning("No quantities to log.");
+        setIsSubmitting(false);
+        return;
+      }
 
+      const { error } = await supabase.from("daily_production_logs").insert(rows);
+
+      if (error) {
+        toast.error("Failed to log production: " + error.message);
+      } else {
+        const totalLogged = rows.reduce((sum, r) => sum + r.produced_qty, 0);
+        toast.success(`${totalLogged} units logged to ${deptLabel} production.`, { icon: "🏭" });
+
+        const resetData: Record<string, number> = {};
+        departmentProducts.forEach((p) => {
+          resetData[p.id] = 0;
+        });
+        setStoreLogData(resetData);
+      }
+    } catch {
+      toast.error("Unexpected error logging production.");
+    } finally {
       setIsSubmitting(false);
-    }, 800);
+    }
   };
 
   if (loading) {
@@ -218,8 +245,8 @@ const OperationsController = () => {
               className="bg-white/10 border border-white/20 text-white text-xs font-bold py-2 px-3 rounded-lg outline-none"
             >
               {DEPARTMENTS.map((d) => (
-                <option key={d} value={d} className="text-black">
-                  {d}
+                <option key={d.value} value={d.value} className="text-black">
+                  {d.label}
                 </option>
               ))}
             </select>
@@ -244,20 +271,19 @@ const OperationsController = () => {
 
       {activeTab === "tasks" && (
         <div className="p-4 space-y-3">
-          {myDepartmentOrders.length === 0 ? (
+          {requisitions.length === 0 ? (
             <div className="text-center py-12 bg-white rounded-3xl border border-slate-200 shadow-sm mt-4">
               <CheckCircle2 size={48} className="mx-auto text-emerald-400 mb-3 opacity-50" />
-              <p className="text-slate-400 font-bold uppercase tracking-widest">No Batches for {myDepartment}</p>
+              <p className="text-slate-400 font-bold uppercase tracking-widest">No Batches for {deptLabel}</p>
             </div>
           ) : (
-            myDepartmentOrders.map((order) => {
-              const deptItems = order.items.filter((item) => item.category === myDepartment);
-              const isDelayed = Math.floor((Date.now() - new Date(order.created_at).getTime()) / 3600000) > 24;
+            requisitions.map((req) => {
+              const isDelayed = Math.floor((Date.now() - new Date(req.created_at).getTime()) / 3600000) > 24;
 
               return (
                 <div
-                  key={order.id}
-                  onClick={() => openPackingScreen(order)}
+                  key={req.id}
+                  onClick={() => openPackingScreen(req)}
                   className={`rounded-2xl border-l-8 p-5 shadow-sm active:scale-[0.98] transition-transform cursor-pointer bg-white ${isDelayed ? "border-red-500" : "border-slate-800"}`}
                 >
                   <div className="flex justify-between items-start">
@@ -265,12 +291,15 @@ const OperationsController = () => {
                       <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1 flex items-center gap-1">
                         <Hash size={10} /> Priority Batch
                       </p>
-                      <h3 className="font-black text-2xl leading-tight text-slate-900">{order.batch_id}</h3>
+                      <h3 className="font-black text-2xl leading-tight text-slate-900">{req.batch_id}</h3>
+                      <p className="text-[10px] text-slate-400 font-bold mt-1">
+                        SO-{req.order_id.split("-")[0].toUpperCase()}
+                      </p>
                     </div>
                   </div>
                   <div className="mt-4 flex items-center justify-between border-t border-slate-100 pt-3">
                     <span className="text-sm font-bold text-[#B8860B] flex items-center gap-1.5">
-                      <Package size={16} /> {deptItems.length} Tasks Required
+                      <Package size={16} /> {req.items.length} Tasks Required
                     </span>
                     <div className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-slate-600">
                       <ChevronRight size={16} />
@@ -295,12 +324,12 @@ const OperationsController = () => {
           </div>
 
           <div className="space-y-3 mb-24">
-            {myDepartmentProducts.length === 0 ? (
+            {departmentProducts.length === 0 ? (
               <p className="text-center text-sm font-bold text-slate-400 mt-10">
-                No products categorized under {myDepartment} yet.
+                No products categorized under {deptLabel} yet.
               </p>
             ) : (
-              myDepartmentProducts.map((product) => {
+              departmentProducts.map((product) => {
                 const qty = storeLogData[product.id] || 0;
 
                 return (
@@ -360,7 +389,7 @@ const OperationsController = () => {
       )}
 
       <AnimatePresence>
-        {activeOrder && (
+        {activeRequisition && (
           <motion.div
             initial={{ opacity: 0, y: 50 }}
             animate={{ opacity: 1, y: 0 }}
@@ -369,11 +398,11 @@ const OperationsController = () => {
           >
             <div className="p-5 flex justify-between items-center text-white bg-slate-900">
               <div>
-                <p className="text-xs font-bold uppercase tracking-widest text-slate-400">{myDepartment} Dept • Task</p>
-                <h2 className="text-3xl font-black">{activeOrder.batch_id}</h2>
+                <p className="text-xs font-bold uppercase tracking-widest text-slate-400">{deptLabel} Dept • Task</p>
+                <h2 className="text-3xl font-black">{activeRequisition.batch_id}</h2>
               </div>
               <button
-                onClick={() => setActiveOrder(null)}
+                onClick={() => setActiveRequisition(null)}
                 className="w-12 h-12 bg-white/10 rounded-full flex items-center justify-center active:bg-white/20"
               >
                 <X size={24} />
@@ -381,67 +410,65 @@ const OperationsController = () => {
             </div>
 
             <div className="flex-1 overflow-y-auto p-4 space-y-4">
-              {activeOrder.items
-                .filter((item) => item.category === myDepartment)
-                .map((item) => {
-                  const produced = packData[item.id] || 0;
-                  const target = item.quantity_ordered;
-                  const isComplete = produced === target;
-                  const isExcess = produced > target;
+              {activeRequisition.items.map((item) => {
+                const produced = packData[item.id] || 0;
+                const target = item.requested_qty;
+                const isComplete = produced === target;
+                const isExcess = produced > target;
 
-                  return (
-                    <div
-                      key={item.id}
-                      className={`bg-white rounded-2xl p-4 border-2 transition-colors shadow-sm ${isExcess ? "border-purple-500 bg-purple-50/30" : isComplete ? "border-emerald-500 bg-emerald-50/30" : "border-slate-200"}`}
-                    >
-                      <div className="flex gap-4">
-                        <div className="w-20 h-20 bg-slate-100 rounded-xl flex-shrink-0 flex items-center justify-center overflow-hidden border border-slate-200">
-                          {item.image_url ? (
-                            <img src={item.image_url} alt="product" className="w-full h-full object-cover" />
-                          ) : (
-                            <ImageIcon size={24} className="text-slate-300" />
-                          )}
+                return (
+                  <div
+                    key={item.id}
+                    className={`bg-white rounded-2xl p-4 border-2 transition-colors shadow-sm ${isExcess ? "border-purple-500 bg-purple-50/30" : isComplete ? "border-emerald-500 bg-emerald-50/30" : "border-slate-200"}`}
+                  >
+                    <div className="flex gap-4">
+                      <div className="w-20 h-20 bg-slate-100 rounded-xl flex-shrink-0 flex items-center justify-center overflow-hidden border border-slate-200">
+                        {item.image_url ? (
+                          <img src={item.image_url} alt="product" className="w-full h-full object-cover" />
+                        ) : (
+                          <ImageIcon size={24} className="text-slate-300" />
+                        )}
+                      </div>
+
+                      <div className="flex-1 flex flex-col justify-between">
+                        <div>
+                          <h4 className="font-black text-slate-900 leading-tight text-lg">{item.product_name}</h4>
+                          <div className="flex items-center gap-2 mt-1">
+                            <span className="text-xs text-slate-500 font-bold">Target: {target}</span>
+                            {isExcess ? (
+                              <span className="text-[10px] bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded font-black uppercase tracking-widest">
+                                +{produced - target} to Store
+                              </span>
+                            ) : null}
+                          </div>
                         </div>
 
-                        <div className="flex-1 flex flex-col justify-between">
-                          <div>
-                            <h4 className="font-black text-slate-900 leading-tight text-lg">{item.product_name}</h4>
-                            <div className="flex items-center gap-2 mt-1">
-                              <span className="text-xs text-slate-500 font-bold">Target: {target}</span>
-                              {isExcess ? (
-                                <span className="text-[10px] bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded font-black uppercase tracking-widest">
-                                  +{produced - target} to Store
-                                </span>
-                              ) : null}
-                            </div>
-                          </div>
-
-                          <div className="flex items-center gap-3 mt-3 bg-slate-50 p-1.5 rounded-xl border border-slate-200 w-full max-w-[240px]">
-                            <button
-                              onClick={() => adjustPack(item.id, -1)}
-                              className="w-12 h-12 bg-white rounded-lg shadow-sm border border-slate-200 flex items-center justify-center text-slate-700 active:bg-slate-100"
+                        <div className="flex items-center gap-3 mt-3 bg-slate-50 p-1.5 rounded-xl border border-slate-200 w-full max-w-[240px]">
+                          <button
+                            onClick={() => adjustPack(item.id, -1)}
+                            className="w-12 h-12 bg-white rounded-lg shadow-sm border border-slate-200 flex items-center justify-center text-slate-700 active:bg-slate-100"
+                          >
+                            <Minus size={20} />
+                          </button>
+                          <div className="flex-1 text-center">
+                            <span
+                              className={`text-3xl font-black ${isExcess ? "text-purple-600" : isComplete ? "text-emerald-600" : "text-slate-900"}`}
                             >
-                              <Minus size={20} />
-                            </button>
-                            <div className="flex-1 text-center">
-                              <span
-                                className={`text-3xl font-black ${isExcess ? "text-purple-600" : isComplete ? "text-emerald-600" : "text-slate-900"}`}
-                              >
-                                {produced}
-                              </span>
-                            </div>
-                            <button
-                              onClick={() => adjustPack(item.id, 1)}
-                              className={`w-12 h-12 rounded-lg shadow-sm flex items-center justify-center active:scale-95 ${isComplete && !isExcess ? "bg-emerald-100 text-emerald-600 opacity-50" : "bg-slate-900 text-white"}`}
-                            >
-                              <Plus size={20} />
-                            </button>
+                              {produced}
+                            </span>
                           </div>
+                          <button
+                            onClick={() => adjustPack(item.id, 1)}
+                            className={`w-12 h-12 rounded-lg shadow-sm flex items-center justify-center active:scale-95 ${isComplete && !isExcess ? "bg-emerald-100 text-emerald-600 opacity-50" : "bg-slate-900 text-white"}`}
+                          >
+                            <Plus size={20} />
+                          </button>
                         </div>
                       </div>
                     </div>
-                  );
-                })}
+                  </div>
+                );
+              })}
             </div>
 
             {(() => {
@@ -449,14 +476,12 @@ const OperationsController = () => {
               let isPartial = false;
               let hasExcess = false;
 
-              activeOrder.items
-                .filter((item) => item.category === myDepartment)
-                .forEach((item) => {
-                  const p = packData[item.id] || 0;
-                  totalProduced += p;
-                  if (p < item.quantity_ordered) isPartial = true;
-                  if (p > item.quantity_ordered) hasExcess = true;
-                });
+              activeRequisition.items.forEach((item) => {
+                const p = packData[item.id] || 0;
+                totalProduced += p;
+                if (p < item.requested_qty) isPartial = true;
+                if (p > item.requested_qty) hasExcess = true;
+              });
 
               if (totalProduced === 0) {
                 return (
