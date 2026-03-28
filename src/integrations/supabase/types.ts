@@ -50,6 +50,7 @@ export type Database = {
           new_value: Json | null
           old_value: Json | null
           reason: string | null
+          risk_level: string | null
         }
         Insert: {
           action_type?: string | null
@@ -62,6 +63,7 @@ export type Database = {
           new_value?: Json | null
           old_value?: Json | null
           reason?: string | null
+          risk_level?: string | null
         }
         Update: {
           action_type?: string | null
@@ -74,6 +76,7 @@ export type Database = {
           new_value?: Json | null
           old_value?: Json | null
           reason?: string | null
+          risk_level?: string | null
         }
         Relationships: []
       }
@@ -201,6 +204,93 @@ export type Database = {
             columns: ["parent_id"]
             isOneToOne: false
             referencedRelation: "categories"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      client_interactions: {
+        Row: {
+          company_id: string | null
+          created_at: string | null
+          executive_id: string | null
+          follow_up_date: string | null
+          id: string
+          interaction_type: string | null
+          notes: string | null
+        }
+        Insert: {
+          company_id?: string | null
+          created_at?: string | null
+          executive_id?: string | null
+          follow_up_date?: string | null
+          id?: string
+          interaction_type?: string | null
+          notes?: string | null
+        }
+        Update: {
+          company_id?: string | null
+          created_at?: string | null
+          executive_id?: string | null
+          follow_up_date?: string | null
+          id?: string
+          interaction_type?: string | null
+          notes?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "client_interactions_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "client_interactions_executive_id_fkey"
+            columns: ["executive_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      commission_payouts: {
+        Row: {
+          amount_paid: number
+          created_at: string | null
+          executive_id: string | null
+          id: string
+          paid_by: string | null
+          payment_ref: string | null
+        }
+        Insert: {
+          amount_paid: number
+          created_at?: string | null
+          executive_id?: string | null
+          id?: string
+          paid_by?: string | null
+          payment_ref?: string | null
+        }
+        Update: {
+          amount_paid?: number
+          created_at?: string | null
+          executive_id?: string | null
+          id?: string
+          paid_by?: string | null
+          payment_ref?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "commission_payouts_executive_id_fkey"
+            columns: ["executive_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "commission_payouts_paid_by_fkey"
+            columns: ["paid_by"]
+            isOneToOne: false
+            referencedRelation: "users"
             referencedColumns: ["id"]
           },
         ]
