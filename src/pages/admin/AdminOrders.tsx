@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "sonner";
-import { ArrowRight, Loader2, X, FileText, CheckCircle2, Truck, Printer, Package, ClipboardList, Zap, LayoutList } from "lucide-react";
+import { ArrowRight, Loader2, X, FileText, CheckCircle2, Truck, Printer, Package, ClipboardList, LayoutList } from "lucide-react";
 import TopNavBar from "@/components/TopNavBar";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -139,6 +139,18 @@ const AdminOrders = () => {
       toast.error("Failed to update status");
     } else {
       toast.success(`Moved to ${STATUS_LABELS[next as OrderStatus]}`);
+
+      // Auto-split when advancing to in_production
+      if (next === "in_production" && order.order_items && order.order_items.length > 0) {
+        const items: OrderItem[] = order.order_items.map(oi => ({
+          id: oi.id,
+          quantity: oi.quantity,
+          actual_packed_qty: oi.actual_packed_qty ?? null,
+          product_id: oi.product_id ?? null,
+        }));
+        await handleAutoSplitOrder(order.id, items);
+      }
+
       await fetchOrders();
     }
     setUpdating(null);
@@ -603,16 +615,8 @@ const AdminOrders = () => {
                     ) : requisitions.length === 0 ? (
                       <div className="space-y-2">
                         <p className="text-xs text-muted-foreground">
-                          No store requisitions created yet. Split this order to route items to the correct factory departments.
+                          No store requisitions yet. Requisitions are auto-created when the order advances to In Production.
                         </p>
-                        <Button
-                          onClick={() => handleAutoSplitOrder(selectedOrder.id, drawerItems)}
-                          disabled={splitting || drawerItems.length === 0}
-                          className="w-full"
-                        >
-                          {splitting ? <Loader2 size={14} className="animate-spin mr-2" /> : <Zap size={14} className="mr-2" />}
-                          ⚡ Auto-Split & Route to Stores
-                        </Button>
                       </div>
                     ) : (
                       <div className="space-y-2">
