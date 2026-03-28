@@ -777,6 +777,105 @@ export type Database = {
           },
         ]
       }
+      inward_material_advice: {
+        Row: {
+          accompanying_docs: string | null
+          company_id: string | null
+          created_at: string | null
+          expected_value: number | null
+          fault_department: string | null
+          gate_entry_id: string | null
+          id: string
+          is_defect: boolean | null
+          reason: string | null
+          sales_exec_id: string | null
+          status: string | null
+          type: string | null
+        }
+        Insert: {
+          accompanying_docs?: string | null
+          company_id?: string | null
+          created_at?: string | null
+          expected_value?: number | null
+          fault_department?: string | null
+          gate_entry_id?: string | null
+          id?: string
+          is_defect?: boolean | null
+          reason?: string | null
+          sales_exec_id?: string | null
+          status?: string | null
+          type?: string | null
+        }
+        Update: {
+          accompanying_docs?: string | null
+          company_id?: string | null
+          created_at?: string | null
+          expected_value?: number | null
+          fault_department?: string | null
+          gate_entry_id?: string | null
+          id?: string
+          is_defect?: boolean | null
+          reason?: string | null
+          sales_exec_id?: string | null
+          status?: string | null
+          type?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "inward_material_advice_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "inward_material_advice_sales_exec_id_fkey"
+            columns: ["sales_exec_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      inward_material_items: {
+        Row: {
+          advice_id: string | null
+          expected_qty: number | null
+          id: string
+          product_id: string | null
+          received_qty: number | null
+        }
+        Insert: {
+          advice_id?: string | null
+          expected_qty?: number | null
+          id?: string
+          product_id?: string | null
+          received_qty?: number | null
+        }
+        Update: {
+          advice_id?: string | null
+          expected_qty?: number | null
+          id?: string
+          product_id?: string | null
+          received_qty?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "inward_material_items_advice_id_fkey"
+            columns: ["advice_id"]
+            isOneToOne: false
+            referencedRelation: "inward_material_advice"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "inward_material_items_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       moq_rules: {
         Row: {
           carton_type: string | null
@@ -1003,9 +1102,12 @@ export type Database = {
         Row: {
           admin_approval: boolean | null
           created_at: string | null
+          defect_details: string | null
           final_credit_value: number | null
+          gate_entry_logged_at: string | null
           id: string
           inspection_notes: string | null
+          is_manufacturing_defect: boolean | null
           logged_by: string | null
           loss_amount: number | null
           order_id: string | null
@@ -1018,9 +1120,12 @@ export type Database = {
         Insert: {
           admin_approval?: boolean | null
           created_at?: string | null
+          defect_details?: string | null
           final_credit_value?: number | null
+          gate_entry_logged_at?: string | null
           id?: string
           inspection_notes?: string | null
+          is_manufacturing_defect?: boolean | null
           logged_by?: string | null
           loss_amount?: number | null
           order_id?: string | null
@@ -1033,9 +1138,12 @@ export type Database = {
         Update: {
           admin_approval?: boolean | null
           created_at?: string | null
+          defect_details?: string | null
           final_credit_value?: number | null
+          gate_entry_logged_at?: string | null
           id?: string
           inspection_notes?: string | null
+          is_manufacturing_defect?: boolean | null
           logged_by?: string | null
           loss_amount?: number | null
           order_id?: string | null
