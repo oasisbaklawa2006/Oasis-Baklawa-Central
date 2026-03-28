@@ -34,7 +34,7 @@ export function useCart() {
   const [items, setItems] = useState<CartItem[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // Step 1: Fetch company_id once auth is ready
+  // Step 1: Fetch company_id once auth is ready (with impersonation support)
   useEffect(() => {
     if (authLoading) return;
     if (!user) {
@@ -44,6 +44,20 @@ export function useCart() {
     }
 
     const fetchCompany = async () => {
+      // Check for impersonation override
+      const impersonated = localStorage.getItem("impersonated_client");
+      if (impersonated) {
+        try {
+          const parsed = JSON.parse(impersonated);
+          if (parsed.company_id) {
+            console.log("[useCart] impersonation active, company_id:", parsed.company_id);
+            setCompanyId(parsed.company_id);
+            setCompanyIdResolved(true);
+            return;
+          }
+        } catch {}
+      }
+
       console.log("[useCart] auth user id:", user.id);
       const { data } = await supabase
         .from("users")
@@ -190,6 +204,7 @@ export function useCart() {
       localStorage.removeItem("oasis_cart");
       localStorage.removeItem("cart");
       localStorage.removeItem("draftOrderId");
+      localStorage.removeItem("impersonated_client");
     }
   }, []);
 

@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Navigate } from "react-router-dom";
+import { Navigate, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -13,6 +13,7 @@ import CreditRequestModal from "@/components/CreditRequestModal";
 
 const SalesDashboard = () => {
   const { user, loading: authLoading } = useAuth();
+  const navigate = useNavigate();
   const [role, setRole] = useState<string | null>(null);
   const [roleLoading, setRoleLoading] = useState(true);
   const [companies, setCompanies] = useState<any[]>([]);
@@ -149,7 +150,10 @@ const SalesDashboard = () => {
                             <CreditCard size={13} /> Request Credit
                           </Button>
                           <Button size="sm" variant="ghost" className="h-8 text-xs gap-1.5"
-                            onClick={() => toast({ title: "Coming Soon", description: "Impersonation ordering coming in next sprint." })}>
+                            onClick={() => {
+                              localStorage.setItem("impersonated_client", JSON.stringify({ company_id: c.id, business_name: c.business_name }));
+                              navigate("/");
+                            }}>
                             <ShoppingCart size={13} /> Place Order
                           </Button>
                         </div>
