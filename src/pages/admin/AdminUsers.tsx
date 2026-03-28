@@ -31,6 +31,12 @@ interface CompanyRow {
   gst_number: string | null;
   credit_limit: number | null;
   wallet_balance: number | null;
+  account_manager_id: string | null;
+}
+
+interface ManagerOption {
+  id: string;
+  label: string;
 }
 
 interface RoleRow {
@@ -106,6 +112,7 @@ const AdminUsers = () => {
   const [tab, setTab] = useState("employees");
   const [users, setUsers] = useState<UserRow[]>([]);
   const [companies, setCompanies] = useState<CompanyRow[]>([]);
+  const [managers, setManagers] = useState<ManagerOption[]>([]);
   const [roles, setRoles] = useState<RoleRow[]>([]);
   const [allPermissions, setAllPermissions] = useState<PermissionRow[]>([]);
   const [rolePermMap, setRolePermMap] = useState<RolePermMap[]>([]);
@@ -138,11 +145,19 @@ const AdminUsers = () => {
       supabase.from("permissions").select("*").order("module_name, permission_name"),
       supabase.from("role_permission_map").select("*"),
     ]);
-    setUsers((usersRes.data as UserRow[]) ?? []);
+    const allUsers = (usersRes.data as UserRow[]) ?? [];
+    setUsers(allUsers);
     setCompanies((companiesRes.data as CompanyRow[]) ?? []);
     setRoles((rolesRes.data as RoleRow[]) ?? []);
     setAllPermissions((permsRes.data as PermissionRow[]) ?? []);
     setRolePermMap((rpMapRes.data as RolePermMap[]) ?? []);
+
+    // Build managers list from sales_executive and admin roles
+    const mgrs: ManagerOption[] = allUsers
+      .filter((u) => u.role === "sales_executive" || u.role === "admin")
+      .map((u) => ({ id: u.id, label: u.full_name || u.email || u.id }));
+    setManagers(mgrs);
+
     setLoading(false);
   }, []);
 
