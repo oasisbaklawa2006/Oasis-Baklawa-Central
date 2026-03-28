@@ -207,6 +207,7 @@ export type Database = {
       }
       companies: {
         Row: {
+          account_manager_id: string | null
           allow_credit: boolean | null
           business_name: string
           business_volume: string | null
@@ -223,6 +224,7 @@ export type Database = {
           website: string | null
         }
         Insert: {
+          account_manager_id?: string | null
           allow_credit?: boolean | null
           business_name: string
           business_volume?: string | null
@@ -239,6 +241,7 @@ export type Database = {
           website?: string | null
         }
         Update: {
+          account_manager_id?: string | null
           allow_credit?: boolean | null
           business_name?: string
           business_volume?: string | null
@@ -254,7 +257,15 @@ export type Database = {
           wallet_balance?: number | null
           website?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "companies_account_manager_id_fkey"
+            columns: ["account_manager_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       credit_requests: {
         Row: {
@@ -628,6 +639,47 @@ export type Database = {
           },
         ]
       }
+      freight_ledger: {
+        Row: {
+          advance_paid_amt: number | null
+          balance_due_amt: number | null
+          created_at: string | null
+          id: string
+          order_id: string | null
+          payment_status: string | null
+          total_freight_amt: number | null
+          transporter_name: string | null
+        }
+        Insert: {
+          advance_paid_amt?: number | null
+          balance_due_amt?: number | null
+          created_at?: string | null
+          id?: string
+          order_id?: string | null
+          payment_status?: string | null
+          total_freight_amt?: number | null
+          transporter_name?: string | null
+        }
+        Update: {
+          advance_paid_amt?: number | null
+          balance_due_amt?: number | null
+          created_at?: string | null
+          id?: string
+          order_id?: string | null
+          payment_status?: string | null
+          total_freight_amt?: number | null
+          transporter_name?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "freight_ledger_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       inventory_adjustments: {
         Row: {
           adjustment_type: string | null
@@ -803,6 +855,38 @@ export type Database = {
             columns: ["company_id"]
             isOneToOne: false
             referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      order_attachments: {
+        Row: {
+          attachment_type: string | null
+          created_at: string | null
+          file_url: string
+          id: string
+          order_id: string | null
+        }
+        Insert: {
+          attachment_type?: string | null
+          created_at?: string | null
+          file_url: string
+          id?: string
+          order_id?: string | null
+        }
+        Update: {
+          attachment_type?: string | null
+          created_at?: string | null
+          file_url?: string
+          id?: string
+          order_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "order_attachments_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
             referencedColumns: ["id"]
           },
         ]
