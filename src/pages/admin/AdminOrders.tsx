@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "sonner";
-import { ArrowRight, Loader2, X, FileText, CheckCircle2, Truck, Printer, Package, ClipboardList } from "lucide-react";
+import { ArrowRight, Loader2, X, FileText, CheckCircle2, Truck, Printer, Package, ClipboardList, Zap, LayoutList } from "lucide-react";
 import TopNavBar from "@/components/TopNavBar";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
