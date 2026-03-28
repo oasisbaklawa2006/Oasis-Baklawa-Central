@@ -1,21 +1,13 @@
 import { supabase } from "@/integrations/supabase/client";
 
 // ═══════════════════════════════════════════════════════════
-// NOTIFICATION GATEWAY — CENTRAL CONFIGURATION
+// NOTIFICATION GATEWAY — LIVE CONFIGURATION
 // ═══════════════════════════════════════════════════════════
-// When ready to go live, replace these with real API credentials
-// stored in Supabase Edge Function secrets.
 
-// const TWILIO_CONFIG = {
-//   accountSid: "YOUR_TWILIO_ACCOUNT_SID",
-//   authToken: "YOUR_TWILIO_AUTH_TOKEN",
-//   fromNumber: "whatsapp:+14155238886", // Twilio Sandbox or production
-// };
-
-// const RESEND_CONFIG = {
-//   apiKey: "YOUR_RESEND_API_KEY",
-//   fromEmail: "notifications@oasisbaklawa.com",
-// };
+const RESEND_CONFIG = {
+  apiKey: "re_QN2tDgHK_PwuSsAiqENCdjCFS2xn2FUcu",
+  fromEmail: "onboarding@resend.dev",
+};
 
 /**
  * Queue a notification message into the outbox for later processing.
@@ -42,10 +34,8 @@ export const queueNotification = async (params: {
 };
 
 /**
- * Process pending messages in the outbox.
- * SIMULATION MODE: Waits 2s per message, then marks as 'sent'.
- *
- * To go LIVE, uncomment the Twilio / Resend sections below.
+ * Process pending messages in the outbox — LIVE MODE.
+ * Sends emails via Resend API, then updates status accordingly.
  */
 export const processOutboxQueue = async (): Promise<number> => {
   const { data: pending } = await supabase
@@ -61,46 +51,27 @@ export const processOutboxQueue = async (): Promise<number> => {
 
   for (const msg of pending) {
     try {
-      // ── SIMULATION: 2-second delay ──
-      await new Promise((r) => setTimeout(r, 2000));
+      // 📧 LIVE EMAIL DELIVERY via Resend
+      if (msg.recipient_email) {
+        const response = await fetch("https://api.resend.com/emails", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${RESEND_CONFIG.apiKey}`,
+          },
+          body: JSON.stringify({
+            from: RESEND_CONFIG.fromEmail,
+            to: msg.recipient_email,
+            subject: `Oasis Notification: ${msg.event_type}`,
+            text: msg.message_body,
+          }),
+        });
 
-      // ─────────────────────────────────────────────────
-      // 🔌 TWILIO (WhatsApp) — Uncomment to go live
-      // ─────────────────────────────────────────────────
-      // if (msg.recipient_phone) {
-      //   const twilioUrl = `https://api.twilio.com/2010-04-01/Accounts/${TWILIO_CONFIG.accountSid}/Messages.json`;
-      //   await fetch(twilioUrl, {
-      //     method: "POST",
-      //     headers: {
-      //       "Content-Type": "application/x-www-form-urlencoded",
-      //       Authorization: "Basic " + btoa(`${TWILIO_CONFIG.accountSid}:${TWILIO_CONFIG.authToken}`),
-      //     },
-      //     body: new URLSearchParams({
-      //       To: `whatsapp:${msg.recipient_phone}`,
-      //       From: TWILIO_CONFIG.fromNumber,
-      //       Body: msg.message_body,
-      //     }),
-      //   });
-      // }
-
-      // ─────────────────────────────────────────────────
-      // 📧 RESEND (Email) — Uncomment to go live
-      // ─────────────────────────────────────────────────
-      // if (msg.recipient_email) {
-      //   await fetch("https://api.resend.com/emails", {
-      //     method: "POST",
-      //     headers: {
-      //       "Content-Type": "application/json",
-      //       Authorization: `Bearer ${RESEND_CONFIG.apiKey}`,
-      //     },
-      //     body: JSON.stringify({
-      //       from: RESEND_CONFIG.fromEmail,
-      //       to: msg.recipient_email,
-      //       subject: `Oasis Notification: ${msg.event_type}`,
-      //       text: msg.message_body,
-      //     }),
-      //   });
-      // }
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.message || "Resend API Error");
+        }
+      }
 
       // Mark as sent
       await supabase
