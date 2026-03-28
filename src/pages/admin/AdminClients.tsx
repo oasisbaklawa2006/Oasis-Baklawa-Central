@@ -242,11 +242,6 @@ const AdminClients = () => {
 
   /* ─── App Pipeline Logic ─── */
   const handleApprove = async (app: Application) => {
-    if (app.id.startsWith("d")) {
-      toast.success(`${app.business_name} approved (demo)`);
-      setSheetOpen(false);
-      return;
-    }
     setActionLoading(app.id);
 
     const { error } = await supabase
@@ -299,11 +294,6 @@ const AdminClients = () => {
   };
 
   const handleReject = async (app: Application) => {
-    if (app.id.startsWith("d")) {
-      toast.success(`${app.business_name} rejected (demo)`);
-      setSheetOpen(false);
-      return;
-    }
     setActionLoading(app.id);
     const { error } = await supabase
       .from("b2b_applications")
