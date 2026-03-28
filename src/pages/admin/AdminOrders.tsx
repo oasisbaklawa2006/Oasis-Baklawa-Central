@@ -1,8 +1,8 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "sonner";
-import { ArrowRight, Loader2, X, FileText, CheckCircle2, Truck, Printer, Package, ClipboardList, LayoutList } from "lucide-react";
+import { ArrowRight, Loader2, X, FileText, CheckCircle2, Truck, Printer, Package, ClipboardList, LayoutList, Camera } from "lucide-react";
 import TopNavBar from "@/components/TopNavBar";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -92,6 +92,11 @@ const AdminOrders = () => {
   const [requisitions, setRequisitions] = useState<any[]>([]);
   const [reqLoading, setReqLoading] = useState(false);
   const [splitting, setSplitting] = useState(false);
+
+  // Packing proof state
+  const [capturedPhotoUrl, setCapturedPhotoUrl] = useState<string>("");
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const fetchOrders = async () => {
     setLoading(true);
@@ -258,12 +263,33 @@ const AdminOrders = () => {
 
   const closeDrawer = () => {
     setSelectedOrder(null);
+    setCapturedPhotoUrl("");
     setTimeout(() => setDrawerItems([]), 300);
+  };
+
+  const handlePhotoCapture = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !selectedOrder) return;
+    setUploadingPhoto(true);
+    try {
+      const ext = file.name.split(".").pop() || "jpg";
+      const path = `packing-proof/${selectedOrder.id}/${Date.now()}.${ext}`;
+      const { error: upErr } = await supabase.storage.from("receipts").upload(path, file);
+      if (upErr) throw upErr;
+      const { data: urlData } = supabase.storage.from("receipts").getPublicUrl(path);
+      setCapturedPhotoUrl(urlData.publicUrl);
+      toast.success("Packing proof uploaded");
+    } catch (err: any) {
+      toast.error(err.message || "Photo upload failed");
+    } finally {
+      setUploadingPhoto(false);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
   };
 
   // Save packing list & mark packed_ready
   const handleSavePackingList = async () => {
-    if (!selectedOrder) return;
+    if (!selectedOrder || !capturedPhotoUrl) return;
     setPackingSaving(true);
 
     try {
@@ -275,6 +301,13 @@ const AdminOrders = () => {
           .update({ actual_packed_qty: qty })
           .eq("id", item.id);
       }
+
+      // Save packing proof attachment
+      await supabase.from("order_attachments").insert({
+        order_id: selectedOrder.id,
+        file_url: capturedPhotoUrl,
+        attachment_type: "packing_proof",
+      });
 
       // Move order to packed_ready
       await supabase
@@ -288,6 +321,7 @@ const AdminOrders = () => {
 
       toast.success("Packing list saved — Order marked Packed Ready");
       setSelectedOrder(prev => prev ? { ...prev, status: "packed_ready" } : prev);
+      setCapturedPhotoUrl("");
       await fetchOrders();
     } catch (err: any) {
       toast.error(err.message || "Failed to save packing list");
