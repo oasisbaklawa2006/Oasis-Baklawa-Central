@@ -1,10 +1,13 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { Loader2, ChevronDown, Check, AlertTriangle, Ban, CheckCircle2 } from "lucide-react";
+import { Loader2, ChevronDown, Check, Lock, Truck, X } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { useLanguage } from "@/hooks/useLanguage";
 import { useCurrency } from "@/hooks/useCurrency";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 
 interface FinanceOrder {
   id: string; status: string; payment_status: string | null;
@@ -13,13 +16,14 @@ interface FinanceOrder {
   company?: { business_name: string } | null;
 }
 
-type PaymentAction = "request_advance" | "mark_advance_paid" | "request_balance" | "mark_fully_paid";
+type PaymentAction = "request_advance" | "mark_advance_paid" | "request_balance" | "mark_fully_paid" | "issue_gate_pass";
 
 const ACTION_LABELS: Record<PaymentAction, string> = {
   request_advance: "Request 50% Advance",
   mark_advance_paid: "Mark Advance Paid",
   request_balance: "Request Final Balance",
   mark_fully_paid: "Mark Fully Paid",
+  issue_gate_pass: "Generate Shipping & Gate Pass",
 };
 
 function getAvailableActions(order: FinanceOrder): PaymentAction[] {
@@ -30,6 +34,13 @@ function getAvailableActions(order: FinanceOrder): PaymentAction[] {
   if (advReq > 0 && advPaid < advReq) actions.push("mark_advance_paid");
   if (advPaid >= advReq && advReq > 0 && order.payment_status !== "paid") actions.push("request_balance");
   if (order.payment_status !== "paid" && advPaid > 0) actions.push("mark_fully_paid");
+
+  // Gate pass: available when financially cleared AND physically ready
+  const rs = getReleaseStatus(order);
+  if ((rs === "paid" || rs === "cleared") && ["packed_ready", "cleared_for_dispatch"].includes(order.status)) {
+    actions.push("issue_gate_pass");
+  }
+
   return actions;
 }
 
@@ -64,6 +75,13 @@ const AdminAccountsRelease = () => {
   const { t } = useLanguage();
   const { format } = useCurrency();
 
+  // Logistics handover state
+  const [gatePassOrder, setGatePassOrder] = useState<FinanceOrder | null>(null);
+  const [transporterName, setTransporterName] = useState("");
+  const [trackingNumber, setTrackingNumber] = useState("");
+  const [driverPhone, setDriverPhone] = useState("");
+  const [submittingGatePass, setSubmittingGatePass] = useState(false);
+
   const fetchOrders = async () => {
     setLoading(true);
     const { data } = await supabase
@@ -77,7 +95,84 @@ const AdminAccountsRelease = () => {
 
   useEffect(() => { fetchOrders(); }, []);
 
+  const openGatePassModal = (order: FinanceOrder) => {
+    setGatePassOrder(order);
+    setTransporterName("");
+    setTrackingNumber("");
+    setDriverPhone("");
+  };
+
+  const handleGatePassSubmit = async () => {
+    if (!gatePassOrder) return;
+    setSubmittingGatePass(true);
+    try {
+      const orderId = gatePassOrder.id;
+      const companyId = gatePassOrder.company_id;
+
+      // Insert dispatch record
+      const { data: dispatchData, error: dispatchErr } = await supabase
+        .from("dispatches")
+        .insert({
+          order_id: orderId,
+          company_id: companyId,
+          transporter_name: transporterName || null,
+          tracking_number: trackingNumber || null,
+          driver_phone: driverPhone || null,
+          status: "dispatched",
+          dispatch_date: new Date().toISOString().split("T")[0],
+        })
+        .select("id")
+        .single();
+
+      if (dispatchErr) throw dispatchErr;
+      const dispatchId = dispatchData.id;
+
+      // Estimate cartons
+      const totalValue = gatePassOrder.sales_order_value ?? 0;
+      const totalBoxes = Math.max(1, Math.ceil(totalValue / 5000));
+
+      // Insert carton barcodes
+      const cartonRows = Array.from({ length: totalBoxes }, (_, i) => ({
+        order_id: orderId,
+        dispatch_id: dispatchId,
+        barcode_string: `OASIS-${orderId.slice(0, 8).toUpperCase()}-B${i + 1}`,
+        box_number: i + 1,
+        total_boxes: totalBoxes,
+        status: "labeled",
+      }));
+
+      await supabase.from("dispatch_cartons").insert(cartonRows);
+
+      // Update order status
+      await supabase.from("orders").update({ status: "dispatched" }).eq("id", orderId);
+      await supabase.from("order_status_history").insert({
+        order_id: orderId,
+        old_status: gatePassOrder.status,
+        new_status: "dispatched",
+      });
+      await supabase.from("audit_logs").insert({
+        action_type: "finance_issue_gate_pass",
+        module_name: "Finance",
+        entity_name: "order",
+        entity_id: orderId,
+        actor_id: user?.id,
+      });
+
+      toast.success(`Gate Pass issued — ${totalBoxes} carton barcode(s) pushed to Security Gate`);
+      setGatePassOrder(null);
+      fetchOrders();
+    } catch {
+      toast.error("Failed to issue gate pass");
+    }
+    setSubmittingGatePass(false);
+  };
+
   const handleAction = async (order: FinanceOrder, action: PaymentAction) => {
+    if (action === "issue_gate_pass") {
+      openGatePassModal(order);
+      setOpenDropdown(null);
+      return;
+    }
     setActing(order.id); setOpenDropdown(null);
     const total = order.sales_order_value ?? 0;
     const advPaid = order.advance_paid ?? 0;
@@ -194,9 +289,13 @@ const AdminAccountsRelease = () => {
                             {acting === order.id ? <Loader2 size={14} className="animate-spin" /> : <ChevronDown size={14} />} {t("Actions")}
                           </button>
                           {openDropdown === order.id && (
-                            <div className="absolute right-0 top-full mt-1 w-52 bg-card rounded-xl shadow-lg border border-border py-1 z-50">
+                            <div className="absolute right-0 top-full mt-1 w-56 bg-card rounded-xl shadow-lg border border-border py-1 z-50">
                               {actions.map(a => (
-                                <button key={a} onClick={() => handleAction(order, a)} className="w-full text-left px-4 py-2.5 text-sm font-ui text-foreground hover:bg-muted transition-colors">{ACTION_LABELS[a]}</button>
+                                <button key={a} onClick={() => handleAction(order, a)}
+                                  className={`w-full text-left px-4 py-2.5 text-sm font-ui text-foreground hover:bg-muted transition-colors flex items-center gap-2 ${a === "issue_gate_pass" ? "text-primary font-semibold" : ""}`}>
+                                  {a === "issue_gate_pass" && <Truck size={14} />}
+                                  {ACTION_LABELS[a]}
+                                </button>
                               ))}
                             </div>
                           )}
@@ -212,6 +311,68 @@ const AdminAccountsRelease = () => {
           </table>
         </div>
       )}
+
+      {/* Gate Pass / Logistics Handover Modal */}
+      <Dialog open={!!gatePassOrder} onOpenChange={(open) => { if (!open) setGatePassOrder(null); }}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Truck size={20} className="text-primary" />
+              Issue Gate Pass & Shipping
+            </DialogTitle>
+            <DialogDescription>
+              Order {gatePassOrder?.id.slice(0, 8)}… — {gatePassOrder?.company?.business_name ?? "Unknown"}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 pt-2">
+            {/* Logistics Inputs */}
+            <div className="space-y-3">
+              <div>
+                <Label htmlFor="gp-transporter">Transporter Name</Label>
+                <Input id="gp-transporter" placeholder="e.g. BlueDart, DTDC" value={transporterName} onChange={e => setTransporterName(e.target.value)} />
+              </div>
+              <div>
+                <Label htmlFor="gp-tracking">LR / Bilty Number</Label>
+                <Input id="gp-tracking" placeholder="Tracking / LR number" value={trackingNumber} onChange={e => setTrackingNumber(e.target.value)} />
+              </div>
+              <div>
+                <Label htmlFor="gp-driver">Driver Phone</Label>
+                <Input id="gp-driver" placeholder="+91 XXXXX XXXXX" value={driverPhone} onChange={e => setDriverPhone(e.target.value)} />
+              </div>
+            </div>
+
+            {/* Document Print Actions */}
+            <div className="border border-border rounded-lg p-3 space-y-2">
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Shipping Documents</p>
+              <div className="grid grid-cols-3 gap-2">
+                <button onClick={() => toast.info("Consignee Sticker print — coming soon")}
+                  className="px-3 py-2 rounded-lg bg-muted text-foreground text-xs font-medium hover:bg-muted/80 transition-colors text-center">
+                  Consignee Sticker
+                </button>
+                <button onClick={() => toast.info("Packing List print — coming soon")}
+                  className="px-3 py-2 rounded-lg bg-muted text-foreground text-xs font-medium hover:bg-muted/80 transition-colors text-center">
+                  Packing List
+                </button>
+                <button onClick={() => toast.info("Export Invoice print — coming soon")}
+                  className="px-3 py-2 rounded-lg bg-muted text-foreground text-xs font-medium hover:bg-muted/80 transition-colors text-center">
+                  Export Invoice
+                </button>
+              </div>
+            </div>
+
+            {/* Submit */}
+            <button
+              onClick={handleGatePassSubmit}
+              disabled={submittingGatePass}
+              className="w-full py-3 rounded-xl bg-primary text-primary-foreground font-semibold text-sm hover:bg-primary/90 disabled:opacity-50 transition-colors flex items-center justify-center gap-2"
+            >
+              {submittingGatePass ? <Loader2 size={16} className="animate-spin" /> : <Truck size={16} />}
+              Issue Gate Pass & Push to Security
+            </button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
