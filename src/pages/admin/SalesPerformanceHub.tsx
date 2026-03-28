@@ -46,6 +46,7 @@ const SalesPerformanceHub = () => {
   const [companies, setCompanies] = useState<Company[]>([]);
   const [orders, setOrders] = useState<OrderRow[]>([]);
   const [returns, setReturns] = useState<{ order_id: string | null; quantity_returned: number; loss_amount: number | null; original_value: number | null; final_credit_value: number | null; product_id: string | null }[]>([]);
+  const [inwardAdvices, setInwardAdvices] = useState<{ id: string; expected_value: number | null; settlement_value: number | null; fault_attribution: string | null; status: string | null }[]>([]);
   const [commissionRate, setCommissionRate] = useState(0);
 
   // Return logger modal
@@ -124,6 +125,14 @@ const SalesPerformanceHub = () => {
         setOrders([]);
         setReturns([]);
       }
+
+      // Fetch inward_material_advice for this sales exec (settled ones for liability)
+      const { data: advices } = await supabase
+        .from("inward_material_advice")
+        .select("id, expected_value, settlement_value, fault_attribution, status")
+        .eq("sales_exec_id", selectedManagerId)
+        .eq("status", "settled");
+      setInwardAdvices(advices || []);
 
       // Fetch products for return modal
       const { data: prods } = await supabase.from("products").select("id, name").eq("is_active", true).limit(500);
