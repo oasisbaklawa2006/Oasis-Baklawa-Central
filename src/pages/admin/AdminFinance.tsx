@@ -338,6 +338,7 @@ const AdminFinance = () => {
             { id: "validation", label: "Advance Receipts", count: validationQueue.length, icon: Banknote },
             { id: "approvals", label: "Credit Approvals", count: creditRequests.length, icon: ShieldCheck },
             { id: "invoicing", label: "Post-Pack Invoicing", count: invoicingQueue.length, icon: Calculator },
+            { id: "returns", label: "Returns Settlement", count: returnRecords.length, icon: RotateCcw },
           ].map((tab) => (
             <button
               key={tab.id}
