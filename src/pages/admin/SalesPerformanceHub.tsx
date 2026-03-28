@@ -44,7 +44,7 @@ const SalesPerformanceHub = () => {
   const [selectedManagerId, setSelectedManagerId] = useState<string | null>(null);
   const [companies, setCompanies] = useState<Company[]>([]);
   const [orders, setOrders] = useState<OrderRow[]>([]);
-  const [returns, setReturns] = useState<{ order_id: string | null; quantity_returned: number }[]>([]);
+  const [returns, setReturns] = useState<{ order_id: string | null; quantity_returned: number; loss_amount: number | null; original_value: number | null; final_credit_value: number | null; product_id: string | null }[]>([]);
   const [commissionRate, setCommissionRate] = useState(0);
 
   // Return logger modal
@@ -112,7 +112,7 @@ const SalesPerformanceHub = () => {
         if (orderIds.length > 0) {
           const { data: rets } = await supabase
             .from("order_returns")
-            .select("order_id, quantity_returned")
+            .select("order_id, quantity_returned, loss_amount, original_value, final_credit_value, product_id")
             .in("order_id", orderIds);
           setReturns(rets || []);
         } else {
@@ -163,8 +163,17 @@ const SalesPerformanceHub = () => {
     () => orders.filter((o) => o.payment_status === "unpaid" || o.payment_status === "partial").reduce((s, o) => s + (o.sales_order_value || 0), 0),
     [orders]
   );
-  const returnValue = useMemo(() => returns.reduce((s, r) => s + (r.quantity_returned || 0), 0), [returns]);
-  const liability = unpaidValue + returnValue;
+  // Return liability = sum of loss_amount (original_value - final_credit_value) in currency
+  const returnLiabilityValue = useMemo(() => {
+    return returns.reduce((s, r) => {
+      // If loss_amount is set (settled returns), use it
+      if (r.loss_amount && r.loss_amount > 0) return s + r.loss_amount;
+      // For unsettled returns, use original_value as the full exposure
+      if (r.original_value && r.original_value > 0) return s + r.original_value;
+      return s;
+    }, 0);
+  }, [returns]);
+  const liability = unpaidValue + returnLiabilityValue;
 
   // Last order date per company
   const lastOrderMap = useMemo(() => {
@@ -260,7 +269,7 @@ const SalesPerformanceHub = () => {
               icon={<AlertTriangle size={24} />}
               label="Liability Exposure"
               value={`₹${liability.toLocaleString("en-IN", { maximumFractionDigits: 0 })}`}
-              sub={`Unpaid: ₹${unpaidValue.toLocaleString("en-IN")} • Returns: ${returnValue}`}
+              sub={`Unpaid: ₹${unpaidValue.toLocaleString("en-IN")} • Returns: ₹${returnLiabilityValue.toLocaleString("en-IN")}`}
               accent="text-red-600"
               bg="bg-red-50"
             />
