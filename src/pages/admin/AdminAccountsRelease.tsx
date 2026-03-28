@@ -376,9 +376,6 @@ const AdminAccountsRelease = () => {
                 <Input id="gp-freight-adv" type="number" min="0" placeholder="0" value={freightAdvance} onChange={e => setFreightAdvance(e.target.value)} />
               </div>
             </div>
-                <Input id="gp-driver" placeholder="+91 XXXXX XXXXX" value={driverPhone} onChange={e => setDriverPhone(e.target.value)} />
-              </div>
-            </div>
 
             {/* Document Print Actions */}
             <div className="border border-border rounded-lg p-3 space-y-2">
