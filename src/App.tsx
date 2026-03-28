@@ -50,6 +50,7 @@ import ManageUsers from "./pages/ManageUsers.tsx";
 import ManageAddresses from "./pages/ManageAddresses.tsx";
 import ManageLogistics from "./pages/ManageLogistics.tsx";
 import SalesDashboard from "./pages/sales/SalesDashboard.tsx";
+import SalesPerformanceHub from "./pages/admin/SalesPerformanceHub.tsx";
 
 const queryClient = new QueryClient();
 
@@ -183,6 +184,7 @@ const App = () => (
               <Route path="department" element={<AdminDepartment />} />
               <Route path="inventory" element={<AdminInventory />} />
               <Route path="logistics" element={<AdminLogistics />} />
+              <Route path="sales-hub" element={<SalesPerformanceHub />} />
             </Route>
             <Route
               path="/sales/dashboard"
