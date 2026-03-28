@@ -783,12 +783,16 @@ export type Database = {
           company_id: string | null
           created_at: string | null
           expected_value: number | null
+          fault_attribution: string | null
           fault_department: string | null
           gate_entry_id: string | null
           id: string
           is_defect: boolean | null
           reason: string | null
           sales_exec_id: string | null
+          settled_at: string | null
+          settled_by: string | null
+          settlement_value: number | null
           status: string | null
           type: string | null
         }
@@ -797,12 +801,16 @@ export type Database = {
           company_id?: string | null
           created_at?: string | null
           expected_value?: number | null
+          fault_attribution?: string | null
           fault_department?: string | null
           gate_entry_id?: string | null
           id?: string
           is_defect?: boolean | null
           reason?: string | null
           sales_exec_id?: string | null
+          settled_at?: string | null
+          settled_by?: string | null
+          settlement_value?: number | null
           status?: string | null
           type?: string | null
         }
@@ -811,12 +819,16 @@ export type Database = {
           company_id?: string | null
           created_at?: string | null
           expected_value?: number | null
+          fault_attribution?: string | null
           fault_department?: string | null
           gate_entry_id?: string | null
           id?: string
           is_defect?: boolean | null
           reason?: string | null
           sales_exec_id?: string | null
+          settled_at?: string | null
+          settled_by?: string | null
+          settlement_value?: number | null
           status?: string | null
           type?: string | null
         }
