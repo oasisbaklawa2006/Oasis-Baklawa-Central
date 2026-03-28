@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { Loader2, Truck, Package, Printer, FileText, Globe, CheckCircle2, Shield, MapPin, QrCode } from "lucide-react";
+import { Loader2, Truck, Package, Printer, FileText, Globe, CheckCircle2, Shield, MapPin, QrCode, Lock, Tag } from "lucide-react";
 import TopNavBar from "@/components/TopNavBar";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
@@ -10,7 +10,15 @@ import { Label } from "@/components/ui/label";
 interface OrderItem {
   id: string;
   quantity: number;
-  product?: { name: string } | null;
+  product?: {
+    name: string;
+    ingredients?: string | null;
+    nutritional_info?: any;
+    allergen_warnings?: string | null;
+    net_weight_grams?: number | null;
+    shelf_life_days?: number | null;
+    storage_instructions?: string | null;
+  } | null;
 }
 
 interface DispatchOrder {
@@ -51,7 +59,7 @@ const AdminDispatch = () => {
   const [activeTab, setActiveTab] = useState<"dispatch" | "shipments">("dispatch");
 
   // Print Engine State
-  const [printMode, setPrintMode] = useState<"none" | "barcodes" | "consignee" | "packing_list" | "invoice">("none");
+  const [printMode, setPrintMode] = useState<"none" | "barcodes" | "consignee" | "packing_list" | "invoice" | "fssai_labels">("none");
   const [generatedCartons, setGeneratedCartons] = useState<{ boxNum: number; total: number; barcode: string }[]>([]);
 
   // Dispatch Form State
@@ -65,7 +73,7 @@ const AdminDispatch = () => {
       supabase
         .from("orders")
         .select(
-          "*, company:companies(business_name, billing_address, phone), order_items(id, quantity, product:products(name))",
+          "*, company:companies(business_name, billing_address, phone), order_items(id, quantity, product:products(name, ingredients, nutritional_info, allergen_warnings, net_weight_grams, shelf_life_days, storage_instructions))",
         )
         .in("status", ["packing", "ready_for_dispatch", "packed_ready", "cleared_for_dispatch"])
         .order("created_at", { ascending: false }),
@@ -119,7 +127,7 @@ const AdminDispatch = () => {
     setGeneratedCartons(cartons);
   };
 
-  const handlePrint = (mode: "barcodes" | "consignee" | "packing_list" | "invoice") => {
+  const handlePrint = (mode: "barcodes" | "consignee" | "packing_list" | "invoice" | "fssai_labels") => {
     setPrintMode(mode);
   };
 
@@ -193,7 +201,7 @@ const AdminDispatch = () => {
           .print-area { position: absolute; left: 0; top: 0; width: 100%; margin: 0; padding: 0; }
           
           /* Dynamic Page Sizing based on Print Mode */
-          ${printMode === "barcodes" ? "@page { size: 100mm 50mm; margin: 0; }" : "@page { size: A4; margin: 15mm; }"}
+          ${printMode === "barcodes" ? "@page { size: 100mm 50mm; margin: 0; }" : printMode === "fssai_labels" ? "@page { size: 100mm 70mm; margin: 3mm; }" : "@page { size: A4; margin: 15mm; }"}
           
           /* Page break for Barcodes */
           .page-break { page-break-after: always; }
@@ -318,6 +326,41 @@ const AdminDispatch = () => {
             </div>
           </div>
         )}
+
+        {/* PRINT MODE 5: FSSAI ITEM LABELS */}
+        {printMode === "fssai_labels" && selectedOrder && (() => {
+          const uniqueProducts = new Map<string, OrderItem["product"]>();
+          selectedOrder.order_items?.forEach(item => {
+            if (item.product && !uniqueProducts.has(item.product.name)) {
+              uniqueProducts.set(item.product.name, item.product);
+            }
+          });
+          return (
+            <div>
+              {Array.from(uniqueProducts.values()).map((product, idx) => (
+                <div key={idx} className="page-break w-[100mm] min-h-[65mm] bg-white text-black p-3 box-border border border-black" style={{ fontFamily: "Arial, sans-serif" }}>
+                  <h1 className="text-sm font-black text-center uppercase border-b border-black pb-1 mb-2">{product?.name}</h1>
+                  <div className="space-y-1.5 text-[8px] leading-tight">
+                    {product?.ingredients && (
+                      <div><span className="font-black uppercase">Ingredients: </span><span>{product.ingredients}</span></div>
+                    )}
+                    {product?.allergen_warnings && (
+                      <div className="font-black"><span className="uppercase">Allergen Info: </span><span>{product.allergen_warnings}</span></div>
+                    )}
+                    <div className="grid grid-cols-2 gap-x-3 gap-y-1 pt-1 border-t border-gray-300">
+                      <div><span className="font-black uppercase">Net Weight: </span>{product?.net_weight_grams ? `${product.net_weight_grams}g` : "—"}</div>
+                      <div><span className="font-black uppercase">Shelf Life: </span>{product?.shelf_life_days ? `${product.shelf_life_days} days` : "—"}</div>
+                      <div className="col-span-2"><span className="font-black uppercase">Storage: </span>{product?.storage_instructions || "Store in cool, dry place"}</div>
+                    </div>
+                    <div className="pt-1 border-t border-gray-300">
+                      <span className="font-black uppercase">Mfg By: </span>Oasis Baklawa
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          );
+        })()}
       </div>
 
       {/* ======================================================================
@@ -545,6 +588,23 @@ const AdminDispatch = () => {
                     Document Engine
                   </h3>
 
+                  {/* FSSAI Labels - UNLOCKED for Dispatch */}
+                  <button
+                    onClick={() => handlePrint("fssai_labels")}
+                    className="w-full flex items-center justify-between p-4 bg-white border border-slate-200 rounded-xl hover:border-[#B8860B] transition-colors group"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-lg bg-amber-50 text-amber-700 flex items-center justify-center group-hover:bg-amber-700 group-hover:text-white transition-colors">
+                        <Tag size={20} />
+                      </div>
+                      <div className="text-left">
+                        <p className="font-bold text-sm text-slate-900">Item Labels (FSSAI)</p>
+                        <p className="text-xs font-medium text-slate-500">Regulatory compliance labels</p>
+                      </div>
+                    </div>
+                  </button>
+
+                  {/* Carton Barcodes - UNLOCKED for Dispatch */}
                   <button
                     onClick={() => handlePrint("barcodes")}
                     className="w-full flex items-center justify-between p-4 bg-white border border-slate-200 rounded-xl hover:border-[#B8860B] transition-colors group"
@@ -562,47 +622,50 @@ const AdminDispatch = () => {
                     </div>
                   </button>
 
+                  {/* Consignee Sticker - LOCKED */}
                   <button
-                    onClick={() => handlePrint("consignee")}
-                    className="w-full flex items-center justify-between p-4 bg-white border border-slate-200 rounded-xl hover:border-[#B8860B] transition-colors group"
+                    disabled={true}
+                    className="w-full flex items-center justify-between p-4 bg-white border border-slate-200 rounded-xl opacity-50 cursor-not-allowed"
                   >
                     <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center group-hover:bg-emerald-600 group-hover:text-white transition-colors">
+                      <div className="w-10 h-10 rounded-lg bg-emerald-50 text-emerald-600/50 flex items-center justify-center">
                         <Package size={20} />
                       </div>
                       <div className="text-left">
-                        <p className="font-bold text-sm text-slate-900">Consignee Sticker</p>
-                        <p className="text-xs font-medium text-slate-500">A4 Master Shipping Label</p>
+                        <p className="font-bold text-sm text-slate-500 flex items-center gap-1.5">Consignee Sticker <Lock size={12} /></p>
+                        <p className="text-xs font-medium text-red-400">Locked: Finance Generation Only</p>
                       </div>
                     </div>
                   </button>
 
+                  {/* Packing List - LOCKED */}
                   <button
-                    onClick={() => handlePrint("packing_list")}
-                    className="w-full flex items-center justify-between p-4 bg-white border border-slate-200 rounded-xl hover:border-[#B8860B] transition-colors group"
+                    disabled={true}
+                    className="w-full flex items-center justify-between p-4 bg-white border border-slate-200 rounded-xl opacity-50 cursor-not-allowed"
                   >
                     <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-lg bg-purple-50 text-purple-600 flex items-center justify-center group-hover:bg-purple-600 group-hover:text-white transition-colors">
+                      <div className="w-10 h-10 rounded-lg bg-purple-50 text-purple-600/50 flex items-center justify-center">
                         <FileText size={20} />
                       </div>
                       <div className="text-left">
-                        <p className="font-bold text-sm text-slate-900">Packing List</p>
-                        <p className="text-xs font-medium text-slate-500">Detailed itemization</p>
+                        <p className="font-bold text-sm text-slate-500 flex items-center gap-1.5">Packing List <Lock size={12} /></p>
+                        <p className="text-xs font-medium text-red-400">Locked: Finance Generation Only</p>
                       </div>
                     </div>
                   </button>
 
+                  {/* Export Invoice - LOCKED */}
                   <button
-                    onClick={() => handlePrint("invoice")}
-                    className="w-full flex items-center justify-between p-4 bg-white border border-slate-200 rounded-xl hover:border-[#B8860B] transition-colors group"
+                    disabled={true}
+                    className="w-full flex items-center justify-between p-4 bg-white border border-slate-200 rounded-xl opacity-50 cursor-not-allowed"
                   >
                     <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-lg bg-slate-100 text-slate-600 flex items-center justify-center group-hover:bg-slate-900 group-hover:text-white transition-colors">
+                      <div className="w-10 h-10 rounded-lg bg-slate-100 text-slate-400 flex items-center justify-center">
                         <Globe size={20} />
                       </div>
                       <div className="text-left">
-                        <p className="font-bold text-sm text-slate-900">Export Invoice</p>
-                        <p className="text-xs font-medium text-slate-500">Commercial customs doc</p>
+                        <p className="font-bold text-sm text-slate-500 flex items-center gap-1.5">Export Invoice <Lock size={12} /></p>
+                        <p className="text-xs font-medium text-red-400">Locked: Finance Generation Only</p>
                       </div>
                     </div>
                   </button>
@@ -614,15 +677,16 @@ const AdminDispatch = () => {
                     Logistics Handover
                   </h3>
 
-                  <div className="bg-white p-4 rounded-xl border border-slate-200 space-y-4">
+                  <div className="bg-white p-4 rounded-xl border border-slate-200 space-y-4 opacity-50">
                     <div className="space-y-1.5">
                       <Label className="text-xs font-bold text-slate-500 uppercase tracking-widest">
                         Transporter Name *
                       </Label>
                       <Input
+                        disabled={true}
                         value={transporterName}
                         onChange={(e) => setTransporterName(e.target.value)}
-                        className="bg-slate-50 border-none"
+                        className="bg-slate-50 border-none cursor-not-allowed"
                         placeholder="e.g. FedEx / VRL"
                       />
                     </div>
@@ -631,46 +695,40 @@ const AdminDispatch = () => {
                         LR / Bilty Number
                       </Label>
                       <Input
+                        disabled={true}
                         value={trackingNumber}
                         onChange={(e) => setTrackingNumber(e.target.value)}
-                        className="bg-slate-50 border-none"
+                        className="bg-slate-50 border-none cursor-not-allowed"
                         placeholder="Optional tracking"
                       />
                     </div>
                     <div className="space-y-1.5">
                       <Label className="text-xs font-bold text-slate-500 uppercase tracking-widest">Driver Phone</Label>
                       <Input
+                        disabled={true}
                         value={driverPhone}
                         onChange={(e) => setDriverPhone(e.target.value)}
-                        className="bg-slate-50 border-none"
+                        className="bg-slate-50 border-none cursor-not-allowed"
                         placeholder="Driver contact"
                       />
                     </div>
                   </div>
 
-                  <div className="bg-[#B8860B]/10 border border-[#B8860B]/20 rounded-xl p-4 flex items-start gap-3">
-                    <Shield className="text-[#B8860B] mt-0.5 shrink-0" size={18} />
+                  <div className="bg-red-50 border border-red-200 rounded-xl p-4 flex items-start gap-3">
+                    <Lock className="text-red-500 mt-0.5 shrink-0" size={18} />
                     <div>
-                      <p className="text-sm font-bold text-slate-900 leading-tight">Security Handover</p>
+                      <p className="text-sm font-bold text-slate-900 leading-tight">Awaiting Finance Clearance</p>
                       <p className="text-xs font-medium text-slate-600 mt-1">
-                        Submitting this will push the {generatedCartons.length} barcodes to the Exit Gate terminal for
-                        final physical scan-out.
+                        Final exit barcodes and shipping documents must be generated by the Finance Department.
                       </p>
                     </div>
                   </div>
 
                   <button
-                    onClick={handleSubmitDispatch}
-                    disabled={submitting}
-                    className="w-full py-4 rounded-xl font-black text-sm uppercase tracking-widest transition-colors disabled:opacity-50 bg-[#B8860B] text-white hover:bg-[#9A7009] shadow-lg shadow-[#B8860B]/20 flex items-center justify-center gap-2 mt-4"
+                    disabled={true}
+                    className="w-full py-4 rounded-xl font-black text-sm uppercase tracking-widest transition-colors disabled:opacity-50 bg-slate-400 text-white cursor-not-allowed flex items-center justify-center gap-2 mt-4"
                   >
-                    {submitting ? (
-                      <Loader2 size={18} className="animate-spin" />
-                    ) : (
-                      <>
-                        <Truck size={18} /> Push To Exit Gate
-                      </>
-                    )}
+                    <Lock size={18} /> Locked: Awaiting Finance Exit Barcode
                   </button>
                 </div>
               </div>
