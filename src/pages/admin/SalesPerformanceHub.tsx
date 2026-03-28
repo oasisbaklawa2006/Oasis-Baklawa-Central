@@ -174,16 +174,15 @@ const SalesPerformanceHub = () => {
     () => orders.filter((o) => o.payment_status === "unpaid" || o.payment_status === "partial").reduce((s, o) => s + (o.sales_order_value || 0), 0),
     [orders]
   );
-  // Return liability = sum of loss_amount (original_value - final_credit_value) in currency
+  // Return liability from inward_material_advice — ONLY 'Sales Error' faults count
   const returnLiabilityValue = useMemo(() => {
-    return returns.reduce((s, r) => {
-      // If loss_amount is set (settled returns), use it
-      if (r.loss_amount && r.loss_amount > 0) return s + r.loss_amount;
-      // For unsettled returns, use original_value as the full exposure
-      if (r.original_value && r.original_value > 0) return s + r.original_value;
-      return s;
+    return inwardAdvices.reduce((s, adv) => {
+      // Only Sales Error faults are the executive's liability
+      if (adv.fault_attribution !== "Sales Error") return s;
+      const loss = (adv.expected_value || 0) - (adv.settlement_value || 0);
+      return s + (loss > 0 ? loss : 0);
     }, 0);
-  }, [returns]);
+  }, [inwardAdvices]);
   const liability = unpaidValue + returnLiabilityValue;
 
   // Last order date per company
