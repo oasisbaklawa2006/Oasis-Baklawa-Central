@@ -131,8 +131,17 @@ const Cart = () => {
   const fetchAddresses = useCallback(async () => {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
-    const { data: userRow } = await supabase.from("users").select("company_id").eq("id", user.id).maybeSingle();
-    const cid = userRow?.company_id;
+
+    // Check for impersonation override
+    const impersonated = localStorage.getItem("impersonated_client");
+    let cid: string | null = null;
+    if (impersonated) {
+      try { cid = JSON.parse(impersonated).company_id || null; } catch {}
+    }
+    if (!cid) {
+      const { data: userRow } = await supabase.from("users").select("company_id").eq("id", user.id).maybeSingle();
+      cid = userRow?.company_id || null;
+    }
     if (!cid) return;
     setCompanyId(cid);
 
