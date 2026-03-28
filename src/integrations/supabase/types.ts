@@ -999,6 +999,61 @@ export type Database = {
           },
         ]
       }
+      order_returns: {
+        Row: {
+          created_at: string | null
+          id: string
+          logged_by: string | null
+          order_id: string | null
+          product_id: string | null
+          quantity_returned: number
+          reason: string | null
+          status: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          logged_by?: string | null
+          order_id?: string | null
+          product_id?: string | null
+          quantity_returned: number
+          reason?: string | null
+          status?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          logged_by?: string | null
+          order_id?: string | null
+          product_id?: string | null
+          quantity_returned?: number
+          reason?: string | null
+          status?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "order_returns_logged_by_fkey"
+            columns: ["logged_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "order_returns_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "order_returns_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       order_status_history: {
         Row: {
           changed_at: string | null
@@ -1857,6 +1912,7 @@ export type Database = {
       }
       users: {
         Row: {
+          commission_rate_percentage: number | null
           company_id: string | null
           created_at: string | null
           department: string | null
@@ -1874,6 +1930,7 @@ export type Database = {
           role: string
         }
         Insert: {
+          commission_rate_percentage?: number | null
           company_id?: string | null
           created_at?: string | null
           department?: string | null
@@ -1891,6 +1948,7 @@ export type Database = {
           role: string
         }
         Update: {
+          commission_rate_percentage?: number | null
           company_id?: string | null
           created_at?: string | null
           department?: string | null
