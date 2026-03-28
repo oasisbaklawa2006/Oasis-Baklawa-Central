@@ -125,6 +125,14 @@ const AdminProducts = () => {
   const [isAiLoading, setIsAiLoading] = useState<string | null>(null);
   const [formData, setFormData] = useState<any>({ ...EMPTY_FORM });
 
+  // Tag management state
+  const [allTags, setAllTags] = useState<ProductTagItem[]>([]);
+  const [tagModalProduct, setTagModalProduct] = useState<Product | null>(null);
+  const [selectedTagIds, setSelectedTagIds] = useState<string[]>([]);
+  const [savingTags, setSavingTags] = useState(false);
+  const [filterTag, setFilterTag] = useState<string>("");
+  const [taggedProductIds, setTaggedProductIds] = useState<string[]>([]);
+
   const fetchProducts = async () => {
     setLoading(true);
     const { data, error } = await supabase.from("products").select("*").order("created_at", { ascending: false });
@@ -132,9 +140,61 @@ const AdminProducts = () => {
     setLoading(false);
   };
 
+  const fetchTags = async () => {
+    const { data } = await supabase.from("product_tags").select("*").eq("is_active", true).order("sort_order");
+    setAllTags(data || []);
+  };
+
   useEffect(() => {
     fetchProducts();
+    fetchTags();
   }, []);
+
+  // When filter tag changes, fetch product IDs for that tag
+  useEffect(() => {
+    if (!filterTag) { setTaggedProductIds([]); return; }
+    const loadFiltered = async () => {
+      const { data } = await supabase
+        .from("product_tag_mapping")
+        .select("product_id")
+        .eq("tag_id", filterTag);
+      setTaggedProductIds((data || []).map(d => d.product_id).filter(Boolean) as string[]);
+    };
+    loadFiltered();
+  }, [filterTag]);
+
+  const openTagModal = async (product: Product) => {
+    setTagModalProduct(product);
+    const { data } = await supabase
+      .from("product_tag_mapping")
+      .select("tag_id")
+      .eq("product_id", product.id);
+    setSelectedTagIds((data || []).map(d => d.tag_id).filter(Boolean) as string[]);
+  };
+
+  const toggleTagSelection = (tagId: string) => {
+    setSelectedTagIds(prev =>
+      prev.includes(tagId) ? prev.filter(id => id !== tagId) : [...prev, tagId]
+    );
+  };
+
+  const saveTagMappings = async () => {
+    if (!tagModalProduct) return;
+    setSavingTags(true);
+    // Delete existing mappings
+    await supabase.from("product_tag_mapping").delete().eq("product_id", tagModalProduct.id);
+    // Insert new ones
+    if (selectedTagIds.length > 0) {
+      const rows = selectedTagIds.map(tag_id => ({
+        product_id: tagModalProduct.id,
+        tag_id,
+      }));
+      await supabase.from("product_tag_mapping").insert(rows);
+    }
+    toast.success(`Tags updated for ${tagModalProduct.name}`);
+    setSavingTags(false);
+    setTagModalProduct(null);
+  };
 
   // AUTO-GENERATE SKU
   useEffect(() => {
