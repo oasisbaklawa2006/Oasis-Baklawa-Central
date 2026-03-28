@@ -17,6 +17,11 @@ interface CartItem {
   product?: any;
 }
 
+interface PackedItem {
+  product_id: string;
+  packed_quantity: number;
+}
+
 interface CompanyDetails {
   business_name: string;
   gst_number?: string | null;
@@ -34,7 +39,8 @@ interface SelectedAddress {
 export function generateProFormaInvoice(
   cartItems: CartItem[],
   companyDetails: CompanyDetails | null,
-  selectedAddress: SelectedAddress | null
+  selectedAddress: SelectedAddress | null,
+  packedItems?: PackedItem[]
 ) {
   const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
   const pageW = doc.internal.pageSize.getWidth();
@@ -130,7 +136,9 @@ export function generateProFormaInvoice(
     const p = item.product;
     if (!p) return;
     const cat = getProductCategory(p);
-    const qty = item.quantity;
+    // Use packed quantity if available (partial dispatch), else original order qty
+    const packedMatch = packedItems?.find(pi => pi.product_id === item.id || pi.product_id === p.id);
+    const qty = packedMatch ? packedMatch.packed_quantity : item.quantity;
     const uom = cat === "bulk_kg" ? "Box" : "Pc";
     const packPrice = calculatePackPrice(p);
     const lineTotal = calculateLineTotal(p, qty);
