@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
 import { Loader2, PackageOpen, Plus, Search, AlertTriangle } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -18,6 +19,7 @@ interface ProductStock {
 }
 
 const AdminInventory = () => {
+  const { user } = useAuth();
   const [items, setItems] = useState<ProductStock[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
@@ -37,31 +39,58 @@ const AdminInventory = () => {
 
       if (pErr) throw pErr;
 
-      // Fetch all factory_inventory rows
-      const { data: inventory, error: iErr } = await supabase
-        .from("factory_inventory")
-        .select("product_id, quantity");
+      // Fetch all daily_production_logs and sum produced_qty by product_id
+      const { data: prodLogs, error: plErr } = await supabase
+        .from("daily_production_logs")
+        .select("product_id, produced_qty");
 
-      if (iErr) throw iErr;
+      if (plErr) throw plErr;
 
-      // Aggregate per product
-      const stockMap: Record<string, number> = {};
-      (inventory || []).forEach((row) => {
-        if (row.product_id) {
-          stockMap[row.product_id] = (stockMap[row.product_id] || 0) + (Number(row.quantity) || 0);
-        }
+      const producedMap: Record<string, number> = {};
+      (prodLogs || []).forEach((row) => {
+        producedMap[row.product_id] = (producedMap[row.product_id] || 0) + (Number(row.produced_qty) || 0);
       });
 
-      const mapped: ProductStock[] = (products || []).map((p) => ({
-        id: p.id,
-        name: p.name,
-        sku: p.sku,
-        category: p.category,
-        image_url: p.image_url,
-        produced: stockMap[p.id] || 0,
-        dispatched: 0,
-        currentStock: stockMap[p.id] || 0,
-      }));
+      // Fetch dispatched/delivered order items
+      const { data: dispatchedOrders, error: doErr } = await supabase
+        .from("orders")
+        .select("id")
+        .in("status", ["dispatched", "delivered"]);
+
+      if (doErr) throw doErr;
+
+      const dispatchedOrderIds = (dispatchedOrders || []).map((o) => o.id);
+
+      const fulfilledMap: Record<string, number> = {};
+      if (dispatchedOrderIds.length > 0) {
+        const { data: orderItems, error: oiErr } = await supabase
+          .from("order_items")
+          .select("product_id, quantity")
+          .in("order_id", dispatchedOrderIds);
+
+        if (oiErr) throw oiErr;
+
+        (orderItems || []).forEach((row) => {
+          if (row.product_id) {
+            fulfilledMap[row.product_id] = (fulfilledMap[row.product_id] || 0) + (Number(row.quantity) || 0);
+          }
+        });
+      }
+
+      const mapped: ProductStock[] = (products || []).map((p) => {
+        const produced = producedMap[p.id] || 0;
+        const dispatched = fulfilledMap[p.id] || 0;
+        return {
+          id: p.id,
+          name: p.name,
+          sku: p.sku,
+          category: p.category,
+          image_url: p.image_url,
+          produced,
+          dispatched,
+          currentStock: produced - dispatched,
+        };
+      });
 
       setItems(mapped);
     } catch (err: any) {
@@ -82,9 +111,11 @@ const AdminInventory = () => {
     }
     setIsSubmitting(true);
     try {
-      const { error } = await supabase.from("factory_inventory").insert({
+      const { error } = await supabase.from("daily_production_logs").insert({
         product_id: addStockProduct.id,
-        quantity: Number(addQty),
+        department: "manual_adjustment",
+        produced_qty: Number(addQty),
+        logged_by: user?.id || null,
       });
       if (error) throw error;
       toast.success(`Added ${addQty} units for ${addStockProduct.name}`);
@@ -158,12 +189,18 @@ const AdminInventory = () => {
                 </div>
               </div>
 
-              <div className="flex items-baseline gap-1 mt-4">
-                {isLow && <AlertTriangle className="h-4 w-4 text-destructive mr-1" />}
-                <span className={`text-3xl font-black ${isLow ? "text-destructive" : "text-foreground"}`}>
-                  {item.currentStock}
-                </span>
-                <span className="text-sm text-muted-foreground">units</span>
+              <div className="mt-4 space-y-1">
+                <div className="flex justify-between text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                  <span>Produced: {item.produced}</span>
+                  <span>Fulfilled: {item.dispatched}</span>
+                </div>
+                <div className="flex items-baseline gap-1">
+                  {isLow && <AlertTriangle className="h-4 w-4 text-destructive mr-1" />}
+                  <span className={`text-3xl font-black ${isLow ? "text-destructive" : "text-foreground"}`}>
+                    {item.currentStock}
+                  </span>
+                  <span className="text-sm text-muted-foreground">units</span>
+                </div>
               </div>
 
               <button
