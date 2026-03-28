@@ -165,9 +165,129 @@ const AdminFinance = () => {
     }
   };
 
+  // Fetch inward_material_advice at_gate for scrutiny
+  const fetchScrutiny = async () => {
+    const { data: advices } = await supabase
+      .from("inward_material_advice")
+      .select("id, company_id, reason, expected_value, accompanying_docs, created_at, sales_exec_id, status")
+      .eq("status", "at_gate");
+
+    if (!advices || advices.length === 0) {
+      setScrutinyRecords([]);
+      return;
+    }
+
+    const companyIds = [...new Set(advices.map((a: any) => a.company_id).filter(Boolean))] as string[];
+    const execIds = [...new Set(advices.map((a: any) => a.sales_exec_id).filter(Boolean))] as string[];
+
+    const [{ data: companies }, { data: execs }, { data: items }] = await Promise.all([
+      companyIds.length > 0 ? supabase.from("companies").select("id, business_name").in("id", companyIds) : { data: [] },
+      execIds.length > 0 ? supabase.from("users").select("id, full_name, name").in("id", execIds) : { data: [] },
+      supabase.from("inward_material_items").select("advice_id").in("advice_id", advices.map((a: any) => a.id)),
+    ]);
+
+    const companyMap: Record<string, string> = {};
+    (companies || []).forEach((c: any) => { companyMap[c.id] = c.business_name; });
+    const execMap: Record<string, string> = {};
+    (execs || []).forEach((e: any) => { execMap[e.id] = e.full_name || e.name || "—"; });
+    const itemCountMap: Record<string, number> = {};
+    (items || []).forEach((it: any) => { itemCountMap[it.advice_id] = (itemCountMap[it.advice_id] || 0) + 1; });
+
+    setScrutinyRecords(
+      advices.map((a: any) => ({
+        id: a.id,
+        company_id: a.company_id,
+        company_name: a.company_id ? companyMap[a.company_id] || "Unknown" : "Unknown",
+        sales_exec_name: a.sales_exec_id ? execMap[a.sales_exec_id] || "—" : "—",
+        reason: a.reason,
+        expected_value: a.expected_value,
+        accompanying_docs: a.accompanying_docs,
+        created_at: a.created_at,
+        item_count: itemCountMap[a.id] || 0,
+      }))
+    );
+  };
+
+  // Execute Settlement for scrutiny record
+  const handleExecuteSettlement = async () => {
+    if (!scrutinyTarget || !scrutinyFault || !scrutinySettlement) {
+      toast.error("Please fill all mandatory fields.");
+      return;
+    }
+    if (scrutinyFault === "Manufacturing Defect" && !scrutinyDept) {
+      toast.error("Select the faulty department for manufacturing defects.");
+      return;
+    }
+    const settlementVal = parseFloat(scrutinySettlement);
+    if (isNaN(settlementVal) || settlementVal < 0) {
+      toast.error("Enter a valid settlement value.");
+      return;
+    }
+
+    setScrutinySaving(true);
+    try {
+      const expectedVal = scrutinyTarget.expected_value || 0;
+      const lossAmount = expectedVal - settlementVal;
+
+      // 1. Update inward_material_advice
+      await supabase
+        .from("inward_material_advice")
+        .update({
+          status: "settled",
+          fault_attribution: scrutinyFault,
+          fault_department: scrutinyFault === "Manufacturing Defect" ? scrutinyDept : null,
+          settlement_value: settlementVal,
+          settled_by: user?.id || null,
+          settled_at: new Date().toISOString(),
+        })
+        .eq("id", scrutinyTarget.id);
+
+      // 2. Credit company wallet
+      if (scrutinyTarget.company_id && settlementVal > 0) {
+        const { data: comp } = await supabase
+          .from("companies")
+          .select("wallet_balance")
+          .eq("id", scrutinyTarget.company_id)
+          .single();
+        const currentBal = comp?.wallet_balance || 0;
+        await supabase
+          .from("companies")
+          .update({ wallet_balance: currentBal + settlementVal })
+          .eq("id", scrutinyTarget.company_id);
+      }
+
+      // 3. Audit log
+      await supabase.from("audit_logs").insert({
+        module_name: "finance",
+        action_type: "return_settlement_executed",
+        entity_name: "inward_material_advice",
+        entity_id: scrutinyTarget.id,
+        actor_id: user?.id || null,
+        new_value: {
+          company: scrutinyTarget.company_name,
+          expected_value: expectedVal,
+          settlement_value: settlementVal,
+          loss: lossAmount > 0 ? lossAmount : 0,
+          fault_attribution: scrutinyFault,
+          fault_department: scrutinyFault === "Manufacturing Defect" ? scrutinyDept : null,
+        },
+      });
+
+      toast.success(`₹${settlementVal.toLocaleString("en-IN")} credited to ${scrutinyTarget.company_name}'s wallet.`, { icon: "💰" });
+      setScrutinyTarget(null);
+      setScrutinyFault("");
+      setScrutinyDept("");
+      setScrutinySettlement("");
+      fetchScrutiny();
+    } catch (err) {
+      toast.error("Settlement failed.");
+    }
+    setScrutinySaving(false);
+  };
+
   const fetchAll = async () => {
     setLoading(true);
-    await Promise.all([fetchOrders(), fetchCreditRequests(), fetchReturns()]);
+    await Promise.all([fetchOrders(), fetchCreditRequests(), fetchReturns(), fetchScrutiny()]);
     setLoading(false);
   };
 
