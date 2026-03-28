@@ -8,6 +8,7 @@ import {
   FileText,
   Search,
   ShieldCheck,
+  ShieldAlert,
   Receipt,
   UploadCloud,
   FileUp,
@@ -64,6 +65,21 @@ interface ReturnRecord {
   order?: { company_id: string | null; company: { business_name: string; wallet_balance: number | null } | null } | null;
 }
 
+interface ScrutinyRecord {
+  id: string;
+  company_id: string | null;
+  company_name: string;
+  sales_exec_name: string;
+  reason: string | null;
+  expected_value: number | null;
+  accompanying_docs: string | null;
+  created_at: string | null;
+  item_count: number;
+}
+
+const FAULT_OPTIONS = ["Sales Error", "Manufacturing Defect", "Logistics Damage"];
+const DEPT_OPTIONS = ["Bakery", "Arabic Sweets", "Chocolate", "Dragees", "Fusion", "Nuts", "Packing"];
+
 const formatPrice = (n: number) => "₹" + n.toLocaleString("en-IN");
 const formatDate = (dateString: string) =>
   new Date(dateString).toLocaleDateString("en-IN", {
@@ -73,7 +89,7 @@ const formatDate = (dateString: string) =>
     minute: "2-digit",
   });
 
-type FinanceQueue = "validation" | "approvals" | "invoicing" | "returns";
+type FinanceQueue = "validation" | "approvals" | "invoicing" | "returns" | "returns_scrutiny";
 
 const AdminFinance = () => {
   const { user } = useAuth();
@@ -94,6 +110,14 @@ const AdminFinance = () => {
   // Returns Settlement State
   const [returnCreditValues, setReturnCreditValues] = useState<Record<string, string>>({});
   const [returnApprovals, setReturnApprovals] = useState<Record<string, boolean>>({});
+
+  // Returns Scrutiny State
+  const [scrutinyRecords, setScrutinyRecords] = useState<ScrutinyRecord[]>([]);
+  const [scrutinyTarget, setScrutinyTarget] = useState<ScrutinyRecord | null>(null);
+  const [scrutinyFault, setScrutinyFault] = useState("");
+  const [scrutinyDept, setScrutinyDept] = useState("");
+  const [scrutinySettlement, setScrutinySettlement] = useState("");
+  const [scrutinySaving, setScrutinySaving] = useState(false);
 
   const fetchOrders = async () => {
     const { data, error } = await supabase
@@ -141,9 +165,129 @@ const AdminFinance = () => {
     }
   };
 
+  // Fetch inward_material_advice at_gate for scrutiny
+  const fetchScrutiny = async () => {
+    const { data: advices } = await supabase
+      .from("inward_material_advice")
+      .select("id, company_id, reason, expected_value, accompanying_docs, created_at, sales_exec_id, status")
+      .eq("status", "at_gate");
+
+    if (!advices || advices.length === 0) {
+      setScrutinyRecords([]);
+      return;
+    }
+
+    const companyIds = [...new Set(advices.map((a: any) => a.company_id).filter(Boolean))] as string[];
+    const execIds = [...new Set(advices.map((a: any) => a.sales_exec_id).filter(Boolean))] as string[];
+
+    const [{ data: companies }, { data: execs }, { data: items }] = await Promise.all([
+      companyIds.length > 0 ? supabase.from("companies").select("id, business_name").in("id", companyIds) : { data: [] },
+      execIds.length > 0 ? supabase.from("users").select("id, full_name, name").in("id", execIds) : { data: [] },
+      supabase.from("inward_material_items").select("advice_id").in("advice_id", advices.map((a: any) => a.id)),
+    ]);
+
+    const companyMap: Record<string, string> = {};
+    (companies || []).forEach((c: any) => { companyMap[c.id] = c.business_name; });
+    const execMap: Record<string, string> = {};
+    (execs || []).forEach((e: any) => { execMap[e.id] = e.full_name || e.name || "—"; });
+    const itemCountMap: Record<string, number> = {};
+    (items || []).forEach((it: any) => { itemCountMap[it.advice_id] = (itemCountMap[it.advice_id] || 0) + 1; });
+
+    setScrutinyRecords(
+      advices.map((a: any) => ({
+        id: a.id,
+        company_id: a.company_id,
+        company_name: a.company_id ? companyMap[a.company_id] || "Unknown" : "Unknown",
+        sales_exec_name: a.sales_exec_id ? execMap[a.sales_exec_id] || "—" : "—",
+        reason: a.reason,
+        expected_value: a.expected_value,
+        accompanying_docs: a.accompanying_docs,
+        created_at: a.created_at,
+        item_count: itemCountMap[a.id] || 0,
+      }))
+    );
+  };
+
+  // Execute Settlement for scrutiny record
+  const handleExecuteSettlement = async () => {
+    if (!scrutinyTarget || !scrutinyFault || !scrutinySettlement) {
+      toast.error("Please fill all mandatory fields.");
+      return;
+    }
+    if (scrutinyFault === "Manufacturing Defect" && !scrutinyDept) {
+      toast.error("Select the faulty department for manufacturing defects.");
+      return;
+    }
+    const settlementVal = parseFloat(scrutinySettlement);
+    if (isNaN(settlementVal) || settlementVal < 0) {
+      toast.error("Enter a valid settlement value.");
+      return;
+    }
+
+    setScrutinySaving(true);
+    try {
+      const expectedVal = scrutinyTarget.expected_value || 0;
+      const lossAmount = expectedVal - settlementVal;
+
+      // 1. Update inward_material_advice
+      await supabase
+        .from("inward_material_advice")
+        .update({
+          status: "settled",
+          fault_attribution: scrutinyFault,
+          fault_department: scrutinyFault === "Manufacturing Defect" ? scrutinyDept : null,
+          settlement_value: settlementVal,
+          settled_by: user?.id || null,
+          settled_at: new Date().toISOString(),
+        })
+        .eq("id", scrutinyTarget.id);
+
+      // 2. Credit company wallet
+      if (scrutinyTarget.company_id && settlementVal > 0) {
+        const { data: comp } = await supabase
+          .from("companies")
+          .select("wallet_balance")
+          .eq("id", scrutinyTarget.company_id)
+          .single();
+        const currentBal = comp?.wallet_balance || 0;
+        await supabase
+          .from("companies")
+          .update({ wallet_balance: currentBal + settlementVal })
+          .eq("id", scrutinyTarget.company_id);
+      }
+
+      // 3. Audit log
+      await supabase.from("audit_logs").insert({
+        module_name: "finance",
+        action_type: "return_settlement_executed",
+        entity_name: "inward_material_advice",
+        entity_id: scrutinyTarget.id,
+        actor_id: user?.id || null,
+        new_value: {
+          company: scrutinyTarget.company_name,
+          expected_value: expectedVal,
+          settlement_value: settlementVal,
+          loss: lossAmount > 0 ? lossAmount : 0,
+          fault_attribution: scrutinyFault,
+          fault_department: scrutinyFault === "Manufacturing Defect" ? scrutinyDept : null,
+        },
+      });
+
+      toast.success(`₹${settlementVal.toLocaleString("en-IN")} credited to ${scrutinyTarget.company_name}'s wallet.`, { icon: "💰" });
+      setScrutinyTarget(null);
+      setScrutinyFault("");
+      setScrutinyDept("");
+      setScrutinySettlement("");
+      fetchScrutiny();
+    } catch (err) {
+      toast.error("Settlement failed.");
+    }
+    setScrutinySaving(false);
+  };
+
   const fetchAll = async () => {
     setLoading(true);
-    await Promise.all([fetchOrders(), fetchCreditRequests(), fetchReturns()]);
+    await Promise.all([fetchOrders(), fetchCreditRequests(), fetchReturns(), fetchScrutiny()]);
     setLoading(false);
   };
 
@@ -339,6 +483,7 @@ const AdminFinance = () => {
             { id: "approvals", label: "Credit Approvals", count: creditRequests.length, icon: ShieldCheck },
             { id: "invoicing", label: "Post-Pack Invoicing", count: invoicingQueue.length, icon: Calculator },
             { id: "returns", label: "Returns Settlement", count: returnRecords.length, icon: RotateCcw },
+            { id: "returns_scrutiny", label: "Returns Scrutiny", count: scrutinyRecords.length, icon: ShieldAlert },
           ].map((tab) => (
             <button
               key={tab.id}
@@ -586,8 +731,162 @@ const AdminFinance = () => {
               )}
             </div>
           )}
+
+          {/* QUEUE 5: RETURNS SCRUTINY */}
+          {activeQueue === "returns_scrutiny" && (
+            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {scrutinyRecords.length === 0 ? (
+                <p className="text-slate-500 font-bold p-4">No returns at gate pending scrutiny.</p>
+              ) : (
+                scrutinyRecords.map((rec) => (
+                  <div key={rec.id} className="bg-white border-l-4 border-red-400 rounded-xl p-5 shadow-sm">
+                    <div className="border-b border-slate-100 pb-3 mb-3">
+                      <p className="font-black text-slate-900 text-lg">{rec.company_name}</p>
+                      <p className="text-xs text-slate-400 mt-0.5">
+                        Sales Exec: {rec.sales_exec_name} • {rec.item_count} item(s)
+                      </p>
+                    </div>
+                    <div className="space-y-1 text-sm mb-4">
+                      <div className="flex justify-between">
+                        <span className="text-slate-500">Reason</span>
+                        <span className="font-semibold text-slate-700">{rec.reason || "—"}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-slate-500">Expected Value</span>
+                        <span className="font-black text-[#B8860B]">{formatPrice(rec.expected_value || 0)}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-slate-500">Documents</span>
+                        <span className="text-slate-600 text-xs">{rec.accompanying_docs || "None"}</span>
+                      </div>
+                      {rec.created_at && (
+                        <p className="text-slate-400 text-xs pt-1">
+                          Advised: {formatDate(rec.created_at)}
+                        </p>
+                      )}
+                    </div>
+                    <button
+                      onClick={() => {
+                        setScrutinyTarget(rec);
+                        setScrutinyFault("");
+                        setScrutinyDept("");
+                        setScrutinySettlement("");
+                      }}
+                      className="w-full py-2.5 bg-slate-900 text-white rounded-lg text-xs font-bold hover:bg-black flex justify-center items-center gap-1.5"
+                    >
+                      <ShieldAlert size={14} /> Open Scrutiny
+                    </button>
+                  </div>
+                ))
+              )}
+            </div>
+          )}
         </div>
       </div>
+
+      {/* SCRUTINY MODAL */}
+      <AnimatePresence>
+        {scrutinyTarget && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm overflow-y-auto">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="bg-white rounded-3xl w-full max-w-lg shadow-2xl my-8"
+            >
+              <div className="flex justify-between items-center p-6 border-b border-slate-100">
+                <div>
+                  <h3 className="font-display text-xl font-bold text-slate-900">Returns Scrutiny</h3>
+                  <p className="text-sm text-slate-500 mt-1">{scrutinyTarget.company_name}</p>
+                </div>
+                <button
+                  onClick={() => setScrutinyTarget(null)}
+                  className="w-10 h-10 bg-slate-100 rounded-full flex items-center justify-center text-slate-500 hover:bg-slate-200"
+                >
+                  <X size={20} />
+                </button>
+              </div>
+
+              <div className="p-6 space-y-5">
+                {/* Sales Exec Notes */}
+                <div className="bg-slate-50 rounded-xl border border-slate-200 p-4 space-y-1 text-sm">
+                  <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Sales Executive Notes</p>
+                  <p><span className="text-slate-500">Reason:</span> <span className="font-semibold text-slate-800">{scrutinyTarget.reason || "—"}</span></p>
+                  <p><span className="text-slate-500">Docs:</span> <span className="text-slate-700">{scrutinyTarget.accompanying_docs || "None"}</span></p>
+                  <p><span className="text-slate-500">Expected Value:</span> <span className="font-black text-[#B8860B]">{formatPrice(scrutinyTarget.expected_value || 0)}</span></p>
+                  <p><span className="text-slate-500">Exec:</span> <span className="text-slate-700">{scrutinyTarget.sales_exec_name}</span></p>
+                </div>
+
+                {/* Fault Attribution */}
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-500 uppercase mb-1.5">Fault Attribution *</label>
+                  <select
+                    value={scrutinyFault}
+                    onChange={(e) => { setScrutinyFault(e.target.value); if (e.target.value !== "Manufacturing Defect") setScrutinyDept(""); }}
+                    className="w-full bg-white border border-slate-200 rounded-xl p-3 text-sm font-bold outline-none focus:border-[#B8860B]"
+                  >
+                    <option value="">Select fault type...</option>
+                    {FAULT_OPTIONS.map((f) => <option key={f} value={f}>{f}</option>)}
+                  </select>
+                </div>
+
+                {/* Faulty Department (only for Manufacturing Defect) */}
+                {scrutinyFault === "Manufacturing Defect" && (
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-500 uppercase mb-1.5">Faulty Department *</label>
+                    <select
+                      value={scrutinyDept}
+                      onChange={(e) => setScrutinyDept(e.target.value)}
+                      className="w-full bg-white border border-slate-200 rounded-xl p-3 text-sm font-bold outline-none focus:border-[#B8860B]"
+                    >
+                      <option value="">Select department...</option>
+                      {DEPT_OPTIONS.map((d) => <option key={d} value={d}>{d}</option>)}
+                    </select>
+                  </div>
+                )}
+
+                {/* Final Settlement Value */}
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-500 uppercase mb-1.5">Final Settlement Value (₹) *</label>
+                  <input
+                    type="number"
+                    min="0"
+                    value={scrutinySettlement}
+                    onChange={(e) => setScrutinySettlement(e.target.value)}
+                    placeholder="Amount to refund to client wallet"
+                    className="w-full bg-white border border-slate-200 rounded-xl p-3 text-lg font-black text-[#B8860B] outline-none focus:border-[#B8860B]"
+                  />
+                </div>
+
+                {/* Loss Preview */}
+                {scrutinySettlement && parseFloat(scrutinySettlement) >= 0 && (
+                  <div className="bg-red-50 border border-red-200 rounded-xl p-3 flex justify-between items-center">
+                    <span className="text-xs font-bold text-red-600 uppercase">Calculated Loss</span>
+                    <span className="font-black text-red-700">
+                      {formatPrice(Math.max(0, (scrutinyTarget.expected_value || 0) - parseFloat(scrutinySettlement)))}
+                    </span>
+                  </div>
+                )}
+
+                {/* Execute Button */}
+                <button
+                  onClick={handleExecuteSettlement}
+                  disabled={scrutinySaving}
+                  className="w-full py-4 bg-emerald-600 text-white font-bold rounded-xl hover:bg-emerald-700 flex justify-center items-center gap-2 shadow-xl shadow-emerald-600/20 active:scale-95 transition-all"
+                >
+                  {scrutinySaving ? (
+                    <Loader2 size={18} className="animate-spin" />
+                  ) : (
+                    <>
+                      <Wallet size={18} /> Execute Settlement
+                    </>
+                  )}
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
 
       {/* FINANCE INVOICING MODAL */}
       <AnimatePresence>
