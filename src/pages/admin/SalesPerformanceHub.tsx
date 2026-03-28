@@ -50,6 +50,7 @@ const SalesPerformanceHub = () => {
 
   // Return logger modal
   const [showReturnModal, setShowReturnModal] = useState(false);
+  const [showAdviceModal, setShowAdviceModal] = useState(false);
   const [returnOrderId, setReturnOrderId] = useState("");
   const [returnProductId, setReturnProductId] = useState("");
   const [returnQty, setReturnQty] = useState("");
@@ -242,6 +243,9 @@ const SalesPerformanceHub = () => {
               </SelectContent>
             </Select>
           )}
+          <Button variant="outline" onClick={() => setShowAdviceModal(true)} className="gap-2">
+            <ClipboardList size={16} /> Pre-Entry: Advise Return
+          </Button>
           <Button variant="outline" onClick={() => setShowReturnModal(true)} className="gap-2">
             <RotateCcw size={16} /> Log Return
           </Button>
