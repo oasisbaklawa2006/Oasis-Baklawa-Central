@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { Loader2, ChevronDown, Check, Lock, Truck, X } from "lucide-react";
+import { Loader2, ChevronDown, Check, Lock, Truck, X, IndianRupee } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { useLanguage } from "@/hooks/useLanguage";
 import { useCurrency } from "@/hooks/useCurrency";
@@ -358,6 +358,24 @@ const AdminAccountsRelease = () => {
               </div>
               <div>
                 <Label htmlFor="gp-driver">Driver Phone</Label>
+                <Input id="gp-driver" placeholder="+91 XXXXX XXXXX" value={driverPhone} onChange={e => setDriverPhone(e.target.value)} />
+              </div>
+            </div>
+
+            {/* Freight Financial Checkpoint */}
+            <div className="border border-border rounded-lg p-3 space-y-3">
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
+                <IndianRupee size={12} /> Freight Financial Checkpoint
+              </p>
+              <div>
+                <Label htmlFor="gp-freight">Agreed Freight Amount (₹) *</Label>
+                <Input id="gp-freight" type="number" min="0" placeholder="0" value={agreedFreight} onChange={e => setAgreedFreight(e.target.value)} />
+              </div>
+              <div>
+                <Label htmlFor="gp-freight-adv">Freight Advance Paid (₹) *</Label>
+                <Input id="gp-freight-adv" type="number" min="0" placeholder="0" value={freightAdvance} onChange={e => setFreightAdvance(e.target.value)} />
+              </div>
+            </div>
                 <Input id="gp-driver" placeholder="+91 XXXXX XXXXX" value={driverPhone} onChange={e => setDriverPhone(e.target.value)} />
               </div>
             </div>
