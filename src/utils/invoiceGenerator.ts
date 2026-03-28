@@ -142,10 +142,12 @@ export function generateProFormaInvoice(
     runningTax += lineTax;
 
     let desc = p.name || "—";
+    const netWt = p.net_weight_grams ? `${p.net_weight_grams}g` : (p.primary_pack_weight_kg ? `${p.primary_pack_weight_kg}kg` : "");
     if (cat === "bulk_kg") {
       const wt = getPrimaryPackWeightKg(p);
       if (wt > 0) desc += ` (${wt}kg/box)`;
     }
+    if (netWt) desc += ` | Net Wt: ${netWt}`;
 
     tableRows.push([
       idx + 1,
@@ -273,6 +275,26 @@ export function generateProFormaInvoice(
   ];
   terms.forEach((t, i) => {
     doc.text(t, margin, y + 4 + i * 3.5, { maxWidth: contentW });
+  });
+
+  // ══════════════════════════════════════════════════════════════
+  //  FSSAI & W&M COMPLIANCE
+  // ══════════════════════════════════════════════════════════════
+  y += 4 + terms.length * 3.5 + 6;
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(6.5);
+  doc.setTextColor(...teal);
+  doc.text("FSSAI & LEGAL METROLOGY COMPLIANCE", margin, y);
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(6);
+  doc.setTextColor(...mutedText);
+  const fssaiLines = [
+    `FSSAI Lic. No: 10721042000284 | Packed Date: ${docDate}`,
+    "Mfg. by: TCF Chocolates & Gifts Pvt Ltd, Hyderabad, Telangana",
+    "Net weight, Unit Sale Price, and MRP as printed on individual packs. Best before: See pack label.",
+  ];
+  fssaiLines.forEach((line, i) => {
+    doc.text(line, margin, y + 4 + i * 3, { maxWidth: contentW });
   });
 
   // ── Save ──
