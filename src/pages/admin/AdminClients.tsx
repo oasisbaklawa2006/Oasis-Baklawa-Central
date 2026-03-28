@@ -228,9 +228,7 @@ const AdminClients = () => {
         .select("*")
         .eq("status", status)
         .order("created_at", { ascending: false });
-      const dbApps = (data as Application[]) ?? [];
-      const dummyForTab = DUMMY_APPS.filter((d) => d.status === status);
-      setApps(dbApps.length > 0 ? dbApps : dummyForTab);
+      setApps((data as Application[]) ?? []);
     }
     setLoading(false);
   };
