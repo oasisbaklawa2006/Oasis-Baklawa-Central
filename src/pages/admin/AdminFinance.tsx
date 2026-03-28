@@ -8,6 +8,7 @@ import {
   FileText,
   Search,
   ShieldCheck,
+  ShieldAlert,
   Receipt,
   UploadCloud,
   FileUp,
