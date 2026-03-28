@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { Loader2, Search, ShieldAlert } from "lucide-react";
+import { Loader2, Search, ShieldAlert, Archive, RefreshCw } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { toast } from "sonner";
 
 interface AuditLog {
   id: string;
@@ -36,15 +37,69 @@ const AdminAudit = () => {
   const [logs, setLogs] = useState<AuditLog[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
+  const [archiving, setArchiving] = useState(false);
 
-  useEffect(() => {
-    const fetch = async () => {
-      const { data } = await supabase.from("audit_logs").select("*").order("created_at", { ascending: false }).limit(200);
-      setLogs((data as AuditLog[]) ?? []);
-      setLoading(false);
-    };
-    fetch();
-  }, []);
+  const fetchLogs = async () => {
+    setLoading(true);
+    const { data } = await supabase.from("audit_logs").select("*").order("created_at", { ascending: false }).limit(200);
+    setLogs((data as AuditLog[]) ?? []);
+    setLoading(false);
+  };
+
+  useEffect(() => { fetchLogs(); }, []);
+
+  const handleArchiveOld = async () => {
+    setArchiving(true);
+    try {
+      const cutoff = new Date();
+      cutoff.setDate(cutoff.getDate() - 90);
+      const cutoffISO = cutoff.toISOString();
+
+      // Fetch old logs
+      const { data: oldLogs, error: fetchErr } = await supabase
+        .from("audit_logs")
+        .select("*")
+        .lt("created_at", cutoffISO);
+
+      if (fetchErr) throw fetchErr;
+      if (!oldLogs || oldLogs.length === 0) {
+        toast.info("No logs older than 90 days to archive.");
+        setArchiving(false);
+        return;
+      }
+
+      // Insert into archive_logs
+      const archiveRows = oldLogs.map((l: any) => ({
+        id: l.id,
+        action_type: l.action_type,
+        actor_id: l.actor_id,
+        module_name: l.module_name,
+        entity_name: l.entity_name,
+        entity_id: l.entity_id,
+        old_value: l.old_value,
+        new_value: l.new_value,
+        reason: l.reason,
+        risk_level: l.risk_level,
+        created_at: l.created_at,
+      }));
+
+      const { error: insertErr } = await supabase.from("archive_logs").insert(archiveRows);
+      if (insertErr) throw insertErr;
+
+      // Delete archived logs from main table
+      const { error: deleteErr } = await supabase
+        .from("audit_logs")
+        .delete()
+        .lt("created_at", cutoffISO);
+      if (deleteErr) throw deleteErr;
+
+      toast.success(`Archived ${oldLogs.length} log(s) older than 90 days.`);
+      fetchLogs();
+    } catch (err: any) {
+      toast.error("Archive failed: " + (err?.message || "Unknown error"));
+    }
+    setArchiving(false);
+  };
 
   const filtered = logs.filter((l) => {
     if (!search) return true;
@@ -108,7 +163,26 @@ const AdminAudit = () => {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-display-h2 text-foreground">Audit Trail</h1>
+      <div className="flex items-center justify-between">
+        <h1 className="text-display-h2 text-foreground">Audit Trail</h1>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={fetchLogs}
+            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium bg-muted text-muted-foreground hover:text-foreground transition-colors"
+          >
+            <RefreshCw size={14} /> Refresh All
+          </button>
+          <button
+            onClick={handleArchiveOld}
+            disabled={archiving}
+            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium bg-primary/10 text-primary hover:bg-primary/20 disabled:opacity-50 transition-colors"
+          >
+            {archiving ? <Loader2 size={14} className="animate-spin" /> : <Archive size={14} />}
+            🧹 Archive Old Logs
+          </button>
+        </div>
+      </div>
+
       <div className="relative max-w-sm">
         <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
         <Input placeholder="Search by action, module, entity…" className="pl-9 rounded-xl" value={search} onChange={(e) => setSearch(e.target.value)} />

@@ -38,6 +38,51 @@ export type Database = {
         }
         Relationships: []
       }
+      archive_logs: {
+        Row: {
+          action_type: string | null
+          actor_id: string | null
+          archived_at: string
+          created_at: string
+          entity_id: string | null
+          entity_name: string | null
+          id: string
+          module_name: string | null
+          new_value: Json | null
+          old_value: Json | null
+          reason: string | null
+          risk_level: string | null
+        }
+        Insert: {
+          action_type?: string | null
+          actor_id?: string | null
+          archived_at?: string
+          created_at?: string
+          entity_id?: string | null
+          entity_name?: string | null
+          id?: string
+          module_name?: string | null
+          new_value?: Json | null
+          old_value?: Json | null
+          reason?: string | null
+          risk_level?: string | null
+        }
+        Update: {
+          action_type?: string | null
+          actor_id?: string | null
+          archived_at?: string
+          created_at?: string
+          entity_id?: string | null
+          entity_name?: string | null
+          id?: string
+          module_name?: string | null
+          new_value?: Json | null
+          old_value?: Json | null
+          reason?: string | null
+          risk_level?: string | null
+        }
+        Relationships: []
+      }
       audit_logs: {
         Row: {
           action_type: string | null
