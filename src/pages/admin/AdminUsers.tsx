@@ -121,6 +121,7 @@ const AdminUsers = () => {
   const [editingCredit, setEditingCredit] = useState<Record<string, number>>({});
   const [saving, setSaving] = useState<string | null>(null);
   const [showModal, setShowModal] = useState(false);
+  const [currentUserRole, setCurrentUserRole] = useState<string | null>(null);
 
   const [selectedRoleId, setSelectedRoleId] = useState<string | null>(null);
   const [rolePermsEditing, setRolePermsEditing] = useState<string[]>([]);
@@ -148,6 +149,11 @@ const AdminUsers = () => {
     ]);
     const allUsers = (usersRes.data as UserRow[]) ?? [];
     setUsers(allUsers);
+
+    // Get current user's role
+    const me = allUsers.find((u) => u.id === user?.id);
+    if (me) setCurrentUserRole(me.role);
+
     setCompanies((companiesRes.data as CompanyRow[]) ?? []);
     setRoles((rolesRes.data as RoleRow[]) ?? []);
     setAllPermissions((permsRes.data as PermissionRow[]) ?? []);
