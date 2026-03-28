@@ -273,6 +273,34 @@ const AdminFinance = () => {
         },
       });
 
+      // Template-driven wallet credited notification
+      try {
+        const { data: evt } = await supabase
+          .from("notification_events")
+          .select("is_enabled, template_body")
+          .eq("event_key", "wallet_credited")
+          .single();
+
+        if (evt?.is_enabled) {
+          const generatedMessage = (evt.template_body || "")
+            .replace(/\{\{amount\}\}/g, `₹${settlementVal.toLocaleString("en-IN")}`)
+            .replace(/\{\{client_name\}\}/g, scrutinyTarget.company_name || "Unknown");
+
+          await supabase.from("audit_logs").insert({
+            action_type: "wallet_credit_notified",
+            module_name: "Finance",
+            entity_name: "inward_material_advice",
+            entity_id: scrutinyTarget.id,
+            actor_id: user?.id || null,
+            new_value: {
+              generated_message: generatedMessage,
+              amount: settlementVal,
+              company: scrutinyTarget.company_name,
+            },
+          });
+        }
+      } catch { /* notification logging is non-critical */ }
+
       toast.success(`₹${settlementVal.toLocaleString("en-IN")} credited to ${scrutinyTarget.company_name}'s wallet.`, { icon: "💰" });
       setScrutinyTarget(null);
       setScrutinyFault("");
