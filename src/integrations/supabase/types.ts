@@ -713,6 +713,7 @@ export type Database = {
       }
       order_items: {
         Row: {
+          actual_packed_qty: number | null
           carton_type: string | null
           department: string | null
           id: string
@@ -725,6 +726,7 @@ export type Database = {
           task_type: string | null
         }
         Insert: {
+          actual_packed_qty?: number | null
           carton_type?: string | null
           department?: string | null
           id?: string
@@ -737,6 +739,7 @@ export type Database = {
           task_type?: string | null
         }
         Update: {
+          actual_packed_qty?: number | null
           carton_type?: string | null
           department?: string | null
           id?: string
@@ -869,6 +872,7 @@ export type Database = {
           eway_bill_number: string | null
           eway_bill_url: string | null
           final_invoice_url: string | null
+          gate_pass_number: string | null
           id: string
           is_export: boolean | null
           payment_cleared: boolean | null
@@ -899,6 +903,7 @@ export type Database = {
           eway_bill_number?: string | null
           eway_bill_url?: string | null
           final_invoice_url?: string | null
+          gate_pass_number?: string | null
           id?: string
           is_export?: boolean | null
           payment_cleared?: boolean | null
@@ -929,6 +934,7 @@ export type Database = {
           eway_bill_number?: string | null
           eway_bill_url?: string | null
           final_invoice_url?: string | null
+          gate_pass_number?: string | null
           id?: string
           is_export?: boolean | null
           payment_cleared?: boolean | null
