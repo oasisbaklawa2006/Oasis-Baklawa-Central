@@ -971,6 +971,45 @@ export type Database = {
         }
         Relationships: []
       }
+      notification_outbox: {
+        Row: {
+          created_at: string | null
+          error_log: string | null
+          event_type: string | null
+          id: string
+          message_body: string
+          priority: string | null
+          recipient_email: string | null
+          recipient_phone: string | null
+          sent_at: string | null
+          status: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          error_log?: string | null
+          event_type?: string | null
+          id?: string
+          message_body: string
+          priority?: string | null
+          recipient_email?: string | null
+          recipient_phone?: string | null
+          sent_at?: string | null
+          status?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          error_log?: string | null
+          event_type?: string | null
+          id?: string
+          message_body?: string
+          priority?: string | null
+          recipient_email?: string | null
+          recipient_phone?: string | null
+          sent_at?: string | null
+          status?: string | null
+        }
+        Relationships: []
+      }
       notifications: {
         Row: {
           company_id: string | null
