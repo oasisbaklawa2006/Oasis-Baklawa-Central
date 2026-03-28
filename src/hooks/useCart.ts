@@ -204,6 +204,7 @@ export function useCart() {
       localStorage.removeItem("oasis_cart");
       localStorage.removeItem("cart");
       localStorage.removeItem("draftOrderId");
+      localStorage.removeItem("impersonated_client");
     }
   }, []);
 
