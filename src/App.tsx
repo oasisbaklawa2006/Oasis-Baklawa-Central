@@ -184,6 +184,7 @@ const App = () => (
               <Route path="department" element={<AdminDepartment />} />
               <Route path="inventory" element={<AdminInventory />} />
               <Route path="logistics" element={<AdminLogistics />} />
+              <Route path="sales-hub" element={<SalesPerformanceHub />} />
             </Route>
             <Route
               path="/sales/dashboard"
