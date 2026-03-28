@@ -5,10 +5,12 @@ import {
   Loader2, TrendingUp, Shield, AlertTriangle, Users, RotateCcw, X, IndianRupee, ClipboardList,
 } from "lucide-react";
 import InwardAdviceModal from "@/components/sales/InwardAdviceModal";
+import ClientInteractionsTab from "@/components/sales/ClientInteractionsTab";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 import { toast } from "sonner";
@@ -321,7 +323,7 @@ const SalesPerformanceHub = () => {
             </div>
           </motion.div>
 
-          {/* CLIENT WATCHLIST */}
+          {/* CLIENT WATCHLIST WITH TABS */}
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -331,34 +333,45 @@ const SalesPerformanceHub = () => {
             <h2 className="text-lg font-bold text-foreground mb-4 flex items-center gap-2">
               <Shield size={20} className="text-[#C4A052]" /> Client Watchlist
             </h2>
-            {companies.length === 0 ? (
-              <p className="text-muted-foreground text-center py-8">No assigned clients.</p>
-            ) : (
-              <div className="overflow-auto">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Company</TableHead>
-                      <TableHead>Last Order</TableHead>
-                      <TableHead className="text-right">Wallet Balance</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {companies.map((c) => (
-                      <TableRow key={c.id}>
-                        <TableCell className="font-semibold">{c.business_name}</TableCell>
-                        <TableCell className="text-muted-foreground">
-                          {lastOrderMap[c.id] ? format(new Date(lastOrderMap[c.id]), "dd MMM yyyy") : "—"}
-                        </TableCell>
-                        <TableCell className="text-right font-mono font-bold">
-                          ₹{(c.wallet_balance || 0).toLocaleString("en-IN")}
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </div>
-            )}
+            <Tabs defaultValue="watchlist">
+              <TabsList>
+                <TabsTrigger value="watchlist">Watchlist</TabsTrigger>
+                <TabsTrigger value="interactions">Interactions</TabsTrigger>
+              </TabsList>
+              <TabsContent value="watchlist">
+                {companies.length === 0 ? (
+                  <p className="text-muted-foreground text-center py-8">No assigned clients.</p>
+                ) : (
+                  <div className="overflow-auto">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Company</TableHead>
+                          <TableHead>Last Order</TableHead>
+                          <TableHead className="text-right">Wallet Balance</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {companies.map((c) => (
+                          <TableRow key={c.id}>
+                            <TableCell className="font-semibold">{c.business_name}</TableCell>
+                            <TableCell className="text-muted-foreground">
+                              {lastOrderMap[c.id] ? format(new Date(lastOrderMap[c.id]), "dd MMM yyyy") : "—"}
+                            </TableCell>
+                            <TableCell className="text-right font-mono font-bold">
+                              ₹{(c.wallet_balance || 0).toLocaleString("en-IN")}
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                )}
+              </TabsContent>
+              <TabsContent value="interactions">
+                <ClientInteractionsTab companies={companies} userId={user?.id} />
+              </TabsContent>
+            </Tabs>
           </motion.div>
         </>
       )}
