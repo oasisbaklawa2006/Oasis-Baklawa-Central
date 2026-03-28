@@ -23,6 +23,7 @@ interface UserRow {
   mobile_number: string | null;
   company_id: string | null;
   created_at: string | null;
+  commission_rate_percentage: number | null;
 }
 
 interface CompanyRow {
@@ -120,6 +121,7 @@ const AdminUsers = () => {
   const [editingCredit, setEditingCredit] = useState<Record<string, number>>({});
   const [saving, setSaving] = useState<string | null>(null);
   const [showModal, setShowModal] = useState(false);
+  const [currentUserRole, setCurrentUserRole] = useState<string | null>(null);
 
   const [selectedRoleId, setSelectedRoleId] = useState<string | null>(null);
   const [rolePermsEditing, setRolePermsEditing] = useState<string[]>([]);
@@ -147,6 +149,11 @@ const AdminUsers = () => {
     ]);
     const allUsers = (usersRes.data as UserRow[]) ?? [];
     setUsers(allUsers);
+
+    // Get current user's role
+    const me = allUsers.find((u) => u.id === user?.id);
+    if (me) setCurrentUserRole(me.role);
+
     setCompanies((companiesRes.data as CompanyRow[]) ?? []);
     setRoles((rolesRes.data as RoleRow[]) ?? []);
     setAllPermissions((permsRes.data as PermissionRow[]) ?? []);
@@ -362,6 +369,11 @@ const AdminUsers = () => {
                     <th className="text-left px-5 py-4 text-xs font-bold uppercase tracking-wider text-muted-foreground">
                       Status
                     </th>
+                    {currentUserRole === "super_admin" && (
+                      <th className="text-right px-5 py-4 text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                        Comm %
+                      </th>
+                    )}
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border">
@@ -415,6 +427,47 @@ const AdminUsers = () => {
                             {st.label}
                           </span>
                         </td>
+                        {currentUserRole === "super_admin" && (
+                          <td className="px-5 py-4 text-right">
+                            {u.role === "sales_executive" ? (
+                              <Input
+                                type="number"
+                                min="0"
+                                max="100"
+                                step="0.5"
+                                className="w-20 h-8 text-xs font-bold text-right ml-auto"
+                                defaultValue={u.commission_rate_percentage ?? 0}
+                                onBlur={async (e) => {
+                                  const newRate = parseFloat(e.target.value) || 0;
+                                  if (newRate === (u.commission_rate_percentage ?? 0)) return;
+                                  const { error } = await supabase
+                                    .from("users")
+                                    .update({ commission_rate_percentage: newRate })
+                                    .eq("id", u.id);
+                                  if (error) {
+                                    toast.error("Failed to update commission rate");
+                                    return;
+                                  }
+                                  toast.success(`Commission rate updated to ${newRate}%`);
+                                  setUsers((prev) =>
+                                    prev.map((x) => (x.id === u.id ? { ...x, commission_rate_percentage: newRate } : x))
+                                  );
+                                  await supabase.from("audit_logs").insert({
+                                    action_type: "update_commission_rate",
+                                    module_name: "user_role_control",
+                                    entity_name: u.full_name || u.email || u.id,
+                                    entity_id: u.id,
+                                    actor_id: user?.id ?? null,
+                                    old_value: { commission_rate_percentage: u.commission_rate_percentage },
+                                    new_value: { commission_rate_percentage: newRate },
+                                  });
+                                }}
+                              />
+                            ) : (
+                              <span className="text-xs text-muted-foreground">—</span>
+                            )}
+                          </td>
+                        )}
                       </tr>
                     );
                   })}

@@ -178,6 +178,26 @@ const AdminAccountsRelease = () => {
         actor_id: user?.id,
       });
 
+      // Automated Logistics Ping — notify client (mock + audit trail)
+      const triggerClientNotification = async (oid: string, trackingInfo: { lr_number: string; transporter: string }) => {
+        await supabase.from("audit_logs").insert({
+          action_type: "client_shipping_notified",
+          module_name: "Logistics",
+          entity_name: "order",
+          entity_id: oid,
+          actor_id: user?.id,
+          new_value: {
+            lr_number: trackingInfo.lr_number,
+            transporter: trackingInfo.transporter,
+            notified_at: new Date().toISOString(),
+          },
+        });
+      };
+      await triggerClientNotification(orderId, {
+        lr_number: trackingNumber || "N/A",
+        transporter: transporterName || "N/A",
+      });
+
       toast.success(`Gate Pass issued — ${totalBoxes} carton barcode(s) pushed to Security Gate`);
       setGatePassOrder(null);
       fetchOrders();

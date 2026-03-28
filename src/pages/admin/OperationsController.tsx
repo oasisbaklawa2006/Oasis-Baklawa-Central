@@ -66,6 +66,7 @@ const OperationsController = () => {
   const [packData, setPackData] = useState<Record<string, number>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [storeLogData, setStoreLogData] = useState<Record<string, number>>({});
+  const [wastageData, setWastageData] = useState<Record<string, number>>({});
 
   // Panic Button State
   const [showPanicModal, setShowPanicModal] = useState(false);
@@ -132,10 +133,13 @@ const OperationsController = () => {
       setDepartmentProducts(mappedProducts);
 
       const initialStoreData: Record<string, number> = {};
+      const initialWastageData: Record<string, number> = {};
       mappedProducts.forEach((p) => {
         initialStoreData[p.id] = 0;
+        initialWastageData[p.id] = 0;
       });
       setStoreLogData(initialStoreData);
+      setWastageData(initialWastageData);
     }
 
     setLoading(false);
@@ -162,6 +166,10 @@ const OperationsController = () => {
 
   const adjustStoreLog = (productId: string, delta: number) => {
     setStoreLogData((prev) => ({ ...prev, [productId]: Math.max(0, (prev[productId] || 0) + delta) }));
+  };
+
+  const adjustWastage = (productId: string, delta: number) => {
+    setWastageData((prev) => ({ ...prev, [productId]: Math.max(0, (prev[productId] || 0) + delta) }));
   };
 
   const handleProcessOrder = async () => {
@@ -254,6 +262,7 @@ const OperationsController = () => {
           product_id: productId,
           department: myDepartment,
           produced_qty: qty,
+          wastage_qty: wastageData[productId] || 0,
           logged_by: user?.id || null,
         }));
 
@@ -272,10 +281,13 @@ const OperationsController = () => {
         toast.success(`${totalLogged} units logged to ${deptLabel} production.`, { icon: "🏭" });
 
         const resetData: Record<string, number> = {};
+        const resetWastage: Record<string, number> = {};
         departmentProducts.forEach((p) => {
           resetData[p.id] = 0;
+          resetWastage[p.id] = 0;
         });
         setStoreLogData(resetData);
+        setWastageData(resetWastage);
       }
     } catch {
       toast.error("Unexpected error logging production.");
@@ -405,42 +417,67 @@ const OperationsController = () => {
             ) : (
               departmentProducts.map((product) => {
                 const qty = storeLogData[product.id] || 0;
+                const waste = wastageData[product.id] || 0;
 
                 return (
                   <div
                     key={product.id}
-                    className={`bg-white rounded-xl p-3 border shadow-sm flex items-center justify-between ${qty > 0 ? "border-emerald-400" : "border-slate-200"}`}
+                    className={`bg-white rounded-xl p-3 border shadow-sm ${qty > 0 ? "border-emerald-400" : "border-slate-200"}`}
                   >
-                    <div className="flex items-center gap-3">
-                      <div className="w-12 h-12 bg-slate-100 rounded-lg overflow-hidden flex items-center justify-center border border-slate-200">
-                        {product.image_url ? (
-                          <img src={product.image_url} alt="Product" className="w-full h-full object-cover" />
-                        ) : (
-                          <ImageIcon size={16} className="text-slate-300" />
-                        )}
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <div className="w-12 h-12 bg-slate-100 rounded-lg overflow-hidden flex items-center justify-center border border-slate-200">
+                          {product.image_url ? (
+                            <img src={product.image_url} alt="Product" className="w-full h-full object-cover" />
+                          ) : (
+                            <ImageIcon size={16} className="text-slate-300" />
+                          )}
+                        </div>
+                        <div>
+                          <h4 className="font-bold text-sm text-slate-900 leading-tight line-clamp-1">{product.name}</h4>
+                          {qty > 0 ? (
+                            <p className="text-[10px] font-black text-emerald-600 uppercase">Logging...</p>
+                          ) : null}
+                        </div>
                       </div>
-                      <div>
-                        <h4 className="font-bold text-sm text-slate-900 leading-tight line-clamp-1">{product.name}</h4>
-                        {qty > 0 ? (
-                          <p className="text-[10px] font-black text-emerald-600 uppercase">Logging...</p>
-                        ) : null}
+
+                      <div className="flex items-center bg-slate-50 rounded-lg border border-slate-200 h-9">
+                        <button
+                          onClick={() => adjustStoreLog(product.id, -5)}
+                          className="w-10 h-full flex items-center justify-center text-slate-500 font-black active:bg-slate-200 rounded-l-lg"
+                        >
+                          -
+                        </button>
+                        <span className="font-black text-sm w-10 text-center text-slate-900">{qty}</span>
+                        <button
+                          onClick={() => adjustStoreLog(product.id, 5)}
+                          className="w-10 h-full flex items-center justify-center text-slate-700 font-black active:bg-slate-200 rounded-r-lg"
+                        >
+                          +
+                        </button>
                       </div>
                     </div>
 
-                    <div className="flex items-center bg-slate-50 rounded-lg border border-slate-200 h-9">
-                      <button
-                        onClick={() => adjustStoreLog(product.id, -5)}
-                        className="w-10 h-full flex items-center justify-center text-slate-500 font-black active:bg-slate-200 rounded-l-lg"
-                      >
-                        -
-                      </button>
-                      <span className="font-black text-sm w-10 text-center text-slate-900">{qty}</span>
-                      <button
-                        onClick={() => adjustStoreLog(product.id, 5)}
-                        className="w-10 h-full flex items-center justify-center text-slate-700 font-black active:bg-slate-200 rounded-r-lg"
-                      >
-                        +
-                      </button>
+                    {/* Wastage Counter */}
+                    <div className="flex items-center justify-between mt-2 pt-2 border-t border-slate-100">
+                      <span className="text-[10px] font-bold text-red-400 uppercase tracking-wider flex items-center gap-1">
+                        🗑️ Wastage
+                      </span>
+                      <div className="flex items-center bg-red-50 rounded-lg border border-red-200 h-7">
+                        <button
+                          onClick={() => adjustWastage(product.id, -1)}
+                          className="w-8 h-full flex items-center justify-center text-red-400 font-black active:bg-red-100 rounded-l-lg text-xs"
+                        >
+                          -
+                        </button>
+                        <span className={`font-black text-xs w-8 text-center ${waste > 0 ? "text-red-600" : "text-slate-400"}`}>{waste}</span>
+                        <button
+                          onClick={() => adjustWastage(product.id, 1)}
+                          className="w-8 h-full flex items-center justify-center text-red-500 font-black active:bg-red-100 rounded-r-lg text-xs"
+                        >
+                          +
+                        </button>
+                      </div>
                     </div>
                   </div>
                 );
