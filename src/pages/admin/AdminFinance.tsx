@@ -17,6 +17,9 @@ import {
   Link,
   Package,
   XCircle,
+  RotateCcw,
+  IndianRupee,
+  Wallet,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useAuth } from "@/hooks/useAuth";
@@ -45,6 +48,22 @@ interface CreditRequest {
   requester?: { full_name: string | null; email: string | null } | null;
 }
 
+interface ReturnRecord {
+  id: string;
+  order_id: string | null;
+  product_id: string | null;
+  quantity_returned: number;
+  original_value: number | null;
+  final_credit_value: number | null;
+  loss_amount: number | null;
+  admin_approval: boolean | null;
+  status: string | null;
+  reason: string | null;
+  created_at: string | null;
+  product?: { name: string; base_price: number | null } | null;
+  order?: { company_id: string | null; company: { business_name: string; wallet_balance: number | null } | null } | null;
+}
+
 const formatPrice = (n: number) => "₹" + n.toLocaleString("en-IN");
 const formatDate = (dateString: string) =>
   new Date(dateString).toLocaleDateString("en-IN", {
@@ -54,12 +73,13 @@ const formatDate = (dateString: string) =>
     minute: "2-digit",
   });
 
-type FinanceQueue = "validation" | "approvals" | "invoicing";
+type FinanceQueue = "validation" | "approvals" | "invoicing" | "returns";
 
 const AdminFinance = () => {
   const { user } = useAuth();
   const [orders, setOrders] = useState<FinanceOrder[]>([]);
   const [creditRequests, setCreditRequests] = useState<CreditRequest[]>([]);
+  const [returnRecords, setReturnRecords] = useState<ReturnRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [acting, setActing] = useState<string | null>(null);
   const [activeQueue, setActiveQueue] = useState<FinanceQueue>("validation");
@@ -70,6 +90,10 @@ const AdminFinance = () => {
   const [tallyInvoiceNo, setTallyInvoiceNo] = useState("");
   const [soNumber, setSoNumber] = useState("");
   const [invoiceUploaded, setInvoiceUploaded] = useState(false);
+
+  // Returns Settlement State
+  const [returnCreditValues, setReturnCreditValues] = useState<Record<string, string>>({});
+  const [returnApprovals, setReturnApprovals] = useState<Record<string, boolean>>({});
 
   const fetchOrders = async () => {
     const { data, error } = await supabase
@@ -94,9 +118,32 @@ const AdminFinance = () => {
     if (!error && data) setCreditRequests(data as unknown as CreditRequest[]);
   };
 
+  const fetchReturns = async () => {
+    const { data, error } = await supabase
+      .from("order_returns")
+      .select(
+        "id, order_id, product_id, quantity_returned, original_value, final_credit_value, loss_amount, admin_approval, status, reason, created_at, product:products(name, base_price), order:orders(company_id, company:companies(business_name, wallet_balance))"
+      )
+      .in("status", ["pending", "approved"])
+      .order("created_at", { ascending: false });
+
+    if (!error && data) {
+      setReturnRecords(data as unknown as ReturnRecord[]);
+      // Initialize credit values and approvals
+      const cv: Record<string, string> = {};
+      const ap: Record<string, boolean> = {};
+      (data as any[]).forEach((r) => {
+        cv[r.id] = r.final_credit_value?.toString() || "";
+        ap[r.id] = r.admin_approval || false;
+      });
+      setReturnCreditValues(cv);
+      setReturnApprovals(ap);
+    }
+  };
+
   const fetchAll = async () => {
     setLoading(true);
-    await Promise.all([fetchOrders(), fetchCreditRequests()]);
+    await Promise.all([fetchOrders(), fetchCreditRequests(), fetchReturns()]);
     setLoading(false);
   };
 

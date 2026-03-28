@@ -337,6 +337,14 @@ const OperationsController = () => {
 
       {activeTab === "tasks" && (
         <div className="p-4 space-y-3">
+          {myDepartment === "packing_assembly" && (
+            <button
+              onClick={() => setShowPanicModal(true)}
+              className="w-full py-4 rounded-2xl bg-red-600 text-white font-black text-sm uppercase tracking-widest active:scale-95 shadow-lg shadow-red-600/30 flex justify-center items-center gap-2 mb-2"
+            >
+              🚨 Panic: Request Fresh Stock
+            </button>
+          )}
           {requisitions.length === 0 ? (
             <div className="text-center py-12 bg-white rounded-3xl border border-slate-200 shadow-sm mt-4">
               <CheckCircle2 size={48} className="mx-auto text-emerald-400 mb-3 opacity-50" />
@@ -598,6 +606,78 @@ const OperationsController = () => {
                 </div>
               );
             })()}
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* PANIC MODAL */}
+      <AnimatePresence>
+        {showPanicModal && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm"
+          >
+            <motion.div
+              initial={{ scale: 0.9, y: 20 }}
+              animate={{ scale: 1, y: 0 }}
+              exit={{ scale: 0.9, y: 20 }}
+              className="bg-white rounded-3xl w-full max-w-md shadow-2xl"
+            >
+              <div className="p-5 border-b border-slate-100 flex justify-between items-center">
+                <div>
+                  <h3 className="font-black text-xl text-slate-900">🚨 Panic Stock Request</h3>
+                  <p className="text-[10px] font-bold text-red-500 uppercase tracking-widest mt-1">
+                    Emergency replacement from Ready Goods
+                  </p>
+                </div>
+                <button
+                  onClick={() => setShowPanicModal(false)}
+                  className="w-10 h-10 bg-slate-100 rounded-full flex items-center justify-center"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+              <div className="p-5 space-y-4">
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-500 uppercase mb-1.5">Product</label>
+                  <select
+                    value={panicProductId}
+                    onChange={(e) => setPanicProductId(e.target.value)}
+                    className="w-full bg-white border border-slate-200 rounded-xl p-3 text-sm font-bold outline-none focus:border-red-500"
+                  >
+                    <option value="">Select product...</option>
+                    {allProducts.map((p) => (
+                      <option key={p.id} value={p.id}>{p.name}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-500 uppercase mb-1.5">Quantity Needed</label>
+                  <input
+                    type="number"
+                    min="1"
+                    value={panicQty}
+                    onChange={(e) => setPanicQty(e.target.value)}
+                    placeholder="Enter quantity"
+                    className="w-full bg-white border border-slate-200 rounded-xl p-3 text-lg font-black outline-none focus:border-red-500"
+                  />
+                </div>
+                <div className="bg-red-50 border border-red-200 rounded-xl p-3">
+                  <p className="text-[10px] font-bold text-red-600 uppercase tracking-wider">
+                    ⚠️ This will create an urgent requisition to the Ready Goods store marked as PANIC ORDER.
+                  </p>
+                </div>
+                <button
+                  onClick={handlePanicRequest}
+                  disabled={panicSubmitting}
+                  className="w-full py-4 rounded-xl bg-red-600 text-white font-black text-sm uppercase tracking-widest active:scale-95 shadow-lg shadow-red-600/20 flex justify-center items-center gap-2"
+                >
+                  {panicSubmitting ? <Loader2 className="animate-spin" size={18} /> : "🚨 Submit Panic Request"}
+                </button>
+              </div>
+            </motion.div>
           </motion.div>
         )}
       </AnimatePresence>
