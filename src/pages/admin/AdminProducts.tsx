@@ -1081,6 +1081,69 @@ const AdminProducts = () => {
           </>
         )}
       </AnimatePresence>
+
+      {/* Tag Management Modal */}
+      <AnimatePresence>
+        {tagModalProduct && (
+          <>
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm"
+              onClick={() => setTagModalProduct(null)}
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-50 w-full max-w-md bg-card border border-border rounded-2xl shadow-2xl p-6 space-y-5"
+            >
+              <div className="flex items-center justify-between">
+                <h3 className="text-lg font-bold text-foreground flex items-center gap-2">
+                  <Tag size={18} className="text-[#C5A059]" /> Manage Tags
+                </h3>
+                <button onClick={() => setTagModalProduct(null)} className="p-1 hover:bg-muted rounded-md">
+                  <X size={16} className="text-muted-foreground" />
+                </button>
+              </div>
+              <p className="text-sm text-muted-foreground">
+                Assigning tags to: <span className="font-semibold text-foreground">{tagModalProduct.name}</span>
+              </p>
+              <div className="flex flex-wrap gap-2">
+                {allTags.map(tag => (
+                  <button
+                    key={tag.id}
+                    onClick={() => toggleTagSelection(tag.id)}
+                    className={`px-4 py-2 rounded-xl text-xs font-bold border transition-all ${
+                      selectedTagIds.includes(tag.id)
+                        ? "bg-[#C5A059] text-white border-[#C5A059]"
+                        : "bg-background text-muted-foreground border-border hover:border-[#C5A059]/50"
+                    }`}
+                  >
+                    {tag.tag_label}
+                  </button>
+                ))}
+                {allTags.length === 0 && (
+                  <p className="text-xs text-muted-foreground">No tags found. Create tags in Product Tags settings.</p>
+                )}
+              </div>
+              <div className="flex justify-end gap-3 pt-2">
+                <button onClick={() => setTagModalProduct(null)} className="px-4 py-2 text-sm font-medium text-muted-foreground hover:bg-muted rounded-lg">
+                  Cancel
+                </button>
+                <button
+                  onClick={saveTagMappings}
+                  disabled={savingTags}
+                  className="px-5 py-2 rounded-lg font-bold text-sm bg-[#C5A059] text-white hover:bg-[#B38F48] transition-colors flex items-center gap-2 disabled:opacity-50"
+                >
+                  {savingTags && <Loader2 size={14} className="animate-spin" />} Save Tags
+                </button>
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
     </div>
   );
 };

@@ -54,6 +54,7 @@ import SalesDashboard from "./pages/sales/SalesDashboard.tsx";
 import SalesPerformanceHub from "./pages/admin/SalesPerformanceHub.tsx";
 import AdminNotifications from "./pages/admin/AdminNotifications.tsx";
 import CMDHeartbeat from "./pages/admin/CMDHeartbeat.tsx";
+import AdminMerchandising from "./pages/admin/AdminMerchandising.tsx";
 
 const queryClient = new QueryClient();
 
