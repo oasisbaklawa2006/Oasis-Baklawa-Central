@@ -24,6 +24,7 @@ import {
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useAuth } from "@/hooks/useAuth";
+import { queueNotification } from "@/utils/notificationOutbox";
 
 interface FinanceOrder {
   id: string;
@@ -297,6 +298,23 @@ const AdminFinance = () => {
               amount: settlementVal,
               company: scrutinyTarget.company_name,
             },
+          });
+
+          // Queue to outbox for actual delivery
+          let recipientPhone: string | null = null;
+          if (scrutinyTarget.company_id) {
+            const { data: compApp } = await supabase
+              .from("b2b_applications")
+              .select("contact_phone")
+              .eq("user_id", scrutinyTarget.company_id)
+              .maybeSingle();
+            recipientPhone = compApp?.contact_phone || null;
+          }
+          await queueNotification({
+            eventType: "wallet_credited",
+            messageBody: generatedMessage,
+            recipientPhone,
+            priority: "normal",
           });
         }
       } catch { /* notification logging is non-critical */ }

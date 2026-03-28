@@ -5,6 +5,7 @@ import { Loader2, ChevronDown, Check, Lock, Truck, X, IndianRupee } from "lucide
 import { useAuth } from "@/hooks/useAuth";
 import { useLanguage } from "@/hooks/useLanguage";
 import { useCurrency } from "@/hooks/useCurrency";
+import { queueNotification } from "@/utils/notificationOutbox";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -208,6 +209,27 @@ const AdminAccountsRelease = () => {
             generated_message: generatedMessage,
           },
         });
+
+        // Queue to outbox for actual delivery
+        if (generatedMessage) {
+          // Try to get company contact phone
+          const order = orders.find(o => o.id === oid);
+          let recipientPhone: string | null = null;
+          if (order?.company_id) {
+            const { data: compData } = await supabase
+              .from("b2b_applications")
+              .select("contact_phone")
+              .eq("user_id", order.company_id)
+              .maybeSingle();
+            recipientPhone = compData?.contact_phone || null;
+          }
+          await queueNotification({
+            eventType: "order_dispatched",
+            messageBody: generatedMessage,
+            recipientPhone,
+            priority: "normal",
+          });
+        }
       };
       await triggerClientNotification(orderId, {
         lr_number: trackingNumber || "N/A",

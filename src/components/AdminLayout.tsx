@@ -10,6 +10,7 @@ import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { useLanguage } from "@/hooks/useLanguage";
 import logoImg from "@/assets/logo-open.png";
+import PanicAlertBanner from "@/components/PanicAlertBanner";
 
 const ROLE_MODULE_ACCESS: Record<string, string[]> = {
   super_admin: ["*"],
@@ -158,6 +159,7 @@ const AdminLayout = () => {
           <button onClick={() => setSidebarOpen(true)}><Menu size={20} className="text-primary" /></button>
           <span className="ml-3 text-ui-h5 text-primary">Admin Panel</span>
         </header>
+        <PanicAlertBanner />
         <main className="flex-1 p-6 overflow-y-auto"><Outlet /></main>
       </div>
     </div>
