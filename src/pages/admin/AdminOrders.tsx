@@ -645,6 +645,7 @@ const AdminOrders = () => {
                   </div>
                 )}
 
+                {/* ═══ PACKING LIST CONFIRMATION (in_production only) ═══ */}
                 {isInProduction && !drawerLoading && drawerItems.length > 0 && (
                   <div className="bg-card p-4 rounded-xl border-2 border-primary/30 space-y-4">
                     <h3 className="text-xs font-bold text-primary uppercase tracking-wider flex items-center gap-2">
