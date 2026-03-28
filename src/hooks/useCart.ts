@@ -50,7 +50,7 @@ export function useCart() {
         try {
           const parsed = JSON.parse(impersonated);
           if (parsed.company_id) {
-            console.log("[useCart] impersonation active, company_id:", parsed.company_id);
+            
             setCompanyId(parsed.company_id);
             setCompanyIdResolved(true);
             return;

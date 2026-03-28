@@ -4,7 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
 
-const RESTRICTED_PREFIXES = ["/admin/finance", "/admin/heartbeat", "/admin/notifications"];
+const RESTRICTED_PREFIXES = ["/admin/finance", "/admin/heartbeat", "/admin/notifications", "/admin/users"];
 
 export default function AdminRouteGuard({ children }: { children: React.ReactNode }) {
   const { user } = useAuth();
@@ -22,7 +22,17 @@ export default function AdminRouteGuard({ children }: { children: React.ReactNod
     (async () => {
       const { data } = await supabase.from("users").select("role").eq("id", user.id).maybeSingle();
       if (data?.role === "sales_executive") {
-        toast.error("Unauthorized Access — Sales Executives cannot access this module.");
+        // Log security violation to audit trail
+        await supabase.from("audit_logs").insert({
+          action_type: "security_violation_blocked",
+          actor_id: user.id,
+          module_name: "AdminRouteGuard",
+          entity_name: "route_access",
+          entity_id: location.pathname,
+          reason: `Sales Executive attempted to access restricted route: ${location.pathname}`,
+          risk_level: "high",
+        });
+        toast.error("Security Violation — Unauthorized access attempt logged.");
         navigate("/dashboard", { replace: true });
         setBlocked(true);
       } else {
