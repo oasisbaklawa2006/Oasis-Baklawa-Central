@@ -1168,6 +1168,7 @@ export type Database = {
           category: string
           category_id: string | null
           created_at: string | null
+          default_store: string | null
           department: string | null
           description: string | null
           dietary_tags: string[] | null
@@ -1221,6 +1222,7 @@ export type Database = {
           category: string
           category_id?: string | null
           created_at?: string | null
+          default_store?: string | null
           department?: string | null
           description?: string | null
           dietary_tags?: string[] | null
@@ -1274,6 +1276,7 @@ export type Database = {
           category?: string
           category_id?: string | null
           created_at?: string | null
+          default_store?: string | null
           department?: string | null
           description?: string | null
           dietary_tags?: string[] | null
@@ -1465,6 +1468,83 @@ export type Database = {
             columns: ["item_id"]
             isOneToOne: false
             referencedRelation: "inventory_items"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      store_requisition_items: {
+        Row: {
+          fulfilled_qty: number | null
+          id: string
+          product_id: string
+          requested_qty: number
+          requisition_id: string
+        }
+        Insert: {
+          fulfilled_qty?: number | null
+          id?: string
+          product_id: string
+          requested_qty: number
+          requisition_id: string
+        }
+        Update: {
+          fulfilled_qty?: number | null
+          id?: string
+          product_id?: string
+          requested_qty?: number
+          requisition_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "store_requisition_items_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "store_requisition_items_requisition_id_fkey"
+            columns: ["requisition_id"]
+            isOneToOne: false
+            referencedRelation: "store_requisitions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      store_requisitions: {
+        Row: {
+          created_at: string | null
+          fulfilled_at: string | null
+          id: string
+          notes: string | null
+          order_id: string
+          status: string | null
+          target_store: string
+        }
+        Insert: {
+          created_at?: string | null
+          fulfilled_at?: string | null
+          id?: string
+          notes?: string | null
+          order_id: string
+          status?: string | null
+          target_store: string
+        }
+        Update: {
+          created_at?: string | null
+          fulfilled_at?: string | null
+          id?: string
+          notes?: string | null
+          order_id?: string
+          status?: string | null
+          target_store?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "store_requisitions_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
             referencedColumns: ["id"]
           },
         ]
