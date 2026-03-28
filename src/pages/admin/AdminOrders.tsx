@@ -144,11 +144,83 @@ const AdminOrders = () => {
     setUpdating(null);
   };
 
+  // ═══ AUTO-SPLITTER LOGIC ═══
+  const fetchRequisitions = async (orderId: string) => {
+    setReqLoading(true);
+    const { data } = await supabase
+      .from("store_requisitions")
+      .select("id, target_store, status, store_requisition_items(id, product_id, requested_qty)")
+      .eq("order_id", orderId);
+    setRequisitions(data ?? []);
+    setReqLoading(false);
+  };
+
+  const handleAutoSplitOrder = async (orderId: string, items: OrderItem[]) => {
+    setSplitting(true);
+    try {
+      // Fetch product default_store for each item
+      const productIds = items.map(i => i.product_id).filter(Boolean) as string[];
+      const { data: products } = await supabase
+        .from("products")
+        .select("id, default_store")
+        .in("id", productIds);
+
+      const storeMap: Record<string, string> = {};
+      (products ?? []).forEach((p: any) => {
+        storeMap[p.id] = p.default_store || "ready_goods";
+      });
+
+      // Group items by target store
+      const groups: Record<string, { product_id: string; requested_qty: number }[]> = {};
+      for (const item of items) {
+        const store = item.product_id ? (storeMap[item.product_id] || "ready_goods") : "ready_goods";
+        if (!groups[store]) groups[store] = [];
+        groups[store].push({ product_id: item.product_id!, requested_qty: item.quantity });
+      }
+
+      // Insert requisitions + items per group
+      for (const [store, storeItems] of Object.entries(groups)) {
+        const { data: req, error: reqErr } = await supabase
+          .from("store_requisitions")
+          .insert({ order_id: orderId, target_store: store, status: "pending" })
+          .select("id")
+          .single();
+
+        if (reqErr || !req) {
+          toast.error(`Failed to create requisition for ${store}`);
+          continue;
+        }
+
+        const itemsToInsert = storeItems
+          .filter(si => si.product_id)
+          .map(si => ({
+            requisition_id: req.id,
+            product_id: si.product_id,
+            requested_qty: si.requested_qty,
+          }));
+
+        if (itemsToInsert.length > 0) {
+          const { error: itemErr } = await supabase
+            .from("store_requisition_items")
+            .insert(itemsToInsert);
+          if (itemErr) toast.error(`Failed to insert items for ${store}`);
+        }
+      }
+
+      toast.success("Order auto-split & routed to stores!");
+      await fetchRequisitions(orderId);
+    } catch (err: any) {
+      toast.error(err.message || "Auto-split failed");
+    }
+    setSplitting(false);
+  };
+
   const handleOpenDrawer = async (order: OrderCard) => {
     setSelectedOrder(order);
     setDrawerLoading(true);
     setEwayInput(order.eway_bill_number ?? "");
     setGatePassInput(order.gate_pass_number ?? "");
+    setRequisitions([]);
 
     const { data, error } = await supabase
       .from("order_items")
@@ -165,6 +237,9 @@ const AdminOrders = () => {
       initQtys[i.id] = i.actual_packed_qty ?? i.quantity;
     });
     setPackingQtys(initQtys);
+
+    // Fetch existing requisitions
+    await fetchRequisitions(order.id);
 
     setDrawerLoading(false);
   };
