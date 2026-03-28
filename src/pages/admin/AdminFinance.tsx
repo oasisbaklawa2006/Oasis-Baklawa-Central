@@ -503,6 +503,89 @@ const AdminFinance = () => {
               )}
             </div>
           )}
+
+          {/* QUEUE 4: RETURNS SETTLEMENT */}
+          {activeQueue === "returns" && (
+            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {returnRecords.length === 0 ? (
+                <p className="text-slate-500 font-bold p-4">No returns pending settlement.</p>
+              ) : (
+                returnRecords.map((ret) => {
+                  const productValue = (ret.product?.base_price || 0) * ret.quantity_returned;
+                  const creditVal = parseFloat(returnCreditValues[ret.id] || "0");
+                  const lossCalc = productValue - creditVal;
+                  const isApproved = returnApprovals[ret.id] || false;
+
+                  return (
+                    <div key={ret.id} className="bg-white border-l-4 border-orange-400 rounded-xl p-5 shadow-sm">
+                      <div className="border-b border-slate-100 pb-3 mb-3">
+                        <p className="font-black text-slate-900 text-lg">{ret.product?.name || "Unknown Product"}</p>
+                        <p className="text-xs text-slate-400 mt-0.5">
+                          {(ret.order as any)?.company?.business_name || "Unknown Company"} • {ret.quantity_returned} units returned
+                        </p>
+                        {ret.reason && <p className="text-xs text-slate-500 italic mt-1">"{ret.reason}"</p>}
+                      </div>
+
+                      <div className="space-y-2 mb-4">
+                        <div className="flex justify-between text-sm">
+                          <span className="text-slate-500">Original Value</span>
+                          <span className="font-bold text-slate-900">{formatPrice(productValue)}</span>
+                        </div>
+                        <div>
+                          <label className="block text-[11px] font-bold text-slate-500 uppercase mb-1">Final Credit Value (₹)</label>
+                          <input
+                            type="number"
+                            value={returnCreditValues[ret.id] || ""}
+                            onChange={(e) => setReturnCreditValues((prev) => ({ ...prev, [ret.id]: e.target.value }))}
+                            placeholder="Enter credit amount"
+                            className="w-full bg-white border border-slate-200 rounded-lg p-2.5 text-sm font-bold outline-none focus:border-[#B8860B]"
+                          />
+                        </div>
+                        {creditVal > 0 && (
+                          <div className="flex justify-between text-sm">
+                            <span className="text-red-500 font-bold">Loss Amount</span>
+                            <span className="font-black text-red-600">{formatPrice(lossCalc > 0 ? lossCalc : 0)}</span>
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="flex items-center justify-between bg-slate-50 rounded-lg p-3 mb-3 border border-slate-200">
+                        <span className="text-xs font-bold text-slate-600 uppercase tracking-wider">Admin Approval</span>
+                        <button
+                          onClick={() => setReturnApprovals((prev) => ({ ...prev, [ret.id]: !prev[ret.id] }))}
+                          className={`w-12 h-6 rounded-full transition-colors relative ${isApproved ? "bg-emerald-500" : "bg-slate-300"}`}
+                        >
+                          <span className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${isApproved ? "left-[26px]" : "left-0.5"}`} />
+                        </button>
+                      </div>
+
+                      {isApproved && creditVal > 0 && (
+                        <button
+                          onClick={() => handleExecuteWalletCredit(ret)}
+                          disabled={acting === ret.id}
+                          className="w-full py-3 bg-emerald-600 text-white rounded-lg text-xs font-bold hover:bg-emerald-700 flex justify-center items-center gap-1.5"
+                        >
+                          {acting === ret.id ? (
+                            <Loader2 size={14} className="animate-spin" />
+                          ) : (
+                            <>
+                              <Wallet size={14} /> Execute Wallet Credit ({formatPrice(creditVal)})
+                            </>
+                          )}
+                        </button>
+                      )}
+
+                      {(!isApproved || creditVal <= 0) && (
+                        <div className="text-center py-2 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                          {!isApproved ? "Toggle admin approval to proceed" : "Enter credit value"}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })
+              )}
+            </div>
+          )}
         </div>
       </div>
 
