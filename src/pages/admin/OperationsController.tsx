@@ -67,6 +67,13 @@ const OperationsController = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [storeLogData, setStoreLogData] = useState<Record<string, number>>({});
 
+  // Panic Button State
+  const [showPanicModal, setShowPanicModal] = useState(false);
+  const [panicProductId, setPanicProductId] = useState("");
+  const [panicQty, setPanicQty] = useState("");
+  const [panicSubmitting, setPanicSubmitting] = useState(false);
+  const [allProducts, setAllProducts] = useState<Product[]>([]);
+
   const deptLabel = DEPARTMENTS.find((d) => d.value === myDepartment)?.label || myDepartment;
 
   const fetchData = async () => {
@@ -105,6 +112,15 @@ const OperationsController = () => {
       .eq("is_active", true);
 
     if (prodData) {
+      // Store all products for panic modal
+      const allMapped: Product[] = (prodData as any[]).map((p) => ({
+        id: p.id,
+        name: p.name,
+        category: p.category || "Uncategorized",
+        image_url: p.image_url,
+      }));
+      setAllProducts(allMapped);
+
       const mappedProducts: Product[] = (prodData as any[])
         .filter((p) => (p.production_department || "").toLowerCase() === myDepartment)
         .map((p) => ({
@@ -175,6 +191,56 @@ const OperationsController = () => {
       toast.error("Failed to update requisition.");
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  const handlePanicRequest = async () => {
+    if (!panicProductId || !panicQty || parseInt(panicQty) <= 0) {
+      toast.warning("Select a product and enter a valid quantity.");
+      return;
+    }
+    setPanicSubmitting(true);
+    try {
+      // Create a panic requisition to ready_goods store
+      const { data: reqData, error: reqError } = await supabase
+        .from("store_requisitions")
+        .insert({
+          order_id: "00000000-0000-0000-0000-000000000000",
+          target_store: "ready_goods",
+          is_panic_order: true,
+          notes: "PANIC: Item damaged during packing",
+          status: "pending",
+        })
+        .select("id")
+        .single();
+
+      if (reqError) throw reqError;
+
+      await supabase.from("store_requisition_items").insert({
+        requisition_id: reqData.id,
+        product_id: panicProductId,
+        requested_qty: parseInt(panicQty),
+      });
+
+      // Audit log
+      await supabase.from("audit_logs").insert({
+        module_name: "operations",
+        action_type: "panic_stock_request",
+        entity_name: "store_requisitions",
+        entity_id: reqData.id,
+        actor_id: user?.id || null,
+        new_value: { product_id: panicProductId, qty: parseInt(panicQty), department: myDepartment },
+      });
+
+      toast.success("🚨 Panic request sent to Ready Goods store!", { icon: "🚨" });
+      setShowPanicModal(false);
+      setPanicProductId("");
+      setPanicQty("");
+      fetchData();
+    } catch (err) {
+      toast.error("Failed to submit panic request.");
+    } finally {
+      setPanicSubmitting(false);
     }
   };
 
