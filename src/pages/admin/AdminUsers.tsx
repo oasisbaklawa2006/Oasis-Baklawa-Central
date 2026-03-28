@@ -23,6 +23,7 @@ interface UserRow {
   mobile_number: string | null;
   company_id: string | null;
   created_at: string | null;
+  commission_rate_percentage: number | null;
 }
 
 interface CompanyRow {
