@@ -14,6 +14,10 @@ const Splash = () => {
         navigate("/login", { replace: true });
         return;
       }
+      if (!session) {
+        navigate("/intro", { replace: true });
+        return;
+      }
       const { data } = await supabase
         .from("users")
         .select("role")

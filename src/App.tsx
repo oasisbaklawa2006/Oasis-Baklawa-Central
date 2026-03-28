@@ -9,6 +9,7 @@ import { CurrencyProvider } from "./contexts/CurrencyContext.tsx";
 
 import ProtectedRoute from "@/components/ProtectedRoute";
 import Splash from "./pages/Splash.tsx";
+import CompanyIntro from "./pages/CompanyIntro.tsx";
 import Index from "./pages/Index.tsx";
 import Catalogue from "./pages/Catalogue.tsx";
 import Orders from "./pages/Orders.tsx";
@@ -67,6 +68,7 @@ const App = () => (
         
           <Routes>
             <Route path="/splash" element={<Splash />} />
+            <Route path="/intro" element={<CompanyIntro />} />
             <Route path="/operations-controller" element={<OperationsController />} />
             <Route path="/security-gate" element={<AdminSecurityGate />} />
             <Route path="/" element={<Index />} />

@@ -12,6 +12,8 @@ import { useLanguage } from "@/hooks/useLanguage";
 import logoImg from "@/assets/logo-open.png";
 import PanicAlertBanner from "@/components/PanicAlertBanner";
 import AdminRouteGuard from "@/components/AdminRouteGuard";
+import AdminHelpSidebar from "@/components/AdminHelpSidebar";
+import OnboardingOverlay from "@/components/OnboardingOverlay";
 
 const ROLE_MODULE_ACCESS: Record<string, string[]> = {
   super_admin: ["*"],
@@ -165,6 +167,8 @@ const AdminLayout = () => {
           <AdminRouteGuard><Outlet /></AdminRouteGuard>
         </main>
       </div>
+      <AdminHelpSidebar />
+      <OnboardingOverlay />
     </div>
   );
 };
