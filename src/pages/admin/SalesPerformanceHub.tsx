@@ -2,8 +2,9 @@ import { useEffect, useState, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import {
-  Loader2, TrendingUp, Shield, AlertTriangle, Users, RotateCcw, X, IndianRupee,
+  Loader2, TrendingUp, Shield, AlertTriangle, Users, RotateCcw, X, IndianRupee, ClipboardList,
 } from "lucide-react";
+import InwardAdviceModal from "@/components/sales/InwardAdviceModal";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
