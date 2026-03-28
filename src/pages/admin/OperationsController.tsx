@@ -66,6 +66,7 @@ const OperationsController = () => {
   const [packData, setPackData] = useState<Record<string, number>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [storeLogData, setStoreLogData] = useState<Record<string, number>>({});
+  const [wastageData, setWastageData] = useState<Record<string, number>>({});
 
   // Panic Button State
   const [showPanicModal, setShowPanicModal] = useState(false);
@@ -132,10 +133,13 @@ const OperationsController = () => {
       setDepartmentProducts(mappedProducts);
 
       const initialStoreData: Record<string, number> = {};
+      const initialWastageData: Record<string, number> = {};
       mappedProducts.forEach((p) => {
         initialStoreData[p.id] = 0;
+        initialWastageData[p.id] = 0;
       });
       setStoreLogData(initialStoreData);
+      setWastageData(initialWastageData);
     }
 
     setLoading(false);
@@ -162,6 +166,10 @@ const OperationsController = () => {
 
   const adjustStoreLog = (productId: string, delta: number) => {
     setStoreLogData((prev) => ({ ...prev, [productId]: Math.max(0, (prev[productId] || 0) + delta) }));
+  };
+
+  const adjustWastage = (productId: string, delta: number) => {
+    setWastageData((prev) => ({ ...prev, [productId]: Math.max(0, (prev[productId] || 0) + delta) }));
   };
 
   const handleProcessOrder = async () => {
@@ -254,6 +262,7 @@ const OperationsController = () => {
           product_id: productId,
           department: myDepartment,
           produced_qty: qty,
+          wastage_qty: wastageData[productId] || 0,
           logged_by: user?.id || null,
         }));
 
@@ -272,10 +281,13 @@ const OperationsController = () => {
         toast.success(`${totalLogged} units logged to ${deptLabel} production.`, { icon: "🏭" });
 
         const resetData: Record<string, number> = {};
+        const resetWastage: Record<string, number> = {};
         departmentProducts.forEach((p) => {
           resetData[p.id] = 0;
+          resetWastage[p.id] = 0;
         });
         setStoreLogData(resetData);
+        setWastageData(resetWastage);
       }
     } catch {
       toast.error("Unexpected error logging production.");
