@@ -938,6 +938,39 @@ export type Database = {
           },
         ]
       }
+      notification_events: {
+        Row: {
+          channels: string[] | null
+          created_at: string | null
+          event_key: string
+          event_name: string
+          id: string
+          is_enabled: boolean | null
+          priority: string | null
+          template_body: string
+        }
+        Insert: {
+          channels?: string[] | null
+          created_at?: string | null
+          event_key: string
+          event_name: string
+          id?: string
+          is_enabled?: boolean | null
+          priority?: string | null
+          template_body: string
+        }
+        Update: {
+          channels?: string[] | null
+          created_at?: string | null
+          event_key?: string
+          event_name?: string
+          id?: string
+          is_enabled?: boolean | null
+          priority?: string | null
+          template_body?: string
+        }
+        Relationships: []
+      }
       notifications: {
         Row: {
           company_id: string | null
