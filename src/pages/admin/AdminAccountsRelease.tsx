@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { Loader2, ChevronDown, Check, Lock, Truck, X } from "lucide-react";
+import { Loader2, ChevronDown, Check, Lock, Truck, X, IndianRupee } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { useLanguage } from "@/hooks/useLanguage";
 import { useCurrency } from "@/hooks/useCurrency";
@@ -81,6 +81,8 @@ const AdminAccountsRelease = () => {
   const [trackingNumber, setTrackingNumber] = useState("");
   const [driverPhone, setDriverPhone] = useState("");
   const [submittingGatePass, setSubmittingGatePass] = useState(false);
+  const [agreedFreight, setAgreedFreight] = useState<string>("");
+  const [freightAdvance, setFreightAdvance] = useState<string>("");
 
   const fetchOrders = async () => {
     setLoading(true);
@@ -100,10 +102,18 @@ const AdminAccountsRelease = () => {
     setTransporterName("");
     setTrackingNumber("");
     setDriverPhone("");
+    setAgreedFreight("");
+    setFreightAdvance("");
   };
 
   const handleGatePassSubmit = async () => {
     if (!gatePassOrder) return;
+    const freightAmt = parseFloat(agreedFreight);
+    const freightAdv = parseFloat(freightAdvance);
+    if (isNaN(freightAmt) || isNaN(freightAdv)) {
+      toast.error("Freight amounts are required");
+      return;
+    }
     setSubmittingGatePass(true);
     try {
       const orderId = gatePassOrder.id;
@@ -142,6 +152,16 @@ const AdminAccountsRelease = () => {
       }));
 
       await supabase.from("dispatch_cartons").insert(cartonRows);
+
+      // Insert freight ledger
+      await supabase.from("freight_ledger").insert({
+        order_id: orderId,
+        transporter_name: transporterName || null,
+        total_freight_amt: freightAmt,
+        advance_paid_amt: freightAdv,
+        balance_due_amt: freightAmt - freightAdv,
+        payment_status: freightAdv >= freightAmt ? "paid" : "pending",
+      });
 
       // Update order status
       await supabase.from("orders").update({ status: "dispatched" }).eq("id", orderId);
@@ -339,6 +359,21 @@ const AdminAccountsRelease = () => {
               <div>
                 <Label htmlFor="gp-driver">Driver Phone</Label>
                 <Input id="gp-driver" placeholder="+91 XXXXX XXXXX" value={driverPhone} onChange={e => setDriverPhone(e.target.value)} />
+              </div>
+            </div>
+
+            {/* Freight Financial Checkpoint */}
+            <div className="border border-border rounded-lg p-3 space-y-3">
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
+                <IndianRupee size={12} /> Freight Financial Checkpoint
+              </p>
+              <div>
+                <Label htmlFor="gp-freight">Agreed Freight Amount (₹) *</Label>
+                <Input id="gp-freight" type="number" min="0" placeholder="0" value={agreedFreight} onChange={e => setAgreedFreight(e.target.value)} />
+              </div>
+              <div>
+                <Label htmlFor="gp-freight-adv">Freight Advance Paid (₹) *</Label>
+                <Input id="gp-freight-adv" type="number" min="0" placeholder="0" value={freightAdvance} onChange={e => setFreightAdvance(e.target.value)} />
               </div>
             </div>
 
