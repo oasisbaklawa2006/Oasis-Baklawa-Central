@@ -120,6 +120,18 @@ const AdminAccountsRelease = () => {
       const orderId = gatePassOrder.id;
       const companyId = gatePassOrder.company_id;
 
+      // Fetch packed data for partial dispatch billing
+      const { data: packedData } = await supabase
+        .from("packing_lists")
+        .select("product_id, packed_quantity")
+        .eq("dispatch_id", orderId);
+      
+      // Store packed items for invoice generation
+      const packedItems = (packedData || []).map((pl: any) => ({
+        product_id: pl.product_id,
+        packed_quantity: Number(pl.packed_quantity),
+      }));
+
       // Insert dispatch record
       const { data: dispatchData, error: dispatchErr } = await supabase
         .from("dispatches")
@@ -177,6 +189,11 @@ const AdminAccountsRelease = () => {
         entity_name: "order",
         entity_id: orderId,
         actor_id: user?.id,
+        new_value: {
+          packed_items: packedItems,
+          packed_items_count: packedItems.length,
+          note: "Packed data passed to invoice generator for partial dispatch billing",
+        },
       });
 
       // Template-driven Logistics Notification
