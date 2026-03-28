@@ -50,6 +50,7 @@ import ManageUsers from "./pages/ManageUsers.tsx";
 import ManageAddresses from "./pages/ManageAddresses.tsx";
 import ManageLogistics from "./pages/ManageLogistics.tsx";
 import SalesDashboard from "./pages/sales/SalesDashboard.tsx";
+import SalesPerformanceHub from "./pages/admin/SalesPerformanceHub.tsx";
 
 const queryClient = new QueryClient();
 
