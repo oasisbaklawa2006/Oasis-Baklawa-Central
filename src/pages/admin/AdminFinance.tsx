@@ -731,8 +731,162 @@ const AdminFinance = () => {
               )}
             </div>
           )}
+
+          {/* QUEUE 5: RETURNS SCRUTINY */}
+          {activeQueue === "returns_scrutiny" && (
+            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {scrutinyRecords.length === 0 ? (
+                <p className="text-slate-500 font-bold p-4">No returns at gate pending scrutiny.</p>
+              ) : (
+                scrutinyRecords.map((rec) => (
+                  <div key={rec.id} className="bg-white border-l-4 border-red-400 rounded-xl p-5 shadow-sm">
+                    <div className="border-b border-slate-100 pb-3 mb-3">
+                      <p className="font-black text-slate-900 text-lg">{rec.company_name}</p>
+                      <p className="text-xs text-slate-400 mt-0.5">
+                        Sales Exec: {rec.sales_exec_name} • {rec.item_count} item(s)
+                      </p>
+                    </div>
+                    <div className="space-y-1 text-sm mb-4">
+                      <div className="flex justify-between">
+                        <span className="text-slate-500">Reason</span>
+                        <span className="font-semibold text-slate-700">{rec.reason || "—"}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-slate-500">Expected Value</span>
+                        <span className="font-black text-[#B8860B]">{formatPrice(rec.expected_value || 0)}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-slate-500">Documents</span>
+                        <span className="text-slate-600 text-xs">{rec.accompanying_docs || "None"}</span>
+                      </div>
+                      {rec.created_at && (
+                        <p className="text-slate-400 text-xs pt-1">
+                          Advised: {formatDate(rec.created_at)}
+                        </p>
+                      )}
+                    </div>
+                    <button
+                      onClick={() => {
+                        setScrutinyTarget(rec);
+                        setScrutinyFault("");
+                        setScrutinyDept("");
+                        setScrutinySettlement("");
+                      }}
+                      className="w-full py-2.5 bg-slate-900 text-white rounded-lg text-xs font-bold hover:bg-black flex justify-center items-center gap-1.5"
+                    >
+                      <ShieldAlert size={14} /> Open Scrutiny
+                    </button>
+                  </div>
+                ))
+              )}
+            </div>
+          )}
         </div>
       </div>
+
+      {/* SCRUTINY MODAL */}
+      <AnimatePresence>
+        {scrutinyTarget && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm overflow-y-auto">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="bg-white rounded-3xl w-full max-w-lg shadow-2xl my-8"
+            >
+              <div className="flex justify-between items-center p-6 border-b border-slate-100">
+                <div>
+                  <h3 className="font-display text-xl font-bold text-slate-900">Returns Scrutiny</h3>
+                  <p className="text-sm text-slate-500 mt-1">{scrutinyTarget.company_name}</p>
+                </div>
+                <button
+                  onClick={() => setScrutinyTarget(null)}
+                  className="w-10 h-10 bg-slate-100 rounded-full flex items-center justify-center text-slate-500 hover:bg-slate-200"
+                >
+                  <X size={20} />
+                </button>
+              </div>
+
+              <div className="p-6 space-y-5">
+                {/* Sales Exec Notes */}
+                <div className="bg-slate-50 rounded-xl border border-slate-200 p-4 space-y-1 text-sm">
+                  <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Sales Executive Notes</p>
+                  <p><span className="text-slate-500">Reason:</span> <span className="font-semibold text-slate-800">{scrutinyTarget.reason || "—"}</span></p>
+                  <p><span className="text-slate-500">Docs:</span> <span className="text-slate-700">{scrutinyTarget.accompanying_docs || "None"}</span></p>
+                  <p><span className="text-slate-500">Expected Value:</span> <span className="font-black text-[#B8860B]">{formatPrice(scrutinyTarget.expected_value || 0)}</span></p>
+                  <p><span className="text-slate-500">Exec:</span> <span className="text-slate-700">{scrutinyTarget.sales_exec_name}</span></p>
+                </div>
+
+                {/* Fault Attribution */}
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-500 uppercase mb-1.5">Fault Attribution *</label>
+                  <select
+                    value={scrutinyFault}
+                    onChange={(e) => { setScrutinyFault(e.target.value); if (e.target.value !== "Manufacturing Defect") setScrutinyDept(""); }}
+                    className="w-full bg-white border border-slate-200 rounded-xl p-3 text-sm font-bold outline-none focus:border-[#B8860B]"
+                  >
+                    <option value="">Select fault type...</option>
+                    {FAULT_OPTIONS.map((f) => <option key={f} value={f}>{f}</option>)}
+                  </select>
+                </div>
+
+                {/* Faulty Department (only for Manufacturing Defect) */}
+                {scrutinyFault === "Manufacturing Defect" && (
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-500 uppercase mb-1.5">Faulty Department *</label>
+                    <select
+                      value={scrutinyDept}
+                      onChange={(e) => setScrutinyDept(e.target.value)}
+                      className="w-full bg-white border border-slate-200 rounded-xl p-3 text-sm font-bold outline-none focus:border-[#B8860B]"
+                    >
+                      <option value="">Select department...</option>
+                      {DEPT_OPTIONS.map((d) => <option key={d} value={d}>{d}</option>)}
+                    </select>
+                  </div>
+                )}
+
+                {/* Final Settlement Value */}
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-500 uppercase mb-1.5">Final Settlement Value (₹) *</label>
+                  <input
+                    type="number"
+                    min="0"
+                    value={scrutinySettlement}
+                    onChange={(e) => setScrutinySettlement(e.target.value)}
+                    placeholder="Amount to refund to client wallet"
+                    className="w-full bg-white border border-slate-200 rounded-xl p-3 text-lg font-black text-[#B8860B] outline-none focus:border-[#B8860B]"
+                  />
+                </div>
+
+                {/* Loss Preview */}
+                {scrutinySettlement && parseFloat(scrutinySettlement) >= 0 && (
+                  <div className="bg-red-50 border border-red-200 rounded-xl p-3 flex justify-between items-center">
+                    <span className="text-xs font-bold text-red-600 uppercase">Calculated Loss</span>
+                    <span className="font-black text-red-700">
+                      {formatPrice(Math.max(0, (scrutinyTarget.expected_value || 0) - parseFloat(scrutinySettlement)))}
+                    </span>
+                  </div>
+                )}
+
+                {/* Execute Button */}
+                <button
+                  onClick={handleExecuteSettlement}
+                  disabled={scrutinySaving}
+                  className="w-full py-4 bg-emerald-600 text-white font-bold rounded-xl hover:bg-emerald-700 flex justify-center items-center gap-2 shadow-xl shadow-emerald-600/20 active:scale-95 transition-all"
+                >
+                  {scrutinySaving ? (
+                    <Loader2 size={18} className="animate-spin" />
+                  ) : (
+                    <>
+                      <Wallet size={18} /> Execute Settlement
+                    </>
+                  )}
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
 
       {/* FINANCE INVOICING MODAL */}
       <AnimatePresence>
