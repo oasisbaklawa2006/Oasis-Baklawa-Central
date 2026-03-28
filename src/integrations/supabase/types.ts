@@ -1716,6 +1716,69 @@ export type Database = {
         }
         Relationships: []
       }
+      product_tag_mapping: {
+        Row: {
+          id: string
+          manual_sort_index: number | null
+          product_id: string | null
+          tag_id: string | null
+        }
+        Insert: {
+          id?: string
+          manual_sort_index?: number | null
+          product_id?: string | null
+          tag_id?: string | null
+        }
+        Update: {
+          id?: string
+          manual_sort_index?: number | null
+          product_id?: string | null
+          tag_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "product_tag_mapping_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "product_tag_mapping_tag_id_fkey"
+            columns: ["tag_id"]
+            isOneToOne: false
+            referencedRelation: "product_tags"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      product_tags: {
+        Row: {
+          created_at: string | null
+          id: string
+          is_active: boolean | null
+          sort_order: number | null
+          tag_key: string
+          tag_label: string
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          is_active?: boolean | null
+          sort_order?: number | null
+          tag_key: string
+          tag_label: string
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          is_active?: boolean | null
+          sort_order?: number | null
+          tag_key?: string
+          tag_label?: string
+        }
+        Relationships: []
+      }
       products: {
         Row: {
           allergen_warnings: string | null
