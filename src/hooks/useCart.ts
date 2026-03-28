@@ -58,7 +58,7 @@ export function useCart() {
         } catch {}
       }
 
-      console.log("[useCart] auth user id:", user.id);
+      
       const { data } = await supabase
         .from("users")
         .select("company_id")
@@ -66,7 +66,7 @@ export function useCart() {
         .maybeSingle();
 
       const cid = data?.company_id ?? null;
-      console.log("[useCart] company_id fetched:", cid);
+      
       setCompanyId(cid);
       setCompanyIdResolved(true);
     };
@@ -89,7 +89,7 @@ export function useCart() {
       .limit(1);
 
     const draft = orders?.[0] ?? null;
-    console.log("[useCart] draft order id:", draft?.id ?? "none");
+    
     setDraftOrder(draft);
 
     if (draft) {
@@ -131,7 +131,7 @@ export function useCart() {
 
     if (error || !newOrder) { toast.error("Could not create cart order"); return null; }
 
-    console.log("[useCart] created draft order:", newOrder.id);
+    
     setDraftOrder(newOrder);
     return newOrder.id;
   };
