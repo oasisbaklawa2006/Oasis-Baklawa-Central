@@ -282,7 +282,7 @@ const SalesPerformanceHub = () => {
               icon={<AlertTriangle size={24} />}
               label="Liability Exposure"
               value={`₹${liability.toLocaleString("en-IN", { maximumFractionDigits: 0 })}`}
-              sub={`Unpaid: ₹${unpaidValue.toLocaleString("en-IN")} • Returns: ₹${returnLiabilityValue.toLocaleString("en-IN")}`}
+              sub={`Order Dues: ₹${unpaidValue.toLocaleString("en-IN")} | Returns Loss: ₹${returnLiabilityValue.toLocaleString("en-IN")}`}
               accent="text-red-600"
               bg="bg-red-50"
             />
