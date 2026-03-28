@@ -398,6 +398,15 @@ const SalesPerformanceHub = () => {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* INWARD ADVICE MODAL */}
+      <InwardAdviceModal
+        open={showAdviceModal}
+        onOpenChange={setShowAdviceModal}
+        companies={companies}
+        products={products}
+        userId={user?.id}
+      />
     </div>
   );
 };
