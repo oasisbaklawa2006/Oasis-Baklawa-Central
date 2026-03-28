@@ -2,8 +2,9 @@ import { useEffect, useState, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import {
-  Loader2, TrendingUp, Shield, AlertTriangle, Users, RotateCcw, X, IndianRupee,
+  Loader2, TrendingUp, Shield, AlertTriangle, Users, RotateCcw, X, IndianRupee, ClipboardList,
 } from "lucide-react";
+import InwardAdviceModal from "@/components/sales/InwardAdviceModal";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -49,6 +50,7 @@ const SalesPerformanceHub = () => {
 
   // Return logger modal
   const [showReturnModal, setShowReturnModal] = useState(false);
+  const [showAdviceModal, setShowAdviceModal] = useState(false);
   const [returnOrderId, setReturnOrderId] = useState("");
   const [returnProductId, setReturnProductId] = useState("");
   const [returnQty, setReturnQty] = useState("");
@@ -241,6 +243,9 @@ const SalesPerformanceHub = () => {
               </SelectContent>
             </Select>
           )}
+          <Button variant="outline" onClick={() => setShowAdviceModal(true)} className="gap-2">
+            <ClipboardList size={16} /> Pre-Entry: Advise Return
+          </Button>
           <Button variant="outline" onClick={() => setShowReturnModal(true)} className="gap-2">
             <RotateCcw size={16} /> Log Return
           </Button>
@@ -393,6 +398,15 @@ const SalesPerformanceHub = () => {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* INWARD ADVICE MODAL */}
+      <InwardAdviceModal
+        open={showAdviceModal}
+        onOpenChange={setShowAdviceModal}
+        companies={companies}
+        products={products}
+        userId={user?.id}
+      />
     </div>
   );
 };
