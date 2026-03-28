@@ -11,6 +11,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useLanguage } from "@/hooks/useLanguage";
 import logoImg from "@/assets/logo-open.png";
 import PanicAlertBanner from "@/components/PanicAlertBanner";
+import AdminRouteGuard from "@/components/AdminRouteGuard";
 
 const ROLE_MODULE_ACCESS: Record<string, string[]> = {
   super_admin: ["*"],
@@ -160,7 +161,9 @@ const AdminLayout = () => {
           <span className="ml-3 text-ui-h5 text-primary">Admin Panel</span>
         </header>
         <PanicAlertBanner />
-        <main className="flex-1 p-6 overflow-y-auto"><Outlet /></main>
+        <main className="flex-1 p-6 overflow-y-auto">
+          <AdminRouteGuard><Outlet /></AdminRouteGuard>
+        </main>
       </div>
     </div>
   );
