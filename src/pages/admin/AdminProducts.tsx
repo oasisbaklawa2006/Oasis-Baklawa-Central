@@ -476,16 +476,36 @@ const AdminProducts = () => {
           ))}
         </div>
 
+        {/* Filter by Tag */}
+        {allTags.length > 0 && (
+          <div className="flex items-center gap-3">
+            <Filter size={16} className="text-muted-foreground" />
+            <select
+              value={filterTag}
+              onChange={e => setFilterTag(e.target.value)}
+              className="bg-card border border-border rounded-lg px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-[#C5A059]"
+            >
+              <option value="">All Products</option>
+              {allTags.map(tag => (
+                <option key={tag.id} value={tag.id}>{tag.tag_label}</option>
+              ))}
+            </select>
+            {filterTag && (
+              <span className="text-xs text-muted-foreground">{taggedProductIds.length} product(s)</span>
+            )}
+          </div>
+        )}
+
         {/* Product Grid */}
-        {products.length === 0 ? (
+        {(filterTag ? products.filter(p => taggedProductIds.includes(p.id)) : products).length === 0 ? (
           <div className="text-center py-20">
             <Package size={40} className="mx-auto text-muted-foreground/40" />
             <p className="text-lg font-semibold text-foreground mt-4">No products found</p>
-            <p className="text-sm text-muted-foreground mt-1">Your catalog is currently empty.</p>
+            <p className="text-sm text-muted-foreground mt-1">{filterTag ? "No products with this tag." : "Your catalog is currently empty."}</p>
           </div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
-            {products.map((product, i) => (
+            {(filterTag ? products.filter(p => taggedProductIds.includes(p.id)) : products).map((product, i) => (
               <motion.div
                 key={product.id}
                 initial={{ opacity: 0, y: 16 }}
@@ -523,19 +543,25 @@ const AdminProducts = () => {
                     <p className="text-xs text-muted-foreground">Carton: {product.carton_type || "N/A"}</p>
                     <p className="text-xs text-muted-foreground">MOQ: {product.moq || 1} packs</p>
                   </div>
-                  <div className="flex items-center gap-2 pt-2 border-t border-border/50">
+                  <div className="flex items-center gap-1.5 pt-2 border-t border-border/50">
                     <button
                       onClick={() => toggleActiveStatus(product)}
-                      className={`flex-1 text-xs font-semibold py-1.5 rounded-md flex items-center justify-center gap-1.5 transition-colors ${product.is_active ? "bg-amber-500/10 text-amber-600 hover:bg-amber-500/20" : "bg-emerald-500/10 text-emerald-600 hover:bg-emerald-500/20"}`}
+                      className={`flex-1 text-[10px] font-semibold py-1.5 rounded-md flex items-center justify-center gap-1 transition-colors ${product.is_active ? "bg-amber-500/10 text-amber-600 hover:bg-amber-500/20" : "bg-emerald-500/10 text-emerald-600 hover:bg-emerald-500/20"}`}
                     >
-                      {product.is_active ? <PowerOff size={12} /> : <Power size={12} />}{" "}
-                      {product.is_active ? "Hide" : "Activate"}
+                      {product.is_active ? <PowerOff size={10} /> : <Power size={10} />}
+                      {product.is_active ? "Hide" : "Show"}
+                    </button>
+                    <button
+                      onClick={() => openTagModal(product)}
+                      className="flex-1 text-[10px] font-semibold bg-[#C5A059]/10 text-[#C5A059] hover:bg-[#C5A059]/20 py-1.5 rounded-md flex items-center justify-center gap-1 transition-colors"
+                    >
+                      <Tag size={10} /> Tags
                     </button>
                     <button
                       onClick={() => openPanel(product)}
-                      className="flex-1 text-xs font-semibold bg-muted hover:bg-muted/80 text-foreground py-1.5 rounded-md flex items-center justify-center gap-1.5 transition-colors"
+                      className="flex-1 text-[10px] font-semibold bg-muted hover:bg-muted/80 text-foreground py-1.5 rounded-md flex items-center justify-center gap-1 transition-colors"
                     >
-                      <Edit2 size={12} /> Edit
+                      <Edit2 size={10} /> Edit
                     </button>
                   </div>
                 </div>
