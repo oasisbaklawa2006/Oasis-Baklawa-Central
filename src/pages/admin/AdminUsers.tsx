@@ -31,6 +31,12 @@ interface CompanyRow {
   gst_number: string | null;
   credit_limit: number | null;
   wallet_balance: number | null;
+  account_manager_id: string | null;
+}
+
+interface ManagerOption {
+  id: string;
+  label: string;
 }
 
 interface RoleRow {
@@ -106,6 +112,7 @@ const AdminUsers = () => {
   const [tab, setTab] = useState("employees");
   const [users, setUsers] = useState<UserRow[]>([]);
   const [companies, setCompanies] = useState<CompanyRow[]>([]);
+  const [managers, setManagers] = useState<ManagerOption[]>([]);
   const [roles, setRoles] = useState<RoleRow[]>([]);
   const [allPermissions, setAllPermissions] = useState<PermissionRow[]>([]);
   const [rolePermMap, setRolePermMap] = useState<RolePermMap[]>([]);
@@ -138,11 +145,19 @@ const AdminUsers = () => {
       supabase.from("permissions").select("*").order("module_name, permission_name"),
       supabase.from("role_permission_map").select("*"),
     ]);
-    setUsers((usersRes.data as UserRow[]) ?? []);
+    const allUsers = (usersRes.data as UserRow[]) ?? [];
+    setUsers(allUsers);
     setCompanies((companiesRes.data as CompanyRow[]) ?? []);
     setRoles((rolesRes.data as RoleRow[]) ?? []);
     setAllPermissions((permsRes.data as PermissionRow[]) ?? []);
     setRolePermMap((rpMapRes.data as RolePermMap[]) ?? []);
+
+    // Build managers list from sales_executive and admin roles
+    const mgrs: ManagerOption[] = allUsers
+      .filter((u) => u.role === "sales_executive" || u.role === "admin")
+      .map((u) => ({ id: u.id, label: u.full_name || u.email || u.id }));
+    setManagers(mgrs);
+
     setLoading(false);
   }, []);
 
@@ -425,6 +440,9 @@ const AdminUsers = () => {
                     <th className="text-left px-5 py-4 text-xs font-bold uppercase tracking-wider text-muted-foreground">
                       GST
                     </th>
+                    <th className="text-left px-5 py-4 text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                      Account Manager
+                    </th>
                     <th className="text-right px-5 py-4 text-xs font-bold uppercase tracking-wider text-muted-foreground">
                       Wallet
                     </th>
@@ -441,6 +459,47 @@ const AdminUsers = () => {
                     <tr key={c.id} className="hover:bg-muted/20 transition-colors">
                       <td className="px-5 py-4 text-sm text-foreground font-semibold">{c.business_name}</td>
                       <td className="px-5 py-4 text-sm text-muted-foreground">{c.gst_number ?? "—"}</td>
+                      <td className="px-5 py-4">
+                        <Select
+                          value={c.account_manager_id ?? "unassigned"}
+                          onValueChange={async (val) => {
+                            const managerId = val === "unassigned" ? null : val;
+                            const { error } = await supabase
+                              .from("companies")
+                              .update({ account_manager_id: managerId })
+                              .eq("id", c.id);
+                            if (error) {
+                              toast.error("Failed to assign manager");
+                              return;
+                            }
+                            const mgrName = managers.find((m) => m.id === managerId)?.label ?? "None";
+                            toast.success(`${c.business_name} → ${mgrName}`);
+                            setCompanies((prev) =>
+                              prev.map((x) => (x.id === c.id ? { ...x, account_manager_id: managerId } : x))
+                            );
+                            await supabase.from("audit_logs").insert({
+                              action_type: "assign_account_manager",
+                              module_name: "user_role_control",
+                              entity_name: c.business_name,
+                              entity_id: c.id,
+                              actor_id: user?.id ?? null,
+                              new_value: { account_manager_id: managerId },
+                            });
+                          }}
+                        >
+                          <SelectTrigger className="w-[180px] h-8 text-xs font-semibold">
+                            <SelectValue placeholder="Unassigned" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="unassigned" className="text-xs text-muted-foreground">Unassigned</SelectItem>
+                            {managers.map((m) => (
+                              <SelectItem key={m.id} value={m.id} className="text-xs font-semibold">
+                                {m.label}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </td>
                       <td className="px-5 py-4 text-right text-sm font-black text-foreground">
                         {fmt(c.wallet_balance)}
                       </td>
