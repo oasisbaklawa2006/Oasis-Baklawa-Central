@@ -88,6 +88,11 @@ const AdminOrders = () => {
   const [packingQtys, setPackingQtys] = useState<Record<string, number>>({});
   const [packingSaving, setPackingSaving] = useState(false);
 
+  // Auto-splitter state
+  const [requisitions, setRequisitions] = useState<any[]>([]);
+  const [reqLoading, setReqLoading] = useState(false);
+  const [splitting, setSplitting] = useState(false);
+
   const fetchOrders = async () => {
     setLoading(true);
     const { data, error } = await supabase
