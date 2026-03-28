@@ -65,6 +65,21 @@ interface ReturnRecord {
   order?: { company_id: string | null; company: { business_name: string; wallet_balance: number | null } | null } | null;
 }
 
+interface ScrutinyRecord {
+  id: string;
+  company_id: string | null;
+  company_name: string;
+  sales_exec_name: string;
+  reason: string | null;
+  expected_value: number | null;
+  accompanying_docs: string | null;
+  created_at: string | null;
+  item_count: number;
+}
+
+const FAULT_OPTIONS = ["Sales Error", "Manufacturing Defect", "Logistics Damage"];
+const DEPT_OPTIONS = ["Bakery", "Arabic Sweets", "Chocolate", "Dragees", "Fusion", "Nuts", "Packing"];
+
 const formatPrice = (n: number) => "₹" + n.toLocaleString("en-IN");
 const formatDate = (dateString: string) =>
   new Date(dateString).toLocaleDateString("en-IN", {
@@ -74,7 +89,7 @@ const formatDate = (dateString: string) =>
     minute: "2-digit",
   });
 
-type FinanceQueue = "validation" | "approvals" | "invoicing" | "returns";
+type FinanceQueue = "validation" | "approvals" | "invoicing" | "returns" | "returns_scrutiny";
 
 const AdminFinance = () => {
   const { user } = useAuth();
