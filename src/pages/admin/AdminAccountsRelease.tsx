@@ -178,8 +178,22 @@ const AdminAccountsRelease = () => {
         actor_id: user?.id,
       });
 
-      // Automated Logistics Ping — notify client (mock + audit trail)
+      // Template-driven Logistics Notification
       const triggerClientNotification = async (oid: string, trackingInfo: { lr_number: string; transporter: string }) => {
+        const { data: evt } = await supabase
+          .from("notification_events")
+          .select("is_enabled, template_body")
+          .eq("event_key", "order_dispatched")
+          .single();
+
+        let generatedMessage: string | null = null;
+        if (evt?.is_enabled) {
+          generatedMessage = (evt.template_body || "")
+            .replace(/\{\{order_id\}\}/g, oid.slice(0, 8).toUpperCase())
+            .replace(/\{\{transporter\}\}/g, trackingInfo.transporter)
+            .replace(/\{\{lr_number\}\}/g, trackingInfo.lr_number);
+        }
+
         await supabase.from("audit_logs").insert({
           action_type: "client_shipping_notified",
           module_name: "Logistics",
@@ -190,6 +204,8 @@ const AdminAccountsRelease = () => {
             lr_number: trackingInfo.lr_number,
             transporter: trackingInfo.transporter,
             notified_at: new Date().toISOString(),
+            notification_enabled: evt?.is_enabled ?? false,
+            generated_message: generatedMessage,
           },
         });
       };
