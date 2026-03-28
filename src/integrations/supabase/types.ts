@@ -256,6 +256,54 @@ export type Database = {
         }
         Relationships: []
       }
+      credit_requests: {
+        Row: {
+          company_id: string | null
+          created_at: string | null
+          credit_type: string | null
+          id: string
+          notes: string | null
+          requested_amount: number
+          requested_by: string | null
+          status: string | null
+        }
+        Insert: {
+          company_id?: string | null
+          created_at?: string | null
+          credit_type?: string | null
+          id?: string
+          notes?: string | null
+          requested_amount: number
+          requested_by?: string | null
+          status?: string | null
+        }
+        Update: {
+          company_id?: string | null
+          created_at?: string | null
+          credit_type?: string | null
+          id?: string
+          notes?: string | null
+          requested_amount?: number
+          requested_by?: string | null
+          status?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "credit_requests_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "credit_requests_requested_by_fkey"
+            columns: ["requested_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       delivery_addresses: {
         Row: {
           city: string
@@ -1111,8 +1159,10 @@ export type Database = {
       }
       products: {
         Row: {
+          allergen_warnings: string | null
           avg_weight_per_pack: number | null
           avg_weight_per_pc: number | null
+          barcode_sku: string | null
           base_price: number | null
           carton_type: string | null
           category: string
@@ -1122,11 +1172,13 @@ export type Database = {
           description: string | null
           dietary_tags: string[] | null
           festival_tags: string | null
+          gross_weight_grams: number | null
           gst_percentage: number | null
           gst_rate: number | null
           hsn_code: string
           id: string
           image_url: string | null
+          ingredients: string | null
           is_active: boolean
           moq: number | null
           moq_packs: number | null
@@ -1135,6 +1187,7 @@ export type Database = {
           name: string
           net_weight_grams: number | null
           nutrition_facts: string | null
+          nutritional_info: Json | null
           pack_size: string | null
           packs_per_carton: number | null
           packs_per_master_carton: number | null
@@ -1149,7 +1202,9 @@ export type Database = {
           private_label_moq: number | null
           private_label_price: number | null
           shelf_life: string | null
+          shelf_life_days: number | null
           sku: string
+          storage_instructions: string | null
           storage_type: string | null
           sub_category: string | null
           uom: string | null
@@ -1157,8 +1212,10 @@ export type Database = {
           wholesale_price: number | null
         }
         Insert: {
+          allergen_warnings?: string | null
           avg_weight_per_pack?: number | null
           avg_weight_per_pc?: number | null
+          barcode_sku?: string | null
           base_price?: number | null
           carton_type?: string | null
           category: string
@@ -1168,11 +1225,13 @@ export type Database = {
           description?: string | null
           dietary_tags?: string[] | null
           festival_tags?: string | null
+          gross_weight_grams?: number | null
           gst_percentage?: number | null
           gst_rate?: number | null
           hsn_code: string
           id?: string
           image_url?: string | null
+          ingredients?: string | null
           is_active?: boolean
           moq?: number | null
           moq_packs?: number | null
@@ -1181,6 +1240,7 @@ export type Database = {
           name: string
           net_weight_grams?: number | null
           nutrition_facts?: string | null
+          nutritional_info?: Json | null
           pack_size?: string | null
           packs_per_carton?: number | null
           packs_per_master_carton?: number | null
@@ -1195,7 +1255,9 @@ export type Database = {
           private_label_moq?: number | null
           private_label_price?: number | null
           shelf_life?: string | null
+          shelf_life_days?: number | null
           sku: string
+          storage_instructions?: string | null
           storage_type?: string | null
           sub_category?: string | null
           uom?: string | null
@@ -1203,8 +1265,10 @@ export type Database = {
           wholesale_price?: number | null
         }
         Update: {
+          allergen_warnings?: string | null
           avg_weight_per_pack?: number | null
           avg_weight_per_pc?: number | null
+          barcode_sku?: string | null
           base_price?: number | null
           carton_type?: string | null
           category?: string
@@ -1214,11 +1278,13 @@ export type Database = {
           description?: string | null
           dietary_tags?: string[] | null
           festival_tags?: string | null
+          gross_weight_grams?: number | null
           gst_percentage?: number | null
           gst_rate?: number | null
           hsn_code?: string
           id?: string
           image_url?: string | null
+          ingredients?: string | null
           is_active?: boolean
           moq?: number | null
           moq_packs?: number | null
@@ -1227,6 +1293,7 @@ export type Database = {
           name?: string
           net_weight_grams?: number | null
           nutrition_facts?: string | null
+          nutritional_info?: Json | null
           pack_size?: string | null
           packs_per_carton?: number | null
           packs_per_master_carton?: number | null
@@ -1241,7 +1308,9 @@ export type Database = {
           private_label_moq?: number | null
           private_label_price?: number | null
           shelf_life?: string | null
+          shelf_life_days?: number | null
           sku?: string
+          storage_instructions?: string | null
           storage_type?: string | null
           sub_category?: string | null
           uom?: string | null
