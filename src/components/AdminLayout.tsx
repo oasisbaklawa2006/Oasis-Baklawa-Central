@@ -70,6 +70,12 @@ const AdminLayout = () => {
         { to: "/admin/logistics", icon: Truck, label: t("Logistics & Capacity"), moduleKey: "settings" },
       ],
     },
+    {
+      title: t("Sales"),
+      items: [
+        { to: "/sales/dashboard", icon: BarChart3, label: t("Sales Console"), moduleKey: "clients" },
+      ],
+    },
   ];
 
   useEffect(() => {
