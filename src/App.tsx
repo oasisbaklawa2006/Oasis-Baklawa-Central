@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Route, Routes, Navigate } from "react-router-dom";
+import { BrowserRouter, Route, Routes } from "react-router-dom";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -10,7 +10,6 @@ import { CurrencyProvider } from "./contexts/CurrencyContext.tsx";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import Splash from "./pages/Splash.tsx";
 import CompanyIntro from "./pages/CompanyIntro.tsx";
-import Index from "./pages/Index.tsx";
 import Catalogue from "./pages/Catalogue.tsx";
 import Orders from "./pages/Orders.tsx";
 import Cart from "./pages/Cart.tsx";
@@ -58,6 +57,10 @@ import AdminMerchandising from "./pages/admin/AdminMerchandising.tsx";
 
 const queryClient = new QueryClient();
 
+const RootEntry = () => {
+  return <Splash />;
+};
+
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <TooltipProvider>
@@ -72,7 +75,7 @@ const App = () => (
             <Route path="/intro" element={<CompanyIntro />} />
             <Route path="/operations-controller" element={<OperationsController />} />
             <Route path="/security-gate" element={<AdminSecurityGate />} />
-            <Route path="/" element={<Index />} />
+            <Route path="/" element={<RootEntry />} />
             <Route path="/catalogue" element={<Catalogue />} />
             <Route path="/product/:id" element={<ProductDetail />} />
             <Route path="/login" element={<Login />} />
