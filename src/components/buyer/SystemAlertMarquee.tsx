@@ -30,10 +30,10 @@ const SystemAlertMarquee = () => {
 
   return (
     <div
-      className={`w-full overflow-hidden py-2.5 px-4 text-xs font-semibold tracking-wide ${
+      className={`w-full overflow-hidden py-2 px-4 text-xs font-semibold tracking-wide ${
         hasCritical
-          ? "bg-red-950/60 text-red-400 border-b border-red-500/20"
-          : "bg-[#D4AF37]/10 text-[#D4AF37] border-b border-[#D4AF37]/10"
+          ? "bg-destructive/10 text-destructive"
+          : "bg-primary/10 text-primary"
       }`}
     >
       <div className="flex items-center gap-2 animate-marquee whitespace-nowrap">
