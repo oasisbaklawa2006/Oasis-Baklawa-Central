@@ -1180,22 +1180,28 @@ export type Database = {
           company_id: string | null
           created_at: string | null
           id: string
+          is_read: boolean | null
           message: string | null
           type: string | null
+          user_id: string | null
         }
         Insert: {
           company_id?: string | null
           created_at?: string | null
           id?: string
+          is_read?: boolean | null
           message?: string | null
           type?: string | null
+          user_id?: string | null
         }
         Update: {
           company_id?: string | null
           created_at?: string | null
           id?: string
+          is_read?: boolean | null
           message?: string | null
           type?: string | null
+          user_id?: string | null
         }
         Relationships: [
           {
