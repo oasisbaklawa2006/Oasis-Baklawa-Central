@@ -336,38 +336,55 @@ const Register = () => {
               key="success"
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
-              className="bg-card rounded-2xl border border-border p-8 text-center space-y-4"
+              className="bg-card rounded-2xl border border-border p-10 text-center space-y-6"
               style={{ boxShadow: "var(--card-shadow)" }}
             >
-              <div className="w-16 h-16 rounded-full bg-green-50 flex items-center justify-center mx-auto">
-                <CheckCircle2 size={32} className="text-green-600" />
+              {/* Gold accent line */}
+              <div className="w-16 h-[2px] bg-primary mx-auto rounded-full" />
+
+              <motion.div
+                initial={{ scale: 0 }}
+                animate={{ scale: 1 }}
+                transition={{ delay: 0.2, type: "spring", stiffness: 200 }}
+                className="w-20 h-20 rounded-full bg-primary/10 flex items-center justify-center mx-auto"
+              >
+                <CheckCircle2 size={40} className="text-primary" />
+              </motion.div>
+
+              <div className="space-y-3">
+                <h2 className="font-display text-2xl sm:text-3xl tracking-wide text-foreground">
+                  Application Submitted Successfully
+                </h2>
+                <p className="text-body-p2 text-muted-foreground leading-relaxed max-w-sm mx-auto">
+                  Your application is currently under review.
+                </p>
+                <p className="text-fine text-muted-foreground/80 leading-relaxed max-w-sm mx-auto">
+                  Due to a high volume of submissions, review times may vary, but we are working hard to get through all applications as soon as possible.
+                </p>
               </div>
-              <h2 className="text-display-h2 text-foreground">Application Submitted</h2>
-              <p className="text-body-p2 text-muted-foreground leading-relaxed">
-                Your account will be verified very soon.
-              </p>
-              <p className="text-fine text-muted-foreground">Status: Pending Manual Review</p>
+
+              <div className="w-12 h-[1px] bg-border mx-auto" />
 
               <div className="flex flex-col sm:flex-row gap-3 pt-2">
                 <a
-                  href="tel:+919999999999"
-                  className="flex-1 py-3 rounded-xl bg-primary text-primary-foreground font-ui font-bold text-sm flex items-center justify-center gap-2 transition-colors hover:bg-primary/90"
+                  href="tel:+919999792959"
+                  className="flex-1 py-3.5 rounded-xl bg-primary text-primary-foreground font-ui font-bold text-sm flex items-center justify-center gap-2 transition-all hover:bg-primary/90 hover:shadow-md"
                 >
-                  📞 Call Our Helpline
+                  📞 Call Us
                 </a>
                 <a
-                  href="https://wa.me/919999999999"
+                  href="https://wa.me/919891162212"
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="flex-1 py-3 rounded-xl bg-[hsl(142,70%,40%)] text-white font-ui font-bold text-sm flex items-center justify-center gap-2 transition-colors hover:bg-[hsl(142,70%,35%)]"
+                  className="flex-1 py-3.5 rounded-xl bg-[hsl(142,70%,40%)] text-white font-ui font-bold text-sm flex items-center justify-center gap-2 transition-all hover:bg-[hsl(142,70%,35%)] hover:shadow-md"
                 >
-                  💬 WhatsApp Us
+                  💬 WhatsApp Support
                 </a>
               </div>
 
               <button
                 onClick={() => navigate("/login")}
-                className="flex items-center gap-2 mx-auto text-primary text-body-p2 font-semibold hover:underline mt-2"
+                className="flex items-center gap-2 mx-auto text-primary text-body-p2 font-semibold hover:underline mt-2 transition-colors"
               >
                 <ArrowLeft size={14} />
                 Back to Login

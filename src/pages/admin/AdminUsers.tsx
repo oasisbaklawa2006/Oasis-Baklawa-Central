@@ -189,6 +189,13 @@ const AdminUsers = () => {
     setSelectedPermIds(getPermIdsForModules(defaults));
   };
 
+  const generateTempPassword = () => {
+    const chars = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789!@#$%";
+    let pwd = "";
+    for (let i = 0; i < 14; i++) pwd += chars[Math.floor(Math.random() * chars.length)];
+    return pwd;
+  };
+
   const handleCreateEmployee = async () => {
     if (!nf.name.trim() || !nf.email.trim() || !nf.role) {
       toast.error("Name, Email, and Role are required");
@@ -197,31 +204,48 @@ const AdminUsers = () => {
     setSaving("new");
 
     const roleRecord = roles.find((r) => r.role_key === nf.role);
+    const tempPassword = generateTempPassword();
 
-    const { data: newUser, error } = await supabase
-      .from("users")
-      .insert({
-        full_name: nf.name,
-        email: nf.email,
-        mobile_number: nf.mobile || null,
-        role: nf.role,
-        department: nf.dept || null,
-        designation: nf.designation || null,
-        is_active: nf.status === "active",
-        invite_status: nf.status,
-      })
-      .select()
-      .single();
+    // 1. Create the auth user via Supabase Admin (signUp creates auth entry)
+    const { data: authData, error: authError } = await supabase.auth.signUp({
+      email: nf.email.trim(),
+      password: tempPassword,
+      options: {
+        data: {
+          full_name: nf.name,
+          role: nf.role,
+        },
+      },
+    });
 
-    if (error || !newUser) {
-      toast.error("Failed to create employee: " + (error?.message ?? "unknown"));
+    if (authError) {
+      toast.error("Failed to create auth account: " + authError.message);
       setSaving(null);
       return;
     }
 
-    if (roleRecord) {
+    const newUserId = authData.user?.id;
+
+    // 2. Update the users table record (created by trigger) with full details
+    if (newUserId) {
+      await supabase
+        .from("users")
+        .update({
+          full_name: nf.name,
+          mobile_number: nf.mobile || null,
+          role: nf.role,
+          department: nf.dept || null,
+          designation: nf.designation || null,
+          is_active: true,
+          invite_status: "active",
+        })
+        .eq("id", newUserId);
+    }
+
+    // 3. Map role permissions
+    if (roleRecord && newUserId) {
       await supabase.from("user_role_map").insert({
-        user_id: newUser.id,
+        user_id: newUserId,
         role_id: roleRecord.id,
       });
     }
@@ -236,15 +260,49 @@ const AdminUsers = () => {
       }
     }
 
+    // 4. Send credentials email via Resend
+    try {
+      await fetch("https://api.resend.com/emails", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: "Bearer re_QN2tDgHK_PwuSsAiqENCdjCFS2xn2FUcu",
+        },
+        body: JSON.stringify({
+          from: "onboarding@resend.dev",
+          to: nf.email.trim(),
+          subject: "Your Oasis Baklawa ERP Login Credentials",
+          html: `
+            <div style="font-family: Georgia, serif; max-width: 520px; margin: 0 auto; padding: 32px; background: #1c1c1c; color: #f5f5f5; border-radius: 12px;">
+              <h1 style="color: #C4A052; font-size: 22px; margin-bottom: 8px;">Welcome to Oasis Baklawa</h1>
+              <p style="margin-bottom: 24px; color: #aaa;">Your admin account has been created. Here are your login credentials:</p>
+              <div style="background: #2a2a2a; padding: 20px; border-radius: 8px; border-left: 3px solid #C4A052;">
+                <p style="margin: 4px 0;"><strong style="color: #C4A052;">Email:</strong> ${nf.email.trim()}</p>
+                <p style="margin: 4px 0;"><strong style="color: #C4A052;">Temporary Password:</strong> ${tempPassword}</p>
+                <p style="margin: 4px 0;"><strong style="color: #C4A052;">Role:</strong> ${nf.role.replace(/_/g, " ").toUpperCase()}</p>
+              </div>
+              <p style="margin-top: 20px; font-size: 13px; color: #888;">Please change your password after your first login. This is a secure, auto-generated credential.</p>
+              <hr style="border: none; border-top: 1px solid #333; margin: 24px 0;" />
+              <p style="font-size: 11px; color: #666; text-align: center;">Oasis Baklawa B2B Portal — Enterprise Resource Management</p>
+            </div>
+          `,
+        }),
+      });
+    } catch {
+      // Non-blocking — user is created even if email fails
+    }
+
+    // 5. Audit log
     await supabase.from("audit_logs").insert({
       action_type: "create_employee",
       module_name: "user_role_control",
       entity_name: nf.name,
-      entity_id: newUser.id,
+      entity_id: newUserId || "unknown",
       actor_id: user?.id ?? null,
+      new_value: { role: nf.role, email: nf.email, auth_created: true },
     });
 
-    toast.success(`Employee "${nf.name}" invited with role ${nf.role}`);
+    toast.success(`Employee "${nf.name}" created with authenticated account. Credentials emailed.`);
     setShowModal(false);
     setNf({ name: "", email: "", mobile: "", dept: "", designation: "", role: "", status: "invited" });
     setSelectedPermIds([]);
