@@ -260,16 +260,10 @@ const AdminUsers = () => {
       }
     }
 
-    // 4. Send credentials email via Resend
+    // 4. Send credentials email via Edge Function
     try {
-      await fetch("https://api.resend.com/emails", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: "Bearer re_QN2tDgHK_PwuSsAiqENCdjCFS2xn2FUcu",
-        },
-        body: JSON.stringify({
-          from: "onboarding@resend.dev",
+      const { data: emailResult, error: emailError } = await supabase.functions.invoke("send-email", {
+        body: {
           to: nf.email.trim(),
           subject: "Your Oasis Baklawa ERP Login Credentials",
           html: `
@@ -286,10 +280,15 @@ const AdminUsers = () => {
               <p style="font-size: 11px; color: #666; text-align: center;">Oasis Baklawa B2B Portal — Enterprise Resource Management</p>
             </div>
           `,
-        }),
+        },
       });
+
+      if (emailError) {
+        console.error("Email send error:", emailError);
+        toast.warning("Employee created but credentials email failed to send.");
+      }
     } catch {
-      // Non-blocking — user is created even if email fails
+      toast.warning("Employee created but credentials email could not be sent.");
     }
 
     // 5. Audit log
