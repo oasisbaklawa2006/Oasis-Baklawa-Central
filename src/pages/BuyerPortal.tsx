@@ -17,7 +17,7 @@ interface OverviewData {
 
 const BuyerPortal = () => {
   const navigate = useNavigate();
-  const { formatPrice } = useCurrency();
+  const { format } = useCurrency();
   const [loading, setLoading] = useState(true);
   const [overview, setOverview] = useState<OverviewData>({
     totalBusiness: 0,
