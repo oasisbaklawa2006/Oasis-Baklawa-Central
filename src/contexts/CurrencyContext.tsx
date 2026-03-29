@@ -52,13 +52,13 @@ export const CurrencyProvider = ({ children }: { children: ReactNode }) => {
   const setCurrency = useCallback((c: Currency) => setCurrencyState(c), []);
 
   const formatPrice = useCallback(
-    (amountInInr: number): string => {
-      if (amountInInr == null) return currency === "USD" ? "$0.00" : "₹0";
+    (amountInInr: number | null | undefined): string => {
+      const safeAmount = (amountInInr == null || isNaN(Number(amountInInr))) ? 0 : Number(amountInInr);
       if (currency === "USD") {
-        const usd = amountInInr * rate;
+        const usd = safeAmount * rate;
         return "$" + usd.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
       }
-      return "₹" + amountInInr.toLocaleString("en-IN");
+      return "₹" + safeAmount.toLocaleString("en-IN");
     },
     [currency, rate]
   );

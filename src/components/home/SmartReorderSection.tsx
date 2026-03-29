@@ -127,7 +127,7 @@ const SmartReorderSection = () => {
             <h3 className="font-bold text-slate-800 text-sm mb-3">{item.name}</h3>
             <div className="flex items-center justify-between">
               <p className="font-medium text-sm text-slate-800">
-                {formatPrice(item.price_per_kg)} <span className="text-slate-400 text-[10px]">/ kg</span>
+                {formatPrice(item.price_per_kg ?? 0)} <span className="text-slate-400 text-[10px]">/ kg</span>
               </p>
               <button
                 onClick={(e) => { e.stopPropagation(); navigate(`/product/${item.id}`); }}
