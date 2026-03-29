@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Route, Routes, Navigate } from "react-router-dom";
+import { BrowserRouter, Route, Routes } from "react-router-dom";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -55,8 +55,19 @@ import SalesPerformanceHub from "./pages/admin/SalesPerformanceHub.tsx";
 import AdminNotifications from "./pages/admin/AdminNotifications.tsx";
 import CMDHeartbeat from "./pages/admin/CMDHeartbeat.tsx";
 import AdminMerchandising from "./pages/admin/AdminMerchandising.tsx";
+import { useAuth } from "@/hooks/useAuth";
 
 const queryClient = new QueryClient();
+
+const RootEntry = () => {
+  const { user, loading } = useAuth();
+
+  if (loading || !user) {
+    return <Splash />;
+  }
+
+  return <Index />;
+};
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
@@ -72,7 +83,7 @@ const App = () => (
             <Route path="/intro" element={<CompanyIntro />} />
             <Route path="/operations-controller" element={<OperationsController />} />
             <Route path="/security-gate" element={<AdminSecurityGate />} />
-            <Route path="/" element={<Index />} />
+            <Route path="/" element={<RootEntry />} />
             <Route path="/catalogue" element={<Catalogue />} />
             <Route path="/product/:id" element={<ProductDetail />} />
             <Route path="/login" element={<Login />} />
