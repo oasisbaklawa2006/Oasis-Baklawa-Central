@@ -10,7 +10,6 @@ import { CurrencyProvider } from "./contexts/CurrencyContext.tsx";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import Splash from "./pages/Splash.tsx";
 import CompanyIntro from "./pages/CompanyIntro.tsx";
-import Index from "./pages/Index.tsx";
 import Catalogue from "./pages/Catalogue.tsx";
 import Orders from "./pages/Orders.tsx";
 import Cart from "./pages/Cart.tsx";

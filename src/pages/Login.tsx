@@ -22,11 +22,26 @@ const Login = () => {
   const navigate = useNavigate();
 
   const resolveRedirect = async (userId: string) => {
-    const { data: userData } = await supabase
+    await new Promise((resolve) => setTimeout(resolve, 1000));
+
+    let { data: userData, error } = await supabase
       .from("users")
       .select("role")
       .eq("id", userId)
-      .maybeSingle();
+      .single();
+
+    if (error || !userData?.role) {
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+      const retry = await supabase
+        .from("users")
+        .select("role")
+        .eq("id", userId)
+        .single();
+      userData = retry.data;
+      error = retry.error;
+    }
+
+    console.log("Role Fetch:", userData?.role, "Error:", error);
     const normalizedRole = userData?.role?.toUpperCase();
     if (normalizedRole === "ADMIN" || normalizedRole === "SUPER_ADMIN" || normalizedRole === "FINANCE_HEAD" || normalizedRole === "DISPATCH_HEAD" || normalizedRole === "PRODUCTION_MANAGER") {
       navigate("/admin", { replace: true });

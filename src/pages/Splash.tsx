@@ -2,36 +2,14 @@ import { useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import logoImg from "@/assets/logo-open.png";
-import { supabase } from "@/integrations/supabase/client";
 
 const Splash = () => {
   const navigate = useNavigate();
 
   useEffect(() => {
-    const timer = setTimeout(async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) {
-        navigate("/login", { replace: true });
-        return;
-      }
-      if (!session) {
-        navigate("/intro", { replace: true });
-        return;
-      }
-      const { data } = await supabase
-        .from("users")
-        .select("role")
-        .eq("id", session.user.id)
-        .maybeSingle();
-      const normalizedRole = data?.role?.toUpperCase();
-      if (normalizedRole === "ADMIN" || normalizedRole === "SUPER_ADMIN" || normalizedRole === "FINANCE_HEAD" || normalizedRole === "DISPATCH_HEAD" || normalizedRole === "PRODUCTION_MANAGER") {
-        navigate("/admin", { replace: true });
-      } else if (normalizedRole === "SALES_EXECUTIVE") {
-        navigate("/sales/dashboard", { replace: true });
-      } else {
-        navigate("/", { replace: true });
-      }
-    }, 3000);
+    const timer = setTimeout(() => {
+      navigate("/intro", { replace: true });
+    }, 2500);
 
     return () => clearTimeout(timer);
   }, [navigate]);
