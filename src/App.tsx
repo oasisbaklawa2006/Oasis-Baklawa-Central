@@ -82,7 +82,7 @@ const RootGate = () => {
         .from("users")
         .select("role")
         .eq("id", user.id)
-        .single();
+        .maybeSingle();
       const role = data?.role?.toUpperCase();
       if (role && ADMIN_ROLES.includes(role)) {
         setRedirect("/admin");

@@ -22,26 +22,17 @@ const Login = () => {
   const navigate = useNavigate();
 
   const resolveRedirect = async (userId: string) => {
-    await new Promise((resolve) => setTimeout(resolve, 1000));
-
-    let { data: userData, error } = await supabase
+    const { data: userData } = await supabase
       .from("users")
       .select("role")
       .eq("id", userId)
-      .single();
+      .maybeSingle();
 
-    if (error || !userData?.role) {
-      await new Promise((resolve) => setTimeout(resolve, 1000));
-      const retry = await supabase
-        .from("users")
-        .select("role")
-        .eq("id", userId)
-        .single();
-      userData = retry.data;
-      error = retry.error;
+    if (!userData) {
+      console.warn("No user record found for this auth ID");
+      navigate("/", { replace: true });
+      return;
     }
-
-    console.log("Role Fetch:", userData?.role, "Error:", error);
     const normalizedRole = userData?.role?.toUpperCase();
     if (normalizedRole === "ADMIN" || normalizedRole === "SUPER_ADMIN" || normalizedRole === "FINANCE_HEAD" || normalizedRole === "DISPATCH_HEAD" || normalizedRole === "PRODUCTION_MANAGER") {
       navigate("/admin", { replace: true });
