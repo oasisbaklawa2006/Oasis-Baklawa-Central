@@ -7,9 +7,11 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { LanguageProvider } from "./contexts/LanguageContext.tsx";
 import { CurrencyProvider } from "./contexts/CurrencyContext.tsx";
 
+import { Navigate } from "react-router-dom";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import Splash from "./pages/Splash.tsx";
 import CompanyIntro from "./pages/CompanyIntro.tsx";
+import Index from "./pages/Index.tsx";
 import Catalogue from "./pages/Catalogue.tsx";
 import Orders from "./pages/Orders.tsx";
 import Cart from "./pages/Cart.tsx";
@@ -54,11 +56,56 @@ import SalesPerformanceHub from "./pages/admin/SalesPerformanceHub.tsx";
 import AdminNotifications from "./pages/admin/AdminNotifications.tsx";
 import CMDHeartbeat from "./pages/admin/CMDHeartbeat.tsx";
 import AdminMerchandising from "./pages/admin/AdminMerchandising.tsx";
+import { useAuth } from "@/hooks/useAuth";
+import { supabase } from "@/integrations/supabase/client";
+import { useEffect, useState } from "react";
 
 const queryClient = new QueryClient();
 
-const RootEntry = () => {
-  return <Splash />;
+const ADMIN_ROLES = ["SUPER_ADMIN", "ADMIN", "FINANCE_HEAD", "DISPATCH_HEAD", "PRODUCTION_MANAGER"];
+
+const RootGate = () => {
+  const { user, loading: authLoading } = useAuth();
+  const [roleLoading, setRoleLoading] = useState(true);
+  const [redirect, setRedirect] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (authLoading) return;
+    if (!user) {
+      setRedirect("/splash");
+      setRoleLoading(false);
+      return;
+    }
+    // Fetch role for authenticated user
+    const fetchRole = async () => {
+      const { data } = await supabase
+        .from("users")
+        .select("role")
+        .eq("id", user.id)
+        .single();
+      const role = data?.role?.toUpperCase();
+      if (role && ADMIN_ROLES.includes(role)) {
+        setRedirect("/admin");
+      } else if (role === "SALES_EXECUTIVE") {
+        setRedirect("/sales/dashboard");
+      } else {
+        setRedirect(null); // customer — render Index
+      }
+      setRoleLoading(false);
+    };
+    fetchRole();
+  }, [user, authLoading]);
+
+  if (authLoading || roleLoading) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
+  }
+
+  if (redirect) return <Navigate to={redirect} replace />;
+  return <Index />;
 };
 
 const App = () => (
