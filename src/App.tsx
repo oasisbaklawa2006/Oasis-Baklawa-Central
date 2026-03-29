@@ -55,18 +55,11 @@ import SalesPerformanceHub from "./pages/admin/SalesPerformanceHub.tsx";
 import AdminNotifications from "./pages/admin/AdminNotifications.tsx";
 import CMDHeartbeat from "./pages/admin/CMDHeartbeat.tsx";
 import AdminMerchandising from "./pages/admin/AdminMerchandising.tsx";
-import { useAuth } from "@/hooks/useAuth";
 
 const queryClient = new QueryClient();
 
 const RootEntry = () => {
-  const { user, loading } = useAuth();
-
-  if (loading || !user) {
-    return <Splash />;
-  }
-
-  return <Index />;
+  return <Splash />;
 };
 
 const App = () => (
