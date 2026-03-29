@@ -122,7 +122,7 @@ const App = () => (
             <Route path="/intro" element={<CompanyIntro />} />
             <Route path="/operations-controller" element={<OperationsController />} />
             <Route path="/security-gate" element={<AdminSecurityGate />} />
-            <Route path="/" element={<RootEntry />} />
+            <Route path="/" element={<RootGate />} />
             <Route path="/catalogue" element={<Catalogue />} />
             <Route path="/product/:id" element={<ProductDetail />} />
             <Route path="/login" element={<Login />} />
