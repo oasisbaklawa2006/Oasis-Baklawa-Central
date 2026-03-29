@@ -27,10 +27,13 @@ const Login = () => {
       .select("role")
       .eq("id", userId)
       .maybeSingle();
-    if (userData?.role === "admin" || userData?.role === "super_admin") {
-      navigate("/admin");
+    const role = userData?.role;
+    if (role === "admin" || role === "super_admin" || role === "finance_head" || role === "dispatch_head" || role === "production_manager") {
+      navigate("/admin", { replace: true });
+    } else if (role === "sales_executive") {
+      navigate("/sales/dashboard", { replace: true });
     } else {
-      navigate("/");
+      navigate("/", { replace: true });
     }
   };
 

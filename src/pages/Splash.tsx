@@ -23,8 +23,11 @@ const Splash = () => {
         .select("role")
         .eq("id", session.user.id)
         .maybeSingle();
-      if (data?.role === "admin" || data?.role === "super_admin") {
+      const role = data?.role;
+      if (role === "admin" || role === "super_admin" || role === "finance_head" || role === "dispatch_head" || role === "production_manager") {
         navigate("/admin", { replace: true });
+      } else if (role === "sales_executive") {
+        navigate("/sales/dashboard", { replace: true });
       } else {
         navigate("/", { replace: true });
       }
