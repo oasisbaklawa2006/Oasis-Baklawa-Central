@@ -1,86 +1,55 @@
 import { useState, useEffect } from "react";
-import { Star, TrendingUp, ShoppingCart, Box, Gift, ChevronRight, CalendarDays } from "lucide-react";
+import { Star, TrendingUp, Gift, ChevronRight, CalendarDays } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import AppShell from "@/components/AppShell";
+import ProductSection from "@/components/ProductSection";
+import SmartReorderSection from "@/components/home/SmartReorderSection";
 import { supabase } from "@/integrations/supabase/client";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useCurrency } from "@/contexts/CurrencyContext";
 
-// --- MOCK DATA ---
-const SMART_REORDER = [
-  {
-    id: "pyramid-baklawa",
-    name: "Pyramid Baklawa",
-    price: 2000,
-    image: "https://images.unsplash.com/photo-1599598425947-33002629671e?auto=format&fit=crop&q=80&w=400",
-  },
-  {
-    id: "finger-baklawa",
-    name: "Finger Baklawa",
-    price: 2000,
-    image: "https://images.unsplash.com/photo-1558961363-fa8fdf82db35?auto=format&fit=crop&q=80&w=400",
-  },
-];
-
-const RECOMMENDED = [
-  {
-    id: "pistachio-tart",
-    name: "Pistachio Tart",
-    pack: "9 Retail Units",
-    price: 3500,
-    tag: "High Margin",
-    image: "https://images.unsplash.com/photo-1605697843475-430263690d0e?auto=format&fit=crop&q=80&w=400",
-  },
-  {
-    id: "cashew-square",
-    name: "Cashew Square",
-    pack: "12 Retail Units",
-    price: 2800,
-    tag: "Bestseller",
-    image: "https://images.unsplash.com/photo-1549465220-1a8b9238cd48?auto=format&fit=crop&q=80&w=400",
-  },
-];
-
-const PACKAGING = [
-  {
-    id: "rigid-box",
-    name: "Premium Rigid Boxes",
-    type: "Gold Foil / Embossed",
-    image: "https://images.unsplash.com/photo-1607344645866-009c320b63e0?auto=format&fit=crop&q=80&w=400",
-  },
-  {
-    id: "tin-jar",
-    name: "Airtight Tin Jars",
-    type: "Food Grade / Printed",
-    image: "https://images.unsplash.com/photo-1615486171448-4fb651475c74?auto=format&fit=crop&q=80&w=400",
-  },
-];
-
 const Index = () => {
   const navigate = useNavigate();
   const [companyName, setCompanyName] = useState("");
+  const [categories, setCategories] = useState<{ id: string; name: string }[]>([]);
   const { t } = useLanguage();
   const { formatPrice } = useCurrency();
 
-  const categories = [
-    { id: "Gifting", name: "Gifting", fallback: "🎁" },
-    { id: "Bulk Sweets & Nuts", name: "Bulk Sweets & Nuts", fallback: "🍬" },
-    { id: "Dates", name: "Dates", fallback: "🌴" },
-    { id: "Chocolates", name: "Chocolates", fallback: "🍫" },
-    { id: "Baklawa", name: "Baklawa", fallback: "🍯" },
-    { id: "Nuts & Dragees", name: "Nuts & Dragees", fallback: "🌰" },
-  ];
+  const CATEGORY_EMOJIS: Record<string, string> = {
+    "Gifting": "🎁",
+    "Bulk Sweets & Nuts": "🍬",
+    "Dates": "🌴",
+    "Chocolates": "🍫",
+    "Baklawa": "🍯",
+    "Nuts & Dragees": "🌰",
+    "Ready packs": "📦",
+    "Premium Gift Packs": "🎀",
+    "Semi-Prepared & Frozen Range": "❄️",
+    "Packaging & Decoration Material": "🎨",
+  };
 
   useEffect(() => {
-    const fetchCompany = async () => {
-      const { data } = await supabase.from("orders").select("company:companies(business_name)").limit(1);
-      if (data && data[0]?.company?.business_name) {
-        setCompanyName(data[0].company.business_name);
-      } else {
-        setCompanyName("TCF Chocolates and Gifts Pvt Ltd");
+    const fetchData = async () => {
+      // Fetch company name
+      const { data: orderData } = await supabase
+        .from("orders")
+        .select("company:companies(business_name)")
+        .limit(1);
+      if (orderData && orderData[0]?.company?.business_name) {
+        setCompanyName(orderData[0].company.business_name);
+      }
+
+      // Fetch live categories from products
+      const { data: catData } = await supabase
+        .from("products")
+        .select("category")
+        .eq("is_active", true);
+      if (catData) {
+        const unique = [...new Set(catData.map(p => p.category).filter(Boolean))];
+        setCategories(unique.map(c => ({ id: c, name: c })));
       }
     };
-    fetchCompany();
+    fetchData();
   }, []);
 
   return (
@@ -93,197 +62,69 @@ const Index = () => {
             <p className="text-xs md:text-sm font-medium text-slate-500 leading-relaxed px-4 max-w-lg">
               नमस्ते, सति श्री अकाल, السَّلَامُ عَلَيْكُمْ, வணக்கம், নমস্কার, કેમ છો, నమస్కారం, खम्मा घणी, Chibai...
             </p>
-            <h2 className="font-display text-xl md:text-3xl font-bold text-[#9A7009] mt-2">{companyName}</h2>
+            {companyName && (
+              <h2 className="font-display text-xl md:text-3xl font-bold text-[#9A7009] mt-2">{companyName}</h2>
+            )}
           </div>
 
-          {/* FESTIVAL CALENDAR */}
-          <section>
-            <h3 className="text-sm font-bold text-slate-400 uppercase tracking-widest mb-4 flex items-center gap-2">
-              <CalendarDays size={14} className="text-[#B8860B]" /> Upcoming Festivals & Events
-            </h3>
-            <div className="flex overflow-x-auto scrollbar-hide gap-4 pb-4 snap-x">
-              {[
-                { name: "Eid", date: "Mar 30 – 31", emoji: "🌙", gradient: "from-emerald-800 to-emerald-900" },
-                { name: "Raksha Bandhan", date: "Aug 9", emoji: "🪢", gradient: "from-rose-800 to-rose-900" },
-                { name: "Diwali", date: "Oct 20 – 24", emoji: "🪔", gradient: "from-amber-800 to-amber-900" },
-                { name: "Wedding Season", date: "Nov – Feb", emoji: "💍", gradient: "from-purple-800 to-purple-900" },
-                { name: "Christmas", date: "Dec 25", emoji: "🎄", gradient: "from-red-800 to-red-900" },
-              ].map((fest) => (
-                <button
-                  key={fest.name}
-                  onClick={() => navigate(`/catalogue?festival=${encodeURIComponent(fest.name)}`)}
-                  className={`min-w-[160px] snap-start rounded-2xl bg-gradient-to-br ${fest.gradient} p-5 text-left shadow-lg hover:shadow-xl transition-all active:scale-95 border border-white/10`}
-                >
-                  <span className="text-3xl block mb-3">{fest.emoji}</span>
-                  <h4 className="text-white font-bold text-sm mb-1">{fest.name}</h4>
-                  <p className="text-white/60 text-[10px] font-medium uppercase tracking-wider">{fest.date}</p>
-                </button>
-              ))}
-            </div>
-          </section>
+          {/* FESTIVAL CALENDAR — Tag-driven */}
+          <ProductSection
+            tagKey="festivals-events"
+            title="Upcoming Festivals & Events"
+            subtitle="Curated selections for every occasion"
+          />
 
-          {/* CATEGORY GRID */}
-          <section>
-            <div className="flex justify-between items-center mb-4">
-              <h3 className="text-sm font-bold text-slate-400 uppercase tracking-widest">{t("home.browseCategories")}</h3>
-            </div>
-            <div className="grid grid-cols-3 md:grid-cols-6 gap-3">
-              {categories.map((cat) => (
-                <button
-                  key={cat.id}
-                  onClick={() => navigate(`/catalogue?category=${cat.id}`)}
-                  className="flex flex-col items-center justify-center bg-white p-4 rounded-2xl border border-slate-100 shadow-sm hover:border-[#B8860B]/50 hover:shadow-md transition-all active:scale-95"
-                >
-                  <span className="text-3xl mb-2">{cat.fallback}</span>
-                  <span className="text-[10px] md:text-xs font-bold text-slate-700 uppercase tracking-wider">{cat.name}</span>
-                </button>
-              ))}
-            </div>
-          </section>
-
-          {/* FESTIVE SPECIAL */}
-          <div
-            onClick={() => navigate("/catalogue?featured=true")}
-            className="relative rounded-3xl overflow-hidden shadow-xl bg-gradient-to-r from-slate-800 to-slate-700 flex cursor-pointer active:scale-[0.98] transition-transform"
-          >
-            <div className="min-w-full relative p-8 md:p-12 flex flex-col items-start w-2/3 z-10">
-              <p className="text-[#B8860B] text-[10px] font-bold uppercase tracking-widest mb-2 flex items-center gap-2">
-                <Star size={12} fill="currentColor" /> {t("home.limitedEdition")}
-              </p>
-              <h2 className="text-3xl md:text-5xl font-display font-bold text-white leading-tight mb-6">
-                {t("home.festiveSpecial")}
-                <br />
-                {t("home.giftingCollection")}
-              </h2>
-              <button className="flex items-center gap-2 px-6 py-2.5 bg-[#B8860B] text-white rounded-xl text-sm font-bold hover:bg-[#9A7009] transition-colors shadow-lg">
-                {t("home.exploreCollection")} <ChevronRight size={16} />
-              </button>
-            </div>
-            <div className="absolute top-0 right-0 w-1/2 h-full bg-[url('https://images.unsplash.com/photo-1599598425947-33002629671e?auto=format&fit=crop&q=80')] bg-cover bg-left opacity-30 mix-blend-overlay"></div>
-          </div>
-
-          {/* SMART REORDER */}
-          <section>
-            <h2 className="text-xl font-display font-bold text-slate-800 flex items-center gap-2 mb-1">
-              <span className="text-[#B8860B]">⚡</span> {t("home.smartReorder")}
-            </h2>
-            <p className="text-xs text-slate-500 mb-6 font-medium">{t("home.smartReorderSub")}</p>
-            <div className="flex overflow-x-auto scrollbar-hide gap-5 pb-4 snap-x">
-              {SMART_REORDER.map((item) => (
-                <div
-                  key={item.id}
-                  className="min-w-[220px] bg-white border border-slate-100 rounded-2xl p-4 snap-start shadow-sm hover:shadow-md transition-shadow cursor-pointer"
-                  onClick={() => navigate(`/catalogue`)}
-                >
-                  <div className="h-32 mb-4 rounded-xl overflow-hidden bg-slate-50">
-                    <img src={item.image} className="w-full h-full object-cover mix-blend-multiply" alt={item.name} />
-                  </div>
-                  <h3 className="font-bold text-slate-800 text-sm mb-3">{item.name}</h3>
-                  <div className="flex items-center justify-between">
-                    <p className="font-medium text-sm text-slate-800">
-                      {formatPrice(item.price)} <span className="text-slate-400 text-[10px]">/ kg</span>
-                    </p>
-                    <button
-                      onClick={(e) => { e.stopPropagation(); navigate("/cart"); }}
-                      className="w-8 h-8 rounded-full bg-slate-800 text-white flex items-center justify-center hover:bg-[#B8860B] transition-colors"
-                    >
-                      <ShoppingCart size={14} />
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </section>
-
-          {/* PRIVATE LABEL */}
-          <section
-            onClick={() => navigate("/catalogue?category=fusion")}
-            className="bg-white rounded-3xl p-6 md:p-8 shadow-sm border border-[#B8860B]/20 relative overflow-hidden cursor-pointer hover:shadow-md transition-shadow"
-          >
-            <div className="absolute right-0 top-0 w-1/3 h-full bg-gradient-to-l from-[#B8860B]/10 to-transparent"></div>
-            <h2 className="text-2xl font-display font-bold text-slate-800 mb-2 relative z-10">{t("home.privateLabel")}</h2>
-            <p className="text-sm text-slate-500 mb-6 relative z-10">{t("home.privateLabelSub")}</p>
-            <div className="flex overflow-x-auto scrollbar-hide gap-5 pb-4 relative z-10">
-              <div className="min-w-[280px] md:min-w-[320px] flex gap-4 items-center bg-slate-50 p-4 rounded-2xl border border-slate-100">
-                <div className="w-24 h-24 rounded-xl overflow-hidden shrink-0">
-                  <img src="https://images.unsplash.com/photo-1549465220-1a8b9238cd48?auto=format&fit=crop&q=80&w=200" className="w-full h-full object-cover" />
-                </div>
-                <div>
-                  <div className="flex gap-1 mb-2">
-                    <span className="text-[9px] font-bold bg-[#B8860B] text-white px-2 py-0.5 rounded uppercase tracking-wider">Retail Ready</span>
-                    <span className="text-[9px] font-bold bg-slate-700 text-white px-2 py-0.5 rounded uppercase tracking-wider">Export</span>
-                  </div>
-                  <h3 className="font-bold text-slate-800 text-sm mb-1">Royal Assorted Hamper</h3>
-                  <p className="text-xs text-slate-500">Premium Tin / 750g</p>
-                </div>
+          {/* CATEGORY GRID — Live from DB */}
+          {categories.length > 0 && (
+            <section>
+              <div className="flex justify-between items-center mb-4">
+                <h3 className="text-sm font-bold text-slate-400 uppercase tracking-widest">{t("home.browseCategories")}</h3>
               </div>
-            </div>
-            <p className="text-[10px] text-slate-400 mt-2 font-medium italic text-right">* Available for private labeling at MOQ</p>
-          </section>
-
-          {/* RECOMMENDED */}
-          <section>
-            <h2 className="text-xl font-display font-bold text-slate-800 flex items-center gap-2 mb-1">
-              <TrendingUp className="text-[#B8860B]" size={20} /> {t("home.recommendedForYou")}
-            </h2>
-            <p className="text-xs text-slate-500 mb-6 font-medium">{t("home.recommendedSub")}</p>
-            <div className="flex overflow-x-auto scrollbar-hide gap-5 pb-4 snap-x">
-              {RECOMMENDED.map((item) => (
-                <div
-                  key={item.id}
-                  onClick={() => navigate("/catalogue")}
-                  className="min-w-[240px] bg-white border border-slate-100 rounded-2xl p-4 snap-start shadow-sm hover:shadow-md transition-shadow cursor-pointer"
-                >
-                  <div className="h-36 mb-4 rounded-xl overflow-hidden bg-slate-50 relative">
-                    <img src={item.image} className="w-full h-full object-cover" alt={item.name} />
-                    <span className="absolute top-2 left-2 bg-slate-800 text-white text-[9px] font-bold uppercase tracking-widest px-2 py-1 rounded shadow-sm">{item.tag}</span>
-                  </div>
-                  <h3 className="font-bold text-slate-800 text-sm mb-1">{item.name}</h3>
-                  <p className="text-[10px] text-slate-500 font-medium uppercase tracking-wider mb-3">{item.pack}</p>
-                  <div className="flex items-center justify-between">
-                    <p className="font-black text-sm text-slate-800">{formatPrice(item.price)}</p>
-                    <button
-                      onClick={(e) => { e.stopPropagation(); navigate("/cart"); }}
-                      className="px-4 py-1.5 rounded-full bg-[#B8860B]/10 text-[#B8860B] text-xs font-bold hover:bg-[#B8860B] hover:text-white transition-colors"
-                    >
-                      {t("home.quickAdd")}
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </section>
-
-          {/* PACKAGING */}
-          <section className="bg-slate-800 rounded-3xl p-6 md:p-8 text-white relative overflow-hidden shadow-xl mb-8">
-            <div className="absolute inset-0 opacity-10 bg-[radial-gradient(circle_at_top_right,rgba(184,134,11,0.8)_0,transparent_60%)]"></div>
-            <div className="relative z-10">
-              <div className="flex justify-between items-start mb-2">
-                <h2 className="text-2xl font-display font-bold text-white flex items-center gap-3">
-                  <Gift className="text-[#B8860B]" /> {t("home.packagingSolutions")}
-                </h2>
-                <button onClick={() => navigate("/catalogue")} className="text-[#B8860B] text-xs font-bold hover:underline">{t("home.viewAll")}</button>
-              </div>
-              <p className="text-sm text-slate-300 mb-8 font-medium">{t("home.packagingSub")}</p>
-              <div className="flex overflow-x-auto scrollbar-hide gap-5 pb-2">
-                {PACKAGING.map((item) => (
-                  <div
-                    key={item.id}
-                    onClick={() => navigate("/catalogue")}
-                    className="min-w-[200px] flex gap-3 items-center bg-white/5 p-3 rounded-2xl border border-white/10 backdrop-blur-sm cursor-pointer hover:bg-white/10 transition-colors"
+              <div className="grid grid-cols-3 md:grid-cols-6 gap-3">
+                {categories.map((cat) => (
+                  <button
+                    key={cat.id}
+                    onClick={() => navigate(`/catalogue?category=${cat.id}`)}
+                    className="flex flex-col items-center justify-center bg-white p-4 rounded-2xl border border-slate-100 shadow-sm hover:border-[#B8860B]/50 hover:shadow-md transition-all active:scale-95"
                   >
-                    <div className="w-16 h-16 rounded-lg overflow-hidden shrink-0">
-                      <img src={item.image} className="w-full h-full object-cover" />
-                    </div>
-                    <div>
-                      <h3 className="font-bold text-white text-xs mb-1">{item.name}</h3>
-                      <p className="text-[10px] text-[#B8860B] uppercase tracking-wider font-bold">{item.type}</p>
-                    </div>
-                  </div>
+                    <span className="text-3xl mb-2">{CATEGORY_EMOJIS[cat.name] || "📦"}</span>
+                    <span className="text-[10px] md:text-xs font-bold text-slate-700 uppercase tracking-wider">{cat.name}</span>
+                  </button>
                 ))}
               </div>
-            </div>
-          </section>
+            </section>
+          )}
+
+          {/* FESTIVAL SPECIAL GIFTING — Tag-driven */}
+          <ProductSection
+            tagKey="festival-gifting"
+            title="Festival Special Gifting"
+            subtitle="Premium gift-ready collections"
+          />
+
+          {/* SMART REORDER — Real order history */}
+          <SmartReorderSection />
+
+          {/* PRIVATE LABEL — Tag-driven */}
+          <ProductSection
+            tagKey="private-label"
+            title="Private Label Retail Ready"
+            subtitle="Available for private labeling at MOQ"
+          />
+
+          {/* RECOMMENDED — Tag-driven */}
+          <ProductSection
+            tagKey="recommended"
+            title="Recommended For You"
+            subtitle="Hand-picked selections by our team"
+          />
+
+          {/* PACKING SOLUTIONS — Tag-driven */}
+          <ProductSection
+            tagKey="packing-solution"
+            title="Packaging Solutions"
+            subtitle="Premium packaging for every need"
+          />
         </main>
       </div>
     </AppShell>
