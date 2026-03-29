@@ -104,32 +104,30 @@ const BuyerPortal = () => {
   ];
 
   const cards = [
-    { label: "Total Business", value: format(overview.totalBusiness), icon: TrendingUp, gold: true },
-    { label: "Total Orders", value: String(overview.totalOrders), icon: ShoppingBag, gold: false },
-    { label: "Wallet Balance", value: format(overview.walletBalance), icon: CreditCard, gold: false },
-    { label: "Credit Balance", value: format(overview.creditBalance), icon: CreditCard, gold: true },
+    { label: "Total Business", value: format(overview.totalBusiness), icon: TrendingUp },
+    { label: "Total Orders", value: String(overview.totalOrders), icon: ShoppingBag },
+    { label: "Wallet Balance", value: format(overview.walletBalance), icon: CreditCard },
+    { label: "Credit Balance", value: format(overview.creditBalance), icon: CreditCard },
   ];
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-[#121212]">
-        <Loader2 className="animate-spin text-[#D4AF37]" size={32} />
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <Loader2 className="animate-spin text-primary" size={32} />
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-[#121212] pb-24">
+    <div className="min-h-screen bg-background pb-24">
       <TopNavBar />
       <SystemAlertMarquee />
 
       <div className="pt-20 px-4 sm:px-6 max-w-5xl mx-auto">
         {/* Header */}
         <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="mb-8">
-          <h1 className="font-display text-3xl font-bold tracking-tight text-white">
-            Buyer Portal
-          </h1>
-          <p className="font-body text-[#9CA3AF] text-sm mt-1.5">Your business at a glance.</p>
+          <h1 className="font-display text-2xl font-semibold tracking-tight text-foreground">Buyer Portal</h1>
+          <p className="font-body text-muted-foreground text-sm mt-1">Your business at a glance.</p>
         </motion.div>
 
         {/* Overview Cards */}
@@ -139,18 +137,14 @@ const BuyerPortal = () => {
               key={card.label}
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: i * 0.07 }}
-              className="bg-[#1E1E1E] border border-white/[0.06] rounded-2xl p-6 hover:border-[#D4AF37]/20 transition-colors"
+              transition={{ delay: i * 0.05 }}
+              className="bg-card border border-border rounded-2xl p-5 shadow-sm"
             >
-              <div className="flex items-center gap-2 mb-3">
-                <card.icon size={14} className="text-[#D4AF37]" />
-                <span className="text-[10px] uppercase tracking-[0.15em] font-semibold text-[#9CA3AF]">
-                  {card.label}
-                </span>
+              <div className="flex items-center gap-2 mb-2">
+                <card.icon size={16} className="text-primary" />
+                <span className="text-[11px] uppercase tracking-widest font-bold text-muted-foreground">{card.label}</span>
               </div>
-              <p className={`text-2xl lg:text-3xl font-bold ${card.gold ? "text-[#D4AF37]" : "text-white"}`}>
-                {card.value}
-              </p>
+              <p className="text-xl font-bold text-foreground">{card.value}</p>
             </motion.div>
           ))}
         </div>
@@ -160,16 +154,12 @@ const BuyerPortal = () => {
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
-            className="mb-10 bg-[#1E1E1E] border border-[#D4AF37]/20 rounded-2xl p-6 flex items-center gap-4"
+            className="mb-10 bg-primary/5 border border-primary/20 rounded-2xl p-4 flex items-center gap-3"
           >
-            <div className="w-10 h-10 rounded-xl bg-[#D4AF37]/10 flex items-center justify-center flex-shrink-0">
-              <Star size={18} className="text-[#D4AF37] fill-[#D4AF37]" />
-            </div>
+            <Star size={18} className="text-primary fill-primary" />
             <div>
-              <p className="text-[10px] uppercase tracking-[0.15em] font-semibold text-[#9CA3AF]">
-                Most Ordered Product
-              </p>
-              <p className="font-bold text-white text-lg mt-0.5">{overview.mostOrdered}</p>
+              <p className="text-[11px] uppercase tracking-widest font-bold text-muted-foreground">Most Ordered Product</p>
+              <p className="font-bold text-foreground">{overview.mostOrdered}</p>
             </div>
           </motion.div>
         )}
@@ -181,16 +171,14 @@ const BuyerPortal = () => {
               key={tile.label}
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
-              transition={{ delay: i * 0.05 }}
+              transition={{ delay: i * 0.04 }}
               onClick={() => navigate(tile.route)}
-              className="group flex flex-col items-center gap-3 bg-[#1E1E1E] border border-white/[0.06] rounded-2xl p-6 hover:border-[#D4AF37]/30 hover:scale-[1.03] transition-all duration-200 active:scale-95"
+              className="flex flex-col items-center gap-3 bg-card border border-border rounded-2xl p-6 shadow-sm hover:shadow-md hover:border-primary/30 transition-all active:scale-95"
             >
-              <div className="w-12 h-12 rounded-xl bg-[#D4AF37]/10 flex items-center justify-center group-hover:bg-[#D4AF37]/20 transition-colors">
-                <tile.icon size={22} className="text-[#D4AF37]" />
+              <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center">
+                <tile.icon size={22} className="text-primary" />
               </div>
-              <span className="text-xs font-bold text-[#9CA3AF] group-hover:text-white transition-colors">
-                {tile.label}
-              </span>
+              <span className="text-xs font-bold text-foreground">{tile.label}</span>
             </motion.button>
           ))}
         </div>
