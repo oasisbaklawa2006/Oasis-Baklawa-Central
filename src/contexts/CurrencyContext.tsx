@@ -53,6 +53,7 @@ export const CurrencyProvider = ({ children }: { children: ReactNode }) => {
 
   const formatPrice = useCallback(
     (amountInInr: number): string => {
+      if (amountInInr == null) return currency === "USD" ? "$0.00" : "₹0";
       if (currency === "USD") {
         const usd = amountInInr * rate;
         return "$" + usd.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
