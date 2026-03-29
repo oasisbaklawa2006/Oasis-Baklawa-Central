@@ -2,12 +2,8 @@ import { supabase } from "@/integrations/supabase/client";
 
 // ═══════════════════════════════════════════════════════════
 // NOTIFICATION GATEWAY — LIVE CONFIGURATION
+// Email sending is handled by the send-email Edge Function
 // ═══════════════════════════════════════════════════════════
-
-const RESEND_CONFIG = {
-  apiKey: "re_QN2tDgHK_PwuSsAiqENCdjCFS2xn2FUcu",
-  fromEmail: "onboarding@resend.dev",
-};
 
 /**
  * Queue a notification message into the outbox for later processing.
@@ -51,25 +47,18 @@ export const processOutboxQueue = async (): Promise<number> => {
 
   for (const msg of pending) {
     try {
-      // 📧 LIVE EMAIL DELIVERY via Resend
+      // 📧 LIVE EMAIL DELIVERY via Edge Function
       if (msg.recipient_email) {
-        const response = await fetch("https://api.resend.com/emails", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${RESEND_CONFIG.apiKey}`,
-          },
-          body: JSON.stringify({
-            from: RESEND_CONFIG.fromEmail,
+        const { error: emailError } = await supabase.functions.invoke("send-email", {
+          body: {
             to: msg.recipient_email,
             subject: `Oasis Notification: ${msg.event_type}`,
             text: msg.message_body,
-          }),
+          },
         });
 
-        if (!response.ok) {
-          const errorData = await response.json();
-          throw new Error(errorData.message || "Resend API Error");
+        if (emailError) {
+          throw new Error(emailError.message || "Edge Function email error");
         }
       }
 
