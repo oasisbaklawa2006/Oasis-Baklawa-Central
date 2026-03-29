@@ -21,7 +21,8 @@ export default function AdminRouteGuard({ children }: { children: React.ReactNod
 
     (async () => {
       const { data } = await supabase.from("users").select("role").eq("id", user.id).maybeSingle();
-      if (data?.role === "sales_executive") {
+      const normalizedRole = data?.role?.toUpperCase();
+      if (normalizedRole === "SALES_EXECUTIVE") {
         // Log security violation to audit trail
         await supabase.from("audit_logs").insert({
           action_type: "security_violation_blocked",

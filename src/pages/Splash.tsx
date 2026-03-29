@@ -23,10 +23,10 @@ const Splash = () => {
         .select("role")
         .eq("id", session.user.id)
         .maybeSingle();
-      const role = data?.role;
-      if (role === "admin" || role === "super_admin" || role === "finance_head" || role === "dispatch_head" || role === "production_manager") {
+      const normalizedRole = data?.role?.toUpperCase();
+      if (normalizedRole === "ADMIN" || normalizedRole === "SUPER_ADMIN" || normalizedRole === "FINANCE_HEAD" || normalizedRole === "DISPATCH_HEAD" || normalizedRole === "PRODUCTION_MANAGER") {
         navigate("/admin", { replace: true });
-      } else if (role === "sales_executive") {
+      } else if (normalizedRole === "SALES_EXECUTIVE") {
         navigate("/sales/dashboard", { replace: true });
       } else {
         navigate("/", { replace: true });
