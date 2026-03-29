@@ -2219,6 +2219,36 @@ export type Database = {
         }
         Relationships: []
       }
+      system_alerts: {
+        Row: {
+          created_at: string | null
+          expires_at: string | null
+          id: string
+          is_active: boolean | null
+          message: string
+          priority: string | null
+          target_role: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          expires_at?: string | null
+          id?: string
+          is_active?: boolean | null
+          message: string
+          priority?: string | null
+          target_role?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          expires_at?: string | null
+          id?: string
+          is_active?: boolean | null
+          message?: string
+          priority?: string | null
+          target_role?: string | null
+        }
+        Relationships: []
+      }
       system_settings: {
         Row: {
           global_buffer_days: number | null
