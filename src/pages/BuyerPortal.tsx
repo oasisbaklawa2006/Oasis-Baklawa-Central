@@ -107,10 +107,10 @@ const BuyerPortal = () => {
   ];
 
   const cards = [
-    { label: "Total Business", value: formatPrice(overview.totalBusiness), icon: TrendingUp },
+    { label: "Total Business", value: format(overview.totalBusiness), icon: TrendingUp },
     { label: "Total Orders", value: String(overview.totalOrders), icon: ShoppingBag },
-    { label: "Wallet Balance", value: formatPrice(overview.walletBalance), icon: CreditCard },
-    { label: "Credit Balance", value: formatPrice(overview.creditBalance), icon: CreditCard },
+    { label: "Wallet Balance", value: format(overview.walletBalance), icon: CreditCard },
+    { label: "Credit Balance", value: format(overview.creditBalance), icon: CreditCard },
   ];
 
   if (loading) {
