@@ -8,23 +8,24 @@ const FloatingActions = () => {
 
   return (
     <>
-      <div className="fixed bottom-24 right-5 z-40 flex flex-col gap-3">
-        <motion.button
+      <div className="fixed bottom-[100px] right-5 z-40 flex flex-col gap-3">
+        <motion.a
+          href="tel:+919999792959"
           whileHover={{ scale: 1.08 }}
           whileTap={{ scale: 0.95 }}
-          className="w-12 h-12 rounded-full bg-primary shadow-fab flex items-center justify-center"
-          aria-label="Contact"
+          className="w-12 h-12 rounded-full bg-primary/80 shadow-lg flex items-center justify-center"
+          aria-label="Call Us"
         >
           <Phone size={20} className="text-primary-foreground" />
-        </motion.button>
+        </motion.a>
         <motion.button
           whileHover={{ scale: 1.08 }}
           whileTap={{ scale: 0.95 }}
           onClick={() => setShowChat(!showChat)}
-          className="w-14 h-14 rounded-full bg-foreground shadow-fab flex items-center justify-center"
+          className="w-12 h-12 rounded-full bg-primary shadow-lg flex items-center justify-center"
           aria-label="AI Chat"
         >
-          <MessageCircle size={24} className="text-card" />
+          <MessageCircle size={20} className="text-primary-foreground" />
         </motion.button>
       </div>
       <SupportChat open={showChat} onClose={() => setShowChat(false)} />

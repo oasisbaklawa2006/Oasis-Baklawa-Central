@@ -7,20 +7,46 @@ import SearchOverlay from "./SearchOverlay";
 import { supabase } from "@/integrations/supabase/client";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useCurrency } from "@/contexts/CurrencyContext";
+import { useAuth } from "@/hooks/useAuth";
 
 const TopNavBar = () => {
   const [showNotifs, setShowNotifs] = useState(false);
   const [showSearch, setShowSearch] = useState(false);
   const [showMenu, setShowMenu] = useState(false);
+  const [unreadCount, setUnreadCount] = useState(0);
   const menuRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
   const { lang, setLang, t } = useLanguage();
   const { currency, setCurrency } = useCurrency();
+  const { user } = useAuth();
 
   const handleSignOut = async () => {
     await supabase.auth.signOut();
     navigate("/splash");
   };
+
+  // Fetch unread notification count
+  useEffect(() => {
+    if (!user) return;
+    const fetchUnread = async () => {
+      const { count } = await supabase
+        .from("notifications")
+        .select("*", { count: "exact", head: true })
+        .eq("is_read", false);
+      setUnreadCount(count || 0);
+    };
+    fetchUnread();
+
+    // Subscribe to changes
+    const channel = supabase
+      .channel("notif-count")
+      .on("postgres_changes", { event: "*", schema: "public", table: "notifications" }, () => {
+        fetchUnread();
+      })
+      .subscribe();
+
+    return () => { supabase.removeChannel(channel); };
+  }, [user]);
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
@@ -46,20 +72,8 @@ const TopNavBar = () => {
                 lang === "hi" ? "translate-x-[34px]" : "translate-x-0.5"
               }`}
             />
-            <span
-              className={`relative z-10 flex-1 text-center text-[11px] font-bold transition-colors ${
-                lang === "en" ? "text-primary-foreground" : "text-muted-foreground"
-              }`}
-            >
-              EN
-            </span>
-            <span
-              className={`relative z-10 flex-1 text-center text-[11px] font-bold transition-colors ${
-                lang === "hi" ? "text-primary-foreground" : "text-muted-foreground"
-              }`}
-            >
-              HI
-            </span>
+            <span className={`relative z-10 flex-1 text-center text-[11px] font-bold transition-colors ${lang === "en" ? "text-primary-foreground" : "text-muted-foreground"}`}>EN</span>
+            <span className={`relative z-10 flex-1 text-center text-[11px] font-bold transition-colors ${lang === "hi" ? "text-primary-foreground" : "text-muted-foreground"}`}>HI</span>
           </button>
 
           {/* Currency Toggle Pill */}
@@ -73,20 +87,8 @@ const TopNavBar = () => {
                 currency === "USD" ? "translate-x-[34px]" : "translate-x-0.5"
               }`}
             />
-            <span
-              className={`relative z-10 flex-1 text-center text-[11px] font-bold transition-colors ${
-                currency === "INR" ? "text-primary-foreground" : "text-muted-foreground"
-              }`}
-            >
-              ₹
-            </span>
-            <span
-              className={`relative z-10 flex-1 text-center text-[11px] font-bold transition-colors ${
-                currency === "USD" ? "text-primary-foreground" : "text-muted-foreground"
-              }`}
-            >
-              $
-            </span>
+            <span className={`relative z-10 flex-1 text-center text-[11px] font-bold transition-colors ${currency === "INR" ? "text-primary-foreground" : "text-muted-foreground"}`}>₹</span>
+            <span className={`relative z-10 flex-1 text-center text-[11px] font-bold transition-colors ${currency === "USD" ? "text-primary-foreground" : "text-muted-foreground"}`}>$</span>
           </button>
 
           <button onClick={() => setShowSearch(true)} className="p-2 rounded-full hover:bg-muted transition-colors" aria-label="Search">
@@ -98,7 +100,9 @@ const TopNavBar = () => {
             aria-label="Notifications"
           >
             <Bell size={20} className="text-muted-foreground" />
-            <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-primary rounded-full" />
+            {unreadCount > 0 && (
+              <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-primary rounded-full" />
+            )}
           </button>
           {/* Avatar dropdown */}
           <div className="relative" ref={menuRef}>
