@@ -1,215 +1,131 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { motion, useScroll, useTransform, useInView } from "framer-motion";
+import { motion } from "framer-motion";
 import AppShell from "@/components/AppShell";
 import ProductSection from "@/components/ProductSection";
 import SmartReorderSection from "@/components/home/SmartReorderSection";
-import CategoryIcons from "@/components/home/CategoryIcons";
-import FestivalRow from "@/components/home/FestivalRow";
+import BestSellers from "@/components/home/BestSellers";
 import HomeFooter from "@/components/home/HomeFooter";
 import { supabase } from "@/integrations/supabase/client";
-import { useLanguage } from "@/contexts/LanguageContext";
-import heroImage from "@/assets/hero-baklawa.png";
+import { useCart } from "@/hooks/useCart";
+import heroImage from "@/assets/hero-luxury.jpg";
+import giftingBanner from "@/assets/gifting-banner.jpg";
+import { Shield, Globe, Truck } from "lucide-react";
 
-/* ── animation presets ── */
-const EASE: [number, number, number, number] = [0.25, 0.46, 0.45, 0.94];
-
-const slowReveal = (delay = 0) => ({
-  initial: { opacity: 0, y: 30 },
+const fade = (delay = 0) => ({
+  initial: { opacity: 0, y: 16 },
   animate: { opacity: 1, y: 0 },
-  transition: { duration: 1.2, delay, ease: EASE },
+  transition: { duration: 0.7, delay, ease: [0.25, 0.46, 0.45, 0.94] },
 });
 
-const stagger = {
-  animate: { transition: { staggerChildren: 0.15 } },
-};
+const CATEGORIES = [
+  { label: "Bulk Sweets & Nuts", image: "🍬", query: "Bulk Sweets & Nuts" },
+  { label: "Ready Packs", image: "📦", query: "Ready packs" },
+  { label: "Premium Gift Packs", image: "🎁", query: "Premium Gift Packs" },
+  { label: "Frozen Range", image: "❄️", query: "Semi-Prepared & Frozen Range" },
+];
 
-const child = {
-  initial: { opacity: 0, y: 30 },
-  animate: { opacity: 1, y: 0, transition: { duration: 1.2, ease: EASE } },
-};
-
-/* ── Animated Section wrapper ── */
-const RevealSection = ({ children, className = "", delay = 0 }: { children: React.ReactNode; className?: string; delay?: number }) => {
-  const ref = useRef(null);
-  const isInView = useInView(ref, { once: true, margin: "-60px" });
-  return (
-    <motion.div
-      ref={ref}
-      initial={{ opacity: 0, y: 30 }}
-      animate={isInView ? { opacity: 1, y: 0 } : {}}
-      transition={{ duration: 1.2, delay, ease: EASE }}
-      className={className}
-    >
-      {children}
-    </motion.div>
-  );
-};
+const TRUST = [
+  { icon: Shield, label: "Premium Ingredients" },
+  { icon: Globe, label: "Export Ready" },
+  { icon: Truck, label: "Pan India Supply" },
+];
 
 const Index = () => {
   const navigate = useNavigate();
-  const [companyName, setCompanyName] = useState("");
-  const { t } = useLanguage();
-  const heroRef = useRef(null);
-  const { scrollYProgress } = useScroll({ target: heroRef, offset: ["start start", "end start"] });
-  const heroScale = useTransform(scrollYProgress, [0, 1], [1, 1.15]);
-  const heroOpacity = useTransform(scrollYProgress, [0, 0.8], [1, 0]);
-
-  useEffect(() => {
-    const fetchCompany = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
-      const { data: userData } = await supabase
-        .from("users")
-        .select("company_id")
-        .eq("id", user.id)
-        .maybeSingle();
-      if (!userData?.company_id) return;
-      const { data: company } = await supabase
-        .from("companies")
-        .select("business_name")
-        .eq("id", userData.company_id)
-        .maybeSingle();
-      if (company?.business_name) setCompanyName(company.business_name);
-    };
-    fetchCompany();
-  }, []);
+  const { cartItems } = useCart();
 
   return (
     <AppShell>
-      <div className="min-h-screen bg-[#F9F8F3] pb-28 relative overflow-hidden">
+      <div className="min-h-screen bg-background pb-28">
 
-        {/* ══════ FULL-BLEED HERO ══════ */}
-        <div ref={heroRef} className="relative w-full h-[75vh] overflow-hidden">
-          {/* Parallax image */}
-          <motion.div
-            className="absolute inset-0 flex items-center justify-center"
-            style={{ scale: heroScale, opacity: heroOpacity }}
-          >
-            <img
-              src={heroImage}
-              alt="Premium Baklawa Platter"
-              className="w-[110%] max-w-none h-full object-contain mix-blend-multiply"
-            />
-          </motion.div>
-
-          {/* Gradient overlay at bottom */}
-          <div className="absolute bottom-0 left-0 right-0 h-40 bg-gradient-to-t from-[#F9F8F3] to-transparent" />
-
-          {/* Floating editorial text over hero */}
-          <motion.div
-            className="absolute bottom-12 left-6 right-6 z-10"
-            {...slowReveal(0.4)}
-          >
-            <p className="font-body text-[10px] font-medium tracking-[0.35em] uppercase text-[#C4A052]">
-              Since 1942 · Handcrafted Excellence
+        {/* ─── HERO ─── */}
+        <motion.section {...fade()} className="relative w-full" style={{ height: "40vh", minHeight: 280 }}>
+          <img src={heroImage} alt="Premium Baklawa" className="w-full h-full object-cover" />
+          <div className="absolute inset-0 bg-gradient-to-t from-background/80 via-background/20 to-transparent" />
+          <div className="absolute bottom-8 left-6 right-6 z-10">
+            <p className="font-body text-[11px] font-light tracking-[0.25em] uppercase text-foreground/60 mb-1">
+              Oasis Baklawa
             </p>
-          </motion.div>
-        </div>
-
-        {/* ══════ HELLO EDITORIAL BLOCK ══════ */}
-        <motion.div
-          className="relative px-6 -mt-6 mb-16"
-          variants={stagger}
-          initial="initial"
-          animate="animate"
-        >
-          {/* Thin gold rule */}
-          <motion.div variants={child} className="w-16 h-[1px] bg-[#C4A052] mb-8" />
-
-          <motion.h1
-            variants={child}
-            className="font-display text-6xl md:text-8xl font-bold text-[#1A120B] tracking-tight leading-[0.9]"
-          >
-            {t("home.hello") || "Hello"}
-          </motion.h1>
-
-          <motion.p
-            variants={child}
-            className="mt-4 text-[9px] font-body font-light text-[#1A120B]/40 tracking-[0.15em] leading-relaxed max-w-xs"
-          >
-            नमस्ते · ਸਤਿ ਸ਼੍ਰੀ ਅਕਾਲ · السلام عليكم · வணக்கம் · নমস্কার · નમસ્તે · నమస్కారం · खम्मा घणी
-          </motion.p>
-
-          {companyName && (
-            <motion.h2
-              variants={child}
-              className="mt-6 font-display text-xl md:text-2xl font-semibold text-[#C4A052] tracking-wide"
+            <h1 className="font-display text-3xl text-foreground leading-tight mb-1">
+              Authentic Arabic Sweets
+            </h1>
+            <p className="font-body text-xs text-muted-foreground mb-4">
+              Crafted for Global Trade
+            </p>
+            <button
+              onClick={() => navigate("/catalogue")}
+              className="bg-foreground text-primary-foreground font-body text-sm font-medium px-6 py-2.5 rounded-full hover:opacity-90 transition-opacity"
             >
-              {companyName}
-            </motion.h2>
-          )}
+              Explore Catalogue
+            </button>
+          </div>
+        </motion.section>
+
+        {/* ─── CATEGORY GRID ─── */}
+        <motion.section {...fade(0.15)} className="px-5 mt-8 mb-10">
+          <div className="grid grid-cols-2 gap-3">
+            {CATEGORIES.map((cat) => (
+              <button
+                key={cat.label}
+                onClick={() => navigate(`/catalogue?category=${encodeURIComponent(cat.query)}`)}
+                className="relative aspect-[4/3] rounded-xl overflow-hidden group"
+              >
+                <div className="absolute inset-0 bg-muted flex items-center justify-center">
+                  <span className="text-5xl group-hover:scale-110 transition-transform duration-500">{cat.image}</span>
+                </div>
+                <div className="absolute inset-0 bg-gradient-to-t from-foreground/60 to-transparent" />
+                <span className="absolute bottom-3 left-3 font-body text-xs font-medium text-white tracking-wide">
+                  {cat.label}
+                </span>
+              </button>
+            ))}
+          </div>
+        </motion.section>
+
+        {/* ─── ORDER AGAIN ─── */}
+        <motion.div {...fade(0.2)} className="mb-10">
+          <SmartReorderSection />
         </motion.div>
 
-        {/* ══════ EXPLORE — EDITORIAL COLLAGE CATEGORIES ══════ */}
-        <RevealSection className="mb-20">
-          <CategoryIcons />
-        </RevealSection>
+        {/* ─── COMPLETE YOUR CART ─── */}
+        {cartItems && cartItems.length > 0 && (
+          <motion.section {...fade(0.25)} className="bg-secondary mx-5 rounded-xl px-5 py-5 mb-10">
+            <p className="font-body text-sm text-foreground font-medium mb-1">Complete Your Cart</p>
+            <p className="font-body text-xs text-muted-foreground mb-4">
+              You have {cartItems.length} items. Add more to optimise your order.
+            </p>
+            <ProductSection tagKey="recommended" variant="compact" />
+          </motion.section>
+        )}
 
-        {/* ══════ FESTIVALS — CINEMATIC CARDS ══════ */}
-        <RevealSection className="mb-20">
-          <FestivalRow />
-        </RevealSection>
+        {/* ─── BEST SELLERS ─── */}
+        <motion.section {...fade(0.3)} className="px-5 mb-10">
+          <h2 className="font-display text-2xl text-foreground mb-5">Best Sellers</h2>
+          <BestSellers />
+        </motion.section>
 
-        {/* ══════ WHAT'S NEW — EDITORIAL SECTION ══════ */}
-        <RevealSection className="mb-20">
-          <ProductSection
-            tagKey="new-arrivals"
-            title="What's New"
-            subtitle="Latest additions to our collection"
-            variant="editorial"
-          />
-        </RevealSection>
+        {/* ─── GIFTING BANNER ─── */}
+        <motion.section {...fade(0.35)} className="relative mx-5 rounded-xl overflow-hidden mb-10" style={{ height: 120 }}>
+          <img src={giftingBanner} alt="Gifting" className="w-full h-full object-cover" />
+          <div className="absolute inset-0 bg-foreground/40 flex flex-col items-center justify-center">
+            <p className="font-display text-xl text-white">Designed for Gifting</p>
+            <p className="font-body text-xs text-white/70 mt-1">Crafted for Impression</p>
+          </div>
+        </motion.section>
 
-        {/* ══════ FESTIVALS & EVENTS PRODUCTS ══════ */}
-        <RevealSection className="mb-20">
-          <ProductSection
-            tagKey="festivals-events"
-            title="Festivals & Events"
-            subtitle="Curated selections for every occasion"
-            variant="editorial"
-          />
-        </RevealSection>
+        {/* ─── TRUST STRIP ─── */}
+        <motion.section {...fade(0.4)} className="flex items-center justify-around px-5 py-6 mb-8">
+          {TRUST.map((t) => (
+            <div key={t.label} className="flex flex-col items-center gap-2">
+              <t.icon size={20} className="text-primary" strokeWidth={1.5} />
+              <span className="font-body text-[10px] text-muted-foreground text-center tracking-wide">{t.label}</span>
+            </div>
+          ))}
+        </motion.section>
 
-        {/* ══════ READY PACKS — FULL BLEED GOLD ══════ */}
-        <RevealSection className="mb-20">
-          <ProductSection
-            tagKey="private-label"
-            title="Ready Packs"
-            subtitle="Premium ready-to-sell retail packs"
-            variant="gold-block"
-          />
-        </RevealSection>
-
-        {/* ══════ SMART REORDER ══════ */}
-        <RevealSection className="mb-20">
-          <SmartReorderSection />
-        </RevealSection>
-
-        {/* ══════ RECOMMENDED ══════ */}
-        <RevealSection className="mb-20">
-          <ProductSection
-            tagKey="recommended"
-            title="Recommended"
-            subtitle="Hand-picked selections by our team"
-            variant="editorial"
-          />
-        </RevealSection>
-
-        {/* ══════ PACKING SOLUTIONS ══════ */}
-        <RevealSection className="mb-16">
-          <ProductSection
-            tagKey="packing-solution"
-            title="Packaging"
-            subtitle="Premium packaging for every need"
-            variant="editorial"
-          />
-        </RevealSection>
-
-        {/* ══════ FOOTER ══════ */}
-        <RevealSection>
-          <HomeFooter />
-        </RevealSection>
+        {/* ─── FOOTER ─── */}
+        <HomeFooter />
       </div>
     </AppShell>
   );

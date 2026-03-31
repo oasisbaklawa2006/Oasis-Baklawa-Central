@@ -1,76 +1,98 @@
-import { ArrowRight, Lock, TrendingUp } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useProducts } from "@/hooks/useProducts";
 import { useAuth } from "@/hooks/useAuth";
+import { useCurrency } from "@/contexts/CurrencyContext";
 import { Skeleton } from "@/components/ui/skeleton";
-
-const formatPrice = (price: number) => `₹${price.toLocaleString("en-IN")} / kg`;
+import { Lock, Package } from "lucide-react";
+import {
+  getDisplayPrice,
+  getMinOrderQty,
+  getProductCategory,
+  getPrimaryPackWeightKg,
+} from "@/utils/pricing";
 
 const BestSellers = () => {
   const navigate = useNavigate();
   const { products, loading } = useProducts();
   const { isAuthenticated } = useAuth();
+  const { formatPrice } = useCurrency();
 
-  // Show top 4 products
-  const bestSellers = products?.slice(0, 4) || [];
+  const bestSellers = products?.slice(0, 6) || [];
 
   if (loading) {
     return (
-      <div className="flex gap-4 overflow-x-auto pb-4 scrollbar-hide -mx-1 px-1">
+      <div className="grid grid-cols-2 gap-4">
         {[1, 2, 3, 4].map((i) => (
-          <div key={i} className="min-w-[180px] bg-card rounded-2xl border border-border overflow-hidden flex-shrink-0">
-            <Skeleton className="w-full h-[140px]" />
-            <div className="p-4 space-y-2">
-              <Skeleton className="h-4 w-3/4" />
-              <Skeleton className="h-8 w-full mt-2" />
-            </div>
-          </div>
+          <Skeleton key={i} className="aspect-[3/4] rounded-xl" />
         ))}
       </div>
     );
   }
 
   return (
-    <div className="flex gap-4 overflow-x-auto pb-4 scrollbar-hide -mx-1 px-1 no-scrollbar">
-      {bestSellers.map((product) => (
-        <div
-          key={product.id}
-          onClick={() => navigate(`/product/${product.id}`)}
-          className="min-w-[180px] max-w-[180px] bg-white border border-slate-100 rounded-2xl shadow-sm overflow-hidden flex-shrink-0 cursor-pointer hover:shadow-md transition-all group"
-        >
-          <div className="w-full h-[140px] overflow-hidden bg-slate-50 relative">
-            {product.image_url ? (
-              <img
-                src={product.image_url}
-                alt={product.name}
-                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-              />
-            ) : (
-              <div className="w-full h-full flex items-center justify-center text-slate-400 text-xs font-medium bg-slate-100">
-                No Image
-              </div>
-            )}
-            <div className="absolute top-2 left-2 bg-white/90 backdrop-blur-sm px-2 py-1 rounded-md text-[10px] font-bold text-emerald-700 uppercase tracking-wider shadow-sm flex items-center gap-1">
-              <TrendingUp size={10} /> Top Rated
+    <div className="grid grid-cols-2 gap-4">
+      {bestSellers.map((product) => {
+        const displayInfo = getDisplayPrice(product);
+        const cat = getProductCategory(product);
+        const weightKg = getPrimaryPackWeightKg(product);
+        const moq = getMinOrderQty(product);
+
+        return (
+          <div
+            key={product.id}
+            onClick={() => navigate(`/product/${product.id}`)}
+            className="bg-card rounded-xl shadow-soft overflow-hidden cursor-pointer group"
+          >
+            {/* Image — 65% */}
+            <div className="w-full aspect-[4/3] overflow-hidden bg-muted flex items-center justify-center">
+              {product.image_url ? (
+                <img
+                  src={product.image_url}
+                  alt={product.name}
+                  className="w-full h-full object-contain group-hover:scale-105 transition-transform duration-500"
+                  loading="lazy"
+                />
+              ) : (
+                <Package size={24} className="text-muted-foreground" />
+              )}
+            </div>
+
+            {/* Info */}
+            <div className="p-3 space-y-1">
+              <p className="font-body text-sm font-medium text-foreground line-clamp-2 leading-snug">
+                {product.name}
+              </p>
+              <p className="font-body text-[11px] text-muted-foreground">
+                {product.sub_category || product.category}
+              </p>
+
+              {isAuthenticated ? (
+                <>
+                  <p className="font-body text-sm text-foreground font-medium">
+                    {formatPrice(displayInfo.price)} <span className="text-xs font-normal text-muted-foreground">{displayInfo.unit}</span>
+                  </p>
+                  <p className="font-body text-[10px] text-muted-foreground">
+                    Pack: {product.pack_size || (cat === "bulk_kg" && weightKg > 0 ? `${weightKg} kg` : "Std")}
+                  </p>
+                  <p className="font-body text-[10px] text-muted-foreground">
+                    MOQ: {moq} {moq === 1 ? "box" : "boxes"}
+                  </p>
+                  <button
+                    onClick={(e) => { e.stopPropagation(); navigate(`/product/${product.id}`); }}
+                    className="w-full mt-2 bg-foreground text-primary-foreground font-body text-xs font-medium py-2 rounded-full hover:opacity-90 transition-opacity"
+                  >
+                    Add
+                  </button>
+                </>
+              ) : (
+                <p className="font-body text-[11px] text-primary flex items-center gap-1 mt-1">
+                  <Lock size={10} /> Login for Price
+                </p>
+              )}
             </div>
           </div>
-          <div className="p-4 flex flex-col justify-between h-[100px]">
-            <p className="font-bold text-slate-900 text-sm leading-tight line-clamp-2">{product.name}</p>
-            {isAuthenticated ? (
-              <div className="flex items-center justify-between mt-2">
-                <p className="text-xs font-semibold text-slate-500">{formatPrice(product.price_per_kg)}</p>
-                <button className="bg-slate-900 text-white w-7 h-7 rounded-full flex items-center justify-center shadow-sm group-hover:bg-amber-500 transition-colors">
-                  <ArrowRight size={14} />
-                </button>
-              </div>
-            ) : (
-              <p className="text-[10px] font-bold text-amber-600 mt-2 flex items-center gap-1 bg-amber-50 px-2 py-1 rounded-md">
-                <Lock size={10} /> Login for Price
-              </p>
-            )}
-          </div>
-        </div>
-      ))}
+        );
+      })}
     </div>
   );
 };
