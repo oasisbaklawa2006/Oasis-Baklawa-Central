@@ -12,10 +12,12 @@ import { useLanguage } from "@/contexts/LanguageContext";
 import heroImage from "@/assets/hero-baklawa.png";
 
 /* ── animation presets ── */
+const EASE: [number, number, number, number] = [0.25, 0.46, 0.45, 0.94];
+
 const slowReveal = (delay = 0) => ({
   initial: { opacity: 0, y: 30 },
   animate: { opacity: 1, y: 0 },
-  transition: { duration: 1.2, delay, ease: [0.25, 0.46, 0.45, 0.94] },
+  transition: { duration: 1.2, delay, ease: EASE },
 });
 
 const stagger = {
