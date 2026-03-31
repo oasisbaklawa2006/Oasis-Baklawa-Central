@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&family=Jost:wght@200;300;400;500;600;700&family=Inter:wght@300;400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,500;0,600;0,700;1,400&family=Lato:wght@300;400;700&family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&family=Jost:wght@200;300;400;500;600;700&display=swap');
 
 @tailwind base;
 @tailwind components;
@@ -6,52 +6,53 @@
 
 @layer base {
   :root {
-    --background: 34 18% 95%; /* #F7F5F2 */
-    --foreground: 0 0% 17%; /* #2C2C2C */
+    --background: 40 14% 96%; /* #F8F6F2 */
+    --foreground: 0 0% 10%; /* #1A1A1A */
 
     --card: 0 0% 100%; /* #FFFFFF */
-    --card-foreground: 0 0% 17%;
+    --card-foreground: 0 0% 10%;
 
     --popover: 0 0% 100%;
-    --popover-foreground: 0 0% 17%;
+    --popover-foreground: 0 0% 10%;
 
-    --primary: 36 33% 63%; /* #C6A87D */
+    --primary: 170 50% 12%; /* #0F2F2F Deep Teal */
     --primary-foreground: 0 0% 100%;
 
-    --secondary: 30 18% 94%; /* warm off-white */
-    --secondary-foreground: 0 0% 17%;
+    --secondary: 36 30% 63%; /* #C6A87D Champagne Gold */
+    --secondary-foreground: 0 0% 100%;
 
-    --muted: 30 12% 92%;
-    --muted-foreground: 0 0% 45%;
+    --muted: 40 10% 93%;
+    --muted-foreground: 0 0% 44%; /* #6F6F6F */
 
-    --accent: 36 33% 63%;
+    --accent: 36 30% 63%; /* Gold accent */
     --accent-foreground: 0 0% 100%;
 
     --destructive: 0 84% 60%;
     --destructive-foreground: 0 0% 100%;
 
-    --border: 30 8% 90%;
-    --input: 30 8% 90%;
-    --ring: 36 33% 63%;
+    --border: 40 8% 90%;
+    --input: 40 8% 90%;
+    --ring: 170 50% 12%;
 
-    --radius: 0.75rem;
+    --radius: 1rem;
 
-    --card-shadow: 0 2px 16px rgba(0,0,0,0.04);
-    --nav-shadow: 0 -1px 8px rgba(0,0,0,0.03);
-    --fab-shadow: 0 4px 14px rgba(0,0,0,0.08);
+    --card-shadow: 0 8px 30px rgba(0,0,0,0.06);
+    --nav-shadow: 0 -4px 20px rgba(0,0,0,0.04);
+    --fab-shadow: 0 4px 20px rgba(0,0,0,0.1);
 
-    --font-display: 'Cormorant Garamond', 'Georgia', serif;
-    --font-body: 'Jost', sans-serif;
-    --font-ui: 'Inter', sans-serif;
+    --font-display: 'Playfair Display', 'Georgia', serif;
+    --font-body: 'Lato', 'Jost', sans-serif;
+    --font-ui: 'Lato', sans-serif;
+    --font-serif: 'Cormorant Garamond', 'Georgia', serif;
 
     --sidebar-background: 0 0% 98%;
     --sidebar-foreground: 240 5.3% 26.1%;
-    --sidebar-primary: 240 5.9% 10%;
+    --sidebar-primary: 170 50% 12%;
     --sidebar-primary-foreground: 0 0% 98%;
     --sidebar-accent: 240 4.8% 95.9%;
     --sidebar-accent-foreground: 240 5.9% 10%;
     --sidebar-border: 220 13% 91%;
-    --sidebar-ring: 36 33% 63%;
+    --sidebar-ring: 170 50% 12%;
   }
 }
 
@@ -65,15 +66,17 @@
     font-family: var(--font-body);
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+    letter-spacing: 0.01em;
   }
 
   h1, h2 {
     font-family: var(--font-display);
     font-weight: 400;
+    letter-spacing: -0.01em;
   }
 
   h3 {
-    font-family: var(--font-body);
+    font-family: var(--font-serif);
     font-weight: 500;
     font-size: 18px;
   }
@@ -105,6 +108,7 @@
   .font-display { font-family: var(--font-display); }
   .font-body { font-family: var(--font-body); }
   .font-ui { font-family: var(--font-ui); }
+  .font-serif { font-family: var(--font-serif); }
 }
 
 @keyframes marquee {

@@ -16,79 +16,63 @@ const BottomNavBar = () => {
 
   const activeIndex = navItems.findIndex((item) => item.path === location.pathname);
   const resolvedIndex = activeIndex === -1 ? 0 : activeIndex;
-
-  // Each tab occupies 20% of the width
   const tabWidth = 100 / navItems.length;
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 z-50 h-[82px] flex items-center justify-around px-1"
-      style={{ background: "#EEEEEE", borderTop: "1px solid #E0E0E0" }}
+    <nav
+      className="fixed bottom-3 left-4 right-4 z-50 h-[72px] flex items-center justify-around rounded-2xl"
+      style={{
+        background: "rgba(255,255,255,0.75)",
+        backdropFilter: "blur(20px) saturate(180%)",
+        WebkitBackdropFilter: "blur(20px) saturate(180%)",
+        boxShadow: "0 8px 32px rgba(0,0,0,0.08), 0 1px 2px rgba(0,0,0,0.04)",
+        border: "1px solid rgba(255,255,255,0.5)",
+      }}
     >
-      {/* Iridescent sliding bubble */}
+      {/* Active indicator */}
       <motion.div
-        className="absolute top-1 rounded-2xl pointer-events-none"
+        className="absolute top-2 rounded-xl pointer-events-none"
         style={{
-          width: `calc(${tabWidth}% - 8px)`,
-          height: "68px",
-          background: "linear-gradient(145deg, rgba(255,255,255,0.95) 0%, rgba(245,243,248,0.9) 40%, rgba(240,238,245,0.85) 100%)",
-          boxShadow: `
-            0 4px 20px rgba(0,0,0,0.08),
-            0 1px 4px rgba(0,0,0,0.04),
-            inset 0 1px 2px rgba(255,255,255,1),
-            inset 0 -1px 2px rgba(200,195,210,0.15)
-          `,
-          border: "1px solid rgba(255,255,255,0.7)",
+          width: `calc(${tabWidth}% - 12px)`,
+          height: "56px",
+          background: "hsl(var(--primary) / 0.08)",
         }}
         initial={false}
         animate={{
-          left: `calc(${resolvedIndex * tabWidth}% + 4px)`,
+          left: `calc(${resolvedIndex * tabWidth}% + 6px)`,
         }}
-        transition={{ type: "spring", stiffness: 320, damping: 30 }}
-      >
-        {/* Iridescent edge sheen - top-left */}
-        <div
-          className="absolute -top-[1px] -left-[1px] w-[60%] h-[60%] rounded-tl-2xl pointer-events-none"
-          style={{
-            background: "linear-gradient(135deg, rgba(200,180,255,0.35) 0%, rgba(180,220,255,0.2) 40%, transparent 70%)",
-          }}
-        />
-        {/* Iridescent edge sheen - bottom-right */}
-        <div
-          className="absolute -bottom-[1px] -right-[1px] w-[50%] h-[50%] rounded-br-2xl pointer-events-none"
-          style={{
-            background: "linear-gradient(315deg, rgba(180,255,200,0.25) 0%, rgba(220,200,255,0.15) 40%, transparent 70%)",
-          }}
-        />
-        {/* Central pearl highlight */}
-        <div
-          className="absolute inset-0 rounded-2xl pointer-events-none"
-          style={{
-            background: "radial-gradient(ellipse at 35% 25%, rgba(255,255,255,0.8) 0%, transparent 50%)",
-          }}
-        />
-      </motion.div>
+        transition={{ type: "spring", stiffness: 350, damping: 32 }}
+      />
 
-      {/* Nav items */}
       {navItems.map((item, i) => {
         const isActive = i === resolvedIndex;
         return (
-          <button
+          <motion.button
             key={item.label}
+            whileTap={{ scale: 0.92 }}
             onClick={() => navigate(item.path)}
-            className="relative z-10 flex flex-col items-center justify-center gap-1 flex-1 py-2 transition-colors"
+            className="relative z-10 flex flex-col items-center justify-center gap-1 flex-1 py-2"
           >
             <item.icon
-              size={24}
-              strokeWidth={isActive ? 2.2 : 1.6}
-              style={{ color: "#C6A769" }}
+              size={22}
+              strokeWidth={isActive ? 2 : 1.5}
+              className={isActive ? "text-primary" : "text-muted-foreground"}
             />
             <span
-              className="text-[9px] font-bold tracking-wider"
-              style={{ color: isActive ? "#1c1c1c" : "#888888" }}
+              className={`text-[9px] font-medium tracking-wider transition-colors duration-200 ${
+                isActive ? "text-primary font-bold" : "text-muted-foreground"
+              }`}
             >
               {item.label}
             </span>
-          </button>
+            {isActive && (
+              <motion.div
+                layoutId="nav-dot"
+                className="absolute -bottom-0 w-1 h-1 rounded-full bg-secondary"
+                transition={{ type: "spring", stiffness: 400, damping: 30 }}
+              />
+            )}
+          </motion.button>
         );
       })}
     </nav>
