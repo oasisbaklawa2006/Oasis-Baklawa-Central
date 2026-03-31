@@ -1,16 +1,11 @@
 const HomeFooter = () => (
-  <footer className="px-5 py-8 text-center space-y-3">
-    <div className="w-12 h-[1px] bg-primary mx-auto mb-4" />
-    <div className="flex items-center justify-center gap-4 flex-wrap text-[10px] font-body text-muted-foreground tracking-wide">
-      {["About", "Contact", "Terms", "Privacy"].map((item, i) => (
-        <span key={item} className="flex items-center gap-4">
-          {i > 0 && <span className="text-border">·</span>}
-          <button className="hover:text-foreground transition-colors">{item}</button>
-        </span>
-      ))}
-    </div>
-    <p className="text-[10px] font-body text-muted-foreground/60">
-      © 2026 TCF Chocolates and Gifts Pvt Ltd
+  <footer className="px-6 py-8 text-center">
+    <div className="w-12 h-[1px] bg-secondary/30 mx-auto mb-4" />
+    <p className="font-body text-[10px] text-muted-foreground tracking-[0.2em] uppercase">
+      Oasis Baklawa & Sweets
+    </p>
+    <p className="font-body text-[9px] text-muted-foreground/60 mt-1">
+      Crafted with Heritage · Delivered with Excellence
     </p>
   </footer>
 );
