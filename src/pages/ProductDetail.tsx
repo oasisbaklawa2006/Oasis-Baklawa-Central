@@ -47,6 +47,7 @@ const ProductDetail = () => {
   const [boxes, setBoxes] = useState(0);
   const [isAdding, setIsAdding] = useState(false);
   const [showImageModal, setShowImageModal] = useState(false);
+  const [activeSlide, setActiveSlide] = useState(0);
 
   useEffect(() => {
     if (!id) return;
