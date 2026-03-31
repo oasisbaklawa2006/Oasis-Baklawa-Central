@@ -121,7 +121,6 @@ const ProductDetail = () => {
     { label: "HSN Code", value: hsn || null },
   ].filter((r) => r.value);
 
-  const [activeSlide, setActiveSlide] = useState(0);
   const heroImages = images.length > 0 ? images : ["/placeholder.svg"];
 
   const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
