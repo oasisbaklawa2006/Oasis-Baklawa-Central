@@ -73,12 +73,12 @@ const ProductRecommendations = ({
   if (products.length === 0) return null;
 
   return (
-    <div className="pt-6 pb-4 bg-[#F9F8F3]">
-      <h3 className="px-5 text-sm font-light uppercase tracking-widest text-[#4A3623] mb-4">
+    <div className="pt-4 pb-2 bg-[#F9F8F3]">
+      <h3 className="px-5 text-sm font-light uppercase tracking-widest text-[#4A3623] mb-3" style={{ fontFamily: "var(--font-body)" }}>
         {title}
       </h3>
       <div
-        className="flex flex-row overflow-x-auto gap-4 px-5 pb-4 scrollbar-hide"
+        className="flex flex-row overflow-x-auto overflow-y-hidden snap-x gap-4 px-5 pb-3 scrollbar-hide"
         style={{ WebkitOverflowScrolling: "touch" }}
       >
         {products.map((p) => {
@@ -93,15 +93,14 @@ const ProductRecommendations = ({
             <div
               key={p.id}
               onClick={() => navigate(`/product/${p.id}`)}
-              className="min-w-[160px] max-w-[160px] bg-[#F9F8F3] rounded-[24px] border-[1.5px] border-[#C4A052] p-4 flex-shrink-0 cursor-pointer active:scale-95 transition-transform relative"
+              className="w-[75vw] max-w-[280px] min-w-[220px] bg-[#F9F8F3] rounded-[24px] border-[1.5px] border-[#C4A052] p-4 flex-shrink-0 cursor-pointer active:scale-95 transition-transform relative snap-center"
             >
-              {/* Image */}
-              <div className="relative w-full aspect-square bg-white rounded-[12px] mb-2 p-2 flex items-center justify-center overflow-hidden">
-                {isVeg && (
-                  <div className="absolute top-1.5 right-1.5 z-10 w-4 h-4 border border-[#2E7D32] rounded-sm flex items-center justify-center">
-                    <div className="w-2 h-2 rounded-full bg-[#2E7D32]" />
-                  </div>
-                )}
+              {/* Image — no white bg */}
+              <div className="relative w-full aspect-square rounded-[12px] mb-2 p-2 flex items-center justify-center overflow-hidden bg-[#F9F8F3]">
+                {/* Veg mark always shown */}
+                <div className="absolute top-1.5 right-1.5 z-10 w-4 h-4 border border-[#2E7D32] rounded-sm flex items-center justify-center bg-[#F9F8F3]">
+                  <div className="w-2 h-2 rounded-full bg-[#2E7D32]" />
+                </div>
                 {p.image_url ? (
                   <img
                     src={p.image_url}
@@ -113,21 +112,21 @@ const ProductRecommendations = ({
                 )}
               </div>
 
-              {/* Title */}
-              <p className="text-[#4A3623] text-[10px] font-light uppercase tracking-wider text-center line-clamp-2 mb-1">
+              {/* Title — left aligned */}
+              <p className="text-[#4A3623] text-[11px] font-light uppercase tracking-wider line-clamp-2 mb-1" style={{ fontFamily: "var(--font-body)" }}>
                 {p.name}
               </p>
 
               {/* Pack info */}
-              <p className="text-[#4A3623] text-[9px] font-bold text-center mb-1">
+              <p className="text-[#4A3623] text-[10px] font-bold mb-1" style={{ fontFamily: "var(--font-body)" }}>
                 Pack : {p.pack_size || (cat === "bulk_kg" && weightKg > 0 ? `${weightKg} kg` : "Std")}
               </p>
 
               {/* Price */}
-              <p className="text-[#C4A052] text-xs font-bold text-center">
+              <p className="text-[#C4A052] text-sm font-bold" style={{ fontFamily: "var(--font-body)" }}>
                 {formatPrice(displayInfo.price)} {displayInfo.unit}
               </p>
-              <p className="text-[#4A3623]/40 text-[7px] text-center uppercase tracking-wider mt-0.5">
+              <p className="text-[#4A3623]/40 text-[7px] uppercase tracking-wider mt-0.5">
                 Taxes Extra
               </p>
             </div>

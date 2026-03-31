@@ -470,56 +470,54 @@ const ProductCard = ({
   return (
     <div
       onClick={() => navigate(`/product/${item.id}`)}
-      className="relative bg-[#F9F8F3] border-[1.5px] border-[#C4A052] rounded-[24px] p-5 hover:shadow-lg transition-all cursor-pointer group"
+      className="relative bg-[#F9F8F3] border-[1.5px] border-[#C4A052] rounded-[24px] p-4 pb-14 hover:shadow-lg transition-all cursor-pointer group"
     >
-      {/* Image area */}
-      <div className="relative w-full aspect-square bg-white rounded-[16px] mb-3 flex items-center justify-center p-3 overflow-hidden">
-        {isVeg && (
-          <div className="absolute top-2 right-2 z-10 w-5 h-5 border-[1.5px] border-[#2E7D32] rounded-sm flex items-center justify-center">
-            <div className="w-2.5 h-2.5 rounded-full bg-[#2E7D32]" />
-          </div>
-        )}
+      {/* Image area — no white bg, cream shows through */}
+      <div className="relative w-full aspect-square rounded-[16px] mb-2 flex items-center justify-center p-3 overflow-hidden bg-[#F9F8F3]">
+        {/* Veg mark */}
+        <div className="absolute top-2 right-2 z-10 w-5 h-5 border-[1.5px] border-[#2E7D32] rounded-sm flex items-center justify-center bg-[#F9F8F3]">
+          <div className="w-2.5 h-2.5 rounded-full bg-[#2E7D32]" />
+        </div>
         <img
           src={item.image_url || "/placeholder.svg"}
           className="w-full h-full object-contain mix-blend-multiply group-hover:scale-105 transition-transform duration-500"
           alt={item.name}
         />
+        {/* Floating dots inside image */}
+        <div className="absolute bottom-2 left-1/2 -translate-x-1/2 z-10 flex items-center gap-1.5">
+          <div className="w-2 h-2 rounded-full bg-[#C4A052]" />
+          <div className="w-2 h-2 rounded-full bg-[#D9D5CA]" />
+          <div className="w-2 h-2 rounded-full bg-[#D9D5CA]" />
+        </div>
       </div>
 
-      {/* Carousel dots */}
-      <div className="flex items-center justify-center gap-1.5 mb-3">
-        <div className="w-2 h-2 rounded-full bg-[#C4A052]" />
-        <div className="w-2 h-2 rounded-full bg-[#D9D5CA]" />
-        <div className="w-2 h-2 rounded-full bg-[#D9D5CA]" />
-      </div>
-
-      {/* Title */}
-      <h3 className="text-[#4A3623] text-xs font-light uppercase tracking-wider text-center line-clamp-1 mb-0.5">
+      {/* Title — left aligned */}
+      <h3 className="text-[#4A3623] text-xs font-light uppercase tracking-wider line-clamp-1 mb-0.5" style={{ fontFamily: "var(--font-body)" }}>
         {item.name}
       </h3>
-      <p className="text-[#4A3623]/60 text-[10px] text-center uppercase tracking-wide mb-3">
+      <p className="text-[#4A3623]/60 text-[10px] uppercase tracking-wide mb-2" style={{ fontFamily: "var(--font-body)" }}>
         {item.sub_category || item.category || ""}
       </p>
 
-      {/* B2B details */}
-      <div className="space-y-0.5 mb-3">
-        <p className="text-[#4A3623] text-xs font-bold text-center">
+      {/* B2B details — left aligned */}
+      <div className="space-y-0.5 mb-2">
+        <p className="text-[#4A3623] text-[11px] font-bold" style={{ fontFamily: "var(--font-body)" }}>
           Pack Size : {item.pack_size || (cat === "bulk_kg" && weightKg > 0 ? `${weightKg} kg` : "Standard")}
         </p>
-        <p className="text-[#4A3623] text-xs font-bold text-center">
+        <p className="text-[#4A3623] text-[11px] font-bold" style={{ fontFamily: "var(--font-body)" }}>
           Pack Price : {formatPrice(packPrice)}/-
         </p>
       </div>
 
-      {/* Main price */}
-      <div className="text-center mb-1">
-        <p className="text-[#4A3623] text-lg font-bold">
-          {formatPrice(displayInfo.price)} <span className="text-sm font-normal">Per {displayInfo.unit.replace("/", "")}</span>
+      {/* Main price — left aligned */}
+      <div className="mb-1">
+        <p className="text-[#4A3623] text-base font-bold" style={{ fontFamily: "var(--font-body)" }}>
+          {formatPrice(displayInfo.price)} <span className="text-xs font-normal">Per {displayInfo.unit.replace("/", "")}</span>
         </p>
         <p className="text-[#4A3623]/50 text-[8px] uppercase tracking-wider">Taxes & Transportation Extra</p>
       </div>
 
-      {/* Cart button */}
+      {/* Cart button — absolute bottom-right */}
       {(item.stock ?? 1) > 0 ? (
         <button
           onClick={async (e) => {
