@@ -448,7 +448,7 @@ const Catalogue = () => {
   );
 };
 
-// Extracted product card component
+// Extracted product card component — Imperial Luxury style
 const ProductCard = ({
   item,
   navigate,
@@ -459,39 +459,67 @@ const ProductCard = ({
   navigate: any;
   formatPrice: (n: number) => string;
   addToCart: any;
-}) => (
-  <div
-    onClick={() => navigate(`/product/${item.id}`)}
-    className="bg-card border border-border rounded-2xl p-4 shadow-sm hover:border-primary/50 hover:shadow-md transition-all cursor-pointer group"
-  >
-    <div className="h-36 mb-4 rounded-xl overflow-hidden bg-muted/30 flex items-center justify-center p-2">
-      <img
-        src={item.image_url || "/placeholder.svg"}
-        className="w-full h-full object-contain mix-blend-multiply group-hover:scale-105 transition-transform duration-500"
-        alt={item.name}
-      />
-    </div>
-    <h3 className="font-bold text-foreground text-sm mb-1 line-clamp-2">{item.name}</h3>
-    <p className="text-xs text-muted-foreground font-medium capitalize mb-3">{getPackSubtitle(item)}</p>
-    <div className="flex items-center justify-between">
-      <div>
-        {getProductCategory(item) === "bulk_kg" ? (
-          <>
-            <p className="text-lg font-bold text-foreground">
-              {formatPrice(calculatePackPrice(item))}
-              <span className="text-xs text-muted-foreground font-normal ml-1">/ box</span>
-            </p>
-            <p className="text-xs text-muted-foreground">
-              ({formatPrice(getBasePricePerKg(item))} / kg)
-            </p>
-          </>
-        ) : (
-          <p className="text-lg font-bold text-foreground">
-            {formatPrice(getBasePricePerPc(item))}
-            <span className="text-xs text-muted-foreground font-normal ml-1">/ pc</span>
-          </p>
+}) => {
+  const cat = getProductCategory(item);
+  const packPrice = calculatePackPrice(item);
+  const displayInfo = getDisplayPrice(item);
+  const weightKg = getPrimaryPackWeightKg(item);
+  const dietaryTags: string[] = item.dietary_tags || [];
+  const isVeg = dietaryTags.some((t: string) => t.toLowerCase().includes("veg"));
+
+  return (
+    <div
+      onClick={() => navigate(`/product/${item.id}`)}
+      className="relative bg-[#F9F8F3] border-[1.5px] border-[#C4A052] rounded-[24px] p-5 hover:shadow-lg transition-all cursor-pointer group"
+    >
+      {/* Image area */}
+      <div className="relative w-full aspect-square bg-white rounded-[16px] mb-3 flex items-center justify-center p-3 overflow-hidden">
+        {isVeg && (
+          <div className="absolute top-2 right-2 z-10 w-5 h-5 border-[1.5px] border-[#2E7D32] rounded-sm flex items-center justify-center">
+            <div className="w-2.5 h-2.5 rounded-full bg-[#2E7D32]" />
+          </div>
         )}
+        <img
+          src={item.image_url || "/placeholder.svg"}
+          className="w-full h-full object-contain mix-blend-multiply group-hover:scale-105 transition-transform duration-500"
+          alt={item.name}
+        />
       </div>
+
+      {/* Carousel dots */}
+      <div className="flex items-center justify-center gap-1.5 mb-3">
+        <div className="w-2 h-2 rounded-full bg-[#C4A052]" />
+        <div className="w-2 h-2 rounded-full bg-[#D9D5CA]" />
+        <div className="w-2 h-2 rounded-full bg-[#D9D5CA]" />
+      </div>
+
+      {/* Title */}
+      <h3 className="text-[#4A3623] text-xs font-light uppercase tracking-wider text-center line-clamp-1 mb-0.5">
+        {item.name}
+      </h3>
+      <p className="text-[#4A3623]/60 text-[10px] text-center uppercase tracking-wide mb-3">
+        {item.sub_category || item.category || ""}
+      </p>
+
+      {/* B2B details */}
+      <div className="space-y-0.5 mb-3">
+        <p className="text-[#4A3623] text-xs font-bold text-center">
+          Pack Size : {item.pack_size || (cat === "bulk_kg" && weightKg > 0 ? `${weightKg} kg` : "Standard")}
+        </p>
+        <p className="text-[#4A3623] text-xs font-bold text-center">
+          Pack Price : {formatPrice(packPrice)}/-
+        </p>
+      </div>
+
+      {/* Main price */}
+      <div className="text-center mb-1">
+        <p className="text-[#4A3623] text-lg font-bold">
+          {formatPrice(displayInfo.price)} <span className="text-sm font-normal">Per {displayInfo.unit.replace("/", "")}</span>
+        </p>
+        <p className="text-[#4A3623]/50 text-[8px] uppercase tracking-wider">Taxes & Transportation Extra</p>
+      </div>
+
+      {/* Cart button */}
       {(item.stock ?? 1) > 0 ? (
         <button
           onClick={async (e) => {
@@ -499,15 +527,15 @@ const ProductCard = ({
             const moq = getMinOrderQty(item);
             await addToCart(item.id, moq, item.pack_size ?? null, item.carton_type ?? null);
           }}
-          className="w-8 h-8 rounded-full bg-gradient-to-r from-primary to-primary/80 text-primary-foreground flex items-center justify-center shadow-md hover:scale-110 transition-transform"
+          className="absolute bottom-4 right-4 w-10 h-10 rounded-full bg-[#4A3623] text-white flex items-center justify-center shadow-md hover:scale-110 transition-transform"
         >
-          <ShoppingCart size={14} />
+          <ShoppingCart size={16} />
         </button>
       ) : (
-        <span className="text-[10px] font-bold text-destructive uppercase">Out of Stock</span>
+        <span className="absolute bottom-4 right-4 text-[10px] font-bold text-destructive uppercase">Sold Out</span>
       )}
     </div>
-  </div>
-);
+  );
+};
 
 export default Catalogue;
