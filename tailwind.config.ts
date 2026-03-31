@@ -14,10 +14,9 @@ export default {
     },
     extend: {
       fontFamily: {
-        display: ["var(--font-display)", "serif"],
+        display: ["var(--font-display)", "Georgia", "serif"],
         body: ["var(--font-body)", "sans-serif"],
         ui: ["var(--font-ui)", "sans-serif"],
-        fine: ["var(--font-fine)", "'Arial Narrow'", "sans-serif"],
       },
       colors: {
         border: "hsl(var(--border))",
@@ -73,6 +72,7 @@ export default {
         card: "var(--card-shadow)",
         nav: "var(--nav-shadow)",
         fab: "var(--fab-shadow)",
+        soft: "0 2px 20px rgba(0,0,0,0.04)",
       },
       keyframes: {
         "accordion-down": {
