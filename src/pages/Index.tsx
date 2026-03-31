@@ -12,10 +12,12 @@ import heroImage from "@/assets/hero-luxury.jpg";
 import giftingBanner from "@/assets/gifting-banner.jpg";
 import { Shield, Globe, Truck } from "lucide-react";
 
+const EASE: [number, number, number, number] = [0.25, 0.46, 0.45, 0.94];
+
 const fade = (delay = 0) => ({
   initial: { opacity: 0, y: 16 },
   animate: { opacity: 1, y: 0 },
-  transition: { duration: 0.7, delay, ease: [0.25, 0.46, 0.45, 0.94] },
+  transition: { duration: 0.7, delay, ease: EASE },
 });
 
 const CATEGORIES = [
