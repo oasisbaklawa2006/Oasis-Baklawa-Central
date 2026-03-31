@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useCurrency } from "@/contexts/CurrencyContext";
-import { ShoppingCart, Loader2 } from "lucide-react";
+import { Loader2, Package } from "lucide-react";
 
 interface ReorderProduct {
   id: string;
@@ -39,7 +39,7 @@ const SmartReorderSection = () => {
         orderItems.forEach(oi => {
           if (oi.product_id) qtyMap[oi.product_id] = (qtyMap[oi.product_id] || 0) + Number(oi.quantity);
         });
-        const sortedIds = Object.entries(qtyMap).sort(([, a], [, b]) => b - a).slice(0, 6).map(([id]) => id);
+        const sortedIds = Object.entries(qtyMap).sort(([, a], [, b]) => b - a).slice(0, 8).map(([id]) => id);
         if (sortedIds.length === 0) { setLoading(false); return; }
         const { data: products } = await supabase
           .from("products").select("id, name, image_url, price_per_kg, pack_size")
@@ -61,66 +61,41 @@ const SmartReorderSection = () => {
   }, []);
 
   if (loading) return (
-    <div className="flex justify-center py-8">
-      <Loader2 size={20} className="animate-spin text-[#C4A052]" />
+    <div className="flex justify-center py-6">
+      <Loader2 size={18} className="animate-spin text-primary" />
     </div>
   );
 
   if (items.length === 0) return null;
 
   return (
-    <section className="px-6">
-      <div className="flex items-center gap-3 mb-6">
-        <div className="w-8 h-[1px] bg-[#C4A052]" />
-        <p className="text-[9px] font-body font-medium tracking-[0.3em] uppercase text-[#C4A052]">
-          Smart Reorder
-        </p>
-      </div>
-      <p className="text-[9px] text-[#1A120B]/30 mb-5 font-body tracking-wider uppercase">Based on your recent orders</p>
-
-      <div className="flex overflow-x-auto scrollbar-hide gap-5 pb-4 snap-x -mx-2 px-2">
-        {items.map((item) => {
-          const pricePerKg = item.price_per_kg ?? 0;
-
-          return (
-            <div
-              key={item.id}
-              className="min-w-[200px] max-w-[220px] snap-start cursor-pointer group flex flex-col bg-transparent"
-              onClick={() => navigate(`/product/${item.id}`)}
-            >
-              {/* Image */}
-              <div className="relative aspect-[3/4] rounded-[16px] overflow-hidden bg-[#F0EDE4] flex items-center justify-center mb-3">
-                {item.image_url ? (
-                  <img src={item.image_url} className="w-full h-full object-contain mix-blend-multiply group-hover:scale-110 transition-transform duration-700 ease-out" alt={item.name} loading="lazy" />
-                ) : (
-                  <span className="text-4xl">🍯</span>
-                )}
-                <div className="absolute top-2 right-2 w-4 h-4 border border-[#2E7D32] rounded-sm flex items-center justify-center bg-[#F9F8F3]/90">
-                  <div className="w-2 h-2 rounded-full bg-[#2E7D32]" />
-                </div>
-              </div>
-
-              <p className="font-body text-[9px] font-medium tracking-[0.2em] uppercase text-[#C4A052] mb-1">Reorder · {item.quantity} ordered</p>
-              <h3 className="font-display text-[14px] font-semibold text-[#1A120B] leading-tight line-clamp-2 mb-2">{item.name}</h3>
-
-              <div className="flex items-end justify-between mt-auto">
-                <div>
-                  <p className="font-display text-lg font-bold text-[#1A120B]">
-                    <span className="text-[10px] align-top font-body font-light">₹</span>{pricePerKg > 0 ? pricePerKg.toFixed(0) : "0"}
-                    <span className="text-[9px] font-body font-light text-[#1A120B]/40 ml-0.5">/kg</span>
-                  </p>
-                  <p className="font-body text-[7px] text-[#1A120B]/30 tracking-wider uppercase">excl. taxes</p>
-                </div>
-                <button
-                  onClick={(e) => { e.stopPropagation(); navigate(`/product/${item.id}`); }}
-                  className="w-9 h-9 rounded-full border border-[#C4A052] text-[#C4A052] hover:bg-[#C4A052] hover:text-white flex items-center justify-center flex-shrink-0 transition-all duration-300"
-                >
-                  <ShoppingCart size={14} />
-                </button>
-              </div>
+    <section className="px-5">
+      <h2 className="font-display text-2xl text-foreground mb-4">Order Again</h2>
+      <div className="flex overflow-x-auto scrollbar-hide gap-3 pb-2 snap-x">
+        {items.map((item) => (
+          <div
+            key={item.id}
+            onClick={() => navigate(`/product/${item.id}`)}
+            className="min-w-[140px] max-w-[140px] snap-start cursor-pointer flex-shrink-0 group"
+          >
+            <div className="w-full aspect-square rounded-lg overflow-hidden bg-muted flex items-center justify-center mb-2">
+              {item.image_url ? (
+                <img
+                  src={item.image_url}
+                  alt={item.name}
+                  className="w-full h-full object-contain group-hover:scale-105 transition-transform duration-500"
+                  loading="lazy"
+                />
+              ) : (
+                <Package size={20} className="text-muted-foreground" />
+              )}
             </div>
-          );
-        })}
+            <p className="font-body text-xs text-foreground line-clamp-1 mb-0.5">{item.name}</p>
+            <p className="font-body text-[11px] text-muted-foreground">
+              {formatPrice(item.price_per_kg)}/kg
+            </p>
+          </div>
+        ))}
       </div>
     </section>
   );
