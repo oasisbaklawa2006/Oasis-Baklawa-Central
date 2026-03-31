@@ -26,7 +26,7 @@ const stagger = {
 
 const child = {
   initial: { opacity: 0, y: 30 },
-  animate: { opacity: 1, y: 0, transition: { duration: 1.2, ease: [0.25, 0.46, 0.45, 0.94] } },
+  animate: { opacity: 1, y: 0, transition: { duration: 1.2, ease: EASE } },
 };
 
 /* ── Animated Section wrapper ── */
