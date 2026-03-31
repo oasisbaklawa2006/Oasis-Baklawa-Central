@@ -47,6 +47,7 @@ const ProductDetail = () => {
   const [boxes, setBoxes] = useState(0);
   const [isAdding, setIsAdding] = useState(false);
   const [showImageModal, setShowImageModal] = useState(false);
+  const [activeSlide, setActiveSlide] = useState(0);
 
   useEffect(() => {
     if (!id) return;
@@ -120,47 +121,63 @@ const ProductDetail = () => {
     { label: "HSN Code", value: hsn || null },
   ].filter((r) => r.value);
 
+  const heroImages = images.length > 0 ? images : ["/placeholder.svg"];
+
+  const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
+    const el = e.currentTarget;
+    const slideWidth = el.clientWidth;
+    const idx = Math.round(el.scrollLeft / slideWidth);
+    setActiveSlide(idx);
+  };
+
   return (
     <AppShell>
       <div className="relative">
         <div className="max-w-md mx-auto bg-[#F9F8F3] min-h-screen pb-36">
-          {/* Top bar */}
-          <div className="sticky top-0 z-20 bg-[#F9F8F3]/95 backdrop-blur-md px-4 py-3 flex items-center border-b border-[#C4A052]/20">
-            <button
-              onClick={() => navigate("/catalogue")}
-              className="flex items-center gap-1 text-[#4A3623] font-medium text-sm hover:text-[#C4A052] transition-colors"
-            >
-              <ChevronLeft size={20} /> Catalogue
-            </button>
-          </div>
 
-          {/* Hero Image */}
-          <div
-            className="w-full bg-white relative aspect-square flex items-center justify-center p-8 cursor-pointer"
-            onClick={() => images.length > 0 && setShowImageModal(true)}
-          >
+          {/* Hero Image Carousel — 65vh */}
+          <div className="relative w-full" style={{ height: "65vh" }}>
+            <div
+              className="w-full h-full flex overflow-x-auto snap-x snap-mandatory scrollbar-hide"
+              onScroll={handleScroll}
+              style={{ WebkitOverflowScrolling: "touch" }}
+            >
+              {heroImages.map((img, i) => (
+                <div
+                  key={i}
+                  className="min-w-full h-full snap-center flex items-center justify-center p-8 bg-[#F9F8F3] cursor-pointer"
+                  onClick={() => setShowImageModal(true)}
+                >
+                  <img
+                    src={img}
+                    alt={`${product.name} ${i + 1}`}
+                    className="w-full h-full object-contain mix-blend-multiply"
+                  />
+                </div>
+              ))}
+            </div>
+
+            {/* Veg badge */}
             {isVeg && (
-              <div className="absolute top-4 right-4 z-10 w-7 h-7 border-2 border-[#2E7D32] rounded-sm flex items-center justify-center bg-white">
+              <div className="absolute top-4 right-4 z-10 w-7 h-7 border-2 border-[#2E7D32] rounded-sm flex items-center justify-center bg-[#F9F8F3]">
                 <div className="w-3.5 h-3.5 rounded-full bg-[#2E7D32]" />
               </div>
             )}
-            <img
-              src={images[0] || "/placeholder.svg"}
-              alt={product.name}
-              className="w-full h-full object-contain drop-shadow-xl"
-            />
-          </div>
 
-          {/* Carousel dots */}
-          <div className="flex items-center justify-center gap-2 py-3 bg-white">
-            <div className="w-2.5 h-2.5 rounded-full bg-[#C4A052]" />
-            <div className="w-2.5 h-2.5 rounded-full bg-[#D9D5CA]" />
-            <div className="w-2.5 h-2.5 rounded-full bg-[#D9D5CA]" />
+            {/* Floating pagination dots */}
+            <div className="absolute bottom-3 left-1/2 -translate-x-1/2 z-10 flex items-center gap-2">
+              {heroImages.map((_, i) => (
+                <div
+                  key={i}
+                  className={`w-2.5 h-2.5 rounded-full transition-colors ${i === activeSlide ? "bg-[#C4A052]" : "bg-[#D9D5CA]"}`}
+                />
+              ))}
+            </div>
           </div>
 
           {/* Gold Title Banner */}
           <div className="bg-[#C4A052] px-6 py-5 text-center">
-            <h1 className="text-[#4A3623] text-xl font-light uppercase tracking-[0.2em]">
+            <h1 className="text-[#4A3623] text-xl font-light uppercase tracking-[0.2em]" style={{ fontFamily: "var(--font-body)" }}>
               {product.name}
             </h1>
             <div className="flex items-center justify-center gap-2 mt-2 text-[#4A3623]/70 text-xs uppercase tracking-wider">
@@ -176,66 +193,50 @@ const ProductDetail = () => {
           {/* Description */}
           {product.description && (
             <div className="bg-[#F9F8F3] px-6 py-5 border-b border-[#C4A052]/20 text-center">
-              <p className="text-sm text-[#4A3623]/70 italic leading-relaxed">{product.description}</p>
+              <p className="text-sm text-[#4A3623]/70 italic leading-relaxed" style={{ fontFamily: "var(--font-body)" }}>{product.description}</p>
             </div>
           )}
 
           {/* Pricing Block */}
           {isAuthenticated && (
             <div className="bg-[#F9F8F3] px-6 py-6 border-b border-[#C4A052]/20">
-              {/* Strikethrough MRP */}
               {product.mrp && product.mrp > displayInfo.price && (
-                <p className="text-center text-[#4A3623]/50 text-sm line-through mb-1">
+                <p className="text-center text-[#4A3623]/50 text-sm line-through mb-1" style={{ fontFamily: "var(--font-body)" }}>
                   MRP : {formatPrice(product.mrp)}/- PER KG
                 </p>
               )}
-
-              {/* Main price */}
-              <p className="text-center text-[#4A3623] text-3xl font-bold mb-1">
+              <p className="text-center text-[#4A3623] text-3xl font-bold mb-1" style={{ fontFamily: "var(--font-body)" }}>
                 {formatPrice(displayInfo.price)}{" "}
                 <span className="text-base font-normal">Per {displayInfo.unit.replace("/", "")}</span>
               </p>
-
-              {/* B2B calculation */}
               {isBulk && weightKg > 0 && (
-                <p className="text-center text-[#4A3623] text-sm font-bold mt-2">
+                <p className="text-center text-[#4A3623] text-sm font-bold mt-2" style={{ fontFamily: "var(--font-body)" }}>
                   Pack Price {formatPrice(getBasePricePerKg(product))}/kg × {weightKg} kg = {formatPrice(price)}/-
                 </p>
               )}
               {!isBulk && (
-                <p className="text-center text-[#4A3623] text-sm font-bold mt-2">
+                <p className="text-center text-[#4A3623] text-sm font-bold mt-2" style={{ fontFamily: "var(--font-body)" }}>
                   Pack Price : {formatPrice(price)}/-
                 </p>
               )}
-
               <p className="text-center text-[#4A3623]/40 text-[9px] uppercase tracking-widest mt-2">
                 Taxes & Transportation Extra
               </p>
             </div>
           )}
 
-          {/* Spec Table — alternating gold / cream */}
+          {/* Spec Table */}
           {specRows.length > 0 && (
             <div className="overflow-hidden">
               {specRows.map((row, i) => (
                 <div
                   key={row.label}
-                  className={`grid grid-cols-2 ${
-                    i % 2 === 0 ? "bg-[#C4A052]" : "bg-[#F9F8F3]"
-                  }`}
+                  className={`grid grid-cols-2 ${i % 2 === 0 ? "bg-[#C4A052]" : "bg-[#F9F8F3]"}`}
                 >
-                  <div
-                    className={`p-3.5 text-sm font-medium ${
-                      i % 2 === 0 ? "text-white" : "text-[#4A3623]"
-                    }`}
-                  >
+                  <div className={`p-3.5 text-sm font-medium ${i % 2 === 0 ? "text-white" : "text-[#4A3623]"}`} style={{ fontFamily: "var(--font-body)" }}>
                     {row.label}
                   </div>
-                  <div
-                    className={`p-3.5 text-sm font-bold text-right ${
-                      i % 2 === 0 ? "text-white" : "text-[#4A3623]"
-                    }`}
-                  >
+                  <div className={`p-3.5 text-sm font-bold text-right ${i % 2 === 0 ? "text-white" : "text-[#4A3623]"}`} style={{ fontFamily: "var(--font-body)" }}>
                     {row.value}
                   </div>
                 </div>
@@ -243,20 +244,7 @@ const ProductDetail = () => {
             </div>
           )}
 
-          {/* Nutrition Facts */}
-          {product.nutrition_facts && (
-            <div className="bg-[#F9F8F3] px-6 py-4 border-y border-[#C4A052]/20">
-              <div className="flex items-center gap-2 mb-2">
-                <Info size={16} className="text-[#C4A052]" />
-                <h3 className="text-sm font-bold text-[#4A3623]">Nutrition Facts</h3>
-              </div>
-              <p className="text-xs text-[#4A3623]/60 whitespace-pre-line leading-relaxed">
-                {product.nutrition_facts}
-              </p>
-            </div>
-          )}
-
-          {/* Cross-sell */}
+          {/* Cross-sell — tight, no dead space */}
           <ProductRecommendations title="You may also like:" excludeProductId={id} />
         </div>
 
