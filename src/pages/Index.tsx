@@ -35,7 +35,7 @@ const TRUST = [
 
 const Index = () => {
   const navigate = useNavigate();
-  const { cartItems } = useCart();
+  const { items: cartItems } = useCart();
 
   return (
     <AppShell>
