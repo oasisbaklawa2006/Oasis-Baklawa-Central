@@ -1,6 +1,6 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
-import { motion } from "framer-motion";
+import { motion, useScroll, useTransform, useInView } from "framer-motion";
 import AppShell from "@/components/AppShell";
 import ProductSection from "@/components/ProductSection";
 import SmartReorderSection from "@/components/home/SmartReorderSection";
@@ -11,10 +11,47 @@ import { supabase } from "@/integrations/supabase/client";
 import { useLanguage } from "@/contexts/LanguageContext";
 import heroImage from "@/assets/hero-baklawa.png";
 
+/* ── animation presets ── */
+const slowReveal = (delay = 0) => ({
+  initial: { opacity: 0, y: 30 },
+  animate: { opacity: 1, y: 0 },
+  transition: { duration: 1.2, delay, ease: [0.25, 0.46, 0.45, 0.94] },
+});
+
+const stagger = {
+  animate: { transition: { staggerChildren: 0.15 } },
+};
+
+const child = {
+  initial: { opacity: 0, y: 30 },
+  animate: { opacity: 1, y: 0, transition: { duration: 1.2, ease: [0.25, 0.46, 0.45, 0.94] } },
+};
+
+/* ── Animated Section wrapper ── */
+const RevealSection = ({ children, className = "", delay = 0 }: { children: React.ReactNode; className?: string; delay?: number }) => {
+  const ref = useRef(null);
+  const isInView = useInView(ref, { once: true, margin: "-60px" });
+  return (
+    <motion.div
+      ref={ref}
+      initial={{ opacity: 0, y: 30 }}
+      animate={isInView ? { opacity: 1, y: 0 } : {}}
+      transition={{ duration: 1.2, delay, ease: [0.25, 0.46, 0.45, 0.94] }}
+      className={className}
+    >
+      {children}
+    </motion.div>
+  );
+};
+
 const Index = () => {
   const navigate = useNavigate();
   const [companyName, setCompanyName] = useState("");
   const { t } = useLanguage();
+  const heroRef = useRef(null);
+  const { scrollYProgress } = useScroll({ target: heroRef, offset: ["start start", "end start"] });
+  const heroScale = useTransform(scrollYProgress, [0, 1], [1, 1.15]);
+  const heroOpacity = useTransform(scrollYProgress, [0, 0.8], [1, 0]);
 
   useEffect(() => {
     const fetchCompany = async () => {
@@ -38,102 +75,139 @@ const Index = () => {
 
   return (
     <AppShell>
-      <div className="min-h-screen bg-[#F9F8F3] font-body pb-24 relative">
+      <div className="min-h-screen bg-[#F9F8F3] pb-28 relative overflow-hidden">
 
-        {/* ── GOLD STRIPE DIVIDER ── */}
-        <div className="w-full h-2 bg-gradient-to-r from-[#C4A052] via-[#D4C08A] to-[#C4A052]" />
+        {/* ══════ FULL-BLEED HERO ══════ */}
+        <div ref={heroRef} className="relative w-full h-[75vh] overflow-hidden">
+          {/* Parallax image */}
+          <motion.div
+            className="absolute inset-0 flex items-center justify-center"
+            style={{ scale: heroScale, opacity: heroOpacity }}
+          >
+            <img
+              src={heroImage}
+              alt="Premium Baklawa Platter"
+              className="w-[110%] max-w-none h-full object-contain mix-blend-multiply"
+            />
+          </motion.div>
 
-        {/* ── HERO IMAGE ── */}
-        <div className="relative w-full flex justify-center py-6 bg-[#F9F8F3]">
-          <motion.img
-            src={heroImage}
-            alt="Premium Baklawa Platter"
-            width={1024}
-            height={1024}
-            className="w-[85vw] max-w-[500px] object-contain mix-blend-multiply"
-            initial={{ opacity: 0, scale: 0.95 }}
-            animate={{ opacity: 1, scale: 1 }}
-            transition={{ duration: 0.8, ease: "easeOut" }}
-          />
+          {/* Gradient overlay at bottom */}
+          <div className="absolute bottom-0 left-0 right-0 h-40 bg-gradient-to-t from-[#F9F8F3] to-transparent" />
+
+          {/* Floating editorial text over hero */}
+          <motion.div
+            className="absolute bottom-12 left-6 right-6 z-10"
+            {...slowReveal(0.4)}
+          >
+            <p className="font-body text-[10px] font-medium tracking-[0.35em] uppercase text-[#C4A052]">
+              Since 1942 · Handcrafted Excellence
+            </p>
+          </motion.div>
         </div>
 
-        {/* ── GOLD STRIPE ── */}
-        <div className="w-full h-1.5 bg-gradient-to-r from-transparent via-[#C4A052] to-transparent mb-6" />
-
-        {/* ── HELLO BLOCK ── */}
+        {/* ══════ HELLO EDITORIAL BLOCK ══════ */}
         <motion.div
-          className="text-center px-4 mb-10 space-y-3"
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6, delay: 0.3 }}
+          className="relative px-6 -mt-6 mb-16"
+          variants={stagger}
+          initial="initial"
+          animate="animate"
         >
-          <h2 className="font-body text-lg md:text-xl font-semibold text-[#4A3623] tracking-wide">
-            Best Indo-Arabic Sweets
-          </h2>
-          <h1 className="font-display text-5xl md:text-7xl font-bold text-[#C4A052] tracking-tight">
+          {/* Thin gold rule */}
+          <motion.div variants={child} className="w-16 h-[1px] bg-[#C4A052] mb-8" />
+
+          <motion.h1
+            variants={child}
+            className="font-display text-6xl md:text-8xl font-bold text-[#1A120B] tracking-tight leading-[0.9]"
+          >
             {t("home.hello") || "Hello"}
-          </h1>
-          <p className="text-[10px] md:text-xs font-body text-[#4A3623]/50 leading-relaxed px-4 max-w-md mx-auto">
-            नमस्ते, सति श्री अकाल, السَّلَامُ عَلَيْكُمْ, வணக்கம், নমস্কার, કેમ છો, నమస్కారం, खम्मा घणी, Chibai...
-          </p>
+          </motion.h1>
+
+          <motion.p
+            variants={child}
+            className="mt-4 text-[9px] font-body font-light text-[#1A120B]/40 tracking-[0.15em] leading-relaxed max-w-xs"
+          >
+            नमस्ते · ਸਤਿ ਸ਼੍ਰੀ ਅਕਾਲ · السلام عليكم · வணக்கம் · নমস্কার · નમસ્તે · నమస్కారం · खम्मा घणी
+          </motion.p>
+
           {companyName && (
-            <h2 className="font-display text-lg md:text-2xl font-bold text-[#C4A052] mt-1">
+            <motion.h2
+              variants={child}
+              className="mt-6 font-display text-xl md:text-2xl font-semibold text-[#C4A052] tracking-wide"
+            >
               {companyName}
-            </h2>
+            </motion.h2>
           )}
         </motion.div>
 
-        {/* ── CONTENT SECTIONS ── */}
-        <div className="max-w-5xl mx-auto space-y-10">
-
-          {/* Category Icons */}
+        {/* ══════ EXPLORE — EDITORIAL COLLAGE CATEGORIES ══════ */}
+        <RevealSection className="mb-20">
           <CategoryIcons />
+        </RevealSection>
 
-          {/* Festivals & Events */}
+        {/* ══════ FESTIVALS — CINEMATIC CARDS ══════ */}
+        <RevealSection className="mb-20">
           <FestivalRow />
+        </RevealSection>
 
-          {/* What's New */}
+        {/* ══════ WHAT'S NEW — EDITORIAL SECTION ══════ */}
+        <RevealSection className="mb-20">
           <ProductSection
             tagKey="new-arrivals"
-            title="What's New ?"
+            title="What's New"
             subtitle="Latest additions to our collection"
+            variant="editorial"
           />
+        </RevealSection>
 
-          {/* Festivals & Events Products */}
+        {/* ══════ FESTIVALS & EVENTS PRODUCTS ══════ */}
+        <RevealSection className="mb-20">
           <ProductSection
             tagKey="festivals-events"
-            title="Upcoming Festivals & Events"
+            title="Festivals & Events"
             subtitle="Curated selections for every occasion"
+            variant="editorial"
           />
+        </RevealSection>
 
-          {/* Ready Packs — Gold Block */}
+        {/* ══════ READY PACKS — FULL BLEED GOLD ══════ */}
+        <RevealSection className="mb-20">
           <ProductSection
             tagKey="private-label"
             title="Ready Packs"
             subtitle="Premium ready-to-sell retail packs"
             variant="gold-block"
           />
+        </RevealSection>
 
-          {/* Smart Reorder */}
+        {/* ══════ SMART REORDER ══════ */}
+        <RevealSection className="mb-20">
           <SmartReorderSection />
+        </RevealSection>
 
-          {/* Recommended */}
+        {/* ══════ RECOMMENDED ══════ */}
+        <RevealSection className="mb-20">
           <ProductSection
             tagKey="recommended"
-            title="Recommended For You"
+            title="Recommended"
             subtitle="Hand-picked selections by our team"
+            variant="editorial"
           />
+        </RevealSection>
 
-          {/* Packing Solutions */}
+        {/* ══════ PACKING SOLUTIONS ══════ */}
+        <RevealSection className="mb-16">
           <ProductSection
             tagKey="packing-solution"
-            title="Packaging Solutions"
+            title="Packaging"
             subtitle="Premium packaging for every need"
+            variant="editorial"
           />
+        </RevealSection>
 
-          {/* Footer */}
+        {/* ══════ FOOTER ══════ */}
+        <RevealSection>
           <HomeFooter />
-        </div>
+        </RevealSection>
       </div>
     </AppShell>
   );
