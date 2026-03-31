@@ -7,7 +7,7 @@ interface ProductSectionProps {
   tagKey: string;
   title?: string;
   subtitle?: string;
-  variant?: "default" | "gold-block";
+  variant?: "default" | "gold-block" | "editorial";
 }
 
 interface TaggedProduct {
@@ -72,36 +72,57 @@ const ProductSection = ({ tagKey, title, subtitle, variant = "default" }: Produc
   if (products.length === 0) return null;
 
   const isGold = variant === "gold-block";
+  const isEditorial = variant === "editorial";
 
+  /* ── GOLD BLOCK VARIANT ── */
   if (isGold) {
     return (
-      <section className="relative -mx-4 sm:-mx-6">
-        <div className="bg-[#C4A052] rounded-3xl mx-2 p-5 pb-8">
+      <section className="relative">
+        <div className="bg-[#C4A052] mx-0 px-6 py-10">
           {title && (
-            <h2 className="font-display text-xl font-bold text-[#4A3623] mb-1">{title}</h2>
+            <h2 className="font-display text-3xl font-bold text-[#1A120B] mb-1 tracking-tight">{title}</h2>
           )}
           {subtitle && (
-            <p className="text-[10px] text-[#4A3623]/70 mb-5 font-body font-medium">{subtitle}</p>
+            <p className="text-[10px] text-[#1A120B]/60 mb-8 font-body font-medium tracking-[0.15em] uppercase">{subtitle}</p>
           )}
-          <div className="flex overflow-x-auto scrollbar-hide gap-4 pb-2 snap-x">
+          <div className="flex overflow-x-auto scrollbar-hide gap-5 pb-2 snap-x">
             {products.map((item) => (
-              <ImperialProductCard
-                key={item.id}
-                {...item}
-                variant="gold-bg"
-              />
+              <ImperialProductCard key={item.id} {...item} variant="gold-bg" />
             ))}
           </div>
-          <p className="text-right font-display text-sm font-bold text-[#4A3623] uppercase tracking-wider mt-4 pr-2">
-            PERFECT FOR PRIVATE LABELLING
+          <p className="text-right font-display text-xs font-semibold text-[#1A120B]/70 italic tracking-wider mt-6 pr-2">
+            Perfect for Private Labelling
           </p>
         </div>
       </section>
     );
   }
 
+  /* ── EDITORIAL VARIANT ── */
+  if (isEditorial) {
+    return (
+      <section className="px-6">
+        {title && (
+          <div className="mb-6">
+            <div className="w-10 h-[1px] bg-[#C4A052] mb-4" />
+            <h2 className="font-display text-3xl font-bold text-[#1A120B] tracking-tight leading-none">{title}</h2>
+            {subtitle && (
+              <p className="text-[10px] text-[#1A120B]/40 mt-2 font-body font-medium tracking-[0.2em] uppercase">{subtitle}</p>
+            )}
+          </div>
+        )}
+        <div className="flex overflow-x-auto scrollbar-hide gap-5 pb-4 snap-x -mx-2 px-2">
+          {products.map((item) => (
+            <ImperialProductCard key={item.id} {...item} variant="editorial" />
+          ))}
+        </div>
+      </section>
+    );
+  }
+
+  /* ── DEFAULT ── */
   return (
-    <section className="px-4">
+    <section className="px-6">
       {title && (
         <h2 className="font-display text-xl font-bold text-foreground mb-1">{title}</h2>
       )}
@@ -110,11 +131,7 @@ const ProductSection = ({ tagKey, title, subtitle, variant = "default" }: Produc
       )}
       <div className="flex overflow-x-auto scrollbar-hide gap-4 pb-4 snap-x">
         {products.map((item) => (
-          <ImperialProductCard
-            key={item.id}
-            {...item}
-            variant="default"
-          />
+          <ImperialProductCard key={item.id} {...item} variant="default" />
         ))}
       </div>
     </section>
