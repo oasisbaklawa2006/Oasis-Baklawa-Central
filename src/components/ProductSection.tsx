@@ -1,13 +1,13 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { useNavigate } from "react-router-dom";
-import { useCurrency } from "@/contexts/CurrencyContext";
 import { Loader2 } from "lucide-react";
+import ImperialProductCard from "./home/ImperialProductCard";
 
 interface ProductSectionProps {
   tagKey: string;
   title?: string;
   subtitle?: string;
+  variant?: "default" | "gold-block";
 }
 
 interface TaggedProduct {
@@ -20,15 +20,12 @@ interface TaggedProduct {
   manual_sort_index: number | null;
 }
 
-const ProductSection = ({ tagKey, title, subtitle }: ProductSectionProps) => {
+const ProductSection = ({ tagKey, title, subtitle, variant = "default" }: ProductSectionProps) => {
   const [products, setProducts] = useState<TaggedProduct[]>([]);
   const [loading, setLoading] = useState(true);
-  const navigate = useNavigate();
-  const { formatPrice } = useCurrency();
 
   useEffect(() => {
-    const fetch = async () => {
-      // Get tag id
+    const fetchData = async () => {
       const { data: tag } = await supabase
         .from("product_tags")
         .select("id, tag_label")
@@ -38,7 +35,6 @@ const ProductSection = ({ tagKey, title, subtitle }: ProductSectionProps) => {
 
       if (!tag) { setLoading(false); return; }
 
-      // Get mapped products
       const { data: mappings } = await supabase
         .from("product_tag_mapping")
         .select("product_id, manual_sort_index")
@@ -54,7 +50,6 @@ const ProductSection = ({ tagKey, title, subtitle }: ProductSectionProps) => {
         .in("id", productIds)
         .eq("is_active", true);
 
-      // Merge sort index and sort
       const sortMap: Record<string, number> = {};
       mappings.forEach(m => { if (m.product_id) sortMap[m.product_id] = m.manual_sort_index ?? 999; });
 
@@ -65,44 +60,61 @@ const ProductSection = ({ tagKey, title, subtitle }: ProductSectionProps) => {
       setProducts(sorted);
       setLoading(false);
     };
-    fetch();
+    fetchData();
   }, [tagKey]);
 
   if (loading) return (
     <div className="flex justify-center py-8">
-      <Loader2 size={20} className="animate-spin text-primary" />
+      <Loader2 size={20} className="animate-spin text-[#C4A052]" />
     </div>
   );
 
   if (products.length === 0) return null;
 
+  const isGold = variant === "gold-block";
+
+  if (isGold) {
+    return (
+      <section className="relative -mx-4 sm:-mx-6">
+        <div className="bg-[#C4A052] rounded-3xl mx-2 p-5 pb-8">
+          {title && (
+            <h2 className="font-display text-xl font-bold text-[#4A3623] mb-1">{title}</h2>
+          )}
+          {subtitle && (
+            <p className="text-[10px] text-[#4A3623]/70 mb-5 font-body font-medium">{subtitle}</p>
+          )}
+          <div className="flex overflow-x-auto scrollbar-hide gap-4 pb-2 snap-x">
+            {products.map((item) => (
+              <ImperialProductCard
+                key={item.id}
+                {...item}
+                variant="gold-bg"
+              />
+            ))}
+          </div>
+          <p className="text-right font-display text-sm font-bold text-[#4A3623] uppercase tracking-wider mt-4 pr-2">
+            PERFECT FOR PRIVATE LABELLING
+          </p>
+        </div>
+      </section>
+    );
+  }
+
   return (
-    <section>
+    <section className="px-4">
       {title && (
-        <h2 className="text-xl font-serif font-bold text-foreground mb-1">{title}</h2>
+        <h2 className="font-display text-xl font-bold text-foreground mb-1">{title}</h2>
       )}
       {subtitle && (
-        <p className="text-xs text-muted-foreground mb-6 font-medium">{subtitle}</p>
+        <p className="text-[10px] text-muted-foreground mb-5 font-body font-medium">{subtitle}</p>
       )}
-      <div className="flex overflow-x-auto scrollbar-hide gap-5 pb-4 snap-x">
+      <div className="flex overflow-x-auto scrollbar-hide gap-4 pb-4 snap-x">
         {products.map((item) => (
-          <div
+          <ImperialProductCard
             key={item.id}
-            onClick={() => navigate(`/product/${item.id}`)}
-            className="min-w-[200px] max-w-[220px] bg-card border border-border rounded-2xl p-4 snap-start shadow-sm hover:border-primary/50 hover:shadow-md transition-all cursor-pointer group"
-          >
-            <div className="h-32 mb-3 rounded-xl overflow-hidden bg-muted/30 flex items-center justify-center">
-              {item.image_url ? (
-                <img src={item.image_url} alt={item.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
-              ) : (
-                <span className="text-3xl">🍯</span>
-              )}
-            </div>
-            <h3 className="font-bold text-foreground text-sm mb-1 line-clamp-2">{item.name}</h3>
-            {item.base_price && (
-              <p className="text-primary font-bold text-sm">{formatPrice(item.base_price)}</p>
-            )}
-          </div>
+            {...item}
+            variant="default"
+          />
         ))}
       </div>
     </section>

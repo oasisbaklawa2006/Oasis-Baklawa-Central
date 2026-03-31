@@ -1,131 +1,139 @@
 import { useState, useEffect } from "react";
-import { Star, TrendingUp, Gift, ChevronRight, CalendarDays } from "lucide-react";
 import { useNavigate } from "react-router-dom";
+import { motion } from "framer-motion";
 import AppShell from "@/components/AppShell";
 import ProductSection from "@/components/ProductSection";
 import SmartReorderSection from "@/components/home/SmartReorderSection";
+import CategoryIcons from "@/components/home/CategoryIcons";
+import FestivalRow from "@/components/home/FestivalRow";
+import HomeFooter from "@/components/home/HomeFooter";
 import { supabase } from "@/integrations/supabase/client";
 import { useLanguage } from "@/contexts/LanguageContext";
-import { useCurrency } from "@/contexts/CurrencyContext";
+import heroImage from "@/assets/hero-baklawa.png";
 
 const Index = () => {
   const navigate = useNavigate();
   const [companyName, setCompanyName] = useState("");
-  const [categories, setCategories] = useState<{ id: string; name: string }[]>([]);
   const { t } = useLanguage();
-  const { formatPrice } = useCurrency();
-
-  const CATEGORY_EMOJIS: Record<string, string> = {
-    "Gifting": "🎁",
-    "Bulk Sweets & Nuts": "🍬",
-    "Dates": "🌴",
-    "Chocolates": "🍫",
-    "Baklawa": "🍯",
-    "Nuts & Dragees": "🌰",
-    "Ready packs": "📦",
-    "Premium Gift Packs": "🎀",
-    "Semi-Prepared & Frozen Range": "❄️",
-    "Packaging & Decoration Material": "🎨",
-  };
 
   useEffect(() => {
-    const fetchData = async () => {
-      // Fetch company name
-      const { data: orderData } = await supabase
-        .from("orders")
-        .select("company:companies(business_name)")
-        .limit(1);
-      if (orderData && orderData[0]?.company?.business_name) {
-        setCompanyName(orderData[0].company.business_name);
-      }
-
-      // Fetch live categories from products
-      const { data: catData } = await supabase
-        .from("products")
-        .select("category")
-        .eq("is_active", true);
-      if (catData) {
-        const unique = [...new Set(catData.map(p => p.category).filter(Boolean))];
-        setCategories(unique.map(c => ({ id: c, name: c })));
-      }
+    const fetchCompany = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+      const { data: userData } = await supabase
+        .from("users")
+        .select("company_id")
+        .eq("id", user.id)
+        .maybeSingle();
+      if (!userData?.company_id) return;
+      const { data: company } = await supabase
+        .from("companies")
+        .select("business_name")
+        .eq("id", userData.company_id)
+        .maybeSingle();
+      if (company?.business_name) setCompanyName(company.business_name);
     };
-    fetchData();
+    fetchCompany();
   }, []);
 
   return (
     <AppShell>
-      <div className="min-h-screen bg-[#FDFCF8] font-sans pb-24 relative">
-        <main className="px-4 sm:px-6 max-w-5xl mx-auto space-y-12">
-          {/* HELLO */}
-          <div className="flex flex-col items-center justify-center text-center pt-4 mb-10 space-y-5">
-            <h1 className="font-display text-7xl md:text-8xl font-bold text-[#B8860B] tracking-tight">{t("home.hello")}</h1>
-            <p className="text-xs md:text-sm font-medium text-slate-500 leading-relaxed px-4 max-w-lg">
-              नमस्ते, सति श्री अकाल, السَّلَامُ عَلَيْكُمْ, வணக்கம், নমস্কার, કેમ છો, నమస్కారం, खम्मा घणी, Chibai...
-            </p>
-            {companyName && (
-              <h2 className="font-display text-xl md:text-3xl font-bold text-[#9A7009] mt-2">{companyName}</h2>
-            )}
-          </div>
+      <div className="min-h-screen bg-[#F9F8F3] font-body pb-24 relative">
 
-          {/* FESTIVAL CALENDAR — Tag-driven */}
+        {/* ── GOLD STRIPE DIVIDER ── */}
+        <div className="w-full h-2 bg-gradient-to-r from-[#C4A052] via-[#D4C08A] to-[#C4A052]" />
+
+        {/* ── HERO IMAGE ── */}
+        <div className="relative w-full flex justify-center py-6 bg-[#F9F8F3]">
+          <motion.img
+            src={heroImage}
+            alt="Premium Baklawa Platter"
+            width={1024}
+            height={1024}
+            className="w-[85vw] max-w-[500px] object-contain mix-blend-multiply"
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ duration: 0.8, ease: "easeOut" }}
+          />
+        </div>
+
+        {/* ── GOLD STRIPE ── */}
+        <div className="w-full h-1.5 bg-gradient-to-r from-transparent via-[#C4A052] to-transparent mb-6" />
+
+        {/* ── HELLO BLOCK ── */}
+        <motion.div
+          className="text-center px-4 mb-10 space-y-3"
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.6, delay: 0.3 }}
+        >
+          <h2 className="font-body text-lg md:text-xl font-semibold text-[#4A3623] tracking-wide">
+            Best Indo-Arabic Sweets
+          </h2>
+          <h1 className="font-display text-5xl md:text-7xl font-bold text-[#C4A052] tracking-tight">
+            {t("home.hello") || "Hello"}
+          </h1>
+          <p className="text-[10px] md:text-xs font-body text-[#4A3623]/50 leading-relaxed px-4 max-w-md mx-auto">
+            नमस्ते, सति श्री अकाल, السَّلَامُ عَلَيْكُمْ, வணக்கம், নমস্কার, કેમ છો, నమస్కారం, खम्मा घणी, Chibai...
+          </p>
+          {companyName && (
+            <h2 className="font-display text-lg md:text-2xl font-bold text-[#C4A052] mt-1">
+              {companyName}
+            </h2>
+          )}
+        </motion.div>
+
+        {/* ── CONTENT SECTIONS ── */}
+        <div className="max-w-5xl mx-auto space-y-10">
+
+          {/* Category Icons */}
+          <CategoryIcons />
+
+          {/* Festivals & Events */}
+          <FestivalRow />
+
+          {/* What's New */}
+          <ProductSection
+            tagKey="new-arrivals"
+            title="What's New ?"
+            subtitle="Latest additions to our collection"
+          />
+
+          {/* Festivals & Events Products */}
           <ProductSection
             tagKey="festivals-events"
             title="Upcoming Festivals & Events"
             subtitle="Curated selections for every occasion"
           />
 
-          {/* CATEGORY GRID — Live from DB */}
-          {categories.length > 0 && (
-            <section>
-              <div className="flex justify-between items-center mb-4">
-                <h3 className="text-sm font-bold text-slate-400 uppercase tracking-widest">{t("home.browseCategories")}</h3>
-              </div>
-              <div className="grid grid-cols-3 md:grid-cols-6 gap-3">
-                {categories.map((cat) => (
-                  <button
-                    key={cat.id}
-                    onClick={() => navigate(`/catalogue?category=${cat.id}`)}
-                    className="flex flex-col items-center justify-center bg-white p-4 rounded-2xl border border-slate-100 shadow-sm hover:border-[#B8860B]/50 hover:shadow-md transition-all active:scale-95"
-                  >
-                    <span className="text-3xl mb-2">{CATEGORY_EMOJIS[cat.name] || "📦"}</span>
-                    <span className="text-[10px] md:text-xs font-bold text-slate-700 uppercase tracking-wider">{cat.name}</span>
-                  </button>
-                ))}
-              </div>
-            </section>
-          )}
-
-          {/* FESTIVAL SPECIAL GIFTING — Tag-driven */}
-          <ProductSection
-            tagKey="festival-gifting"
-            title="Festival Special Gifting"
-            subtitle="Premium gift-ready collections"
-          />
-
-          {/* SMART REORDER — Real order history */}
-          <SmartReorderSection />
-
-          {/* PRIVATE LABEL — Tag-driven */}
+          {/* Ready Packs — Gold Block */}
           <ProductSection
             tagKey="private-label"
-            title="Private Label Retail Ready"
-            subtitle="Available for private labeling at MOQ"
+            title="Ready Packs"
+            subtitle="Premium ready-to-sell retail packs"
+            variant="gold-block"
           />
 
-          {/* RECOMMENDED — Tag-driven */}
+          {/* Smart Reorder */}
+          <SmartReorderSection />
+
+          {/* Recommended */}
           <ProductSection
             tagKey="recommended"
             title="Recommended For You"
             subtitle="Hand-picked selections by our team"
           />
 
-          {/* PACKING SOLUTIONS — Tag-driven */}
+          {/* Packing Solutions */}
           <ProductSection
             tagKey="packing-solution"
             title="Packaging Solutions"
             subtitle="Premium packaging for every need"
           />
-        </main>
+
+          {/* Footer */}
+          <HomeFooter />
+        </div>
       </div>
     </AppShell>
   );
