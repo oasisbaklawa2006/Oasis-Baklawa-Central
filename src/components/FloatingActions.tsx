@@ -11,21 +11,35 @@ const FloatingActions = () => {
       <div className="fixed bottom-[100px] right-5 z-40 flex flex-col gap-3">
         <motion.a
           href="tel:+919999792959"
-          whileHover={{ scale: 1.08 }}
-          whileTap={{ scale: 0.95 }}
-          className="w-12 h-12 rounded-full bg-primary/80 shadow-lg flex items-center justify-center"
+          whileHover={{ scale: 1.06 }}
+          whileTap={{ scale: 0.94 }}
+          className="w-11 h-11 rounded-full flex items-center justify-center"
+          style={{
+            background: "rgba(255,255,255,0.7)",
+            backdropFilter: "blur(12px)",
+            WebkitBackdropFilter: "blur(12px)",
+            boxShadow: "0 4px 20px rgba(0,0,0,0.08)",
+            border: "1px solid rgba(255,255,255,0.5)",
+          }}
           aria-label="Call Us"
         >
-          <Phone size={20} className="text-primary-foreground" />
+          <Phone size={18} className="text-primary" />
         </motion.a>
         <motion.button
-          whileHover={{ scale: 1.08 }}
-          whileTap={{ scale: 0.95 }}
+          whileHover={{ scale: 1.06 }}
+          whileTap={{ scale: 0.94 }}
           onClick={() => setShowChat(!showChat)}
-          className="w-12 h-12 rounded-full bg-primary shadow-lg flex items-center justify-center"
+          className="w-11 h-11 rounded-full flex items-center justify-center"
+          style={{
+            background: "rgba(255,255,255,0.7)",
+            backdropFilter: "blur(12px)",
+            WebkitBackdropFilter: "blur(12px)",
+            boxShadow: "0 4px 20px rgba(0,0,0,0.08)",
+            border: "1px solid rgba(255,255,255,0.5)",
+          }}
           aria-label="AI Chat"
         >
-          <MessageCircle size={20} className="text-primary-foreground" />
+          <MessageCircle size={18} className="text-primary" />
         </motion.button>
       </div>
       <SupportChat open={showChat} onClose={() => setShowChat(false)} />

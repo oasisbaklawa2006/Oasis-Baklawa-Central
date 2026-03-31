@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useCurrency } from "@/contexts/CurrencyContext";
 import { Loader2, Package } from "lucide-react";
+import { motion } from "framer-motion";
 
 interface ReorderProduct {
   id: string;
@@ -62,39 +63,46 @@ const SmartReorderSection = () => {
 
   if (loading) return (
     <div className="flex justify-center py-6">
-      <Loader2 size={18} className="animate-spin text-primary" />
+      <Loader2 size={18} className="animate-spin text-secondary" />
     </div>
   );
 
   if (items.length === 0) return null;
 
   return (
-    <section className="px-5">
-      <h2 className="font-display text-2xl text-foreground mb-4">Order Again</h2>
-      <div className="flex overflow-x-auto scrollbar-hide gap-3 pb-2 snap-x">
-        {items.map((item) => (
-          <div
+    <section className="px-6">
+      <div className="flex items-baseline justify-between mb-5">
+        <h2 className="font-display text-2xl text-foreground">Order Again</h2>
+        <span className="font-body text-[10px] text-muted-foreground tracking-wide">Reorder in 1 tap</span>
+      </div>
+      <div className="flex overflow-x-auto scrollbar-hide gap-4 pb-2 snap-x">
+        {items.map((item, i) => (
+          <motion.div
             key={item.id}
+            initial={{ opacity: 0, y: 16 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5, delay: i * 0.06, ease: [0.22, 1, 0.36, 1] }}
+            whileTap={{ scale: 0.97 }}
             onClick={() => navigate(`/product/${item.id}`)}
             className="min-w-[140px] max-w-[140px] snap-start cursor-pointer flex-shrink-0 group"
           >
-            <div className="w-full aspect-square rounded-lg overflow-hidden bg-muted flex items-center justify-center mb-2">
+            <div className="w-full aspect-square rounded-2xl overflow-hidden bg-card shadow-soft flex items-center justify-center mb-3">
               {item.image_url ? (
                 <img
                   src={item.image_url}
                   alt={item.name}
-                  className="w-full h-full object-contain group-hover:scale-105 transition-transform duration-500"
+                  className="w-full h-full object-contain group-hover:scale-105 transition-transform duration-700 ease-out"
                   loading="lazy"
                 />
               ) : (
                 <Package size={20} className="text-muted-foreground" />
               )}
             </div>
-            <p className="font-body text-xs text-foreground line-clamp-1 mb-0.5">{item.name}</p>
-            <p className="font-body text-[11px] text-muted-foreground">
-              {formatPrice(item.price_per_kg)}/kg
+            <p className="font-serif text-xs text-foreground line-clamp-1 mb-1">{item.name}</p>
+            <p className="font-body text-[11px] text-foreground font-bold">
+              {formatPrice(item.price_per_kg)}<span className="font-normal text-muted-foreground">/kg</span>
             </p>
-          </div>
+          </motion.div>
         ))}
       </div>
     </section>

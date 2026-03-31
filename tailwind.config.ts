@@ -17,6 +17,7 @@ export default {
         display: ["var(--font-display)", "Georgia", "serif"],
         body: ["var(--font-body)", "sans-serif"],
         ui: ["var(--font-ui)", "sans-serif"],
+        serif: ["var(--font-serif)", "Georgia", "serif"],
       },
       colors: {
         border: "hsl(var(--border))",
@@ -72,7 +73,9 @@ export default {
         card: "var(--card-shadow)",
         nav: "var(--nav-shadow)",
         fab: "var(--fab-shadow)",
-        soft: "0 2px 20px rgba(0,0,0,0.04)",
+        soft: "0 8px 30px rgba(0,0,0,0.06)",
+        "soft-lg": "0 12px 40px rgba(0,0,0,0.08)",
+        glow: "0 0 20px rgba(198,168,125,0.15)",
       },
       keyframes: {
         "accordion-down": {
