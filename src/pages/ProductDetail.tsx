@@ -1,62 +1,57 @@
 import AppShell from "@/components/AppShell";
 import { motion, AnimatePresence } from "framer-motion";
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect } from "react";
 import {
-  Heart,
   ShoppingCart,
   Loader2,
   ChevronLeft,
-  ChevronRight,
   Package,
-  Maximize2,
   X,
-  ShieldCheck,
-  Leaf,
-  Thermometer,
-  Scale,
+  Plus,
+  Minus,
   Info,
 } from "lucide-react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useCart } from "@/hooks/useCart";
 import { useAuth } from "@/hooks/useAuth";
-import { useProducts } from "@/hooks/useProducts";
 import { useCurrency } from "@/contexts/CurrencyContext";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { Badge } from "@/components/ui/badge";
 import ProductRecommendations from "@/components/ProductRecommendations";
 
-const getCartonSize = (product: any) => {
-  return product.packs_per_master_carton || product.packs_per_carton || 4;
-};
-
-import { calculatePackPrice, getDisplayPrice, getProductCategory, getPacksPerCarton, getMinOrderQty, getQtyIncrement, getGstRate, getHsnCode, getPrimaryPackWeightKg } from "@/utils/pricing";
-
-const getProductPrice = (p: any): number => calculatePackPrice(p);
+import {
+  calculatePackPrice,
+  getDisplayPrice,
+  getProductCategory,
+  getPacksPerCarton,
+  getMinOrderQty,
+  getQtyIncrement,
+  getGstRate,
+  getHsnCode,
+  getPrimaryPackWeightKg,
+  getBasePricePerKg,
+  getBasePricePerPc,
+  unitsToFillCarton,
+  calculateLineGrandTotal,
+} from "@/utils/pricing";
 
 const ProductDetail = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { addToCart } = useCart();
   const { isAuthenticated } = useAuth();
-  const { products } = useProducts();
   const { formatPrice } = useCurrency();
 
   const [product, setProduct] = useState<any>(null);
   const [loading, setLoading] = useState(true);
-  const [boxes, setBoxes] = useState(0); // will be set to minQty once product loads
-  const [isFav, setIsFav] = useState(false);
+  const [boxes, setBoxes] = useState(0);
   const [isAdding, setIsAdding] = useState(false);
-
-  const [activeImage, setActiveImage] = useState(0);
   const [showImageModal, setShowImageModal] = useState(false);
 
   useEffect(() => {
     if (!id) return;
     window.scrollTo(0, 0);
     setLoading(true);
-    setActiveImage(0);
-
     supabase
       .from("products")
       .select("*")
@@ -71,24 +66,20 @@ const ProductDetail = () => {
       });
   }, [id]);
 
-  const currentIndex = products.findIndex((p) => p.id === id);
-  const prevProduct = currentIndex > 0 ? products[currentIndex - 1] : null;
-  const nextProduct = currentIndex < products.length - 1 ? products[currentIndex + 1] : null;
-
-
   if (loading)
     return (
       <AppShell>
         <div className="flex items-center justify-center min-h-[60vh]">
-          <Loader2 className="w-8 h-8 animate-spin text-primary" />
+          <Loader2 className="w-8 h-8 animate-spin text-[#C4A052]" />
         </div>
       </AppShell>
     );
+
   if (!product)
     return (
       <AppShell>
         <div className="flex flex-col items-center justify-center min-h-[60vh]">
-          <p className="text-muted-foreground">Product not found</p>
+          <p className="text-[#4A3623]/60">Product not found</p>
         </div>
       </AppShell>
     );
@@ -100,18 +91,14 @@ const ProductDetail = () => {
   const gstRate = getGstRate(product);
   const hsn = getHsnCode(product);
   const weightKg = getPrimaryPackWeightKg(product);
-  const remainder = boxes % packsPerCarton;
-  const neededToFill = remainder === 0 ? 0 : packsPerCarton - remainder;
-  const progressPercentage = remainder === 0 ? 100 : (remainder / packsPerCarton) * 100;
-
-  const images = [product.image_url].filter(Boolean);
-  const price = getProductPrice(product);
-  const displayPriceInfo = getDisplayPrice(product);
-  const currentTotal = boxes * price;
-  const currentTax = currentTotal * (gstRate / 100);
-  const dietaryTags: string[] = product.dietary_tags || [];
+  const price = calculatePackPrice(product);
+  const displayInfo = getDisplayPrice(product);
+  const grandTotal = calculateLineGrandTotal(product, boxes);
+  const toFill = unitsToFillCarton(product, boxes);
   const isBulk = cat === "bulk_kg";
-  const isPremium = cat === "premium_pc";
+  const dietaryTags: string[] = product.dietary_tags || [];
+  const isVeg = dietaryTags.some((t: string) => t.toLowerCase().includes("veg"));
+  const images = [product.image_url].filter(Boolean);
 
   const handleAddToCart = async () => {
     setIsAdding(true);
@@ -119,258 +106,214 @@ const ProductDetail = () => {
     setIsAdding(false);
     if (success) {
       toast.success(`Added ${boxes} packs to your order!`, { icon: "📦" });
-      setBoxes(1);
+      setBoxes(minQty);
     }
   };
+
+  // Spec rows
+  const specRows = [
+    { label: "Net Weight", value: product.net_weight_grams ? `${product.net_weight_grams}g` : null },
+    { label: "Shelf Life", value: product.shelf_life || null },
+    { label: "Storage", value: product.storage_type || null },
+    { label: "Carton Type", value: product.carton_type || null },
+    { label: "Packs / Master Carton", value: packsPerCarton ? String(packsPerCarton) : null },
+    { label: "HSN Code", value: hsn || null },
+  ].filter((r) => r.value);
 
   return (
     <AppShell>
       <div className="relative">
-        <div className="max-w-md mx-auto bg-muted min-h-screen pb-32 shadow-sm border-x border-border">
+        <div className="max-w-md mx-auto bg-[#F9F8F3] min-h-screen pb-36">
           {/* Top bar */}
-          <div className="sticky top-0 z-20 bg-card/90 backdrop-blur-md px-4 py-3 flex items-center justify-between border-b border-border shadow-sm">
+          <div className="sticky top-0 z-20 bg-[#F9F8F3]/95 backdrop-blur-md px-4 py-3 flex items-center border-b border-[#C4A052]/20">
             <button
               onClick={() => navigate("/catalogue")}
-              className="flex items-center gap-1 text-foreground font-bold text-sm hover:text-primary transition-colors"
+              className="flex items-center gap-1 text-[#4A3623] font-medium text-sm hover:text-[#C4A052] transition-colors"
             >
               <ChevronLeft size={20} /> Catalogue
             </button>
-            <button
-              onClick={() => setIsFav(!isFav)}
-              className="w-9 h-9 flex items-center justify-center bg-muted rounded-full border border-border"
-            >
-              <Heart size={18} className={isFav ? "text-rose-500 fill-rose-500" : "text-muted-foreground"} />
-            </button>
           </div>
 
-          {/* Product Image */}
-          <div className="w-full bg-card relative aspect-square group">
-            {images.length > 0 && (
-              <div className="absolute top-4 right-4 z-10">
-                <button
-                  onClick={() => setShowImageModal(true)}
-                  className="w-10 h-10 bg-card/80 backdrop-blur rounded-full flex items-center justify-center shadow-sm text-muted-foreground hover:text-primary"
-                >
-                  <Maximize2 size={18} />
-                </button>
+          {/* Hero Image */}
+          <div
+            className="w-full bg-white relative aspect-square flex items-center justify-center p-8 cursor-pointer"
+            onClick={() => images.length > 0 && setShowImageModal(true)}
+          >
+            {isVeg && (
+              <div className="absolute top-4 right-4 z-10 w-7 h-7 border-2 border-[#2E7D32] rounded-sm flex items-center justify-center bg-white">
+                <div className="w-3.5 h-3.5 rounded-full bg-[#2E7D32]" />
               </div>
             )}
             <img
-              src={images[activeImage] || "/placeholder.svg"}
-              onClick={() => images.length > 0 && setShowImageModal(true)}
+              src={images[0] || "/placeholder.svg"}
               alt={product.name}
-              className="w-full h-full object-contain p-8 cursor-pointer drop-shadow-xl"
+              className="w-full h-full object-contain drop-shadow-xl"
             />
           </div>
 
-          {/* Prev/Next Nav */}
-          <div className="flex items-center justify-between bg-foreground text-background px-4 py-2 text-xs font-bold uppercase tracking-wider">
-            <button
-              onClick={() => prevProduct && navigate(`/product/${prevProduct.id}`)}
-              disabled={!prevProduct}
-              className="flex items-center gap-1 hover:text-primary disabled:opacity-30 transition-colors"
-            >
-              <ChevronLeft size={16} /> Prev
-            </button>
-            <span className="text-muted-foreground">|</span>
-            <button
-              onClick={() => nextProduct && navigate(`/product/${nextProduct.id}`)}
-              disabled={!nextProduct}
-              className="flex items-center gap-1 hover:text-primary disabled:opacity-30 transition-colors"
-            >
-              Next <ChevronRight size={16} />
-            </button>
+          {/* Carousel dots */}
+          <div className="flex items-center justify-center gap-2 py-3 bg-white">
+            <div className="w-2.5 h-2.5 rounded-full bg-[#C4A052]" />
+            <div className="w-2.5 h-2.5 rounded-full bg-[#D9D5CA]" />
+            <div className="w-2.5 h-2.5 rounded-full bg-[#D9D5CA]" />
           </div>
 
-          {/* Product Title */}
-          <div className="bg-primary text-primary-foreground px-6 py-5 flex flex-col items-center text-center">
-            <h1 className="font-serif text-2xl font-bold tracking-wide">{product.name}</h1>
-            <div className="flex items-center gap-2 mt-2 bg-primary-foreground/20 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider">
+          {/* Gold Title Banner */}
+          <div className="bg-[#C4A052] px-6 py-5 text-center">
+            <h1 className="text-[#4A3623] text-xl font-light uppercase tracking-[0.2em]">
+              {product.name}
+            </h1>
+            <div className="flex items-center justify-center gap-2 mt-2 text-[#4A3623]/70 text-xs uppercase tracking-wider">
               <Package size={14} /> 1 Pack = {product.pack_size || "Standard"}
             </div>
             {product.category && (
-              <p className="text-xs mt-2 text-primary-foreground/80">{product.category}{product.sub_category ? ` › ${product.sub_category}` : ""}</p>
+              <p className="text-[10px] mt-2 text-[#4A3623]/60 uppercase tracking-wider">
+                {product.category}{product.sub_category ? ` › ${product.sub_category}` : ""}
+              </p>
             )}
           </div>
 
           {/* Description */}
           {product.description && (
-            <div className="bg-card px-6 py-4 border-b border-border">
-              <p className="text-sm text-muted-foreground leading-relaxed">{product.description}</p>
+            <div className="bg-[#F9F8F3] px-6 py-5 border-b border-[#C4A052]/20 text-center">
+              <p className="text-sm text-[#4A3623]/70 italic leading-relaxed">{product.description}</p>
             </div>
           )}
 
-          {/* Dietary Tags */}
-          {dietaryTags.length > 0 && (
-            <div className="bg-card px-6 py-3 border-b border-border flex flex-wrap gap-2">
-              {dietaryTags.map((tag) => (
-                <Badge key={tag} variant="secondary" className="text-xs flex items-center gap-1">
-                  <Leaf size={12} /> {tag}
-                </Badge>
+          {/* Pricing Block */}
+          {isAuthenticated && (
+            <div className="bg-[#F9F8F3] px-6 py-6 border-b border-[#C4A052]/20">
+              {/* Strikethrough MRP */}
+              {product.mrp && product.mrp > displayInfo.price && (
+                <p className="text-center text-[#4A3623]/50 text-sm line-through mb-1">
+                  MRP : {formatPrice(product.mrp)}/- PER KG
+                </p>
+              )}
+
+              {/* Main price */}
+              <p className="text-center text-[#4A3623] text-3xl font-bold mb-1">
+                {formatPrice(displayInfo.price)}{" "}
+                <span className="text-base font-normal">Per {displayInfo.unit.replace("/", "")}</span>
+              </p>
+
+              {/* B2B calculation */}
+              {isBulk && weightKg > 0 && (
+                <p className="text-center text-[#4A3623] text-sm font-bold mt-2">
+                  Pack Price {formatPrice(getBasePricePerKg(product))}/kg × {weightKg} kg = {formatPrice(price)}/-
+                </p>
+              )}
+              {!isBulk && (
+                <p className="text-center text-[#4A3623] text-sm font-bold mt-2">
+                  Pack Price : {formatPrice(price)}/-
+                </p>
+              )}
+
+              <p className="text-center text-[#4A3623]/40 text-[9px] uppercase tracking-widest mt-2">
+                Taxes & Transportation Extra
+              </p>
+            </div>
+          )}
+
+          {/* Spec Table — alternating gold / cream */}
+          {specRows.length > 0 && (
+            <div className="overflow-hidden">
+              {specRows.map((row, i) => (
+                <div
+                  key={row.label}
+                  className={`grid grid-cols-2 ${
+                    i % 2 === 0 ? "bg-[#C4A052]" : "bg-[#F9F8F3]"
+                  }`}
+                >
+                  <div
+                    className={`p-3.5 text-sm font-medium ${
+                      i % 2 === 0 ? "text-white" : "text-[#4A3623]"
+                    }`}
+                  >
+                    {row.label}
+                  </div>
+                  <div
+                    className={`p-3.5 text-sm font-bold text-right ${
+                      i % 2 === 0 ? "text-white" : "text-[#4A3623]"
+                    }`}
+                  >
+                    {row.value}
+                  </div>
+                </div>
               ))}
             </div>
           )}
 
-          {/* Pricing */}
-          {isAuthenticated && (
-            <div className="bg-foreground p-5 text-background">
-              <div className="flex items-center justify-between mb-3 border-b border-background/10 pb-3">
-                <div className="flex items-center gap-2">
-                  <ShieldCheck size={18} className="text-primary" />
-                  <p className="text-xs font-bold text-muted uppercase tracking-widest">Your Price</p>
-                </div>
-              </div>
-              <div className="flex justify-between items-end">
-                <div>
-                  {product.mrp && product.wholesale_price && product.mrp > product.wholesale_price && (
-                    <p className="text-xs text-muted line-through mb-0.5">
-                      MRP: {formatPrice(product.mrp)} /pack
-                    </p>
-                  )}
-                  <p className="text-2xl font-black text-background">
-                    {formatPrice(price)} <span className="text-xs font-bold text-primary">{displayPriceInfo.unit}</span>
-                  </p>
-                  {isBulk && weightKg > 0 && (
-                    <p className="text-[10px] text-muted mt-0.5">
-                      Pack price: ₹{displayPriceInfo.price}/kg × {weightKg}kg = {formatPrice(price)}
-                    </p>
-                  )}
-                </div>
-                {product.mrp && product.wholesale_price && product.mrp > product.wholesale_price && (
-                  <div className="text-right">
-                    <span className="text-[10px] font-bold bg-emerald-500/20 text-emerald-400 px-2 py-1 rounded-full">
-                      Save {Math.round(((product.mrp - product.wholesale_price) / product.mrp) * 100)}%
-                    </span>
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
-
-          {/* Product Specs Table */}
-          <div className="bg-card mb-2">
-            {product.net_weight_grams && (
-              <div className="grid grid-cols-2 border-b border-border">
-                <div className="p-3 text-sm font-medium text-muted-foreground border-r border-border flex items-center gap-2">
-                  <Scale size={14} /> Net Weight
-                </div>
-                <div className="p-3 text-sm font-bold text-foreground text-center">{product.net_weight_grams}g</div>
-              </div>
-            )}
-            {product.weight_per_pc_grams && (
-              <div className="grid grid-cols-2 border-b border-border bg-muted/50">
-                <div className="p-3 text-sm font-medium text-muted-foreground border-r border-border">Wt Per Pc.</div>
-                <div className="p-3 text-sm font-bold text-foreground text-center">{product.weight_per_pc_grams}g</div>
-              </div>
-            )}
-            <div className="grid grid-cols-2 border-b border-border">
-              <div className="p-3 text-sm font-medium text-muted-foreground border-r border-border">Shelf Life</div>
-              <div className="p-3 text-sm font-bold text-foreground text-center">{product.shelf_life || "—"}</div>
-            </div>
-            {product.storage_type && (
-              <div className="grid grid-cols-2 border-b border-border bg-muted/50">
-                <div className="p-3 text-sm font-medium text-muted-foreground border-r border-border flex items-center gap-2">
-                  <Thermometer size={14} /> Storage
-                </div>
-                <div className="p-3 text-sm font-bold text-foreground text-center">{product.storage_type}</div>
-              </div>
-            )}
-            {product.carton_type && (
-              <div className="grid grid-cols-2 border-b border-border">
-                <div className="p-3 text-sm font-medium text-muted-foreground border-r border-border">Carton Type</div>
-                <div className="p-3 text-sm font-bold text-foreground text-center">{product.carton_type}</div>
-              </div>
-            )}
-            {packsPerCarton && (
-              <div className="grid grid-cols-2 border-b border-border bg-muted/50">
-                <div className="p-3 text-sm font-medium text-muted-foreground border-r border-border">Packs / Master Carton</div>
-                <div className="p-3 text-sm font-bold text-foreground text-center">{packsPerCarton}</div>
-              </div>
-            )}
-            {product.hsn_code && (
-              <div className="grid grid-cols-2 border-b border-border">
-                <div className="p-3 text-sm font-medium text-muted-foreground border-r border-border">HSN Code</div>
-                <div className="p-3 text-sm font-bold text-foreground text-center font-mono">{product.hsn_code}</div>
-              </div>
-            )}
-          </div>
-
           {/* Nutrition Facts */}
           {product.nutrition_facts && (
-            <div className="bg-card px-6 py-4 mb-2 border-y border-border">
+            <div className="bg-[#F9F8F3] px-6 py-4 border-y border-[#C4A052]/20">
               <div className="flex items-center gap-2 mb-2">
-                <Info size={16} className="text-primary" />
-                <h3 className="text-sm font-bold text-foreground">Nutrition Facts</h3>
+                <Info size={16} className="text-[#C4A052]" />
+                <h3 className="text-sm font-bold text-[#4A3623]">Nutrition Facts</h3>
               </div>
-              <p className="text-xs text-muted-foreground whitespace-pre-line leading-relaxed">{product.nutrition_facts}</p>
+              <p className="text-xs text-[#4A3623]/60 whitespace-pre-line leading-relaxed">
+                {product.nutrition_facts}
+              </p>
             </div>
           )}
 
-          {/* Add to Cart */}
-          {isAuthenticated && (
-            <div className="p-5 bg-card shadow-sm border-y border-border space-y-5">
-              <div className="bg-muted border border-border rounded-2xl p-4 space-y-3">
-                <p className="text-xs font-bold text-muted-foreground flex items-center justify-between">
-                  <span>{packsPerCarton} Packs = 1 Master Carton</span>
-                  <span className="text-primary">
-                    {remainder === 0 ? packsPerCarton : remainder} / {packsPerCarton}
-                  </span>
-                </p>
-                <div className="h-2 w-full bg-border rounded-full overflow-hidden">
-                  <motion.div
-                    initial={{ width: 0 }}
-                    animate={{ width: `${progressPercentage}%` }}
-                    className={`h-full ${remainder === 0 ? "bg-emerald-500" : "bg-primary"}`}
-                  />
-                </div>
-                <p className="text-[11px] font-bold text-center text-muted-foreground">
-                  {remainder === 0
-                    ? "✨ Perfect! Master Carton Filled."
-                    : `Add ${neededToFill} more packs for secure carton shipping.`}
-                </p>
-              </div>
+          {/* Cross-sell */}
+          <ProductRecommendations title="You may also like:" excludeProductId={id} />
+        </div>
 
-              <div className="space-y-4">
-                <div className="flex justify-between items-end px-1">
-                  <div>
-                    <span className="text-xs font-bold text-muted-foreground uppercase tracking-widest">Total Price</span>
-                    <p className="text-[10px] text-muted-foreground mt-0.5">
-                      + GST @{gstRate}%: {formatPrice(currentTax)} {hsn ? `(HSN: ${hsn})` : ""}
-                    </p>
-                  </div>
-                  <span className="text-2xl font-black text-primary">{formatPrice(currentTotal + currentTax)}</span>
+        {/* Sticky Bottom Bar */}
+        {isAuthenticated && (
+          <div className="fixed bottom-0 left-0 right-0 z-30">
+            <div className="max-w-md mx-auto bg-[#F9F8F3] border-t-[1.5px] border-[#C4A052] px-4 py-3 shadow-[0_-4px_20px_rgba(0,0,0,0.1)]">
+              {/* Carton helper */}
+              {boxes > 0 && toFill > 0 && (
+                <p className="text-[9px] text-[#C4A052] font-medium text-center mb-2 flex items-center justify-center gap-1">
+                  <Info size={10} /> Add {toFill} more to complete a master carton
+                </p>
+              )}
+
+              <div className="flex items-center justify-between gap-3">
+                {/* Price */}
+                <div className="flex-shrink-0">
+                  <p className="text-[8px] text-[#4A3623]/50 uppercase tracking-wider leading-tight">
+                    Total Price incl. GST@{gstRate}%
+                  </p>
+                  <p className="text-xl font-bold text-[#4A3623]">{formatPrice(grandTotal)}</p>
                 </div>
-                <div className="flex items-center gap-3">
-                  <div className="flex items-center bg-muted rounded-xl p-1 border border-border h-14">
-                    <button
-                      onClick={() => setBoxes((b) => Math.max(minQty, b - increment))}
-                      className="w-12 h-full rounded-lg bg-card shadow-sm font-bold text-xl active:scale-95 text-foreground"
-                    >
-                      −
-                    </button>
-                    <span className="font-bold text-xl w-10 text-center text-foreground">{boxes}</span>
-                    <button
-                      onClick={() => setBoxes((b) => b + increment)}
-                      className="w-12 h-full rounded-lg bg-foreground text-background shadow-sm font-bold text-xl active:scale-95"
-                    >
-                      +
-                    </button>
-                  </div>
+
+                {/* Qty selector */}
+                <div className="flex items-center bg-[#C4A052] rounded-full px-1 py-1 gap-0">
                   <button
-                    onClick={handleAddToCart}
-                    disabled={isAdding}
-                    className="flex-1 h-14 rounded-xl bg-primary text-primary-foreground font-bold text-base shadow-xl flex items-center justify-center gap-2 active:scale-95 hover:bg-primary/90 transition-colors"
+                    onClick={() => setBoxes((b) => Math.max(minQty, b - increment))}
+                    className="w-9 h-9 rounded-full bg-[#4A3623] text-white flex items-center justify-center active:scale-90 transition-transform"
                   >
-                    {isAdding ? <Loader2 size={20} className="animate-spin" /> : <ShoppingCart size={20} />} Add to Order
+                    <Minus size={16} />
+                  </button>
+                  <span className="font-bold text-lg w-10 text-center text-[#4A3623]">{boxes}</span>
+                  <button
+                    onClick={() => setBoxes((b) => b + increment)}
+                    className="w-9 h-9 rounded-full bg-[#4A3623] text-white flex items-center justify-center active:scale-90 transition-transform"
+                  >
+                    <Plus size={16} />
                   </button>
                 </div>
+
+                {/* Add to Cart */}
+                <button
+                  onClick={handleAddToCart}
+                  disabled={isAdding}
+                  className="flex items-center gap-2 bg-[#C4A052] text-[#4A3623] font-bold text-sm px-5 py-3 rounded-full shadow-md active:scale-95 hover:bg-[#C4A052]/90 transition-all disabled:opacity-50"
+                >
+                  {isAdding ? (
+                    <Loader2 size={18} className="animate-spin" />
+                  ) : (
+                    <ShoppingCart size={18} />
+                  )}
+                  Add
+                </button>
               </div>
             </div>
-          )}
-
-          {/* Related Products */}
-          <ProductRecommendations title="You May Also Like" excludeProductId={id} />
-        </div>
+          </div>
+        )}
 
         {/* Image Modal */}
         <AnimatePresence>
@@ -387,7 +330,11 @@ const ProductDetail = () => {
               >
                 <X size={24} />
               </button>
-              <img src={images[activeImage]} alt="Zoomed" className="w-full max-w-lg object-contain max-h-[80vh]" />
+              <img
+                src={images[0]}
+                alt="Zoomed"
+                className="w-full max-w-lg object-contain max-h-[80vh]"
+              />
             </motion.div>
           )}
         </AnimatePresence>
