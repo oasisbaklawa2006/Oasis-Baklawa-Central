@@ -431,6 +431,9 @@ const AdminUsers = () => {
                         Comm %
                       </th>
                     )}
+                    <th className="text-right px-5 py-4 text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                      Actions
+                    </th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border">
