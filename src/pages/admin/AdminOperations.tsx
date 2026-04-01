@@ -336,7 +336,7 @@ const AdminOperations = () => {
                     <div className="p-4 border-b border-border flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
                       <div>
                         <p className="text-xs text-muted-foreground">
-                          {isInternalTask ? "Internal Dispatch Auth" : "Factory Order ID"}
+                          {isInternalTask ? "Internal Dispatch Auth" : (order.company?.business_name || "Factory Order")}
                         </p>
                         <p className="text-lg font-bold text-foreground">
                           {isInternalTask ? "AUTO-GENERATED" : `#${order.id.split("-")[0].toUpperCase()}`}
