@@ -346,9 +346,5 @@ const CatalogueAddButton = ({ item, moq, addToCart }: { item: any; moq: number; 
     </button>
   );
 };
-      </div>
-    </div>
-  );
-};
 
 export default Catalogue;
