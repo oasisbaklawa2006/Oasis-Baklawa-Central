@@ -51,7 +51,7 @@ serve(async (req) => {
         Authorization: `Bearer ${resendApiKey}`,
       },
       body: JSON.stringify({
-        from: "onboarding@resend.dev",
+        from: "Oasis Baklawa <team@oasisbaklawa.com>",
         to,
         subject,
         ...(html ? { html } : { text }),
