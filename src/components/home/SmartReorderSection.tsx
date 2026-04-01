@@ -62,32 +62,32 @@ const SmartReorderSection = () => {
   }, []);
 
   if (loading) return (
-    <div className="flex justify-center py-6">
-      <Loader2 size={16} className="animate-spin text-primary" />
+    <div className="flex justify-center py-4">
+      <Loader2 size={14} className="animate-spin text-primary" />
     </div>
   );
 
   if (items.length === 0) return null;
 
   return (
-    <section className="px-6">
-      <div className="flex items-baseline justify-between mb-6">
-        <h2 className="font-display text-xl text-foreground">Order Again</h2>
-        <span className="font-body text-[9px] text-muted-foreground tracking-[0.15em] uppercase">Reorder in 1 tap</span>
+    <section className="px-5">
+      <div className="flex items-baseline justify-between mb-4">
+        <h2 className="font-display text-lg text-foreground">Order Again</h2>
+        <span className="font-body text-[8px] text-muted-foreground tracking-[0.15em] uppercase">Reorder in 1 tap</span>
       </div>
-      <div className="flex overflow-x-auto scrollbar-hide gap-4 pb-2 snap-x">
+      <div className="flex overflow-x-auto scrollbar-hide gap-3 pb-1 snap-x">
         {items.map((item, i) => (
           <motion.div
             key={item.id}
-            initial={{ opacity: 0, y: 12 }}
+            initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5, delay: i * 0.05, ease: [0.22, 1, 0.36, 1] }}
+            transition={{ duration: 0.4, delay: i * 0.04, ease: [0.22, 1, 0.36, 1] }}
             whileTap={{ scale: 0.97 }}
             onClick={() => navigate(`/product/${item.id}`)}
-            className="min-w-[130px] max-w-[130px] snap-start cursor-pointer flex-shrink-0 group"
+            className="min-w-[120px] max-w-[120px] snap-start cursor-pointer flex-shrink-0 group"
           >
-            <div className="w-full aspect-square rounded-xl overflow-hidden bg-card border border-primary/8 flex items-center justify-center mb-2.5"
-              style={{ boxShadow: "0 2px 12px rgba(0,0,0,0.03)" }}
+            <div className="w-full aspect-square rounded-xl overflow-hidden bg-card border border-primary/6 flex items-center justify-center mb-2"
+              style={{ boxShadow: "0 1px 8px rgba(0,0,0,0.03)" }}
             >
               {item.image_url ? (
                 <img
@@ -97,11 +97,11 @@ const SmartReorderSection = () => {
                   loading="lazy"
                 />
               ) : (
-                <Package size={18} className="text-muted-foreground" strokeWidth={1.3} />
+                <Package size={16} className="text-muted-foreground" strokeWidth={1.3} />
               )}
             </div>
-            <p className="font-serif text-[11px] text-foreground line-clamp-1 mb-0.5">{item.name}</p>
-            <p className="font-body text-[10px] text-foreground font-medium">
+            <p className="font-serif text-[10px] text-foreground line-clamp-1 mb-0.5">{item.name}</p>
+            <p className="font-body text-[9px] text-foreground font-medium">
               {formatPrice(item.price_per_kg)}<span className="font-normal text-muted-foreground">/kg</span>
             </p>
           </motion.div>
