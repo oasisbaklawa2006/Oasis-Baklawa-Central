@@ -79,12 +79,18 @@ const AdminNotifications = () => {
 
   const fetchOutbox = async () => {
     setOutboxLoading(true);
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from("notification_outbox")
       .select("*")
-      .order("created_at", { ascending: false })
-      .limit(100);
-    setOutbox((data as OutboxMessage[]) || []);
+      .order("created_at", { ascending: false });
+
+    if (error) {
+      console.error("Fetch Error:", error);
+      toast.error("Failed to load outbox");
+    } else {
+      console.log("[Outbox] Fetched rows:", data?.length);
+      setOutbox((data as OutboxMessage[]) || []);
+    }
     setOutboxLoading(false);
   };
 
