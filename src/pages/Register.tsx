@@ -100,33 +100,60 @@ const Register = () => {
     setLoading(true);
 
     try {
-      // Upload files
+      // Step 1: Create Auth user FIRST
+      const email = contactEmail.trim().toLowerCase();
+      const { data: authData, error: authError } = await supabase.auth.signUp({
+        email,
+        password,
+      });
+
+      if (authError) {
+        console.error("[Register] Auth signUp failed:", authError);
+        toast.error(authError.message);
+        setLoading(false);
+        return;
+      }
+
+      if (!authData.user) {
+        toast.error("Failed to create account. Please try again.");
+        setLoading(false);
+        return;
+      }
+
+      const userId = authData.user.id;
+
+      // Step 2: Create profile with role=buyer, is_approved=false
+      const { error: profileError } = await supabase.from("profiles").insert({
+        id: userId,
+        email,
+        full_name: contactPerson.trim(),
+        mobile_number: mobileNumber.trim(),
+        role: "buyer",
+        is_approved: false,
+      });
+
+      if (profileError) {
+        console.error("[Register] Profile insert failed:", profileError);
+        // Don't block — the trigger may have created it already
+      }
+
+      // Step 3: Upload files
       let gstPath: string | null = null;
       let proofPath: string | null = null;
 
       if (gstFile) {
         gstPath = await uploadFile(gstFile, "gst-certificates");
-        if (!gstPath) {
-          toast.error("Failed to upload GST certificate");
-          setLoading(false);
-          return;
-        }
       }
 
       if (proofFile) {
         proofPath = await uploadFile(proofFile, "business-proofs");
-        if (!proofPath) {
-          toast.error("Failed to upload business proof");
-          setLoading(false);
-          return;
-        }
       }
 
-      // Check for duplicate
+      // Step 4: Check for duplicate application
       const { data: existing } = await supabase
         .from("b2b_applications")
         .select("id")
-        .eq("contact_email", contactEmail.trim().toLowerCase())
+        .eq("contact_email", email)
         .in("status", ["pending", "approved"])
         .limit(1);
 
@@ -136,14 +163,14 @@ const Register = () => {
         return;
       }
 
-      // Insert application
+      // Step 5: Insert application with user_id linked
       const { error: insertErr } = await supabase.from("b2b_applications").insert({
         business_name: businessName.trim(),
         trade_name: tradeName.trim() || null,
         business_type: businessType || null,
         contact_person: contactPerson.trim(),
         mobile_number: mobileNumber.trim(),
-        contact_email: contactEmail.trim().toLowerCase(),
+        contact_email: email,
         registered_address: registeredAddress.trim(),
         city: city.trim(),
         state: state,
@@ -154,6 +181,7 @@ const Register = () => {
         trade_declaration: tradeDeclaration,
         data_consent: dataConsent,
         status: "pending",
+        user_id: userId,
       });
 
       if (insertErr) {
