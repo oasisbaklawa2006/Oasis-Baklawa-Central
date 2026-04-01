@@ -322,17 +322,28 @@ const CatalogueCard = ({
           </p>
         )}
 
-        <button
-          onClick={async (e) => {
-            e.stopPropagation();
-            await addToCart(item.id, moq, item.pack_size ?? null, item.carton_type ?? null);
-          }}
-          className="w-full mt-2 bg-foreground text-primary-foreground font-body text-xs font-medium py-2 rounded-full hover:opacity-90 transition-opacity"
-        >
-          Add
-        </button>
+        <CatalogueAddButton item={item} moq={moq} addToCart={addToCart} />
       </div>
     </div>
+  );
+};
+
+const CatalogueAddButton = ({ item, moq, addToCart }: { item: any; moq: number; addToCart: any }) => {
+  const [adding, setAdding] = useState(false);
+  return (
+    <button
+      onClick={async (e) => {
+        e.stopPropagation();
+        setAdding(true);
+        await addToCart(item.id, moq, item.pack_size ?? null, item.carton_type ?? null);
+        setAdding(false);
+      }}
+      disabled={adding}
+      className="w-full mt-2 bg-[hsl(var(--foreground))] text-[hsl(var(--background))] font-body text-xs font-medium py-2 rounded-lg hover:opacity-90 transition-opacity disabled:opacity-50 flex items-center justify-center gap-1"
+    >
+      {adding ? <Loader2 size={12} className="animate-spin" /> : null}
+      {adding ? "Adding…" : "Add"}
+    </button>
   );
 };
 

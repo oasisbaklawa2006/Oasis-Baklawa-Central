@@ -2,7 +2,8 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useCurrency } from "@/contexts/CurrencyContext";
-import { Loader2, Package } from "lucide-react";
+import { useCart } from "@/hooks/useCart";
+import { Loader2, Package, Plus } from "lucide-react";
 import { getDisplayPrice } from "@/utils/pricing";
 
 interface ProductSectionProps {
@@ -18,6 +19,7 @@ interface TaggedProduct {
   image_url: string | null;
   base_price: number | null;
   pack_size: string | null;
+  carton_type: string | null;
   category: string;
   manual_sort_index: number | null;
 }
@@ -27,6 +29,7 @@ const ProductSection = ({ tagKey, title, subtitle, variant = "default" }: Produc
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
   const { formatPrice } = useCurrency();
+  const { addToCart } = useCart();
 
   useEffect(() => {
     const fetchData = async () => {
@@ -50,7 +53,7 @@ const ProductSection = ({ tagKey, title, subtitle, variant = "default" }: Produc
       const productIds = mappings.map(m => m.product_id).filter(Boolean) as string[];
       const { data: prods } = await supabase
         .from("products")
-        .select("id, name, image_url, base_price, pack_size, category")
+        .select("id, name, image_url, base_price, pack_size, carton_type, category")
         .in("id", productIds)
         .eq("is_active", true);
 
@@ -80,23 +83,7 @@ const ProductSection = ({ tagKey, title, subtitle, variant = "default" }: Produc
     return (
       <div className="flex overflow-x-auto scrollbar-hide gap-3 pb-1 snap-x">
         {products.slice(0, 8).map((item) => (
-          <div
-            key={item.id}
-            onClick={() => navigate(`/product/${item.id}`)}
-            className="min-w-[120px] max-w-[120px] snap-start cursor-pointer flex-shrink-0"
-          >
-            <div className="w-full aspect-square rounded-lg overflow-hidden bg-card flex items-center justify-center mb-1.5">
-              {item.image_url ? (
-                <img src={item.image_url} alt={item.name} className="w-full h-full object-contain" loading="lazy" />
-              ) : (
-                <Package size={16} className="text-muted-foreground" />
-              )}
-            </div>
-            <p className="font-body text-[11px] text-foreground line-clamp-1">{item.name}</p>
-            <p className="font-body text-[10px] text-muted-foreground">
-              {item.base_price ? formatPrice(item.base_price) + "/kg" : ""}
-            </p>
-          </div>
+          <CompactCard key={item.id} item={item} navigate={navigate} formatPrice={formatPrice} addToCart={addToCart} />
         ))}
       </div>
     );
@@ -135,6 +122,43 @@ const ProductSection = ({ tagKey, title, subtitle, variant = "default" }: Produc
         ))}
       </div>
     </section>
+  );
+};
+
+const CompactCard = ({ item, navigate, formatPrice, addToCart }: any) => {
+  const [adding, setAdding] = useState(false);
+
+  const handleQuickAdd = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setAdding(true);
+    await addToCart(item.id, 1, item.pack_size ?? null, item.carton_type ?? null);
+    setAdding(false);
+  };
+
+  return (
+    <div
+      onClick={() => navigate(`/product/${item.id}`)}
+      className="min-w-[120px] max-w-[120px] snap-start cursor-pointer flex-shrink-0"
+    >
+      <div className="relative w-full aspect-square rounded-lg overflow-hidden bg-card flex items-center justify-center mb-1.5">
+        {item.image_url ? (
+          <img src={item.image_url} alt={item.name} className="w-full h-full object-contain" loading="lazy" />
+        ) : (
+          <Package size={16} className="text-muted-foreground" />
+        )}
+        <button
+          onClick={handleQuickAdd}
+          disabled={adding}
+          className="absolute bottom-1 right-1 w-6 h-6 rounded-md bg-[hsl(var(--foreground))] text-[hsl(var(--background))] flex items-center justify-center shadow-sm hover:opacity-90 transition-opacity disabled:opacity-50"
+        >
+          {adding ? <Loader2 size={10} className="animate-spin" /> : <Plus size={12} />}
+        </button>
+      </div>
+      <p className="font-body text-[11px] text-foreground line-clamp-1">{item.name}</p>
+      <p className="font-body text-[10px] text-muted-foreground">
+        {item.base_price ? formatPrice(item.base_price) + "/kg" : ""}
+      </p>
+    </div>
   );
 };
 

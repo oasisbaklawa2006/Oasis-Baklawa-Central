@@ -2,7 +2,8 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useCurrency } from "@/contexts/CurrencyContext";
-import { Loader2, Package } from "lucide-react";
+import { useCart } from "@/hooks/useCart";
+import { Loader2, Package, Plus } from "lucide-react";
 import { motion } from "framer-motion";
 
 interface ReorderProduct {
@@ -11,6 +12,7 @@ interface ReorderProduct {
   image_url: string | null;
   price_per_kg: number;
   pack_size: string | null;
+  carton_type: string | null;
   quantity: number;
 }
 
@@ -19,6 +21,7 @@ const SmartReorderSection = () => {
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
   const { formatPrice } = useCurrency();
+  const { addToCart } = useCart();
 
   useEffect(() => {
     const fetchReorders = async () => {
@@ -43,7 +46,7 @@ const SmartReorderSection = () => {
         const sortedIds = Object.entries(qtyMap).sort(([, a], [, b]) => b - a).slice(0, 8).map(([id]) => id);
         if (sortedIds.length === 0) { setLoading(false); return; }
         const { data: products } = await supabase
-          .from("products").select("id, name, image_url, price_per_kg, pack_size")
+          .from("products").select("id, name, image_url, price_per_kg, pack_size, carton_type")
           .in("id", sortedIds).eq("is_active", true);
         if (products) {
           setItems(sortedIds.map(id => {
@@ -77,37 +80,59 @@ const SmartReorderSection = () => {
       </div>
       <div className="flex overflow-x-auto scrollbar-hide gap-3 pb-1 snap-x">
         {items.map((item, i) => (
-          <motion.div
-            key={item.id}
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.4, delay: i * 0.04, ease: [0.22, 1, 0.36, 1] }}
-            whileTap={{ scale: 0.97 }}
-            onClick={() => navigate(`/product/${item.id}`)}
-            className="min-w-[120px] max-w-[120px] snap-start cursor-pointer flex-shrink-0 group"
-          >
-            <div className="w-full aspect-square rounded-xl overflow-hidden bg-card border border-primary/6 flex items-center justify-center mb-2"
-              style={{ boxShadow: "0 1px 8px rgba(0,0,0,0.03)" }}
-            >
-              {item.image_url ? (
-                <img
-                  src={item.image_url}
-                  alt={item.name}
-                  className="w-full h-full object-contain group-hover:scale-105 transition-transform duration-700 ease-out"
-                  loading="lazy"
-                />
-              ) : (
-                <Package size={16} className="text-muted-foreground" strokeWidth={1.3} />
-              )}
-            </div>
-            <p className="font-serif text-[10px] text-foreground line-clamp-1 mb-0.5">{item.name}</p>
-            <p className="font-body text-[9px] text-foreground font-medium">
-              {formatPrice(item.price_per_kg)}<span className="font-normal text-muted-foreground">/kg</span>
-            </p>
-          </motion.div>
+          <ReorderCard key={item.id} item={item} index={i} navigate={navigate} formatPrice={formatPrice} addToCart={addToCart} />
         ))}
       </div>
     </section>
+  );
+};
+
+const ReorderCard = ({ item, index, navigate, formatPrice, addToCart }: any) => {
+  const [adding, setAdding] = useState(false);
+
+  const handleQuickAdd = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setAdding(true);
+    await addToCart(item.id, 1, item.pack_size ?? null, item.carton_type ?? null);
+    setAdding(false);
+  };
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.4, delay: index * 0.04, ease: [0.22, 1, 0.36, 1] }}
+      whileTap={{ scale: 0.97 }}
+      onClick={() => navigate(`/product/${item.id}`)}
+      className="min-w-[120px] max-w-[120px] snap-start cursor-pointer flex-shrink-0 group"
+    >
+      <div className="relative w-full aspect-square rounded-xl overflow-hidden bg-card border border-primary/6 flex items-center justify-center mb-2"
+        style={{ boxShadow: "0 1px 8px rgba(0,0,0,0.03)" }}
+      >
+        {item.image_url ? (
+          <img
+            src={item.image_url}
+            alt={item.name}
+            className="w-full h-full object-contain group-hover:scale-105 transition-transform duration-700 ease-out"
+            loading="lazy"
+          />
+        ) : (
+          <Package size={16} className="text-muted-foreground" strokeWidth={1.3} />
+        )}
+        {/* Quick-add overlay button */}
+        <button
+          onClick={handleQuickAdd}
+          disabled={adding}
+          className="absolute bottom-1.5 right-1.5 w-6 h-6 rounded-md bg-[hsl(var(--foreground))] text-[hsl(var(--background))] flex items-center justify-center shadow-sm hover:opacity-90 transition-opacity disabled:opacity-50"
+        >
+          {adding ? <Loader2 size={10} className="animate-spin" /> : <Plus size={12} />}
+        </button>
+      </div>
+      <p className="font-serif text-[10px] text-foreground line-clamp-1 mb-0.5">{item.name}</p>
+      <p className="font-body text-[9px] text-foreground font-medium">
+        {formatPrice(item.price_per_kg)}<span className="font-normal text-muted-foreground">/kg</span>
+      </p>
+    </motion.div>
   );
 };
 
