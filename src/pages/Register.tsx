@@ -39,6 +39,8 @@ const Register = () => {
   const [contactPerson, setContactPerson] = useState("");
   const [mobileNumber, setMobileNumber] = useState("");
   const [contactEmail, setContactEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [registeredAddress, setRegisteredAddress] = useState("");
   const [city, setCity] = useState("");
   const [state, setState] = useState("");
@@ -63,6 +65,10 @@ const Register = () => {
     else if (!/^\d{10}$/.test(mobileNumber.trim())) e.mobileNumber = "Enter valid 10-digit number";
     if (!contactEmail.trim()) e.contactEmail = "Required";
     else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(contactEmail.trim())) e.contactEmail = "Invalid email";
+    if (!password) e.password = "Required";
+    else if (password.length < 6) e.password = "Minimum 6 characters";
+    if (!confirmPassword) e.confirmPassword = "Required";
+    else if (password !== confirmPassword) e.confirmPassword = "Passwords do not match";
     if (!registeredAddress.trim()) e.registeredAddress = "Required";
     if (!city.trim()) e.city = "Required";
     if (!state) e.state = "Required";
@@ -94,33 +100,60 @@ const Register = () => {
     setLoading(true);
 
     try {
-      // Upload files
+      // Step 1: Create Auth user FIRST
+      const email = contactEmail.trim().toLowerCase();
+      const { data: authData, error: authError } = await supabase.auth.signUp({
+        email,
+        password,
+      });
+
+      if (authError) {
+        console.error("[Register] Auth signUp failed:", authError);
+        toast.error(authError.message);
+        setLoading(false);
+        return;
+      }
+
+      if (!authData.user) {
+        toast.error("Failed to create account. Please try again.");
+        setLoading(false);
+        return;
+      }
+
+      const userId = authData.user.id;
+
+      // Step 2: Create profile with role=buyer, is_approved=false
+      const { error: profileError } = await supabase.from("profiles").insert({
+        id: userId,
+        email,
+        full_name: contactPerson.trim(),
+        mobile_number: mobileNumber.trim(),
+        role: "buyer",
+        is_approved: false,
+      });
+
+      if (profileError) {
+        console.error("[Register] Profile insert failed:", profileError);
+        // Don't block — the trigger may have created it already
+      }
+
+      // Step 3: Upload files
       let gstPath: string | null = null;
       let proofPath: string | null = null;
 
       if (gstFile) {
         gstPath = await uploadFile(gstFile, "gst-certificates");
-        if (!gstPath) {
-          toast.error("Failed to upload GST certificate");
-          setLoading(false);
-          return;
-        }
       }
 
       if (proofFile) {
         proofPath = await uploadFile(proofFile, "business-proofs");
-        if (!proofPath) {
-          toast.error("Failed to upload business proof");
-          setLoading(false);
-          return;
-        }
       }
 
-      // Check for duplicate
+      // Step 4: Check for duplicate application
       const { data: existing } = await supabase
         .from("b2b_applications")
         .select("id")
-        .eq("contact_email", contactEmail.trim().toLowerCase())
+        .eq("contact_email", email)
         .in("status", ["pending", "approved"])
         .limit(1);
 
@@ -130,14 +163,14 @@ const Register = () => {
         return;
       }
 
-      // Insert application
+      // Step 5: Insert application with user_id linked
       const { error: insertErr } = await supabase.from("b2b_applications").insert({
         business_name: businessName.trim(),
         trade_name: tradeName.trim() || null,
         business_type: businessType || null,
         contact_person: contactPerson.trim(),
         mobile_number: mobileNumber.trim(),
-        contact_email: contactEmail.trim().toLowerCase(),
+        contact_email: email,
         registered_address: registeredAddress.trim(),
         city: city.trim(),
         state: state,
@@ -148,6 +181,7 @@ const Register = () => {
         trade_declaration: tradeDeclaration,
         data_consent: dataConsent,
         status: "pending",
+        user_id: userId,
       });
 
       if (insertErr) {
@@ -156,6 +190,9 @@ const Register = () => {
         setLoading(false);
         return;
       }
+
+      // Sign out immediately — pending users should not be logged in
+      await supabase.auth.signOut();
 
       setSubmitted(true);
     } catch (err) {
@@ -240,6 +277,18 @@ const Register = () => {
                 <label className="text-ui-label text-foreground">Email Address *</label>
                 <Input type="email" placeholder="you@business.com" className="rounded-xl mt-1" value={contactEmail} onChange={(e) => setContactEmail(e.target.value)} />
                 <FieldError field="contactEmail" />
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="text-ui-label text-foreground">Password *</label>
+                  <Input type="password" placeholder="Min 6 characters" className="rounded-xl mt-1" value={password} onChange={(e) => setPassword(e.target.value)} />
+                  <FieldError field="password" />
+                </div>
+                <div>
+                  <label className="text-ui-label text-foreground">Confirm Password *</label>
+                  <Input type="password" placeholder="Re-enter password" className="rounded-xl mt-1" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} />
+                  <FieldError field="confirmPassword" />
+                </div>
               </div>
 
               {/* Section 3: Address */}

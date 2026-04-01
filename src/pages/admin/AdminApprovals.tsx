@@ -60,56 +60,57 @@ const AdminApprovals = () => {
 
       // === ATOMIC APPROVAL SEQUENCE ===
 
-      // Step 1: Profile validation — ensure user has a profile record
-      if (app.user_id) {
-        const { data: existingProfile } = await supabase
-          .from("profiles")
-          .select("id")
-          .eq("id", app.user_id)
-          .maybeSingle();
-
-        if (!existingProfile) {
-          console.warn("[Approve] No profile found for user_id:", app.user_id, "— creating placeholder");
-          await supabase.from("profiles").insert({
-            id: app.user_id,
-            email: app.contact_email,
-            full_name: app.contact_name,
-            role: "buyer",
-            is_approved: true,
-          });
-        } else {
-          // Update existing profile to approved
-          await supabase
-            .from("profiles")
-            .update({ role: "buyer", is_approved: true } as any)
-            .eq("id", app.user_id);
-        }
+      // Guard: Ensure auth account exists
+      if (!app.user_id) {
+        toast.error("Incomplete Registration: No Auth Account Found. Cannot approve.");
+        setActionLoading(null);
+        return;
       }
 
-      // Step 2: Create company & update users table
-      if (app.user_id) {
-        const { data: newCompany } = await supabase
-          .from("companies")
-          .insert({
-            business_name: app.business_name,
-            gst_number: app.gst_number,
-            business_volume: app.expected_volume,
-          })
-          .select()
-          .single();
+      // Step 2: Profile validation — ensure user has a profile record
+      const { data: existingProfile } = await supabase
+        .from("profiles")
+        .select("id")
+        .eq("id", app.user_id)
+        .maybeSingle();
 
-        if (newCompany) {
-          await supabase
-            .from("users")
-            .update({ role: "buyer", company_id: newCompany.id })
-            .eq("id", app.user_id);
+      if (!existingProfile) {
+        console.warn("[Approve] No profile found for user_id:", app.user_id, "— creating placeholder");
+        await supabase.from("profiles").insert({
+          id: app.user_id,
+          email: app.contact_email,
+          full_name: app.contact_name,
+          role: "buyer",
+          is_approved: true,
+        });
+      } else {
+        await supabase
+          .from("profiles")
+          .update({ role: "buyer", is_approved: true } as any)
+          .eq("id", app.user_id);
+      }
 
-          // Also link profile to company
-          await supabase
-            .from("profiles")
-            .update({ company_id: newCompany.id } as any)
-            .eq("id", app.user_id);
-        }
+      // Step 3: Create company & update users table
+      const { data: newCompany } = await supabase
+        .from("companies")
+        .insert({
+          business_name: app.business_name,
+          gst_number: app.gst_number,
+          business_volume: app.expected_volume,
+        })
+        .select()
+        .single();
+
+      if (newCompany) {
+        await supabase
+          .from("users")
+          .update({ role: "buyer", company_id: newCompany.id })
+          .eq("id", app.user_id);
+
+        await supabase
+          .from("profiles")
+          .update({ company_id: newCompany.id } as any)
+          .eq("id", app.user_id);
       }
 
       // Step 3: Direct notification injection
