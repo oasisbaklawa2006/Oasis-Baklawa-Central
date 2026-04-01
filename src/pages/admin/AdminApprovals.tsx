@@ -36,59 +36,137 @@ const AdminApprovals = () => {
 
   const handleAction = async (app: Application, newStatus: "approved" | "rejected") => {
     setActionLoading(app.id);
-    const { error } = await supabase
-      .from("b2b_applications")
-      .update({ status: newStatus })
-      .eq("id", app.id);
 
-    if (error) {
-      toast.error(`Failed to ${newStatus === "approved" ? "approve" : "reject"}`);
-      setActionLoading(null);
-      return;
-    }
+    try {
+      // Step 1: Update application status
+      const { error } = await supabase
+        .from("b2b_applications")
+        .update({ status: newStatus })
+        .eq("id", app.id);
 
-    if (newStatus === "approved" && app.user_id) {
-      const { data: newCompany } = await supabase
-        .from("companies")
-        .insert({
-          business_name: app.business_name,
-          gst_number: app.gst_number,
-          business_volume: app.expected_volume,
-        })
-        .select()
-        .single();
-
-      if (newCompany) {
-        await supabase
-          .from("users")
-          .update({ role: "buyer", company_id: newCompany.id })
-          .eq("id", app.user_id);
+      if (error) {
+        console.error("[Approve] Application update failed:", error);
+        toast.error(`Failed to ${newStatus === "approved" ? "approve" : "reject"}`);
+        setActionLoading(null);
+        return;
       }
-    }
 
-    // Auto-send welcome email on approval
-    if (newStatus === "approved" && app.contact_email) {
-      try {
+      if (newStatus === "rejected") {
+        toast.success(`${app.business_name} rejected`);
+        fetchApps();
+        setActionLoading(null);
+        return;
+      }
+
+      // === ATOMIC APPROVAL SEQUENCE ===
+
+      // Step 1: Profile validation — ensure user has a profile record
+      if (app.user_id) {
+        const { data: existingProfile } = await supabase
+          .from("profiles")
+          .select("id")
+          .eq("id", app.user_id)
+          .maybeSingle();
+
+        if (!existingProfile) {
+          console.warn("[Approve] No profile found for user_id:", app.user_id, "— creating placeholder");
+          await supabase.from("profiles").insert({
+            id: app.user_id,
+            email: app.contact_email,
+            full_name: app.contact_name,
+            role: "buyer",
+            is_approved: true,
+          });
+        } else {
+          // Update existing profile to approved
+          await supabase
+            .from("profiles")
+            .update({ role: "buyer", is_approved: true } as any)
+            .eq("id", app.user_id);
+        }
+      }
+
+      // Step 2: Create company & update users table
+      if (app.user_id) {
+        const { data: newCompany } = await supabase
+          .from("companies")
+          .insert({
+            business_name: app.business_name,
+            gst_number: app.gst_number,
+            business_volume: app.expected_volume,
+          })
+          .select()
+          .single();
+
+        if (newCompany) {
+          await supabase
+            .from("users")
+            .update({ role: "buyer", company_id: newCompany.id })
+            .eq("id", app.user_id);
+
+          // Also link profile to company
+          await supabase
+            .from("profiles")
+            .update({ company_id: newCompany.id } as any)
+            .eq("id", app.user_id);
+        }
+      }
+
+      // Step 3: Direct notification injection
+      let emailSent = false;
+      if (app.contact_email) {
         const { error: outboxError } = await supabase.from("notification_outbox").insert({
           recipient_email: app.contact_email,
-          event_type: "account_activation",
-          message_body: "Welcome to Oasis Baklawa! Your B2B account has been approved and activated. You can now log in to view our catalog and place orders.",
+          event_type: "portal_activation",
+          message_body: "Welcome to the Oasis Baklawa B2B Portal. Your account is now active. You can now log in to view our catalog and place orders.",
           status: "pending",
         });
-        if (outboxError) throw outboxError;
 
-        // Immediately dispatch the queued email
-        const sent = await processOutboxQueue();
-        toast.success(`${app.business_name} approved & welcome email sent (${sent} dispatched)`);
-      } catch (notifErr: any) {
-        console.error("[Outbox] Auto-send failed:", notifErr);
-        toast.error("Approved, but welcome email dispatch failed.");
+        if (outboxError) {
+          console.error("[Approve] Outbox insert failed:", outboxError);
+        } else {
+          // Step 4: Force dispatch — invoke send-email directly
+          try {
+            const { error: fnError } = await supabase.functions.invoke("send-email", {
+              body: {
+                to: app.contact_email,
+                subject: "Your Oasis Baklawa B2B Account is Active!",
+                text: "Welcome to the Oasis Baklawa B2B Portal. Your account is now active. You can now log in to view our catalog and place orders.",
+              },
+            });
+
+            if (fnError) {
+              console.error("[Approve] Edge Function failed:", fnError);
+              toast.error("User approved, but welcome email failed to send. Please use the Resend Email button manually.");
+            } else {
+              emailSent = true;
+              // Mark outbox entry as sent
+              await supabase
+                .from("notification_outbox")
+                .update({ status: "sent", sent_at: new Date().toISOString() } as any)
+                .eq("recipient_email", app.contact_email)
+                .eq("event_type", "portal_activation")
+                .eq("status", "pending");
+            }
+          } catch (fnErr: any) {
+            console.error("[Approve] Edge Function exception:", fnErr);
+            toast.error("User approved, but welcome email failed to send. Please use the Resend Email button manually.");
+          }
+        }
       }
-    } else {
-      toast.success(`${app.business_name} ${newStatus}`);
+
+      if (emailSent) {
+        toast.success(`${app.business_name} approved & welcome email sent!`);
+      } else if (!app.contact_email) {
+        toast.success(`${app.business_name} approved (no email on file)`);
+      }
+
+      fetchApps();
+    } catch (err: any) {
+      console.error("[Approve] Atomic approval failed:", err);
+      toast.error("Approval failed: " + (err.message || "Unknown error"));
     }
 
-    fetchApps();
     setActionLoading(null);
   };
 
