@@ -45,12 +45,10 @@ export const processOutboxQueue = async (): Promise<number> => {
 
   let processed = 0;
 
-  // Grab auth token once before loop
-  const { data: authData } = await supabase.auth.getSession();
-  const token = authData?.session?.access_token;
-
-  if (!token) {
-    console.error("[Outbox] No active session token — cannot process queue.");
+  // Verify user is authenticated
+  const { data: { session }, error: authError } = await supabase.auth.getSession();
+  if (!session || authError) {
+    console.error("[Outbox] No active session — cannot process queue.");
     return 0;
   }
 
@@ -63,9 +61,6 @@ export const processOutboxQueue = async (): Promise<number> => {
             to: msg.recipient_email,
             subject: `Oasis Notification: ${msg.event_type}`,
             text: msg.message_body,
-          },
-          headers: {
-            Authorization: `Bearer ${token}`,
           },
         });
 
