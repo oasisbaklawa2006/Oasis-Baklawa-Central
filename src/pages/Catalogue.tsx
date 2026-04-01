@@ -1,48 +1,21 @@
 import AppShell from "@/components/AppShell";
 import { useState, useMemo, useEffect } from "react";
-import { useCurrency } from "@/contexts/CurrencyContext";
 import { useCart } from "@/hooks/useCart";
 import { useProducts } from "@/hooks/useProducts";
-import {
-  Search,
-  ShoppingCart,
-  Loader2,
-  ChevronRight,
-  Package,
-  SlidersHorizontal,
-} from "lucide-react";
+import { Search, Loader2, ChevronRight, SlidersHorizontal } from "lucide-react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 
-import {
-  calculatePackPrice,
-  getDisplayPrice,
-  getProductCategory,
-  getPacksPerCarton,
-  getMinOrderQty,
-  getPrimaryPackWeightKg,
-  unitsToFillCarton,
-} from "@/utils/pricing";
+import CategoryTiles from "@/components/catalogue/CategoryTiles";
+import SubcategoryTiles from "@/components/catalogue/SubcategoryTiles";
+import CatalogueProductCard from "@/components/catalogue/CatalogueProductCard";
+import CartonBuilderBar from "@/components/catalogue/CartonBuilderBar";
+import SuggestionChips from "@/components/catalogue/SuggestionChips";
 
 type CatalogueView = "categories" | "subcategories" | "products";
-
-const CATEGORY_EMOJIS: Record<string, string> = {
-  "Gifting": "🎁",
-  "Bulk Sweets & Nuts": "🍬",
-  "Dates": "🌴",
-  "Chocolates": "🍫",
-  "Baklawa": "🍯",
-  "Nuts & Dragees": "🌰",
-  "Ready packs": "📦",
-  "Premium Gift Packs": "🎀",
-  "Semi-Prepared & Frozen Range": "❄️",
-  "Packaging & Decoration Material": "🎨",
-};
 
 const Catalogue = () => {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
-  const { formatPrice } = useCurrency();
-  const { addToCart } = useCart();
   const { products, loading: productsLoading } = useProducts();
 
   const paramCategory = searchParams.get("category");
@@ -99,6 +72,24 @@ const Catalogue = () => {
     });
   }, [products, activeCategory, activeSubCategory, searchQuery]);
 
+  const categoryCounts = useMemo(() => {
+    const counts: Record<string, number> = {};
+    products.forEach((p) => {
+      if (p.category) counts[p.category] = (counts[p.category] || 0) + 1;
+    });
+    return counts;
+  }, [products]);
+
+  const subCategoryCounts = useMemo(() => {
+    const counts: Record<string, number> = {};
+    products
+      .filter((p) => p.category === activeCategory)
+      .forEach((p) => {
+        if (p.sub_category) counts[p.sub_category] = (counts[p.sub_category] || 0) + 1;
+      });
+    return counts;
+  }, [products, activeCategory]);
+
   const navigateToCategory = (cat: string) => {
     navigate(`/catalogue?category=${encodeURIComponent(cat)}`, { replace: true });
   };
@@ -112,56 +103,57 @@ const Catalogue = () => {
     navigate("/catalogue", { replace: true });
   };
 
-  const renderBreadcrumbs = () => (
-    <nav className="flex items-center gap-1.5 text-xs font-body text-muted-foreground mb-5 flex-wrap">
-      <button
-        onClick={navigateToRoot}
-        className={`hover:text-foreground transition-colors ${currentView === "categories" ? "text-foreground font-medium" : ""}`}
-      >
-        Catalogue
-      </button>
-      {activeCategory && (
-        <>
-          <ChevronRight size={12} className="text-muted-foreground/40" />
-          <button
-            onClick={() => navigateToCategory(activeCategory)}
-            className={`hover:text-foreground transition-colors ${currentView === "subcategories" ? "text-foreground font-medium" : ""}`}
-          >
-            {activeCategory}
-          </button>
-        </>
-      )}
-      {activeSubCategory && (
-        <>
-          <ChevronRight size={12} className="text-muted-foreground/40" />
-          <span className="text-foreground font-medium">{activeSubCategory}</span>
-        </>
-      )}
-    </nav>
-  );
-
   return (
     <AppShell>
-      <div className="min-h-screen bg-background pb-32">
-        <main className="px-5 max-w-5xl mx-auto pt-2">
+      <div className="min-h-screen bg-background pb-36">
+        <main className="px-4 max-w-5xl mx-auto pt-2">
           {/* Search */}
-          <div className="flex items-center gap-3 mb-5">
+          <div className="flex items-center gap-2.5 mb-4">
             <div className="relative flex-1">
               <input
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Search products..."
-                className="w-full bg-card border border-border rounded-xl py-3 pl-10 pr-4 text-sm font-body shadow-soft focus:border-primary focus:ring-1 focus:ring-primary/30 outline-none transition-all"
+                placeholder="Search products…"
+                className="w-full bg-card border border-border rounded-xl py-2.5 pl-10 pr-4 text-sm font-body focus:border-primary focus:ring-1 focus:ring-primary/30 outline-none transition-all"
+                style={{ boxShadow: "var(--card-shadow)" }}
               />
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={16} />
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={15} />
             </div>
-            <button className="w-10 h-10 rounded-xl bg-card border border-border flex items-center justify-center shadow-soft">
-              <SlidersHorizontal size={16} className="text-muted-foreground" />
+            <button
+              className="w-10 h-10 rounded-xl bg-card border border-border flex items-center justify-center"
+              style={{ boxShadow: "var(--card-shadow)" }}
+            >
+              <SlidersHorizontal size={15} className="text-muted-foreground" />
             </button>
           </div>
 
-          {renderBreadcrumbs()}
+          {/* Breadcrumbs */}
+          <nav className="flex items-center gap-1.5 text-xs font-body text-muted-foreground mb-4 flex-wrap">
+            <button
+              onClick={navigateToRoot}
+              className={`hover:text-foreground transition-colors ${currentView === "categories" ? "text-foreground font-medium" : ""}`}
+            >
+              Catalogue
+            </button>
+            {activeCategory && (
+              <>
+                <ChevronRight size={11} className="text-muted-foreground/40" />
+                <button
+                  onClick={() => navigateToCategory(activeCategory)}
+                  className={`hover:text-foreground transition-colors ${currentView === "subcategories" ? "text-foreground font-medium" : ""}`}
+                >
+                  {activeCategory}
+                </button>
+              </>
+            )}
+            {activeSubCategory && (
+              <>
+                <ChevronRight size={11} className="text-muted-foreground/40" />
+                <span className="text-foreground font-medium">{activeSubCategory}</span>
+              </>
+            )}
+          </nav>
 
           {productsLoading ? (
             <div className="flex items-center justify-center py-20">
@@ -171,68 +163,27 @@ const Catalogue = () => {
             <>
               {/* L1 CATEGORIES */}
               {currentView === "categories" && (
-                <section>
-                  <h2 className="font-display text-2xl text-foreground mb-5">Browse</h2>
-                  <div className="grid grid-cols-2 gap-3">
-                    {categories.map((cat) => {
-                      const count = products.filter((p) => p.category === cat).length;
-                      return (
-                        <button
-                          key={cat}
-                          onClick={() => navigateToCategory(cat)}
-                          className="relative aspect-[4/3] rounded-xl overflow-hidden group bg-muted"
-                        >
-                          <div className="absolute inset-0 flex items-center justify-center">
-                            <span className="text-4xl group-hover:scale-110 transition-transform duration-500">
-                              {CATEGORY_EMOJIS[cat] || "📦"}
-                            </span>
-                          </div>
-                          <div className="absolute inset-0 bg-gradient-to-t from-foreground/50 to-transparent" />
-                          <div className="absolute bottom-3 left-3">
-                            <span className="font-body text-xs font-medium text-white block">{cat}</span>
-                            <span className="font-body text-[10px] text-white/60">{count} products</span>
-                          </div>
-                        </button>
-                      );
-                    })}
-                  </div>
-                </section>
+                <CategoryTiles
+                  categories={categories}
+                  productCounts={categoryCounts}
+                  onSelect={navigateToCategory}
+                />
               )}
 
               {/* L2 SUBCATEGORIES */}
               {currentView === "subcategories" && (
                 <section>
-                  <h2 className="font-display text-2xl text-foreground mb-5">{activeCategory}</h2>
+                  <h2 className="font-display text-2xl text-foreground mb-4">{activeCategory}</h2>
                   {subCategories.length > 0 ? (
-                    <div className="grid grid-cols-2 gap-3">
-                      {subCategories.map((sub) => {
-                        const count = products.filter(
-                          (p) => p.category === activeCategory && p.sub_category === sub
-                        ).length;
-                        return (
-                          <button
-                            key={sub}
-                            onClick={() => navigateToSubCategory(sub)}
-                            className="relative aspect-[4/3] rounded-xl overflow-hidden group bg-muted"
-                          >
-                            <div className="absolute inset-0 flex items-center justify-center">
-                              <span className="text-3xl group-hover:scale-110 transition-transform duration-500">
-                                {CATEGORY_EMOJIS[sub] || "📦"}
-                              </span>
-                            </div>
-                            <div className="absolute inset-0 bg-gradient-to-t from-foreground/50 to-transparent" />
-                            <div className="absolute bottom-3 left-3">
-                              <span className="font-body text-xs font-medium text-white block">{sub}</span>
-                              <span className="font-body text-[10px] text-white/60">{count} products</span>
-                            </div>
-                          </button>
-                        );
-                      })}
-                    </div>
+                    <SubcategoryTiles
+                      subcategories={subCategories}
+                      productCounts={subCategoryCounts}
+                      onSelect={navigateToSubCategory}
+                    />
                   ) : (
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-2 gap-3">
                       {filtered.map((item) => (
-                        <CatalogueCard key={item.id} item={item} navigate={navigate} formatPrice={formatPrice} addToCart={addToCart} />
+                        <CatalogueProductCard key={item.id} item={item} />
                       ))}
                     </div>
                   )}
@@ -242,13 +193,13 @@ const Catalogue = () => {
               {/* PRODUCTS */}
               {currentView === "products" && (
                 <section>
-                  <h2 className="font-display text-2xl text-foreground mb-5">
+                  <h2 className="font-display text-xl text-foreground mb-4">
                     {searchQuery ? `"${searchQuery}"` : activeSubCategory || activeCategory || "All"}
                     <span className="text-sm font-body text-muted-foreground ml-2">({filtered.length})</span>
                   </h2>
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-2 gap-3">
                     {filtered.map((item) => (
-                      <CatalogueCard key={item.id} item={item} navigate={navigate} formatPrice={formatPrice} addToCart={addToCart} />
+                      <CatalogueProductCard key={item.id} item={item} />
                     ))}
                   </div>
                   {filtered.length === 0 && (
@@ -259,91 +210,12 @@ const Catalogue = () => {
             </>
           )}
         </main>
+
+        {/* Floating carton builder + suggestion chips */}
+        <SuggestionChips activeCategory={activeCategory} />
+        <CartonBuilderBar />
       </div>
     </AppShell>
-  );
-};
-
-/* ── Premium Catalogue Card ── */
-const CatalogueCard = ({
-  item,
-  navigate,
-  formatPrice,
-  addToCart,
-}: {
-  item: any;
-  navigate: any;
-  formatPrice: (n: number) => string;
-  addToCart: any;
-}) => {
-  const cat = getProductCategory(item);
-  const packPrice = calculatePackPrice(item);
-  const displayInfo = getDisplayPrice(item);
-  const weightKg = getPrimaryPackWeightKg(item);
-  const moq = getMinOrderQty(item);
-  const toFill = unitsToFillCarton(item, moq);
-
-  return (
-    <div
-      onClick={() => navigate(`/product/${item.id}`)}
-      className="bg-card rounded-xl shadow-soft overflow-hidden cursor-pointer group"
-    >
-      {/* Image — top 65% */}
-      <div className="w-full aspect-[4/3] overflow-hidden bg-muted flex items-center justify-center p-3">
-        {item.image_url ? (
-          <img
-            src={item.image_url}
-            alt={item.name}
-            className="w-full h-full object-contain group-hover:scale-105 transition-transform duration-500"
-            loading="lazy"
-          />
-        ) : (
-          <Package size={24} className="text-muted-foreground" />
-        )}
-      </div>
-
-      {/* Info */}
-      <div className="p-3 space-y-0.5">
-        <p className="font-body text-sm font-medium text-foreground line-clamp-2 leading-snug">{item.name}</p>
-        <p className="font-body text-[11px] text-muted-foreground">{item.sub_category || item.category}</p>
-        <p className="font-body text-sm text-foreground font-medium mt-1">
-          {formatPrice(displayInfo.price)} <span className="text-[11px] font-normal text-muted-foreground">{displayInfo.unit}</span>
-        </p>
-        <p className="font-body text-[10px] text-muted-foreground">
-          Pack: {item.pack_size || (cat === "bulk_kg" && weightKg > 0 ? `${weightKg} kg` : "Std")}
-        </p>
-        <p className="font-body text-[10px] text-muted-foreground">
-          MOQ: {moq} {moq === 1 ? "box" : "boxes"}
-        </p>
-
-        {toFill > 0 && (
-          <p className="font-body text-[9px] text-primary mt-1">
-            Add {toFill} more to complete carton
-          </p>
-        )}
-
-        <CatalogueAddButton item={item} moq={moq} addToCart={addToCart} />
-      </div>
-    </div>
-  );
-};
-
-const CatalogueAddButton = ({ item, moq, addToCart }: { item: any; moq: number; addToCart: any }) => {
-  const [adding, setAdding] = useState(false);
-  return (
-    <button
-      onClick={async (e) => {
-        e.stopPropagation();
-        setAdding(true);
-        await addToCart(item.id, moq, item.pack_size ?? null, item.carton_type ?? null);
-        setAdding(false);
-      }}
-      disabled={adding}
-      className="w-full mt-2 bg-[hsl(var(--foreground))] text-[hsl(var(--background))] font-body text-xs font-medium py-2 rounded-lg hover:opacity-90 transition-opacity disabled:opacity-50 flex items-center justify-center gap-1"
-    >
-      {adding ? <Loader2 size={12} className="animate-spin" /> : null}
-      {adding ? "Adding…" : "Add"}
-    </button>
   );
 };
 
