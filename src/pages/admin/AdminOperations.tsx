@@ -59,7 +59,8 @@ const AdminOperations = () => {
       .from("orders")
       .select(
         `
-        id, status, created_at, dispatch_date,
+        id, status, created_at, dispatch_date, company_id,
+        company:companies(business_name),
         order_items (
           id, product_id, quantity, pack_size, carton_type, department, production_status, task_type,
           products ( name )
