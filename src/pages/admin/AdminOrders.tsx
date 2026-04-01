@@ -10,7 +10,10 @@ import { generateProFormaInvoice } from "@/utils/invoiceGenerator";
 const PACKS_PER_CARTON = 9;
 
 const STATUSES = [
+  "draft",
   "submitted",
+  "approved",
+  "awaiting_advance",
   "in_production",
   "packed_ready",
   "awaiting_final_payment",
