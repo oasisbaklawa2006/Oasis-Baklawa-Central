@@ -10,7 +10,10 @@ import { generateProFormaInvoice } from "@/utils/invoiceGenerator";
 const PACKS_PER_CARTON = 9;
 
 const STATUSES = [
+  "draft",
   "submitted",
+  "approved",
+  "awaiting_advance",
   "in_production",
   "packed_ready",
   "awaiting_final_payment",
@@ -23,7 +26,10 @@ const STATUSES = [
 type OrderStatus = (typeof STATUSES)[number];
 
 const STATUS_LABELS: Record<OrderStatus, string> = {
+  draft: "Draft",
   submitted: "Submitted",
+  approved: "Approved",
+  awaiting_advance: "Awaiting Advance",
   in_production: "In Production",
   packed_ready: "Packed Ready",
   awaiting_final_payment: "Awaiting Final Payment",
@@ -34,11 +40,14 @@ const STATUS_LABELS: Record<OrderStatus, string> = {
 };
 
 const STATUS_COLORS: Record<OrderStatus, string> = {
-  submitted: "hsl(210, 60%, 55%)",
+  draft: "hsl(0, 0%, 60%)",
+  submitted: "hsl(45, 80%, 50%)",
+  approved: "hsl(120, 40%, 50%)",
+  awaiting_advance: "hsl(30, 70%, 50%)",
   in_production: "hsl(220, 70%, 55%)",
   packed_ready: "hsl(150, 50%, 45%)",
   awaiting_final_payment: "hsl(40, 40%, 59%)",
-  cleared_for_dispatch: "hsl(30, 70%, 50%)",
+  cleared_for_dispatch: "hsl(25, 80%, 50%)",
   dispatched: "hsl(170, 55%, 45%)",
   delivered: "hsl(140, 60%, 40%)",
   cancelled: "hsl(0, 50%, 45%)",
@@ -482,7 +491,7 @@ const AdminOrders = () => {
                         >
                           <div className="flex justify-between items-start mb-2">
                             <p className="text-xs font-bold text-foreground line-clamp-1 flex-1 pr-2">
-                              {order.company?.business_name || "Unknown Company"}
+                              {order.company?.business_name || `Order #${order.id.slice(0, 8)}`}
                             </p>
                             <p className="text-xs font-mono font-bold text-muted-foreground uppercase flex-shrink-0">
                               #{order.id.slice(0, 6)}
@@ -495,7 +504,8 @@ const AdminOrders = () => {
 
                           <div className="flex gap-3 text-xs font-semibold text-muted-foreground bg-muted/30 p-2 rounded-lg mb-3">
                             <span>📦 {packs} Packs</span>
-                            <span>📦 {cartons} Ctns</span>
+                            <span>📦 {cartons > 0 ? cartons : Math.ceil(packs / PACKS_PER_CARTON)} Ctns</span>
+                            {packs === 0 && <span className="text-amber-600">No items</span>}
                           </div>
 
                           {next && (
