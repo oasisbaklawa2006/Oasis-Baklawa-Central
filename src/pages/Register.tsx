@@ -65,6 +65,10 @@ const Register = () => {
     else if (!/^\d{10}$/.test(mobileNumber.trim())) e.mobileNumber = "Enter valid 10-digit number";
     if (!contactEmail.trim()) e.contactEmail = "Required";
     else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(contactEmail.trim())) e.contactEmail = "Invalid email";
+    if (!password) e.password = "Required";
+    else if (password.length < 6) e.password = "Minimum 6 characters";
+    if (!confirmPassword) e.confirmPassword = "Required";
+    else if (password !== confirmPassword) e.confirmPassword = "Passwords do not match";
     if (!registeredAddress.trim()) e.registeredAddress = "Required";
     if (!city.trim()) e.city = "Required";
     if (!state) e.state = "Required";
