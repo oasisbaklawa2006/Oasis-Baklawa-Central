@@ -24,6 +24,8 @@ interface OpsOrder {
   status: string;
   created_at: string;
   dispatch_date?: string | null;
+  company_id?: string | null;
+  company?: { business_name: string } | null;
   order_items?: OpsOrderItem[];
 }
 
@@ -59,7 +61,8 @@ const AdminOperations = () => {
       .from("orders")
       .select(
         `
-        id, status, created_at, dispatch_date,
+        id, status, created_at, dispatch_date, company_id,
+        company:companies(business_name),
         order_items (
           id, product_id, quantity, pack_size, carton_type, department, production_status, task_type,
           products ( name )
@@ -333,7 +336,7 @@ const AdminOperations = () => {
                     <div className="p-4 border-b border-border flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
                       <div>
                         <p className="text-xs text-muted-foreground">
-                          {isInternalTask ? "Internal Dispatch Auth" : "Factory Order ID"}
+                          {isInternalTask ? "Internal Dispatch Auth" : (order.company?.business_name || "Factory Order")}
                         </p>
                         <p className="text-lg font-bold text-foreground">
                           {isInternalTask ? "AUTO-GENERATED" : `#${order.id.split("-")[0].toUpperCase()}`}
