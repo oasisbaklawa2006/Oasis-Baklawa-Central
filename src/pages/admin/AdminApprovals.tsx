@@ -113,23 +113,24 @@ const AdminApprovals = () => {
           .eq("id", app.user_id);
       }
 
-      // Step 3: Direct notification injection
+      // Step 3: Direct notification injection + auto-trigger dispatch
       let emailSent = false;
       if (app.contact_email) {
-        const { error: outboxError } = await supabase.from("notification_outbox").insert({
+        const { data: outboxRow, error: outboxError } = await supabase.from("notification_outbox").insert({
           recipient_email: app.contact_email,
           event_type: "portal_activation",
           message_body: "Your Oasis Baklawa B2B account is now ACTIVE. You can log in here: https://id-preview--a2649760-8f34-4dcf-aaf4-ff101ea06ef6.lovable.app/login",
           status: "pending",
-        });
+        }).select("id").single();
 
         if (outboxError) {
           console.error("[Approve] Outbox insert failed:", outboxError);
-        } else {
-          // Step 4: Force dispatch — invoke send-email directly
+        } else if (outboxRow) {
+          // Step 4: Force dispatch with outboxId for status write-back
           try {
             const { error: fnError } = await supabase.functions.invoke("send-email", {
               body: {
+                outboxId: outboxRow.id,
                 to: app.contact_email,
                 subject: "Your Oasis Baklawa B2B Account is Active!",
                 text: "Welcome to the Oasis Baklawa B2B Portal. Your account is now active. You can now log in to view our catalog and place orders.",
@@ -141,13 +142,6 @@ const AdminApprovals = () => {
               toast.error("User approved, but welcome email failed to send. Please use the Resend Email button manually.");
             } else {
               emailSent = true;
-              // Mark outbox entry as sent
-              await supabase
-                .from("notification_outbox")
-                .update({ status: "sent", sent_at: new Date().toISOString() } as any)
-                .eq("recipient_email", app.contact_email)
-                .eq("event_type", "portal_activation")
-                .eq("status", "pending");
             }
           } catch (fnErr: any) {
             console.error("[Approve] Edge Function exception:", fnErr);
