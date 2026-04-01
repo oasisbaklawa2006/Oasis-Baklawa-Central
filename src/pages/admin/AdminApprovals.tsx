@@ -119,7 +119,7 @@ const AdminApprovals = () => {
         const { error: outboxError } = await supabase.from("notification_outbox").insert({
           recipient_email: app.contact_email,
           event_type: "portal_activation",
-          message_body: "Welcome to the Oasis Baklawa B2B Portal. Your account is now active. You can now log in to view our catalog and place orders.",
+          message_body: "Your Oasis Baklawa B2B account is now ACTIVE. You can log in here: https://id-preview--a2649760-8f34-4dcf-aaf4-ff101ea06ef6.lovable.app/login",
           status: "pending",
         });
 
