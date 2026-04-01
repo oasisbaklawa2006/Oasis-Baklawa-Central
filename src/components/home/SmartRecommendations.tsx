@@ -12,7 +12,6 @@ const SmartRecommendations = () => {
   const { isAuthenticated } = useAuth();
   const { formatPrice } = useCurrency();
 
-  // Shuffle and pick 6 for "recommended"
   const recommended = [...(products || [])]
     .sort(() => Math.random() - 0.5)
     .slice(0, 6);
@@ -20,15 +19,15 @@ const SmartRecommendations = () => {
   if (loading || recommended.length === 0) return null;
 
   return (
-    <section className="px-5 mb-8">
-      <div className="flex items-center gap-3 mb-4">
+    <section className="px-5 mb-6">
+      <div className="flex items-center gap-3 mb-3">
         <div className="w-6 h-[0.5px] bg-primary/40" />
         <p className="font-body text-[9px] font-medium tracking-[0.3em] uppercase text-muted-foreground">
           Recommended for You
         </p>
       </div>
 
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-2 gap-2.5">
         {recommended.map((product, i) => {
           const displayInfo = getDisplayPrice(product);
           const moq = getMinOrderQty(product);
@@ -37,11 +36,11 @@ const SmartRecommendations = () => {
               key={product.id}
               initial={{ opacity: 0, y: 12 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.5, delay: i * 0.05 }}
+              transition={{ duration: 0.5, delay: i * 0.04 }}
               whileHover={{ y: -2 }}
               onClick={() => navigate(`/product/${product.id}`)}
-              className="bg-card rounded-xl overflow-hidden cursor-pointer group transition-shadow duration-300 ring-1 ring-primary/8"
-              style={{ boxShadow: "0 2px 12px rgba(0,0,0,0.04)" }}
+              className="bg-card rounded-xl overflow-hidden cursor-pointer group"
+              style={{ boxShadow: "0 1px 10px rgba(0,0,0,0.03)" }}
             >
               <div className="w-full aspect-[4/3] overflow-hidden bg-background flex items-center justify-center">
                 {product.image_url ? (
@@ -52,10 +51,10 @@ const SmartRecommendations = () => {
                     loading="lazy"
                   />
                 ) : (
-                  <Package size={20} className="text-muted-foreground" strokeWidth={1.3} />
+                  <Package size={18} className="text-muted-foreground" strokeWidth={1.3} />
                 )}
               </div>
-              <div className="p-3 space-y-1">
+              <div className="p-2.5 space-y-0.5">
                 <p className="font-serif text-[11px] text-foreground line-clamp-2 leading-snug">
                   {product.name}
                 </p>
