@@ -5,6 +5,12 @@ import ProductSection from "@/components/ProductSection";
 import SmartReorderSection from "@/components/home/SmartReorderSection";
 import BestSellers from "@/components/home/BestSellers";
 import HomeFooter from "@/components/home/HomeFooter";
+import AnnouncementStrip from "@/components/home/AnnouncementStrip";
+import CuratedCollections from "@/components/home/CuratedCollections";
+import NewArrivals from "@/components/home/NewArrivals";
+import GiftingStoryBlock from "@/components/home/GiftingStoryBlock";
+import SmartRecommendations from "@/components/home/SmartRecommendations";
+import SectionDivider from "@/components/home/SectionDivider";
 import { useCart } from "@/hooks/useCart";
 import heroImage from "@/assets/hero-luxury.jpg";
 import catBulk from "@/assets/cat-bulk-sweets.jpg";
@@ -48,6 +54,9 @@ const Index = () => {
     <AppShell>
       <div className="min-h-screen bg-background">
 
+        {/* ─── ANNOUNCEMENT STRIP ─── */}
+        <AnnouncementStrip />
+
         {/* ─── HERO ─── */}
         <motion.section {...fade()} className="relative w-full" style={{ height: "38vh", minHeight: 260 }}>
           <img src={heroImage} alt="Premium Baklawa" className="w-full h-full object-cover" />
@@ -75,8 +84,15 @@ const Index = () => {
           </div>
         </motion.section>
 
+        {/* ─── CURATED COLLECTIONS ─── */}
+        <motion.div {...fade(0.06)}>
+          <CuratedCollections />
+        </motion.div>
+
+        <SectionDivider />
+
         {/* ─── CATEGORIES ─── */}
-        <motion.section {...fade(0.08)} className="px-5 mt-8 mb-10">
+        <motion.section {...fade(0.08)} className="px-5 mb-8">
           <p className="font-body text-[9px] font-medium tracking-[0.3em] uppercase text-muted-foreground mb-4">
             Shop by Category
           </p>
@@ -106,14 +122,23 @@ const Index = () => {
           </div>
         </motion.section>
 
+        <SectionDivider />
+
         {/* ─── ORDER AGAIN ─── */}
-        <motion.div {...fade(0.12)} className="mb-10">
+        <motion.div {...fade(0.12)} className="mb-8">
           <SmartReorderSection />
         </motion.div>
 
+        {/* ─── NEW ARRIVALS ─── */}
+        <motion.div {...fade(0.14)}>
+          <NewArrivals />
+        </motion.div>
+
+        <SectionDivider />
+
         {/* ─── COMPLETE YOUR CART ─── */}
         {cartItems && cartCount > 0 && (
-          <motion.section {...fade(0.16)} className="mx-5 rounded-2xl bg-card border border-primary/10 px-5 py-5 mb-10">
+          <motion.section {...fade(0.16)} className="mx-5 rounded-2xl bg-card border border-primary/10 px-5 py-5 mb-8">
             <p className="font-display text-base text-foreground mb-1">Complete Your Cart</p>
             <p className="font-body text-[10px] text-muted-foreground mb-3 tracking-wide">
               {cartCount}/{cartTarget} items · Add {cartRemaining} more to optimise your order
@@ -131,13 +156,30 @@ const Index = () => {
         )}
 
         {/* ─── BEST SELLERS ─── */}
-        <motion.section {...fade(0.2)} className="px-5 mb-10">
-          <h2 className="font-display text-xl text-foreground mb-5">Best Sellers</h2>
+        <motion.section {...fade(0.2)} className="px-5 mb-8">
+          <div className="flex items-center gap-3 mb-5">
+            <div className="w-6 h-[0.5px] bg-primary/40" />
+            <h2 className="font-display text-xl text-foreground">Best Sellers</h2>
+          </div>
           <BestSellers />
         </motion.section>
 
+        <SectionDivider />
+
+        {/* ─── SMART RECOMMENDATIONS ─── */}
+        <motion.div {...fade(0.22)}>
+          <SmartRecommendations />
+        </motion.div>
+
+        {/* ─── GIFTING STORY BLOCK ─── */}
+        <motion.div {...fade(0.24)}>
+          <GiftingStoryBlock />
+        </motion.div>
+
+        <SectionDivider />
+
         {/* ─── BRAND STORY STRIP ─── */}
-        <motion.section {...fade(0.24)} className="mx-5 rounded-2xl bg-card border border-primary/8 px-5 py-8 mb-8">
+        <motion.section {...fade(0.26)} className="mx-5 rounded-2xl bg-card border border-primary/8 px-5 py-8 mb-6">
           <p className="font-display text-base text-foreground text-center mb-6">
             Crafted for Excellence
           </p>
