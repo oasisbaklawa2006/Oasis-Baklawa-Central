@@ -44,6 +44,23 @@ const AdminApprovals = () => {
       toast.error(`Failed to ${newStatus === "approved" ? "approve" : "reject"}`);
     } else {
       toast.success(`${app.business_name} ${newStatus}`);
+
+      // Send activation notification email
+      if (newStatus === "approved" && app.contact_email) {
+        try {
+          const { error: outboxError } = await supabase.from("notification_outbox").insert({
+            recipient_email: app.contact_email,
+            event_type: "account_activation",
+            message_body: "Welcome to Oasis Baklawa! Your B2B account has been approved and activated. You can now log in to view our catalog and place orders.",
+            status: "pending",
+          });
+          if (outboxError) throw outboxError;
+        } catch (notifErr: any) {
+          console.error("[Outbox] Failed to queue activation email:", notifErr);
+          toast.error("Approved, but failed to send activation email.");
+        }
+      }
+
       if (newStatus === "approved" && app.user_id) {
         const { data: newCompany } = await supabase
           .from("companies")
