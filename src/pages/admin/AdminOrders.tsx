@@ -491,7 +491,7 @@ const AdminOrders = () => {
                         >
                           <div className="flex justify-between items-start mb-2">
                             <p className="text-xs font-bold text-foreground line-clamp-1 flex-1 pr-2">
-                              {order.company?.business_name || "Unknown Company"}
+                              {order.company?.business_name || `Order #${order.id.slice(0, 8)}`}
                             </p>
                             <p className="text-xs font-mono font-bold text-muted-foreground uppercase flex-shrink-0">
                               #{order.id.slice(0, 6)}
@@ -504,7 +504,8 @@ const AdminOrders = () => {
 
                           <div className="flex gap-3 text-xs font-semibold text-muted-foreground bg-muted/30 p-2 rounded-lg mb-3">
                             <span>📦 {packs} Packs</span>
-                            <span>📦 {cartons} Ctns</span>
+                            <span>📦 {cartons > 0 ? cartons : Math.ceil(packs / PACKS_PER_CARTON)} Ctns</span>
+                            {packs === 0 && <span className="text-amber-600">No items</span>}
                           </div>
 
                           {next && (
