@@ -134,7 +134,8 @@ const AdminApprovals = () => {
                         disabled={actionLoading === a.id}
                         className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-green-100 text-green-700 hover:bg-green-200 transition-colors disabled:opacity-50"
                       >
-                        <CheckCircle2 size={14} /> Approve
+                         {actionLoading === a.id ? <Loader2 size={14} className="animate-spin" /> : <CheckCircle2 size={14} />}
+                         {actionLoading === a.id ? "Approving & Sending…" : "Approve"}
                       </button>
                       <button
                         onClick={() => handleAction(a, "rejected")}

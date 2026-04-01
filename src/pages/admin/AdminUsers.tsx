@@ -580,9 +580,12 @@ const AdminUsers = () => {
                                         status: "pending",
                                       });
                                       if (error) throw error;
-                                      toast.success("Email queued in outbox");
+                                      // Auto-dispatch immediately
+                                      const { processOutboxQueue } = await import("@/utils/notificationOutbox");
+                                      const sent = await processOutboxQueue();
+                                      toast.success(`Email sent (${sent} dispatched)`);
                                     } catch (err: any) {
-                                      toast.error("Failed to queue email: " + (err.message || "Unknown error"));
+                                      toast.error("Failed to send email: " + (err.message || "Unknown error"));
                                     }
                                   }}
                                 >
