@@ -39,6 +39,8 @@ const Register = () => {
   const [contactPerson, setContactPerson] = useState("");
   const [mobileNumber, setMobileNumber] = useState("");
   const [contactEmail, setContactEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [registeredAddress, setRegisteredAddress] = useState("");
   const [city, setCity] = useState("");
   const [state, setState] = useState("");
