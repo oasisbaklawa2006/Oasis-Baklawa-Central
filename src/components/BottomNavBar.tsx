@@ -20,28 +20,29 @@ const BottomNavBar = () => {
 
   return (
     <nav
-      className="fixed bottom-3 left-4 right-4 z-50 h-[72px] flex items-center justify-around rounded-2xl"
+      className="fixed bottom-3 left-4 right-4 z-50 h-[64px] flex items-center justify-around rounded-2xl"
       style={{
-        background: "rgba(255,255,255,0.75)",
-        backdropFilter: "blur(20px) saturate(180%)",
-        WebkitBackdropFilter: "blur(20px) saturate(180%)",
-        boxShadow: "0 8px 32px rgba(0,0,0,0.08), 0 1px 2px rgba(0,0,0,0.04)",
-        border: "1px solid rgba(255,255,255,0.5)",
+        background: "rgba(255,255,255,0.82)",
+        backdropFilter: "blur(16px) saturate(160%)",
+        WebkitBackdropFilter: "blur(16px) saturate(160%)",
+        boxShadow: "0 4px 24px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.03)",
+        border: "1px solid rgba(198,168,125,0.15)",
       }}
     >
       {/* Active indicator */}
       <motion.div
         className="absolute top-2 rounded-xl pointer-events-none"
         style={{
-          width: `calc(${tabWidth}% - 12px)`,
-          height: "56px",
-          background: "hsl(var(--primary) / 0.08)",
+          width: `calc(${tabWidth}% - 14px)`,
+          height: "48px",
+          background: "hsl(36 30% 63% / 0.08)",
+          border: "1px solid hsl(36 30% 63% / 0.12)",
         }}
         initial={false}
         animate={{
-          left: `calc(${resolvedIndex * tabWidth}% + 6px)`,
+          left: `calc(${resolvedIndex * tabWidth}% + 7px)`,
         }}
-        transition={{ type: "spring", stiffness: 350, damping: 32 }}
+        transition={{ type: "spring", stiffness: 380, damping: 34 }}
       />
 
       {navItems.map((item, i) => {
@@ -49,18 +50,18 @@ const BottomNavBar = () => {
         return (
           <motion.button
             key={item.label}
-            whileTap={{ scale: 0.92 }}
+            whileTap={{ scale: 0.93 }}
             onClick={() => navigate(item.path)}
-            className="relative z-10 flex flex-col items-center justify-center gap-1 flex-1 py-2"
+            className="relative z-10 flex flex-col items-center justify-center gap-0.5 flex-1 py-1.5"
           >
             <item.icon
-              size={22}
-              strokeWidth={isActive ? 2 : 1.5}
+              size={20}
+              strokeWidth={isActive ? 1.8 : 1.3}
               className={isActive ? "text-primary" : "text-muted-foreground"}
             />
             <span
-              className={`text-[9px] font-medium tracking-wider transition-colors duration-200 ${
-                isActive ? "text-primary font-bold" : "text-muted-foreground"
+              className={`text-[8px] tracking-[0.15em] transition-colors duration-200 ${
+                isActive ? "text-primary font-semibold" : "text-muted-foreground font-medium"
               }`}
             >
               {item.label}
@@ -68,7 +69,7 @@ const BottomNavBar = () => {
             {isActive && (
               <motion.div
                 layoutId="nav-dot"
-                className="absolute -bottom-0 w-1 h-1 rounded-full bg-secondary"
+                className="absolute -bottom-0.5 w-1 h-1 rounded-full bg-primary"
                 transition={{ type: "spring", stiffness: 400, damping: 30 }}
               />
             )}

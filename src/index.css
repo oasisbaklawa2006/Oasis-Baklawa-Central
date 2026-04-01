@@ -6,23 +6,23 @@
 
 @layer base {
   :root {
-    --background: 40 14% 96%; /* #F8F6F2 */
-    --foreground: 0 0% 10%; /* #1A1A1A */
+    --background: 38 20% 96%; /* #F8F6F2 warm ivory */
+    --foreground: 0 0% 13%; /* #222222 soft charcoal */
 
     --card: 0 0% 100%; /* #FFFFFF */
-    --card-foreground: 0 0% 10%;
+    --card-foreground: 0 0% 13%;
 
     --popover: 0 0% 100%;
-    --popover-foreground: 0 0% 10%;
+    --popover-foreground: 0 0% 13%;
 
-    --primary: 170 50% 12%; /* #0F2F2F Deep Teal */
+    --primary: 36 30% 63%; /* #C6A87D Champagne Gold — now the PRIMARY */
     --primary-foreground: 0 0% 100%;
 
-    --secondary: 36 30% 63%; /* #C6A87D Champagne Gold */
+    --secondary: 170 50% 12%; /* #0F2F2F Deep Teal — demoted to secondary/sparse */
     --secondary-foreground: 0 0% 100%;
 
-    --muted: 40 10% 93%;
-    --muted-foreground: 0 0% 44%; /* #6F6F6F */
+    --muted: 38 14% 93%;
+    --muted-foreground: 28 5% 47%; /* #7A746E taupe grey */
 
     --accent: 36 30% 63%; /* Gold accent */
     --accent-foreground: 0 0% 100%;
@@ -30,15 +30,15 @@
     --destructive: 0 84% 60%;
     --destructive-foreground: 0 0% 100%;
 
-    --border: 40 8% 90%;
-    --input: 40 8% 90%;
-    --ring: 170 50% 12%;
+    --border: 38 14% 91%;
+    --input: 38 14% 91%;
+    --ring: 36 30% 63%;
 
     --radius: 1rem;
 
-    --card-shadow: 0 8px 30px rgba(0,0,0,0.06);
-    --nav-shadow: 0 -4px 20px rgba(0,0,0,0.04);
-    --fab-shadow: 0 4px 20px rgba(0,0,0,0.1);
+    --card-shadow: 0 4px 24px rgba(0,0,0,0.04);
+    --nav-shadow: 0 -2px 16px rgba(0,0,0,0.03);
+    --fab-shadow: 0 4px 16px rgba(0,0,0,0.06);
 
     --font-display: 'Playfair Display', 'Georgia', serif;
     --font-body: 'Lato', 'Jost', sans-serif;
@@ -47,12 +47,12 @@
 
     --sidebar-background: 0 0% 98%;
     --sidebar-foreground: 240 5.3% 26.1%;
-    --sidebar-primary: 170 50% 12%;
+    --sidebar-primary: 36 30% 63%;
     --sidebar-primary-foreground: 0 0% 98%;
     --sidebar-accent: 240 4.8% 95.9%;
     --sidebar-accent-foreground: 240 5.9% 10%;
     --sidebar-border: 220 13% 91%;
-    --sidebar-ring: 170 50% 12%;
+    --sidebar-ring: 36 30% 63%;
   }
 }
 
@@ -66,7 +66,7 @@
     font-family: var(--font-body);
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
-    letter-spacing: 0.01em;
+    letter-spacing: 0.015em;
   }
 
   h1, h2 {
