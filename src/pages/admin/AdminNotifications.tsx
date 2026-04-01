@@ -134,8 +134,17 @@ const AdminNotifications = () => {
 
   const handleProcessQueue = async () => {
     setProcessing(true);
-    const count = await processOutboxQueue();
-    toast.success(`Processed ${count} message(s)`);
+    try {
+      const count = await processOutboxQueue();
+      if (count === 0) {
+        toast.info("No pending messages to process (or missing auth session).");
+      } else {
+        toast.success(`Processed ${count} message(s)`);
+      }
+    } catch (err: any) {
+      console.error("Process queue error:", err);
+      toast.error(err?.message || "Failed to process queue");
+    }
     await fetchOutbox();
     setProcessing(false);
   };
