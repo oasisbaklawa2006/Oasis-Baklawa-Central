@@ -528,6 +528,70 @@ const AdminUsers = () => {
                             )}
                           </td>
                         )}
+                        <td className="px-5 py-4 text-right">
+                          <div className="flex items-center justify-end gap-1.5">
+                            {(u.invite_status === "active" || (u.is_active && !u.invite_status)) && (
+                              <>
+                                <button
+                                  title="Revoke Access"
+                                  className="p-1.5 rounded-md text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
+                                  onClick={async () => {
+                                    const { error } = await supabase
+                                      .from("users")
+                                      .update({ invite_status: "inactive", is_active: false })
+                                      .eq("id", u.id);
+                                    if (error) {
+                                      toast.error("Failed to revoke access");
+                                      return;
+                                    }
+                                    toast.success(`Access revoked for ${u.full_name || u.email}`);
+                                    setUsers((prev) =>
+                                      prev.map((x) =>
+                                        x.id === u.id ? { ...x, invite_status: "inactive", is_active: false } : x
+                                      )
+                                    );
+                                    await supabase.from("audit_logs").insert({
+                                      action_type: "revoke_access",
+                                      module_name: "user_role_control",
+                                      entity_name: u.full_name || u.email || u.id,
+                                      entity_id: u.id,
+                                      actor_id: user?.id ?? null,
+                                      old_value: { invite_status: u.invite_status, is_active: u.is_active },
+                                      new_value: { invite_status: "inactive", is_active: false },
+                                    });
+                                  }}
+                                >
+                                  <LockKeyhole size={14} />
+                                </button>
+                                <button
+                                  title="Resend Activation Email"
+                                  className="p-1.5 rounded-md text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors"
+                                  onClick={async () => {
+                                    if (!u.email) {
+                                      toast.error("No email address for this user");
+                                      return;
+                                    }
+                                    try {
+                                      const { error } = await supabase.from("notification_outbox").insert({
+                                        recipient_email: u.email,
+                                        event_type: "account_activation",
+                                        message_body:
+                                          "Welcome to Oasis Baklawa! Your B2B account has been approved and activated. You can now log in to view our catalog and place orders.",
+                                        status: "pending",
+                                      });
+                                      if (error) throw error;
+                                      toast.success("Email queued in outbox");
+                                    } catch (err: any) {
+                                      toast.error("Failed to queue email: " + (err.message || "Unknown error"));
+                                    }
+                                  }}
+                                >
+                                  <Mail size={14} />
+                                </button>
+                              </>
+                            )}
+                          </div>
+                        </td>
                       </tr>
                     );
                   })}
