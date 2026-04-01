@@ -275,6 +275,18 @@ const Register = () => {
                 <Input type="email" placeholder="you@business.com" className="rounded-xl mt-1" value={contactEmail} onChange={(e) => setContactEmail(e.target.value)} />
                 <FieldError field="contactEmail" />
               </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="text-ui-label text-foreground">Password *</label>
+                  <Input type="password" placeholder="Min 6 characters" className="rounded-xl mt-1" value={password} onChange={(e) => setPassword(e.target.value)} />
+                  <FieldError field="password" />
+                </div>
+                <div>
+                  <label className="text-ui-label text-foreground">Confirm Password *</label>
+                  <Input type="password" placeholder="Re-enter password" className="rounded-xl mt-1" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} />
+                  <FieldError field="confirmPassword" />
+                </div>
+              </div>
 
               {/* Section 3: Address */}
               <SectionTitle>Registered Address</SectionTitle>

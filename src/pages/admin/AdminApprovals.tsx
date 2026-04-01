@@ -60,8 +60,14 @@ const AdminApprovals = () => {
 
       // === ATOMIC APPROVAL SEQUENCE ===
 
-      // Step 1: Profile validation — ensure user has a profile record
-      if (app.user_id) {
+      // Guard: Ensure auth account exists
+      if (!app.user_id) {
+        toast.error("Incomplete Registration: No Auth Account Found. Cannot approve.");
+        setActionLoading(null);
+        return;
+      }
+
+      // Step 2: Profile validation — ensure user has a profile record
         const { data: existingProfile } = await supabase
           .from("profiles")
           .select("id")
