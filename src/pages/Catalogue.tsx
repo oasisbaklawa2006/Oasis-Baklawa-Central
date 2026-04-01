@@ -322,15 +322,7 @@ const CatalogueCard = ({
           </p>
         )}
 
-        <button
-          onClick={async (e) => {
-            e.stopPropagation();
-            await addToCart(item.id, moq, item.pack_size ?? null, item.carton_type ?? null);
-          }}
-          className="w-full mt-2 bg-foreground text-primary-foreground font-body text-xs font-medium py-2 rounded-full hover:opacity-90 transition-opacity"
-        >
-          Add
-        </button>
+        <CatalogueAddButton item={item} moq={moq} addToCart={addToCart} />
       </div>
     </div>
   );
