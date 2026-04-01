@@ -23,7 +23,9 @@ const Dashboard = () => {
   const { t } = useLanguage();
   const { formatPrice } = useCurrency();
   const [orders, setOrders] = useState<any[]>([]);
-  const [companyName, setCompanyName] = useState("Oasis Admin Master");
+  const [companyName, setCompanyName] = useState("");
+  const [companyId, setCompanyId] = useState<string | null>(null);
+  const [isApproved, setIsApproved] = useState(true);
   const [isAiModalOpen, setIsAiModalOpen] = useState(false);
 
   const [utrModal, setUtrModal] = useState<{ isOpen: boolean; orderId: string | null; type: "advance" | "final" }>({
@@ -34,14 +36,62 @@ const Dashboard = () => {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
 
   const fetchDashboardData = async () => {
+    // 1. Get authenticated user
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session?.user) return;
+    const uid = session.user.id;
+
+    // 2. Get profile for status & company linkage
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("is_approved, full_name, company_id")
+      .eq("id", uid)
+      .maybeSingle();
+
+    // 3. Get user record for company_id fallback
+    const { data: userRow } = await supabase
+      .from("users")
+      .select("company_id, role")
+      .eq("id", uid)
+      .maybeSingle();
+
+    const resolvedCompanyId = profile?.company_id || userRow?.company_id || null;
+    setCompanyId(resolvedCompanyId);
+    setIsApproved(profile?.is_approved === true);
+
+    // 4. Get business name from company or b2b_applications
+    if (resolvedCompanyId) {
+      const { data: company } = await supabase
+        .from("companies")
+        .select("business_name")
+        .eq("id", resolvedCompanyId)
+        .maybeSingle();
+      if (company?.business_name) setCompanyName(company.business_name);
+    }
+
+    if (!companyName) {
+      // Fallback: try b2b_applications
+      const { data: app } = await supabase
+        .from("b2b_applications")
+        .select("business_name")
+        .eq("user_id", uid)
+        .maybeSingle();
+      if (app?.business_name) setCompanyName(app.business_name);
+      else setCompanyName(profile?.full_name || session.user.email || "");
+    }
+
+    // 5. Fetch ONLY this user's company orders (RLS enforced + client-side filter)
+    if (!resolvedCompanyId) {
+      setOrders([]);
+      return;
+    }
+
     const { data } = await supabase
       .from("orders")
       .select("*, company:companies(business_name), order_items(*, product:products(name))")
+      .eq("company_id", resolvedCompanyId)
       .order("created_at", { ascending: false });
-    if (data) {
-      setOrders(data);
-      if (data[0]?.company?.business_name) setCompanyName(data[0].company.business_name);
-    }
+    if (data) setOrders(data);
   };
 
   useEffect(() => { fetchDashboardData(); }, []);
