@@ -26,7 +26,10 @@ const STATUSES = [
 type OrderStatus = (typeof STATUSES)[number];
 
 const STATUS_LABELS: Record<OrderStatus, string> = {
+  draft: "Draft",
   submitted: "Submitted",
+  approved: "Approved",
+  awaiting_advance: "Awaiting Advance",
   in_production: "In Production",
   packed_ready: "Packed Ready",
   awaiting_final_payment: "Awaiting Final Payment",
