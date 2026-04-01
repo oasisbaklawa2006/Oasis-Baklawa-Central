@@ -24,6 +24,8 @@ interface OpsOrder {
   status: string;
   created_at: string;
   dispatch_date?: string | null;
+  company_id?: string | null;
+  company?: { business_name: string } | null;
   order_items?: OpsOrderItem[];
 }
 
