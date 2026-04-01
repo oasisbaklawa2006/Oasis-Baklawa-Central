@@ -1,4 +1,5 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -21,7 +22,7 @@ serve(async (req) => {
       });
     }
 
-    const { to, subject, html, text } = await req.json();
+    const { to, subject, html, text, outboxId } = await req.json();
 
     if (!to || typeof to !== "string" || !to.includes("@")) {
       return new Response(JSON.stringify({ error: "Invalid email address" }), {
@@ -62,10 +63,44 @@ serve(async (req) => {
 
     if (!response.ok) {
       console.error("Resend API error:", responseData);
+
+      // Mark outbox as failed if we have an outboxId
+      if (outboxId) {
+        try {
+          const supabaseAdmin = createClient(
+            Deno.env.get("SUPABASE_URL")!,
+            Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
+          );
+          await supabaseAdmin.from("notification_outbox").update({
+            status: "failed",
+            error_log: responseData?.message || "Resend API error",
+          }).eq("id", outboxId);
+        } catch (e) {
+          console.error("Failed to update outbox status:", e);
+        }
+      }
+
       return new Response(JSON.stringify({ error: responseData?.message || "Failed to send email" }), {
         status: response.status,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
+    }
+
+    // ✅ Write-back: Update outbox status to 'sent' using service role key
+    if (outboxId) {
+      try {
+        const supabaseAdmin = createClient(
+          Deno.env.get("SUPABASE_URL")!,
+          Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
+        );
+        await supabaseAdmin.from("notification_outbox").update({
+          status: "sent",
+          sent_at: new Date().toISOString(),
+        }).eq("id", outboxId);
+        console.log(`Outbox ${outboxId} marked as sent`);
+      } catch (e) {
+        console.error("Failed to update outbox status:", e);
+      }
     }
 
     return new Response(JSON.stringify({ success: true, id: responseData?.id }), {
