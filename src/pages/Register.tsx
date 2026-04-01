@@ -191,6 +191,18 @@ const Register = () => {
         return;
       }
 
+      // Bridge: Queue confirmation notification (BEFORE sign-out, while still authenticated)
+      const { error: outboxErr } = await supabase.from("notification_outbox").insert({
+        recipient_email: email,
+        event_type: "b2b_application_received",
+        message_body: "Thank you for your application to the Oasis Baklawa B2B Portal. Our team is reviewing your details.",
+        status: "pending",
+      });
+      if (outboxErr) {
+        console.error("[Register] Outbox insert failed:", outboxErr);
+        // Non-blocking — application was still submitted successfully
+      }
+
       // Sign out immediately — pending users should not be logged in
       await supabase.auth.signOut();
 
