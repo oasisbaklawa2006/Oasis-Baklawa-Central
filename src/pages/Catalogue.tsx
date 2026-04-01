@@ -1,8 +1,7 @@
 import AppShell from "@/components/AppShell";
 import { useState, useMemo, useEffect } from "react";
-import { useCart } from "@/hooks/useCart";
 import { useProducts } from "@/hooks/useProducts";
-import { Search, Loader2, ChevronRight, SlidersHorizontal } from "lucide-react";
+import { Search, Loader2, ChevronRight, SlidersHorizontal, List, LayoutGrid } from "lucide-react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 
 import CategoryTiles from "@/components/catalogue/CategoryTiles";
@@ -10,8 +9,10 @@ import SubcategoryTiles from "@/components/catalogue/SubcategoryTiles";
 import CatalogueProductCard from "@/components/catalogue/CatalogueProductCard";
 import CartonBuilderBar from "@/components/catalogue/CartonBuilderBar";
 import SuggestionChips from "@/components/catalogue/SuggestionChips";
+import QuickOrderTable from "@/components/catalogue/QuickOrderTable";
 
 type CatalogueView = "categories" | "subcategories" | "products";
+type BrowseMode = "browse" | "quickorder";
 
 const Catalogue = () => {
   const [searchParams] = useSearchParams();
@@ -24,6 +25,7 @@ const Catalogue = () => {
   const [activeCategory, setActiveCategory] = useState<string | null>(paramCategory);
   const [activeSubCategory, setActiveSubCategory] = useState<string | null>(paramSubCategory);
   const [searchQuery, setSearchQuery] = useState("");
+  const [browseMode, setBrowseMode] = useState<BrowseMode>("browse");
 
   useEffect(() => {
     setActiveCategory(searchParams.get("category"));
@@ -103,11 +105,13 @@ const Catalogue = () => {
     navigate("/catalogue", { replace: true });
   };
 
+  const showModeToggle = currentView === "products";
+
   return (
     <AppShell>
       <div className="min-h-screen bg-background pb-36">
         <main className="px-4 max-w-5xl mx-auto pt-2">
-          {/* Search */}
+          {/* Search + Filter */}
           <div className="flex items-center gap-2.5 mb-4">
             <div className="relative flex-1">
               <input
@@ -155,6 +159,34 @@ const Catalogue = () => {
             )}
           </nav>
 
+          {/* Browse / Quick Order toggle */}
+          {showModeToggle && (
+            <div className="flex items-center gap-1 mb-4 bg-muted rounded-xl p-1">
+              <button
+                onClick={() => setBrowseMode("browse")}
+                className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg font-body text-xs font-medium transition-colors ${
+                  browseMode === "browse"
+                    ? "bg-card text-foreground shadow-sm"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                <LayoutGrid size={13} />
+                Browse
+              </button>
+              <button
+                onClick={() => setBrowseMode("quickorder")}
+                className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg font-body text-xs font-medium transition-colors ${
+                  browseMode === "quickorder"
+                    ? "bg-card text-foreground shadow-sm"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                <List size={13} />
+                Quick Order
+              </button>
+            </div>
+          )}
+
           {productsLoading ? (
             <div className="flex items-center justify-center py-20">
               <Loader2 className="animate-spin text-primary" size={24} />
@@ -197,11 +229,17 @@ const Catalogue = () => {
                     {searchQuery ? `"${searchQuery}"` : activeSubCategory || activeCategory || "All"}
                     <span className="text-sm font-body text-muted-foreground ml-2">({filtered.length})</span>
                   </h2>
-                  <div className="grid grid-cols-2 gap-3">
-                    {filtered.map((item) => (
-                      <CatalogueProductCard key={item.id} item={item} />
-                    ))}
-                  </div>
+
+                  {browseMode === "quickorder" ? (
+                    <QuickOrderTable products={filtered} />
+                  ) : (
+                    <div className="grid grid-cols-2 gap-3">
+                      {filtered.map((item) => (
+                        <CatalogueProductCard key={item.id} item={item} />
+                      ))}
+                    </div>
+                  )}
+
                   {filtered.length === 0 && (
                     <p className="text-center text-muted-foreground py-12 font-body text-sm">No products found.</p>
                   )}
