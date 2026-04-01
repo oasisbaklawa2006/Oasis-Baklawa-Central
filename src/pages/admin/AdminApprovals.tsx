@@ -43,45 +43,52 @@ const AdminApprovals = () => {
 
     if (error) {
       toast.error(`Failed to ${newStatus === "approved" ? "approve" : "reject"}`);
+      setActionLoading(null);
+      return;
+    }
+
+    if (newStatus === "approved" && app.user_id) {
+      const { data: newCompany } = await supabase
+        .from("companies")
+        .insert({
+          business_name: app.business_name,
+          gst_number: app.gst_number,
+          business_volume: app.expected_volume,
+        })
+        .select()
+        .single();
+
+      if (newCompany) {
+        await supabase
+          .from("users")
+          .update({ role: "buyer", company_id: newCompany.id })
+          .eq("id", app.user_id);
+      }
+    }
+
+    // Auto-send welcome email on approval
+    if (newStatus === "approved" && app.contact_email) {
+      try {
+        const { error: outboxError } = await supabase.from("notification_outbox").insert({
+          recipient_email: app.contact_email,
+          event_type: "account_activation",
+          message_body: "Welcome to Oasis Baklawa! Your B2B account has been approved and activated. You can now log in to view our catalog and place orders.",
+          status: "pending",
+        });
+        if (outboxError) throw outboxError;
+
+        // Immediately dispatch the queued email
+        const sent = await processOutboxQueue();
+        toast.success(`${app.business_name} approved & welcome email sent (${sent} dispatched)`);
+      } catch (notifErr: any) {
+        console.error("[Outbox] Auto-send failed:", notifErr);
+        toast.error("Approved, but welcome email dispatch failed.");
+      }
     } else {
       toast.success(`${app.business_name} ${newStatus}`);
-
-      // Send activation notification email
-      if (newStatus === "approved" && app.contact_email) {
-        try {
-          const { error: outboxError } = await supabase.from("notification_outbox").insert({
-            recipient_email: app.contact_email,
-            event_type: "account_activation",
-            message_body: "Welcome to Oasis Baklawa! Your B2B account has been approved and activated. You can now log in to view our catalog and place orders.",
-            status: "pending",
-          });
-          if (outboxError) throw outboxError;
-        } catch (notifErr: any) {
-          console.error("[Outbox] Failed to queue activation email:", notifErr);
-          toast.error("Approved, but failed to send activation email.");
-        }
-      }
-
-      if (newStatus === "approved" && app.user_id) {
-        const { data: newCompany } = await supabase
-          .from("companies")
-          .insert({
-            business_name: app.business_name,
-            gst_number: app.gst_number,
-            business_volume: app.expected_volume,
-          })
-          .select()
-          .single();
-
-        if (newCompany) {
-          await supabase
-            .from("users")
-            .update({ role: "buyer", company_id: newCompany.id })
-            .eq("id", app.user_id);
-        }
-      }
-      fetchApps();
     }
+
+    fetchApps();
     setActionLoading(null);
   };
 
