@@ -80,7 +80,7 @@ const CartonBuilderBar = () => {
                   </span>
                 </div>
                 {g.isFull ? (
-                  <span className="flex items-center gap-1 text-[10px] font-body text-green-600">
+                  <span className="flex items-center gap-1 text-[10px] font-body text-primary">
                     <CheckCircle2 size={10} /> Full
                   </span>
                 ) : (
