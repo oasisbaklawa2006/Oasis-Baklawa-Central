@@ -24,6 +24,16 @@ const SuggestionChips = ({ activeCategory }: SuggestionChipsProps) => {
     return products.find((p) => p.id === lastItem.product_id) || null;
   }, [items, products]);
 
+  // Check if all cartons are full — hide chips when full
+  const allCartonsFull = useMemo(() => {
+    if (!items.length || !products.length) return false;
+    return items.every((item) => {
+      const product = products.find((p) => p.id === item.product_id);
+      if (!product) return true;
+      return unitsToFillCarton(product, item.quantity) === 0;
+    });
+  }, [items, products]);
+
   const categoryProducts = useMemo(() => {
     if (!activeCategory) return [];
     const cartIds = new Set(items.map((i) => i.product_id));
@@ -35,7 +45,8 @@ const SuggestionChips = ({ activeCategory }: SuggestionChipsProps) => {
     return products.filter((p) => !cartIds.has(p.id)).slice(0, 8);
   }, [products, items]);
 
-  if (!items.length) return null;
+  // Only show when cart is active AND cartons are NOT all full
+  if (!items.length || allCartonsFull) return null;
 
   const openSheet = (title: string, prods: Product[]) => {
     setSheetTitle(title);

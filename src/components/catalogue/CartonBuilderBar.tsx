@@ -1,9 +1,9 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { useCart } from "@/hooks/useCart";
 import { useProducts } from "@/hooks/useProducts";
-import { getPacksPerCarton, getProductCategory } from "@/utils/pricing";
+import { getPacksPerCarton } from "@/utils/pricing";
 import { Progress } from "@/components/ui/progress";
-import { CheckCircle2, Package } from "lucide-react";
+import { CheckCircle2, Package, ChevronDown, ChevronUp } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
 interface CartonGroup {
@@ -18,6 +18,7 @@ interface CartonGroup {
 const CartonBuilderBar = () => {
   const { items } = useCart();
   const { products } = useProducts();
+  const [minimized, setMinimized] = useState(false);
 
   const cartonGroups = useMemo(() => {
     if (!items.length || !products.length) return [];
@@ -52,7 +53,10 @@ const CartonBuilderBar = () => {
     });
   }, [items, products]);
 
-  if (!cartonGroups.length) return null;
+  // Only show when cart has items
+  if (!items.length || !cartonGroups.length) return null;
+
+  const allFull = cartonGroups.every((g) => g.isFull);
 
   return (
     <AnimatePresence>
@@ -63,36 +67,62 @@ const CartonBuilderBar = () => {
         className="fixed bottom-16 left-0 right-0 z-20 px-4"
         style={{ paddingBottom: "env(safe-area-inset-bottom, 0px)" }}
       >
-        <div
-          className="max-w-md mx-auto bg-card rounded-t-2xl border border-border border-b-0 px-4 py-3 space-y-2"
-          style={{ boxShadow: "0 -4px 24px rgba(0,0,0,0.06)" }}
-        >
-          {cartonGroups.slice(0, 2).map((g) => (
-            <div key={g.cartonType} className="space-y-1">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-1.5">
-                  <Package size={12} className="text-primary" />
-                  <span className="font-body text-xs font-medium text-foreground">
-                    {g.cartonType}
-                  </span>
-                  <span className="font-body text-[10px] text-muted-foreground">
-                    · {g.filled}/{g.capacity}
-                  </span>
-                </div>
-                {g.isFull ? (
-                  <span className="flex items-center gap-1 text-[10px] font-body text-primary">
-                    <CheckCircle2 size={10} /> Full
-                  </span>
-                ) : (
-                  <span className="font-body text-[10px] text-primary">
-                    Add {g.remaining} more
-                  </span>
-                )}
-              </div>
-              <Progress value={g.percentage} className="h-1.5 bg-muted" />
+        {minimized ? (
+          /* ── Minimized pill ── */
+          <div className="max-w-md mx-auto flex justify-center">
+            <button
+              onClick={() => setMinimized(false)}
+              className="flex items-center gap-2 bg-card border border-border rounded-full px-4 py-2 font-body text-xs text-foreground"
+              style={{ boxShadow: "0 -2px 12px rgba(0,0,0,0.04)" }}
+            >
+              <Package size={12} className="text-primary" />
+              {allFull ? "Cartons Full ✅" : `${cartonGroups.length} carton${cartonGroups.length > 1 ? "s" : ""} in progress`}
+              <ChevronUp size={12} className="text-muted-foreground" />
+            </button>
+          </div>
+        ) : (
+          /* ── Expanded bar ── */
+          <div
+            className="max-w-md mx-auto bg-card rounded-t-2xl border border-border border-b-0 px-4 py-3 space-y-2"
+            style={{ boxShadow: "0 -4px 24px rgba(0,0,0,0.06)" }}
+          >
+            {/* Collapse button */}
+            <div className="flex justify-end -mt-1 -mr-1">
+              <button
+                onClick={() => setMinimized(true)}
+                className="p-1 rounded-full hover:bg-muted transition-colors"
+              >
+                <ChevronDown size={14} className="text-muted-foreground" />
+              </button>
             </div>
-          ))}
-        </div>
+
+            {cartonGroups.slice(0, 2).map((g) => (
+              <div key={g.cartonType} className="space-y-1">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-1.5">
+                    <Package size={12} className="text-primary" />
+                    <span className="font-body text-xs font-medium text-foreground">
+                      {g.cartonType} ({g.capacity} Box)
+                    </span>
+                    <span className="font-body text-[10px] text-muted-foreground">
+                      · {g.filled}/{g.capacity}
+                    </span>
+                  </div>
+                  {g.isFull ? (
+                    <span className="flex items-center gap-1 text-[10px] font-body text-primary">
+                      <CheckCircle2 size={10} /> Full
+                    </span>
+                  ) : (
+                    <span className="font-body text-[10px] text-primary">
+                      Add {g.remaining} more
+                    </span>
+                  )}
+                </div>
+                <Progress value={g.percentage} className="h-1.5 bg-muted" />
+              </div>
+            ))}
+          </div>
+        )}
       </motion.div>
     </AnimatePresence>
   );
