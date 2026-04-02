@@ -62,7 +62,13 @@ import { useEffect, useState } from "react";
 
 const queryClient = new QueryClient();
 
-const ADMIN_ROLES = ["SUPER_ADMIN", "ADMIN", "FINANCE_HEAD", "DISPATCH_HEAD", "PRODUCTION_MANAGER"];
+const ADMIN_ROLES = [
+  "SUPER_ADMIN", "ADMIN", "FINANCE_HEAD", "DISPATCH_HEAD", "PRODUCTION_MANAGER",
+  "ASSEMBLY_MANAGER", "PACKING_SUPERVISOR", "SUPPORT_EXECUTIVE",
+  "STORE_READY_GOODS", "STORE_3RD_PARTY",
+  "PROD_ARABIC_SWEETS", "PROD_CHOCOLATE", "PROD_FUSION", "PROD_BAKERY", "PROD_NUTS",
+  "GATE_SECURITY",
+];
 
 const RootGate = () => {
   const { user, loading: authLoading } = useAuth();
