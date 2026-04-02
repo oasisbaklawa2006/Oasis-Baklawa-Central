@@ -269,6 +269,14 @@ const App = () => (
                 </ProtectedRoute>
               }
             />
+
+            {/* Factory TV Routes */}
+            <Route path="/tv/arabic-sweets" element={<FactoryTVModule category="Arabic Sweets" departmentFilter="Arabic Sweets" title="Arabic Sweets Line" />} />
+            <Route path="/tv/chocolate" element={<FactoryTVModule category="Chocolate" departmentFilter="Confectionery & Chocolates" title="Chocolate Line" />} />
+            <Route path="/tv/fusion" element={<FactoryTVModule category="Fusion Sweets" departmentFilter="Fusion Sweets" title="Fusion Sweets Line" />} />
+            <Route path="/tv/bakery" element={<FactoryTVModule category="Bakery" departmentFilter="Bakery" title="Bakery Line" />} />
+            <Route path="/tv/nuts" element={<FactoryTVModule category="Seasoned Nuts" departmentFilter="Nuts Roasting" title="Nuts & Dry Fruits Line" />} />
+
             <Route path="*" element={<NotFound />} />
           </Routes>
         
