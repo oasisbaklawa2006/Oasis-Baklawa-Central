@@ -57,6 +57,7 @@ import AdminNotifications from "./pages/admin/AdminNotifications.tsx";
 import CMDHeartbeat from "./pages/admin/CMDHeartbeat.tsx";
 import AdminMerchandising from "./pages/admin/AdminMerchandising.tsx";
 import FactoryTVModule from "./components/FactoryTVModule.tsx";
+import RoleProtectedRoute from "./components/RoleProtectedRoute.tsx";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { useEffect, useState } from "react";
