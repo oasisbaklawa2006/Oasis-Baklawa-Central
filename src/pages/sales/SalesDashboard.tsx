@@ -23,12 +23,16 @@ const SalesDashboard = () => {
   useEffect(() => {
     if (authLoading || !user) return;
     const fetchCompanies = async () => {
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from("companies")
         .select("id, business_name, gst_number, status, wallet_balance, credit_limit, current_balance, allow_credit, created_at")
         .eq("status", "approved")
         .eq("account_manager_id", user.id)
         .order("business_name");
+      if (error) {
+        console.error("SalesDashboard fetch error:", error);
+        toast({ title: "Connection Error", description: "Could not load client data. Retrying…", variant: "destructive" });
+      }
       setCompanies(data || []);
       setDataLoading(false);
     };
