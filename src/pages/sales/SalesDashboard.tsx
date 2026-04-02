@@ -24,35 +24,21 @@ const SalesDashboard = () => {
 
   useEffect(() => {
     if (authLoading || !user) return;
-    const fetchRole = async () => {
-      const { data } = await supabase.from("users").select("role").eq("id", user.id).maybeSingle();
-      setRole(data?.role ?? null);
-      setRoleLoading(false);
-    };
-    fetchRole();
-  }, [user, authLoading]);
-
-  useEffect(() => {
-    if (roleLoading || !role) return;
     const fetchCompanies = async () => {
       const { data } = await supabase
         .from("companies")
         .select("id, business_name, gst_number, status, wallet_balance, credit_limit, current_balance, allow_credit, created_at")
         .eq("status", "approved")
-        .eq("account_manager_id", user!.id)
+        .eq("account_manager_id", user.id)
         .order("business_name");
       setCompanies(data || []);
       setDataLoading(false);
     };
     fetchCompanies();
-  }, [role, roleLoading]);
+  }, [user, authLoading]);
 
-  if (authLoading || roleLoading) {
+  if (authLoading) {
     return <div className="min-h-screen flex items-center justify-center bg-background"><Loader2 size={24} className="animate-spin text-primary" /></div>;
-  }
-
-  if (!role || !["sales_executive", "super_admin", "admin"].includes(role)) {
-    return <Navigate to="/login" replace />;
   }
 
   const filtered = companies.filter(c =>
