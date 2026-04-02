@@ -56,7 +56,7 @@ const SalesDashboard = () => {
             <h1 className="text-xl font-semibold text-foreground">Sales Executive Console</h1>
             <p className="text-sm text-muted-foreground mt-0.5">Client management & credit operations</p>
           </div>
-          <Badge variant="outline" className="text-xs">{role?.replace("_", " ").toUpperCase()}</Badge>
+          <Badge variant="outline" className="text-xs">SALES EXECUTIVE</Badge>
         </div>
       </header>
 
