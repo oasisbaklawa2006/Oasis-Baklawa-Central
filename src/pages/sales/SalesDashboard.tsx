@@ -14,8 +14,6 @@ import CreditRequestModal from "@/components/CreditRequestModal";
 const SalesDashboard = () => {
   const { user, loading: authLoading } = useAuth();
   const navigate = useNavigate();
-  const [role, setRole] = useState<string | null>(null);
-  const [roleLoading, setRoleLoading] = useState(true);
   const [companies, setCompanies] = useState<any[]>([]);
   const [dataLoading, setDataLoading] = useState(true);
   const [search, setSearch] = useState("");
