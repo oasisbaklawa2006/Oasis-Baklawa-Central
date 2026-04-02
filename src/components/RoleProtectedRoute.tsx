@@ -26,7 +26,7 @@ function getDesignatedRoute(role: string): string {
 }
 
 interface Props {
-  allowedRoles: string[];
+  allowedRoles: (string | null)[];
   children: React.ReactNode;
 }
 
@@ -50,13 +50,19 @@ export default function RoleProtectedRoute({ allowedRoles, children }: Props) {
         .eq("id", user.id)
         .maybeSingle();
 
-      const role = (data?.role ?? "").toUpperCase();
-      const normalizedAllowed = allowedRoles.map((r) => r.toUpperCase());
+      const rawRole = data?.role ?? null;
+      const upperRole = rawRole?.toUpperCase() ?? null;
 
-      if (normalizedAllowed.includes(role)) {
+      // Check if null is explicitly allowed (for buyers with no role set)
+      const allowsNull = allowedRoles.includes(null);
+      const normalizedAllowed = allowedRoles
+        .filter((r): r is string => r !== null)
+        .map((r) => r.toUpperCase());
+
+      if ((upperRole === null && allowsNull) || (upperRole !== null && normalizedAllowed.includes(upperRole))) {
         setStatus("allowed");
       } else {
-        setRedirectTo(getDesignatedRoute(role || "buyer"));
+        setRedirectTo(getDesignatedRoute(upperRole || "BUYER"));
         setStatus("denied");
       }
     })();

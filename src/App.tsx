@@ -146,91 +146,21 @@ const App = () => (
             <Route path="/operations-controller" element={<ProtectedRoute><RoleProtectedRoute allowedRoles={[...ADMIN_ROLES]}><OperationsController /></RoleProtectedRoute></ProtectedRoute>} />
             <Route path="/security-gate" element={<ProtectedRoute><RoleProtectedRoute allowedRoles={['GATE_SECURITY', 'SUPER_ADMIN', 'ADMIN']}><AdminSecurityGate /></RoleProtectedRoute></ProtectedRoute>} />
             <Route path="/" element={<RootGate />} />
-            <Route path="/catalogue" element={<Catalogue />} />
-            <Route path="/product/:id" element={<ProductDetail />} />
+            <Route path="/catalogue" element={<RoleProtectedRoute allowedRoles={['BUYER', 'CUSTOMER_USER', 'CLIENT', 'SUPER_ADMIN', null]}><Catalogue /></RoleProtectedRoute>} />
+            <Route path="/product/:id" element={<RoleProtectedRoute allowedRoles={['BUYER', 'CUSTOMER_USER', 'CLIENT', 'SUPER_ADMIN', null]}><ProductDetail /></RoleProtectedRoute>} />
             <Route path="/login" element={<Login />} />
             <Route path="/register" element={<Register />} />
             <Route path="/onboarding" element={<Onboarding />} />
-            <Route
-              path="/buyer-portal"
-              element={
-                <ProtectedRoute>
-                  <BuyerPortal />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/cart"
-              element={
-                <ProtectedRoute>
-                  <Cart />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/orders"
-              element={
-                <ProtectedRoute>
-                  <Orders />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/dashboard"
-              element={
-                <ProtectedRoute>
-                  <Dashboard />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/account"
-              element={
-                <ProtectedRoute>
-                  <Account />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/favorites"
-              element={
-                <ProtectedRoute>
-                  <Favorites />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/account/users"
-              element={
-                <ProtectedRoute>
-                  <ManageUsers />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/account/addresses"
-              element={
-                <ProtectedRoute>
-                  <ManageAddresses />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/account/logistics"
-              element={
-                <ProtectedRoute>
-                  <ManageLogistics />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/documents"
-              element={
-                <ProtectedRoute>
-                  <Documents />
-                </ProtectedRoute>
-              }
-            />
+            <Route path="/buyer-portal" element={<ProtectedRoute><RoleProtectedRoute allowedRoles={['BUYER', 'CUSTOMER_USER', 'CLIENT', null]}><BuyerPortal /></RoleProtectedRoute></ProtectedRoute>} />
+            <Route path="/cart" element={<ProtectedRoute><RoleProtectedRoute allowedRoles={['BUYER', 'CUSTOMER_USER', 'CLIENT', null]}><Cart /></RoleProtectedRoute></ProtectedRoute>} />
+            <Route path="/orders" element={<ProtectedRoute><RoleProtectedRoute allowedRoles={['BUYER', 'CUSTOMER_USER', 'CLIENT', null]}><Orders /></RoleProtectedRoute></ProtectedRoute>} />
+            <Route path="/dashboard" element={<ProtectedRoute><RoleProtectedRoute allowedRoles={['BUYER', 'CUSTOMER_USER', 'CLIENT', null]}><Dashboard /></RoleProtectedRoute></ProtectedRoute>} />
+            <Route path="/account" element={<ProtectedRoute><RoleProtectedRoute allowedRoles={['BUYER', 'CUSTOMER_USER', 'CLIENT', null]}><Account /></RoleProtectedRoute></ProtectedRoute>} />
+            <Route path="/favorites" element={<ProtectedRoute><RoleProtectedRoute allowedRoles={['BUYER', 'CUSTOMER_USER', 'CLIENT', null]}><Favorites /></RoleProtectedRoute></ProtectedRoute>} />
+            <Route path="/account/users" element={<ProtectedRoute><RoleProtectedRoute allowedRoles={['BUYER', 'CUSTOMER_USER', 'CLIENT', null]}><ManageUsers /></RoleProtectedRoute></ProtectedRoute>} />
+            <Route path="/account/addresses" element={<ProtectedRoute><RoleProtectedRoute allowedRoles={['BUYER', 'CUSTOMER_USER', 'CLIENT', null]}><ManageAddresses /></RoleProtectedRoute></ProtectedRoute>} />
+            <Route path="/account/logistics" element={<ProtectedRoute><RoleProtectedRoute allowedRoles={['BUYER', 'CUSTOMER_USER', 'CLIENT', null]}><ManageLogistics /></RoleProtectedRoute></ProtectedRoute>} />
+            <Route path="/documents" element={<ProtectedRoute><RoleProtectedRoute allowedRoles={['BUYER', 'CUSTOMER_USER', 'CLIENT', null]}><Documents /></RoleProtectedRoute></ProtectedRoute>} />
 
             <Route
               path="/admin"
