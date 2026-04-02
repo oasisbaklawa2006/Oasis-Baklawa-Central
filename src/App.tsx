@@ -69,15 +69,13 @@ const PROD_ROLE_ROUTES: Record<string, string> = {
   PROD_NUTS: "/tv/nuts",
 };
 
-const queryClient = new QueryClient();
-
 const ADMIN_ROLES = [
   "SUPER_ADMIN", "ADMIN", "FINANCE_HEAD", "DISPATCH_HEAD", "PRODUCTION_MANAGER",
   "ASSEMBLY_MANAGER", "PACKING_SUPERVISOR", "SUPPORT_EXECUTIVE",
-  "STORE_READY_GOODS", "STORE_3RD_PARTY",
-  "PROD_ARABIC_SWEETS", "PROD_CHOCOLATE", "PROD_FUSION", "PROD_BAKERY", "PROD_NUTS",
-  "GATE_SECURITY",
+  "STORE_READY_GOODS", "STORE_3RD_PARTY", "GATE_SECURITY",
 ];
+
+const queryClient = new QueryClient();
 
 const RootGate = () => {
   const { user, loading: authLoading } = useAuth();
@@ -91,7 +89,6 @@ const RootGate = () => {
       setRoleLoading(false);
       return;
     }
-    // Fetch role for authenticated user
     const fetchRole = async () => {
       const { data } = await supabase
         .from("users")
@@ -99,14 +96,22 @@ const RootGate = () => {
         .eq("id", user.id)
         .maybeSingle();
       const role = data?.role?.toUpperCase();
+
+      // 1. Factory TV group — most specific, check first
       if (role && PROD_ROLE_ROUTES[role]) {
         setRedirect(PROD_ROLE_ROUTES[role]);
-      } else if (role && ADMIN_ROLES.includes(role)) {
-        setRedirect("/admin");
-      } else if (role === "SALES_EXECUTIVE") {
+      }
+      // 2. Sales group
+      else if (role === "SALES_EXECUTIVE") {
         setRedirect("/sales/dashboard");
-      } else {
-        setRedirect(null); // customer — render Index
+      }
+      // 3. Admin / operations / finance / gate group
+      else if (role && ADMIN_ROLES.includes(role)) {
+        setRedirect("/admin");
+      }
+      // 4. Client group (buyer, client, null, or any unrecognized role)
+      else {
+        setRedirect(null);
       }
       setRoleLoading(false);
     };
