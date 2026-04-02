@@ -39,6 +39,7 @@ const SalesDashboard = () => {
         .from("companies")
         .select("id, business_name, gst_number, status, wallet_balance, credit_limit, current_balance, allow_credit, created_at")
         .eq("status", "approved")
+        .eq("account_manager_id", user!.id)
         .order("business_name");
       setCompanies(data || []);
       setDataLoading(false);
