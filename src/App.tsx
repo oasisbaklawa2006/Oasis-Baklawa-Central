@@ -99,7 +99,9 @@ const RootGate = () => {
         .eq("id", user.id)
         .maybeSingle();
       const role = data?.role?.toUpperCase();
-      if (role && ADMIN_ROLES.includes(role)) {
+      if (role && PROD_ROLE_ROUTES[role]) {
+        setRedirect(PROD_ROLE_ROUTES[role]);
+      } else if (role && ADMIN_ROLES.includes(role)) {
         setRedirect("/admin");
       } else if (role === "SALES_EXECUTIVE") {
         setRedirect("/sales/dashboard");
