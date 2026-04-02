@@ -56,9 +56,18 @@ import SalesPerformanceHub from "./pages/admin/SalesPerformanceHub.tsx";
 import AdminNotifications from "./pages/admin/AdminNotifications.tsx";
 import CMDHeartbeat from "./pages/admin/CMDHeartbeat.tsx";
 import AdminMerchandising from "./pages/admin/AdminMerchandising.tsx";
+import FactoryTVModule from "./components/FactoryTVModule.tsx";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { useEffect, useState } from "react";
+
+const PROD_ROLE_ROUTES: Record<string, string> = {
+  PROD_ARABIC_SWEETS: "/tv/arabic-sweets",
+  PROD_CHOCOLATE: "/tv/chocolate",
+  PROD_FUSION: "/tv/fusion",
+  PROD_BAKERY: "/tv/bakery",
+  PROD_NUTS: "/tv/nuts",
+};
 
 const queryClient = new QueryClient();
 
@@ -90,7 +99,9 @@ const RootGate = () => {
         .eq("id", user.id)
         .maybeSingle();
       const role = data?.role?.toUpperCase();
-      if (role && ADMIN_ROLES.includes(role)) {
+      if (role && PROD_ROLE_ROUTES[role]) {
+        setRedirect(PROD_ROLE_ROUTES[role]);
+      } else if (role && ADMIN_ROLES.includes(role)) {
         setRedirect("/admin");
       } else if (role === "SALES_EXECUTIVE") {
         setRedirect("/sales/dashboard");
@@ -258,6 +269,14 @@ const App = () => (
                 </ProtectedRoute>
               }
             />
+
+            {/* Factory TV Routes */}
+            <Route path="/tv/arabic-sweets" element={<FactoryTVModule category="Arabic Sweets" departmentFilter="Arabic Sweets" title="Arabic Sweets Line" />} />
+            <Route path="/tv/chocolate" element={<FactoryTVModule category="Chocolate" departmentFilter="Confectionery & Chocolates" title="Chocolate Line" />} />
+            <Route path="/tv/fusion" element={<FactoryTVModule category="Fusion Sweets" departmentFilter="Fusion Sweets" title="Fusion Sweets Line" />} />
+            <Route path="/tv/bakery" element={<FactoryTVModule category="Bakery" departmentFilter="Bakery" title="Bakery Line" />} />
+            <Route path="/tv/nuts" element={<FactoryTVModule category="Seasoned Nuts" departmentFilter="Nuts Roasting" title="Nuts & Dry Fruits Line" />} />
+
             <Route path="*" element={<NotFound />} />
           </Routes>
         
