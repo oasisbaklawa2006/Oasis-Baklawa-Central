@@ -56,9 +56,18 @@ import SalesPerformanceHub from "./pages/admin/SalesPerformanceHub.tsx";
 import AdminNotifications from "./pages/admin/AdminNotifications.tsx";
 import CMDHeartbeat from "./pages/admin/CMDHeartbeat.tsx";
 import AdminMerchandising from "./pages/admin/AdminMerchandising.tsx";
+import FactoryTVModule from "./components/FactoryTVModule.tsx";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { useEffect, useState } from "react";
+
+const PROD_ROLE_ROUTES: Record<string, string> = {
+  PROD_ARABIC_SWEETS: "/tv/arabic-sweets",
+  PROD_CHOCOLATE: "/tv/chocolate",
+  PROD_FUSION: "/tv/fusion",
+  PROD_BAKERY: "/tv/bakery",
+  PROD_NUTS: "/tv/nuts",
+};
 
 const queryClient = new QueryClient();
 
