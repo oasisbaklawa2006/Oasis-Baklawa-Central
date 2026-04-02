@@ -57,6 +57,7 @@ import AdminNotifications from "./pages/admin/AdminNotifications.tsx";
 import CMDHeartbeat from "./pages/admin/CMDHeartbeat.tsx";
 import AdminMerchandising from "./pages/admin/AdminMerchandising.tsx";
 import FactoryTVModule from "./components/FactoryTVModule.tsx";
+import RoleProtectedRoute from "./components/RoleProtectedRoute.tsx";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { useEffect, useState } from "react";
@@ -235,7 +236,9 @@ const App = () => (
               path="/admin"
               element={
                 <ProtectedRoute>
-                  <AdminLayout />
+                  <RoleProtectedRoute allowedRoles={[...ADMIN_ROLES]}>
+                    <AdminLayout />
+                  </RoleProtectedRoute>
                 </ProtectedRoute>
               }
             >
@@ -270,17 +273,19 @@ const App = () => (
               path="/sales/dashboard"
               element={
                 <ProtectedRoute>
-                  <SalesDashboard />
+                  <RoleProtectedRoute allowedRoles={['SALES_EXECUTIVE', 'SUPER_ADMIN', 'ADMIN']}>
+                    <SalesDashboard />
+                  </RoleProtectedRoute>
                 </ProtectedRoute>
               }
             />
 
-            {/* Factory TV Routes */}
-            <Route path="/tv/arabic-sweets" element={<FactoryTVModule category="Arabic Sweets" departmentFilter="Arabic Sweets" title="Arabic Sweets Line" />} />
-            <Route path="/tv/chocolate" element={<FactoryTVModule category="Chocolate" departmentFilter="Confectionery & Chocolates" title="Chocolate Line" />} />
-            <Route path="/tv/fusion" element={<FactoryTVModule category="Fusion Sweets" departmentFilter="Fusion Sweets" title="Fusion Sweets Line" />} />
-            <Route path="/tv/bakery" element={<FactoryTVModule category="Bakery" departmentFilter="Bakery" title="Bakery Line" />} />
-            <Route path="/tv/nuts" element={<FactoryTVModule category="Seasoned Nuts" departmentFilter="Nuts Roasting" title="Nuts & Dry Fruits Line" />} />
+            {/* Factory TV Routes — guarded for PROD_* roles + admins */}
+            <Route path="/tv/arabic-sweets" element={<RoleProtectedRoute allowedRoles={['PROD_ARABIC_SWEETS', 'SUPER_ADMIN', 'ADMIN']}><FactoryTVModule category="Arabic Sweets" departmentFilter="Arabic Sweets" title="Arabic Sweets Line" /></RoleProtectedRoute>} />
+            <Route path="/tv/chocolate" element={<RoleProtectedRoute allowedRoles={['PROD_CHOCOLATE', 'SUPER_ADMIN', 'ADMIN']}><FactoryTVModule category="Chocolate" departmentFilter="Confectionery & Chocolates" title="Chocolate Line" /></RoleProtectedRoute>} />
+            <Route path="/tv/fusion" element={<RoleProtectedRoute allowedRoles={['PROD_FUSION', 'SUPER_ADMIN', 'ADMIN']}><FactoryTVModule category="Fusion Sweets" departmentFilter="Fusion Sweets" title="Fusion Sweets Line" /></RoleProtectedRoute>} />
+            <Route path="/tv/bakery" element={<RoleProtectedRoute allowedRoles={['PROD_BAKERY', 'SUPER_ADMIN', 'ADMIN']}><FactoryTVModule category="Bakery" departmentFilter="Bakery" title="Bakery Line" /></RoleProtectedRoute>} />
+            <Route path="/tv/nuts" element={<RoleProtectedRoute allowedRoles={['PROD_NUTS', 'SUPER_ADMIN', 'ADMIN']}><FactoryTVModule category="Seasoned Nuts" departmentFilter="Nuts Roasting" title="Nuts & Dry Fruits Line" /></RoleProtectedRoute>} />
 
             <Route path="*" element={<NotFound />} />
           </Routes>

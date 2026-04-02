@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Navigate, useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -14,8 +14,6 @@ import CreditRequestModal from "@/components/CreditRequestModal";
 const SalesDashboard = () => {
   const { user, loading: authLoading } = useAuth();
   const navigate = useNavigate();
-  const [role, setRole] = useState<string | null>(null);
-  const [roleLoading, setRoleLoading] = useState(true);
   const [companies, setCompanies] = useState<any[]>([]);
   const [dataLoading, setDataLoading] = useState(true);
   const [search, setSearch] = useState("");
@@ -24,35 +22,21 @@ const SalesDashboard = () => {
 
   useEffect(() => {
     if (authLoading || !user) return;
-    const fetchRole = async () => {
-      const { data } = await supabase.from("users").select("role").eq("id", user.id).maybeSingle();
-      setRole(data?.role ?? null);
-      setRoleLoading(false);
-    };
-    fetchRole();
-  }, [user, authLoading]);
-
-  useEffect(() => {
-    if (roleLoading || !role) return;
     const fetchCompanies = async () => {
       const { data } = await supabase
         .from("companies")
         .select("id, business_name, gst_number, status, wallet_balance, credit_limit, current_balance, allow_credit, created_at")
         .eq("status", "approved")
-        .eq("account_manager_id", user!.id)
+        .eq("account_manager_id", user.id)
         .order("business_name");
       setCompanies(data || []);
       setDataLoading(false);
     };
     fetchCompanies();
-  }, [role, roleLoading]);
+  }, [user, authLoading]);
 
-  if (authLoading || roleLoading) {
+  if (authLoading) {
     return <div className="min-h-screen flex items-center justify-center bg-background"><Loader2 size={24} className="animate-spin text-primary" /></div>;
-  }
-
-  if (!role || !["sales_executive", "super_admin", "admin"].includes(role)) {
-    return <Navigate to="/login" replace />;
   }
 
   const filtered = companies.filter(c =>
@@ -72,7 +56,7 @@ const SalesDashboard = () => {
             <h1 className="text-xl font-semibold text-foreground">Sales Executive Console</h1>
             <p className="text-sm text-muted-foreground mt-0.5">Client management & credit operations</p>
           </div>
-          <Badge variant="outline" className="text-xs">{role?.replace("_", " ").toUpperCase()}</Badge>
+          <Badge variant="outline" className="text-xs">SALES EXECUTIVE</Badge>
         </div>
       </header>
 
