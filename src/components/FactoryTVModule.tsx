@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Loader2, RefreshCw, Clock, Package, AlertTriangle } from "lucide-react";
+import { getPackDescription, getPrimaryPackWeightKg } from "@/utils/pricing";
 
 interface TVOrderItem {
   id: string;
@@ -11,6 +12,14 @@ interface TVOrderItem {
   product: {
     name: string;
     department: string | null;
+    uom: string | null;
+    net_weight_grams: number | null;
+    avg_weight_per_pack: number | null;
+    category: string | null;
+    sub_category: string | null;
+    packs_per_master_carton: number | null;
+    pcs_per_master_carton: number | null;
+    moq: number | null;
   } | null;
 }
 
