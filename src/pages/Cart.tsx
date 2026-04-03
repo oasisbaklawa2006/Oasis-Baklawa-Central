@@ -107,7 +107,7 @@ const Cart = () => {
   const [addresses, setAddresses] = useState<any[]>([]);
   const [selectedAddress, setSelectedAddress] = useState("");
   const [transporter, setTransporter] = useState({ name: "", account: "" });
-  const [companyId, setCompanyId] = useState<string | null>(null);
+  const [cartCompanyId, setCartCompanyId] = useState<string | null>(null);
   const [allowCredit, setAllowCredit] = useState(false);
 
   // Quick-add address form
