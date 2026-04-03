@@ -46,16 +46,7 @@ export default function RoleProtectedRoute({ allowedRoles, children }: Props) {
 
     const upperRole = role?.toUpperCase() ?? null;
 
-    // CRITICAL: Block unapproved buyers/clients from everything except /approval-pending
-    const BUYER_ROLES = new Set(["BUYER", "CUSTOMER_USER", "CLIENT"]);
-    if (
-      (upperRole === null || BUYER_ROLES.has(upperRole ?? "")) &&
-      companyStatus !== "approved"
-    ) {
-      setRedirectTo("/approval-pending");
-      setStatus("pending");
-      return;
-    }
+    // Approval gate DISABLED — allow all authenticated users through
 
     // Check if null is explicitly allowed
     const allowsNull = allowedRoles.includes(null);
