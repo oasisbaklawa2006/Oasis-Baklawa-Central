@@ -6,6 +6,7 @@ interface UserProfile {
   role: string | null;
   company_id: string | null;
   companyStatus: string | null;
+  priceTier: string | null;
 }
 
 export function useAuth() {
