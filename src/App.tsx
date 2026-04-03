@@ -156,6 +156,7 @@ const App = () => (
             <Route path="/login" element={<Login />} />
             <Route path="/register" element={<Register />} />
             <Route path="/onboarding" element={<Onboarding />} />
+            <Route path="/approval-pending" element={<ApprovalPending />} />
             <Route path="/buyer-portal" element={<ProtectedRoute><RoleProtectedRoute allowedRoles={['BUYER', 'CUSTOMER_USER', 'CLIENT', null]}><BuyerPortal /></RoleProtectedRoute></ProtectedRoute>} />
             <Route path="/cart" element={<ProtectedRoute><RoleProtectedRoute allowedRoles={['BUYER', 'CUSTOMER_USER', 'CLIENT', null]}><Cart /></RoleProtectedRoute></ProtectedRoute>} />
             <Route path="/orders" element={<ProtectedRoute><RoleProtectedRoute allowedRoles={['BUYER', 'CUSTOMER_USER', 'CLIENT', null]}><Orders /></RoleProtectedRoute></ProtectedRoute>} />
