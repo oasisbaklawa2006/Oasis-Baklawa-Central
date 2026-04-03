@@ -212,12 +212,14 @@ const FactoryTVModule = ({ category, departmentFilter, title }: FactoryTVModuleP
                           <p className="text-xl font-bold text-white truncate">
                             {item.product?.name ?? "Unknown Item"}
                           </p>
-                          {item.pack_size && (
-                            <p className="text-sm text-gray-500">{item.pack_size}</p>
-                          )}
+                          <p className="text-sm text-gray-500">
+                            {item.product ? getPackDescription(item.product) : (item.pack_size || "")}
+                          </p>
                         </div>
                         <span className="text-3xl font-black text-amber-400 ml-4">
-                          ×{item.quantity}
+                          {item.product?.uom?.toLowerCase() === "kg"
+                            ? `${item.quantity} × ${getPrimaryPackWeightKg(item.product)}kg`
+                            : `×${item.quantity}`}
                         </span>
                       </div>
                     ))}
