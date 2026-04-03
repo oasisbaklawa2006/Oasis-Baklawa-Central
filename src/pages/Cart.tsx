@@ -208,7 +208,7 @@ const Cart = () => {
   }, [fetchAddresses]);
 
   const sortedItems = useMemo(
-    () => [...items].sort((a, b) => (a.product?.name || "").localeCompare(b.product?.name || "")),
+    () => [...items].sort((a, b) => (a.id || "").localeCompare(b.id || "")),
     [items],
   );
   const sections = useMemo(() => groupByCartonFamily(sortedItems), [sortedItems]);
@@ -297,9 +297,10 @@ const Cart = () => {
     toast.success(`Added ${needed} units to fill carton!`);
   };
 
-  const handleQtyChange = async (itemId: string, currentQty: number, delta: number, product: any) => {
+  const handleQtyChange = async (itemId: string, delta: number, product: any) => {
     const increment = getQtyIncrement(product);
     const minQty = getMinOrderQty(product);
+    const currentQty = items.find((item) => item.id === itemId)?.quantity ?? 0;
 
     if (delta > 0) {
       // Increment: if at 0 jump to MOQ, otherwise add increment
@@ -571,14 +572,14 @@ const Cart = () => {
                           </div>
                           <div className="flex items-center bg-muted/50 rounded-xl p-1 border border-border">
                             <button
-                              onClick={() => handleQtyChange(item.id, item.quantity, -1, p)}
+                              onClick={() => handleQtyChange(item.id, -1, p)}
                               className="w-8 h-8 rounded-lg bg-card shadow-sm font-bold"
                             >
                               {item.quantity <= increment ? <Trash2 size={12} className="text-destructive mx-auto" /> : "−"}
                             </button>
                             <span className="font-bold text-xs w-8 text-center">{item.quantity}</span>
                             <button
-                              onClick={() => handleQtyChange(item.id, item.quantity, 1, p)}
+                              onClick={() => handleQtyChange(item.id, 1, p)}
                               className="w-8 h-8 rounded-lg bg-primary text-primary-foreground shadow-sm font-bold"
                             >
                               +
