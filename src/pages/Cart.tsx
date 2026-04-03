@@ -518,9 +518,9 @@ const Cart = () => {
                 <div className="space-y-4">
                   {section.items.map((item) => {
                     const p = item.product as any;
-                    const unitPrice = calculatePackPrice(p);
-                    const lineTotal = calculateLineTotal(p, item.quantity);
-                    const lineTax = calculateLineTax(p, item.quantity);
+                    const unitPrice = calculatePackPrice(p, priceTier);
+                    const lineTotal = calculateLineTotal(p, item.quantity, priceTier);
+                    const lineTax = calculateLineTax(p, item.quantity, priceTier);
                     const gstRate = getGstRate(p);
                     const hsn = getHsnCode(p);
                     const weightKg = getPrimaryPackWeightKg(p);
