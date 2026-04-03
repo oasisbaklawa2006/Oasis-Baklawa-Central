@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useCart } from "@/hooks/useCart";
 import { useCurrency } from "@/contexts/CurrencyContext";
 import { useProducts, Product } from "@/hooks/useProducts";
-import { getDisplayPrice, getMinOrderQty, getQtyIncrement, calculatePackPrice } from "@/utils/pricing";
+import { getDisplayPrice, getMinOrderQty, getQtyIncrement, calculatePackPrice, getPackDescription } from "@/utils/pricing";
 import { Minus, Plus, Loader2 } from "lucide-react";
 
 interface QuickOrderTableProps {
