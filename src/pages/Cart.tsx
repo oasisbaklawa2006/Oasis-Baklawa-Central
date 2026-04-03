@@ -562,6 +562,9 @@ const Cart = () => {
                             <p className="text-[10px] text-muted-foreground font-bold mt-0.5">
                               Qty: {item.quantity} × {formatPrice(unitPrice)} = <span className="text-foreground">{formatPrice(lineTotal)}</span>
                             </p>
+                            <p className="text-[9px] text-muted-foreground/70 mt-0.5">
+                              MOQ: {getMinOrderQty(p)} | Pack Size: {increment}
+                            </p>
                             <p className="text-[9px] text-muted-foreground mt-0.5">
                               GST @{gstRate}%: {formatPrice(lineTax)} {hsn ? `| HSN: ${hsn}` : ""}
                             </p>

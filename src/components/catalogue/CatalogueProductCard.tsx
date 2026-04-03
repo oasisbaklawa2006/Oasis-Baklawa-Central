@@ -79,6 +79,10 @@ const CatalogueProductCard = ({ item }: CatalogueProductCardProps) => {
           </div>
         </div>
 
+        <p className="font-body text-[9px] text-muted-foreground/70">
+          MOQ: {moq} | Pack Size: {getQtyIncrement(item)}
+        </p>
+
         {toFill > 0 && (
           <p className="font-body text-[9px] text-primary">
             +{toFill} more to fill carton
