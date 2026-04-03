@@ -12,6 +12,10 @@ interface ReorderProduct {
   name: string;
   image_url: string | null;
   price_per_kg: number;
+  price_b2b: number | null;
+  wholesale_price: number | null;
+  base_price: number | null;
+  mrp: number | null;
   pack_size: string | null;
   carton_type: string | null;
   quantity: number;
