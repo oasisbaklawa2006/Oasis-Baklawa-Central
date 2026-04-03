@@ -14,6 +14,7 @@ import PanicAlertBanner from "@/components/PanicAlertBanner";
 import AdminRouteGuard from "@/components/AdminRouteGuard";
 import AdminHelpSidebar from "@/components/AdminHelpSidebar";
 import OnboardingOverlay from "@/components/OnboardingOverlay";
+import { signOutAndClearSession } from "@/utils/authSession";
 
 const ROLE_MODULE_ACCESS: Record<string, string[]> = {
   super_admin: ["*"],
@@ -95,7 +96,7 @@ const AdminLayout = () => {
     fetchRole();
   }, [user, authLoading]);
 
-  const handleLogout = async () => { await supabase.auth.signOut(); navigate("/splash"); };
+  const handleLogout = async () => { await signOutAndClearSession(); navigate("/splash"); };
 
   if (authLoading || roleLoading) {
     return <div className="min-h-screen flex items-center justify-center bg-background"><Loader2 size={24} className="animate-spin text-primary" /></div>;

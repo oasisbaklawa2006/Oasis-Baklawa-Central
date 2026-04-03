@@ -218,7 +218,7 @@ const Register = () => {
       }
 
       // Sign out immediately — pending users should not be logged in
-      await supabase.auth.signOut();
+      await signOutAndClearSession();
 
       setSubmitted(true);
     } catch (err) {

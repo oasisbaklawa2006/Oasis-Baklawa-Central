@@ -11,7 +11,6 @@ import { Navigate } from "react-router-dom";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import Splash from "./pages/Splash.tsx";
 import CompanyIntro from "./pages/CompanyIntro.tsx";
-import Index from "./pages/Index.tsx";
 import Catalogue from "./pages/Catalogue.tsx";
 import Orders from "./pages/Orders.tsx";
 import Cart from "./pages/Cart.tsx";
@@ -59,8 +58,6 @@ import AdminMerchandising from "./pages/admin/AdminMerchandising.tsx";
 import FactoryTVModule from "./components/FactoryTVModule.tsx";
 import RoleProtectedRoute from "./components/RoleProtectedRoute.tsx";
 import { useAuth } from "@/hooks/useAuth";
-import { supabase } from "@/integrations/supabase/client";
-import { useEffect, useState } from "react";
 
 const PROD_ROLE_ROUTES: Record<string, string> = {
   PROD_ARABIC_SWEETS: "/tv/arabic-sweets",
@@ -102,32 +99,22 @@ const RootGate = () => {
     return <Navigate to="/admin" replace />;
   }
 
-  // 2. Production roles → their TV screen
   if (normalizedRole && PROD_ROLE_ROUTES[normalizedRole]) {
     return <Navigate to={PROD_ROLE_ROUTES[normalizedRole]} replace />;
   }
 
-  // 3. Sales Executive → sales dashboard
   if (normalizedRole === "SALES_EXECUTIVE") {
     return <Navigate to="/sales/dashboard" replace />;
   }
 
-  // 4. Assembly Manager → packing dispatch
-  if (normalizedRole === "ASSEMBLY_MANAGER") {
-    return <Navigate to="/admin/packing-dispatch" replace />;
+  if (normalizedRole === "CUSTOMER_USER" || normalizedRole === "CLIENT") {
+    return <Navigate to="/catalogue" replace />;
   }
 
-  // 5. Other internal staff → admin
-  if (normalizedRole && ADMIN_STAFF_ROLES.map(r => r.toUpperCase()).includes(normalizedRole)) {
-    return <Navigate to="/admin" replace />;
+  if (normalizedRole === null || normalizedRole === "BUYER") {
+    return <Navigate to="/approval-pending" replace />;
   }
 
-  // 6. Buyer / Customer / Client → Buyer Home
-  if (normalizedRole === "BUYER" || normalizedRole === "CUSTOMER_USER" || normalizedRole === "CLIENT") {
-    return <Index />;
-  }
-
-  // 7. No role (new applicant / pending) → approval pending
   return <Navigate to="/approval-pending" replace />;
 };
 
@@ -167,7 +154,7 @@ const App = () => (
               path="/admin"
               element={
                 <ProtectedRoute>
-                  <RoleProtectedRoute allowedRoles={[...ADMIN_STAFF_ROLES]}>
+                  <RoleProtectedRoute allowedRoles={[...ADMIN_ONLY_ROLES]}>
                     <AdminLayout />
                   </RoleProtectedRoute>
                 </ProtectedRoute>

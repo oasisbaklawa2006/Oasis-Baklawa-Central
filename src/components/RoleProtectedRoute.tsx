@@ -15,17 +15,19 @@ function getDesignatedRoute(role: string): string {
   const upper = role.toUpperCase();
   if (PROD_ROLE_ROUTES[upper]) return PROD_ROLE_ROUTES[upper];
   if (upper === "SALES_EXECUTIVE") return "/sales/dashboard";
-  if (upper === "ASSEMBLY_MANAGER") return "/admin/packing-dispatch";
+  if (upper === "ASSEMBLY_MANAGER") return "/operations-controller";
 
-  const ADMIN_SET = new Set([
-    "SUPER_ADMIN", "ADMIN", "FINANCE_HEAD", "DISPATCH_HEAD", "PRODUCTION_MANAGER",
+  const INTERNAL_SET = new Set([
+    "FINANCE_HEAD", "DISPATCH_HEAD", "PRODUCTION_MANAGER",
     "PACKING_SUPERVISOR", "SUPPORT_EXECUTIVE",
     "STORE_READY_GOODS", "STORE_3RD_PARTY", "GATE_SECURITY",
   ]);
-  if (ADMIN_SET.has(upper)) return "/admin";
+  if (INTERNAL_SET.has(upper)) return "/operations-controller";
 
-  // Consumer roles
-  return "/";
+  if (upper === "CUSTOMER_USER" || upper === "CLIENT") return "/catalogue";
+  if (upper === "BUYER") return "/approval-pending";
+
+  return "/approval-pending";
 }
 
 interface Props {

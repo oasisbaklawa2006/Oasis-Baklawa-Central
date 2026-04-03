@@ -18,6 +18,7 @@ import catGift from "@/assets/cat-gift-packs.jpg";
 import catFrozen from "@/assets/cat-frozen.jpg";
 import { Shield, Globe, Truck, Gift, Tag } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
+import { useAuth } from "@/hooks/useAuth";
 
 const EASE: [number, number, number, number] = [0.22, 1, 0.36, 1];
 
@@ -51,11 +52,17 @@ const TRUST = [
 const Index = () => {
   const navigate = useNavigate();
   const { items: cartItems } = useCart();
+  const { user, priceTier, refreshPriceTier } = useAuth();
 
   const cartCount = cartItems?.length || 0;
   const cartTarget = 9;
   const cartProgress = Math.min((cartCount / cartTarget) * 100, 100);
   const cartRemaining = Math.max(cartTarget - cartCount, 0);
+
+  useEffect(() => {
+    if (!user) return;
+    void refreshPriceTier();
+  }, [refreshPriceTier, user?.id]);
 
   return (
     <AppShell>
@@ -150,7 +157,7 @@ const Index = () => {
               {cartCount}/{cartTarget} items · Add {cartRemaining} more to optimise your order
             </p>
             <Progress value={cartProgress} className="h-[2px] mb-3 bg-muted [&>div]:bg-primary" />
-            <ProductSection tagKey="recommended" variant="compact" />
+            <ProductSection tagKey="recommended" variant="compact" priceTier={priceTier} />
             <motion.button
               whileTap={{ scale: 0.96 }}
               onClick={() => navigate("/catalogue")}
@@ -163,7 +170,7 @@ const Index = () => {
 
         {/* ─── 6. ORDER AGAIN ─── */}
         <motion.div {...fade(0.12)} className="mb-6">
-          <SmartReorderSection />
+          <SmartReorderSection priceTier={priceTier} />
         </motion.div>
 
         <SectionDivider />
@@ -174,19 +181,19 @@ const Index = () => {
             <div className="w-6 h-[0.5px] bg-primary/40" />
             <h2 className="font-display text-lg text-foreground">Best Sellers</h2>
           </div>
-          <BestSellers />
+          <BestSellers priceTier={priceTier} />
         </motion.section>
 
         <SectionDivider />
 
         {/* ─── 8. NEW ARRIVALS ─── */}
         <motion.div {...fade(0.16)}>
-          <NewArrivals />
+          <NewArrivals priceTier={priceTier} />
         </motion.div>
 
         {/* ─── 9. RECOMMENDED FOR YOU ─── */}
         <motion.div {...fade(0.18)}>
-          <SmartRecommendations />
+          <SmartRecommendations priceTier={priceTier} />
         </motion.div>
 
         <SectionDivider />

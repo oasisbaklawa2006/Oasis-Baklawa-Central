@@ -25,6 +25,7 @@ import { useNavigate } from "react-router-dom";
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { signOutAndClearSession } from "@/utils/authSession";
 
 // Adjusted to match your exact Supabase schema
 interface CompanyProfile {
@@ -318,7 +319,7 @@ const Account = () => {
         <motion.section initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.5 }}>
           <button
             onClick={async () => {
-              await supabase.auth.signOut();
+              await signOutAndClearSession();
               toast.success("Logged out successfully");
               navigate("/login");
             }}

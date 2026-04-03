@@ -1,19 +1,18 @@
 import { useState } from "react";
 import { useCart } from "@/hooks/useCart";
 import { useCurrency } from "@/contexts/CurrencyContext";
-import { useAuth } from "@/hooks/useAuth";
-import { useProducts, Product } from "@/hooks/useProducts";
+import type { Product } from "@/hooks/useProducts";
 import { getDisplayPrice, getMinOrderQty, getQtyIncrement, calculatePackPrice, getPackDescription } from "@/utils/pricing";
 import { Minus, Plus, Loader2 } from "lucide-react";
 
 interface QuickOrderTableProps {
   products: Product[];
+  priceTier?: string | null;
 }
 
-const QuickOrderRow = ({ product }: { product: Product }) => {
+const QuickOrderRow = ({ product, priceTier }: { product: Product; priceTier?: string | null }) => {
   const { addToCart } = useCart();
   const { formatPrice } = useCurrency();
-  const { priceTier } = useAuth();
   const moq = getMinOrderQty(product);
   const increment = getQtyIncrement(product);
   const displayInfo = getDisplayPrice(product, priceTier);
@@ -91,7 +90,7 @@ const QuickOrderRow = ({ product }: { product: Product }) => {
   );
 };
 
-const QuickOrderTable = ({ products }: QuickOrderTableProps) => {
+const QuickOrderTable = ({ products, priceTier }: QuickOrderTableProps) => {
   if (!products.length) {
     return <p className="text-center text-muted-foreground py-8 font-body text-sm">No products found.</p>;
   }
@@ -111,7 +110,7 @@ const QuickOrderTable = ({ products }: QuickOrderTableProps) => {
         </thead>
         <tbody>
           {products.map((p) => (
-            <QuickOrderRow key={p.id} product={p} />
+            <QuickOrderRow key={p.id} product={p} priceTier={priceTier} />
           ))}
         </tbody>
       </table>
