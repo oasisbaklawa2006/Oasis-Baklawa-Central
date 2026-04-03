@@ -136,7 +136,7 @@ const ReorderCard = ({ item, index, navigate, formatPrice, addToCart }: any) => 
       </div>
       <p className="font-serif text-[10px] text-foreground line-clamp-1 mb-0.5">{item.name}</p>
       <p className="font-body text-[9px] text-foreground font-medium">
-        {formatPrice(item.price_per_kg)}<span className="font-normal text-muted-foreground">/kg</span>
+        {formatPrice(item.price_per_kg || item.price_b2b || item.wholesale_price || item.base_price || item.mrp || 0)}<span className="font-normal text-muted-foreground">/kg</span>
       </p>
     </motion.div>
   );
