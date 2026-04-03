@@ -52,7 +52,7 @@ const SmartReorderSection = () => {
         const sortedIds = Object.entries(qtyMap).sort(([, a], [, b]) => b - a).slice(0, 8).map(([id]) => id);
         if (sortedIds.length === 0) { setLoading(false); return; }
         const { data: products } = await supabase
-          .from("products").select("id, name, image_url, price_per_kg, pack_size, carton_type")
+          .from("products").select("id, name, image_url, price_per_kg, price_b2b, wholesale_price, base_price, mrp, pack_size, carton_type")
           .in("id", sortedIds).eq("is_active", true);
         if (products) {
           setItems(sortedIds.map(id => {
