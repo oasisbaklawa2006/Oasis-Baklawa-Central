@@ -7,6 +7,7 @@ import {
   getDisplayPrice,
   getMinOrderQty,
   getQtyIncrement,
+  getPackDescription,
 } from "@/utils/pricing";
 
 interface CatalogueProductCardProps {
