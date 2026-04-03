@@ -80,7 +80,7 @@ const ADMIN_STAFF_ROLES = [
   "STORE_READY_GOODS", "STORE_3RD_PARTY", "GATE_SECURITY",
 ];
 
-const queryClient = new QueryClient();
+
 
 const RootGate = () => {
   const { user, loading: authLoading, role, profileReady } = useAuth();
