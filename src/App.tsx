@@ -70,8 +70,12 @@ const PROD_ROLE_ROUTES: Record<string, string> = {
   PROD_NUTS: "/tv/nuts",
 };
 
-const ADMIN_ROLES = [
-  "SUPER_ADMIN", "ADMIN", "FINANCE_HEAD", "DISPATCH_HEAD", "PRODUCTION_MANAGER",
+// Roles allowed to access the full admin panel
+const ADMIN_ONLY_ROLES = ["SUPER_ADMIN", "ADMIN"];
+
+// Internal staff who can access specific admin sub-routes but NOT the dashboard stats
+const ADMIN_STAFF_ROLES = [
+  ...ADMIN_ONLY_ROLES, "FINANCE_HEAD", "DISPATCH_HEAD", "PRODUCTION_MANAGER",
   "ASSEMBLY_MANAGER", "PACKING_SUPERVISOR", "SUPPORT_EXECUTIVE",
   "STORE_READY_GOODS", "STORE_3RD_PARTY", "GATE_SECURITY",
 ];
@@ -79,9 +83,9 @@ const ADMIN_ROLES = [
 const queryClient = new QueryClient();
 
 const RootGate = () => {
-  const { user, loading: authLoading } = useAuth();
+  const { user, loading: authLoading, role, profileReady } = useAuth();
 
-  if (authLoading) {
+  if (authLoading || (user && !profileReady)) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
@@ -89,9 +93,42 @@ const RootGate = () => {
     );
   }
 
-  // TESTING BYPASS: unauthenticated → splash, authenticated → buyer home
   if (!user) return <Navigate to="/splash" replace />;
-  return <Index />;
+
+  const normalizedRole = role?.toUpperCase() || null;
+
+  // 1. ADMIN BYPASS — always lands on /admin
+  if (normalizedRole === "ADMIN" || normalizedRole === "SUPER_ADMIN") {
+    return <Navigate to="/admin" replace />;
+  }
+
+  // 2. Production roles → their TV screen
+  if (normalizedRole && PROD_ROLE_ROUTES[normalizedRole]) {
+    return <Navigate to={PROD_ROLE_ROUTES[normalizedRole]} replace />;
+  }
+
+  // 3. Sales Executive → sales dashboard
+  if (normalizedRole === "SALES_EXECUTIVE") {
+    return <Navigate to="/sales/dashboard" replace />;
+  }
+
+  // 4. Assembly Manager → packing dispatch
+  if (normalizedRole === "ASSEMBLY_MANAGER") {
+    return <Navigate to="/admin/packing-dispatch" replace />;
+  }
+
+  // 5. Other internal staff → admin
+  if (normalizedRole && ADMIN_STAFF_ROLES.map(r => r.toUpperCase()).includes(normalizedRole)) {
+    return <Navigate to="/admin" replace />;
+  }
+
+  // 6. Buyer / Customer / Client → Buyer Home
+  if (normalizedRole === "BUYER" || normalizedRole === "CUSTOMER_USER" || normalizedRole === "CLIENT") {
+    return <Index />;
+  }
+
+  // 7. No role (new applicant / pending) → approval pending
+  return <Navigate to="/approval-pending" replace />;
 };
 
 const App = () => (
