@@ -16,10 +16,9 @@ function getDesignatedRoute(role: string): string {
   const upper = role.toUpperCase();
   if (PROD_ROLE_ROUTES[upper]) return PROD_ROLE_ROUTES[upper];
   if (upper === "SALES_EXECUTIVE") return "/sales/dashboard";
-  if (upper === "ASSEMBLY_MANAGER") return "/admin/packing-dispatch";
   const ADMIN_SET = new Set([
     "SUPER_ADMIN", "ADMIN", "FINANCE_HEAD", "DISPATCH_HEAD", "PRODUCTION_MANAGER",
-    "PACKING_SUPERVISOR", "SUPPORT_EXECUTIVE",
+    "ASSEMBLY_MANAGER", "PACKING_SUPERVISOR", "SUPPORT_EXECUTIVE",
     "STORE_READY_GOODS", "STORE_3RD_PARTY", "GATE_SECURITY",
   ]);
   if (ADMIN_SET.has(upper)) return "/admin";
@@ -32,8 +31,8 @@ interface Props {
 }
 
 export default function RoleProtectedRoute({ allowedRoles, children }: Props) {
-  const { user, loading: authLoading, role, companyStatus } = useAuth();
-  const [status, setStatus] = useState<"loading" | "allowed" | "denied" | "pending">("loading");
+  const { user, loading: authLoading } = useAuth();
+  const [status, setStatus] = useState<"loading" | "allowed" | "denied">("loading");
   const [redirectTo, setRedirectTo] = useState("/");
 
   useEffect(() => {
@@ -44,26 +43,30 @@ export default function RoleProtectedRoute({ allowedRoles, children }: Props) {
       return;
     }
 
-    const upperRole = role?.toUpperCase() ?? null;
+    (async () => {
+      const { data } = await supabase
+        .from("users")
+        .select("role")
+        .eq("id", user.id)
+        .maybeSingle();
 
-    // Approval gate DISABLED — allow all authenticated users through
+      const rawRole = data?.role ?? null;
+      const upperRole = rawRole?.toUpperCase() ?? null;
 
-    // Check if null is explicitly allowed
-    const allowsNull = allowedRoles.includes(null);
-    const normalizedAllowed = allowedRoles
-      .filter((r): r is string => r !== null)
-      .map((r) => r.toUpperCase());
+      // Check if null is explicitly allowed (for buyers with no role set)
+      const allowsNull = allowedRoles.includes(null);
+      const normalizedAllowed = allowedRoles
+        .filter((r): r is string => r !== null)
+        .map((r) => r.toUpperCase());
 
-    if (
-      (upperRole === null && allowsNull) ||
-      (upperRole !== null && normalizedAllowed.includes(upperRole))
-    ) {
-      setStatus("allowed");
-    } else {
-      setRedirectTo(getDesignatedRoute(upperRole || "BUYER"));
-      setStatus("denied");
-    }
-  }, [user, authLoading, allowedRoles, role, companyStatus]);
+      if ((upperRole === null && allowsNull) || (upperRole !== null && normalizedAllowed.includes(upperRole))) {
+        setStatus("allowed");
+      } else {
+        setRedirectTo(getDesignatedRoute(upperRole || "BUYER"));
+        setStatus("denied");
+      }
+    })();
+  }, [user, authLoading, allowedRoles]);
 
   if (status === "loading") {
     return (
@@ -73,6 +76,6 @@ export default function RoleProtectedRoute({ allowedRoles, children }: Props) {
     );
   }
 
-  if (status === "denied" || status === "pending") return <Navigate to={redirectTo} replace />;
+  if (status === "denied") return <Navigate to={redirectTo} replace />;
   return <>{children}</>;
 }

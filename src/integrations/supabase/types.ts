@@ -384,7 +384,6 @@ export type Database = {
           gst_number: string | null
           id: string
           preferred_courier: string | null
-          price_tier: string | null
           status: string | null
           wallet_balance: number | null
           website: string | null
@@ -402,7 +401,6 @@ export type Database = {
           gst_number?: string | null
           id?: string
           preferred_courier?: string | null
-          price_tier?: string | null
           status?: string | null
           wallet_balance?: number | null
           website?: string | null
@@ -420,7 +418,6 @@ export type Database = {
           gst_number?: string | null
           id?: string
           preferred_courier?: string | null
-          price_tier?: string | null
           status?: string | null
           wallet_balance?: number | null
           website?: string | null
@@ -2508,7 +2505,6 @@ export type Database = {
         Args: { _company_id: string; _user_id: string }
         Returns: boolean
       }
-      is_internal_staff: { Args: { _user_id: string }; Returns: boolean }
     }
     Enums: {
       [_ in never]: never
