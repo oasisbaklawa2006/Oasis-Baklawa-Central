@@ -56,6 +56,7 @@ import SalesPerformanceHub from "./pages/admin/SalesPerformanceHub.tsx";
 import AdminNotifications from "./pages/admin/AdminNotifications.tsx";
 import CMDHeartbeat from "./pages/admin/CMDHeartbeat.tsx";
 import AdminMerchandising from "./pages/admin/AdminMerchandising.tsx";
+import ApprovalPending from "./pages/ApprovalPending.tsx";
 import FactoryTVModule from "./components/FactoryTVModule.tsx";
 import RoleProtectedRoute from "./components/RoleProtectedRoute.tsx";
 import { useAuth } from "@/hooks/useAuth";
@@ -72,7 +73,7 @@ const PROD_ROLE_ROUTES: Record<string, string> = {
 
 const ADMIN_ROLES = [
   "SUPER_ADMIN", "ADMIN", "FINANCE_HEAD", "DISPATCH_HEAD", "PRODUCTION_MANAGER",
-  "ASSEMBLY_MANAGER", "PACKING_SUPERVISOR", "SUPPORT_EXECUTIVE",
+  "PACKING_SUPERVISOR", "SUPPORT_EXECUTIVE",
   "STORE_READY_GOODS", "STORE_3RD_PARTY", "GATE_SECURITY",
 ];
 
@@ -98,7 +99,7 @@ const RootGate = () => {
         .maybeSingle();
       const role = data?.role?.toUpperCase();
 
-      // 1. Factory TV group — most specific, check first
+      // 1. Factory TV group
       if (role && PROD_ROLE_ROUTES[role]) {
         setRedirect(PROD_ROLE_ROUTES[role]);
       }
@@ -106,11 +107,15 @@ const RootGate = () => {
       else if (role === "SALES_EXECUTIVE") {
         setRedirect("/sales/dashboard");
       }
-      // 3. Admin / operations / finance / gate group
+      // 3. Assembly Manager → dispatch board
+      else if (role === "ASSEMBLY_MANAGER") {
+        setRedirect("/admin/packing-dispatch");
+      }
+      // 4. Admin / operations / finance / gate group
       else if (role && ADMIN_ROLES.includes(role)) {
         setRedirect("/admin");
       }
-      // 4. Client group (buyer, client, null, or any unrecognized role)
+      // 5. Client group (buyer, client, null, or any unrecognized role)
       else {
         setRedirect(null);
       }
@@ -151,6 +156,7 @@ const App = () => (
             <Route path="/login" element={<Login />} />
             <Route path="/register" element={<Register />} />
             <Route path="/onboarding" element={<Onboarding />} />
+            <Route path="/approval-pending" element={<ApprovalPending />} />
             <Route path="/buyer-portal" element={<ProtectedRoute><RoleProtectedRoute allowedRoles={['BUYER', 'CUSTOMER_USER', 'CLIENT', null]}><BuyerPortal /></RoleProtectedRoute></ProtectedRoute>} />
             <Route path="/cart" element={<ProtectedRoute><RoleProtectedRoute allowedRoles={['BUYER', 'CUSTOMER_USER', 'CLIENT', null]}><Cart /></RoleProtectedRoute></ProtectedRoute>} />
             <Route path="/orders" element={<ProtectedRoute><RoleProtectedRoute allowedRoles={['BUYER', 'CUSTOMER_USER', 'CLIENT', null]}><Orders /></RoleProtectedRoute></ProtectedRoute>} />
@@ -166,7 +172,7 @@ const App = () => (
               path="/admin"
               element={
                 <ProtectedRoute>
-                  <RoleProtectedRoute allowedRoles={[...ADMIN_ROLES]}>
+                  <RoleProtectedRoute allowedRoles={[...ADMIN_ROLES, 'ASSEMBLY_MANAGER']}>
                     <AdminLayout />
                   </RoleProtectedRoute>
                 </ProtectedRoute>
