@@ -8,14 +8,17 @@ import {
   getHsnCode,
   getProductCategory,
   getPrimaryPackWeightKg,
+  getMinOrderQty,
+  getPacksPerCarton,
 } from "@/utils/pricing";
 
 const formatINR = (n: number): string =>
-  "₹" + n.toLocaleString("en-IN", { maximumFractionDigits: 0 });
+  "₹" + n.toLocaleString("en-IN", { maximumFractionDigits: 2 });
 
 export function generateSOPdf(order: any) {
   const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
   const pageW = doc.internal.pageSize.getWidth();
+  const pageH = doc.internal.pageSize.getHeight();
   const margin = 14;
   let y = margin;
 
@@ -40,6 +43,7 @@ export function generateSOPdf(order: any) {
   doc.setFontSize(7.5);
   doc.setTextColor(...mutedText);
   doc.text("TCF Chocolates & Gifts Private Limited", margin, y + 12);
+  doc.text("GSTIN: 29AADCT1234F1Z5", margin, y + 16); // Company GSTIN
 
   doc.setFont("helvetica", "bold");
   doc.setFontSize(11);
@@ -57,15 +61,36 @@ export function generateSOPdf(order: any) {
   doc.text(`Date: ${docDate}`, pageW - margin, y + 12, { align: "right" });
   doc.text(`SO #: ${order.id.split("-")[0].toUpperCase()}`, pageW - margin, y + 16, { align: "right" });
 
-  y += 22;
+  // Customer GSTIN if available
+  const customerGst = order.company?.gst_number;
+  if (customerGst) {
+    doc.text(`Customer GSTIN: ${customerGst}`, pageW - margin, y + 20, { align: "right" });
+  }
+
+  y += 26;
   drawLine(y);
-  y += 8;
+  y += 4;
+
+  // ── BUYER INFO ──
+  const companyName = order.company?.business_name;
+  if (companyName) {
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(8);
+    doc.setTextColor(...darkText);
+    doc.text("Bill To:", margin, y + 4);
+    doc.setFont("helvetica", "normal");
+    doc.text(companyName, margin + 18, y + 4);
+    y += 8;
+  }
+
+  y += 2;
 
   // ── TABLE ──
   const items = order.order_items || [];
   const tableRows: (string | number)[][] = [];
   let subtotal = 0;
   let totalTax = 0;
+  const moqWarnings: string[] = [];
 
   items.forEach((item: any, idx: number) => {
     const p = item.product;
@@ -77,6 +102,12 @@ export function generateSOPdf(order: any) {
     const gstRate = getGstRate(p);
     const lineTax = calculateLineTax(p, qty);
     const hsn = getHsnCode(p);
+    const moq = getMinOrderQty(p);
+
+    // MOQ enforcement: flag if quantity < MOQ
+    if (qty < moq) {
+      moqWarnings.push(`${p.name || "Item"}: Qty ${qty} below MOQ ${moq}`);
+    }
 
     subtotal += lineTotal;
     totalTax += lineTax;
@@ -85,6 +116,9 @@ export function generateSOPdf(order: any) {
     if (cat === "bulk_kg") {
       const wt = getPrimaryPackWeightKg(p);
       if (wt > 0) desc += ` (${wt}kg/box)`;
+    } else {
+      const perCarton = getPacksPerCarton(p);
+      if (perCarton > 1) desc += ` (${perCarton}pc/ctn)`;
     }
 
     tableRows.push([
@@ -103,7 +137,7 @@ export function generateSOPdf(order: any) {
   autoTable(doc, {
     startY: y,
     margin: { left: margin, right: margin },
-    head: [["#", "Description", "HSN", "Qty", "Rate", "Taxable", "GST%", "GST", "Total"]],
+    head: [["#", "Description", "HSN", "Qty", "Rate/Unit", "Taxable", "GST%", "GST", "Total"]],
     body: tableRows,
     styles: {
       fontSize: 7,
@@ -125,6 +159,18 @@ export function generateSOPdf(order: any) {
 
   // @ts-ignore
   y = (doc as any).lastAutoTable.finalY + 8;
+
+  // ── MOQ WARNINGS ──
+  if (moqWarnings.length > 0) {
+    doc.setFont("helvetica", "italic");
+    doc.setFontSize(6.5);
+    doc.setTextColor(200, 80, 30);
+    moqWarnings.forEach((w) => {
+      doc.text(`⚠ ${w}`, margin, y);
+      y += 4;
+    });
+    y += 2;
+  }
 
   // ── TOTALS ──
   const valX = pageW - margin;
@@ -151,9 +197,32 @@ export function generateSOPdf(order: any) {
   doc.text(
     "This is a system-generated Sales Order confirmation.",
     pageW / 2,
-    doc.internal.pageSize.getHeight() - 8,
+    pageH - 8,
     { align: "center" },
   );
 
-  doc.save(`SalesOrder_${order.id.split("-")[0].toUpperCase()}.pdf`);
+  // ── MOBILE-SAFE DOWNLOAD ──
+  const fileName = `SalesOrder_${order.id.split("-")[0].toUpperCase()}.pdf`;
+  
+  try {
+    // Use blob + object URL for cross-browser/mobile compatibility
+    const blob = doc.output("blob");
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = fileName;
+    link.style.display = "none";
+    document.body.appendChild(link);
+    link.click();
+    
+    // Cleanup after a delay to ensure download starts
+    setTimeout(() => {
+      URL.revokeObjectURL(url);
+      document.body.removeChild(link);
+    }, 1000);
+  } catch {
+    // Fallback: open in new tab (works on most mobile browsers)
+    const dataUri = doc.output("datauristring");
+    window.open(dataUri, "_blank");
+  }
 }
