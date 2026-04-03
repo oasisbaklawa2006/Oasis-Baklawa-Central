@@ -6,6 +6,7 @@ interface UserProfile {
   role: string | null;
   company_id: string | null;
   companyStatus: string | null;
+  priceTier: string | null;
 }
 
 export function useAuth() {
@@ -15,6 +16,7 @@ export function useAuth() {
     role: null,
     company_id: null,
     companyStatus: null,
+    priceTier: null,
   });
 
   const fetchProfile = useCallback(async (userId: string) => {
@@ -27,17 +29,19 @@ export function useAuth() {
     const role = userData?.role ?? null;
     const companyId = userData?.company_id ?? null;
     let companyStatus: string | null = null;
+    let priceTier: string | null = null;
 
     if (companyId) {
       const { data: companyData } = await supabase
         .from("companies")
-        .select("status")
+        .select("status, price_tier")
         .eq("id", companyId)
         .maybeSingle();
       companyStatus = companyData?.status ?? null;
+      priceTier = (companyData as any)?.price_tier ?? null;
     }
 
-    setProfile({ role, company_id: companyId, companyStatus });
+    setProfile({ role, company_id: companyId, companyStatus, priceTier });
   }, []);
 
   useEffect(() => {
@@ -49,7 +53,7 @@ export function useAuth() {
           // Defer profile fetch to avoid blocking auth state change
           setTimeout(() => fetchProfile(u.id), 0);
         } else {
-          setProfile({ role: null, company_id: null, companyStatus: null });
+          setProfile({ role: null, company_id: null, companyStatus: null, priceTier: null });
         }
         setLoading(false);
       }
@@ -75,6 +79,7 @@ export function useAuth() {
     role: profile.role,
     company_id: profile.company_id,
     companyStatus: profile.companyStatus,
+    priceTier: profile.priceTier,
     refreshProfile: user ? () => fetchProfile(user.id) : () => Promise.resolve(),
   };
 }

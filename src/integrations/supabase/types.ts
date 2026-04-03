@@ -384,6 +384,7 @@ export type Database = {
           gst_number: string | null
           id: string
           preferred_courier: string | null
+          price_tier: string | null
           status: string | null
           wallet_balance: number | null
           website: string | null
@@ -401,6 +402,7 @@ export type Database = {
           gst_number?: string | null
           id?: string
           preferred_courier?: string | null
+          price_tier?: string | null
           status?: string | null
           wallet_balance?: number | null
           website?: string | null
@@ -418,6 +420,7 @@ export type Database = {
           gst_number?: string | null
           id?: string
           preferred_courier?: string | null
+          price_tier?: string | null
           status?: string | null
           wallet_balance?: number | null
           website?: string | null
