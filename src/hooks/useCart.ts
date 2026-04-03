@@ -31,8 +31,7 @@ const sortCartItems = (cartItems: CartItem[]) =>
   [...cartItems].sort((a, b) => (a.id || "").localeCompare(b.id || ""));
 
 export function useCart() {
-  const { user, loading: authLoading } = useAuth();
-  const [companyId, setCompanyId] = useState<string | null>(null);
+  const { user, loading: authLoading, companyId, profileReady } = useAuth();
   const [draftOrder, setDraftOrder] = useState<DraftOrder | null>(null);
   const [items, setItems] = useState<CartItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -41,51 +40,23 @@ export function useCart() {
   const quantitySyncTimeoutsRef = useRef(new Map<string, ReturnType<typeof setTimeout>>());
   const syncingItemIdsRef = useRef(new Set<string>());
 
-  // Step 1: Fetch company_id once auth is ready (with impersonation support)
-  useEffect(() => {
-    if (authLoading) return;
-    if (!user) {
-      setCompanyId(null);
-      setLoading(false);
-      return;
+  // Resolve effective company_id (impersonation takes precedence)
+  const effectiveCompanyId = (() => {
+    const impersonated = localStorage.getItem("impersonated_client");
+    if (impersonated) {
+      try {
+        const parsed = JSON.parse(impersonated);
+        if (parsed.company_id) return parsed.company_id;
+      } catch {}
     }
+    return companyId;
+  })();
 
-    const fetchCompany = async () => {
-      // Check for impersonation override
-      const impersonated = localStorage.getItem("impersonated_client");
-      if (impersonated) {
-        try {
-          const parsed = JSON.parse(impersonated);
-          if (parsed.company_id) {
-            
-            setCompanyId(parsed.company_id);
-            setCompanyIdResolved(true);
-            return;
-          }
-        } catch {}
-      }
-
-      
-      const { data } = await supabase
-        .from("users")
-        .select("company_id")
-        .eq("id", user.id)
-        .maybeSingle();
-
-      const cid = data?.company_id ?? null;
-      
-      setCompanyId(cid);
-      setCompanyIdResolved(true);
-    };
-
-    fetchCompany();
-  }, [user, authLoading]);
-
-  // Step 2: Fetch cart only after company_id is resolved
+  // Fetch cart once profile + company_id are resolved
   const fetchCart = useCallback(async () => {
     const requestId = ++fetchCartRequestRef.current;
 
-    if (!companyId) {
+    if (!effectiveCompanyId) {
       if (requestId === fetchCartRequestRef.current) {
         setLoading(false);
       }
@@ -95,7 +66,7 @@ export function useCart() {
     const { data: orders } = await supabase
       .from("orders")
       .select("*")
-      .eq("company_id", companyId)
+      .eq("company_id", effectiveCompanyId)
       .eq("status", "draft")
       .limit(1);
 
@@ -120,34 +91,29 @@ export function useCart() {
     if (requestId === fetchCartRequestRef.current) {
       setLoading(false);
     }
-  }, [companyId]);
-
-  // Track whether company_id has been resolved (null means "not yet fetched", undefined would mean "fetched but empty")
-  const [companyIdResolved, setCompanyIdResolved] = useState(false);
+  }, [effectiveCompanyId]);
 
   useEffect(() => {
-    if (authLoading) return;
+    if (authLoading || !profileReady) return;
     if (!user) { setLoading(false); return; }
-    if (!companyIdResolved) return; // still waiting for company fetch
-    if (!companyId) { setLoading(false); return; } // company is truly null
+    if (!effectiveCompanyId) { setLoading(false); return; }
     fetchCart();
-  }, [companyId, companyIdResolved, fetchCart, user, authLoading]);
+  }, [effectiveCompanyId, profileReady, fetchCart, user, authLoading]);
 
   const getOrCreateDraftOrder = async (): Promise<string | null> => {
     if (draftOrder) return draftOrder.id;
 
     if (!user) { toast.error("Please log in to add items to cart"); return null; }
-    if (!companyId) { toast.error("Your account is pending B2B approval."); return null; }
+    if (!effectiveCompanyId) { toast.error("Your account is pending B2B approval."); return null; }
 
     const { data: newOrder, error } = await supabase
       .from("orders")
-      .insert({ status: "draft", company_id: companyId })
+      .insert({ status: "draft", company_id: effectiveCompanyId })
       .select()
       .single();
 
     if (error || !newOrder) { toast.error("Could not create cart order"); return null; }
 
-    
     setDraftOrder(newOrder);
     return newOrder.id;
   };
@@ -296,11 +262,12 @@ export function useCart() {
   return {
     draftOrder,
     items,
-    loading: loading || authLoading,
+    loading: loading || authLoading || !profileReady,
     addToCart,
     updateQuantity,
     removeItem,
     fetchCart,
     clearCart,
+    companyId: effectiveCompanyId,
   };
 }

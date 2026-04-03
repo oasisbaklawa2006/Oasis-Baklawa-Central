@@ -107,7 +107,7 @@ const Cart = () => {
   const [addresses, setAddresses] = useState<any[]>([]);
   const [selectedAddress, setSelectedAddress] = useState("");
   const [transporter, setTransporter] = useState({ name: "", account: "" });
-  const [companyId, setCompanyId] = useState<string | null>(null);
+  const [cartCompanyId, setCartCompanyId] = useState<string | null>(null);
   const [allowCredit, setAllowCredit] = useState(false);
 
   // Quick-add address form
@@ -125,25 +125,13 @@ const Cart = () => {
   const [requestedDispatchDate, setRequestedDispatchDate] = useState<Date | undefined>(undefined);
   const [dispatchUrgency, setDispatchUrgency] = useState("standard");
 
-  const { draftOrder, items, updateQuantity, fetchCart, clearCart, loading: cartLoading } = useCart();
+  const { draftOrder, items, updateQuantity, fetchCart, clearCart, loading: cartLoading, companyId } = useCart();
 
   // Extracted address fetch for reuse & retry
   const fetchAddresses = useCallback(async () => {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return;
-
-    // Check for impersonation override
-    const impersonated = localStorage.getItem("impersonated_client");
-    let cid: string | null = null;
-    if (impersonated) {
-      try { cid = JSON.parse(impersonated).company_id || null; } catch {}
-    }
-    if (!cid) {
-      const { data: userRow } = await supabase.from("users").select("company_id").eq("id", user.id).maybeSingle();
-      cid = userRow?.company_id || null;
-    }
+    const cid = companyId;
     if (!cid) return;
-    setCompanyId(cid);
+    setCartCompanyId(cid);
 
     const { data: addrs } = await supabase
       .from("delivery_addresses")
@@ -155,7 +143,7 @@ const Cart = () => {
       setSelectedAddress(defaultAddr ? defaultAddr.id : addrs[0].id);
     } else {
       setAddresses([]);
-      setShowAddressForm(true); // Auto-show form if no addresses
+      setShowAddressForm(true);
     }
 
     const { data: comp } = await supabase
@@ -167,7 +155,7 @@ const Cart = () => {
       setTransporter({ name: comp.preferred_courier || "", account: comp.courier_account_number || "" });
       setAllowCredit(!!(comp as any).allow_credit);
     }
-  }, []);
+  }, [companyId]);
 
   // Fetch active MOQ rules, Logistics & Dispatch estimation data
   useEffect(() => {
