@@ -99,7 +99,7 @@ const RootGate = () => {
         .maybeSingle();
       const role = data?.role?.toUpperCase();
 
-      // 1. Factory TV group — most specific, check first
+      // 1. Factory TV group
       if (role && PROD_ROLE_ROUTES[role]) {
         setRedirect(PROD_ROLE_ROUTES[role]);
       }
@@ -107,11 +107,15 @@ const RootGate = () => {
       else if (role === "SALES_EXECUTIVE") {
         setRedirect("/sales/dashboard");
       }
-      // 3. Admin / operations / finance / gate group
+      // 3. Assembly Manager → dispatch board
+      else if (role === "ASSEMBLY_MANAGER") {
+        setRedirect("/admin/packing-dispatch");
+      }
+      // 4. Admin / operations / finance / gate group
       else if (role && ADMIN_ROLES.includes(role)) {
         setRedirect("/admin");
       }
-      // 4. Client group (buyer, client, null, or any unrecognized role)
+      // 5. Client group (buyer, client, null, or any unrecognized role)
       else {
         setRedirect(null);
       }
