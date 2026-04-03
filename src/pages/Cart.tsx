@@ -547,7 +547,7 @@ const Cart = () => {
                             </p>
                             <p className="text-[10px] text-muted-foreground font-medium mt-0.5">
                               {isBulk
-                                ? `₹${getDisplayPrice(p).price}/kg × ${weightKg}kg = ${formatPrice(unitPrice)}/pack`
+                                ? `₹${getDisplayPrice(p, priceTier).price}/kg × ${weightKg}kg = ${formatPrice(unitPrice)}/pack`
                                 : `${formatPrice(unitPrice)}/pc`}
                             </p>
                             <p className="text-[10px] text-muted-foreground font-bold mt-0.5">
