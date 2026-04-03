@@ -37,6 +37,7 @@ export function useAuth() {
   const [loading, setLoading] = useState(true);
   const [companyId, setCompanyId] = useState<string | null>(null);
   const [role, setRole] = useState<string | null>(null);
+  const [priceTier, setPriceTier] = useState<string | null>(null);
   const [profileReady, setProfileReady] = useState(false);
   const profileFetchedForRef = useRef<string | null>(null);
 
@@ -46,6 +47,7 @@ export function useAuth() {
     if (cached) {
       setCompanyId(cached.companyId);
       setRole(cached.role);
+      setPriceTier(cached.priceTier ?? null);
     }
   }, []);
 
