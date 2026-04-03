@@ -9,6 +9,7 @@ interface CheckoutModalProps {
   onClose: () => void;
   grandTotal: number;
   orderId?: string | null;
+  companyId?: string | null;
   onOrderConfirmed?: () => void;
 }
 
