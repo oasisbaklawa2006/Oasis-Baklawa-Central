@@ -20,28 +20,35 @@ export function useAuth() {
   });
 
   const fetchProfile = useCallback(async (userId: string) => {
-    const { data: userData } = await supabase
-      .from("users")
-      .select("role, company_id")
-      .eq("id", userId)
-      .maybeSingle();
-
-    const role = userData?.role ?? null;
-    const companyId = userData?.company_id ?? null;
-    let companyStatus: string | null = null;
-    let priceTier: string | null = null;
-
-    if (companyId) {
-      const { data: companyData } = await supabase
-        .from("companies")
-        .select("status, price_tier")
-        .eq("id", companyId)
+    try {
+      const { data: userData } = await supabase
+        .from("users")
+        .select("role, company_id")
+        .eq("id", userId)
         .maybeSingle();
-      companyStatus = companyData?.status ?? null;
-      priceTier = (companyData as any)?.price_tier ?? null;
-    }
 
-    setProfile({ role, company_id: companyId, companyStatus, priceTier });
+      const role = userData?.role ?? null;
+      const companyId = userData?.company_id ?? null;
+      let companyStatus: string | null = null;
+      let priceTier: string | null = null;
+
+      if (companyId) {
+        const { data: companyData } = await supabase
+          .from("companies")
+          .select("status, price_tier")
+          .eq("id", companyId)
+          .maybeSingle();
+        companyStatus = companyData?.status ?? null;
+        priceTier = (companyData as any)?.price_tier ?? null;
+      }
+
+      setProfile({ role, company_id: companyId, companyStatus, priceTier });
+    } catch (err) {
+      console.error("fetchProfile failed:", err);
+      setProfile({ role: null, company_id: null, companyStatus: null, priceTier: null });
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
   useEffect(() => {
@@ -63,7 +70,7 @@ export function useAuth() {
       const u = session?.user ?? null;
       setUser(u);
       if (u) {
-        fetchProfile(u.id).then(() => setLoading(false));
+        fetchProfile(u.id);
       } else {
         setLoading(false);
       }

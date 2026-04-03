@@ -4,6 +4,11 @@ import { useAuth } from "@/hooks/useAuth";
 const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   const { loading, isAuthenticated } = useAuth();
 
+  // If authenticated, render immediately even if profile is still loading
+  if (isAuthenticated) {
+    return <>{children}</>;
+  }
+
   if (loading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
@@ -12,11 +17,7 @@ const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
     );
   }
 
-  if (!isAuthenticated) {
-    return <Navigate to="/login" replace />;
-  }
-
-  return <>{children}</>;
+  return <Navigate to="/login" replace />;
 };
 
 export default ProtectedRoute;
