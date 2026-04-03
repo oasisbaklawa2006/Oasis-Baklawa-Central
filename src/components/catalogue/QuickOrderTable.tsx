@@ -17,16 +17,30 @@ const QuickOrderRow = ({ product }: { product: Product }) => {
   const displayInfo = getDisplayPrice(product);
   const packPrice = calculatePackPrice(product);
 
-  const [qty, setQty] = useState(moq);
+  const [qty, setQty] = useState(0);
   const [adding, setAdding] = useState(false);
 
   const lineTotal = packPrice * qty;
 
+  const handleIncrement = () => {
+    setQty((q) => (q === 0 ? moq : q + increment));
+  };
+
+  const handleDecrement = () => {
+    setQty((q) => {
+      if (q <= 0) return 0;
+      if (q <= moq) return 0;
+      const next = q - increment;
+      return next < moq ? 0 : next;
+    });
+  };
+
   const handleAdd = async () => {
+    if (qty <= 0) return;
     setAdding(true);
     await addToCart(product.id, qty, product.pack_size ?? null, product.carton_type ?? null);
     setAdding(false);
-    setQty(moq);
+    setQty(0);
   };
 
   return (
@@ -34,6 +48,7 @@ const QuickOrderRow = ({ product }: { product: Product }) => {
       <td className="py-2.5 pr-2">
         <p className="font-body text-xs font-medium text-foreground line-clamp-2 leading-snug">{product.name}</p>
         <p className="font-body text-[10px] text-muted-foreground">{product.sub_category || product.category}</p>
+        <p className="font-body text-[9px] text-muted-foreground/70">MOQ: {moq} | Pack Size: {increment}</p>
       </td>
       <td className="py-2.5 px-1 text-center">
         <p className="font-body text-[10px] text-muted-foreground">MOQ {moq}</p>
@@ -44,14 +59,14 @@ const QuickOrderRow = ({ product }: { product: Product }) => {
       <td className="py-2.5 px-1">
         <div className="flex items-center justify-center gap-0 bg-muted rounded-full px-0.5 py-0.5">
           <button
-            onClick={() => setQty((q) => Math.max(moq, q - increment))}
+            onClick={handleDecrement}
             className="w-6 h-6 rounded-full bg-foreground text-primary-foreground flex items-center justify-center"
           >
             <Minus size={10} />
           </button>
           <span className="font-body text-xs font-medium w-7 text-center text-foreground">{qty}</span>
           <button
-            onClick={() => setQty((q) => q + increment)}
+            onClick={handleIncrement}
             className="w-6 h-6 rounded-full bg-foreground text-primary-foreground flex items-center justify-center"
           >
             <Plus size={10} />
@@ -59,12 +74,12 @@ const QuickOrderRow = ({ product }: { product: Product }) => {
         </div>
       </td>
       <td className="py-2.5 pl-1 text-right">
-        <p className="font-body text-xs font-medium text-foreground">{formatPrice(lineTotal)}</p>
+        <p className="font-body text-xs font-medium text-foreground">{qty > 0 ? formatPrice(lineTotal) : "—"}</p>
       </td>
       <td className="py-2.5 pl-2">
         <button
           onClick={handleAdd}
-          disabled={adding}
+          disabled={adding || qty === 0}
           className="bg-foreground text-primary-foreground font-body text-[10px] font-medium px-3 py-1.5 rounded-lg hover:opacity-90 transition-opacity disabled:opacity-50"
         >
           {adding ? <Loader2 size={10} className="animate-spin" /> : "Add"}

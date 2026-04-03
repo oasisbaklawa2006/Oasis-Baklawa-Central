@@ -7,6 +7,7 @@ import {
   getDisplayPrice,
   getProductCategory,
   getMinOrderQty,
+  getQtyIncrement,
   getPrimaryPackWeightKg,
   unitsToFillCarton,
 } from "@/utils/pricing";
@@ -78,6 +79,10 @@ const CatalogueProductCard = ({ item }: CatalogueProductCardProps) => {
             </p>
           </div>
         </div>
+
+        <p className="font-body text-[9px] text-muted-foreground/70">
+          MOQ: {moq} | Pack Size: {getQtyIncrement(item)}
+        </p>
 
         {toFill > 0 && (
           <p className="font-body text-[9px] text-primary">

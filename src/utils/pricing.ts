@@ -145,16 +145,17 @@ export function calculateCartonPrice(product: any): number {
 
 export function getMinOrderQty(product: any): number {
   const cat = getProductCategory(product);
-  const moq = product?.moq || 1;
+  const rawMoq = product?.moq ?? 0;
+  // Safeguard: if MOQ is 0 or negative, treat as 1
+  const moq = rawMoq > 0 ? rawMoq : 1;
 
   switch (cat) {
     case "bulk_kg":
-      return moq; // starts at moq, increments by 1
+      return moq;
     case "ready_pc":
-      return moq; // starts at moq, increments by moq
+      return moq;
     case "premium_pc": {
       const perCarton = getPacksPerCarton(product);
-      // Min 1 full carton, or 2 if capacity ≤ 2
       return perCarton <= 2 ? perCarton * 2 : perCarton;
     }
   }

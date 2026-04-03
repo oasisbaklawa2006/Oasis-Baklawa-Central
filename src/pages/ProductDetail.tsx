@@ -53,7 +53,7 @@ const ProductDetail = () => {
       .then(({ data, error }) => {
         if (!error && data) {
           setProduct(data);
-          setBoxes(getMinOrderQty(data));
+          setBoxes(0);
         }
         setLoading(false);
       });
@@ -91,12 +91,13 @@ const ProductDetail = () => {
   const heroImages = images.length > 0 ? images : ["/placeholder.svg"];
 
   const handleAddToCart = async () => {
+    if (boxes <= 0) return;
     setIsAdding(true);
     const success = await addToCart(product.id, boxes, product.pack_size, product.carton_type);
     setIsAdding(false);
     if (success) {
       toast.success(`Added ${boxes} packs to your order!`, { icon: "📦" });
-      setBoxes(minQty);
+      setBoxes(0);
     }
   };
 
@@ -211,26 +212,34 @@ const ProductDetail = () => {
                 </div>
 
                 {/* Qty */}
-                <div className="flex items-center bg-muted rounded-full px-1 py-1 gap-0">
-                  <button
-                    onClick={() => setBoxes((b) => Math.max(minQty, b - increment))}
-                    className="w-8 h-8 rounded-full bg-foreground text-primary-foreground flex items-center justify-center"
-                  >
-                    <Minus size={14} />
-                  </button>
-                  <span className="font-body font-medium text-sm w-8 text-center text-foreground">{boxes}</span>
-                  <button
-                    onClick={() => setBoxes((b) => b + increment)}
-                    className="w-8 h-8 rounded-full bg-foreground text-primary-foreground flex items-center justify-center"
-                  >
-                    <Plus size={14} />
-                  </button>
+                <div className="flex flex-col items-center">
+                  <div className="flex items-center bg-muted rounded-full px-1 py-1 gap-0">
+                    <button
+                      onClick={() => setBoxes((b) => {
+                        if (b <= 0) return 0;
+                        if (b <= minQty) return 0;
+                        const next = b - increment;
+                        return next < minQty ? 0 : next;
+                      })}
+                      className="w-8 h-8 rounded-full bg-foreground text-primary-foreground flex items-center justify-center"
+                    >
+                      <Minus size={14} />
+                    </button>
+                    <span className="font-body font-medium text-sm w-8 text-center text-foreground">{boxes}</span>
+                    <button
+                      onClick={() => setBoxes((b) => (b === 0 ? minQty : b + increment))}
+                      className="w-8 h-8 rounded-full bg-foreground text-primary-foreground flex items-center justify-center"
+                    >
+                      <Plus size={14} />
+                    </button>
+                  </div>
+                  <p className="font-body text-[9px] text-muted-foreground mt-1">MOQ: {minQty} | Pack Size: {increment}</p>
                 </div>
 
                 {/* Add to Cart */}
                 <button
                   onClick={handleAddToCart}
-                  disabled={isAdding}
+                  disabled={isAdding || boxes === 0}
                   className="flex items-center gap-2 bg-foreground text-primary-foreground font-body text-sm font-medium px-5 py-2.5 rounded-full hover:opacity-90 transition-opacity disabled:opacity-50"
                 >
                   {isAdding ? <Loader2 size={16} className="animate-spin" /> : <ShoppingCart size={16} />}
