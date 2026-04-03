@@ -211,20 +211,28 @@ const ProductDetail = () => {
                 </div>
 
                 {/* Qty */}
-                <div className="flex items-center bg-muted rounded-full px-1 py-1 gap-0">
-                  <button
-                    onClick={() => setBoxes((b) => Math.max(minQty, b - increment))}
-                    className="w-8 h-8 rounded-full bg-foreground text-primary-foreground flex items-center justify-center"
-                  >
-                    <Minus size={14} />
-                  </button>
-                  <span className="font-body font-medium text-sm w-8 text-center text-foreground">{boxes}</span>
-                  <button
-                    onClick={() => setBoxes((b) => b + increment)}
-                    className="w-8 h-8 rounded-full bg-foreground text-primary-foreground flex items-center justify-center"
-                  >
-                    <Plus size={14} />
-                  </button>
+                <div className="flex flex-col items-center">
+                  <div className="flex items-center bg-muted rounded-full px-1 py-1 gap-0">
+                    <button
+                      onClick={() => setBoxes((b) => {
+                        if (b <= 0) return 0;
+                        if (b <= minQty) return 0;
+                        const next = b - increment;
+                        return next < minQty ? 0 : next;
+                      })}
+                      className="w-8 h-8 rounded-full bg-foreground text-primary-foreground flex items-center justify-center"
+                    >
+                      <Minus size={14} />
+                    </button>
+                    <span className="font-body font-medium text-sm w-8 text-center text-foreground">{boxes}</span>
+                    <button
+                      onClick={() => setBoxes((b) => (b === 0 ? minQty : b + increment))}
+                      className="w-8 h-8 rounded-full bg-foreground text-primary-foreground flex items-center justify-center"
+                    >
+                      <Plus size={14} />
+                    </button>
+                  </div>
+                  <p className="font-body text-[9px] text-muted-foreground mt-1">MOQ: {minQty} | Pack Size: {increment}</p>
                 </div>
 
                 {/* Add to Cart */}
