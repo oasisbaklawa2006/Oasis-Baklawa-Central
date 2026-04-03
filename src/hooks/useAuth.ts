@@ -8,6 +8,7 @@ interface AuthCache {
   userId: string;
   companyId: string | null;
   role: string | null;
+  priceTier: string | null;
 }
 
 function readCache(): AuthCache | null {
