@@ -62,11 +62,11 @@ export function getPrimaryPackWeightKg(product: any): number {
 // ── Base price helpers ──────────────────────────────────────────────
 
 export function getBasePricePerKg(product: any): number {
-  return product?.price_per_kg || product?.wholesale_price || product?.base_price || 0;
+  return product?.price_per_kg || product?.wholesale_price || product?.price_b2b || product?.base_price || product?.mrp || 0;
 }
 
 export function getBasePricePerPc(product: any): number {
-  return product?.mrp_per_pc || product?.base_price || product?.wholesale_price || product?.price_per_kg || 0;
+  return product?.mrp_per_pc || product?.base_price || product?.wholesale_price || product?.price_b2b || product?.price_per_kg || product?.mrp || 0;
 }
 
 // ── Display price (what appears on catalogue cards) ─────────────────
