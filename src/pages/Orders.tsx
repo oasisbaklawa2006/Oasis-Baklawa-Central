@@ -73,7 +73,7 @@ const Orders = () => {
     const { data, error } = await supabase
       .from("orders")
       .select(
-        "id, status, payment_status, payment_receipt_url, created_at, sales_order_value, document_stage, payment_cleared, eway_bill_number, proforma_invoice_url, final_invoice_url, eway_bill_url, order_items(*, product:products(name, image_url, pack_size, carton_type, wholesale_price, mrp, price_per_kg, avg_weight_per_pack, net_weight_grams))",
+        "id, status, payment_status, payment_receipt_url, created_at, sales_order_value, document_stage, payment_cleared, eway_bill_number, proforma_invoice_url, final_invoice_url, eway_bill_url, company:companies(business_name, gst_number), order_items(*, product:products(name, image_url, pack_size, carton_type, wholesale_price, mrp, price_per_kg, price_b2b, base_price, avg_weight_per_pack, net_weight_grams, gst_percentage, hsn_code, uom, category, sub_category, moq, packs_per_master_carton, pcs_per_master_carton))",
       )
       .in("status", ["submitted", "pending", "processing", "dispatched", "delivered", "cancelled"])
       .order("created_at", { ascending: false });
