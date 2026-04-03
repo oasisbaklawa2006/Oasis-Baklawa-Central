@@ -184,8 +184,8 @@ export function getPacksPerCarton(product: any): number {
   }
 }
 
-export function calculateCartonPrice(product: any): number {
-  return calculatePackPrice(product) * getPacksPerCarton(product);
+export function calculateCartonPrice(product: any, priceTier?: string | null): number {
+  return calculatePackPrice(product, priceTier) * getPacksPerCarton(product);
 }
 
 // ── MOQ / Qty stepper logic ─────────────────────────────────────────
