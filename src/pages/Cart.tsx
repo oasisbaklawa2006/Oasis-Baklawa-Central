@@ -125,7 +125,7 @@ const Cart = () => {
   const [requestedDispatchDate, setRequestedDispatchDate] = useState<Date | undefined>(undefined);
   const [dispatchUrgency, setDispatchUrgency] = useState("standard");
 
-  const { draftOrder, items, updateQuantity, fetchCart, clearCart, loading: cartLoading } = useCart();
+  const { draftOrder, items, updateQuantity, fetchCart, clearCart, loading: cartLoading, companyId } = useCart();
 
   // Extracted address fetch for reuse & retry
   const fetchAddresses = useCallback(async () => {
