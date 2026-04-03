@@ -98,15 +98,17 @@ export function useAuth() {
       try {
         const { data } = await supabase
           .from("users")
-          .select("company_id, role")
+          .select("company_id, role, price_tier")
           .eq("id", user.id)
           .maybeSingle();
 
         const cid = data?.company_id ?? null;
         const r = data?.role ?? null;
+        const pt = data?.price_tier ?? null;
         setCompanyId(cid);
         setRole(r);
-        writeCache({ userId: user.id, companyId: cid, role: r });
+        setPriceTier(pt);
+        writeCache({ userId: user.id, companyId: cid, role: r, priceTier: pt });
       } catch {
         // Use cached values if fetch fails
       } finally {
