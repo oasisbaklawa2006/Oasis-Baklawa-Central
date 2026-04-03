@@ -151,16 +151,17 @@ const App = () => (
             <Route path="/login" element={<Login />} />
             <Route path="/register" element={<Register />} />
             <Route path="/onboarding" element={<Onboarding />} />
-            <Route path="/buyer-portal" element={<ProtectedRoute><RoleProtectedRoute allowedRoles={['BUYER', 'CUSTOMER_USER', 'CLIENT', null]}><BuyerPortal /></RoleProtectedRoute></ProtectedRoute>} />
-            <Route path="/cart" element={<ProtectedRoute><RoleProtectedRoute allowedRoles={['BUYER', 'CUSTOMER_USER', 'CLIENT', null]}><Cart /></RoleProtectedRoute></ProtectedRoute>} />
-            <Route path="/orders" element={<ProtectedRoute><RoleProtectedRoute allowedRoles={['BUYER', 'CUSTOMER_USER', 'CLIENT', null]}><Orders /></RoleProtectedRoute></ProtectedRoute>} />
-            <Route path="/dashboard" element={<ProtectedRoute><RoleProtectedRoute allowedRoles={['BUYER', 'CUSTOMER_USER', 'CLIENT', null]}><Dashboard /></RoleProtectedRoute></ProtectedRoute>} />
-            <Route path="/account" element={<ProtectedRoute><RoleProtectedRoute allowedRoles={['BUYER', 'CUSTOMER_USER', 'CLIENT', null]}><Account /></RoleProtectedRoute></ProtectedRoute>} />
-            <Route path="/favorites" element={<ProtectedRoute><RoleProtectedRoute allowedRoles={['BUYER', 'CUSTOMER_USER', 'CLIENT', null]}><Favorites /></RoleProtectedRoute></ProtectedRoute>} />
-            <Route path="/account/users" element={<ProtectedRoute><RoleProtectedRoute allowedRoles={['BUYER', 'CUSTOMER_USER', 'CLIENT', null]}><ManageUsers /></RoleProtectedRoute></ProtectedRoute>} />
-            <Route path="/account/addresses" element={<ProtectedRoute><RoleProtectedRoute allowedRoles={['BUYER', 'CUSTOMER_USER', 'CLIENT', null]}><ManageAddresses /></RoleProtectedRoute></ProtectedRoute>} />
-            <Route path="/account/logistics" element={<ProtectedRoute><RoleProtectedRoute allowedRoles={['BUYER', 'CUSTOMER_USER', 'CLIENT', null]}><ManageLogistics /></RoleProtectedRoute></ProtectedRoute>} />
-            <Route path="/documents" element={<ProtectedRoute><RoleProtectedRoute allowedRoles={['BUYER', 'CUSTOMER_USER', 'CLIENT', null]}><Documents /></RoleProtectedRoute></ProtectedRoute>} />
+            <Route path="/buyer-portal" element={<ProtectedRoute><RoleProtectedRoute allowedRoles={['BUYER', 'CUSTOMER_USER', 'CLIENT']}><BuyerPortal /></RoleProtectedRoute></ProtectedRoute>} />
+            <Route path="/cart" element={<ProtectedRoute><RoleProtectedRoute allowedRoles={['BUYER', 'CUSTOMER_USER', 'CLIENT']}><Cart /></RoleProtectedRoute></ProtectedRoute>} />
+            <Route path="/orders" element={<ProtectedRoute><RoleProtectedRoute allowedRoles={['BUYER', 'CUSTOMER_USER', 'CLIENT']}><Orders /></RoleProtectedRoute></ProtectedRoute>} />
+            <Route path="/dashboard" element={<ProtectedRoute><RoleProtectedRoute allowedRoles={['BUYER', 'CUSTOMER_USER', 'CLIENT']}><Dashboard /></RoleProtectedRoute></ProtectedRoute>} />
+            <Route path="/account" element={<ProtectedRoute><RoleProtectedRoute allowedRoles={['BUYER', 'CUSTOMER_USER', 'CLIENT']}><Account /></RoleProtectedRoute></ProtectedRoute>} />
+            <Route path="/favorites" element={<ProtectedRoute><RoleProtectedRoute allowedRoles={['BUYER', 'CUSTOMER_USER', 'CLIENT']}><Favorites /></RoleProtectedRoute></ProtectedRoute>} />
+            <Route path="/account/users" element={<ProtectedRoute><RoleProtectedRoute allowedRoles={['BUYER', 'CUSTOMER_USER', 'CLIENT']}><ManageUsers /></RoleProtectedRoute></ProtectedRoute>} />
+            <Route path="/account/addresses" element={<ProtectedRoute><RoleProtectedRoute allowedRoles={['BUYER', 'CUSTOMER_USER', 'CLIENT']}><ManageAddresses /></RoleProtectedRoute></ProtectedRoute>} />
+            <Route path="/account/logistics" element={<ProtectedRoute><RoleProtectedRoute allowedRoles={['BUYER', 'CUSTOMER_USER', 'CLIENT']}><ManageLogistics /></RoleProtectedRoute></ProtectedRoute>} />
+            <Route path="/documents" element={<ProtectedRoute><RoleProtectedRoute allowedRoles={['BUYER', 'CUSTOMER_USER', 'CLIENT']}><Documents /></RoleProtectedRoute></ProtectedRoute>} />
+            <Route path="/approval-pending" element={<ProtectedRoute><div className="min-h-screen flex items-center justify-center bg-background p-6"><div className="text-center space-y-4 max-w-md"><h1 className="text-2xl font-bold text-foreground">Application Under Review</h1><p className="text-muted-foreground">Your B2B account application is currently being reviewed. You will be notified once approved.</p><p className="text-sm text-muted-foreground">Contact: support@oasisbaklawa.com</p></div></div></ProtectedRoute>} />
 
             <Route
               path="/admin"
