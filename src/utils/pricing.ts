@@ -118,33 +118,33 @@ export function getBasePricePerPc(product: any): number {
 
 // ── Display price (what appears on catalogue cards) ─────────────────
 
-export function getDisplayPrice(product: any): { price: number; unit: string } {
+export function getDisplayPrice(product: any, priceTier?: string | null): { price: number; unit: string } {
   const cat = getProductCategory(product);
 
   switch (cat) {
     case "bulk_kg":
-      return { price: getBasePricePerKg(product), unit: "/kg" };
+      return { price: getTieredPricePerKg(product, priceTier), unit: "/kg" };
     case "ready_pc":
     case "premium_pc":
-      return { price: getBasePricePerPc(product), unit: "/pc" };
+      return { price: getTieredPricePerPc(product, priceTier), unit: "/pc" };
   }
 }
 
 // ── Pack / unit price (price of one orderable unit) ─────────────────
 
-export function calculatePackPrice(product: any): number {
+export function calculatePackPrice(product: any, priceTier?: string | null): number {
   const cat = getProductCategory(product);
 
   switch (cat) {
     case "bulk_kg": {
-      const perKg = getBasePricePerKg(product);
+      const perKg = getTieredPricePerKg(product, priceTier);
       const weightKg = getPrimaryPackWeightKg(product);
       if (perKg > 0 && weightKg > 0) return perKg * weightKg;
       return product?.mrp || perKg || 0;
     }
     case "ready_pc":
     case "premium_pc":
-      return getBasePricePerPc(product);
+      return getTieredPricePerPc(product, priceTier);
   }
 }
 
