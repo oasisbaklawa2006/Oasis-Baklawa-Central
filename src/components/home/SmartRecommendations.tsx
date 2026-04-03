@@ -8,7 +8,7 @@ import { motion } from "framer-motion";
 import { getDisplayPrice, getMinOrderQty } from "@/utils/pricing";
 import { useState } from "react";
 
-const SmartRecommendations = () => {
+const SmartRecommendations = ({ priceTier }: { priceTier?: string | null }) => {
   const navigate = useNavigate();
   const { products, loading } = useProducts();
   const { isAuthenticated } = useAuth();
@@ -36,6 +36,7 @@ const SmartRecommendations = () => {
             key={product.id}
             product={product}
             index={i}
+            priceTier={priceTier}
             navigate={navigate}
             formatPrice={formatPrice}
             isAuthenticated={isAuthenticated}
@@ -47,9 +48,9 @@ const SmartRecommendations = () => {
   );
 };
 
-const RecCard = ({ product, index, navigate, formatPrice, isAuthenticated, addToCart }: any) => {
+const RecCard = ({ product, index, navigate, formatPrice, isAuthenticated, addToCart, priceTier }: any) => {
   const [adding, setAdding] = useState(false);
-  const displayInfo = getDisplayPrice(product);
+  const displayInfo = getDisplayPrice(product, priceTier);
   const moq = getMinOrderQty(product);
 
   const handleQuickAdd = async (e: React.MouseEvent) => {

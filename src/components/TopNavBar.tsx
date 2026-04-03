@@ -8,6 +8,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useCurrency } from "@/contexts/CurrencyContext";
 import { useAuth } from "@/hooks/useAuth";
+import { signOutAndClearSession } from "@/utils/authSession";
 
 const TopNavBar = () => {
   const [showNotifs, setShowNotifs] = useState(false);
@@ -21,7 +22,7 @@ const TopNavBar = () => {
   const { user } = useAuth();
 
   const handleSignOut = async () => {
-    await supabase.auth.signOut();
+    await signOutAndClearSession();
     navigate("/splash");
   };
 

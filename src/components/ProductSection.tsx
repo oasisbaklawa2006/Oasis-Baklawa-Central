@@ -11,20 +11,29 @@ interface ProductSectionProps {
   title?: string;
   subtitle?: string;
   variant?: "default" | "gold-block" | "editorial" | "compact";
+  priceTier?: string | null;
 }
 
 interface TaggedProduct {
   id: string;
   name: string;
   image_url: string | null;
+  price_per_kg: number | null;
+  price_b2b: number | null;
+  price_wholesale: number | null;
+  wholesale_price: number | null;
   base_price: number | null;
+  mrp: number | null;
+  mrp_per_pc: number | null;
+  uom: string | null;
   pack_size: string | null;
   carton_type: string | null;
   category: string;
+  sub_category: string | null;
   manual_sort_index: number | null;
 }
 
-const ProductSection = ({ tagKey, title, subtitle, variant = "default" }: ProductSectionProps) => {
+const ProductSection = ({ tagKey, title, subtitle, variant = "default", priceTier }: ProductSectionProps) => {
   const [products, setProducts] = useState<TaggedProduct[]>([]);
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
@@ -53,7 +62,7 @@ const ProductSection = ({ tagKey, title, subtitle, variant = "default" }: Produc
       const productIds = mappings.map(m => m.product_id).filter(Boolean) as string[];
       const { data: prods } = await supabase
         .from("products")
-        .select("id, name, image_url, base_price, pack_size, carton_type, category")
+        .select("id, name, image_url, price_per_kg, price_b2b, price_wholesale, wholesale_price, base_price, mrp, mrp_per_pc, uom, pack_size, carton_type, category, sub_category")
         .in("id", productIds)
         .eq("is_active", true);
 
@@ -83,7 +92,7 @@ const ProductSection = ({ tagKey, title, subtitle, variant = "default" }: Produc
     return (
       <div className="flex overflow-x-auto scrollbar-hide gap-3 pb-1 snap-x">
         {products.slice(0, 8).map((item) => (
-          <CompactCard key={item.id} item={item} navigate={navigate} formatPrice={formatPrice} addToCart={addToCart} />
+          <CompactCard key={item.id} item={item} navigate={navigate} formatPrice={formatPrice} addToCart={addToCart} priceTier={priceTier} />
         ))}
       </div>
     );
@@ -102,31 +111,38 @@ const ProductSection = ({ tagKey, title, subtitle, variant = "default" }: Produc
       )}
       <div className="flex overflow-x-auto scrollbar-hide gap-4 pb-2 snap-x">
         {products.map((item) => (
-          <div
-            key={item.id}
-            onClick={() => navigate(`/product/${item.id}`)}
-            className="min-w-[140px] max-w-[140px] snap-start cursor-pointer flex-shrink-0 group"
-          >
-            <div className="w-full aspect-square rounded-lg overflow-hidden bg-muted flex items-center justify-center mb-2">
-              {item.image_url ? (
-                <img src={item.image_url} alt={item.name} className="w-full h-full object-contain group-hover:scale-105 transition-transform duration-500" loading="lazy" />
-              ) : (
-                <Package size={20} className="text-muted-foreground" />
-              )}
-            </div>
-            <p className="font-body text-xs text-foreground line-clamp-1 mb-0.5">{item.name}</p>
-            <p className="font-body text-[11px] text-muted-foreground">
-              {item.base_price ? formatPrice(item.base_price) + "/kg" : ""}
-            </p>
-          </div>
+          (() => {
+            const displayInfo = getDisplayPrice(item, priceTier);
+
+            return (
+              <div
+                key={item.id}
+                onClick={() => navigate(`/product/${item.id}`)}
+                className="min-w-[140px] max-w-[140px] snap-start cursor-pointer flex-shrink-0 group"
+              >
+                <div className="w-full aspect-square rounded-lg overflow-hidden bg-muted flex items-center justify-center mb-2">
+                  {item.image_url ? (
+                    <img src={item.image_url} alt={item.name} className="w-full h-full object-contain group-hover:scale-105 transition-transform duration-500" loading="lazy" />
+                  ) : (
+                    <Package size={20} className="text-muted-foreground" />
+                  )}
+                </div>
+                <p className="font-body text-xs text-foreground line-clamp-1 mb-0.5">{item.name}</p>
+                <p className="font-body text-[11px] text-muted-foreground">
+                  {formatPrice(displayInfo.price)}{displayInfo.unit}
+                </p>
+              </div>
+            );
+          })()
         ))}
       </div>
     </section>
   );
 };
 
-const CompactCard = ({ item, navigate, formatPrice, addToCart }: any) => {
+const CompactCard = ({ item, navigate, formatPrice, addToCart, priceTier }: any) => {
   const [adding, setAdding] = useState(false);
+  const displayInfo = getDisplayPrice(item, priceTier);
 
   const handleQuickAdd = async (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -156,7 +172,7 @@ const CompactCard = ({ item, navigate, formatPrice, addToCart }: any) => {
       </div>
       <p className="font-body text-[11px] text-foreground line-clamp-1">{item.name}</p>
       <p className="font-body text-[10px] text-muted-foreground">
-        {item.base_price ? formatPrice(item.base_price) + "/kg" : ""}
+        {formatPrice(displayInfo.price)}{displayInfo.unit}
       </p>
     </div>
   );

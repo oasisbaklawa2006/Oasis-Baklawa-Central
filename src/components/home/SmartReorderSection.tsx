@@ -6,22 +6,28 @@ import { useCart } from "@/hooks/useCart";
 import { useAuth } from "@/hooks/useAuth";
 import { Loader2, Package, Plus } from "lucide-react";
 import { motion } from "framer-motion";
+import { getDisplayPrice } from "@/utils/pricing";
 
 interface ReorderProduct {
   id: string;
   name: string;
   image_url: string | null;
-  price_per_kg: number;
+  price_per_kg: number | null;
   price_b2b: number | null;
+  price_wholesale: number | null;
   wholesale_price: number | null;
   base_price: number | null;
   mrp: number | null;
+  mrp_per_pc: number | null;
+  uom: string | null;
+  category: string | null;
+  sub_category: string | null;
   pack_size: string | null;
   carton_type: string | null;
   quantity: number;
 }
 
-const SmartReorderSection = () => {
+const SmartReorderSection = ({ priceTier }: { priceTier?: string | null }) => {
   const [items, setItems] = useState<ReorderProduct[]>([]);
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
@@ -56,7 +62,7 @@ const SmartReorderSection = () => {
         const sortedIds = Object.entries(qtyMap).sort(([, a], [, b]) => b - a).slice(0, 8).map(([id]) => id);
         if (sortedIds.length === 0) { setLoading(false); return; }
         const { data: products } = await supabase
-          .from("products").select("id, name, image_url, price_per_kg, price_b2b, wholesale_price, base_price, mrp, pack_size, carton_type")
+          .from("products").select("id, name, image_url, price_per_kg, price_b2b, price_wholesale, wholesale_price, base_price, mrp, mrp_per_pc, uom, category, sub_category, pack_size, carton_type")
           .in("id", sortedIds).eq("is_active", true);
         if (products) {
           setItems(sortedIds.map(id => {
@@ -90,15 +96,16 @@ const SmartReorderSection = () => {
       </div>
       <div className="flex overflow-x-auto scrollbar-hide gap-3 pb-1 snap-x">
         {items.map((item, i) => (
-          <ReorderCard key={item.id} item={item} index={i} navigate={navigate} formatPrice={formatPrice} addToCart={addToCart} />
+          <ReorderCard key={item.id} item={item} index={i} navigate={navigate} formatPrice={formatPrice} addToCart={addToCart} priceTier={priceTier} />
         ))}
       </div>
     </section>
   );
 };
 
-const ReorderCard = ({ item, index, navigate, formatPrice, addToCart }: any) => {
+const ReorderCard = ({ item, index, navigate, formatPrice, addToCart, priceTier }: any) => {
   const [adding, setAdding] = useState(false);
+  const displayInfo = getDisplayPrice(item, priceTier);
 
   const handleQuickAdd = async (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -140,7 +147,7 @@ const ReorderCard = ({ item, index, navigate, formatPrice, addToCart }: any) => 
       </div>
       <p className="font-serif text-[10px] text-foreground line-clamp-1 mb-0.5">{item.name}</p>
       <p className="font-body text-[9px] text-foreground font-medium">
-        {formatPrice(item.price_per_kg || item.price_b2b || item.wholesale_price || item.base_price || item.mrp || 0)}<span className="font-normal text-muted-foreground">/kg</span>
+        {formatPrice(displayInfo.price)}<span className="font-normal text-muted-foreground">{displayInfo.unit}</span>
       </p>
     </motion.div>
   );

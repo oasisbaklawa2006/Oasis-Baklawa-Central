@@ -4,6 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useLanguage } from "@/hooks/useLanguage";
 import { useCurrency } from "@/hooks/useCurrency";
+import { signOutAndClearSession } from "@/utils/authSession";
 import {
   Loader2, LogOut, AlertTriangle, ArrowRight, ClipboardList,
   ShoppingCart, Factory, PackageCheck, Landmark, AlertCircle,
@@ -111,7 +112,7 @@ const AdminDashboard = () => {
     return () => { supabase.removeChannel(ch); };
   }, [fetchData]);
 
-  const handleLogout = async () => { await supabase.auth.signOut(); navigate("/splash"); };
+  const handleLogout = async () => { await signOutAndClearSession(); navigate("/splash"); };
 
   if (loading) return <div className="flex items-center justify-center py-20"><Loader2 size={24} className="animate-spin text-primary" /></div>;
 

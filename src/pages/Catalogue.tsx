@@ -10,6 +10,7 @@ import CatalogueProductCard from "@/components/catalogue/CatalogueProductCard";
 import CartonBuilderBar from "@/components/catalogue/CartonBuilderBar";
 import SuggestionChips from "@/components/catalogue/SuggestionChips";
 import QuickOrderTable from "@/components/catalogue/QuickOrderTable";
+import { useAuth } from "@/hooks/useAuth";
 
 type CatalogueView = "categories" | "subcategories" | "products";
 type BrowseMode = "browse" | "quickorder";
@@ -18,6 +19,7 @@ const Catalogue = () => {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const { products, loading: productsLoading } = useProducts();
+  const { user, priceTier, refreshPriceTier } = useAuth();
 
   const paramCategory = searchParams.get("category");
   const paramSubCategory = searchParams.get("subcategory");
@@ -31,6 +33,11 @@ const Catalogue = () => {
     setActiveCategory(searchParams.get("category"));
     setActiveSubCategory(searchParams.get("subcategory"));
   }, [searchParams]);
+
+  useEffect(() => {
+    if (!user) return;
+    void refreshPriceTier();
+  }, [refreshPriceTier, user?.id]);
 
   const currentView: CatalogueView = searchQuery
     ? "products"
@@ -215,7 +222,7 @@ const Catalogue = () => {
                   ) : (
                     <div className="grid grid-cols-2 gap-3">
                       {filtered.map((item) => (
-                        <CatalogueProductCard key={item.id} item={item} />
+                        <CatalogueProductCard key={item.id} item={item} priceTier={priceTier} />
                       ))}
                     </div>
                   )}
@@ -231,11 +238,11 @@ const Catalogue = () => {
                   </h2>
 
                   {browseMode === "quickorder" ? (
-                    <QuickOrderTable products={filtered} />
+                    <QuickOrderTable products={filtered} priceTier={priceTier} />
                   ) : (
                     <div className="grid grid-cols-2 gap-3">
                       {filtered.map((item) => (
-                        <CatalogueProductCard key={item.id} item={item} />
+                        <CatalogueProductCard key={item.id} item={item} priceTier={priceTier} />
                       ))}
                     </div>
                   )}

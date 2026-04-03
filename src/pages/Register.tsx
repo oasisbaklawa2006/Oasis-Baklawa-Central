@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { supabase } from "@/integrations/supabase/client";
+import { signOutAndClearSession } from "@/utils/authSession";
 import { toast } from "sonner";
 import logoImg from "@/assets/logo-open.png";
 
@@ -218,7 +219,7 @@ const Register = () => {
       }
 
       // Sign out immediately — pending users should not be logged in
-      await supabase.auth.signOut();
+      await signOutAndClearSession();
 
       setSubmitted(true);
     } catch (err) {

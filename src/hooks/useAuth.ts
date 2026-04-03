@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import type { User } from "@supabase/supabase-js";
 
@@ -39,52 +39,195 @@ export function useAuth() {
   const [role, setRole] = useState<string | null>(null);
   const [priceTier, setPriceTier] = useState<string | null>(null);
   const [profileReady, setProfileReady] = useState(false);
+  const cachedProfileRef = useRef<AuthCache | null>(null);
+  const currentUserIdRef = useRef<string | null>(null);
   const profileFetchedForRef = useRef<string | null>(null);
 
-  // Instant rehydration from cache
   useEffect(() => {
-    const cached = readCache();
-    if (cached) {
-      setCompanyId(cached.companyId);
-      setRole(cached.role);
-      setPriceTier(cached.priceTier ?? null);
-    }
+    cachedProfileRef.current = readCache();
   }, []);
+
+  const getCachedForUser = useCallback((userId?: string | null) => {
+    const cached = cachedProfileRef.current;
+    if (!userId || !cached || cached.userId !== userId) return null;
+    return cached;
+  }, []);
+
+  const applyCachedCommerceState = useCallback((userId?: string | null) => {
+    const cached = getCachedForUser(userId);
+    if (!cached) return false;
+
+    setCompanyId(cached.companyId);
+    setPriceTier(cached.priceTier ?? null);
+    return true;
+  }, [getCachedForUser]);
+
+  const persistCache = useCallback((data: AuthCache) => {
+    cachedProfileRef.current = data;
+    writeCache(data);
+  }, []);
+
+  const fetchProfile = useCallback(async (activeUser: User) => {
+    try {
+      const { data } = await supabase
+        .from("users")
+        .select("company_id, role")
+        .eq("id", activeUser.id)
+        .maybeSingle();
+
+      const cid = data?.company_id ?? null;
+      const r = data?.role ?? null;
+      setCompanyId(cid);
+      setRole(r);
+
+      let pt: string | null = null;
+      if (cid) {
+        const { data: compData } = await supabase
+          .from("companies")
+          .select("price_tier")
+          .eq("id", cid)
+          .maybeSingle();
+        pt = compData?.price_tier ?? null;
+      }
+
+      setPriceTier(pt);
+      persistCache({ userId: activeUser.id, companyId: cid, role: r, priceTier: pt });
+    } catch {
+      const cached = getCachedForUser(activeUser.id);
+      if (cached) {
+        setCompanyId(cached.companyId);
+        setRole(cached.role);
+        setPriceTier(cached.priceTier ?? null);
+      }
+    }
+  }, [getCachedForUser, persistCache]);
+
+  const refreshPriceTier = useCallback(async () => {
+    if (!user) return null;
+
+    try {
+      let resolvedCompanyId = companyId;
+
+      if (!resolvedCompanyId) {
+        const { data } = await supabase
+          .from("users")
+          .select("company_id, role")
+          .eq("id", user.id)
+          .maybeSingle();
+
+        resolvedCompanyId = data?.company_id ?? null;
+        setCompanyId(resolvedCompanyId);
+
+        if (data?.role) {
+          setRole(data.role);
+        }
+      }
+
+      if (!resolvedCompanyId) {
+        setPriceTier(null);
+        const cached = getCachedForUser(user.id);
+        persistCache({
+          userId: user.id,
+          companyId: null,
+          role: role ?? cached?.role ?? null,
+          priceTier: null,
+        });
+        return null;
+      }
+
+      const { data: companyData } = await supabase
+        .from("companies")
+        .select("price_tier")
+        .eq("id", resolvedCompanyId)
+        .maybeSingle();
+
+      const nextPriceTier = companyData?.price_tier ?? null;
+      setPriceTier(nextPriceTier);
+
+      const cached = getCachedForUser(user.id);
+      persistCache({
+        userId: user.id,
+        companyId: resolvedCompanyId,
+        role: role ?? cached?.role ?? null,
+        priceTier: nextPriceTier,
+      });
+
+      return nextPriceTier;
+    } catch {
+      return getCachedForUser(user.id)?.priceTier ?? null;
+    }
+  }, [companyId, getCachedForUser, persistCache, role, user]);
 
   // Auth listener — silent, no remounts
   useEffect(() => {
-    // Restore session first
+    let mounted = true;
+
     supabase.auth.getSession().then(({ data: { session } }) => {
-      setUser(session?.user ?? null);
+      if (!mounted) return;
+
+      const nextUser = session?.user ?? null;
+      currentUserIdRef.current = nextUser?.id ?? null;
+      setUser(nextUser);
       setLoading(false);
-      if (!session?.user) {
+
+      if (!nextUser) {
         clearCache();
+        cachedProfileRef.current = null;
         setCompanyId(null);
         setRole(null);
+        setPriceTier(null);
         setProfileReady(true);
+        return;
+      }
+
+      setRole(null);
+      setProfileReady(false);
+      if (!applyCachedCommerceState(nextUser.id)) {
+        setCompanyId(null);
+        setPriceTier(null);
       }
     });
 
-    // Listen for changes (token refresh, sign-in, sign-out)
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (_event, session) => {
-        // Silent update — just swap user ref, no layout remount
-        setUser(session?.user ?? null);
+        const nextUser = session?.user ?? null;
+        const nextUserId = nextUser?.id ?? null;
+        const userChanged = currentUserIdRef.current !== nextUserId;
+
+        currentUserIdRef.current = nextUserId;
+        setUser(nextUser);
         setLoading(false);
-        if (!session?.user) {
+
+        if (!nextUser) {
           clearCache();
+          cachedProfileRef.current = null;
           setCompanyId(null);
           setRole(null);
+          setPriceTier(null);
           setProfileReady(true);
           profileFetchedForRef.current = null;
+          return;
+        }
+
+        if (userChanged) {
+          profileFetchedForRef.current = null;
+          setRole(null);
+          setProfileReady(false);
+
+          if (!applyCachedCommerceState(nextUser.id)) {
+            setCompanyId(null);
+            setPriceTier(null);
+          }
         }
       }
     );
 
-    return () => subscription.unsubscribe();
-  }, []);
+    return () => {
+      mounted = false;
+      subscription.unsubscribe();
+    };
+  }, [applyCachedCommerceState]);
 
-  // Fetch profile (company_id, role) once per unique user — fire-and-forget
   useEffect(() => {
     if (loading) return;
     if (!user) {
@@ -93,41 +236,12 @@ export function useAuth() {
     }
     if (profileFetchedForRef.current === user.id) return;
     profileFetchedForRef.current = user.id;
+    setProfileReady(false);
 
-    const fetchProfile = async () => {
-      try {
-        const { data } = await supabase
-          .from("users")
-          .select("company_id, role")
-          .eq("id", user.id)
-          .maybeSingle();
-
-        const cid = data?.company_id ?? null;
-        const r = data?.role ?? null;
-        setCompanyId(cid);
-        setRole(r);
-
-        // Fetch price_tier from company
-        let pt: string | null = null;
-        if (cid) {
-          const { data: compData } = await supabase
-            .from("companies")
-            .select("price_tier")
-            .eq("id", cid)
-            .maybeSingle();
-          pt = compData?.price_tier ?? null;
-        }
-        setPriceTier(pt);
-        writeCache({ userId: user.id, companyId: cid, role: r, priceTier: pt });
-      } catch {
-        // Use cached values if fetch fails
-      } finally {
-        setProfileReady(true);
-      }
-    };
-
-    fetchProfile();
-  }, [user, loading]);
+    fetchProfile(user).finally(() => {
+      setProfileReady(true);
+    });
+  }, [fetchProfile, loading, user]);
 
   return {
     user,
@@ -137,5 +251,6 @@ export function useAuth() {
     role,
     priceTier,
     profileReady,
+    refreshPriceTier,
   };
 }
