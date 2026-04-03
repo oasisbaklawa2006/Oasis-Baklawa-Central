@@ -12,6 +12,10 @@ interface ReorderProduct {
   name: string;
   image_url: string | null;
   price_per_kg: number;
+  price_b2b: number | null;
+  wholesale_price: number | null;
+  base_price: number | null;
+  mrp: number | null;
   pack_size: string | null;
   carton_type: string | null;
   quantity: number;
@@ -23,10 +27,10 @@ const SmartReorderSection = () => {
   const navigate = useNavigate();
   const { formatPrice } = useCurrency();
   const { addToCart } = useCart();
-  const { user, profileReady } = useAuth();
+  const { user } = useAuth();
 
   useEffect(() => {
-    if (!profileReady || !user) {
+    if (!user) {
       setLoading(false);
       setItems([]);
       return;
@@ -52,7 +56,7 @@ const SmartReorderSection = () => {
         const sortedIds = Object.entries(qtyMap).sort(([, a], [, b]) => b - a).slice(0, 8).map(([id]) => id);
         if (sortedIds.length === 0) { setLoading(false); return; }
         const { data: products } = await supabase
-          .from("products").select("id, name, image_url, price_per_kg, pack_size, carton_type")
+          .from("products").select("id, name, image_url, price_per_kg, price_b2b, wholesale_price, base_price, mrp, pack_size, carton_type")
           .in("id", sortedIds).eq("is_active", true);
         if (products) {
           setItems(sortedIds.map(id => {
@@ -68,7 +72,7 @@ const SmartReorderSection = () => {
       }
     };
     fetchReorders();
-  }, [user?.id, profileReady]);
+  }, [user?.id]);
 
   if (loading) return (
     <div className="flex justify-center py-4">
@@ -136,7 +140,7 @@ const ReorderCard = ({ item, index, navigate, formatPrice, addToCart }: any) => 
       </div>
       <p className="font-serif text-[10px] text-foreground line-clamp-1 mb-0.5">{item.name}</p>
       <p className="font-body text-[9px] text-foreground font-medium">
-        {formatPrice(item.price_per_kg)}<span className="font-normal text-muted-foreground">/kg</span>
+        {formatPrice(item.price_per_kg || item.price_b2b || item.wholesale_price || item.base_price || item.mrp || 0)}<span className="font-normal text-muted-foreground">/kg</span>
       </p>
     </motion.div>
   );
