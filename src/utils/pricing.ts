@@ -59,27 +59,68 @@ export function getPrimaryPackWeightKg(product: any): number {
   return 0;
 }
 
+// ── Tiered pricing helper ────────────────────────────────────────────
+
+/**
+ * Maps a company's price_tier to the correct product price column.
+ * Falls through to the base price if the tier-specific column is empty.
+ */
+export type PriceTier = "bulk" | "wholesale" | "horeca" | "b2b" | "special" | "private_label" | string;
+
+const TIER_MAP: Record<string, (p: any) => number | null> = {
+  bulk:          (p) => p?.price_bulk,
+  wholesale:     (p) => p?.price_wholesale,
+  horeca:        (p) => p?.price_horeca,
+  b2b:           (p) => p?.price_b2b,
+  special:       (p) => p?.price_special,
+  private_label: (p) => p?.private_label_price,
+};
+
+function normalizeTierKey(tier: string | null | undefined): string {
+  if (!tier) return "b2b";
+  const lower = tier.toLowerCase();
+  if (lower.includes("bulk")) return "bulk";
+  if (lower.includes("wholesale")) return "wholesale";
+  if (lower.includes("horeca")) return "horeca";
+  if (lower.includes("special")) return "special";
+  if (lower.includes("private")) return "private_label";
+  return "b2b";
+}
+
+export function calculateTieredPrice(product: any, priceTier?: string | null): number {
+  const key = normalizeTierKey(priceTier);
+  const getter = TIER_MAP[key];
+  const tieredPrice = getter?.(product);
+  if (tieredPrice && tieredPrice > 0) return tieredPrice;
+  // Fallback chain
+  return product?.price_b2b || product?.price_wholesale || product?.price_per_kg || product?.base_price || 0;
+}
+
 // ── Base price helpers ──────────────────────────────────────────────
 
-export function getBasePricePerKg(product: any): number {
+export function getBasePricePerKg(product: any, priceTier?: string | null): number {
+  const tiered = calculateTieredPrice(product, priceTier);
+  if (tiered > 0) return tiered;
   return product?.price_per_kg || product?.wholesale_price || product?.base_price || 0;
 }
 
-export function getBasePricePerPc(product: any): number {
+export function getBasePricePerPc(product: any, priceTier?: string | null): number {
+  const tiered = calculateTieredPrice(product, priceTier);
+  if (tiered > 0) return tiered;
   return product?.mrp_per_pc || product?.base_price || product?.wholesale_price || product?.price_per_kg || 0;
 }
 
 // ── Display price (what appears on catalogue cards) ─────────────────
 
-export function getDisplayPrice(product: any): { price: number; unit: string } {
+export function getDisplayPrice(product: any, priceTier?: string | null): { price: number; unit: string } {
   const cat = getProductCategory(product);
 
   switch (cat) {
     case "bulk_kg":
-      return { price: getBasePricePerKg(product), unit: "/kg" };
+      return { price: getBasePricePerKg(product, priceTier), unit: "/kg" };
     case "ready_pc":
     case "premium_pc":
-      return { price: getBasePricePerPc(product), unit: "/pc" };
+      return { price: getBasePricePerPc(product, priceTier), unit: "/pc" };
   }
 }
 
