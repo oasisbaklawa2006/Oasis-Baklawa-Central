@@ -68,7 +68,7 @@ const SmartReorderSection = () => {
       }
     };
     fetchReorders();
-  }, [user?.id, profileReady]);
+  }, [user?.id]);
 
   if (loading) return (
     <div className="flex justify-center py-4">
