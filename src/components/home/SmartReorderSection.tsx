@@ -23,6 +23,7 @@ const SmartReorderSection = () => {
   const navigate = useNavigate();
   const { formatPrice } = useCurrency();
   const { addToCart } = useCart();
+  const { user, profileReady } = useAuth();
 
   useEffect(() => {
     const fetchReorders = async () => {
