@@ -70,8 +70,12 @@ const PROD_ROLE_ROUTES: Record<string, string> = {
   PROD_NUTS: "/tv/nuts",
 };
 
-const ADMIN_ROLES = [
-  "SUPER_ADMIN", "ADMIN", "FINANCE_HEAD", "DISPATCH_HEAD", "PRODUCTION_MANAGER",
+// Roles allowed to access the full admin panel
+const ADMIN_ONLY_ROLES = ["SUPER_ADMIN", "ADMIN"];
+
+// Internal staff who can access specific admin sub-routes but NOT the dashboard stats
+const ADMIN_STAFF_ROLES = [
+  ...ADMIN_ONLY_ROLES, "FINANCE_HEAD", "DISPATCH_HEAD", "PRODUCTION_MANAGER",
   "ASSEMBLY_MANAGER", "PACKING_SUPERVISOR", "SUPPORT_EXECUTIVE",
   "STORE_READY_GOODS", "STORE_3RD_PARTY", "GATE_SECURITY",
 ];
@@ -79,9 +83,9 @@ const ADMIN_ROLES = [
 const queryClient = new QueryClient();
 
 const RootGate = () => {
-  const { user, loading: authLoading } = useAuth();
+  const { user, loading: authLoading, role, profileReady } = useAuth();
 
-  if (authLoading) {
+  if (authLoading || (user && !profileReady)) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
@@ -89,9 +93,42 @@ const RootGate = () => {
     );
   }
 
-  // TESTING BYPASS: unauthenticated → splash, authenticated → buyer home
   if (!user) return <Navigate to="/splash" replace />;
-  return <Index />;
+
+  const normalizedRole = role?.toUpperCase() || null;
+
+  // 1. ADMIN BYPASS — always lands on /admin
+  if (normalizedRole === "ADMIN" || normalizedRole === "SUPER_ADMIN") {
+    return <Navigate to="/admin" replace />;
+  }
+
+  // 2. Production roles → their TV screen
+  if (normalizedRole && PROD_ROLE_ROUTES[normalizedRole]) {
+    return <Navigate to={PROD_ROLE_ROUTES[normalizedRole]} replace />;
+  }
+
+  // 3. Sales Executive → sales dashboard
+  if (normalizedRole === "SALES_EXECUTIVE") {
+    return <Navigate to="/sales/dashboard" replace />;
+  }
+
+  // 4. Assembly Manager → packing dispatch
+  if (normalizedRole === "ASSEMBLY_MANAGER") {
+    return <Navigate to="/admin/packing-dispatch" replace />;
+  }
+
+  // 5. Other internal staff → admin
+  if (normalizedRole && ADMIN_STAFF_ROLES.map(r => r.toUpperCase()).includes(normalizedRole)) {
+    return <Navigate to="/admin" replace />;
+  }
+
+  // 6. Buyer / Customer / Client → Buyer Home
+  if (normalizedRole === "BUYER" || normalizedRole === "CUSTOMER_USER" || normalizedRole === "CLIENT") {
+    return <Index />;
+  }
+
+  // 7. No role (new applicant / pending) → approval pending
+  return <Navigate to="/approval-pending" replace />;
 };
 
 const App = () => (
@@ -106,30 +143,31 @@ const App = () => (
           <Routes>
             <Route path="/splash" element={<Splash />} />
             <Route path="/intro" element={<CompanyIntro />} />
-            <Route path="/operations-controller" element={<ProtectedRoute><RoleProtectedRoute allowedRoles={[...ADMIN_ROLES]}><OperationsController /></RoleProtectedRoute></ProtectedRoute>} />
+            <Route path="/operations-controller" element={<ProtectedRoute><RoleProtectedRoute allowedRoles={[...ADMIN_STAFF_ROLES]}><OperationsController /></RoleProtectedRoute></ProtectedRoute>} />
             <Route path="/security-gate" element={<ProtectedRoute><RoleProtectedRoute allowedRoles={['GATE_SECURITY', 'SUPER_ADMIN', 'ADMIN']}><AdminSecurityGate /></RoleProtectedRoute></ProtectedRoute>} />
             <Route path="/" element={<RootGate />} />
-            <Route path="/catalogue" element={<RoleProtectedRoute allowedRoles={['BUYER', 'CUSTOMER_USER', 'CLIENT', 'SUPER_ADMIN', null]}><Catalogue /></RoleProtectedRoute>} />
-            <Route path="/product/:id" element={<RoleProtectedRoute allowedRoles={['BUYER', 'CUSTOMER_USER', 'CLIENT', 'SUPER_ADMIN', null]}><ProductDetail /></RoleProtectedRoute>} />
+            <Route path="/catalogue" element={<RoleProtectedRoute allowedRoles={['BUYER', 'CUSTOMER_USER', 'CLIENT', 'SUPER_ADMIN', 'ADMIN']}><Catalogue /></RoleProtectedRoute>} />
+            <Route path="/product/:id" element={<RoleProtectedRoute allowedRoles={['BUYER', 'CUSTOMER_USER', 'CLIENT', 'SUPER_ADMIN', 'ADMIN']}><ProductDetail /></RoleProtectedRoute>} />
             <Route path="/login" element={<Login />} />
             <Route path="/register" element={<Register />} />
             <Route path="/onboarding" element={<Onboarding />} />
-            <Route path="/buyer-portal" element={<ProtectedRoute><RoleProtectedRoute allowedRoles={['BUYER', 'CUSTOMER_USER', 'CLIENT', null]}><BuyerPortal /></RoleProtectedRoute></ProtectedRoute>} />
-            <Route path="/cart" element={<ProtectedRoute><RoleProtectedRoute allowedRoles={['BUYER', 'CUSTOMER_USER', 'CLIENT', null]}><Cart /></RoleProtectedRoute></ProtectedRoute>} />
-            <Route path="/orders" element={<ProtectedRoute><RoleProtectedRoute allowedRoles={['BUYER', 'CUSTOMER_USER', 'CLIENT', null]}><Orders /></RoleProtectedRoute></ProtectedRoute>} />
-            <Route path="/dashboard" element={<ProtectedRoute><RoleProtectedRoute allowedRoles={['BUYER', 'CUSTOMER_USER', 'CLIENT', null]}><Dashboard /></RoleProtectedRoute></ProtectedRoute>} />
-            <Route path="/account" element={<ProtectedRoute><RoleProtectedRoute allowedRoles={['BUYER', 'CUSTOMER_USER', 'CLIENT', null]}><Account /></RoleProtectedRoute></ProtectedRoute>} />
-            <Route path="/favorites" element={<ProtectedRoute><RoleProtectedRoute allowedRoles={['BUYER', 'CUSTOMER_USER', 'CLIENT', null]}><Favorites /></RoleProtectedRoute></ProtectedRoute>} />
-            <Route path="/account/users" element={<ProtectedRoute><RoleProtectedRoute allowedRoles={['BUYER', 'CUSTOMER_USER', 'CLIENT', null]}><ManageUsers /></RoleProtectedRoute></ProtectedRoute>} />
-            <Route path="/account/addresses" element={<ProtectedRoute><RoleProtectedRoute allowedRoles={['BUYER', 'CUSTOMER_USER', 'CLIENT', null]}><ManageAddresses /></RoleProtectedRoute></ProtectedRoute>} />
-            <Route path="/account/logistics" element={<ProtectedRoute><RoleProtectedRoute allowedRoles={['BUYER', 'CUSTOMER_USER', 'CLIENT', null]}><ManageLogistics /></RoleProtectedRoute></ProtectedRoute>} />
-            <Route path="/documents" element={<ProtectedRoute><RoleProtectedRoute allowedRoles={['BUYER', 'CUSTOMER_USER', 'CLIENT', null]}><Documents /></RoleProtectedRoute></ProtectedRoute>} />
+            <Route path="/buyer-portal" element={<ProtectedRoute><RoleProtectedRoute allowedRoles={['BUYER', 'CUSTOMER_USER', 'CLIENT']}><BuyerPortal /></RoleProtectedRoute></ProtectedRoute>} />
+            <Route path="/cart" element={<ProtectedRoute><RoleProtectedRoute allowedRoles={['BUYER', 'CUSTOMER_USER', 'CLIENT']}><Cart /></RoleProtectedRoute></ProtectedRoute>} />
+            <Route path="/orders" element={<ProtectedRoute><RoleProtectedRoute allowedRoles={['BUYER', 'CUSTOMER_USER', 'CLIENT']}><Orders /></RoleProtectedRoute></ProtectedRoute>} />
+            <Route path="/dashboard" element={<ProtectedRoute><RoleProtectedRoute allowedRoles={['BUYER', 'CUSTOMER_USER', 'CLIENT']}><Dashboard /></RoleProtectedRoute></ProtectedRoute>} />
+            <Route path="/account" element={<ProtectedRoute><RoleProtectedRoute allowedRoles={['BUYER', 'CUSTOMER_USER', 'CLIENT']}><Account /></RoleProtectedRoute></ProtectedRoute>} />
+            <Route path="/favorites" element={<ProtectedRoute><RoleProtectedRoute allowedRoles={['BUYER', 'CUSTOMER_USER', 'CLIENT']}><Favorites /></RoleProtectedRoute></ProtectedRoute>} />
+            <Route path="/account/users" element={<ProtectedRoute><RoleProtectedRoute allowedRoles={['BUYER', 'CUSTOMER_USER', 'CLIENT']}><ManageUsers /></RoleProtectedRoute></ProtectedRoute>} />
+            <Route path="/account/addresses" element={<ProtectedRoute><RoleProtectedRoute allowedRoles={['BUYER', 'CUSTOMER_USER', 'CLIENT']}><ManageAddresses /></RoleProtectedRoute></ProtectedRoute>} />
+            <Route path="/account/logistics" element={<ProtectedRoute><RoleProtectedRoute allowedRoles={['BUYER', 'CUSTOMER_USER', 'CLIENT']}><ManageLogistics /></RoleProtectedRoute></ProtectedRoute>} />
+            <Route path="/documents" element={<ProtectedRoute><RoleProtectedRoute allowedRoles={['BUYER', 'CUSTOMER_USER', 'CLIENT']}><Documents /></RoleProtectedRoute></ProtectedRoute>} />
+            <Route path="/approval-pending" element={<ProtectedRoute><div className="min-h-screen flex items-center justify-center bg-background p-6"><div className="text-center space-y-4 max-w-md"><h1 className="text-2xl font-bold text-foreground">Application Under Review</h1><p className="text-muted-foreground">Your B2B account application is currently being reviewed. You will be notified once approved.</p><p className="text-sm text-muted-foreground">Contact: support@oasisbaklawa.com</p></div></div></ProtectedRoute>} />
 
             <Route
               path="/admin"
               element={
                 <ProtectedRoute>
-                  <RoleProtectedRoute allowedRoles={[...ADMIN_ROLES]}>
+                  <RoleProtectedRoute allowedRoles={[...ADMIN_STAFF_ROLES]}>
                     <AdminLayout />
                   </RoleProtectedRoute>
                 </ProtectedRoute>
