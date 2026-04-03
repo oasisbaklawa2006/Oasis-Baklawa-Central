@@ -48,7 +48,7 @@ const QuickOrderRow = ({ product }: { product: Product }) => {
       <td className="py-2.5 pr-2">
         <p className="font-body text-xs font-medium text-foreground line-clamp-2 leading-snug">{product.name}</p>
         <p className="font-body text-[10px] text-muted-foreground">{product.sub_category || product.category}</p>
-        <p className="font-body text-[9px] text-muted-foreground/70">MOQ: {moq} | Pack Size: {increment}</p>
+        <p className="font-body text-[9px] text-muted-foreground/70">MOQ: {moq} | {getPackDescription(product)}</p>
       </td>
       <td className="py-2.5 px-1 text-center">
         <p className="font-body text-[10px] text-muted-foreground">MOQ {moq}</p>

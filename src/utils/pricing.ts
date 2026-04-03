@@ -188,6 +188,26 @@ export function unitsToFillCarton(product: any, quantity: number): number {
   return remainder === 0 ? 0 : perCarton - remainder;
 }
 
+// ── Pack description for UI ──────────────────────────────────────────
+
+export function getPackDescription(product: any): string {
+  const cat = getProductCategory(product);
+
+  if (cat === "bulk_kg") {
+    const weightKg = getPrimaryPackWeightKg(product);
+    if (weightKg > 0) {
+      return weightKg >= 1
+        ? `Box: ${weightKg} kg`
+        : `Box: ${Math.round(weightKg * 1000)} g`;
+    }
+    return "Box: 1 unit";
+  }
+
+  // ready_pc / premium_pc
+  const increment = getQtyIncrement(product);
+  return `Pack Size: ${increment} pc`;
+}
+
 // ── HSN code helper ─────────────────────────────────────────────────
 
 export function getHsnCode(product: any): string {
