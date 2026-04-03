@@ -21,14 +21,15 @@ const paymentMethods = [
   { id: "wallet", label: "Use Wallet Balance", desc: "Available: ₹45,000", icon: Wallet },
 ];
 
-const CheckoutModal = ({ open, onClose, grandTotal, orderId, onOrderConfirmed }: CheckoutModalProps) => {
+const CheckoutModal = ({ open, onClose, grandTotal, orderId, companyId, onOrderConfirmed }: CheckoutModalProps) => {
   const [selected, setSelected] = useState("upi");
   const [confirming, setConfirming] = useState(false);
   const advance = Math.round(grandTotal * 0.5);
+  const isReady = !!orderId && !!companyId;
 
   const handleConfirm = async () => {
-    if (!orderId) {
-      toast.error("No active order found");
+    if (!orderId || !companyId) {
+      toast.error("Order details are still loading. Please wait a moment.");
       return;
     }
     setConfirming(true);
