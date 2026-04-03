@@ -98,15 +98,25 @@ export function useAuth() {
       try {
         const { data } = await supabase
           .from("users")
-          .select("company_id, role, price_tier")
+          .select("company_id, role")
           .eq("id", user.id)
           .maybeSingle();
 
         const cid = data?.company_id ?? null;
         const r = data?.role ?? null;
-        const pt = data?.price_tier ?? null;
         setCompanyId(cid);
         setRole(r);
+
+        // Fetch price_tier from company
+        let pt: string | null = null;
+        if (cid) {
+          const { data: compData } = await supabase
+            .from("companies")
+            .select("price_tier")
+            .eq("id", cid)
+            .maybeSingle();
+          pt = compData?.price_tier ?? null;
+        }
         setPriceTier(pt);
         writeCache({ userId: user.id, companyId: cid, role: r, priceTier: pt });
       } catch {
