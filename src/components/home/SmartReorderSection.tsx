@@ -26,10 +26,14 @@ const SmartReorderSection = () => {
   const { user, profileReady } = useAuth();
 
   useEffect(() => {
+    if (!profileReady || !user) {
+      setLoading(false);
+      setItems([]);
+      return;
+    }
     const fetchReorders = async () => {
+      setLoading(true);
       try {
-        const { data: { user } } = await supabase.auth.getUser();
-        if (!user) { setLoading(false); return; }
         const { data: userData } = await supabase
           .from("users").select("company_id").eq("id", user.id).maybeSingle();
         if (!userData?.company_id) { setLoading(false); return; }
@@ -64,7 +68,7 @@ const SmartReorderSection = () => {
       }
     };
     fetchReorders();
-  }, []);
+  }, [user?.id, profileReady]);
 
   if (loading) return (
     <div className="flex justify-center py-4">
