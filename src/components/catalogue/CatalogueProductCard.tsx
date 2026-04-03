@@ -7,6 +7,7 @@ import {
   getDisplayPrice,
   getMinOrderQty,
   getQtyIncrement,
+  getPackDescription,
 } from "@/utils/pricing";
 
 interface CatalogueProductCardProps {
@@ -85,7 +86,7 @@ const CatalogueProductCard = ({ item }: CatalogueProductCardProps) => {
 
         {/* MOQ & Pack Size */}
         <p className="font-body text-[10px] text-muted-foreground">
-          MOQ: {moq} {moq === 1 ? "pack" : "packs"} &nbsp;|&nbsp; Pack Size: {increment}
+          MOQ: {moq} &nbsp;|&nbsp; {getPackDescription(item)}
         </p>
 
         {/* Quantity controls or Add button */}
