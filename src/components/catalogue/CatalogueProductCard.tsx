@@ -7,6 +7,7 @@ import {
   getDisplayPrice,
   getProductCategory,
   getMinOrderQty,
+  getQtyIncrement,
   getPrimaryPackWeightKg,
   unitsToFillCarton,
 } from "@/utils/pricing";
