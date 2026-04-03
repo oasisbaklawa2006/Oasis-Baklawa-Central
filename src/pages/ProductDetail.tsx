@@ -53,7 +53,7 @@ const ProductDetail = () => {
       .then(({ data, error }) => {
         if (!error && data) {
           setProduct(data);
-          setBoxes(getMinOrderQty(data));
+          setBoxes(0);
         }
         setLoading(false);
       });
