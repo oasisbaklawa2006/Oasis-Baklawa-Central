@@ -143,7 +143,7 @@ const App = () => (
           <Routes>
             <Route path="/splash" element={<Splash />} />
             <Route path="/intro" element={<CompanyIntro />} />
-            <Route path="/operations-controller" element={<ProtectedRoute><RoleProtectedRoute allowedRoles={[...ADMIN_ROLES]}><OperationsController /></RoleProtectedRoute></ProtectedRoute>} />
+            <Route path="/operations-controller" element={<ProtectedRoute><RoleProtectedRoute allowedRoles={[...ADMIN_STAFF_ROLES]}><OperationsController /></RoleProtectedRoute></ProtectedRoute>} />
             <Route path="/security-gate" element={<ProtectedRoute><RoleProtectedRoute allowedRoles={['GATE_SECURITY', 'SUPER_ADMIN', 'ADMIN']}><AdminSecurityGate /></RoleProtectedRoute></ProtectedRoute>} />
             <Route path="/" element={<RootGate />} />
             <Route path="/catalogue" element={<RoleProtectedRoute allowedRoles={['BUYER', 'CUSTOMER_USER', 'CLIENT', 'SUPER_ADMIN', 'ADMIN']}><Catalogue /></RoleProtectedRoute>} />
