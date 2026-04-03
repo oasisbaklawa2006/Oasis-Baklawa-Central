@@ -1,15 +1,12 @@
 import { useState } from "react";
-import { Package, Loader2, Plus } from "lucide-react";
+import { Package, Loader2, Plus, Minus } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useCurrency } from "@/contexts/CurrencyContext";
 import { useCart } from "@/hooks/useCart";
 import {
   getDisplayPrice,
-  getProductCategory,
   getMinOrderQty,
   getQtyIncrement,
-  getPrimaryPackWeightKg,
-  unitsToFillCarton,
 } from "@/utils/pricing";
 
 interface CatalogueProductCardProps {
@@ -19,20 +16,38 @@ interface CatalogueProductCardProps {
 const CatalogueProductCard = ({ item }: CatalogueProductCardProps) => {
   const navigate = useNavigate();
   const { formatPrice } = useCurrency();
-  const { addToCart } = useCart();
+  const { addToCart, updateQuantity, items } = useCart();
   const [adding, setAdding] = useState(false);
 
-  const cat = getProductCategory(item);
   const displayInfo = getDisplayPrice(item);
-  const weightKg = getPrimaryPackWeightKg(item);
   const moq = getMinOrderQty(item);
-  const toFill = unitsToFillCarton(item, moq);
+  const increment = getQtyIncrement(item);
+
+  // Find existing cart item by product_id (NOT by item.id)
+  const cartItem = items.find((ci) => ci.product_id === item.id);
+  const currentQty = cartItem?.quantity ?? 0;
 
   const handleAdd = async (e: React.MouseEvent) => {
     e.stopPropagation();
+    if (adding) return;
     setAdding(true);
     await addToCart(item.id, moq, item.pack_size ?? null, item.carton_type ?? null);
     setAdding(false);
+  };
+
+  const handleIncrement = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!cartItem) return;
+    const newQty = currentQty + increment;
+    await updateQuantity(cartItem.id, newQty);
+  };
+
+  const handleDecrement = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!cartItem) return;
+    // If at MOQ, drop to 0 (remove)
+    const newQty = currentQty <= moq ? 0 : currentQty - increment;
+    await updateQuantity(cartItem.id, Math.max(0, newQty));
   };
 
   return (
@@ -53,14 +68,6 @@ const CatalogueProductCard = ({ item }: CatalogueProductCardProps) => {
         ) : (
           <Package size={28} className="text-muted-foreground" />
         )}
-        {/* Quick add overlay */}
-        <button
-          onClick={handleAdd}
-          disabled={adding}
-          className="absolute bottom-2 right-2 w-8 h-8 rounded-full bg-foreground text-primary-foreground flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity shadow-md"
-        >
-          {adding ? <Loader2 size={14} className="animate-spin" /> : <Plus size={14} />}
-        </button>
       </div>
 
       {/* Info */}
@@ -68,37 +75,48 @@ const CatalogueProductCard = ({ item }: CatalogueProductCardProps) => {
         <p className="font-body text-sm font-medium text-foreground line-clamp-2 leading-snug">{item.name}</p>
         <p className="font-body text-[11px] text-muted-foreground">{item.sub_category || item.category}</p>
 
-        <div className="flex items-end justify-between pt-1">
-          <div>
-            <p className="font-body text-sm text-foreground font-semibold">
-              {formatPrice(displayInfo.price)}
-              <span className="text-[10px] font-normal text-muted-foreground ml-0.5">{displayInfo.unit}</span>
-            </p>
-            <p className="font-body text-[10px] text-muted-foreground">
-              MOQ: {moq} {moq === 1 ? "pack" : "packs"}
-            </p>
-          </div>
+        {/* Price */}
+        <div className="pt-1">
+          <p className="font-body text-sm text-foreground font-semibold">
+            {formatPrice(displayInfo.price)}
+            <span className="text-[10px] font-normal text-muted-foreground ml-0.5">{displayInfo.unit}</span>
+          </p>
         </div>
 
-        <p className="font-body text-[9px] text-muted-foreground/70">
-          MOQ: {moq} | Pack Size: {getQtyIncrement(item)}
+        {/* MOQ & Pack Size */}
+        <p className="font-body text-[10px] text-muted-foreground">
+          MOQ: {moq} {moq === 1 ? "pack" : "packs"} &nbsp;|&nbsp; Pack Size: {increment}
         </p>
 
-        {toFill > 0 && (
-          <p className="font-body text-[9px] text-primary">
-            +{toFill} more to fill carton
-          </p>
+        {/* Quantity controls or Add button */}
+        {currentQty > 0 ? (
+          <div className="flex items-center gap-2 mt-1.5">
+            <button
+              onClick={handleDecrement}
+              className="w-8 h-8 rounded-full bg-muted flex items-center justify-center hover:bg-muted-foreground/20 transition-colors"
+            >
+              <Minus size={14} className="text-foreground" />
+            </button>
+            <span className="font-body text-sm font-semibold text-foreground min-w-[2rem] text-center">
+              {currentQty}
+            </span>
+            <button
+              onClick={handleIncrement}
+              className="w-8 h-8 rounded-full bg-foreground text-primary-foreground flex items-center justify-center hover:opacity-90 transition-opacity"
+            >
+              <Plus size={14} />
+            </button>
+          </div>
+        ) : (
+          <button
+            onClick={handleAdd}
+            disabled={adding}
+            className="w-full mt-1.5 bg-foreground text-primary-foreground font-body text-xs font-medium py-2 rounded-lg hover:opacity-90 transition-opacity disabled:opacity-50 flex items-center justify-center gap-1"
+          >
+            {adding ? <Loader2 size={12} className="animate-spin" /> : null}
+            {adding ? "Adding…" : "Add to Cart"}
+          </button>
         )}
-
-        {/* Full-width Add button */}
-        <button
-          onClick={handleAdd}
-          disabled={adding}
-          className="w-full mt-1.5 bg-foreground text-primary-foreground font-body text-xs font-medium py-2 rounded-lg hover:opacity-90 transition-opacity disabled:opacity-50 flex items-center justify-center gap-1"
-        >
-          {adding ? <Loader2 size={12} className="animate-spin" /> : null}
-          {adding ? "Adding…" : "Add to Cart"}
-        </button>
       </div>
     </div>
   );
