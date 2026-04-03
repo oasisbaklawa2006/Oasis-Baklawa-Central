@@ -32,7 +32,7 @@ const ProductDetail = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { addToCart } = useCart();
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, priceTier } = useAuth();
   const { formatPrice } = useCurrency();
 
   const [product, setProduct] = useState<any>(null);
