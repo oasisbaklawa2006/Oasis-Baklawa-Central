@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
@@ -27,12 +27,19 @@ export interface DraftOrder {
   status: string;
 }
 
+const sortCartItems = (cartItems: CartItem[]) =>
+  [...cartItems].sort((a, b) => (a.id || "").localeCompare(b.id || ""));
+
 export function useCart() {
   const { user, loading: authLoading } = useAuth();
   const [companyId, setCompanyId] = useState<string | null>(null);
   const [draftOrder, setDraftOrder] = useState<DraftOrder | null>(null);
   const [items, setItems] = useState<CartItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const fetchCartRequestRef = useRef(0);
+  const pendingQuantitiesRef = useRef(new Map<string, number>());
+  const quantitySyncTimeoutsRef = useRef(new Map<string, ReturnType<typeof setTimeout>>());
+  const syncingItemIdsRef = useRef(new Set<string>());
 
   // Step 1: Fetch company_id once auth is ready (with impersonation support)
   useEffect(() => {
@@ -76,8 +83,12 @@ export function useCart() {
 
   // Step 2: Fetch cart only after company_id is resolved
   const fetchCart = useCallback(async () => {
+    const requestId = ++fetchCartRequestRef.current;
+
     if (!companyId) {
-      setLoading(false);
+      if (requestId === fetchCartRequestRef.current) {
+        setLoading(false);
+      }
       return;
     }
 
@@ -89,7 +100,8 @@ export function useCart() {
       .limit(1);
 
     const draft = orders?.[0] ?? null;
-    
+
+    if (requestId !== fetchCartRequestRef.current) return;
     setDraftOrder(draft);
 
     if (draft) {
@@ -98,12 +110,16 @@ export function useCart() {
         .select("*, product:products(*)")
         .eq("order_id", draft.id);
 
-      setItems((orderItems as unknown as CartItem[]) ?? []);
+      if (requestId !== fetchCartRequestRef.current) return;
+      setItems(sortCartItems((orderItems as unknown as CartItem[]) ?? []));
     } else {
+      if (requestId !== fetchCartRequestRef.current) return;
       setItems([]);
     }
 
-    setLoading(false);
+    if (requestId === fetchCartRequestRef.current) {
+      setLoading(false);
+    }
   }, [companyId]);
 
   // Track whether company_id has been resolved (null means "not yet fetched", undefined would mean "fetched but empty")
@@ -174,31 +190,100 @@ export function useCart() {
     return true;
   };
 
-  const updateQuantity = async (itemId: string, quantity: number) => {
-    if (quantity <= 0) return removeItem(itemId);
-    const { error } = await supabase
-      .from("order_items")
-      .update({ quantity })
-      .eq("id", itemId);
+  const syncPendingQuantity = useCallback(async (itemId: string) => {
+    if (syncingItemIdsRef.current.has(itemId)) return;
 
-    if (error) { toast.error("Failed to update quantity"); return; }
-    await fetchCart();
-  };
+    syncingItemIdsRef.current.add(itemId);
 
-  const removeItem = async (itemId: string) => {
+    try {
+      while (pendingQuantitiesRef.current.has(itemId)) {
+        const nextQuantity = pendingQuantitiesRef.current.get(itemId);
+        pendingQuantitiesRef.current.delete(itemId);
+
+        if (nextQuantity == null) break;
+
+        const { error } = await supabase
+          .from("order_items")
+          .update({ quantity: nextQuantity })
+          .eq("id", itemId);
+
+        if (error) throw error;
+      }
+
+      await fetchCart();
+    } catch {
+      toast.error("Failed to update quantity");
+      await fetchCart();
+    } finally {
+      syncingItemIdsRef.current.delete(itemId);
+
+      if (pendingQuantitiesRef.current.has(itemId)) {
+        void syncPendingQuantity(itemId);
+      }
+    }
+  }, [fetchCart]);
+
+  const scheduleQuantitySync = useCallback((itemId: string) => {
+    const existingTimeout = quantitySyncTimeoutsRef.current.get(itemId);
+
+    if (existingTimeout) {
+      clearTimeout(existingTimeout);
+    }
+
+    const timeoutId = setTimeout(() => {
+      quantitySyncTimeoutsRef.current.delete(itemId);
+      void syncPendingQuantity(itemId);
+    }, 180);
+
+    quantitySyncTimeoutsRef.current.set(itemId, timeoutId);
+  }, [syncPendingQuantity]);
+
+  const removeItem = useCallback(async (itemId: string) => {
+    const existingTimeout = quantitySyncTimeoutsRef.current.get(itemId);
+
+    if (existingTimeout) {
+      clearTimeout(existingTimeout);
+      quantitySyncTimeoutsRef.current.delete(itemId);
+    }
+
+    pendingQuantitiesRef.current.delete(itemId);
+    setItems((prev) => sortCartItems(prev.filter((item) => item.id !== itemId)));
+
     const { error } = await supabase
       .from("order_items")
       .delete()
       .eq("id", itemId);
 
-    if (error) { toast.error("Failed to remove item"); return; }
+    if (error) {
+      toast.error("Failed to remove item");
+      await fetchCart();
+      return;
+    }
+
     await fetchCart();
-  };
+  }, [fetchCart]);
+
+  const updateQuantity = useCallback(async (itemId: string, quantity: number) => {
+    if (quantity <= 0) {
+      await removeItem(itemId);
+      return;
+    }
+
+    setItems((prev) => sortCartItems(
+      prev.map((item) => item.id === itemId ? { ...item, quantity } : item)
+    ));
+    pendingQuantitiesRef.current.set(itemId, quantity);
+    scheduleQuantitySync(itemId);
+  }, [removeItem, scheduleQuantitySync]);
 
   const clearCart = useCallback(() => {
     setDraftOrder(null);
     setItems([]);
     setLoading(false);
+    quantitySyncTimeoutsRef.current.forEach((timeoutId) => clearTimeout(timeoutId));
+    quantitySyncTimeoutsRef.current.clear();
+    pendingQuantitiesRef.current.clear();
+    syncingItemIdsRef.current.clear();
 
     if (typeof window !== "undefined") {
       localStorage.removeItem("oasis_cart");
