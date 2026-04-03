@@ -82,9 +82,9 @@ const ProductDetail = () => {
   const increment = getQtyIncrement(product);
   const gstRate = getGstRate(product);
   const weightKg = getPrimaryPackWeightKg(product);
-  const price = calculatePackPrice(product);
-  const displayInfo = getDisplayPrice(product);
-  const grandTotal = calculateLineGrandTotal(product, boxes);
+  const price = calculatePackPrice(product, priceTier);
+  const displayInfo = getDisplayPrice(product, priceTier);
+  const grandTotal = calculateLineGrandTotal(product, boxes, priceTier);
   const toFill = unitsToFillCarton(product, boxes);
   const isBulk = cat === "bulk_kg";
   const images = [product.image_url].filter(Boolean);
