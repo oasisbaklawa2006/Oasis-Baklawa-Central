@@ -300,14 +300,19 @@ const Cart = () => {
   const handleQtyChange = async (itemId: string, currentQty: number, delta: number, product: any) => {
     const increment = getQtyIncrement(product);
     const minQty = getMinOrderQty(product);
-    const newQty = currentQty + (delta > 0 ? increment : -increment);
 
-    if (newQty <= 0) {
-      await updateQuantity(itemId, 0);
-    } else if (newQty < minQty) {
-      await updateQuantity(itemId, 0);
-    } else {
+    if (delta > 0) {
+      // Increment: if at 0 jump to MOQ, otherwise add increment
+      const newQty = currentQty === 0 ? minQty : currentQty + increment;
       await updateQuantity(itemId, newQty);
+    } else {
+      // Decrement: if at or below MOQ drop to 0, otherwise subtract increment
+      if (currentQty <= minQty) {
+        await updateQuantity(itemId, 0);
+      } else {
+        const newQty = currentQty - increment;
+        await updateQuantity(itemId, newQty < minQty ? 0 : newQty);
+      }
     }
   };
 
