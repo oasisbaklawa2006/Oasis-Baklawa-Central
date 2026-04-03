@@ -71,7 +71,7 @@ const FactoryTVModule = ({ category, departmentFilter, title }: FactoryTVModuleP
 
       const { data: products } = await supabase
         .from("products")
-        .select("id, name, department")
+        .select("id, name, department, uom, net_weight_grams, avg_weight_per_pack, category, sub_category, packs_per_master_carton, pcs_per_master_carton, moq")
         .in("id", itemIds);
 
       const productMap = new Map((products ?? []).map((p: any) => [p.id, p]));
