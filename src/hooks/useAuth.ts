@@ -70,7 +70,7 @@ export function useAuth() {
       const u = session?.user ?? null;
       setUser(u);
       if (u) {
-        fetchProfile(u.id).then(() => setLoading(false));
+        fetchProfile(u.id);
       } else {
         setLoading(false);
       }
