@@ -239,7 +239,7 @@ const ProductDetail = () => {
                 {/* Add to Cart */}
                 <button
                   onClick={handleAddToCart}
-                  disabled={isAdding}
+                  disabled={isAdding || boxes === 0}
                   className="flex items-center gap-2 bg-foreground text-primary-foreground font-body text-sm font-medium px-5 py-2.5 rounded-full hover:opacity-90 transition-opacity disabled:opacity-50"
                 >
                   {isAdding ? <Loader2 size={16} className="animate-spin" /> : <ShoppingCart size={16} />}
