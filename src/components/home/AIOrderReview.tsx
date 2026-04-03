@@ -65,7 +65,7 @@ const AIOrderReview = ({ open, onClose }: { open: boolean; onClose: () => void }
               <div className="space-y-3">
                 {items.map((item, i) => (
                   <div
-                    key={i}
+                    key={`${item.name}-${i}`}
                     className="flex items-center justify-between p-3 rounded-xl bg-muted/40 border border-border/50"
                   >
                     <div className="flex-1 min-w-0">

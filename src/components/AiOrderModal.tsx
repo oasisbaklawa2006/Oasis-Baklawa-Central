@@ -161,7 +161,7 @@ const AiOrderModal = ({ isOpen, onClose }: AiOrderModalProps) => {
 
                   <div className="space-y-3">
                     {parsedItems.map((item, idx) => (
-                      <div key={idx} className="flex items-center justify-between p-4 bg-slate-50 rounded-2xl border border-slate-100">
+                      <div key={`${item.name}-${idx}`} className="flex items-center justify-between p-4 bg-slate-50 rounded-2xl border border-slate-100">
                         <div className="flex items-center gap-3">
                           <ShoppingCart size={18} className="text-slate-400" />
                           <div>

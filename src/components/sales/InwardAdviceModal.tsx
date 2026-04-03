@@ -197,7 +197,7 @@ export default function InwardAdviceModal({
             </div>
             <div className="space-y-2">
               {items.map((item, i) => (
-                <div key={i} className="flex gap-2 items-center">
+                <div key={`inward-item-${i}-${item.product_id || 'empty'}`} className="flex gap-2 items-center">
                   <Select value={item.product_id} onValueChange={(v) => updateItem(i, "product_id", v)}>
                     <SelectTrigger className="flex-1"><SelectValue placeholder="Product" /></SelectTrigger>
                     <SelectContent>
