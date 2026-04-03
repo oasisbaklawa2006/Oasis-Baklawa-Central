@@ -91,12 +91,13 @@ const ProductDetail = () => {
   const heroImages = images.length > 0 ? images : ["/placeholder.svg"];
 
   const handleAddToCart = async () => {
+    if (boxes <= 0) return;
     setIsAdding(true);
     const success = await addToCart(product.id, boxes, product.pack_size, product.carton_type);
     setIsAdding(false);
     if (success) {
       toast.success(`Added ${boxes} packs to your order!`, { icon: "📦" });
-      setBoxes(minQty);
+      setBoxes(0);
     }
   };
 
