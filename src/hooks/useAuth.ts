@@ -29,17 +29,19 @@ export function useAuth() {
     const role = userData?.role ?? null;
     const companyId = userData?.company_id ?? null;
     let companyStatus: string | null = null;
+    let priceTier: string | null = null;
 
     if (companyId) {
       const { data: companyData } = await supabase
         .from("companies")
-        .select("status")
+        .select("status, price_tier")
         .eq("id", companyId)
         .maybeSingle();
       companyStatus = companyData?.status ?? null;
+      priceTier = (companyData as any)?.price_tier ?? null;
     }
 
-    setProfile({ role, company_id: companyId, companyStatus });
+    setProfile({ role, company_id: companyId, companyStatus, priceTier });
   }, []);
 
   useEffect(() => {
