@@ -28,6 +28,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import { useCart } from "@/hooks/useCart";
+import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
@@ -97,6 +98,7 @@ interface MoqViolation {
 const emptyAddress = { label: "", street_address: "", city: "", state: "", pincode: "", contact_person: "", contact_phone: "" };
 
 const Cart = () => {
+  const { priceTier } = useAuth();
   const navigate = useNavigate();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
@@ -203,11 +205,11 @@ const Cart = () => {
 
   // Per-line item tax calculations
   const subtotal = sortedItems.reduce((sum, item) => {
-    return sum + calculateLineTotal(item.product, item.quantity);
+    return sum + calculateLineTotal(item.product, item.quantity, priceTier);
   }, 0);
 
   const totalTax = sortedItems.reduce((sum, item) => {
-    return sum + calculateLineTax(item.product, item.quantity);
+    return sum + calculateLineTax(item.product, item.quantity, priceTier);
   }, 0);
 
   const grandTotal = Math.round(subtotal + totalTax);
@@ -432,8 +434,8 @@ const Cart = () => {
     const p = item.product;
     const hsn = getHsnCode(p);
     const rate = getGstRate(p);
-    const lineTotal = calculateLineTotal(p, item.quantity);
-    const lineTax = calculateLineTax(p, item.quantity);
+    const lineTotal = calculateLineTotal(p, item.quantity, priceTier);
+    const lineTax = calculateLineTax(p, item.quantity, priceTier);
     const key = `${hsn}_${rate}`;
     if (!acc[key]) acc[key] = { hsn, rate, taxable: 0, tax: 0 };
     acc[key].taxable += lineTotal;
@@ -516,9 +518,9 @@ const Cart = () => {
                 <div className="space-y-4">
                   {section.items.map((item) => {
                     const p = item.product as any;
-                    const unitPrice = calculatePackPrice(p);
-                    const lineTotal = calculateLineTotal(p, item.quantity);
-                    const lineTax = calculateLineTax(p, item.quantity);
+                    const unitPrice = calculatePackPrice(p, priceTier);
+                    const lineTotal = calculateLineTotal(p, item.quantity, priceTier);
+                    const lineTax = calculateLineTax(p, item.quantity, priceTier);
                     const gstRate = getGstRate(p);
                     const hsn = getHsnCode(p);
                     const weightKg = getPrimaryPackWeightKg(p);
@@ -545,7 +547,7 @@ const Cart = () => {
                             </p>
                             <p className="text-[10px] text-muted-foreground font-medium mt-0.5">
                               {isBulk
-                                ? `₹${getDisplayPrice(p).price}/kg × ${weightKg}kg = ${formatPrice(unitPrice)}/pack`
+                                ? `₹${getDisplayPrice(p, priceTier).price}/kg × ${weightKg}kg = ${formatPrice(unitPrice)}/pack`
                                 : `${formatPrice(unitPrice)}/pc`}
                             </p>
                             <p className="text-[10px] text-muted-foreground font-bold mt-0.5">

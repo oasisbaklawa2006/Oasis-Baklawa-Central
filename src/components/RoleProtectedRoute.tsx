@@ -1,6 +1,5 @@
 import { useEffect, useState } from "react";
 import { Navigate } from "react-router-dom";
-import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { Loader2 } from "lucide-react";
 
@@ -16,12 +15,16 @@ function getDesignatedRoute(role: string): string {
   const upper = role.toUpperCase();
   if (PROD_ROLE_ROUTES[upper]) return PROD_ROLE_ROUTES[upper];
   if (upper === "SALES_EXECUTIVE") return "/sales/dashboard";
+  if (upper === "ASSEMBLY_MANAGER") return "/admin/packing-dispatch";
+
   const ADMIN_SET = new Set([
     "SUPER_ADMIN", "ADMIN", "FINANCE_HEAD", "DISPATCH_HEAD", "PRODUCTION_MANAGER",
-    "ASSEMBLY_MANAGER", "PACKING_SUPERVISOR", "SUPPORT_EXECUTIVE",
+    "PACKING_SUPERVISOR", "SUPPORT_EXECUTIVE",
     "STORE_READY_GOODS", "STORE_3RD_PARTY", "GATE_SECURITY",
   ]);
   if (ADMIN_SET.has(upper)) return "/admin";
+
+  // Consumer roles
   return "/";
 }
 
@@ -31,21 +34,49 @@ interface Props {
 }
 
 export default function RoleProtectedRoute({ allowedRoles, children }: Props) {
-  const { user, loading: authLoading } = useAuth();
+  const { user, loading: authLoading, role, profileReady } = useAuth();
   const [status, setStatus] = useState<"loading" | "allowed" | "denied">("loading");
   const [redirectTo, setRedirectTo] = useState("/");
 
   useEffect(() => {
-    if (authLoading) return;
+    if (authLoading || !profileReady) return;
+
+    // Not logged in → login
     if (!user) {
       setRedirectTo("/login");
       setStatus("denied");
       return;
     }
 
-    // TESTING BYPASS: Allow all authenticated users through regardless of role
-    setStatus("allowed");
-  }, [user, authLoading, allowedRoles]);
+    const normalizedRole = role?.toUpperCase() || null;
+
+    // SAFETY VALVE: Admin/Super Admin bypass all checks
+    if (normalizedRole === "ADMIN" || normalizedRole === "SUPER_ADMIN") {
+      setStatus("allowed");
+      return;
+    }
+
+    // No role → approval pending
+    if (!normalizedRole) {
+      setRedirectTo("/approval-pending");
+      setStatus("denied");
+      return;
+    }
+
+    // Check if user's role is in the allowed list
+    const isAllowed = allowedRoles.some((ar) => {
+      if (ar === null) return normalizedRole === null;
+      return ar.toUpperCase() === normalizedRole;
+    });
+
+    if (isAllowed) {
+      setStatus("allowed");
+    } else {
+      // Redirect to their designated route
+      setRedirectTo(getDesignatedRoute(normalizedRole));
+      setStatus("denied");
+    }
+  }, [user, authLoading, allowedRoles, role, profileReady]);
 
   if (status === "loading") {
     return (

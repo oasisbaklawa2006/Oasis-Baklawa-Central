@@ -59,52 +59,99 @@ export function getPrimaryPackWeightKg(product: any): number {
   return 0;
 }
 
-// ── Base price helpers ──────────────────────────────────────────────
+// ── Tiered pricing engine ────────────────────────────────────────────
+
+/**
+ * Returns the correct price for a product based on the company's price tier.
+ * Tier mapping:
+ *   Bulk       → price_bulk
+ *   Wholesale  → price_wholesale
+ *   HoReCa     → price_horeca
+ *   B2B        → price_b2b
+ *   Special    → price_special
+ *   MRP/Retail → mrp (or mrp_per_pc)
+ *
+ * Fallback chain: tier price → price_b2b → price_wholesale → price_per_kg → base_price → mrp → 0
+ */
+export function getTieredPricePerKg(product: any, priceTier?: string | null): number {
+  const tierPrice = resolveTierColumn(product, priceTier, "kg");
+  if (tierPrice && tierPrice > 0) return tierPrice;
+  return product?.price_per_kg || product?.price_b2b || product?.wholesale_price || product?.price_wholesale || product?.base_price || product?.mrp || 0;
+}
+
+export function getTieredPricePerPc(product: any, priceTier?: string | null): number {
+  const tierPrice = resolveTierColumn(product, priceTier, "pc");
+  if (tierPrice && tierPrice > 0) return tierPrice;
+  return product?.mrp_per_pc || product?.price_b2b || product?.base_price || product?.wholesale_price || product?.price_wholesale || product?.price_per_kg || product?.mrp || 0;
+}
+
+function resolveTierColumn(product: any, priceTier?: string | null, _mode?: string): number | null {
+  if (!priceTier || !product) return null;
+  const tier = priceTier.toLowerCase().replace(/\s+/g, "_");
+  const mapping: Record<string, string[]> = {
+    bulk: ["price_bulk"],
+    wholesale: ["price_wholesale", "wholesale_price"],
+    horeca: ["price_horeca"],
+    b2b: ["price_b2b"],
+    special: ["price_special"],
+    mrp: ["mrp", "mrp_per_pc"],
+    retail: ["mrp", "mrp_per_pc"],
+  };
+  const columns = mapping[tier];
+  if (!columns) return null;
+  for (const col of columns) {
+    const val = product[col];
+    if (val != null && Number(val) > 0) return Number(val);
+  }
+  return null;
+}
+
+// ── Base price helpers (legacy, no tier) ────────────────────────────
 
 export function getBasePricePerKg(product: any): number {
-  return product?.price_per_kg || product?.wholesale_price || product?.price_b2b || product?.base_price || product?.mrp || 0;
+  return getTieredPricePerKg(product);
 }
 
 export function getBasePricePerPc(product: any): number {
-  return product?.mrp_per_pc || product?.base_price || product?.wholesale_price || product?.price_b2b || product?.price_per_kg || product?.mrp || 0;
+  return getTieredPricePerPc(product);
 }
 
 // ── Display price (what appears on catalogue cards) ─────────────────
 
-export function getDisplayPrice(product: any): { price: number; unit: string } {
+export function getDisplayPrice(product: any, priceTier?: string | null): { price: number; unit: string } {
   const cat = getProductCategory(product);
 
   switch (cat) {
     case "bulk_kg":
-      return { price: getBasePricePerKg(product), unit: "/kg" };
+      return { price: getTieredPricePerKg(product, priceTier), unit: "/kg" };
     case "ready_pc":
     case "premium_pc":
-      return { price: getBasePricePerPc(product), unit: "/pc" };
+      return { price: getTieredPricePerPc(product, priceTier), unit: "/pc" };
   }
 }
 
 // ── Pack / unit price (price of one orderable unit) ─────────────────
 
-export function calculatePackPrice(product: any): number {
+export function calculatePackPrice(product: any, priceTier?: string | null): number {
   const cat = getProductCategory(product);
 
   switch (cat) {
     case "bulk_kg": {
-      const perKg = getBasePricePerKg(product);
+      const perKg = getTieredPricePerKg(product, priceTier);
       const weightKg = getPrimaryPackWeightKg(product);
       if (perKg > 0 && weightKg > 0) return perKg * weightKg;
       return product?.mrp || perKg || 0;
     }
     case "ready_pc":
     case "premium_pc":
-      return getBasePricePerPc(product);
+      return getTieredPricePerPc(product, priceTier);
   }
 }
 
 // ── Line total (before tax) ─────────────────────────────────────────
 
-export function calculateLineTotal(product: any, quantity: number): number {
-  return calculatePackPrice(product) * quantity;
+export function calculateLineTotal(product: any, quantity: number, priceTier?: string | null): number {
+  return calculatePackPrice(product, priceTier) * quantity;
 }
 
 // ── GST per line item ───────────────────────────────────────────────
@@ -113,14 +160,14 @@ export function getGstRate(product: any): number {
   return product?.gst_percentage ?? 0;
 }
 
-export function calculateLineTax(product: any, quantity: number): number {
-  const lineTotal = calculateLineTotal(product, quantity);
+export function calculateLineTax(product: any, quantity: number, priceTier?: string | null): number {
+  const lineTotal = calculateLineTotal(product, quantity, priceTier);
   const rate = getGstRate(product);
   return lineTotal * (rate / 100);
 }
 
-export function calculateLineGrandTotal(product: any, quantity: number): number {
-  return calculateLineTotal(product, quantity) + calculateLineTax(product, quantity);
+export function calculateLineGrandTotal(product: any, quantity: number, priceTier?: string | null): number {
+  return calculateLineTotal(product, quantity, priceTier) + calculateLineTax(product, quantity, priceTier);
 }
 
 // ── Carton / packing helpers ────────────────────────────────────────
@@ -137,8 +184,8 @@ export function getPacksPerCarton(product: any): number {
   }
 }
 
-export function calculateCartonPrice(product: any): number {
-  return calculatePackPrice(product) * getPacksPerCarton(product);
+export function calculateCartonPrice(product: any, priceTier?: string | null): number {
+  return calculatePackPrice(product, priceTier) * getPacksPerCarton(product);
 }
 
 // ── MOQ / Qty stepper logic ─────────────────────────────────────────

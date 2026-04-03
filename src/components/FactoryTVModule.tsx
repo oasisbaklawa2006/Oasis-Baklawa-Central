@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Loader2, RefreshCw, Clock, Package, AlertTriangle } from "lucide-react";
+import { getPackDescription, getPrimaryPackWeightKg } from "@/utils/pricing";
 
 interface TVOrderItem {
   id: string;
@@ -11,6 +12,14 @@ interface TVOrderItem {
   product: {
     name: string;
     department: string | null;
+    uom: string | null;
+    net_weight_grams: number | null;
+    avg_weight_per_pack: number | null;
+    category: string | null;
+    sub_category: string | null;
+    packs_per_master_carton: number | null;
+    pcs_per_master_carton: number | null;
+    moq: number | null;
   } | null;
 }
 
@@ -62,7 +71,7 @@ const FactoryTVModule = ({ category, departmentFilter, title }: FactoryTVModuleP
 
       const { data: products } = await supabase
         .from("products")
-        .select("id, name, department")
+        .select("id, name, department, uom, net_weight_grams, avg_weight_per_pack, category, sub_category, packs_per_master_carton, pcs_per_master_carton, moq")
         .in("id", itemIds);
 
       const productMap = new Map((products ?? []).map((p: any) => [p.id, p]));
@@ -203,12 +212,14 @@ const FactoryTVModule = ({ category, departmentFilter, title }: FactoryTVModuleP
                           <p className="text-xl font-bold text-white truncate">
                             {item.product?.name ?? "Unknown Item"}
                           </p>
-                          {item.pack_size && (
-                            <p className="text-sm text-gray-500">{item.pack_size}</p>
-                          )}
+                          <p className="text-sm text-gray-500">
+                            {item.product ? getPackDescription(item.product) : (item.pack_size || "")}
+                          </p>
                         </div>
                         <span className="text-3xl font-black text-amber-400 ml-4">
-                          ×{item.quantity}
+                          {item.product?.uom?.toLowerCase() === "kg"
+                            ? `${item.quantity} × ${getPrimaryPackWeightKg(item.product)}kg`
+                            : `×${item.quantity}`}
                         </span>
                       </div>
                     ))}

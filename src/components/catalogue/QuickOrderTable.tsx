@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useCart } from "@/hooks/useCart";
 import { useCurrency } from "@/contexts/CurrencyContext";
+import { useAuth } from "@/hooks/useAuth";
 import { useProducts, Product } from "@/hooks/useProducts";
 import { getDisplayPrice, getMinOrderQty, getQtyIncrement, calculatePackPrice, getPackDescription } from "@/utils/pricing";
 import { Minus, Plus, Loader2 } from "lucide-react";
@@ -12,10 +13,11 @@ interface QuickOrderTableProps {
 const QuickOrderRow = ({ product }: { product: Product }) => {
   const { addToCart } = useCart();
   const { formatPrice } = useCurrency();
+  const { priceTier } = useAuth();
   const moq = getMinOrderQty(product);
   const increment = getQtyIncrement(product);
-  const displayInfo = getDisplayPrice(product);
-  const packPrice = calculatePackPrice(product);
+  const displayInfo = getDisplayPrice(product, priceTier);
+  const packPrice = calculatePackPrice(product, priceTier);
 
   const [qty, setQty] = useState(0);
   const [adding, setAdding] = useState(false);

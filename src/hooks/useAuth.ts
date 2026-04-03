@@ -8,6 +8,7 @@ interface AuthCache {
   userId: string;
   companyId: string | null;
   role: string | null;
+  priceTier: string | null;
 }
 
 function readCache(): AuthCache | null {
@@ -36,6 +37,7 @@ export function useAuth() {
   const [loading, setLoading] = useState(true);
   const [companyId, setCompanyId] = useState<string | null>(null);
   const [role, setRole] = useState<string | null>(null);
+  const [priceTier, setPriceTier] = useState<string | null>(null);
   const [profileReady, setProfileReady] = useState(false);
   const profileFetchedForRef = useRef<string | null>(null);
 
@@ -45,6 +47,7 @@ export function useAuth() {
     if (cached) {
       setCompanyId(cached.companyId);
       setRole(cached.role);
+      setPriceTier(cached.priceTier ?? null);
     }
   }, []);
 
@@ -103,7 +106,19 @@ export function useAuth() {
         const r = data?.role ?? null;
         setCompanyId(cid);
         setRole(r);
-        writeCache({ userId: user.id, companyId: cid, role: r });
+
+        // Fetch price_tier from company
+        let pt: string | null = null;
+        if (cid) {
+          const { data: compData } = await supabase
+            .from("companies")
+            .select("price_tier")
+            .eq("id", cid)
+            .maybeSingle();
+          pt = compData?.price_tier ?? null;
+        }
+        setPriceTier(pt);
+        writeCache({ userId: user.id, companyId: cid, role: r, priceTier: pt });
       } catch {
         // Use cached values if fetch fails
       } finally {
@@ -120,6 +135,7 @@ export function useAuth() {
     isAuthenticated: !!user,
     companyId,
     role,
+    priceTier,
     profileReady,
   };
 }
