@@ -16,6 +16,7 @@ export function useAuth() {
     role: null,
     company_id: null,
     companyStatus: null,
+    priceTier: null,
   });
 
   const fetchProfile = useCallback(async (userId: string) => {
