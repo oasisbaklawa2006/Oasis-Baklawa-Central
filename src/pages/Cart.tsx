@@ -434,8 +434,8 @@ const Cart = () => {
     const p = item.product;
     const hsn = getHsnCode(p);
     const rate = getGstRate(p);
-    const lineTotal = calculateLineTotal(p, item.quantity);
-    const lineTax = calculateLineTax(p, item.quantity);
+    const lineTotal = calculateLineTotal(p, item.quantity, priceTier);
+    const lineTax = calculateLineTax(p, item.quantity, priceTier);
     const key = `${hsn}_${rate}`;
     if (!acc[key]) acc[key] = { hsn, rate, taxable: 0, tax: 0 };
     acc[key].taxable += lineTotal;
