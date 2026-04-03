@@ -26,7 +26,7 @@ const SmartReorderSection = () => {
   const { user, profileReady } = useAuth();
 
   useEffect(() => {
-    if (!profileReady || !user) {
+    if (!user) {
       setLoading(false);
       setItems([]);
       return;
