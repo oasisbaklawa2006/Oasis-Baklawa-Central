@@ -126,26 +126,26 @@ export function getDisplayPrice(product: any, priceTier?: string | null): { pric
 
 // ── Pack / unit price (price of one orderable unit) ─────────────────
 
-export function calculatePackPrice(product: any): number {
+export function calculatePackPrice(product: any, priceTier?: string | null): number {
   const cat = getProductCategory(product);
 
   switch (cat) {
     case "bulk_kg": {
-      const perKg = getBasePricePerKg(product);
+      const perKg = getBasePricePerKg(product, priceTier);
       const weightKg = getPrimaryPackWeightKg(product);
       if (perKg > 0 && weightKg > 0) return perKg * weightKg;
       return product?.mrp || perKg || 0;
     }
     case "ready_pc":
     case "premium_pc":
-      return getBasePricePerPc(product);
+      return getBasePricePerPc(product, priceTier);
   }
 }
 
 // ── Line total (before tax) ─────────────────────────────────────────
 
-export function calculateLineTotal(product: any, quantity: number): number {
-  return calculatePackPrice(product) * quantity;
+export function calculateLineTotal(product: any, quantity: number, priceTier?: string | null): number {
+  return calculatePackPrice(product, priceTier) * quantity;
 }
 
 // ── GST per line item ───────────────────────────────────────────────
