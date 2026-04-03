@@ -53,7 +53,7 @@ export function useAuth() {
           // Defer profile fetch to avoid blocking auth state change
           setTimeout(() => fetchProfile(u.id), 0);
         } else {
-          setProfile({ role: null, company_id: null, companyStatus: null });
+          setProfile({ role: null, company_id: null, companyStatus: null, priceTier: null });
         }
         setLoading(false);
       }
