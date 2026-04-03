@@ -98,6 +98,7 @@ interface MoqViolation {
 const emptyAddress = { label: "", street_address: "", city: "", state: "", pincode: "", contact_person: "", contact_phone: "" };
 
 const Cart = () => {
+  const { priceTier } = useAuth();
   const navigate = useNavigate();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showPaymentModal, setShowPaymentModal] = useState(false);

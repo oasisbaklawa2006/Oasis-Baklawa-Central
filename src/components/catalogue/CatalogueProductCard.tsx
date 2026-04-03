@@ -3,6 +3,7 @@ import { Package, Loader2, Plus, Minus } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useCurrency } from "@/contexts/CurrencyContext";
 import { useCart } from "@/hooks/useCart";
+import { useAuth } from "@/hooks/useAuth";
 import {
   getDisplayPrice,
   getMinOrderQty,
@@ -18,9 +19,10 @@ const CatalogueProductCard = ({ item }: CatalogueProductCardProps) => {
   const navigate = useNavigate();
   const { formatPrice } = useCurrency();
   const { addToCart, updateQuantity, items } = useCart();
+  const { priceTier } = useAuth();
   const [adding, setAdding] = useState(false);
 
-  const displayInfo = getDisplayPrice(item);
+  const displayInfo = getDisplayPrice(item, priceTier);
   const moq = getMinOrderQty(item);
   const increment = getQtyIncrement(item);
 
