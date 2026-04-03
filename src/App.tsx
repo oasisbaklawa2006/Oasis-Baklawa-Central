@@ -80,46 +80,8 @@ const queryClient = new QueryClient();
 
 const RootGate = () => {
   const { user, loading: authLoading } = useAuth();
-  const [roleLoading, setRoleLoading] = useState(true);
-  const [redirect, setRedirect] = useState<string | null>(null);
 
-  useEffect(() => {
-    if (authLoading) return;
-    if (!user) {
-      setRedirect("/splash");
-      setRoleLoading(false);
-      return;
-    }
-    const fetchRole = async () => {
-      const { data } = await supabase
-        .from("users")
-        .select("role")
-        .eq("id", user.id)
-        .maybeSingle();
-      const role = data?.role?.toUpperCase();
-
-      // 1. Factory TV group — most specific, check first
-      if (role && PROD_ROLE_ROUTES[role]) {
-        setRedirect(PROD_ROLE_ROUTES[role]);
-      }
-      // 2. Sales group
-      else if (role === "SALES_EXECUTIVE") {
-        setRedirect("/sales/dashboard");
-      }
-      // 3. Admin / operations / finance / gate group
-      else if (role && ADMIN_ROLES.includes(role)) {
-        setRedirect("/admin");
-      }
-      // 4. Client group (buyer, client, null, or any unrecognized role)
-      else {
-        setRedirect(null);
-      }
-      setRoleLoading(false);
-    };
-    fetchRole();
-  }, [user, authLoading]);
-
-  if (authLoading || roleLoading) {
+  if (authLoading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
@@ -127,7 +89,8 @@ const RootGate = () => {
     );
   }
 
-  if (redirect) return <Navigate to={redirect} replace />;
+  // TESTING BYPASS: unauthenticated → splash, authenticated → buyer home
+  if (!user) return <Navigate to="/splash" replace />;
   return <Index />;
 };
 
