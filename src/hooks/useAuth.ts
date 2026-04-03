@@ -125,6 +125,7 @@ export function useAuth() {
     isAuthenticated: !!user,
     companyId,
     role,
+    priceTier,
     profileReady,
   };
 }
