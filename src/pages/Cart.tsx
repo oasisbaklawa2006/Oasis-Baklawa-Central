@@ -205,11 +205,11 @@ const Cart = () => {
 
   // Per-line item tax calculations
   const subtotal = sortedItems.reduce((sum, item) => {
-    return sum + calculateLineTotal(item.product, item.quantity);
+    return sum + calculateLineTotal(item.product, item.quantity, priceTier);
   }, 0);
 
   const totalTax = sortedItems.reduce((sum, item) => {
-    return sum + calculateLineTax(item.product, item.quantity);
+    return sum + calculateLineTax(item.product, item.quantity, priceTier);
   }, 0);
 
   const grandTotal = Math.round(subtotal + totalTax);
