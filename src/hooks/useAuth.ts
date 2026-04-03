@@ -79,6 +79,7 @@ export function useAuth() {
     role: profile.role,
     company_id: profile.company_id,
     companyStatus: profile.companyStatus,
+    priceTier: profile.priceTier,
     refreshProfile: user ? () => fetchProfile(user.id) : () => Promise.resolve(),
   };
 }
