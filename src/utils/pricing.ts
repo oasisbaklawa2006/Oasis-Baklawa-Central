@@ -154,14 +154,14 @@ export function getGstRate(product: any): number {
   return product?.gst_percentage ?? 0;
 }
 
-export function calculateLineTax(product: any, quantity: number): number {
-  const lineTotal = calculateLineTotal(product, quantity);
+export function calculateLineTax(product: any, quantity: number, priceTier?: string | null): number {
+  const lineTotal = calculateLineTotal(product, quantity, priceTier);
   const rate = getGstRate(product);
   return lineTotal * (rate / 100);
 }
 
-export function calculateLineGrandTotal(product: any, quantity: number): number {
-  return calculateLineTotal(product, quantity) + calculateLineTax(product, quantity);
+export function calculateLineGrandTotal(product: any, quantity: number, priceTier?: string | null): number {
+  return calculateLineTotal(product, quantity, priceTier) + calculateLineTax(product, quantity, priceTier);
 }
 
 // ── Carton / packing helpers ────────────────────────────────────────
