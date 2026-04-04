@@ -145,8 +145,8 @@ const OrderTracking = () => {
             <ChevronLeft size={24} />
           </button>
           <div>
-            <h1 className="font-display text-xl tracking-wide">Order #{order.id.split("-")[0]}</h1>
-            <p className="text-xs text-muted-foreground">{formatDate(order.created_at)}</p>
+            <h1 className="font-display text-xl tracking-wide">Order <span className="font-number font-medium">#{order.id.split("-")[0]}</span></h1>
+            <p className="text-xs text-muted-foreground font-number font-medium">{formatDate(order.created_at)}</p>
           </div>
         </div>
 
