@@ -1,5 +1,3 @@
-import AppShell from "@/components/AppShell";
-import TopNavBar from "@/components/TopNavBar";
 import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -38,10 +36,11 @@ const AdminPricing = () => {
       .order("name");
 
     if (error) {
-      toast.error("Failed to load pricing matrix.");
+      console.error("AdminPricing fetch error:", error);
+      toast.error("Failed to load pricing matrix: " + error.message);
     } else if (data) {
-      // FIX: Bypassing strict TypeScript checking until local types are regenerated
-      setProducts(data as any as ProductPriceRow[]);
+      console.log("AdminPricing Fetched Data:", data?.length, "rows");
+      setProducts((data as any as ProductPriceRow[]) ?? []);
     }
     setLoading(false);
   }, []);
@@ -112,11 +111,8 @@ const AdminPricing = () => {
   const hasUnsavedChanges = Object.keys(edits).length > 0;
 
   return (
-    <AppShell>
-      <div className="min-h-screen bg-[#FDFCF8] font-sans pb-32">
-        <TopNavBar />
-
-        <main className="pt-24 px-4 sm:px-6 max-w-7xl mx-auto space-y-8">
+      <div className="min-h-screen font-sans pb-32">
+        <div className="space-y-8">
           {/* HEADER */}
           <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-4">
             <div>
@@ -259,7 +255,7 @@ const AdminPricing = () => {
               </table>
             </div>
           </div>
-        </main>
+        </div>
 
         {/* STICKY SAVE BAR (Only appears when changes are made) */}
         {hasUnsavedChanges && (
@@ -292,7 +288,6 @@ const AdminPricing = () => {
           </div>
         )}
       </div>
-    </AppShell>
   );
 };
 
