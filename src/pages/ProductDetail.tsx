@@ -162,15 +162,15 @@ const ProductDetail = () => {
           {/* Price */}
           {isAuthenticated && (
             <div className="space-y-1">
-              <p className="font-body text-lg text-foreground font-medium">
+              <p className="font-number text-lg text-foreground font-semibold">
                 {formatPrice(displayInfo.price)} <span className="text-sm font-normal text-muted-foreground">{displayInfo.unit}</span>
               </p>
               {isBulk && weightKg > 0 ? (
-                <p className="font-body text-sm text-muted-foreground">
+                <p className="font-number text-sm text-muted-foreground">
                   Pack: {weightKg} kg · {formatPrice(price)}
                 </p>
               ) : (
-                <p className="font-body text-sm text-muted-foreground">
+                <p className="font-number text-sm text-muted-foreground">
                   Pack: {product.pack_size || "Standard"} · {formatPrice(price)}
                 </p>
               )}
