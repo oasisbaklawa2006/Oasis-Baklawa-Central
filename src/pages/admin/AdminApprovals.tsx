@@ -80,13 +80,13 @@ const AdminApprovals = () => {
           id: app.user_id,
           email: app.contact_email,
           full_name: app.contact_name,
-          role: "buyer",
+          role: "client",
           is_approved: true,
         });
       } else {
         await supabase
           .from("profiles")
-          .update({ role: "buyer", is_approved: true } as any)
+          .update({ role: "client", is_approved: true } as any)
           .eq("id", app.user_id);
       }
 
@@ -104,7 +104,7 @@ const AdminApprovals = () => {
       if (newCompany) {
         await supabase
           .from("users")
-          .update({ role: "buyer", company_id: newCompany.id })
+          .update({ role: "client", company_id: newCompany.id })
           .eq("id", app.user_id);
 
         await supabase

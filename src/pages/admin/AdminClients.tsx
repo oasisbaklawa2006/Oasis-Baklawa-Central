@@ -284,7 +284,7 @@ const AdminClients = () => {
     }
 
     if (app.user_id && companyId) {
-      await supabase.from("users").update({ role: "buyer", company_id: companyId }).eq("id", app.user_id);
+      await supabase.from("users").update({ role: "client", company_id: companyId }).eq("id", app.user_id);
     }
 
     toast.success(`${app.business_name} approved`);

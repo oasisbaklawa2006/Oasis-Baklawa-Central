@@ -107,11 +107,11 @@ const RootGate = () => {
     return <Navigate to="/sales/dashboard" replace />;
   }
 
-  if (normalizedRole === "CUSTOMER_USER" || normalizedRole === "CLIENT") {
+  if (normalizedRole === "CUSTOMER_USER" || normalizedRole === "CLIENT" || normalizedRole === "BUYER") {
     return <Navigate to="/catalogue" replace />;
   }
 
-  if (normalizedRole === null || normalizedRole === "BUYER") {
+  if (normalizedRole === null) {
     return <Navigate to="/approval-pending" replace />;
   }
 
