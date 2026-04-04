@@ -24,6 +24,7 @@ import Register from "./pages/Register.tsx";
 import NotFound from "./pages/NotFound.tsx";
 import Onboarding from "./pages/Onboarding.tsx";
 import BuyerPortal from "./pages/BuyerPortal.tsx";
+import Index from "./pages/Index.tsx";
 import ApprovalPending from "./pages/ApprovalPending.tsx";
 import AdminLayout from "./components/AdminLayout.tsx";
 import AdminDashboard from "./pages/admin/AdminDashboard.tsx";
@@ -134,7 +135,7 @@ const App = () => (
             <Route path="/operations-controller" element={<ProtectedRoute><RoleProtectedRoute allowedRoles={[...ADMIN_STAFF_ROLES]}><OperationsController /></RoleProtectedRoute></ProtectedRoute>} />
             <Route path="/security-gate" element={<ProtectedRoute><RoleProtectedRoute allowedRoles={['GATE_SECURITY', 'SUPER_ADMIN', 'ADMIN']}><AdminSecurityGate /></RoleProtectedRoute></ProtectedRoute>} />
             <Route path="/" element={<RootGate />} />
-            <Route path="/home" element={<ProtectedRoute><RoleProtectedRoute allowedRoles={['BUYER', 'CUSTOMER_USER', 'CLIENT', 'SUPER_ADMIN', 'ADMIN']}><BuyerPortal /></RoleProtectedRoute></ProtectedRoute>} />
+            <Route path="/home" element={<ProtectedRoute><RoleProtectedRoute allowedRoles={['BUYER', 'CUSTOMER_USER', 'CLIENT', 'SUPER_ADMIN', 'ADMIN']}><Index /></RoleProtectedRoute></ProtectedRoute>} />
             <Route path="/catalogue" element={<RoleProtectedRoute allowedRoles={['BUYER', 'CUSTOMER_USER', 'CLIENT', 'SUPER_ADMIN', 'ADMIN']}><Catalogue /></RoleProtectedRoute>} />
             <Route path="/product/:id" element={<RoleProtectedRoute allowedRoles={['BUYER', 'CUSTOMER_USER', 'CLIENT', 'SUPER_ADMIN', 'ADMIN']}><ProductDetail /></RoleProtectedRoute>} />
             <Route path="/login" element={<Login />} />
@@ -143,7 +144,7 @@ const App = () => (
             <Route path="/buyer-portal" element={<ProtectedRoute><RoleProtectedRoute allowedRoles={['BUYER', 'CUSTOMER_USER', 'CLIENT']}><BuyerPortal /></RoleProtectedRoute></ProtectedRoute>} />
             <Route path="/cart" element={<ProtectedRoute><RoleProtectedRoute allowedRoles={['BUYER', 'CUSTOMER_USER', 'CLIENT']}><Cart /></RoleProtectedRoute></ProtectedRoute>} />
             <Route path="/orders" element={<ProtectedRoute><RoleProtectedRoute allowedRoles={['BUYER', 'CUSTOMER_USER', 'CLIENT']}><Orders /></RoleProtectedRoute></ProtectedRoute>} />
-            <Route path="/dashboard" element={<ProtectedRoute><RoleProtectedRoute allowedRoles={['BUYER', 'CUSTOMER_USER', 'CLIENT']}><Dashboard /></RoleProtectedRoute></ProtectedRoute>} />
+            <Route path="/dashboard" element={<ProtectedRoute><RoleProtectedRoute allowedRoles={['BUYER', 'CUSTOMER_USER', 'CLIENT']}><BuyerPortal /></RoleProtectedRoute></ProtectedRoute>} />
             <Route path="/account" element={<ProtectedRoute><RoleProtectedRoute allowedRoles={['BUYER', 'CUSTOMER_USER', 'CLIENT']}><Account /></RoleProtectedRoute></ProtectedRoute>} />
             <Route path="/favorites" element={<ProtectedRoute><RoleProtectedRoute allowedRoles={['BUYER', 'CUSTOMER_USER', 'CLIENT']}><Favorites /></RoleProtectedRoute></ProtectedRoute>} />
             <Route path="/account/users" element={<ProtectedRoute><RoleProtectedRoute allowedRoles={['BUYER', 'CUSTOMER_USER', 'CLIENT']}><ManageUsers /></RoleProtectedRoute></ProtectedRoute>} />
