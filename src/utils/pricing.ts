@@ -89,9 +89,11 @@ export function getTieredPricePerKg(product: any, priceTier?: string | null): nu
     if (b2b > 0) return b2b;
   }
 
-  // 3. Ultimate Fallbacks
-  if (mrp > 0) return mrp;
-  return Number(product?.price_b2b) || Number(product?.price_per_kg) || Number(product?.base_price) || 0;
+  // 3. Ultimate Fallbacks — NEVER return 0 if MRP exists
+  const fallback = Number(product?.price_b2b) || Number(product?.price_per_kg) || Number(product?.base_price) || Number(product?.wholesale_price) || 0;
+  if (fallback > 0) return fallback;
+  if (mrp > 0) return mrp * 0.70; // Default to wholesale calc if only MRP available
+  return 0;
 }
 
 export function getTieredPricePerPc(product: any, priceTier?: string | null): number {
