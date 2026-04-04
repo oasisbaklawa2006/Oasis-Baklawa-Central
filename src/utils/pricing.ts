@@ -84,7 +84,10 @@ export function getTieredPricePerKg(product: any, priceTier?: string | null): nu
   // 2. Database Column Tiers
   if (tier.includes("horeca") && Number(product?.price_horeca) > 0) return Number(product.price_horeca);
   if (tier.includes("special") && Number(product?.price_special) > 0) return Number(product.price_special);
-  if (tier.includes("b2b") && Number(product?.price_b2b) > 0) return Number(product.price_b2b);
+  if (tier.includes("b2b")) {
+    const b2b = Number(product?.price_b2b) || Number(product?.base_price) || Number(product?.price_per_kg) || 0;
+    if (b2b > 0) return b2b;
+  }
 
   // 3. Ultimate Fallbacks
   if (mrp > 0) return mrp;
