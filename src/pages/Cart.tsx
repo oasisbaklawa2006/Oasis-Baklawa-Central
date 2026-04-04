@@ -727,10 +727,14 @@ const Cart = () => {
                         className="text-xs p-3 rounded-xl border border-border bg-card focus:ring-2 focus:ring-primary/30 outline-none"
                       />
                       <input
+                        type="tel"
                         placeholder="Contact Phone"
                         value={newAddress.contact_phone}
-                        onChange={(e) => setNewAddress({ ...newAddress, contact_phone: e.target.value })}
-                        className="col-span-2 text-xs p-3 rounded-xl border border-border bg-card focus:ring-2 focus:ring-primary/30 outline-none"
+                        onChange={(e) => {
+                          const cleaned = e.target.value.replace(/[^0-9+\-\s]/g, '');
+                          setNewAddress({ ...newAddress, contact_phone: cleaned });
+                        }}
+                        className="col-span-2 text-xs p-3 rounded-xl border border-border bg-card focus:ring-2 focus:ring-primary/30 outline-none font-number"
                       />
                     </div>
                     <div className="flex gap-2">
