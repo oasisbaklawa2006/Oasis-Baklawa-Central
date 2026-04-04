@@ -190,7 +190,7 @@ const AdminPricing = () => {
                               <span className="absolute left-3 text-xs text-gray-400 font-medium">₹</span>
                               <Input
                                 type="number"
-                                value={current.base_price || ""}
+                                value={current.base_price ?? ""}
                                 onChange={(e) => handleEdit(p.id, "base_price", e.target.value)}
                                 className="w-24 text-right pl-6 h-9 rounded-lg border-gray-200 font-bold focus-visible:ring-[#C5A059] bg-white"
                               />
@@ -200,7 +200,7 @@ const AdminPricing = () => {
                           <td className="p-4">
                             <Input
                               type="number"
-                              value={current.price_bulk || ""}
+                              value={current.price_bulk ?? ""}
                               onChange={(e) => handleEdit(p.id, "price_bulk", e.target.value)}
                               className="w-24 ml-auto text-right h-9 rounded-lg border-gray-200 font-medium focus-visible:ring-[#C5A059]"
                             />
@@ -208,7 +208,7 @@ const AdminPricing = () => {
                           <td className="p-4">
                             <Input
                               type="number"
-                              value={current.price_wholesale || ""}
+                              value={current.price_wholesale ?? ""}
                               onChange={(e) => handleEdit(p.id, "price_wholesale", e.target.value)}
                               className="w-24 ml-auto text-right h-9 rounded-lg border-gray-200 font-medium focus-visible:ring-[#C5A059]"
                             />
@@ -216,7 +216,7 @@ const AdminPricing = () => {
                           <td className="p-4">
                             <Input
                               type="number"
-                              value={current.price_horeca || ""}
+                              value={current.price_horeca ?? ""}
                               onChange={(e) => handleEdit(p.id, "price_horeca", e.target.value)}
                               className="w-24 ml-auto text-right h-9 rounded-lg border-gray-200 font-medium focus-visible:ring-[#C5A059]"
                             />
@@ -224,7 +224,7 @@ const AdminPricing = () => {
                           <td className="p-4">
                             <Input
                               type="number"
-                              value={current.price_b2b || ""}
+                              value={current.price_b2b ?? ""}
                               onChange={(e) => handleEdit(p.id, "price_b2b", e.target.value)}
                               className="w-24 ml-auto text-right h-9 rounded-lg border-gray-200 font-medium focus-visible:ring-[#C5A059]"
                             />
@@ -232,7 +232,7 @@ const AdminPricing = () => {
                           <td className="p-4">
                             <Input
                               type="number"
-                              value={current.price_special || ""}
+                              value={current.price_special ?? ""}
                               onChange={(e) => handleEdit(p.id, "price_special", e.target.value)}
                               className="w-24 ml-auto text-right h-9 rounded-lg border-gray-200 font-medium focus-visible:ring-[#C5A059]"
                             />
