@@ -75,25 +75,38 @@ export function getPrimaryPackWeightKg(product: any): number {
  */
 export function getTieredPricePerKg(product: any, priceTier?: string | null): number {
   const mrp = Number(product?.mrp) || 0;
-  if (mrp > 0 && priceTier) {
-    const tier = priceTier.toLowerCase().replace(/\s+/g, "_");
-    if (tier === "wholesale") return mrp * 0.70;
-    if (tier === "bulk") return mrp * 0.80;
-  }
-  // Default: return MRP (retail), or fallback chain if mrp is missing
+  const tier = (priceTier || "").toLowerCase();
+
+  // 1. Calculated Tiers (Requires MRP)
+  if (tier.includes("bulk") && mrp > 0) return mrp * 0.80;
+  if (tier.includes("wholesale") && mrp > 0) return mrp * 0.70;
+
+  // 2. Database Column Tiers
+  if (tier.includes("horeca") && Number(product?.price_horeca) > 0) return Number(product.price_horeca);
+  if (tier.includes("special") && Number(product?.price_special) > 0) return Number(product.price_special);
+  if (tier.includes("b2b") && Number(product?.price_b2b) > 0) return Number(product.price_b2b);
+
+  // 3. Ultimate Fallbacks
   if (mrp > 0) return mrp;
-  return product?.price_per_kg || product?.price_b2b || product?.wholesale_price || product?.base_price || 0;
+  return Number(product?.price_b2b) || Number(product?.price_per_kg) || Number(product?.base_price) || 0;
 }
 
 export function getTieredPricePerPc(product: any, priceTier?: string | null): number {
   const mrp = Number(product?.mrp_per_pc) || Number(product?.mrp) || 0;
-  if (mrp > 0 && priceTier) {
-    const tier = priceTier.toLowerCase().replace(/\s+/g, "_");
-    if (tier === "wholesale") return mrp * 0.70;
-    if (tier === "bulk") return mrp * 0.80;
-  }
+  const tier = (priceTier || "").toLowerCase();
+
+  // 1. Calculated Tiers
+  if (tier.includes("bulk") && mrp > 0) return mrp * 0.80;
+  if (tier.includes("wholesale") && mrp > 0) return mrp * 0.70;
+
+  // 2. Database Column Tiers
+  if (tier.includes("horeca") && Number(product?.price_horeca) > 0) return Number(product.price_horeca);
+  if (tier.includes("special") && Number(product?.price_special) > 0) return Number(product.price_special);
+  if (tier.includes("b2b") && Number(product?.price_b2b) > 0) return Number(product.price_b2b);
+
+  // 3. Ultimate Fallbacks
   if (mrp > 0) return mrp;
-  return product?.price_b2b || product?.base_price || product?.wholesale_price || 0;
+  return Number(product?.price_b2b) || Number(product?.base_price) || 0;
 }
 
 function resolveTierColumn(product: any, priceTier?: string | null, _mode?: string): number | null {
