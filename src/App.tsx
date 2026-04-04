@@ -109,7 +109,7 @@ const RootGate = () => {
   }
 
   if (normalizedRole === "CUSTOMER_USER" || normalizedRole === "CLIENT" || normalizedRole === "BUYER") {
-    return <Navigate to="/catalogue" replace />;
+    return <Navigate to="/home" replace />;
   }
 
   if (normalizedRole === null) {
