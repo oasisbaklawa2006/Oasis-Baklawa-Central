@@ -110,6 +110,15 @@
   .font-body { font-family: var(--font-body); }
   .font-ui { font-family: var(--font-ui); }
   .font-serif { font-family: var(--font-serif); }
+  .font-number { font-family: var(--font-number); }
+
+  /* Apply number font globally to all numeric contexts */
+  .font-body [class*="price"],
+  .font-body [class*="total"],
+  input[type="number"],
+  input[type="tel"] {
+    font-family: var(--font-number);
+  }
 }
 
 @keyframes marquee {
