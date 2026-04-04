@@ -167,7 +167,7 @@ const App = () => (
               <Route path="clients" element={<AdminClients />} />
               <Route path="approvals" element={<AdminClients />} />
               <Route path="products" element={<AdminProducts />} />
-              <Route path="pricing" element={<AdminPricing />} />
+              <Route path="pricing" element={<ErrorBoundary fallbackTitle="Pricing Matrix crashed"><AdminPricing /></ErrorBoundary>} />
               <Route path="orders" element={<AdminOrders />} />
               <Route path="production" element={<AdminProduction />} />
               <Route path="operations" element={<AdminOperations />} />
