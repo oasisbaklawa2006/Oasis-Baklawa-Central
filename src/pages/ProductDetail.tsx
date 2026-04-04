@@ -208,7 +208,7 @@ const ProductDetail = () => {
                   <p className="font-body text-[9px] text-muted-foreground uppercase tracking-wider">
                     Total incl. GST@{gstRate}%
                   </p>
-                  <p className="font-body text-lg font-medium text-foreground">{formatPrice(grandTotal)}</p>
+                  <p className="font-number text-lg font-semibold text-foreground">{formatPrice(grandTotal)}</p>
                 </div>
 
                 {/* Qty */}
