@@ -145,15 +145,15 @@ const OrderTracking = () => {
             <ChevronLeft size={24} />
           </button>
           <div>
-            <h1 className="font-display text-xl tracking-wide">Order #{order.id.split("-")[0]}</h1>
-            <p className="text-xs text-muted-foreground">{formatDate(order.created_at)}</p>
+            <h1 className="font-display text-xl tracking-wide">Order <span className="font-number font-medium">#{order.id.split("-")[0]}</span></h1>
+            <p className="text-xs text-muted-foreground font-number font-medium">{formatDate(order.created_at)}</p>
           </div>
         </div>
 
         <div className="bg-card rounded-2xl border border-border p-5 flex items-center justify-between">
           <div>
             <p className="text-xs text-muted-foreground font-medium">Order Value</p>
-            <p className="font-display text-2xl text-foreground">{formatPrice(order.sales_order_value || 0)}</p>
+            <p className="font-number text-2xl font-semibold text-foreground">{formatPrice(order.sales_order_value || 0)}</p>
           </div>
           <div className="text-right">
             <p className="text-xs text-muted-foreground font-medium">Company</p>
@@ -228,7 +228,7 @@ const OrderTracking = () => {
                     <p className="text-sm font-semibold text-foreground truncate">
                       {item.product?.name || "Product"}
                     </p>
-                    <p className="text-[11px] text-muted-foreground">Qty: {item.quantity}</p>
+                    <p className="text-[11px] text-muted-foreground font-number">Qty: {item.quantity}</p>
                   </div>
                 </div>
               ))}
