@@ -1,5 +1,6 @@
 import AppShell from "@/components/AppShell";
 import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { generateSOPdf } from "@/utils/soGenerator";
 import {
@@ -61,6 +62,7 @@ const getDownloadLabel = (stage: string | null) => {
 type TimeFilter = "30days" | "6months" | "2026" | "all";
 
 const Orders = () => {
+  const navigate = useNavigate();
   const [orders, setOrders] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [uploadingId, setUploadingId] = useState<string | null>(null);
@@ -239,7 +241,8 @@ const Orders = () => {
                   initial={{ opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}
                   key={order.id}
-                  className={`bg-white rounded-2xl border ${needsReceipt ? "border-amber-300 shadow-amber-100" : "border-slate-200"} p-5 shadow-sm hover:shadow-md transition-shadow relative`}
+                  className={`bg-white rounded-2xl border ${needsReceipt ? "border-amber-300 shadow-amber-100" : "border-slate-200"} p-5 shadow-sm hover:shadow-md transition-shadow relative cursor-pointer`}
+                  onClick={() => navigate(`/orders/${order.id}`)}
                 >
                   {/* Top-right Reorder shortcut */}
                   <button
