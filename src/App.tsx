@@ -146,6 +146,7 @@ const App = () => (
             <Route path="/buyer-portal" element={<ProtectedRoute><RoleProtectedRoute allowedRoles={['BUYER', 'CUSTOMER_USER', 'CLIENT']}><BuyerPortal /></RoleProtectedRoute></ProtectedRoute>} />
             <Route path="/cart" element={<ProtectedRoute><RoleProtectedRoute allowedRoles={['BUYER', 'CUSTOMER_USER', 'CLIENT']}><Cart /></RoleProtectedRoute></ProtectedRoute>} />
             <Route path="/orders" element={<ProtectedRoute><RoleProtectedRoute allowedRoles={['BUYER', 'CUSTOMER_USER', 'CLIENT']}><Orders /></RoleProtectedRoute></ProtectedRoute>} />
+            <Route path="/orders/:id" element={<ProtectedRoute><RoleProtectedRoute allowedRoles={['BUYER', 'CUSTOMER_USER', 'CLIENT']}><OrderTracking /></RoleProtectedRoute></ProtectedRoute>} />
             <Route path="/dashboard" element={<ProtectedRoute><RoleProtectedRoute allowedRoles={['BUYER', 'CUSTOMER_USER', 'CLIENT']}><BuyerPortal /></RoleProtectedRoute></ProtectedRoute>} />
             <Route path="/account" element={<ProtectedRoute><RoleProtectedRoute allowedRoles={['BUYER', 'CUSTOMER_USER', 'CLIENT']}><Account /></RoleProtectedRoute></ProtectedRoute>} />
             <Route path="/favorites" element={<ProtectedRoute><RoleProtectedRoute allowedRoles={['BUYER', 'CUSTOMER_USER', 'CLIENT']}><Favorites /></RoleProtectedRoute></ProtectedRoute>} />
