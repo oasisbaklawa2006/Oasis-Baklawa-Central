@@ -153,7 +153,7 @@ const OrderTracking = () => {
         <div className="bg-card rounded-2xl border border-border p-5 flex items-center justify-between">
           <div>
             <p className="text-xs text-muted-foreground font-medium">Order Value</p>
-            <p className="font-display text-2xl text-foreground">{formatPrice(order.sales_order_value || 0)}</p>
+            <p className="font-number text-2xl font-semibold text-foreground">{formatPrice(order.sales_order_value || 0)}</p>
           </div>
           <div className="text-right">
             <p className="text-xs text-muted-foreground font-medium">Company</p>
