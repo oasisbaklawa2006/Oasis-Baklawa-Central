@@ -1035,7 +1035,7 @@ const Cart = () => {
                   className="w-full py-4 rounded-xl font-bold text-primary-foreground bg-foreground flex justify-center items-center shadow-lg active:scale-95 transition-all disabled:opacity-50"
                 >
                   {isSubmitting ? (
-                    <Loader2 size={18} className="animate-spin" />
+                    <span className="flex items-center gap-2"><Loader2 size={18} className="animate-spin" /> Processing Secure Payment...</span>
                   ) : paymentMethod === "pay_online" ? (
                     `Pay ${formatPrice(parseFloat(depositAmount) || minimumToken)} Online`
                   ) : paymentMethod === "credit" ? (

@@ -170,7 +170,7 @@ const Dashboard = () => {
               <div className="bg-[#1E1E1E] p-6 rounded-2xl border border-white/[0.06] hover:border-[#D4AF37]/20 transition-colors">
                 <TrendingUp size={14} className="text-[#D4AF37] mb-3" />
                 <p className="text-[10px] text-[#9CA3AF] font-semibold uppercase tracking-[0.15em] mb-1">{t("dash.totalBusiness")}</p>
-                <p className="font-bold text-2xl lg:text-3xl text-[#D4AF37]" style={{ fontFamily: "'DM Sans', sans-serif" }}>{formatPrice(totalBusiness || 0)}</p>
+                <p className="font-bold text-2xl lg:text-3xl text-[#D4AF37] font-number">{formatPrice(totalBusiness || 0)}</p>
               </div>
               <div className="bg-[#1E1E1E] p-6 rounded-2xl border border-white/[0.06] hover:border-[#D4AF37]/20 transition-colors">
                 <Package size={14} className="text-[#D4AF37] mb-3" />
