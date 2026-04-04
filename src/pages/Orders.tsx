@@ -285,7 +285,7 @@ const Orders = () => {
                         </p>
                         <p className="text-[10px] font-bold text-slate-400">{formatDate(order.created_at)}</p>
                       </div>
-                      <p className="text-xl font-black text-slate-900 mb-2">
+                      <p className="text-xl font-black text-slate-900" style={{ fontFamily: "'DM Sans', sans-serif" }}>
                         {formatPrice(order.sales_order_value || 0)}
                       </p>
 
