@@ -221,16 +221,25 @@ const ProductDetail = () => {
                         const next = b - increment;
                         return next < minQty ? 0 : next;
                       })}
-                      className="w-8 h-8 rounded-full bg-foreground text-primary-foreground flex items-center justify-center"
+                      className="w-9 h-9 rounded-full bg-foreground text-primary-foreground flex items-center justify-center"
                     >
-                      <Minus size={14} />
+                      <Minus size={16} />
                     </button>
-                    <span className="font-body font-medium text-sm w-8 text-center text-foreground">{boxes}</span>
+                    <input
+                      type="number"
+                      min={0}
+                      value={boxes}
+                      onChange={(e) => {
+                        const val = parseInt(e.target.value) || 0;
+                        setBoxes(val < 0 ? 0 : val);
+                      }}
+                      className="font-number font-semibold text-sm w-12 text-center text-foreground bg-transparent border-none outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                    />
                     <button
                       onClick={() => setBoxes((b) => (b === 0 ? minQty : b + increment))}
-                      className="w-8 h-8 rounded-full bg-foreground text-primary-foreground flex items-center justify-center"
+                      className="w-9 h-9 rounded-full bg-foreground text-primary-foreground flex items-center justify-center"
                     >
-                      <Plus size={14} />
+                      <Plus size={16} />
                     </button>
                   </div>
                   <p className="font-body text-[9px] text-muted-foreground mt-1">MOQ: {minQty} | Pack Size: {increment}</p>
