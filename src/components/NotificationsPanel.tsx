@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { X, Package, CreditCard, Sparkles, Bell } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import { removeDuplicateRealtimeChannel } from "@/utils/realtime";
 
 interface OutboxNotification {
   id: string;
@@ -41,6 +42,8 @@ const NotificationsPanel = ({ open, onClose }: { open: boolean; onClose: () => v
   useEffect(() => {
     if (!open || !user) return;
 
+    const channelName = `outbox-live-${user.id}`;
+
     const load = async () => {
       const { data } = await supabase
         .from("notification_outbox")
@@ -52,8 +55,10 @@ const NotificationsPanel = ({ open, onClose }: { open: boolean; onClose: () => v
     };
     load();
 
+    removeDuplicateRealtimeChannel(channelName);
+
     const channel = supabase
-      .channel("outbox-live")
+      .channel(channelName)
       .on(
         "postgres_changes",
         { event: "INSERT", schema: "public", table: "notification_outbox" },
@@ -76,9 +81,9 @@ const NotificationsPanel = ({ open, onClose }: { open: boolean; onClose: () => v
       .subscribe();
 
     return () => {
-      supabase.removeChannel(channel);
+      void supabase.removeChannel(channel);
     };
-  }, [open, user]);
+  }, [open, user?.id]);
 
   return (
     <AnimatePresence>

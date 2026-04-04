@@ -9,6 +9,7 @@ import { useLanguage } from "@/contexts/LanguageContext";
 import { useCurrency } from "@/contexts/CurrencyContext";
 import { useAuth } from "@/hooks/useAuth";
 import { signOutAndClearSession } from "@/utils/authSession";
+import { removeDuplicateRealtimeChannel } from "@/utils/realtime";
 
 const TopNavBar = () => {
   const [showNotifs, setShowNotifs] = useState(false);
@@ -30,6 +31,7 @@ const TopNavBar = () => {
     if (!user?.id) return;
 
     let aborted = false;
+    const channelName = `realtime:notif-count-${user.id}`;
 
     const fetchUnread = async () => {
       const { count } = await supabase
@@ -40,7 +42,8 @@ const TopNavBar = () => {
     };
     fetchUnread();
 
-    const channelName = `notif-count-${user.id}`;
+    removeDuplicateRealtimeChannel(channelName);
+
     const channel = supabase
       .channel(channelName)
       .on(
@@ -52,7 +55,7 @@ const TopNavBar = () => {
 
     return () => {
       aborted = true;
-      supabase.removeChannel(channel);
+      void supabase.removeChannel(channel);
     };
   }, [user?.id]);
 

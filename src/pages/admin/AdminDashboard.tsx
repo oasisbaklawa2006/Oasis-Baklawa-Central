@@ -5,6 +5,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useLanguage } from "@/hooks/useLanguage";
 import { useCurrency } from "@/hooks/useCurrency";
 import { signOutAndClearSession } from "@/utils/authSession";
+import { removeDuplicateRealtimeChannel } from "@/utils/realtime";
 import {
   Loader2, LogOut, AlertTriangle, ArrowRight, ClipboardList,
   ShoppingCart, Factory, PackageCheck, Landmark, AlertCircle,
@@ -103,13 +104,17 @@ const AdminDashboard = () => {
 
   useEffect(() => {
     fetchData();
-    const ch = supabase.channel("governance-rt")
+    const channelName = "governance-rt";
+
+    removeDuplicateRealtimeChannel(channelName);
+
+    const ch = supabase.channel(channelName)
       .on("postgres_changes", { event: "*", schema: "public", table: "orders" }, () => fetchData())
       .on("postgres_changes", { event: "*", schema: "public", table: "b2b_applications" }, () => fetchData())
       .on("postgres_changes", { event: "*", schema: "public", table: "audit_logs" }, () => fetchData())
       .on("postgres_changes", { event: "*", schema: "public", table: "factory_inventory" }, () => fetchData())
       .subscribe();
-    return () => { supabase.removeChannel(ch); };
+    return () => { void supabase.removeChannel(ch); };
   }, [fetchData]);
 
   const handleLogout = async () => { await signOutAndClearSession(); navigate("/splash"); };
