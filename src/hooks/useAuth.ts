@@ -11,6 +11,11 @@ interface AuthCache {
   priceTier: string | null;
 }
 
+function isPendingRole(role?: string | null) {
+  const normalizedRole = role?.trim().toUpperCase() ?? null;
+  return !normalizedRole || normalizedRole === "PENDING";
+}
+
 function readCache(): AuthCache | null {
   try {
     const raw = localStorage.getItem(CACHE_KEY);
@@ -42,6 +47,7 @@ export function useAuth() {
   const cachedProfileRef = useRef<AuthCache | null>(null);
   const currentUserIdRef = useRef<string | null>(null);
   const profileFetchedForRef = useRef<string | null>(null);
+  const forcedPendingRefreshForRef = useRef<string | null>(null);
 
   useEffect(() => {
     cachedProfileRef.current = readCache();
@@ -158,6 +164,20 @@ export function useAuth() {
     }
   }, [companyId, getCachedForUser, persistCache, role, user]);
 
+  const refreshProfile = useCallback(async () => {
+    if (!user) return null;
+
+    profileFetchedForRef.current = user.id;
+    setProfileReady(false);
+
+    try {
+      await fetchProfile(user);
+      return true;
+    } finally {
+      setProfileReady(true);
+    }
+  }, [fetchProfile, user]);
+
   // Auth listener — silent, no remounts
   useEffect(() => {
     let mounted = true;
@@ -177,6 +197,7 @@ export function useAuth() {
         setRole(null);
         setPriceTier(null);
         setProfileReady(true);
+          forcedPendingRefreshForRef.current = null;
         return;
       }
 
@@ -206,11 +227,13 @@ export function useAuth() {
           setPriceTier(null);
           setProfileReady(true);
           profileFetchedForRef.current = null;
+          forcedPendingRefreshForRef.current = null;
           return;
         }
 
         if (userChanged) {
           profileFetchedForRef.current = null;
+          forcedPendingRefreshForRef.current = null;
           setRole(null);
           setProfileReady(false);
 
@@ -243,6 +266,20 @@ export function useAuth() {
     });
   }, [fetchProfile, loading, user]);
 
+  useEffect(() => {
+    if (loading || !user || !profileReady) return;
+
+    if (!isPendingRole(role)) {
+      forcedPendingRefreshForRef.current = null;
+      return;
+    }
+
+    if (forcedPendingRefreshForRef.current === user.id) return;
+    forcedPendingRefreshForRef.current = user.id;
+
+    void refreshProfile();
+  }, [loading, profileReady, refreshProfile, role, user]);
+
   return {
     user,
     loading,
@@ -251,6 +288,7 @@ export function useAuth() {
     role,
     priceTier,
     profileReady,
+    refreshProfile,
     refreshPriceTier,
   };
 }
