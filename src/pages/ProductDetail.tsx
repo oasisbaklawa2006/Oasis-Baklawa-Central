@@ -118,18 +118,18 @@ const ProductDetail = () => {
       <div className="relative min-h-screen bg-background pb-36">
 
         {/* ─── Hero Image ─── */}
-        <div className="relative w-full" style={{ height: 280 }}>
+        <div className="relative w-full">
           <div
-            className="w-full h-full flex overflow-x-auto snap-x snap-mandatory scrollbar-hide"
+            className="w-full flex overflow-x-auto snap-x snap-mandatory scrollbar-hide"
             onScroll={handleScroll}
             style={{ WebkitOverflowScrolling: "touch" }}
           >
             {heroImages.map((img, i) => (
-              <div key={i} className="min-w-full h-full snap-center flex items-center justify-center p-8 bg-background">
+              <div key={i} className="min-w-full snap-center flex items-center justify-center p-6 bg-background">
                 <img
                   src={img}
                   alt={`${product.name} ${i + 1}`}
-                  className="w-full h-full object-contain"
+                  className="w-full h-auto max-h-[50vh] object-contain"
                 />
               </div>
             ))}
