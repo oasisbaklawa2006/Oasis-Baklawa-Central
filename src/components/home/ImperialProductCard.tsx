@@ -86,7 +86,7 @@ const ImperialProductCard = ({
       {/* Price row */}
       <div className="flex items-end justify-between mt-auto">
         <div>
-          <p className={`font-display font-bold text-foreground ${isEditorial ? "text-lg" : "text-base"}`}>
+          <p className={`font-number font-bold text-foreground ${isEditorial ? "text-lg" : "text-base"}`}>
             <span className="text-[10px] align-top font-body font-light">₹</span>{pricePerKg > 0 ? pricePerKg.toFixed(0) : "0"}
             <span className="text-[9px] font-body font-light text-foreground/40 ml-0.5">/kg</span>
           </p>
