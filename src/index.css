@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,500;0,600;0,700;1,400&family=Lato:wght@300;400;700&family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&family=Jost:wght@200;300;400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,500;0,600;0,700;1,400&family=Lato:wght@300;400;700&family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&family=Jost:wght@200;300;400;500;600;700&family=DM+Sans:wght@400;500;600;700&display=swap');
 
 @tailwind base;
 @tailwind components;
@@ -43,6 +43,7 @@
     --font-display: 'Playfair Display', 'Georgia', serif;
     --font-body: 'Lato', 'Jost', sans-serif;
     --font-ui: 'Lato', sans-serif;
+    --font-number: 'DM Sans', 'Lato', sans-serif;
     --font-serif: 'Cormorant Garamond', 'Georgia', serif;
 
     --sidebar-background: 0 0% 98%;
@@ -109,6 +110,15 @@
   .font-body { font-family: var(--font-body); }
   .font-ui { font-family: var(--font-ui); }
   .font-serif { font-family: var(--font-serif); }
+  .font-number { font-family: var(--font-number); }
+
+  /* Apply number font globally to all numeric contexts */
+  .font-body [class*="price"],
+  .font-body [class*="total"],
+  input[type="number"],
+  input[type="tel"] {
+    font-family: var(--font-number);
+  }
 }
 
 @keyframes marquee {

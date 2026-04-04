@@ -128,7 +128,7 @@ const ProductSection = ({ tagKey, title, subtitle, variant = "default", priceTie
                   )}
                 </div>
                 <p className="font-body text-xs text-foreground line-clamp-1 mb-0.5">{item.name}</p>
-                <p className="font-body text-[11px] text-muted-foreground">
+                <p className="font-number text-[11px] text-muted-foreground">
                   {formatPrice(displayInfo.price)}{displayInfo.unit}
                 </p>
               </div>
@@ -171,7 +171,7 @@ const CompactCard = ({ item, navigate, formatPrice, addToCart, priceTier }: any)
         </button>
       </div>
       <p className="font-body text-[11px] text-foreground line-clamp-1">{item.name}</p>
-      <p className="font-body text-[10px] text-muted-foreground">
+      <p className="font-number text-[10px] text-muted-foreground">
         {formatPrice(displayInfo.price)}{displayInfo.unit}
       </p>
     </div>

@@ -79,7 +79,7 @@ const CatalogueProductCard = ({ item, priceTier }: CatalogueProductCardProps) =>
 
         {/* Price */}
         <div className="pt-1">
-          <p className="font-body text-sm text-foreground font-semibold">
+          <p className="font-number text-sm text-foreground font-semibold">
             {formatPrice(displayInfo.price)}
             <span className="text-[10px] font-normal text-muted-foreground ml-0.5">{displayInfo.unit}</span>
           </p>
@@ -99,7 +99,7 @@ const CatalogueProductCard = ({ item, priceTier }: CatalogueProductCardProps) =>
             >
               <Minus size={14} className="text-foreground" />
             </button>
-            <span className="font-body text-sm font-semibold text-foreground min-w-[2rem] text-center">
+            <span className="font-number text-sm font-semibold text-foreground min-w-[2rem] text-center">
               {currentQty}
             </span>
             <button

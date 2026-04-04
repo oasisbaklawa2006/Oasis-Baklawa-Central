@@ -118,18 +118,18 @@ const ProductDetail = () => {
       <div className="relative min-h-screen bg-background pb-36">
 
         {/* ─── Hero Image ─── */}
-        <div className="relative w-full" style={{ height: 280 }}>
+        <div className="relative w-full">
           <div
-            className="w-full h-full flex overflow-x-auto snap-x snap-mandatory scrollbar-hide"
+            className="w-full flex overflow-x-auto snap-x snap-mandatory scrollbar-hide"
             onScroll={handleScroll}
             style={{ WebkitOverflowScrolling: "touch" }}
           >
             {heroImages.map((img, i) => (
-              <div key={i} className="min-w-full h-full snap-center flex items-center justify-center p-8 bg-background">
+              <div key={i} className="min-w-full snap-center flex items-center justify-center p-6 bg-background">
                 <img
                   src={img}
                   alt={`${product.name} ${i + 1}`}
-                  className="w-full h-full object-contain"
+                  className="w-full h-auto max-h-[50vh] object-contain"
                 />
               </div>
             ))}
@@ -162,15 +162,15 @@ const ProductDetail = () => {
           {/* Price */}
           {isAuthenticated && (
             <div className="space-y-1">
-              <p className="font-body text-lg text-foreground font-medium">
+              <p className="font-number text-lg text-foreground font-semibold">
                 {formatPrice(displayInfo.price)} <span className="text-sm font-normal text-muted-foreground">{displayInfo.unit}</span>
               </p>
               {isBulk && weightKg > 0 ? (
-                <p className="font-body text-sm text-muted-foreground">
+                <p className="font-number text-sm text-muted-foreground">
                   Pack: {weightKg} kg · {formatPrice(price)}
                 </p>
               ) : (
-                <p className="font-body text-sm text-muted-foreground">
+                <p className="font-number text-sm text-muted-foreground">
                   Pack: {product.pack_size || "Standard"} · {formatPrice(price)}
                 </p>
               )}
@@ -208,7 +208,7 @@ const ProductDetail = () => {
                   <p className="font-body text-[9px] text-muted-foreground uppercase tracking-wider">
                     Total incl. GST@{gstRate}%
                   </p>
-                  <p className="font-body text-lg font-medium text-foreground">{formatPrice(grandTotal)}</p>
+                  <p className="font-number text-lg font-semibold text-foreground">{formatPrice(grandTotal)}</p>
                 </div>
 
                 {/* Qty */}
@@ -221,16 +221,25 @@ const ProductDetail = () => {
                         const next = b - increment;
                         return next < minQty ? 0 : next;
                       })}
-                      className="w-8 h-8 rounded-full bg-foreground text-primary-foreground flex items-center justify-center"
+                      className="w-9 h-9 rounded-full bg-foreground text-primary-foreground flex items-center justify-center"
                     >
-                      <Minus size={14} />
+                      <Minus size={16} />
                     </button>
-                    <span className="font-body font-medium text-sm w-8 text-center text-foreground">{boxes}</span>
+                    <input
+                      type="number"
+                      min={0}
+                      value={boxes}
+                      onChange={(e) => {
+                        const val = parseInt(e.target.value) || 0;
+                        setBoxes(val < 0 ? 0 : val);
+                      }}
+                      className="font-number font-semibold text-sm w-12 text-center text-foreground bg-transparent border-none outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                    />
                     <button
                       onClick={() => setBoxes((b) => (b === 0 ? minQty : b + increment))}
-                      className="w-8 h-8 rounded-full bg-foreground text-primary-foreground flex items-center justify-center"
+                      className="w-9 h-9 rounded-full bg-foreground text-primary-foreground flex items-center justify-center"
                     >
-                      <Plus size={14} />
+                      <Plus size={16} />
                     </button>
                   </div>
                   <p className="font-body text-[9px] text-muted-foreground mt-1">MOQ: {minQty} | Pack Size: {increment}</p>

@@ -170,7 +170,7 @@ const Dashboard = () => {
               <div className="bg-[#1E1E1E] p-6 rounded-2xl border border-white/[0.06] hover:border-[#D4AF37]/20 transition-colors">
                 <TrendingUp size={14} className="text-[#D4AF37] mb-3" />
                 <p className="text-[10px] text-[#9CA3AF] font-semibold uppercase tracking-[0.15em] mb-1">{t("dash.totalBusiness")}</p>
-                <p className="font-bold text-2xl lg:text-3xl text-[#D4AF37]">{formatPrice(totalBusiness || 0)}</p>
+                <p className="font-bold text-2xl lg:text-3xl text-[#D4AF37]" style={{ fontFamily: "'DM Sans', sans-serif" }}>{formatPrice(totalBusiness || 0)}</p>
               </div>
               <div className="bg-[#1E1E1E] p-6 rounded-2xl border border-white/[0.06] hover:border-[#D4AF37]/20 transition-colors">
                 <Package size={14} className="text-[#D4AF37] mb-3" />
@@ -249,7 +249,7 @@ const Dashboard = () => {
                 <div className="bg-[#181818] border-b border-white/[0.06] p-6 flex justify-between items-center">
                   <div>
                     <p className="text-[10px] text-[#9CA3AF] font-bold uppercase tracking-widest mb-1">SO #{latestOrder.id.split("-")[0].toUpperCase()}</p>
-                    <p className="font-bold text-xl text-[#D4AF37]">{formatPrice(latestOrder.sales_order_value || 0)}</p>
+                    <p className="font-bold text-xl text-[#D4AF37]" style={{ fontFamily: "'DM Sans', sans-serif" }}>{formatPrice(latestOrder.sales_order_value || 0)}</p>
                   </div>
                   <div className="text-right">
                     <p className="text-[10px] text-[#9CA3AF] font-bold mb-1">{t("dash.placedOn")}</p>
