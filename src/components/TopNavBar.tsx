@@ -28,6 +28,7 @@ const TopNavBar = () => {
 
   useEffect(() => {
     if (!user) return;
+
     const fetchUnread = async () => {
       const { count } = await supabase
         .from("notifications")
@@ -36,13 +37,20 @@ const TopNavBar = () => {
       setUnreadCount(count || 0);
     };
     fetchUnread();
+
+    const channelName = `notif-count-${user.id}`;
     const channel = supabase
-      .channel("notif-count")
-      .on("postgres_changes", { event: "*", schema: "public", table: "notifications" }, () => {
-        fetchUnread();
-      })
+      .channel(channelName)
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "notifications" },
+        () => { fetchUnread(); }
+      )
       .subscribe();
-    return () => { supabase.removeChannel(channel); };
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, [user]);
 
   useEffect(() => {
