@@ -24,6 +24,7 @@ import Register from "./pages/Register.tsx";
 import NotFound from "./pages/NotFound.tsx";
 import Onboarding from "./pages/Onboarding.tsx";
 import BuyerPortal from "./pages/BuyerPortal.tsx";
+import Index from "./pages/Index.tsx";
 import ApprovalPending from "./pages/ApprovalPending.tsx";
 import AdminLayout from "./components/AdminLayout.tsx";
 import AdminDashboard from "./pages/admin/AdminDashboard.tsx";
