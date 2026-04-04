@@ -62,6 +62,7 @@ const getDownloadLabel = (stage: string | null) => {
 type TimeFilter = "30days" | "6months" | "2026" | "all";
 
 const Orders = () => {
+  const navigate = useNavigate();
   const [orders, setOrders] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [uploadingId, setUploadingId] = useState<string | null>(null);
