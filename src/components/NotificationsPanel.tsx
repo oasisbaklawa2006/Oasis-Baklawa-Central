@@ -42,7 +42,7 @@ const NotificationsPanel = ({ open, onClose }: { open: boolean; onClose: () => v
   useEffect(() => {
     if (!open || !user) return;
 
-    const channelName = `realtime:outbox-live-${user.id}`;
+    const channelName = `outbox-live-${user.id}`;
 
     const load = async () => {
       const { data } = await supabase

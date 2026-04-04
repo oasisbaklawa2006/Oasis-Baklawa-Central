@@ -1,11 +1,11 @@
 import { supabase } from "@/integrations/supabase/client";
 
 export const removeDuplicateRealtimeChannel = (channelName: string) => {
-  const duplicate = supabase
+  const duplicates = supabase
     .getChannels()
-    .find((channel) => channel.topic === `realtime:${channelName}`);
+    .filter((channel) => channel.topic === `realtime:${channelName}`);
 
-  if (duplicate) {
-    void supabase.removeChannel(duplicate);
-  }
+  duplicates.forEach((channel) => {
+    void supabase.removeChannel(channel);
+  });
 };

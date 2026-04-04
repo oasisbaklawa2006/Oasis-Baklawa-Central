@@ -104,7 +104,7 @@ const AdminDashboard = () => {
 
   useEffect(() => {
     fetchData();
-    const channelName = "realtime:governance-rt";
+    const channelName = "governance-rt";
 
     removeDuplicateRealtimeChannel(channelName);
 
