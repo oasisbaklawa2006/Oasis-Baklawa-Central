@@ -95,7 +95,6 @@ export function useAuth() {
           .eq("id", cid)
           .maybeSingle();
         pt = compData?.price_tier ?? null;
-        console.log("[useAuth] company_id:", cid, "price_tier from DB:", pt);
       }
 
       setPriceTier(pt);
