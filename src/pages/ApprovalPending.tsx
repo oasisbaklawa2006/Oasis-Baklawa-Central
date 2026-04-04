@@ -19,7 +19,7 @@ function getRouteForRole(role?: string | null) {
 
   if (!normalizedRole || normalizedRole === "PENDING") return null;
   if (normalizedRole === "ADMIN" || normalizedRole === "SUPER_ADMIN") return "/admin";
-  if (normalizedRole === "CLIENT" || normalizedRole === "BUYER" || normalizedRole === "CUSTOMER_USER") return "/catalogue";
+  if (normalizedRole === "CLIENT" || normalizedRole === "BUYER" || normalizedRole === "CUSTOMER_USER") return "/home";
   if (normalizedRole === "SALES_EXECUTIVE") return "/sales/dashboard";
 
   return PROD_ROLE_ROUTES[normalizedRole] ?? null;
