@@ -27,14 +27,16 @@ const TopNavBar = () => {
   };
 
   useEffect(() => {
-    if (!user) return;
+    if (!user?.id) return;
+
+    let aborted = false;
 
     const fetchUnread = async () => {
       const { count } = await supabase
         .from("notifications")
         .select("*", { count: "exact", head: true })
         .eq("is_read", false);
-      setUnreadCount(count || 0);
+      if (!aborted) setUnreadCount(count || 0);
     };
     fetchUnread();
 
@@ -49,9 +51,10 @@ const TopNavBar = () => {
       .subscribe();
 
     return () => {
+      aborted = true;
       supabase.removeChannel(channel);
     };
-  }, [user]);
+  }, [user?.id]);
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
