@@ -26,6 +26,7 @@ import {
   getPrimaryPackWeightKg,
   unitsToFillCarton,
   calculateLineGrandTotal,
+  getPackDescription,
 } from "@/utils/pricing";
 
 const ProductDetail = () => {
@@ -89,6 +90,11 @@ const ProductDetail = () => {
   const isBulk = cat === "bulk_kg";
   const images = [product.image_url].filter(Boolean);
   const heroImages = images.length > 0 ? images : ["/placeholder.svg"];
+  const mrp = Number(product?.mrp) || Number(product?.mrp_per_pc) || 0;
+  const showMrpStrike = mrp > 0 && displayInfo.price > 0 && Math.abs(mrp - displayInfo.price) > 0.5;
+  const weightLabel = isBulk && weightKg > 0
+    ? (weightKg >= 1 ? `${weightKg} kg` : `${Math.round(weightKg * 1000)} g`)
+    : product.pack_size || "Standard";
 
   const handleAddToCart = async () => {
     if (boxes <= 0) return;
@@ -115,7 +121,7 @@ const ProductDetail = () => {
 
   return (
     <AppShell>
-      <div className="relative min-h-screen bg-background pb-36">
+      <div className="relative min-h-screen bg-background pb-24">
 
         {/* ─── Hero Image ─── */}
         <div className="relative w-full">
@@ -125,7 +131,7 @@ const ProductDetail = () => {
             style={{ WebkitOverflowScrolling: "touch" }}
           >
             {heroImages.map((img, i) => (
-              <div key={i} className="min-w-full snap-center flex items-center justify-center p-6 bg-background">
+              <div key={i} className="min-w-full snap-center flex items-center justify-center p-4 bg-background">
                 <img
                   src={img}
                   alt={`${product.name} ${i + 1}`}
@@ -134,7 +140,6 @@ const ProductDetail = () => {
               </div>
             ))}
           </div>
-          {/* Dots */}
           {heroImages.length > 1 && (
             <div className="absolute bottom-3 left-1/2 -translate-x-1/2 z-10 flex items-center gap-1.5">
               {heroImages.map((_, i) => (
@@ -144,45 +149,118 @@ const ProductDetail = () => {
           )}
         </div>
 
-        {/* ─── Product Info ─── */}
-        <div className="px-5 pt-5 space-y-4">
-          <div>
-            <h1 className="font-display text-xl text-foreground leading-snug">{product.name}</h1>
-            <p className="font-body text-xs text-muted-foreground mt-1">
-              {product.sub_category || product.category}
-            </p>
+        {/* ─── Product Info + Order Actions (side by side on md+) ─── */}
+        <div className="px-5 pt-4 md:grid md:grid-cols-[1fr_280px] md:gap-8">
+          {/* LEFT: Product Info */}
+          <div className="space-y-4">
+            <div>
+              <h1 className="font-display text-xl text-foreground leading-snug">{product.name}</h1>
+              <p className="font-body text-xs text-muted-foreground mt-1">
+                {product.sub_category || product.category}
+              </p>
+            </div>
+
+            {product.description && (
+              <p className="font-body text-sm text-muted-foreground leading-relaxed line-clamp-3">
+                {product.description}
+              </p>
+            )}
+
+            {/* Inline Info */}
+            {infoLines.length > 0 && (
+              <div className="space-y-1 pt-2 border-t border-border">
+                {infoLines.map((line, i) => (
+                  <p key={i} className="font-body text-xs text-muted-foreground">{line}</p>
+                ))}
+              </div>
+            )}
           </div>
 
-          {product.description && (
-            <p className="font-body text-sm text-muted-foreground leading-relaxed line-clamp-2">
-              {product.description}
-            </p>
-          )}
-
-          {/* Price */}
+          {/* RIGHT: Order Actions */}
           {isAuthenticated && (
-            <div className="space-y-1">
-              <p className="font-number text-lg text-foreground font-semibold">
-                {formatPrice(displayInfo.price)} <span className="text-sm font-normal text-muted-foreground">{displayInfo.unit}</span>
-              </p>
-              {isBulk && weightKg > 0 ? (
+            <div className="mt-5 md:mt-0 space-y-4 bg-card rounded-2xl p-4 border border-border" style={{ boxShadow: "var(--card-shadow)" }}>
+              {/* Price */}
+              <div className="space-y-1">
+                <div className="flex items-baseline gap-2">
+                  <p className="font-number text-xl text-foreground font-semibold">
+                    {formatPrice(displayInfo.price)}
+                    <span className="text-xs font-normal text-muted-foreground ml-1">{displayInfo.unit}</span>
+                  </p>
+                  {showMrpStrike && (
+                    <span className="font-number text-xs text-muted-foreground line-through">
+                      MRP {formatPrice(mrp)}
+                    </span>
+                  )}
+                </div>
                 <p className="font-number text-sm text-muted-foreground">
-                  Pack: {weightKg} kg · {formatPrice(price)}
+                  Pack: {weightLabel} · {formatPrice(price)}
                 </p>
-              ) : (
-                <p className="font-number text-sm text-muted-foreground">
-                  Pack: {product.pack_size || "Standard"} · {formatPrice(price)}
+              </div>
+
+              {/* MOQ & Pack info */}
+              <p className="font-body text-[10px] text-muted-foreground">
+                MOQ: {minQty} &nbsp;|&nbsp; {getPackDescription(product)}
+              </p>
+
+              {/* Quantity Selector */}
+              <div>
+                <p className="font-body text-[10px] text-muted-foreground uppercase tracking-wider mb-2">Quantity</p>
+                <div className="flex items-center bg-muted rounded-full px-1 py-1 gap-0 w-fit">
+                  <button
+                    onClick={() => setBoxes((b) => {
+                      if (b <= 0) return 0;
+                      if (b <= minQty) return 0;
+                      const next = b - increment;
+                      return next < minQty ? 0 : next;
+                    })}
+                    className="w-9 h-9 rounded-full bg-foreground text-primary-foreground flex items-center justify-center"
+                  >
+                    <Minus size={16} />
+                  </button>
+                  <input
+                    type="number"
+                    min={0}
+                    value={boxes}
+                    onChange={(e) => {
+                      const val = parseInt(e.target.value) || 0;
+                      setBoxes(val < 0 ? 0 : val);
+                    }}
+                    className="font-number font-semibold text-sm w-12 text-center text-foreground bg-transparent border-none outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                  />
+                  <button
+                    onClick={() => setBoxes((b) => (b === 0 ? minQty : b + increment))}
+                    className="w-9 h-9 rounded-full bg-foreground text-primary-foreground flex items-center justify-center"
+                  >
+                    <Plus size={16} />
+                  </button>
+                </div>
+              </div>
+
+              {/* Carton helper */}
+              {boxes > 0 && toFill > 0 && (
+                <p className="font-body text-[10px] text-primary">
+                  Add {toFill} more to complete a master carton
                 </p>
               )}
-            </div>
-          )}
 
-          {/* Inline Info */}
-          {infoLines.length > 0 && (
-            <div className="space-y-1 pt-2 border-t border-border">
-              {infoLines.map((line, i) => (
-                <p key={i} className="font-body text-xs text-muted-foreground">{line}</p>
-              ))}
+              {/* Total + Add to Cart */}
+              {boxes > 0 && (
+                <div className="pt-2 border-t border-border">
+                  <p className="font-body text-[9px] text-muted-foreground uppercase tracking-wider">
+                    Total incl. GST@{gstRate}%
+                  </p>
+                  <p className="font-number text-lg font-semibold text-foreground">{formatPrice(grandTotal)}</p>
+                </div>
+              )}
+
+              <button
+                onClick={handleAddToCart}
+                disabled={isAdding || boxes === 0}
+                className="w-full flex items-center justify-center gap-2 bg-foreground text-primary-foreground font-body text-sm font-medium px-5 py-3 rounded-xl hover:opacity-90 transition-opacity disabled:opacity-50"
+              >
+                {isAdding ? <Loader2 size={16} className="animate-spin" /> : <ShoppingCart size={16} />}
+                {boxes === 0 ? "Select Quantity" : `Add ${boxes} to Cart`}
+              </button>
             </div>
           )}
         </div>
@@ -191,73 +269,6 @@ const ProductDetail = () => {
         <div className="mt-8">
           <ProductRecommendations title="You may also like" excludeProductId={id} />
         </div>
-
-        {/* ─── Sticky Bottom Bar ─── */}
-        {isAuthenticated && (
-          <div className="fixed bottom-0 left-0 right-0 z-30">
-            <div className="max-w-md mx-auto bg-card border-t border-border px-5 py-3 shadow-nav">
-              {/* Carton helper */}
-              {boxes > 0 && toFill > 0 && (
-                <p className="font-body text-[10px] text-primary text-center mb-2">
-                  Add {toFill} more to complete a master carton
-                </p>
-              )}
-              <div className="flex items-center justify-between gap-3">
-                {/* Price */}
-                <div className="flex-shrink-0">
-                  <p className="font-body text-[9px] text-muted-foreground uppercase tracking-wider">
-                    Total incl. GST@{gstRate}%
-                  </p>
-                  <p className="font-number text-lg font-semibold text-foreground">{formatPrice(grandTotal)}</p>
-                </div>
-
-                {/* Qty */}
-                <div className="flex flex-col items-center">
-                  <div className="flex items-center bg-muted rounded-full px-1 py-1 gap-0">
-                    <button
-                      onClick={() => setBoxes((b) => {
-                        if (b <= 0) return 0;
-                        if (b <= minQty) return 0;
-                        const next = b - increment;
-                        return next < minQty ? 0 : next;
-                      })}
-                      className="w-9 h-9 rounded-full bg-foreground text-primary-foreground flex items-center justify-center"
-                    >
-                      <Minus size={16} />
-                    </button>
-                    <input
-                      type="number"
-                      min={0}
-                      value={boxes}
-                      onChange={(e) => {
-                        const val = parseInt(e.target.value) || 0;
-                        setBoxes(val < 0 ? 0 : val);
-                      }}
-                      className="font-number font-semibold text-sm w-12 text-center text-foreground bg-transparent border-none outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                    />
-                    <button
-                      onClick={() => setBoxes((b) => (b === 0 ? minQty : b + increment))}
-                      className="w-9 h-9 rounded-full bg-foreground text-primary-foreground flex items-center justify-center"
-                    >
-                      <Plus size={16} />
-                    </button>
-                  </div>
-                  <p className="font-body text-[9px] text-muted-foreground mt-1">MOQ: {minQty} | Pack Size: {increment}</p>
-                </div>
-
-                {/* Add to Cart */}
-                <button
-                  onClick={handleAddToCart}
-                  disabled={isAdding || boxes === 0}
-                  className="flex items-center gap-2 bg-foreground text-primary-foreground font-body text-sm font-medium px-5 py-2.5 rounded-full hover:opacity-90 transition-opacity disabled:opacity-50"
-                >
-                  {isAdding ? <Loader2 size={16} className="animate-spin" /> : <ShoppingCart size={16} />}
-                  Add
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
       </div>
     </AppShell>
   );

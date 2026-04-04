@@ -8,6 +8,8 @@ import {
   getMinOrderQty,
   getQtyIncrement,
   getPackDescription,
+  getPrimaryPackWeightKg,
+  getProductCategory,
 } from "@/utils/pricing";
 
 interface CatalogueProductCardProps {
@@ -24,6 +26,9 @@ const CatalogueProductCard = ({ item, priceTier }: CatalogueProductCardProps) =>
   const displayInfo = getDisplayPrice(item, priceTier);
   const moq = getMinOrderQty(item);
   const increment = getQtyIncrement(item);
+  const mrp = Number(item?.mrp) || Number(item?.mrp_per_pc) || 0;
+  const cat = getProductCategory(item);
+  const weightKg = getPrimaryPackWeightKg(item);
 
   // Find existing cart item by product_id (NOT by item.id)
   const cartItem = items.find((ci) => ci.product_id === item.id);
@@ -47,10 +52,17 @@ const CatalogueProductCard = ({ item, priceTier }: CatalogueProductCardProps) =>
   const handleDecrement = async (e: React.MouseEvent) => {
     e.stopPropagation();
     if (!cartItem) return;
-    // If at MOQ, drop to 0 (remove)
     const newQty = currentQty <= moq ? 0 : currentQty - increment;
     await updateQuantity(cartItem.id, Math.max(0, newQty));
   };
+
+  // Show MRP strikethrough only if B2B price is different from MRP
+  const showMrpStrike = mrp > 0 && displayInfo.price > 0 && Math.abs(mrp - displayInfo.price) > 0.5;
+
+  // Weight label
+  const weightLabel = cat === "bulk_kg" && weightKg > 0
+    ? (weightKg >= 1 ? `${weightKg} kg` : `${Math.round(weightKg * 1000)} g`)
+    : null;
 
   return (
     <div
@@ -77,17 +89,24 @@ const CatalogueProductCard = ({ item, priceTier }: CatalogueProductCardProps) =>
         <p className="font-body text-sm font-medium text-foreground line-clamp-2 leading-snug">{item.name}</p>
         <p className="font-body text-[11px] text-muted-foreground">{item.sub_category || item.category}</p>
 
-        {/* Price */}
-        <div className="pt-1">
+        {/* Price with MRP strikethrough */}
+        <div className="pt-1 flex items-baseline gap-1.5">
           <p className="font-number text-sm text-foreground font-semibold">
             {formatPrice(displayInfo.price)}
             <span className="text-[10px] font-normal text-muted-foreground ml-0.5">{displayInfo.unit}</span>
           </p>
+          {showMrpStrike && (
+            <span className="font-number text-[10px] text-muted-foreground line-through">
+              {formatPrice(mrp)}
+            </span>
+          )}
         </div>
 
-        {/* MOQ & Pack Size */}
+        {/* MOQ, Weight & Pack Size */}
         <p className="font-body text-[10px] text-muted-foreground">
-          MOQ: {moq} &nbsp;|&nbsp; {getPackDescription(item)}
+          MOQ: {moq}
+          {weightLabel && <> &nbsp;·&nbsp; {weightLabel}</>}
+          &nbsp;|&nbsp; {getPackDescription(item)}
         </p>
 
         {/* Quantity controls or Add button */}

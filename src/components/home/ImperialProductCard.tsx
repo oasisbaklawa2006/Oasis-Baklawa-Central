@@ -1,8 +1,9 @@
 import { useNavigate } from "react-router-dom";
-import { ShoppingCart, Plus, Loader2 } from "lucide-react";
+import { Plus, Minus, Loader2 } from "lucide-react";
 import { useCurrency } from "@/contexts/CurrencyContext";
 import { useCart } from "@/hooks/useCart";
 import { useState } from "react";
+import { getDisplayPrice, getMinOrderQty, getQtyIncrement } from "@/utils/pricing";
 
 interface ImperialProductCardProps {
   id: string;
@@ -12,29 +13,54 @@ interface ImperialProductCardProps {
   pack_size: string | null;
   carton_type?: string | null;
   category: string;
+  mrp?: number | null;
   variant?: "default" | "gold-bg" | "editorial";
 }
 
 const ImperialProductCard = ({
-  id, name, image_url, base_price, pack_size, carton_type, category, variant = "default",
+  id, name, image_url, base_price, pack_size, carton_type, category, mrp: mrpProp, variant = "default",
 }: ImperialProductCardProps) => {
   const navigate = useNavigate();
   const { formatPrice } = useCurrency();
-  const { addToCart } = useCart();
+  const { addToCart, updateQuantity, items } = useCart();
   const [adding, setAdding] = useState(false);
 
-  const pricePerKg = base_price ?? 0;
+  // Build a pseudo-product for pricing utils
+  const pseudoProduct = { id, name, base_price, pack_size, carton_type, category, mrp: mrpProp, uom: "Kg" };
+  const displayInfo = getDisplayPrice(pseudoProduct);
+  const moq = getMinOrderQty(pseudoProduct);
+  const increment = getQtyIncrement(pseudoProduct);
+
+  const pricePerKg = displayInfo.price || (base_price ?? 0);
   const weightKg = parseFloat(pack_size || "0") || 6;
   const packPrice = pricePerKg * weightKg;
+  const mrp = Number(mrpProp) || 0;
+  const showMrpStrike = mrp > 0 && pricePerKg > 0 && Math.abs(mrp - pricePerKg) > 0.5;
+
+  const cartItem = items.find((ci) => ci.product_id === id);
+  const currentQty = cartItem?.quantity ?? 0;
 
   const isGold = variant === "gold-bg";
   const isEditorial = variant === "editorial";
 
-  const handleQuickAdd = async (e: React.MouseEvent) => {
+  const handleAdd = async (e: React.MouseEvent) => {
     e.stopPropagation();
     setAdding(true);
-    await addToCart(id, 1, pack_size ?? null, carton_type ?? null);
+    await addToCart(id, moq, pack_size ?? null, carton_type ?? null);
     setAdding(false);
+  };
+
+  const handleInc = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!cartItem) return;
+    await updateQuantity(cartItem.id, currentQty + increment);
+  };
+
+  const handleDec = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!cartItem) return;
+    const newQty = currentQty <= moq ? 0 : currentQty - increment;
+    await updateQuantity(cartItem.id, Math.max(0, newQty));
   };
 
   return (
@@ -86,25 +112,43 @@ const ImperialProductCard = ({
       {/* Price row */}
       <div className="flex items-end justify-between mt-auto">
         <div>
-          <p className={`font-number font-bold text-foreground ${isEditorial ? "text-lg" : "text-base"}`}>
-            <span className="text-[10px] align-top font-body font-light">₹</span>{pricePerKg > 0 ? pricePerKg.toFixed(0) : "0"}
-            <span className="text-[9px] font-body font-light text-foreground/40 ml-0.5">/kg</span>
-          </p>
+          <div className="flex items-baseline gap-1">
+            <p className={`font-number font-bold text-foreground ${isEditorial ? "text-lg" : "text-base"}`}>
+              <span className="text-[10px] align-top font-body font-light">₹</span>{pricePerKg > 0 ? pricePerKg.toFixed(0) : "0"}
+              <span className="text-[9px] font-body font-light text-foreground/40 ml-0.5">/kg</span>
+            </p>
+            {showMrpStrike && (
+              <span className="font-number text-[9px] text-muted-foreground line-through">₹{mrp}</span>
+            )}
+          </div>
           <p className="font-body text-[7px] text-foreground/30 tracking-wider uppercase mt-0.5">
             excl. taxes
           </p>
         </div>
-        <button
-          onClick={handleQuickAdd}
-          disabled={adding}
-          className={`flex items-center justify-center flex-shrink-0 transition-all duration-300 disabled:opacity-50 ${
-            isEditorial
-              ? "w-9 h-9 rounded-full border border-primary text-primary hover:bg-primary hover:text-white"
-              : "w-8 h-8 rounded-lg bg-[hsl(var(--foreground))] hover:opacity-90 text-[hsl(var(--background))]"
-          }`}
-        >
-          {adding ? <Loader2 size={14} className="animate-spin" /> : <Plus size={14} />}
-        </button>
+        {/* Qty selector or Add button */}
+        {currentQty > 0 ? (
+          <div className="flex items-center gap-1">
+            <button onClick={handleDec} className="w-7 h-7 rounded-full bg-muted flex items-center justify-center">
+              <Minus size={12} className="text-foreground" />
+            </button>
+            <span className="font-number text-xs font-semibold text-foreground min-w-[1.2rem] text-center">{currentQty}</span>
+            <button onClick={handleInc} className="w-7 h-7 rounded-full bg-foreground text-primary-foreground flex items-center justify-center">
+              <Plus size={12} />
+            </button>
+          </div>
+        ) : (
+          <button
+            onClick={handleAdd}
+            disabled={adding}
+            className={`flex items-center justify-center flex-shrink-0 transition-all duration-300 disabled:opacity-50 ${
+              isEditorial
+                ? "w-9 h-9 rounded-full border border-primary text-primary hover:bg-primary hover:text-primary-foreground"
+                : "w-8 h-8 rounded-lg bg-[hsl(var(--foreground))] hover:opacity-90 text-[hsl(var(--background))]"
+            }`}
+          >
+            {adding ? <Loader2 size={14} className="animate-spin" /> : <Plus size={14} />}
+          </button>
+        )}
       </div>
     </div>
   );

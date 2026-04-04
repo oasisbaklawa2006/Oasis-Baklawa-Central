@@ -3,8 +3,8 @@ import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useCurrency } from "@/contexts/CurrencyContext";
 import { useCart } from "@/hooks/useCart";
-import { Loader2, Package, Plus } from "lucide-react";
-import { getDisplayPrice } from "@/utils/pricing";
+import { Loader2, Package, Plus, Minus } from "lucide-react";
+import { getDisplayPrice, getMinOrderQty, getQtyIncrement } from "@/utils/pricing";
 
 interface ProductSectionProps {
   tagKey: string;
@@ -38,7 +38,7 @@ const ProductSection = ({ tagKey, title, subtitle, variant = "default", priceTie
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
   const { formatPrice } = useCurrency();
-  const { addToCart } = useCart();
+  const { addToCart, updateQuantity, items: cartItems } = useCart();
 
   useEffect(() => {
     const fetchData = async () => {
@@ -92,7 +92,7 @@ const ProductSection = ({ tagKey, title, subtitle, variant = "default", priceTie
     return (
       <div className="flex overflow-x-auto scrollbar-hide gap-3 pb-1 snap-x">
         {products.slice(0, 8).map((item) => (
-          <CompactCard key={item.id} item={item} navigate={navigate} formatPrice={formatPrice} addToCart={addToCart} priceTier={priceTier} />
+          <CompactCard key={item.id} item={item} navigate={navigate} formatPrice={formatPrice} addToCart={addToCart} updateQuantity={updateQuantity} cartItems={cartItems} priceTier={priceTier} />
         ))}
       </div>
     );
@@ -110,45 +110,137 @@ const ProductSection = ({ tagKey, title, subtitle, variant = "default", priceTie
         </div>
       )}
       <div className="flex overflow-x-auto scrollbar-hide gap-4 pb-2 snap-x">
-        {products.map((item) => (
-          (() => {
-            const displayInfo = getDisplayPrice(item, priceTier);
+        {products.map((item) => {
+          const displayInfo = getDisplayPrice(item, priceTier);
+          const mrp = Number(item?.mrp) || Number(item?.mrp_per_pc) || 0;
+          const showMrpStrike = mrp > 0 && displayInfo.price > 0 && Math.abs(mrp - displayInfo.price) > 0.5;
+          const cartItem = cartItems.find((ci) => ci.product_id === item.id);
+          const currentQty = cartItem?.quantity ?? 0;
+          const moq = getMinOrderQty(item);
+          const increment = getQtyIncrement(item);
 
-            return (
-              <div
-                key={item.id}
-                onClick={() => navigate(`/product/${item.id}`)}
-                className="min-w-[140px] max-w-[140px] snap-start cursor-pointer flex-shrink-0 group"
-              >
-                <div className="w-full aspect-square rounded-lg overflow-hidden bg-muted flex items-center justify-center mb-2">
-                  {item.image_url ? (
-                    <img src={item.image_url} alt={item.name} className="w-full h-full object-contain group-hover:scale-105 transition-transform duration-500" loading="lazy" />
-                  ) : (
-                    <Package size={20} className="text-muted-foreground" />
-                  )}
-                </div>
-                <p className="font-body text-xs text-foreground line-clamp-1 mb-0.5">{item.name}</p>
-                <p className="font-number text-[11px] text-muted-foreground">
-                  {formatPrice(displayInfo.price)}{displayInfo.unit}
-                </p>
-              </div>
-            );
-          })()
-        ))}
+          return (
+            <DefaultScrollCard
+              key={item.id}
+              item={item}
+              displayInfo={displayInfo}
+              mrp={mrp}
+              showMrpStrike={showMrpStrike}
+              currentQty={currentQty}
+              moq={moq}
+              increment={increment}
+              cartItem={cartItem}
+              navigate={navigate}
+              formatPrice={formatPrice}
+              addToCart={addToCart}
+              updateQuantity={updateQuantity}
+              priceTier={priceTier}
+            />
+          );
+        })}
       </div>
     </section>
   );
 };
 
-const CompactCard = ({ item, navigate, formatPrice, addToCart, priceTier }: any) => {
+/* ── Default horizontal scroll card with qty selector ── */
+const DefaultScrollCard = ({ item, displayInfo, mrp, showMrpStrike, currentQty, moq, increment, cartItem, navigate, formatPrice, addToCart, updateQuantity }: any) => {
   const [adding, setAdding] = useState(false);
-  const displayInfo = getDisplayPrice(item, priceTier);
 
-  const handleQuickAdd = async (e: React.MouseEvent) => {
+  const handleAdd = async (e: React.MouseEvent) => {
     e.stopPropagation();
     setAdding(true);
-    await addToCart(item.id, 1, item.pack_size ?? null, item.carton_type ?? null);
+    await addToCart(item.id, moq, item.pack_size ?? null, item.carton_type ?? null);
     setAdding(false);
+  };
+
+  const handleInc = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!cartItem) return;
+    await updateQuantity(cartItem.id, currentQty + increment);
+  };
+
+  const handleDec = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!cartItem) return;
+    const newQty = currentQty <= moq ? 0 : currentQty - increment;
+    await updateQuantity(cartItem.id, Math.max(0, newQty));
+  };
+
+  return (
+    <div
+      onClick={() => navigate(`/product/${item.id}`)}
+      className="min-w-[140px] max-w-[140px] snap-start cursor-pointer flex-shrink-0 group"
+    >
+      <div className="w-full aspect-square rounded-lg overflow-hidden bg-muted flex items-center justify-center mb-2">
+        {item.image_url ? (
+          <img src={item.image_url} alt={item.name} className="w-full h-full object-contain group-hover:scale-105 transition-transform duration-500" loading="lazy" />
+        ) : (
+          <Package size={20} className="text-muted-foreground" />
+        )}
+      </div>
+      <p className="font-body text-xs text-foreground line-clamp-1 mb-0.5">{item.name}</p>
+      <div className="flex items-baseline gap-1">
+        <p className="font-number text-[11px] text-foreground font-semibold">
+          {formatPrice(displayInfo.price)}{displayInfo.unit}
+        </p>
+        {showMrpStrike && (
+          <span className="font-number text-[9px] text-muted-foreground line-through">
+            {formatPrice(mrp)}
+          </span>
+        )}
+      </div>
+      {/* Qty selector */}
+      {currentQty > 0 ? (
+        <div className="flex items-center gap-1 mt-1">
+          <button onClick={handleDec} className="w-6 h-6 rounded-full bg-muted flex items-center justify-center">
+            <Minus size={10} className="text-foreground" />
+          </button>
+          <span className="font-number text-xs font-semibold text-foreground min-w-[1.5rem] text-center">{currentQty}</span>
+          <button onClick={handleInc} className="w-6 h-6 rounded-full bg-foreground text-primary-foreground flex items-center justify-center">
+            <Plus size={10} />
+          </button>
+        </div>
+      ) : (
+        <button
+          onClick={handleAdd}
+          disabled={adding}
+          className="mt-1 w-full bg-foreground text-primary-foreground font-body text-[10px] font-medium py-1.5 rounded-md hover:opacity-90 transition-opacity disabled:opacity-50 flex items-center justify-center gap-1"
+        >
+          {adding ? <Loader2 size={10} className="animate-spin" /> : <Plus size={10} />}
+          Add
+        </button>
+      )}
+    </div>
+  );
+};
+
+const CompactCard = ({ item, navigate, formatPrice, addToCart, updateQuantity, cartItems, priceTier }: any) => {
+  const [adding, setAdding] = useState(false);
+  const displayInfo = getDisplayPrice(item, priceTier);
+  const moq = getMinOrderQty(item);
+  const increment = getQtyIncrement(item);
+  const cartItem = cartItems.find((ci: any) => ci.product_id === item.id);
+  const currentQty = cartItem?.quantity ?? 0;
+
+  const handleAdd = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setAdding(true);
+    await addToCart(item.id, moq, item.pack_size ?? null, item.carton_type ?? null);
+    setAdding(false);
+  };
+
+  const handleInc = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!cartItem) return;
+    await updateQuantity(cartItem.id, currentQty + increment);
+  };
+
+  const handleDec = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!cartItem) return;
+    const newQty = currentQty <= moq ? 0 : currentQty - increment;
+    await updateQuantity(cartItem.id, Math.max(0, newQty));
   };
 
   return (
@@ -162,18 +254,32 @@ const CompactCard = ({ item, navigate, formatPrice, addToCart, priceTier }: any)
         ) : (
           <Package size={16} className="text-muted-foreground" />
         )}
-        <button
-          onClick={handleQuickAdd}
-          disabled={adding}
-          className="absolute bottom-1 right-1 w-6 h-6 rounded-md bg-[hsl(var(--foreground))] text-[hsl(var(--background))] flex items-center justify-center shadow-sm hover:opacity-90 transition-opacity disabled:opacity-50"
-        >
-          {adding ? <Loader2 size={10} className="animate-spin" /> : <Plus size={12} />}
-        </button>
       </div>
       <p className="font-body text-[11px] text-foreground line-clamp-1">{item.name}</p>
       <p className="font-number text-[10px] text-muted-foreground">
         {formatPrice(displayInfo.price)}{displayInfo.unit}
       </p>
+      {/* Qty selector */}
+      {currentQty > 0 ? (
+        <div className="flex items-center gap-1 mt-1">
+          <button onClick={handleDec} className="w-5 h-5 rounded-full bg-muted flex items-center justify-center">
+            <Minus size={8} className="text-foreground" />
+          </button>
+          <span className="font-number text-[10px] font-semibold text-foreground min-w-[1.2rem] text-center">{currentQty}</span>
+          <button onClick={handleInc} className="w-5 h-5 rounded-full bg-foreground text-primary-foreground flex items-center justify-center">
+            <Plus size={8} />
+          </button>
+        </div>
+      ) : (
+        <button
+          onClick={handleAdd}
+          disabled={adding}
+          className="mt-1 w-full bg-foreground text-primary-foreground font-body text-[9px] font-medium py-1 rounded-md hover:opacity-90 transition-opacity disabled:opacity-50 flex items-center justify-center gap-0.5"
+        >
+          {adding ? <Loader2 size={8} className="animate-spin" /> : <Plus size={8} />}
+          Add
+        </button>
+      )}
     </div>
   );
 };

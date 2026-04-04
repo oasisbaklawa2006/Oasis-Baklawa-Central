@@ -1,7 +1,7 @@
 import AppShell from "@/components/AppShell";
 import { useState, useMemo, useEffect } from "react";
 import { useProducts } from "@/hooks/useProducts";
-import { Search, Loader2, ChevronRight, SlidersHorizontal, List, LayoutGrid } from "lucide-react";
+import { Search, Loader2, ChevronRight, SlidersHorizontal, List, LayoutGrid, ArrowUpDown } from "lucide-react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 
 import CategoryTiles from "@/components/catalogue/CategoryTiles";
@@ -11,9 +11,11 @@ import CartonBuilderBar from "@/components/catalogue/CartonBuilderBar";
 import SuggestionChips from "@/components/catalogue/SuggestionChips";
 import QuickOrderTable from "@/components/catalogue/QuickOrderTable";
 import { useAuth } from "@/hooks/useAuth";
+import { getDisplayPrice } from "@/utils/pricing";
 
 type CatalogueView = "categories" | "subcategories" | "products";
 type BrowseMode = "browse" | "quickorder";
+type SortOption = "default" | "price_asc" | "price_desc";
 
 const Catalogue = () => {
   const [searchParams] = useSearchParams();
@@ -28,6 +30,8 @@ const Catalogue = () => {
   const [activeSubCategory, setActiveSubCategory] = useState<string | null>(paramSubCategory);
   const [searchQuery, setSearchQuery] = useState("");
   const [browseMode, setBrowseMode] = useState<BrowseMode>("browse");
+  const [sortOption, setSortOption] = useState<SortOption>("default");
+  const [showSortMenu, setShowSortMenu] = useState(false);
 
   useEffect(() => {
     setActiveCategory(searchParams.get("category"));
@@ -64,22 +68,35 @@ const Catalogue = () => {
   }, [products, activeCategory]);
 
   const filtered = useMemo(() => {
+    let result: typeof products;
     if (searchQuery) {
       const q = searchQuery.toLowerCase();
-      return products.filter(
+      result = products.filter(
         (p) =>
           p.name.toLowerCase().includes(q) ||
           p.sku?.toLowerCase().includes(q) ||
           p.category?.toLowerCase().includes(q) ||
           p.sub_category?.toLowerCase().includes(q)
       );
+    } else {
+      result = products.filter((p) => {
+        if (activeCategory && p.category !== activeCategory) return false;
+        if (activeSubCategory && p.sub_category !== activeSubCategory) return false;
+        return true;
+      });
     }
-    return products.filter((p) => {
-      if (activeCategory && p.category !== activeCategory) return false;
-      if (activeSubCategory && p.sub_category !== activeSubCategory) return false;
-      return true;
-    });
-  }, [products, activeCategory, activeSubCategory, searchQuery]);
+
+    // Apply sort
+    if (sortOption !== "default") {
+      result = [...result].sort((a, b) => {
+        const priceA = getDisplayPrice(a, priceTier).price;
+        const priceB = getDisplayPrice(b, priceTier).price;
+        return sortOption === "price_asc" ? priceA - priceB : priceB - priceA;
+      });
+    }
+
+    return result;
+  }, [products, activeCategory, activeSubCategory, searchQuery, sortOption, priceTier]);
 
   const categoryCounts = useMemo(() => {
     const counts: Record<string, number> = {};
@@ -131,12 +148,33 @@ const Catalogue = () => {
               />
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={15} />
             </div>
-            <button
-              className="w-10 h-10 rounded-xl bg-card border border-border flex items-center justify-center"
-              style={{ boxShadow: "var(--card-shadow)" }}
-            >
-              <SlidersHorizontal size={15} className="text-muted-foreground" />
-            </button>
+            {/* Sort / Filter button */}
+            <div className="relative">
+              <button
+                onClick={() => setShowSortMenu(!showSortMenu)}
+                className={`w-10 h-10 rounded-xl bg-card border border-border flex items-center justify-center ${sortOption !== "default" ? "border-primary" : ""}`}
+                style={{ boxShadow: "var(--card-shadow)" }}
+              >
+                <ArrowUpDown size={15} className={sortOption !== "default" ? "text-primary" : "text-muted-foreground"} />
+              </button>
+              {showSortMenu && (
+                <div className="absolute right-0 top-12 z-30 bg-card border border-border rounded-xl shadow-lg py-1 min-w-[160px]">
+                  {([
+                    { key: "default", label: "Default" },
+                    { key: "price_asc", label: "Price: Low → High" },
+                    { key: "price_desc", label: "Price: High → Low" },
+                  ] as { key: SortOption; label: string }[]).map((opt) => (
+                    <button
+                      key={opt.key}
+                      onClick={() => { setSortOption(opt.key); setShowSortMenu(false); }}
+                      className={`w-full text-left px-4 py-2 text-xs font-body hover:bg-muted transition-colors ${sortOption === opt.key ? "text-primary font-semibold" : "text-foreground"}`}
+                    >
+                      {opt.label}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
 
           {/* Breadcrumbs */}
