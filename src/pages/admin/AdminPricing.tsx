@@ -93,22 +93,25 @@ const AdminPricing = () => {
 
     const { data, error } = await supabase
       .from("products")
-      .select("id, name, category, mrp, price_b2b, price_horeca, price_special")
+      .select("id, name, category, mrp, price_b2b, price_horeca, price_special, base_price, wholesale_price, price_per_kg")
       .order("name");
 
     if (error) {
       toast.error("Failed to load products: " + error.message);
     } else {
       console.log("AdminPricing Fetched Data:", data);
-      setProducts(((data ?? []) as ProductPriceRow[]).map((product) => ({
-        id: product.id ?? null,
-        name: product.name ?? null,
-        category: product.category ?? null,
-        mrp: product.mrp ?? null,
-        price_b2b: product.price_b2b ?? null,
-        price_horeca: product.price_horeca ?? null,
-        price_special: product.price_special ?? null,
-      })));
+      setProducts(((data ?? []) as any[]).map((product) => {
+        const existingB2B = product.price_b2b || product.base_price || product.wholesale_price || product.price_per_kg || null;
+        return {
+          id: product.id ?? null,
+          name: product.name ?? null,
+          category: product.category ?? null,
+          mrp: product.mrp ?? null,
+          price_b2b: existingB2B,
+          price_horeca: product.price_horeca ?? null,
+          price_special: product.price_special ?? null,
+        };
+      }));
     }
 
     setLoading(false);
