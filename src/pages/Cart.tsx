@@ -716,9 +716,13 @@ const Cart = () => {
                       />
                       <input
                         placeholder="Pincode*"
+                        type="tel"
                         value={newAddress.pincode}
-                        onChange={(e) => setNewAddress({ ...newAddress, pincode: e.target.value })}
-                        className="text-xs p-3 rounded-xl border border-border bg-card focus:ring-2 focus:ring-primary/30 outline-none"
+                        onChange={(e) => {
+                          const cleaned = e.target.value.replace(/[^0-9]/g, '').slice(0, 6);
+                          setNewAddress({ ...newAddress, pincode: cleaned });
+                        }}
+                        className="text-xs p-3 rounded-xl border border-border bg-card focus:ring-2 focus:ring-primary/30 outline-none font-number"
                       />
                       <input
                         placeholder="Contact Person"
