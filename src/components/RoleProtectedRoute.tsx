@@ -25,7 +25,7 @@ function getDesignatedRoute(role: string): string {
   if (INTERNAL_SET.has(upper)) return "/operations-controller";
 
   if (upper === "CUSTOMER_USER" || upper === "CLIENT") return "/catalogue";
-  if (upper === "BUYER") return "/approval-pending";
+  if (upper === "BUYER") return "/catalogue";
 
   return "/approval-pending";
 }

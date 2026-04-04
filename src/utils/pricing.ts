@@ -74,15 +74,26 @@ export function getPrimaryPackWeightKg(product: any): number {
  * Fallback chain: tier price → price_b2b → price_wholesale → price_per_kg → base_price → mrp → 0
  */
 export function getTieredPricePerKg(product: any, priceTier?: string | null): number {
-  const tierPrice = resolveTierColumn(product, priceTier, "kg");
-  if (tierPrice && tierPrice > 0) return tierPrice;
-  return product?.price_per_kg || product?.price_b2b || product?.wholesale_price || product?.price_wholesale || product?.base_price || product?.mrp || 0;
+  const mrp = Number(product?.mrp) || 0;
+  if (mrp > 0 && priceTier) {
+    const tier = priceTier.toLowerCase().replace(/\s+/g, "_");
+    if (tier === "wholesale") return mrp * 0.70;
+    if (tier === "bulk") return mrp * 0.80;
+  }
+  // Default: return MRP (retail), or fallback chain if mrp is missing
+  if (mrp > 0) return mrp;
+  return product?.price_per_kg || product?.price_b2b || product?.wholesale_price || product?.base_price || 0;
 }
 
 export function getTieredPricePerPc(product: any, priceTier?: string | null): number {
-  const tierPrice = resolveTierColumn(product, priceTier, "pc");
-  if (tierPrice && tierPrice > 0) return tierPrice;
-  return product?.mrp_per_pc || product?.price_b2b || product?.base_price || product?.wholesale_price || product?.price_wholesale || product?.price_per_kg || product?.mrp || 0;
+  const mrp = Number(product?.mrp_per_pc) || Number(product?.mrp) || 0;
+  if (mrp > 0 && priceTier) {
+    const tier = priceTier.toLowerCase().replace(/\s+/g, "_");
+    if (tier === "wholesale") return mrp * 0.70;
+    if (tier === "bulk") return mrp * 0.80;
+  }
+  if (mrp > 0) return mrp;
+  return product?.price_b2b || product?.base_price || product?.wholesale_price || 0;
 }
 
 function resolveTierColumn(product: any, priceTier?: string | null, _mode?: string): number | null {
