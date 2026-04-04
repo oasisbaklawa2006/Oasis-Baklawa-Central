@@ -241,7 +241,8 @@ const Orders = () => {
                   initial={{ opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}
                   key={order.id}
-                  className={`bg-white rounded-2xl border ${needsReceipt ? "border-amber-300 shadow-amber-100" : "border-slate-200"} p-5 shadow-sm hover:shadow-md transition-shadow relative`}
+                  className={`bg-white rounded-2xl border ${needsReceipt ? "border-amber-300 shadow-amber-100" : "border-slate-200"} p-5 shadow-sm hover:shadow-md transition-shadow relative cursor-pointer`}
+                  onClick={() => navigate(`/orders/${order.id}`)}
                 >
                   {/* Top-right Reorder shortcut */}
                   <button
