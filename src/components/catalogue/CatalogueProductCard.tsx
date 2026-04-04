@@ -99,7 +99,7 @@ const CatalogueProductCard = ({ item, priceTier }: CatalogueProductCardProps) =>
             >
               <Minus size={14} className="text-foreground" />
             </button>
-            <span className="font-body text-sm font-semibold text-foreground min-w-[2rem] text-center">
+            <span className="font-number text-sm font-semibold text-foreground min-w-[2rem] text-center">
               {currentQty}
             </span>
             <button
