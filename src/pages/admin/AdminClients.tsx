@@ -244,53 +244,77 @@ const AdminClients = () => {
   const handleApprove = async (app: Application) => {
     setActionLoading(app.id);
 
-    const { error } = await supabase
-      .from("b2b_applications")
-      .update({
-        status: "approved",
-        admin_notes: notes[app.id] || null,
-        assigned_price_tier: priceTier[app.id] || null,
-        reviewed_at: new Date().toISOString(),
-        reviewed_by: user?.id ?? null,
-      })
-      .eq("id", app.id);
+    try {
+      const { error } = await supabase
+        .from("b2b_applications")
+        .update({
+          status: "approved",
+          admin_notes: notes[app.id] || null,
+          assigned_price_tier: priceTier[app.id] || null,
+          reviewed_at: new Date().toISOString(),
+          reviewed_by: user?.id ?? null,
+        })
+        .eq("id", app.id);
 
-    if (error) {
+      if (error) throw error;
+
+      let companyId: string | null = null;
+
+      if (app.gst_number) {
+        const { data, error: companyLookupError } = await supabase
+          .from("companies")
+          .select("id")
+          .eq("gst_number", app.gst_number)
+          .maybeSingle();
+
+        if (companyLookupError) throw companyLookupError;
+        if (data) companyId = data.id;
+      }
+
+      if (!companyId) {
+        const { data, error: businessLookupError } = await supabase
+          .from("companies")
+          .select("id")
+          .eq("business_name", app.business_name)
+          .maybeSingle();
+
+        if (businessLookupError) throw businessLookupError;
+        if (data) companyId = data.id;
+      }
+
+      if (!companyId) {
+        const { data, error: companyCreateError } = await supabase
+          .from("companies")
+          .insert({ business_name: app.business_name, gst_number: app.gst_number })
+          .select()
+          .single();
+
+        if (companyCreateError) throw companyCreateError;
+        companyId = data?.id ?? null;
+      }
+
+      if (app.user_id && companyId) {
+        const { error: userUpdateError } = await supabase
+          .from("users")
+          .update({ role: "client", company_id: companyId })
+          .eq("id", app.user_id);
+
+        if (userUpdateError) {
+          console.error("[AdminClients] DB Update Failed:", userUpdateError);
+          toast.error("DB Update Failed");
+          throw userUpdateError;
+        }
+      }
+
+      toast.success(`${app.business_name} approved`);
+      setSheetOpen(false);
+      fetchApps(tab);
+    } catch (error) {
+      console.error("[AdminClients] Approval failed:", error);
       toast.error("Failed to approve");
+    } finally {
       setActionLoading(null);
-      return;
     }
-
-    let companyId: string | null = null;
-    if (app.gst_number) {
-      const { data } = await supabase.from("companies").select("id").eq("gst_number", app.gst_number).maybeSingle();
-      if (data) companyId = data.id;
-    }
-    if (!companyId) {
-      const { data } = await supabase
-        .from("companies")
-        .select("id")
-        .eq("business_name", app.business_name)
-        .maybeSingle();
-      if (data) companyId = data.id;
-    }
-    if (!companyId) {
-      const { data } = await supabase
-        .from("companies")
-        .insert({ business_name: app.business_name, gst_number: app.gst_number })
-        .select()
-        .single();
-      if (data) companyId = data.id;
-    }
-
-    if (app.user_id && companyId) {
-      await supabase.from("users").update({ role: "client", company_id: companyId }).eq("id", app.user_id);
-    }
-
-    toast.success(`${app.business_name} approved`);
-    setSheetOpen(false);
-    fetchApps(tab);
-    setActionLoading(null);
   };
 
   const handleReject = async (app: Application) => {

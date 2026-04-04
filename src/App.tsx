@@ -24,6 +24,7 @@ import Register from "./pages/Register.tsx";
 import NotFound from "./pages/NotFound.tsx";
 import Onboarding from "./pages/Onboarding.tsx";
 import BuyerPortal from "./pages/BuyerPortal.tsx";
+import ApprovalPending from "./pages/ApprovalPending.tsx";
 import AdminLayout from "./components/AdminLayout.tsx";
 import AdminDashboard from "./pages/admin/AdminDashboard.tsx";
 import AdminClients from "./pages/admin/AdminClients.tsx";
@@ -148,7 +149,7 @@ const App = () => (
             <Route path="/account/addresses" element={<ProtectedRoute><RoleProtectedRoute allowedRoles={['BUYER', 'CUSTOMER_USER', 'CLIENT']}><ManageAddresses /></RoleProtectedRoute></ProtectedRoute>} />
             <Route path="/account/logistics" element={<ProtectedRoute><RoleProtectedRoute allowedRoles={['BUYER', 'CUSTOMER_USER', 'CLIENT']}><ManageLogistics /></RoleProtectedRoute></ProtectedRoute>} />
             <Route path="/documents" element={<ProtectedRoute><RoleProtectedRoute allowedRoles={['BUYER', 'CUSTOMER_USER', 'CLIENT']}><Documents /></RoleProtectedRoute></ProtectedRoute>} />
-            <Route path="/approval-pending" element={<ProtectedRoute><div className="min-h-screen flex items-center justify-center bg-background p-6"><div className="text-center space-y-4 max-w-md"><h1 className="text-2xl font-bold text-foreground">Application Under Review</h1><p className="text-muted-foreground">Your B2B account application is currently being reviewed. You will be notified once approved.</p><p className="text-sm text-muted-foreground">Contact: support@oasisbaklawa.com</p></div></div></ProtectedRoute>} />
+            <Route path="/approval-pending" element={<ProtectedRoute><ApprovalPending /></ProtectedRoute>} />
 
             <Route
               path="/admin"

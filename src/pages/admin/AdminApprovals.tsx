@@ -102,10 +102,16 @@ const AdminApprovals = () => {
         .single();
 
       if (newCompany) {
-        await supabase
+        const { error: userUpdateError } = await supabase
           .from("users")
           .update({ role: "client", company_id: newCompany.id })
           .eq("id", app.user_id);
+
+        if (userUpdateError) {
+          console.error("[Approve] DB Update Failed:", userUpdateError);
+          toast.error("DB Update Failed");
+          throw userUpdateError;
+        }
 
         await supabase
           .from("profiles")
