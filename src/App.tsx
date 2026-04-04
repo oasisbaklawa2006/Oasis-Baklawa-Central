@@ -193,6 +193,7 @@ const App = () => (
               <Route path="notifications" element={<AdminNotifications />} />
               <Route path="heartbeat" element={<CMDHeartbeat />} />
               <Route path="merchandising" element={<AdminMerchandising />} />
+              <Route path="order-management" element={<OrderManagement />} />
             </Route>
             <Route
               path="/sales/dashboard"
