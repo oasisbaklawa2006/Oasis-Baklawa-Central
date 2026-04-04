@@ -47,9 +47,9 @@ const AdminLayout = () => {
       items: [
         { to: "/admin", icon: LayoutDashboard, label: "Dashboard", end: true, moduleKey: "dashboard" },
         { to: "/admin/heartbeat", icon: Crown, label: "CMD Heartbeat", end: false, moduleKey: "dashboard" },
-        { to: "/admin/orders", icon: ClipboardList, label: t("Order Pipeline"), moduleKey: "orders" },
-        { to: "/admin/production", icon: Factory, label: t("Production & Assembly"), moduleKey: "production" },
-        { to: "/admin/packing-dispatch", icon: PackageCheck, label: t("Packing & Dispatch"), moduleKey: "packing" },
+        { to: "/admin/order-management", icon: ClipboardList, label: t("Order Pipeline"), moduleKey: "orders" },
+        { to: "/admin/order-management", icon: Factory, label: t("Production & Assembly"), moduleKey: "production" },
+        { to: "/admin/order-management", icon: PackageCheck, label: t("Packing & Dispatch"), moduleKey: "packing" },
         { to: "/admin/accounts-release", icon: Landmark, label: t("Accounts & Release"), moduleKey: "accounts" },
         { to: "/admin/exceptions", icon: AlertCircle, label: t("Exception Center"), moduleKey: "exceptions" },
       ],

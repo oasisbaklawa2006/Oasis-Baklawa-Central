@@ -140,7 +140,7 @@ const AdminDashboard = () => {
         { l: "Cleared", v: pipeline.cleared_for_dispatch ?? 0 },
         { l: t("Dispatched"), v: pipeline.dispatched ?? 0 },
       ] as MetricItem[],
-      route: "/admin/orders",
+      route: "/admin/order-management",
     },
     { key: "production", label: t("Production & Assembly"), icon: Factory, subtitle: "Manufacturing & stock",
       metrics: [
@@ -149,7 +149,7 @@ const AdminDashboard = () => {
         { l: "Total Stock", v: Number(counts.totalPhysicalStock) || 0 },
         { l: "Low Stock ⚠", v: Number(counts.lowStockCount) || 0, actionable: true },
       ] as MetricItem[],
-      route: "/admin/production",
+      route: "/admin/order-management",
     },
     { key: "packing", label: t("Packing & Dispatch"), icon: PackageCheck, subtitle: "Fulfillment workload",
       metrics: [
@@ -157,7 +157,7 @@ const AdminDashboard = () => {
         { l: "Cleared for Dispatch", v: pipeline.cleared_for_dispatch ?? 0 },
         { l: "Blocked", v: Number(counts.financeHold) || 0, actionable: true },
       ] as MetricItem[],
-      route: "/admin/packing-dispatch",
+      route: "/admin/order-management",
     },
     { key: "accounts", label: t("Accounts & Release"), icon: Landmark, subtitle: "Finance release control",
       metrics: [

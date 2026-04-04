@@ -59,6 +59,7 @@ import SalesPerformanceHub from "./pages/admin/SalesPerformanceHub.tsx";
 import AdminNotifications from "./pages/admin/AdminNotifications.tsx";
 import CMDHeartbeat from "./pages/admin/CMDHeartbeat.tsx";
 import AdminMerchandising from "./pages/admin/AdminMerchandising.tsx";
+import OrderManagement from "./pages/admin/OrderManagement.tsx";
 import FactoryTVModule from "./components/FactoryTVModule.tsx";
 import RoleProtectedRoute from "./components/RoleProtectedRoute.tsx";
 import { useAuth } from "@/hooks/useAuth";
@@ -192,6 +193,7 @@ const App = () => (
               <Route path="notifications" element={<AdminNotifications />} />
               <Route path="heartbeat" element={<CMDHeartbeat />} />
               <Route path="merchandising" element={<AdminMerchandising />} />
+              <Route path="order-management" element={<OrderManagement />} />
             </Route>
             <Route
               path="/sales/dashboard"
