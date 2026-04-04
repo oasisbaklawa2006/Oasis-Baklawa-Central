@@ -47,6 +47,9 @@ export default function ApprovalPending() {
     setCheckingStatus(true);
 
     try {
+      const { data: sessionData } = await supabase.auth.getSession();
+      const activeSession = sessionData.session;
+
       try {
         localStorage.clear();
       } catch {}
@@ -54,6 +57,13 @@ export default function ApprovalPending() {
       try {
         sessionStorage.clear();
       } catch {}
+
+      if (activeSession) {
+        await supabase.auth.setSession({
+          access_token: activeSession.access_token,
+          refresh_token: activeSession.refresh_token,
+        });
+      }
 
       const { data: authData, error: authError } = await supabase.auth.getUser();
       const activeUser = authData.user ?? user;
