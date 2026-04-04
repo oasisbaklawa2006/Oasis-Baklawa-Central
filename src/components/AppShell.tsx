@@ -53,7 +53,7 @@ const AppShell = ({ children }: AppShellProps) => {
       <ImpersonationBanner />
       <SystemAlertBanner />
       <TopNavBar />
-      <main className={`${hasImpersonation ? "pt-[72px]" : "pt-[56px]"} min-h-screen flex-1`}>
+      <main className={`${hasImpersonation ? "pt-[40px]" : "pt-0"} min-h-screen flex-1`}>
         <BackButton />
         {children}
       </main>

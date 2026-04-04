@@ -228,7 +228,7 @@ const OrderTracking = () => {
                     <p className="text-sm font-semibold text-foreground truncate">
                       {item.product?.name || "Product"}
                     </p>
-                    <p className="text-[11px] text-muted-foreground">Qty: {item.quantity}</p>
+                    <p className="text-[11px] text-muted-foreground font-number">Qty: {item.quantity}</p>
                   </div>
                 </div>
               ))}

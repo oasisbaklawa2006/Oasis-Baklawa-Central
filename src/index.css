@@ -60,6 +60,7 @@
 @layer base {
   * {
     @apply border-border;
+    font-variant-numeric: tabular-nums;
   }
 
   body {

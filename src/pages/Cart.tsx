@@ -360,6 +360,8 @@ const Cart = () => {
     }
 
     setIsSubmitting(true);
+    // Simulate payment processing delay
+    await new Promise((resolve) => setTimeout(resolve, 2000));
     try {
       const updatePayload: any = {
         status: "submitted",

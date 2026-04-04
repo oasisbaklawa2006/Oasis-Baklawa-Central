@@ -183,8 +183,13 @@ export function useAuth() {
   useEffect(() => {
     let mounted = true;
 
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
       if (!mounted) return;
+
+      // Force a fresh session to prevent stale price_tier after login
+      if (session) {
+        await supabase.auth.refreshSession();
+      }
 
       const nextUser = session?.user ?? null;
       currentUserIdRef.current = nextUser?.id ?? null;
