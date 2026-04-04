@@ -248,8 +248,8 @@ const Dashboard = () => {
               <div className="bg-[#1E1E1E] rounded-[2rem] border border-white/[0.06] overflow-hidden">
                 <div className="bg-[#181818] border-b border-white/[0.06] p-6 flex justify-between items-center">
                   <div>
-                    <p className="text-[10px] text-[#9CA3AF] font-bold uppercase tracking-widest mb-1">SO #{latestOrder.id.split("-")[0].toUpperCase()}</p>
-                    <p className="font-bold text-xl text-[#D4AF37]" style={{ fontFamily: "'DM Sans', sans-serif" }}>{formatPrice(latestOrder.sales_order_value || 0)}</p>
+                    <p className="text-[10px] text-[#9CA3AF] font-bold uppercase tracking-widest mb-1 font-number">SO #{latestOrder.id.split("-")[0].toUpperCase()}</p>
+                    <p className="font-bold text-xl text-[#D4AF37] font-number">{formatPrice(latestOrder.sales_order_value || 0)}</p>
                   </div>
                   <div className="text-right">
                     <p className="text-[10px] text-[#9CA3AF] font-bold mb-1">{t("dash.placedOn")}</p>
