@@ -140,18 +140,36 @@ export default function AssemblyManagement() {
     }
   };
 
-  const sendMaterialRequest = async (task: AssemblyTask) => {
-    setActing(task.id);
-    await supabase.from("audit_logs").insert({
+  // Production Order Qty Modal state
+  const [prodQtyOpen, setProdQtyOpen] = useState(false);
+  const [prodQtyTaskId, setProdQtyTaskId] = useState<string | null>(null);
+  const [prodQtyValue, setProdQtyValue] = useState("");
+  const [prodQtyProduct, setProdQtyProduct] = useState("");
+
+  const openProdQtyModal = (task: AssemblyTask) => {
+    setProdQtyTaskId(task.id);
+    setProdQtyProduct(task.product?.name || "Unknown");
+    setProdQtyValue("");
+    setProdQtyOpen(true);
+  };
+
+  const sendMaterialRequest = async () => {
+    if (!prodQtyTaskId) return;
+    const qty = parseInt(prodQtyValue);
+    if (isNaN(qty) || qty <= 0) { toast.error("Enter a valid quantity"); return; }
+    const task = tasks.find(t => t.id === prodQtyTaskId);
+    setActing(prodQtyTaskId);
+    await supabase.from("audit_logs").insert([{
       action_type: "MATERIAL_REQUEST",
       module_name: "Assembly",
       entity_name: "order_items",
-      entity_id: task.id,
+      entity_id: prodQtyTaskId,
       actor_id: user?.id || null,
-      new_value: { product: task.product?.name, qty: task.quantity, order_id: task.order_id },
+      new_value: { product: task?.product?.name, qty, order_id: task?.order_id } as any,
       risk_level: "high",
-    });
-    toast.success("🚨 Material Request sent to RGS/3PGS");
+    }]);
+    toast.success(`🚨 Material Request: ${qty}x ${prodQtyProduct} sent to RGS/3PGS`);
+    setProdQtyOpen(false);
     setActing(null);
   };
 
