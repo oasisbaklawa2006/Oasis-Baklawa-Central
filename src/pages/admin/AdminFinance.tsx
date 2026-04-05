@@ -101,6 +101,19 @@ interface SalesExecPayout {
   paid: number;
 }
 
+// Financial Entry Form state
+interface FinancialEntryState {
+  orderId: string;
+  companyName: string;
+  soValue: number;
+  actualAmountReceived: string;
+  paymentMode: string;
+  utrReference: string;
+  receiptUrl: string | null;
+}
+
+const PAYMENT_MODES = ["NEFT/RTGS", "UPI", "Cheque", "Cash", "Wire Transfer", "Credit Note"];
+
 const AdminFinance = () => {
   const { user } = useAuth();
   const [orders, setOrders] = useState<FinanceOrder[]>([]);
@@ -110,12 +123,24 @@ const AdminFinance = () => {
   const [acting, setActing] = useState<string | null>(null);
   const [activeQueue, setActiveQueue] = useState<FinanceQueue>("validation");
 
+  // Financial Entry Modal
+  const [financialEntry, setFinancialEntry] = useState<FinancialEntryState | null>(null);
+  const [savingEntry, setSavingEntry] = useState(false);
+
+  // Short-Term Credit Modal
+  const [shortTermTarget, setShortTermTarget] = useState<FinanceOrder | null>(null);
+  const [shortTermDays, setShortTermDays] = useState("");
+  const [savingShortTerm, setSavingShortTerm] = useState(false);
+
   // Invoicing Modal State
   const [docOrder, setDocOrder] = useState<FinanceOrder | null>(null);
   const [tallyAmount, setTallyAmount] = useState("");
   const [tallyInvoiceNo, setTallyInvoiceNo] = useState("");
   const [soNumber, setSoNumber] = useState("");
   const [invoiceUploaded, setInvoiceUploaded] = useState(false);
+
+  // DPL Reconciliation state
+  const [dplData, setDplData] = useState<{ soValue: number; dplValue: number; items: any[] } | null>(null);
 
   // Returns Settlement State
   const [returnCreditValues, setReturnCreditValues] = useState<Record<string, string>>({});
@@ -435,6 +460,123 @@ const AdminFinance = () => {
     setActing(null);
   };
 
+  // Financial Entry Submit
+  const handleFinancialEntrySubmit = async () => {
+    if (!financialEntry) return;
+    const amount = parseFloat(financialEntry.actualAmountReceived);
+    if (isNaN(amount) || amount <= 0) { toast.error("Enter a valid amount."); return; }
+    if (!financialEntry.paymentMode) { toast.error("Select payment mode."); return; }
+    setSavingEntry(true);
+    try {
+      await supabase.from("order_payments").insert({
+        order_id: financialEntry.orderId,
+        payment_type: "advance",
+        amount,
+        reference_no: financialEntry.utrReference || null,
+        created_by: user?.id ?? null,
+      });
+      await supabase.from("orders").update({
+        advance_paid: amount,
+        status: "in_production",
+        payment_status: "verified_advance",
+      }).eq("id", financialEntry.orderId);
+      await supabase.from("order_status_history").insert({
+        order_id: financialEntry.orderId,
+        old_status: "submitted",
+        new_status: "in_production",
+      });
+      await supabase.from("audit_logs").insert({
+        action_type: "finance_verify_advance",
+        module_name: "Finance",
+        entity_name: "order",
+        entity_id: financialEntry.orderId,
+        actor_id: user?.id,
+        new_value: { amount, mode: financialEntry.paymentMode, utr: financialEntry.utrReference },
+      });
+      toast.success(`₹${amount.toLocaleString("en-IN")} verified — released to Production`);
+      setFinancialEntry(null);
+      fetchOrders();
+    } catch { toast.error("Verification failed."); }
+    setSavingEntry(false);
+  };
+
+  // Short-Term Credit Release
+  const handleShortTermCreditRelease = async () => {
+    if (!shortTermTarget || !shortTermDays) { toast.error("Set payment deadline days."); return; }
+    const days = parseInt(shortTermDays);
+    if (isNaN(days) || days <= 0) { toast.error("Invalid deadline."); return; }
+    setSavingShortTerm(true);
+    try {
+      await supabase.from("orders").update({
+        status: "in_production",
+        payment_status: "short_term_credit",
+      }).eq("id", shortTermTarget.id);
+      await supabase.from("credit_requests").insert({
+        company_id: shortTermTarget.company_id,
+        requested_by: user?.id,
+        requested_amount: shortTermTarget.sales_order_value ?? 0,
+        credit_type: "short_term_so",
+        notes: `Auto-release with ${days}-day deadline`,
+        status: "approved",
+      });
+      await supabase.from("audit_logs").insert({
+        action_type: "short_term_credit_release",
+        module_name: "Finance",
+        entity_name: "order",
+        entity_id: shortTermTarget.id,
+        actor_id: user?.id,
+        new_value: { deadline_days: days, order_value: shortTermTarget.sales_order_value },
+        risk_level: "high",
+      });
+      toast.success(`Released on ${days}-day short-term credit`);
+      setShortTermTarget(null);
+      setShortTermDays("");
+      fetchOrders();
+    } catch { toast.error("Failed to issue credit."); }
+    setSavingShortTerm(false);
+  };
+
+  // Fetch DPL data for invoicing modal
+  const fetchDplForOrder = async (orderId: string) => {
+    const { data: items } = await supabase
+      .from("order_items")
+      .select("product_id, quantity, actual_packed_qty, product:products(name, price_per_kg)")
+      .eq("order_id", orderId);
+    if (!items) return;
+    const soVal = (items as any[]).reduce((s, i) => s + (i.quantity * (i.product?.price_per_kg || 0)), 0);
+    const dplVal = (items as any[]).reduce((s, i) => s + ((i.actual_packed_qty ?? i.quantity) * (i.product?.price_per_kg || 0)), 0);
+    setDplData({ soValue: soVal, dplValue: dplVal, items: items as any[] });
+  };
+
+  // Credit limit hard lock check
+  const checkCreditLock = async (companyId: string, orderValue: number): Promise<{ locked: boolean; reason: string }> => {
+    const { data: company } = await supabase.from("companies").select("credit_limit, current_balance, allow_credit").eq("id", companyId).single();
+    if (!company?.allow_credit) return { locked: false, reason: "" };
+    const creditLimit = company.credit_limit ?? 0;
+    const outstanding = company.current_balance ?? 0;
+    if (outstanding + orderValue > creditLimit) {
+      return { locked: true, reason: `Outstanding (₹${outstanding.toLocaleString("en-IN")}) + Order (₹${orderValue.toLocaleString("en-IN")}) exceeds Credit Limit (₹${creditLimit.toLocaleString("en-IN")})` };
+    }
+    return { locked: false, reason: "" };
+  };
+
+  // Generate barcode ZPL label
+  const generateBarcodeLabel = (orderId: string, companyName: string, boxNum: number, totalBoxes: number, tallyInv: string) => {
+    const consignor = "TCF Chocolates & Gifts Pvt. Ltd.\nWZ-117, Kirti Nagar Industrial Area\nNew Delhi - 110015";
+    const barcodeData = `${orderId.slice(0, 8).toUpperCase()}-${tallyInv || "DRAFT"}`;
+    const label = `Pack [${String(boxNum).padStart(2, "0")}] of [${totalBoxes}]\n\nConsignee: ${companyName}\nConsignor: ${consignor}\n\nBarcode: ${barcodeData}\n\n[TSC TE 244 Format]`;
+    // Open in new window for printing
+    const w = window.open("", "_blank", "width=400,height=600");
+    if (w) {
+      w.document.write(`<html><head><title>Dispatch Label</title><style>body{font-family:monospace;padding:24px;font-size:13px;white-space:pre-wrap}h2{text-align:center;border-bottom:2px solid #000;padding-bottom:8px}.barcode{text-align:center;font-size:18px;font-weight:bold;letter-spacing:3px;border:2px solid #000;padding:12px;margin:16px 0}@media print{button{display:none}}</style></head><body>`);
+      w.document.write(`<h2>DISPATCH LABEL</h2>\n${label.replace(/\n/g, "<br/>")}`);
+      w.document.write(`<div class="barcode">${barcodeData}</div>`);
+      w.document.write(`<button onclick="window.print()" style="width:100%;padding:12px;font-size:14px;font-weight:bold;cursor:pointer;margin-top:16px">🖨️ Print Label</button>`);
+      w.document.write("</body></html>");
+      w.document.close();
+    }
+  };
+
   const handleCreditAction = async (req: CreditRequest, action: "approved" | "rejected") => {
     setActing(req.id);
     try {
@@ -649,22 +791,39 @@ const AdminFinance = () => {
                         <AlertTriangle size={12} /> Advance Receipt
                       </span>
                     </div>
-                    <div className="flex gap-2">
-                      <button className="flex-1 py-2.5 border border-slate-200 text-slate-600 rounded-lg text-xs font-bold hover:bg-slate-50">
-                        View Receipt
-                      </button>
+                    <div className="flex gap-2 flex-wrap">
                       <button
-                        onClick={() => handleValidatePayment(order.id)}
-                        disabled={acting === order.id}
+                        onClick={() => setFinancialEntry({
+                          orderId: order.id,
+                          companyName: order.company?.business_name || "Unknown",
+                          soValue: order.sales_order_value || 0,
+                          actualAmountReceived: "",
+                          paymentMode: "",
+                          utrReference: "",
+                          receiptUrl: null,
+                        })}
                         className="flex-1 py-2.5 bg-emerald-600 text-white rounded-lg text-xs font-bold hover:bg-emerald-700 flex justify-center items-center gap-1"
                       >
-                        {acting === order.id ? (
-                          <Loader2 size={14} className="animate-spin" />
-                        ) : (
-                          <>
-                            <CheckCircle2 size={14} /> Verify Advance
-                          </>
-                        )}
+                        <CheckCircle2 size={14} /> Verify & Entry
+                      </button>
+                      <button
+                        onClick={() => setShortTermTarget(order)}
+                        className="flex-1 py-2.5 border border-violet-300 text-violet-700 rounded-lg text-xs font-bold hover:bg-violet-50 flex justify-center items-center gap-1"
+                      >
+                        <Receipt size={14} /> Short-Term Credit
+                      </button>
+                      <button
+                        onClick={() => {
+                          toast.info("Payment request sent to Sales/Client");
+                          supabase.from("notifications").insert({
+                            company_id: order.company_id,
+                            type: "payment_request",
+                            message: `Payment of ${formatPrice(order.sales_order_value || 0)} requested for SO #${order.id.slice(0, 8)}`,
+                          });
+                        }}
+                        className="w-full py-2 border border-slate-200 text-slate-600 rounded-lg text-xs font-bold hover:bg-slate-50 flex justify-center items-center gap-1"
+                      >
+                        Send Payment Request
                       </button>
                     </div>
                   </div>
@@ -760,15 +919,24 @@ const AdminFinance = () => {
                         <Package size={12} /> Packed by Ops
                       </span>
                     </div>
-                    <button
-                      onClick={() => {
-                        setDocOrder(order);
-                        setSoNumber(`SO-${order.id.split("-")[0].toUpperCase()}`);
-                      }}
-                      className="w-full py-2.5 bg-slate-900 text-white rounded-lg text-xs font-bold hover:bg-black flex justify-center items-center gap-1.5"
-                    >
-                      <Calculator size={14} /> Process Final Invoice
-                    </button>
+                    <div className="space-y-2">
+                      <button
+                        onClick={() => {
+                          setDocOrder(order);
+                          setSoNumber(`SO-${order.id.split("-")[0].toUpperCase()}`);
+                          fetchDplForOrder(order.id);
+                        }}
+                        className="w-full py-2.5 bg-slate-900 text-white rounded-lg text-xs font-bold hover:bg-black flex justify-center items-center gap-1.5"
+                      >
+                        <Calculator size={14} /> Process Final Invoice
+                      </button>
+                      <button
+                        onClick={() => generateBarcodeLabel(order.id, order.company?.business_name || "Client", 1, 1, "")}
+                        className="w-full py-2 border border-slate-300 text-slate-700 rounded-lg text-xs font-bold hover:bg-slate-50 flex justify-center items-center gap-1.5"
+                      >
+                        🏷️ Print Dispatch Barcodes
+                      </button>
+                    </div>
                   </div>
                 ))
               )}
@@ -1104,6 +1272,38 @@ const AdminFinance = () => {
               </div>
 
               <div className="p-6 space-y-6">
+                {/* DPL Reconciliation */}
+                {dplData && (
+                  <div className={`rounded-2xl border-2 p-4 ${dplData.dplValue < dplData.soValue ? "border-emerald-400 bg-emerald-50" : dplData.dplValue > dplData.soValue ? "border-red-400 bg-red-50" : "border-slate-200 bg-slate-50"}`}>
+                    <h4 className="text-xs font-bold uppercase tracking-widest mb-3 flex items-center gap-2 text-slate-600">
+                      <Package size={14} /> DPL vs SO Reconciliation
+                    </h4>
+                    <div className="grid grid-cols-3 gap-3 text-center text-sm">
+                      <div>
+                        <p className="text-[10px] font-bold text-slate-500 uppercase">SO Value</p>
+                        <p className="font-black text-slate-900">{formatPrice(dplData.soValue * 1.18)}</p>
+                      </div>
+                      <div>
+                        <p className="text-[10px] font-bold text-slate-500 uppercase">DPL Value</p>
+                        <p className="font-black text-blue-700">{formatPrice(dplData.dplValue * 1.18)}</p>
+                      </div>
+                      <div>
+                        <p className="text-[10px] font-bold text-slate-500 uppercase">Variance</p>
+                        <p className={`font-black ${dplData.dplValue < dplData.soValue ? "text-emerald-600" : dplData.dplValue > dplData.soValue ? "text-red-600" : "text-slate-600"}`}>
+                          {dplData.dplValue < dplData.soValue ? `Credit ₹${((dplData.soValue - dplData.dplValue) * 1.18).toLocaleString("en-IN")}` :
+                           dplData.dplValue > dplData.soValue ? `Debit ₹${((dplData.dplValue - dplData.soValue) * 1.18).toLocaleString("en-IN")}` : "Exact Match"}
+                        </p>
+                      </div>
+                    </div>
+                    {dplData.dplValue < dplData.soValue && (
+                      <p className="text-xs text-emerald-700 font-bold mt-2 text-center">💰 Wallet credit of {formatPrice((dplData.soValue - dplData.dplValue) * 1.18)} will be applied</p>
+                    )}
+                    {dplData.dplValue > dplData.soValue && (
+                      <p className="text-xs text-red-700 font-bold mt-2 text-center">⚠️ Balance due of {formatPrice((dplData.dplValue - dplData.soValue) * 1.18)} flagged</p>
+                    )}
+                  </div>
+                )}
+
                 <div className="bg-slate-50 rounded-2xl border border-slate-200 p-5">
                   <h4 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-4 flex items-center gap-2">
                     <Calculator size={14} /> Internal Reconciliation Sheet
@@ -1218,6 +1418,111 @@ const AdminFinance = () => {
                       <Link size={18} /> Lock Invoice & Request Balance
                     </>
                   )}
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* FINANCIAL ENTRY MODAL */}
+      <AnimatePresence>
+        {financialEntry && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm overflow-y-auto">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="bg-white rounded-3xl w-full max-w-lg shadow-2xl my-8"
+            >
+              <div className="flex justify-between items-center p-6 border-b border-slate-100">
+                <div>
+                  <h3 className="font-display text-xl font-bold text-slate-900">Financial Entry</h3>
+                  <p className="text-sm text-slate-500 mt-1">SO #{financialEntry.orderId.slice(0, 8)} — {financialEntry.companyName}</p>
+                </div>
+                <button onClick={() => setFinancialEntry(null)} className="w-10 h-10 bg-slate-100 rounded-full flex items-center justify-center text-slate-500 hover:bg-slate-200">
+                  <X size={20} />
+                </button>
+              </div>
+              <div className="p-6 space-y-4">
+                <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 flex justify-between">
+                  <span className="text-xs font-bold text-amber-700 uppercase">SO Value</span>
+                  <span className="font-black text-amber-800">{formatPrice(financialEntry.soValue)}</span>
+                </div>
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-500 uppercase mb-1.5">Actual Amount Received (₹) *</label>
+                  <input type="number" min="0" value={financialEntry.actualAmountReceived}
+                    onChange={(e) => setFinancialEntry(prev => prev ? { ...prev, actualAmountReceived: e.target.value } : null)}
+                    className="w-full bg-white border border-slate-200 rounded-xl p-3 text-lg font-black text-[#B8860B] outline-none focus:border-[#B8860B]"
+                    placeholder="Enter exact amount" />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-500 uppercase mb-1.5">Payment Mode *</label>
+                  <select value={financialEntry.paymentMode}
+                    onChange={(e) => setFinancialEntry(prev => prev ? { ...prev, paymentMode: e.target.value } : null)}
+                    className="w-full bg-white border border-slate-200 rounded-xl p-3 text-sm font-bold outline-none focus:border-[#B8860B]">
+                    <option value="">Select mode...</option>
+                    {PAYMENT_MODES.map(m => <option key={m} value={m}>{m}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-500 uppercase mb-1.5">UTR / Reference Number</label>
+                  <input type="text" value={financialEntry.utrReference}
+                    onChange={(e) => setFinancialEntry(prev => prev ? { ...prev, utrReference: e.target.value } : null)}
+                    className="w-full bg-white border border-slate-200 rounded-xl p-3 text-sm font-bold outline-none focus:border-[#B8860B]"
+                    placeholder="Bank reference / UTR" />
+                </div>
+                <button onClick={() => toast.info("Receipt viewer — attach via payment_receipt_url")}
+                  className="w-full py-2.5 border border-dashed border-slate-300 text-slate-500 rounded-xl text-xs font-bold hover:border-[#B8860B] flex justify-center items-center gap-2">
+                  <UploadCloud size={14} /> View / Attach Receipt
+                </button>
+                <button onClick={handleFinancialEntrySubmit} disabled={savingEntry}
+                  className="w-full py-4 bg-emerald-600 text-white font-bold rounded-xl hover:bg-emerald-700 flex justify-center items-center gap-2 shadow-xl shadow-emerald-600/20 active:scale-95 transition-all">
+                  {savingEntry ? <Loader2 size={18} className="animate-spin" /> : <><CheckCircle2 size={18} /> Verify & Release to Production</>}
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* SHORT-TERM CREDIT MODAL */}
+      <AnimatePresence>
+        {shortTermTarget && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm overflow-y-auto">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="bg-white rounded-3xl w-full max-w-md shadow-2xl my-8"
+            >
+              <div className="flex justify-between items-center p-6 border-b border-slate-100">
+                <div>
+                  <h3 className="font-display text-xl font-bold text-slate-900">Issue Short-Term Credit</h3>
+                  <p className="text-sm text-slate-500 mt-1">{shortTermTarget.company?.business_name}</p>
+                </div>
+                <button onClick={() => setShortTermTarget(null)} className="w-10 h-10 bg-slate-100 rounded-full flex items-center justify-center text-slate-500 hover:bg-slate-200">
+                  <X size={20} />
+                </button>
+              </div>
+              <div className="p-6 space-y-4">
+                <div className="bg-violet-50 border border-violet-200 rounded-xl p-3 flex justify-between">
+                  <span className="text-xs font-bold text-violet-700 uppercase">Order Value</span>
+                  <span className="font-black text-violet-800">{formatPrice(shortTermTarget.sales_order_value || 0)}</span>
+                </div>
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-500 uppercase mb-1.5">Payment Deadline (Days) *</label>
+                  <input type="number" min="1" max="90" value={shortTermDays}
+                    onChange={(e) => setShortTermDays(e.target.value)}
+                    className="w-full bg-white border border-slate-200 rounded-xl p-3 text-lg font-black text-violet-700 outline-none focus:border-violet-500"
+                    placeholder="e.g. 15" />
+                </div>
+                <p className="text-xs text-slate-500 italic">
+                  This will release the order to production without advance payment. A credit record will be logged.
+                </p>
+                <button onClick={handleShortTermCreditRelease} disabled={savingShortTerm}
+                  className="w-full py-4 bg-violet-600 text-white font-bold rounded-xl hover:bg-violet-700 flex justify-center items-center gap-2 shadow-xl shadow-violet-600/20 active:scale-95 transition-all">
+                  {savingShortTerm ? <Loader2 size={18} className="animate-spin" /> : <><ShieldCheck size={18} /> Release on Credit</>}
                 </button>
               </div>
             </motion.div>

@@ -127,6 +127,10 @@ const AdminUsers = () => {
   const [rolePermsEditing, setRolePermsEditing] = useState<string[]>([]);
   const [savingRole, setSavingRole] = useState(false);
 
+  // Temp password success modal
+  const [showCredentialsModal, setShowCredentialsModal] = useState(false);
+  const [createdCredentials, setCreatedCredentials] = useState<{ name: string; email: string; password: string; role: string } | null>(null);
+
   const [nf, setNf] = useState({
     name: "",
     email: "",
@@ -291,7 +295,15 @@ const AdminUsers = () => {
       toast.warning("Employee created but credentials email could not be sent.");
     }
 
-    // 5. Audit log
+    // 5. System notification for admin panel
+    await supabase.from("notifications").insert({
+      user_id: user?.id ?? null,
+      type: "employee_onboarding",
+      message: `New employee "${nf.name}" (${nf.role.replace(/_/g, " ")}) onboarded. Email: ${nf.email.trim()}`,
+      is_read: false,
+    });
+
+    // 6. Audit log
     await supabase.from("audit_logs").insert({
       action_type: "create_employee",
       module_name: "user_role_control",
@@ -301,7 +313,9 @@ const AdminUsers = () => {
       new_value: { role: nf.role, email: nf.email, auth_created: true },
     });
 
-    toast.success(`Employee "${nf.name}" created with authenticated account. Credentials emailed.`);
+    // Show credentials modal with temp password
+    setCreatedCredentials({ name: nf.name, email: nf.email.trim(), password: tempPassword, role: nf.role });
+    setShowCredentialsModal(true);
     setShowModal(false);
     setNf({ name: "", email: "", mobile: "", dept: "", designation: "", role: "", status: "invited" });
     setSelectedPermIds([]);
@@ -975,6 +989,61 @@ const AdminUsers = () => {
               {saving === "new" ? <Loader2 size={16} className="animate-spin mx-auto" /> : "Deploy Employee Profile"}
             </button>
           </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Credentials Success Modal */}
+      <Dialog open={showCredentialsModal} onOpenChange={setShowCredentialsModal}>
+        <DialogContent className="max-w-md bg-card border-border rounded-3xl p-6">
+          <DialogHeader className="mb-4">
+            <DialogTitle className="text-xl font-serif font-bold text-foreground flex items-center gap-2">
+              <UserPlus size={20} className="text-primary" /> Employee Created
+            </DialogTitle>
+          </DialogHeader>
+          {createdCredentials && (
+            <div className="space-y-4">
+              <p className="text-sm text-muted-foreground">
+                Account created successfully. <strong className="text-destructive">Copy the temporary password now — it will not be shown again.</strong>
+              </p>
+              <div className="bg-muted/50 rounded-xl p-4 space-y-3 border border-border">
+                <div className="flex justify-between items-center">
+                  <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Name</span>
+                  <span className="text-sm font-bold text-foreground">{createdCredentials.name}</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Email</span>
+                  <span className="text-sm font-bold text-foreground">{createdCredentials.email}</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Role</span>
+                  <span className="text-sm font-bold text-primary uppercase">{createdCredentials.role.replace(/_/g, " ")}</span>
+                </div>
+                <div className="border-t border-border pt-3">
+                  <span className="text-xs font-bold uppercase tracking-wider text-destructive block mb-1">Temporary Password</span>
+                  <div className="flex items-center gap-2">
+                    <code className="flex-1 bg-card border border-primary/30 rounded-lg px-3 py-2 text-sm font-mono font-bold text-foreground select-all">
+                      {createdCredentials.password}
+                    </code>
+                    <button
+                      onClick={() => {
+                        navigator.clipboard.writeText(createdCredentials.password);
+                        toast.success("Password copied to clipboard");
+                      }}
+                      className="px-3 py-2 rounded-lg bg-primary text-primary-foreground text-xs font-bold hover:bg-primary/90 transition-colors"
+                    >
+                      Copy
+                    </button>
+                  </div>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowCredentialsModal(false)}
+                className="w-full py-3 rounded-xl bg-primary text-primary-foreground font-bold text-sm hover:bg-primary/90 transition-colors"
+              >
+                Done
+              </button>
+            </div>
+          )}
         </DialogContent>
       </Dialog>
     </div>
