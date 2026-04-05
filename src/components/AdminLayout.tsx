@@ -27,6 +27,8 @@ const ROLE_MODULE_ACCESS: Record<string, string[]> = {
   sales_executive: ["dashboard", "orders", "clients", "products"],
   support_executive: ["dashboard", "support", "exceptions", "orders"],
   customer_user: [],
+  store_ready_goods: ["dashboard", "inventory", "orders", "production"],
+  rgs_admin: ["dashboard", "inventory", "orders", "production"],
 };
 
 interface NavItem {
