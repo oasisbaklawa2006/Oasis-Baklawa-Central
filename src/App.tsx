@@ -62,6 +62,8 @@ import CMDWarRoom from "./pages/admin/CMDWarRoom.tsx";
 import AdminMerchandising from "./pages/admin/AdminMerchandising.tsx";
 import OrderManagement from "./pages/admin/OrderManagement.tsx";
 import FactoryTVModule from "./components/FactoryTVModule.tsx";
+import AssemblyManagement from "./pages/admin/AssemblyManagement.tsx";
+import AssemblyTV from "./pages/admin/AssemblyTV.tsx";
 import RoleProtectedRoute from "./components/RoleProtectedRoute.tsx";
 import { useAuth } from "@/hooks/useAuth";
 import { getRoleDestination, isStorefrontRole } from "@/lib/auth-routing";
