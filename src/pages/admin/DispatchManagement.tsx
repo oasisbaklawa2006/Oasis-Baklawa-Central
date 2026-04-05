@@ -131,7 +131,7 @@ export default function DispatchManagement() {
       await supabase.from("order_items").update({ actual_packed_qty: newPacked }).eq("id", ci.itemId);
     }
 
-    await supabase.from("audit_logs").insert({
+    await supabase.from("audit_logs").insert([{
       action_type: "CARTON_CLOSED",
       module_name: "Dispatch",
       entity_name: "dispatch_cartons",
