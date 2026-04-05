@@ -21,7 +21,7 @@ interface FloorTask {
   department: string | null;
   notes: string | null;
   product?: { name: string; image_url: string | null; sku: string | null } | null;
-  order?: { id: string; created_at: string | null } | null;
+  order?: { id: string; created_at: string | null; admin_promised_date: string | null } | null;
 }
 
 interface ProductOption {
@@ -49,7 +49,7 @@ export default function FloorTablet({ department, departmentFilter, title }: Flo
   const [tasks, setTasks] = useState<FloorTask[]>([]);
   const [loading, setLoading] = useState(true);
   const [acting, setActing] = useState<string | null>(null);
-  const [mode, setMode] = useState<"dashboard" | "detail" | "production" | "tv">("dashboard");
+  const [mode, setMode] = useState<"dashboard" | "detail" | "tv">("dashboard");
   const [selectedTask, setSelectedTask] = useState<FloorTask | null>(null);
 
   // Numeric keypad
@@ -68,7 +68,7 @@ export default function FloorTablet({ department, departmentFilter, title }: Flo
   const fetchTasks = useCallback(async () => {
     const { data } = await supabase
       .from("order_items")
-      .select("id, order_id, product_id, quantity, actual_packed_qty, production_status, department, notes, product:products(name, image_url, sku), order:orders(id, created_at)")
+      .select("id, order_id, product_id, quantity, actual_packed_qty, production_status, department, notes, product:products(name, image_url, sku), order:orders(id, created_at, admin_promised_date)")
       .in("department", departmentFilter)
       .in("production_status", ["pending", "in_progress", "partial_ready", "completed"])
       .order("production_status", { ascending: true });
@@ -78,7 +78,6 @@ export default function FloorTablet({ department, departmentFilter, title }: Flo
 
   useEffect(() => { fetchTasks(); }, [fetchTasks]);
 
-  // Load products for daily production entry
   useEffect(() => {
     const loadProducts = async () => {
       const { data } = await supabase
@@ -92,7 +91,6 @@ export default function FloorTablet({ department, departmentFilter, title }: Flo
     loadProducts();
   }, []);
 
-  // Auto-refresh for TV mode
   useEffect(() => {
     if (mode !== "tv") return;
     const interval = setInterval(fetchTasks, 30000);
@@ -109,6 +107,30 @@ export default function FloorTablet({ department, departmentFilter, title }: Flo
       updateData.actual_packed_qty = partialQty;
     }
     await supabase.from("order_items").update(updateData).eq("id", taskId);
+
+    // If marking ready, also update factory_inventory (add to stock)
+    if (newStatus === "completed") {
+      const task = tasks.find(t => t.id === taskId);
+      if (task?.product_id) {
+        const { data: existing } = await supabase
+          .from("factory_inventory")
+          .select("id, quantity")
+          .eq("product_id", task.product_id)
+          .maybeSingle();
+        if (existing) {
+          await supabase.from("factory_inventory").update({
+            quantity: (existing.quantity || 0) + task.quantity,
+            last_updated: new Date().toISOString(),
+          }).eq("id", existing.id);
+        } else {
+          await supabase.from("factory_inventory").insert({
+            product_id: task.product_id,
+            quantity: task.quantity,
+          });
+        }
+      }
+    }
+
     toast.success(`Task → ${newStatus.replace("_", " ").toUpperCase()}`);
     fetchTasks();
     setActing(null);
@@ -136,7 +158,7 @@ export default function FloorTablet({ department, departmentFilter, title }: Flo
       return;
     }
     setKeypadOpen(false);
-    await updateStatus(keypadTaskId, "partial_ready", qty);
+    await updateStatus(keypadTaskId, qty >= keypadMax ? "completed" : "partial_ready", qty);
   };
 
   const sendMaterialRequest = async (task: FloorTask) => {
@@ -205,7 +227,7 @@ export default function FloorTablet({ department, departmentFilter, title }: Flo
               {panicTasks.map(t => (
                 <div key={t.id} className="bg-destructive/20 rounded-lg p-3">
                   <p className="text-lg font-bold text-destructive">{t.product?.name?.slice(0, 25)}</p>
-                  <p className="text-sm font-mono text-destructive/80">SO#{t.order_id?.slice(0, 8).toUpperCase()} · Qty: {t.quantity}</p>
+                  <p className="text-sm font-mono text-destructive/80">SO#{t.order_id?.slice(0, 8).toUpperCase()} · Qty: {t.actual_packed_qty ?? 0}/{t.quantity}</p>
                 </div>
               ))}
             </div>
@@ -214,24 +236,27 @@ export default function FloorTablet({ department, departmentFilter, title }: Flo
 
         <div className="grid grid-cols-3 gap-4">
           {[
-            { label: "⏳ PENDING", items: pending, color: "amber", icon: <Clock size={20} className="text-amber-500" /> },
-            { label: "🔧 IN PROCESS", items: inProcess, color: "blue", icon: <Play size={20} className="text-blue-500" /> },
-            { label: "✅ READY", items: ready, color: "emerald", icon: <CheckCircle2 size={20} className="text-emerald-500" /> },
+            { label: "⏳ PENDING", items: pending, color: "amber" },
+            { label: "🔧 IN PROCESS", items: inProcess, color: "blue" },
+            { label: "✅ READY", items: ready, color: "emerald" },
           ].map(col => (
             <div key={col.label}>
-              <h2 className="text-xl font-bold text-foreground mb-3 flex items-center gap-2">
-                {col.icon} {col.label} ({col.items.length})
-              </h2>
+              <h2 className="text-xl font-bold text-foreground mb-3">{col.label} ({col.items.length})</h2>
               <div className="space-y-2">
                 {col.items.map(t => {
-                  const progressPct = t.quantity > 0 ? Math.round(((t.actual_packed_qty || 0) / t.quantity) * 100) : 0;
+                  const pct = t.quantity > 0 ? Math.round(((t.actual_packed_qty || 0) / t.quantity) * 100) : 0;
                   return (
-                    <Card key={t.id} className={`border-l-4 border-l-${col.color}-500 ${col.label.includes("READY") ? "animate-pulse" : ""}`}>
-                      <CardContent className="p-3">
-                        <p className="text-lg font-bold text-foreground">{t.product?.name?.slice(0, 30)}</p>
-                        <p className="text-sm font-mono text-muted-foreground">SKU: {t.product?.sku || "N/A"} · Qty: {t.actual_packed_qty ?? 0}/{t.quantity}</p>
-                        <Progress value={progressPct} className="h-2 mt-2" />
-                        <StagnancyBadge createdAt={t.order?.created_at || null} />
+                    <Card key={t.id} className={col.label.includes("READY") ? "animate-pulse" : ""}>
+                      <CardContent className="p-3 flex gap-3">
+                        <div className="w-14 h-14 rounded-lg bg-muted flex items-center justify-center overflow-hidden shrink-0">
+                          {t.product?.image_url ? <img src={t.product.image_url} alt="" className="w-full h-full object-cover" /> : <Package size={20} className="text-muted-foreground" />}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-base font-bold text-foreground truncate">{t.product?.name || "Unknown"}</p>
+                          <p className="text-xs font-mono text-muted-foreground">Qty: {t.actual_packed_qty ?? 0}/{t.quantity}</p>
+                          <Progress value={pct} className="h-2 mt-1" />
+                          <StagnancyBadge createdAt={t.order?.created_at || null} />
+                        </div>
                       </CardContent>
                     </Card>
                   );
@@ -244,14 +269,13 @@ export default function FloorTablet({ department, departmentFilter, title }: Flo
     );
   }
 
-  // === SCREEN 2: TASK DETAIL ===
+  // === SCREEN 2: TASK DETAIL with Photo, Qty, Deadline ===
   if (mode === "detail" && selectedTask) {
     const progressPct = selectedTask.quantity > 0 ? Math.round(((selectedTask.actual_packed_qty || 0) / selectedTask.quantity) * 100) : 0;
+    const deadline = selectedTask.order?.admin_promised_date;
     return (
       <div className="space-y-4">
-        <Button variant="ghost" onClick={() => { setMode("dashboard"); setSelectedTask(null); }} className="text-xs">
-          ← Back to Dashboard
-        </Button>
+        <Button variant="ghost" onClick={() => { setMode("dashboard"); setSelectedTask(null); }} className="text-xs">← Back</Button>
 
         <Card>
           <CardContent className="p-5 space-y-4">
@@ -264,9 +288,10 @@ export default function FloorTablet({ department, departmentFilter, title }: Flo
                 )}
               </div>
               <div>
-                <h2 className="text-lg font-bold text-foreground">{selectedTask.product?.name}</h2>
+                <h2 className="text-lg font-bold text-foreground">{selectedTask.product?.name || "Unknown"}</h2>
                 <p className="text-sm text-muted-foreground font-mono">SKU: {selectedTask.product?.sku || "N/A"}</p>
                 <p className="text-sm text-muted-foreground">SO#{selectedTask.order_id?.slice(0, 8).toUpperCase()}</p>
+                {deadline && <p className="text-xs text-destructive font-bold mt-1">⏰ Deadline: {deadline}</p>}
                 <div className="flex gap-2 mt-2">
                   <Badge className={`text-xs border ${statusColor[selectedTask.production_status || "pending"]}`}>
                     {(selectedTask.production_status || "pending").replace("_", " ")}
@@ -293,7 +318,7 @@ export default function FloorTablet({ department, departmentFilter, title }: Flo
             <div className="grid grid-cols-2 gap-2">
               {selectedTask.production_status === "pending" && (
                 <Button className="col-span-2" onClick={() => updateStatus(selectedTask.id, "in_progress")} disabled={acting === selectedTask.id}>
-                  <Play size={16} className="mr-2" /> Start Work
+                  <Play size={16} className="mr-2" /> START WORK
                 </Button>
               )}
               {(selectedTask.production_status === "in_progress" || selectedTask.production_status === "partial_ready") && (
@@ -302,7 +327,7 @@ export default function FloorTablet({ department, departmentFilter, title }: Flo
                     <Hash size={16} className="mr-2" /> Partial Ready
                   </Button>
                   <Button onClick={() => updateStatus(selectedTask.id, "completed")} disabled={acting === selectedTask.id}>
-                    <CheckCircle2 size={16} className="mr-2" /> Full Ready
+                    <CheckCircle2 size={16} className="mr-2" /> MARK READY
                   </Button>
                 </>
               )}
@@ -317,7 +342,7 @@ export default function FloorTablet({ department, departmentFilter, title }: Flo
     );
   }
 
-  // === SCREEN 1: DASHBOARD (Handheld) + SCREEN 3: DAILY PRODUCTION ===
+  // === SCREEN 1: PRIORITY CARD DASHBOARD + SCREEN 3: DAILY PRODUCTION ===
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
@@ -336,13 +361,11 @@ export default function FloorTablet({ department, departmentFilter, title }: Flo
           <TabsTrigger value="production" className="flex-1">📊 Daily Production</TabsTrigger>
         </TabsList>
 
-        {/* Screen 1: Task Dashboard */}
         <TabsContent value="tasks">
           {active.length === 0 && (
             <Card><CardContent className="py-12 text-center text-muted-foreground">No tasks for {department}.</CardContent></Card>
           )}
 
-          {/* Panic section */}
           {panicTasks.length > 0 && (
             <div className="rounded-xl border-2 border-destructive bg-destructive/10 p-3 mb-3 animate-pulse">
               <p className="text-sm font-bold text-destructive">🚨 {panicTasks.length} tasks stagnant &gt;4h</p>
@@ -351,13 +374,15 @@ export default function FloorTablet({ department, departmentFilter, title }: Flo
 
           <div className="grid gap-3">
             {active.map(task => {
-              const progressPct = task.quantity > 0 ? Math.round(((task.actual_packed_qty || 0) / task.quantity) * 100) : 0;
+              const pct = task.quantity > 0 ? Math.round(((task.actual_packed_qty || 0) / task.quantity) * 100) : 0;
+              const deadline = task.order?.admin_promised_date;
               return (
                 <Card key={task.id} className="overflow-hidden border-l-4 cursor-pointer active:scale-[0.99] transition-transform"
                   style={{ borderLeftColor: task.production_status === "pending" ? "hsl(var(--chart-4))" : "hsl(var(--chart-1))" }}
                   onClick={() => { setSelectedTask(task); setMode("detail"); }}>
                   <CardContent className="p-4">
                     <div className="flex gap-3">
+                      {/* Photo */}
                       <div className="w-16 h-16 rounded-lg bg-muted flex items-center justify-center overflow-hidden shrink-0">
                         {task.product?.image_url ? (
                           <img src={task.product.image_url} alt={task.product.name} className="w-full h-full object-cover" />
@@ -367,15 +392,18 @@ export default function FloorTablet({ department, departmentFilter, title }: Flo
                       </div>
                       <div className="flex-1 min-w-0">
                         <p className="font-semibold text-sm text-foreground truncate">{task.product?.name || "Unknown"}</p>
-                        <p className="text-[11px] text-muted-foreground font-mono">SKU: {task.product?.sku || "N/A"} · SO#{task.order_id?.slice(0, 8).toUpperCase()}</p>
+                        {/* Qty + Deadline */}
+                        <p className="text-[11px] text-muted-foreground font-mono">
+                          Qty: <span className="font-bold text-foreground">{task.actual_packed_qty ?? 0}/{task.quantity}</span>
+                          {deadline && <span className="ml-2 text-destructive font-bold">⏰ {deadline}</span>}
+                        </p>
                         <div className="flex items-center gap-2 mt-1 flex-wrap">
-                          <span className="text-xs font-bold text-foreground">Qty: {task.actual_packed_qty ?? 0}/{task.quantity}</span>
                           <Badge className={`text-[10px] px-1.5 py-0 border ${statusColor[task.production_status || "pending"]}`}>
                             {(task.production_status || "pending").replace("_", " ")}
                           </Badge>
                           <StagnancyBadge createdAt={task.order?.created_at || null} />
                         </div>
-                        <Progress value={progressPct} className="h-1.5 mt-2" />
+                        <Progress value={pct} className="h-1.5 mt-2" />
                       </div>
                     </div>
                   </CardContent>
