@@ -295,7 +295,15 @@ const AdminUsers = () => {
       toast.warning("Employee created but credentials email could not be sent.");
     }
 
-    // 5. Audit log
+    // 5. System notification for admin panel
+    await supabase.from("notifications").insert({
+      user_id: user?.id ?? null,
+      type: "employee_onboarding",
+      message: `New employee "${nf.name}" (${nf.role.replace(/_/g, " ")}) onboarded. Email: ${nf.email.trim()}`,
+      is_read: false,
+    });
+
+    // 6. Audit log
     await supabase.from("audit_logs").insert({
       action_type: "create_employee",
       module_name: "user_role_control",
@@ -305,7 +313,9 @@ const AdminUsers = () => {
       new_value: { role: nf.role, email: nf.email, auth_created: true },
     });
 
-    toast.success(`Employee "${nf.name}" created with authenticated account. Credentials emailed.`);
+    // Show credentials modal with temp password
+    setCreatedCredentials({ name: nf.name, email: nf.email.trim(), password: tempPassword, role: nf.role });
+    setShowCredentialsModal(true);
     setShowModal(false);
     setNf({ name: "", email: "", mobile: "", dept: "", designation: "", role: "", status: "invited" });
     setSelectedPermIds([]);
