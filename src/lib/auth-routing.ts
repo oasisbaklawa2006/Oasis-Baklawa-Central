@@ -15,7 +15,6 @@ const ORDER_MANAGEMENT_ROLES = new Set([
 ]);
 
 const OPERATIONS_CONTROLLER_ROLES = new Set([
-  "STORE_READY_GOODS",
   "STORE_3RD_PARTY",
 ]);
 
@@ -85,6 +84,7 @@ export function getRoleDestination(role?: string | null) {
   if (normalizedRole === "SUPPORT_EXECUTIVE") return "/admin/support";
   if (normalizedRole === "SALES_EXECUTIVE") return "/sales/dashboard";
   if (normalizedRole === "GATE_SECURITY") return "/security-gate";
+  if (normalizedRole === "STORE_READY_GOODS" || normalizedRole === "RGS_ADMIN") return "/admin/ready-goods";
   if (ORDER_MANAGEMENT_ROLES.has(normalizedRole)) return "/admin/order-management";
   if (OPERATIONS_CONTROLLER_ROLES.has(normalizedRole)) return "/operations-controller";
   if (FACTORY_TV_ROUTES[normalizedRole]) return FACTORY_TV_ROUTES[normalizedRole];
