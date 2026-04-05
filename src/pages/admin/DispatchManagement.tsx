@@ -137,7 +137,7 @@ export default function DispatchManagement() {
       entity_name: "dispatch_cartons",
       entity_id: cartonId,
       actor_id: user?.id || null,
-      new_value: { order_id: activeOrderId, items: currentCarton, photo_url: photoUrl },
+      new_value: { order_id: activeOrderId, items: currentCarton.map(c => ({ ...c })), photo_url: photoUrl } as any,
       risk_level: "normal",
     }]);
 
