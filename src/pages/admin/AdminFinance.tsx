@@ -460,6 +460,123 @@ const AdminFinance = () => {
     setActing(null);
   };
 
+  // Financial Entry Submit
+  const handleFinancialEntrySubmit = async () => {
+    if (!financialEntry) return;
+    const amount = parseFloat(financialEntry.actualAmountReceived);
+    if (isNaN(amount) || amount <= 0) { toast.error("Enter a valid amount."); return; }
+    if (!financialEntry.paymentMode) { toast.error("Select payment mode."); return; }
+    setSavingEntry(true);
+    try {
+      await supabase.from("order_payments").insert({
+        order_id: financialEntry.orderId,
+        payment_type: "advance",
+        amount,
+        reference_no: financialEntry.utrReference || null,
+        created_by: user?.id ?? null,
+      });
+      await supabase.from("orders").update({
+        advance_paid: amount,
+        status: "in_production",
+        payment_status: "verified_advance",
+      }).eq("id", financialEntry.orderId);
+      await supabase.from("order_status_history").insert({
+        order_id: financialEntry.orderId,
+        old_status: "submitted",
+        new_status: "in_production",
+      });
+      await supabase.from("audit_logs").insert({
+        action_type: "finance_verify_advance",
+        module_name: "Finance",
+        entity_name: "order",
+        entity_id: financialEntry.orderId,
+        actor_id: user?.id,
+        new_value: { amount, mode: financialEntry.paymentMode, utr: financialEntry.utrReference },
+      });
+      toast.success(`₹${amount.toLocaleString("en-IN")} verified — released to Production`);
+      setFinancialEntry(null);
+      fetchOrders();
+    } catch { toast.error("Verification failed."); }
+    setSavingEntry(false);
+  };
+
+  // Short-Term Credit Release
+  const handleShortTermCreditRelease = async () => {
+    if (!shortTermTarget || !shortTermDays) { toast.error("Set payment deadline days."); return; }
+    const days = parseInt(shortTermDays);
+    if (isNaN(days) || days <= 0) { toast.error("Invalid deadline."); return; }
+    setSavingShortTerm(true);
+    try {
+      await supabase.from("orders").update({
+        status: "in_production",
+        payment_status: "short_term_credit",
+      }).eq("id", shortTermTarget.id);
+      await supabase.from("credit_requests").insert({
+        company_id: shortTermTarget.company_id,
+        requested_by: user?.id,
+        requested_amount: shortTermTarget.sales_order_value ?? 0,
+        credit_type: "short_term_so",
+        notes: `Auto-release with ${days}-day deadline`,
+        status: "approved",
+      });
+      await supabase.from("audit_logs").insert({
+        action_type: "short_term_credit_release",
+        module_name: "Finance",
+        entity_name: "order",
+        entity_id: shortTermTarget.id,
+        actor_id: user?.id,
+        new_value: { deadline_days: days, order_value: shortTermTarget.sales_order_value },
+        risk_level: "high",
+      });
+      toast.success(`Released on ${days}-day short-term credit`);
+      setShortTermTarget(null);
+      setShortTermDays("");
+      fetchOrders();
+    } catch { toast.error("Failed to issue credit."); }
+    setSavingShortTerm(false);
+  };
+
+  // Fetch DPL data for invoicing modal
+  const fetchDplForOrder = async (orderId: string) => {
+    const { data: items } = await supabase
+      .from("order_items")
+      .select("product_id, quantity, actual_packed_qty, product:products(name, price_per_kg)")
+      .eq("order_id", orderId);
+    if (!items) return;
+    const soVal = (items as any[]).reduce((s, i) => s + (i.quantity * (i.product?.price_per_kg || 0)), 0);
+    const dplVal = (items as any[]).reduce((s, i) => s + ((i.actual_packed_qty ?? i.quantity) * (i.product?.price_per_kg || 0)), 0);
+    setDplData({ soValue: soVal, dplValue: dplVal, items: items as any[] });
+  };
+
+  // Credit limit hard lock check
+  const checkCreditLock = async (companyId: string, orderValue: number): Promise<{ locked: boolean; reason: string }> => {
+    const { data: company } = await supabase.from("companies").select("credit_limit, current_balance, allow_credit").eq("id", companyId).single();
+    if (!company?.allow_credit) return { locked: false, reason: "" };
+    const creditLimit = company.credit_limit ?? 0;
+    const outstanding = company.current_balance ?? 0;
+    if (outstanding + orderValue > creditLimit) {
+      return { locked: true, reason: `Outstanding (₹${outstanding.toLocaleString("en-IN")}) + Order (₹${orderValue.toLocaleString("en-IN")}) exceeds Credit Limit (₹${creditLimit.toLocaleString("en-IN")})` };
+    }
+    return { locked: false, reason: "" };
+  };
+
+  // Generate barcode ZPL label
+  const generateBarcodeLabel = (orderId: string, companyName: string, boxNum: number, totalBoxes: number, tallyInv: string) => {
+    const consignor = "TCF Chocolates & Gifts Pvt. Ltd.\nWZ-117, Kirti Nagar Industrial Area\nNew Delhi - 110015";
+    const barcodeData = `${orderId.slice(0, 8).toUpperCase()}-${tallyInv || "DRAFT"}`;
+    const label = `Pack [${String(boxNum).padStart(2, "0")}] of [${totalBoxes}]\n\nConsignee: ${companyName}\nConsignor: ${consignor}\n\nBarcode: ${barcodeData}\n\n[TSC TE 244 Format]`;
+    // Open in new window for printing
+    const w = window.open("", "_blank", "width=400,height=600");
+    if (w) {
+      w.document.write(`<html><head><title>Dispatch Label</title><style>body{font-family:monospace;padding:24px;font-size:13px;white-space:pre-wrap}h2{text-align:center;border-bottom:2px solid #000;padding-bottom:8px}.barcode{text-align:center;font-size:18px;font-weight:bold;letter-spacing:3px;border:2px solid #000;padding:12px;margin:16px 0}@media print{button{display:none}}</style></head><body>`);
+      w.document.write(`<h2>DISPATCH LABEL</h2>\n${label.replace(/\n/g, "<br/>")}`);
+      w.document.write(`<div class="barcode">${barcodeData}</div>`);
+      w.document.write(`<button onclick="window.print()" style="width:100%;padding:12px;font-size:14px;font-weight:bold;cursor:pointer;margin-top:16px">🖨️ Print Label</button>`);
+      w.document.write("</body></html>");
+      w.document.close();
+    }
+  };
+
   const handleCreditAction = async (req: CreditRequest, action: "approved" | "rejected") => {
     setActing(req.id);
     try {
