@@ -1424,6 +1424,111 @@ const AdminFinance = () => {
           </div>
         )}
       </AnimatePresence>
+
+      {/* FINANCIAL ENTRY MODAL */}
+      <AnimatePresence>
+        {financialEntry && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm overflow-y-auto">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="bg-white rounded-3xl w-full max-w-lg shadow-2xl my-8"
+            >
+              <div className="flex justify-between items-center p-6 border-b border-slate-100">
+                <div>
+                  <h3 className="font-display text-xl font-bold text-slate-900">Financial Entry</h3>
+                  <p className="text-sm text-slate-500 mt-1">SO #{financialEntry.orderId.slice(0, 8)} — {financialEntry.companyName}</p>
+                </div>
+                <button onClick={() => setFinancialEntry(null)} className="w-10 h-10 bg-slate-100 rounded-full flex items-center justify-center text-slate-500 hover:bg-slate-200">
+                  <X size={20} />
+                </button>
+              </div>
+              <div className="p-6 space-y-4">
+                <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 flex justify-between">
+                  <span className="text-xs font-bold text-amber-700 uppercase">SO Value</span>
+                  <span className="font-black text-amber-800">{formatPrice(financialEntry.soValue)}</span>
+                </div>
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-500 uppercase mb-1.5">Actual Amount Received (₹) *</label>
+                  <input type="number" min="0" value={financialEntry.actualAmountReceived}
+                    onChange={(e) => setFinancialEntry(prev => prev ? { ...prev, actualAmountReceived: e.target.value } : null)}
+                    className="w-full bg-white border border-slate-200 rounded-xl p-3 text-lg font-black text-[#B8860B] outline-none focus:border-[#B8860B]"
+                    placeholder="Enter exact amount" />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-500 uppercase mb-1.5">Payment Mode *</label>
+                  <select value={financialEntry.paymentMode}
+                    onChange={(e) => setFinancialEntry(prev => prev ? { ...prev, paymentMode: e.target.value } : null)}
+                    className="w-full bg-white border border-slate-200 rounded-xl p-3 text-sm font-bold outline-none focus:border-[#B8860B]">
+                    <option value="">Select mode...</option>
+                    {PAYMENT_MODES.map(m => <option key={m} value={m}>{m}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-500 uppercase mb-1.5">UTR / Reference Number</label>
+                  <input type="text" value={financialEntry.utrReference}
+                    onChange={(e) => setFinancialEntry(prev => prev ? { ...prev, utrReference: e.target.value } : null)}
+                    className="w-full bg-white border border-slate-200 rounded-xl p-3 text-sm font-bold outline-none focus:border-[#B8860B]"
+                    placeholder="Bank reference / UTR" />
+                </div>
+                <button onClick={() => toast.info("Receipt viewer — attach via payment_receipt_url")}
+                  className="w-full py-2.5 border border-dashed border-slate-300 text-slate-500 rounded-xl text-xs font-bold hover:border-[#B8860B] flex justify-center items-center gap-2">
+                  <UploadCloud size={14} /> View / Attach Receipt
+                </button>
+                <button onClick={handleFinancialEntrySubmit} disabled={savingEntry}
+                  className="w-full py-4 bg-emerald-600 text-white font-bold rounded-xl hover:bg-emerald-700 flex justify-center items-center gap-2 shadow-xl shadow-emerald-600/20 active:scale-95 transition-all">
+                  {savingEntry ? <Loader2 size={18} className="animate-spin" /> : <><CheckCircle2 size={18} /> Verify & Release to Production</>}
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* SHORT-TERM CREDIT MODAL */}
+      <AnimatePresence>
+        {shortTermTarget && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm overflow-y-auto">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="bg-white rounded-3xl w-full max-w-md shadow-2xl my-8"
+            >
+              <div className="flex justify-between items-center p-6 border-b border-slate-100">
+                <div>
+                  <h3 className="font-display text-xl font-bold text-slate-900">Issue Short-Term Credit</h3>
+                  <p className="text-sm text-slate-500 mt-1">{shortTermTarget.company?.business_name}</p>
+                </div>
+                <button onClick={() => setShortTermTarget(null)} className="w-10 h-10 bg-slate-100 rounded-full flex items-center justify-center text-slate-500 hover:bg-slate-200">
+                  <X size={20} />
+                </button>
+              </div>
+              <div className="p-6 space-y-4">
+                <div className="bg-violet-50 border border-violet-200 rounded-xl p-3 flex justify-between">
+                  <span className="text-xs font-bold text-violet-700 uppercase">Order Value</span>
+                  <span className="font-black text-violet-800">{formatPrice(shortTermTarget.sales_order_value || 0)}</span>
+                </div>
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-500 uppercase mb-1.5">Payment Deadline (Days) *</label>
+                  <input type="number" min="1" max="90" value={shortTermDays}
+                    onChange={(e) => setShortTermDays(e.target.value)}
+                    className="w-full bg-white border border-slate-200 rounded-xl p-3 text-lg font-black text-violet-700 outline-none focus:border-violet-500"
+                    placeholder="e.g. 15" />
+                </div>
+                <p className="text-xs text-slate-500 italic">
+                  This will release the order to production without advance payment. A credit record will be logged.
+                </p>
+                <button onClick={handleShortTermCreditRelease} disabled={savingShortTerm}
+                  className="w-full py-4 bg-violet-600 text-white font-bold rounded-xl hover:bg-violet-700 flex justify-center items-center gap-2 shadow-xl shadow-violet-600/20 active:scale-95 transition-all">
+                  {savingShortTerm ? <Loader2 size={18} className="animate-spin" /> : <><ShieldCheck size={18} /> Release on Credit</>}
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 };
