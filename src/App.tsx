@@ -58,6 +58,7 @@ import SalesDashboard from "./pages/sales/SalesDashboard.tsx";
 import SalesPerformanceHub from "./pages/admin/SalesPerformanceHub.tsx";
 import AdminNotifications from "./pages/admin/AdminNotifications.tsx";
 import CMDHeartbeat from "./pages/admin/CMDHeartbeat.tsx";
+import CMDWarRoom from "./pages/admin/CMDWarRoom.tsx";
 import AdminMerchandising from "./pages/admin/AdminMerchandising.tsx";
 import OrderManagement from "./pages/admin/OrderManagement.tsx";
 import FactoryTVModule from "./components/FactoryTVModule.tsx";
