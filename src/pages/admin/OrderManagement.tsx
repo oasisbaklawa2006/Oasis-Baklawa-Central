@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import { Loader2, ChevronRight, Printer, Package, RefreshCw } from "lucide-react";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
+import StagnancyBadge from "@/components/StagnancyBadge";
 
 const STATUS_FLOW = [
   { status: "submitted", label: "Order Placed", action: "Confirm Order", next: "confirmed", color: "bg-amber-100 text-amber-800 border-amber-200" },
