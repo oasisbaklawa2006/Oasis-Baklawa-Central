@@ -200,6 +200,8 @@ const App = () => (
               <Route path="assembly-tv" element={<AssemblyTV />} />
               <Route path="ready-goods" element={<ReadyGoodsStore />} />
               <Route path="rgs-tv" element={<ReadyGoodsTV />} />
+              <Route path="dispatch-mgmt" element={<DispatchManagement />} />
+              <Route path="dispatch-tv" element={<DispatchTV />} />
             </Route>
             <Route
               path="/sales/dashboard"

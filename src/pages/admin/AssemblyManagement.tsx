@@ -261,7 +261,7 @@ export default function AssemblyManagement() {
                         <CheckCircle2 size={14} className="mr-1" /> Full Ready
                       </Button>
                     )}
-                    <Button size="sm" variant="destructive" className="text-xs" onClick={() => sendMaterialRequest(task)} disabled={acting === task.id}>
+                    <Button size="sm" variant="destructive" className="text-xs" onClick={() => openProdQtyModal(task)} disabled={acting === task.id}>
                       <Send size={14} className="mr-1" /> Request Material
                     </Button>
                   </div>
