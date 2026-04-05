@@ -1490,16 +1490,24 @@ const AdminFinance = () => {
                   </select>
                 </div>
                 <div>
-                  <label className="block text-[11px] font-bold text-slate-500 uppercase mb-1.5">UTR / Reference Number</label>
+                  <label className="block text-[11px] font-bold text-slate-500 uppercase mb-1.5">
+                    UTR / Reference Number {financialEntry.paymentMode && financialEntry.paymentMode !== "Cash" ? "*" : ""}
+                  </label>
                   <input type="text" value={financialEntry.utrReference}
                     onChange={(e) => setFinancialEntry(prev => prev ? { ...prev, utrReference: e.target.value } : null)}
                     className="w-full bg-white border border-slate-200 rounded-xl p-3 text-sm font-bold outline-none focus:border-[#B8860B]"
                     placeholder="Bank reference / UTR" />
                 </div>
-                <button onClick={() => toast.info("Receipt viewer — attach via payment_receipt_url")}
-                  className="w-full py-2.5 border border-dashed border-slate-300 text-slate-500 rounded-xl text-xs font-bold hover:border-[#B8860B] flex justify-center items-center gap-2">
-                  <UploadCloud size={14} /> View / Attach Receipt
-                </button>
+                {financialEntry.receiptUrl ? (
+                  <button onClick={() => window.open(financialEntry.receiptUrl!, "_blank")}
+                    className="w-full py-2.5 border border-blue-300 text-blue-700 rounded-xl text-xs font-bold hover:bg-blue-50 flex justify-center items-center gap-2">
+                    <FileText size={14} /> View Uploaded Receipt
+                  </button>
+                ) : (
+                  <div className="w-full py-2.5 border border-dashed border-slate-300 text-slate-400 rounded-xl text-xs font-bold flex justify-center items-center gap-2">
+                    <UploadCloud size={14} /> No receipt uploaded by Sales
+                  </div>
+                )}
                 <button onClick={handleFinancialEntrySubmit} disabled={savingEntry}
                   className="w-full py-4 bg-emerald-600 text-white font-bold rounded-xl hover:bg-emerald-700 flex justify-center items-center gap-2 shadow-xl shadow-emerald-600/20 active:scale-95 transition-all">
                   {savingEntry ? <Loader2 size={18} className="animate-spin" /> : <><CheckCircle2 size={18} /> Verify & Release to Production</>}
