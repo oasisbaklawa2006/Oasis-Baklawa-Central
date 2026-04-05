@@ -66,7 +66,8 @@ import AssemblyManagement from "./pages/admin/AssemblyManagement.tsx";
 import AssemblyTV from "./pages/admin/AssemblyTV.tsx";
 import ReadyGoodsStore from "./pages/admin/ReadyGoodsStore.tsx";
 import ReadyGoodsTV from "./pages/admin/ReadyGoodsTV.tsx";
-import RoleProtectedRoute from "./components/RoleProtectedRoute.tsx";
+import DispatchManagement from "./pages/admin/DispatchManagement.tsx";
+import DispatchTV from "./pages/admin/DispatchTV.tsx";
 import { useAuth } from "@/hooks/useAuth";
 import { getRoleDestination, isStorefrontRole } from "@/lib/auth-routing";
 
