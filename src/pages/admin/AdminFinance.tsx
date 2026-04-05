@@ -34,6 +34,7 @@ interface FinanceOrder {
   advance_paid: number | null;
   created_at: string;
   company_id: string | null;
+  payment_receipt_url: string | null;
   company?: { business_name: string } | null;
 }
 
