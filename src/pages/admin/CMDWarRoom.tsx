@@ -108,7 +108,7 @@ const CMDWarRoom = () => {
     <div className="p-4 space-y-4 min-h-screen bg-background">
       <div className="flex items-center justify-between">
         <h1 className="text-xl font-bold text-foreground tracking-tight">
-          ⚔️ CMD War Room — Live Order Battlefield
+          ⚔️ CMD War Room — Live Order Battlefield v2
         </h1>
         <button
           onClick={() => setShowHidden(!showHidden)}
