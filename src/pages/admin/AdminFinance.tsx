@@ -807,6 +807,14 @@ const AdminFinance = () => {
                         <AlertTriangle size={12} /> Advance Receipt
                       </span>
                     </div>
+                    {order.payment_receipt_url && (
+                      <button
+                        onClick={() => window.open(order.payment_receipt_url!, "_blank")}
+                        className="w-full py-2 mb-2 border border-blue-300 text-blue-700 rounded-lg text-xs font-bold hover:bg-blue-50 flex justify-center items-center gap-1"
+                      >
+                        <FileText size={14} /> View Uploaded Receipt
+                      </button>
+                    )}
                     <div className="flex gap-2 flex-wrap">
                       <button
                         onClick={() => setFinancialEntry({
@@ -816,11 +824,11 @@ const AdminFinance = () => {
                           actualAmountReceived: "",
                           paymentMode: "",
                           utrReference: "",
-                          receiptUrl: null,
+                          receiptUrl: order.payment_receipt_url || null,
                         })}
                         className="flex-1 py-2.5 bg-emerald-600 text-white rounded-lg text-xs font-bold hover:bg-emerald-700 flex justify-center items-center gap-1"
                       >
-                        <CheckCircle2 size={14} /> Verify & Entry
+                        <ShieldCheck size={14} /> Verify Credit & Release
                       </button>
                       <button
                         onClick={() => setShortTermTarget(order)}
