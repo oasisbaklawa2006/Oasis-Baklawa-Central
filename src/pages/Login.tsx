@@ -7,6 +7,7 @@ import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import logoImg from "@/assets/logo-open.png";
+import { getRoleDestination, fetchAuthRoleRecord } from "@/lib/auth-routing";
 
 type AuthTab = "phone" | "email";
 
@@ -22,25 +23,8 @@ const Login = () => {
   const navigate = useNavigate();
 
   const resolveRedirect = async (userId: string) => {
-    const { data: userData } = await supabase
-      .from("users")
-      .select("role")
-      .eq("id", userId)
-      .maybeSingle();
-
-    if (!userData) {
-      console.warn("No user record found for this auth ID");
-      navigate("/", { replace: true });
-      return;
-    }
-    const normalizedRole = userData?.role?.toUpperCase();
-    if (normalizedRole === "ADMIN" || normalizedRole === "SUPER_ADMIN" || normalizedRole === "FINANCE_HEAD" || normalizedRole === "DISPATCH_HEAD" || normalizedRole === "PRODUCTION_MANAGER") {
-      navigate("/admin", { replace: true });
-    } else if (normalizedRole === "SALES_EXECUTIVE") {
-      navigate("/sales/dashboard", { replace: true });
-    } else {
-      navigate("/", { replace: true });
-    }
+    const authRecord = await fetchAuthRoleRecord(userId);
+    navigate(getRoleDestination(authRecord.role), { replace: true });
   };
 
   // ── Email Login ──

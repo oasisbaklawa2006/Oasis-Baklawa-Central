@@ -2,33 +2,7 @@ import { useEffect, useState } from "react";
 import { Navigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { Loader2 } from "lucide-react";
-
-const PROD_ROLE_ROUTES: Record<string, string> = {
-  PROD_ARABIC_SWEETS: "/tv/arabic-sweets",
-  PROD_CHOCOLATE: "/tv/chocolate",
-  PROD_FUSION: "/tv/fusion",
-  PROD_BAKERY: "/tv/bakery",
-  PROD_NUTS: "/tv/nuts",
-};
-
-function getDesignatedRoute(role: string): string {
-  const upper = role.toUpperCase();
-  if (PROD_ROLE_ROUTES[upper]) return PROD_ROLE_ROUTES[upper];
-  if (upper === "SALES_EXECUTIVE") return "/sales/dashboard";
-  if (upper === "ASSEMBLY_MANAGER") return "/operations-controller";
-
-  const INTERNAL_SET = new Set([
-    "FINANCE_HEAD", "DISPATCH_HEAD", "PRODUCTION_MANAGER",
-    "PACKING_SUPERVISOR", "SUPPORT_EXECUTIVE",
-    "STORE_READY_GOODS", "STORE_3RD_PARTY", "GATE_SECURITY",
-  ]);
-  if (INTERNAL_SET.has(upper)) return "/operations-controller";
-
-  if (upper === "CUSTOMER_USER" || upper === "CLIENT") return "/home";
-  if (upper === "BUYER") return "/home";
-
-  return "/approval-pending";
-}
+import { getRoleDestination, normalizeRole } from "@/lib/auth-routing";
 
 interface Props {
   allowedRoles: (string | null)[];
@@ -50,13 +24,7 @@ export default function RoleProtectedRoute({ allowedRoles, children }: Props) {
       return;
     }
 
-    const normalizedRole = role?.toUpperCase() || null;
-
-    // SAFETY VALVE: Admin/Super Admin bypass all checks
-    if (normalizedRole === "ADMIN" || normalizedRole === "SUPER_ADMIN") {
-      setStatus("allowed");
-      return;
-    }
+    const normalizedRole = normalizeRole(role);
 
     // No role → approval pending
     if (!normalizedRole) {
@@ -75,7 +43,7 @@ export default function RoleProtectedRoute({ allowedRoles, children }: Props) {
       setStatus("allowed");
     } else {
       // Redirect to their designated route
-      setRedirectTo(getDesignatedRoute(normalizedRole));
+      setRedirectTo(getRoleDestination(normalizedRole));
       setStatus("denied");
     }
   }, [user, authLoading, allowedRoles, role, profileReady]);

@@ -64,14 +64,7 @@ import OrderManagement from "./pages/admin/OrderManagement.tsx";
 import FactoryTVModule from "./components/FactoryTVModule.tsx";
 import RoleProtectedRoute from "./components/RoleProtectedRoute.tsx";
 import { useAuth } from "@/hooks/useAuth";
-
-const PROD_ROLE_ROUTES: Record<string, string> = {
-  PROD_ARABIC_SWEETS: "/tv/arabic-sweets",
-  PROD_CHOCOLATE: "/tv/chocolate",
-  PROD_FUSION: "/tv/fusion",
-  PROD_BAKERY: "/tv/bakery",
-  PROD_NUTS: "/tv/nuts",
-};
+import { getRoleDestination, isStorefrontRole } from "@/lib/auth-routing";
 
 // Roles allowed to access the full admin panel
 const ADMIN_ONLY_ROLES = ["SUPER_ADMIN", "ADMIN"];
@@ -85,71 +78,40 @@ const ADMIN_STAFF_ROLES = [
 
 const queryClient = new QueryClient();
 
+const AuthSpinner = () => (
+  <div className="min-h-screen bg-background flex items-center justify-center">
+    <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+  </div>
+);
+
 const RootGate = () => {
   const { user, loading: authLoading, role, profileReady } = useAuth();
 
   if (authLoading || (user && !profileReady)) {
-    return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
-      </div>
-    );
+    return <AuthSpinner />;
   }
 
   if (!user) return <Navigate to="/splash" replace />;
 
-  const normalizedRole = role?.toUpperCase() || null;
+  return <Navigate to={getRoleDestination(role)} replace />;
+};
 
-  // 1. SUPER_ADMIN → CMD War Room; ADMIN → Admin Dashboard
-  if (normalizedRole === "SUPER_ADMIN") {
-    return <Navigate to="/admin/cmd-war-room" replace />;
-  }
-  if (normalizedRole === "ADMIN") {
-    return <Navigate to="/admin" replace />;
-  }
+const StorefrontGate = ({ children }: { children: React.ReactNode }) => {
+  const { user, loading: authLoading, role, profileReady } = useAuth();
 
-  // 2. Finance → Accounts Release
-  if (normalizedRole === "FINANCE_HEAD") {
-    return <Navigate to="/admin/accounts-release" replace />;
+  if (authLoading || (user && !profileReady)) {
+    return <AuthSpinner />;
   }
 
-  // 3. Factory / Packing → Order Management
-  if (normalizedRole === "PRODUCTION_MANAGER" || normalizedRole === "PACKING_SUPERVISOR" || normalizedRole === "ASSEMBLY_MANAGER") {
-    return <Navigate to="/admin/order-management" replace />;
+  if (!user) {
+    return <Navigate to="/login" replace />;
   }
 
-  // 4. Dispatch → Order Management
-  if (normalizedRole === "DISPATCH_HEAD") {
-    return <Navigate to="/admin/order-management" replace />;
+  if (!isStorefrontRole(role)) {
+    return <Navigate to={getRoleDestination(role)} replace />;
   }
 
-  // 5. Gate Security → Security Gate
-  if (normalizedRole === "GATE_SECURITY") {
-    return <Navigate to="/security-gate" replace />;
-  }
-
-  // 6. Store roles → Operations Controller
-  if (normalizedRole === "STORE_READY_GOODS" || normalizedRole === "STORE_3RD_PARTY") {
-    return <Navigate to="/operations-controller" replace />;
-  }
-
-  if (normalizedRole && PROD_ROLE_ROUTES[normalizedRole]) {
-    return <Navigate to={PROD_ROLE_ROUTES[normalizedRole]} replace />;
-  }
-
-  if (normalizedRole === "SALES_EXECUTIVE") {
-    return <Navigate to="/sales/dashboard" replace />;
-  }
-
-  if (normalizedRole === "CUSTOMER_USER" || normalizedRole === "CLIENT" || normalizedRole === "BUYER") {
-    return <Navigate to="/home" replace />;
-  }
-
-  if (normalizedRole === null) {
-    return <Navigate to="/approval-pending" replace />;
-  }
-
-  return <Navigate to="/approval-pending" replace />;
+  return <>{children}</>;
 };
 
 const App = () => (
@@ -167,9 +129,9 @@ const App = () => (
             <Route path="/operations-controller" element={<ProtectedRoute><RoleProtectedRoute allowedRoles={[...ADMIN_STAFF_ROLES]}><OperationsController /></RoleProtectedRoute></ProtectedRoute>} />
             <Route path="/security-gate" element={<ProtectedRoute><RoleProtectedRoute allowedRoles={['GATE_SECURITY', 'SUPER_ADMIN', 'ADMIN']}><AdminSecurityGate /></RoleProtectedRoute></ProtectedRoute>} />
             <Route path="/" element={<RootGate />} />
-            <Route path="/home" element={<ProtectedRoute><RoleProtectedRoute allowedRoles={['BUYER', 'CUSTOMER_USER', 'CLIENT', 'SUPER_ADMIN', 'ADMIN']}><Index /></RoleProtectedRoute></ProtectedRoute>} />
-            <Route path="/catalogue" element={<RoleProtectedRoute allowedRoles={['BUYER', 'CUSTOMER_USER', 'CLIENT', 'SUPER_ADMIN', 'ADMIN']}><Catalogue /></RoleProtectedRoute>} />
-            <Route path="/product/:id" element={<RoleProtectedRoute allowedRoles={['BUYER', 'CUSTOMER_USER', 'CLIENT', 'SUPER_ADMIN', 'ADMIN']}><ProductDetail /></RoleProtectedRoute>} />
+            <Route path="/home" element={<StorefrontGate><Index /></StorefrontGate>} />
+            <Route path="/catalogue" element={<StorefrontGate><Catalogue /></StorefrontGate>} />
+            <Route path="/product/:id" element={<StorefrontGate><ProductDetail /></StorefrontGate>} />
             <Route path="/login" element={<Login />} />
             <Route path="/register" element={<Register />} />
             <Route path="/onboarding" element={<Onboarding />} />
