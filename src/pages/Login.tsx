@@ -37,7 +37,10 @@ const Login = () => {
     const { error, data } = await supabase.auth.signInWithPassword({ email, password });
     setLoading(false);
     if (error) { toast.error(error.message); return; }
-    toast.success("Welcome back!");
+    if (!sessionStorage.getItem("oasis_welcomed")) {
+      toast.success("Welcome back!");
+      sessionStorage.setItem("oasis_welcomed", "1");
+    }
     await resolveRedirect(data.user.id);
   };
 
