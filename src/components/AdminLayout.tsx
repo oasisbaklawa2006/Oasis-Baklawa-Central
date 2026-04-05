@@ -62,6 +62,7 @@ const AdminLayout = () => {
         { to: "/admin/dispatch-mgmt", icon: Truck, label: "Dispatch Handheld", moduleKey: "packing" },
         { to: "/admin/dispatch-tv", icon: Monitor, label: "Dispatch TV (Live)", moduleKey: "packing" },
         { to: "/security-gate", icon: Shield, label: "Security Gate", moduleKey: "packing" },
+      ],
     },
     {
       title: t("Governance"),
