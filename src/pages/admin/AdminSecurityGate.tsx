@@ -5,6 +5,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
+import { useAuth } from "@/hooks/useAuth";
 
 interface ScannedCarton {
   id: string;
@@ -28,6 +29,8 @@ interface InwardAdvice {
 }
 
 const AdminSecurityGate = () => {
+  const { role } = useAuth();
+  const isSuperAdmin = role?.toUpperCase() === "SUPER_ADMIN";
   const [activeTab, setActiveTab] = useState<"scanner" | "inward">("scanner");
 
   // ─── Scanner State (UNCHANGED) ───
@@ -199,6 +202,28 @@ const AdminSecurityGate = () => {
         setLastMessage("STOP: FINANCIAL CLEARANCE PENDING");
         addToHistory(barcode, companyName, "error", "Payment not cleared. Cannot dispatch.");
         playAudio("error");
+      } else if (!carton.orders?.final_invoice_url) {
+        // Invoice not uploaded check
+        if (isSuperAdmin) {
+          setScreenState("error");
+          setLastMessage("⚠️ INVOICE MISSING — Super Admin can BYPASS");
+          addToHistory(barcode, companyName, "error", "Invoice missing. Manual bypass available.");
+          playAudio("error");
+          // Allow bypass by not returning — super admin can re-scan after logging
+          await supabase.from("audit_logs").insert({
+            action_type: "SPECIAL_INCIDENCE",
+            module_name: "SecurityGate",
+            entity_name: "dispatch_cartons",
+            entity_id: carton.id,
+            reason: "Super Admin bypass: Invoice missing",
+            risk_level: "high",
+          });
+        } else {
+          setScreenState("error");
+          setLastMessage("STOP: INVOICE NOT UPLOADED. Contact Finance.");
+          addToHistory(barcode, companyName, "error", "Invoice missing. Dispatch blocked.");
+          playAudio("error");
+        }
       } else {
         const destState = (carton.orders?.company?.state || "").trim().toLowerCase();
         const isIntrastate = destState === "delhi" || destState === "new delhi";

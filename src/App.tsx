@@ -99,9 +99,34 @@ const RootGate = () => {
 
   const normalizedRole = role?.toUpperCase() || null;
 
-  // 1. ADMIN BYPASS — always lands on /admin
+  // 1. SUPER_ADMIN & ADMIN → Admin Dashboard (NOT storefront)
   if (normalizedRole === "ADMIN" || normalizedRole === "SUPER_ADMIN") {
     return <Navigate to="/admin" replace />;
+  }
+
+  // 2. Finance → Accounts Release
+  if (normalizedRole === "FINANCE_HEAD") {
+    return <Navigate to="/admin/accounts-release" replace />;
+  }
+
+  // 3. Factory / Packing → Order Management
+  if (normalizedRole === "PRODUCTION_MANAGER" || normalizedRole === "PACKING_SUPERVISOR" || normalizedRole === "ASSEMBLY_MANAGER") {
+    return <Navigate to="/admin/order-management" replace />;
+  }
+
+  // 4. Dispatch → Order Management
+  if (normalizedRole === "DISPATCH_HEAD") {
+    return <Navigate to="/admin/order-management" replace />;
+  }
+
+  // 5. Gate Security → Security Gate
+  if (normalizedRole === "GATE_SECURITY") {
+    return <Navigate to="/security-gate" replace />;
+  }
+
+  // 6. Store roles → Operations Controller
+  if (normalizedRole === "STORE_READY_GOODS" || normalizedRole === "STORE_3RD_PARTY") {
+    return <Navigate to="/operations-controller" replace />;
   }
 
   if (normalizedRole && PROD_ROLE_ROUTES[normalizedRole]) {
@@ -161,7 +186,7 @@ const App = () => (
               path="/admin"
               element={
                 <ProtectedRoute>
-                  <RoleProtectedRoute allowedRoles={[...ADMIN_ONLY_ROLES]}>
+                  <RoleProtectedRoute allowedRoles={[...ADMIN_STAFF_ROLES]}>
                     <AdminLayout />
                   </RoleProtectedRoute>
                 </ProtectedRoute>

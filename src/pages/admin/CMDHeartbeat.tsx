@@ -186,12 +186,29 @@ const CMDHeartbeat = () => {
     const now = new Date();
     const itchy: ItchyAlert[] = [];
 
+    // Q1: Submitted orders stagnant > 4h (Finance hasn't acted)
+    const cutoff4 = new Date(now.getTime() - 4 * 60 * 60 * 1000).toISOString();
+    const { data: stagnantSubmitted } = await supabase
+      .from("orders")
+      .select("id, created_at, status")
+      .eq("status", "submitted")
+      .lt("created_at", cutoff4);
+    (stagnantSubmitted ?? []).forEach(o => {
+      const hrs = Math.round((now.getTime() - new Date(o.created_at!).getTime()) / 3600000);
+      itchy.push({
+        type: "production",
+        label: `Order ${o.id.slice(0, 8).toUpperCase()}`,
+        detail: `Submitted ${hrs}h ago — Finance hasn't verified`,
+        since: o.created_at || "",
+      });
+    });
+
     // Orders stuck in production > 48h
     const cutoff48 = new Date(now.getTime() - 48 * 60 * 60 * 1000).toISOString();
     const { data: stuckOrders } = await supabase
       .from("orders")
       .select("id, created_at, status")
-      .eq("status", "In Production")
+      .in("status", ["in_production", "In Production"])
       .lt("created_at", cutoff48);
     (stuckOrders ?? []).forEach(o => {
       const hrs = Math.round((now.getTime() - new Date(o.created_at!).getTime()) / 3600000);

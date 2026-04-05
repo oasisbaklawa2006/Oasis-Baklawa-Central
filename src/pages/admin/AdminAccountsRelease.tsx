@@ -176,6 +176,55 @@ const AdminAccountsRelease = () => {
         payment_status: freightAdv >= freightAmt ? "paid" : "pending",
       });
 
+      // ═══ WALLET ENGINE: SO vs DPL reconciliation ═══
+      // Calculate actual packed value from packing list + product prices
+      let dplValue = 0;
+      if (packedItems.length > 0) {
+        const productIds = packedItems.map((p: any) => p.product_id).filter(Boolean);
+        if (productIds.length > 0) {
+          const { data: products } = await supabase
+            .from("products")
+            .select("id, price_per_kg")
+            .in("id", productIds);
+          const priceMap: Record<string, number> = {};
+          (products || []).forEach((p: any) => { priceMap[p.id] = Number(p.price_per_kg || 0); });
+          dplValue = packedItems.reduce((sum: number, item: any) => sum + (item.packed_quantity * (priceMap[item.product_id] || 0)), 0);
+        }
+      }
+
+      const soValue = gatePassOrder.sales_order_value ?? 0;
+      const walletDiff = soValue - dplValue;
+
+      if (walletDiff > 0 && companyId && dplValue > 0) {
+        // DPL < SO → Credit client wallet
+        await supabase.from("companies").update({
+          wallet_balance: (await supabase.from("companies").select("wallet_balance").eq("id", companyId).single()).data?.wallet_balance
+            ? Number((await supabase.from("companies").select("wallet_balance").eq("id", companyId).single()).data?.wallet_balance || 0) + walletDiff
+            : walletDiff,
+        }).eq("id", companyId);
+        await supabase.from("audit_logs").insert({
+          action_type: "wallet_credit_dpl_variance",
+          module_name: "Finance",
+          entity_name: "order",
+          entity_id: orderId,
+          actor_id: user?.id,
+          new_value: { so_value: soValue, dpl_value: dplValue, credit_amount: walletDiff },
+          risk_level: "high",
+        });
+      } else if (walletDiff < 0 && dplValue > 0) {
+        // DPL > SO → Flag payment pending
+        await supabase.from("orders").update({ payment_status: "balance_due" }).eq("id", orderId);
+        await supabase.from("audit_logs").insert({
+          action_type: "wallet_debit_dpl_variance",
+          module_name: "Finance",
+          entity_name: "order",
+          entity_id: orderId,
+          actor_id: user?.id,
+          new_value: { so_value: soValue, dpl_value: dplValue, debit_amount: Math.abs(walletDiff) },
+          risk_level: "high",
+        });
+      }
+
       // Update order status
       await supabase.from("orders").update({ status: "dispatched" }).eq("id", orderId);
       await supabase.from("order_status_history").insert({
