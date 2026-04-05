@@ -3,6 +3,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Loader2, ArrowRight, Factory, Wrench, Package } from "lucide-react";
 import { useLanguage } from "@/hooks/useLanguage";
+import { Progress } from "@/components/ui/progress";
+import StagnancyBadge from "@/components/StagnancyBadge";
 import TopNavBar from "@/components/TopNavBar";
 
 interface ProdOrder {
@@ -12,7 +14,7 @@ interface ProdOrder {
   company_id: string | null;
   created_at: string | null;
   company?: { business_name: string } | null;
-  order_items?: { id: string; quantity: number; product_id: string | null; product?: { name: string } | null }[];
+  order_items?: { id: string; quantity: number; actual_packed_qty: number | null; product_id: string | null; production_status: string | null; product?: { name: string } | null }[];
 }
 
 const AdminProduction = () => {
@@ -27,7 +29,7 @@ const AdminProduction = () => {
     const { data, error } = await supabase
       .from("orders")
       .select(
-        "id, status, sales_order_value, company_id, created_at, company:companies(business_name), order_items(id, quantity, product_id)",
+        "id, status, sales_order_value, company_id, created_at, company:companies(business_name), order_items(id, quantity, actual_packed_qty, product_id, production_status)",
       )
       .in("status", ["in_production", "assembly"])
       .order("created_at", { ascending: true });
@@ -51,7 +53,6 @@ const AdminProduction = () => {
   const prodCount = orders.filter((o) => o.status === "in_production").length;
   const asmCount = orders.filter((o) => o.status === "assembly").length;
 
-  // SMART ROUTING LOGIC ADDED HERE
   const handleAdvance = async (order: ProdOrder, targetStatus: string) => {
     setUpdating(order.id);
     const { error } = await supabase.from("orders").update({ status: targetStatus }).eq("id", order.id);
@@ -133,15 +134,20 @@ const AdminProduction = () => {
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {filtered.map((order) => {
               const packs = order.order_items?.reduce((s, i) => s + i.quantity, 0) ?? 0;
+              const readyPacks = order.order_items?.reduce((s, i) => s + (i.production_status === "completed" ? (i.actual_packed_qty || i.quantity) : (i.actual_packed_qty || 0)), 0) ?? 0;
+              const progressPct = packs > 0 ? Math.round((readyPacks / packs) * 100) : 0;
               const daysSince = order.created_at
                 ? Math.floor((Date.now() - new Date(order.created_at).getTime()) / 86400000)
                 : 0;
-              const isDelayed = daysSince > 5;
+              const hoursSince = order.created_at
+                ? (Date.now() - new Date(order.created_at).getTime()) / 3600000
+                : 0;
+              const isPanic = hoursSince > 4;
 
               return (
                 <div
                   key={order.id}
-                  className={`bg-card border rounded-xl p-4 flex flex-col space-y-3 ${isDelayed ? "border-destructive/40" : "border-border"}`}
+                  className={`bg-card border rounded-xl p-4 flex flex-col space-y-3 ${isPanic ? "border-destructive/40 animate-pulse" : "border-border"}`}
                   style={{ boxShadow: "0 1px 6px rgba(0,0,0,0.04)" }}
                 >
                   <div className="flex justify-between items-start">
@@ -149,26 +155,25 @@ const AdminProduction = () => {
                       <p className="text-ui-h5 text-foreground">{order.company?.business_name ?? "—"}</p>
                       <p className="text-fine text-muted-foreground">{order.id.slice(0, 8)}…</p>
                     </div>
-                    {isDelayed && (
-                      <span className="text-fine text-destructive font-semibold">Delayed {daysSince}d</span>
-                    )}
+                    <StagnancyBadge createdAt={order.created_at} />
                   </div>
 
                   <div className="flex justify-between text-fine text-muted-foreground">
-                    <span>{packs} packs</span>
+                    <span>{readyPacks}/{packs} packs ready</span>
                     <span>₹{(order.sales_order_value ?? 0).toLocaleString("en-IN")}</span>
                   </div>
 
-                  {/* Item workload bar */}
-                  <div className="h-1.5 bg-muted rounded-full overflow-hidden mb-auto">
-                    <div
-                      className="h-full bg-primary/60 rounded-full"
-                      style={{ width: `${Math.min((packs / maxItems) * 100, 100)}%` }}
-                    />
+                  {/* Live Progress Bar */}
+                  <div>
+                    <div className="flex justify-between text-[10px] text-muted-foreground mb-1">
+                      <span>Completion</span>
+                      <span>{progressPct}%</span>
+                    </div>
+                    <Progress value={progressPct} className="h-2" />
                   </div>
 
                   {/* SMART ROUTING BUTTONS */}
-                  <div className="mt-4 pt-3 border-t border-border flex gap-2">
+                  <div className="mt-auto pt-3 border-t border-border flex gap-2">
                     {order.status === "in_production" ? (
                       <>
                         <button

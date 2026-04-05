@@ -2,13 +2,23 @@ import { useEffect, useState, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/useAuth";
-import { Loader2, Inbox, Package, Factory, Barcode, CheckCircle2, AlertTriangle, Send, ScanLine, Printer } from "lucide-react";
+import { Loader2, Inbox, Package, Factory, Barcode, CheckCircle2, AlertTriangle, Send, ScanLine, Printer, Hash } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import StagnancyBadge from "@/components/StagnancyBadge";
+import { Progress } from "@/components/ui/progress";
+
+interface RGSOrderItem {
+  id: string;
+  quantity: number;
+  actual_packed_qty: number | null;
+  production_status: string | null;
+  department: string | null;
+  product?: { name: string; sku: string | null; image_url: string | null; category?: { name: string } | null } | null;
+}
 
 interface RGSOrder {
   id: string;
@@ -16,7 +26,7 @@ interface RGSOrder {
   created_at: string | null;
   sales_order_value: number | null;
   company?: { business_name: string } | null;
-  items?: { id: string; quantity: number; production_status: string | null; product?: { name: string; sku: string | null; image_url: string | null } | null }[];
+  items: RGSOrderItem[];
 }
 
 export default function ReadyGoodsStore() {
@@ -24,6 +34,14 @@ export default function ReadyGoodsStore() {
   const [orders, setOrders] = useState<RGSOrder[]>([]);
   const [loading, setLoading] = useState(true);
   const [acting, setActing] = useState<string | null>(null);
+
+  // Partial keypad state
+  const [keypadOpen, setKeypadOpen] = useState(false);
+  const [keypadItemId, setKeypadItemId] = useState<string | null>(null);
+  const [keypadOrderId, setKeypadOrderId] = useState<string | null>(null);
+  const [keypadValue, setKeypadValue] = useState("");
+  const [keypadMax, setKeypadMax] = useState(0);
+  const [keypadItemName, setKeypadItemName] = useState("");
 
   // Material Issue scan
   const [scanBarcode, setScanBarcode] = useState("");
@@ -38,20 +56,33 @@ export default function ReadyGoodsStore() {
   const [labelOrderId, setLabelOrderId] = useState("");
   const [labelInvoice, setLabelInvoice] = useState("");
 
+  const FINISHED_GOODS_CATEGORIES = ["sweets", "nuts", "arabic", "chocolate", "bakery", "fusion", "seasoned", "dry fruit", "mithai"];
+
   const fetchOrders = useCallback(async () => {
     const { data } = await supabase
       .from("orders")
       .select("id, status, created_at, sales_order_value, company:companies(business_name)")
-      .in("status", ["in_production", "partial_ready"])
+      .in("status", ["in_production", "partial_ready", "approved"])
       .order("created_at", { ascending: true });
 
     const ordersWithItems: RGSOrder[] = [];
     for (const o of (data || [])) {
       const { data: items } = await supabase
         .from("order_items")
-        .select("id, quantity, production_status, product:products(name, sku, image_url)")
+        .select("id, quantity, actual_packed_qty, production_status, department, product:products(name, sku, image_url, category:categories(name))")
         .eq("order_id", o.id);
-      ordersWithItems.push({ ...o, items: (items as any[]) || [] } as RGSOrder);
+
+      // Filter to only finished goods categories
+      const filteredItems = ((items as any[]) || []).filter((item: any) => {
+        const catName = (item.product?.category?.name || "").toLowerCase();
+        const dept = (item.department || "").toLowerCase();
+        return FINISHED_GOODS_CATEGORIES.some(c => catName.includes(c) || dept.includes(c)) || 
+               dept.includes("ready goods") || dept === "" || !item.department;
+      });
+
+      if (filteredItems.length > 0) {
+        ordersWithItems.push({ ...o, items: filteredItems } as RGSOrder);
+      }
     }
     setOrders(ordersWithItems);
     setLoading(false);
@@ -62,11 +93,17 @@ export default function ReadyGoodsStore() {
   const markAvailability = async (orderId: string, status: "fully_available" | "partial" | "production_required") => {
     setActing(orderId);
     if (status === "fully_available") {
-      await supabase.from("order_items").update({ production_status: "completed" }).eq("order_id", orderId);
+      const order = orders.find(o => o.id === orderId);
+      for (const item of (order?.items || [])) {
+        await supabase.from("order_items").update({ 
+          production_status: "completed",
+          actual_packed_qty: item.quantity 
+        }).eq("id", item.id);
+      }
       await supabase.from("orders").update({ status: "packed_ready" }).eq("id", orderId);
       toast.success("✅ All items marked available. Order → Packed Ready");
     } else if (status === "partial") {
-      toast.info("Mark individual items from the task cards.");
+      toast.info("Use the ⌨️ keypad on each item to enter available qty.");
     } else {
       await supabase.from("audit_logs").insert({
         action_type: "PRODUCTION_ORDER_REQUIRED",
@@ -81,6 +118,71 @@ export default function ReadyGoodsStore() {
     }
     fetchOrders();
     setActing(null);
+  };
+
+  // Open partial keypad for a specific item
+  const openPartialKeypad = (item: RGSOrderItem, orderId: string) => {
+    setKeypadItemId(item.id);
+    setKeypadOrderId(orderId);
+    setKeypadMax(item.quantity);
+    setKeypadValue("");
+    setKeypadItemName(item.product?.name || "Unknown");
+    setKeypadOpen(true);
+  };
+
+  // Submit partial qty — splits the line
+  const submitPartialQty = async () => {
+    if (!keypadItemId || !keypadOrderId) return;
+    const availableQty = parseInt(keypadValue);
+    if (isNaN(availableQty) || availableQty <= 0 || availableQty >= keypadMax) {
+      toast.error(`Enter qty between 1 and ${keypadMax - 1}`);
+      return;
+    }
+    setActing(keypadItemId);
+
+    // Update existing item with available qty → "completed"
+    await supabase.from("order_items").update({
+      quantity: availableQty,
+      actual_packed_qty: availableQty,
+      production_status: "completed",
+    }).eq("id", keypadItemId);
+
+    // Get original item to copy fields
+    const originalItem = orders.flatMap(o => o.items).find(i => i.id === keypadItemId);
+    const remainingQty = keypadMax - availableQty;
+
+    // Insert new line for remaining qty → "pending" (needs production)
+    await supabase.from("order_items").insert({
+      order_id: keypadOrderId,
+      product_id: originalItem?.product ? undefined : null,
+      quantity: remainingQty,
+      actual_packed_qty: 0,
+      production_status: "pending",
+      department: originalItem?.department || null,
+      notes: `Split from ${keypadItemId.slice(0, 8)} — needs production`,
+    });
+
+    // Also log the split for traceability
+    await supabase.from("audit_logs").insert({
+      action_type: "ORDER_LINE_SPLIT",
+      module_name: "RGS",
+      entity_name: "order_items",
+      entity_id: keypadItemId,
+      actor_id: user?.id || null,
+      new_value: { available: availableQty, remaining: remainingQty, order_id: keypadOrderId },
+      risk_level: "normal",
+    });
+
+    toast.success(`✅ ${availableQty} → Ready for Dispatch | ${remainingQty} → Needs Production`);
+    setKeypadOpen(false);
+    fetchOrders();
+    setActing(null);
+  };
+
+  const handleKeypadPress = (digit: string) => {
+    if (digit === "DEL") setKeypadValue(v => v.slice(0, -1));
+    else if (digit === "CLR") setKeypadValue("");
+    else setKeypadValue(v => v + digit);
   };
 
   const handleScanIssue = async () => {
@@ -159,41 +261,75 @@ export default function ReadyGoodsStore() {
             <Card><CardContent className="py-12 text-center text-muted-foreground">No orders in RGS queue.</CardContent></Card>
           )}
           <div className="grid gap-3">
-            {orders.map(order => (
-              <Card key={order.id} className="border-l-4 border-l-primary/60">
-                <CardContent className="p-4">
-                  <div className="flex items-start justify-between mb-2">
-                    <div>
-                      <p className="font-bold text-sm text-foreground">SO#{order.id.slice(0, 8).toUpperCase()}</p>
-                      <p className="text-xs text-muted-foreground">{order.company?.business_name || "N/A"}</p>
+            {orders.map(order => {
+              const totalQty = order.items.reduce((s, i) => s + i.quantity, 0);
+              const readyQty = order.items.reduce((s, i) => s + (i.production_status === "completed" ? (i.actual_packed_qty || i.quantity) : 0), 0);
+              const progressPct = totalQty > 0 ? Math.round((readyQty / totalQty) * 100) : 0;
+
+              return (
+                <Card key={order.id} className="border-l-4 border-l-primary/60">
+                  <CardContent className="p-4">
+                    <div className="flex items-start justify-between mb-2">
+                      <div>
+                        <p className="font-bold text-sm text-foreground">SO#{order.id.slice(0, 8).toUpperCase()}</p>
+                        <p className="text-xs text-muted-foreground">{order.company?.business_name || "N/A"}</p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Badge variant="outline" className="text-[10px]">₹{(order.sales_order_value || 0).toLocaleString()}</Badge>
+                        <StagnancyBadge createdAt={order.created_at} />
+                      </div>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <Badge variant="outline" className="text-[10px]">₹{(order.sales_order_value || 0).toLocaleString()}</Badge>
-                      <StagnancyBadge createdAt={order.created_at} />
+
+                    {/* Progress bar */}
+                    <div className="mb-2">
+                      <div className="flex justify-between text-[10px] text-muted-foreground mb-1">
+                        <span>Readiness</span>
+                        <span>{readyQty}/{totalQty} ({progressPct}%)</span>
+                      </div>
+                      <Progress value={progressPct} className="h-2" />
                     </div>
-                  </div>
-                  <div className="flex flex-wrap gap-1 mb-3">
-                    {order.items?.map(item => (
-                      <Badge key={item.id} variant="secondary" className="text-[10px]">
-                        {item.product?.name?.slice(0, 20) || "?"} × {item.quantity}
-                        {item.production_status === "completed" && " ✅"}
-                      </Badge>
-                    ))}
-                  </div>
-                  <div className="flex gap-2">
-                    <Button size="sm" className="flex-1 text-xs" onClick={() => markAvailability(order.id, "fully_available")} disabled={acting === order.id}>
-                      <CheckCircle2 size={14} className="mr-1" /> Fully Available
-                    </Button>
-                    <Button size="sm" variant="outline" className="flex-1 text-xs" onClick={() => markAvailability(order.id, "partial")} disabled={acting === order.id}>
-                      <Package size={14} className="mr-1" /> Partial
-                    </Button>
-                    <Button size="sm" variant="destructive" className="text-xs" onClick={() => markAvailability(order.id, "production_required")} disabled={acting === order.id}>
-                      <Factory size={14} className="mr-1" /> Need Production
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
+
+                    {/* Item-level cards with individual partial keypad */}
+                    <div className="space-y-2 mb-3">
+                      {order.items.map(item => (
+                        <div key={item.id} className={`flex items-center gap-2 rounded-lg border p-2 text-xs ${item.production_status === "completed" ? "bg-emerald-500/10 border-emerald-400/40" : "bg-muted/50 border-border"}`}>
+                          <div className="w-8 h-8 rounded bg-muted flex items-center justify-center overflow-hidden shrink-0">
+                            {item.product?.image_url ? (
+                              <img src={item.product.image_url} alt="" className="w-full h-full object-cover" />
+                            ) : (
+                              <Package size={14} className="text-muted-foreground" />
+                            )}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="font-medium text-foreground truncate">{item.product?.name?.slice(0, 25) || "?"}</p>
+                            <p className="text-[10px] text-muted-foreground">Qty: {item.quantity} | Ready: {item.actual_packed_qty ?? 0}</p>
+                          </div>
+                          {item.production_status === "completed" ? (
+                            <Badge className="text-[10px] bg-emerald-500/20 text-emerald-700 border-emerald-400/40">✅</Badge>
+                          ) : (
+                            <Button size="sm" variant="outline" className="text-[10px] h-7 px-2" onClick={() => openPartialKeypad(item, order.id)}>
+                              <Hash size={12} className="mr-1" />Qty
+                            </Button>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+
+                    <div className="flex gap-2">
+                      <Button size="sm" className="flex-1 text-xs" onClick={() => markAvailability(order.id, "fully_available")} disabled={acting === order.id}>
+                        <CheckCircle2 size={14} className="mr-1" /> Fully Available
+                      </Button>
+                      <Button size="sm" variant="outline" className="flex-1 text-xs" onClick={() => markAvailability(order.id, "partial")} disabled={acting === order.id}>
+                        <Package size={14} className="mr-1" /> Partial
+                      </Button>
+                      <Button size="sm" variant="destructive" className="text-xs" onClick={() => markAvailability(order.id, "production_required")} disabled={acting === order.id}>
+                        <Factory size={14} className="mr-1" /> Need Prod
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+              );
+            })}
           </div>
         </TabsContent>
 
@@ -269,6 +405,43 @@ export default function ReadyGoodsStore() {
           </Card>
         </TabsContent>
       </Tabs>
+
+      {/* === NUMERIC KEYPAD MODAL === */}
+      {keypadOpen && (
+        <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4" onClick={() => setKeypadOpen(false)}>
+          <div className="bg-background rounded-2xl p-6 w-full max-w-xs shadow-2xl" onClick={e => e.stopPropagation()}>
+            <h3 className="text-lg font-bold text-foreground mb-1">Available Qty</h3>
+            <p className="text-xs text-muted-foreground mb-1">{keypadItemName}</p>
+            <p className="text-xs text-muted-foreground mb-4">Total Required: {keypadMax} — Enter what's available now.</p>
+
+            <div className="bg-muted rounded-xl p-4 text-center mb-4">
+              <span className="text-4xl font-mono font-bold text-foreground">{keypadValue || "0"}</span>
+            </div>
+
+            <div className="grid grid-cols-3 gap-2 mb-4">
+              {["1","2","3","4","5","6","7","8","9","CLR","0","DEL"].map(d => (
+                <button key={d} onClick={() => handleKeypadPress(d)}
+                  className={`py-3 rounded-xl font-bold text-lg transition-colors ${d === "CLR" || d === "DEL" ? "bg-destructive/10 text-destructive hover:bg-destructive/20" : "bg-muted hover:bg-muted/80 text-foreground"}`}>
+                  {d}
+                </button>
+              ))}
+            </div>
+
+            <div className="bg-amber-500/10 border border-amber-400/40 rounded-lg p-2 mb-4">
+              <p className="text-[11px] text-amber-700 font-medium">
+                ⚡ {keypadValue ? parseInt(keypadValue) : 0} → Ready for Dispatch | {keypadMax - (parseInt(keypadValue) || 0)} → Needs Production
+              </p>
+            </div>
+
+            <div className="flex gap-2">
+              <Button variant="outline" className="flex-1" onClick={() => setKeypadOpen(false)}>Cancel</Button>
+              <Button className="flex-1" onClick={submitPartialQty} disabled={acting !== null}>
+                <CheckCircle2 size={16} className="mr-1" /> Split & Confirm
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
