@@ -160,7 +160,7 @@ export default function ReadyGoodsStore() {
     if (newStatus === "partial_ready") {
       const item = orders.flatMap(o => o.items).find(i => i.id === keypadItemId);
       const remaining = keypadMax - availableQty;
-      await supabase.from("audit_logs").insert({
+      await supabase.from("audit_logs").insert([{
         action_type: "PRODUCTION_ORDER_ITEM",
         module_name: "RGS",
         entity_name: "order_items",
@@ -173,9 +173,9 @@ export default function ReadyGoodsStore() {
           order_id: keypadOrderId,
           department: item?.department || "RGS",
           type: "partial_remainder",
-        },
+        } as any,
         risk_level: "normal",
-      });
+      }]);
       toast.success(`✅ ${availableQty} Ready | ${remaining} → Production Order created`);
     } else {
       toast.success(`✅ All ${availableQty} marked Ready`);
@@ -207,7 +207,7 @@ export default function ReadyGoodsStore() {
       for (const item of (order?.items || []).filter(i => i.production_status !== "completed")) {
         const pendingQty = item.quantity - (item.actual_packed_qty || 0);
         if (pendingQty > 0) {
-          await supabase.from("audit_logs").insert({
+          await supabase.from("audit_logs").insert([{
             action_type: "PRODUCTION_ORDER_ITEM",
             module_name: "RGS",
             entity_name: "order_items",
@@ -220,9 +220,9 @@ export default function ReadyGoodsStore() {
               order_id: orderId,
               department: item.department || "RGS",
               type: "production_required",
-            },
+            } as any,
             risk_level: "high",
-          });
+          }]);
         }
       }
       toast.warning("🏭 Production Orders created for all pending items. See 'Prod Order' tab.");
@@ -251,15 +251,15 @@ export default function ReadyGoodsStore() {
     const code = scanBarcode.trim() || manualSku.trim();
     if (!code) { toast.error("Scan barcode or enter SKU manually"); return; }
     setActing("scan");
-    await supabase.from("audit_logs").insert({
+    await supabase.from("audit_logs").insert([{
       action_type: "MATERIAL_ISSUE",
       module_name: "RGS",
       entity_name: "dispatch_cartons",
       entity_id: code,
       actor_id: user?.id || null,
-      new_value: { barcode: scanBarcode, manual_sku: manualSku, issued_at: new Date().toISOString() },
+      new_value: { barcode: scanBarcode, manual_sku: manualSku, issued_at: new Date().toISOString() } as any,
       risk_level: "normal",
-    });
+    }]);
     toast.success(`📦 Material issued: ${code}`);
     setScanBarcode("");
     setManualSku("");
@@ -269,15 +269,15 @@ export default function ReadyGoodsStore() {
   const submitProductionOrder = async () => {
     if (!prodOrderItemId.trim()) { toast.error("Enter an Order/Item ID"); return; }
     setActing("prod_order");
-    await supabase.from("audit_logs").insert({
+    await supabase.from("audit_logs").insert([{
       action_type: "PRODUCTION_ORDER",
       module_name: "RGS",
       entity_name: "order_items",
       entity_id: prodOrderItemId,
       actor_id: user?.id || null,
-      new_value: { type: prodOrderType, department: prodDept, notes: prodNotes },
+      new_value: { type: prodOrderType, department: prodDept, notes: prodNotes } as any,
       risk_level: "high",
-    });
+    }]);
     toast.success(`🏭 ${prodOrderType === "stock_buildup" ? "Stock Build-Up" : "Live Requirement"} sent to ${prodDept}`);
     setProdOrderItemId("");
     setProdNotes("");

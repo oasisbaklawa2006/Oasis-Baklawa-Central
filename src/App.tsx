@@ -66,6 +66,8 @@ import AssemblyManagement from "./pages/admin/AssemblyManagement.tsx";
 import AssemblyTV from "./pages/admin/AssemblyTV.tsx";
 import ReadyGoodsStore from "./pages/admin/ReadyGoodsStore.tsx";
 import ReadyGoodsTV from "./pages/admin/ReadyGoodsTV.tsx";
+import DispatchManagement from "./pages/admin/DispatchManagement.tsx";
+import DispatchTV from "./pages/admin/DispatchTV.tsx";
 import RoleProtectedRoute from "./components/RoleProtectedRoute.tsx";
 import { useAuth } from "@/hooks/useAuth";
 import { getRoleDestination, isStorefrontRole } from "@/lib/auth-routing";
@@ -199,6 +201,8 @@ const App = () => (
               <Route path="assembly-tv" element={<AssemblyTV />} />
               <Route path="ready-goods" element={<ReadyGoodsStore />} />
               <Route path="rgs-tv" element={<ReadyGoodsTV />} />
+              <Route path="dispatch-mgmt" element={<DispatchManagement />} />
+              <Route path="dispatch-tv" element={<DispatchTV />} />
             </Route>
             <Route
               path="/sales/dashboard"

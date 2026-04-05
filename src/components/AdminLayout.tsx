@@ -59,6 +59,9 @@ const AdminLayout = () => {
         { to: "/admin/assembly-tv", icon: Monitor, label: "Assembly TV", moduleKey: "production" },
         { to: "/admin/ready-goods", icon: Package, label: "Ready Goods Store", moduleKey: "inventory" },
         { to: "/admin/rgs-tv", icon: Monitor, label: "RGS TV (Live)", moduleKey: "inventory" },
+        { to: "/admin/dispatch-mgmt", icon: Truck, label: "Dispatch Handheld", moduleKey: "packing" },
+        { to: "/admin/dispatch-tv", icon: Monitor, label: "Dispatch TV (Live)", moduleKey: "packing" },
+        { to: "/security-gate", icon: Shield, label: "Security Gate", moduleKey: "packing" },
       ],
     },
     {

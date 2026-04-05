@@ -140,18 +140,36 @@ export default function AssemblyManagement() {
     }
   };
 
-  const sendMaterialRequest = async (task: AssemblyTask) => {
-    setActing(task.id);
-    await supabase.from("audit_logs").insert({
+  // Production Order Qty Modal state
+  const [prodQtyOpen, setProdQtyOpen] = useState(false);
+  const [prodQtyTaskId, setProdQtyTaskId] = useState<string | null>(null);
+  const [prodQtyValue, setProdQtyValue] = useState("");
+  const [prodQtyProduct, setProdQtyProduct] = useState("");
+
+  const openProdQtyModal = (task: AssemblyTask) => {
+    setProdQtyTaskId(task.id);
+    setProdQtyProduct(task.product?.name || "Unknown");
+    setProdQtyValue("");
+    setProdQtyOpen(true);
+  };
+
+  const sendMaterialRequest = async () => {
+    if (!prodQtyTaskId) return;
+    const qty = parseInt(prodQtyValue);
+    if (isNaN(qty) || qty <= 0) { toast.error("Enter a valid quantity"); return; }
+    const task = tasks.find(t => t.id === prodQtyTaskId);
+    setActing(prodQtyTaskId);
+    await supabase.from("audit_logs").insert([{
       action_type: "MATERIAL_REQUEST",
       module_name: "Assembly",
       entity_name: "order_items",
-      entity_id: task.id,
+      entity_id: prodQtyTaskId,
       actor_id: user?.id || null,
-      new_value: { product: task.product?.name, qty: task.quantity, order_id: task.order_id },
+      new_value: { product: task?.product?.name, qty, order_id: task?.order_id } as any,
       risk_level: "high",
-    });
-    toast.success("🚨 Material Request sent to RGS/3PGS");
+    }]);
+    toast.success(`🚨 Material Request: ${qty}x ${prodQtyProduct} sent to RGS/3PGS`);
+    setProdQtyOpen(false);
     setActing(null);
   };
 
@@ -243,7 +261,7 @@ export default function AssemblyManagement() {
                         <CheckCircle2 size={14} className="mr-1" /> Full Ready
                       </Button>
                     )}
-                    <Button size="sm" variant="destructive" className="text-xs" onClick={() => sendMaterialRequest(task)} disabled={acting === task.id}>
+                    <Button size="sm" variant="destructive" className="text-xs" onClick={() => openProdQtyModal(task)} disabled={acting === task.id}>
                       <Send size={14} className="mr-1" /> Request Material
                     </Button>
                   </div>
@@ -319,6 +337,23 @@ export default function AssemblyManagement() {
               <Button variant="outline" className="flex-1" onClick={() => setKeypadOpen(false)}>Cancel</Button>
               <Button className="flex-1" onClick={submitPartialQty} disabled={acting !== null}>
                 <CheckCircle2 size={16} className="mr-1" /> Confirm
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* === PRODUCTION QTY MODAL === */}
+      {prodQtyOpen && (
+        <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4" onClick={() => setProdQtyOpen(false)}>
+          <div className="bg-background rounded-2xl p-6 w-full max-w-xs shadow-2xl" onClick={e => e.stopPropagation()}>
+            <h3 className="text-lg font-bold text-foreground mb-1">Material Request Qty</h3>
+            <p className="text-xs text-muted-foreground mb-4">{prodQtyProduct}</p>
+            <Input type="number" value={prodQtyValue} onChange={e => setProdQtyValue(e.target.value)} placeholder="Enter quantity needed" className="mb-4 text-center text-xl font-mono" autoFocus />
+            <div className="flex gap-2">
+              <Button variant="outline" className="flex-1" onClick={() => setProdQtyOpen(false)}>Cancel</Button>
+              <Button className="flex-1" variant="destructive" onClick={sendMaterialRequest} disabled={acting !== null}>
+                <Send size={16} className="mr-1" /> Send Request
               </Button>
             </div>
           </div>
