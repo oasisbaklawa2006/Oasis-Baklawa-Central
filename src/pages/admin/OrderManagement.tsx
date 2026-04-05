@@ -138,7 +138,10 @@ const OrderManagement = () => {
               return (
                 <tr key={order.id} className="border-b border-border last:border-0 hover:bg-muted/30 transition-colors">
                   <td className="px-4 py-3 font-mono text-xs text-foreground">
-                    {order.id.slice(0, 8).toUpperCase()}
+                    <div className="flex items-center gap-2">
+                      <StagnancyBadge createdAt={order.created_at} />
+                      {order.id.slice(0, 8).toUpperCase()}
+                    </div>
                   </td>
                   <td className="px-4 py-3 text-foreground">{companyName}</td>
                   <td className="px-4 py-3 text-right font-mono text-foreground">
