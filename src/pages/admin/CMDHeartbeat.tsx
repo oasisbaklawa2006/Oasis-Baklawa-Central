@@ -450,6 +450,27 @@ const CMDHeartbeat = () => {
           </div>
         </div>
       )}
+
+      {/* Exception Ticker */}
+      {exceptions.length > 0 && (
+        <div className="mt-6 rounded-xl border overflow-hidden" style={{ background: "hsl(0 30% 12%)", borderColor: "hsl(0 40% 25%)" }}>
+          <div className="flex items-center gap-2 px-4 py-2" style={{ background: "hsl(0 40% 16%)" }}>
+            <AlertCircle size={14} style={{ color: "hsl(0 70% 60%)" }} />
+            <span className="text-xs font-bold uppercase tracking-wider" style={{ color: "hsl(0 70% 65%)" }}>
+              Exception Ticker — Special Incidences
+            </span>
+          </div>
+          <div className="overflow-hidden whitespace-nowrap py-2 px-4">
+            <div className="inline-flex gap-12 animate-marquee">
+              {exceptions.map((ex) => (
+                <span key={ex.id} className="text-xs" style={{ color: GOLD_TEXT }}>
+                  ⚠ [{ex.action_type}] {ex.reason || "No details"} — {new Date(ex.created_at).toLocaleString("en-IN", { hour: "2-digit", minute: "2-digit", day: "numeric", month: "short" })}
+                </span>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
