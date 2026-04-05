@@ -18,7 +18,7 @@ import { signOutAndClearSession } from "@/utils/authSession";
 
 const ROLE_MODULE_ACCESS: Record<string, string[]> = {
   super_admin: ["*"],
-  admin: ["*"],
+  admin: ["dashboard", "orders", "clients", "products", "pricing", "finance", "users", "moq", "currency", "support", "settings", "audit", "inventory", "packing", "production", "accounts", "exceptions"],
   finance_head: ["dashboard", "finance", "accounts", "orders", "audit"],
   dispatch_head: ["dashboard", "packing", "dispatch", "orders", "inventory"],
   production_manager: ["dashboard", "orders", "production"],

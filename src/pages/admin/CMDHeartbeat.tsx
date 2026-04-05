@@ -5,7 +5,8 @@ import { Navigate } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, ShieldAlert, TrendingUp, AlertTriangle, Activity, Crown } from "lucide-react";
+import { Loader2, ShieldAlert, TrendingUp, AlertTriangle, Activity, Crown, AlertCircle } from "lucide-react";
+import StagnancyBadge from "@/components/StagnancyBadge";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from "recharts";
 
 /* ─── Role Gate ────────────────────────────────────────────── */

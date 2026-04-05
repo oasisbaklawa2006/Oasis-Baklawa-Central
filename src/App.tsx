@@ -222,6 +222,7 @@ const App = () => (
               <Route path="heartbeat" element={<CMDHeartbeat />} />
               <Route path="merchandising" element={<AdminMerchandising />} />
               <Route path="order-management" element={<OrderManagement />} />
+              <Route path="cmd-war-room" element={<CMDHeartbeat />} />
             </Route>
             <Route
               path="/sales/dashboard"
