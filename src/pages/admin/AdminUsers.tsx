@@ -991,6 +991,61 @@ const AdminUsers = () => {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Credentials Success Modal */}
+      <Dialog open={showCredentialsModal} onOpenChange={setShowCredentialsModal}>
+        <DialogContent className="max-w-md bg-card border-border rounded-3xl p-6">
+          <DialogHeader className="mb-4">
+            <DialogTitle className="text-xl font-serif font-bold text-foreground flex items-center gap-2">
+              <UserPlus size={20} className="text-primary" /> Employee Created
+            </DialogTitle>
+          </DialogHeader>
+          {createdCredentials && (
+            <div className="space-y-4">
+              <p className="text-sm text-muted-foreground">
+                Account created successfully. <strong className="text-destructive">Copy the temporary password now — it will not be shown again.</strong>
+              </p>
+              <div className="bg-muted/50 rounded-xl p-4 space-y-3 border border-border">
+                <div className="flex justify-between items-center">
+                  <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Name</span>
+                  <span className="text-sm font-bold text-foreground">{createdCredentials.name}</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Email</span>
+                  <span className="text-sm font-bold text-foreground">{createdCredentials.email}</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Role</span>
+                  <span className="text-sm font-bold text-primary uppercase">{createdCredentials.role.replace(/_/g, " ")}</span>
+                </div>
+                <div className="border-t border-border pt-3">
+                  <span className="text-xs font-bold uppercase tracking-wider text-destructive block mb-1">Temporary Password</span>
+                  <div className="flex items-center gap-2">
+                    <code className="flex-1 bg-card border border-primary/30 rounded-lg px-3 py-2 text-sm font-mono font-bold text-foreground select-all">
+                      {createdCredentials.password}
+                    </code>
+                    <button
+                      onClick={() => {
+                        navigator.clipboard.writeText(createdCredentials.password);
+                        toast.success("Password copied to clipboard");
+                      }}
+                      className="px-3 py-2 rounded-lg bg-primary text-primary-foreground text-xs font-bold hover:bg-primary/90 transition-colors"
+                    >
+                      Copy
+                    </button>
+                  </div>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowCredentialsModal(false)}
+                className="w-full py-3 rounded-xl bg-primary text-primary-foreground font-bold text-sm hover:bg-primary/90 transition-colors"
+              >
+                Done
+              </button>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
