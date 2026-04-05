@@ -68,7 +68,7 @@ import ReadyGoodsStore from "./pages/admin/ReadyGoodsStore.tsx";
 import ReadyGoodsTV from "./pages/admin/ReadyGoodsTV.tsx";
 import DispatchManagement from "./pages/admin/DispatchManagement.tsx";
 import DispatchTV from "./pages/admin/DispatchTV.tsx";
-import RoleProtectedRoute from "./components/RoleProtectedRoute.tsx";
+import RoleProtectedRoute from "@/components/RoleProtectedRoute";
 import { useAuth } from "@/hooks/useAuth";
 import { getRoleDestination, isStorefrontRole } from "@/lib/auth-routing";
 
