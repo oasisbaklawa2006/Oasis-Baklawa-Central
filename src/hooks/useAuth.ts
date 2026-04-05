@@ -2,6 +2,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import type { User } from "@supabase/supabase-js";
+import { fetchAuthRoleRecord } from "@/lib/auth-routing";
 
 const CACHE_KEY = "oasis_auth_cache";
 
@@ -76,14 +77,9 @@ export function useAuth() {
 
   const fetchProfile = useCallback(async (activeUser: User) => {
     try {
-      const { data } = await supabase
-        .from("users")
-        .select("company_id, role")
-        .eq("id", activeUser.id)
-        .maybeSingle();
-
-      const cid = data?.company_id ?? null;
-      const r = data?.role ?? null;
+      const profile = await fetchAuthRoleRecord(activeUser.id);
+      const cid = profile.company_id;
+      const r = profile.role;
       setCompanyId(cid);
       setRole(r);
 
@@ -116,18 +112,11 @@ export function useAuth() {
       let resolvedCompanyId = companyId;
 
       if (!resolvedCompanyId) {
-        const { data } = await supabase
-          .from("users")
-          .select("company_id, role")
-          .eq("id", user.id)
-          .maybeSingle();
+        const profile = await fetchAuthRoleRecord(user.id);
 
-        resolvedCompanyId = data?.company_id ?? null;
+        resolvedCompanyId = profile.company_id;
         setCompanyId(resolvedCompanyId);
-
-        if (data?.role) {
-          setRole(data.role);
-        }
+        setRole(profile.role ?? null);
       }
 
       if (!resolvedCompanyId) {
