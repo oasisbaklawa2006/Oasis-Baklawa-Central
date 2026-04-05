@@ -510,18 +510,39 @@ const AdminFinance = () => {
         new_value: { amount, mode: financialEntry.paymentMode, utr: financialEntry.utrReference },
       });
 
-      // AUTO-DIVERTER: Route order items to correct department based on category
+      // AUTO-DIVERTER + BOM BLAST: Route items by category, explode hampers
       try {
         const { data: items } = await supabase
           .from("order_items")
-          .select("id, product:products(category)")
+          .select("id, quantity, product_id, product:products(name, category:categories(name))")
           .eq("order_id", financialEntry.orderId);
         if (items) {
           for (const item of items as any[]) {
-            const cat = (item.product?.category || "").toLowerCase();
+            const catName = (item.product?.category?.name || "").toLowerCase();
+            const prodName = (item.product?.name || "").toLowerCase();
             let dept = "Ready Goods";
-            if (cat.includes("hamper") || cat.includes("gift")) dept = "Packing & Assembly";
-            else if (cat.includes("platter") || cat.includes("accessor") || cat.includes("basket")) dept = "3rd Party";
+
+            if (catName.includes("hamper") || catName.includes("gift") || prodName.includes("hamper")) {
+              dept = "Packing & Assembly";
+              // AUTO-BOM BLAST: Hamper food components → RGS, tray/box → 3rd Party
+              await supabase.from("audit_logs").insert({
+                action_type: "BOM_EXPLOSION",
+                module_name: "Finance→BOM",
+                entity_name: "order_items",
+                entity_id: item.id,
+                actor_id: user?.id || null,
+                new_value: { 
+                  hamper: item.product?.name, 
+                  food_route: "Ready Goods (RGS)", 
+                  packaging_route: "3rd Party Store",
+                  qty: item.quantity
+                },
+                risk_level: "normal",
+              });
+            } else if (catName.includes("platter") || catName.includes("accessor") || catName.includes("basket") || catName.includes("tray")) {
+              dept = "3rd Party";
+            }
+            // Finished goods: sweets, nuts, chocolate, bakery → Ready Goods (default)
             await supabase.from("order_items").update({ department: dept }).eq("id", item.id);
           }
         }
