@@ -70,7 +70,10 @@ const Login = () => {
     });
     setLoading(false);
     if (error) { toast.error(error.message); return; }
-    toast.success("Welcome back!");
+    if (!sessionStorage.getItem("oasis_welcomed")) {
+      toast.success("Welcome back!");
+      sessionStorage.setItem("oasis_welcomed", "1");
+    }
     if (data.user) await resolveRedirect(data.user.id);
   };
 

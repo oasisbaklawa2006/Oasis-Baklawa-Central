@@ -97,7 +97,7 @@ const RootGate = () => {
 };
 
 const StorefrontGate = ({ children }: { children: React.ReactNode }) => {
-  const { user, loading: authLoading, role, profileReady } = useAuth();
+  const { user, loading: authLoading, role, profileReady, companyId } = useAuth();
 
   if (authLoading || (user && !profileReady)) {
     return <AuthSpinner />;
@@ -109,6 +109,11 @@ const StorefrontGate = ({ children }: { children: React.ReactNode }) => {
 
   if (!isStorefrontRole(role)) {
     return <Navigate to={getRoleDestination(role)} replace />;
+  }
+
+  // Client role but missing company_id → redirect to approval
+  if (!companyId) {
+    return <Navigate to="/approval-pending" replace />;
   }
 
   return <>{children}</>;

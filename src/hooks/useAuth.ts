@@ -175,11 +175,6 @@ export function useAuth() {
     supabase.auth.getSession().then(async ({ data: { session } }) => {
       if (!mounted) return;
 
-      // Force a fresh session to prevent stale price_tier after login
-      if (session) {
-        await supabase.auth.refreshSession();
-      }
-
       const nextUser = session?.user ?? null;
       currentUserIdRef.current = nextUser?.id ?? null;
       setUser(nextUser);
