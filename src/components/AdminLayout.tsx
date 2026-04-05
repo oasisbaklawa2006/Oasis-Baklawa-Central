@@ -46,6 +46,7 @@ const AdminLayout = () => {
       title: "Command",
       items: [
         { to: "/admin", icon: LayoutDashboard, label: "Dashboard", end: true, moduleKey: "dashboard" },
+        { to: "/admin/cmd-war-room", icon: Monitor, label: "CMD War Room (Live TV)", end: false, moduleKey: "cmd_war_room" },
         { to: "/admin/heartbeat", icon: Crown, label: "CMD Heartbeat", end: false, moduleKey: "dashboard" },
         { to: "/admin/order-management", icon: ClipboardList, label: t("Order Pipeline"), moduleKey: "orders" },
         { to: "/admin/order-management", icon: Factory, label: t("Production & Assembly"), moduleKey: "production" },
