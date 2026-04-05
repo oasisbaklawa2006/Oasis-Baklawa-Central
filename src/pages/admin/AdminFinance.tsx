@@ -919,15 +919,24 @@ const AdminFinance = () => {
                         <Package size={12} /> Packed by Ops
                       </span>
                     </div>
-                    <button
-                      onClick={() => {
-                        setDocOrder(order);
-                        setSoNumber(`SO-${order.id.split("-")[0].toUpperCase()}`);
-                      }}
-                      className="w-full py-2.5 bg-slate-900 text-white rounded-lg text-xs font-bold hover:bg-black flex justify-center items-center gap-1.5"
-                    >
-                      <Calculator size={14} /> Process Final Invoice
-                    </button>
+                    <div className="space-y-2">
+                      <button
+                        onClick={() => {
+                          setDocOrder(order);
+                          setSoNumber(`SO-${order.id.split("-")[0].toUpperCase()}`);
+                          fetchDplForOrder(order.id);
+                        }}
+                        className="w-full py-2.5 bg-slate-900 text-white rounded-lg text-xs font-bold hover:bg-black flex justify-center items-center gap-1.5"
+                      >
+                        <Calculator size={14} /> Process Final Invoice
+                      </button>
+                      <button
+                        onClick={() => generateBarcodeLabel(order.id, order.company?.business_name || "Client", 1, 1, "")}
+                        className="w-full py-2 border border-slate-300 text-slate-700 rounded-lg text-xs font-bold hover:bg-slate-50 flex justify-center items-center gap-1.5"
+                      >
+                        🏷️ Print Dispatch Barcodes
+                      </button>
+                    </div>
                   </div>
                 ))
               )}
