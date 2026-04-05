@@ -53,6 +53,8 @@ const AdminLayout = () => {
         { to: "/admin/order-management?view=packing", icon: PackageCheck, label: t("Packing & Dispatch"), moduleKey: "packing" },
         { to: "/admin/accounts-release", icon: Landmark, label: t("Accounts & Release"), moduleKey: "accounts" },
         { to: "/admin/exceptions", icon: AlertCircle, label: t("Exception Center"), moduleKey: "exceptions" },
+        { to: "/admin/assembly-tasks", icon: PackageCheck, label: "Assembly Handheld", moduleKey: "production" },
+        { to: "/admin/assembly-tv", icon: Monitor, label: "Assembly TV", moduleKey: "production" },
       ],
     },
     {

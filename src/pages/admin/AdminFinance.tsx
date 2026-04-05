@@ -509,6 +509,24 @@ const AdminFinance = () => {
         actor_id: user?.id,
         new_value: { amount, mode: financialEntry.paymentMode, utr: financialEntry.utrReference },
       });
+
+      // AUTO-DIVERTER: Route order items to correct department based on category
+      try {
+        const { data: items } = await supabase
+          .from("order_items")
+          .select("id, product:products(category)")
+          .eq("order_id", financialEntry.orderId);
+        if (items) {
+          for (const item of items as any[]) {
+            const cat = (item.product?.category || "").toLowerCase();
+            let dept = "Ready Goods";
+            if (cat.includes("hamper") || cat.includes("gift")) dept = "Packing & Assembly";
+            else if (cat.includes("platter") || cat.includes("accessor") || cat.includes("basket")) dept = "3rd Party";
+            await supabase.from("order_items").update({ department: dept }).eq("id", item.id);
+          }
+        }
+      } catch { /* non-critical routing */ }
+
       toast.success(`₹${amount.toLocaleString("en-IN")} verified — released to Production`);
       setFinancialEntry(null);
       fetchOrders();
