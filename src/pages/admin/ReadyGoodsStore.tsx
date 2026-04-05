@@ -160,7 +160,7 @@ export default function ReadyGoodsStore() {
     if (newStatus === "partial_ready") {
       const item = orders.flatMap(o => o.items).find(i => i.id === keypadItemId);
       const remaining = keypadMax - availableQty;
-      await supabase.from("audit_logs").insert({
+      await supabase.from("audit_logs").insert([{
         action_type: "PRODUCTION_ORDER_ITEM",
         module_name: "RGS",
         entity_name: "order_items",
@@ -173,9 +173,9 @@ export default function ReadyGoodsStore() {
           order_id: keypadOrderId,
           department: item?.department || "RGS",
           type: "partial_remainder",
-        },
+        } as any,
         risk_level: "normal",
-      });
+      }]);
       toast.success(`✅ ${availableQty} Ready | ${remaining} → Production Order created`);
     } else {
       toast.success(`✅ All ${availableQty} marked Ready`);
