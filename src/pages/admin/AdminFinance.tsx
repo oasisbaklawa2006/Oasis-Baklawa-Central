@@ -165,7 +165,7 @@ const AdminFinance = () => {
     const { data, error } = await supabase
       .from("orders")
       .select(
-        "id, status, payment_status, sales_order_value, advance_paid, created_at, company_id, company:companies(business_name)",
+        "id, status, payment_status, sales_order_value, advance_paid, created_at, company_id, payment_receipt_url, company:companies(business_name)",
       )
       .order("created_at", { ascending: false });
 
