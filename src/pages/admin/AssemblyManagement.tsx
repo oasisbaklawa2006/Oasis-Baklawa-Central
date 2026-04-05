@@ -342,6 +342,23 @@ export default function AssemblyManagement() {
           </div>
         </div>
       )}
+
+      {/* === PRODUCTION QTY MODAL === */}
+      {prodQtyOpen && (
+        <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4" onClick={() => setProdQtyOpen(false)}>
+          <div className="bg-background rounded-2xl p-6 w-full max-w-xs shadow-2xl" onClick={e => e.stopPropagation()}>
+            <h3 className="text-lg font-bold text-foreground mb-1">Material Request Qty</h3>
+            <p className="text-xs text-muted-foreground mb-4">{prodQtyProduct}</p>
+            <Input type="number" value={prodQtyValue} onChange={e => setProdQtyValue(e.target.value)} placeholder="Enter quantity needed" className="mb-4 text-center text-xl font-mono" autoFocus />
+            <div className="flex gap-2">
+              <Button variant="outline" className="flex-1" onClick={() => setProdQtyOpen(false)}>Cancel</Button>
+              <Button className="flex-1" variant="destructive" onClick={sendMaterialRequest} disabled={acting !== null}>
+                <Send size={16} className="mr-1" /> Send Request
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
