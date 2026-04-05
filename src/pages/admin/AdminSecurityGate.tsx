@@ -29,6 +29,8 @@ interface InwardAdvice {
 }
 
 const AdminSecurityGate = () => {
+  const { role } = useAuth();
+  const isSuperAdmin = role?.toUpperCase() === "SUPER_ADMIN";
   const [activeTab, setActiveTab] = useState<"scanner" | "inward">("scanner");
 
   // ─── Scanner State (UNCHANGED) ───
