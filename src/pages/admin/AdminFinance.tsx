@@ -34,6 +34,7 @@ interface FinanceOrder {
   advance_paid: number | null;
   created_at: string;
   company_id: string | null;
+  payment_receipt_url: string | null;
   company?: { business_name: string } | null;
 }
 
@@ -164,7 +165,7 @@ const AdminFinance = () => {
     const { data, error } = await supabase
       .from("orders")
       .select(
-        "id, status, payment_status, sales_order_value, advance_paid, created_at, company_id, company:companies(business_name)",
+        "id, status, payment_status, sales_order_value, advance_paid, created_at, company_id, payment_receipt_url, company:companies(business_name)",
       )
       .order("created_at", { ascending: false });
 
@@ -466,8 +467,22 @@ const AdminFinance = () => {
     const amount = parseFloat(financialEntry.actualAmountReceived);
     if (isNaN(amount) || amount <= 0) { toast.error("Enter a valid amount."); return; }
     if (!financialEntry.paymentMode) { toast.error("Select payment mode."); return; }
+    if (financialEntry.paymentMode !== "Cash" && !financialEntry.utrReference.trim()) {
+      toast.error("UTR / Reference Number is mandatory for bank payments."); return;
+    }
     setSavingEntry(true);
     try {
+      // Credit lock check before release
+      const order = orders.find(o => o.id === financialEntry.orderId);
+      if (order?.company_id) {
+        const lockResult = await checkCreditLock(order.company_id, order.sales_order_value || 0);
+        if (lockResult.locked) {
+          toast.error(`🔒 Credit Lock: ${lockResult.reason}`);
+          setSavingEntry(false);
+          return;
+        }
+      }
+
       await supabase.from("order_payments").insert({
         order_id: financialEntry.orderId,
         payment_type: "advance",
@@ -484,6 +499,7 @@ const AdminFinance = () => {
         order_id: financialEntry.orderId,
         old_status: "submitted",
         new_status: "in_production",
+        changed_by: user?.id ?? null,
       });
       await supabase.from("audit_logs").insert({
         action_type: "finance_verify_advance",
@@ -714,7 +730,7 @@ const AdminFinance = () => {
   };
 
   // Queues
-  const validationQueue = orders.filter((o) => o.payment_status === "awaiting_receipt");
+  const validationQueue = orders.filter((o) => o.status === "submitted" || o.payment_status === "awaiting_receipt" || o.payment_status === "unpaid");
   const invoicingQueue = orders.filter((o) => o.status === "in_production" || o.status === "packed_ready");
 
   const totalValueToday = orders.reduce((sum, o) => sum + (o.sales_order_value || 0), 0);
@@ -791,6 +807,14 @@ const AdminFinance = () => {
                         <AlertTriangle size={12} /> Advance Receipt
                       </span>
                     </div>
+                    {order.payment_receipt_url && (
+                      <button
+                        onClick={() => window.open(order.payment_receipt_url!, "_blank")}
+                        className="w-full py-2 mb-2 border border-blue-300 text-blue-700 rounded-lg text-xs font-bold hover:bg-blue-50 flex justify-center items-center gap-1"
+                      >
+                        <FileText size={14} /> View Uploaded Receipt
+                      </button>
+                    )}
                     <div className="flex gap-2 flex-wrap">
                       <button
                         onClick={() => setFinancialEntry({
@@ -800,11 +824,11 @@ const AdminFinance = () => {
                           actualAmountReceived: "",
                           paymentMode: "",
                           utrReference: "",
-                          receiptUrl: null,
+                          receiptUrl: order.payment_receipt_url || null,
                         })}
                         className="flex-1 py-2.5 bg-emerald-600 text-white rounded-lg text-xs font-bold hover:bg-emerald-700 flex justify-center items-center gap-1"
                       >
-                        <CheckCircle2 size={14} /> Verify & Entry
+                        <ShieldCheck size={14} /> Verify Credit & Release
                       </button>
                       <button
                         onClick={() => setShortTermTarget(order)}
@@ -1466,16 +1490,24 @@ const AdminFinance = () => {
                   </select>
                 </div>
                 <div>
-                  <label className="block text-[11px] font-bold text-slate-500 uppercase mb-1.5">UTR / Reference Number</label>
+                  <label className="block text-[11px] font-bold text-slate-500 uppercase mb-1.5">
+                    UTR / Reference Number {financialEntry.paymentMode && financialEntry.paymentMode !== "Cash" ? "*" : ""}
+                  </label>
                   <input type="text" value={financialEntry.utrReference}
                     onChange={(e) => setFinancialEntry(prev => prev ? { ...prev, utrReference: e.target.value } : null)}
                     className="w-full bg-white border border-slate-200 rounded-xl p-3 text-sm font-bold outline-none focus:border-[#B8860B]"
                     placeholder="Bank reference / UTR" />
                 </div>
-                <button onClick={() => toast.info("Receipt viewer — attach via payment_receipt_url")}
-                  className="w-full py-2.5 border border-dashed border-slate-300 text-slate-500 rounded-xl text-xs font-bold hover:border-[#B8860B] flex justify-center items-center gap-2">
-                  <UploadCloud size={14} /> View / Attach Receipt
-                </button>
+                {financialEntry.receiptUrl ? (
+                  <button onClick={() => window.open(financialEntry.receiptUrl!, "_blank")}
+                    className="w-full py-2.5 border border-blue-300 text-blue-700 rounded-xl text-xs font-bold hover:bg-blue-50 flex justify-center items-center gap-2">
+                    <FileText size={14} /> View Uploaded Receipt
+                  </button>
+                ) : (
+                  <div className="w-full py-2.5 border border-dashed border-slate-300 text-slate-400 rounded-xl text-xs font-bold flex justify-center items-center gap-2">
+                    <UploadCloud size={14} /> No receipt uploaded by Sales
+                  </div>
+                )}
                 <button onClick={handleFinancialEntrySubmit} disabled={savingEntry}
                   className="w-full py-4 bg-emerald-600 text-white font-bold rounded-xl hover:bg-emerald-700 flex justify-center items-center gap-2 shadow-xl shadow-emerald-600/20 active:scale-95 transition-all">
                   {savingEntry ? <Loader2 size={18} className="animate-spin" /> : <><CheckCircle2 size={18} /> Verify & Release to Production</>}
