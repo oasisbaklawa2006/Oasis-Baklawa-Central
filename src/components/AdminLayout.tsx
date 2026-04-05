@@ -55,6 +55,8 @@ const AdminLayout = () => {
         { to: "/admin/exceptions", icon: AlertCircle, label: t("Exception Center"), moduleKey: "exceptions" },
         { to: "/admin/assembly-tasks", icon: PackageCheck, label: "Assembly Handheld", moduleKey: "production" },
         { to: "/admin/assembly-tv", icon: Monitor, label: "Assembly TV", moduleKey: "production" },
+        { to: "/admin/ready-goods", icon: Package, label: "Ready Goods Store", moduleKey: "inventory" },
+        { to: "/admin/rgs-tv", icon: Monitor, label: "RGS TV (Live)", moduleKey: "inventory" },
       ],
     },
     {

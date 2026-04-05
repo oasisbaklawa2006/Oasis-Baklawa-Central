@@ -527,6 +527,19 @@ const AdminFinance = () => {
         }
       } catch { /* non-critical routing */ }
 
+      // Push to RGS Inbox
+      try {
+        await supabase.from("audit_logs").insert({
+          action_type: "RGS_INBOX_PUSH",
+          module_name: "Finance→RGS",
+          entity_name: "orders",
+          entity_id: financialEntry.orderId,
+          actor_id: user?.id || null,
+          new_value: { pushed_at: new Date().toISOString(), source: "finance_release" },
+          risk_level: "normal",
+        });
+      } catch { /* non-critical */ }
+
       toast.success(`₹${amount.toLocaleString("en-IN")} verified — released to Production`);
       setFinancialEntry(null);
       fetchOrders();
