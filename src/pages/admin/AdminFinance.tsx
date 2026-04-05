@@ -730,7 +730,7 @@ const AdminFinance = () => {
   };
 
   // Queues
-  const validationQueue = orders.filter((o) => o.payment_status === "awaiting_receipt");
+  const validationQueue = orders.filter((o) => o.status === "submitted" || o.payment_status === "awaiting_receipt" || o.payment_status === "unpaid");
   const invoicingQueue = orders.filter((o) => o.status === "in_production" || o.status === "packed_ready");
 
   const totalValueToday = orders.reduce((sum, o) => sum + (o.sales_order_value || 0), 0);
