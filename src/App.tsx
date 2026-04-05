@@ -99,8 +99,11 @@ const RootGate = () => {
 
   const normalizedRole = role?.toUpperCase() || null;
 
-  // 1. SUPER_ADMIN & ADMIN → Admin Dashboard (NOT storefront)
-  if (normalizedRole === "ADMIN" || normalizedRole === "SUPER_ADMIN") {
+  // 1. SUPER_ADMIN → CMD War Room; ADMIN → Admin Dashboard
+  if (normalizedRole === "SUPER_ADMIN") {
+    return <Navigate to="/admin/cmd-war-room" replace />;
+  }
+  if (normalizedRole === "ADMIN") {
     return <Navigate to="/admin" replace />;
   }
 
