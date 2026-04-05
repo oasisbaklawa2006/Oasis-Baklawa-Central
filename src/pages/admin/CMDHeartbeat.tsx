@@ -60,6 +60,7 @@ const CMDHeartbeat = () => {
   const [deptWastage, setDeptWastage] = useState<DeptWastage[]>([]);
   const [leaderboard, setLeaderboard] = useState<SalesExec[]>([]);
   const [alerts, setAlerts] = useState<ItchyAlert[]>([]);
+  const [exceptions, setExceptions] = useState<ExceptionEntry[]>([]);
 
   useEffect(() => {
     if (gateLoading || !allowed) return;
