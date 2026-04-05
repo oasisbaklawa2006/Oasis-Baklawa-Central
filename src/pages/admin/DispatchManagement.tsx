@@ -139,7 +139,7 @@ export default function DispatchManagement() {
       actor_id: user?.id || null,
       new_value: { order_id: activeOrderId, items: currentCarton, photo_url: photoUrl },
       risk_level: "normal",
-    });
+    }]);
 
     setCartonCount(newCartonNum);
     setCurrentCarton([]);
