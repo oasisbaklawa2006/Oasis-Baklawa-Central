@@ -197,6 +197,8 @@ const App = () => (
               <Route path="cmd-war-room" element={<CMDWarRoom />} />
               <Route path="assembly-tasks" element={<AssemblyManagement />} />
               <Route path="assembly-tv" element={<AssemblyTV />} />
+              <Route path="ready-goods" element={<ReadyGoodsStore />} />
+              <Route path="rgs-tv" element={<ReadyGoodsTV />} />
             </Route>
             <Route
               path="/sales/dashboard"
