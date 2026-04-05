@@ -1272,6 +1272,38 @@ const AdminFinance = () => {
               </div>
 
               <div className="p-6 space-y-6">
+                {/* DPL Reconciliation */}
+                {dplData && (
+                  <div className={`rounded-2xl border-2 p-4 ${dplData.dplValue < dplData.soValue ? "border-emerald-400 bg-emerald-50" : dplData.dplValue > dplData.soValue ? "border-red-400 bg-red-50" : "border-slate-200 bg-slate-50"}`}>
+                    <h4 className="text-xs font-bold uppercase tracking-widest mb-3 flex items-center gap-2 text-slate-600">
+                      <Package size={14} /> DPL vs SO Reconciliation
+                    </h4>
+                    <div className="grid grid-cols-3 gap-3 text-center text-sm">
+                      <div>
+                        <p className="text-[10px] font-bold text-slate-500 uppercase">SO Value</p>
+                        <p className="font-black text-slate-900">{formatPrice(dplData.soValue * 1.18)}</p>
+                      </div>
+                      <div>
+                        <p className="text-[10px] font-bold text-slate-500 uppercase">DPL Value</p>
+                        <p className="font-black text-blue-700">{formatPrice(dplData.dplValue * 1.18)}</p>
+                      </div>
+                      <div>
+                        <p className="text-[10px] font-bold text-slate-500 uppercase">Variance</p>
+                        <p className={`font-black ${dplData.dplValue < dplData.soValue ? "text-emerald-600" : dplData.dplValue > dplData.soValue ? "text-red-600" : "text-slate-600"}`}>
+                          {dplData.dplValue < dplData.soValue ? `Credit ₹${((dplData.soValue - dplData.dplValue) * 1.18).toLocaleString("en-IN")}` :
+                           dplData.dplValue > dplData.soValue ? `Debit ₹${((dplData.dplValue - dplData.soValue) * 1.18).toLocaleString("en-IN")}` : "Exact Match"}
+                        </p>
+                      </div>
+                    </div>
+                    {dplData.dplValue < dplData.soValue && (
+                      <p className="text-xs text-emerald-700 font-bold mt-2 text-center">💰 Wallet credit of {formatPrice((dplData.soValue - dplData.dplValue) * 1.18)} will be applied</p>
+                    )}
+                    {dplData.dplValue > dplData.soValue && (
+                      <p className="text-xs text-red-700 font-bold mt-2 text-center">⚠️ Balance due of {formatPrice((dplData.dplValue - dplData.soValue) * 1.18)} flagged</p>
+                    )}
+                  </div>
+                )}
+
                 <div className="bg-slate-50 rounded-2xl border border-slate-200 p-5">
                   <h4 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-4 flex items-center gap-2">
                     <Calculator size={14} /> Internal Reconciliation Sheet
