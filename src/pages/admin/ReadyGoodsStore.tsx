@@ -207,7 +207,7 @@ export default function ReadyGoodsStore() {
       for (const item of (order?.items || []).filter(i => i.production_status !== "completed")) {
         const pendingQty = item.quantity - (item.actual_packed_qty || 0);
         if (pendingQty > 0) {
-          await supabase.from("audit_logs").insert({
+          await supabase.from("audit_logs").insert([{
             action_type: "PRODUCTION_ORDER_ITEM",
             module_name: "RGS",
             entity_name: "order_items",
@@ -220,9 +220,9 @@ export default function ReadyGoodsStore() {
               order_id: orderId,
               department: item.department || "RGS",
               type: "production_required",
-            },
+            } as any,
             risk_level: "high",
-          });
+          }]);
         }
       }
       toast.warning("🏭 Production Orders created for all pending items. See 'Prod Order' tab.");
