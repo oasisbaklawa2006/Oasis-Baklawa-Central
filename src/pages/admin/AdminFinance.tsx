@@ -101,6 +101,19 @@ interface SalesExecPayout {
   paid: number;
 }
 
+// Financial Entry Form state
+interface FinancialEntryState {
+  orderId: string;
+  companyName: string;
+  soValue: number;
+  actualAmountReceived: string;
+  paymentMode: string;
+  utrReference: string;
+  receiptUrl: string | null;
+}
+
+const PAYMENT_MODES = ["NEFT/RTGS", "UPI", "Cheque", "Cash", "Wire Transfer", "Credit Note"];
+
 const AdminFinance = () => {
   const { user } = useAuth();
   const [orders, setOrders] = useState<FinanceOrder[]>([]);
@@ -110,12 +123,24 @@ const AdminFinance = () => {
   const [acting, setActing] = useState<string | null>(null);
   const [activeQueue, setActiveQueue] = useState<FinanceQueue>("validation");
 
+  // Financial Entry Modal
+  const [financialEntry, setFinancialEntry] = useState<FinancialEntryState | null>(null);
+  const [savingEntry, setSavingEntry] = useState(false);
+
+  // Short-Term Credit Modal
+  const [shortTermTarget, setShortTermTarget] = useState<FinanceOrder | null>(null);
+  const [shortTermDays, setShortTermDays] = useState("");
+  const [savingShortTerm, setSavingShortTerm] = useState(false);
+
   // Invoicing Modal State
   const [docOrder, setDocOrder] = useState<FinanceOrder | null>(null);
   const [tallyAmount, setTallyAmount] = useState("");
   const [tallyInvoiceNo, setTallyInvoiceNo] = useState("");
   const [soNumber, setSoNumber] = useState("");
   const [invoiceUploaded, setInvoiceUploaded] = useState(false);
+
+  // DPL Reconciliation state
+  const [dplData, setDplData] = useState<{ soValue: number; dplValue: number; items: any[] } | null>(null);
 
   // Returns Settlement State
   const [returnCreditValues, setReturnCreditValues] = useState<Record<string, string>>({});
