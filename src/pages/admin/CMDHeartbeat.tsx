@@ -35,6 +35,7 @@ function useCMDAccess() {
 interface DeptWastage { department: string; produced: number; wastage: number; rate: number }
 interface SalesExec { id: string; name: string; email: string; totalSales: number; liability: number; returnRatio: number }
 interface ItchyAlert { type: "production" | "settlement"; label: string; detail: string; since: string }
+interface ExceptionEntry { id: string; reason: string; created_at: string; action_type: string }
 
 const GOLD = "hsl(40 40% 59%)";
 const BURNT_ORANGE = "hsl(25 90% 50%)";
