@@ -69,8 +69,18 @@ const CMDHeartbeat = () => {
 
   const fetchAll = async () => {
     setLoading(true);
-    await Promise.all([fetchKPIs(), fetchWastageHeatmap(), fetchLeaderboard(), fetchAlerts()]);
+    await Promise.all([fetchKPIs(), fetchWastageHeatmap(), fetchLeaderboard(), fetchAlerts(), fetchExceptions()]);
     setLoading(false);
+  };
+
+  const fetchExceptions = async () => {
+    const { data } = await supabase
+      .from("audit_logs")
+      .select("id, reason, created_at, action_type")
+      .in("action_type", ["SPECIAL_INCIDENCE", "wallet_variance_exception", "security_violation_blocked"])
+      .order("created_at", { ascending: false })
+      .limit(20);
+    setExceptions((data as ExceptionEntry[]) ?? []);
   };
 
   const fetchKPIs = async () => {
