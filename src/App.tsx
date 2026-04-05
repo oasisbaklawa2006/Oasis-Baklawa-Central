@@ -64,6 +64,8 @@ import OrderManagement from "./pages/admin/OrderManagement.tsx";
 import FactoryTVModule from "./components/FactoryTVModule.tsx";
 import AssemblyManagement from "./pages/admin/AssemblyManagement.tsx";
 import AssemblyTV from "./pages/admin/AssemblyTV.tsx";
+import ReadyGoodsStore from "./pages/admin/ReadyGoodsStore.tsx";
+import ReadyGoodsTV from "./pages/admin/ReadyGoodsTV.tsx";
 import RoleProtectedRoute from "./components/RoleProtectedRoute.tsx";
 import { useAuth } from "@/hooks/useAuth";
 import { getRoleDestination, isStorefrontRole } from "@/lib/auth-routing";
