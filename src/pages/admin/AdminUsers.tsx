@@ -127,6 +127,10 @@ const AdminUsers = () => {
   const [rolePermsEditing, setRolePermsEditing] = useState<string[]>([]);
   const [savingRole, setSavingRole] = useState(false);
 
+  // Temp password success modal
+  const [showCredentialsModal, setShowCredentialsModal] = useState(false);
+  const [createdCredentials, setCreatedCredentials] = useState<{ name: string; email: string; password: string; role: string } | null>(null);
+
   const [nf, setNf] = useState({
     name: "",
     email: "",
