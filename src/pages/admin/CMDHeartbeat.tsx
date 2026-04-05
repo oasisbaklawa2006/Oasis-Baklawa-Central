@@ -379,7 +379,7 @@ const CMDHeartbeat = () => {
             ) : (
               <div className="space-y-3 max-h-[300px] overflow-y-auto pr-1">
                 {alerts.map((a, i) => (
-                  <div
+                   <div
                     key={i}
                     className="rounded-lg p-3 border"
                     style={{
@@ -387,9 +387,12 @@ const CMDHeartbeat = () => {
                       background: a.type === "production" ? "hsl(0 40% 14%)" : "hsl(35 30% 14%)",
                     }}
                   >
-                    <p className="text-xs font-semibold" style={{ color: a.type === "production" ? "hsl(0 70% 65%)" : "hsl(40 70% 65%)" }}>
-                      {a.label}
-                    </p>
+                    <div className="flex items-center gap-2">
+                      <StagnancyBadge createdAt={a.since} />
+                      <p className="text-xs font-semibold" style={{ color: a.type === "production" ? "hsl(0 70% 65%)" : "hsl(40 70% 65%)" }}>
+                        {a.label}
+                      </p>
+                    </div>
                     <p className="text-xs mt-0.5" style={{ color: MUTED_TEXT }}>{a.detail}</p>
                   </div>
                 ))}
