@@ -193,6 +193,8 @@ const App = () => (
               <Route path="merchandising" element={<AdminMerchandising />} />
               <Route path="order-management" element={<OrderManagement />} />
               <Route path="cmd-war-room" element={<CMDWarRoom />} />
+              <Route path="assembly-tasks" element={<AssemblyManagement />} />
+              <Route path="assembly-tv" element={<AssemblyTV />} />
             </Route>
             <Route
               path="/sales/dashboard"
