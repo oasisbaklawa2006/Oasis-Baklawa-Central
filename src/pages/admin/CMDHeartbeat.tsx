@@ -5,7 +5,8 @@ import { Navigate } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, ShieldAlert, TrendingUp, AlertTriangle, Activity, Crown } from "lucide-react";
+import { Loader2, ShieldAlert, TrendingUp, AlertTriangle, Activity, Crown, AlertCircle } from "lucide-react";
+import StagnancyBadge from "@/components/StagnancyBadge";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from "recharts";
 
 /* ─── Role Gate ────────────────────────────────────────────── */
@@ -34,6 +35,7 @@ function useCMDAccess() {
 interface DeptWastage { department: string; produced: number; wastage: number; rate: number }
 interface SalesExec { id: string; name: string; email: string; totalSales: number; liability: number; returnRatio: number }
 interface ItchyAlert { type: "production" | "settlement"; label: string; detail: string; since: string }
+interface ExceptionEntry { id: string; reason: string; created_at: string; action_type: string }
 
 const GOLD = "hsl(40 40% 59%)";
 const BURNT_ORANGE = "hsl(25 90% 50%)";
@@ -58,6 +60,7 @@ const CMDHeartbeat = () => {
   const [deptWastage, setDeptWastage] = useState<DeptWastage[]>([]);
   const [leaderboard, setLeaderboard] = useState<SalesExec[]>([]);
   const [alerts, setAlerts] = useState<ItchyAlert[]>([]);
+  const [exceptions, setExceptions] = useState<ExceptionEntry[]>([]);
 
   useEffect(() => {
     if (gateLoading || !allowed) return;
@@ -66,8 +69,18 @@ const CMDHeartbeat = () => {
 
   const fetchAll = async () => {
     setLoading(true);
-    await Promise.all([fetchKPIs(), fetchWastageHeatmap(), fetchLeaderboard(), fetchAlerts()]);
+    await Promise.all([fetchKPIs(), fetchWastageHeatmap(), fetchLeaderboard(), fetchAlerts(), fetchExceptions()]);
     setLoading(false);
+  };
+
+  const fetchExceptions = async () => {
+    const { data } = await supabase
+      .from("audit_logs")
+      .select("id, reason, created_at, action_type")
+      .in("action_type", ["SPECIAL_INCIDENCE", "wallet_variance_exception", "security_violation_blocked"])
+      .order("created_at", { ascending: false })
+      .limit(20);
+    setExceptions((data as ExceptionEntry[]) ?? []);
   };
 
   const fetchKPIs = async () => {
@@ -366,7 +379,7 @@ const CMDHeartbeat = () => {
             ) : (
               <div className="space-y-3 max-h-[300px] overflow-y-auto pr-1">
                 {alerts.map((a, i) => (
-                  <div
+                   <div
                     key={i}
                     className="rounded-lg p-3 border"
                     style={{
@@ -374,9 +387,12 @@ const CMDHeartbeat = () => {
                       background: a.type === "production" ? "hsl(0 40% 14%)" : "hsl(35 30% 14%)",
                     }}
                   >
-                    <p className="text-xs font-semibold" style={{ color: a.type === "production" ? "hsl(0 70% 65%)" : "hsl(40 70% 65%)" }}>
-                      {a.label}
-                    </p>
+                    <div className="flex items-center gap-2">
+                      <StagnancyBadge createdAt={a.since} />
+                      <p className="text-xs font-semibold" style={{ color: a.type === "production" ? "hsl(0 70% 65%)" : "hsl(40 70% 65%)" }}>
+                        {a.label}
+                      </p>
+                    </div>
                     <p className="text-xs mt-0.5" style={{ color: MUTED_TEXT }}>{a.detail}</p>
                   </div>
                 ))}
@@ -431,6 +447,27 @@ const CMDHeartbeat = () => {
                 </table>
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* Exception Ticker */}
+      {exceptions.length > 0 && (
+        <div className="mt-6 rounded-xl border overflow-hidden" style={{ background: "hsl(0 30% 12%)", borderColor: "hsl(0 40% 25%)" }}>
+          <div className="flex items-center gap-2 px-4 py-2" style={{ background: "hsl(0 40% 16%)" }}>
+            <AlertCircle size={14} style={{ color: "hsl(0 70% 60%)" }} />
+            <span className="text-xs font-bold uppercase tracking-wider" style={{ color: "hsl(0 70% 65%)" }}>
+              Exception Ticker — Special Incidences
+            </span>
+          </div>
+          <div className="overflow-hidden whitespace-nowrap py-2 px-4">
+            <div className="inline-flex gap-12 animate-marquee">
+              {exceptions.map((ex) => (
+                <span key={ex.id} className="text-xs" style={{ color: GOLD_TEXT }}>
+                  ⚠ [{ex.action_type}] {ex.reason || "No details"} — {new Date(ex.created_at).toLocaleString("en-IN", { hour: "2-digit", minute: "2-digit", day: "numeric", month: "short" })}
+                </span>
+              ))}
+            </div>
           </div>
         </div>
       )}

@@ -2,7 +2,7 @@ import { NavLink, Outlet, Navigate } from "react-router-dom";
 import {
   LayoutDashboard, UserCheck, ClipboardList, Truck, DollarSign, LogOut, Menu, X, Loader2,
   Headphones, Users, Package, BarChart3, Scale, Globe, Settings, Shield,
-  Factory, PackageCheck, Landmark, AlertCircle, Languages, Bell, Crown, Sparkles
+  Factory, PackageCheck, Landmark, AlertCircle, Languages, Bell, Crown, Sparkles, Monitor
 } from "lucide-react";
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
@@ -18,7 +18,7 @@ import { signOutAndClearSession } from "@/utils/authSession";
 
 const ROLE_MODULE_ACCESS: Record<string, string[]> = {
   super_admin: ["*"],
-  admin: ["*"],
+  admin: ["dashboard", "orders", "clients", "products", "pricing", "finance", "users", "moq", "currency", "support", "settings", "audit", "inventory", "packing", "production", "accounts", "exceptions"],
   finance_head: ["dashboard", "finance", "accounts", "orders", "audit"],
   dispatch_head: ["dashboard", "packing", "dispatch", "orders", "inventory"],
   production_manager: ["dashboard", "orders", "production"],
@@ -46,6 +46,7 @@ const AdminLayout = () => {
       title: "Command",
       items: [
         { to: "/admin", icon: LayoutDashboard, label: "Dashboard", end: true, moduleKey: "dashboard" },
+        { to: "/admin/cmd-war-room", icon: Monitor, label: "CMD War Room (Live TV)", end: false, moduleKey: "cmd_war_room" },
         { to: "/admin/heartbeat", icon: Crown, label: "CMD Heartbeat", end: false, moduleKey: "dashboard" },
         { to: "/admin/order-management", icon: ClipboardList, label: t("Order Pipeline"), moduleKey: "orders" },
         { to: "/admin/order-management", icon: Factory, label: t("Production & Assembly"), moduleKey: "production" },
