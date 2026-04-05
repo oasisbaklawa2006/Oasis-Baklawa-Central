@@ -269,15 +269,15 @@ export default function ReadyGoodsStore() {
   const submitProductionOrder = async () => {
     if (!prodOrderItemId.trim()) { toast.error("Enter an Order/Item ID"); return; }
     setActing("prod_order");
-    await supabase.from("audit_logs").insert({
+    await supabase.from("audit_logs").insert([{
       action_type: "PRODUCTION_ORDER",
       module_name: "RGS",
       entity_name: "order_items",
       entity_id: prodOrderItemId,
       actor_id: user?.id || null,
-      new_value: { type: prodOrderType, department: prodDept, notes: prodNotes },
+      new_value: { type: prodOrderType, department: prodDept, notes: prodNotes } as any,
       risk_level: "high",
-    });
+    }]);
     toast.success(`🏭 ${prodOrderType === "stock_buildup" ? "Stock Build-Up" : "Live Requirement"} sent to ${prodDept}`);
     setProdOrderItemId("");
     setProdNotes("");
