@@ -15,7 +15,6 @@ const ORDER_MANAGEMENT_ROLES = new Set([
 ]);
 
 const OPERATIONS_CONTROLLER_ROLES = new Set([
-  "STORE_READY_GOODS",
   "STORE_3RD_PARTY",
 ]);
 
