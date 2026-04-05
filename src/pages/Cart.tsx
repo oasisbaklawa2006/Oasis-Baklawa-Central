@@ -100,20 +100,6 @@ const emptyAddress = { label: "", street_address: "", city: "", state: "", pinco
 const Cart = () => {
   const { priceTier, companyId: authCompanyId, profileReady } = useAuth();
   const navigate = useNavigate();
-
-  // Safety: if profile loaded but no company_id, show approval message
-  if (profileReady && !authCompanyId) {
-    return (
-      <AppShell>
-        <div className="min-h-screen flex flex-col items-center justify-center p-6 text-center gap-4">
-          <ShieldAlert size={48} className="text-muted-foreground" />
-          <h2 className="text-lg font-semibold text-foreground">Account Setup Incomplete</h2>
-          <p className="text-sm text-muted-foreground max-w-xs">Your B2B account is pending approval. Please wait for admin verification before placing orders.</p>
-          <button onClick={() => navigate("/approval-pending")} className="px-6 py-2 rounded-xl bg-primary text-primary-foreground font-semibold text-sm">Check Approval Status</button>
-        </div>
-      </AppShell>
-    );
-  }
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState("upload_receipt");
