@@ -791,22 +791,39 @@ const AdminFinance = () => {
                         <AlertTriangle size={12} /> Advance Receipt
                       </span>
                     </div>
-                    <div className="flex gap-2">
-                      <button className="flex-1 py-2.5 border border-slate-200 text-slate-600 rounded-lg text-xs font-bold hover:bg-slate-50">
-                        View Receipt
-                      </button>
+                    <div className="flex gap-2 flex-wrap">
                       <button
-                        onClick={() => handleValidatePayment(order.id)}
-                        disabled={acting === order.id}
+                        onClick={() => setFinancialEntry({
+                          orderId: order.id,
+                          companyName: order.company?.business_name || "Unknown",
+                          soValue: order.sales_order_value || 0,
+                          actualAmountReceived: "",
+                          paymentMode: "",
+                          utrReference: "",
+                          receiptUrl: null,
+                        })}
                         className="flex-1 py-2.5 bg-emerald-600 text-white rounded-lg text-xs font-bold hover:bg-emerald-700 flex justify-center items-center gap-1"
                       >
-                        {acting === order.id ? (
-                          <Loader2 size={14} className="animate-spin" />
-                        ) : (
-                          <>
-                            <CheckCircle2 size={14} /> Verify Advance
-                          </>
-                        )}
+                        <CheckCircle2 size={14} /> Verify & Entry
+                      </button>
+                      <button
+                        onClick={() => setShortTermTarget(order)}
+                        className="flex-1 py-2.5 border border-violet-300 text-violet-700 rounded-lg text-xs font-bold hover:bg-violet-50 flex justify-center items-center gap-1"
+                      >
+                        <Receipt size={14} /> Short-Term Credit
+                      </button>
+                      <button
+                        onClick={() => {
+                          toast.info("Payment request sent to Sales/Client");
+                          supabase.from("notifications").insert({
+                            company_id: order.company_id,
+                            type: "payment_request",
+                            message: `Payment of ${formatPrice(order.sales_order_value || 0)} requested for SO #${order.id.slice(0, 8)}`,
+                          });
+                        }}
+                        className="w-full py-2 border border-slate-200 text-slate-600 rounded-lg text-xs font-bold hover:bg-slate-50 flex justify-center items-center gap-1"
+                      >
+                        Send Payment Request
                       </button>
                     </div>
                   </div>
