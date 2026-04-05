@@ -251,15 +251,15 @@ export default function ReadyGoodsStore() {
     const code = scanBarcode.trim() || manualSku.trim();
     if (!code) { toast.error("Scan barcode or enter SKU manually"); return; }
     setActing("scan");
-    await supabase.from("audit_logs").insert({
+    await supabase.from("audit_logs").insert([{
       action_type: "MATERIAL_ISSUE",
       module_name: "RGS",
       entity_name: "dispatch_cartons",
       entity_id: code,
       actor_id: user?.id || null,
-      new_value: { barcode: scanBarcode, manual_sku: manualSku, issued_at: new Date().toISOString() },
+      new_value: { barcode: scanBarcode, manual_sku: manualSku, issued_at: new Date().toISOString() } as any,
       risk_level: "normal",
-    });
+    }]);
     toast.success(`📦 Material issued: ${code}`);
     setScanBarcode("");
     setManualSku("");
