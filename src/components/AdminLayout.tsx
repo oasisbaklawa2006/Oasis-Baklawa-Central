@@ -107,7 +107,7 @@ const AdminLayout = () => {
     return <div className="min-h-screen flex items-center justify-center bg-background"><Loader2 size={24} className="animate-spin text-primary" /></div>;
   }
 
-  if (!role || !["admin", "super_admin", "finance_head", "dispatch_head", "production_manager", "assembly_manager", "packing_supervisor", "sales_executive", "support_executive"].includes(role)) {
+  if (!role || !["admin", "super_admin", "finance_head", "dispatch_head", "production_manager", "assembly_manager", "packing_supervisor", "sales_executive", "support_executive", "store_ready_goods", "rgs_admin"].includes(role)) {
     return <Navigate to="/" replace />;
   }
 

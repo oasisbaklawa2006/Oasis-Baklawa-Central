@@ -73,8 +73,21 @@ export default function AssemblyManagement() {
 
   useEffect(() => {
     const loadProducts = async () => {
-      const { data } = await supabase.from("products").select("id, name, image_url, sku").eq("is_active", true).order("name").limit(200);
-      setProducts((data as ProductOption[]) || []);
+      const { data } = await supabase
+        .from("products")
+        .select("id, name, image_url, sku, category:categories(name)")
+        .eq("is_active", true)
+        .order("name")
+        .limit(200);
+      // Filter to only Gifts, Hampers, Packing Material related products
+      const filtered = ((data as any[]) || []).filter((p: any) => {
+        const catName = (p.category?.name || "").toLowerCase();
+        const prodName = (p.name || "").toLowerCase();
+        return catName.includes("gift") || catName.includes("hamper") || catName.includes("packing") ||
+               catName.includes("assembly") || prodName.includes("gift") || prodName.includes("hamper") ||
+               prodName.includes("platter");
+      });
+      setProducts(filtered.length > 0 ? filtered : ((data as ProductOption[]) || []).slice(0, 50));
     };
     loadProducts();
   }, []);
