@@ -467,8 +467,22 @@ const AdminFinance = () => {
     const amount = parseFloat(financialEntry.actualAmountReceived);
     if (isNaN(amount) || amount <= 0) { toast.error("Enter a valid amount."); return; }
     if (!financialEntry.paymentMode) { toast.error("Select payment mode."); return; }
+    if (financialEntry.paymentMode !== "Cash" && !financialEntry.utrReference.trim()) {
+      toast.error("UTR / Reference Number is mandatory for bank payments."); return;
+    }
     setSavingEntry(true);
     try {
+      // Credit lock check before release
+      const order = orders.find(o => o.id === financialEntry.orderId);
+      if (order?.company_id) {
+        const lockResult = await checkCreditLock(order.company_id, order.sales_order_value || 0);
+        if (lockResult.locked) {
+          toast.error(`🔒 Credit Lock: ${lockResult.reason}`);
+          setSavingEntry(false);
+          return;
+        }
+      }
+
       await supabase.from("order_payments").insert({
         order_id: financialEntry.orderId,
         payment_type: "advance",
@@ -485,6 +499,7 @@ const AdminFinance = () => {
         order_id: financialEntry.orderId,
         old_status: "submitted",
         new_status: "in_production",
+        changed_by: user?.id ?? null,
       });
       await supabase.from("audit_logs").insert({
         action_type: "finance_verify_advance",
