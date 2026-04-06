@@ -1977,6 +1977,7 @@ export type Database = {
           mobile_number: string | null
           price_tier: string | null
           role: string | null
+          status: string
         }
         Insert: {
           company_id?: string | null
@@ -1990,6 +1991,7 @@ export type Database = {
           mobile_number?: string | null
           price_tier?: string | null
           role?: string | null
+          status?: string
         }
         Update: {
           company_id?: string | null
@@ -2003,6 +2005,7 @@ export type Database = {
           mobile_number?: string | null
           price_tier?: string | null
           role?: string | null
+          status?: string
         }
         Relationships: [
           {
@@ -2509,6 +2512,7 @@ export type Database = {
         Returns: boolean
       }
       is_internal_staff: { Args: { _user_id: string }; Returns: boolean }
+      is_staff_role: { Args: { _role: string }; Returns: boolean }
     }
     Enums: {
       [_ in never]: never
