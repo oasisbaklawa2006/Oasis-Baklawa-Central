@@ -20,15 +20,28 @@ const ROLE_MODULE_ACCESS: Record<string, string[]> = {
   super_admin: ["*"],
   admin: ["dashboard", "orders", "clients", "products", "pricing", "finance", "users", "moq", "currency", "support", "settings", "audit", "inventory", "packing", "production", "accounts", "exceptions"],
   finance_head: ["dashboard", "finance", "accounts", "orders", "audit"],
-  dispatch_head: ["dashboard", "packing", "dispatch", "orders", "inventory"],
+  finance_exec: ["dashboard", "finance", "accounts", "orders"],
+  operations_manager: ["dashboard", "orders", "production", "packing", "dispatch", "inventory"],
   production_manager: ["dashboard", "orders", "production"],
-  assembly_manager: ["dashboard", "production", "orders"],
-  packing_supervisor: ["dashboard", "packing", "dispatch"],
+  hod_arabic: ["dashboard", "production", "orders"],
+  hod_fusion: ["dashboard", "production", "orders"],
+  hod_chocolate: ["dashboard", "production", "orders"],
+  hod_bakery: ["dashboard", "production", "orders"],
+  hod_nuts: ["dashboard", "production", "orders"],
+  hod_assembly: ["dashboard", "production", "orders"],
+  store_incharge: ["dashboard", "inventory", "orders", "production"],
+  dispatch_manager: ["dashboard", "packing", "dispatch", "orders", "inventory"],
+  dispatch_incharge: ["dashboard", "packing", "dispatch", "orders"],
+  security_control: ["dashboard", "packing"],
   sales_executive: ["dashboard", "orders", "clients", "products"],
   support_executive: ["dashboard", "support", "exceptions", "orders"],
-  customer_user: [],
+  // Legacy compat
+  dispatch_head: ["dashboard", "packing", "dispatch", "orders", "inventory"],
+  assembly_manager: ["dashboard", "production", "orders"],
+  packing_supervisor: ["dashboard", "packing", "dispatch"],
   store_ready_goods: ["dashboard", "inventory", "orders", "production"],
   rgs_admin: ["dashboard", "inventory", "orders", "production"],
+  customer_user: [],
 };
 
 interface NavItem {
@@ -112,7 +125,8 @@ const AdminLayout = () => {
     return <div className="min-h-screen flex items-center justify-center bg-background"><Loader2 size={24} className="animate-spin text-primary" /></div>;
   }
 
-  if (!role || !["admin", "super_admin", "finance_head", "dispatch_head", "production_manager", "assembly_manager", "packing_supervisor", "sales_executive", "support_executive", "store_ready_goods", "rgs_admin"].includes(role)) {
+  const knownAdminRoles = Object.keys(ROLE_MODULE_ACCESS);
+  if (!role || !knownAdminRoles.includes(role)) {
     return <Navigate to="/" replace />;
   }
 

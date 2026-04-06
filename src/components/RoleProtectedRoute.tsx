@@ -1,7 +1,7 @@
 import { Navigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { Loader2 } from "lucide-react";
-import { getRoleDestination, normalizeRole } from "@/lib/auth-routing";
+import { getRoleDestination, normalizeRole, isStaffRole } from "@/lib/auth-routing";
 
 interface Props {
   allowedRoles: (string | null)[];
@@ -25,8 +25,21 @@ export default function RoleProtectedRoute({ allowedRoles, children }: Props) {
     return <Navigate to="/login" replace />;
   }
 
-  // Wait for profile to resolve (one-time, no flicker)
   const normalizedRole = normalizeRole(role);
+
+  // Staff roles: skip profileReady wait — land instantly
+  if (normalizedRole && isStaffRole(normalizedRole)) {
+    const isAllowed = allowedRoles.some((ar) => {
+      if (ar === null) return false;
+      return ar.toUpperCase() === normalizedRole;
+    });
+    if (!isAllowed) {
+      return <Navigate to={getRoleDestination(normalizedRole)} replace />;
+    }
+    return <>{children}</>;
+  }
+
+  // Non-staff: wait for profile to resolve (one-time)
   if (!normalizedRole && !profileReady) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
