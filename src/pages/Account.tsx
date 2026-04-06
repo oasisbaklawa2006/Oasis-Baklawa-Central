@@ -209,14 +209,14 @@ const Account = () => {
                 Available Cash Balance
               </p>
               <p className="font-serif text-4xl font-bold text-gray-900">
-                {formatPrice(company?.current_balance || 0)}
+                {formatAccountPrice(company?.current_balance || 0)}
               </p>
             </div>
             <div className="bg-gray-50 rounded-2xl p-6 border border-gray-100">
               <p className="text-[10px] font-bold uppercase tracking-widest text-gray-500 mb-1">
                 Approved Credit Limit
               </p>
-              <p className="font-serif text-3xl font-bold text-gray-900">{formatPrice(company?.credit_limit || 0)}</p>
+              <p className="font-serif text-3xl font-bold text-gray-900">{formatAccountPrice(company?.credit_limit || 0)}</p>
             </div>
           </div>
 
@@ -267,7 +267,7 @@ const Account = () => {
                     </div>
                     <p className={`font-black text-sm ${tx.type === "credit" ? "text-green-600" : "text-red-600"}`}>
                       {tx.type === "credit" ? "+" : "−"}
-                      {formatPrice(tx.amount)}
+                      {formatAccountPrice(tx.amount)}
                     </p>
                   </div>
                 ))
