@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import { Navigate, useLocation } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { Loader2 } from "lucide-react";
@@ -11,9 +12,27 @@ interface Props {
 export default function RoleProtectedRoute({ allowedRoles, children }: Props) {
   const location = useLocation();
   const { user, loading: authLoading, role, profileReady } = useAuth();
+  const [allowSpinnerFallback, setAllowSpinnerFallback] = useState(false);
+  const normalizedRole = normalizeRole(role);
+
+  useEffect(() => {
+    setAllowSpinnerFallback(false);
+
+    if (!user) return;
+    if (normalizedRole && isStaffRole(normalizedRole)) return;
+    if (!authLoading && profileReady) return;
+
+    const timeoutId = window.setTimeout(() => {
+      setAllowSpinnerFallback(true);
+    }, 1000);
+
+    return () => {
+      window.clearTimeout(timeoutId);
+    };
+  }, [authLoading, normalizedRole, profileReady, user, location.pathname]);
 
   // Still loading auth session
-  if (authLoading) {
+  if (authLoading && !allowSpinnerFallback) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <Loader2 size={24} className="animate-spin text-primary" />
@@ -26,7 +45,6 @@ export default function RoleProtectedRoute({ allowedRoles, children }: Props) {
     return <Navigate to="/login" replace />;
   }
 
-  const normalizedRole = normalizeRole(role);
   const destination = getRoleDestination(normalizedRole);
   const isAllowed = allowedRoles.some((ar) => {
     if (ar === null) return normalizedRole === null;
@@ -43,12 +61,16 @@ export default function RoleProtectedRoute({ allowedRoles, children }: Props) {
   }
 
   // Non-staff: wait for profile to resolve (one-time)
-  if (!normalizedRole && !profileReady) {
+  if (!normalizedRole && !profileReady && !allowSpinnerFallback) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <Loader2 size={24} className="animate-spin text-primary" />
       </div>
     );
+  }
+
+  if (!normalizedRole && allowSpinnerFallback) {
+    return <Navigate to="/" replace />;
   }
 
   // Pending or null role after profile loaded

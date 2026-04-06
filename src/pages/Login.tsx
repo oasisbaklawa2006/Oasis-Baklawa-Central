@@ -11,6 +11,8 @@ import { getRoleDestination, fetchAuthRoleRecord } from "@/lib/auth-routing";
 
 type AuthTab = "phone" | "email";
 
+const AUTH_CACHE_KEY = "oasis_auth_cache";
+
 const Login = () => {
   const [activeTab, setActiveTab] = useState<AuthTab>("phone");
   const [showPwd, setShowPwd] = useState(false);
@@ -24,7 +26,20 @@ const Login = () => {
 
   const resolveRedirect = async (userId: string) => {
     const authRecord = await fetchAuthRoleRecord(userId);
-    window.location.replace(getRoleDestination(authRecord.role));
+
+    try {
+      localStorage.setItem(
+        AUTH_CACHE_KEY,
+        JSON.stringify({
+          userId,
+          companyId: authRecord.company_id ?? null,
+          role: authRecord.role ?? null,
+          priceTier: null,
+        }),
+      );
+    } catch {}
+
+    window.location.assign(getRoleDestination(authRecord.role));
   };
 
   // ── Email Login ──

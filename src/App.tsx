@@ -71,7 +71,7 @@ import DispatchManagement from "./pages/admin/DispatchManagement.tsx";
 import DispatchTV from "./pages/admin/DispatchTV.tsx";
 import RoleProtectedRoute from "@/components/RoleProtectedRoute";
 import { useAuth } from "@/hooks/useAuth";
-import { getRoleDestination, isStorefrontRole } from "@/lib/auth-routing";
+import { getRoleDestination, isStaffRole, isStorefrontRole, normalizeRole } from "@/lib/auth-routing";
 
 // Roles allowed to access the full admin panel
 const ADMIN_ONLY_ROLES = ["SUPER_ADMIN", "ADMIN"];
@@ -105,6 +105,7 @@ const AuthSpinner = () => (
 
 const RootGate = () => {
   const { user, loading: authLoading, role } = useAuth();
+  const normalizedRole = normalizeRole(role);
 
   if (authLoading) {
     return <AuthSpinner />;
@@ -112,8 +113,6 @@ const RootGate = () => {
 
   if (!user) return <Navigate to="/splash" replace />;
 
-  // If role hasn't loaded yet, show spinner briefly
-  const normalizedRole = role?.trim().toUpperCase() ?? null;
   if (!normalizedRole) {
     return <AuthSpinner />;
   }
@@ -123,6 +122,7 @@ const RootGate = () => {
 
 const StorefrontGate = ({ children }: { children: React.ReactNode }) => {
   const { user, loading: authLoading, role, companyId, profileReady } = useAuth();
+  const normalizedRole = normalizeRole(role);
 
   if (authLoading) {
     return <AuthSpinner />;
@@ -132,8 +132,10 @@ const StorefrontGate = ({ children }: { children: React.ReactNode }) => {
     return <Navigate to="/login" replace />;
   }
 
-  // Wait for profile to load before making any routing decisions
-  const normalizedRole = role?.trim().toUpperCase() ?? null;
+  if (normalizedRole && isStaffRole(normalizedRole)) {
+    return <Navigate to={getRoleDestination(normalizedRole)} replace />;
+  }
+
   if (!normalizedRole || !profileReady) {
     return <AuthSpinner />;
   }
