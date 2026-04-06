@@ -87,16 +87,18 @@ const Account = () => {
           const { data: companyData } = await supabase
             .from("companies")
             .select("*")
-            .eq("id", profile.company_id)
+            .eq("id", resolvedCompanyId)
             .single();
 
           // Use unknown cast to safely bypass TS strictness while matching actual schema
           if (companyData) setCompany(companyData as unknown as CompanyProfile);
 
-          const { data: txData } = await supabase
-            .from("wallet_transactions")
-            .select("*")
-            .eq("company_id", profile.company_id)
+          // Wallet transactions - graceful fallback if table doesn't exist
+          try {
+            const { data: txData } = await supabase
+              .from("order_payments" as any)
+              .select("*")
+              .eq("company_id", resolvedCompanyId)
             .order("created_at", { ascending: false })
             .limit(5);
 
