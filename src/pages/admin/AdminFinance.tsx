@@ -781,9 +781,10 @@ const AdminFinance = () => {
     setActing(null);
   };
 
-  // Queues
-  const validationQueue = orders.filter((o) => o.status === "submitted" || o.payment_status === "awaiting_receipt" || o.payment_status === "unpaid");
-  const invoicingQueue = orders.filter((o) => o.status === "in_production" || o.status === "packed_ready");
+  // Queues — FILTER OUT ₹0 orders so Finance only sees actionable, valued orders
+  const valuedOrders = orders.filter((o) => (o.sales_order_value || 0) > 0);
+  const validationQueue = valuedOrders.filter((o) => o.status === "submitted" || o.payment_status === "awaiting_receipt" || o.payment_status === "unpaid");
+  const invoicingQueue = valuedOrders.filter((o) => o.status === "in_production" || o.status === "packed_ready");
 
   const totalValueToday = orders.reduce((sum, o) => sum + (o.sales_order_value || 0), 0);
 
