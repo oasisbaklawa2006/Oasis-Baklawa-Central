@@ -164,6 +164,9 @@ const Dashboard = () => {
     return 1;
   };
 
+  const needsAdvanceUpload = (order: any) =>
+    order.payment_status === "awaiting_advance" || order.payment_status === "awaiting_receipt";
+
   const QUICK_TOOLS = [
     { icon: Package, label: t("dash.productCatalogue"), path: "/catalogue" },
     { icon: ListOrdered, label: t("dash.myOrders"), path: "/orders" },

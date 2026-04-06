@@ -890,17 +890,30 @@ const AdminFinance = () => {
                         <Receipt size={14} /> Short-Term Credit
                       </button>
                       <button
-                        onClick={() => {
-                          toast.info("Payment request sent to Sales/Client");
-                          supabase.from("notifications").insert({
+                        onClick={async () => {
+                          // 1. Insert notification for client
+                          const notifMsg = `Action Required: Please upload advance for Order #${order.id.slice(0, 8).toUpperCase()}.`;
+                          await supabase.from("notifications").insert({
                             company_id: order.company_id,
                             type: "payment_request",
-                            message: `Payment of ${formatPrice(order.sales_order_value || 0)} requested for SO #${order.id.slice(0, 8)}`,
+                            message: notifMsg,
                           });
+                          // 2. Update order to awaiting_advance so Dashboard reacts
+                          await supabase.from("orders").update({ payment_status: "awaiting_advance" }).eq("id", order.id);
+                          // 3. Queue notification for email delivery
+                          await queueNotification({
+                            eventType: "advance_requested",
+                            messageBody: notifMsg,
+                            priority: "high",
+                          });
+                          // 4. WhatsApp placeholder
+                          console.log(`[WhatsApp Placeholder] Sending to company ${order.company_id}: "${notifMsg}"`);
+                          toast.success(`Payment request sent to ${order.company?.business_name || "Client"}`);
+                          fetchOrders();
                         }}
                         className="w-full py-2 border border-slate-200 text-slate-600 rounded-lg text-xs font-bold hover:bg-slate-50 flex justify-center items-center gap-1"
                       >
-                        Send Payment Request
+                        Request Advance
                       </button>
                     </div>
                   </div>
