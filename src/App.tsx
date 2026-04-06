@@ -110,7 +110,7 @@ const RootGate = () => {
 };
 
 const StorefrontGate = ({ children }: { children: React.ReactNode }) => {
-  const { user, loading: authLoading, role, companyId } = useAuth();
+  const { user, loading: authLoading, role, companyId, profileReady } = useAuth();
 
   if (authLoading) {
     return <AuthSpinner />;
@@ -118,6 +118,12 @@ const StorefrontGate = ({ children }: { children: React.ReactNode }) => {
 
   if (!user) {
     return <Navigate to="/login" replace />;
+  }
+
+  // Wait for profile to load before making any routing decisions
+  const normalizedRole = role?.trim().toUpperCase() ?? null;
+  if (!normalizedRole || !profileReady) {
+    return <AuthSpinner />;
   }
 
   if (!isStorefrontRole(role)) {

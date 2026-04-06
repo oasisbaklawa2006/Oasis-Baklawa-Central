@@ -1,4 +1,3 @@
-import { useEffect, useState } from "react";
 import { Navigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { Loader2 } from "lucide-react";
@@ -10,51 +9,10 @@ interface Props {
 }
 
 export default function RoleProtectedRoute({ allowedRoles, children }: Props) {
-  const { user, loading: authLoading, role } = useAuth();
-  const [status, setStatus] = useState<"loading" | "allowed" | "denied">("loading");
-  const [redirectTo, setRedirectTo] = useState("/");
+  const { user, loading: authLoading, role, profileReady } = useAuth();
 
-  useEffect(() => {
-    // Only block on auth loading — do NOT block on profileReady
-    if (authLoading) return;
-
-    // Not logged in → login
-    if (!user) {
-      setRedirectTo("/login");
-      setStatus("denied");
-      return;
-    }
-
-    const normalizedRole = normalizeRole(role);
-
-    // Role not yet fetched from DB — wait silently (single tick)
-    if (normalizedRole === null && role === null) {
-      // role is still being fetched; stay in loading but do NOT flicker
-      return;
-    }
-
-    // Pending or truly null role → approval pending
-    if (!normalizedRole || normalizedRole === "PENDING") {
-      setRedirectTo("/approval-pending");
-      setStatus("denied");
-      return;
-    }
-
-    // Check if user's role is in the allowed list
-    const isAllowed = allowedRoles.some((ar) => {
-      if (ar === null) return normalizedRole === null;
-      return ar.toUpperCase() === normalizedRole;
-    });
-
-    if (isAllowed) {
-      setStatus("allowed");
-    } else {
-      setRedirectTo(getRoleDestination(normalizedRole));
-      setStatus("denied");
-    }
-  }, [user, authLoading, allowedRoles, role]);
-
-  if (status === "loading") {
+  // Still loading auth session
+  if (authLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <Loader2 size={24} className="animate-spin text-primary" />
@@ -62,6 +20,35 @@ export default function RoleProtectedRoute({ allowedRoles, children }: Props) {
     );
   }
 
-  if (status === "denied") return <Navigate to={redirectTo} replace />;
+  // Not logged in
+  if (!user) {
+    return <Navigate to="/login" replace />;
+  }
+
+  // Wait for profile to resolve (one-time, no flicker)
+  const normalizedRole = normalizeRole(role);
+  if (!normalizedRole && !profileReady) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <Loader2 size={24} className="animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  // Pending or null role after profile loaded
+  if (!normalizedRole || normalizedRole === "PENDING") {
+    return <Navigate to="/approval-pending" replace />;
+  }
+
+  // Check if user's role is in the allowed list
+  const isAllowed = allowedRoles.some((ar) => {
+    if (ar === null) return normalizedRole === null;
+    return ar.toUpperCase() === normalizedRole;
+  });
+
+  if (!isAllowed) {
+    return <Navigate to={getRoleDestination(normalizedRole)} replace />;
+  }
+
   return <>{children}</>;
 }
