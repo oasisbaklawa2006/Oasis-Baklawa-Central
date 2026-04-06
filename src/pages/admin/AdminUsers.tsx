@@ -92,11 +92,20 @@ const DEPARTMENTS = [
 const DEFAULT_MODULE_MAP: Record<string, string[]> = {
   super_admin: [...MODULES],
   finance_head: ["Finance", "Orders", "Audit"],
-  dispatch_head: ["Dispatch", "Packing", "Orders"],
+  finance_exec: ["Finance", "Orders"],
+  operations_manager: ["Production", "Assembly", "Packing", "Dispatch", "Orders"],
+  dispatch_manager: ["Dispatch", "Packing", "Orders"],
+  dispatch_incharge: ["Dispatch", "Packing"],
+  security_control: ["Dispatch"],
+  store_incharge: ["Production", "Orders"],
+  hod_arabic: ["Production", "Orders"],
+  hod_fusion: ["Production", "Orders"],
+  hod_chocolate: ["Production", "Orders"],
+  hod_bakery: ["Production", "Orders"],
+  hod_nuts: ["Production", "Orders"],
+  hod_assembly: ["Assembly", "Packing"],
   sales_executive: ["Orders", "Client Governance", "Product Catalog"],
   production_manager: ["Production", "Assembly", "Orders"],
-  assembly_manager: ["Assembly", "Packing"],
-  packing_supervisor: ["Packing", "Dispatch"],
   support_executive: ["Support", "Orders"],
   customer_user: [],
 };
@@ -244,6 +253,27 @@ const AdminUsers = () => {
           invite_status: "active",
         })
         .eq("id", newUserId);
+
+      // Staff roles: auto-approve in profiles table
+      const staffRoleSet = new Set([
+        "super_admin", "admin", "finance_head", "finance_exec",
+        "operations_manager", "production_manager",
+        "hod_arabic", "hod_fusion", "hod_chocolate", "hod_bakery", "hod_nuts", "hod_assembly",
+        "store_incharge", "dispatch_manager", "dispatch_incharge", "security_control",
+        "sales_executive", "support_executive",
+      ]);
+      if (staffRoleSet.has(nf.role)) {
+        await supabase
+          .from("profiles")
+          .upsert({
+            id: newUserId,
+            email: nf.email.trim(),
+            full_name: nf.name,
+            role: nf.role,
+            is_approved: true,
+            department: nf.dept || null,
+          } as any, { onConflict: "id" });
+      }
     }
 
     // 3. Map role permissions
@@ -487,7 +517,15 @@ const AdminUsers = () => {
                               <SelectValue />
                             </SelectTrigger>
                             <SelectContent>
-                              {["super_admin", "admin", "finance_head", "dispatch_head", "production_manager", "assembly_manager", "packing_supervisor", "sales_executive", "support_executive", "buyer"].map((r) => (
+              {[
+                "super_admin", "admin",
+                "finance_head", "finance_exec",
+                "operations_manager", "production_manager",
+                "hod_arabic", "hod_fusion", "hod_chocolate", "hod_bakery", "hod_nuts", "hod_assembly",
+                "store_incharge", "dispatch_manager", "dispatch_incharge", "security_control",
+                "sales_executive", "support_executive",
+                "b2b_buyer", "special_buyer", "horeca_buyer", "wholesale_buyer", "bulk_buyer",
+              ].map((r) => (
                                 <SelectItem key={r} value={r} className="text-xs font-semibold uppercase">{r.replace(/_/g, " ")}</SelectItem>
                               ))}
                             </SelectContent>

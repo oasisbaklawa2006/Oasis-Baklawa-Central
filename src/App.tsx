@@ -78,9 +78,21 @@ const ADMIN_ONLY_ROLES = ["SUPER_ADMIN", "ADMIN"];
 
 // Internal staff who can access specific admin sub-routes but NOT the dashboard stats
 const ADMIN_STAFF_ROLES = [
-  ...ADMIN_ONLY_ROLES, "FINANCE_HEAD", "DISPATCH_HEAD", "PRODUCTION_MANAGER",
-  "ASSEMBLY_MANAGER", "PACKING_SUPERVISOR", "SUPPORT_EXECUTIVE",
+  ...ADMIN_ONLY_ROLES,
+  "FINANCE_HEAD", "FINANCE_EXEC",
+  "OPERATIONS_MANAGER", "PRODUCTION_MANAGER",
+  "HOD_ARABIC", "HOD_FUSION", "HOD_CHOCOLATE", "HOD_BAKERY", "HOD_NUTS", "HOD_ASSEMBLY",
+  "STORE_INCHARGE", "DISPATCH_MANAGER", "DISPATCH_INCHARGE", "SECURITY_CONTROL",
+  "SUPPORT_EXECUTIVE", "SALES_EXECUTIVE",
+  // Legacy compat
+  "DISPATCH_HEAD", "ASSEMBLY_MANAGER", "PACKING_SUPERVISOR",
   "STORE_READY_GOODS", "STORE_3RD_PARTY", "GATE_SECURITY", "RGS_ADMIN",
+];
+
+const ALL_BUYER_ROLES = [
+  'B2B_BUYER', 'SPECIAL_BUYER', 'HORECA_BUYER', 'WHOLESALE_BUYER', 'BULK_BUYER',
+  // Legacy compat
+  'BUYER', 'CUSTOMER_USER', 'CLIENT',
 ];
 
 const queryClient = new QueryClient();
@@ -160,17 +172,17 @@ const App = () => (
             <Route path="/login" element={<Login />} />
             <Route path="/register" element={<Register />} />
             <Route path="/onboarding" element={<Onboarding />} />
-            <Route path="/buyer-portal" element={<ProtectedRoute><RoleProtectedRoute allowedRoles={['BUYER', 'CUSTOMER_USER', 'CLIENT']}><BuyerPortal /></RoleProtectedRoute></ProtectedRoute>} />
-            <Route path="/cart" element={<ProtectedRoute><RoleProtectedRoute allowedRoles={['BUYER', 'CUSTOMER_USER', 'CLIENT']}><Cart /></RoleProtectedRoute></ProtectedRoute>} />
-            <Route path="/orders" element={<ProtectedRoute><RoleProtectedRoute allowedRoles={['BUYER', 'CUSTOMER_USER', 'CLIENT']}><Orders /></RoleProtectedRoute></ProtectedRoute>} />
-            <Route path="/orders/:id" element={<ProtectedRoute><RoleProtectedRoute allowedRoles={['BUYER', 'CUSTOMER_USER', 'CLIENT']}><OrderTracking /></RoleProtectedRoute></ProtectedRoute>} />
-            <Route path="/dashboard" element={<ProtectedRoute><RoleProtectedRoute allowedRoles={['BUYER', 'CUSTOMER_USER', 'CLIENT']}><Dashboard /></RoleProtectedRoute></ProtectedRoute>} />
-            <Route path="/account" element={<ProtectedRoute><RoleProtectedRoute allowedRoles={['BUYER', 'CUSTOMER_USER', 'CLIENT']}><Account /></RoleProtectedRoute></ProtectedRoute>} />
-            <Route path="/favorites" element={<ProtectedRoute><RoleProtectedRoute allowedRoles={['BUYER', 'CUSTOMER_USER', 'CLIENT']}><Favorites /></RoleProtectedRoute></ProtectedRoute>} />
-            <Route path="/account/users" element={<ProtectedRoute><RoleProtectedRoute allowedRoles={['BUYER', 'CUSTOMER_USER', 'CLIENT']}><ManageUsers /></RoleProtectedRoute></ProtectedRoute>} />
-            <Route path="/account/addresses" element={<ProtectedRoute><RoleProtectedRoute allowedRoles={['BUYER', 'CUSTOMER_USER', 'CLIENT']}><ManageAddresses /></RoleProtectedRoute></ProtectedRoute>} />
-            <Route path="/account/logistics" element={<ProtectedRoute><RoleProtectedRoute allowedRoles={['BUYER', 'CUSTOMER_USER', 'CLIENT']}><ManageLogistics /></RoleProtectedRoute></ProtectedRoute>} />
-            <Route path="/documents" element={<ProtectedRoute><RoleProtectedRoute allowedRoles={['BUYER', 'CUSTOMER_USER', 'CLIENT']}><Documents /></RoleProtectedRoute></ProtectedRoute>} />
+            <Route path="/buyer-portal" element={<ProtectedRoute><RoleProtectedRoute allowedRoles={ALL_BUYER_ROLES}><BuyerPortal /></RoleProtectedRoute></ProtectedRoute>} />
+            <Route path="/cart" element={<ProtectedRoute><RoleProtectedRoute allowedRoles={ALL_BUYER_ROLES}><Cart /></RoleProtectedRoute></ProtectedRoute>} />
+            <Route path="/orders" element={<ProtectedRoute><RoleProtectedRoute allowedRoles={ALL_BUYER_ROLES}><Orders /></RoleProtectedRoute></ProtectedRoute>} />
+            <Route path="/orders/:id" element={<ProtectedRoute><RoleProtectedRoute allowedRoles={ALL_BUYER_ROLES}><OrderTracking /></RoleProtectedRoute></ProtectedRoute>} />
+            <Route path="/dashboard" element={<ProtectedRoute><RoleProtectedRoute allowedRoles={ALL_BUYER_ROLES}><Dashboard /></RoleProtectedRoute></ProtectedRoute>} />
+            <Route path="/account" element={<ProtectedRoute><RoleProtectedRoute allowedRoles={ALL_BUYER_ROLES}><Account /></RoleProtectedRoute></ProtectedRoute>} />
+            <Route path="/favorites" element={<ProtectedRoute><RoleProtectedRoute allowedRoles={ALL_BUYER_ROLES}><Favorites /></RoleProtectedRoute></ProtectedRoute>} />
+            <Route path="/account/users" element={<ProtectedRoute><RoleProtectedRoute allowedRoles={ALL_BUYER_ROLES}><ManageUsers /></RoleProtectedRoute></ProtectedRoute>} />
+            <Route path="/account/addresses" element={<ProtectedRoute><RoleProtectedRoute allowedRoles={ALL_BUYER_ROLES}><ManageAddresses /></RoleProtectedRoute></ProtectedRoute>} />
+            <Route path="/account/logistics" element={<ProtectedRoute><RoleProtectedRoute allowedRoles={ALL_BUYER_ROLES}><ManageLogistics /></RoleProtectedRoute></ProtectedRoute>} />
+            <Route path="/documents" element={<ProtectedRoute><RoleProtectedRoute allowedRoles={ALL_BUYER_ROLES}><Documents /></RoleProtectedRoute></ProtectedRoute>} />
             <Route path="/approval-pending" element={<ProtectedRoute><ApprovalPending /></ProtectedRoute>} />
 
             <Route
@@ -230,11 +242,11 @@ const App = () => (
             />
 
             {/* Factory TV Routes — guarded for PROD_* roles + admins */}
-            <Route path="/tv/arabic-sweets" element={<RoleProtectedRoute allowedRoles={['PROD_ARABIC_SWEETS', 'SUPER_ADMIN', 'ADMIN']}><FactoryTVModule category="Arabic Sweets" departmentFilter="Arabic Sweets" title="Arabic Sweets Line" /></RoleProtectedRoute>} />
-            <Route path="/tv/chocolate" element={<RoleProtectedRoute allowedRoles={['PROD_CHOCOLATE', 'SUPER_ADMIN', 'ADMIN']}><FactoryTVModule category="Chocolate" departmentFilter="Confectionery & Chocolates" title="Chocolate Line" /></RoleProtectedRoute>} />
-            <Route path="/tv/fusion" element={<RoleProtectedRoute allowedRoles={['PROD_FUSION', 'SUPER_ADMIN', 'ADMIN']}><FactoryTVModule category="Fusion Sweets" departmentFilter="Fusion Sweets" title="Fusion Sweets Line" /></RoleProtectedRoute>} />
-            <Route path="/tv/bakery" element={<RoleProtectedRoute allowedRoles={['PROD_BAKERY', 'SUPER_ADMIN', 'ADMIN']}><FactoryTVModule category="Bakery" departmentFilter="Bakery" title="Bakery Line" /></RoleProtectedRoute>} />
-            <Route path="/tv/nuts" element={<RoleProtectedRoute allowedRoles={['PROD_NUTS', 'SUPER_ADMIN', 'ADMIN']}><FactoryTVModule category="Seasoned Nuts" departmentFilter="Nuts Roasting" title="Nuts & Dry Fruits Line" /></RoleProtectedRoute>} />
+            <Route path="/tv/arabic-sweets" element={<RoleProtectedRoute allowedRoles={['HOD_ARABIC', 'PROD_ARABIC_SWEETS', 'SUPER_ADMIN', 'ADMIN']}><FactoryTVModule category="Arabic Sweets" departmentFilter="Arabic Sweets" title="Arabic Sweets Line" /></RoleProtectedRoute>} />
+            <Route path="/tv/chocolate" element={<RoleProtectedRoute allowedRoles={['HOD_CHOCOLATE', 'PROD_CHOCOLATE', 'SUPER_ADMIN', 'ADMIN']}><FactoryTVModule category="Chocolate" departmentFilter="Confectionery & Chocolates" title="Chocolate Line" /></RoleProtectedRoute>} />
+            <Route path="/tv/fusion" element={<RoleProtectedRoute allowedRoles={['HOD_FUSION', 'PROD_FUSION', 'SUPER_ADMIN', 'ADMIN']}><FactoryTVModule category="Fusion Sweets" departmentFilter="Fusion Sweets" title="Fusion Sweets Line" /></RoleProtectedRoute>} />
+            <Route path="/tv/bakery" element={<RoleProtectedRoute allowedRoles={['HOD_BAKERY', 'PROD_BAKERY', 'SUPER_ADMIN', 'ADMIN']}><FactoryTVModule category="Bakery" departmentFilter="Bakery" title="Bakery Line" /></RoleProtectedRoute>} />
+            <Route path="/tv/nuts" element={<RoleProtectedRoute allowedRoles={['HOD_NUTS', 'PROD_NUTS', 'SUPER_ADMIN', 'ADMIN']}><FactoryTVModule category="Seasoned Nuts" departmentFilter="Nuts Roasting" title="Nuts & Dry Fruits Line" /></RoleProtectedRoute>} />
 
             <Route path="*" element={<NotFound />} />
           </Routes>
