@@ -147,6 +147,7 @@ const AdminUsers = () => {
     dept: "",
     designation: "",
     role: "",
+    password: "",
     status: "invited" as string,
   });
   const [selectedPermIds, setSelectedPermIds] = useState<string[]>([]);
@@ -214,15 +215,19 @@ const AdminUsers = () => {
       toast.error("Name, Email, and Role are required");
       return;
     }
+    if (!nf.password || nf.password.length < 6) {
+      toast.error("Password is required (minimum 6 characters)");
+      return;
+    }
     setSaving("new");
 
     const roleRecord = roles.find((r) => r.role_key === nf.role);
-    const tempPassword = generateTempPassword();
+    const chosenPassword = nf.password;
 
-    // 1. Create the auth user via Supabase Admin (signUp creates auth entry)
+    // 1. Create the auth user with admin-set password
     const { data: authData, error: authError } = await supabase.auth.signUp({
       email: nf.email.trim(),
-      password: tempPassword,
+      password: chosenPassword,
       options: {
         data: {
           full_name: nf.name,
@@ -306,7 +311,7 @@ const AdminUsers = () => {
               <p style="margin-bottom: 24px; color: #aaa;">Your admin account has been created. Here are your login credentials:</p>
               <div style="background: #2a2a2a; padding: 20px; border-radius: 8px; border-left: 3px solid #C4A052;">
                 <p style="margin: 4px 0;"><strong style="color: #C4A052;">Email:</strong> ${nf.email.trim()}</p>
-                <p style="margin: 4px 0;"><strong style="color: #C4A052;">Temporary Password:</strong> ${tempPassword}</p>
+                <p style="margin: 4px 0;"><strong style="color: #C4A052;">Password:</strong> ${chosenPassword}</p>
                 <p style="margin: 4px 0;"><strong style="color: #C4A052;">Role:</strong> ${nf.role.replace(/_/g, " ").toUpperCase()}</p>
               </div>
               <p style="margin-top: 20px; font-size: 13px; color: #888;">Please change your password after your first login. This is a secure, auto-generated credential.</p>
@@ -343,11 +348,12 @@ const AdminUsers = () => {
       new_value: { role: nf.role, email: nf.email, auth_created: true },
     });
 
-    // Show credentials modal with temp password
-    setCreatedCredentials({ name: nf.name, email: nf.email.trim(), password: tempPassword, role: nf.role });
+    // Show credentials modal
+    setCreatedCredentials({ name: nf.name, email: nf.email.trim(), password: chosenPassword, role: nf.role });
     setShowCredentialsModal(true);
+    toast.success(`User Created. Credentials: ${nf.email.trim()} / ${chosenPassword}`);
     setShowModal(false);
-    setNf({ name: "", email: "", mobile: "", dept: "", designation: "", role: "", status: "invited" });
+    setNf({ name: "", email: "", mobile: "", dept: "", designation: "", role: "", password: "", status: "invited" });
     setSelectedPermIds([]);
     fetchData();
     setSaving(null);
@@ -884,6 +890,20 @@ const AdminUsers = () => {
                   placeholder="email@oasis.com"
                 />
               </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Initial Password *</Label>
+              <Input
+                type="password"
+                value={nf.password}
+                onChange={(e) => setNf((p) => ({ ...p, password: e.target.value }))}
+                className="rounded-xl h-11 border-border focus-visible:ring-primary"
+                placeholder="Min 6 characters"
+              />
+              <p className="text-[10px] text-muted-foreground italic">
+                This password will be shared with the employee for first login.
+              </p>
             </div>
 
             <div className="grid grid-cols-2 gap-4">
