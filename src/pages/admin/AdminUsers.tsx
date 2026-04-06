@@ -892,6 +892,20 @@ const AdminUsers = () => {
               </div>
             </div>
 
+            <div className="space-y-2">
+              <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Initial Password *</Label>
+              <Input
+                type="password"
+                value={nf.password}
+                onChange={(e) => setNf((p) => ({ ...p, password: e.target.value }))}
+                className="rounded-xl h-11 border-border focus-visible:ring-primary"
+                placeholder="Min 6 characters"
+              />
+              <p className="text-[10px] text-muted-foreground italic">
+                This password will be shared with the employee for first login.
+              </p>
+            </div>
+
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Mobile</Label>
