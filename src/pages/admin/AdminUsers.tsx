@@ -348,11 +348,12 @@ const AdminUsers = () => {
       new_value: { role: nf.role, email: nf.email, auth_created: true },
     });
 
-    // Show credentials modal with temp password
-    setCreatedCredentials({ name: nf.name, email: nf.email.trim(), password: tempPassword, role: nf.role });
+    // Show credentials modal
+    setCreatedCredentials({ name: nf.name, email: nf.email.trim(), password: chosenPassword, role: nf.role });
     setShowCredentialsModal(true);
+    toast.success(`User Created. Credentials: ${nf.email.trim()} / ${chosenPassword}`);
     setShowModal(false);
-    setNf({ name: "", email: "", mobile: "", dept: "", designation: "", role: "", status: "invited" });
+    setNf({ name: "", email: "", mobile: "", dept: "", designation: "", role: "", password: "", status: "invited" });
     setSelectedPermIds([]);
     fetchData();
     setSaving(null);
