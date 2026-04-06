@@ -315,6 +315,21 @@ const Account = () => {
           </div>
         </motion.section>
 
+        {/* Delete Account */}
+        <motion.section initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.45 }}>
+          <button
+            disabled={(company?.current_balance || 0) > 0}
+            onClick={() => toast.info("Account deletion request submitted. Our team will review and process within 48 hours.")}
+            className="w-full py-3.5 rounded-2xl border-2 border-red-200 text-red-500 font-bold text-xs flex items-center justify-center gap-2 hover:bg-red-50 hover:border-red-300 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+          >
+            <AlertCircle size={16} />
+            Delete My Account
+          </button>
+          {(company?.current_balance || 0) > 0 && (
+            <p className="text-[10px] text-red-400 text-center mt-1.5">Wallet balance must be ₹0 before account deletion.</p>
+          )}
+        </motion.section>
+
         {/* Logout */}
         <motion.section initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.5 }}>
           <button
