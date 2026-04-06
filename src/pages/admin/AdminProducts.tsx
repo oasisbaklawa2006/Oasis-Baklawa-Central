@@ -19,6 +19,9 @@ import {
   Leaf,
   Tag,
   Filter,
+  Zap,
+  Layers,
+  Trash2,
 } from "lucide-react";
 
 interface ProductTagItem {
@@ -28,6 +31,13 @@ interface ProductTagItem {
   is_active: boolean;
 }
 
+interface BomComponent {
+  id?: string;
+  component_product_id?: string | null;
+  component_name: string;
+  quantity_per_unit: number;
+  source_department: string;
+}
 
 interface Product {
   id: string;
@@ -36,6 +46,7 @@ interface Product {
   category?: string | null;
   sub_category?: string | null;
   department?: string | null;
+  production_department?: string | null;
   price_per_kg?: number | null;
   pack_size?: string | null;
   carton_type?: string | null;
@@ -58,9 +69,12 @@ interface Product {
   dietary_tags?: string[] | null;
 
   uom?: string | null;
+  settlement_unit?: string | null;
   private_label_moq?: number | null;
   private_label_price?: number | null;
   nutrition_facts?: string | null;
+  allergen_warnings?: string | null;
+  ingredients?: string | null;
 }
 
 const CATEGORIES = [
@@ -69,12 +83,23 @@ const CATEGORIES = [
   "Premium Gift Packs",
   "Semi-Prepared & Frozen Range",
   "Packaging & Decoration Material",
+  "Gifts & Hampers",
 ];
 
 const GST_RATES = [0, 5, 12, 18, 28];
 const DIETARY_OPTIONS = ["100% Eggless", "Contains Nuts", "Vegan", "Gluten-Free", "Sugar-Free", "No Preservatives"];
 const STORAGE_OPTIONS = ["ambient", "refrigerated", "frozen"];
-const DEPARTMENTS = [
+
+const TARGET_DEPARTMENTS = [
+  "Arabic Sweets",
+  "Chocolate & Confectionery",
+  "Bakery",
+  "Fusion Sweets",
+  "Seasoned Nuts & Mixes",
+  "3rd Party Goods",
+];
+
+const PRODUCTION_DEPARTMENTS = [
   "Bakery Department",
   "Arabic Sweets Department",
   "Confectionery & Chocolates Department",
@@ -90,6 +115,7 @@ const EMPTY_FORM = {
   category: CATEGORIES[0],
   sub_category: "",
   department: "",
+  production_department: "",
   price_per_kg: "",
   pack_size: "",
   carton_type: "",
@@ -109,9 +135,13 @@ const EMPTY_FORM = {
   gst_percentage: "18",
   dietary_tags: ["100% Eggless"],
   uom: "Kg",
+  settlement_unit: "KG",
   private_label_moq: "",
   private_label_price: "",
   nutrition_facts: "",
+  allergen_warnings: "",
+  ingredients: "",
+  has_bom: false,
 };
 
 const AdminProducts = () => {
@@ -124,6 +154,9 @@ const AdminProducts = () => {
 
   const [isAiLoading, setIsAiLoading] = useState<string | null>(null);
   const [formData, setFormData] = useState<any>({ ...EMPTY_FORM });
+
+  // BOM state
+  const [bomComponents, setBomComponents] = useState<BomComponent[]>([]);
 
   // Tag management state
   const [allTags, setAllTags] = useState<ProductTagItem[]>([]);
@@ -181,9 +214,7 @@ const AdminProducts = () => {
   const saveTagMappings = async () => {
     if (!tagModalProduct) return;
     setSavingTags(true);
-    // Delete existing mappings
     await supabase.from("product_tag_mapping").delete().eq("product_id", tagModalProduct.id);
-    // Insert new ones
     if (selectedTagIds.length > 0) {
       const rows = selectedTagIds.map(tag_id => ({
         product_id: tagModalProduct.id,
@@ -249,14 +280,37 @@ const AdminProducts = () => {
     setIsAiLoading(null);
   };
 
-  const handleAiNutrition = async () => {
+  // REAL AI: Generate Nutrition, Allergens, HSN, GST, Ingredients
+  const handleAiFullGenerate = async () => {
     if (!formData.name) return toast.error("Enter Product Name first.");
-    setIsAiLoading("nutrition");
-    await new Promise((r) => setTimeout(r, 1500));
-    const fssaiTable = `NUTRITIONAL INFORMATION (Per 100g)\n-----------------------------------\nEnergy: 480 kcal (24% DV)\nProtein: 8.5g (17% DV)\nTotal Fat: 22g (33% DV)\n - Saturated Fat: 8g (40% DV)\nCarbohydrates: 62g (20% DV)\n - Total Sugars: 38g\n - Added Sugars: 25g (50% DV)\nSodium: 45mg (2% DV)\n\n*Percent Daily Values (DV) are based on FSSAI guidelines for a 2000 calorie diet.`;
-    setFormData((prev: any) => ({ ...prev, nutrition_facts: fssaiTable }));
-    toast.success("FSSAI Nutrition Table Generated!", { icon: "✨" });
-    setIsAiLoading(null);
+    setIsAiLoading("full");
+    try {
+      const { data, error } = await supabase.functions.invoke("generate-product-attributes", {
+        body: {
+          productName: formData.name,
+          description: formData.description || "",
+          category: formData.category || "",
+        },
+      });
+
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+
+      setFormData((prev: any) => ({
+        ...prev,
+        nutrition_facts: data.nutrition_facts || prev.nutrition_facts,
+        allergen_warnings: data.allergen_warnings || prev.allergen_warnings,
+        hsn_code: data.hsn_code || prev.hsn_code,
+        gst_percentage: data.gst_percentage?.toString() || prev.gst_percentage,
+        ingredients: data.ingredients || prev.ingredients,
+      }));
+      toast.success("AI attributes generated: Nutrition, Allergens, HSN, GST & Ingredients!", { icon: "⚡" });
+    } catch (err: any) {
+      console.error("AI generation error:", err);
+      toast.error(err.message || "AI generation failed. Try again.");
+    } finally {
+      setIsAiLoading(null);
+    }
   };
 
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -278,7 +332,24 @@ const AdminProducts = () => {
     }
   };
 
-  const openPanel = (product?: Product) => {
+  const loadBom = async (productId: string) => {
+    const { data } = await supabase
+      .from("product_bom")
+      .select("*")
+      .eq("product_id", productId)
+      .order("created_at");
+    setBomComponents(
+      (data || []).map((d: any) => ({
+        id: d.id,
+        component_product_id: d.component_product_id,
+        component_name: d.component_name || "",
+        quantity_per_unit: d.quantity_per_unit || 1,
+        source_department: d.source_department || "",
+      }))
+    );
+  };
+
+  const openPanel = async (product?: Product) => {
     if (product) {
       setEditingProduct(product);
       setFormData({
@@ -287,6 +358,7 @@ const AdminProducts = () => {
         category: product.category || CATEGORIES[0],
         sub_category: product.sub_category || "",
         department: product.department || "",
+        production_department: product.production_department || "",
         price_per_kg: product.price_per_kg?.toString() || "",
         pack_size: product.pack_size || "",
         carton_type: product.carton_type || "",
@@ -306,32 +378,62 @@ const AdminProducts = () => {
         gst_percentage: product.gst_percentage?.toString() || "18",
         dietary_tags: product.dietary_tags || ["100% Eggless"],
         uom: product.uom || "Kg",
+        settlement_unit: product.settlement_unit || "KG",
         private_label_moq: product.private_label_moq?.toString() || "",
         private_label_price: product.private_label_price?.toString() || "",
         nutrition_facts: product.nutrition_facts || "",
+        allergen_warnings: product.allergen_warnings || "",
+        ingredients: product.ingredients || "",
+        has_bom: false,
       });
+      await loadBom(product.id);
+      setFormData((prev: any) => ({ ...prev, has_bom: bomComponents.length > 0 }));
     } else {
       setEditingProduct(null);
       setFormData({ ...EMPTY_FORM });
+      setBomComponents([]);
     }
     setIsPanelOpen(true);
   };
 
   const closePanel = () => {
     setIsPanelOpen(false);
-    setTimeout(() => setEditingProduct(null), 300);
+    setTimeout(() => {
+      setEditingProduct(null);
+      setBomComponents([]);
+    }, 300);
+  };
+
+  // BOM helpers
+  const addBomComponent = () => {
+    setBomComponents((prev) => [
+      ...prev,
+      { component_name: "", quantity_per_unit: 1, source_department: "" },
+    ]);
+  };
+
+  const updateBomComponent = (index: number, field: keyof BomComponent, value: any) => {
+    setBomComponents((prev) =>
+      prev.map((c, i) => (i === index ? { ...c, [field]: value } : c))
+    );
+  };
+
+  const removeBomComponent = (index: number) => {
+    setBomComponents((prev) => prev.filter((_, i) => i !== index));
   };
 
   const handleSaveProduct = async () => {
     if (!formData.name || !formData.wholesale_price) return toast.error("Name and B2B Base Price are required");
+    if (!formData.production_department) return toast.error("Target Department is mandatory for order routing.");
     setSaving(true);
 
-    const payload = {
+    const payload: any = {
       name: formData.name,
       sku: formData.sku || null,
       category: formData.category || null,
       sub_category: formData.sub_category || null,
       department: formData.department || null,
+      production_department: formData.production_department || null,
       pack_size: formData.pack_size || null,
       carton_type: formData.carton_type || null,
       storage_type: formData.storage_type || null,
@@ -351,21 +453,51 @@ const AdminProducts = () => {
       packs_per_master_carton: parseInt(formData.packs_per_master_carton) || null,
       gst_percentage: parseInt(formData.gst_percentage) || 0,
       uom: formData.uom || "Kg",
+      settlement_unit: formData.settlement_unit || "KG",
       private_label_moq: parseInt(formData.private_label_moq) || null,
       private_label_price: parseFloat(formData.private_label_price) || null,
       nutrition_facts: formData.nutrition_facts || null,
+      allergen_warnings: formData.allergen_warnings || null,
+      ingredients: formData.ingredients || null,
     };
 
     try {
+      let productId = editingProduct?.id;
+
       if (editingProduct) {
         const { error } = await (supabase as any).from("products").update(payload).eq("id", editingProduct.id);
         if (error) throw error;
-        toast.success("Product updated successfully");
       } else {
-        const { error } = await (supabase as any).from("products").insert([payload]);
+        const { data: newProd, error } = await (supabase as any).from("products").insert([payload]).select("id").single();
         if (error) throw error;
-        toast.success("New product added to catalog!");
+        productId = newProd.id;
       }
+
+      // Save BOM if applicable
+      if (productId && formData.has_bom) {
+        // Delete existing BOM
+        await supabase.from("product_bom").delete().eq("product_id", productId);
+        // Insert new components
+        if (bomComponents.length > 0) {
+          const bomRows = bomComponents
+            .filter((c) => c.component_name.trim())
+            .map((c) => ({
+              product_id: productId!,
+              component_product_id: c.component_product_id || null,
+              component_name: c.component_name,
+              quantity_per_unit: c.quantity_per_unit,
+              source_department: c.source_department || null,
+            }));
+          if (bomRows.length > 0) {
+            await supabase.from("product_bom").insert(bomRows);
+          }
+        }
+      } else if (productId && !formData.has_bom) {
+        // Clear BOM if toggled off
+        await supabase.from("product_bom").delete().eq("product_id", productId);
+      }
+
+      toast.success(editingProduct ? "Product updated successfully" : "New product added to catalog!");
       closePanel();
       fetchProducts();
     } catch (err: any) {
@@ -396,19 +528,18 @@ const AdminProducts = () => {
 
     let b2bPerPc = 0;
 
-    // Cross-calculate MRP if one field is missing but piece weight is known
     if (wtPc > 0) {
       if (uom === "Kg") {
         if (mrpPerPc > 0 && mrpPerUom === 0) mrpPerUom = (mrpPerPc / wtPc) * 1000;
         if (mrpPerUom > 0 && mrpPerPc === 0) mrpPerPc = (mrpPerUom / 1000) * wtPc;
-        b2bPerPc = (b2bPerUom / 1000) * wtPc; // The 14.875 calculation
+        b2bPerPc = (b2bPerUom / 1000) * wtPc;
       } else if (uom === "Pack" || uom === "Box") {
         const pcsPerPack = wtPack > 0 ? wtPack / wtPc : 1;
         if (mrpPerPc > 0 && mrpPerUom === 0) mrpPerUom = mrpPerPc * pcsPerPack;
         if (mrpPerUom > 0 && mrpPerPc === 0) mrpPerPc = mrpPerUom / pcsPerPack;
         b2bPerPc = b2bPerUom / pcsPerPack;
       } else if (uom === "Piece") {
-        mrpPerPc = mrpPerUom; // They are essentially the same field here
+        mrpPerPc = mrpPerUom;
         b2bPerPc = b2bPerUom;
       }
     }
@@ -419,15 +550,16 @@ const AdminProducts = () => {
       bulkPerUom: mrpPerUom > 0 ? (mrpPerUom * 0.8).toFixed(2) : "—",
       wholesalePerUom: mrpPerUom > 0 ? (mrpPerUom * 0.7).toFixed(2) : "—",
       b2bPerUom: b2bPerUom > 0 ? b2bPerUom.toFixed(2) : "0.00",
-
       mrpPerPc: mrpPerPc > 0 ? mrpPerPc.toFixed(2) : "—",
       bulkPerPc: mrpPerPc > 0 ? (mrpPerPc * 0.8).toFixed(2) : "—",
       wholesalePerPc: mrpPerPc > 0 ? (mrpPerPc * 0.7).toFixed(2) : "—",
-      b2bPerPc: b2bPerPc > 0 ? b2bPerPc.toFixed(3) : "—", // 3 decimals for precision (e.g. 14.875)
+      b2bPerPc: b2bPerPc > 0 ? b2bPerPc.toFixed(3) : "—",
     };
   };
 
   const eco = calculateEconomics();
+
+  const isBomCategory = formData.category === "Gifts & Hampers" || formData.category === "Premium Gift Packs";
 
   if (loading)
     return (
@@ -528,6 +660,11 @@ const AdminProducts = () => {
                       Hidden
                     </span>
                   )}
+                  {product.production_department && (
+                    <span className="absolute top-2 left-2 bg-primary/90 text-primary-foreground text-[9px] font-bold px-2 py-0.5 rounded">
+                      {product.production_department}
+                    </span>
+                  )}
                 </div>
                 <div className="p-4 space-y-3">
                   <div className="flex justify-between items-start gap-2">
@@ -541,7 +678,7 @@ const AdminProducts = () => {
                   <div className="space-y-0.5">
                     <p className="text-xs text-muted-foreground font-mono">SKU: {product.sku || "N/A"}</p>
                     <p className="text-xs text-muted-foreground">Carton: {product.carton_type || "N/A"}</p>
-                    <p className="text-xs text-muted-foreground">MOQ: {product.moq || 1} packs</p>
+                    <p className="text-xs text-muted-foreground">MOQ: {product.moq || 1} packs • {product.settlement_unit || "KG"}</p>
                   </div>
                   <div className="flex items-center gap-1.5 pt-2 border-t border-border/50">
                     <button
@@ -599,10 +736,10 @@ const AdminProducts = () => {
               </div>
 
               <div className="flex-1 overflow-y-auto p-6 space-y-8">
-                {/* 1. IDENTITY & VISUALS */}
+                {/* 1. IDENTITY & VISUALS + DEPARTMENTAL LOCK */}
                 <section className="space-y-4">
                   <h3 className="text-xs font-bold text-muted-foreground uppercase tracking-widest border-b border-border pb-2 flex items-center gap-2">
-                    <ImageIcon size={14} className="text-[#C5A059]" /> 1. Identity & Visuals
+                    <ImageIcon size={14} className="text-[#C5A059]" /> 1. Identity & Department Lock
                   </h3>
 
                   <div className="mt-2 flex items-center gap-4">
@@ -693,24 +830,28 @@ const AdminProducts = () => {
                         className="w-full bg-background border border-border rounded-lg p-2.5 text-sm outline-none focus:ring-1 focus:ring-[#C5A059]"
                       />
                     </div>
+
+                    {/* PILLAR 1: TARGET DEPARTMENT (Mandatory) */}
                     <div>
-                      <label className="block text-[10px] font-semibold text-muted-foreground uppercase tracking-wide mb-1.5">
-                        Production Allocation
+                      <label className="block text-[10px] font-bold text-destructive uppercase tracking-wide mb-1.5 flex items-center gap-1">
+                        Target Department * <Info size={10} />
                       </label>
                       <select
-                        name="department"
-                        value={formData.department}
+                        name="production_department"
+                        value={formData.production_department}
                         onChange={handleInputChange}
-                        className="w-full bg-background border border-border rounded-lg p-2.5 text-sm outline-none focus:ring-1 focus:ring-[#C5A059]"
+                        className="w-full bg-destructive/5 border border-destructive/30 rounded-lg p-2.5 text-sm font-semibold outline-none focus:ring-1 focus:ring-destructive"
                       >
-                        <option value="">— Select Department —</option>
-                        {DEPARTMENTS.map((dept) => (
+                        <option value="">— MUST SELECT —</option>
+                        {TARGET_DEPARTMENTS.map((dept) => (
                           <option key={dept} value={dept}>
                             {dept}
                           </option>
                         ))}
                       </select>
+                      <p className="text-[9px] text-muted-foreground mt-1">Routes orders to the correct Factory TV & RGS queue.</p>
                     </div>
+
                     <div className="col-span-2">
                       <div className="flex justify-between items-end mb-1.5">
                         <label className="block text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">
@@ -740,13 +881,89 @@ const AdminProducts = () => {
                   </div>
                 </section>
 
-                {/* 2. COMMERCIALS & LOGISTICS (Unit Economics Calculator) */}
+                {/* PILLAR 2: BOM BLAST ENGINE (conditional) */}
+                {isBomCategory && (
+                  <section className="space-y-4">
+                    <h3 className="text-xs font-bold text-muted-foreground uppercase tracking-widest border-b border-border pb-2 flex items-center gap-2">
+                      <Layers size={14} className="text-purple-500" /> Bill of Materials (BOM)
+                    </h3>
+                    <div className="flex items-center gap-3 mb-2">
+                      <label className="text-xs font-semibold text-foreground">Enable BOM Blast</label>
+                      <button
+                        type="button"
+                        onClick={() => setFormData((prev: any) => ({ ...prev, has_bom: !prev.has_bom }))}
+                        className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${formData.has_bom ? "bg-purple-500" : "bg-muted"}`}
+                      >
+                        <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${formData.has_bom ? "translate-x-6" : "translate-x-1"}`} />
+                      </button>
+                      <span className="text-[9px] text-muted-foreground">When ordered, components route to their departments</span>
+                    </div>
+
+                    {formData.has_bom && (
+                      <div className="space-y-3">
+                        {bomComponents.map((comp, idx) => (
+                          <div key={idx} className="grid grid-cols-12 gap-2 items-end bg-muted/20 p-3 rounded-lg border border-border">
+                            <div className="col-span-5">
+                              <label className="block text-[9px] font-semibold text-muted-foreground uppercase mb-1">Component Name</label>
+                              <input
+                                value={comp.component_name}
+                                onChange={(e) => updateBomComponent(idx, "component_name", e.target.value)}
+                                placeholder="e.g. Baklawa Tray"
+                                className="w-full bg-background border border-border rounded-md p-2 text-xs outline-none focus:ring-1 focus:ring-purple-500"
+                              />
+                            </div>
+                            <div className="col-span-2">
+                              <label className="block text-[9px] font-semibold text-muted-foreground uppercase mb-1">Qty/Unit</label>
+                              <input
+                                type="number"
+                                value={comp.quantity_per_unit}
+                                onChange={(e) => updateBomComponent(idx, "quantity_per_unit", parseFloat(e.target.value) || 1)}
+                                className="w-full bg-background border border-border rounded-md p-2 text-xs outline-none focus:ring-1 focus:ring-purple-500"
+                              />
+                            </div>
+                            <div className="col-span-4">
+                              <label className="block text-[9px] font-semibold text-muted-foreground uppercase mb-1">Source Dept</label>
+                              <select
+                                value={comp.source_department}
+                                onChange={(e) => updateBomComponent(idx, "source_department", e.target.value)}
+                                className="w-full bg-background border border-border rounded-md p-2 text-xs outline-none focus:ring-1 focus:ring-purple-500"
+                              >
+                                <option value="">—</option>
+                                {TARGET_DEPARTMENTS.map((d) => (
+                                  <option key={d} value={d}>{d}</option>
+                                ))}
+                              </select>
+                            </div>
+                            <div className="col-span-1 flex justify-center">
+                              <button
+                                type="button"
+                                onClick={() => removeBomComponent(idx)}
+                                className="p-1.5 rounded-md hover:bg-destructive/10 text-destructive"
+                              >
+                                <Trash2 size={14} />
+                              </button>
+                            </div>
+                          </div>
+                        ))}
+                        <button
+                          type="button"
+                          onClick={addBomComponent}
+                          className="flex items-center gap-2 text-xs font-bold text-purple-500 hover:text-purple-600 py-2"
+                        >
+                          <Plus size={14} /> Add Component
+                        </button>
+                      </div>
+                    )}
+                  </section>
+                )}
+
+                {/* 2. COMMERCIALS & LOGISTICS + PILLAR 3: SETTLEMENT UNIT */}
                 <section className="space-y-4">
                   <h3 className="text-xs font-bold text-muted-foreground uppercase tracking-widest border-b border-border pb-2 flex items-center gap-2">
                     <Calculator size={14} className="text-[#C5A059]" /> 2. Commercials & Logistics
                   </h3>
                   <div className="grid grid-cols-4 gap-4">
-                    <div className="col-span-2">
+                    <div>
                       <label className="block text-[10px] font-semibold text-muted-foreground uppercase mb-1.5">
                         Unit of Measure (UOM)
                       </label>
@@ -762,6 +979,26 @@ const AdminProducts = () => {
                         <option value="Box">Box</option>
                       </select>
                     </div>
+
+                    {/* PILLAR 3: SETTLEMENT UNIT */}
+                    <div>
+                      <label className="block text-[10px] font-bold text-blue-600 uppercase mb-1.5 flex items-center gap-1">
+                        Settlement Unit <Info size={10} />
+                      </label>
+                      <select
+                        name="settlement_unit"
+                        value={formData.settlement_unit}
+                        onChange={handleInputChange}
+                        className="w-full bg-blue-50 dark:bg-blue-950/20 border border-blue-300 dark:border-blue-800 rounded-lg p-2.5 text-sm font-semibold outline-none focus:ring-1 focus:ring-blue-500"
+                      >
+                        <option value="KG">Weight (KG)</option>
+                        <option value="PCS">Count (PCS)</option>
+                      </select>
+                      <p className="text-[9px] text-muted-foreground mt-1">
+                        {formData.settlement_unit === "PCS" ? "Dispatch & Finance use unit counting." : "Dispatch & Finance use decimal weight."}
+                      </p>
+                    </div>
+
                     <div className="col-span-2">
                       <label className="block text-[10px] font-bold text-[#C5A059] uppercase mb-1.5 flex items-center gap-1">
                         MOQ (No. of Packs) <Info size={12} />
@@ -860,7 +1097,18 @@ const AdminProducts = () => {
                       />
                     </div>
 
-                    <div className="col-span-4">
+                    <div className="col-span-2">
+                      <label className="block text-[10px] font-semibold text-muted-foreground uppercase mb-1.5">
+                        HSN Code
+                      </label>
+                      <input
+                        name="hsn_code"
+                        value={formData.hsn_code}
+                        onChange={handleInputChange}
+                        className="w-full bg-background border border-border rounded-lg p-2.5 text-sm outline-none focus:ring-1 focus:ring-[#C5A059]"
+                      />
+                    </div>
+                    <div className="col-span-2">
                       <label className="block text-[10px] font-semibold text-muted-foreground uppercase mb-1.5">
                         GST Rate (%)
                       </label>
@@ -879,14 +1127,12 @@ const AdminProducts = () => {
                     </div>
                   </div>
 
-                  {/* UPDATED: Dynamic Unit Economics Summary (Pc vs UOM) */}
+                  {/* Dynamic Unit Economics Summary */}
                   {(Number(formData.mrp) > 0 || Number(formData.mrp_per_pc) > 0) && (
                     <div className="bg-[#C5A059]/5 border border-[#C5A059]/20 rounded-xl p-5 mt-4">
                       <p className="text-[10px] font-bold text-[#C5A059] uppercase tracking-widest mb-4 flex items-center gap-1">
                         <Calculator size={12} /> Live Unit Economics (Piece vs {eco.uom})
                       </p>
-
-                      {/* Per UOM Row */}
                       <div className="grid grid-cols-4 gap-3 border-b border-[#C5A059]/20 pb-3 mb-3">
                         <div>
                           <p className="text-[10px] text-muted-foreground uppercase">MRP / {eco.uom}</p>
@@ -905,8 +1151,6 @@ const AdminProducts = () => {
                           <p className="text-sm font-bold text-[#C5A059]">₹{eco.b2bPerUom}</p>
                         </div>
                       </div>
-
-                      {/* Per Piece Row */}
                       <div className="grid grid-cols-4 gap-3">
                         <div>
                           <p className="text-[10px] text-muted-foreground uppercase">MRP / Piece</p>
@@ -966,11 +1210,27 @@ const AdminProducts = () => {
                   </section>
                 )}
 
-                {/* 4. FOOD COMPLIANCE */}
+                {/* 4. FOOD COMPLIANCE + PILLAR 4: AI ATTRIBUTE GENERATOR */}
                 <section className="space-y-4">
                   <h3 className="text-xs font-bold text-muted-foreground uppercase tracking-widest border-b border-border pb-2 flex items-center gap-2">
-                    <Leaf size={14} className="text-green-600" /> 4. Food Compliance
+                    <Leaf size={14} className="text-green-600" /> 4. Food Compliance & AI Attributes
                   </h3>
+
+                  {/* AI Generate All Button */}
+                  <button
+                    type="button"
+                    onClick={handleAiFullGenerate}
+                    disabled={isAiLoading === "full" || !formData.name}
+                    className="w-full flex items-center justify-center gap-2 py-3 rounded-xl font-bold text-sm bg-gradient-to-r from-purple-600 to-blue-600 text-white hover:from-purple-700 hover:to-blue-700 transition-all shadow-md disabled:opacity-50 active:scale-[0.98]"
+                  >
+                    {isAiLoading === "full" ? (
+                      <Loader2 size={16} className="animate-spin" />
+                    ) : (
+                      <Zap size={16} />
+                    )}
+                    {isAiLoading === "full" ? "Generating AI Attributes..." : "⚡ Generate AI Details (Nutrition, Allergens, HSN, GST)"}
+                  </button>
+
                   <div className="grid grid-cols-2 gap-4">
                     <div>
                       <label className="block text-[10px] font-semibold text-muted-foreground uppercase mb-1.5">
@@ -1015,24 +1275,41 @@ const AdminProducts = () => {
                         ))}
                       </div>
                     </div>
+
+                    {/* Allergen Warnings */}
                     <div className="col-span-2">
-                      <div className="flex justify-between items-end mb-1.5">
-                        <label className="block text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">
-                          FSSAI Nutrition Panel
-                        </label>
-                        <button
-                          onClick={handleAiNutrition}
-                          disabled={isAiLoading === "nutrition"}
-                          className="text-[10px] font-bold text-green-600 hover:underline flex items-center gap-1"
-                        >
-                          {isAiLoading === "nutrition" ? (
-                            <Loader2 size={10} className="animate-spin" />
-                          ) : (
-                            <Wand2 size={10} />
-                          )}{" "}
-                          Generate Table
-                        </button>
-                      </div>
+                      <label className="block text-[10px] font-semibold text-destructive uppercase mb-1.5 flex items-center gap-1">
+                        ⚠️ Allergen Warnings
+                      </label>
+                      <input
+                        name="allergen_warnings"
+                        value={formData.allergen_warnings}
+                        onChange={handleInputChange}
+                        placeholder="e.g. Contains: Tree Nuts, Milk/Dairy, Wheat/Gluten"
+                        className="w-full bg-destructive/5 border border-destructive/20 rounded-lg p-2.5 text-sm outline-none focus:ring-1 focus:ring-destructive"
+                      />
+                    </div>
+
+                    {/* Ingredients */}
+                    <div className="col-span-2">
+                      <label className="block text-[10px] font-semibold text-muted-foreground uppercase mb-1.5">
+                        Ingredients List
+                      </label>
+                      <textarea
+                        name="ingredients"
+                        rows={2}
+                        value={formData.ingredients}
+                        onChange={handleInputChange}
+                        placeholder="Ingredients in descending order..."
+                        className="w-full bg-background border border-border rounded-lg p-2.5 text-xs outline-none focus:ring-1 focus:ring-[#C5A059] resize-none"
+                      />
+                    </div>
+
+                    {/* Nutrition Panel */}
+                    <div className="col-span-2">
+                      <label className="block text-[10px] font-semibold text-muted-foreground uppercase tracking-wide mb-1.5">
+                        FSSAI Nutrition Panel
+                      </label>
                       <textarea
                         name="nutrition_facts"
                         rows={5}
