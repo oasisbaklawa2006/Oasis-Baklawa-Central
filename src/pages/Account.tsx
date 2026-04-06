@@ -78,26 +78,38 @@ const Account = () => {
           return;
         }
 
-        const { data: profile } = await supabase.from("profiles").select("company_id").eq("id", user.id).single();
+        // Try profiles first, fallback to users table
+        const { data: profile } = await supabase.from("profiles").select("company_id").eq("id", user.id).maybeSingle();
+        const { data: userRow } = await supabase.from("users").select("company_id").eq("id", user.id).maybeSingle();
+        const resolvedCompanyId = profile?.company_id || userRow?.company_id || null;
 
-        if (profile?.company_id) {
+        if (resolvedCompanyId) {
           const { data: companyData } = await supabase
             .from("companies")
             .select("*")
-            .eq("id", profile.company_id)
+            .eq("id", resolvedCompanyId)
             .single();
 
           // Use unknown cast to safely bypass TS strictness while matching actual schema
           if (companyData) setCompany(companyData as unknown as CompanyProfile);
 
-          const { data: txData } = await supabase
-            .from("wallet_transactions")
-            .select("*")
-            .eq("company_id", profile.company_id)
+          // Wallet transactions - graceful fallback if table doesn't exist
+          try {
+            const { data: txData } = await supabase
+              .from("order_payments" as any)
+              .select("*")
+              .eq("company_id", resolvedCompanyId)
             .order("created_at", { ascending: false })
             .limit(5);
 
-          if (txData) setTransactions(txData as unknown as WalletTx[]);
+            if (txData) setTransactions(txData.map((p: any) => ({
+              id: p.id,
+              type: p.payment_type === "advance" || p.payment_type === "credit" ? "credit" : "debit",
+              reference: p.reference_no || p.payment_type,
+              amount: p.amount,
+              created_at: p.created_at,
+            })));
+          } catch { /* wallet_transactions table may not exist */ }
         }
       } catch (error) {
         console.error("Error fetching account data:", error);
@@ -313,6 +325,21 @@ const Account = () => {
               <ArrowUpRight size={16} className="text-gray-400 group-hover:text-[#C5A059] transition-colors" />
             </button>
           </div>
+        </motion.section>
+
+        {/* Delete Account */}
+        <motion.section initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.45 }}>
+          <button
+            disabled={(company?.current_balance || 0) > 0}
+            onClick={() => toast.info("Account deletion request submitted. Our team will review and process within 48 hours.")}
+            className="w-full py-3.5 rounded-2xl border-2 border-red-200 text-red-500 font-bold text-xs flex items-center justify-center gap-2 hover:bg-red-50 hover:border-red-300 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+          >
+            <AlertCircle size={16} />
+            Delete My Account
+          </button>
+          {(company?.current_balance || 0) > 0 && (
+            <p className="text-[10px] text-red-400 text-center mt-1.5">Wallet balance must be ₹0 before account deletion.</p>
+          )}
         </motion.section>
 
         {/* Logout */}

@@ -469,12 +469,7 @@ const Cart = () => {
             </button>
             <h1 className="font-display text-2xl tracking-wide">Sales Order (SO)</h1>
           </div>
-          <button
-            onClick={handlePrintSO}
-            className="flex items-center gap-1.5 bg-muted text-muted-foreground px-3 py-2 rounded-xl text-xs font-bold hover:bg-muted/80 transition-colors"
-          >
-            <Printer size={14} /> Pro-Forma
-          </button>
+          {/* Pro-Forma removed per client request */}
         </div>
 
         {/* MOQ Hard Stop Violations */}
@@ -884,19 +879,19 @@ const Cart = () => {
         </motion.section>
 
         {/* SUMMARY & CHECKOUT BAR */}
-        <motion.section className="bg-[#005F5F] text-white rounded-[2rem] shadow-2xl p-6 relative overflow-hidden print:hidden">
+        <motion.section className="rounded-[2rem] shadow-2xl p-6 relative overflow-hidden print:hidden" style={{ background: "linear-gradient(135deg, #2a2318, #1c1c1c)" }}>
           <div className="relative z-10 space-y-2">
             <div className="flex justify-between items-center text-sm">
-              <span className="text-white/80 font-medium uppercase tracking-wider text-xs">Sub Total (Before Tax)</span>
-              <span className="text-white font-bold">{formatPrice(subtotal)}</span>
+              <span className="text-white/60 font-medium uppercase tracking-wider text-xs">Sub Total (Before Tax)</span>
+              <span className="font-bold" style={{ color: "#c58B07" }}>{formatPrice(subtotal)}</span>
             </div>
-            <div className="flex justify-between items-center text-sm pb-3 border-b border-[#C5A059]/40">
-              <span className="text-white/80 font-medium uppercase tracking-wider text-xs">Total GST</span>
-              <span className="text-white font-bold">{formatPrice(totalTax)}</span>
+            <div className="flex justify-between items-center text-sm pb-3" style={{ borderBottom: "1px solid rgba(197,139,7,0.3)" }}>
+              <span className="text-white/60 font-medium uppercase tracking-wider text-xs">Total GST</span>
+              <span className="font-bold" style={{ color: "#c58B07" }}>{formatPrice(totalTax)}</span>
             </div>
             <div className="flex justify-between items-center pt-2">
               <span className="text-white font-bold uppercase tracking-wider text-xs">Grand Total</span>
-              <span className="font-black text-3xl text-[#D4AF37]">{formatPrice(grandTotal)}</span>
+              <span className="font-black text-3xl" style={{ color: "#c58B07" }}>{formatPrice(grandTotal)}</span>
             </div>
           </div>
           <button

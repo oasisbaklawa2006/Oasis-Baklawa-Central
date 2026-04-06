@@ -13,29 +13,31 @@ const FloatingActions = () => {
           href="tel:+919999792959"
           whileHover={{ scale: 1.04 }}
           whileTap={{ scale: 0.94 }}
-          className="w-9 h-9 rounded-full flex items-center justify-center border border-primary/15"
+          className="flex items-center gap-1.5 px-3 py-2 rounded-full border border-primary/15"
           style={{
             background: "rgba(255,255,255,0.9)",
             backdropFilter: "blur(8px)",
             boxShadow: "0 2px 10px rgba(0,0,0,0.04)",
           }}
-          aria-label="Call Us"
+          aria-label="Request Callback"
         >
-          <Phone size={14} className="text-primary" strokeWidth={1.5} />
+          <Phone size={13} className="text-primary" strokeWidth={1.5} />
+          <span className="text-[8px] font-bold text-primary tracking-wider uppercase">Callback</span>
         </motion.a>
         <motion.button
           whileHover={{ scale: 1.04 }}
           whileTap={{ scale: 0.94 }}
           onClick={() => setShowChat(!showChat)}
-          className="w-9 h-9 rounded-full flex items-center justify-center border border-primary/15"
+          className="flex items-center gap-1.5 px-3 py-2 rounded-full border border-primary/15"
           style={{
             background: "rgba(255,255,255,0.9)",
             backdropFilter: "blur(8px)",
             boxShadow: "0 2px 10px rgba(0,0,0,0.04)",
           }}
-          aria-label="AI Chat"
+          aria-label="Smart AI Chat"
         >
-          <MessageCircle size={14} className="text-primary" strokeWidth={1.5} />
+          <MessageCircle size={13} className="text-primary" strokeWidth={1.5} />
+          <span className="text-[8px] font-bold text-primary tracking-wider uppercase">AI Chat</span>
         </motion.button>
       </div>
       <SupportChat open={showChat} onClose={() => setShowChat(false)} />
