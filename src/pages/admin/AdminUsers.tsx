@@ -311,7 +311,7 @@ const AdminUsers = () => {
               <p style="margin-bottom: 24px; color: #aaa;">Your admin account has been created. Here are your login credentials:</p>
               <div style="background: #2a2a2a; padding: 20px; border-radius: 8px; border-left: 3px solid #C4A052;">
                 <p style="margin: 4px 0;"><strong style="color: #C4A052;">Email:</strong> ${nf.email.trim()}</p>
-                <p style="margin: 4px 0;"><strong style="color: #C4A052;">Temporary Password:</strong> ${tempPassword}</p>
+                <p style="margin: 4px 0;"><strong style="color: #C4A052;">Password:</strong> ${chosenPassword}</p>
                 <p style="margin: 4px 0;"><strong style="color: #C4A052;">Role:</strong> ${nf.role.replace(/_/g, " ").toUpperCase()}</p>
               </div>
               <p style="margin-top: 20px; font-size: 13px; color: #888;">Please change your password after your first login. This is a secure, auto-generated credential.</p>
