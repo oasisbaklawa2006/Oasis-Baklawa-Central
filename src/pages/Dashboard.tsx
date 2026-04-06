@@ -154,6 +154,7 @@ const Dashboard = () => {
 
   const totalBusiness = orders.reduce((sum, o) => sum + (o.sales_order_value || 0), 0);
   const activeOrders = orders.filter((o) => o.status !== "delivered" && o.status !== "cancelled");
+  const hasAwaitingAdvance = activeOrders.some((o) => o.payment_status === "awaiting_advance" || o.payment_status === "awaiting_receipt");
   const latestOrder = activeOrders[0];
 
   const getTimelineStep = (order: any) => {
@@ -162,6 +163,9 @@ const Dashboard = () => {
     if (order.status === "in_production" || order.status === "packed_ready") return 2;
     return 1;
   };
+
+  const needsAdvanceUpload = (order: any) =>
+    order.payment_status === "awaiting_advance" || order.payment_status === "awaiting_receipt";
 
   const QUICK_TOOLS = [
     { icon: Package, label: t("dash.productCatalogue"), path: "/catalogue" },
@@ -205,15 +209,18 @@ const Dashboard = () => {
                   {formatPrice(totalBusiness || 0)}
                 </p>
               </div>
-              {/* Total Orders */}
-              <div className="bg-card p-6 rounded-2xl border-2 border-[#c58B07]/25 hover:border-[#c58B07]/50 transition-colors shadow-sm">
-                <Package size={14} style={{ color: GOLD }} className="mb-3" />
+              {/* Active Orders */}
+              <div className={`bg-card p-6 rounded-2xl border-2 transition-colors shadow-sm ${hasAwaitingAdvance ? "border-orange-400 animate-pulse" : "border-[#c58B07]/25 hover:border-[#c58B07]/50"}`}>
+                <Package size={14} style={{ color: hasAwaitingAdvance ? "#f97316" : GOLD }} className="mb-3" />
                 <p className="text-[10px] text-muted-foreground font-semibold uppercase tracking-[0.15em] mb-1">
                   {t("dash.totalOrders")}
                 </p>
                 <p className="font-bold text-2xl lg:text-3xl text-foreground">
-                  {orders.length || 0} <span className="text-sm text-muted-foreground">{t("dash.batches")}</span>
+                  {activeOrders.length || 0} <span className="text-sm text-muted-foreground">Active</span>
                 </p>
+                {hasAwaitingAdvance && (
+                  <span className="text-[10px] font-bold text-orange-500 mt-1 block">⚠ Advance Pending</span>
+                )}
               </div>
               {/* Wallet Balance */}
               <div className="bg-card p-6 rounded-2xl border-2 border-[#c58B07]/25 hover:border-[#c58B07]/50 transition-colors shadow-sm">
@@ -339,7 +346,21 @@ const Dashboard = () => {
                     </div>
                     <div className="flex-1 pt-2">
                       <h4 className="font-bold text-foreground text-base">{t("dash.orderLogged")}</h4>
-                      {latestOrder.payment_status === "awaiting_receipt" ? (
+                      {needsAdvanceUpload(latestOrder) ? (
+                        <div className="mt-4 bg-orange-50 dark:bg-orange-950/30 border border-orange-400/40 rounded-xl p-4">
+                          <p className="text-xs font-bold flex items-center gap-1.5 mb-2 text-orange-600">
+                            <AlertTriangle size={14} /> {t("dash.actionRequired")}
+                          </p>
+                          <p className="text-[11px] text-muted-foreground mb-4 font-medium">{t("dash.advanceTransferMsg")}</p>
+                          <button
+                            onClick={() => setUtrModal({ isOpen: true, orderId: latestOrder.id, type: "advance" })}
+                            className="w-full py-3 text-white rounded-xl text-sm font-bold shadow-lg flex justify-center items-center gap-2 transition-colors animate-pulse"
+                            style={{ backgroundColor: "#f97316" }}
+                          >
+                            <UploadCloud size={16} /> Upload Advance Receipt Now
+                          </button>
+                        </div>
+                      ) : latestOrder.payment_status === "awaiting_receipt" ? (
                         <div className="mt-4 bg-muted border border-[#c58B07]/20 rounded-xl p-4">
                           <p className="text-xs font-bold flex items-center gap-1.5 mb-2" style={{ color: GOLD }}>
                             <AlertTriangle size={14} /> {t("dash.actionRequired")}
