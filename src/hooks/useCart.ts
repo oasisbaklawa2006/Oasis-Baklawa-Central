@@ -39,6 +39,7 @@ export function useCart() {
   const pendingQuantitiesRef = useRef(new Map<string, number>());
   const quantitySyncTimeoutsRef = useRef(new Map<string, ReturnType<typeof setTimeout>>());
   const syncingItemIdsRef = useRef(new Set<string>());
+  const draftCreationPromiseRef = useRef<Promise<string | null> | null>(null);
 
   // Resolve effective company_id (impersonation takes precedence)
   const effectiveCompanyId = (() => {
