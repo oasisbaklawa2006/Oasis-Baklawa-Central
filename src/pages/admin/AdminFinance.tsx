@@ -1372,10 +1372,39 @@ const AdminFinance = () => {
                       </div>
                     </div>
                     {dplData.dplValue < dplData.soValue && (
-                      <p className="text-xs text-emerald-700 font-bold mt-2 text-center">💰 Wallet credit of {formatPrice((dplData.soValue - dplData.dplValue) * 1.18)} will be applied</p>
+                      <div className="mt-3 space-y-2">
+                        <p className="text-xs text-emerald-700 font-bold text-center">💰 Wallet credit of {formatPrice((dplData.soValue - dplData.dplValue) * 1.18)} will be applied</p>
+                        <button
+                          onClick={async () => {
+                            const creditAmt = (dplData.soValue - dplData.dplValue) * 1.18;
+                            if (!docOrder?.company_id) { toast.error("No company linked"); return; }
+                            const { data: co } = await supabase.from("companies").select("wallet_balance").eq("id", docOrder.company_id).single();
+                            const newBal = (co?.wallet_balance || 0) + creditAmt;
+                            await supabase.from("companies").update({ wallet_balance: newBal }).eq("id", docOrder.company_id);
+                            await supabase.from("audit_logs").insert([{
+                              action_type: "DPL_WALLET_CREDIT",
+                              module_name: "Finance",
+                              entity_name: "companies",
+                              entity_id: docOrder.company_id,
+                              actor_id: user?.id || null,
+                              new_value: { credit_amount: creditAmt, new_balance: newBal, order_id: docOrder.id, so_value: dplData.soValue, dpl_value: dplData.dplValue } as any,
+                              risk_level: "high",
+                            }]);
+                            toast.success(`✅ ₹${creditAmt.toLocaleString("en-IN")} credited to client wallet`);
+                          }}
+                          className="w-full py-2.5 bg-emerald-600 text-white rounded-xl text-xs font-bold hover:bg-emerald-700 flex items-center justify-center gap-2"
+                        >
+                          <Wallet size={14} /> Credit ₹{((dplData.soValue - dplData.dplValue) * 1.18).toLocaleString("en-IN")} to Wallet
+                        </button>
+                      </div>
                     )}
                     {dplData.dplValue > dplData.soValue && (
-                      <p className="text-xs text-red-700 font-bold mt-2 text-center">⚠️ Balance due of {formatPrice((dplData.dplValue - dplData.soValue) * 1.18)} flagged</p>
+                      <div className="mt-3 space-y-2">
+                        <p className="text-xs text-red-700 font-bold text-center">⚠️ Balance due of {formatPrice((dplData.dplValue - dplData.soValue) * 1.18)} flagged</p>
+                        <div className="bg-red-100 border border-red-300 rounded-xl p-2 text-center">
+                          <p className="text-[11px] text-red-800 font-bold">Outstanding updated: ₹{((dplData.dplValue - dplData.soValue) * 1.18).toLocaleString("en-IN")} balance payment requested</p>
+                        </div>
+                      </div>
                     )}
                   </div>
                 )}
