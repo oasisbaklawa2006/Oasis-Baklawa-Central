@@ -1,4 +1,3 @@
-import { useEffect, useState } from "react";
 import { Navigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { Loader2 } from "lucide-react";
@@ -51,16 +50,5 @@ export default function RoleProtectedRoute({ allowedRoles, children }: Props) {
     return <Navigate to={getRoleDestination(normalizedRole)} replace />;
   }
 
-  return <>{children}</>;
-
-  if (status === "loading") {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
-        <Loader2 size={24} className="animate-spin text-primary" />
-      </div>
-    );
-  }
-
-  if (status === "denied") return <Navigate to={redirectTo} replace />;
   return <>{children}</>;
 }
