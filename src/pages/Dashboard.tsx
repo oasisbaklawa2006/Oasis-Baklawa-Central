@@ -209,15 +209,18 @@ const Dashboard = () => {
                   {formatPrice(totalBusiness || 0)}
                 </p>
               </div>
-              {/* Total Orders */}
-              <div className="bg-card p-6 rounded-2xl border-2 border-[#c58B07]/25 hover:border-[#c58B07]/50 transition-colors shadow-sm">
-                <Package size={14} style={{ color: GOLD }} className="mb-3" />
+              {/* Active Orders */}
+              <div className={`bg-card p-6 rounded-2xl border-2 transition-colors shadow-sm ${hasAwaitingAdvance ? "border-orange-400 animate-pulse" : "border-[#c58B07]/25 hover:border-[#c58B07]/50"}`}>
+                <Package size={14} style={{ color: hasAwaitingAdvance ? "#f97316" : GOLD }} className="mb-3" />
                 <p className="text-[10px] text-muted-foreground font-semibold uppercase tracking-[0.15em] mb-1">
                   {t("dash.totalOrders")}
                 </p>
                 <p className="font-bold text-2xl lg:text-3xl text-foreground">
-                  {orders.length || 0} <span className="text-sm text-muted-foreground">{t("dash.batches")}</span>
+                  {activeOrders.length || 0} <span className="text-sm text-muted-foreground">Active</span>
                 </p>
+                {hasAwaitingAdvance && (
+                  <span className="text-[10px] font-bold text-orange-500 mt-1 block">⚠ Advance Pending</span>
+                )}
               </div>
               {/* Wallet Balance */}
               <div className="bg-card p-6 rounded-2xl border-2 border-[#c58B07]/25 hover:border-[#c58B07]/50 transition-colors shadow-sm">
