@@ -783,10 +783,16 @@ const AdminFinance = () => {
     }
     setActing(docOrder.id);
     try {
+      const parsedTally = parseFloat(tallyAmount);
+      if (isNaN(parsedTally) || parsedTally <= 0) {
+        toast.error("⛔ Tally amount must be greater than ₹0.");
+        setActing(null);
+        return;
+      }
       await supabase
         .from("orders")
         .update({
-          sales_order_value: parseFloat(tallyAmount),
+          sales_order_value: parsedTally,
           status: "awaiting_final_payment",
         })
         .eq("id", docOrder.id);
