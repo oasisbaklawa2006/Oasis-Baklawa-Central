@@ -147,6 +147,7 @@ const AdminUsers = () => {
     dept: "",
     designation: "",
     role: "",
+    password: "",
     status: "invited" as string,
   });
   const [selectedPermIds, setSelectedPermIds] = useState<string[]>([]);
