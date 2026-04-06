@@ -1,8 +1,9 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { Navigate, useLocation } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { Loader2 } from "lucide-react";
-import { getRoleDestination, normalizeRole, isStaffRole, isPathWithinRoleDestination } from "@/lib/auth-routing";
+import { getRoleDestination, normalizeRole, isStaffRole, isPathWithinRoleDestination, fetchAuthRoleRecord } from "@/lib/auth-routing";
+import { supabase } from "@/integrations/supabase/client";
 
 interface Props {
   allowedRoles: (string | null)[];
@@ -13,6 +14,8 @@ export default function RoleProtectedRoute({ allowedRoles, children }: Props) {
   const location = useLocation();
   const { user, loading: authLoading, role, profileReady } = useAuth();
   const [allowSpinnerFallback, setAllowSpinnerFallback] = useState(false);
+  const [serverVerified, setServerVerified] = useState(false);
+  const verifiedForRef = useRef<string | null>(null);
   const normalizedRole = normalizeRole(role);
 
   useEffect(() => {
@@ -30,6 +33,31 @@ export default function RoleProtectedRoute({ allowedRoles, children }: Props) {
       window.clearTimeout(timeoutId);
     };
   }, [authLoading, normalizedRole, profileReady, user, location.pathname]);
+
+  // Server-side role verification — runs once per user session
+  useEffect(() => {
+    if (!user || !normalizedRole) return;
+    if (verifiedForRef.current === user.id) return;
+
+    verifiedForRef.current = user.id;
+    (async () => {
+      try {
+        const record = await fetchAuthRoleRecord(user.id);
+        const serverRole = normalizeRole(record.role);
+
+        if (!serverRole || serverRole !== normalizedRole) {
+          console.warn("[RoleProtectedRoute] Server role mismatch — forcing logout");
+          await supabase.auth.signOut();
+          window.location.replace("/login");
+          return;
+        }
+        setServerVerified(true);
+      } catch {
+        // Network error — allow cached role to proceed
+        setServerVerified(true);
+      }
+    })();
+  }, [user, normalizedRole]);
 
   // Still loading auth session
   if (authLoading && !allowSpinnerFallback) {
