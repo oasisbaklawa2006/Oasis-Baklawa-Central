@@ -256,19 +256,7 @@ export function useAuth() {
     });
   }, [fetchProfile, loading, user]);
 
-  useEffect(() => {
-    if (loading || !user || !profileReady) return;
-
-    if (!isPendingRole(role)) {
-      forcedPendingRefreshForRef.current = null;
-      return;
-    }
-
-    if (forcedPendingRefreshForRef.current === user.id) return;
-    forcedPendingRefreshForRef.current = user.id;
-
-    void refreshProfile();
-  }, [loading, profileReady, refreshProfile, role, user]);
+  // Removed: pending-role auto-refresh was causing infinite redirect storms
 
   return {
     user,
