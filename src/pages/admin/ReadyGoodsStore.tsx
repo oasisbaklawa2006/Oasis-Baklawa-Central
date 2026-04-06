@@ -69,6 +69,7 @@ export default function ReadyGoodsStore() {
   const [prodDept, setProdDept] = useState("Arabic Sweets");
   const [prodNotes, setProdNotes] = useState("");
   const [prodOrderItemId, setProdOrderItemId] = useState("");
+  const [prodOrderQty, setProdOrderQty] = useState("");
 
   // Labels
   const [labelProduct, setLabelProduct] = useState("");
