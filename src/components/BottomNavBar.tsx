@@ -24,11 +24,11 @@ const BottomNavBar = () => {
       style={{
         height: "60px",
         paddingBottom: "env(safe-area-inset-bottom, 0px)",
-        background: "rgba(255,255,255,0.88)",
-        backdropFilter: "blur(14px) saturate(150%)",
-        WebkitBackdropFilter: "blur(14px) saturate(150%)",
-        boxShadow: "0 -1px 12px rgba(0,0,0,0.04)",
-        borderTop: "1px solid rgba(198,168,125,0.1)",
+        background: "rgba(255,255,255,0.72)",
+        backdropFilter: "blur(18px) saturate(180%)",
+        WebkitBackdropFilter: "blur(18px) saturate(180%)",
+        boxShadow: "0 -1px 12px rgba(0,0,0,0.03)",
+        borderTop: "1px solid rgba(198,168,125,0.08)",
       }}
     >
       {/* Active indicator */}

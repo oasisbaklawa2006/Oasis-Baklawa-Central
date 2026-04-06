@@ -102,7 +102,14 @@ const Account = () => {
             .order("created_at", { ascending: false })
             .limit(5);
 
-          if (txData) setTransactions(txData as unknown as WalletTx[]);
+            if (txData) setTransactions(txData.map((p: any) => ({
+              id: p.id,
+              type: p.payment_type === "advance" || p.payment_type === "credit" ? "credit" : "debit",
+              reference: p.reference_no || p.payment_type,
+              amount: p.amount,
+              created_at: p.created_at,
+            })));
+          } catch { /* wallet_transactions table may not exist */ }
         }
       } catch (error) {
         console.error("Error fetching account data:", error);
