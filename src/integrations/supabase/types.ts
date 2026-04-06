@@ -1725,6 +1725,51 @@ export type Database = {
         }
         Relationships: []
       }
+      product_bom: {
+        Row: {
+          component_name: string | null
+          component_product_id: string | null
+          created_at: string
+          id: string
+          product_id: string
+          quantity_per_unit: number
+          source_department: string | null
+        }
+        Insert: {
+          component_name?: string | null
+          component_product_id?: string | null
+          created_at?: string
+          id?: string
+          product_id: string
+          quantity_per_unit?: number
+          source_department?: string | null
+        }
+        Update: {
+          component_name?: string | null
+          component_product_id?: string | null
+          created_at?: string
+          id?: string
+          product_id?: string
+          quantity_per_unit?: number
+          source_department?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "product_bom_component_product_id_fkey"
+            columns: ["component_product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "product_bom_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       product_tag_mapping: {
         Row: {
           id: string
@@ -1834,6 +1879,7 @@ export type Database = {
           private_label_moq: number | null
           private_label_price: number | null
           production_department: string | null
+          settlement_unit: string | null
           shelf_life: string | null
           shelf_life_days: number | null
           sku: string
@@ -1889,6 +1935,7 @@ export type Database = {
           private_label_moq?: number | null
           private_label_price?: number | null
           production_department?: string | null
+          settlement_unit?: string | null
           shelf_life?: string | null
           shelf_life_days?: number | null
           sku: string
@@ -1944,6 +1991,7 @@ export type Database = {
           private_label_moq?: number | null
           private_label_price?: number | null
           production_department?: string | null
+          settlement_unit?: string | null
           shelf_life?: string | null
           shelf_life_days?: number | null
           sku?: string
