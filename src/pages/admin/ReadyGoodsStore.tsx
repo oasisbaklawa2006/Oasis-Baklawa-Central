@@ -268,6 +268,7 @@ export default function ReadyGoodsStore() {
 
   const submitProductionOrder = async () => {
     if (!prodOrderItemId.trim()) { toast.error("Enter an Order/Item ID"); return; }
+    if (!prodOrderQty || parseInt(prodOrderQty) <= 0) { toast.error("Enter a valid requested quantity"); return; }
     setActing("prod_order");
     await supabase.from("audit_logs").insert([{
       action_type: "PRODUCTION_ORDER",
@@ -275,11 +276,12 @@ export default function ReadyGoodsStore() {
       entity_name: "order_items",
       entity_id: prodOrderItemId,
       actor_id: user?.id || null,
-      new_value: { type: prodOrderType, department: prodDept, notes: prodNotes } as any,
+      new_value: { type: prodOrderType, department: prodDept, notes: prodNotes, requested_qty: parseInt(prodOrderQty) } as any,
       risk_level: "high",
     }]);
-    toast.success(`🏭 ${prodOrderType === "stock_buildup" ? "Stock Build-Up" : "Live Requirement"} sent to ${prodDept}`);
+    toast.success(`🏭 ${prodOrderType === "stock_buildup" ? "Stock Build-Up" : "Live Requirement"} — ${prodOrderQty} units sent to ${prodDept}`);
     setProdOrderItemId("");
+    setProdOrderQty("");
     setProdNotes("");
     fetchProdOrders();
     setActing(null);
