@@ -6,23 +6,13 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
 
-const PROD_ROLE_ROUTES: Record<string, string> = {
-  PROD_ARABIC_SWEETS: "/tv/arabic-sweets",
-  PROD_CHOCOLATE: "/tv/chocolate",
-  PROD_FUSION: "/tv/fusion",
-  PROD_BAKERY: "/tv/bakery",
-  PROD_NUTS: "/tv/nuts",
-};
+import { getRoleDestination, normalizeRole, isStaffRole } from "@/lib/auth-routing";
 
 function getRouteForRole(role?: string | null) {
-  const normalizedRole = role?.trim().toUpperCase() ?? null;
-
-  if (!normalizedRole || normalizedRole === "PENDING") return null;
-  if (normalizedRole === "ADMIN" || normalizedRole === "SUPER_ADMIN") return "/admin";
-  if (normalizedRole === "CLIENT" || normalizedRole === "BUYER" || normalizedRole === "CUSTOMER_USER") return "/home";
-  if (normalizedRole === "SALES_EXECUTIVE") return "/sales/dashboard";
-
-  return PROD_ROLE_ROUTES[normalizedRole] ?? null;
+  const n = normalizeRole(role);
+  if (!n || n === "PENDING") return null;
+  // Any non-pending role has a destination
+  return getRoleDestination(n);
 }
 
 export default function ApprovalPending() {

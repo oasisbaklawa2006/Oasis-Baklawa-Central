@@ -75,7 +75,7 @@ const OnboardingOverlay = () => {
     check();
   }, [user]);
 
-  const isEmployee = role && !["customer_user", "buyer"].includes(role);
+  const isEmployee = role && !["customer_user", "buyer", "b2b_buyer", "special_buyer", "horeca_buyer", "wholesale_buyer", "bulk_buyer", "client"].includes(role);
   const steps = isEmployee ? EMPLOYEE_STEPS : CUSTOMER_STEPS;
   const isLast = step === steps.length - 1;
 

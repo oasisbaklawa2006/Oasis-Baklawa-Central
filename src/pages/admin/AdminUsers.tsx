@@ -253,6 +253,27 @@ const AdminUsers = () => {
           invite_status: "active",
         })
         .eq("id", newUserId);
+
+      // Staff roles: auto-approve in profiles table
+      const staffRoleSet = new Set([
+        "super_admin", "admin", "finance_head", "finance_exec",
+        "operations_manager", "production_manager",
+        "hod_arabic", "hod_fusion", "hod_chocolate", "hod_bakery", "hod_nuts", "hod_assembly",
+        "store_incharge", "dispatch_manager", "dispatch_incharge", "security_control",
+        "sales_executive", "support_executive",
+      ]);
+      if (staffRoleSet.has(nf.role)) {
+        await supabase
+          .from("profiles")
+          .upsert({
+            id: newUserId,
+            email: nf.email.trim(),
+            full_name: nf.name,
+            role: nf.role,
+            is_approved: true,
+            department: nf.dept || null,
+          } as any, { onConflict: "id" });
+      }
     }
 
     // 3. Map role permissions
