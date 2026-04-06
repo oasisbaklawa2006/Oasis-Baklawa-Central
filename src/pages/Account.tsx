@@ -53,7 +53,7 @@ const settingsMenu = [
   { label: "Terms & Conditions", desc: "Legal and compliance info", icon: ScrollText, path: "/terms" },
 ];
 
-const formatPrice = (n: number) => "₹" + (n || 0).toLocaleString("en-IN");
+const formatAccountPrice = (n: number) => "₹" + (n || 0).toLocaleString("en-IN");
 const formatDate = (dateString: string) =>
   new Date(dateString).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" });
 
