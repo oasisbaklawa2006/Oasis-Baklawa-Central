@@ -215,15 +215,19 @@ const AdminUsers = () => {
       toast.error("Name, Email, and Role are required");
       return;
     }
+    if (!nf.password || nf.password.length < 6) {
+      toast.error("Password is required (minimum 6 characters)");
+      return;
+    }
     setSaving("new");
 
     const roleRecord = roles.find((r) => r.role_key === nf.role);
-    const tempPassword = generateTempPassword();
+    const chosenPassword = nf.password;
 
-    // 1. Create the auth user via Supabase Admin (signUp creates auth entry)
+    // 1. Create the auth user with admin-set password
     const { data: authData, error: authError } = await supabase.auth.signUp({
       email: nf.email.trim(),
-      password: tempPassword,
+      password: chosenPassword,
       options: {
         data: {
           full_name: nf.name,
