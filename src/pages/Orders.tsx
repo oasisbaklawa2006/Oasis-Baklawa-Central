@@ -244,13 +244,13 @@ const Orders = () => {
                   className={`bg-white rounded-2xl border ${needsReceipt ? "border-amber-300 shadow-amber-100" : "border-slate-200"} p-5 shadow-sm hover:shadow-md transition-shadow relative cursor-pointer`}
                   onClick={() => navigate(`/orders/${order.id}`)}
                 >
-                  {/* Top-right Reorder shortcut */}
+                  {/* Top-right Track Status shortcut */}
                   <button
-                    onClick={() => setReorderOrder(order)}
-                    className="absolute top-3 right-3 p-2 rounded-lg bg-primary/10 text-primary hover:bg-primary/20 transition-colors"
-                    title="Smart Reorder"
+                    onClick={(e) => { e.stopPropagation(); navigate(`/orders/${order.id}`); }}
+                    className="absolute top-3 right-3 px-2.5 py-1.5 rounded-lg bg-primary/10 text-primary hover:bg-primary/20 transition-colors text-[10px] font-bold uppercase tracking-wider flex items-center gap-1"
+                    title="Track Status"
                   >
-                    <RotateCcw size={16} />
+                    <Truck size={12} /> Track
                   </button>
 
                   <div className="flex flex-col md:flex-row gap-5 items-start md:items-center pr-10">
