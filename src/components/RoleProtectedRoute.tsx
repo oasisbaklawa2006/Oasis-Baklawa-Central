@@ -10,12 +10,13 @@ interface Props {
 }
 
 export default function RoleProtectedRoute({ allowedRoles, children }: Props) {
-  const { user, loading: authLoading, role, profileReady } = useAuth();
+  const { user, loading: authLoading, role } = useAuth();
   const [status, setStatus] = useState<"loading" | "allowed" | "denied">("loading");
   const [redirectTo, setRedirectTo] = useState("/");
 
   useEffect(() => {
-    if (authLoading || !profileReady) return;
+    // Only block on auth loading — do NOT block on profileReady
+    if (authLoading) return;
 
     // Not logged in → login
     if (!user) {
@@ -26,8 +27,14 @@ export default function RoleProtectedRoute({ allowedRoles, children }: Props) {
 
     const normalizedRole = normalizeRole(role);
 
-    // No role → approval pending
-    if (!normalizedRole) {
+    // Role not yet fetched from DB — wait silently (single tick)
+    if (normalizedRole === null && role === null) {
+      // role is still being fetched; stay in loading but do NOT flicker
+      return;
+    }
+
+    // Pending or truly null role → approval pending
+    if (!normalizedRole || normalizedRole === "PENDING") {
       setRedirectTo("/approval-pending");
       setStatus("denied");
       return;
@@ -42,11 +49,10 @@ export default function RoleProtectedRoute({ allowedRoles, children }: Props) {
     if (isAllowed) {
       setStatus("allowed");
     } else {
-      // Redirect to their designated route
       setRedirectTo(getRoleDestination(normalizedRole));
       setStatus("denied");
     }
-  }, [user, authLoading, allowedRoles, role, profileReady]);
+  }, [user, authLoading, allowedRoles, role]);
 
   if (status === "loading") {
     return (

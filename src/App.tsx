@@ -92,21 +92,27 @@ const AuthSpinner = () => (
 );
 
 const RootGate = () => {
-  const { user, loading: authLoading, role, profileReady } = useAuth();
+  const { user, loading: authLoading, role } = useAuth();
 
-  if (authLoading || (user && !profileReady)) {
+  if (authLoading) {
     return <AuthSpinner />;
   }
 
   if (!user) return <Navigate to="/splash" replace />;
 
-  return <Navigate to={getRoleDestination(role)} replace />;
+  // If role hasn't loaded yet, show spinner briefly
+  const normalizedRole = role?.trim().toUpperCase() ?? null;
+  if (!normalizedRole) {
+    return <AuthSpinner />;
+  }
+
+  return <Navigate to={getRoleDestination(normalizedRole)} replace />;
 };
 
 const StorefrontGate = ({ children }: { children: React.ReactNode }) => {
-  const { user, loading: authLoading, role, profileReady, companyId } = useAuth();
+  const { user, loading: authLoading, role, companyId } = useAuth();
 
-  if (authLoading || (user && !profileReady)) {
+  if (authLoading) {
     return <AuthSpinner />;
   }
 
