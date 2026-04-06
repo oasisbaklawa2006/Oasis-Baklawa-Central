@@ -39,6 +39,7 @@ export function useCart() {
   const pendingQuantitiesRef = useRef(new Map<string, number>());
   const quantitySyncTimeoutsRef = useRef(new Map<string, ReturnType<typeof setTimeout>>());
   const syncingItemIdsRef = useRef(new Set<string>());
+  const draftCreationPromiseRef = useRef<Promise<string | null> | null>(null);
 
   // Resolve effective company_id (impersonation takes precedence)
   const effectiveCompanyId = (() => {
@@ -103,19 +104,44 @@ export function useCart() {
   const getOrCreateDraftOrder = async (): Promise<string | null> => {
     if (draftOrder) return draftOrder.id;
 
+    // Mutex: if a creation is already in-flight, reuse that promise
+    if (draftCreationPromiseRef.current) return draftCreationPromiseRef.current;
+
     if (!user) { toast.error("Please log in to add items to cart"); return null; }
     if (!effectiveCompanyId) { toast.error("Your account is pending B2B approval."); return null; }
 
-    const { data: newOrder, error } = await supabase
-      .from("orders")
-      .insert({ status: "draft", company_id: effectiveCompanyId })
-      .select()
-      .single();
+    const creationPromise = (async () => {
+      try {
+        // Double-check: maybe another tab/request already created one
+        const { data: existing } = await supabase
+          .from("orders")
+          .select("id")
+          .eq("company_id", effectiveCompanyId)
+          .eq("status", "draft")
+          .limit(1);
 
-    if (error || !newOrder) { toast.error("Could not create cart order"); return null; }
+        if (existing && existing.length > 0) {
+          setDraftOrder({ id: existing[0].id, company_id: effectiveCompanyId, status: "draft" });
+          return existing[0].id;
+        }
 
-    setDraftOrder(newOrder);
-    return newOrder.id;
+        const { data: newOrder, error } = await supabase
+          .from("orders")
+          .insert({ status: "draft", company_id: effectiveCompanyId })
+          .select()
+          .single();
+
+        if (error || !newOrder) { toast.error("Could not create cart order"); return null; }
+
+        setDraftOrder(newOrder);
+        return newOrder.id;
+      } finally {
+        draftCreationPromiseRef.current = null;
+      }
+    })();
+
+    draftCreationPromiseRef.current = creationPromise;
+    return creationPromise;
   };
 
   const addToCart = async (

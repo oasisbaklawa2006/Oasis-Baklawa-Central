@@ -449,6 +449,14 @@ const AdminFinance = () => {
   const handleValidatePayment = async (orderId: string) => {
     setActing(orderId);
     try {
+      // GUARD: Verify order has a value before proceeding
+      const target = orders.find(o => o.id === orderId);
+      if (!target || (target.sales_order_value ?? 0) <= 0) {
+        toast.error("⛔ Cannot release order with ₹0 value. Check order items.");
+        console.error(`[Finance] ABORT: Tried to validate order ${orderId} with ₹0 value.`);
+        setActing(null);
+        return;
+      }
       await supabase
         .from("orders")
         .update({ payment_status: "verified_advance", status: "in_production" })
@@ -490,6 +498,14 @@ const AdminFinance = () => {
         reference_no: financialEntry.utrReference || null,
         created_by: user?.id ?? null,
       });
+      // GUARD: Never touch sales_order_value during payment verification
+      const targetOrder = orders.find(o => o.id === financialEntry.orderId);
+      if (!targetOrder || (targetOrder.sales_order_value ?? 0) <= 0) {
+        toast.error("⛔ Cannot release order with ₹0 value. Aborting.");
+        console.error(`[Finance] ABORT: Tried to release order ${financialEntry.orderId} with ₹0 value.`);
+        setSavingEntry(false);
+        return;
+      }
       await supabase.from("orders").update({
         advance_paid: amount,
         status: "in_production",
@@ -575,6 +591,12 @@ const AdminFinance = () => {
     if (isNaN(days) || days <= 0) { toast.error("Invalid deadline."); return; }
     setSavingShortTerm(true);
     try {
+      // GUARD: Never release a ₹0 order
+      if ((shortTermTarget.sales_order_value ?? 0) <= 0) {
+        toast.error("⛔ Cannot release order with ₹0 value.");
+        setSavingShortTerm(false);
+        return;
+      }
       await supabase.from("orders").update({
         status: "in_production",
         payment_status: "short_term_credit",
@@ -761,10 +783,16 @@ const AdminFinance = () => {
     }
     setActing(docOrder.id);
     try {
+      const parsedTally = parseFloat(tallyAmount);
+      if (isNaN(parsedTally) || parsedTally <= 0) {
+        toast.error("⛔ Tally amount must be greater than ₹0.");
+        setActing(null);
+        return;
+      }
       await supabase
         .from("orders")
         .update({
-          sales_order_value: parseFloat(tallyAmount),
+          sales_order_value: parsedTally,
           status: "awaiting_final_payment",
         })
         .eq("id", docOrder.id);
