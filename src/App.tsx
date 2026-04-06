@@ -110,9 +110,9 @@ const RootGate = () => {
 };
 
 const StorefrontGate = ({ children }: { children: React.ReactNode }) => {
-  const { user, loading: authLoading, role, profileReady, companyId } = useAuth();
+  const { user, loading: authLoading, role, companyId } = useAuth();
 
-  if (authLoading || (user && !profileReady)) {
+  if (authLoading) {
     return <AuthSpinner />;
   }
 
