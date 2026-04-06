@@ -357,7 +357,7 @@ const Orders = () => {
                         </label>
                       ) : (
                         <button
-                          onClick={() => setReorderOrder(order)}
+                          onClick={(e) => { e.stopPropagation(); setReorderOrder(order); }}
                           className="flex-1 md:w-full py-2.5 px-4 bg-primary text-primary-foreground rounded-xl text-xs font-bold hover:opacity-90 flex items-center justify-center gap-1.5 shadow-sm"
                         >
                           <RotateCcw size={14} /> Reorder
