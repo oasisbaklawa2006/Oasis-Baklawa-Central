@@ -449,6 +449,14 @@ const AdminFinance = () => {
   const handleValidatePayment = async (orderId: string) => {
     setActing(orderId);
     try {
+      // GUARD: Verify order has a value before proceeding
+      const target = orders.find(o => o.id === orderId);
+      if (!target || (target.sales_order_value ?? 0) <= 0) {
+        toast.error("⛔ Cannot release order with ₹0 value. Check order items.");
+        console.error(`[Finance] ABORT: Tried to validate order ${orderId} with ₹0 value.`);
+        setActing(null);
+        return;
+      }
       await supabase
         .from("orders")
         .update({ payment_status: "verified_advance", status: "in_production" })
