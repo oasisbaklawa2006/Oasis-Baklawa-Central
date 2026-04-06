@@ -78,9 +78,12 @@ const Account = () => {
           return;
         }
 
-        const { data: profile } = await supabase.from("profiles").select("company_id").eq("id", user.id).single();
+        // Try profiles first, fallback to users table
+        const { data: profile } = await supabase.from("profiles").select("company_id").eq("id", user.id).maybeSingle();
+        const { data: userRow } = await supabase.from("users").select("company_id").eq("id", user.id).maybeSingle();
+        const resolvedCompanyId = profile?.company_id || userRow?.company_id || null;
 
-        if (profile?.company_id) {
+        if (resolvedCompanyId) {
           const { data: companyData } = await supabase
             .from("companies")
             .select("*")
