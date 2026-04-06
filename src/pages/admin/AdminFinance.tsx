@@ -498,6 +498,14 @@ const AdminFinance = () => {
         reference_no: financialEntry.utrReference || null,
         created_by: user?.id ?? null,
       });
+      // GUARD: Never touch sales_order_value during payment verification
+      const targetOrder = orders.find(o => o.id === financialEntry.orderId);
+      if (!targetOrder || (targetOrder.sales_order_value ?? 0) <= 0) {
+        toast.error("⛔ Cannot release order with ₹0 value. Aborting.");
+        console.error(`[Finance] ABORT: Tried to release order ${financialEntry.orderId} with ₹0 value.`);
+        setSavingEntry(false);
+        return;
+      }
       await supabase.from("orders").update({
         advance_paid: amount,
         status: "in_production",
