@@ -469,12 +469,7 @@ const Cart = () => {
             </button>
             <h1 className="font-display text-2xl tracking-wide">Sales Order (SO)</h1>
           </div>
-          <button
-            onClick={handlePrintSO}
-            className="flex items-center gap-1.5 bg-muted text-muted-foreground px-3 py-2 rounded-xl text-xs font-bold hover:bg-muted/80 transition-colors"
-          >
-            <Printer size={14} /> Pro-Forma
-          </button>
+          {/* Pro-Forma removed per client request */}
         </div>
 
         {/* MOQ Hard Stop Violations */}
