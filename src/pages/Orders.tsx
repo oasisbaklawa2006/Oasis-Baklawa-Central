@@ -371,6 +371,21 @@ const Orders = () => {
                         <Download size={14} /> {getDownloadLabel(order.document_stage)}
                       </button>
 
+                      {/* Complaint Window: only show if delivered and within 10 days of dispatch */}
+                      {order.status === "delivered" && (() => {
+                        const dispatchDate = order.actual_despatch_date ? new Date(order.actual_despatch_date) : null;
+                        if (!dispatchDate) return false;
+                        const expiryDate = new Date(dispatchDate.getTime() + 10 * 24 * 60 * 60 * 1000);
+                        return new Date() <= expiryDate;
+                      })() && (
+                        <button
+                          onClick={(e) => { e.stopPropagation(); toast.info("Complaint form coming soon. Contact your account manager."); }}
+                          className="flex-1 md:w-full py-2.5 px-4 bg-red-50 border border-red-200 text-red-700 rounded-xl text-xs font-bold hover:bg-red-100 flex items-center justify-center gap-1.5 shadow-sm"
+                        >
+                          <AlertCircle size={14} /> Raise Complaint
+                        </button>
+                      )}
+
                       {/* Conditional Document Buttons */}
                       {order.proforma_invoice_url && (
                         <a

@@ -490,6 +490,10 @@ export default function ReadyGoodsStore() {
                   <Input value={prodOrderItemId} onChange={e => setProdOrderItemId(e.target.value)} placeholder="Order ID or Item ID" />
                 </div>
                 <div>
+                  <label className="text-xs font-medium text-foreground">Requested Quantity *</label>
+                  <Input type="number" value={prodOrderQty} onChange={e => setProdOrderQty(e.target.value)} placeholder="Enter qty needed" min="1" />
+                </div>
+                <div>
                   <label className="text-xs font-medium text-foreground">Notes</label>
                   <Input value={prodNotes} onChange={e => setProdNotes(e.target.value)} placeholder="Special instructions..." />
                 </div>
