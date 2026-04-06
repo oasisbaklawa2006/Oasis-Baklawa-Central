@@ -154,6 +154,7 @@ const Dashboard = () => {
 
   const totalBusiness = orders.reduce((sum, o) => sum + (o.sales_order_value || 0), 0);
   const activeOrders = orders.filter((o) => o.status !== "delivered" && o.status !== "cancelled");
+  const hasAwaitingAdvance = activeOrders.some((o) => o.payment_status === "awaiting_advance" || o.payment_status === "awaiting_receipt");
   const latestOrder = activeOrders[0];
 
   const getTimelineStep = (order: any) => {
