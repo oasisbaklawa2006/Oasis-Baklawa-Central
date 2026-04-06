@@ -329,12 +329,30 @@ const AdminSecurityGate = () => {
             <h1 className={`text-5xl md:text-7xl font-black tracking-tight mb-4 text-center transition-colors duration-300 ${textClass}`}>
               {screenState === "idle" && "SCAN CARTON"}
               {screenState === "success" && "AUTHORIZED"}
-              {screenState === "error" && "INVALID CARTON"}
+              {screenState === "error" && "🚨 CRITICAL ERROR"}
               {screenState === "duplicate" && "STOP! DUPLICATE"}
             </h1>
             <p className={`text-lg md:text-2xl font-medium text-center max-w-xl transition-colors duration-300 ${screenState === "idle" ? "text-slate-500" : "text-white/80"}`}>
               {lastMessage}
             </p>
+            {screenState === "error" && (
+              <button
+                onClick={async () => {
+                  await supabase.from("audit_logs").insert({
+                    action_type: "GATE_INCIDENT_LOGGED",
+                    module_name: "SecurityGate",
+                    entity_name: "dispatch_cartons",
+                    entity_id: inputValue || "manual",
+                    reason: lastMessage,
+                    risk_level: "high",
+                  });
+                  toast.success("🔴 Incident logged to audit trail");
+                }}
+                className="mt-6 px-8 py-4 bg-white text-red-600 rounded-2xl text-lg font-black uppercase tracking-wider hover:bg-red-50 border-2 border-white/50 animate-pulse"
+              >
+                ⚠️ LOG INCIDENT
+              </button>
+            )}
             <form onSubmit={handleScan} className="mt-10 w-full max-w-md">
               <input
                 ref={inputRef}

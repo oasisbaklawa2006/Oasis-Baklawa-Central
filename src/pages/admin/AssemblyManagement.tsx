@@ -343,13 +343,30 @@ export default function AssemblyManagement() {
         </div>
       )}
 
-      {/* === PRODUCTION QTY MODAL === */}
+      {/* === PRODUCTION QTY MODAL (TOUCH KEYPAD) === */}
       {prodQtyOpen && (
         <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4" onClick={() => setProdQtyOpen(false)}>
           <div className="bg-background rounded-2xl p-6 w-full max-w-xs shadow-2xl" onClick={e => e.stopPropagation()}>
             <h3 className="text-lg font-bold text-foreground mb-1">Material Request Qty</h3>
             <p className="text-xs text-muted-foreground mb-4">{prodQtyProduct}</p>
-            <Input type="number" value={prodQtyValue} onChange={e => setProdQtyValue(e.target.value)} placeholder="Enter quantity needed" className="mb-4 text-center text-xl font-mono" autoFocus />
+
+            <div className="bg-muted rounded-xl p-4 text-center mb-4">
+              <span className="text-4xl font-mono font-bold text-foreground">{prodQtyValue || "0"}</span>
+            </div>
+
+            <div className="grid grid-cols-3 gap-2 mb-4">
+              {["1","2","3","4","5","6","7","8","9","CLR","0","DEL"].map(d => (
+                <button key={d} onClick={() => {
+                  if (d === "DEL") setProdQtyValue(v => v.slice(0, -1));
+                  else if (d === "CLR") setProdQtyValue("");
+                  else setProdQtyValue(v => v + d);
+                }}
+                  className={`py-4 rounded-xl font-bold text-xl transition-colors ${d === "CLR" || d === "DEL" ? "bg-destructive/10 text-destructive hover:bg-destructive/20" : "bg-muted hover:bg-muted/80 text-foreground"}`}>
+                  {d}
+                </button>
+              ))}
+            </div>
+
             <div className="flex gap-2">
               <Button variant="outline" className="flex-1" onClick={() => setProdQtyOpen(false)}>Cancel</Button>
               <Button className="flex-1" variant="destructive" onClick={sendMaterialRequest} disabled={acting !== null}>
