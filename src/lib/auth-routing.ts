@@ -5,27 +5,44 @@ type RoleRecord = {
   role: string | null;
 };
 
+const STAFF_ROLE_DESTINATIONS = {
+  SUPER_ADMIN: "/admin/cmd-war-room",
+  ADMIN: "/admin",
+  FINANCE_HEAD: "/admin/accounts-release",
+  FINANCE_EXEC: "/admin/accounts-release",
+  OPERATIONS_MANAGER: "/operations-controller",
+  PRODUCTION_MANAGER: "/admin/order-management",
+  HOD_ARABIC: "/tv/arabic-sweets",
+  HOD_FUSION: "/tv/fusion",
+  HOD_CHOCOLATE: "/tv/chocolate",
+  HOD_BAKERY: "/tv/bakery",
+  HOD_NUTS: "/tv/nuts",
+  HOD_ASSEMBLY: "/admin/assembly-tasks",
+  STORE_INCHARGE: "/admin/ready-goods",
+  DISPATCH_MANAGER: "/admin/dispatch-mgmt",
+  DISPATCH_INCHARGE: "/admin/dispatch-mgmt",
+  SECURITY_CONTROL: "/security-gate",
+  SALES_EXECUTIVE: "/sales/dashboard",
+  SUPPORT_EXECUTIVE: "/admin/support",
+} as const;
+
+const LEGACY_ROLE_DESTINATIONS: Record<string, string> = {
+  GATE_SECURITY: "/security-gate",
+  STORE_READY_GOODS: "/admin/ready-goods",
+  RGS_ADMIN: "/admin/ready-goods",
+  STORE_3RD_PARTY: "/operations-controller",
+  ASSEMBLY_MANAGER: "/admin/order-management",
+  PACKING_SUPERVISOR: "/admin/order-management",
+  DISPATCH_HEAD: "/admin/dispatch-mgmt",
+  PROD_ARABIC_SWEETS: "/tv/arabic-sweets",
+  PROD_CHOCOLATE: "/tv/chocolate",
+  PROD_FUSION: "/tv/fusion",
+  PROD_BAKERY: "/tv/bakery",
+  PROD_NUTS: "/tv/nuts",
+};
+
 // ─── Canonical Role Taxonomy ───
-export const STAFF_ROLES = new Set([
-  "SUPER_ADMIN",
-  "ADMIN",
-  "FINANCE_HEAD",
-  "FINANCE_EXEC",
-  "OPERATIONS_MANAGER",
-  "PRODUCTION_MANAGER",
-  "HOD_ARABIC",
-  "HOD_FUSION",
-  "HOD_CHOCOLATE",
-  "HOD_BAKERY",
-  "HOD_NUTS",
-  "HOD_ASSEMBLY",
-  "STORE_INCHARGE",
-  "DISPATCH_MANAGER",
-  "DISPATCH_INCHARGE",
-  "SECURITY_CONTROL",
-  "SALES_EXECUTIVE",
-  "SUPPORT_EXECUTIVE",
-]);
+export const STAFF_ROLES = new Set(Object.keys(STAFF_ROLE_DESTINATIONS));
 
 export const BUYER_ROLES = new Set([
   "B2B_BUYER",
@@ -39,6 +56,11 @@ export const BUYER_ROLES = new Set([
 const LEGACY_BUYER_ROLES = new Set(["BUYER", "CLIENT", "CUSTOMER_USER"]);
 
 const CLIENT_ROLES = new Set([...BUYER_ROLES, ...LEGACY_BUYER_ROLES]);
+
+const ROLE_DESTINATIONS: Record<string, string> = {
+  ...STAFF_ROLE_DESTINATIONS,
+  ...LEGACY_ROLE_DESTINATIONS,
+};
 
 export function isStaffRole(role?: string | null): boolean {
   const n = normalizeRole(role);
@@ -88,6 +110,11 @@ export function normalizeRole(role?: string | null) {
   return role?.trim().toUpperCase() ?? null;
 }
 
+function normalizePathname(pathname: string) {
+  if (!pathname || pathname === "/") return "/";
+  return pathname.endsWith("/") ? pathname.slice(0, -1) : pathname;
+}
+
 export function isStorefrontRole(role?: string | null) {
   const normalizedRole = normalizeRole(role);
   return normalizedRole ? CLIENT_ROLES.has(normalizedRole) : false;
@@ -98,47 +125,27 @@ export function getRoleDestination(role?: string | null) {
 
   if (!normalizedRole || normalizedRole === "PENDING") return "/approval-pending";
 
-  // Admin / Command
-  if (normalizedRole === "SUPER_ADMIN") return "/admin/cmd-war-room";
-  if (normalizedRole === "ADMIN") return "/admin";
+  const directDestination = ROLE_DESTINATIONS[normalizedRole];
+  if (directDestination) return directDestination;
 
-  // Finance
-  if (normalizedRole === "FINANCE_HEAD" || normalizedRole === "FINANCE_EXEC") return "/admin/accounts-release";
-
-  // Support
-  if (normalizedRole === "SUPPORT_EXECUTIVE") return "/admin/support";
-
-  // Sales
-  if (normalizedRole === "SALES_EXECUTIVE") return "/sales/dashboard";
-
-  // Security
-  if (normalizedRole === "SECURITY_CONTROL" || normalizedRole === "GATE_SECURITY") return "/security-gate";
-
-  // Stores
-  if (normalizedRole === "STORE_INCHARGE" || normalizedRole === "STORE_READY_GOODS" || normalizedRole === "RGS_ADMIN") return "/admin/ready-goods";
-
-  // Operations / Production / Dispatch
-  if (normalizedRole === "OPERATIONS_MANAGER" || normalizedRole === "STORE_3RD_PARTY") return "/operations-controller";
-  if (normalizedRole === "PRODUCTION_MANAGER" || normalizedRole === "PACKING_SUPERVISOR" || normalizedRole === "ASSEMBLY_MANAGER") return "/admin/order-management";
-  if (normalizedRole === "DISPATCH_MANAGER" || normalizedRole === "DISPATCH_INCHARGE" || normalizedRole === "DISPATCH_HEAD") return "/admin/dispatch-mgmt";
-
-  // HOD → Factory TV
-  if (normalizedRole === "HOD_ARABIC") return "/tv/arabic-sweets";
-  if (normalizedRole === "HOD_CHOCOLATE") return "/tv/chocolate";
-  if (normalizedRole === "HOD_FUSION") return "/tv/fusion";
-  if (normalizedRole === "HOD_BAKERY") return "/tv/bakery";
-  if (normalizedRole === "HOD_NUTS") return "/tv/nuts";
-  if (normalizedRole === "HOD_ASSEMBLY") return "/admin/assembly-tasks";
-
-  // Legacy PROD_* TV roles (backward compat)
-  if (normalizedRole === "PROD_ARABIC_SWEETS") return "/tv/arabic-sweets";
-  if (normalizedRole === "PROD_CHOCOLATE") return "/tv/chocolate";
-  if (normalizedRole === "PROD_FUSION") return "/tv/fusion";
-  if (normalizedRole === "PROD_BAKERY") return "/tv/bakery";
-  if (normalizedRole === "PROD_NUTS") return "/tv/nuts";
+  if (STAFF_ROLES.has(normalizedRole)) return "/admin";
 
   // Buyer roles → storefront
   if (CLIENT_ROLES.has(normalizedRole)) return "/home";
 
   return "/admin";
+}
+
+export function isPathWithinRoleDestination(pathname: string, role?: string | null) {
+  const normalizedRole = normalizeRole(role);
+  if (!normalizedRole) return false;
+
+  const currentPath = normalizePathname(pathname);
+  const roleDestination = normalizePathname(getRoleDestination(normalizedRole));
+
+  return (
+    currentPath === roleDestination ||
+    currentPath.startsWith(`${roleDestination}/`) ||
+    roleDestination.startsWith(`${currentPath}/`)
+  );
 }
