@@ -591,6 +591,12 @@ const AdminFinance = () => {
     if (isNaN(days) || days <= 0) { toast.error("Invalid deadline."); return; }
     setSavingShortTerm(true);
     try {
+      // GUARD: Never release a ₹0 order
+      if ((shortTermTarget.sales_order_value ?? 0) <= 0) {
+        toast.error("⛔ Cannot release order with ₹0 value.");
+        setSavingShortTerm(false);
+        return;
+      }
       await supabase.from("orders").update({
         status: "in_production",
         payment_status: "short_term_credit",
