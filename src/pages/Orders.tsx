@@ -75,7 +75,7 @@ const Orders = () => {
     const { data, error } = await supabase
       .from("orders")
       .select(
-        "id, status, payment_status, payment_receipt_url, created_at, sales_order_value, document_stage, payment_cleared, eway_bill_number, proforma_invoice_url, final_invoice_url, eway_bill_url, company:companies(business_name, gst_number), order_items(*, product:products(name, image_url, pack_size, carton_type, wholesale_price, mrp, price_per_kg, price_b2b, base_price, avg_weight_per_pack, net_weight_grams, gst_percentage, hsn_code, uom, category, sub_category, moq, packs_per_master_carton, pcs_per_master_carton))",
+        "id, status, payment_status, payment_receipt_url, created_at, actual_despatch_date, sales_order_value, document_stage, payment_cleared, eway_bill_number, proforma_invoice_url, final_invoice_url, eway_bill_url, company:companies(business_name, gst_number), order_items(*, product:products(name, image_url, pack_size, carton_type, wholesale_price, mrp, price_per_kg, price_b2b, base_price, avg_weight_per_pack, net_weight_grams, gst_percentage, hsn_code, uom, category, sub_category, moq, packs_per_master_carton, pcs_per_master_carton))",
       )
       .in("status", ["submitted", "pending", "processing", "dispatched", "delivered", "cancelled"])
       .order("created_at", { ascending: false });
@@ -370,6 +370,21 @@ const Orders = () => {
                       >
                         <Download size={14} /> {getDownloadLabel(order.document_stage)}
                       </button>
+
+                      {/* Complaint Window: only show if delivered and within 10 days of dispatch */}
+                      {order.status === "delivered" && (() => {
+                        const dispatchDate = order.actual_despatch_date ? new Date(order.actual_despatch_date) : null;
+                        if (!dispatchDate) return false;
+                        const expiryDate = new Date(dispatchDate.getTime() + 10 * 24 * 60 * 60 * 1000);
+                        return new Date() <= expiryDate;
+                      })() && (
+                        <button
+                          onClick={(e) => { e.stopPropagation(); toast.info("Complaint form coming soon. Contact your account manager."); }}
+                          className="flex-1 md:w-full py-2.5 px-4 bg-red-50 border border-red-200 text-red-700 rounded-xl text-xs font-bold hover:bg-red-100 flex items-center justify-center gap-1.5 shadow-sm"
+                        >
+                          <AlertCircle size={14} /> Raise Complaint
+                        </button>
+                      )}
 
                       {/* Conditional Document Buttons */}
                       {order.proforma_invoice_url && (

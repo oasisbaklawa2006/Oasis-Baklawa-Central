@@ -203,26 +203,30 @@ const AdminSecurityGate = () => {
         addToHistory(barcode, companyName, "error", "Payment not cleared. Cannot dispatch.");
         playAudio("error");
       } else if (!carton.orders?.final_invoice_url) {
-        // Invoice not uploaded check
+        // CRITICAL ERROR: Tally Invoice URL missing — hard-lock
+        setScreenState("error");
+        setLastMessage("🚨 CRITICAL ERROR: TALLY INVOICE NOT UPLOADED. Dispatch BLOCKED.");
+        addToHistory(barcode, companyName, "error", "CRITICAL: tally_invoice_url is empty. Contact Finance immediately.");
+        playAudio("error");
+        await supabase.from("audit_logs").insert({
+          action_type: "CRITICAL_GATE_BLOCK",
+          module_name: "SecurityGate",
+          entity_name: "dispatch_cartons",
+          entity_id: carton.id,
+          actor_id: isSuperAdmin ? (await supabase.auth.getUser()).data.user?.id || null : null,
+          reason: "Tally Invoice URL empty — barcode hard-locked",
+          risk_level: "high",
+        });
         if (isSuperAdmin) {
-          setScreenState("error");
-          setLastMessage("⚠️ INVOICE MISSING — Super Admin can BYPASS");
-          addToHistory(barcode, companyName, "error", "Invoice missing. Manual bypass available.");
-          playAudio("error");
-          // Allow bypass by not returning — super admin can re-scan after logging
+          // Log special incidence but still block
           await supabase.from("audit_logs").insert({
             action_type: "SPECIAL_INCIDENCE",
             module_name: "SecurityGate",
             entity_name: "dispatch_cartons",
             entity_id: carton.id,
-            reason: "Super Admin bypass: Invoice missing",
+            reason: "Super Admin attempted scan with missing Tally Invoice",
             risk_level: "high",
           });
-        } else {
-          setScreenState("error");
-          setLastMessage("STOP: INVOICE NOT UPLOADED. Contact Finance.");
-          addToHistory(barcode, companyName, "error", "Invoice missing. Dispatch blocked.");
-          playAudio("error");
         }
       } else {
         const destState = (carton.orders?.company?.state || "").trim().toLowerCase();

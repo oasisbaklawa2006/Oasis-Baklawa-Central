@@ -69,6 +69,7 @@ export default function ReadyGoodsStore() {
   const [prodDept, setProdDept] = useState("Arabic Sweets");
   const [prodNotes, setProdNotes] = useState("");
   const [prodOrderItemId, setProdOrderItemId] = useState("");
+  const [prodOrderQty, setProdOrderQty] = useState("");
 
   // Labels
   const [labelProduct, setLabelProduct] = useState("");
@@ -268,6 +269,7 @@ export default function ReadyGoodsStore() {
 
   const submitProductionOrder = async () => {
     if (!prodOrderItemId.trim()) { toast.error("Enter an Order/Item ID"); return; }
+    if (!prodOrderQty || parseInt(prodOrderQty) <= 0) { toast.error("Enter a valid requested quantity"); return; }
     setActing("prod_order");
     await supabase.from("audit_logs").insert([{
       action_type: "PRODUCTION_ORDER",
@@ -275,11 +277,12 @@ export default function ReadyGoodsStore() {
       entity_name: "order_items",
       entity_id: prodOrderItemId,
       actor_id: user?.id || null,
-      new_value: { type: prodOrderType, department: prodDept, notes: prodNotes } as any,
+      new_value: { type: prodOrderType, department: prodDept, notes: prodNotes, requested_qty: parseInt(prodOrderQty) } as any,
       risk_level: "high",
     }]);
-    toast.success(`🏭 ${prodOrderType === "stock_buildup" ? "Stock Build-Up" : "Live Requirement"} sent to ${prodDept}`);
+    toast.success(`🏭 ${prodOrderType === "stock_buildup" ? "Stock Build-Up" : "Live Requirement"} — ${prodOrderQty} units sent to ${prodDept}`);
     setProdOrderItemId("");
+    setProdOrderQty("");
     setProdNotes("");
     fetchProdOrders();
     setActing(null);
@@ -485,6 +488,10 @@ export default function ReadyGoodsStore() {
                 <div>
                   <label className="text-xs font-medium text-foreground">Order/Item Reference</label>
                   <Input value={prodOrderItemId} onChange={e => setProdOrderItemId(e.target.value)} placeholder="Order ID or Item ID" />
+                </div>
+                <div>
+                  <label className="text-xs font-medium text-foreground">Requested Quantity *</label>
+                  <Input type="number" value={prodOrderQty} onChange={e => setProdOrderQty(e.target.value)} placeholder="Enter qty needed" min="1" />
                 </div>
                 <div>
                   <label className="text-xs font-medium text-foreground">Notes</label>
