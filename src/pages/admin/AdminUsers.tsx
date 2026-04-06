@@ -487,7 +487,15 @@ const AdminUsers = () => {
                               <SelectValue />
                             </SelectTrigger>
                             <SelectContent>
-                              {["super_admin", "admin", "finance_head", "dispatch_head", "production_manager", "assembly_manager", "packing_supervisor", "sales_executive", "support_executive", "buyer"].map((r) => (
+              {[
+                "super_admin", "admin",
+                "finance_head", "finance_exec",
+                "operations_manager", "production_manager",
+                "hod_arabic", "hod_fusion", "hod_chocolate", "hod_bakery", "hod_nuts", "hod_assembly",
+                "store_incharge", "dispatch_manager", "dispatch_incharge", "security_control",
+                "sales_executive", "support_executive",
+                "b2b_buyer", "special_buyer", "horeca_buyer", "wholesale_buyer", "bulk_buyer",
+              ].map((r) => (
                                 <SelectItem key={r} value={r} className="text-xs font-semibold uppercase">{r.replace(/_/g, " ")}</SelectItem>
                               ))}
                             </SelectContent>
