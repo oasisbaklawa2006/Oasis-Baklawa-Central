@@ -66,6 +66,7 @@ export function useAuth() {
     if (!cached) return false;
 
     setCompanyId(cached.companyId);
+    setRole(cached.role ?? null);
     setPriceTier(cached.priceTier ?? null);
     return true;
   }, [getCachedForUser]);
@@ -191,9 +192,9 @@ export function useAuth() {
         return;
       }
 
-      setRole(null);
       setProfileReady(false);
       if (!applyCachedCommerceState(nextUser.id)) {
+        setRole(null);
         setCompanyId(null);
         setPriceTier(null);
       }
@@ -224,10 +225,10 @@ export function useAuth() {
         if (userChanged) {
           profileFetchedForRef.current = null;
           forcedPendingRefreshForRef.current = null;
-          setRole(null);
           setProfileReady(false);
 
           if (!applyCachedCommerceState(nextUser.id)) {
+            setRole(null);
             setCompanyId(null);
             setPriceTier(null);
           }
