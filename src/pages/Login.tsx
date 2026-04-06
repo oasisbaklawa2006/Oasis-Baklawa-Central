@@ -24,7 +24,7 @@ const Login = () => {
 
   const resolveRedirect = async (userId: string) => {
     const authRecord = await fetchAuthRoleRecord(userId);
-    navigate(getRoleDestination(authRecord.role), { replace: true });
+    window.location.replace(getRoleDestination(authRecord.role));
   };
 
   // ── Email Login ──

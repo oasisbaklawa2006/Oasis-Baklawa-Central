@@ -1,7 +1,7 @@
-import { Navigate } from "react-router-dom";
+import { Navigate, useLocation } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { Loader2 } from "lucide-react";
-import { getRoleDestination, normalizeRole, isStaffRole } from "@/lib/auth-routing";
+import { getRoleDestination, normalizeRole, isStaffRole, isPathWithinRoleDestination } from "@/lib/auth-routing";
 
 interface Props {
   allowedRoles: (string | null)[];
@@ -9,6 +9,7 @@ interface Props {
 }
 
 export default function RoleProtectedRoute({ allowedRoles, children }: Props) {
+  const location = useLocation();
   const { user, loading: authLoading, role, profileReady } = useAuth();
 
   // Still loading auth session
@@ -26,15 +27,17 @@ export default function RoleProtectedRoute({ allowedRoles, children }: Props) {
   }
 
   const normalizedRole = normalizeRole(role);
+  const destination = getRoleDestination(normalizedRole);
+  const isAllowed = allowedRoles.some((ar) => {
+    if (ar === null) return normalizedRole === null;
+    return ar.toUpperCase() === normalizedRole;
+  });
+  const isWithinDestination = isPathWithinRoleDestination(location.pathname, normalizedRole);
 
   // Staff roles: skip profileReady wait — land instantly
   if (normalizedRole && isStaffRole(normalizedRole)) {
-    const isAllowed = allowedRoles.some((ar) => {
-      if (ar === null) return false;
-      return ar.toUpperCase() === normalizedRole;
-    });
-    if (!isAllowed) {
-      return <Navigate to={getRoleDestination(normalizedRole)} replace />;
+    if (!isAllowed && !isWithinDestination) {
+      return <Navigate to={destination} replace />;
     }
     return <>{children}</>;
   }
@@ -53,14 +56,8 @@ export default function RoleProtectedRoute({ allowedRoles, children }: Props) {
     return <Navigate to="/approval-pending" replace />;
   }
 
-  // Check if user's role is in the allowed list
-  const isAllowed = allowedRoles.some((ar) => {
-    if (ar === null) return normalizedRole === null;
-    return ar.toUpperCase() === normalizedRole;
-  });
-
-  if (!isAllowed) {
-    return <Navigate to={getRoleDestination(normalizedRole)} replace />;
+  if (!isAllowed && !isWithinDestination) {
+    return <Navigate to={destination} replace />;
   }
 
   return <>{children}</>;
