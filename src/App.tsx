@@ -142,6 +142,7 @@ const App = () => (
             <Route path="/security-gate" element={<ProtectedRoute><RoleProtectedRoute allowedRoles={['GATE_SECURITY', 'SUPER_ADMIN', 'ADMIN']}><AdminSecurityGate /></RoleProtectedRoute></ProtectedRoute>} />
             <Route path="/" element={<RootGate />} />
             <Route path="/home" element={<StorefrontGate><Index /></StorefrontGate>} />
+            <Route path="/welcome" element={<ProtectedRoute><WelcomeGate /></ProtectedRoute>} />
             <Route path="/catalogue" element={<StorefrontGate><Catalogue /></StorefrontGate>} />
             <Route path="/product/:id" element={<StorefrontGate><ProductDetail /></StorefrontGate>} />
             <Route path="/login" element={<Login />} />
