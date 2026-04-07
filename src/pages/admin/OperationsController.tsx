@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
-import { Loader2, ClipboardList, Play, Camera, AlertTriangle } from "lucide-react";
+import { Loader2, ClipboardList, Play, Camera, AlertTriangle, Zap } from "lucide-react";
 import TopNavBar from "@/components/TopNavBar";
 import { normalizeRole } from "@/lib/auth-routing";
 import JobIntakeTab from "@/components/phh/JobIntakeTab";
@@ -36,6 +36,8 @@ const OperationsController = () => {
       .in("status", ["pending", "accepted", "in_production", "paused", "completed"])
       .order("created_at", { ascending: true });
     setJobs((data as any[]) || []);
+    const urgent = ((data as any[]) || []).filter((j: any) => j.priority === "urgent" || j.priority === "red");
+    setUrgentCount(urgent.length);
     setLoading(false);
   }, [myDepartment]);
 
