@@ -69,6 +69,17 @@ const OperationsController = () => {
     <div className="bg-slate-50 min-h-screen pb-safe font-sans">
       <TopNavBar />
 
+      {/* Urgent Flash Banner */}
+      {urgentCount > 0 && (
+        <div className="bg-red-600 text-white px-4 py-2.5 flex items-center gap-2 animate-pulse sticky top-16 z-20" style={{ animationDuration: "1.5s" }}>
+          <Zap size={16} />
+          <span className="text-xs font-black uppercase tracking-wider">
+            {urgentCount} URGENT/RED job{urgentCount > 1 ? "s" : ""} awaiting action
+          </span>
+          <AlertTriangle size={16} className="ml-auto" />
+        </div>
+      )}
+
       {/* Header */}
       <div className="bg-slate-900 text-white pt-24 pb-4 px-4 sticky top-0 z-10 shadow-md">
         <div className="flex justify-between items-end mb-4">
