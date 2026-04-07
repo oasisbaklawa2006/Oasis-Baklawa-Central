@@ -416,6 +416,35 @@ const AdminProducts = () => {
     ]);
   };
 
+  const searchProductsForBom = async (query: string, idx: number) => {
+    setBomSearchQuery(query);
+    setBomSearchingIdx(idx);
+    if (query.length < 2) { setBomSearchResults([]); return; }
+    const { data } = await supabase
+      .from("products")
+      .select("id, name, sku, production_department, settlement_unit")
+      .or(`name.ilike.%${query}%,sku.ilike.%${query}%`)
+      .limit(8);
+    setBomSearchResults((data as Product[]) || []);
+  };
+
+  const selectBomProduct = (idx: number, product: Product) => {
+    setBomComponents((prev) =>
+      prev.map((c, i) =>
+        i === idx
+          ? {
+              ...c,
+              component_product_id: product.id,
+              component_name: product.name + (product.sku ? ` (${product.sku})` : ""),
+              source_department: product.production_department || "",
+            }
+          : c
+      )
+    );
+    setBomSearchQuery("");
+    setBomSearchResults([]);
+    setBomSearchingIdx(null);
+  };
   const updateBomComponent = (index: number, field: keyof BomComponent, value: any) => {
     setBomComponents((prev) =>
       prev.map((c, i) => (i === index ? { ...c, [field]: value } : c))
