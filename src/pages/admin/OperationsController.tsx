@@ -47,7 +47,7 @@ const getDepartmentForRole = (role?: string | null) => {
   if (!normalizedRole) return null;
   return HOD_DEPARTMENT_MAP[normalizedRole] ?? null;
 };
-...
+
 const OperationsController = () => {
   const { user, role } = useAuth();
   const roleDepartment = getDepartmentForRole(role);
