@@ -102,7 +102,7 @@ export default function AssemblyManagement() {
     const loadProducts = async () => {
       const { data } = await supabase
         .from("products")
-        .select("id, name, image_url, sku, category:categories(name)")
+        .select("id, name, image_url, sku, production_department, category:categories(name)")
         .eq("is_active", true)
         .order("name")
         .limit(200);
