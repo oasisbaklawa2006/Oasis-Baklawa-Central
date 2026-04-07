@@ -344,6 +344,11 @@ export default function ReadyGoodsStore() {
           <StockCheckEngine />
         </TabsContent>
 
+        {/* MODULE: DAILY PLANNING */}
+        <TabsContent value="planning">
+          <DailyPlanningModule />
+        </TabsContent>
+
         {/* MODULE 1: INBOX — Filtered to Baklava/Sweets/Nuts only */}
         <TabsContent value="inbox">
           {orders.length === 0 && (
