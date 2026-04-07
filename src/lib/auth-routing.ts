@@ -44,7 +44,10 @@ const LEGACY_ROLE_DESTINATIONS: Record<string, string> = {
 };
 
 // ─── Canonical Role Taxonomy ───
-export const STAFF_ROLES = new Set(Object.keys(STAFF_ROLE_DESTINATIONS));
+export const STAFF_ROLES = new Set([
+  ...Object.keys(STAFF_ROLE_DESTINATIONS),
+  ...Object.keys(LEGACY_ROLE_DESTINATIONS),
+]);
 
 export const BUYER_ROLES = new Set([
   "B2B_BUYER",
