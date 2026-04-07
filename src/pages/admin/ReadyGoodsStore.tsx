@@ -452,90 +452,9 @@ export default function ReadyGoodsStore() {
           </Card>
         </TabsContent>
 
-        {/* MODULE 3: PRODUCTION ORDER — with Live Summary */}
+        {/* MODULE 3: BUFFER STOCK ORDER — Production Planning Panel */}
         <TabsContent value="prodorder">
-          <div className="space-y-4">
-            {/* LIVE SUMMARY */}
-            {Object.keys(skuSummary).length > 0 && (
-              <Card className="border-2 border-amber-400/40 bg-amber-500/5">
-                <CardContent className="p-4">
-                  <h3 className="text-sm font-bold text-foreground mb-2 flex items-center gap-2">
-                    <AlertTriangle size={16} className="text-amber-600" /> Live Production Demand Summary
-                  </h3>
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead className="text-xs">Product</TableHead>
-                        <TableHead className="text-xs">SKU</TableHead>
-                        <TableHead className="text-xs text-right">Total Needed</TableHead>
-                        <TableHead className="text-xs text-right">Orders</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {Object.values(skuSummary).sort((a, b) => b.totalQty - a.totalQty).map(s => (
-                        <TableRow key={s.sku || s.name}>
-                          <TableCell className="text-xs font-medium">{s.name}</TableCell>
-                          <TableCell className="text-xs font-mono text-muted-foreground">{s.sku || "N/A"}</TableCell>
-                          <TableCell className="text-xs text-right font-bold text-amber-700">{s.totalQty}</TableCell>
-                          <TableCell className="text-xs text-right">{s.orderCount}</TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </CardContent>
-              </Card>
-            )}
-
-            {/* Manual Production Order Form */}
-            <Card>
-              <CardContent className="p-6 space-y-4">
-                <h2 className="text-lg font-bold text-foreground flex items-center gap-2"><Factory size={20} /> Send Production Order</h2>
-                <div className="flex gap-2">
-                  <Button size="sm" variant={prodOrderType === "live_requirement" ? "default" : "outline"} onClick={() => setProdOrderType("live_requirement")}>Live Requirement</Button>
-                  <Button size="sm" variant={prodOrderType === "stock_buildup" ? "default" : "outline"} onClick={() => setProdOrderType("stock_buildup")}>Stock Build-Up</Button>
-                </div>
-                <div>
-                  <label className="text-xs font-medium text-foreground">Target Department</label>
-                  <select value={prodDept} onChange={e => setProdDept(e.target.value)} className="w-full mt-1 rounded-md border border-input bg-background px-3 py-2 text-sm">
-                    {["Arabic Sweets", "Bakery", "Chocolate", "Fusion Sweets", "Nuts Roasting", "Dragees", "3rd Party"].map(d => <option key={d}>{d}</option>)}
-                  </select>
-                </div>
-                <div>
-                  <label className="text-xs font-medium text-foreground">Order/Item Reference</label>
-                  <Input value={prodOrderItemId} onChange={e => setProdOrderItemId(e.target.value)} placeholder="Order ID or Item ID" />
-                </div>
-                <div>
-                  <label className="text-xs font-medium text-foreground">Requested Quantity *</label>
-                  <Input type="number" value={prodOrderQty} onChange={e => setProdOrderQty(e.target.value)} placeholder="Enter qty needed" min="1" />
-                </div>
-                <div>
-                  <label className="text-xs font-medium text-foreground">Notes</label>
-                  <Input value={prodNotes} onChange={e => setProdNotes(e.target.value)} placeholder="Special instructions..." />
-                </div>
-                <Button className="w-full" onClick={submitProductionOrder} disabled={acting === "prod_order"}>
-                  <Send size={16} className="mr-2" /> Send Production Order
-                </Button>
-              </CardContent>
-            </Card>
-
-            {/* Recent Prod Order Entries */}
-            {prodOrders.length > 0 && (
-              <Card>
-                <CardContent className="p-4">
-                  <h3 className="text-sm font-bold text-foreground mb-2">Recent Production Orders</h3>
-                  <div className="space-y-1 max-h-48 overflow-y-auto">
-                    {prodOrders.slice(0, 20).map(po => (
-                      <div key={po.id} className="flex items-center justify-between text-xs border-b border-border pb-1">
-                        <span className="font-medium text-foreground">{po.productName}</span>
-                        <span className="text-muted-foreground font-mono">{po.qty} pcs</span>
-                        <span className="text-muted-foreground">{po.department}</span>
-                      </div>
-                    ))}
-                  </div>
-                </CardContent>
-              </Card>
-            )}
-          </div>
+          <ProductionPlanningPanel />
         </TabsContent>
 
         {/* MODULE 4: LABELS — with Product/SKU dropdowns, Grammage, Batch, Mfg Date */}
