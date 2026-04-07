@@ -2,7 +2,7 @@ import { useEffect, useState, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/useAuth";
-import { Loader2, Inbox, Package, Factory, Barcode, CheckCircle2, AlertTriangle, Send, ScanLine, Printer, Hash, Search, Zap } from "lucide-react";
+import { Loader2, Inbox, Package, Factory, Barcode, CheckCircle2, AlertTriangle, Send, ScanLine, Printer, Hash, Search, Zap, TrendingDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -12,6 +12,7 @@ import { Table, TableHeader, TableHead, TableBody, TableRow, TableCell } from "@
 import StagnancyBadge from "@/components/StagnancyBadge";
 import { Progress } from "@/components/ui/progress";
 import StockCheckEngine from "@/components/rgs/StockCheckEngine";
+import DailyPlanningModule from "@/components/rgs/DailyPlanningModule";
 
 interface RGSOrderItem {
   id: string;
@@ -329,8 +330,9 @@ export default function ReadyGoodsStore() {
       </div>
 
       <Tabs defaultValue="stockcheck" className="w-full">
-        <TabsList className="w-full grid grid-cols-5">
+        <TabsList className="w-full grid grid-cols-6">
           <TabsTrigger value="stockcheck"><Zap size={14} className="mr-1" />Stock Check</TabsTrigger>
+          <TabsTrigger value="planning"><TrendingDown size={14} className="mr-1" />Planning</TabsTrigger>
           <TabsTrigger value="inbox"><Inbox size={14} className="mr-1" />Inbox</TabsTrigger>
           <TabsTrigger value="issue"><ScanLine size={14} className="mr-1" />Issue</TabsTrigger>
           <TabsTrigger value="prodorder"><Factory size={14} className="mr-1" />Prod Order</TabsTrigger>
@@ -340,6 +342,11 @@ export default function ReadyGoodsStore() {
         {/* MODULE 0: STOCK CHECK ENGINE */}
         <TabsContent value="stockcheck">
           <StockCheckEngine />
+        </TabsContent>
+
+        {/* MODULE: DAILY PLANNING */}
+        <TabsContent value="planning">
+          <DailyPlanningModule />
         </TabsContent>
 
         {/* MODULE 1: INBOX — Filtered to Baklava/Sweets/Nuts only */}

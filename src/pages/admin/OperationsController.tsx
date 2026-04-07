@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
-import { Loader2, ClipboardList, Play, Camera, AlertTriangle } from "lucide-react";
+import { Loader2, ClipboardList, Play, Camera, AlertTriangle, Zap } from "lucide-react";
 import TopNavBar from "@/components/TopNavBar";
 import { normalizeRole } from "@/lib/auth-routing";
 import JobIntakeTab from "@/components/phh/JobIntakeTab";
@@ -21,7 +21,7 @@ const OperationsController = () => {
   const [myDepartment, setMyDepartment] = useState(roleDepartment ?? "arabic_sweets");
   const [activeTab, setActiveTab] = useState<"intake" | "execution" | "quick_entry">("intake");
   const [jobs, setJobs] = useState<ProductionJob[]>([]);
-
+  const [urgentCount, setUrgentCount] = useState(0);
   useEffect(() => {
     if (roleDepartment) setMyDepartment(roleDepartment);
   }, [roleDepartment]);
@@ -36,6 +36,8 @@ const OperationsController = () => {
       .in("status", ["pending", "accepted", "in_production", "paused", "completed"])
       .order("created_at", { ascending: true });
     setJobs((data as any[]) || []);
+    const urgent = ((data as any[]) || []).filter((j: any) => j.priority === "urgent" || j.priority === "red");
+    setUrgentCount(urgent.length);
     setLoading(false);
   }, [myDepartment]);
 
@@ -66,6 +68,17 @@ const OperationsController = () => {
   return (
     <div className="bg-slate-50 min-h-screen pb-safe font-sans">
       <TopNavBar />
+
+      {/* Urgent Flash Banner */}
+      {urgentCount > 0 && (
+        <div className="bg-red-600 text-white px-4 py-2.5 flex items-center gap-2 animate-pulse sticky top-16 z-20" style={{ animationDuration: "1.5s" }}>
+          <Zap size={16} />
+          <span className="text-xs font-black uppercase tracking-wider">
+            {urgentCount} URGENT/RED job{urgentCount > 1 ? "s" : ""} awaiting action
+          </span>
+          <AlertTriangle size={16} className="ml-auto" />
+        </div>
+      )}
 
       {/* Header */}
       <div className="bg-slate-900 text-white pt-24 pb-4 px-4 sticky top-0 z-10 shadow-md">

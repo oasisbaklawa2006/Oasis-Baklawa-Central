@@ -1,7 +1,16 @@
 import { useEffect, useState, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { Loader2, RefreshCw, Clock, Package, AlertTriangle } from "lucide-react";
+import { Loader2, RefreshCw, Clock, Package, AlertTriangle, Zap } from "lucide-react";
 import { getPackDescription, getPrimaryPackWeightKg } from "@/utils/pricing";
+
+interface UrgentJob {
+  id: string;
+  product_id: string | null;
+  assigned_qty: number;
+  priority: string;
+  created_at: string | null;
+  product?: { name: string; sku: string | null; image_url: string | null } | null;
+}
 
 interface TVOrderItem {
   id: string;
@@ -42,6 +51,7 @@ const REFRESH_INTERVAL = 30_000;
 
 const FactoryTVModule = ({ category, departmentFilter, title }: FactoryTVModuleProps) => {
   const [orders, setOrders] = useState<TVOrder[]>([]);
+  const [urgentJobs, setUrgentJobs] = useState<UrgentJob[]>([]);
   const [loading, setLoading] = useState(true);
   const [lastRefresh, setLastRefresh] = useState(new Date());
 
@@ -95,6 +105,21 @@ const FactoryTVModule = ({ category, departmentFilter, title }: FactoryTVModuleP
     }
 
     setOrders(enrichedOrders);
+    // Fetch urgent/red production jobs for this department
+    const deptKey = departmentFilter.toLowerCase().replace(/\s+/g, "_");
+    const { data: jobData } = await supabase
+      .from("production_jobs")
+      .select("id, product_id, assigned_qty, priority, created_at, product:products(name, sku, image_url)")
+      .in("priority", ["urgent", "red"])
+      .in("status", ["pending", "accepted", "in_production"])
+      .order("created_at", { ascending: true });
+
+    const filteredJobs = ((jobData as any[]) || []).filter((j: any) => {
+      // Match department via product's production_department or the job department field
+      return true; // Show all urgent jobs on all TVs for cross-visibility
+    }) as UrgentJob[];
+    setUrgentJobs(filteredJobs);
+
     setLastRefresh(new Date());
     setLoading(false);
   }, [departmentFilter]);
@@ -143,6 +168,25 @@ const FactoryTVModule = ({ category, departmentFilter, title }: FactoryTVModuleP
           </div>
         </div>
       </header>
+
+      {/* Urgent Jobs Flash Banner */}
+      {urgentJobs.length > 0 && (
+        <div className="bg-red-600 px-8 py-3 flex items-center gap-4 animate-pulse shrink-0" style={{ animationDuration: "1.5s" }}>
+          <Zap size={28} className="text-white shrink-0" />
+          <div className="flex gap-6 overflow-x-auto flex-1">
+            {urgentJobs.map((job) => (
+              <div key={job.id} className="flex items-center gap-3 shrink-0">
+                <span className={`px-2 py-0.5 rounded text-xs font-black uppercase ${job.priority === "red" ? "bg-white text-red-600" : "bg-amber-400 text-black"}`}>
+                  {job.priority}
+                </span>
+                <span className="text-white font-bold text-lg">{job.product?.name || "Unknown"}</span>
+                <span className="text-white/80 text-lg font-black">×{job.assigned_qty}</span>
+              </div>
+            ))}
+          </div>
+          <AlertTriangle size={28} className="text-white shrink-0" />
+        </div>
+      )}
 
       {/* Order Grid */}
       <main className="flex-1 overflow-auto p-6">

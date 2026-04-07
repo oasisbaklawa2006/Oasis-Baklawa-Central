@@ -151,11 +151,14 @@ export default function BOMDemandEngine() {
       if (target === "RGS" && item.componentProductId) {
         // Create production job via RGS path
         const dept = DEPT_MAP[(item.sourceDepartment || "").toLowerCase()] || "arabic_sweets";
+        // Auto-priority: RED if completely out of stock, URGENT otherwise
+        const stockLevel = item.available;
+        const autoPriority = stockLevel === 0 ? "red" : "urgent";
         await supabase.from("production_jobs").insert({
           product_id: item.componentProductId,
           department: dept,
           assigned_qty: Math.ceil(shortfall),
-          priority: "urgent",
+          priority: autoPriority,
           status: "pending",
           stage: "prep",
         });
