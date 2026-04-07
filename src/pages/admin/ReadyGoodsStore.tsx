@@ -2,7 +2,7 @@ import { useEffect, useState, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/useAuth";
-import { Loader2, Inbox, Package, Factory, Barcode, CheckCircle2, AlertTriangle, Send, ScanLine, Printer, Hash, Search } from "lucide-react";
+import { Loader2, Inbox, Package, Factory, Barcode, CheckCircle2, AlertTriangle, Send, ScanLine, Printer, Hash, Search, Zap } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -12,8 +12,6 @@ import { Table, TableHeader, TableHead, TableBody, TableRow, TableCell } from "@
 import StagnancyBadge from "@/components/StagnancyBadge";
 import { Progress } from "@/components/ui/progress";
 import StockCheckEngine from "@/components/rgs/StockCheckEngine";
-import StagnancyBadge from "@/components/StagnancyBadge";
-import { Progress } from "@/components/ui/progress";
 
 interface RGSOrderItem {
   id: string;
