@@ -7,7 +7,7 @@ import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import logoImg from "@/assets/logo-open.png";
-import { getRoleDestination, fetchAuthRoleRecord } from "@/lib/auth-routing";
+import { getRoleDestination, fetchAuthRoleRecord, isInternalStaffUser, normalizeRole } from "@/lib/auth-routing";
 
 type AuthTab = "phone" | "email";
 
@@ -25,7 +25,17 @@ const Login = () => {
   const navigate = useNavigate();
 
   const resolveRedirect = async (userId: string) => {
-    const authRecord = await fetchAuthRoleRecord(userId);
+    const [authRecord, isInternalStaff] = await Promise.all([
+      fetchAuthRoleRecord(userId),
+      isInternalStaffUser(userId),
+    ]);
+
+    const resolvedRole = normalizeRole(authRecord.role);
+    const destination = resolvedRole
+      ? getRoleDestination(resolvedRole)
+      : isInternalStaff
+        ? "/operations-controller"
+        : "/approval-pending";
 
     try {
       localStorage.setItem(
@@ -33,13 +43,13 @@ const Login = () => {
         JSON.stringify({
           userId,
           companyId: authRecord.company_id ?? null,
-          role: authRecord.role ?? null,
+          role: resolvedRole,
           priceTier: null,
         }),
       );
     } catch {}
 
-    window.location.assign(getRoleDestination(authRecord.role));
+    window.location.assign(destination);
   };
 
   // ── Email Login ──

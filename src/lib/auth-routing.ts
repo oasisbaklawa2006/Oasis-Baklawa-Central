@@ -12,12 +12,12 @@ const STAFF_ROLE_DESTINATIONS = {
   FINANCE_EXEC: "/admin/accounts-release",
   OPERATIONS_MANAGER: "/operations-controller",
   PRODUCTION_MANAGER: "/admin/order-management",
-  HOD_ARABIC: "/tv/arabic-sweets",
-  HOD_FUSION: "/tv/fusion",
-  HOD_CHOCOLATE: "/tv/chocolate",
-  HOD_DRAGEES: "/tv/dragees",
-  HOD_BAKERY: "/tv/bakery",
-  HOD_NUTS: "/tv/nuts",
+  HOD_ARABIC: "/operations-controller",
+  HOD_FUSION: "/operations-controller",
+  HOD_CHOCOLATE: "/operations-controller",
+  HOD_DRAGEES: "/operations-controller",
+  HOD_BAKERY: "/operations-controller",
+  HOD_NUTS: "/operations-controller",
   HOD_ASSEMBLY: "/admin/assembly-tasks",
   STORE_INCHARGE: "/admin/ready-goods",
   DISPATCH_MANAGER: "/admin/dispatch-mgmt",
@@ -43,7 +43,6 @@ const LEGACY_ROLE_DESTINATIONS: Record<string, string> = {
   PROD_NUTS: "/tv/nuts",
 };
 
-// ─── Canonical Role Taxonomy ───
 export const STAFF_ROLES = new Set([
   ...Object.keys(STAFF_ROLE_DESTINATIONS),
   ...Object.keys(LEGACY_ROLE_DESTINATIONS),
@@ -57,7 +56,6 @@ export const BUYER_ROLES = new Set([
   "BULK_BUYER",
 ]);
 
-// Legacy buyer role names still in the DB — treat them like buyers
 const LEGACY_BUYER_ROLES = new Set(["BUYER", "CLIENT", "CUSTOMER_USER"]);
 
 const CLIENT_ROLES = new Set([...BUYER_ROLES, ...LEGACY_BUYER_ROLES]);
@@ -68,8 +66,8 @@ const ROLE_DESTINATIONS: Record<string, string> = {
 };
 
 export function isStaffRole(role?: string | null): boolean {
-  const n = normalizeRole(role);
-  return n ? STAFF_ROLES.has(n) : false;
+  const normalizedRole = normalizeRole(role);
+  return normalizedRole ? STAFF_ROLES.has(normalizedRole) : false;
 }
 
 function normalizeRecord(data: Partial<RoleRecord> | null | undefined): RoleRecord | null {
@@ -92,43 +90,39 @@ async function readRoleRecord(table: "profiles" | "users", userId: string): Prom
   return normalizeRecord(data);
 }
 
-async function readRoleFromMap(userId: string): Promise<string | null> {
-  const { data, error } = await supabase
-    .from("user_role_map")
-    .select("role_id, roles:role_id(role_key)")
-    .eq("user_id", userId)
-    .limit(1)
-    .maybeSingle();
+export async function getServerRole(userId: string): Promise<string | null> {
+  const { data, error } = await supabase.rpc("get_user_role", { _user_id: userId });
+  if (error) return null;
+  return normalizeRole(data);
+}
 
-  if (error || !data) return null;
-  const roleObj = data.roles as unknown as { role_key: string } | null;
-  return roleObj?.role_key?.toUpperCase() ?? null;
+export async function isInternalStaffUser(userId: string): Promise<boolean> {
+  const { data, error } = await supabase.rpc("is_internal_staff", { _user_id: userId });
+  if (error) return false;
+  return Boolean(data);
 }
 
 export async function fetchAuthRoleRecord(userId: string): Promise<RoleRecord> {
   try {
-    // 1. user_role_map is the PRIMARY source of truth
-    const mappedRole = await readRoleFromMap(userId);
-
-    // 2. Fall back to profiles/users for company_id and legacy role
-    const profileRecord = await readRoleRecord("profiles", userId).catch(() => null);
-    const userRecord = await readRoleRecord("users", userId).catch(() => null);
-
-    const role = mappedRole
-      ?? profileRecord?.role?.toUpperCase()
-      ?? userRecord?.role?.toUpperCase()
-      ?? null;
+    const [serverRole, profileRecord, userRecord] = await Promise.all([
+      getServerRole(userId),
+      readRoleRecord("profiles", userId).catch(() => null),
+      readRoleRecord("users", userId).catch(() => null),
+    ]);
 
     return {
       company_id: profileRecord?.company_id ?? userRecord?.company_id ?? null,
-      role,
+      role: serverRole ?? normalizeRole(profileRecord?.role) ?? normalizeRole(userRecord?.role),
     };
   } catch {
-    const userRecord = await readRoleRecord("users", userId).catch(() => null);
+    const [serverRole, userRecord] = await Promise.all([
+      getServerRole(userId).catch(() => null),
+      readRoleRecord("users", userId).catch(() => null),
+    ]);
 
     return {
       company_id: userRecord?.company_id ?? null,
-      role: userRecord?.role?.toUpperCase() ?? null,
+      role: serverRole ?? normalizeRole(userRecord?.role),
     };
   }
 }
@@ -157,7 +151,6 @@ export function getRoleDestination(role?: string | null) {
 
   if (STAFF_ROLES.has(normalizedRole)) return "/admin";
 
-  // Buyer roles → storefront
   if (CLIENT_ROLES.has(normalizedRole)) return "/home";
 
   return "/admin";

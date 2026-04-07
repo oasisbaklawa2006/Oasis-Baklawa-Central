@@ -80,9 +80,20 @@ export function useAuth() {
     try {
       const profile = await fetchAuthRoleRecord(activeUser.id);
       const cid = profile.company_id;
-      const r = profile.role;
+      const r = profile.role?.trim().toUpperCase() ?? null;
       setCompanyId(cid);
       setRole(r);
+
+      const { data: isInternalStaff } = await supabase.rpc("is_internal_staff", {
+        _user_id: activeUser.id,
+      });
+
+      if (isInternalStaff) {
+        void supabase
+          .from("profiles")
+          .update({ is_approved: true, status: "approved" })
+          .eq("id", activeUser.id);
+      }
 
       let pt: string | null = null;
       if (cid) {
