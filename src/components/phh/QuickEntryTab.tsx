@@ -99,6 +99,7 @@ export default function QuickEntryTab({ department, departmentLabel, userId }: P
 
       // Create RGS transfer record
       await supabase.from("production_rgs_transfers").insert({
+        job_id: row.product_id,
         product_id: row.product_id,
         quantity: row.produced_qty,
         batch_number: batchId,
