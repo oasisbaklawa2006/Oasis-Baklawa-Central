@@ -45,7 +45,16 @@ const DEPT_MAP: Record<string, string> = {
   "seasoned nuts & mixes": "nuts_mixes",
   "packing & assembly": "packing_assembly",
   "assembly": "packing_assembly",
+  "hampers": "packing_assembly",
+  "gifts": "packing_assembly",
 };
+
+const ASSEMBLY_DEPARTMENTS = ["packing & assembly", "assembly", "hampers", "gifts", "packing_assembly"];
+
+function isAssemblyDept(raw: string | null): boolean {
+  if (!raw) return false;
+  return ASSEMBLY_DEPARTMENTS.includes(raw.toLowerCase().trim());
+}
 
 function mapDept(raw: string | null): string {
   if (!raw) return "arabic_sweets";
@@ -140,28 +149,49 @@ export default function StockCheckEngine() {
   const handleTriggerProduction = async (order: OrderWithStock) => {
     setActing(order.id);
     let jobsCreated = 0;
+    let assemblyPushed = 0;
+
     for (const item of order.items) {
       const available = stockMap[item.product_id || ""] || 0;
       const needed = item.quantity - (item.actual_packed_qty || 0);
       const shortfall = needed - available;
       if (shortfall <= 0 || !item.product_id) continue;
 
-      const dept = mapDept(item.product?.production_department || item.department);
-      
-      // Create production job
-      await supabase.from("production_jobs").insert({
-        order_item_id: item.id,
-        order_id: order.id,
-        product_id: item.product_id,
-        department: dept,
-        assigned_qty: shortfall,
-        priority: "urgent",
-        status: "pending",
-        stage: "prep",
-      });
-      jobsCreated++;
+      const prodDept = item.product?.production_department || item.department;
+
+      if (isAssemblyDept(prodDept)) {
+        // Assembly/Hamper path: push directly to Assembly task cards, NO production_job
+        await supabase.from("order_items").update({
+          production_status: "in_progress",
+          department: prodDept,
+        }).eq("id", item.id);
+        assemblyPushed++;
+      } else {
+        // Production path: create job for specific HOD handheld
+        const dept = mapDept(prodDept);
+        await supabase.from("production_jobs").insert({
+          order_item_id: item.id,
+          order_id: order.id,
+          product_id: item.product_id,
+          department: dept,
+          assigned_qty: shortfall,
+          priority: "urgent",
+          status: "pending",
+          stage: "prep",
+        });
+        jobsCreated++;
+      }
     }
-    toast.success(`🏭 ${jobsCreated} production jobs created and sent to department handhelds`);
+
+    // BATTLEFIELD PERSISTENCE: Move to 'manufacturing', NEVER back to 'draft'
+    if (order.status !== "manufacturing" && order.status !== "packed_ready") {
+      await supabase.from("orders").update({ status: "manufacturing" }).eq("id", order.id);
+    }
+
+    const msgs: string[] = [];
+    if (jobsCreated > 0) msgs.push(`${jobsCreated} production jobs sent to HOD handhelds`);
+    if (assemblyPushed > 0) msgs.push(`${assemblyPushed} items pushed to Assembly`);
+    toast.success(`🏭 ${msgs.join(" · ") || "No shortfalls found"}`);
     fetchData();
     setActing(null);
   };
