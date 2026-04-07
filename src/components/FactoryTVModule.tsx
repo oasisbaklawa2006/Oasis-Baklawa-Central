@@ -1,7 +1,16 @@
 import { useEffect, useState, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { Loader2, RefreshCw, Clock, Package, AlertTriangle } from "lucide-react";
+import { Loader2, RefreshCw, Clock, Package, AlertTriangle, Zap } from "lucide-react";
 import { getPackDescription, getPrimaryPackWeightKg } from "@/utils/pricing";
+
+interface UrgentJob {
+  id: string;
+  product_id: string | null;
+  assigned_qty: number;
+  priority: string;
+  created_at: string | null;
+  product?: { name: string; sku: string | null; image_url: string | null } | null;
+}
 
 interface TVOrderItem {
   id: string;
