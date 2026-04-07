@@ -1,8 +1,8 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/useAuth";
-import { Loader2, Package, CheckCircle2, Factory, AlertTriangle, Zap, Layers } from "lucide-react";
+import { Loader2, Package, CheckCircle2, AlertTriangle, Zap, Layers } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -43,6 +43,7 @@ export default function StockCheckEngine() {
   const [stockMap, setStockMap] = useState<Record<string, number>>({});
   const [loading, setLoading] = useState(true);
   const [acting, setActing] = useState<string | null>(null);
+  const autoPostedRef = useRef<Set<string>>(new Set());
 
   const fetchData = useCallback(async () => {
     const { data: inv } = await supabase.from("factory_inventory").select("product_id, quantity");
@@ -88,87 +89,106 @@ export default function StockCheckEngine() {
 
     setOrders(result);
     setLoading(false);
+    return { orders: result, stockMap: sm };
   }, []);
 
-  useEffect(() => { fetchData(); }, [fetchData]);
-
   /**
-   * TRIAD SPLIT: Classify each item and dispatch to the correct parallel flow.
-   * - FLOW_FGS → production_jobs for HOD handhelds
-   * - FLOW_ASSEMBLY → direct to Assembly task cards
-   * - FLOW_3PCS → mark as 3pcs department for separate tracking
+   * AUTO-POST: On load, automatically create production_jobs for food shortfalls,
+   * and instantly post Assembly/3PCS tasks to their handhelds.
    */
-  const handleTriggerProduction = async (order: OrderWithStock) => {
-    setActing(order.id);
-    let fgsJobs = 0;
-    let assemblyPushed = 0;
-    let tpcsPushed = 0;
+  const autoPostShortfalls = useCallback(async (ordersToProcess: OrderWithStock[], sm: Record<string, number>) => {
+    for (const order of ordersToProcess) {
+      for (const item of order.items) {
+        // Skip already-processed or completed items
+        if (item.production_status === "completed" || item.production_status === "in_production" || item.production_status === "accepted") continue;
+        const itemKey = `${item.id}`;
+        if (autoPostedRef.current.has(itemKey)) continue;
 
-    for (const item of order.items) {
-      const available = stockMap[item.product_id || ""] || 0;
-      const needed = item.quantity - (item.actual_packed_qty || 0);
-      const shortfall = needed - available;
-      if (shortfall <= 0 || !item.product_id) continue;
+        const prodDept = item.product?.production_department || item.department;
+        const flow = classifyFlow(prodDept);
+        const available = sm[item.product_id || ""] || 0;
+        const needed = item.quantity - (item.actual_packed_qty || 0);
 
-      const prodDept = item.product?.production_department || item.department;
-      const flow = classifyFlow(prodDept);
+        if (needed <= 0 || !item.product_id) continue;
 
-      switch (flow) {
-        case "FLOW_FGS": {
-          // Route to specific HOD handheld via production_jobs
-          const dept = mapToJobDept(prodDept);
-          await supabase.from("production_jobs").insert({
-            order_item_id: item.id,
-            order_id: order.id,
-            product_id: item.product_id,
-            department: dept,
-            assigned_qty: shortfall,
-            priority: "urgent",
-            status: "pending",
-            stage: "prep",
-          });
-          fgsJobs++;
-          break;
-        }
-        case "FLOW_ASSEMBLY": {
-          // Push directly to Assembly task cards — NO production_job
-          await supabase.from("order_items").update({
-            production_status: "pending",
-            department: prodDept || "Packing & Assembly",
-          }).eq("id", item.id);
-          assemblyPushed++;
-          break;
-        }
-        case "FLOW_3PCS": {
-          // Mark as 3PCS for independent tracking — bypasses FGS entirely
-          await supabase.from("order_items").update({
-            production_status: "pending",
-            department: "3PCS",
-          }).eq("id", item.id);
-          tpcsPushed++;
-          break;
+        switch (flow) {
+          case "FLOW_FGS": {
+            const shortfall = needed - available;
+            if (shortfall <= 0) continue; // Stock covers it
+
+            // Check if a production_job already exists for this item
+            const { data: existing } = await supabase
+              .from("production_jobs")
+              .select("id")
+              .eq("order_item_id", item.id)
+              .in("status", ["pending", "accepted", "in_production", "paused"])
+              .limit(1);
+
+            if (existing && existing.length > 0) {
+              autoPostedRef.current.add(itemKey);
+              continue;
+            }
+
+            const dept = mapToJobDept(prodDept);
+            await supabase.from("production_jobs").insert({
+              order_item_id: item.id,
+              order_id: order.id,
+              product_id: item.product_id,
+              department: dept,
+              assigned_qty: shortfall,
+              priority: "urgent",
+              status: "pending",
+              stage: "prep",
+            });
+            autoPostedRef.current.add(itemKey);
+            break;
+          }
+          case "FLOW_ASSEMBLY": {
+            // Instant post to Assembly — update order_items directly
+            if (item.production_status !== "pending") {
+              await supabase.from("order_items").update({
+                production_status: "pending",
+                department: prodDept || "Packing & Assembly",
+              }).eq("id", item.id);
+            }
+            autoPostedRef.current.add(itemKey);
+            break;
+          }
+          case "FLOW_3PCS": {
+            // Instant post to 3PCS
+            if (item.production_status !== "pending") {
+              await supabase.from("order_items").update({
+                production_status: "pending",
+                department: "3PCS",
+              }).eq("id", item.id);
+            }
+            autoPostedRef.current.add(itemKey);
+            break;
+          }
         }
       }
-    }
 
-    // BATTLEFIELD PERSISTENCE: Move to 'manufacturing', NEVER back to 'draft'
-    if (order.status !== "manufacturing" && order.status !== "packed_ready") {
-      await supabase.from("orders").update({ status: "manufacturing" }).eq("id", order.id);
+      // Move order to 'manufacturing' if not already
+      if (order.status !== "manufacturing" && order.status !== "packed_ready" && order.status !== "dispatched") {
+        await supabase.from("orders").update({ status: "manufacturing" }).eq("id", order.id);
+      }
     }
+  }, []);
 
-    const msgs: string[] = [];
-    if (fgsJobs > 0) msgs.push(`${fgsJobs} FGS → HOD handhelds`);
-    if (assemblyPushed > 0) msgs.push(`${assemblyPushed} → Assembly`);
-    if (tpcsPushed > 0) msgs.push(`${tpcsPushed} → 3PCS`);
-    toast.success(`🏭 Triad Split: ${msgs.join(" · ") || "No shortfalls found"}`);
-    fetchData();
-    setActing(null);
-  };
+  useEffect(() => {
+    (async () => {
+      const result = await fetchData();
+      if (result) {
+        await autoPostShortfalls(result.orders, result.stockMap);
+        // Refresh after auto-posting
+        await fetchData();
+      }
+    })();
+  }, [fetchData, autoPostShortfalls]);
 
   /**
-   * DISPATCH READINESS GATE:
-   * Auto-fulfill available items. Order moves to packed_ready ONLY when
-   * ALL items across ALL 3 flows are completed.
+   * FULFILL: Auto-fulfill available items from stock. Mark order as packed_ready
+   * only when ALL items across ALL 3 flows are completed.
    */
   const handleAutoFulfill = async (order: OrderWithStock) => {
     setActing(order.id);
@@ -184,7 +204,6 @@ export default function StockCheckEngine() {
       }
     }
 
-    // Re-check if ALL items are now completed
     const { data: freshItems } = await supabase
       .from("order_items")
       .select("production_status")
@@ -196,9 +215,6 @@ export default function StockCheckEngine() {
       await supabase.from("orders").update({ status: "packed_ready" }).eq("id", order.id);
       toast.success("✅ All 3 flows complete → Ready for Shipping");
     } else {
-      if (order.status !== "manufacturing" && order.status !== "packed_ready" && order.status !== "dispatched") {
-        await supabase.from("orders").update({ status: "manufacturing" }).eq("id", order.id);
-      }
       toast.success("✅ Available items fulfilled. Waiting on remaining flows.");
     }
     fetchData();
@@ -209,6 +225,7 @@ export default function StockCheckEngine() {
 
   return (
     <div className="space-y-3">
+      {/* Summary cards */}
       <div className="grid grid-cols-3 gap-2 mb-2">
         <Card className="bg-emerald-500/10 border-emerald-400/40">
           <CardContent className="p-3 text-center">
@@ -225,10 +242,20 @@ export default function StockCheckEngine() {
         <Card className="bg-red-500/10 border-red-400/40">
           <CardContent className="p-3 text-center">
             <p className="text-2xl font-black text-red-700">{orders.filter(o => o.stockStatus === "pending_production").length}</p>
-            <p className="text-[10px] font-bold text-red-600 uppercase">Need Prod</p>
+            <p className="text-[10px] font-bold text-red-600 uppercase">In Production</p>
           </CardContent>
         </Card>
       </div>
+
+      {/* Auto-post status banner */}
+      <Card className="bg-blue-500/10 border-blue-400/40">
+        <CardContent className="p-3 flex items-center gap-2">
+          <Zap size={16} className="text-blue-600" />
+          <p className="text-xs text-blue-700 font-medium">
+            Shortfalls auto-posted to HOD Handhelds · Assembly & 3PCS tasks posted instantly
+          </p>
+        </CardContent>
+      </Card>
 
       {orders.map((order) => {
         const totalQty = order.items.reduce((s, i) => s + i.quantity, 0);
@@ -239,7 +266,6 @@ export default function StockCheckEngine() {
         }, 0);
         const pct = totalQty > 0 ? Math.round((readyQty / totalQty) * 100) : 0;
 
-        // Group items by flow for visual clarity
         const flowGroups = order.items.reduce<Record<TriadFlow, StockItem[]>>((acc, item) => {
           const flow = classifyFlow(item.product?.production_department || item.department);
           acc[flow].push(item);
@@ -280,11 +306,18 @@ export default function StockCheckEngine() {
                       {FLOW_LABELS[flow].label}
                     </Badge>
                     <span className="text-[10px] text-muted-foreground">{items.length} item{items.length > 1 ? "s" : ""}</span>
+                    {flow === "FLOW_FGS" && (
+                      <span className="text-[9px] text-blue-600 font-medium ml-auto">Auto-posted shortfalls</span>
+                    )}
+                    {(flow === "FLOW_ASSEMBLY" || flow === "FLOW_3PCS") && (
+                      <span className="text-[9px] text-purple-600 font-medium ml-auto">Instant post</span>
+                    )}
                   </div>
                   {items.map((item) => {
                     const avail = stockMap[item.product_id || ""] || 0;
                     const needed = item.quantity - (item.actual_packed_qty || 0);
                     const isMet = needed <= 0 || avail >= needed;
+                    const shortfall = Math.max(0, needed - avail);
                     return (
                       <div key={item.id} className={`flex items-center gap-2 text-xs rounded-lg p-2 border ${isMet ? "bg-emerald-500/5 border-emerald-400/30" : "bg-red-500/5 border-red-400/30"}`}>
                         <div className="w-8 h-8 rounded bg-muted flex items-center justify-center overflow-hidden shrink-0">
@@ -294,6 +327,9 @@ export default function StockCheckEngine() {
                           <p className="font-medium truncate text-foreground">{item.product?.name || "Unknown"}</p>
                           <p className="text-[10px] text-muted-foreground">
                             Need: {needed > 0 ? needed : 0} · Stock: <span className={isMet ? "text-emerald-600 font-bold" : "text-red-600 font-bold"}>{avail}</span>
+                            {!isMet && shortfall > 0 && (
+                              <span className="text-red-600 font-bold ml-1">· Gap: {shortfall} → HOD</span>
+                            )}
                           </p>
                         </div>
                         {isMet ? (
@@ -307,26 +343,16 @@ export default function StockCheckEngine() {
                 </div>
               ))}
 
-              {/* Action buttons */}
+              {/* Action: Only "Fulfill Available" — no manual Triad Split needed */}
               <div className="flex gap-2">
                 {order.stockStatus === "ready" && (
                   <Button size="sm" className="flex-1 text-xs" onClick={() => handleAutoFulfill(order)} disabled={acting === order.id}>
                     {acting === order.id ? <Loader2 size={14} className="animate-spin" /> : <><CheckCircle2 size={14} className="mr-1" /> All Flows Complete → Dispatch</>}
                   </Button>
                 )}
-                {order.stockStatus === "partial" && (
-                  <>
-                    <Button size="sm" variant="outline" className="flex-1 text-xs" onClick={() => handleAutoFulfill(order)} disabled={acting === order.id}>
-                      <Zap size={14} className="mr-1" /> Fulfill Available
-                    </Button>
-                    <Button size="sm" variant="destructive" className="flex-1 text-xs" onClick={() => handleTriggerProduction(order)} disabled={acting === order.id}>
-                      <Factory size={14} className="mr-1" /> Triad Split
-                    </Button>
-                  </>
-                )}
-                {order.stockStatus === "pending_production" && (
-                  <Button size="sm" variant="destructive" className="w-full text-xs" onClick={() => handleTriggerProduction(order)} disabled={acting === order.id}>
-                    {acting === order.id ? <Loader2 size={14} className="animate-spin" /> : <><Factory size={14} className="mr-1" /> Triad Split → FGS / Assembly / 3PCS</>}
+                {(order.stockStatus === "partial" || order.stockStatus === "pending_production") && (
+                  <Button size="sm" variant="outline" className="flex-1 text-xs" onClick={() => handleAutoFulfill(order)} disabled={acting === order.id}>
+                    {acting === order.id ? <Loader2 size={14} className="animate-spin" /> : <><Zap size={14} className="mr-1" /> Fulfill Available Stock</>}
                   </Button>
                 )}
               </div>
