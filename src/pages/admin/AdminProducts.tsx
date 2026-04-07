@@ -96,11 +96,12 @@ const STORAGE_OPTIONS = ["ambient", "refrigerated", "frozen"];
 
 const TARGET_DEPARTMENTS = [
   "Arabic Sweets",
-  "Chocolate & Confectionery",
+  "Chocolates",
   "Bakery",
+  "Dragees",
   "Fusion Sweets",
-  "Seasoned Nuts & Mixes",
-  "3rd Party Goods",
+  "Seasoned Nuts",
+  "3rd Party Store",
   "Packing & Assembly",
 ];
 
