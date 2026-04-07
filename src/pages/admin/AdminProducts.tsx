@@ -442,6 +442,7 @@ const AdminProducts = () => {
               component_product_id: product.id,
               component_name: product.name + (product.sku ? ` (${product.sku})` : ""),
               source_department: product.production_department || "",
+              unit_cost: product.wholesale_price || 0,
             }
           : c
       )
