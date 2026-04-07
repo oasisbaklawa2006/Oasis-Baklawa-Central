@@ -972,7 +972,7 @@ const AdminProducts = () => {
                         {bomComponents.map((comp, idx) => (
                           <div key={idx} className="bg-muted/20 p-3 rounded-lg border border-border space-y-2">
                             <div className="grid grid-cols-12 gap-2 items-end">
-                              <div className="col-span-5 relative">
+                              <div className="col-span-4 relative">
                                 <label className="block text-[9px] font-semibold text-muted-foreground uppercase mb-1">
                                   <Search size={9} className="inline mr-1" />Search Product / SKU
                                 </label>
@@ -1000,7 +1000,7 @@ const AdminProducts = () => {
                                       >
                                         <span className="font-medium text-foreground truncate">{p.name}</span>
                                         <span className="text-[9px] text-muted-foreground ml-2 shrink-0">
-                                          {(p as any).production_department || "No Dept"}
+                                          ₹{(p as any).wholesale_price || 0} • {(p as any).production_department || "No Dept"}
                                         </span>
                                       </button>
                                     ))}
@@ -1008,17 +1008,26 @@ const AdminProducts = () => {
                                 )}
                               </div>
                               <div className="col-span-2">
-                                <label className="block text-[9px] font-semibold text-muted-foreground uppercase mb-1">
-                                  Qty/Unit {formData.settlement_unit === "KG" ? "(KG)" : "(PCS)"}
-                                </label>
+                                <label className="block text-[9px] font-semibold text-muted-foreground uppercase mb-1">Qty Value</label>
                                 <input
                                   type="number"
-                                  step={formData.settlement_unit === "KG" ? "0.001" : "1"}
+                                  step={comp.uom === "Gms" ? "0.001" : "1"}
                                   value={comp.quantity_per_unit}
                                   onChange={(e) => updateBomComponent(idx, "quantity_per_unit", parseFloat(e.target.value) || 0)}
-                                  placeholder={formData.settlement_unit === "KG" ? "0.500" : "1"}
+                                  placeholder={comp.uom === "Gms" ? "500" : "1"}
                                   className="w-full bg-background border border-border rounded-md p-2 text-xs outline-none focus:ring-1 focus:ring-purple-500"
                                 />
+                              </div>
+                              <div className="col-span-1">
+                                <label className="block text-[9px] font-semibold text-muted-foreground uppercase mb-1">UOM</label>
+                                <select
+                                  value={comp.uom}
+                                  onChange={(e) => updateBomComponent(idx, "uom", e.target.value)}
+                                  className="w-full bg-background border border-border rounded-md p-2 text-xs outline-none focus:ring-1 focus:ring-purple-500"
+                                >
+                                  <option value="Gms">Gms</option>
+                                  <option value="Pcs">Pcs</option>
+                                </select>
                               </div>
                               <div className="col-span-4">
                                 <label className="block text-[9px] font-semibold text-muted-foreground uppercase mb-1">
@@ -1047,7 +1056,7 @@ const AdminProducts = () => {
                             </div>
                             {comp.component_product_id && (
                               <p className="text-[9px] text-green-600 flex items-center gap-1">
-                                ✓ Linked to catalog product — Source Dept auto-fetched
+                                ✓ Linked — Cost: ₹{comp.unit_cost || 0}/{comp.uom} • Source Dept auto-fetched
                               </p>
                             )}
                           </div>
@@ -1060,9 +1069,26 @@ const AdminProducts = () => {
                           <Plus size={14} /> Add Component
                         </button>
                         {bomComponents.length > 0 && (
-                          <div className="bg-purple-50 dark:bg-purple-950/20 border border-purple-200 dark:border-purple-800 rounded-lg p-3 text-[10px] text-muted-foreground">
-                            <strong className="text-foreground">{bomComponents.length} component(s)</strong> defined.
-                            Departments: {[...new Set(bomComponents.map(c => c.source_department).filter(Boolean))].join(", ") || "None assigned"}
+                          <div className="bg-purple-50 dark:bg-purple-950/20 border border-purple-200 dark:border-purple-800 rounded-lg p-3 text-[10px] text-muted-foreground space-y-1">
+                            <div><strong className="text-foreground">{bomComponents.length} component(s)</strong> defined.
+                            Departments: {[...new Set(bomComponents.map(c => c.source_department).filter(Boolean))].join(", ") || "None assigned"}</div>
+                            {(() => {
+                              const bomTotal = bomComponents.reduce((sum, c) => {
+                                if (!c.unit_cost) return sum;
+                                const qty = c.uom === "Gms" ? c.quantity_per_unit / 1000 : c.quantity_per_unit;
+                                return sum + qty * c.unit_cost;
+                              }, 0);
+                              return bomTotal > 0 ? (
+                                <div className="text-xs font-bold text-foreground">
+                                  Estimated BOM Cost: ₹{bomTotal.toFixed(2)} / unit
+                                  {Number(formData.wholesale_price) > 0 && (
+                                    <span className={`ml-2 ${bomTotal > Number(formData.wholesale_price) ? "text-destructive" : "text-green-600"}`}>
+                                      ({bomTotal > Number(formData.wholesale_price) ? "⚠ Exceeds" : "✓ Under"} B2B Base ₹{formData.wholesale_price})
+                                    </span>
+                                  )}
+                                </div>
+                              ) : null;
+                            })()}
                           </div>
                         )}
                       </div>
