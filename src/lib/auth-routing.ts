@@ -37,6 +37,7 @@ const LEGACY_ROLE_DESTINATIONS: Record<string, string> = {
   DISPATCH_HEAD: "/admin/dispatch-mgmt",
   PROD_ARABIC_SWEETS: "/tv/arabic-sweets",
   PROD_CHOCOLATE: "/tv/chocolate",
+  PROD_DRAGEES: "/tv/dragees",
   PROD_FUSION: "/tv/fusion",
   PROD_BAKERY: "/tv/bakery",
   PROD_NUTS: "/tv/nuts",
