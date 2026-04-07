@@ -2561,6 +2561,7 @@ export type Database = {
       }
       is_internal_staff: { Args: { _user_id: string }; Returns: boolean }
       is_staff_role: { Args: { _role: string }; Returns: boolean }
+      restore_order_financials: { Args: { _order_id: string }; Returns: number }
     }
     Enums: {
       [_ in never]: never
