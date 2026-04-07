@@ -5,14 +5,12 @@ import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
-
-import { getRoleDestination, normalizeRole, isStaffRole } from "@/lib/auth-routing";
+import { fetchAuthRoleRecord, getRoleDestination, isInternalStaffUser, normalizeRole } from "@/lib/auth-routing";
 
 function getRouteForRole(role?: string | null) {
-  const n = normalizeRole(role);
-  if (!n || n === "PENDING") return null;
-  // Any non-pending role has a destination
-  return getRoleDestination(n);
+  const normalizedRole = normalizeRole(role);
+  if (!normalizedRole || normalizedRole === "PENDING") return null;
+  return getRoleDestination(normalizedRole);
 }
 
 export default function ApprovalPending() {
@@ -62,21 +60,18 @@ export default function ApprovalPending() {
         throw authError ?? new Error("No active user session found.");
       }
 
-      const { data, error } = await supabase
-        .from("users")
-        .select("role, company_id")
-        .eq("id", activeUser.id)
-        .maybeSingle();
-
-      if (error) throw error;
+      const [authRecord, isInternalStaff] = await Promise.all([
+        fetchAuthRoleRecord(activeUser.id),
+        isInternalStaffUser(activeUser.id),
+      ]);
 
       await refreshProfile();
 
-      const nextRoute = getRouteForRole(data?.role);
+      const nextRoute = getRouteForRole(authRecord.role);
 
-      if (nextRoute) {
-        toast.success("Approval confirmed.");
-        navigate(nextRoute, { replace: true });
+      if (isInternalStaff || nextRoute) {
+        toast.success("Access confirmed.");
+        navigate(nextRoute ?? "/operations-controller", { replace: true });
         return;
       }
 
@@ -99,11 +94,7 @@ export default function ApprovalPending() {
           Your B2B account application is currently being reviewed. You will be notified once approved.
         </p>
         <p className="text-sm text-muted-foreground">Contact: support@oasisbaklawa.com</p>
-        <Button
-          onClick={handleCheckStatus}
-          disabled={checkingStatus}
-          className="w-full"
-        >
+        <Button onClick={handleCheckStatus} disabled={checkingStatus} className="w-full">
           {checkingStatus ? <Loader2 className="animate-spin" /> : <RefreshCcw />}
           {checkingStatus ? "Checking approval..." : "Check Approval Status"}
         </Button>

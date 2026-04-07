@@ -19,6 +19,7 @@ import {
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import TopNavBar from "@/components/TopNavBar";
+import { normalizeRole } from "@/lib/auth-routing";
 
 const DEPARTMENTS: { value: string; label: string }[] = [
   { value: "arabic_sweets", label: "Arabic Sweets" },
@@ -55,10 +56,27 @@ interface Product {
   image_url?: string;
 }
 
+const HOD_DEPARTMENT_MAP: Record<string, string> = {
+  HOD_ARABIC: "arabic_sweets",
+  HOD_DRAGEES: "dragees",
+  HOD_FUSION: "fusion_sweets",
+  HOD_CHOCOLATE: "chocolate",
+  HOD_BAKERY: "bakery",
+  HOD_NUTS: "nuts_mixes",
+  HOD_ASSEMBLY: "packing_assembly",
+};
+
+const getDepartmentForRole = (role?: string | null) => {
+  const normalizedRole = normalizeRole(role);
+  if (!normalizedRole) return null;
+  return HOD_DEPARTMENT_MAP[normalizedRole] ?? null;
+};
+
 const OperationsController = () => {
-  const { user } = useAuth();
+  const { user, role } = useAuth();
+  const roleDepartment = getDepartmentForRole(role);
   const [loading, setLoading] = useState(true);
-  const [myDepartment, setMyDepartment] = useState("arabic_sweets");
+  const [myDepartment, setMyDepartment] = useState(roleDepartment ?? "arabic_sweets");
   const [activeTab, setActiveTab] = useState<"tasks" | "store_log">("tasks");
   const [requisitions, setRequisitions] = useState<Requisition[]>([]);
   const [departmentProducts, setDepartmentProducts] = useState<Product[]>([]);
@@ -74,6 +92,12 @@ const OperationsController = () => {
   const [panicQty, setPanicQty] = useState("");
   const [panicSubmitting, setPanicSubmitting] = useState(false);
   const [allProducts, setAllProducts] = useState<Product[]>([]);
+
+  useEffect(() => {
+    if (roleDepartment) {
+      setMyDepartment(roleDepartment);
+    }
+  }, [roleDepartment]);
 
   const deptLabel = DEPARTMENTS.find((d) => d.value === myDepartment)?.label || myDepartment;
 
