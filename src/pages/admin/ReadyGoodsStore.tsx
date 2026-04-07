@@ -13,6 +13,7 @@ import StagnancyBadge from "@/components/StagnancyBadge";
 import { Progress } from "@/components/ui/progress";
 import StockCheckEngine from "@/components/rgs/StockCheckEngine";
 import DailyPlanningModule from "@/components/rgs/DailyPlanningModule";
+import ProductionPlanningPanel from "@/components/rgs/ProductionPlanningPanel";
 
 interface RGSOrderItem {
   id: string;
@@ -335,7 +336,7 @@ export default function ReadyGoodsStore() {
           <TabsTrigger value="planning"><TrendingDown size={14} className="mr-1" />Planning</TabsTrigger>
           <TabsTrigger value="inbox"><Inbox size={14} className="mr-1" />Inbox</TabsTrigger>
           <TabsTrigger value="issue"><ScanLine size={14} className="mr-1" />Issue</TabsTrigger>
-          <TabsTrigger value="prodorder"><Factory size={14} className="mr-1" />Prod Order</TabsTrigger>
+          <TabsTrigger value="prodorder"><Factory size={14} className="mr-1" />Buffer Order</TabsTrigger>
           <TabsTrigger value="barcode"><Barcode size={14} className="mr-1" />Labels</TabsTrigger>
         </TabsList>
 
