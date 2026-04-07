@@ -245,7 +245,8 @@ const App = () => (
 
             {/* Factory TV Routes — guarded for PROD_* roles + admins */}
             <Route path="/tv/arabic-sweets" element={<RoleProtectedRoute allowedRoles={['HOD_ARABIC', 'PROD_ARABIC_SWEETS', 'SUPER_ADMIN', 'ADMIN']}><FactoryTVModule category="Arabic Sweets" departmentFilter="Arabic Sweets" title="Arabic Sweets Line" /></RoleProtectedRoute>} />
-            <Route path="/tv/chocolate" element={<RoleProtectedRoute allowedRoles={['HOD_CHOCOLATE', 'PROD_CHOCOLATE', 'SUPER_ADMIN', 'ADMIN']}><FactoryTVModule category="Chocolate" departmentFilter="Confectionery & Chocolates" title="Chocolate Line" /></RoleProtectedRoute>} />
+            <Route path="/tv/chocolate" element={<RoleProtectedRoute allowedRoles={['HOD_CHOCOLATE', 'PROD_CHOCOLATE', 'SUPER_ADMIN', 'ADMIN']}><FactoryTVModule category="Chocolate" departmentFilter="Chocolates" title="Chocolate Line" /></RoleProtectedRoute>} />
+            <Route path="/tv/dragees" element={<RoleProtectedRoute allowedRoles={['HOD_DRAGEES', 'PROD_DRAGEES', 'SUPER_ADMIN', 'ADMIN']}><FactoryTVModule category="Dragees" departmentFilter="Dragees" title="Dragees Line" /></RoleProtectedRoute>} />
             <Route path="/tv/fusion" element={<RoleProtectedRoute allowedRoles={['HOD_FUSION', 'PROD_FUSION', 'SUPER_ADMIN', 'ADMIN']}><FactoryTVModule category="Fusion Sweets" departmentFilter="Fusion Sweets" title="Fusion Sweets Line" /></RoleProtectedRoute>} />
             <Route path="/tv/bakery" element={<RoleProtectedRoute allowedRoles={['HOD_BAKERY', 'PROD_BAKERY', 'SUPER_ADMIN', 'ADMIN']}><FactoryTVModule category="Bakery" departmentFilter="Bakery" title="Bakery Line" /></RoleProtectedRoute>} />
             <Route path="/tv/nuts" element={<RoleProtectedRoute allowedRoles={['HOD_NUTS', 'PROD_NUTS', 'SUPER_ADMIN', 'ADMIN']}><FactoryTVModule category="Seasoned Nuts" departmentFilter="Nuts Roasting" title="Nuts & Dry Fruits Line" /></RoleProtectedRoute>} />
