@@ -60,13 +60,39 @@ export default function AssemblyManagement() {
   const [submittingProd, setSubmittingProd] = useState(false);
 
   const fetchTasks = useCallback(async () => {
-    const { data } = await supabase
+    // Fetch items that belong to assembly departments with active production statuses
+    const { data: directItems } = await supabase
       .from("order_items")
-      .select("*, product:products(name, image_url, sku), order:orders(id, created_at, company:companies(business_name))")
+      .select("*, product:products(name, image_url, sku), order:orders(id, created_at, status, company:companies(business_name))")
       .in("department", ["Packing & Assembly", "Assembly", "Hampers", "Gifts"])
       .in("production_status", ["pending", "in_progress", "partial_ready"])
       .order("production_status", { ascending: true });
-    setTasks((data as any[]) || []);
+
+    // Also fetch items from orders in 'manufacturing' status where department matches
+    // but production_status might not have been set yet
+    const { data: mfgItems } = await supabase
+      .from("order_items")
+      .select("*, product:products(name, image_url, sku, production_department), order:orders(id, created_at, status, company:companies(business_name))")
+      .filter("order.status", "eq", "manufacturing");
+
+    // Filter mfg items to assembly departments and merge (dedup by id)
+    const assemblyDepts = ["packing & assembly", "assembly", "hampers", "gifts"];
+    const extraItems = ((mfgItems as any[]) || []).filter((item) => {
+      if (!item.order) return false; // inner join filter
+      const dept = (item.department || item.product?.production_department || "").toLowerCase();
+      return assemblyDepts.includes(dept) && 
+             item.production_status !== "completed";
+    });
+
+    const allItems = [...((directItems as any[]) || [])];
+    const existingIds = new Set(allItems.map((t) => t.id));
+    extraItems.forEach((item) => {
+      if (!existingIds.has(item.id)) {
+        allItems.push(item);
+      }
+    });
+
+    setTasks(allItems);
     setLoading(false);
   }, []);
 

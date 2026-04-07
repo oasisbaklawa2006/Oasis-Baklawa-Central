@@ -501,6 +501,8 @@ const AdminProducts = () => {
       gst_percentage: parseInt(formData.gst_percentage) || 0,
       uom: formData.uom || "Kg",
       settlement_unit: formData.settlement_unit || "KG",
+      base_price: parseFloat(formData.wholesale_price) || null,
+      price_b2b: parseFloat(formData.wholesale_price) || null,
       private_label_moq: parseInt(formData.private_label_moq) || null,
       private_label_price: parseFloat(formData.private_label_price) || null,
       nutrition_facts: formData.nutrition_facts || null,
