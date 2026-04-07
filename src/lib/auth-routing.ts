@@ -15,6 +15,7 @@ const STAFF_ROLE_DESTINATIONS = {
   HOD_ARABIC: "/tv/arabic-sweets",
   HOD_FUSION: "/tv/fusion",
   HOD_CHOCOLATE: "/tv/chocolate",
+  HOD_DRAGEES: "/tv/dragees",
   HOD_BAKERY: "/tv/bakery",
   HOD_NUTS: "/tv/nuts",
   HOD_ASSEMBLY: "/admin/assembly-tasks",
