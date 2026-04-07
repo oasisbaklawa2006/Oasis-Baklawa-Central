@@ -129,6 +129,7 @@ const EMPTY_FORM = {
   shelf_life: "90",
   image_url: "",
   is_active: true,
+  visible_in_catalog: true,
   mrp: "",
   mrp_per_pc: "",
   wholesale_price: "",
