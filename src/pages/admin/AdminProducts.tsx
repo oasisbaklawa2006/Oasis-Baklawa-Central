@@ -377,6 +377,7 @@ const AdminProducts = () => {
         shelf_life: product.shelf_life || "",
         image_url: product.image_url || "",
         is_active: product.is_active ?? true,
+        visible_in_catalog: (product as any).visible_in_catalog ?? true,
         mrp: product.mrp?.toString() || "",
         mrp_per_pc: product.mrp_per_pc?.toString() || "",
         wholesale_price: product.wholesale_price?.toString() || "",
@@ -428,7 +429,7 @@ const AdminProducts = () => {
     if (query.length < 2) { setBomSearchResults([]); return; }
     const { data } = await supabase
       .from("products")
-      .select("id, name, sku, production_department, settlement_unit")
+      .select("id, name, sku, production_department, settlement_unit, wholesale_price")
       .or(`name.ilike.%${query}%,sku.ilike.%${query}%`)
       .limit(8);
     setBomSearchResults((data as Product[]) || []);
@@ -486,6 +487,7 @@ const AdminProducts = () => {
       hsn_code: formData.hsn_code || null,
       dietary_tags: formData.dietary_tags || [],
       is_active: formData.is_active,
+      visible_in_catalog: formData.visible_in_catalog ?? true,
       shelf_life: formData.shelf_life || null,
       price_per_kg: parseFloat(formData.price_per_kg) || null,
       mrp: parseFloat(formData.mrp) || null,
