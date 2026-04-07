@@ -22,6 +22,7 @@ import {
   Zap,
   Layers,
   Trash2,
+  Search,
 } from "lucide-react";
 
 interface ProductTagItem {
@@ -97,6 +98,7 @@ const TARGET_DEPARTMENTS = [
   "Fusion Sweets",
   "Seasoned Nuts & Mixes",
   "3rd Party Goods",
+  "Packing & Assembly",
 ];
 
 const PRODUCTION_DEPARTMENTS = [
@@ -157,7 +159,9 @@ const AdminProducts = () => {
 
   // BOM state
   const [bomComponents, setBomComponents] = useState<BomComponent[]>([]);
-
+  const [bomSearchQuery, setBomSearchQuery] = useState("");
+  const [bomSearchResults, setBomSearchResults] = useState<Product[]>([]);
+  const [bomSearchingIdx, setBomSearchingIdx] = useState<number | null>(null);
   // Tag management state
   const [allTags, setAllTags] = useState<ProductTagItem[]>([]);
   const [tagModalProduct, setTagModalProduct] = useState<Product | null>(null);
@@ -412,6 +416,35 @@ const AdminProducts = () => {
     ]);
   };
 
+  const searchProductsForBom = async (query: string, idx: number) => {
+    setBomSearchQuery(query);
+    setBomSearchingIdx(idx);
+    if (query.length < 2) { setBomSearchResults([]); return; }
+    const { data } = await supabase
+      .from("products")
+      .select("id, name, sku, production_department, settlement_unit")
+      .or(`name.ilike.%${query}%,sku.ilike.%${query}%`)
+      .limit(8);
+    setBomSearchResults((data as Product[]) || []);
+  };
+
+  const selectBomProduct = (idx: number, product: Product) => {
+    setBomComponents((prev) =>
+      prev.map((c, i) =>
+        i === idx
+          ? {
+              ...c,
+              component_product_id: product.id,
+              component_name: product.name + (product.sku ? ` (${product.sku})` : ""),
+              source_department: product.production_department || "",
+            }
+          : c
+      )
+    );
+    setBomSearchQuery("");
+    setBomSearchResults([]);
+    setBomSearchingIdx(null);
+  };
   const updateBomComponent = (index: number, field: keyof BomComponent, value: any) => {
     setBomComponents((prev) =>
       prev.map((c, i) => (i === index ? { ...c, [field]: value } : c))
@@ -423,8 +456,12 @@ const AdminProducts = () => {
   };
 
   const handleSaveProduct = async () => {
-    if (!formData.name || !formData.wholesale_price) return toast.error("Name and B2B Base Price are required");
+    if (!formData.name || !formData.wholesale_price) return toast.error("Name and B2B Base Price (₹) are required.");
     if (!formData.production_department) return toast.error("Target Department is mandatory for order routing.");
+    if (formData.is_active) {
+      if (!formData.hsn_code || !formData.hsn_code.trim()) return toast.error("HSN Code is mandatory for Active products.");
+      if (!formData.gst_percentage && formData.gst_percentage !== "0") return toast.error("GST Rate is mandatory for Active products.");
+    }
     setSaving(true);
 
     const payload: any = {
@@ -881,12 +918,16 @@ const AdminProducts = () => {
                   </div>
                 </section>
 
-                {/* PILLAR 2: BOM BLAST ENGINE (conditional) */}
+                {/* SECTION 3: OPERATIONS & BOM BREAKDOWN (conditional) */}
                 {isBomCategory && (
                   <section className="space-y-4">
                     <h3 className="text-xs font-bold text-muted-foreground uppercase tracking-widest border-b border-border pb-2 flex items-center gap-2">
-                      <Layers size={14} className="text-purple-500" /> Bill of Materials (BOM)
+                      <Layers size={14} className="text-purple-500" /> 3. Operations & BOM Breakdown
                     </h3>
+                    <p className="text-[10px] text-muted-foreground">
+                      Define the components that make up this {formData.category}. Each component will be routed to its source department by the Diverter.
+                      Settlement: <span className="font-bold text-foreground">{formData.settlement_unit === "PCS" ? "Count (PCS)" : "Weight (KG)"}</span> — BOM quantities should match.
+                    </p>
                     <div className="flex items-center gap-3 mb-2">
                       <label className="text-xs font-semibold text-foreground">Enable BOM Blast</label>
                       <button
@@ -902,47 +943,86 @@ const AdminProducts = () => {
                     {formData.has_bom && (
                       <div className="space-y-3">
                         {bomComponents.map((comp, idx) => (
-                          <div key={idx} className="grid grid-cols-12 gap-2 items-end bg-muted/20 p-3 rounded-lg border border-border">
-                            <div className="col-span-5">
-                              <label className="block text-[9px] font-semibold text-muted-foreground uppercase mb-1">Component Name</label>
-                              <input
-                                value={comp.component_name}
-                                onChange={(e) => updateBomComponent(idx, "component_name", e.target.value)}
-                                placeholder="e.g. Baklawa Tray"
-                                className="w-full bg-background border border-border rounded-md p-2 text-xs outline-none focus:ring-1 focus:ring-purple-500"
-                              />
+                          <div key={idx} className="bg-muted/20 p-3 rounded-lg border border-border space-y-2">
+                            <div className="grid grid-cols-12 gap-2 items-end">
+                              <div className="col-span-5 relative">
+                                <label className="block text-[9px] font-semibold text-muted-foreground uppercase mb-1">
+                                  <Search size={9} className="inline mr-1" />Search Product / SKU
+                                </label>
+                                <input
+                                  value={bomSearchingIdx === idx ? bomSearchQuery : comp.component_name}
+                                  onChange={(e) => {
+                                    updateBomComponent(idx, "component_name", e.target.value);
+                                    searchProductsForBom(e.target.value, idx);
+                                  }}
+                                  onFocus={() => {
+                                    setBomSearchingIdx(idx);
+                                    setBomSearchQuery(comp.component_name);
+                                  }}
+                                  placeholder="e.g. Pistachio Baklawa"
+                                  className="w-full bg-background border border-border rounded-md p-2 text-xs outline-none focus:ring-1 focus:ring-purple-500"
+                                />
+                                {bomSearchingIdx === idx && bomSearchResults.length > 0 && (
+                                  <div className="absolute z-20 top-full left-0 w-full mt-1 bg-popover border border-border rounded-lg shadow-lg max-h-40 overflow-y-auto">
+                                    {bomSearchResults.map((p) => (
+                                      <button
+                                        key={p.id}
+                                        type="button"
+                                        onClick={() => selectBomProduct(idx, p)}
+                                        className="w-full text-left px-3 py-2 text-xs hover:bg-accent transition-colors flex justify-between items-center"
+                                      >
+                                        <span className="font-medium text-foreground truncate">{p.name}</span>
+                                        <span className="text-[9px] text-muted-foreground ml-2 shrink-0">
+                                          {(p as any).production_department || "No Dept"}
+                                        </span>
+                                      </button>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
+                              <div className="col-span-2">
+                                <label className="block text-[9px] font-semibold text-muted-foreground uppercase mb-1">
+                                  Qty/Unit {formData.settlement_unit === "KG" ? "(KG)" : "(PCS)"}
+                                </label>
+                                <input
+                                  type="number"
+                                  step={formData.settlement_unit === "KG" ? "0.001" : "1"}
+                                  value={comp.quantity_per_unit}
+                                  onChange={(e) => updateBomComponent(idx, "quantity_per_unit", parseFloat(e.target.value) || 0)}
+                                  placeholder={formData.settlement_unit === "KG" ? "0.500" : "1"}
+                                  className="w-full bg-background border border-border rounded-md p-2 text-xs outline-none focus:ring-1 focus:ring-purple-500"
+                                />
+                              </div>
+                              <div className="col-span-4">
+                                <label className="block text-[9px] font-semibold text-muted-foreground uppercase mb-1">
+                                  Source Dept {comp.component_product_id && <span className="text-green-600">(Auto)</span>}
+                                </label>
+                                <select
+                                  value={comp.source_department}
+                                  onChange={(e) => updateBomComponent(idx, "source_department", e.target.value)}
+                                  className={`w-full border rounded-md p-2 text-xs outline-none focus:ring-1 focus:ring-purple-500 ${comp.component_product_id ? "bg-green-50 dark:bg-green-950/20 border-green-300 dark:border-green-800 font-semibold" : "bg-background border-border"}`}
+                                >
+                                  <option value="">—</option>
+                                  {TARGET_DEPARTMENTS.map((d) => (
+                                    <option key={d} value={d}>{d}</option>
+                                  ))}
+                                </select>
+                              </div>
+                              <div className="col-span-1 flex justify-center">
+                                <button
+                                  type="button"
+                                  onClick={() => removeBomComponent(idx)}
+                                  className="p-1.5 rounded-md hover:bg-destructive/10 text-destructive"
+                                >
+                                  <Trash2 size={14} />
+                                </button>
+                              </div>
                             </div>
-                            <div className="col-span-2">
-                              <label className="block text-[9px] font-semibold text-muted-foreground uppercase mb-1">Qty/Unit</label>
-                              <input
-                                type="number"
-                                value={comp.quantity_per_unit}
-                                onChange={(e) => updateBomComponent(idx, "quantity_per_unit", parseFloat(e.target.value) || 1)}
-                                className="w-full bg-background border border-border rounded-md p-2 text-xs outline-none focus:ring-1 focus:ring-purple-500"
-                              />
-                            </div>
-                            <div className="col-span-4">
-                              <label className="block text-[9px] font-semibold text-muted-foreground uppercase mb-1">Source Dept</label>
-                              <select
-                                value={comp.source_department}
-                                onChange={(e) => updateBomComponent(idx, "source_department", e.target.value)}
-                                className="w-full bg-background border border-border rounded-md p-2 text-xs outline-none focus:ring-1 focus:ring-purple-500"
-                              >
-                                <option value="">—</option>
-                                {TARGET_DEPARTMENTS.map((d) => (
-                                  <option key={d} value={d}>{d}</option>
-                                ))}
-                              </select>
-                            </div>
-                            <div className="col-span-1 flex justify-center">
-                              <button
-                                type="button"
-                                onClick={() => removeBomComponent(idx)}
-                                className="p-1.5 rounded-md hover:bg-destructive/10 text-destructive"
-                              >
-                                <Trash2 size={14} />
-                              </button>
-                            </div>
+                            {comp.component_product_id && (
+                              <p className="text-[9px] text-green-600 flex items-center gap-1">
+                                ✓ Linked to catalog product — Source Dept auto-fetched
+                              </p>
+                            )}
                           </div>
                         ))}
                         <button
@@ -952,6 +1032,12 @@ const AdminProducts = () => {
                         >
                           <Plus size={14} /> Add Component
                         </button>
+                        {bomComponents.length > 0 && (
+                          <div className="bg-purple-50 dark:bg-purple-950/20 border border-purple-200 dark:border-purple-800 rounded-lg p-3 text-[10px] text-muted-foreground">
+                            <strong className="text-foreground">{bomComponents.length} component(s)</strong> defined.
+                            Departments: {[...new Set(bomComponents.map(c => c.source_department).filter(Boolean))].join(", ") || "None assigned"}
+                          </div>
+                        )}
                       </div>
                     )}
                   </section>
