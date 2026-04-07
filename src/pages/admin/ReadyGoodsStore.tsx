@@ -2,7 +2,7 @@ import { useEffect, useState, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/useAuth";
-import { Loader2, Inbox, Package, Factory, Barcode, CheckCircle2, AlertTriangle, Send, ScanLine, Printer, Hash, Search } from "lucide-react";
+import { Loader2, Inbox, Package, Factory, Barcode, CheckCircle2, AlertTriangle, Send, ScanLine, Printer, Hash, Search, Zap } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -11,6 +11,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Table, TableHeader, TableHead, TableBody, TableRow, TableCell } from "@/components/ui/table";
 import StagnancyBadge from "@/components/StagnancyBadge";
 import { Progress } from "@/components/ui/progress";
+import StockCheckEngine from "@/components/rgs/StockCheckEngine";
 
 interface RGSOrderItem {
   id: string;
@@ -327,13 +328,19 @@ export default function ReadyGoodsStore() {
         <Badge variant="outline">{orders.length} Orders in Queue</Badge>
       </div>
 
-      <Tabs defaultValue="inbox" className="w-full">
-        <TabsList className="w-full grid grid-cols-4">
+      <Tabs defaultValue="stockcheck" className="w-full">
+        <TabsList className="w-full grid grid-cols-5">
+          <TabsTrigger value="stockcheck"><Zap size={14} className="mr-1" />Stock Check</TabsTrigger>
           <TabsTrigger value="inbox"><Inbox size={14} className="mr-1" />Inbox</TabsTrigger>
           <TabsTrigger value="issue"><ScanLine size={14} className="mr-1" />Issue</TabsTrigger>
           <TabsTrigger value="prodorder"><Factory size={14} className="mr-1" />Prod Order</TabsTrigger>
           <TabsTrigger value="barcode"><Barcode size={14} className="mr-1" />Labels</TabsTrigger>
         </TabsList>
+
+        {/* MODULE 0: STOCK CHECK ENGINE */}
+        <TabsContent value="stockcheck">
+          <StockCheckEngine />
+        </TabsContent>
 
         {/* MODULE 1: INBOX — Filtered to Baklava/Sweets/Nuts only */}
         <TabsContent value="inbox">

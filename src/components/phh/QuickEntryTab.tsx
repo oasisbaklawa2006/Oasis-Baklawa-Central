@@ -44,6 +44,11 @@ export default function QuickEntryTab({ department, departmentLabel, userId }: P
     setter((prev) => ({ ...prev, [id]: Math.max(0, (prev[id] || 0) + delta) }));
   };
 
+  const setExact = (id: string, value: number, type: "qty" | "waste") => {
+    const setter = type === "qty" ? setQuantities : setWastage;
+    setter((prev) => ({ ...prev, [id]: Math.max(0, value) }));
+  };
+
   const handleSubmit = async () => {
     const rows = Object.entries(quantities)
       .filter(([, qty]) => qty > 0)
@@ -61,18 +66,55 @@ export default function QuickEntryTab({ department, departmentLabel, userId }: P
     }
 
     setSubmitting(true);
+
+    // Auto-generate batch ID
+    const batchId = `B-${department.slice(0, 3).toUpperCase()}-${Date.now().toString(36).toUpperCase()}`;
+
     const { error } = await supabase.from("daily_production_logs").insert(rows);
     if (error) {
       toast.error("Failed: " + error.message);
-    } else {
-      const total = rows.reduce((s, r) => s + r.produced_qty, 0);
-      toast.success(`${total} units logged to ${departmentLabel} ✅`);
-      const resetQ: Record<string, number> = {};
-      const resetW: Record<string, number> = {};
-      products.forEach((p) => { resetQ[p.id] = 0; resetW[p.id] = 0; });
-      setQuantities(resetQ);
-      setWastage(resetW);
+      setSubmitting(false);
+      return;
     }
+
+    // Push to RGS (factory_inventory) + create RGS transfer records
+    for (const row of rows) {
+      const { data: inv } = await supabase
+        .from("factory_inventory")
+        .select("id, quantity")
+        .eq("product_id", row.product_id)
+        .maybeSingle();
+
+      if (inv) {
+        await supabase.from("factory_inventory").update({
+          quantity: (Number(inv.quantity) || 0) + row.produced_qty,
+          last_updated: new Date().toISOString(),
+        }).eq("id", inv.id);
+      } else {
+        await supabase.from("factory_inventory").insert({
+          product_id: row.product_id,
+          quantity: row.produced_qty,
+        });
+      }
+
+      // Create RGS transfer record
+      await supabase.from("production_rgs_transfers").insert({
+        job_id: row.product_id,
+        product_id: row.product_id,
+        quantity: row.produced_qty,
+        batch_number: batchId,
+        transferred_by: userId,
+        rgs_notified: true,
+      });
+    }
+
+    const total = rows.reduce((s, r) => s + r.produced_qty, 0);
+    toast.success(`${total} units → RGS (Batch: ${batchId}) ✅`);
+    const resetQ: Record<string, number> = {};
+    const resetW: Record<string, number> = {};
+    products.forEach((p) => { resetQ[p.id] = 0; resetW[p.id] = 0; });
+    setQuantities(resetQ);
+    setWastage(resetW);
     setSubmitting(false);
   };
 
@@ -116,11 +158,30 @@ export default function QuickEntryTab({ department, departmentLabel, userId }: P
                 )}
               </div>
               <div className="p-2.5">
-                <h4 className="font-bold text-xs text-slate-900 leading-tight line-clamp-2 mb-2">{product.name}</h4>
+                <h4 className="font-bold text-xs text-slate-900 leading-tight line-clamp-2 mb-1.5">{product.name}</h4>
                 
+                {/* Multiplier buttons */}
+                <div className="flex gap-1 mb-1.5">
+                  {[10, 25, 50].map((n) => (
+                    <button
+                      key={n}
+                      onClick={() => adjust(product.id, n, "qty")}
+                      className="flex-1 py-1.5 rounded-lg bg-emerald-100 text-emerald-700 font-black text-[11px] active:scale-95 active:bg-emerald-200 transition-all"
+                    >
+                      +{n}
+                    </button>
+                  ))}
+                </div>
+
                 <div className="flex items-center bg-slate-50 rounded-lg border border-slate-200 h-9 mb-1.5">
                   <button onClick={() => adjust(product.id, -5, "qty")} className="w-9 h-full flex items-center justify-center text-slate-500 font-black active:bg-slate-200 rounded-l-lg text-sm">-</button>
-                  <span className="font-black text-sm flex-1 text-center text-slate-900">{qty}</span>
+                  <input
+                    type="number"
+                    value={qty || ""}
+                    onChange={(e) => setExact(product.id, parseInt(e.target.value) || 0, "qty")}
+                    className="font-black text-sm flex-1 text-center text-slate-900 bg-transparent outline-none w-0"
+                    placeholder="0"
+                  />
                   <button onClick={() => adjust(product.id, 5, "qty")} className="w-9 h-full flex items-center justify-center text-slate-700 font-black active:bg-slate-200 rounded-r-lg text-sm">+</button>
                 </div>
 

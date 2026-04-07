@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import StagnancyBadge from "@/components/StagnancyBadge";
+import BOMDemandEngine from "@/components/assembly/BOMDemandEngine";
 
 interface AssemblyTask {
   id: string;
@@ -205,6 +206,7 @@ export default function AssemblyManagement() {
       <Tabs defaultValue="tasks" className="w-full">
         <TabsList className="w-full">
           <TabsTrigger value="tasks" className="flex-1">Task Cards</TabsTrigger>
+          <TabsTrigger value="bom" className="flex-1">BOM Demand</TabsTrigger>
           <TabsTrigger value="production" className="flex-1">Daily Production</TabsTrigger>
         </TabsList>
 
@@ -271,7 +273,12 @@ export default function AssemblyManagement() {
           </div>
         </TabsContent>
 
-        {/* === TAB 2: DAILY PRODUCTION ENTRY === */}
+        {/* === TAB 2: BOM DEMAND ENGINE === */}
+        <TabsContent value="bom">
+          <BOMDemandEngine />
+        </TabsContent>
+
+        {/* === TAB 3: DAILY PRODUCTION ENTRY === */}
         <TabsContent value="production">
           <Card>
             <CardContent className="p-4 space-y-4">
