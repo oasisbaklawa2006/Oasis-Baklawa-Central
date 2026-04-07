@@ -59,6 +59,8 @@ export function useCart() {
 
     if (!effectiveCompanyId) {
       if (requestId === fetchCartRequestRef.current) {
+        setDraftOrder(null);
+        setItems([]);
         setLoading(false);
       }
       return;
@@ -102,7 +104,21 @@ export function useCart() {
   }, [effectiveCompanyId, profileReady, fetchCart, user, authLoading]);
 
   const getOrCreateDraftOrder = async (): Promise<string | null> => {
-    if (draftOrder) return draftOrder.id;
+    if (draftOrder) {
+      const { data: liveDraft, error: liveDraftError } = await supabase
+        .from("orders")
+        .select("id, company_id, status")
+        .eq("id", draftOrder.id)
+        .maybeSingle();
+
+      if (!liveDraftError && liveDraft?.status === "draft" && liveDraft.company_id === effectiveCompanyId) {
+        setDraftOrder(liveDraft as DraftOrder);
+        return liveDraft.id;
+      }
+
+      setDraftOrder(null);
+      setItems([]);
+    }
 
     // Mutex: if a creation is already in-flight, reuse that promise
     if (draftCreationPromiseRef.current) return draftCreationPromiseRef.current;
@@ -115,20 +131,20 @@ export function useCart() {
         // Double-check: maybe another tab/request already created one
         const { data: existing } = await supabase
           .from("orders")
-          .select("id")
+          .select("id, company_id, status")
           .eq("company_id", effectiveCompanyId)
           .eq("status", "draft")
           .limit(1);
 
         if (existing && existing.length > 0) {
-          setDraftOrder({ id: existing[0].id, company_id: effectiveCompanyId, status: "draft" });
+          setDraftOrder(existing[0] as DraftOrder);
           return existing[0].id;
         }
 
         const { data: newOrder, error } = await supabase
           .from("orders")
           .insert({ status: "draft", company_id: effectiveCompanyId })
-          .select()
+          .select("id, company_id, status")
           .single();
 
         if (error || !newOrder) { toast.error("Could not create cart order"); return null; }

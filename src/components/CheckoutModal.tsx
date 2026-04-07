@@ -33,7 +33,7 @@ const CheckoutModal = ({ open, onClose, grandTotal, orderId, companyId, onOrderC
       return;
     }
     setConfirming(true);
-    const { error } = await supabase
+    const { data: updatedOrders, error } = await supabase
       .from("orders")
       .update({
         status: "submitted",
@@ -41,12 +41,18 @@ const CheckoutModal = ({ open, onClose, grandTotal, orderId, companyId, onOrderC
         advance_required: advance,
         payment_status: "awaiting_receipt",
       })
-      .eq("id", orderId);
+      .eq("id", orderId)
+      .eq("status", "draft")
+      .select("id");
 
     setConfirming(false);
     if (error) {
       console.error("[Checkout] Order confirm failed:", error);
       toast.error(error.message || "Failed to confirm order. Please try again.");
+      return;
+    }
+    if (!updatedOrders || updatedOrders.length === 0) {
+      toast.error("This order has already moved beyond Draft and can no longer be changed from cart.");
       return;
     }
     toast.success("Order confirmed! Advance payment initiated.");

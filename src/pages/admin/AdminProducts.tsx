@@ -82,6 +82,7 @@ const CATEGORIES = [
   "Bulk Sweets & Nuts",
   "Ready packs",
   "Premium Gift Packs",
+  "Premium Packs",
   "Semi-Prepared & Frozen Range",
   "Packaging & Decoration Material",
   "Gifts & Hampers",
@@ -342,15 +343,15 @@ const AdminProducts = () => {
       .select("*")
       .eq("product_id", productId)
       .order("created_at");
-    setBomComponents(
-      (data || []).map((d: any) => ({
+    const components = (data || []).map((d: any) => ({
         id: d.id,
         component_product_id: d.component_product_id,
         component_name: d.component_name || "",
         quantity_per_unit: d.quantity_per_unit || 1,
         source_department: d.source_department || "",
-      }))
-    );
+      }));
+    setBomComponents(components);
+    return components;
   };
 
   const openPanel = async (product?: Product) => {
@@ -390,8 +391,8 @@ const AdminProducts = () => {
         ingredients: product.ingredients || "",
         has_bom: false,
       });
-      await loadBom(product.id);
-      setFormData((prev: any) => ({ ...prev, has_bom: bomComponents.length > 0 }));
+      const components = await loadBom(product.id);
+      setFormData((prev: any) => ({ ...prev, has_bom: components.length > 0 }));
     } else {
       setEditingProduct(null);
       setFormData({ ...EMPTY_FORM });
@@ -596,7 +597,8 @@ const AdminProducts = () => {
 
   const eco = calculateEconomics();
 
-  const isBomCategory = formData.category === "Gifts & Hampers" || formData.category === "Premium Gift Packs";
+  const normalizedCategory = (formData.category || "").trim().toLowerCase();
+  const isBomCategory = normalizedCategory === "gifts & hampers" || normalizedCategory === "premium gift packs" || normalizedCategory === "premium packs";
 
   if (loading)
     return (

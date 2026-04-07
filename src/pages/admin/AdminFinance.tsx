@@ -548,35 +548,44 @@ const AdminFinance = () => {
       try {
         const { data: items } = await supabase
           .from("order_items")
-          .select("id, quantity, product_id, product:products(name, category:categories(name))")
+          .select("id, quantity, product_id, product:products(name, production_department, category:categories(name), product_bom(component_product_id, component_name, quantity_per_unit, source_department))")
           .eq("order_id", financialEntry.orderId);
         if (items) {
           for (const item of items as any[]) {
             const catName = (item.product?.category?.name || "").toLowerCase().trim();
             const prodName = (item.product?.name || "").toLowerCase().trim();
-            let dept = "Ready Goods";
+            const mappedDepartment = (item.product?.production_department || "").trim();
+            let dept = mappedDepartment || "Ready Goods";
 
-            if (catName.includes("hamper") || catName.includes("gift") || prodName.includes("hamper") || prodName.includes("gift")) {
+            if (!mappedDepartment && (catName.includes("hamper") || catName.includes("gift") || prodName.includes("hamper") || prodName.includes("gift"))) {
               dept = "Packing & Assembly";
-              // AUTO-BOM BLAST: Hamper food components → RGS, tray/box → 3rd Party
+            } else if (!mappedDepartment && (catName.includes("platter") || catName.includes("accessor") || catName.includes("basket") || catName.includes("tray") || prodName.includes("platter") || prodName.includes("tray"))) {
+              dept = "3rd Party Goods";
+            }
+
+            const bomComponents = Array.isArray(item.product?.product_bom) ? item.product.product_bom : [];
+            if (bomComponents.length > 0) {
               await supabase.from("audit_logs").insert({
                 action_type: "BOM_EXPLOSION",
                 module_name: "Finance→BOM",
                 entity_name: "order_items",
                 entity_id: item.id,
                 actor_id: user?.id || null,
-                new_value: { 
-                  hamper: item.product?.name, 
-                  food_route: "Ready Goods (RGS)", 
-                  packaging_route: "3rd Party Store",
-                  qty: item.quantity
+                new_value: {
+                  parent_product: item.product?.name,
+                  target_department: dept,
+                  qty: item.quantity,
+                  components: bomComponents.map((component: any) => ({
+                    component_product_id: component.component_product_id,
+                    component_name: component.component_name,
+                    quantity_per_unit: component.quantity_per_unit,
+                    source_department: component.source_department,
+                  })),
                 },
                 risk_level: "normal",
               });
-            } else if (catName.includes("platter") || catName.includes("accessor") || catName.includes("basket") || catName.includes("tray") || prodName.includes("platter") || prodName.includes("tray")) {
-              dept = "3rd Party";
             }
-            // Finished goods: sweets, nuts, chocolate, bakery → Ready Goods (default)
+
             await supabase.from("order_items").update({ department: dept }).eq("id", item.id);
           }
         }
