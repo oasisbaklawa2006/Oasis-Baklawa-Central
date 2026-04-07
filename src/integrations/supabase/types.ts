@@ -1833,6 +1833,224 @@ export type Database = {
         }
         Relationships: []
       }
+      production_issues: {
+        Row: {
+          comment: string | null
+          created_at: string | null
+          department: string
+          id: string
+          issue_type: string
+          job_id: string | null
+          photo_url: string | null
+          reported_by: string | null
+        }
+        Insert: {
+          comment?: string | null
+          created_at?: string | null
+          department: string
+          id?: string
+          issue_type: string
+          job_id?: string | null
+          photo_url?: string | null
+          reported_by?: string | null
+        }
+        Update: {
+          comment?: string | null
+          created_at?: string | null
+          department?: string
+          id?: string
+          issue_type?: string
+          job_id?: string | null
+          photo_url?: string | null
+          reported_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "production_issues_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "production_jobs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      production_jobs: {
+        Row: {
+          assigned_qty: number
+          assigned_to: string | null
+          batch_number: string | null
+          completed_at: string | null
+          created_at: string | null
+          department: string
+          id: string
+          locked: boolean | null
+          net_weight_per_unit: number | null
+          order_id: string | null
+          order_item_id: string | null
+          priority: string
+          produced_qty: number | null
+          product_id: string | null
+          rejection_reason: string | null
+          stage: string
+          started_at: string | null
+          status: string
+          updated_at: string | null
+          wasted_qty: number | null
+        }
+        Insert: {
+          assigned_qty?: number
+          assigned_to?: string | null
+          batch_number?: string | null
+          completed_at?: string | null
+          created_at?: string | null
+          department: string
+          id?: string
+          locked?: boolean | null
+          net_weight_per_unit?: number | null
+          order_id?: string | null
+          order_item_id?: string | null
+          priority?: string
+          produced_qty?: number | null
+          product_id?: string | null
+          rejection_reason?: string | null
+          stage?: string
+          started_at?: string | null
+          status?: string
+          updated_at?: string | null
+          wasted_qty?: number | null
+        }
+        Update: {
+          assigned_qty?: number
+          assigned_to?: string | null
+          batch_number?: string | null
+          completed_at?: string | null
+          created_at?: string | null
+          department?: string
+          id?: string
+          locked?: boolean | null
+          net_weight_per_unit?: number | null
+          order_id?: string | null
+          order_item_id?: string | null
+          priority?: string
+          produced_qty?: number | null
+          product_id?: string | null
+          rejection_reason?: string | null
+          stage?: string
+          started_at?: string | null
+          status?: string
+          updated_at?: string | null
+          wasted_qty?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "production_jobs_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "production_jobs_order_item_id_fkey"
+            columns: ["order_item_id"]
+            isOneToOne: false
+            referencedRelation: "order_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "production_jobs_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      production_pauses: {
+        Row: {
+          comment: string | null
+          id: string
+          job_id: string
+          paused_at: string | null
+          paused_by: string | null
+          reason: string
+          resumed_at: string | null
+        }
+        Insert: {
+          comment?: string | null
+          id?: string
+          job_id: string
+          paused_at?: string | null
+          paused_by?: string | null
+          reason: string
+          resumed_at?: string | null
+        }
+        Update: {
+          comment?: string | null
+          id?: string
+          job_id?: string
+          paused_at?: string | null
+          paused_by?: string | null
+          reason?: string
+          resumed_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "production_pauses_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "production_jobs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      production_rgs_transfers: {
+        Row: {
+          batch_number: string | null
+          created_at: string | null
+          id: string
+          job_id: string
+          product_id: string | null
+          quantity: number
+          rgs_notified: boolean | null
+          transferred_by: string | null
+        }
+        Insert: {
+          batch_number?: string | null
+          created_at?: string | null
+          id?: string
+          job_id: string
+          product_id?: string | null
+          quantity?: number
+          rgs_notified?: boolean | null
+          transferred_by?: string | null
+        }
+        Update: {
+          batch_number?: string | null
+          created_at?: string | null
+          id?: string
+          job_id?: string
+          product_id?: string | null
+          quantity?: number
+          rgs_notified?: boolean | null
+          transferred_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "production_rgs_transfers_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "production_jobs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "production_rgs_transfers_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       products: {
         Row: {
           allergen_warnings: string | null
