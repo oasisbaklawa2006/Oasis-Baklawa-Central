@@ -18,7 +18,7 @@ const STAFF_ROLE_DESTINATIONS = {
   HOD_DRAGEES: "/operations-controller",
   HOD_BAKERY: "/operations-controller",
   HOD_NUTS: "/operations-controller",
-  HOD_ASSEMBLY: "/admin/assembly-tasks",
+  HOD_ASSEMBLY: "/operations-controller",
   STORE_INCHARGE: "/admin/ready-goods",
   DISPATCH_MANAGER: "/admin/dispatch-mgmt",
   DISPATCH_INCHARGE: "/admin/dispatch-mgmt",
