@@ -1887,6 +1887,7 @@ export type Database = {
           storage_type: string | null
           sub_category: string | null
           uom: string | null
+          visible_in_catalog: boolean
           weight_per_pc_grams: number | null
           wholesale_price: number | null
         }
@@ -1943,6 +1944,7 @@ export type Database = {
           storage_type?: string | null
           sub_category?: string | null
           uom?: string | null
+          visible_in_catalog?: boolean
           weight_per_pc_grams?: number | null
           wholesale_price?: number | null
         }
@@ -1999,6 +2001,7 @@ export type Database = {
           storage_type?: string | null
           sub_category?: string | null
           uom?: string | null
+          visible_in_catalog?: boolean
           weight_per_pc_grams?: number | null
           wholesale_price?: number | null
         }
