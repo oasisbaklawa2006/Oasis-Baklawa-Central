@@ -22,6 +22,7 @@ import {
   Zap,
   Layers,
   Trash2,
+  Search,
 } from "lucide-react";
 
 interface ProductTagItem {
