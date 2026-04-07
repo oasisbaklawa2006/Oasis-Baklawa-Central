@@ -5,9 +5,61 @@ import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
-
 import { fetchAuthRoleRecord, getRoleDestination, isInternalStaffUser, normalizeRole } from "@/lib/auth-routing";
-...
+
+function getRouteForRole(role?: string | null) {
+  const normalizedRole = normalizeRole(role);
+  if (!normalizedRole || normalizedRole === "PENDING") return null;
+  return getRoleDestination(normalizedRole);
+}
+
+export default function ApprovalPending() {
+  const navigate = useNavigate();
+  const { user, role, profileReady, refreshProfile } = useAuth();
+  const [checkingStatus, setCheckingStatus] = useState(false);
+
+  const destination = useMemo(() => getRouteForRole(role), [role]);
+
+  useEffect(() => {
+    if (!profileReady || !destination) return;
+    navigate(destination, { replace: true });
+  }, [destination, navigate, profileReady]);
+
+  const handleCheckStatus = async () => {
+    if (!user) {
+      toast.error("Please log in again.");
+      navigate("/login", { replace: true });
+      return;
+    }
+
+    setCheckingStatus(true);
+
+    try {
+      const { data: sessionData } = await supabase.auth.getSession();
+      const activeSession = sessionData.session;
+
+      try {
+        localStorage.clear();
+      } catch {}
+
+      try {
+        sessionStorage.clear();
+      } catch {}
+
+      if (activeSession) {
+        await supabase.auth.setSession({
+          access_token: activeSession.access_token,
+          refresh_token: activeSession.refresh_token,
+        });
+      }
+
+      const { data: authData, error: authError } = await supabase.auth.getUser();
+      const activeUser = authData.user ?? user;
+
+      if (authError || !activeUser) {
+        throw authError ?? new Error("No active user session found.");
+      }
+
       const [authRecord, isInternalStaff] = await Promise.all([
         fetchAuthRoleRecord(activeUser.id),
         isInternalStaffUser(activeUser.id),
@@ -42,11 +94,7 @@ import { fetchAuthRoleRecord, getRoleDestination, isInternalStaffUser, normalize
           Your B2B account application is currently being reviewed. You will be notified once approved.
         </p>
         <p className="text-sm text-muted-foreground">Contact: support@oasisbaklawa.com</p>
-        <Button
-          onClick={handleCheckStatus}
-          disabled={checkingStatus}
-          className="w-full"
-        >
+        <Button onClick={handleCheckStatus} disabled={checkingStatus} className="w-full">
           {checkingStatus ? <Loader2 className="animate-spin" /> : <RefreshCcw />}
           {checkingStatus ? "Checking approval..." : "Check Approval Status"}
         </Button>
