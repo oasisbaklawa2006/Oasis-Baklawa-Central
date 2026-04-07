@@ -480,10 +480,33 @@ const AdminFinance = () => {
     }
     setSavingEntry(true);
     try {
+      // IMMUTABLE VALUE PROTECTION: Fetch the LIVE database value — never trust local state
+      const { data: liveOrder, error: liveErr } = await supabase
+        .from("orders")
+        .select("sales_order_value, company_id, status")
+        .eq("id", financialEntry.orderId)
+        .single();
+
+      if (liveErr || !liveOrder) {
+        toast.error("⛔ Could not fetch live order data. Aborting.");
+        console.error("[Finance] ABORT: Failed to fetch live order", liveErr);
+        setSavingEntry(false);
+        return;
+      }
+
+      const liveSOValue = liveOrder.sales_order_value ?? 0;
+
+      // GUARD: Never release a ₹0 order
+      if (liveSOValue <= 0) {
+        toast.error("⛔ Cannot release order with ₹0 value. Run Restore Total first.");
+        console.error(`[Finance] ABORT: order ${financialEntry.orderId} has ₹0 live DB value.`);
+        setSavingEntry(false);
+        return;
+      }
+
       // Credit lock check before release
-      const order = orders.find(o => o.id === financialEntry.orderId);
-      if (order?.company_id) {
-        const lockResult = await checkCreditLock(order.company_id, order.sales_order_value || 0);
+      if (liveOrder.company_id) {
+        const lockResult = await checkCreditLock(liveOrder.company_id, liveSOValue);
         if (lockResult.locked) {
           toast.error(`🔒 Credit Lock: ${lockResult.reason}`);
           setSavingEntry(false);
@@ -498,18 +521,13 @@ const AdminFinance = () => {
         reference_no: financialEntry.utrReference || null,
         created_by: user?.id ?? null,
       });
-      // GUARD: Never touch sales_order_value during payment verification
-      const targetOrder = orders.find(o => o.id === financialEntry.orderId);
-      if (!targetOrder || (targetOrder.sales_order_value ?? 0) <= 0) {
-        toast.error("⛔ Cannot release order with ₹0 value. Aborting.");
-        console.error(`[Finance] ABORT: Tried to release order ${financialEntry.orderId} with ₹0 value.`);
-        setSavingEntry(false);
-        return;
-      }
+
+      // CRITICAL: Re-insert the live sales_order_value to prevent it from being wiped
       await supabase.from("orders").update({
         advance_paid: amount,
         status: "in_production",
         payment_status: "verified_advance",
+        sales_order_value: liveSOValue,
       }).eq("id", financialEntry.orderId);
       await supabase.from("order_status_history").insert({
         order_id: financialEntry.orderId,
@@ -534,11 +552,11 @@ const AdminFinance = () => {
           .eq("order_id", financialEntry.orderId);
         if (items) {
           for (const item of items as any[]) {
-            const catName = (item.product?.category?.name || "").toLowerCase();
-            const prodName = (item.product?.name || "").toLowerCase();
+            const catName = (item.product?.category?.name || "").toLowerCase().trim();
+            const prodName = (item.product?.name || "").toLowerCase().trim();
             let dept = "Ready Goods";
 
-            if (catName.includes("hamper") || catName.includes("gift") || prodName.includes("hamper")) {
+            if (catName.includes("hamper") || catName.includes("gift") || prodName.includes("hamper") || prodName.includes("gift")) {
               dept = "Packing & Assembly";
               // AUTO-BOM BLAST: Hamper food components → RGS, tray/box → 3rd Party
               await supabase.from("audit_logs").insert({
@@ -555,7 +573,7 @@ const AdminFinance = () => {
                 },
                 risk_level: "normal",
               });
-            } else if (catName.includes("platter") || catName.includes("accessor") || catName.includes("basket") || catName.includes("tray")) {
+            } else if (catName.includes("platter") || catName.includes("accessor") || catName.includes("basket") || catName.includes("tray") || prodName.includes("platter") || prodName.includes("tray")) {
               dept = "3rd Party";
             }
             // Finished goods: sweets, nuts, chocolate, bakery → Ready Goods (default)
@@ -811,6 +829,7 @@ const AdminFinance = () => {
 
   // Queues — FILTER OUT ₹0 orders so Finance only sees actionable, valued orders
   const valuedOrders = orders.filter((o) => (o.sales_order_value || 0) > 0);
+  const zeroValueOrders = orders.filter((o) => (o.sales_order_value || 0) <= 0 && o.status !== "draft");
   const validationQueue = valuedOrders.filter((o) => o.status === "submitted" || o.payment_status === "awaiting_receipt" || o.payment_status === "unpaid");
   const invoicingQueue = valuedOrders.filter((o) => o.status === "in_production" || o.status === "packed_ready");
 
@@ -865,6 +884,54 @@ const AdminFinance = () => {
             </button>
           ))}
         </div>
+
+        {/* ZERO-VALUE RESTORE SECTION */}
+        {zeroValueOrders.length > 0 && (
+          <div className="mt-6 bg-red-50 border-2 border-red-300 rounded-2xl p-5">
+            <h3 className="font-bold text-red-800 text-sm uppercase tracking-widest mb-3 flex items-center gap-2">
+              <AlertTriangle size={16} /> ₹0 Value Orders — Restore Required ({zeroValueOrders.length})
+            </h3>
+            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-3">
+              {zeroValueOrders.map((order) => (
+                <div key={order.id} className="bg-white border border-red-200 rounded-xl p-4 flex flex-col gap-2">
+                  <div>
+                    <p className="text-xs text-slate-400 font-bold uppercase">SO #{order.id.split("-")[0]}</p>
+                    <p className="font-bold text-slate-900">{order.company?.business_name || "Unknown"}</p>
+                    <p className="text-xs text-red-500 font-bold">Status: {order.status} • Value: ₹0</p>
+                  </div>
+                  <button
+                    onClick={async () => {
+                      setActing(order.id);
+                      try {
+                        const { data: restored, error } = await supabase.rpc("restore_order_financials", { _order_id: order.id });
+                        if (error) {
+                          toast.error("Restore failed: " + error.message);
+                        } else {
+                          toast.success(`✅ Order value restored to ${formatPrice(restored || 0)}`);
+                          await supabase.from("audit_logs").insert({
+                            action_type: "order_value_restored",
+                            module_name: "Finance",
+                            entity_name: "orders",
+                            entity_id: order.id,
+                            actor_id: user?.id || null,
+                            new_value: { restored_value: restored },
+                            risk_level: "high",
+                          });
+                          fetchOrders();
+                        }
+                      } catch { toast.error("Restore failed."); }
+                      setActing(null);
+                    }}
+                    disabled={acting === order.id}
+                    className="py-2 bg-red-600 text-white rounded-lg text-xs font-bold hover:bg-red-700 flex justify-center items-center gap-1.5"
+                  >
+                    {acting === order.id ? <Loader2 size={14} className="animate-spin" /> : <><RotateCcw size={14} /> Restore Total from Items</>}
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* ACTIVE QUEUE RENDERER */}
         <div className="mt-6">
