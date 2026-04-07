@@ -140,6 +140,10 @@ export default function StockCheckEngine() {
       await supabase.from("orders").update({ status: "packed_ready" }).eq("id", order.id);
       toast.success("✅ All items available → Packed Ready");
     } else {
+      // Move to manufacturing if not already past it — NEVER back to draft
+      if (order.status !== "manufacturing" && order.status !== "packed_ready" && order.status !== "dispatched") {
+        await supabase.from("orders").update({ status: "manufacturing" }).eq("id", order.id);
+      }
       toast.success("✅ Available items marked ready. Remaining need production.");
     }
     fetchData();
