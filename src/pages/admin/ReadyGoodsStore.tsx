@@ -11,6 +11,9 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Table, TableHeader, TableHead, TableBody, TableRow, TableCell } from "@/components/ui/table";
 import StagnancyBadge from "@/components/StagnancyBadge";
 import { Progress } from "@/components/ui/progress";
+import StockCheckEngine from "@/components/rgs/StockCheckEngine";
+import StagnancyBadge from "@/components/StagnancyBadge";
+import { Progress } from "@/components/ui/progress";
 
 interface RGSOrderItem {
   id: string;
@@ -327,13 +330,19 @@ export default function ReadyGoodsStore() {
         <Badge variant="outline">{orders.length} Orders in Queue</Badge>
       </div>
 
-      <Tabs defaultValue="inbox" className="w-full">
-        <TabsList className="w-full grid grid-cols-4">
+      <Tabs defaultValue="stockcheck" className="w-full">
+        <TabsList className="w-full grid grid-cols-5">
+          <TabsTrigger value="stockcheck"><Zap size={14} className="mr-1" />Stock Check</TabsTrigger>
           <TabsTrigger value="inbox"><Inbox size={14} className="mr-1" />Inbox</TabsTrigger>
           <TabsTrigger value="issue"><ScanLine size={14} className="mr-1" />Issue</TabsTrigger>
           <TabsTrigger value="prodorder"><Factory size={14} className="mr-1" />Prod Order</TabsTrigger>
           <TabsTrigger value="barcode"><Barcode size={14} className="mr-1" />Labels</TabsTrigger>
         </TabsList>
+
+        {/* MODULE 0: STOCK CHECK ENGINE */}
+        <TabsContent value="stockcheck">
+          <StockCheckEngine />
+        </TabsContent>
 
         {/* MODULE 1: INBOX — Filtered to Baklava/Sweets/Nuts only */}
         <TabsContent value="inbox">

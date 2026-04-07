@@ -66,18 +66,54 @@ export default function QuickEntryTab({ department, departmentLabel, userId }: P
     }
 
     setSubmitting(true);
+
+    // Auto-generate batch ID
+    const batchId = `B-${department.slice(0, 3).toUpperCase()}-${Date.now().toString(36).toUpperCase()}`;
+
     const { error } = await supabase.from("daily_production_logs").insert(rows);
     if (error) {
       toast.error("Failed: " + error.message);
-    } else {
-      const total = rows.reduce((s, r) => s + r.produced_qty, 0);
-      toast.success(`${total} units logged to ${departmentLabel} ✅`);
-      const resetQ: Record<string, number> = {};
-      const resetW: Record<string, number> = {};
-      products.forEach((p) => { resetQ[p.id] = 0; resetW[p.id] = 0; });
-      setQuantities(resetQ);
-      setWastage(resetW);
+      setSubmitting(false);
+      return;
     }
+
+    // Push to RGS (factory_inventory) + create RGS transfer records
+    for (const row of rows) {
+      const { data: inv } = await supabase
+        .from("factory_inventory")
+        .select("id, quantity")
+        .eq("product_id", row.product_id)
+        .maybeSingle();
+
+      if (inv) {
+        await supabase.from("factory_inventory").update({
+          quantity: (Number(inv.quantity) || 0) + row.produced_qty,
+          last_updated: new Date().toISOString(),
+        }).eq("id", inv.id);
+      } else {
+        await supabase.from("factory_inventory").insert({
+          product_id: row.product_id,
+          quantity: row.produced_qty,
+        });
+      }
+
+      // Create RGS transfer record
+      await supabase.from("production_rgs_transfers").insert({
+        product_id: row.product_id,
+        quantity: row.produced_qty,
+        batch_number: batchId,
+        transferred_by: userId,
+        rgs_notified: true,
+      });
+    }
+
+    const total = rows.reduce((s, r) => s + r.produced_qty, 0);
+    toast.success(`${total} units → RGS (Batch: ${batchId}) ✅`);
+    const resetQ: Record<string, number> = {};
+    const resetW: Record<string, number> = {};
+    products.forEach((p) => { resetQ[p.id] = 0; resetW[p.id] = 0; });
+    setQuantities(resetQ);
+    setWastage(resetW);
     setSubmitting(false);
   };
 
