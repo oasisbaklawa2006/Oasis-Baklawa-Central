@@ -169,6 +169,25 @@ const FactoryTVModule = ({ category, departmentFilter, title }: FactoryTVModuleP
         </div>
       </header>
 
+      {/* Urgent Jobs Flash Banner */}
+      {urgentJobs.length > 0 && (
+        <div className="bg-red-600 px-8 py-3 flex items-center gap-4 animate-pulse shrink-0" style={{ animationDuration: "1.5s" }}>
+          <Zap size={28} className="text-white shrink-0" />
+          <div className="flex gap-6 overflow-x-auto flex-1">
+            {urgentJobs.map((job) => (
+              <div key={job.id} className="flex items-center gap-3 shrink-0">
+                <span className={`px-2 py-0.5 rounded text-xs font-black uppercase ${job.priority === "red" ? "bg-white text-red-600" : "bg-amber-400 text-black"}`}>
+                  {job.priority}
+                </span>
+                <span className="text-white font-bold text-lg">{job.product?.name || "Unknown"}</span>
+                <span className="text-white/80 text-lg font-black">×{job.assigned_qty}</span>
+              </div>
+            ))}
+          </div>
+          <AlertTriangle size={28} className="text-white shrink-0" />
+        </div>
+      )}
+
       {/* Order Grid */}
       <main className="flex-1 overflow-auto p-6">
         {orders.length === 0 ? (

@@ -21,7 +21,7 @@ const OperationsController = () => {
   const [myDepartment, setMyDepartment] = useState(roleDepartment ?? "arabic_sweets");
   const [activeTab, setActiveTab] = useState<"intake" | "execution" | "quick_entry">("intake");
   const [jobs, setJobs] = useState<ProductionJob[]>([]);
-
+  const [urgentCount, setUrgentCount] = useState(0);
   useEffect(() => {
     if (roleDepartment) setMyDepartment(roleDepartment);
   }, [roleDepartment]);
