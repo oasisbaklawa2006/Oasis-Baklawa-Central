@@ -32,6 +32,30 @@ const DEPARTMENTS: { value: string; label: string }[] = [
   { value: "packing_assembly", label: "Packing & Assembly" },
 ];
 
+interface RequisitionItem {
+  id: string;
+  product_id: string;
+  product_name: string;
+  image_url?: string;
+  requested_qty: number;
+}
+
+interface Requisition {
+  id: string;
+  order_id: string;
+  batch_id: string;
+  status: string;
+  created_at: string;
+  items: RequisitionItem[];
+}
+
+interface Product {
+  id: string;
+  name: string;
+  category: string;
+  image_url?: string;
+}
+
 const HOD_DEPARTMENT_MAP: Record<string, string> = {
   HOD_ARABIC: "arabic_sweets",
   HOD_DRAGEES: "dragees",
