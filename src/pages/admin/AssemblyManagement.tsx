@@ -106,13 +106,13 @@ export default function AssemblyManagement() {
         .eq("is_active", true)
         .order("name")
         .limit(200);
-      // Filter to only Gifts, Hampers, Packing Material related products
+      const assemblyKeywords = ["gift", "hamper", "packing", "assembly", "platter", "box set", "combo"];
       const filtered = ((data as any[]) || []).filter((p: any) => {
         const catName = (p.category?.name || "").toLowerCase();
         const prodName = (p.name || "").toLowerCase();
-        return catName.includes("gift") || catName.includes("hamper") || catName.includes("packing") ||
-               catName.includes("assembly") || prodName.includes("gift") || prodName.includes("hamper") ||
-               prodName.includes("platter");
+        const prodDept = (p.production_department || "").toLowerCase();
+        return assemblyKeywords.some(kw => catName.includes(kw) || prodName.includes(kw)) ||
+               ["packing & assembly", "assembly", "hampers", "gifts"].includes(prodDept);
       });
       setProducts(filtered.length > 0 ? filtered : ((data as ProductOption[]) || []).slice(0, 50));
     };
