@@ -456,8 +456,12 @@ const AdminProducts = () => {
   };
 
   const handleSaveProduct = async () => {
-    if (!formData.name || !formData.wholesale_price) return toast.error("Name and B2B Base Price are required");
+    if (!formData.name || !formData.wholesale_price) return toast.error("Name and B2B Base Price (₹) are required.");
     if (!formData.production_department) return toast.error("Target Department is mandatory for order routing.");
+    if (formData.is_active) {
+      if (!formData.hsn_code || !formData.hsn_code.trim()) return toast.error("HSN Code is mandatory for Active products.");
+      if (!formData.gst_percentage && formData.gst_percentage !== "0") return toast.error("GST Rate is mandatory for Active products.");
+    }
     setSaving(true);
 
     const payload: any = {
