@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import StagnancyBadge from "@/components/StagnancyBadge";
 import BOMDemandEngine from "@/components/assembly/BOMDemandEngine";
+import { isAssemblyDept } from "@/utils/departmentClassifier";
 
 interface AssemblyTask {
   id: string;
@@ -75,13 +76,11 @@ export default function AssemblyManagement() {
       .select("*, product:products(name, image_url, sku, production_department), order:orders(id, created_at, status, company:companies(business_name))")
       .filter("order.status", "eq", "manufacturing");
 
-    // Filter mfg items to assembly departments and merge (dedup by id)
-    const assemblyDepts = ["packing & assembly", "assembly", "hampers", "gifts"];
+    // Filter mfg items to assembly departments using classifier (dedup by id)
     const extraItems = ((mfgItems as any[]) || []).filter((item) => {
       if (!item.order) return false; // inner join filter
-      const dept = (item.department || item.product?.production_department || "").toLowerCase();
-      return assemblyDepts.includes(dept) && 
-             item.production_status !== "completed";
+      const dept = item.department || item.product?.production_department || "";
+      return isAssemblyDept(dept) && item.production_status !== "completed";
     });
 
     const allItems = [...((directItems as any[]) || [])];
