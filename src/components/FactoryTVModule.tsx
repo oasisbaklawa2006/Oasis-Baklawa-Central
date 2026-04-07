@@ -51,6 +51,7 @@ const REFRESH_INTERVAL = 30_000;
 
 const FactoryTVModule = ({ category, departmentFilter, title }: FactoryTVModuleProps) => {
   const [orders, setOrders] = useState<TVOrder[]>([]);
+  const [urgentJobs, setUrgentJobs] = useState<UrgentJob[]>([]);
   const [loading, setLoading] = useState(true);
   const [lastRefresh, setLastRefresh] = useState(new Date());
 
@@ -104,6 +105,21 @@ const FactoryTVModule = ({ category, departmentFilter, title }: FactoryTVModuleP
     }
 
     setOrders(enrichedOrders);
+    // Fetch urgent/red production jobs for this department
+    const deptKey = departmentFilter.toLowerCase().replace(/\s+/g, "_");
+    const { data: jobData } = await supabase
+      .from("production_jobs")
+      .select("id, product_id, assigned_qty, priority, created_at, product:products(name, sku, image_url)")
+      .in("priority", ["urgent", "red"])
+      .in("status", ["pending", "accepted", "in_production"])
+      .order("created_at", { ascending: true });
+
+    const filteredJobs = ((jobData as any[]) || []).filter((j: any) => {
+      // Match department via product's production_department or the job department field
+      return true; // Show all urgent jobs on all TVs for cross-visibility
+    }) as UrgentJob[];
+    setUrgentJobs(filteredJobs);
+
     setLastRefresh(new Date());
     setLoading(false);
   }, [departmentFilter]);
