@@ -50,7 +50,7 @@ const PriceCell = ({
 
     const { error } = await supabase
       .from("products")
-      .update({ [field]: numVal } as Record<string, number | null>)
+      .update({ [field]: numVal } as any)
       .eq("id", productId);
 
     if (error) {

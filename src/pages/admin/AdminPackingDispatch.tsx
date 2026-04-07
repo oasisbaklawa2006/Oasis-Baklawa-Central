@@ -170,7 +170,7 @@ const AdminPackingDispatch = () => {
 
       // 3. Update order_items with final weights
       for (const item of modalItems) {
-        await supabase.from("order_items").update({
+        await (supabase.from("order_items").update as any)({
           actual_packed_qty: item.packed_qty,
           final_weight_kg: item.final_weight_kg,
         }).eq("id", item.id);

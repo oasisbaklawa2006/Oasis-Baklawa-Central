@@ -83,7 +83,7 @@ const OnboardingOverlay = () => {
     if (!user) return;
     await supabase
       .from("users")
-      .update({ has_seen_tutorial: true } as Record<string, unknown>)
+      .update({ has_seen_tutorial: true } as any)
       .eq("id", user.id);
     setVisible(false);
   };
