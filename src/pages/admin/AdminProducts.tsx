@@ -37,7 +37,9 @@ interface BomComponent {
   component_product_id?: string | null;
   component_name: string;
   quantity_per_unit: number;
+  uom: string;
   source_department: string;
+  unit_cost?: number;
 }
 
 interface Product {
