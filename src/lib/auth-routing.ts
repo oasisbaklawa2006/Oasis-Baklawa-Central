@@ -44,7 +44,10 @@ const LEGACY_ROLE_DESTINATIONS: Record<string, string> = {
 };
 
 // ─── Canonical Role Taxonomy ───
-export const STAFF_ROLES = new Set(Object.keys(STAFF_ROLE_DESTINATIONS));
+export const STAFF_ROLES = new Set([
+  ...Object.keys(STAFF_ROLE_DESTINATIONS),
+  ...Object.keys(LEGACY_ROLE_DESTINATIONS),
+]);
 
 export const BUYER_ROLES = new Set([
   "B2B_BUYER",
@@ -89,21 +92,43 @@ async function readRoleRecord(table: "profiles" | "users", userId: string): Prom
   return normalizeRecord(data);
 }
 
+async function readRoleFromMap(userId: string): Promise<string | null> {
+  const { data, error } = await supabase
+    .from("user_role_map")
+    .select("role_id, roles:role_id(role_key)")
+    .eq("user_id", userId)
+    .limit(1)
+    .maybeSingle();
+
+  if (error || !data) return null;
+  const roleObj = data.roles as unknown as { role_key: string } | null;
+  return roleObj?.role_key?.toUpperCase() ?? null;
+}
+
 export async function fetchAuthRoleRecord(userId: string): Promise<RoleRecord> {
   try {
-    const profileRecord = await readRoleRecord("profiles", userId);
-    const userRecord = await readRoleRecord("users", userId);
+    // 1. user_role_map is the PRIMARY source of truth
+    const mappedRole = await readRoleFromMap(userId);
+
+    // 2. Fall back to profiles/users for company_id and legacy role
+    const profileRecord = await readRoleRecord("profiles", userId).catch(() => null);
+    const userRecord = await readRoleRecord("users", userId).catch(() => null);
+
+    const role = mappedRole
+      ?? profileRecord?.role?.toUpperCase()
+      ?? userRecord?.role?.toUpperCase()
+      ?? null;
 
     return {
       company_id: profileRecord?.company_id ?? userRecord?.company_id ?? null,
-      role: profileRecord?.role ?? userRecord?.role ?? null,
+      role,
     };
   } catch {
     const userRecord = await readRoleRecord("users", userId).catch(() => null);
 
     return {
       company_id: userRecord?.company_id ?? null,
-      role: userRecord?.role ?? null,
+      role: userRecord?.role?.toUpperCase() ?? null,
     };
   }
 }
