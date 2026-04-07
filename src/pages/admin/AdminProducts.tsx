@@ -350,7 +350,9 @@ const AdminProducts = () => {
         component_product_id: d.component_product_id,
         component_name: d.component_name || "",
         quantity_per_unit: d.quantity_per_unit || 1,
+        uom: d.source_department ? "Gms" : "Pcs",
         source_department: d.source_department || "",
+        unit_cost: 0,
       }));
     setBomComponents(components);
     return components;
@@ -415,7 +417,7 @@ const AdminProducts = () => {
   const addBomComponent = () => {
     setBomComponents((prev) => [
       ...prev,
-      { component_name: "", quantity_per_unit: 1, source_department: "" },
+      { component_name: "", quantity_per_unit: 1, uom: "Gms", source_department: "", unit_cost: 0 },
     ]);
   };
 
