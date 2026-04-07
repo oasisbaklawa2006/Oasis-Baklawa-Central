@@ -97,6 +97,7 @@ const TARGET_DEPARTMENTS = [
   "Fusion Sweets",
   "Seasoned Nuts & Mixes",
   "3rd Party Goods",
+  "Packing & Assembly",
 ];
 
 const PRODUCTION_DEPARTMENTS = [
