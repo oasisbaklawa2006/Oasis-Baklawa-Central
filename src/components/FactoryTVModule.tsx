@@ -12,6 +12,7 @@ interface TVOrderItem {
   product: {
     name: string;
     department: string | null;
+    production_department: string | null;
     uom: string | null;
     net_weight_grams: number | null;
     avg_weight_per_pack: number | null;
@@ -50,7 +51,7 @@ const FactoryTVModule = ({ category, departmentFilter, title }: FactoryTVModuleP
       .select(
         "id, status, created_at, company:companies(business_name), order_items(id, quantity, pack_size, carton_type, production_status, product_id)"
       )
-      .in("status", ["in_production", "assembly", "approved"])
+      .in("status", ["in_production", "manufacturing", "assembly", "approved"])
       .order("created_at", { ascending: true });
 
     if (error) {
@@ -71,7 +72,7 @@ const FactoryTVModule = ({ category, departmentFilter, title }: FactoryTVModuleP
 
       const { data: products } = await supabase
         .from("products")
-        .select("id, name, department, uom, net_weight_grams, avg_weight_per_pack, category, sub_category, packs_per_master_carton, pcs_per_master_carton, moq")
+        .select("id, name, department, production_department, uom, net_weight_grams, avg_weight_per_pack, category, sub_category, packs_per_master_carton, pcs_per_master_carton, moq")
         .in("id", itemIds);
 
       const productMap = new Map((products ?? []).map((p: any) => [p.id, p]));
@@ -82,8 +83,10 @@ const FactoryTVModule = ({ category, departmentFilter, title }: FactoryTVModuleP
           product: productMap.get(item.product_id) ?? null,
         }))
         .filter(
-          (item: TVOrderItem) =>
-            item.product?.department?.toLowerCase().includes(departmentFilter.toLowerCase())
+          (item: TVOrderItem) => {
+            const routingDepartment = item.product?.production_department || item.product?.department || "";
+            return routingDepartment.toLowerCase().includes(departmentFilter.toLowerCase());
+          }
         );
 
       if (filteredItems.length > 0) {

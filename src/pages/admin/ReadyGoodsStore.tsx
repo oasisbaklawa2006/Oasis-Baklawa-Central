@@ -93,7 +93,7 @@ export default function ReadyGoodsStore() {
     const { data } = await supabase
       .from("orders")
       .select("id, status, created_at, sales_order_value, company:companies(business_name)")
-      .in("status", ["in_production", "partial_ready", "approved"])
+      .in("status", ["in_production", "manufacturing", "partial_ready", "approved"])
       .order("created_at", { ascending: true });
 
     const ordersWithItems: RGSOrder[] = [];
