@@ -925,6 +925,23 @@ const AdminProducts = () => {
                         className="w-full bg-background border border-border rounded-lg p-2.5 text-sm outline-none focus:ring-1 focus:ring-[#C5A059] resize-none"
                       />
                     </div>
+
+                    {/* NOT FOR SALE TOGGLE */}
+                    <div className="col-span-2 flex items-center gap-3 bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800 rounded-lg p-3">
+                      <input
+                        type="checkbox"
+                        id="bom_only"
+                        checked={!formData.visible_in_catalog}
+                        onChange={(e) => setFormData((prev: any) => ({ ...prev, visible_in_catalog: !e.target.checked }))}
+                        className="w-4 h-4 rounded border-border text-amber-600 focus:ring-amber-500"
+                      />
+                      <label htmlFor="bom_only" className="text-xs font-semibold text-foreground cursor-pointer">
+                        Product is for Internal BOM Use Only (Hide from Storefront)
+                      </label>
+                      <span className="text-[9px] text-muted-foreground ml-auto">
+                        {formData.visible_in_catalog ? "Visible to buyers" : "Hidden — internal only"}
+                      </span>
+                    </div>
                   </div>
                 </section>
 
