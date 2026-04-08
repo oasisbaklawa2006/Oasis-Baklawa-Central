@@ -1511,6 +1511,27 @@ const AdminProducts = () => {
                   </div>
                 </section>
 
+                {/* 5. PRODUCT VARIANTS */}
+                <section className="space-y-4">
+                  <h3 className="text-xs font-bold text-muted-foreground uppercase tracking-widest border-b border-border pb-2 flex items-center gap-2">
+                    <Layers size={14} className="text-blue-500" /> 5. Product Variants
+                  </h3>
+                  <div className="flex items-center gap-3 mb-2">
+                    <label className="text-xs font-semibold text-foreground">Enable Variants</label>
+                    <button
+                      type="button"
+                      onClick={() => setFormData((prev: any) => ({ ...prev, enable_variants: !prev.enable_variants }))}
+                      className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${formData.enable_variants ? "bg-blue-500" : "bg-muted"}`}
+                    >
+                      <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${formData.enable_variants ? "translate-x-6" : "translate-x-1"}`} />
+                    </button>
+                    <span className="text-[9px] text-muted-foreground">Define size/weight variants with individual pricing & MOQ</span>
+                  </div>
+                  {formData.enable_variants && (
+                    <VariantManager variants={productVariants} onChange={setProductVariants} />
+                  )}
+                </section>
+
                 {/* Active Toggle */}
                 <div className="flex items-center gap-3 bg-muted/20 p-4 rounded-xl border border-border mt-4">
                   <input
