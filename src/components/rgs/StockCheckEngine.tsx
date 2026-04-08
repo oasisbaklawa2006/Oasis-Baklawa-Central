@@ -107,7 +107,7 @@ export default function StockCheckEngine() {
 
         return {
           ...order,
-          stockStatus: allReady && order.items.length > 0 ? "ready" : anyReady ? "partial" : "pending_production",
+          stockStatus: (allReady && order.items.length > 0 ? "ready" : anyReady ? "partial" : "pending_production") as OrderWithStock["stockStatus"],
         };
       }).sort((a, b) => {
         const orderRank = { ready: 0, partial: 1, pending_production: 2 };
@@ -146,12 +146,11 @@ export default function StockCheckEngine() {
       for (const item of order.items) {
         // Skip already-processed or completed items
         if (item.production_status === "completed" || item.production_status === "in_production" || item.production_status === "accepted") continue;
+        const available = sm[item.product_id || ""] || 0;
+        const needed = item.quantity - (item.actual_packed_qty || 0);
         const shortfall = needed - available;
         const itemKey = `${item.id}:${Math.max(shortfall, 0)}`;
         if (autoPostedRef.current.has(itemKey)) continue;
-
-        const available = sm[item.product_id || ""] || 0;
-        const needed = item.quantity - (item.actual_packed_qty || 0);
         if (needed <= 0 || !item.product_id || shortfall <= 0) continue;
 
         const prodDept = item.product?.production_department || item.department;
