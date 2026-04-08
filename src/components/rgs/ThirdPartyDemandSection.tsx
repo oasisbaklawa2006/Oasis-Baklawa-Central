@@ -77,7 +77,7 @@ export default function ThirdPartyDemandSection() {
           needed: Math.max(0, item.quantity - (item.actual_packed_qty || 0)),
           sourceOrderIds: item.order_id ? [item.order_id] : [],
           department: item.department || "3PCS",
-          priority: item.notes?.includes("PRIORITY:red") ? "red" : "urgent",
+          priority: (item.notes?.includes("PRIORITY:red") ? "red" : "urgent") as ThirdPartyDemand["priority"],
         }))
         .filter((demand) => demand.needed > 0)
         .sort((a, b) => {
