@@ -43,7 +43,7 @@ export const DEPT_TO_JOB_KEY: Record<string, string> = {
 };
 
 export function classifyFlow(productionDepartment: string | null | undefined): TriadFlow {
-  if (!productionDepartment) return "FLOW_3PCS";
+  if (!productionDepartment) return "FLOW_FGS"; // Default: food items (majority of catalog)
   const norm = productionDepartment.toLowerCase().trim();
 
   if (FGS_DEPARTMENTS.includes(norm)) return "FLOW_FGS";
