@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import VariantManager, { type ProductVariant } from "@/components/admin/VariantManager";
 import { supabase } from "@/integrations/supabase/client";
 import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "sonner";
