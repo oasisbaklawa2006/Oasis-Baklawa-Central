@@ -169,6 +169,9 @@ const AdminProducts = () => {
   const [bomSearchQuery, setBomSearchQuery] = useState("");
   const [bomSearchResults, setBomSearchResults] = useState<Product[]>([]);
   const [bomSearchingIdx, setBomSearchingIdx] = useState<number | null>(null);
+  // Variant state
+  const [productVariants, setProductVariants] = useState<ProductVariant[]>([]);
+
   // Tag management state
   const [allTags, setAllTags] = useState<ProductTagItem[]>([]);
   const [tagModalProduct, setTagModalProduct] = useState<Product | null>(null);
