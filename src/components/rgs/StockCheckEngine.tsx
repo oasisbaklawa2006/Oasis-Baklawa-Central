@@ -66,7 +66,14 @@ export default function StockCheckEngine() {
         .select("id, quantity, actual_packed_qty, production_status, department, product_id, order_id, product:products(name, sku, image_url, production_department)")
         .eq("order_id", o.id);
 
-      const typedItems = (items as any[] || []) as StockItem[];
+      // STRICT FILTER: RGS only sees FLOW_FGS (food) items
+      const typedItems = ((items as any[] || []) as StockItem[]).filter((item) => {
+        const prodDept = item.product?.production_department || item.department;
+        return classifyFlow(prodDept) === "FLOW_FGS";
+      });
+
+      // Skip orders with zero food items
+      if (typedItems.length === 0) continue;
 
       let allReady = true;
       let anyReady = false;
@@ -253,7 +260,7 @@ export default function StockCheckEngine() {
         <CardContent className="p-3 flex items-center gap-2">
           <Zap size={16} className="text-blue-600" />
           <p className="text-xs text-blue-700 font-medium">
-            Shortfalls auto-posted to HOD Handhelds · Assembly & 3PCS tasks posted instantly
+            Showing Food items only · Shortfalls auto-posted to HOD Handhelds
           </p>
         </CardContent>
       </Card>
@@ -298,23 +305,17 @@ export default function StockCheckEngine() {
                 <Progress value={pct} className="h-2" />
               </div>
 
-              {/* Triad Flow Breakdown */}
-              {(Object.entries(flowGroups) as [TriadFlow, StockItem[]][]).filter(([, items]) => items.length > 0).map(([flow, items]) => (
-                <div key={flow} className="space-y-1.5">
-                  <div className="flex items-center gap-1.5">
-                    <Layers size={12} className="text-muted-foreground" />
-                    <Badge className={`text-[9px] px-1.5 py-0 border ${FLOW_LABELS[flow].color}`}>
-                      {FLOW_LABELS[flow].label}
-                    </Badge>
-                    <span className="text-[10px] text-muted-foreground">{items.length} item{items.length > 1 ? "s" : ""}</span>
-                    {flow === "FLOW_FGS" && (
-                      <span className="text-[9px] text-blue-600 font-medium ml-auto">Auto-posted shortfalls</span>
-                    )}
-                    {(flow === "FLOW_ASSEMBLY" || flow === "FLOW_3PCS") && (
-                      <span className="text-[9px] text-purple-600 font-medium ml-auto">Instant post</span>
-                    )}
-                  </div>
-                  {items.map((item) => {
+              {/* Food Items Only — no Triad breakdown needed */}
+              <div className="space-y-1.5">
+                <div className="flex items-center gap-1.5">
+                  <Layers size={12} className="text-muted-foreground" />
+                  <Badge className="text-[9px] px-1.5 py-0 border bg-blue-500/20 text-blue-700 border-blue-400/40">
+                    FGS Food
+                  </Badge>
+                  <span className="text-[10px] text-muted-foreground">{order.items.length} item{order.items.length > 1 ? "s" : ""}</span>
+                  <span className="text-[9px] text-blue-600 font-medium ml-auto">Auto-posted shortfalls</span>
+                </div>
+                {order.items.map((item) => {
                     const avail = stockMap[item.product_id || ""] || 0;
                     const needed = item.quantity - (item.actual_packed_qty || 0);
                     const isMet = needed <= 0 || avail >= needed;
@@ -341,8 +342,7 @@ export default function StockCheckEngine() {
                       </div>
                     );
                   })}
-                </div>
-              ))}
+              </div>
 
               {/* Action: Only "Fulfill Available" — no manual Triad Split needed */}
               <div className="flex gap-2">
