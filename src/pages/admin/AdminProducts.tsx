@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import VariantManager, { type ProductVariant } from "@/components/admin/VariantManager";
 import { supabase } from "@/integrations/supabase/client";
 import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "sonner";
@@ -149,6 +150,7 @@ const EMPTY_FORM = {
   allergen_warnings: "",
   ingredients: "",
   has_bom: false,
+  enable_variants: false,
 };
 
 const AdminProducts = () => {
@@ -167,6 +169,9 @@ const AdminProducts = () => {
   const [bomSearchQuery, setBomSearchQuery] = useState("");
   const [bomSearchResults, setBomSearchResults] = useState<Product[]>([]);
   const [bomSearchingIdx, setBomSearchingIdx] = useState<number | null>(null);
+  // Variant state
+  const [productVariants, setProductVariants] = useState<ProductVariant[]>([]);
+
   // Tag management state
   const [allTags, setAllTags] = useState<ProductTagItem[]>([]);
   const [tagModalProduct, setTagModalProduct] = useState<Product | null>(null);
@@ -397,13 +402,34 @@ const AdminProducts = () => {
         allergen_warnings: product.allergen_warnings || "",
         ingredients: product.ingredients || "",
         has_bom: false,
+        enable_variants: false,
       });
       const components = await loadBom(product.id);
-      setFormData((prev: any) => ({ ...prev, has_bom: components.length > 0 }));
+      // Load variants
+      const { data: varData } = await (supabase as any)
+        .from("product_variants")
+        .select("*")
+        .eq("product_id", product.id)
+        .order("created_at");
+      const loadedVariants = (varData || []).map((v: any) => ({
+        id: v.id,
+        variant_name: v.variant_name,
+        price: v.price,
+        moq: v.moq,
+        sku: v.sku || "",
+        is_active: v.is_active,
+      }));
+      setProductVariants(loadedVariants);
+      setFormData((prev: any) => ({
+        ...prev,
+        has_bom: components.length > 0,
+        enable_variants: loadedVariants.length > 0,
+      }));
     } else {
       setEditingProduct(null);
       setFormData({ ...EMPTY_FORM });
       setBomComponents([]);
+      setProductVariants([]);
     }
     setIsPanelOpen(true);
   };
@@ -546,7 +572,26 @@ const AdminProducts = () => {
         await supabase.from("product_bom").delete().eq("product_id", productId);
       }
 
-      // Force session re-validation then hard refetch
+      // Save Variants
+      if (productId) {
+        await (supabase as any).from("product_variants").delete().eq("product_id", productId);
+        if (formData.enable_variants && productVariants.length > 0) {
+          const variantRows = productVariants
+            .filter((v: ProductVariant) => v.variant_name.trim())
+            .map((v: ProductVariant) => ({
+              product_id: productId!,
+              variant_name: v.variant_name,
+              price: v.price || 0,
+              moq: v.moq || 1,
+              sku: v.sku || null,
+              is_active: v.is_active ?? true,
+            }));
+          if (variantRows.length > 0) {
+            await (supabase as any).from("product_variants").insert(variantRows);
+          }
+        }
+      }
+
       await supabase.auth.getSession();
       await fetchProducts();
       toast.success(editingProduct ? "Product updated successfully" : "New product added to catalog!");
@@ -1464,6 +1509,27 @@ const AdminProducts = () => {
                       />
                     </div>
                   </div>
+                </section>
+
+                {/* 5. PRODUCT VARIANTS */}
+                <section className="space-y-4">
+                  <h3 className="text-xs font-bold text-muted-foreground uppercase tracking-widest border-b border-border pb-2 flex items-center gap-2">
+                    <Layers size={14} className="text-blue-500" /> 5. Product Variants
+                  </h3>
+                  <div className="flex items-center gap-3 mb-2">
+                    <label className="text-xs font-semibold text-foreground">Enable Variants</label>
+                    <button
+                      type="button"
+                      onClick={() => setFormData((prev: any) => ({ ...prev, enable_variants: !prev.enable_variants }))}
+                      className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${formData.enable_variants ? "bg-blue-500" : "bg-muted"}`}
+                    >
+                      <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${formData.enable_variants ? "translate-x-6" : "translate-x-1"}`} />
+                    </button>
+                    <span className="text-[9px] text-muted-foreground">Define size/weight variants with individual pricing & MOQ</span>
+                  </div>
+                  {formData.enable_variants && (
+                    <VariantManager variants={productVariants} onChange={setProductVariants} />
+                  )}
                 </section>
 
                 {/* Active Toggle */}
