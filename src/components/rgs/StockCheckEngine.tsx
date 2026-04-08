@@ -162,7 +162,7 @@ export default function StockCheckEngine() {
             if (item.production_status !== "pending") {
               await supabase.from("order_items").update({
                 production_status: "pending",
-                department: "3PCS",
+                  department: "3rd Party",
               }).eq("id", item.id);
             }
             autoPostedRef.current.add(itemKey);
