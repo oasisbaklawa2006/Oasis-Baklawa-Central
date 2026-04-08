@@ -25,6 +25,7 @@ import {
 import { motion, AnimatePresence } from "framer-motion";
 import { useAuth } from "@/hooks/useAuth";
 import { queueNotification } from "@/utils/notificationOutbox";
+import { classifyFlow } from "@/utils/departmentClassifier";
 
 interface FinanceOrder {
   id: string;
@@ -459,9 +460,9 @@ const AdminFinance = () => {
       }
       await supabase
         .from("orders")
-        .update({ payment_status: "verified_advance", status: "in_production" })
+        .update({ payment_status: "verified_advance", status: "manufacturing" })
         .eq("id", orderId);
-      toast.success("Advance Verified. Cleared for Dispatch Team to pack.");
+      toast.success("Advance verified — order moved to Manufacturing.");
       fetchOrders();
     } catch (err) {
       toast.error("Action failed.");
@@ -525,14 +526,14 @@ const AdminFinance = () => {
       // CRITICAL: Re-insert the live sales_order_value to prevent it from being wiped
       await supabase.from("orders").update({
         advance_paid: amount,
-        status: "in_production",
+        status: "manufacturing",
         payment_status: "verified_advance",
         sales_order_value: liveSOValue,
       }).eq("id", financialEntry.orderId);
       await supabase.from("order_status_history").insert({
         order_id: financialEntry.orderId,
-        old_status: "submitted",
-        new_status: "in_production",
+        old_status: liveOrder.status,
+        new_status: "manufacturing",
         changed_by: user?.id ?? null,
       });
       await supabase.from("audit_logs").insert({
@@ -586,7 +587,13 @@ const AdminFinance = () => {
               });
             }
 
-            await supabase.from("order_items").update({ department: dept }).eq("id", item.id);
+            const flow = classifyFlow(dept || mappedDepartment);
+            const itemUpdate: { department: string; production_status?: string } = { department: dept };
+            if (flow === "FLOW_ASSEMBLY" || flow === "FLOW_3PCS") {
+              itemUpdate.production_status = "pending";
+            }
+
+            await supabase.from("order_items").update(itemUpdate).eq("id", item.id);
           }
         }
       } catch { /* non-critical routing */ }
@@ -625,7 +632,7 @@ const AdminFinance = () => {
         return;
       }
       await supabase.from("orders").update({
-        status: "in_production",
+        status: "manufacturing",
         payment_status: "short_term_credit",
       }).eq("id", shortTermTarget.id);
       await supabase.from("credit_requests").insert({

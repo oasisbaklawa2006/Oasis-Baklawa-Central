@@ -74,11 +74,12 @@ export default function AssemblyManagement() {
     const { data: mfgItems } = await supabase
       .from("order_items")
       .select("*, product:products(name, image_url, sku, production_department), order:orders(id, created_at, status, company:companies(business_name))")
-      .filter("order.status", "eq", "manufacturing");
+      .in("order.status", ["manufacturing", "in_production"]);
 
     // Filter mfg items to assembly departments using classifier (dedup by id)
     const extraItems = ((mfgItems as any[]) || []).filter((item) => {
       if (!item.order) return false; // inner join filter
+      if (!["manufacturing", "in_production"].includes(item.order.status)) return false;
       const dept = item.department || item.product?.production_department || "";
       return isAssemblyDept(dept) && item.production_status !== "completed";
     });

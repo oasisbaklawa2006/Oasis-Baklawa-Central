@@ -2,11 +2,12 @@ import { useEffect, useState, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { ChevronDown, ChevronUp, AlertTriangle, Eye, EyeOff } from "lucide-react";
 import StagnancyBadge from "@/components/StagnancyBadge";
+import { normalizeOrderStatus } from "@/utils/orderStatus";
 
 const STEPS = [
   { key: "draft", label: "Cart / Draft", statuses: ["draft", "cart"] },
-  { key: "finance", label: "Finance Approval", statuses: ["submitted", "confirmed"] },
-  { key: "production", label: "Production / FGS", statuses: ["manufacturing"] },
+  { key: "finance", label: "Finance Approval", statuses: ["submitted", "confirmed", "approved"] },
+  { key: "production", label: "Production / FGS", statuses: ["manufacturing", "in_production"] },
   { key: "assembly", label: "Assembly", statuses: ["assembly"] },
   { key: "packing", label: "Packing", statuses: ["packing", "packed_ready"] },
   { key: "billing", label: "Billing / E-Way", statuses: ["invoice_generated", "awaiting_payment", "payment_cleared"] },
@@ -15,7 +16,7 @@ const STEPS = [
 ];
 
 function getActiveStep(status: string) {
-  const s = (status || "").toLowerCase().replace(/[\s-]/g, "_");
+  const s = normalizeOrderStatus(status).replace(/[\s-]/g, "_");
   for (let i = 0; i < STEPS.length; i++) {
     if (STEPS[i].statuses.includes(s)) return i;
   }

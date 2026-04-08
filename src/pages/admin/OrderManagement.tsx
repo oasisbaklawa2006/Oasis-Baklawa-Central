@@ -6,10 +6,12 @@ import { Loader2, ChevronRight, Printer, Package, RefreshCw } from "lucide-react
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import StagnancyBadge from "@/components/StagnancyBadge";
+import { shouldIgnoreOrderRegression } from "@/utils/orderStatus";
 
 const STATUS_FLOW = [
   { status: "submitted", label: "Order Placed", action: "Confirm Order", next: "confirmed", color: "bg-amber-100 text-amber-800 border-amber-200" },
-  { status: "confirmed", label: "Confirmed", action: "Send to Factory", next: "in_production", color: "bg-blue-100 text-blue-800 border-blue-200" },
+  { status: "confirmed", label: "Confirmed", action: "Send to Factory", next: "manufacturing", color: "bg-blue-100 text-blue-800 border-blue-200" },
+  { status: "manufacturing", label: "Manufacturing", action: "Mark Assembled", next: "assembled", color: "bg-indigo-100 text-indigo-800 border-indigo-200" },
   { status: "in_production", label: "Manufacturing", action: "Mark Assembled", next: "assembled", color: "bg-indigo-100 text-indigo-800 border-indigo-200" },
   { status: "assembled", label: "Assembled", action: "Send to Packing", next: "packing", color: "bg-violet-100 text-violet-800 border-violet-200" },
   { status: "packing", label: "Packing", action: "Mark Packed", next: "packed_ready", color: "bg-purple-100 text-purple-800 border-purple-200" },
@@ -75,6 +77,11 @@ const OrderManagement = () => {
   const handleAction = async (orderId: string, nextStatus: string) => {
     setActionLoading(orderId);
     const currentOrder = orders.find(o => o.id === orderId);
+    if (shouldIgnoreOrderRegression(currentOrder?.status, nextStatus)) {
+      toast.error("Locked order status cannot move backward.");
+      setActionLoading(null);
+      return;
+    }
     const { error } = await supabase.from("orders").update({ status: nextStatus }).eq("id", orderId);
     if (error) {
       toast.error("Failed to update status");

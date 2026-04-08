@@ -328,8 +328,8 @@ const AdminAccountsRelease = () => {
       } else if (action === "mark_advance_paid") {
         const advReq = order.advance_required ?? 0;
         await supabase.from("order_payments").insert({ order_id: order.id, company_id: order.company_id, payment_type: "advance", amount: advReq, created_by: user?.id ?? null });
-        await supabase.from("orders").update({ advance_paid: advReq, status: "in_production", payment_status: "advance_paid" }).eq("id", order.id);
-        await supabase.from("order_status_history").insert({ order_id: order.id, old_status: order.status, new_status: "in_production" });
+        await supabase.from("orders").update({ advance_paid: advReq, status: "manufacturing", payment_status: "advance_paid" }).eq("id", order.id);
+        await supabase.from("order_status_history").insert({ order_id: order.id, old_status: order.status, new_status: "manufacturing" });
         toast.success("Advance paid — released to Production");
       } else if (action === "request_balance") {
         toast.success(`Balance of ${format(total - advPaid)} requested`);
