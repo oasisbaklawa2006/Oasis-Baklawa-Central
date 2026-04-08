@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { classifyFlow, mapToJobDept } from "@/utils/departmentClassifier";
+import { withTimeout } from "@/lib/query-timeout";
 
 interface BOMComponent {
   id: string;
@@ -113,6 +114,7 @@ export default function BOMDemandEngine() {
 
     bom.forEach((comp) => {
       const key = comp.component_product_id || comp.component_name || comp.id;
+      if (comp.component_product_id && comp.component_product_id === task.product_id) return;
       const totalNeeded = comp.quantity_per_unit * pendingQty;
       
       // Use component's production_department for flow classification
@@ -159,13 +161,15 @@ export default function BOMDemandEngine() {
       const orderRef = item.orderIds[0] || "assembly";
 
       if (target === "RGS" && item.componentProductId) {
-        // Check if job already exists
-        const { data: existing } = await supabase
-          .from("production_jobs")
-          .select("id")
-          .eq("product_id", item.componentProductId)
-          .in("status", ["pending", "accepted", "in_production", "paused"])
-          .limit(1);
+        const { data: existing } = await withTimeout(
+          supabase
+            .from("production_jobs")
+            .select("id")
+            .eq("product_id", item.componentProductId)
+            .eq("order_id", orderRef)
+            .in("status", ["pending", "accepted", "in_production", "paused"])
+            .limit(1)
+        );
 
         if (existing && existing.length > 0) continue;
 
@@ -173,7 +177,7 @@ export default function BOMDemandEngine() {
         const stockLevel = item.available;
         const autoPriority = stockLevel === 0 ? "red" : "urgent";
 
-        await supabase.from("production_jobs").insert({
+        await withTimeout(supabase.from("production_jobs").insert({
           product_id: item.componentProductId,
           order_id: orderRef,
           department: dept,
@@ -181,39 +185,39 @@ export default function BOMDemandEngine() {
           priority: autoPriority,
           status: "pending",
           stage: "prep",
-        });
+        }));
         created++;
       }
 
       if (target === "3PCS") {
-        if (item.componentProductId) {
-          const { data: existing3PCSJob } = await supabase
-            .from("production_jobs")
+        const noteToken = `BOM_COMPONENT:${item.componentProductId || item.componentName}`;
+        const { data: existing3PCSItem } = await withTimeout(
+          supabase
+            .from("order_items")
             .select("id")
-            .eq("product_id", item.componentProductId)
             .eq("order_id", orderRef)
-            .in("department", ["3rd Party", "3PCS", "3rd Party Goods", "3rd Party Store"])
-            .in("status", ["pending", "accepted", "in_production", "paused"])
-            .limit(1);
+            .eq("task_type", "assembly_support")
+            .eq("department", "3PCS")
+            .ilike("notes", `%${noteToken}%`)
+            .limit(1)
+        );
 
-          if (!existing3PCSJob || existing3PCSJob.length === 0) {
-            await supabase.from("production_jobs").insert({
-              product_id: item.componentProductId,
-              order_id: orderRef,
-              department: "3rd Party",
-              assigned_qty: shortfall,
-              priority: "urgent",
-              status: "pending",
-              stage: "procurement",
-            });
-          }
+        if (!existing3PCSItem || existing3PCSItem.length === 0) {
+          await withTimeout(supabase.from("order_items").insert({
+            order_id: orderRef,
+            product_id: item.componentProductId,
+            quantity: shortfall,
+            production_status: "pending",
+            department: "3PCS",
+            task_type: "assembly_support",
+            notes: `${noteToken} | Component: ${item.componentName} | Parent Flow: Assembly | PRIORITY:urgent`,
+          }));
         }
 
-        // Create trackable 3PCS procurement demand via audit_logs
-        await supabase.from("audit_logs").insert({
+        await withTimeout(supabase.from("audit_logs").insert({
           action_type: "ASSEMBLY_3PCS_DEMAND",
           module_name: "Assembly",
-          entity_name: "3pcs_procurement",
+          entity_name: "order_items",
           entity_id: item.componentProductId || "manual",
           actor_id: user?.id || null,
           new_value: {
@@ -225,15 +229,14 @@ export default function BOMDemandEngine() {
             priority: "urgent",
           } as any,
           risk_level: "high",
-        });
+        }));
         created++;
       }
 
-      // Log the demand action
-      await supabase.from("audit_logs").insert({
+      await withTimeout(supabase.from("audit_logs").insert({
         action_type: "ASSEMBLY_DEMAND",
         module_name: "Assembly",
-        entity_name: target === "RGS" ? "production_jobs" : "3pcs_demand",
+        entity_name: target === "RGS" ? "production_jobs" : "order_items",
         entity_id: item.componentProductId || "manual",
         actor_id: user?.id || null,
         new_value: {
@@ -244,7 +247,7 @@ export default function BOMDemandEngine() {
           source_order_ids: item.orderIds,
         } as any,
         risk_level: "high",
-      });
+      }));
     }
 
     toast.success(`🚨 ${created} demand requests sent to ${target}`);

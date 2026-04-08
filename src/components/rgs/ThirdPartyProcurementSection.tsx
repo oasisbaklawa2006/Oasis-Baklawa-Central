@@ -1,9 +1,11 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Loader2, Package } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { isActiveFactoryOrderStatus, isActiveProductionStatus, isThirdPartyItem } from "@/lib/third-party";
+import { isActiveFactoryOrderStatus, isActiveProductionStatus } from "@/lib/third-party";
+import { getOrderItemDisplayName, resolveOrderItemFlow } from "@/lib/triad-order-items";
+import { isQueryTimeoutError, withTimeout } from "@/lib/query-timeout";
 
 interface ProcurementItem {
   id: string;
@@ -12,6 +14,8 @@ interface ProcurementItem {
   actual_packed_qty: number | null;
   production_status: string | null;
   department: string | null;
+  task_type: string | null;
+  notes: string | null;
   product?: {
     name: string;
     sku: string | null;
@@ -27,32 +31,42 @@ export default function ThirdPartyProcurementSection() {
   const [items, setItems] = useState<ProcurementItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const cachedItemsRef = useRef<ProcurementItem[]>([]);
 
   const fetchItems = useCallback(async () => {
-    setLoading(true);
+    setLoading(cachedItemsRef.current.length === 0);
     setErrorMessage(null);
 
     try {
-      const { data, error } = await supabase
-        .from("order_items")
-        .select("id, order_id, quantity, actual_packed_qty, production_status, department, product:products(name, sku, image_url, production_department), order:orders(status)")
-        .in("production_status", ["pending", "accepted", "in_progress", "in_production", "partial_ready"])
-        .order("id", { ascending: false })
-        .limit(200);
+      const { data, error } = await withTimeout(
+        supabase
+          .from("order_items")
+          .select("id, order_id, quantity, actual_packed_qty, production_status, department, task_type, notes, product:products(name, sku, image_url, production_department), order:orders(status)")
+          .in("production_status", ["pending", "accepted", "in_progress", "in_production", "partial_ready"])
+          .order("id", { ascending: false })
+          .limit(250)
+      );
 
       if (error) throw error;
 
       const nextItems = (((data as any[]) || []) as ProcurementItem[])
-        .filter((item) => isThirdPartyItem(item.department, item.product?.production_department))
+        .filter((item) => item.task_type !== "assembly_support")
+        .filter((item) => resolveOrderItemFlow(item) === "FLOW_3PCS")
         .filter((item) => isActiveProductionStatus(item.production_status))
         .filter((item) => isActiveFactoryOrderStatus(item.order?.status))
         .sort((a, b) => (b.quantity - (b.actual_packed_qty || 0)) - (a.quantity - (a.actual_packed_qty || 0)));
 
       setItems(nextItems);
+      cachedItemsRef.current = nextItems;
     } catch (error) {
       console.error("[ThirdPartyProcurementSection] Failed to load procurement items", error);
-      setItems([]);
-      setErrorMessage("No Procurement Tasks Active");
+      if (cachedItemsRef.current.length > 0 && isQueryTimeoutError(error)) {
+        setItems(cachedItemsRef.current);
+        setErrorMessage("Live refresh timed out — showing cached procurement tasks.");
+      } else {
+        setItems([]);
+        setErrorMessage("No Procurement Tasks Active");
+      }
     } finally {
       setLoading(false);
     }
@@ -93,7 +107,7 @@ export default function ThirdPartyProcurementSection() {
                   )}
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="font-semibold text-sm text-foreground truncate">{item.product?.name || "Unnamed procurement item"}</p>
+                  <p className="font-semibold text-sm text-foreground truncate">{getOrderItemDisplayName(item)}</p>
                   <p className="text-[10px] text-muted-foreground">
                     {item.order_id ? `SO#${item.order_id.slice(0, 8).toUpperCase()}` : "No order linked"}
                     {item.product?.sku ? ` · SKU: ${item.product.sku}` : ""}
