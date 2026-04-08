@@ -572,7 +572,26 @@ const AdminProducts = () => {
         await supabase.from("product_bom").delete().eq("product_id", productId);
       }
 
-      // Force session re-validation then hard refetch
+      // Save Variants
+      if (productId) {
+        await (supabase as any).from("product_variants").delete().eq("product_id", productId);
+        if (formData.enable_variants && productVariants.length > 0) {
+          const variantRows = productVariants
+            .filter((v: ProductVariant) => v.variant_name.trim())
+            .map((v: ProductVariant) => ({
+              product_id: productId!,
+              variant_name: v.variant_name,
+              price: v.price || 0,
+              moq: v.moq || 1,
+              sku: v.sku || null,
+              is_active: v.is_active ?? true,
+            }));
+          if (variantRows.length > 0) {
+            await (supabase as any).from("product_variants").insert(variantRows);
+          }
+        }
+      }
+
       await supabase.auth.getSession();
       await fetchProducts();
       toast.success(editingProduct ? "Product updated successfully" : "New product added to catalog!");
