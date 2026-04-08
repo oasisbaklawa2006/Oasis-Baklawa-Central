@@ -14,6 +14,7 @@ import { useCurrency } from "@/contexts/CurrencyContext";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import ProductRecommendations from "@/components/ProductRecommendations";
+import { useProductVariants } from "@/hooks/useProductVariants";
 
 import {
   calculatePackPrice,
@@ -35,12 +36,14 @@ const ProductDetail = () => {
   const { addToCart } = useCart();
   const { isAuthenticated, priceTier } = useAuth();
   const { formatPrice } = useCurrency();
+  const { variants, loading: variantsLoading } = useProductVariants(id);
 
   const [product, setProduct] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [boxes, setBoxes] = useState(0);
   const [isAdding, setIsAdding] = useState(false);
   const [activeSlide, setActiveSlide] = useState(0);
+  const [selectedVariantId, setSelectedVariantId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!id) return;
@@ -59,6 +62,16 @@ const ProductDetail = () => {
         setLoading(false);
       });
   }, [id]);
+
+  // Auto-select first variant when variants load
+  useEffect(() => {
+    if (variants.length > 0 && !selectedVariantId) {
+      setSelectedVariantId(variants[0].id);
+    }
+  }, [variants, selectedVariantId]);
+
+  const selectedVariant = variants.find((v) => v.id === selectedVariantId);
+  const hasVariants = variants.length > 0;
 
   if (loading)
     return (
@@ -79,13 +92,17 @@ const ProductDetail = () => {
     );
 
   const cat = getProductCategory(product);
-  const minQty = getMinOrderQty(product);
+  const minQty = hasVariants && selectedVariant ? selectedVariant.moq : getMinOrderQty(product);
   const increment = getQtyIncrement(product);
   const gstRate = getGstRate(product);
   const weightKg = getPrimaryPackWeightKg(product);
-  const price = calculatePackPrice(product, priceTier);
-  const displayInfo = getDisplayPrice(product, priceTier);
-  const grandTotal = calculateLineGrandTotal(product, boxes, priceTier);
+  const price = hasVariants && selectedVariant ? selectedVariant.price : calculatePackPrice(product, priceTier);
+  const displayInfo = hasVariants && selectedVariant
+    ? { price: selectedVariant.price, unit: "/" + selectedVariant.variant_name }
+    : getDisplayPrice(product, priceTier);
+  const grandTotal = hasVariants && selectedVariant
+    ? selectedVariant.price * boxes * (1 + gstRate / 100)
+    : calculateLineGrandTotal(product, boxes, priceTier);
   const toFill = unitsToFillCarton(product, boxes);
   const isBulk = cat === "bulk_kg";
   const images = [product.image_url].filter(Boolean);
@@ -179,6 +196,33 @@ const ProductDetail = () => {
           {/* RIGHT: Order Actions */}
           {isAuthenticated && (
             <div className="mt-5 md:mt-0 space-y-4 bg-card rounded-2xl p-4 border border-border" style={{ boxShadow: "var(--card-shadow)" }}>
+
+              {/* Variant Selector */}
+              {hasVariants && (
+                <div>
+                  <p className="font-body text-[10px] text-muted-foreground uppercase tracking-wider mb-2">Select Variant</p>
+                  <div className="flex flex-wrap gap-2">
+                    {variants.map((v) => (
+                      <button
+                        key={v.id}
+                        onClick={() => {
+                          setSelectedVariantId(v.id);
+                          setBoxes(0);
+                        }}
+                        className={`px-3 py-2 rounded-lg text-xs font-semibold border transition-colors ${
+                          selectedVariantId === v.id
+                            ? "bg-foreground text-primary-foreground border-foreground"
+                            : "bg-card text-foreground border-border hover:bg-muted"
+                        }`}
+                      >
+                        {v.variant_name}
+                        <span className="block text-[10px] font-normal mt-0.5">{formatPrice(v.price)}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               {/* Price */}
               <div className="space-y-1">
                 <div className="flex items-baseline gap-2">
@@ -186,20 +230,22 @@ const ProductDetail = () => {
                     {formatPrice(displayInfo.price)}
                     <span className="text-xs font-normal text-muted-foreground ml-1">{displayInfo.unit}</span>
                   </p>
-                  {showMrpStrike && (
+                  {!hasVariants && showMrpStrike && (
                     <span className="font-number text-xs text-muted-foreground line-through">
                       MRP {formatPrice(mrp)}
                     </span>
                   )}
                 </div>
-                <p className="font-number text-sm text-muted-foreground">
-                  Pack: {weightLabel} · {formatPrice(price)}
-                </p>
+                {!hasVariants && (
+                  <p className="font-number text-sm text-muted-foreground">
+                    Pack: {weightLabel} · {formatPrice(price)}
+                  </p>
+                )}
               </div>
 
               {/* MOQ & Pack info */}
               <p className="font-body text-[10px] text-muted-foreground">
-                MOQ: {minQty} &nbsp;|&nbsp; {getPackDescription(product)}
+                MOQ: {minQty} &nbsp;|&nbsp; {hasVariants && selectedVariant ? selectedVariant.variant_name : getPackDescription(product)}
               </p>
 
               {/* Quantity Selector */}
@@ -237,7 +283,7 @@ const ProductDetail = () => {
               </div>
 
               {/* Carton helper */}
-              {boxes > 0 && toFill > 0 && (
+              {boxes > 0 && toFill > 0 && !hasVariants && (
                 <p className="font-body text-[10px] text-primary">
                   Add {toFill} more to complete a master carton
                 </p>
