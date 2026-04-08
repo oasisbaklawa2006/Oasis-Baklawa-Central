@@ -31,7 +31,7 @@ const AdminProduction = () => {
       .select(
         "id, status, sales_order_value, company_id, created_at, company:companies(business_name), order_items(id, quantity, actual_packed_qty, product_id, production_status)",
       )
-      .in("status", ["in_production", "assembly"])
+      .in("status", ["in_production", "manufacturing", "assembly"])
       .order("created_at", { ascending: true });
 
     if (error) {
@@ -48,9 +48,9 @@ const AdminProduction = () => {
   }, []);
 
   const filtered = orders.filter((o) =>
-    tab === "production" ? o.status === "in_production" : o.status === "assembly",
+    tab === "production" ? ["in_production", "manufacturing"].includes(o.status) : o.status === "assembly",
   );
-  const prodCount = orders.filter((o) => o.status === "in_production").length;
+  const prodCount = orders.filter((o) => ["in_production", "manufacturing"].includes(o.status)).length;
   const asmCount = orders.filter((o) => o.status === "assembly").length;
 
   const handleAdvance = async (order: ProdOrder, targetStatus: string) => {
