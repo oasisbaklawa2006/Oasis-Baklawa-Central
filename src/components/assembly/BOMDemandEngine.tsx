@@ -186,6 +186,29 @@ export default function BOMDemandEngine() {
       }
 
       if (target === "3PCS") {
+        if (item.componentProductId) {
+          const { data: existing3PCSJob } = await supabase
+            .from("production_jobs")
+            .select("id")
+            .eq("product_id", item.componentProductId)
+            .eq("order_id", orderRef)
+            .in("department", ["3rd Party", "3PCS", "3rd Party Goods", "3rd Party Store"])
+            .in("status", ["pending", "accepted", "in_production", "paused"])
+            .limit(1);
+
+          if (!existing3PCSJob || existing3PCSJob.length === 0) {
+            await supabase.from("production_jobs").insert({
+              product_id: item.componentProductId,
+              order_id: orderRef,
+              department: "3rd Party",
+              assigned_qty: shortfall,
+              priority: "urgent",
+              status: "pending",
+              stage: "procurement",
+            });
+          }
+        }
+
         // Create trackable 3PCS procurement demand via audit_logs
         await supabase.from("audit_logs").insert({
           action_type: "ASSEMBLY_3PCS_DEMAND",

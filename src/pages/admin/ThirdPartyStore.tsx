@@ -1,6 +1,6 @@
-import { useAuth } from "@/hooks/useAuth";
 import TopNavBar from "@/components/TopNavBar";
 import ThirdPartyDemandSection from "@/components/rgs/ThirdPartyDemandSection";
+import ThirdPartyProcurementSection from "@/components/rgs/ThirdPartyProcurementSection";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Package, Zap } from "lucide-react";
@@ -30,9 +30,7 @@ export default function ThirdPartyStore() {
           </TabsContent>
 
           <TabsContent value="general">
-            <div className="py-12 text-center text-muted-foreground text-sm">
-              General procurement tasks will appear here.
-            </div>
+            <ThirdPartyProcurementSection />
           </TabsContent>
         </Tabs>
       </div>
