@@ -2,10 +2,11 @@ import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/useAuth";
-import { Loader2, Package, Send, Layers, Store, Truck } from "lucide-react";
+import { Loader2, Package, Send, Layers, Store, Truck, CheckCircle2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { classifyFlow, mapToJobDept } from "@/utils/departmentClassifier";
 
 interface BOMComponent {
   id: string;
@@ -13,7 +14,7 @@ interface BOMComponent {
   component_product_id: string | null;
   quantity_per_unit: number;
   source_department: string | null;
-  component_product?: { name: string; image_url: string | null; sku: string | null } | null;
+  component_product?: { name: string; image_url: string | null; sku: string | null; production_department: string | null } | null;
 }
 
 interface AssemblyTask {
@@ -30,25 +31,13 @@ interface BOMRequirement {
   componentName: string;
   componentProductId: string | null;
   sourceDepartment: string;
+  flow: "FLOW_FGS" | "FLOW_ASSEMBLY" | "FLOW_3PCS";
   totalNeeded: number;
   available: number;
   taskIds: string[];
+  orderIds: string[];
+  handedOver: boolean;
 }
-
-const DEPT_MAP: Record<string, string> = {
-  "arabic_sweets": "arabic_sweets",
-  "arabic sweets": "arabic_sweets",
-  "bakery": "bakery",
-  "chocolate": "chocolate",
-  "dragees": "dragees",
-  "fusion_sweets": "fusion_sweets",
-  "fusion sweets": "fusion_sweets",
-  "nuts_mixes": "nuts_mixes",
-  "nuts": "nuts_mixes",
-  "packing_assembly": "packing_assembly",
-  "3rd party": "3rd_party",
-  "rgs": "rgs",
-};
 
 export default function BOMDemandEngine() {
   const { user } = useAuth();
@@ -57,9 +46,9 @@ export default function BOMDemandEngine() {
   const [stockMap, setStockMap] = useState<Record<string, number>>({});
   const [loading, setLoading] = useState(true);
   const [acting, setActing] = useState<string | null>(null);
+  const [handoverMap, setHandoverMap] = useState<Record<string, boolean>>({});
 
   const fetchData = useCallback(async () => {
-    // Fetch assembly tasks
     const { data: taskData } = await supabase
       .from("order_items")
       .select("id, order_id, product_id, quantity, actual_packed_qty, production_status, product:products(name, image_url, sku)")
@@ -70,12 +59,12 @@ export default function BOMDemandEngine() {
     const typedTasks = (taskData as any[] || []) as AssemblyTask[];
     setTasks(typedTasks);
 
-    // Fetch BOMs for all product_ids
+    // Fetch BOMs with component product details
     const productIds = [...new Set(typedTasks.map(t => t.product_id).filter(Boolean))] as string[];
     if (productIds.length > 0) {
       const { data: bomData } = await supabase
         .from("product_bom")
-        .select("id, product_id, component_name, component_product_id, quantity_per_unit, source_department")
+        .select("id, product_id, component_name, component_product_id, quantity_per_unit, source_department, component_product:products!product_bom_component_product_id_fkey(name, image_url, sku, production_department)")
         .in("product_id", productIds);
 
       const map: Record<string, BOMComponent[]> = {};
@@ -93,12 +82,27 @@ export default function BOMDemandEngine() {
       if (r.product_id) sm[r.product_id] = (sm[r.product_id] || 0) + (Number(r.quantity) || 0);
     });
     setStockMap(sm);
+
+    // Check handover status from audit_logs
+    const { data: handovers } = await supabase
+      .from("audit_logs")
+      .select("entity_id")
+      .eq("action_type", "ASSEMBLY_HANDOVER")
+      .order("created_at", { ascending: false })
+      .limit(200);
+    
+    const hm: Record<string, boolean> = {};
+    (handovers || []).forEach((h: any) => {
+      if (h.entity_id) hm[h.entity_id] = true;
+    });
+    setHandoverMap(hm);
+
     setLoading(false);
   }, []);
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
-  // Calculate aggregated BOM requirements
+  // Calculate aggregated BOM requirements with flow classification
   const requirements: BOMRequirement[] = [];
   const reqMap: Record<string, BOMRequirement> = {};
 
@@ -110,32 +114,35 @@ export default function BOMDemandEngine() {
     bom.forEach((comp) => {
       const key = comp.component_product_id || comp.component_name || comp.id;
       const totalNeeded = comp.quantity_per_unit * pendingQty;
+      
+      // Use component's production_department for flow classification
+      const compDept = comp.component_product?.production_department || comp.source_department;
+      const flow = classifyFlow(compDept);
+
       if (!reqMap[key]) {
         reqMap[key] = {
-          componentName: comp.component_name || "Unknown Component",
+          componentName: comp.component_product?.name || comp.component_name || "Unknown Component",
           componentProductId: comp.component_product_id,
           sourceDepartment: comp.source_department || "RGS",
+          flow,
           totalNeeded: 0,
           available: stockMap[comp.component_product_id || ""] || 0,
           taskIds: [],
+          orderIds: [],
+          handedOver: handoverMap[comp.component_product_id || ""] || false,
         };
       }
       reqMap[key].totalNeeded += totalNeeded;
-      reqMap[key].taskIds.push(task.id);
+      if (!reqMap[key].taskIds.includes(task.id)) reqMap[key].taskIds.push(task.id);
+      if (task.order_id && !reqMap[key].orderIds.includes(task.order_id)) reqMap[key].orderIds.push(task.order_id);
     });
   });
 
   Object.values(reqMap).forEach((r) => requirements.push(r));
   requirements.sort((a, b) => (b.totalNeeded - b.available) - (a.totalNeeded - a.available));
 
-  const rgsItems = requirements.filter(r => {
-    const dept = (r.sourceDepartment || "").toLowerCase();
-    return !dept.includes("3rd") && !dept.includes("third");
-  });
-  const thirdPartyItems = requirements.filter(r => {
-    const dept = (r.sourceDepartment || "").toLowerCase();
-    return dept.includes("3rd") || dept.includes("third");
-  });
+  const fgsItems = requirements.filter(r => r.flow === "FLOW_FGS");
+  const thirdPartyItems = requirements.filter(r => r.flow === "FLOW_3PCS");
 
   const handleRaiseDemand = async (items: BOMRequirement[], target: "RGS" | "3PCS") => {
     setActing(target);
@@ -146,24 +153,60 @@ export default function BOMDemandEngine() {
       return;
     }
 
+    let created = 0;
     for (const item of shortfalls) {
-      const shortfall = item.totalNeeded - item.available;
+      const shortfall = Math.ceil(item.totalNeeded - item.available);
+      const orderRef = item.orderIds[0] || "assembly";
+
       if (target === "RGS" && item.componentProductId) {
-        // Create production job via RGS path
-        const dept = DEPT_MAP[(item.sourceDepartment || "").toLowerCase()] || "arabic_sweets";
-        // Auto-priority: RED if completely out of stock, URGENT otherwise
+        // Check if job already exists
+        const { data: existing } = await supabase
+          .from("production_jobs")
+          .select("id")
+          .eq("product_id", item.componentProductId)
+          .in("status", ["pending", "accepted", "in_production", "paused"])
+          .limit(1);
+
+        if (existing && existing.length > 0) continue;
+
+        const dept = mapToJobDept(item.sourceDepartment);
         const stockLevel = item.available;
         const autoPriority = stockLevel === 0 ? "red" : "urgent";
+
         await supabase.from("production_jobs").insert({
           product_id: item.componentProductId,
+          order_id: orderRef,
           department: dept,
-          assigned_qty: Math.ceil(shortfall),
+          assigned_qty: shortfall,
           priority: autoPriority,
           status: "pending",
           stage: "prep",
         });
+        created++;
       }
-      // Log demand
+
+      if (target === "3PCS") {
+        // Create trackable 3PCS procurement demand via audit_logs
+        await supabase.from("audit_logs").insert({
+          action_type: "ASSEMBLY_3PCS_DEMAND",
+          module_name: "Assembly",
+          entity_name: "3pcs_procurement",
+          entity_id: item.componentProductId || "manual",
+          actor_id: user?.id || null,
+          new_value: {
+            component: item.componentName,
+            component_product_id: item.componentProductId,
+            needed: shortfall,
+            source_department: item.sourceDepartment,
+            source_order_ids: item.orderIds,
+            priority: "urgent",
+          } as any,
+          risk_level: "high",
+        });
+        created++;
+      }
+
+      // Log the demand action
       await supabase.from("audit_logs").insert({
         action_type: "ASSEMBLY_DEMAND",
         module_name: "Assembly",
@@ -172,15 +215,17 @@ export default function BOMDemandEngine() {
         actor_id: user?.id || null,
         new_value: {
           component: item.componentName,
-          needed: Math.ceil(shortfall),
+          needed: shortfall,
           target,
           source_department: item.sourceDepartment,
+          source_order_ids: item.orderIds,
         } as any,
         risk_level: "high",
       });
     }
 
-    toast.success(`🚨 ${shortfalls.length} demand requests sent to ${target}`);
+    toast.success(`🚨 ${created} demand requests sent to ${target}`);
+    fetchData();
     setActing(null);
   };
 
@@ -213,11 +258,20 @@ export default function BOMDemandEngine() {
           <div className="space-y-1.5 max-h-60 overflow-y-auto">
             {requirements.map((req, i) => {
               const shortfall = req.totalNeeded - req.available;
+              const flowLabel = req.flow === "FLOW_FGS" ? "Food → RGS" : req.flow === "FLOW_3PCS" ? "Packing → 3PCS" : "Assembly";
+              const flowColor = req.flow === "FLOW_FGS" ? "bg-blue-500/20 text-blue-700 border-blue-400/40" : req.flow === "FLOW_3PCS" ? "bg-purple-500/20 text-purple-700 border-purple-400/40" : "bg-amber-500/20 text-amber-700 border-amber-400/40";
               return (
                 <div key={i} className={`flex items-center justify-between text-xs p-2 rounded-lg border ${shortfall > 0 ? "bg-red-500/5 border-red-400/30" : "bg-emerald-500/5 border-emerald-400/30"}`}>
                   <div className="flex-1 min-w-0">
-                    <p className="font-medium text-foreground truncate">{req.componentName}</p>
-                    <p className="text-[10px] text-muted-foreground">{req.sourceDepartment}</p>
+                    <div className="flex items-center gap-1.5 mb-0.5">
+                      <p className="font-medium text-foreground truncate">{req.componentName}</p>
+                      {req.handedOver && <CheckCircle2 size={12} className="text-emerald-500 shrink-0" />}
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <Badge className={`text-[8px] px-1 py-0 border ${flowColor}`}>{flowLabel}</Badge>
+                      <span className="text-[10px] text-muted-foreground">{req.sourceDepartment}</span>
+                      {req.handedOver && <span className="text-[9px] text-emerald-600 font-bold">Material Received</span>}
+                    </div>
                   </div>
                   <div className="text-right shrink-0 ml-2">
                     <p className="font-bold text-foreground">{Math.ceil(req.totalNeeded)}</p>
@@ -237,18 +291,18 @@ export default function BOMDemandEngine() {
         <Button
           className="flex-1 text-xs"
           variant="default"
-          onClick={() => handleRaiseDemand(rgsItems, "RGS")}
-          disabled={acting === "RGS"}
+          onClick={() => handleRaiseDemand(fgsItems, "RGS")}
+          disabled={acting === "RGS" || fgsItems.length === 0}
         >
-          {acting === "RGS" ? <Loader2 size={14} className="animate-spin" /> : <><Store size={14} className="mr-1" /> Raise Demand to RGS</>}
+          {acting === "RGS" ? <Loader2 size={14} className="animate-spin" /> : <><Store size={14} className="mr-1" /> Raise Demand to RGS ({fgsItems.filter(i => i.totalNeeded > i.available).length})</>}
         </Button>
         <Button
           className="flex-1 text-xs"
           variant="outline"
           onClick={() => handleRaiseDemand(thirdPartyItems, "3PCS")}
-          disabled={acting === "3PCS"}
+          disabled={acting === "3PCS" || thirdPartyItems.length === 0}
         >
-          {acting === "3PCS" ? <Loader2 size={14} className="animate-spin" /> : <><Truck size={14} className="mr-1" /> Raise Demand to 3PCS</>}
+          {acting === "3PCS" ? <Loader2 size={14} className="animate-spin" /> : <><Truck size={14} className="mr-1" /> Raise Demand to 3PCS ({thirdPartyItems.filter(i => i.totalNeeded > i.available).length})</>}
         </Button>
       </div>
     </div>

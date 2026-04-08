@@ -2,7 +2,7 @@ import { useEffect, useState, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/useAuth";
-import { Loader2, Inbox, Package, Factory, Barcode, CheckCircle2, AlertTriangle, Send, ScanLine, Printer, Hash, Search, Zap, TrendingDown } from "lucide-react";
+import { Loader2, Inbox, Package, Factory, Barcode, CheckCircle2, AlertTriangle, Send, ScanLine, Printer, Hash, Search, Zap, TrendingDown, Bell } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -14,6 +14,7 @@ import { Progress } from "@/components/ui/progress";
 import StockCheckEngine from "@/components/rgs/StockCheckEngine";
 import DailyPlanningModule from "@/components/rgs/DailyPlanningModule";
 import ProductionPlanningPanel from "@/components/rgs/ProductionPlanningPanel";
+import InternalDemandSection from "@/components/rgs/InternalDemandSection";
 
 interface RGSOrderItem {
   id: string;
@@ -323,8 +324,9 @@ export default function ReadyGoodsStore() {
       </div>
 
       <Tabs defaultValue="stockcheck" className="w-full">
-        <TabsList className="w-full grid grid-cols-6">
+        <TabsList className="w-full grid grid-cols-7">
           <TabsTrigger value="stockcheck"><Zap size={14} className="mr-1" />Stock Check</TabsTrigger>
+          <TabsTrigger value="demand"><Bell size={14} className="mr-1" />Internal Demand</TabsTrigger>
           <TabsTrigger value="planning"><TrendingDown size={14} className="mr-1" />Planning</TabsTrigger>
           <TabsTrigger value="inbox"><Inbox size={14} className="mr-1" />Inbox</TabsTrigger>
           <TabsTrigger value="issue"><ScanLine size={14} className="mr-1" />Issue</TabsTrigger>
@@ -335,6 +337,11 @@ export default function ReadyGoodsStore() {
         {/* MODULE 0: STOCK CHECK ENGINE */}
         <TabsContent value="stockcheck">
           <StockCheckEngine />
+        </TabsContent>
+
+        {/* MODULE: INTERNAL DEMAND FROM ASSEMBLY */}
+        <TabsContent value="demand">
+          <InternalDemandSection />
         </TabsContent>
 
         {/* MODULE: DAILY PLANNING */}
