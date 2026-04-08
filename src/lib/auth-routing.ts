@@ -31,7 +31,7 @@ const LEGACY_ROLE_DESTINATIONS: Record<string, string> = {
   GATE_SECURITY: "/security-gate",
   STORE_READY_GOODS: "/admin/ready-goods",
   RGS_ADMIN: "/admin/ready-goods",
-  STORE_3RD_PARTY: "/operations-controller",
+  STORE_3RD_PARTY: "/admin/3pcs-store",
   ASSEMBLY_MANAGER: "/admin/order-management",
   PACKING_SUPERVISOR: "/admin/order-management",
   DISPATCH_HEAD: "/admin/dispatch-mgmt",

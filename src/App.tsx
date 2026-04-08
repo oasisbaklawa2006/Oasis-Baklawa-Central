@@ -70,6 +70,7 @@ import ReadyGoodsTV from "./pages/admin/ReadyGoodsTV.tsx";
 import DispatchManagement from "./pages/admin/DispatchManagement.tsx";
 import DispatchTV from "./pages/admin/DispatchTV.tsx";
 import TargetVsActual from "./pages/admin/TargetVsActual.tsx";
+import ThirdPartyStore from "./pages/admin/ThirdPartyStore.tsx";
 import RoleProtectedRoute from "@/components/RoleProtectedRoute";
 import { useAuth } from "@/hooks/useAuth";
 import { getRoleDestination, isStaffRole, isStorefrontRole, normalizeRole } from "@/lib/auth-routing";
@@ -234,6 +235,7 @@ const App = () => (
               <Route path="dispatch-mgmt" element={<DispatchManagement />} />
               <Route path="dispatch-tv" element={<DispatchTV />} />
               <Route path="target-vs-actual" element={<TargetVsActual />} />
+              <Route path="3pcs-store" element={<ThirdPartyStore />} />
             </Route>
             <Route
               path="/sales/dashboard"
