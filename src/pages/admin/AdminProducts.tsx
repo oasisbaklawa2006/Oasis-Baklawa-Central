@@ -150,6 +150,7 @@ const EMPTY_FORM = {
   allergen_warnings: "",
   ingredients: "",
   has_bom: false,
+  enable_variants: false,
 };
 
 const AdminProducts = () => {
