@@ -45,8 +45,8 @@ interface ProdOrderEntry {
   createdAt: string;
 }
 
-const RGS_DEPARTMENTS = ["Ready Goods", "ready goods", "Baklava", "baklava", "Sweets", "sweets", "Nuts", "nuts", "Arabic", "arabic", "Chocolate", "chocolate", "Bakery", "bakery", "Fusion", "fusion", "Seasoned", "seasoned", "Dry Fruit", "dry fruit", "Mithai", "mithai"];
-const RGS_EXCLUDED = ["panache", "hamper", "gift", "packing", "assembly", "accessories", "platter", "tray", "basket"];
+// RGS uses classifyFlow for strict filtering
+import { classifyFlow } from "@/utils/departmentClassifier";
 
 export default function ReadyGoodsStore() {
   const { user } = useAuth();
@@ -83,13 +83,9 @@ export default function ReadyGoodsStore() {
   const [labelOrderId, setLabelOrderId] = useState("");
   const [labelInvoice, setLabelInvoice] = useState("");
 
-  const isRGSItem = (catName: string, dept: string) => {
-    const cat = catName.toLowerCase();
-    const d = dept.toLowerCase();
-    // Exclude assembly/hamper items
-    if (RGS_EXCLUDED.some(ex => cat.includes(ex) || d.includes(ex))) return false;
-    // Include RGS departments or unassigned
-    return RGS_DEPARTMENTS.some(c => cat.includes(c.toLowerCase()) || d.includes(c.toLowerCase())) || d === "" || d === "ready goods";
+  const isRGSItem = (item: any) => {
+    const prodDept = item.product?.production_department || item.department || "";
+    return classifyFlow(prodDept) === "FLOW_FGS";
   };
 
   const fetchOrders = useCallback(async () => {
@@ -103,14 +99,10 @@ export default function ReadyGoodsStore() {
     for (const o of (data || [])) {
       const { data: items } = await supabase
         .from("order_items")
-        .select("id, quantity, actual_packed_qty, production_status, department, product_id, product:products(name, sku, image_url, category:categories(name))")
+        .select("id, quantity, actual_packed_qty, production_status, department, product_id, product:products(name, sku, image_url, production_department, category:categories(name))")
         .eq("order_id", o.id);
 
-      const filteredItems = ((items as any[]) || []).filter((item: any) => {
-        const catName = item.product?.category?.name || "";
-        const dept = item.department || "";
-        return isRGSItem(catName, dept);
-      });
+      const filteredItems = ((items as any[]) || []).filter((item: any) => isRGSItem(item));
 
       if (filteredItems.length > 0) {
         ordersWithItems.push({ ...o, items: filteredItems } as RGSOrder);

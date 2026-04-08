@@ -8,7 +8,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import StagnancyBadge from "@/components/StagnancyBadge";
-import { classifyFlow, mapToJobDept, isOrderFullyReady, type TriadFlow } from "@/utils/departmentClassifier";
+import { classifyFlow, mapToJobDept, isOrderFullyReady } from "@/utils/departmentClassifier";
 
 interface StockItem {
   id: string;
@@ -31,11 +31,7 @@ interface OrderWithStock {
   stockStatus: "ready" | "partial" | "pending_production";
 }
 
-const FLOW_LABELS: Record<TriadFlow, { label: string; color: string }> = {
-  FLOW_FGS: { label: "FGS", color: "bg-blue-500/20 text-blue-700 border-blue-400/40" },
-  FLOW_ASSEMBLY: { label: "Assembly", color: "bg-purple-500/20 text-purple-700 border-purple-400/40" },
-  FLOW_3PCS: { label: "3PCS", color: "bg-orange-500/20 text-orange-700 border-orange-400/40" },
-};
+// RGS only shows FGS food items - no Assembly/3PCS flow labels needed
 
 export default function StockCheckEngine() {
   const { user } = useAuth();
