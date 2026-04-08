@@ -10,7 +10,8 @@ import { Input } from "@/components/ui/input";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import StagnancyBadge from "@/components/StagnancyBadge";
 import BOMDemandEngine from "@/components/assembly/BOMDemandEngine";
-import { isAssemblyDept } from "@/utils/departmentClassifier";
+import { resolveOrderItemFlow } from "@/lib/triad-order-items";
+import { withTimeout } from "@/lib/query-timeout";
 
 interface AssemblyTask {
   id: string;
@@ -61,17 +62,16 @@ export default function AssemblyManagement() {
   const [submittingProd, setSubmittingProd] = useState(false);
 
   const fetchTasks = useCallback(async () => {
-    // Fetch ALL order_items from manufacturing orders, then filter client-side
-    const { data: allItems } = await supabase
-      .from("order_items")
-      .select("*, product:products(name, image_url, sku, production_department), order:orders(id, created_at, status, company:companies(business_name))")
-      .in("production_status", ["pending", "in_progress", "partial_ready"]);
+    const { data: allItems } = await withTimeout(
+      supabase
+        .from("order_items")
+        .select("*, product:products(name, image_url, sku, production_department), order:orders(id, created_at, status, company:companies(business_name))")
+        .in("production_status", ["pending", "in_progress", "partial_ready"])
+    );
 
-    // STRICT FILTER: Only show items classified as FLOW_ASSEMBLY
     const assemblyOnly = ((allItems as any[]) || []).filter((item) => {
       if (!item.order) return false;
-      const dept = item.product?.production_department || item.department || "";
-      return isAssemblyDept(dept);
+      return resolveOrderItemFlow(item) === "FLOW_ASSEMBLY";
     });
 
     setTasks(assemblyOnly);
