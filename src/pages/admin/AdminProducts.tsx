@@ -546,9 +546,11 @@ const AdminProducts = () => {
         await supabase.from("product_bom").delete().eq("product_id", productId);
       }
 
+      // Force session re-validation then hard refetch
+      await supabase.auth.getSession();
+      await fetchProducts();
       toast.success(editingProduct ? "Product updated successfully" : "New product added to catalog!");
       closePanel();
-      fetchProducts();
     } catch (err: any) {
       toast.error(err.message || "Failed to save product");
     } finally {
