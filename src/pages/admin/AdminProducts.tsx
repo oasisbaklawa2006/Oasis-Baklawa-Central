@@ -402,13 +402,34 @@ const AdminProducts = () => {
         allergen_warnings: product.allergen_warnings || "",
         ingredients: product.ingredients || "",
         has_bom: false,
+        enable_variants: false,
       });
       const components = await loadBom(product.id);
-      setFormData((prev: any) => ({ ...prev, has_bom: components.length > 0 }));
+      // Load variants
+      const { data: varData } = await (supabase as any)
+        .from("product_variants")
+        .select("*")
+        .eq("product_id", product.id)
+        .order("created_at");
+      const loadedVariants = (varData || []).map((v: any) => ({
+        id: v.id,
+        variant_name: v.variant_name,
+        price: v.price,
+        moq: v.moq,
+        sku: v.sku || "",
+        is_active: v.is_active,
+      }));
+      setProductVariants(loadedVariants);
+      setFormData((prev: any) => ({
+        ...prev,
+        has_bom: components.length > 0,
+        enable_variants: loadedVariants.length > 0,
+      }));
     } else {
       setEditingProduct(null);
       setFormData({ ...EMPTY_FORM });
       setBomComponents([]);
+      setProductVariants([]);
     }
     setIsPanelOpen(true);
   };
