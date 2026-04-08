@@ -274,11 +274,7 @@ export default function StockCheckEngine() {
         }, 0);
         const pct = totalQty > 0 ? Math.round((readyQty / totalQty) * 100) : 0;
 
-        const flowGroups = order.items.reduce<Record<TriadFlow, StockItem[]>>((acc, item) => {
-          const flow = classifyFlow(item.product?.production_department || item.department);
-          acc[flow].push(item);
-          return acc;
-        }, { FLOW_FGS: [], FLOW_ASSEMBLY: [], FLOW_3PCS: [] });
+        // All items here are already FLOW_FGS filtered
 
         return (
           <Card key={order.id} className={`border-l-4 ${
