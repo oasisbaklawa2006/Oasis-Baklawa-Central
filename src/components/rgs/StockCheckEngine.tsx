@@ -168,8 +168,9 @@ export default function StockCheckEngine() {
         }
       }
 
-      // Move order to 'manufacturing' if not already
-      if (order.status !== "manufacturing" && order.status !== "packed_ready" && order.status !== "dispatched") {
+      // Move order to 'manufacturing' — NEVER regress to draft/submitted
+      const LOCKED_STATUSES = ["manufacturing", "packed_ready", "dispatched", "delivered", "closed"];
+      if (!LOCKED_STATUSES.includes(order.status)) {
         await supabase.from("orders").update({ status: "manufacturing" }).eq("id", order.id);
       }
     }
