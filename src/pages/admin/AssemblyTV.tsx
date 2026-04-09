@@ -43,7 +43,7 @@ export default function AssemblyTV() {
   const ready = tasks.filter(t => t.production_status === "completed");
 
   const renderRow = (t: TVTask, blink = false) => (
-    <div key={t.id} className={`flex items-center justify-between px-4 py-3 border-b border-border/30 ${blink ? "animate-pulse" : ""}`}>
+    <div key={t.id} className={`flex items-center justify-between px-4 py-3 border-b border-border/30 overflow-hidden ${blink ? "animate-pulse" : ""}`}>
       <div className="flex-1">
         <p className="text-lg font-bold text-foreground truncate">{t.product?.name || "—"}</p>
         <p className="text-sm font-mono text-muted-foreground">SKU: {t.product?.sku || "N/A"} · SO#{t.order_id?.slice(0, 8).toUpperCase()}</p>

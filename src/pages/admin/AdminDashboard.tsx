@@ -51,9 +51,10 @@ const AdminDashboard = () => {
     ]);
 
     const orders = (allOrders.data ?? []) as { id: string; status: string; payment_status: string | null; sales_order_value: number | null; advance_paid: number | null; advance_required: number | null }[];
+    const actionableOrders = orders.filter(o => !["draft", "cart", "cancelled"].includes(o.status));
     const pc: Record<string, number> = {};
     ALL_STATUSES.forEach(s => pc[s] = 0);
-    orders.forEach(o => { if (o.status in pc) pc[o.status]++; });
+    actionableOrders.forEach(o => { if (o.status in pc) pc[o.status]++; });
     setPipeline(pc);
 
     // Inventory aggregation
@@ -79,7 +80,7 @@ const AdminDashboard = () => {
 
     setCounts({
       pendingApps: pendingApps.count ?? 0, products: products.count ?? 0,
-      pricingSlabs: pricingSlabs.count ?? 0, totalOrders: orders.length,
+      pricingSlabs: pricingSlabs.count ?? 0, totalOrders: actionableOrders.length,
       users: users.count ?? 0, moqRules: moqRules.count ?? 0,
       exchangeRates: exchangeRates.count ?? 0, supportOpen: supportOpen.count ?? 0,
       totalDue, financeHold, totalPhysicalStock, lowStockCount, immediateCash, pendingCollections,
