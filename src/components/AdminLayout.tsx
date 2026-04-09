@@ -9,6 +9,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { useLanguage } from "@/hooks/useLanguage";
+import { useApplicationBadge } from "@/hooks/useApplicationBadge";
 import logoImg from "@/assets/logo-open.png";
 import PanicAlertBanner from "@/components/PanicAlertBanner";
 import AdminRouteGuard from "@/components/AdminRouteGuard";
