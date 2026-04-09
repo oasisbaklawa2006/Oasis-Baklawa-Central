@@ -39,7 +39,8 @@ export default function ReadyGoodsTV() {
     const { data: orderItems } = await supabase
       .from("order_items")
       .select("id, order_id, quantity, actual_packed_qty, production_status, product:products(name, sku)")
-      .in("department", ["Ready Goods", "Packing & Assembly", "3rd Party", "Baklava", "Sweets", "Nuts", "Arabic", "Chocolate", "Bakery"])
+      .in("department", ["Ready Goods", "Packing & Assembly", "Baklava", "Sweets", "Nuts", "Arabic", "Chocolate", "Bakery"])
+      .neq("department", "3PCS")
       .in("production_status", ["pending", "in_progress", "partial_ready", "completed"])
       .order("production_status", { ascending: true });
     setItems((orderItems as any[]) || []);

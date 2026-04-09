@@ -22,6 +22,7 @@ export default function AssemblyTV() {
       .from("order_items")
       .select("id, order_id, product_id, quantity, actual_packed_qty, production_status, product:products(name, sku), order:orders(created_at)")
       .in("department", ["Packing & Assembly", "Assembly", "Hampers", "Gifts"])
+      .neq("department", "3PCS")
       .in("production_status", ["pending", "in_progress", "partial_ready", "completed"])
       .order("production_status", { ascending: true });
     setTasks((data as any[]) || []);
