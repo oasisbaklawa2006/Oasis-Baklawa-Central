@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/useAuth";
@@ -104,48 +104,50 @@ export default function BOMDemandEngine() {
   useEffect(() => { fetchData(); }, [fetchData]);
 
   // Calculate aggregated BOM requirements with flow classification — MEMOIZED
-  const { requirements } = React.useMemo(() => {
-  const reqs: BOMRequirement[] = [];
-  const reqMap: Record<string, BOMRequirement> = {};
+  const { requirements, fgsItems, thirdPartyItems } = useMemo(() => {
+    const reqs: BOMRequirement[] = [];
+    const reqMap: Record<string, BOMRequirement> = {};
 
-  tasks.forEach((task) => {
-    const bom = bomMap[task.product_id || ""] || [];
-    const pendingQty = task.quantity - (task.actual_packed_qty || 0);
-    if (pendingQty <= 0) return;
+    tasks.forEach((task) => {
+      const bom = bomMap[task.product_id || ""] || [];
+      const pendingQty = task.quantity - (task.actual_packed_qty || 0);
+      if (pendingQty <= 0) return;
 
-    bom.forEach((comp) => {
-      const key = comp.component_product_id || comp.component_name || comp.id;
-      if (comp.component_product_id && comp.component_product_id === task.product_id) return;
-      const totalNeeded = comp.quantity_per_unit * pendingQty;
-      
-      // Use component's production_department for flow classification
-      const compDept = comp.component_product?.production_department || comp.source_department;
-      const flow = classifyFlow(compDept);
+      bom.forEach((comp) => {
+        const key = comp.component_product_id || comp.component_name || comp.id;
+        if (comp.component_product_id && comp.component_product_id === task.product_id) return;
+        const totalNeeded = comp.quantity_per_unit * pendingQty;
+        const compDept = comp.component_product?.production_department || comp.source_department;
+        const flow = classifyFlow(compDept);
 
-      if (!reqMap[key]) {
-        reqMap[key] = {
-          componentName: comp.component_product?.name || comp.component_name || "Unknown Component",
-          componentProductId: comp.component_product_id,
-          sourceDepartment: comp.source_department || "RGS",
-          flow,
-          totalNeeded: 0,
-          available: stockMap[comp.component_product_id || ""] || 0,
-          taskIds: [],
-          orderIds: [],
-          handedOver: handoverMap[comp.component_product_id || ""] || false,
-        };
-      }
-      reqMap[key].totalNeeded += totalNeeded;
-      if (!reqMap[key].taskIds.includes(task.id)) reqMap[key].taskIds.push(task.id);
-      if (task.order_id && !reqMap[key].orderIds.includes(task.order_id)) reqMap[key].orderIds.push(task.order_id);
+        if (!reqMap[key]) {
+          reqMap[key] = {
+            componentName: comp.component_product?.name || comp.component_name || "Unknown Component",
+            componentProductId: comp.component_product_id,
+            sourceDepartment: comp.source_department || "RGS",
+            flow,
+            totalNeeded: 0,
+            available: stockMap[comp.component_product_id || ""] || 0,
+            taskIds: [],
+            orderIds: [],
+            handedOver: handoverMap[comp.component_product_id || ""] || false,
+          };
+        }
+        reqMap[key].totalNeeded += totalNeeded;
+        if (!reqMap[key].taskIds.includes(task.id)) reqMap[key].taskIds.push(task.id);
+        if (task.order_id && !reqMap[key].orderIds.includes(task.order_id)) reqMap[key].orderIds.push(task.order_id);
+      });
     });
-  });
 
-  Object.values(reqMap).forEach((r) => requirements.push(r));
-  requirements.sort((a, b) => (b.totalNeeded - b.available) - (a.totalNeeded - a.available));
+    Object.values(reqMap).forEach((r) => reqs.push(r));
+    reqs.sort((a, b) => (b.totalNeeded - b.available) - (a.totalNeeded - a.available));
 
-  const fgsItems = requirements.filter(r => r.flow === "FLOW_FGS");
-  const thirdPartyItems = requirements.filter(r => r.flow === "FLOW_3PCS");
+    return {
+      requirements: reqs,
+      fgsItems: reqs.filter(r => r.flow === "FLOW_FGS"),
+      thirdPartyItems: reqs.filter(r => r.flow === "FLOW_3PCS"),
+    };
+  }, [tasks, bomMap, stockMap, handoverMap]);
 
   const handleRaiseDemand = async (items: BOMRequirement[], target: "RGS" | "3PCS") => {
     setActing(target);
