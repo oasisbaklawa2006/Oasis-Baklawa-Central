@@ -90,27 +90,34 @@ export default function ReadyGoodsStore() {
   };
 
   const fetchOrders = useCallback(async () => {
-    const { data } = await supabase
-      .from("orders")
-      .select("id, status, created_at, sales_order_value, company:companies(business_name)")
-      .in("status", ["in_production", "manufacturing", "partial_ready", "approved"])
-      .order("created_at", { ascending: true });
+    try {
+      const { data } = await supabase
+        .from("orders")
+        .select("id, status, created_at, sales_order_value, company:companies(business_name)")
+        .in("status", ["in_production", "manufacturing", "partial_ready", "approved"])
+        .order("created_at", { ascending: true })
+        .limit(20);
 
-    const ordersWithItems: RGSOrder[] = [];
-    for (const o of (data || [])) {
-      const { data: items } = await supabase
-        .from("order_items")
-        .select("id, quantity, actual_packed_qty, production_status, department, product_id, product:products(name, sku, image_url, production_department, category:categories(name))")
-        .eq("order_id", o.id);
+      const ordersWithItems: RGSOrder[] = [];
+      for (const o of (data || [])) {
+        const { data: items } = await supabase
+          .from("order_items")
+          .select("id, quantity, actual_packed_qty, production_status, department, product_id, product:products(name, sku, image_url, production_department, category:categories(name))")
+          .eq("order_id", o.id);
 
-      const filteredItems = ((items as any[]) || []).filter((item: any) => isRGSItem(item));
+        const filteredItems = ((items as any[]) || []).filter((item: any) => isRGSItem(item));
 
-      if (filteredItems.length > 0) {
-        ordersWithItems.push({ ...o, items: filteredItems } as RGSOrder);
+        if (filteredItems.length > 0) {
+          ordersWithItems.push({ ...o, items: filteredItems } as RGSOrder);
+        }
       }
+      setOrders(ordersWithItems);
+    } catch (err) {
+      console.error("[RGS] fetch failed", err);
+      setOrders([]);
+    } finally {
+      setLoading(false);
     }
-    setOrders(ordersWithItems);
-    setLoading(false);
   }, []);
 
   // Fetch prod orders from audit_logs

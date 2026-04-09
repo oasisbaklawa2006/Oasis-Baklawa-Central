@@ -115,11 +115,12 @@ const AdminOrders = () => {
         `
         id, status, sales_order_value, company_id,
         document_stage, payment_cleared, eway_bill_number, gate_pass_number,
-        company:companies(business_name, gst_number),
-        order_items ( id, quantity, product_id, actual_packed_qty )
+        company:companies(business_name, gst_number)
       `,
       )
-      .in("status", [...STATUSES]);
+      .in("status", [...STATUSES])
+      .order("created_at", { ascending: false })
+      .limit(20);
 
     if (error) {
       console.error("Database Error Details:", error);
@@ -155,15 +156,21 @@ const AdminOrders = () => {
     } else {
       toast.success(`Moved to ${STATUS_LABELS[next as OrderStatus]}`);
 
-      // Auto-split when advancing to in_production
-      if (next === "in_production" && order.order_items && order.order_items.length > 0) {
-        const items: OrderItem[] = order.order_items.map(oi => ({
-          id: oi.id,
-          quantity: oi.quantity,
-          actual_packed_qty: oi.actual_packed_qty ?? null,
-          product_id: oi.product_id ?? null,
-        }));
-        await handleAutoSplitOrder(order.id, items);
+      // Auto-split when advancing to in_production — lazy fetch items first
+      if (next === "in_production") {
+        const { data: freshItems } = await supabase
+          .from("order_items")
+          .select("id, quantity, product_id, actual_packed_qty")
+          .eq("order_id", order.id);
+        if (freshItems && freshItems.length > 0) {
+          const items: OrderItem[] = (freshItems as any[]).map(oi => ({
+            id: oi.id,
+            quantity: oi.quantity,
+            actual_packed_qty: oi.actual_packed_qty ?? null,
+            product_id: oi.product_id ?? null,
+          }));
+          await handleAutoSplitOrder(order.id, items);
+        }
       }
 
       await fetchOrders();

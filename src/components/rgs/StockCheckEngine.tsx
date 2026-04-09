@@ -59,7 +59,8 @@ export default function StockCheckEngine() {
           supabase
             .from("order_items")
             .select("id, quantity, actual_packed_qty, production_status, department, product_id, order_id, task_type, notes, product:products(name, sku, image_url, production_department), order:orders(id, status, created_at, sales_order_value, company:companies(business_name))")
-            .limit(1000)
+            .in("production_status", ["pending", "in_progress", "partial_ready", "accepted", "in_production"])
+            .limit(200)
         ),
       ]);
 
