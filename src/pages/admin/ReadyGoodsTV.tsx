@@ -90,13 +90,13 @@ export default function ReadyGoodsTV() {
         <span className="text-xl font-black uppercase tracking-wider">{title}</span>
         <Badge className="ml-auto bg-white/20 text-white text-lg px-3">{colItems.length}</Badge>
       </div>
-      <div className="flex-1 overflow-y-auto space-y-2 p-2 bg-black/40 rounded-b-xl">
+      <div className="flex-1 overflow-y-auto overflow-x-hidden space-y-2 p-2 bg-black/40 rounded-b-xl">
         {colItems.length === 0 && <p className="text-center text-white/30 text-lg py-8">Empty</p>}
         {colItems.map(item => {
           const pct = item.quantity > 0 ? Math.round(((item.actual_packed_qty || 0) / item.quantity) * 100) : 0;
           return (
             <div key={item.id} className={`bg-white/10 rounded-xl p-3 border border-white/10 ${blink ? "animate-pulse" : ""}`}>
-              <p className="text-white text-lg font-bold truncate">{item.product?.name || "Unknown"}</p>
+              <p className="text-white text-lg font-bold truncate overflow-hidden">{item.product?.name || "Unknown"}</p>
               <div className="flex justify-between mt-1">
                 <span className="text-white/60 text-sm font-mono">SKU: {item.product?.sku || "N/A"}</span>
                 <span className="text-white text-lg font-black">{item.actual_packed_qty ?? 0}/{item.quantity}</span>
@@ -118,7 +118,7 @@ export default function ReadyGoodsTV() {
       </div>
 
       {/* TOP: 3+1 Column Board */}
-      <div className="grid grid-cols-4 gap-3 h-[45vh]">
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3 h-auto xl:h-[45vh] overflow-hidden">
         <Column title="Ready for Dispatch" icon={CheckCircle2} items={readyItems} color="bg-emerald-600" blink />
         <Column title="Partial Orders" icon={Package} items={partialItems} color="bg-purple-600" />
         <Column title="Pending Production" icon={Clock} items={pendingItems} color="bg-amber-600" />
