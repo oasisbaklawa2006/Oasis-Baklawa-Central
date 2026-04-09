@@ -221,6 +221,7 @@ const Register = () => {
       // Sign out immediately — pending users should not be logged in
       await signOutAndClearSession();
 
+      toast.success("✅ Application Sent Successfully! Our team will review and get back to you shortly.");
       setSubmitted(true);
     } catch (err) {
       console.error("Submission error:", err);
