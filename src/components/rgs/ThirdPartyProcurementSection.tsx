@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { isActiveFactoryOrderStatus, isActiveProductionStatus } from "@/lib/third-party";
 import { getOrderItemDisplayName, resolveOrderItemFlow } from "@/lib/triad-order-items";
 import { isQueryTimeoutError, withTimeout } from "@/lib/query-timeout";
+import { useStableSubscription } from "@/hooks/useStableSubscription";
 
 interface ProcurementItem {
   id: string;
@@ -32,6 +33,7 @@ export default function ThirdPartyProcurementSection() {
   const [loading, setLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const cachedItemsRef = useRef<ProcurementItem[]>([]);
+  const isInitialMount = useRef(true);
 
   const fetchItems = useCallback(async () => {
     setLoading(cachedItemsRef.current.length === 0);
@@ -44,7 +46,7 @@ export default function ThirdPartyProcurementSection() {
           .select("id, order_id, quantity, actual_packed_qty, production_status, department, task_type, notes, product:products(name, sku, image_url, production_department), order:orders(status)")
           .in("production_status", ["pending", "accepted", "in_progress", "in_production", "partial_ready"])
           .order("id", { ascending: false })
-          .limit(250)
+          .limit(50)
       );
 
       if (error) throw error;
@@ -73,8 +75,13 @@ export default function ThirdPartyProcurementSection() {
   }, []);
 
   useEffect(() => {
-    fetchItems();
+    if (!isInitialMount.current) return;
+
+    isInitialMount.current = false;
+    void fetchItems();
   }, [fetchItems]);
+
+  useStableSubscription("order_items", [], true, fetchItems);
 
   if (loading) {
     return <div className="flex justify-center py-8"><Loader2 className="animate-spin text-primary" size={20} /></div>;

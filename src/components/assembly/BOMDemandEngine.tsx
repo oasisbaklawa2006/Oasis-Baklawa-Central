@@ -114,7 +114,9 @@ export default function BOMDemandEngine() {
       if (pendingQty <= 0) return;
 
       bom.forEach((comp) => {
-        const key = comp.component_product_id || comp.component_name || comp.id;
+        if (!comp.component_product_id) return;
+
+        const key = comp.component_product_id;
         if (comp.component_product_id && comp.component_product_id === task.product_id) return;
         const totalNeeded = comp.quantity_per_unit * pendingQty;
         const compDept = comp.component_product?.production_department || comp.source_department;
@@ -127,10 +129,10 @@ export default function BOMDemandEngine() {
             sourceDepartment: comp.source_department || "RGS",
             flow,
             totalNeeded: 0,
-            available: stockMap[comp.component_product_id || ""] || 0,
+            available: stockMap[comp.component_product_id] || 0,
             taskIds: [],
             orderIds: [],
-            handedOver: handoverMap[comp.component_product_id || ""] || false,
+            handedOver: handoverMap[comp.component_product_id] || false,
           };
         }
         reqMap[key].totalNeeded += totalNeeded;

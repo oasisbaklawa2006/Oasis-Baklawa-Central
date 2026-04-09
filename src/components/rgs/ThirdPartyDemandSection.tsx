@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { isActiveProductionStatus } from "@/lib/third-party";
 import { getOrderItemDisplayName, resolveOrderItemFlow } from "@/lib/triad-order-items";
 import { isQueryTimeoutError, withTimeout } from "@/lib/query-timeout";
+import { useStableSubscription } from "@/hooks/useStableSubscription";
 
 interface ThirdPartyDemandRow {
   id: string;
@@ -46,6 +47,7 @@ export default function ThirdPartyDemandSection() {
   const [acting, setActing] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const cachedDemandsRef = useRef<ThirdPartyDemand[]>([]);
+  const isInitialMount = useRef(true);
 
   const formatOrderRef = (orderId: string) => `SO#${orderId.slice(0, 8).toUpperCase()}`;
 
@@ -60,7 +62,7 @@ export default function ThirdPartyDemandSection() {
           .select("id, order_id, product_id, quantity, actual_packed_qty, production_status, department, task_type, notes, product:products(name, image_url, sku, production_department)")
           .in("production_status", ["pending", "accepted", "in_progress", "in_production", "partial_ready"])
           .order("id", { ascending: false })
-          .limit(250)
+          .limit(50)
       );
 
       if (error) throw error;
@@ -101,7 +103,14 @@ export default function ThirdPartyDemandSection() {
     }
   }, []);
 
-  useEffect(() => { fetchDemands(); }, [fetchDemands]);
+  useEffect(() => {
+    if (!isInitialMount.current) return;
+
+    isInitialMount.current = false;
+    void fetchDemands();
+  }, [fetchDemands]);
+
+  useStableSubscription("order_items", [], true, fetchDemands);
 
   const handleHandover = async (demand: ThirdPartyDemand) => {
     setActing(demand.id);
@@ -154,7 +163,9 @@ export default function ThirdPartyDemandSection() {
       if (assemblyHandoverError) throw assemblyHandoverError;
 
       toast.success(`✅ Handed over to Assembly: ${demand.componentName}`);
-      fetchDemands();
+      const nextDemands = cachedDemandsRef.current.filter((item) => item.id !== demand.id);
+      cachedDemandsRef.current = nextDemands;
+      setDemands(nextDemands);
     } catch (error: any) {
       toast.error(error?.message || "Failed to hand over procurement item");
     } finally {

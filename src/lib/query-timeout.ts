@@ -7,13 +7,16 @@ export class QueryTimeoutError extends Error {
   }
 }
 
-export async function withTimeout<T>(promise: PromiseLike<T>, timeoutMs = DEFAULT_TIMEOUT_MS): Promise<T> {
+export async function withTimeout<T extends PromiseLike<any>>(
+  promise: T,
+  timeoutMs = DEFAULT_TIMEOUT_MS
+): Promise<Awaited<T>> {
   let timeoutId: ReturnType<typeof setTimeout> | undefined;
 
   try {
     return await Promise.race([
       promise,
-      new Promise<T>((_, reject) => {
+      new Promise<Awaited<T>>((_, reject) => {
         timeoutId = setTimeout(() => reject(new QueryTimeoutError(`Query timed out after ${timeoutMs}ms`)), timeoutMs);
       }),
     ]);
