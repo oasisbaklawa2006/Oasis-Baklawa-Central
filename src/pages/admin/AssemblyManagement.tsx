@@ -62,20 +62,27 @@ export default function AssemblyManagement() {
   const [submittingProd, setSubmittingProd] = useState(false);
 
   const fetchTasks = useCallback(async () => {
-    const { data: allItems } = await withTimeout(
-      supabase
-        .from("order_items")
-        .select("*, product:products(name, image_url, sku, production_department), order:orders(id, created_at, status, company:companies(business_name))")
-        .in("production_status", ["pending", "in_progress", "partial_ready"])
-    );
+    try {
+      const { data: allItems } = await withTimeout(
+        supabase
+          .from("order_items")
+          .select("*, product:products(name, image_url, sku, production_department), order:orders(id, created_at, status, company:companies(business_name))")
+          .in("production_status", ["pending", "in_progress", "partial_ready"])
+          .limit(200)
+      );
 
-    const assemblyOnly = ((allItems as any[]) || []).filter((item) => {
-      if (!item.order) return false;
-      return resolveOrderItemFlow(item) === "FLOW_ASSEMBLY";
-    });
+      const assemblyOnly = ((allItems as any[]) || []).filter((item) => {
+        if (!item.order) return false;
+        return resolveOrderItemFlow(item) === "FLOW_ASSEMBLY";
+      });
 
-    setTasks(assemblyOnly);
-    setLoading(false);
+      setTasks(assemblyOnly);
+    } catch (err) {
+      console.error("[Assembly] fetch failed", err);
+      setTasks([]);
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
   useEffect(() => { fetchTasks(); }, [fetchTasks]);

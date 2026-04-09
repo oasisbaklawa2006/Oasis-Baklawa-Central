@@ -115,11 +115,12 @@ const AdminOrders = () => {
         `
         id, status, sales_order_value, company_id,
         document_stage, payment_cleared, eway_bill_number, gate_pass_number,
-        company:companies(business_name, gst_number),
-        order_items ( id, quantity, product_id, actual_packed_qty )
+        company:companies(business_name, gst_number)
       `,
       )
-      .in("status", [...STATUSES]);
+      .in("status", [...STATUSES])
+      .order("created_at", { ascending: false })
+      .limit(20);
 
     if (error) {
       console.error("Database Error Details:", error);

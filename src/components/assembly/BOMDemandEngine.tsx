@@ -103,8 +103,9 @@ export default function BOMDemandEngine() {
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
-  // Calculate aggregated BOM requirements with flow classification
-  const requirements: BOMRequirement[] = [];
+  // Calculate aggregated BOM requirements with flow classification — MEMOIZED
+  const { requirements } = React.useMemo(() => {
+  const reqs: BOMRequirement[] = [];
   const reqMap: Record<string, BOMRequirement> = {};
 
   tasks.forEach((task) => {
