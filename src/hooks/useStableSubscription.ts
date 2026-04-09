@@ -9,11 +9,19 @@ import { removeDuplicateRealtimeChannel } from "@/utils/realtime";
  */
 export function useStableSubscription(
   tableName: string,
-  queryKeys: string[][],
-  enabled = true
+  queryKeys: string[][] = [],
+  enabled = true,
+  onChange?: () => void
 ) {
   const queryClient = useQueryClient();
   const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
+  const queryKeysRef = useRef(queryKeys);
+  const onChangeRef = useRef(onChange);
+
+  useEffect(() => {
+    queryKeysRef.current = queryKeys;
+    onChangeRef.current = onChange;
+  }, [queryKeys, onChange]);
 
   useEffect(() => {
     if (!enabled) return;
@@ -27,9 +35,11 @@ export function useStableSubscription(
         "postgres_changes",
         { event: "*", schema: "public", table: tableName },
         () => {
-          queryKeys.forEach((key) => {
+          queryKeysRef.current.forEach((key) => {
             queryClient.invalidateQueries({ queryKey: key });
           });
+
+          onChangeRef.current?.();
         }
       )
       .subscribe();
