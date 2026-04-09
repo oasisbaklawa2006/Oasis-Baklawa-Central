@@ -1,7 +1,9 @@
 import AppShell from "@/components/AppShell";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/useAuth";
+import { fetchAuthRoleRecord } from "@/lib/auth-routing";
 import { generateSOPdf } from "@/utils/soGenerator";
 import {
   Loader2,
@@ -46,6 +48,7 @@ type TimeFilter = "30days" | "6months" | "2026" | "all";
 
 const Orders = () => {
   const navigate = useNavigate();
+  const { user, companyId, profileReady } = useAuth();
   const [orders, setOrders] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [uploadingId, setUploadingId] = useState<string | null>(null);
@@ -59,23 +62,42 @@ const Orders = () => {
   const [receiptRef, setReceiptRef] = useState("");
   const [isUploadingReceipt, setIsUploadingReceipt] = useState(false);
 
-  const fetchOrders = async () => {
-    setLoading(true);
-    const { data, error } = await supabase
-      .from("orders")
-      .select(
-        "id, status, payment_status, payment_receipt_url, created_at, actual_despatch_date, sales_order_value, document_stage, payment_cleared, eway_bill_number, proforma_invoice_url, final_invoice_url, eway_bill_url, company:companies(business_name, gst_number), order_items(*, product:products(name, image_url, pack_size, carton_type, wholesale_price, mrp, price_per_kg, price_b2b, base_price, avg_weight_per_pack, net_weight_grams, gst_percentage, hsn_code, uom, category, sub_category, moq, packs_per_master_carton, pcs_per_master_carton))",
-      )
-      .in("status", ["submitted", "pending", "processing", "dispatched", "delivered", "cancelled"])
-      .order("created_at", { ascending: false });
+  const fetchOrders = useCallback(async () => {
+    if (!user || !profileReady) return;
 
-    if (!error && data) setOrders(data);
-    setLoading(false);
-  };
+    setLoading(true);
+    try {
+      const authRecord = companyId ? null : await fetchAuthRoleRecord(user.id);
+      const resolvedCompanyId = companyId || authRecord?.company_id || null;
+
+      if (!resolvedCompanyId) {
+        setOrders([]);
+        return;
+      }
+
+      const { data, error } = await supabase
+        .from("orders")
+        .select(
+          "id, status, payment_status, payment_receipt_url, created_at, actual_despatch_date, sales_order_value, document_stage, payment_cleared, eway_bill_number, proforma_invoice_url, final_invoice_url, eway_bill_url, company:companies(business_name, gst_number), order_items(*, product:products(name, image_url, pack_size, carton_type, wholesale_price, mrp, price_per_kg, price_b2b, base_price, avg_weight_per_pack, net_weight_grams, gst_percentage, hsn_code, uom, category, sub_category, moq, packs_per_master_carton, pcs_per_master_carton))",
+        )
+        .eq("company_id", resolvedCompanyId)
+        .in("status", ["submitted", "pending", "processing", "dispatched", "delivered", "cancelled"])
+        .order("created_at", { ascending: false });
+
+      if (error) throw error;
+      setOrders(data ?? []);
+    } catch (error) {
+      console.error("[Orders] Failed to fetch company orders", error);
+      setOrders([]);
+    } finally {
+      setLoading(false);
+    }
+  }, [companyId, profileReady, user]);
 
   useEffect(() => {
-    fetchOrders();
-  }, []);
+    if (!user || !profileReady) return;
+    void fetchOrders();
+  }, [fetchOrders, profileReady, user]);
 
   const handleDownloadDocument = (order: any) => {
     const stage = order.document_stage;

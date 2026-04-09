@@ -7,7 +7,7 @@ import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import logoImg from "@/assets/logo-open.png";
-import { getRoleDestination, fetchAuthRoleRecord, isInternalStaffUser, normalizeRole } from "@/lib/auth-routing";
+import { getRoleDestination, fetchAuthRoleRecord, isInternalStaffUser, isStorefrontRole, normalizeRole } from "@/lib/auth-routing";
 
 type AuthTab = "phone" | "email";
 
@@ -31,11 +31,13 @@ const Login = () => {
     ]);
 
     const resolvedRole = normalizeRole(authRecord.role);
-    const destination = resolvedRole
-      ? getRoleDestination(resolvedRole)
-      : isInternalStaff
+    const destination = !resolvedRole
+      ? isInternalStaff
         ? "/operations-controller"
-        : "/approval-pending";
+        : "/approval-pending"
+      : isStorefrontRole(resolvedRole) && !authRecord.company_id
+        ? "/approval-pending"
+        : getRoleDestination(resolvedRole);
 
     try {
       localStorage.setItem(
