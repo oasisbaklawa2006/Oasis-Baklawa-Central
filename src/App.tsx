@@ -107,17 +107,21 @@ const AuthSpinner = () => (
 );
 
 const RootGate = () => {
-  const { user, loading: authLoading, role } = useAuth();
+  const { user, loading: authLoading, role, companyId, profileReady } = useAuth();
   const normalizedRole = normalizeRole(role);
 
-  if (authLoading) {
+  if (authLoading || !profileReady) {
     return <AuthSpinner />;
   }
 
   if (!user) return <Navigate to="/splash" replace />;
 
   if (!normalizedRole) {
-    return <AuthSpinner />;
+    return <Navigate to="/approval-pending" replace />;
+  }
+
+  if (isStorefrontRole(normalizedRole) && !companyId) {
+    return <Navigate to="/approval-pending" replace />;
   }
 
   return <Navigate to={getRoleDestination(normalizedRole)} replace />;

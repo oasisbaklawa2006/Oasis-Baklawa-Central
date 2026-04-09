@@ -245,20 +245,8 @@ const AdminClients = () => {
     setActionLoading(app.id);
 
     try {
-      const { error } = await supabase
-        .from("b2b_applications")
-        .update({
-          status: "approved",
-          admin_notes: notes[app.id] || null,
-          assigned_price_tier: priceTier[app.id] || null,
-          reviewed_at: new Date().toISOString(),
-          reviewed_by: user?.id ?? null,
-        })
-        .eq("id", app.id);
-
-      if (error) throw error;
-
       let companyId: string | null = null;
+      const approvedRole = "CLIENT";
 
       if (app.gst_number) {
         const { data, error: companyLookupError } = await supabase
@@ -293,33 +281,51 @@ const AdminClients = () => {
         companyId = data?.id ?? null;
       }
 
-      if (app.user_id && companyId) {
-        // Update BOTH users and profiles tables to ensure StorefrontGate sees company_id
-        const [userUpdate, profileUpdate] = await Promise.all([
-          supabase
-            .from("users")
-            .update({ role: "B2B_BUYER", company_id: companyId })
-            .eq("id", app.user_id),
-          supabase
-            .from("profiles")
-            .update({
-              role: "B2B_BUYER",
-              company_id: companyId,
-              is_approved: true,
-              status: "approved",
-            })
-            .eq("id", app.user_id),
-        ]);
+      const [applicationUpdate, userUpdate, profileSync] = await Promise.all([
+        supabase
+          .from("b2b_applications")
+          .update({
+            status: "approved",
+            admin_notes: notes[app.id] || null,
+            assigned_price_tier: priceTier[app.id] || null,
+            reviewed_at: new Date().toISOString(),
+            reviewed_by: user?.id ?? null,
+          })
+          .eq("id", app.id),
+        app.user_id && companyId
+          ? supabase
+              .from("users")
+              .update({ role: approvedRole, company_id: companyId })
+              .eq("id", app.user_id)
+          : Promise.resolve({ error: null }),
+        app.user_id && companyId
+          ? supabase
+              .from("profiles")
+              .upsert(
+                {
+                  id: app.user_id,
+                  role: approvedRole,
+                  company_id: companyId,
+                  is_approved: true,
+                  status: "approved",
+                },
+                { onConflict: "id" },
+              )
+          : Promise.resolve({ error: null }),
+      ]);
 
-        if (userUpdate.error) {
-          console.error("[AdminClients] Users table update failed:", userUpdate.error);
-          toast.error("Users DB Update Failed");
-          throw userUpdate.error;
-        }
-        if (profileUpdate.error) {
-          console.error("[AdminClients] Profiles table update failed:", profileUpdate.error);
-          // Non-fatal — profiles table may not have this user yet
-        }
+      if (applicationUpdate.error) {
+        throw applicationUpdate.error;
+      }
+
+      if (userUpdate.error) {
+        console.error("[AdminClients] Users table update failed:", userUpdate.error);
+        throw userUpdate.error;
+      }
+
+      if (profileSync.error) {
+        console.error("[AdminClients] Profiles table sync failed:", profileSync.error);
+        throw profileSync.error;
       }
 
       toast.success(`${app.business_name} approved`);

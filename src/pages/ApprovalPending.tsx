@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
-import { getRoleDestination, normalizeRole } from "@/lib/auth-routing";
+import { getRoleDestination, isStorefrontRole, normalizeRole } from "@/lib/auth-routing";
 
 function getRouteForRole(role?: string | null) {
   const normalizedRole = normalizeRole(role);
@@ -15,15 +15,16 @@ function getRouteForRole(role?: string | null) {
 
 export default function ApprovalPending() {
   const navigate = useNavigate();
-  const { user, role, profileReady, refreshProfile } = useAuth();
+  const { user, role, companyId, profileReady, refreshProfile } = useAuth();
   const [checkingStatus, setCheckingStatus] = useState(false);
 
   const destination = useMemo(() => getRouteForRole(role), [role]);
 
   useEffect(() => {
     if (!profileReady || !destination) return;
+    if (isStorefrontRole(role) && !companyId) return;
     navigate(destination, { replace: true });
-  }, [destination, navigate, profileReady]);
+  }, [companyId, destination, navigate, profileReady, role]);
 
   const handleCheckStatus = async () => {
     if (!user) {
@@ -35,44 +36,38 @@ export default function ApprovalPending() {
     setCheckingStatus(true);
 
     try {
-      // Hard-fetch the user's current state from the database
-      const [usersResult, profilesResult] = await Promise.all([
+      const [profilesResult, usersResult, staffResult] = await Promise.all([
+        supabase.from("profiles").select("status, role, company_id, is_approved").eq("id", user.id).maybeSingle(),
         supabase.from("users").select("role, company_id").eq("id", user.id).maybeSingle(),
-        supabase.from("profiles").select("role, company_id, status, is_approved").eq("id", user.id).maybeSingle(),
+        supabase.rpc("is_internal_staff", { _user_id: user.id }),
       ]);
 
-      const userRecord = usersResult.data;
       const profileRecord = profilesResult.data;
-
+      const userRecord = usersResult.data;
+      const isStaff = Boolean(staffResult.data);
+      const profileStatus = profileRecord?.status?.trim().toLowerCase() ?? null;
       const resolvedRole = normalizeRole(profileRecord?.role) || normalizeRole(userRecord?.role);
-      const resolvedCompanyId = profileRecord?.company_id || userRecord?.company_id;
-      const isApproved = profileRecord?.is_approved === true || profileRecord?.status === "approved";
-
-      // Also check server-side role
-      const { data: serverRole } = await supabase.rpc("get_user_role", { _user_id: user.id });
-      const finalRole = normalizeRole(serverRole) || resolvedRole;
-
-      const nextRoute = getRouteForRole(finalRole);
-
-      // Only navigate if the user actually has a valid role AND company_id (for buyer roles)
-      // or is internal staff
-      const { data: isStaff } = await supabase.rpc("is_internal_staff", { _user_id: user.id });
+      const resolvedCompanyId = profileRecord?.company_id || userRecord?.company_id || companyId;
 
       if (isStaff) {
         await refreshProfile();
         toast.success("Access confirmed.");
-        navigate(nextRoute ?? "/operations-controller", { replace: true });
+        navigate(getRouteForRole(resolvedRole) ?? "/operations-controller", { replace: true });
         return;
       }
 
-      if (resolvedCompanyId && (isApproved || nextRoute)) {
+      if (profileStatus === "approved" && resolvedCompanyId) {
         await refreshProfile();
         toast.success("Access confirmed — welcome!");
-        navigate(nextRoute ?? "/home", { replace: true });
+        navigate("/home", { replace: true });
         return;
       }
 
-      // Still not approved
+      if (profileStatus === "approved") {
+        toast.error("Approval is complete, but your account setup is still syncing.");
+        return;
+      }
+
       toast("Still under review", {
         description: "Your account has not been approved yet. Please contact support.",
       });
