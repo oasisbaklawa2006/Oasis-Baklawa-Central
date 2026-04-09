@@ -56,6 +56,8 @@ const AdminLayout = () => {
   const { user, loading: authLoading } = useAuth();
   const navigate = useNavigate();
   const { t, lang, setLang } = useLanguage();
+  const isAdmin = role === "super_admin" || role === "admin";
+  const pendingApplications = useApplicationBadge(isAdmin);
 
   const navSections: { title: string; items: NavItem[] }[] = [
     {
