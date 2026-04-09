@@ -160,7 +160,13 @@ const AdminLayout = () => {
                 {section.items.map((item) => (
                   <NavLink key={item.to} to={item.to} end={item.end} onClick={() => setSidebarOpen(false)}
                     className={({ isActive }) => `flex items-center gap-3 px-3 py-2 rounded-lg text-xs font-ui font-medium transition-colors ${isActive ? "text-primary bg-primary/10" : "text-muted-foreground hover:text-foreground hover:bg-muted"}`}>
-                    <item.icon size={16} />{item.label}
+                    <item.icon size={16} />
+                    <span className="flex-1">{item.label}</span>
+                    {item.moduleKey === "clients" && pendingApplications > 0 && (
+                      <span className="ml-auto bg-destructive text-destructive-foreground text-[10px] font-bold rounded-full min-w-[18px] h-[18px] flex items-center justify-center px-1">
+                        {pendingApplications}
+                      </span>
+                    )}
                   </NavLink>
                 ))}
               </div>
