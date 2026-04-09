@@ -294,15 +294,31 @@ const AdminClients = () => {
       }
 
       if (app.user_id && companyId) {
-        const { error: userUpdateError } = await supabase
-          .from("users")
-          .update({ role: "client", company_id: companyId })
-          .eq("id", app.user_id);
+        // Update BOTH users and profiles tables to ensure StorefrontGate sees company_id
+        const [userUpdate, profileUpdate] = await Promise.all([
+          supabase
+            .from("users")
+            .update({ role: "B2B_BUYER", company_id: companyId })
+            .eq("id", app.user_id),
+          supabase
+            .from("profiles")
+            .update({
+              role: "B2B_BUYER",
+              company_id: companyId,
+              is_approved: true,
+              status: "approved",
+            })
+            .eq("id", app.user_id),
+        ]);
 
-        if (userUpdateError) {
-          console.error("[AdminClients] DB Update Failed:", userUpdateError);
-          toast.error("DB Update Failed");
-          throw userUpdateError;
+        if (userUpdate.error) {
+          console.error("[AdminClients] Users table update failed:", userUpdate.error);
+          toast.error("Users DB Update Failed");
+          throw userUpdate.error;
+        }
+        if (profileUpdate.error) {
+          console.error("[AdminClients] Profiles table update failed:", profileUpdate.error);
+          // Non-fatal — profiles table may not have this user yet
         }
       }
 
