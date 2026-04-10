@@ -2,7 +2,7 @@ import { useEffect, useState, useCallback, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/useAuth";
-import { Loader2, Package, ScanLine, Camera, CheckCircle2, Printer, Box, Upload, Hash } from "lucide-react";
+import { Loader2, Package, ScanLine, Camera, CheckCircle2, Printer, Box, Upload, Hash, FileCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -74,6 +74,35 @@ export default function DispatchManagement() {
     const total = order.items.reduce((s, i) => s + i.quantity, 0);
     const ready = order.items.reduce((s, i) => s + (i.actual_packed_qty || 0), 0);
     return total > 0 ? Math.round((ready / total) * 100) : 0;
+  };
+
+  const isAllPacked = (order: DispatchOrder) => {
+    return order.items.length > 0 && order.items.every(i => (i.actual_packed_qty || 0) >= i.quantity);
+  };
+
+  const [finalizingDpl, setFinalizingDpl] = useState(false);
+
+  const handleFinalizeDpl = async (orderId: string) => {
+    setFinalizingDpl(true);
+    try {
+      await supabase.from("orders").update({ status: "awaiting_payment" }).eq("id", orderId);
+      await supabase.from("order_status_history").insert({ order_id: orderId, old_status: "in_production", new_status: "awaiting_payment" });
+      await supabase.from("audit_logs").insert({
+        action_type: "DPL_FINALIZED",
+        module_name: "Dispatch",
+        entity_name: "orders",
+        entity_id: orderId,
+        actor_id: user?.id || null,
+        new_value: { note: "DPL finalized with actual packed quantities. Quantities locked." } as any,
+        risk_level: "normal",
+      });
+      toast.success("✅ DPL Finalized — Order moved to Awaiting Finance");
+      fetchOrders();
+      setActiveOrderId(null);
+    } catch {
+      toast.error("Failed to finalize DPL");
+    }
+    setFinalizingDpl(false);
   };
 
   // Scan handler
