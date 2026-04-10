@@ -357,7 +357,80 @@ const AdminAccountsRelease = () => {
     setActing(null);
   };
 
+  // ═══ PI GENERATION & WALLET ENGINE ═══
+  const handleGeneratePI = async (order: FinanceOrder) => {
+    setGeneratingPi(order.id);
+    try {
+      const piTotal = order.sales_order_value ?? 0;
+      const walletBalance = (order.company as any)?.wallet_balance ?? 0;
+      const walletDiff = walletBalance - piTotal;
+
+      if (walletDiff >= 0 && order.company_id) {
+        // Auto-deduct from wallet
+        await supabase.from("companies").update({ wallet_balance: walletDiff }).eq("id", order.company_id);
+        await supabase.from("orders").update({ payment_cleared: true, payment_status: "paid", document_stage: "PI" }).eq("id", order.id);
+        await supabase.from("audit_logs").insert({
+          action_type: "PI_WALLET_AUTO_DEDUCT", module_name: "Finance",
+          entity_name: "orders", entity_id: order.id, actor_id: user?.id,
+          new_value: { pi_total: piTotal, wallet_before: walletBalance, wallet_after: walletDiff } as any,
+          risk_level: "normal",
+        });
+        toast.success(`PI Generated — ₹${piTotal.toLocaleString("en-IN")} auto-deducted from wallet`);
+      } else {
+        // Payment pending
+        await supabase.from("orders").update({ payment_status: "balance_due", document_stage: "PI" }).eq("id", order.id);
+        toast.warning(`PI Generated — Payment Pending: ₹${Math.abs(walletDiff).toLocaleString("en-IN")}`);
+      }
+      await supabase.from("order_status_history").insert({ order_id: order.id, old_status: order.status, new_status: "awaiting_payment" });
+      fetchOrders();
+    } catch { toast.error("PI generation failed"); }
+    setGeneratingPi(null);
+  };
+
+  // ═══ DOCUMENT UPLOAD HANDLERS ═══
+  const handleInvoiceUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !docUploadOrder) return;
+    setUploadingInvoice(true);
+    const path = `final-invoices/${docUploadOrder.id}/${Date.now()}-${file.name}`;
+    const { error } = await supabase.storage.from("final-invoices").upload(path, file);
+    if (error) { toast.error("Upload failed"); setUploadingInvoice(false); return; }
+    const { data: urlData } = supabase.storage.from("final-invoices").getPublicUrl(path);
+    await supabase.from("orders").update({ final_invoice_url: urlData.publicUrl }).eq("id", docUploadOrder.id);
+    toast.success("Tax Invoice uploaded");
+    setUploadingInvoice(false);
+    fetchOrders();
+  };
+
+  const handleEwayUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !docUploadOrder) return;
+    setUploadingEway(true);
+    const ewayRef = `EWAY-${docUploadOrder.id.slice(0, 8).toUpperCase()}-${Date.now()}`;
+    await supabase.from("orders").update({ eway_bill_number: ewayRef, eway_bill_url: URL.createObjectURL(file) }).eq("id", docUploadOrder.id);
+    toast.success("E-Way Bill uploaded");
+    setUploadingEway(false);
+    fetchOrders();
+  };
+
+  const canReleaseMasterBarcode = (order: FinanceOrder) => {
+    return order.payment_cleared === true && !!order.final_invoice_url;
+  };
+
+  const handleReleaseMasterBarcode = async (order: FinanceOrder) => {
+    await supabase.from("orders").update({ status: "cleared_for_dispatch" }).eq("id", order.id);
+    await supabase.from("order_status_history").insert({ order_id: order.id, old_status: order.status, new_status: "cleared_for_dispatch" });
+    await supabase.from("audit_logs").insert({
+      action_type: "MASTER_BARCODE_RELEASED", module_name: "Finance",
+      entity_name: "orders", entity_id: order.id, actor_id: user?.id,
+      risk_level: "normal",
+    });
+    toast.success("Master Barcode Released — Order cleared for dispatch");
+    fetchOrders();
+  };
+
   // Summary counts
+  const awaitingFinanceOrders = orders.filter(o => o.status === "awaiting_payment" || o.status === "awaiting_final_payment");
   const holdCount = orders.filter(o => getReleaseStatus(o) === "finance_hold").length;
   const advPendingCount = orders.filter(o => getReleaseStatus(o) === "advance_pending").length;
   const balPendingCount = orders.filter(o => getReleaseStatus(o) === "balance_pending").length;
@@ -366,6 +439,7 @@ const AdminAccountsRelease = () => {
 
   const filtered = tab === "hold" ? orders.filter(o => getReleaseStatus(o) === "finance_hold")
     : tab === "overdue" ? orders.filter(o => getReleaseStatus(o) === "balance_pending")
+    : tab === "awaiting" ? awaitingFinanceOrders
     : orders;
 
   if (loading) return <div className="flex items-center justify-center py-20"><Loader2 size={24} className="animate-spin text-primary" /></div>;
