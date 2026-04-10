@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { ShieldCheck, ShieldAlert, ScanLine, Box, Clock, Shield, Truck, Search, CheckCircle, Loader2 } from "lucide-react";
+import { sendDispatchAlert, sendSalesExecDispatchNotification } from "@/utils/whatsapp";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -239,6 +240,59 @@ const AdminSecurityGate = () => {
               await supabase.from("order_status_history").insert({
                 order_id: carton.order_id, old_status: "cleared_for_dispatch", new_status: "dispatched",
               });
+
+              // ═══ WHATSAPP DISPATCH ALERTS ═══
+              try {
+                const companyId = carton.orders?.company?.id || "";
+                const orderVal = Number(carton.orders?.sales_order_value) || 0;
+
+                // Get client phone from b2b_applications
+                if (companyName && companyName !== "Unknown Company") {
+                  const { data: appData } = await supabase
+                    .from("b2b_applications")
+                    .select("contact_phone, mobile_number")
+                    .eq("business_name", companyName)
+                    .eq("status", "approved")
+                    .limit(1);
+                  const clientPhone = appData?.[0]?.mobile_number || appData?.[0]?.contact_phone || "";
+                  
+                  if (clientPhone) {
+                    sendDispatchAlert({
+                      phone: clientPhone,
+                      companyId: carton.orders?.company?.id || "",
+                      companyName,
+                      orderId: carton.order_id!,
+                      trackingNumber: carton.orders?.tracking_number || undefined,
+                      invoiceUrl: carton.orders?.final_invoice_url || undefined,
+                    });
+                  }
+                }
+
+                // Notify Sales Executive
+                const { data: companyData } = await supabase
+                  .from("companies")
+                  .select("account_manager_id")
+                  .eq("business_name", companyName)
+                  .limit(1);
+                const managerId = companyData?.[0]?.account_manager_id;
+                if (managerId) {
+                  const { data: execData } = await supabase
+                    .from("users")
+                    .select("phone")
+                    .eq("id", managerId)
+                    .single();
+                  if (execData?.phone) {
+                    sendSalesExecDispatchNotification({
+                      execPhone: execData.phone,
+                      companyName,
+                      orderId: carton.order_id!,
+                      orderValue: orderVal,
+                    });
+                  }
+                }
+              } catch (waErr) {
+                console.error("WhatsApp dispatch alert failed (non-blocking):", waErr);
+              }
             }
           }
 
