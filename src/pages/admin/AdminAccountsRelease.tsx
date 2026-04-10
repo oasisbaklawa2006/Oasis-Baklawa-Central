@@ -513,27 +513,69 @@ const AdminAccountsRelease = () => {
                     <td className="px-4 py-3 text-right text-ui-cell text-foreground">{format(order.sales_order_value ?? 0)}</td>
                     <td className="px-4 py-3 text-right text-ui-kpi text-sm text-primary">{format(due)}</td>
                     <td className="px-4 py-3 text-right">
-                      {actions.length > 0 ? (
-                        <div className="relative inline-block">
-                          <button onClick={() => setOpenDropdown(openDropdown === order.id ? null : order.id)} disabled={acting === order.id}
-                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-ui-button bg-primary/10 text-primary hover:bg-primary/20 disabled:opacity-50">
-                            {acting === order.id ? <Loader2 size={14} className="animate-spin" /> : <ChevronDown size={14} />} {t("Actions")}
+                      <div className="flex items-center gap-1.5 justify-end flex-wrap">
+                        {/* PI Generation for awaiting_payment orders */}
+                        {(order.status === "awaiting_payment" || order.status === "awaiting_final_payment") && !order.payment_cleared && (
+                          <button onClick={() => handleGeneratePI(order)} disabled={generatingPi === order.id}
+                            className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-blue-500/10 text-blue-600 hover:bg-blue-500/20 disabled:opacity-50">
+                            {generatingPi === order.id ? <Loader2 size={12} className="animate-spin" /> : <FileText size={12} />} Generate PI
                           </button>
-                          {openDropdown === order.id && (
-                            <div className="absolute right-0 top-full mt-1 w-56 bg-card rounded-xl shadow-lg border border-border py-1 z-50">
-                              {actions.map(a => (
-                                <button key={a} onClick={() => handleAction(order, a)}
-                                  className={`w-full text-left px-4 py-2.5 text-sm font-ui text-foreground hover:bg-muted transition-colors flex items-center gap-2 ${a === "issue_gate_pass" ? "text-primary font-semibold" : ""}`}>
-                                  {a === "issue_gate_pass" && <Truck size={14} />}
-                                  {ACTION_LABELS[a]}
-                                </button>
-                              ))}
-                            </div>
-                          )}
-                        </div>
-                      ) : (
-                        <span className="text-ui-label text-muted-foreground flex items-center gap-1 justify-end"><Check size={14} /> Paid</span>
-                      )}
+                        )}
+
+                        {/* Wallet deficit alert */}
+                        {(order.status === "awaiting_payment" || order.status === "awaiting_final_payment") && !order.payment_cleared && (
+                          (() => {
+                            const walletBal = (order.company as any)?.wallet_balance ?? 0;
+                            const piTotal = order.sales_order_value ?? 0;
+                            const deficit = piTotal - walletBal;
+                            return deficit > 0 ? (
+                              <Badge variant="destructive" className="text-[10px]">
+                                <AlertTriangle size={10} className="mr-1" /> Pending: ₹{deficit.toLocaleString("en-IN")}
+                              </Badge>
+                            ) : null;
+                          })()
+                        )}
+
+                        {/* Document Upload */}
+                        {order.payment_cleared && !order.final_invoice_url && (
+                          <button onClick={() => setDocUploadOrder(order)}
+                            className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-amber-500/10 text-amber-600 hover:bg-amber-500/20">
+                            <Upload size={12} /> Upload Docs
+                          </button>
+                        )}
+
+                        {/* Release Master Barcode - HIDDEN until payment cleared AND invoice uploaded */}
+                        {canReleaseMasterBarcode(order) && order.status !== "cleared_for_dispatch" && order.status !== "dispatched" && (
+                          <button onClick={() => handleReleaseMasterBarcode(order)}
+                            className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-emerald-500/10 text-emerald-600 hover:bg-emerald-500/20">
+                            <ShieldCheck size={12} /> Release Barcode
+                          </button>
+                        )}
+
+                        {/* Existing action dropdown */}
+                        {actions.length > 0 && (
+                          <div className="relative inline-block">
+                            <button onClick={() => setOpenDropdown(openDropdown === order.id ? null : order.id)} disabled={acting === order.id}
+                              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-ui-button bg-primary/10 text-primary hover:bg-primary/20 disabled:opacity-50">
+                              {acting === order.id ? <Loader2 size={14} className="animate-spin" /> : <ChevronDown size={14} />} {t("Actions")}
+                            </button>
+                            {openDropdown === order.id && (
+                              <div className="absolute right-0 top-full mt-1 w-56 bg-card rounded-xl shadow-lg border border-border py-1 z-50">
+                                {actions.map(a => (
+                                  <button key={a} onClick={() => handleAction(order, a)}
+                                    className={`w-full text-left px-4 py-2.5 text-sm font-ui text-foreground hover:bg-muted transition-colors flex items-center gap-2 ${a === "issue_gate_pass" ? "text-primary font-semibold" : ""}`}>
+                                    {a === "issue_gate_pass" && <Truck size={14} />}
+                                    {ACTION_LABELS[a]}
+                                  </button>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        )}
+                        {actions.length === 0 && order.payment_status === "paid" && (
+                          <span className="text-ui-label text-muted-foreground flex items-center gap-1"><Check size={14} /> Paid</span>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 );
