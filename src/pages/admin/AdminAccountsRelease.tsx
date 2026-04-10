@@ -661,6 +661,71 @@ const AdminAccountsRelease = () => {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Document Upload Modal */}
+      <Dialog open={!!docUploadOrder} onOpenChange={(open) => { if (!open) setDocUploadOrder(null); }}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <FileText size={20} className="text-primary" />
+              Upload Documents
+            </DialogTitle>
+            <DialogDescription>
+              Order {docUploadOrder?.id.slice(0, 8)}… — {docUploadOrder?.company?.business_name ?? "Unknown"}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 pt-2">
+            {/* Tax Invoice Upload */}
+            <div className="border border-border rounded-lg p-3 space-y-2">
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Final Tax Invoice *</p>
+              {docUploadOrder?.final_invoice_url ? (
+                <div className="flex items-center gap-2 text-sm text-emerald-600">
+                  <CheckCircle2 size={14} /> Invoice Uploaded
+                </div>
+              ) : (
+                <label className="block">
+                  <input type="file" accept=".pdf,.jpg,.png" className="hidden" onChange={handleInvoiceUpload} />
+                  <Button variant="outline" size="sm" className="w-full" asChild disabled={uploadingInvoice}>
+                    <span>{uploadingInvoice ? <Loader2 size={14} className="animate-spin mr-1" /> : <Upload size={14} className="mr-1" />} Upload Invoice PDF</span>
+                  </Button>
+                </label>
+              )}
+            </div>
+
+            {/* E-Way Bill Upload */}
+            <div className="border border-border rounded-lg p-3 space-y-2">
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                E-Way Bill {(docUploadOrder?.sales_order_value ?? 0) > 50000 ? "(Required)" : "(Optional)"}
+              </p>
+              {docUploadOrder?.eway_bill_number ? (
+                <div className="flex items-center gap-2 text-sm text-emerald-600">
+                  <CheckCircle2 size={14} /> E-Way Bill: {docUploadOrder.eway_bill_number}
+                </div>
+              ) : (
+                <label className="block">
+                  <input type="file" accept=".pdf,.jpg,.png" className="hidden" onChange={handleEwayUpload} />
+                  <Button variant="outline" size="sm" className="w-full" asChild disabled={uploadingEway}>
+                    <span>{uploadingEway ? <Loader2 size={14} className="animate-spin mr-1" /> : <Upload size={14} className="mr-1" />} Upload E-Way Bill</span>
+                  </Button>
+                </label>
+              )}
+            </div>
+
+            {/* Release Gate */}
+            {docUploadOrder && canReleaseMasterBarcode(docUploadOrder) ? (
+              <Button className="w-full" onClick={() => { handleReleaseMasterBarcode(docUploadOrder); setDocUploadOrder(null); }}>
+                <ShieldCheck size={16} className="mr-2" /> Release Master Barcode
+              </Button>
+            ) : (
+              <div className="rounded-lg bg-destructive/10 border border-destructive/30 p-3 text-center">
+                <p className="text-xs font-semibold text-destructive">
+                  <Lock size={12} className="inline mr-1" /> Master Barcode LOCKED — Upload all required documents and clear payment first
+                </p>
+              </div>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
