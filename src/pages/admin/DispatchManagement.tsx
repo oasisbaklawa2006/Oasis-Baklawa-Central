@@ -250,6 +250,11 @@ export default function DispatchManagement() {
                       <Button size="sm" className="flex-1 text-xs" onClick={() => { setActiveOrderId(order.id); setCartonCount(0); setCurrentCarton([]); }}>
                         <ScanLine size={14} className="mr-1" /> Start Packing
                       </Button>
+                      {pct === 100 && (
+                        <Button size="sm" variant="default" className="text-xs bg-emerald-600 hover:bg-emerald-700" onClick={() => handleFinalizeDpl(order.id)} disabled={finalizingDpl}>
+                          <FileCheck size={14} className="mr-1" /> Finalize DPL
+                        </Button>
+                      )}
                     </div>
                   </CardContent>
                 </Card>

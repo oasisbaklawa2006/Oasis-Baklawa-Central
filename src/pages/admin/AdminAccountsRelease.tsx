@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { Loader2, ChevronDown, Check, Lock, Truck, X, IndianRupee } from "lucide-react";
+import { Loader2, ChevronDown, Check, Lock, Truck, X, IndianRupee, FileText, Upload, ShieldCheck, AlertTriangle } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { useLanguage } from "@/hooks/useLanguage";
 import { useCurrency } from "@/hooks/useCurrency";
@@ -9,6 +9,8 @@ import { queueNotification } from "@/utils/notificationOutbox";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 
 interface FinanceOrder {
   id: string; status: string; payment_status: string | null;
@@ -85,12 +87,20 @@ const AdminAccountsRelease = () => {
   const [agreedFreight, setAgreedFreight] = useState<string>("");
   const [freightAdvance, setFreightAdvance] = useState<string>("");
 
+  // Document upload state
+  const [docUploadOrder, setDocUploadOrder] = useState<FinanceOrder | null>(null);
+  const [uploadingInvoice, setUploadingInvoice] = useState(false);
+  const [uploadingEway, setUploadingEway] = useState(false);
+
+  // PI generation state
+  const [generatingPi, setGeneratingPi] = useState<string | null>(null);
+
   const fetchOrders = async () => {
     setLoading(true);
     const { data } = await supabase
       .from("orders")
-      .select("id, status, payment_status, sales_order_value, advance_paid, advance_required, company_id, company:companies(business_name)")
-      .neq("payment_status", "paid")
+      .select("id, status, payment_status, sales_order_value, advance_paid, advance_required, company_id, final_invoice_url, eway_bill_number, payment_cleared, company:companies(business_name, wallet_balance)")
+      .not("status", "in", '("draft","cart")')
       .order("created_at", { ascending: false });
     setOrders((data as unknown as FinanceOrder[]) ?? []);
     setLoading(false);
