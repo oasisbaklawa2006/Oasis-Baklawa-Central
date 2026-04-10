@@ -271,14 +271,14 @@ const OrderTracking = () => {
               </p>
             )}
 
-            {!showTicketForm ? (
+            {!windowExpired && !showTicketForm ? (
               <button
                 onClick={() => setShowTicketForm(true)}
                 className="w-full py-3 rounded-xl bg-primary text-primary-foreground font-bold text-sm flex items-center justify-center gap-2"
               >
                 <MessageSquarePlus size={16} /> Raise Issue / Open Ticket
               </button>
-            ) : (
+            ) : windowExpired && !showTicketForm ? null : (
               <motion.div
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
