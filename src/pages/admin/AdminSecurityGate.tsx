@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { ShieldCheck, ShieldAlert, ScanLine, Box, Clock, Shield, Truck, Search, CheckCircle, Loader2 } from "lucide-react";
+import { sendDispatchAlert, sendSalesExecDispatchNotification } from "@/utils/whatsapp";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
