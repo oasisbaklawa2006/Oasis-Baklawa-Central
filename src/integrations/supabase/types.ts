@@ -2990,6 +2990,39 @@ export type Database = {
           },
         ]
       }
+      whatsapp_config: {
+        Row: {
+          api_key: string
+          created_at: string | null
+          default_country_code: string | null
+          id: string
+          instance_id: string
+          is_active: boolean | null
+          updated_at: string | null
+          webhook_secret: string | null
+        }
+        Insert: {
+          api_key: string
+          created_at?: string | null
+          default_country_code?: string | null
+          id?: string
+          instance_id: string
+          is_active?: boolean | null
+          updated_at?: string | null
+          webhook_secret?: string | null
+        }
+        Update: {
+          api_key?: string
+          created_at?: string | null
+          default_country_code?: string | null
+          id?: string
+          instance_id?: string
+          is_active?: boolean | null
+          updated_at?: string | null
+          webhook_secret?: string | null
+        }
+        Relationships: []
+      }
     }
     Views: {
       cmd_department_health: {
