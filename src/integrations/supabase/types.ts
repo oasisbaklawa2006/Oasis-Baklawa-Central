@@ -781,6 +781,53 @@ export type Database = {
           },
         ]
       }
+      employee_performance_logs: {
+        Row: {
+          avg_rating: number | null
+          employee_id: string
+          id: string
+          never_responded_count: number | null
+          period_end: string
+          period_start: string
+          sla_compliance_pct: number | null
+          total_handled: number | null
+          total_penalty_score: number | null
+          updated_at: string | null
+        }
+        Insert: {
+          avg_rating?: number | null
+          employee_id: string
+          id?: string
+          never_responded_count?: number | null
+          period_end?: string
+          period_start?: string
+          sla_compliance_pct?: number | null
+          total_handled?: number | null
+          total_penalty_score?: number | null
+          updated_at?: string | null
+        }
+        Update: {
+          avg_rating?: number | null
+          employee_id?: string
+          id?: string
+          never_responded_count?: number | null
+          period_end?: string
+          period_start?: string
+          sla_compliance_pct?: number | null
+          total_handled?: number | null
+          total_penalty_score?: number | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "employee_performance_logs_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       exchange_rates: {
         Row: {
           base_currency: string
@@ -2558,39 +2605,122 @@ export type Database = {
       }
       support_tickets: {
         Row: {
+          admin_rating_communication: number | null
+          admin_rating_quality: number | null
+          admin_rating_speed: number | null
+          ai_rewritten_reply: string | null
+          assigned_employee_id: string | null
+          commission_blocked: boolean | null
           created_at: string | null
           created_by: string | null
+          customer_rating: number | null
           description: string
+          dispatch_date: string | null
+          escalated_to_hod: boolean | null
+          estimated_financial_loss: number | null
           id: string
           issue_type: string
           order_id: string
+          product_sku: string | null
+          proof_url: string | null
+          qty_affected: number | null
+          rejection_reason_template: string | null
           resolution_notes: string | null
+          resolution_template_used: string | null
+          routed_to_department: string | null
+          severity: string | null
+          sla_action_at: string | null
+          sla_action_due: string | null
+          sla_first_response_at: string | null
+          sla_first_response_due: string | null
+          sla_resolution_due: string | null
+          sla_resolved_at: string | null
+          sla_state: string | null
           status: string | null
           user_id: string | null
+          window_status: string | null
         }
         Insert: {
+          admin_rating_communication?: number | null
+          admin_rating_quality?: number | null
+          admin_rating_speed?: number | null
+          ai_rewritten_reply?: string | null
+          assigned_employee_id?: string | null
+          commission_blocked?: boolean | null
           created_at?: string | null
           created_by?: string | null
+          customer_rating?: number | null
           description: string
+          dispatch_date?: string | null
+          escalated_to_hod?: boolean | null
+          estimated_financial_loss?: number | null
           id?: string
           issue_type: string
           order_id: string
+          product_sku?: string | null
+          proof_url?: string | null
+          qty_affected?: number | null
+          rejection_reason_template?: string | null
           resolution_notes?: string | null
+          resolution_template_used?: string | null
+          routed_to_department?: string | null
+          severity?: string | null
+          sla_action_at?: string | null
+          sla_action_due?: string | null
+          sla_first_response_at?: string | null
+          sla_first_response_due?: string | null
+          sla_resolution_due?: string | null
+          sla_resolved_at?: string | null
+          sla_state?: string | null
           status?: string | null
           user_id?: string | null
+          window_status?: string | null
         }
         Update: {
+          admin_rating_communication?: number | null
+          admin_rating_quality?: number | null
+          admin_rating_speed?: number | null
+          ai_rewritten_reply?: string | null
+          assigned_employee_id?: string | null
+          commission_blocked?: boolean | null
           created_at?: string | null
           created_by?: string | null
+          customer_rating?: number | null
           description?: string
+          dispatch_date?: string | null
+          escalated_to_hod?: boolean | null
+          estimated_financial_loss?: number | null
           id?: string
           issue_type?: string
           order_id?: string
+          product_sku?: string | null
+          proof_url?: string | null
+          qty_affected?: number | null
+          rejection_reason_template?: string | null
           resolution_notes?: string | null
+          resolution_template_used?: string | null
+          routed_to_department?: string | null
+          severity?: string | null
+          sla_action_at?: string | null
+          sla_action_due?: string | null
+          sla_first_response_at?: string | null
+          sla_first_response_due?: string | null
+          sla_resolution_due?: string | null
+          sla_resolved_at?: string | null
+          sla_state?: string | null
           status?: string | null
           user_id?: string | null
+          window_status?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "support_tickets_assigned_employee_id_fkey"
+            columns: ["assigned_employee_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       system_alerts: {
         Row: {
