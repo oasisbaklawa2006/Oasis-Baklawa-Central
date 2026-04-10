@@ -236,15 +236,40 @@ const OrderTracking = () => {
           </div>
         )}
 
-        {isInSupportWindow && (
-          <div className="bg-accent/10 rounded-2xl border border-accent p-5 space-y-4">
-            <div className="flex items-center gap-2">
-              <ShieldCheck size={18} className="text-primary" />
-              <h2 className="font-display text-base">10-Day Support Window</h2>
+        {isInSupportWindow && (() => {
+          const dispatchDate = order.actual_despatch_date;
+          const daysRemaining = dispatchDate
+            ? Math.max(0, 10 - Math.floor((Date.now() - new Date(dispatchDate).getTime()) / 86400000))
+            : 10;
+          const windowExpired = daysRemaining <= 0;
+
+          return (
+          <div className={`rounded-2xl border p-5 space-y-4 ${windowExpired ? "bg-muted/50 border-border" : "bg-accent/10 border-accent"}`}>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <ShieldCheck size={18} className="text-primary" />
+                <h2 className="font-display text-base">10-Day Support Window</h2>
+              </div>
+              {!windowExpired && (
+                <span className="text-xs font-bold bg-primary/10 text-primary px-3 py-1 rounded-full">
+                  {daysRemaining} day{daysRemaining !== 1 ? "s" : ""} remaining
+                </span>
+              )}
+              {windowExpired && (
+                <span className="text-xs font-bold bg-muted text-muted-foreground px-3 py-1 rounded-full">
+                  Window Closed
+                </span>
+              )}
             </div>
-            <p className="text-xs text-muted-foreground">
-              You can raise issues with this order within 10 days of delivery. Our team will respond within 24 hours.
-            </p>
+            {!windowExpired ? (
+              <p className="text-xs text-muted-foreground">
+                You can raise issues with this order within {daysRemaining} days. Our team will respond within 24 hours.
+              </p>
+            ) : (
+              <p className="text-xs text-muted-foreground">
+                The 10-day support window for this order has expired. Contact support for special requests.
+              </p>
+            )}
 
             {!showTicketForm ? (
               <button
@@ -325,7 +350,8 @@ const OrderTracking = () => {
               </div>
             )}
           </div>
-        )}
+          );
+        })()}
       </div>
     </AppShell>
   );
