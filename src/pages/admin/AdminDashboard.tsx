@@ -84,6 +84,7 @@ const AdminDashboard = () => {
       pricingSlabs: pricingSlabs.count ?? 0, totalOrders: actionableOrders.length,
       users: users.count ?? 0, moqRules: moqRules.count ?? 0,
       exchangeRates: exchangeRates.count ?? 0, supportOpen: supportOpen.count ?? 0,
+      slaBreached: slaBreached.count ?? 0,
       totalDue, financeHold, totalPhysicalStock, lowStockCount, immediateCash, pendingCollections,
     });
 
