@@ -8,31 +8,29 @@ const corsHeaders = {
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
+const WABA_ID = "2215829225584918";
+const CHANNEL_ID = "68ce999be70660c0e8f3156f";
+const BASE_URL = "https://crm.click2api.in";
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
+    const accessToken = Deno.env.get("CLICK2API_ACCESS_TOKEN");
+    if (!accessToken) {
+      console.error("CLICK2API_ACCESS_TOKEN not configured");
+      return new Response(JSON.stringify({ error: "WhatsApp API token not configured" }), {
+        status: 500,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     const supabaseAdmin = createClient(
       Deno.env.get("SUPABASE_URL")!,
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
     );
-
-    // Get WhatsApp config
-    const { data: config } = await supabaseAdmin
-      .from("whatsapp_config")
-      .select("*")
-      .eq("is_active", true)
-      .limit(1)
-      .single();
-
-    if (!config) {
-      return new Response(JSON.stringify({ error: "WhatsApp not configured" }), {
-        status: 400,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
 
     const { to, message, company_id, order_id } = await req.json();
 
@@ -43,31 +41,35 @@ serve(async (req) => {
       });
     }
 
-    // Clean phone number
+    // Clean phone number — ensure country code
     const cleanPhone = to.replace(/[^0-9+]/g, "");
-    const fullPhone = cleanPhone.startsWith("+") ? cleanPhone : `${config.default_country_code}${cleanPhone}`;
+    const fullPhone = cleanPhone.startsWith("+") ? cleanPhone : `+91${cleanPhone}`;
+    // Click2API expects phone without '+' prefix
+    const apiPhone = fullPhone.replace("+", "");
 
-    // Send via Click2API
-    const apiRes = await fetch(`https://api.click2api.com/wa/sendMessage`, {
+    // Send via Click2API production endpoint
+    const apiRes = await fetch(`${BASE_URL}/api/v1/message/send-text`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "Authorization": `Bearer ${config.api_key}`,
+        "Authorization": `Bearer ${accessToken}`,
       },
       body: JSON.stringify({
-        instance_id: config.instance_id,
-        to: fullPhone.replace("+", ""),
+        waba_id: WABA_ID,
+        channel_id: CHANNEL_ID,
+        to: apiPhone,
         message,
       }),
     });
 
     const apiData = await apiRes.json();
+    console.log("Click2API response:", JSON.stringify(apiData).substring(0, 300));
 
     // Log to client_interactions timeline (actor_id = null for SYSTEM)
     if (company_id) {
       await supabaseAdmin.from("client_interactions").insert({
         company_id,
-        executive_id: null, // SYSTEM actor
+        executive_id: null,
         interaction_type: "whatsapp",
         notes: `[AUTO] ${message.substring(0, 500)}`,
         outcome: apiRes.ok ? "delivered" : "failed",
