@@ -16,7 +16,9 @@ interface FinanceOrder {
   id: string; status: string; payment_status: string | null;
   sales_order_value: number | null; advance_paid: number | null;
   advance_required: number | null; company_id: string | null;
-  company?: { business_name: string } | null;
+  final_invoice_url?: string | null; eway_bill_number?: string | null;
+  payment_cleared?: boolean | null;
+  company?: { business_name: string; wallet_balance?: number | null } | null;
 }
 
 type PaymentAction = "request_advance" | "mark_advance_paid" | "request_balance" | "mark_fully_paid" | "issue_gate_pass";
