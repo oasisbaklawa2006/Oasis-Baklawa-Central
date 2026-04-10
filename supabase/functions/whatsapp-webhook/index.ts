@@ -25,11 +25,21 @@ serve(async (req) => {
     const payload = await req.json();
     console.log("Incoming WhatsApp webhook:", JSON.stringify(payload).substring(0, 500));
 
-    const senderPhone = payload?.from || payload?.sender || payload?.data?.from || "";
-    const messageBody = payload?.message || payload?.body || payload?.data?.body || payload?.text || "";
+    // Extract sender & message from Click2API webhook format
+    const senderPhone = payload?.from || payload?.sender || payload?.data?.from || payload?.contact?.wa_id || "";
+    const messageBody = payload?.message || payload?.body || payload?.data?.body || payload?.text?.body || payload?.text || "";
 
     if (!senderPhone || !messageBody) {
       return new Response(JSON.stringify({ ok: true, skipped: "no sender or body" }), {
+        status: 200,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // Guard: ignore outgoing/echo messages to prevent infinite loops
+    const direction = payload?.direction || payload?.type || "";
+    if (direction === "outgoing" || direction === "sent") {
+      return new Response(JSON.stringify({ ok: true, skipped: "outgoing echo" }), {
         status: 200,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
@@ -51,7 +61,6 @@ serve(async (req) => {
       const app = apps[0];
       companyName = app.business_name;
 
-      // Find company
       const { data: companies } = await supabaseAdmin
         .from("companies")
         .select("id")
@@ -74,9 +83,10 @@ serve(async (req) => {
       });
     }
 
-    // Simple order-intent detection
-    const orderKeywords = ["need", "order", "send", "want", "box", "boxes", "carton", "cartons", "kg", "pcs", "pieces"];
-    const hasOrderIntent = orderKeywords.some((kw) => messageBody.toLowerCase().includes(kw));
+    // AI Order-intent detection with SKU/quantity parsing
+    const orderKeywords = ["need", "order", "send", "want", "box", "boxes", "carton", "cartons", "kg", "pcs", "pieces", "rate"];
+    const msgLower = messageBody.toLowerCase();
+    const hasOrderIntent = orderKeywords.some((kw) => msgLower.includes(kw));
 
     if (hasOrderIntent && companyId) {
       // Create draft order
@@ -102,7 +112,7 @@ serve(async (req) => {
           await supabaseAdmin.from("notifications").insert({
             user_id: company.account_manager_id,
             type: "whatsapp_order",
-            message: `📱 New Draft Order created via WhatsApp for ${companyName}. Message: "${messageBody.substring(0, 120)}". Please verify and add items.`,
+            message: `📱 New WhatsApp Draft Order for ${companyName} needs your approval. Message: "${messageBody.substring(0, 120)}"`,
             is_read: false,
           });
         }
@@ -111,7 +121,7 @@ serve(async (req) => {
         const { data: admins } = await supabaseAdmin
           .from("users")
           .select("id")
-          .in("role", ["admin", "super_admin"])
+          .in("role", ["admin", "super_admin", "ADMIN", "SUPER_ADMIN"])
           .limit(5);
 
         for (const admin of admins || []) {
