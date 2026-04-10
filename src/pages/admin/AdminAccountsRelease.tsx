@@ -6,6 +6,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useLanguage } from "@/hooks/useLanguage";
 import { useCurrency } from "@/hooks/useCurrency";
 import { queueNotification } from "@/utils/notificationOutbox";
+import { sendWhatsAppMessage } from "@/utils/whatsapp";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -378,8 +379,23 @@ const AdminAccountsRelease = () => {
         toast.success(`PI Generated — ₹${piTotal.toLocaleString("en-IN")} auto-deducted from wallet`);
       } else {
         // Payment pending
+        const balanceDue = Math.abs(walletDiff);
         await supabase.from("orders").update({ payment_status: "balance_due", document_stage: "PI" }).eq("id", order.id);
-        toast.warning(`PI Generated — Payment Pending: ₹${Math.abs(walletDiff).toLocaleString("en-IN")}`);
+        toast.warning(`PI Generated — Payment Pending: ₹${balanceDue.toLocaleString("en-IN")}`);
+
+        // Auto-send WhatsApp PI notification to client
+        if (order.company_id) {
+          const { data: appData } = await supabase.from("b2b_applications").select("contact_phone, mobile_number").eq("status", "approved").limit(1);
+          const phone = appData?.[0]?.mobile_number || appData?.[0]?.contact_phone;
+          if (phone) {
+            sendWhatsAppMessage({
+              to: phone,
+              message: `💰 Payment Request — Oasis Baklawa\n\nDear ${(order.company as any)?.business_name || "Customer"},\nOrder ${order.id.slice(0, 8).toUpperCase()}: Balance Due ₹${balanceDue.toLocaleString("en-IN")}.\n\nPlease clear payment to release dispatch.\n— Team Oasis Baklawa`,
+              companyId: order.company_id,
+              orderId: order.id,
+            }).catch(console.error);
+          }
+        }
       }
       await supabase.from("order_status_history").insert({ order_id: order.id, old_status: order.status, new_status: "awaiting_payment" });
       fetchOrders();
