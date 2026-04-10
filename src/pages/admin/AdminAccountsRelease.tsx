@@ -468,6 +468,7 @@ const AdminAccountsRelease = () => {
       <div className="flex gap-2">
         {[
           { key: "all" as const, label: "All Orders", count: orders.length },
+          { key: "awaiting" as const, label: "Awaiting Finance", count: awaitingFinanceOrders.length },
           { key: "hold" as const, label: "Finance Hold", count: holdCount },
           { key: "overdue" as const, label: "Balance Due", count: balPendingCount },
         ].map(tb => (
