@@ -374,6 +374,9 @@ const SalesPerformanceHub = () => {
               </TabsContent>
             </Tabs>
           </motion.div>
+
+          {/* ADMIN INTELLIGENCE PANEL */}
+          {isAdmin && <SalesIntelligencePanel />}
         </>
       )}
 
