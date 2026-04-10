@@ -75,7 +75,7 @@ const AdminAccountsRelease = () => {
   const [loading, setLoading] = useState(true);
   const [acting, setActing] = useState<string | null>(null);
   const [openDropdown, setOpenDropdown] = useState<string | null>(null);
-  const [tab, setTab] = useState<"all" | "hold" | "overdue">("all");
+  const [tab, setTab] = useState<"all" | "hold" | "overdue" | "awaiting">("all");
   const { user } = useAuth();
   const { t } = useLanguage();
   const { format } = useCurrency();
