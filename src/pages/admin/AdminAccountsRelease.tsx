@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { Loader2, ChevronDown, Check, Lock, Truck, X, IndianRupee } from "lucide-react";
+import { Loader2, ChevronDown, Check, Lock, Truck, X, IndianRupee, FileText, Upload, ShieldCheck, AlertTriangle, CheckCircle2 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { useLanguage } from "@/hooks/useLanguage";
 import { useCurrency } from "@/hooks/useCurrency";
@@ -9,12 +9,16 @@ import { queueNotification } from "@/utils/notificationOutbox";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 
 interface FinanceOrder {
   id: string; status: string; payment_status: string | null;
   sales_order_value: number | null; advance_paid: number | null;
   advance_required: number | null; company_id: string | null;
-  company?: { business_name: string } | null;
+  final_invoice_url?: string | null; eway_bill_number?: string | null;
+  payment_cleared?: boolean | null;
+  company?: { business_name: string; wallet_balance?: number | null } | null;
 }
 
 type PaymentAction = "request_advance" | "mark_advance_paid" | "request_balance" | "mark_fully_paid" | "issue_gate_pass";
@@ -71,7 +75,7 @@ const AdminAccountsRelease = () => {
   const [loading, setLoading] = useState(true);
   const [acting, setActing] = useState<string | null>(null);
   const [openDropdown, setOpenDropdown] = useState<string | null>(null);
-  const [tab, setTab] = useState<"all" | "hold" | "overdue">("all");
+  const [tab, setTab] = useState<"all" | "hold" | "overdue" | "awaiting">("all");
   const { user } = useAuth();
   const { t } = useLanguage();
   const { format } = useCurrency();
@@ -85,12 +89,20 @@ const AdminAccountsRelease = () => {
   const [agreedFreight, setAgreedFreight] = useState<string>("");
   const [freightAdvance, setFreightAdvance] = useState<string>("");
 
+  // Document upload state
+  const [docUploadOrder, setDocUploadOrder] = useState<FinanceOrder | null>(null);
+  const [uploadingInvoice, setUploadingInvoice] = useState(false);
+  const [uploadingEway, setUploadingEway] = useState(false);
+
+  // PI generation state
+  const [generatingPi, setGeneratingPi] = useState<string | null>(null);
+
   const fetchOrders = async () => {
     setLoading(true);
     const { data } = await supabase
       .from("orders")
-      .select("id, status, payment_status, sales_order_value, advance_paid, advance_required, company_id, company:companies(business_name)")
-      .neq("payment_status", "paid")
+      .select("id, status, payment_status, sales_order_value, advance_paid, advance_required, company_id, final_invoice_url, eway_bill_number, payment_cleared, company:companies(business_name, wallet_balance)")
+      .not("status", "in", '("draft","cart")')
       .order("created_at", { ascending: false });
     setOrders((data as unknown as FinanceOrder[]) ?? []);
     setLoading(false);
@@ -345,7 +357,80 @@ const AdminAccountsRelease = () => {
     setActing(null);
   };
 
+  // ═══ PI GENERATION & WALLET ENGINE ═══
+  const handleGeneratePI = async (order: FinanceOrder) => {
+    setGeneratingPi(order.id);
+    try {
+      const piTotal = order.sales_order_value ?? 0;
+      const walletBalance = (order.company as any)?.wallet_balance ?? 0;
+      const walletDiff = walletBalance - piTotal;
+
+      if (walletDiff >= 0 && order.company_id) {
+        // Auto-deduct from wallet
+        await supabase.from("companies").update({ wallet_balance: walletDiff }).eq("id", order.company_id);
+        await supabase.from("orders").update({ payment_cleared: true, payment_status: "paid", document_stage: "PI" }).eq("id", order.id);
+        await supabase.from("audit_logs").insert({
+          action_type: "PI_WALLET_AUTO_DEDUCT", module_name: "Finance",
+          entity_name: "orders", entity_id: order.id, actor_id: user?.id,
+          new_value: { pi_total: piTotal, wallet_before: walletBalance, wallet_after: walletDiff } as any,
+          risk_level: "normal",
+        });
+        toast.success(`PI Generated — ₹${piTotal.toLocaleString("en-IN")} auto-deducted from wallet`);
+      } else {
+        // Payment pending
+        await supabase.from("orders").update({ payment_status: "balance_due", document_stage: "PI" }).eq("id", order.id);
+        toast.warning(`PI Generated — Payment Pending: ₹${Math.abs(walletDiff).toLocaleString("en-IN")}`);
+      }
+      await supabase.from("order_status_history").insert({ order_id: order.id, old_status: order.status, new_status: "awaiting_payment" });
+      fetchOrders();
+    } catch { toast.error("PI generation failed"); }
+    setGeneratingPi(null);
+  };
+
+  // ═══ DOCUMENT UPLOAD HANDLERS ═══
+  const handleInvoiceUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !docUploadOrder) return;
+    setUploadingInvoice(true);
+    const path = `final-invoices/${docUploadOrder.id}/${Date.now()}-${file.name}`;
+    const { error } = await supabase.storage.from("final-invoices").upload(path, file);
+    if (error) { toast.error("Upload failed"); setUploadingInvoice(false); return; }
+    const { data: urlData } = supabase.storage.from("final-invoices").getPublicUrl(path);
+    await supabase.from("orders").update({ final_invoice_url: urlData.publicUrl }).eq("id", docUploadOrder.id);
+    toast.success("Tax Invoice uploaded");
+    setUploadingInvoice(false);
+    fetchOrders();
+  };
+
+  const handleEwayUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !docUploadOrder) return;
+    setUploadingEway(true);
+    const ewayRef = `EWAY-${docUploadOrder.id.slice(0, 8).toUpperCase()}-${Date.now()}`;
+    await supabase.from("orders").update({ eway_bill_number: ewayRef, eway_bill_url: URL.createObjectURL(file) }).eq("id", docUploadOrder.id);
+    toast.success("E-Way Bill uploaded");
+    setUploadingEway(false);
+    fetchOrders();
+  };
+
+  const canReleaseMasterBarcode = (order: FinanceOrder) => {
+    return order.payment_cleared === true && !!order.final_invoice_url;
+  };
+
+  const handleReleaseMasterBarcode = async (order: FinanceOrder) => {
+    await supabase.from("orders").update({ status: "cleared_for_dispatch" }).eq("id", order.id);
+    await supabase.from("order_status_history").insert({ order_id: order.id, old_status: order.status, new_status: "cleared_for_dispatch" });
+    await supabase.from("audit_logs").insert({
+      action_type: "MASTER_BARCODE_RELEASED", module_name: "Finance",
+      entity_name: "orders", entity_id: order.id, actor_id: user?.id,
+      risk_level: "normal",
+    });
+    toast.success("Master Barcode Released — Order cleared for dispatch");
+    fetchOrders();
+  };
+
   // Summary counts
+  const awaitingFinanceOrders = orders.filter(o => o.status === "awaiting_payment" || o.status === "awaiting_final_payment");
   const holdCount = orders.filter(o => getReleaseStatus(o) === "finance_hold").length;
   const advPendingCount = orders.filter(o => getReleaseStatus(o) === "advance_pending").length;
   const balPendingCount = orders.filter(o => getReleaseStatus(o) === "balance_pending").length;
@@ -354,6 +439,7 @@ const AdminAccountsRelease = () => {
 
   const filtered = tab === "hold" ? orders.filter(o => getReleaseStatus(o) === "finance_hold")
     : tab === "overdue" ? orders.filter(o => getReleaseStatus(o) === "balance_pending")
+    : tab === "awaiting" ? awaitingFinanceOrders
     : orders;
 
   if (loading) return <div className="flex items-center justify-center py-20"><Loader2 size={24} className="animate-spin text-primary" /></div>;
@@ -382,6 +468,7 @@ const AdminAccountsRelease = () => {
       <div className="flex gap-2">
         {[
           { key: "all" as const, label: "All Orders", count: orders.length },
+          { key: "awaiting" as const, label: "Awaiting Finance", count: awaitingFinanceOrders.length },
           { key: "hold" as const, label: "Finance Hold", count: holdCount },
           { key: "overdue" as const, label: "Balance Due", count: balPendingCount },
         ].map(tb => (
@@ -426,27 +513,69 @@ const AdminAccountsRelease = () => {
                     <td className="px-4 py-3 text-right text-ui-cell text-foreground">{format(order.sales_order_value ?? 0)}</td>
                     <td className="px-4 py-3 text-right text-ui-kpi text-sm text-primary">{format(due)}</td>
                     <td className="px-4 py-3 text-right">
-                      {actions.length > 0 ? (
-                        <div className="relative inline-block">
-                          <button onClick={() => setOpenDropdown(openDropdown === order.id ? null : order.id)} disabled={acting === order.id}
-                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-ui-button bg-primary/10 text-primary hover:bg-primary/20 disabled:opacity-50">
-                            {acting === order.id ? <Loader2 size={14} className="animate-spin" /> : <ChevronDown size={14} />} {t("Actions")}
+                      <div className="flex items-center gap-1.5 justify-end flex-wrap">
+                        {/* PI Generation for awaiting_payment orders */}
+                        {(order.status === "awaiting_payment" || order.status === "awaiting_final_payment") && !order.payment_cleared && (
+                          <button onClick={() => handleGeneratePI(order)} disabled={generatingPi === order.id}
+                            className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-blue-500/10 text-blue-600 hover:bg-blue-500/20 disabled:opacity-50">
+                            {generatingPi === order.id ? <Loader2 size={12} className="animate-spin" /> : <FileText size={12} />} Generate PI
                           </button>
-                          {openDropdown === order.id && (
-                            <div className="absolute right-0 top-full mt-1 w-56 bg-card rounded-xl shadow-lg border border-border py-1 z-50">
-                              {actions.map(a => (
-                                <button key={a} onClick={() => handleAction(order, a)}
-                                  className={`w-full text-left px-4 py-2.5 text-sm font-ui text-foreground hover:bg-muted transition-colors flex items-center gap-2 ${a === "issue_gate_pass" ? "text-primary font-semibold" : ""}`}>
-                                  {a === "issue_gate_pass" && <Truck size={14} />}
-                                  {ACTION_LABELS[a]}
-                                </button>
-                              ))}
-                            </div>
-                          )}
-                        </div>
-                      ) : (
-                        <span className="text-ui-label text-muted-foreground flex items-center gap-1 justify-end"><Check size={14} /> Paid</span>
-                      )}
+                        )}
+
+                        {/* Wallet deficit alert */}
+                        {(order.status === "awaiting_payment" || order.status === "awaiting_final_payment") && !order.payment_cleared && (
+                          (() => {
+                            const walletBal = (order.company as any)?.wallet_balance ?? 0;
+                            const piTotal = order.sales_order_value ?? 0;
+                            const deficit = piTotal - walletBal;
+                            return deficit > 0 ? (
+                              <Badge variant="destructive" className="text-[10px]">
+                                <AlertTriangle size={10} className="mr-1" /> Pending: ₹{deficit.toLocaleString("en-IN")}
+                              </Badge>
+                            ) : null;
+                          })()
+                        )}
+
+                        {/* Document Upload */}
+                        {order.payment_cleared && !order.final_invoice_url && (
+                          <button onClick={() => setDocUploadOrder(order)}
+                            className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-amber-500/10 text-amber-600 hover:bg-amber-500/20">
+                            <Upload size={12} /> Upload Docs
+                          </button>
+                        )}
+
+                        {/* Release Master Barcode - HIDDEN until payment cleared AND invoice uploaded */}
+                        {canReleaseMasterBarcode(order) && order.status !== "cleared_for_dispatch" && order.status !== "dispatched" && (
+                          <button onClick={() => handleReleaseMasterBarcode(order)}
+                            className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-emerald-500/10 text-emerald-600 hover:bg-emerald-500/20">
+                            <ShieldCheck size={12} /> Release Barcode
+                          </button>
+                        )}
+
+                        {/* Existing action dropdown */}
+                        {actions.length > 0 && (
+                          <div className="relative inline-block">
+                            <button onClick={() => setOpenDropdown(openDropdown === order.id ? null : order.id)} disabled={acting === order.id}
+                              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-ui-button bg-primary/10 text-primary hover:bg-primary/20 disabled:opacity-50">
+                              {acting === order.id ? <Loader2 size={14} className="animate-spin" /> : <ChevronDown size={14} />} {t("Actions")}
+                            </button>
+                            {openDropdown === order.id && (
+                              <div className="absolute right-0 top-full mt-1 w-56 bg-card rounded-xl shadow-lg border border-border py-1 z-50">
+                                {actions.map(a => (
+                                  <button key={a} onClick={() => handleAction(order, a)}
+                                    className={`w-full text-left px-4 py-2.5 text-sm font-ui text-foreground hover:bg-muted transition-colors flex items-center gap-2 ${a === "issue_gate_pass" ? "text-primary font-semibold" : ""}`}>
+                                    {a === "issue_gate_pass" && <Truck size={14} />}
+                                    {ACTION_LABELS[a]}
+                                  </button>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        )}
+                        {actions.length === 0 && order.payment_status === "paid" && (
+                          <span className="text-ui-label text-muted-foreground flex items-center gap-1"><Check size={14} /> Paid</span>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 );
@@ -529,6 +658,71 @@ const AdminAccountsRelease = () => {
               {submittingGatePass ? <Loader2 size={16} className="animate-spin" /> : <Truck size={16} />}
               Issue Gate Pass & Push to Security
             </button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Document Upload Modal */}
+      <Dialog open={!!docUploadOrder} onOpenChange={(open) => { if (!open) setDocUploadOrder(null); }}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <FileText size={20} className="text-primary" />
+              Upload Documents
+            </DialogTitle>
+            <DialogDescription>
+              Order {docUploadOrder?.id.slice(0, 8)}… — {docUploadOrder?.company?.business_name ?? "Unknown"}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 pt-2">
+            {/* Tax Invoice Upload */}
+            <div className="border border-border rounded-lg p-3 space-y-2">
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Final Tax Invoice *</p>
+              {docUploadOrder?.final_invoice_url ? (
+                <div className="flex items-center gap-2 text-sm text-emerald-600">
+                  <CheckCircle2 size={14} /> Invoice Uploaded
+                </div>
+              ) : (
+                <label className="block">
+                  <input type="file" accept=".pdf,.jpg,.png" className="hidden" onChange={handleInvoiceUpload} />
+                  <Button variant="outline" size="sm" className="w-full" asChild disabled={uploadingInvoice}>
+                    <span>{uploadingInvoice ? <Loader2 size={14} className="animate-spin mr-1" /> : <Upload size={14} className="mr-1" />} Upload Invoice PDF</span>
+                  </Button>
+                </label>
+              )}
+            </div>
+
+            {/* E-Way Bill Upload */}
+            <div className="border border-border rounded-lg p-3 space-y-2">
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                E-Way Bill {(docUploadOrder?.sales_order_value ?? 0) > 50000 ? "(Required)" : "(Optional)"}
+              </p>
+              {docUploadOrder?.eway_bill_number ? (
+                <div className="flex items-center gap-2 text-sm text-emerald-600">
+                  <CheckCircle2 size={14} /> E-Way Bill: {docUploadOrder.eway_bill_number}
+                </div>
+              ) : (
+                <label className="block">
+                  <input type="file" accept=".pdf,.jpg,.png" className="hidden" onChange={handleEwayUpload} />
+                  <Button variant="outline" size="sm" className="w-full" asChild disabled={uploadingEway}>
+                    <span>{uploadingEway ? <Loader2 size={14} className="animate-spin mr-1" /> : <Upload size={14} className="mr-1" />} Upload E-Way Bill</span>
+                  </Button>
+                </label>
+              )}
+            </div>
+
+            {/* Release Gate */}
+            {docUploadOrder && canReleaseMasterBarcode(docUploadOrder) ? (
+              <Button className="w-full" onClick={() => { handleReleaseMasterBarcode(docUploadOrder); setDocUploadOrder(null); }}>
+                <ShieldCheck size={16} className="mr-2" /> Release Master Barcode
+              </Button>
+            ) : (
+              <div className="rounded-lg bg-destructive/10 border border-destructive/30 p-3 text-center">
+                <p className="text-xs font-semibold text-destructive">
+                  <Lock size={12} className="inline mr-1" /> Master Barcode LOCKED — Upload all required documents and clear payment first
+                </p>
+              </div>
+            )}
           </div>
         </DialogContent>
       </Dialog>

@@ -179,8 +179,8 @@ const AdminSecurityGate = () => {
       const { data: carton, error } = await (supabase as any)
         .from("dispatch_cartons")
         .select(
-          `id, status, box_number, total_boxes,
-          orders ( company:companies(business_name, state), payment_status, payment_cleared, eway_bill_number, sales_order_value )`
+          `id, status, box_number, total_boxes, order_id,
+          orders ( status, company:companies(business_name, state), payment_status, payment_cleared, eway_bill_number, eway_bill_url, sales_order_value, final_invoice_url )`
         )
         .eq("barcode_string", barcode)
         .single();
@@ -197,59 +197,72 @@ const AdminSecurityGate = () => {
         setLastMessage(`ALREADY DISPATCHED: Master Carton ${carton.box_number} of ${carton.total_boxes}`);
         addToHistory(barcode, companyName, "duplicate", "This box has already left the building.");
         playAudio("error");
-      } else if (carton.orders?.payment_status === "unpaid" || carton.orders?.payment_cleared === false) {
-        setScreenState("error");
-        setLastMessage("STOP: FINANCIAL CLEARANCE PENDING");
-        addToHistory(barcode, companyName, "error", "Payment not cleared. Cannot dispatch.");
-        playAudio("error");
-      } else if (!carton.orders?.final_invoice_url) {
-        // CRITICAL ERROR: Tally Invoice URL missing — hard-lock
-        setScreenState("error");
-        setLastMessage("🚨 CRITICAL ERROR: TALLY INVOICE NOT UPLOADED. Dispatch BLOCKED.");
-        addToHistory(barcode, companyName, "error", "CRITICAL: tally_invoice_url is empty. Contact Finance immediately.");
-        playAudio("error");
-        await supabase.from("audit_logs").insert({
-          action_type: "CRITICAL_GATE_BLOCK",
-          module_name: "SecurityGate",
-          entity_name: "dispatch_cartons",
-          entity_id: carton.id,
-          actor_id: isSuperAdmin ? (await supabase.auth.getUser()).data.user?.id || null : null,
-          reason: "Tally Invoice URL empty — barcode hard-locked",
-          risk_level: "high",
-        });
-        if (isSuperAdmin) {
-          // Log special incidence but still block
-          await supabase.from("audit_logs").insert({
-            action_type: "SPECIAL_INCIDENCE",
-            module_name: "SecurityGate",
-            entity_name: "dispatch_cartons",
-            entity_id: carton.id,
-            reason: "Super Admin attempted scan with missing Tally Invoice",
-            risk_level: "high",
-          });
-        }
       } else {
+        // ═══ 3-POINT VERIFICATION CHECK ═══
+        const orderStatus = carton.orders?.status || "";
+        const hasInvoice = !!carton.orders?.final_invoice_url;
+        const orderValue = Number(carton.orders?.sales_order_value) || 0;
         const destState = (carton.orders?.company?.state || "").trim().toLowerCase();
         const isIntrastate = destState === "delhi" || destState === "new delhi";
         const ewayThreshold = isIntrastate ? 100000 : 50000;
-        const orderValue = Number(carton.orders?.sales_order_value) || 0;
-        const needsEway = orderValue > ewayThreshold && !carton.orders?.eway_bill_number;
+        const needsEway = orderValue > ewayThreshold;
+        const hasEway = !!carton.orders?.eway_bill_number;
 
-        if (needsEway) {
-          setScreenState("error");
-          setLastMessage(`STOP: E-WAY BILL REQUIRED (₹${ewayThreshold.toLocaleString("en-IN")} threshold). DO NOT LOAD.`);
-          addToHistory(barcode, companyName, "error", "E-Way Bill missing. Dispatch blocked.");
-          playAudio("error");
-        } else {
+        const check1 = orderStatus === "cleared_for_dispatch";
+        const check2 = hasInvoice;
+        const check3 = !needsEway || hasEway;
+
+        const failures: string[] = [];
+        if (!check1) failures.push(`Status: ${orderStatus.toUpperCase()} (Expected: CLEARED_FOR_DISPATCH)`);
+        if (!check2) failures.push("Tax Invoice: NOT UPLOADED");
+        if (!check3) failures.push(`E-Way Bill: MISSING (Order > ₹${ewayThreshold.toLocaleString("en-IN")})`);
+
+        if (failures.length === 0) {
+          // ALL PASS — GREEN RELEASE
           await (supabase as any)
             .from("dispatch_cartons")
             .update({ status: "physically_dispatched", scanned_out_at: new Date().toISOString() })
             .eq("id", carton.id);
 
+          // Check if all cartons for this order are dispatched
+          if (carton.order_id) {
+            const { data: allCartons } = await supabase
+              .from("dispatch_cartons")
+              .select("id, status")
+              .eq("order_id", carton.order_id);
+            const allDispatched = (allCartons || []).every((c: any) => c.status === "physically_dispatched" || c.id === carton.id);
+            if (allDispatched) {
+              await supabase.from("orders").update({ 
+                status: "dispatched", 
+                actual_despatch_date: new Date().toISOString().split("T")[0] 
+              }).eq("id", carton.order_id);
+              await supabase.from("order_status_history").insert({
+                order_id: carton.order_id, old_status: "cleared_for_dispatch", new_status: "dispatched",
+              });
+            }
+          }
+
           setScreenState("success");
-          setLastMessage(`AUTHORIZED: ${companyName} (Master Carton ${carton.box_number}/${carton.total_boxes})`);
-          addToHistory(barcode, companyName, "success", "Authorized and dispatched.");
+          setLastMessage(`✅ RELEASE AUTHORIZED: ${companyName} (Carton ${carton.box_number}/${carton.total_boxes})`);
+          addToHistory(barcode, companyName, "success", "3-Point Check PASSED. Authorized and dispatched.");
           playAudio("success");
+        } else {
+          // FAIL — RED BLOCK SCREEN
+          setScreenState("error");
+          setLastMessage(`🚨 BLOCKED — ${failures.length} check(s) failed:\n${failures.join(" | ")}`);
+          addToHistory(barcode, companyName, "error", `BLOCKED: ${failures.join("; ")}`);
+          playAudio("error");
+
+          await supabase.from("audit_logs").insert({
+            action_type: "SECURITY_GATE_3POINT_FAIL",
+            module_name: "SecurityGate",
+            entity_name: "dispatch_cartons",
+            entity_id: carton.id,
+            actor_id: (await supabase.auth.getUser()).data.user?.id || null,
+            reason: failures.join("; "),
+            risk_level: "high",
+            new_value: { check_status: check1, check_invoice: check2, check_eway: check3, order_value: orderValue } as any,
+          });
         }
       }
     } catch (err) {

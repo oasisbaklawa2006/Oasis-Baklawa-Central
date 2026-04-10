@@ -2,7 +2,7 @@ import { useEffect, useState, useCallback, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/useAuth";
-import { Loader2, Package, ScanLine, Camera, CheckCircle2, Printer, Box, Upload, Hash } from "lucide-react";
+import { Loader2, Package, ScanLine, Camera, CheckCircle2, Printer, Box, Upload, Hash, FileCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -74,6 +74,35 @@ export default function DispatchManagement() {
     const total = order.items.reduce((s, i) => s + i.quantity, 0);
     const ready = order.items.reduce((s, i) => s + (i.actual_packed_qty || 0), 0);
     return total > 0 ? Math.round((ready / total) * 100) : 0;
+  };
+
+  const isAllPacked = (order: DispatchOrder) => {
+    return order.items.length > 0 && order.items.every(i => (i.actual_packed_qty || 0) >= i.quantity);
+  };
+
+  const [finalizingDpl, setFinalizingDpl] = useState(false);
+
+  const handleFinalizeDpl = async (orderId: string) => {
+    setFinalizingDpl(true);
+    try {
+      await supabase.from("orders").update({ status: "awaiting_payment" }).eq("id", orderId);
+      await supabase.from("order_status_history").insert({ order_id: orderId, old_status: "in_production", new_status: "awaiting_payment" });
+      await supabase.from("audit_logs").insert({
+        action_type: "DPL_FINALIZED",
+        module_name: "Dispatch",
+        entity_name: "orders",
+        entity_id: orderId,
+        actor_id: user?.id || null,
+        new_value: { note: "DPL finalized with actual packed quantities. Quantities locked." } as any,
+        risk_level: "normal",
+      });
+      toast.success("✅ DPL Finalized — Order moved to Awaiting Finance");
+      fetchOrders();
+      setActiveOrderId(null);
+    } catch {
+      toast.error("Failed to finalize DPL");
+    }
+    setFinalizingDpl(false);
   };
 
   // Scan handler
@@ -221,6 +250,11 @@ export default function DispatchManagement() {
                       <Button size="sm" className="flex-1 text-xs" onClick={() => { setActiveOrderId(order.id); setCartonCount(0); setCurrentCarton([]); }}>
                         <ScanLine size={14} className="mr-1" /> Start Packing
                       </Button>
+                      {pct === 100 && (
+                        <Button size="sm" variant="default" className="text-xs bg-emerald-600 hover:bg-emerald-700" onClick={() => handleFinalizeDpl(order.id)} disabled={finalizingDpl}>
+                          <FileCheck size={14} className="mr-1" /> Finalize DPL
+                        </Button>
+                      )}
                     </div>
                   </CardContent>
                 </Card>
@@ -291,6 +325,13 @@ export default function DispatchManagement() {
                   <Button className="w-full" onClick={closeCarton} disabled={acting || currentCarton.length === 0}>
                     <Printer size={16} className="mr-2" /> Close Carton & Print Label
                   </Button>
+
+                  {/* Finalize DPL - only when ALL items are fully packed */}
+                  {activeOrder && isAllPacked(activeOrder) && (
+                    <Button className="w-full mt-2 bg-emerald-600 hover:bg-emerald-700 text-white" onClick={() => handleFinalizeDpl(activeOrderId!)} disabled={finalizingDpl}>
+                      <FileCheck size={16} className="mr-2" /> {finalizingDpl ? "Finalizing..." : "Finalize DPL → Send to Finance"}
+                    </Button>
+                  )}
                 </CardContent>
               </Card>
 
