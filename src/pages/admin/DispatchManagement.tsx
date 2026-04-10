@@ -320,6 +320,13 @@ export default function DispatchManagement() {
                   <Button className="w-full" onClick={closeCarton} disabled={acting || currentCarton.length === 0}>
                     <Printer size={16} className="mr-2" /> Close Carton & Print Label
                   </Button>
+
+                  {/* Finalize DPL - only when ALL items are fully packed */}
+                  {activeOrder && isAllPacked(activeOrder) && (
+                    <Button className="w-full mt-2 bg-emerald-600 hover:bg-emerald-700 text-white" onClick={() => handleFinalizeDpl(activeOrderId!)} disabled={finalizingDpl}>
+                      <FileCheck size={16} className="mr-2" /> {finalizingDpl ? "Finalizing..." : "Finalize DPL → Send to Finance"}
+                    </Button>
+                  )}
                 </CardContent>
               </Card>
 
