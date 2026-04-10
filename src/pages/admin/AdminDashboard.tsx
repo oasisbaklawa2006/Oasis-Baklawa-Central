@@ -94,6 +94,7 @@ const AdminDashboard = () => {
     if (pc.cleared_for_dispatch > 0) a.push({ label: t("Dispatch Ready"), count: pc.cleared_for_dispatch, route: "/admin/packing-dispatch", severity: "medium" });
     if (financeHold > 0) a.push({ label: "Finance Hold", count: financeHold, route: "/admin/accounts-release", severity: "high" });
     if ((supportOpen.count ?? 0) > 0) a.push({ label: "Support Escalations", count: supportOpen.count ?? 0, route: "/admin/exceptions", severity: "medium" });
+    if ((slaBreached.count ?? 0) > 0) a.push({ label: "SLA Breached Complaints", count: slaBreached.count ?? 0, route: "/admin/support", severity: "high" });
     if (lowStockCount > 0) a.push({ label: "Low Stock Products", count: lowStockCount, route: "/admin/inventory", severity: "high" });
     // Bottleneck detection
     if (pc.packed_ready > 0 && pc.packed_ready > 3 * (pc.dispatched || 1)) {
