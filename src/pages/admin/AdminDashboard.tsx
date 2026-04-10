@@ -36,7 +36,7 @@ const AdminDashboard = () => {
   const { format } = useCurrency();
 
   const fetchData = useCallback(async () => {
-    const [pendingApps, products, allOrders, unpaidOrders, supportOpen, users, moqRules, exchangeRates, auditLogs, pricingSlabs, inventoryRes] = await Promise.all([
+    const [pendingApps, products, allOrders, unpaidOrders, supportOpen, users, moqRules, exchangeRates, auditLogs, pricingSlabs, inventoryRes, slaBreached] = await Promise.all([
       supabase.from("b2b_applications").select("id", { count: "exact", head: true }).eq("status", "pending"),
       supabase.from("products").select("id", { count: "exact", head: true }),
       supabase.from("orders").select("id, status, payment_status, sales_order_value, advance_paid, advance_required"),
@@ -48,6 +48,7 @@ const AdminDashboard = () => {
       supabase.from("audit_logs").select("id, action_type, module_name, entity_name, created_at").order("created_at", { ascending: false }).limit(10),
       supabase.from("pricing_slabs").select("id", { count: "exact", head: true }),
       supabase.from("factory_inventory").select("product_id, quantity"),
+      supabase.from("support_tickets").select("id", { count: "exact", head: true }).neq("status", "resolved").lt("sla_resolution_due", new Date().toISOString()),
     ]);
 
     const orders = (allOrders.data ?? []) as { id: string; status: string; payment_status: string | null; sales_order_value: number | null; advance_paid: number | null; advance_required: number | null }[];
@@ -83,6 +84,7 @@ const AdminDashboard = () => {
       pricingSlabs: pricingSlabs.count ?? 0, totalOrders: actionableOrders.length,
       users: users.count ?? 0, moqRules: moqRules.count ?? 0,
       exchangeRates: exchangeRates.count ?? 0, supportOpen: supportOpen.count ?? 0,
+      slaBreached: slaBreached.count ?? 0,
       totalDue, financeHold, totalPhysicalStock, lowStockCount, immediateCash, pendingCollections,
     });
 
@@ -92,6 +94,7 @@ const AdminDashboard = () => {
     if (pc.cleared_for_dispatch > 0) a.push({ label: t("Dispatch Ready"), count: pc.cleared_for_dispatch, route: "/admin/packing-dispatch", severity: "medium" });
     if (financeHold > 0) a.push({ label: "Finance Hold", count: financeHold, route: "/admin/accounts-release", severity: "high" });
     if ((supportOpen.count ?? 0) > 0) a.push({ label: "Support Escalations", count: supportOpen.count ?? 0, route: "/admin/exceptions", severity: "medium" });
+    if ((slaBreached.count ?? 0) > 0) a.push({ label: "SLA Breached Complaints", count: slaBreached.count ?? 0, route: "/admin/support", severity: "high" });
     if (lowStockCount > 0) a.push({ label: "Low Stock Products", count: lowStockCount, route: "/admin/inventory", severity: "high" });
     // Bottleneck detection
     if (pc.packed_ready > 0 && pc.packed_ready > 3 * (pc.dispatched || 1)) {
