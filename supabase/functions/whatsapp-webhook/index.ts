@@ -121,10 +121,14 @@ serve(async (req) => {
       console.log(
         `Handshake Failed: Received Token [${receivedToken ?? ""}] expected [${expectedVerifyToken}]`
       );
+      return new Response("Forbidden", {
+        status: 403,
+        headers: { "Content-Type": "text/plain; charset=utf-8" },
+      });
     }
 
     if (challengeEntry) {
-      return new Response(challengeEntry[1], {
+      return new Response(challengeEntry[1].trim(), {
         status: 200,
         headers: { "Content-Type": "text/plain; charset=utf-8" },
       });
