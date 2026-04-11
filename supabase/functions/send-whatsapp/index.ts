@@ -11,6 +11,7 @@ const corsHeaders = {
 const WABA_ID = "2215829225584918";
 const CHANNEL_ID = "68ce999be70660c0e8f3156f";
 const BASE_URL = "https://crm.click2api.in";
+const INSTANCE_ID = CHANNEL_ID; // Click2API uses channel as instance
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {
