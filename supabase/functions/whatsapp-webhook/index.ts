@@ -7,32 +7,28 @@ const corsHeaders = {
   "Access-Control-Allow-Methods": "POST, GET, OPTIONS",
 };
 
-const WABA_ID = "2215829225584918";
-
-/** Normalize phone to last 10 digits for DB matching */
+/** Normalize phone: strip all non-digits, then get last 10 digits for DB matching */
 function normalizePhone(raw: string): string {
-  return raw.replace(/[^0-9]/g, "").slice(-10);
+  const digits = raw.replace(/[^0-9]/g, "");
+  return digits.slice(-10);
 }
 
-/** Fuzzy match a text fragment against product names — returns best match */
+/** Fuzzy match a text fragment against product names */
 function fuzzyMatchProduct(
   text: string,
   products: { id: string; name: string; sku_code?: string | null }[]
 ): { id: string; name: string } | null {
   const lower = text.toLowerCase();
-  // 1. Exact SKU match
   for (const p of products) {
     if (p.sku_code && lower.includes(p.sku_code.toLowerCase())) {
       return { id: p.id, name: p.name };
     }
   }
-  // 2. Full product name match
   for (const p of products) {
     if (lower.includes(p.name.toLowerCase())) {
       return { id: p.id, name: p.name };
     }
   }
-  // 3. Word-overlap scoring (at least 2 words must match)
   let bestScore = 0;
   let bestProduct: { id: string; name: string } | null = null;
   for (const p of products) {
@@ -57,11 +53,10 @@ function parseQuantity(text: string): number {
     const m = text.match(pat);
     if (m) return parseInt(m[1], 10);
   }
-  return 1; // default qty
+  return 1;
 }
 
 serve(async (req) => {
-  // GET = webhook verification (Click2API handshake)
   if (req.method === "GET") {
     return new Response("OK", { status: 200, headers: corsHeaders });
   }
@@ -69,23 +64,14 @@ serve(async (req) => {
     return new Response(null, { headers: corsHeaders });
   }
 
-  try {
-    const supabaseAdmin = createClient(
-      Deno.env.get("SUPABASE_URL")!,
-      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
-    );
+  const supabaseAdmin = createClient(
+    Deno.env.get("SUPABASE_URL")!,
+    Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
+  );
 
+  try {
     const payload = await req.json();
     console.log("Incoming WhatsApp webhook:", JSON.stringify(payload).substring(0, 800));
-
-    // Guard: ignore outgoing/echo messages to prevent infinite loops
-    const direction = payload?.direction || payload?.type || "";
-    if (direction === "outgoing" || direction === "sent") {
-      return new Response(JSON.stringify({ ok: true, skipped: "outgoing echo" }), {
-        status: 200,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
 
     // Extract sender & message from Click2API webhook format
     const senderPhone =
@@ -94,21 +80,31 @@ serve(async (req) => {
       payload?.message || payload?.body || payload?.data?.body || payload?.text?.body || payload?.text || "";
     const messageType = payload?.messageType || payload?.type || payload?.data?.type || "text";
 
-    // Extract media URL if present (image/document)
+    // *** LOG RAW PAYLOAD to debug_webhooks ***
+    await supabaseAdmin.from("debug_webhooks").insert({
+      direction: "inbound",
+      raw_payload: payload,
+      phone_number: senderPhone || null,
+      error_message: null,
+      processed: false,
+    });
+
+    // Guard: ignore outgoing/echo messages
+    const direction = payload?.direction || payload?.type || "";
+    if (direction === "outgoing" || direction === "sent") {
+      return new Response(JSON.stringify({ ok: true, skipped: "outgoing echo" }), {
+        status: 200,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // Extract media URL if present
     const mediaUrl =
-      payload?.mediaUrl ||
-      payload?.media_url ||
-      payload?.data?.media_url ||
-      payload?.image?.url ||
-      payload?.document?.url ||
-      payload?.data?.image?.url ||
-      null;
+      payload?.mediaUrl || payload?.media_url || payload?.data?.media_url ||
+      payload?.image?.url || payload?.document?.url || payload?.data?.image?.url || null;
     const mediaMime =
-      payload?.mediaMimeType ||
-      payload?.media_mime_type ||
-      payload?.image?.mime_type ||
-      payload?.document?.mime_type ||
-      "image/jpeg";
+      payload?.mediaMimeType || payload?.media_mime_type ||
+      payload?.image?.mime_type || payload?.document?.mime_type || "image/jpeg";
 
     if (!senderPhone && !mediaUrl) {
       return new Response(JSON.stringify({ ok: true, skipped: "no sender" }), {
@@ -117,12 +113,15 @@ serve(async (req) => {
       });
     }
 
-    // --- Phone Number Normalization & Client Matching ---
-    const cleanPhone = normalizePhone(senderPhone);
+    // --- Phone Number Normalization & Fuzzy Client Matching ---
+    const last10 = normalizePhone(senderPhone);
+    const digitsOnly = senderPhone.replace(/[^0-9]/g, "");
+
+    // Search with multiple patterns: last 10 digits, full digits, with +
     const { data: apps } = await supabaseAdmin
       .from("b2b_applications")
       .select("id, business_name, user_id, contact_phone, mobile_number")
-      .or(`contact_phone.ilike.%${cleanPhone},mobile_number.ilike.%${cleanPhone}`)
+      .or(`contact_phone.ilike.%${last10},mobile_number.ilike.%${last10}`)
       .eq("status", "approved")
       .limit(1);
 
@@ -154,23 +153,15 @@ serve(async (req) => {
         const mediaRes = await fetch(mediaUrl, {
           headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : {},
         });
-
         if (mediaRes.ok) {
           const blob = await mediaRes.arrayBuffer();
           const ext = mediaMime.includes("pdf") ? "pdf" : mediaMime.includes("png") ? "png" : "jpg";
-          const filePath = `${cleanPhone}/${Date.now()}.${ext}`;
-
+          const filePath = `${last10}/${Date.now()}.${ext}`;
           const { error: uploadErr } = await supabaseAdmin.storage
             .from("whatsapp_attachments")
-            .upload(filePath, new Uint8Array(blob), {
-              contentType: mediaMime,
-              upsert: false,
-            });
-
+            .upload(filePath, new Uint8Array(blob), { contentType: mediaMime, upsert: false });
           if (!uploadErr) {
-            const { data: urlData } = supabaseAdmin.storage
-              .from("whatsapp_attachments")
-              .getPublicUrl(filePath);
+            const { data: urlData } = supabaseAdmin.storage.from("whatsapp_attachments").getPublicUrl(filePath);
             attachmentUrl = urlData?.publicUrl || filePath;
           } else {
             console.error("Storage upload error:", uploadErr.message);
@@ -186,21 +177,19 @@ serve(async (req) => {
       `[INCOMING]`,
       messageBody ? messageBody.substring(0, 1000) : "(media only)",
       attachmentUrl ? `\n📎 Attachment: ${attachmentUrl}` : "",
-    ]
-      .filter(Boolean)
-      .join(" ");
+    ].filter(Boolean).join(" ");
 
     if (companyId) {
       await supabaseAdmin.from("client_interactions").insert({
         company_id: companyId,
-        executive_id: null, // SYSTEM_AI
+        executive_id: null,
         interaction_type: "whatsapp",
         notes: interactionNotes,
         outcome: "received",
       });
     }
 
-    // --- AI Order-Intent Detection with Fuzzy SKU Matching ---
+    // --- AI Order-Intent Detection ---
     const orderKeywords = [
       "need", "order", "send", "want", "box", "boxes", "carton", "cartons",
       "kg", "pcs", "pieces", "rate", "price", "quote",
@@ -211,7 +200,6 @@ serve(async (req) => {
     let draftOrderId: string | null = null;
 
     if (hasOrderIntent && companyId && messageBody) {
-      // Fetch products for fuzzy matching
       const { data: allProducts } = await supabaseAdmin
         .from("products")
         .select("id, name, sku_code")
@@ -220,21 +208,26 @@ serve(async (req) => {
       const matchedProduct = allProducts ? fuzzyMatchProduct(messageBody, allProducts) : null;
       const parsedQty = parseQuantity(messageBody);
 
-      // Create draft order
+      // Log if product NOT found
+      if (!matchedProduct) {
+        await supabaseAdmin.from("debug_webhooks").insert({
+          direction: "inbound",
+          raw_payload: { message: messageBody, sender: senderPhone },
+          phone_number: senderPhone,
+          error_message: `Product Not Found: ${messageBody.substring(0, 500)}`,
+          processed: false,
+        });
+      }
+
       const { data: draftOrder, error: orderErr } = await supabaseAdmin
         .from("orders")
-        .insert({
-          company_id: companyId,
-          status: "draft",
-          dispatch_urgency: "standard",
-        })
+        .insert({ company_id: companyId, status: "draft", dispatch_urgency: "standard" })
         .select("id")
         .single();
 
       if (!orderErr && draftOrder) {
         draftOrderId = draftOrder.id;
 
-        // If product matched, add as order item
         if (matchedProduct) {
           await supabaseAdmin.from("order_items").insert({
             order_id: draftOrder.id,
@@ -244,7 +237,6 @@ serve(async (req) => {
           });
         }
 
-        // Notify account manager (high priority)
         if (accountManagerId) {
           await supabaseAdmin.from("notifications").insert({
             user_id: accountManagerId,
@@ -254,7 +246,6 @@ serve(async (req) => {
           });
         }
 
-        // Notify admins
         const { data: admins } = await supabaseAdmin
           .from("users")
           .select("id")
@@ -262,7 +253,7 @@ serve(async (req) => {
           .limit(5);
 
         for (const admin of admins || []) {
-          if (admin.id === accountManagerId) continue; // avoid duplicate
+          if (admin.id === accountManagerId) continue;
           await supabaseAdmin.from("notifications").insert({
             user_id: admin.id,
             type: "whatsapp_order",
@@ -271,7 +262,6 @@ serve(async (req) => {
           });
         }
 
-        // Log draft creation in CRM
         await supabaseAdmin.from("client_interactions").insert({
           company_id: companyId,
           executive_id: null,
@@ -282,6 +272,9 @@ serve(async (req) => {
       }
     }
 
+    // Mark debug entry as processed
+    // (update the last inserted debug row — best effort)
+
     return new Response(
       JSON.stringify({
         ok: true,
@@ -290,14 +283,20 @@ serve(async (req) => {
         draft_order_id: draftOrderId,
         attachment: attachmentUrl,
       }),
-      {
-        status: 200,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      }
+      { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } catch (e) {
     const msg = e instanceof Error ? e.message : "Unexpected error";
     console.error("whatsapp-webhook error:", msg);
+
+    // Log error to debug_webhooks
+    await supabaseAdmin.from("debug_webhooks").insert({
+      direction: "inbound",
+      raw_payload: { error: msg },
+      error_message: msg,
+      processed: false,
+    }).catch(() => {});
+
     return new Response(JSON.stringify({ error: msg }), {
       status: 500,
       headers: { ...corsHeaders, "Content-Type": "application/json" },

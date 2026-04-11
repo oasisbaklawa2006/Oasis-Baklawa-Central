@@ -27,6 +27,9 @@ serve(async (req) => {
       });
     }
 
+    // Log token length for debugging (never log the actual token)
+    console.log(`Access token loaded, length: ${accessToken.length}`);
+
     const supabaseAdmin = createClient(
       Deno.env.get("SUPABASE_URL")!,
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
@@ -41,31 +44,88 @@ serve(async (req) => {
       });
     }
 
-    // Clean phone number — ensure country code
-    const cleanPhone = to.replace(/[^0-9+]/g, "");
-    const fullPhone = cleanPhone.startsWith("+") ? cleanPhone : `+91${cleanPhone}`;
-    // Click2API expects phone without '+' prefix
-    const apiPhone = fullPhone.replace("+", "");
+    // Clean phone number — strip everything except digits
+    const digitsOnly = to.replace(/[^0-9]/g, "");
+    // Ensure we have country code: if 10 digits, prepend 91
+    const apiPhone = digitsOnly.length === 10 ? `91${digitsOnly}` : digitsOnly;
 
-    // Send via Click2API production endpoint
-    const apiRes = await fetch(`${BASE_URL}/api/v1/message/send-text`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${accessToken}`,
-      },
-      body: JSON.stringify({
-        waba_id: WABA_ID,
-        channel_id: CHANNEL_ID,
-        to: apiPhone,
-        message,
-      }),
+    console.log(`Sending WhatsApp to: ${apiPhone} (original: ${to})`);
+
+    const requestBody = {
+      waba_id: WABA_ID,
+      channel_id: CHANNEL_ID,
+      to: apiPhone,
+      message,
+    };
+
+    // Try multiple endpoint paths — Click2API may use different routes
+    const endpoints = [
+      `${BASE_URL}/api/v1/message/send-text`,
+      `${BASE_URL}/api/send-text`,
+      `${BASE_URL}/message/send-text`,
+    ];
+
+    let apiRes: Response | null = null;
+    let apiData: any = null;
+    let usedEndpoint = "";
+
+    for (const endpoint of endpoints) {
+      console.log(`Trying endpoint: ${endpoint}`);
+      apiRes = await fetch(endpoint, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify(requestBody),
+      });
+
+      const responseText = await apiRes.text();
+      usedEndpoint = endpoint;
+      
+      try {
+        apiData = JSON.parse(responseText);
+      } catch {
+        console.log(`Endpoint ${endpoint} returned non-JSON: ${responseText.substring(0, 100)}`);
+        continue; // skip non-JSON responses
+      }
+
+      // If not a 404 path error, we found the right endpoint
+      if (apiRes.status !== 404 || !apiData?.error?.includes?.("invalid path")) {
+        break;
+      }
+      console.log(`Endpoint ${endpoint} returned 404, trying next...`);
+    }
+
+    if (!apiRes) {
+      throw new Error("No API endpoints available");
+    }
+
+    console.log(`Click2API response (${apiRes.status}) from ${usedEndpoint}:`, JSON.stringify(apiData).substring(0, 500));
+
+    // Log to debug_webhooks for outgoing visibility
+    await supabaseAdmin.from("debug_webhooks").insert({
+      direction: "outbound",
+      raw_payload: { request: requestBody, response: apiData, status: apiRes.status },
+      phone_number: apiPhone,
+      error_message: apiRes.ok ? null : `HTTP ${apiRes.status}: ${apiData?.message || JSON.stringify(apiData)}`,
+      processed: apiRes.ok,
     });
 
-    const apiData = await apiRes.json();
-    console.log("Click2API response:", JSON.stringify(apiData).substring(0, 300));
+    // Log 401/404 errors to audit_logs
+    if (apiRes.status === 401 || apiRes.status === 404) {
+      await supabaseAdmin.from("audit_logs").insert({
+        action_type: "whatsapp_api_error",
+        module_name: "whatsapp",
+        entity_name: "send-whatsapp",
+        entity_id: order_id || null,
+        risk_level: "high",
+        reason: `Click2API ${apiRes.status} error: ${apiData?.message || "Unknown"}`,
+        new_value: { to: apiPhone, status: apiRes.status, response: apiData },
+      });
+    }
 
-    // Log to client_interactions timeline (actor_id = null for SYSTEM)
+    // Log to client_interactions timeline
     if (company_id) {
       await supabaseAdmin.from("client_interactions").insert({
         company_id,
@@ -77,8 +137,8 @@ serve(async (req) => {
     }
 
     if (!apiRes.ok) {
-      console.error("Click2API error:", apiData);
-      return new Response(JSON.stringify({ error: apiData?.message || "Click2API error" }), {
+      console.error("Click2API error:", JSON.stringify(apiData));
+      return new Response(JSON.stringify({ error: apiData?.message || "Click2API error", status: apiRes.status, details: apiData }), {
         status: apiRes.status,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });

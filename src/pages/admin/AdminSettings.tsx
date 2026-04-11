@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { Loader2, MessageSquare, Save, Eye, EyeOff } from "lucide-react";
+import { Loader2, MessageSquare, Save, Eye, EyeOff, Send } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
@@ -36,6 +36,8 @@ const AdminSettings = () => {
   const [waLoading, setWaLoading] = useState(true);
   const [waSaving, setWaSaving] = useState(false);
   const [showApiKey, setShowApiKey] = useState(false);
+  const [testSending, setTestSending] = useState(false);
+  const [testPhone, setTestPhone] = useState("");
 
   useEffect(() => {
     const fetchAll = async () => {
@@ -92,6 +94,30 @@ const AdminSettings = () => {
     } else {
       toast.success("WhatsApp configuration saved.");
     }
+  };
+
+  const handleTestWhatsApp = async () => {
+    const phone = testPhone.trim();
+    if (!phone) {
+      toast.error("Enter a phone number to test.");
+      return;
+    }
+    setTestSending(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("send-whatsapp", {
+        body: { to: phone, message: "✅ Hello Oasis — WhatsApp Gateway Test Successful!" },
+      });
+      if (error) {
+        toast.error("Test failed: " + error.message);
+      } else if (data?.success) {
+        toast.success("Test message sent successfully!");
+      } else {
+        toast.error("Test failed: " + (data?.error || "Unknown error"));
+      }
+    } catch (e: any) {
+      toast.error("Test error: " + e.message);
+    }
+    setTestSending(false);
   };
 
   const webhookUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/whatsapp-webhook`;
@@ -159,11 +185,27 @@ const AdminSettings = () => {
               <label className="text-sm font-semibold text-muted-foreground block mb-1">Webhook URL (paste in Click2API)</label>
               <Input value={webhookUrl} readOnly className="bg-muted/50 font-mono text-xs" />
             </div>
-            <div className="md:col-span-2 flex justify-end">
+            <div className="md:col-span-2 flex justify-end gap-2">
               <Button onClick={handleSaveWhatsApp} disabled={waSaving} className="gap-2">
                 {waSaving ? <Loader2 className="animate-spin" size={16} /> : <Save size={16} />}
                 Save WhatsApp Config
               </Button>
+            </div>
+            <div className="md:col-span-2 border-t border-border pt-4 mt-2">
+              <label className="text-sm font-semibold text-muted-foreground block mb-1">Test Outgoing Message</label>
+              <div className="flex gap-2">
+                <Input
+                  value={testPhone}
+                  onChange={(e) => setTestPhone(e.target.value)}
+                  placeholder="Phone number (e.g. 919876543210)"
+                  className="max-w-xs"
+                />
+                <Button onClick={handleTestWhatsApp} disabled={testSending} variant="outline" className="gap-2">
+                  {testSending ? <Loader2 className="animate-spin" size={16} /> : <Send size={16} />}
+                  Test WhatsApp
+                </Button>
+              </div>
+              <p className="text-xs text-muted-foreground mt-1">Sends "Hello Oasis" to confirm the outbox is working.</p>
             </div>
           </div>
         )}
