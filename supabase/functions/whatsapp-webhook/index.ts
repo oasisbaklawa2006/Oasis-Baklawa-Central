@@ -394,7 +394,7 @@ serve(async (req) => {
         .select("id, name, sku_code")
         .limit(500);
 
-      const matchedProduct = allProducts ? fuzzyMatchProduct(messageBody, allProducts) : null;
+      const matchedProduct = allProducts ? await aliasMatchProduct(messageBody, allProducts, supabaseAdmin) : null;
       const parsedQty = parseQuantity(messageBody);
 
       if (!matchedProduct) {
