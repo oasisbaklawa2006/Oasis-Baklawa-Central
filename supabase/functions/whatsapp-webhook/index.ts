@@ -120,6 +120,8 @@ serve(async (req) => {
         .filter(Boolean)
         .join(",");
 
+      console.log(`Handshake Token Candidates: [${receivedToken}]`);
+
       if (!hasValidToken) {
         console.log(
           `Handshake Failed: Received Token [${receivedToken ?? ""}] expected [${expectedVerifyToken}]`
