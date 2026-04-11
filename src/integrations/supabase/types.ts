@@ -585,6 +585,36 @@ export type Database = {
           },
         ]
       }
+      debug_webhooks: {
+        Row: {
+          created_at: string
+          direction: string
+          error_message: string | null
+          id: string
+          phone_number: string | null
+          processed: boolean | null
+          raw_payload: Json
+        }
+        Insert: {
+          created_at?: string
+          direction?: string
+          error_message?: string | null
+          id?: string
+          phone_number?: string | null
+          processed?: boolean | null
+          raw_payload?: Json
+        }
+        Update: {
+          created_at?: string
+          direction?: string
+          error_message?: string | null
+          id?: string
+          phone_number?: string | null
+          processed?: boolean | null
+          raw_payload?: Json
+        }
+        Relationships: []
+      }
       delivery_addresses: {
         Row: {
           city: string
