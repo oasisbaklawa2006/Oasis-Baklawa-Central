@@ -58,17 +58,41 @@ serve(async (req) => {
       message,
     };
 
-    console.log("Request body:", JSON.stringify(requestBody));
+    // Try multiple endpoint paths — Click2API may use different routes
+    const endpoints = [
+      `${BASE_URL}/api/v1/message/send-text`,
+      `${BASE_URL}/api/send-text`,
+      `${BASE_URL}/message/send-text`,
+    ];
 
-    // Send via Click2API — EXACT header format mandated
-    const apiRes = await fetch(`${BASE_URL}/api/v1/message/send-text`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${accessToken}`,
-      },
-      body: JSON.stringify(requestBody),
-    });
+    let apiRes: Response | null = null;
+    let apiData: any = null;
+    let usedEndpoint = "";
+
+    for (const endpoint of endpoints) {
+      console.log(`Trying endpoint: ${endpoint}`);
+      apiRes = await fetch(endpoint, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify(requestBody),
+      });
+
+      apiData = await apiRes.json();
+      usedEndpoint = endpoint;
+
+      // If not a 404 path error, we found the right endpoint
+      if (apiRes.status !== 404 || !apiData?.error?.includes?.("invalid path")) {
+        break;
+      }
+      console.log(`Endpoint ${endpoint} returned 404, trying next...`);
+    }
+
+    if (!apiRes) {
+      throw new Error("No API endpoints available");
+    }
 
     const apiData = await apiRes.json();
     console.log(`Click2API response (${apiRes.status}):`, JSON.stringify(apiData).substring(0, 500));
