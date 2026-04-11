@@ -105,24 +105,34 @@ function extractPayloadFields(payload: any) {
 serve(async (req) => {
   if (req.method === "GET") {
     const url = new URL(req.url);
-    const verifyToken = url.searchParams.get("hub.verify_token");
-    const challenge = url.searchParams.get("hub.challenge");
     const expectedVerifyToken = "OasisCentral2026";
+    const queryEntries = Array.from(url.searchParams.entries());
+    const challengeEntry = queryEntries.find(
+      ([key, value]) => key.toLowerCase().includes("challenge") && value
+    );
+    const tokenEntries = queryEntries.filter(([key]) => key.toLowerCase().includes("token"));
+    const hasValidToken = tokenEntries.some(([, value]) => value === expectedVerifyToken);
 
-    if (verifyToken === expectedVerifyToken && challenge) {
-      return new Response(challenge, {
+    if (tokenEntries.length > 0 && !hasValidToken) {
+      const receivedToken = tokenEntries
+        .map(([, value]) => value)
+        .filter(Boolean)
+        .join(",");
+      console.log(
+        `Handshake Failed: Received Token [${receivedToken ?? ""}] expected [${expectedVerifyToken}]`
+      );
+    }
+
+    if (challengeEntry) {
+      return new Response(challengeEntry[1], {
         status: 200,
-        headers: { "Content-Type": "text/plain" },
+        headers: { "Content-Type": "text/plain; charset=utf-8" },
       });
     }
 
-    console.log(
-      `Handshake Failed: Received Token [${verifyToken ?? ""}] expected [${expectedVerifyToken}]`
-    );
-
-    return new Response("Forbidden", {
-      status: 403,
-      headers: { "Content-Type": "text/plain" },
+    return new Response("Oasis OS Webhook Active", {
+      status: 200,
+      headers: { "Content-Type": "text/plain; charset=utf-8" },
     });
   }
   if (req.method === "OPTIONS") {
