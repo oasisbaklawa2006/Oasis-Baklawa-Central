@@ -113,18 +113,21 @@ serve(async (req) => {
     const tokenEntries = queryEntries.filter(([key]) => key.toLowerCase().includes("token"));
     const hasValidToken = tokenEntries.some(([, value]) => value === expectedVerifyToken);
 
-    if (tokenEntries.length > 0 && !hasValidToken) {
+    if (tokenEntries.length > 0) {
       const receivedToken = tokenEntries
         .map(([, value]) => value)
         .filter(Boolean)
         .join(",");
-      console.log(
-        `Handshake Failed: Received Token [${receivedToken ?? ""}] expected [${expectedVerifyToken}]`
-      );
-      return new Response("Forbidden", {
-        status: 403,
-        headers: { "Content-Type": "text/plain; charset=utf-8" },
-      });
+
+      if (!hasValidToken) {
+        console.log(
+          `Handshake Failed: Received Token [${receivedToken ?? ""}] expected [${expectedVerifyToken}]`
+        );
+        return new Response("Forbidden", {
+          status: 403,
+          headers: { "Content-Type": "text/plain; charset=utf-8" },
+        });
+      }
     }
 
     if (challengeEntry) {
