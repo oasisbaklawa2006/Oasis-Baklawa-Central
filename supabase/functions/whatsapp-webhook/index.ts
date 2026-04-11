@@ -27,19 +27,16 @@ function fuzzyMatchProduct(
   products: { id: string; name: string; sku_code?: string | null }[]
 ): { id: string; name: string } | null {
   const lower = text.toLowerCase();
-  // Exact SKU match
   for (const p of products) {
     if (p.sku_code && lower.includes(p.sku_code.toLowerCase())) {
       return { id: p.id, name: p.name };
     }
   }
-  // Full name substring
   for (const p of products) {
     if (lower.includes(p.name.toLowerCase())) {
       return { id: p.id, name: p.name };
     }
   }
-  // Word-overlap scoring (≥2 words)
   let bestScore = 0;
   let bestProduct: { id: string; name: string } | null = null;
   for (const p of products) {
@@ -69,10 +66,8 @@ function parseQuantity(text: string): number {
 
 /**
  * Extract sender phone and message body from Click2API webhook payload.
- * Click2API may send different shapes — we handle all known variants.
  */
 function extractPayloadFields(payload: any) {
-  // Click2API Meta-style webhook
   const entry = payload?.entry?.[0]?.changes?.[0]?.value;
   if (entry) {
     const msg = entry?.messages?.[0];
@@ -88,7 +83,6 @@ function extractPayloadFields(payload: any) {
     };
   }
 
-  // Direct Click2API format
   return {
     senderPhone: payload?.from || payload?.sender || payload?.data?.from || payload?.contact?.wa_id || payload?.waId || "",
     messageBody: payload?.message || payload?.body || payload?.data?.body || payload?.text?.body || payload?.text || "",
@@ -191,6 +185,7 @@ serve(async (req) => {
     let companyId: string | null = null;
     let companyName = profileName || "Unknown";
     let accountManagerId: string | null = null;
+    let isShadowClient = false;
 
     // Strategy 1: Match via b2b_applications (contact_phone / mobile_number)
     const { data: apps } = await supabaseAdmin
@@ -235,7 +230,76 @@ serve(async (req) => {
       }
     }
 
-    console.log(`Mapped phone ${phone91} → company: ${companyName} (${companyId}), manager: ${accountManagerId}`);
+    // Strategy 3: Check existing shadow companies by phone pattern
+    if (!companyId) {
+      const { data: shadowMatch } = await supabaseAdmin
+        .from("companies")
+        .select("id, business_name, account_manager_id")
+        .eq("status", "shadow")
+        .ilike("gst_number", `%${last10}%`)
+        .limit(1);
+
+      if (shadowMatch && shadowMatch.length > 0) {
+        companyId = shadowMatch[0].id;
+        companyName = shadowMatch[0].business_name;
+        accountManagerId = shadowMatch[0].account_manager_id;
+        isShadowClient = true;
+        console.log(`Matched existing shadow company: ${companyName} (${companyId})`);
+      }
+    }
+
+    // Strategy 4: SHADOW CLIENT CREATION — unknown number with order intent
+    const orderKeywords = [
+      "need", "order", "send", "want", "box", "boxes", "carton", "cartons",
+      "kg", "pcs", "pieces", "rate", "price", "quote",
+    ];
+    const msgLower = (messageBody || "").toLowerCase();
+    const hasOrderIntent = orderKeywords.some((kw) => msgLower.includes(kw));
+
+    if (!companyId && senderPhone) {
+      // Derive business name from profile or phone
+      const shadowName = profileName
+        ? `${profileName} (WhatsApp)`
+        : `WhatsApp Lead ${phone91}`;
+
+      const { data: newCompany, error: compErr } = await supabaseAdmin
+        .from("companies")
+        .insert({
+          business_name: shadowName,
+          status: "shadow",
+          gst_number: `WA:${phone91}`,
+          price_tier: "B2B",
+        })
+        .select("id")
+        .single();
+
+      if (!compErr && newCompany) {
+        companyId = newCompany.id;
+        companyName = shadowName;
+        isShadowClient = true;
+        console.log(`Shadow client created: ${shadowName} (${companyId}) for phone ${phone91}`);
+
+        // Notify admins about new shadow client
+        const { data: admins } = await supabaseAdmin
+          .from("users")
+          .select("id")
+          .in("role", ["admin", "super_admin", "ADMIN", "SUPER_ADMIN"])
+          .limit(5);
+
+        for (const admin of admins || []) {
+          await supabaseAdmin.from("notifications").insert({
+            user_id: admin.id,
+            type: "shadow_client",
+            message: `👤 New Shadow Client: ${shadowName} (${phone91}). Verify & onboard in the Verification War Room.`,
+            is_read: false,
+          });
+        }
+      } else if (compErr) {
+        console.error("Shadow company creation failed:", compErr.message);
+      }
+    }
+
+    console.log(`Mapped phone ${phone91} → company: ${companyName} (${companyId}), manager: ${accountManagerId}, shadow: ${isShadowClient}`);
 
     // --- MEDIA / ATTACHMENT HANDLING ---
     let attachmentUrl: string | null = null;
@@ -265,7 +329,7 @@ serve(async (req) => {
           }
         } else {
           console.error(`Media download HTTP ${mediaRes.status}`);
-          await mediaRes.text(); // consume body
+          await mediaRes.text();
         }
       } catch (mediaErr) {
         console.error("Media download failed:", mediaErr);
@@ -277,6 +341,7 @@ serve(async (req) => {
       `[INCOMING]`,
       messageBody ? messageBody.substring(0, 1000) : "(media only)",
       attachmentUrl ? `\n📎 Attachment: ${attachmentUrl}` : "",
+      isShadowClient ? `\n👤 Shadow Client — pending verification` : "",
     ].filter(Boolean).join(" ");
 
     if (companyId) {
@@ -290,13 +355,6 @@ serve(async (req) => {
     }
 
     // --- AUTO-DRAFT ORDER BRAIN ---
-    const orderKeywords = [
-      "need", "order", "send", "want", "box", "boxes", "carton", "cartons",
-      "kg", "pcs", "pieces", "rate", "price", "quote",
-    ];
-    const msgLower = (messageBody || "").toLowerCase();
-    const hasOrderIntent = orderKeywords.some((kw) => msgLower.includes(kw));
-
     let draftOrderId: string | null = null;
 
     if (hasOrderIntent && companyId && messageBody) {
@@ -308,7 +366,6 @@ serve(async (req) => {
       const matchedProduct = allProducts ? fuzzyMatchProduct(messageBody, allProducts) : null;
       const parsedQty = parseQuantity(messageBody);
 
-      // Log if product NOT found for tuning
       if (!matchedProduct) {
         await supabaseAdmin.from("debug_webhooks").insert({
           direction: "inbound",
@@ -320,7 +377,6 @@ serve(async (req) => {
         console.log(`Product Not Found for: "${messageBody.substring(0, 100)}"`);
       }
 
-      // Create DRAFT order
       const { data: draftOrder, error: orderErr } = await supabaseAdmin
         .from("orders")
         .insert({ company_id: companyId, status: "draft", dispatch_urgency: "standard" })
@@ -371,7 +427,7 @@ serve(async (req) => {
           company_id: companyId,
           executive_id: accountManagerId,
           interaction_type: "whatsapp",
-          notes: `[SYSTEM_AI] Draft order ${draftOrder.id.slice(0, 8)} auto-created.${matchedProduct ? ` Product: ${matchedProduct.name}, Qty: ${parsedQty}.` : " No SKU match — manual review required."}`,
+          notes: `[SYSTEM_AI] Draft order ${draftOrder.id.slice(0, 8)} auto-created.${matchedProduct ? ` Product: ${matchedProduct.name}, Qty: ${parsedQty}.` : " No SKU match — manual review required."}${isShadowClient ? " ⚠️ Shadow client — needs verification." : ""}`,
           outcome: "draft_order_created",
         });
       } else if (orderErr) {
@@ -387,6 +443,7 @@ serve(async (req) => {
         order_intent: hasOrderIntent,
         draft_order_id: draftOrderId,
         attachment: attachmentUrl,
+        shadow_client: isShadowClient,
       }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
