@@ -11,6 +11,7 @@ const corsHeaders = {
 const WABA_ID = "2215829225584918";
 const CHANNEL_ID = "68ce999be70660c0e8f3156f";
 const BASE_URL = "https://crm.click2api.in";
+const INSTANCE_ID = CHANNEL_ID; // Click2API uses channel as instance
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -19,6 +20,7 @@ serve(async (req) => {
 
   try {
     const accessToken = Deno.env.get("CLICK2API_ACCESS_TOKEN");
+    const apiKey = Deno.env.get("CLICK2API_API_KEY");
     if (!accessToken) {
       console.error("CLICK2API_ACCESS_TOKEN not configured");
       return new Response(JSON.stringify({ error: "WhatsApp API token not configured" }), {
@@ -26,9 +28,7 @@ serve(async (req) => {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
-
-    // Log token length for debugging (never log the actual token)
-    console.log(`Access token loaded, length: ${accessToken.length}`);
+    console.log(`Access token length: ${accessToken.length}, API key present: ${!!apiKey}`);
 
     const supabaseAdmin = createClient(
       Deno.env.get("SUPABASE_URL")!,
@@ -51,50 +51,77 @@ serve(async (req) => {
 
     console.log(`Sending WhatsApp to: ${apiPhone} (original: ${to})`);
 
-    const requestBody = {
+    // Build request bodies for different API styles
+    const codechatBody = {
+      recipient: { recipientType: "individual", waId: apiPhone },
+      textMessage: { text: message },
+    };
+    const legacyBody = {
       waba_id: WABA_ID,
       channel_id: CHANNEL_ID,
       to: apiPhone,
       message,
     };
+    const metaStyleBody = {
+      messaging_product: "whatsapp",
+      to: apiPhone,
+      type: "text",
+      text: { body: message },
+    };
 
-    // Try multiple endpoint paths — Click2API may use different routes
-    const endpoints = [
-      `${BASE_URL}/api/v1/message/send-text`,
-      `${BASE_URL}/api/send-text`,
-      `${BASE_URL}/message/send-text`,
+    // Try multiple endpoint patterns with different auth & body combos
+    const attempts = [
+      // CodeChat-style (most likely for crm.click2api.in)
+      { url: `${BASE_URL}/api/v2/instance/${INSTANCE_ID}/send/text`, body: codechatBody, auth: `Bearer ${accessToken}` },
+      { url: `${BASE_URL}/api/v1/instance/${INSTANCE_ID}/send/text`, body: codechatBody, auth: `Bearer ${accessToken}` },
+      // With apikey header
+      { url: `${BASE_URL}/api/v2/instance/${INSTANCE_ID}/send/text`, body: codechatBody, auth: apiKey || accessToken },
+      // Legacy style
+      { url: `${BASE_URL}/api/v1/message/send-text`, body: legacyBody, auth: `Bearer ${accessToken}` },
+      // Meta Cloud API style
+      { url: `${BASE_URL}/api/v1/${WABA_ID}/messages`, body: metaStyleBody, auth: `Bearer ${accessToken}` },
+      // Simple paths
+      { url: `${BASE_URL}/api/send-text`, body: legacyBody, auth: `Bearer ${accessToken}` },
+      { url: `${BASE_URL}/message/send-text`, body: legacyBody, auth: `Bearer ${accessToken}` },
     ];
 
     let apiRes: Response | null = null;
     let apiData: any = null;
     let usedEndpoint = "";
 
-    for (const endpoint of endpoints) {
-      console.log(`Trying endpoint: ${endpoint}`);
-      apiRes = await fetch(endpoint, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${accessToken}`,
-        },
-        body: JSON.stringify(requestBody),
-      });
-
-      const responseText = await apiRes.text();
-      usedEndpoint = endpoint;
-      
+    for (const attempt of attempts) {
+      console.log(`Trying: ${attempt.url}`);
       try {
-        apiData = JSON.parse(responseText);
-      } catch {
-        console.log(`Endpoint ${endpoint} returned non-JSON: ${responseText.substring(0, 100)}`);
-        continue; // skip non-JSON responses
-      }
+        apiRes = await fetch(attempt.url, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": attempt.auth.startsWith("Bearer ") ? attempt.auth : `Bearer ${attempt.auth}`,
+            ...(apiKey ? { "apikey": apiKey } : {}),
+          },
+          body: JSON.stringify(attempt.body),
+        });
 
-      // If not a 404 path error, we found the right endpoint
-      if (apiRes.status !== 404 || !apiData?.error?.includes?.("invalid path")) {
-        break;
+        const responseText = await apiRes.text();
+        usedEndpoint = attempt.url;
+
+        try {
+          apiData = JSON.parse(responseText);
+        } catch {
+          console.log(`Non-JSON from ${attempt.url}: ${responseText.substring(0, 200)}`);
+          continue;
+        }
+
+        // Success or meaningful error (not 404 path error) — stop trying
+        if (apiRes.ok || (apiRes.status !== 404)) {
+          console.log(`Got ${apiRes.status} from ${attempt.url} — stopping discovery`);
+          break;
+        }
+        console.log(`${attempt.url} returned ${apiRes.status}, trying next...`);
+      } catch (fetchErr) {
+        console.log(`Fetch error for ${attempt.url}: ${fetchErr}`);
+        continue;
       }
-      console.log(`Endpoint ${endpoint} returned 404, trying next...`);
     }
 
     if (!apiRes) {
@@ -106,7 +133,7 @@ serve(async (req) => {
     // Log to debug_webhooks for outgoing visibility
     await supabaseAdmin.from("debug_webhooks").insert({
       direction: "outbound",
-      raw_payload: { request: requestBody, response: apiData, status: apiRes.status },
+      raw_payload: { endpoint: usedEndpoint, response: apiData, status: apiRes.status, phone: apiPhone },
       phone_number: apiPhone,
       error_message: apiRes.ok ? null : `HTTP ${apiRes.status}: ${apiData?.message || JSON.stringify(apiData)}`,
       processed: apiRes.ok,
