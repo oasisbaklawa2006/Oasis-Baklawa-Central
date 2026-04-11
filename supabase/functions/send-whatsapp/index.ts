@@ -80,8 +80,15 @@ serve(async (req) => {
         body: JSON.stringify(requestBody),
       });
 
-      apiData = await apiRes.json();
+      const responseText = await apiRes.text();
       usedEndpoint = endpoint;
+      
+      try {
+        apiData = JSON.parse(responseText);
+      } catch {
+        console.log(`Endpoint ${endpoint} returned non-JSON: ${responseText.substring(0, 100)}`);
+        continue; // skip non-JSON responses
+      }
 
       // If not a 404 path error, we found the right endpoint
       if (apiRes.status !== 404 || !apiData?.error?.includes?.("invalid path")) {
