@@ -8,10 +8,8 @@ const corsHeaders = {
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
-const WABA_ID = "2215829225584918";
-const CHANNEL_ID = "68ce999be70660c0e8f3156f";
 const BASE_URL = "https://crm.click2api.in";
-const INSTANCE_ID = CHANNEL_ID; // Click2API uses channel as instance
+const SEND_ENDPOINT = `${BASE_URL}/api/v1/messages`;
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -21,14 +19,13 @@ serve(async (req) => {
   try {
     const accessToken = Deno.env.get("CLICK2API_ACCESS_TOKEN");
     const apiKey = Deno.env.get("CLICK2API_API_KEY");
-    if (!accessToken) {
-      console.error("CLICK2API_ACCESS_TOKEN not configured");
-      return new Response(JSON.stringify({ error: "WhatsApp API token not configured" }), {
+    if (!apiKey) {
+      console.error("CLICK2API_API_KEY not configured");
+      return new Response(JSON.stringify({ error: "WhatsApp API key not configured" }), {
         status: 500,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
-    console.log(`Access token length: ${accessToken.length}, API key present: ${!!apiKey}`);
 
     const supabaseAdmin = createClient(
       Deno.env.get("SUPABASE_URL")!,
@@ -49,105 +46,53 @@ serve(async (req) => {
     // Ensure we have country code: if 10 digits, prepend 91
     const apiPhone = digitsOnly.length === 10 ? `91${digitsOnly}` : digitsOnly;
 
-    console.log(`Sending WhatsApp to: ${apiPhone} (original: ${to})`);
+    console.log(`Sending WhatsApp to: ${apiPhone} via ${SEND_ENDPOINT}`);
 
-    // Build request bodies for different API styles
-    const codechatBody = {
-      recipient: { recipientType: "individual", waId: apiPhone },
-      textMessage: { text: message },
-    };
-    const legacyBody = {
-      waba_id: WABA_ID,
-      channel_id: CHANNEL_ID,
-      to: apiPhone,
-      message,
-    };
-    const metaStyleBody = {
+    const requestBody = {
       messaging_product: "whatsapp",
       to: apiPhone,
       type: "text",
       text: { body: message },
     };
 
-    // Try multiple endpoint patterns with different auth & body combos
-    const attempts = [
-      // CodeChat-style (most likely for crm.click2api.in)
-      { url: `${BASE_URL}/api/v2/instance/${INSTANCE_ID}/send/text`, body: codechatBody, auth: `Bearer ${accessToken}` },
-      { url: `${BASE_URL}/api/v1/instance/${INSTANCE_ID}/send/text`, body: codechatBody, auth: `Bearer ${accessToken}` },
-      // With apikey header
-      { url: `${BASE_URL}/api/v2/instance/${INSTANCE_ID}/send/text`, body: codechatBody, auth: apiKey || accessToken },
-      // Legacy style
-      { url: `${BASE_URL}/api/v1/message/send-text`, body: legacyBody, auth: `Bearer ${accessToken}` },
-      // Meta Cloud API style
-      { url: `${BASE_URL}/api/v1/${WABA_ID}/messages`, body: metaStyleBody, auth: `Bearer ${accessToken}` },
-      // Simple paths
-      { url: `${BASE_URL}/api/send-text`, body: legacyBody, auth: `Bearer ${accessToken}` },
-      { url: `${BASE_URL}/message/send-text`, body: legacyBody, auth: `Bearer ${accessToken}` },
-    ];
+    const apiRes = await fetch(SEND_ENDPOINT, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "apikey": apiKey,
+        ...(accessToken ? { "Authorization": `Bearer ${accessToken}` } : {}),
+      },
+      body: JSON.stringify(requestBody),
+    });
 
-    let apiRes: Response | null = null;
-    let apiData: any = null;
-    let usedEndpoint = "";
-
-    for (const attempt of attempts) {
-      console.log(`Trying: ${attempt.url}`);
-      try {
-        apiRes = await fetch(attempt.url, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "Authorization": attempt.auth.startsWith("Bearer ") ? attempt.auth : `Bearer ${attempt.auth}`,
-            ...(apiKey ? { "apikey": apiKey } : {}),
-          },
-          body: JSON.stringify(attempt.body),
-        });
-
-        const responseText = await apiRes.text();
-        usedEndpoint = attempt.url;
-
-        try {
-          apiData = JSON.parse(responseText);
-        } catch {
-          console.log(`Non-JSON from ${attempt.url}: ${responseText.substring(0, 200)}`);
-          continue;
-        }
-
-        // Success or meaningful error (not 404 path error) — stop trying
-        if (apiRes.ok || (apiRes.status !== 404)) {
-          console.log(`Got ${apiRes.status} from ${attempt.url} — stopping discovery`);
-          break;
-        }
-        console.log(`${attempt.url} returned ${apiRes.status}, trying next...`);
-      } catch (fetchErr) {
-        console.log(`Fetch error for ${attempt.url}: ${fetchErr}`);
-        continue;
-      }
+    const responseText = await apiRes.text();
+    let apiData: any;
+    try {
+      apiData = JSON.parse(responseText);
+    } catch {
+      apiData = { raw: responseText.substring(0, 500) };
     }
 
-    if (!apiRes) {
-      throw new Error("No API endpoints available");
-    }
+    console.log(`Click2API response (${apiRes.status}):`, JSON.stringify(apiData).substring(0, 500));
 
-    console.log(`Click2API response (${apiRes.status}) from ${usedEndpoint}:`, JSON.stringify(apiData).substring(0, 500));
-
-    // Log to debug_webhooks for outgoing visibility
+    // Log to debug_webhooks
     await supabaseAdmin.from("debug_webhooks").insert({
       direction: "outbound",
-      raw_payload: { endpoint: usedEndpoint, response: apiData, status: apiRes.status, phone: apiPhone },
+      raw_payload: { endpoint: SEND_ENDPOINT, request: requestBody, response: apiData, status: apiRes.status, phone: apiPhone },
       phone_number: apiPhone,
       error_message: apiRes.ok ? null : `HTTP ${apiRes.status}: ${apiData?.message || JSON.stringify(apiData)}`,
       processed: apiRes.ok,
     });
 
-    // Log 401/404 errors to audit_logs
-    if (apiRes.status === 401 || apiRes.status === 404) {
+    // Log errors to audit_logs
+    if (!apiRes.ok) {
       await supabaseAdmin.from("audit_logs").insert({
         action_type: "whatsapp_api_error",
         module_name: "whatsapp",
         entity_name: "send-whatsapp",
         entity_id: order_id || null,
         risk_level: "high",
-        reason: `Click2API ${apiRes.status} error: ${apiData?.message || "Unknown"}`,
+        reason: `Click2API ${apiRes.status}: ${apiData?.message || JSON.stringify(apiData)}`,
         new_value: { to: apiPhone, status: apiRes.status, response: apiData },
       });
     }
