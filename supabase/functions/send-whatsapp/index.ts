@@ -20,6 +20,7 @@ serve(async (req) => {
 
   try {
     const accessToken = Deno.env.get("CLICK2API_ACCESS_TOKEN");
+    const apiKey = Deno.env.get("CLICK2API_API_KEY");
     if (!accessToken) {
       console.error("CLICK2API_ACCESS_TOKEN not configured");
       return new Response(JSON.stringify({ error: "WhatsApp API token not configured" }), {
@@ -27,9 +28,7 @@ serve(async (req) => {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
-
-    // Log token length for debugging (never log the actual token)
-    console.log(`Access token loaded, length: ${accessToken.length}`);
+    console.log(`Access token length: ${accessToken.length}, API key present: ${!!apiKey}`);
 
     const supabaseAdmin = createClient(
       Deno.env.get("SUPABASE_URL")!,
