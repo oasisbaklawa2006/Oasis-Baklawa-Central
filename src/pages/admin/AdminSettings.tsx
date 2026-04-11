@@ -36,6 +36,8 @@ const AdminSettings = () => {
   const [waLoading, setWaLoading] = useState(true);
   const [waSaving, setWaSaving] = useState(false);
   const [showApiKey, setShowApiKey] = useState(false);
+  const [testSending, setTestSending] = useState(false);
+  const [testPhone, setTestPhone] = useState("");
 
   useEffect(() => {
     const fetchAll = async () => {
