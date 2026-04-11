@@ -292,6 +292,9 @@ const Dashboard = () => {
             ))}
           </div>
 
+          {/* GROWTH INTELLIGENCE */}
+          {growthToolSection}
+
           {/* ACTIONS */}
           <section className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <button
