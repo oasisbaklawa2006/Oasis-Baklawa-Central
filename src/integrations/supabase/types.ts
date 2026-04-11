@@ -1859,6 +1859,38 @@ export type Database = {
         }
         Relationships: []
       }
+      product_aliases: {
+        Row: {
+          alias_text: string
+          canonical_name: string
+          created_at: string
+          id: string
+          product_id: string | null
+        }
+        Insert: {
+          alias_text: string
+          canonical_name: string
+          created_at?: string
+          id?: string
+          product_id?: string | null
+        }
+        Update: {
+          alias_text?: string
+          canonical_name?: string
+          created_at?: string
+          id?: string
+          product_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "product_aliases_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       product_bom: {
         Row: {
           component_name: string | null
