@@ -133,7 +133,7 @@ serve(async (req) => {
     // Log to debug_webhooks for outgoing visibility
     await supabaseAdmin.from("debug_webhooks").insert({
       direction: "outbound",
-      raw_payload: { request: requestBody, response: apiData, status: apiRes.status },
+      raw_payload: { endpoint: usedEndpoint, response: apiData, status: apiRes.status, phone: apiPhone },
       phone_number: apiPhone,
       error_message: apiRes.ok ? null : `HTTP ${apiRes.status}: ${apiData?.message || JSON.stringify(apiData)}`,
       processed: apiRes.ok,
