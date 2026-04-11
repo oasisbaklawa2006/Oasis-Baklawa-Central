@@ -96,6 +96,30 @@ const AdminSettings = () => {
     }
   };
 
+  const handleTestWhatsApp = async () => {
+    const phone = testPhone.trim();
+    if (!phone) {
+      toast.error("Enter a phone number to test.");
+      return;
+    }
+    setTestSending(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("send-whatsapp", {
+        body: { to: phone, message: "✅ Hello Oasis — WhatsApp Gateway Test Successful!" },
+      });
+      if (error) {
+        toast.error("Test failed: " + error.message);
+      } else if (data?.success) {
+        toast.success("Test message sent successfully!");
+      } else {
+        toast.error("Test failed: " + (data?.error || "Unknown error"));
+      }
+    } catch (e: any) {
+      toast.error("Test error: " + e.message);
+    }
+    setTestSending(false);
+  };
+
   const webhookUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/whatsapp-webhook`;
 
   if (loading) return <div className="flex justify-center py-20"><Loader2 size={24} className="animate-spin text-primary" /></div>;
