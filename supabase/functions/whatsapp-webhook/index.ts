@@ -261,21 +261,21 @@ serve(async (req) => {
       }
     }
 
-    // Strategy 3: Check existing shadow companies by phone pattern
+    // Strategy 3: Check ALL companies by phone pattern (active first, then shadow) — DUAL-TRACK MERGE
     if (!companyId) {
-      const { data: shadowMatch } = await supabaseAdmin
+      const { data: phoneMatch } = await supabaseAdmin
         .from("companies")
-        .select("id, business_name, account_manager_id")
-        .eq("status", "shadow")
+        .select("id, business_name, account_manager_id, status")
         .ilike("gst_number", `%${last10}%`)
+        .order("status", { ascending: true }) // 'active' before 'shadow'
         .limit(1);
 
-      if (shadowMatch && shadowMatch.length > 0) {
-        companyId = shadowMatch[0].id;
-        companyName = shadowMatch[0].business_name;
-        accountManagerId = shadowMatch[0].account_manager_id;
-        isShadowClient = true;
-        console.log(`Matched existing shadow company: ${companyName} (${companyId})`);
+      if (phoneMatch && phoneMatch.length > 0) {
+        companyId = phoneMatch[0].id;
+        companyName = phoneMatch[0].business_name;
+        accountManagerId = phoneMatch[0].account_manager_id;
+        isShadowClient = phoneMatch[0].status === "shadow";
+        console.log(`Dual-track matched company: ${companyName} (${companyId}), status: ${phoneMatch[0].status}`);
       }
     }
 
