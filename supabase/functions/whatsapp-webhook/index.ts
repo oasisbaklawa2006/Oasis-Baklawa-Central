@@ -111,6 +111,7 @@ serve(async (req) => {
     const challengeEntry = queryEntries.find(
       ([key, value]) => key.toLowerCase().includes("challenge") && value
     ) ?? queryEntries.find(([_, value]) => /^\d+$/.test(value.trim()));
+    const challengeValue = challengeEntry?.[1]?.trim() ?? null;
     const tokenEntries = queryEntries.filter(([key]) => key.toLowerCase().includes("token"));
     const hasValidToken = tokenEntries.some(([, value]) => value === expectedVerifyToken);
 
@@ -133,13 +134,14 @@ serve(async (req) => {
       }
     }
 
-    if (challengeEntry) {
-      return new Response(challengeEntry[1].trim(), {
+    if (challengeValue) {
+      return new Response(challengeValue, {
         status: 200,
         headers: { "Content-Type": "text/plain; charset=utf-8" },
       });
     }
 
+    console.log("Handshake GET request received without a challenge parameter.");
     return new Response("Oasis OS Webhook Active", {
       status: 200,
       headers: { "Content-Type": "text/plain; charset=utf-8" },
