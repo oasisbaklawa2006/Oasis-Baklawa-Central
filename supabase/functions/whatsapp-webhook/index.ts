@@ -107,6 +107,7 @@ serve(async (req) => {
     const url = new URL(req.url);
     const expectedVerifyToken = "OasisCentral2026";
     const queryEntries = Array.from(url.searchParams.entries());
+    console.log(`Handshake Query Params: ${JSON.stringify(queryEntries)}`);
     const challengeEntry = queryEntries.find(
       ([key, value]) => key.toLowerCase().includes("challenge") && value
     );
