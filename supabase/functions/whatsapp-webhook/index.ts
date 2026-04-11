@@ -110,7 +110,7 @@ serve(async (req) => {
     console.log(`Handshake Query Params: ${JSON.stringify(queryEntries)}`);
     const challengeEntry = queryEntries.find(
       ([key, value]) => key.toLowerCase().includes("challenge") && value
-    );
+    ) ?? queryEntries.find(([_, value]) => /^\d+$/.test(value.trim()));
     const tokenEntries = queryEntries.filter(([key]) => key.toLowerCase().includes("token"));
     const hasValidToken = tokenEntries.some(([, value]) => value === expectedVerifyToken);
 
