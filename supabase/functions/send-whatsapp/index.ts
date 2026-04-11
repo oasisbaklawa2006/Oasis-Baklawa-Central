@@ -51,50 +51,77 @@ serve(async (req) => {
 
     console.log(`Sending WhatsApp to: ${apiPhone} (original: ${to})`);
 
-    const requestBody = {
+    // Build request bodies for different API styles
+    const codechatBody = {
+      recipient: { recipientType: "individual", waId: apiPhone },
+      textMessage: { text: message },
+    };
+    const legacyBody = {
       waba_id: WABA_ID,
       channel_id: CHANNEL_ID,
       to: apiPhone,
       message,
     };
+    const metaStyleBody = {
+      messaging_product: "whatsapp",
+      to: apiPhone,
+      type: "text",
+      text: { body: message },
+    };
 
-    // Try multiple endpoint paths — Click2API may use different routes
-    const endpoints = [
-      `${BASE_URL}/api/v1/message/send-text`,
-      `${BASE_URL}/api/send-text`,
-      `${BASE_URL}/message/send-text`,
+    // Try multiple endpoint patterns with different auth & body combos
+    const attempts = [
+      // CodeChat-style (most likely for crm.click2api.in)
+      { url: `${BASE_URL}/api/v2/instance/${INSTANCE_ID}/send/text`, body: codechatBody, auth: `Bearer ${accessToken}` },
+      { url: `${BASE_URL}/api/v1/instance/${INSTANCE_ID}/send/text`, body: codechatBody, auth: `Bearer ${accessToken}` },
+      // With apikey header
+      { url: `${BASE_URL}/api/v2/instance/${INSTANCE_ID}/send/text`, body: codechatBody, auth: apiKey || accessToken },
+      // Legacy style
+      { url: `${BASE_URL}/api/v1/message/send-text`, body: legacyBody, auth: `Bearer ${accessToken}` },
+      // Meta Cloud API style
+      { url: `${BASE_URL}/api/v1/${WABA_ID}/messages`, body: metaStyleBody, auth: `Bearer ${accessToken}` },
+      // Simple paths
+      { url: `${BASE_URL}/api/send-text`, body: legacyBody, auth: `Bearer ${accessToken}` },
+      { url: `${BASE_URL}/message/send-text`, body: legacyBody, auth: `Bearer ${accessToken}` },
     ];
 
     let apiRes: Response | null = null;
     let apiData: any = null;
     let usedEndpoint = "";
 
-    for (const endpoint of endpoints) {
-      console.log(`Trying endpoint: ${endpoint}`);
-      apiRes = await fetch(endpoint, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${accessToken}`,
-        },
-        body: JSON.stringify(requestBody),
-      });
-
-      const responseText = await apiRes.text();
-      usedEndpoint = endpoint;
-      
+    for (const attempt of attempts) {
+      console.log(`Trying: ${attempt.url}`);
       try {
-        apiData = JSON.parse(responseText);
-      } catch {
-        console.log(`Endpoint ${endpoint} returned non-JSON: ${responseText.substring(0, 100)}`);
-        continue; // skip non-JSON responses
-      }
+        apiRes = await fetch(attempt.url, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": attempt.auth.startsWith("Bearer ") ? attempt.auth : `Bearer ${attempt.auth}`,
+            ...(apiKey ? { "apikey": apiKey } : {}),
+          },
+          body: JSON.stringify(attempt.body),
+        });
 
-      // If not a 404 path error, we found the right endpoint
-      if (apiRes.status !== 404 || !apiData?.error?.includes?.("invalid path")) {
-        break;
+        const responseText = await apiRes.text();
+        usedEndpoint = attempt.url;
+
+        try {
+          apiData = JSON.parse(responseText);
+        } catch {
+          console.log(`Non-JSON from ${attempt.url}: ${responseText.substring(0, 200)}`);
+          continue;
+        }
+
+        // Success or meaningful error (not 404 path error) — stop trying
+        if (apiRes.ok || (apiRes.status !== 404)) {
+          console.log(`Got ${apiRes.status} from ${attempt.url} — stopping discovery`);
+          break;
+        }
+        console.log(`${attempt.url} returned ${apiRes.status}, trying next...`);
+      } catch (fetchErr) {
+        console.log(`Fetch error for ${attempt.url}: ${fetchErr}`);
+        continue;
       }
-      console.log(`Endpoint ${endpoint} returned 404, trying next...`);
     }
 
     if (!apiRes) {
