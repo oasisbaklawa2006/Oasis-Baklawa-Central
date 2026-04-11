@@ -1632,6 +1632,7 @@ export type Database = {
           status: string
           system_estimated_date: string | null
           tracking_number: string | null
+          tracking_token: string | null
         }
         Insert: {
           actual_despatch_date?: string | null
@@ -1663,6 +1664,7 @@ export type Database = {
           status?: string
           system_estimated_date?: string | null
           tracking_number?: string | null
+          tracking_token?: string | null
         }
         Update: {
           actual_despatch_date?: string | null
@@ -1694,6 +1696,7 @@ export type Database = {
           status?: string
           system_estimated_date?: string | null
           tracking_number?: string | null
+          tracking_token?: string | null
         }
         Relationships: [
           {

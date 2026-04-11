@@ -28,6 +28,7 @@ import Index from "./pages/Index.tsx";
 import ApprovalPending from "./pages/ApprovalPending.tsx";
 import WelcomeGate from "./pages/WelcomeGate.tsx";
 import OrderTracking from "./pages/OrderTracking.tsx";
+import PublicOrderTracking from "./pages/PublicOrderTracking.tsx";
 import ErrorBoundary from "./components/ErrorBoundary.tsx";
 import AdminLayout from "./components/AdminLayout.tsx";
 import AdminDashboard from "./pages/admin/AdminDashboard.tsx";
@@ -71,6 +72,7 @@ import DispatchManagement from "./pages/admin/DispatchManagement.tsx";
 import DispatchTV from "./pages/admin/DispatchTV.tsx";
 import TargetVsActual from "./pages/admin/TargetVsActual.tsx";
 import ThirdPartyStore from "./pages/admin/ThirdPartyStore.tsx";
+import VerificationWarRoom from "./pages/admin/VerificationWarRoom.tsx";
 import RoleProtectedRoute from "@/components/RoleProtectedRoute";
 import { useAuth } from "@/hooks/useAuth";
 import { getRoleDestination, isStaffRole, isStorefrontRole, normalizeRole } from "@/lib/auth-routing";
@@ -171,6 +173,7 @@ const App = () => (
           <Routes>
             <Route path="/splash" element={<Splash />} />
             <Route path="/intro" element={<CompanyIntro />} />
+            <Route path="/track" element={<PublicOrderTracking />} />
             <Route path="/operations-controller" element={<ProtectedRoute><RoleProtectedRoute allowedRoles={[...ADMIN_STAFF_ROLES]}><OperationsController /></RoleProtectedRoute></ProtectedRoute>} />
             <Route path="/security-gate" element={<ProtectedRoute><RoleProtectedRoute allowedRoles={['GATE_SECURITY', 'SUPER_ADMIN', 'ADMIN']}><AdminSecurityGate /></RoleProtectedRoute></ProtectedRoute>} />
             <Route path="/" element={<RootGate />} />
@@ -240,6 +243,7 @@ const App = () => (
               <Route path="dispatch-tv" element={<DispatchTV />} />
               <Route path="target-vs-actual" element={<TargetVsActual />} />
               <Route path="3pcs-store" element={<ThirdPartyStore />} />
+              <Route path="verification" element={<VerificationWarRoom />} />
             </Route>
             <Route
               path="/sales/dashboard"
