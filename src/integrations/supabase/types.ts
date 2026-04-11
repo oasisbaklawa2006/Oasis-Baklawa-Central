@@ -1835,6 +1835,75 @@ export type Database = {
           },
         ]
       }
+      premium_announcements: {
+        Row: {
+          completion_count: number
+          created_at: string
+          cta_link: string | null
+          cta_text: string | null
+          display_duration: number
+          end_date: string | null
+          id: string
+          image_url: string | null
+          is_active: boolean
+          priority: string
+          skip_count: number
+          start_date: string
+          subtitle: string | null
+          target_audience: string
+          target_region: string | null
+          title: string
+          trigger_delay: number
+          updated_at: string
+          video_url: string | null
+          view_count: number
+        }
+        Insert: {
+          completion_count?: number
+          created_at?: string
+          cta_link?: string | null
+          cta_text?: string | null
+          display_duration?: number
+          end_date?: string | null
+          id?: string
+          image_url?: string | null
+          is_active?: boolean
+          priority?: string
+          skip_count?: number
+          start_date?: string
+          subtitle?: string | null
+          target_audience?: string
+          target_region?: string | null
+          title: string
+          trigger_delay?: number
+          updated_at?: string
+          video_url?: string | null
+          view_count?: number
+        }
+        Update: {
+          completion_count?: number
+          created_at?: string
+          cta_link?: string | null
+          cta_text?: string | null
+          display_duration?: number
+          end_date?: string | null
+          id?: string
+          image_url?: string | null
+          is_active?: boolean
+          priority?: string
+          skip_count?: number
+          start_date?: string
+          subtitle?: string | null
+          target_audience?: string
+          target_region?: string | null
+          title?: string
+          trigger_delay?: number
+          updated_at?: string
+          video_url?: string | null
+          view_count?: number
+        }
+        Relationships: []
+      }
       pricing_slabs: {
         Row: {
           created_at: string | null
@@ -3102,6 +3171,10 @@ export type Database = {
     }
     Functions: {
       get_user_role: { Args: { _user_id: string }; Returns: string }
+      increment_announcement_counter: {
+        Args: { ann_id: string; counter_name: string }
+        Returns: undefined
+      }
       is_account_manager: {
         Args: { _company_id: string; _user_id: string }
         Returns: boolean

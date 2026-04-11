@@ -73,7 +73,9 @@ import DispatchTV from "./pages/admin/DispatchTV.tsx";
 import TargetVsActual from "./pages/admin/TargetVsActual.tsx";
 import ThirdPartyStore from "./pages/admin/ThirdPartyStore.tsx";
 import VerificationWarRoom from "./pages/admin/VerificationWarRoom.tsx";
+import AdminAnnouncements from "./pages/admin/AdminAnnouncements.tsx";
 import RoleProtectedRoute from "@/components/RoleProtectedRoute";
+import PremiumAnnouncementOverlay from "@/components/PremiumAnnouncementOverlay";
 import { useAuth } from "@/hooks/useAuth";
 import { getRoleDestination, isStaffRole, isStorefrontRole, normalizeRole } from "@/lib/auth-routing";
 
@@ -169,7 +171,7 @@ const App = () => (
       <BrowserRouter>
         <LanguageProvider>
         <CurrencyProvider>
-        
+          <PremiumAnnouncementOverlay />
           <Routes>
             <Route path="/splash" element={<Splash />} />
             <Route path="/intro" element={<CompanyIntro />} />
@@ -244,6 +246,7 @@ const App = () => (
               <Route path="target-vs-actual" element={<TargetVsActual />} />
               <Route path="3pcs-store" element={<ThirdPartyStore />} />
               <Route path="verification" element={<VerificationWarRoom />} />
+              <Route path="announcements" element={<AdminAnnouncements />} />
             </Route>
             <Route
               path="/sales/dashboard"
