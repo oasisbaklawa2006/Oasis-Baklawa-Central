@@ -21,12 +21,43 @@ function to91(raw: string): string {
   return digits;
 }
 
-/** Fuzzy match text fragment against product names/SKU */
-function fuzzyMatchProduct(
+/** Match text against product_aliases first, then fuzzy match products */
+async function aliasMatchProduct(
   text: string,
-  products: { id: string; name: string; sku_code?: string | null }[]
-): { id: string; name: string } | null {
+  products: { id: string; name: string; sku_code?: string | null }[],
+  supabaseAdmin: any
+): Promise<{ id: string; name: string } | null> {
   const lower = text.toLowerCase();
+
+  // Step 1: Check product_aliases table
+  const { data: aliases } = await supabaseAdmin
+    .from("product_aliases")
+    .select("alias_text, canonical_name, product_id")
+    .limit(200);
+
+  if (aliases) {
+    for (const alias of aliases) {
+      if (lower.includes(alias.alias_text.toLowerCase())) {
+        // If alias has a direct product_id, use it
+        if (alias.product_id) {
+          const p = products.find((pr) => pr.id === alias.product_id);
+          if (p) return { id: p.id, name: p.name };
+        }
+        // Otherwise match canonical_name against products
+        const p = products.find(
+          (pr) => pr.name.toLowerCase() === alias.canonical_name.toLowerCase()
+        );
+        if (p) return { id: p.id, name: p.name };
+        // Partial match on canonical name
+        const partial = products.find((pr) =>
+          pr.name.toLowerCase().includes(alias.canonical_name.toLowerCase())
+        );
+        if (partial) return { id: partial.id, name: partial.name };
+      }
+    }
+  }
+
+  // Step 2: Fallback to existing fuzzy match
   for (const p of products) {
     if (p.sku_code && lower.includes(p.sku_code.toLowerCase())) {
       return { id: p.id, name: p.name };
