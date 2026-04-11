@@ -98,7 +98,7 @@ const VerificationWarRoom = () => {
   const handleConfirmOnboard = async (company: ShadowCompany) => {
     setConfirmingId(company.id);
 
-    // Upgrade to pending status (ready for full onboarding)
+    // Upgrade to active status
     const { error } = await supabase
       .from("companies")
       .update({ status: "active" })
@@ -110,18 +110,42 @@ const VerificationWarRoom = () => {
       return;
     }
 
-    // Confirm all draft orders for this company
+    // Confirm all draft orders and collect tracking tokens
     const companyOrders = orders[company.id] || [];
+    const trackingLinks: string[] = [];
     for (const order of companyOrders) {
       await supabase
         .from("orders")
         .update({ status: "submitted" })
         .eq("id", order.id);
+
+      // Fetch tracking token for Magic Link
+      const { data: tokenRow } = await supabase
+        .from("orders")
+        .select("tracking_token")
+        .eq("id", order.id)
+        .maybeSingle();
+
+      if (tokenRow?.tracking_token) {
+        trackingLinks.push(
+          `${window.location.origin}/track?token=${tokenRow.tracking_token}`
+        );
+      }
     }
 
-    // Send welcome WhatsApp
+    // Send welcome WhatsApp with Magic Link
     const phone = extractPhone(company.gst_number);
     if (phone) {
+      const trackingSection = trackingLinks.length > 0
+        ? [
+            ``,
+            `🔗 View your artisan order journey live here:`,
+            ...trackingLinks.map((link, i) =>
+              companyOrders.length > 1 ? `  Order ${i + 1}: ${link}` : link
+            ),
+          ].join("\n")
+        : "";
+
       await sendWhatsAppMessage({
         to: phone,
         message: [
@@ -129,15 +153,16 @@ const VerificationWarRoom = () => {
           ``,
           `Dear ${company.business_name},`,
           `Your account has been verified and your order${companyOrders.length > 1 ? "s have" : " has"} been confirmed.`,
+          trackingSection,
           ``,
           `You will receive tracking updates as your order progresses through our artisan kitchen.`,
           ``,
           `For any queries, reply to this message.`,
           `— Team Oasis Baklawa`,
-        ].join("\n"),
+        ].filter(Boolean).join("\n"),
         companyId: company.id,
       });
-      toast.success(`Welcome WhatsApp sent to ${phone}`);
+      toast.success(`Welcome WhatsApp with tracking link sent to ${phone}`);
     }
 
     toast.success(`${company.business_name} onboarded successfully!`);

@@ -21,12 +21,43 @@ function to91(raw: string): string {
   return digits;
 }
 
-/** Fuzzy match text fragment against product names/SKU */
-function fuzzyMatchProduct(
+/** Match text against product_aliases first, then fuzzy match products */
+async function aliasMatchProduct(
   text: string,
-  products: { id: string; name: string; sku_code?: string | null }[]
-): { id: string; name: string } | null {
+  products: { id: string; name: string; sku_code?: string | null }[],
+  supabaseAdmin: any
+): Promise<{ id: string; name: string } | null> {
   const lower = text.toLowerCase();
+
+  // Step 1: Check product_aliases table
+  const { data: aliases } = await supabaseAdmin
+    .from("product_aliases")
+    .select("alias_text, canonical_name, product_id")
+    .limit(200);
+
+  if (aliases) {
+    for (const alias of aliases) {
+      if (lower.includes(alias.alias_text.toLowerCase())) {
+        // If alias has a direct product_id, use it
+        if (alias.product_id) {
+          const p = products.find((pr) => pr.id === alias.product_id);
+          if (p) return { id: p.id, name: p.name };
+        }
+        // Otherwise match canonical_name against products
+        const p = products.find(
+          (pr) => pr.name.toLowerCase() === alias.canonical_name.toLowerCase()
+        );
+        if (p) return { id: p.id, name: p.name };
+        // Partial match on canonical name
+        const partial = products.find((pr) =>
+          pr.name.toLowerCase().includes(alias.canonical_name.toLowerCase())
+        );
+        if (partial) return { id: partial.id, name: partial.name };
+      }
+    }
+  }
+
+  // Step 2: Fallback to existing fuzzy match
   for (const p of products) {
     if (p.sku_code && lower.includes(p.sku_code.toLowerCase())) {
       return { id: p.id, name: p.name };
@@ -230,21 +261,21 @@ serve(async (req) => {
       }
     }
 
-    // Strategy 3: Check existing shadow companies by phone pattern
+    // Strategy 3: Check ALL companies by phone pattern (active first, then shadow) — DUAL-TRACK MERGE
     if (!companyId) {
-      const { data: shadowMatch } = await supabaseAdmin
+      const { data: phoneMatch } = await supabaseAdmin
         .from("companies")
-        .select("id, business_name, account_manager_id")
-        .eq("status", "shadow")
+        .select("id, business_name, account_manager_id, status")
         .ilike("gst_number", `%${last10}%`)
+        .order("status", { ascending: true }) // 'active' before 'shadow'
         .limit(1);
 
-      if (shadowMatch && shadowMatch.length > 0) {
-        companyId = shadowMatch[0].id;
-        companyName = shadowMatch[0].business_name;
-        accountManagerId = shadowMatch[0].account_manager_id;
-        isShadowClient = true;
-        console.log(`Matched existing shadow company: ${companyName} (${companyId})`);
+      if (phoneMatch && phoneMatch.length > 0) {
+        companyId = phoneMatch[0].id;
+        companyName = phoneMatch[0].business_name;
+        accountManagerId = phoneMatch[0].account_manager_id;
+        isShadowClient = phoneMatch[0].status === "shadow";
+        console.log(`Dual-track matched company: ${companyName} (${companyId}), status: ${phoneMatch[0].status}`);
       }
     }
 
@@ -363,7 +394,7 @@ serve(async (req) => {
         .select("id, name, sku_code")
         .limit(500);
 
-      const matchedProduct = allProducts ? fuzzyMatchProduct(messageBody, allProducts) : null;
+      const matchedProduct = allProducts ? await aliasMatchProduct(messageBody, allProducts, supabaseAdmin) : null;
       const parsedQty = parseQuantity(messageBody);
 
       if (!matchedProduct) {
