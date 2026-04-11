@@ -185,11 +185,27 @@ const AdminSettings = () => {
               <label className="text-sm font-semibold text-muted-foreground block mb-1">Webhook URL (paste in Click2API)</label>
               <Input value={webhookUrl} readOnly className="bg-muted/50 font-mono text-xs" />
             </div>
-            <div className="md:col-span-2 flex justify-end">
+            <div className="md:col-span-2 flex justify-end gap-2">
               <Button onClick={handleSaveWhatsApp} disabled={waSaving} className="gap-2">
                 {waSaving ? <Loader2 className="animate-spin" size={16} /> : <Save size={16} />}
                 Save WhatsApp Config
               </Button>
+            </div>
+            <div className="md:col-span-2 border-t border-border pt-4 mt-2">
+              <label className="text-sm font-semibold text-muted-foreground block mb-1">Test Outgoing Message</label>
+              <div className="flex gap-2">
+                <Input
+                  value={testPhone}
+                  onChange={(e) => setTestPhone(e.target.value)}
+                  placeholder="Phone number (e.g. 919876543210)"
+                  className="max-w-xs"
+                />
+                <Button onClick={handleTestWhatsApp} disabled={testSending} variant="outline" className="gap-2">
+                  {testSending ? <Loader2 className="animate-spin" size={16} /> : <Send size={16} />}
+                  Test WhatsApp
+                </Button>
+              </div>
+              <p className="text-xs text-muted-foreground mt-1">Sends "Hello Oasis" to confirm the outbox is working.</p>
             </div>
           </div>
         )}
