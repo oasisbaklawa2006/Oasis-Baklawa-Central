@@ -105,18 +105,29 @@ function extractPayloadFields(payload: any) {
 serve(async (req) => {
   if (req.method === "GET") {
     const url = new URL(req.url);
+    const verifyToken =
+      url.searchParams.get("hub.verify_token") ||
+      url.searchParams.get("hub_verify_token") ||
+      url.searchParams.get("verify_token");
     const challenge =
       url.searchParams.get("hub.challenge") ||
-      url.searchParams.get("challenge") ||
-      url.searchParams.get("hub_challenge");
+      url.searchParams.get("hub_challenge") ||
+      url.searchParams.get("challenge");
+
+    if (verifyToken) {
+      console.log("Webhook verify token received:", verifyToken);
+    }
+
     if (challenge) {
-      console.log("Webhook verification challenge received:", challenge);
-      return new Response(challenge, {
+      return new Response(String(challenge), {
         status: 200,
         headers: { "Content-Type": "text/plain" },
       });
     }
-    return new Response("OK", { status: 200, headers: { "Content-Type": "text/plain" } });
+    return new Response("Oasis OS Webhook Active", {
+      status: 200,
+      headers: { "Content-Type": "text/plain" },
+    });
   }
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
