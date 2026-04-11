@@ -121,7 +121,7 @@ serve(async (req) => {
     if (challenge) {
       return new Response(String(challenge), {
         status: 200,
-        headers: { "Content-Type": "text/plain; charset=utf-8" },
+        headers: { "Content-Type": "text/plain" },
       });
     }
     return new Response("Oasis OS Webhook Active", {
