@@ -105,32 +105,29 @@ function extractPayloadFields(payload: any) {
 serve(async (req) => {
   if (req.method === "GET") {
     const url = new URL(req.url);
-    const expectedVerifyToken = "OasisCentral2026";
     const queryEntries = Array.from(url.searchParams.entries());
     console.log(`Handshake Query Params: ${JSON.stringify(queryEntries)}`);
-    const challengeEntry = queryEntries.find(
-      ([key, value]) => key.toLowerCase().includes("challenge") && value
-    ) ?? queryEntries.find(([_, value]) => /^\d+$/.test(value.trim()));
-    const challengeValue = challengeEntry?.[1]?.trim() ?? null;
-    const tokenEntries = queryEntries.filter(([key]) => key.toLowerCase().includes("token"));
-    const hasValidToken = tokenEntries.some(([, value]) => value === expectedVerifyToken);
+    const challengeParamNames = ["challange", "challenge", "hub.challenge", "hub_challenge"];
+    const tokenParamNames = ["echo", "hub.verify_token", "verify_token"];
+    const challengeEntry = queryEntries.find(([key, value]) => {
+      const normalizedKey = key.toLowerCase();
+      return challengeParamNames.includes(normalizedKey) && value;
+    });
+    const tokenEntries = queryEntries.filter(([key, value]) => {
+      const normalizedKey = key.toLowerCase();
+      return tokenParamNames.includes(normalizedKey) && value;
+    });
 
     if (tokenEntries.length > 0) {
-      const receivedToken = tokenEntries
-        .map(([, value]) => value)
-        .filter(Boolean)
-        .join(",");
-
-      console.log(`Handshake Token Candidates: [${receivedToken}]`);
-
-      if (!hasValidToken) {
-        console.log(
-          `Handshake Failed: Received Token [${receivedToken ?? ""}] expected [${expectedVerifyToken}]`
-        );
-      }
+      const tokenSummary = tokenEntries.map(([key, value]) => `${key}=${value}`).join(", ");
+      console.log(`Handshake Token Candidates: [${tokenSummary}]`);
     }
 
-    if (challengeValue) {
+    if (challengeEntry) {
+      const [challengeParamName, challengeValue] = challengeEntry;
+      console.log(
+        `Handshake Successful: Responding to [${challengeParamName}] with value [${challengeValue}]`
+      );
       return new Response(challengeValue, {
         status: 200,
         headers: { "Content-Type": "text/plain; charset=utf-8" },
