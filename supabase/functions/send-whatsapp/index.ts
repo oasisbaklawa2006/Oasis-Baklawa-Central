@@ -94,7 +94,6 @@ serve(async (req) => {
       throw new Error("No API endpoints available");
     }
 
-    const apiData = await apiRes.json();
     console.log(`Click2API response (${apiRes.status}) from ${usedEndpoint}:`, JSON.stringify(apiData).substring(0, 500));
 
     // Log to debug_webhooks for outgoing visibility
