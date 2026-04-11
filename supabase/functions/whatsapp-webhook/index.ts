@@ -104,7 +104,19 @@ function extractPayloadFields(payload: any) {
 
 serve(async (req) => {
   if (req.method === "GET") {
-    return new Response("OK", { status: 200, headers: corsHeaders });
+    const url = new URL(req.url);
+    const challenge =
+      url.searchParams.get("hub.challenge") ||
+      url.searchParams.get("challenge") ||
+      url.searchParams.get("hub_challenge");
+    if (challenge) {
+      console.log("Webhook verification challenge received:", challenge);
+      return new Response(challenge, {
+        status: 200,
+        headers: { "Content-Type": "text/plain" },
+      });
+    }
+    return new Response("OK", { status: 200, headers: { "Content-Type": "text/plain" } });
   }
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
