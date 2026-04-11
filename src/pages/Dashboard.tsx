@@ -27,6 +27,7 @@ import {
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import AiOrderModal from "@/components/AiOrderModal";
+import GrowthIntelligenceButton from "@/components/growth/GrowthIntelligenceButton";
 import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "sonner";
 import { useLanguage } from "@/contexts/LanguageContext";
@@ -176,6 +177,12 @@ const Dashboard = () => {
     { icon: User, label: t("dash.myAccount"), path: "/account" },
   ];
 
+  const growthToolSection = (
+    <section className="mt-2">
+      <GrowthIntelligenceButton variant="tile" />
+    </section>
+  );
+
   return (
     <AppShell>
       {/* MARQUEE */}
@@ -284,6 +291,9 @@ const Dashboard = () => {
               </div>
             ))}
           </div>
+
+          {/* GROWTH INTELLIGENCE */}
+          {growthToolSection}
 
           {/* ACTIONS */}
           <section className="grid grid-cols-1 md:grid-cols-2 gap-4">

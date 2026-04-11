@@ -2,6 +2,7 @@ import AppShell from "@/components/AppShell";
 import { useState, useMemo, useEffect } from "react";
 import { useProducts } from "@/hooks/useProducts";
 import { Search, Loader2, ChevronRight, SlidersHorizontal, List, LayoutGrid, ArrowUpDown } from "lucide-react";
+import GrowthIntelligenceButton from "@/components/growth/GrowthIntelligenceButton";
 import { useNavigate, useSearchParams } from "react-router-dom";
 
 import CategoryTiles from "@/components/catalogue/CategoryTiles";
@@ -135,7 +136,10 @@ const Catalogue = () => {
     <AppShell>
       <div className="min-h-screen bg-background pb-36">
         <main className="px-4 max-w-5xl mx-auto pt-2">
-          {/* Search + Filter */}
+          {/* Growth Intelligence + Search */}
+          <div className="flex items-center gap-2.5 mb-2">
+            <GrowthIntelligenceButton variant="pill" />
+          </div>
           <div className="flex items-center gap-2.5 mb-4">
             <div className="relative flex-1">
               <input
