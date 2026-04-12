@@ -28,6 +28,7 @@ import {
 import { useNavigate } from "react-router-dom";
 import AiOrderModal from "@/components/AiOrderModal";
 import GrowthIntelligenceButton from "@/components/growth/GrowthIntelligenceButton";
+import SupportTicketModal from "@/components/SupportTicketModal";
 import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "sonner";
 import { useLanguage } from "@/contexts/LanguageContext";
@@ -64,6 +65,8 @@ const Dashboard = () => {
   const [utrRef, setUtrRef] = useState("");
   const [isUploading, setIsUploading] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [ticketOpen, setTicketOpen] = useState(false);
+  const [mostOrderedProduct, setMostOrderedProduct] = useState<string>("—");
 
   const fetchDashboardData = async () => {
     const {
@@ -117,7 +120,23 @@ const Dashboard = () => {
       .select("*, company:companies(business_name), order_items(*, product:products(name))")
       .eq("company_id", resolvedCompanyId)
       .order("created_at", { ascending: false });
-    if (data) setOrders(data);
+    if (data) {
+      setOrders(data);
+      // Calculate most ordered product from real order_items data
+      const allItems = data.flatMap((o: any) => o.order_items || []);
+      if (allItems.length > 0) {
+        const freq: Record<string, { count: number; name: string }> = {};
+        allItems.forEach((item: any) => {
+          const pid = item.product_id;
+          if (pid) {
+            if (!freq[pid]) freq[pid] = { count: 0, name: item.product?.name || "Unknown" };
+            freq[pid].count += Number(item.quantity || 0);
+          }
+        });
+        const top = Object.values(freq).sort((a, b) => b.count - a.count)[0];
+        if (top) setMostOrderedProduct(top.name);
+      }
+    }
   };
 
   useEffect(() => {
@@ -173,7 +192,7 @@ const Dashboard = () => {
     { icon: ListOrdered, label: t("dash.myOrders"), path: "/orders" },
     { icon: Building2, label: t("dash.buyerPortal"), path: "/buyer-portal" },
     { icon: FileText, label: t("dash.documents"), path: "/documents" },
-    { icon: Star, label: t("dash.favorites"), path: "/favourites" },
+    { icon: Star, label: t("dash.favorites"), path: "/favorites" },
     { icon: User, label: t("dash.myAccount"), path: "/account" },
   ];
 
@@ -248,7 +267,7 @@ const Dashboard = () => {
                 <p className="text-[10px] text-muted-foreground font-semibold uppercase tracking-[0.15em] mb-1">
                   {t("dash.mostOrdered")}
                 </p>
-                <p className="font-bold text-sm text-foreground leading-tight">—</p>
+                <p className="font-bold text-sm text-foreground leading-tight">{mostOrderedProduct}</p>
               </div>
             </div>
           </section>
@@ -307,7 +326,10 @@ const Dashboard = () => {
               </div>
               <Download size={20} style={{ color: GOLD }} />
             </button>
-            <button className="bg-card border border-border text-foreground p-5 rounded-2xl flex items-center justify-between hover:border-destructive/30 transition-all shadow-sm">
+            <button
+              onClick={() => setTicketOpen(true)}
+              className="bg-card border border-border text-foreground p-5 rounded-2xl flex items-center justify-between hover:border-destructive/30 transition-all shadow-sm"
+            >
               <div className="text-left">
                 <p className="font-bold text-sm text-foreground">{t("dash.raiseTicket")}</p>
                 <p className="text-[11px] text-muted-foreground">{t("dash.supportComplaints")}</p>
@@ -462,10 +484,20 @@ const Dashboard = () => {
                       </h4>
                       {getTimelineStep(latestOrder) >= 4 && (
                         <div className="mt-4 flex gap-3">
-                          <button className="flex-1 py-2.5 bg-muted border border-border text-foreground rounded-xl text-xs font-bold hover:border-[#c58B07]/30 flex items-center justify-center gap-2 transition-all">
+                          <button
+                            onClick={() => {
+                              if (latestOrder.tracking_number) {
+                                toast.info(`Tracking: ${latestOrder.tracking_number} via ${latestOrder.courier_name || "Courier"}`);
+                              } else {
+                                toast.info("LR / Waybill not yet available for this order.");
+                              }
+                            }}
+                            className="flex-1 py-2.5 bg-muted border border-border text-foreground rounded-xl text-xs font-bold hover:border-[#c58B07]/30 flex items-center justify-center gap-2 transition-all"
+                          >
                             <Download size={14} style={{ color: GOLD }} /> {t("dash.lrCopyWaybill")}
                           </button>
                           <button
+                            onClick={() => setTicketOpen(true)}
                             className="flex-1 py-2.5 text-white rounded-xl text-xs font-bold shadow-md flex items-center justify-center gap-2 transition-all"
                             style={{ backgroundColor: GOLD }}
                           >
@@ -554,6 +586,7 @@ const Dashboard = () => {
       </AnimatePresence>
 
       <AiOrderModal isOpen={isAiModalOpen} onClose={() => setIsAiModalOpen(false)} />
+      <SupportTicketModal open={ticketOpen} onClose={() => setTicketOpen(false)} orderId={latestOrder?.id || "general"} />
     </AppShell>
   );
 };
