@@ -29,6 +29,7 @@ import ApprovalPending from "./pages/ApprovalPending.tsx";
 import WelcomeGate from "./pages/WelcomeGate.tsx";
 import OrderTracking from "./pages/OrderTracking.tsx";
 import PublicOrderTracking from "./pages/PublicOrderTracking.tsx";
+import ResetPassword from "./pages/ResetPassword.tsx";
 import ErrorBoundary from "./components/ErrorBoundary.tsx";
 import AdminLayout from "./components/AdminLayout.tsx";
 import AdminDashboard from "./pages/admin/AdminDashboard.tsx";
@@ -186,6 +187,7 @@ const App = () => (
             <Route path="/login" element={<Login />} />
             <Route path="/register" element={<Register />} />
             <Route path="/onboarding" element={<Onboarding />} />
+            <Route path="/reset-password" element={<ResetPassword />} />
             <Route path="/buyer-portal" element={<ProtectedRoute><RoleProtectedRoute allowedRoles={ALL_BUYER_ROLES}><BuyerPortal /></RoleProtectedRoute></ProtectedRoute>} />
             <Route path="/cart" element={<ProtectedRoute><RoleProtectedRoute allowedRoles={ALL_BUYER_ROLES}><Cart /></RoleProtectedRoute></ProtectedRoute>} />
             <Route path="/orders" element={<ProtectedRoute><RoleProtectedRoute allowedRoles={ALL_BUYER_ROLES}><Orders /></RoleProtectedRoute></ProtectedRoute>} />
