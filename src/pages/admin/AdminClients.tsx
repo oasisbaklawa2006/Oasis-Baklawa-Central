@@ -183,7 +183,6 @@ const AdminClients = () => {
   const [loading, setLoading] = useState(false);
   const [tab, setTab] = useState<string>("pending");
   const [stableCounts, setStableCounts] = useState({ pending: 0, approved: 0, active: 0 });
-  const [tab, setTab] = useState<string>("pending");
 
   // App Review State
   const [actionLoading, setActionLoading] = useState<string | null>(null);
