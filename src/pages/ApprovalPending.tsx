@@ -88,10 +88,15 @@ export default function ApprovalPending() {
         </p>
         <p className="text-sm text-muted-foreground">Contact: support@oasisbaklawa.com</p>
         <div className="flex gap-2">
-          <a href="tel:+919876543210" className="flex-1">
+          <a href="tel:+919999792959" onClick={(e) => {
+            if (!/Mobi|Android/i.test(navigator.userAgent)) {
+              e.preventDefault();
+              toast.info("📞 Call us at: +91 99997 92959");
+            }
+          }} className="flex-1">
             <Button variant="outline" className="w-full text-sm">📞 Call Us</Button>
           </a>
-          <a href="https://wa.me/919876543210?text=Hi%2C%20I%20submitted%20a%20B2B%20application%20and%20wanted%20to%20check%20the%20status." target="_blank" rel="noopener noreferrer" className="flex-1">
+          <a href="https://wa.me/919891162212?text=Hi%2C%20I%20submitted%20a%20B2B%20application%20and%20wanted%20to%20check%20the%20status." target="_blank" rel="noopener noreferrer" className="flex-1">
             <Button variant="outline" className="w-full text-sm">💬 WhatsApp</Button>
           </a>
         </div>
