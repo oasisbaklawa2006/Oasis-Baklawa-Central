@@ -43,7 +43,7 @@ const AnimatedNumber = ({ value, prefix = "", suffix = "" }: { value: number; pr
       if (step >= steps) clearInterval(ref.current);
     }, 20);
     return () => clearInterval(ref.current);
-  }, [value]);
+  }, [value, display]);
   return <span className="font-number tabular-nums">{prefix}{display.toLocaleString("en-IN")}{suffix}</span>;
 };
 
