@@ -182,6 +182,8 @@ const AdminClients = () => {
   const [activeCompanies, setActiveCompanies] = useState<Company[]>([]);
   const [loading, setLoading] = useState(false);
   const [tab, setTab] = useState<string>("pending");
+  const [stableCounts, setStableCounts] = useState({ pending: 0, approved: 0, active: 0 });
+  const [tab, setTab] = useState<string>("pending");
 
   // App Review State
   const [actionLoading, setActionLoading] = useState<string | null>(null);
@@ -215,6 +217,20 @@ const AdminClients = () => {
       .then(({ data }) => {
         setInvites((data as PortalInvite[]) ?? []);
       });
+    // Stable counter query — single source of truth
+    const fetchStableCounts = async () => {
+      const [pendingRes, approvedRes, activeRes] = await Promise.all([
+        supabase.from("b2b_applications").select("id", { count: "exact", head: true }).eq("status", "pending"),
+        supabase.from("b2b_applications").select("id", { count: "exact", head: true }).eq("status", "approved"),
+        supabase.from("companies").select("id", { count: "exact", head: true }),
+      ]);
+      setStableCounts({
+        pending: pendingRes.count ?? 0,
+        approved: approvedRes.count ?? 0,
+        active: activeRes.count ?? 0,
+      });
+    };
+    fetchStableCounts();
   }, []);
 
   const fetchApps = async (status: string) => {
