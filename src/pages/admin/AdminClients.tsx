@@ -252,8 +252,8 @@ const AdminClients = () => {
     fetchApps(tab);
   }, [tab]);
 
-  const pendingCount = tab === "pending" ? apps.length : DUMMY_APPS.filter((d) => d.status === "pending").length;
-  const approvedCount = tab === "approved" ? apps.length : DUMMY_APPS.filter((d) => d.status === "approved").length;
+  const pendingCount = stableCounts.pending;
+  const approvedCount = stableCounts.approved;
 
   /* ─── App Pipeline Logic ─── */
   const handleApprove = async (app: Application) => {
