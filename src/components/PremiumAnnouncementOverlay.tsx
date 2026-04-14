@@ -82,7 +82,7 @@ const PremiumAnnouncementOverlay = () => {
     };
 
     fetchAnnouncement();
-  }, [user]);
+  }, [user, location.pathname]);
 
   // Countdown timer
   useEffect(() => {
