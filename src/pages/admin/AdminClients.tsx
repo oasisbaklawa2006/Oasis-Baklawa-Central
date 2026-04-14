@@ -476,7 +476,7 @@ const AdminClients = () => {
               <Building2 size={20} />
             </div>
             <div>
-              <p className="text-2xl font-semibold font-ui text-foreground">{activeCompanies.length || 1}</p>
+              <p className="text-2xl font-semibold font-ui text-foreground">{stableCounts.active}</p>
               <p className="text-xs font-medium text-muted-foreground tracking-wide uppercase">
                 Total Active Directory
               </p>
