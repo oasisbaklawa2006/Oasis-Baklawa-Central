@@ -16,6 +16,7 @@ import AdminRouteGuard from "@/components/AdminRouteGuard";
 import AdminHelpSidebar from "@/components/AdminHelpSidebar";
 import OnboardingOverlay from "@/components/OnboardingOverlay";
 import { signOutAndClearSession } from "@/utils/authSession";
+import { useAdminRealtimeToasts } from "@/hooks/useAdminRealtimeToasts";
 
 const ROLE_MODULE_ACCESS: Record<string, string[]> = {
   super_admin: ["*"],
@@ -58,6 +59,7 @@ const AdminLayout = () => {
   const { t, lang, setLang } = useLanguage();
   const isAdmin = role === "super_admin" || role === "admin";
   const pendingApplications = useApplicationBadge(isAdmin);
+  useAdminRealtimeToasts(!!user && !authLoading);
 
   const navSections: { title: string; items: NavItem[] }[] = [
     {
