@@ -3,6 +3,8 @@ import { motion, AnimatePresence } from "framer-motion";
 import { X } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import { useLocation } from "react-router-dom";
+import announcementFallback from "@/assets/hero-luxury.jpg";
 
 const PRIORITY_ORDER = ["critical", "offer", "launch", "greeting"];
 const SESSION_KEY = "oasis_announcement_shown";
@@ -23,10 +25,12 @@ interface Announcement {
 
 const PremiumAnnouncementOverlay = () => {
   const { user } = useAuth();
+  const location = useLocation();
   const [announcement, setAnnouncement] = useState<Announcement | null>(null);
   const [visible, setVisible] = useState(false);
   const [countdown, setCountdown] = useState(0);
   const [dontShowToday, setDontShowToday] = useState(false);
+  const [videoFailed, setVideoFailed] = useState(false);
   const timerRef = useRef<ReturnType<typeof setInterval>>();
   const trackedRef = useRef(false);
 
@@ -42,6 +46,9 @@ const PremiumAnnouncementOverlay = () => {
   useEffect(() => {
     if (!user) return;
 
+    // BUYER-ONLY: Only show on buyer dashboard/home routes, never on admin
+    const isBuyerRoute = ["/dashboard", "/home", "/catalogue"].some(r => location.pathname.startsWith(r)) || location.pathname === "/";
+    if (!isBuyerRoute || location.pathname.startsWith("/admin")) return;
     // Session check
     if (sessionStorage.getItem(SESSION_KEY)) return;
 
@@ -75,7 +82,7 @@ const PremiumAnnouncementOverlay = () => {
     };
 
     fetchAnnouncement();
-  }, [user]);
+  }, [user, location.pathname]);
 
   // Countdown timer
   useEffect(() => {
@@ -131,7 +138,7 @@ const PremiumAnnouncementOverlay = () => {
             style={{ boxShadow: "0 24px 80px rgba(0,0,0,0.35)" }}
           >
             {/* Media */}
-            {announcement.video_url ? (
+            {announcement.video_url && !videoFailed ? (
               <video
                 src={announcement.video_url}
                 autoPlay
@@ -139,6 +146,8 @@ const PremiumAnnouncementOverlay = () => {
                 loop
                 playsInline
                 className="w-full aspect-[16/10] object-cover"
+                onError={() => setVideoFailed(true)}
+                poster={announcement.image_url || announcementFallback}
               />
             ) : announcement.image_url ? (
               <img
@@ -147,9 +156,11 @@ const PremiumAnnouncementOverlay = () => {
                 className="w-full aspect-[16/10] object-cover"
               />
             ) : (
-              <div className="w-full aspect-[16/10] bg-gradient-to-br from-[hsl(var(--primary))] to-[hsl(var(--primary)/0.6)] flex items-center justify-center">
-                <span className="text-5xl">✨</span>
-              </div>
+              <img
+                src={announcementFallback}
+                alt="Oasis Baklawa"
+                className="w-full aspect-[16/10] object-cover"
+              />
             )}
 
             {/* Content */}

@@ -182,6 +182,7 @@ const AdminClients = () => {
   const [activeCompanies, setActiveCompanies] = useState<Company[]>([]);
   const [loading, setLoading] = useState(false);
   const [tab, setTab] = useState<string>("pending");
+  const [stableCounts, setStableCounts] = useState({ pending: 0, approved: 0, active: 0 });
 
   // App Review State
   const [actionLoading, setActionLoading] = useState<string | null>(null);
@@ -215,6 +216,20 @@ const AdminClients = () => {
       .then(({ data }) => {
         setInvites((data as PortalInvite[]) ?? []);
       });
+    // Stable counter query — single source of truth
+    const fetchStableCounts = async () => {
+      const [pendingRes, approvedRes, activeRes] = await Promise.all([
+        supabase.from("b2b_applications").select("id", { count: "exact", head: true }).eq("status", "pending"),
+        supabase.from("b2b_applications").select("id", { count: "exact", head: true }).eq("status", "approved"),
+        supabase.from("companies").select("id", { count: "exact", head: true }),
+      ]);
+      setStableCounts({
+        pending: pendingRes.count ?? 0,
+        approved: approvedRes.count ?? 0,
+        active: activeRes.count ?? 0,
+      });
+    };
+    fetchStableCounts();
   }, []);
 
   const fetchApps = async (status: string) => {
@@ -237,8 +252,8 @@ const AdminClients = () => {
     fetchApps(tab);
   }, [tab]);
 
-  const pendingCount = tab === "pending" ? apps.length : DUMMY_APPS.filter((d) => d.status === "pending").length;
-  const approvedCount = tab === "approved" ? apps.length : DUMMY_APPS.filter((d) => d.status === "approved").length;
+  const pendingCount = stableCounts.pending;
+  const approvedCount = stableCounts.approved;
 
   /* ─── App Pipeline Logic ─── */
   const handleApprove = async (app: Application) => {
@@ -461,7 +476,7 @@ const AdminClients = () => {
               <Building2 size={20} />
             </div>
             <div>
-              <p className="text-2xl font-semibold font-ui text-foreground">{activeCompanies.length || 1}</p>
+              <p className="text-2xl font-semibold font-ui text-foreground">{stableCounts.active}</p>
               <p className="text-xs font-medium text-muted-foreground tracking-wide uppercase">
                 Total Active Directory
               </p>

@@ -5,6 +5,7 @@ import AppShell from "@/components/AppShell";
 import ProductSection from "@/components/ProductSection";
 import SmartReorderSection from "@/components/home/SmartReorderSection";
 import BestSellers from "@/components/home/BestSellers";
+import GrowthIntelligenceButton from "@/components/growth/GrowthIntelligenceButton";
 import HomeFooter from "@/components/home/HomeFooter";
 import CuratedCollections from "@/components/home/CuratedCollections";
 import NewArrivals from "@/components/home/NewArrivals";
@@ -110,7 +111,12 @@ const Index = () => {
 
         <SectionDivider />
 
-        {/* ─── 3. CURATED COLLECTIONS ─── */}
+        {/* ─── STARTER GUIDE HERO TILE ─── */}
+        <motion.section {...fade(0.05)} className="px-5 mb-6">
+          <GrowthIntelligenceButton variant="hero" />
+        </motion.section>
+
+        <SectionDivider />
         <motion.div {...fade(0.06)}>
           <CuratedCollections />
         </motion.div>

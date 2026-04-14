@@ -76,6 +76,8 @@ const Register = () => {
     if (!pincode.trim()) e.pincode = "Required";
     else if (!/^\d{6}$/.test(pincode.trim())) e.pincode = "Enter valid 6-digit pincode";
     if (!businessType) e.businessType = "Required";
+    if (!gstNumber.trim()) e.gstNumber = "GST Number is mandatory";
+    else if (!/^\d{2}[A-Z]{5}\d{4}[A-Z]{1}[A-Z\d]{1}[Z]{1}[A-Z\d]{1}$/i.test(gstNumber.trim())) e.gstNumber = "Enter a valid 15-character GST number";
     if (!tradeDeclaration) e.tradeDeclaration = "You must accept the trade declaration";
     if (!dataConsent) e.dataConsent = "You must consent to data processing";
     setErrors(e);
@@ -350,8 +352,9 @@ const Register = () => {
               {/* Section 4: Tax & Documents */}
               <SectionTitle>Tax & Documents</SectionTitle>
               <div>
-                <label className="text-ui-label text-foreground">GST Number</label>
-                <Input placeholder="e.g. 07AAFCT0640R1ZZ" className="rounded-xl mt-1" value={gstNumber} onChange={(e) => setGstNumber(e.target.value)} />
+                <label className="text-ui-label text-foreground">GST Number *</label>
+                <Input placeholder="e.g. 07AAFCT0640R1ZZ" className="rounded-xl mt-1" value={gstNumber} onChange={(e) => setGstNumber(e.target.value.toUpperCase())} />
+                <FieldError field="gstNumber" />
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1.5">
@@ -445,6 +448,13 @@ const Register = () => {
               <div className="flex flex-col sm:flex-row gap-3 pt-2">
                 <a
                   href="tel:+919999792959"
+                  onClick={(e) => {
+                    // Fallback: if tel: link fails on desktop, show number in toast
+                    if (!/Mobi|Android/i.test(navigator.userAgent)) {
+                      e.preventDefault();
+                      toast.info("📞 Call us at: +91 99997 92959");
+                    }
+                  }}
                   className="flex-1 py-3.5 rounded-xl bg-primary text-primary-foreground font-ui font-bold text-sm flex items-center justify-center gap-2 transition-all hover:bg-primary/90 hover:shadow-md"
                 >
                   📞 Call Us

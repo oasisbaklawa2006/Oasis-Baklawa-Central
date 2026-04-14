@@ -51,7 +51,12 @@ const Login = () => {
       );
     } catch {}
 
-    window.location.assign(destination);
+    // Buyer roles go through WelcomeGate first
+    if (isStorefrontRole(resolvedRole) && authRecord.company_id) {
+      window.location.assign("/welcome");
+    } else {
+      window.location.assign(destination);
+    }
   };
 
   // ── Email Login ──
