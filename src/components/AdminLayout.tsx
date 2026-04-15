@@ -53,6 +53,7 @@ interface NavItem {
 const AdminLayout = () => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [role, setRole] = useState<string | null>(null);
+  const [isSalesExec, setIsSalesExec] = useState(false);
   const [roleLoading, setRoleLoading] = useState(true);
   const { user, loading: authLoading } = useAuth();
   const navigate = useNavigate();
@@ -118,8 +119,9 @@ const AdminLayout = () => {
   useEffect(() => {
     if (authLoading || !user) return;
     const fetchRole = async () => {
-      const { data } = await supabase.from("users").select("role").eq("id", user.id).maybeSingle();
+      const { data } = await supabase.from("users").select("role, is_sales_executive").eq("id", user.id).maybeSingle();
       setRole(data?.role ?? null);
+      setIsSalesExec(!!(data as any)?.is_sales_executive);
       setRoleLoading(false);
     };
     fetchRole();
@@ -137,7 +139,12 @@ const AdminLayout = () => {
   }
 
   const allowedModules = ROLE_MODULE_ACCESS[role] ?? [];
-  const hasAccess = (moduleKey: string) => allowedModules.includes("*") || allowedModules.includes(moduleKey);
+  const hasAccess = (moduleKey: string) => {
+    if (allowedModules.includes("*") || allowedModules.includes(moduleKey)) return true;
+    // Multi-role: if user has is_sales_executive flag, grant access to clients module (Sales Console)
+    if (isSalesExec && moduleKey === "clients") return true;
+    return false;
+  };
 
   const filteredSections = navSections
     .map(section => ({ ...section, items: section.items.filter(item => hasAccess(item.moduleKey)) }))
