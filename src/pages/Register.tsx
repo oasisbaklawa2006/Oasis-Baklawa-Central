@@ -356,6 +356,10 @@ const Register = () => {
                 <Input placeholder="e.g. 07AAFCT0640R1ZZ" className="rounded-xl mt-1" value={gstNumber} onChange={(e) => setGstNumber(e.target.value.toUpperCase())} />
                 <FieldError field="gstNumber" />
               </div>
+              <div>
+                <label className="text-ui-label text-foreground">FSSAI Number <span className="text-muted-foreground text-[10px]">(Optional)</span></label>
+                <Input placeholder="e.g. 10012345678901" className="rounded-xl mt-1" maxLength={14} />
+              </div>
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1.5">
                   <label className="text-ui-label text-foreground">GST Certificate</label>

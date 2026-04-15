@@ -24,8 +24,9 @@ const paymentMethods = [
 const CheckoutModal = ({ open, onClose, grandTotal, orderId, companyId, onOrderConfirmed }: CheckoutModalProps) => {
   const [selected, setSelected] = useState("upi");
   const [confirming, setConfirming] = useState(false);
+  // Minimum 20% deposit, rounded to nearest ₹1,000
   const rawAdvance = grandTotal * 0.2;
-  const advance = Math.round(rawAdvance / 1000) * 1000;
+  const advance = Math.max(Math.round(rawAdvance / 1000) * 1000, 1000);
   const isReady = !!orderId && !!companyId;
 
   const handleConfirm = async () => {
