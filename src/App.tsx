@@ -30,6 +30,8 @@ import WelcomeGate from "./pages/WelcomeGate.tsx";
 import OrderTracking from "./pages/OrderTracking.tsx";
 import PublicOrderTracking from "./pages/PublicOrderTracking.tsx";
 import ResetPassword from "./pages/ResetPassword.tsx";
+import FAQ from "./pages/FAQ.tsx";
+import Terms from "./pages/Terms.tsx";
 import ErrorBoundary from "./components/ErrorBoundary.tsx";
 import AdminLayout from "./components/AdminLayout.tsx";
 import AdminDashboard from "./pages/admin/AdminDashboard.tsx";
@@ -199,6 +201,8 @@ const App = () => (
             <Route path="/account/addresses" element={<ProtectedRoute><RoleProtectedRoute allowedRoles={ALL_BUYER_ROLES}><ManageAddresses /></RoleProtectedRoute></ProtectedRoute>} />
             <Route path="/account/logistics" element={<ProtectedRoute><RoleProtectedRoute allowedRoles={ALL_BUYER_ROLES}><ManageLogistics /></RoleProtectedRoute></ProtectedRoute>} />
             <Route path="/documents" element={<ProtectedRoute><RoleProtectedRoute allowedRoles={ALL_BUYER_ROLES}><Documents /></RoleProtectedRoute></ProtectedRoute>} />
+            <Route path="/faq" element={<ProtectedRoute><FAQ /></ProtectedRoute>} />
+            <Route path="/terms" element={<ProtectedRoute><Terms /></ProtectedRoute>} />
             <Route path="/approval-pending" element={<ProtectedRoute><ApprovalPending /></ProtectedRoute>} />
 
             <Route
