@@ -1,6 +1,12 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
 
+function generateHexToken(bytes = 16): string {
+  const arr = new Uint8Array(bytes);
+  crypto.getRandomValues(arr);
+  return Array.from(arr).map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
@@ -94,12 +100,14 @@ serve(async (req) => {
     }
 
     // Create draft order using service role (bypasses RLS)
+    // Supply tracking_token explicitly to avoid gen_random_bytes trigger issue
     const { data: order, error: orderErr } = await supabaseAdmin
       .from("orders")
       .insert({
         company_id: resolvedCompanyId,
         status: "draft",
         dispatch_urgency: "standard",
+        tracking_token: generateHexToken(16),
       })
       .select("id")
       .single();
