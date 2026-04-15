@@ -380,13 +380,16 @@ serve(async (req) => {
     // PART 1: SENDER CLASSIFICATION
     // ══════════════════════════════════════════
     const sender = await classifySender(last10, supabaseAdmin);
-    console.log(`Sender classified: ${sender.type} (${sender.name || "unknown"}) phone=${phone91}`);
+    console.log(`Sender classified: ${sender.type} (${sender.name || "unknown"}) phone=${phone91}, isSalesExec=${sender.isSalesExec}`);
 
     // ── PHONE → COMPANY MAPPING (multi-table fuzzy lookup) ──
     let companyId: string | null = null;
     let companyName = profileName || "Unknown";
     let accountManagerId: string | null = null;
     let isShadowClient = false;
+
+    // If sender is a staff member with is_sales_executive, they become the account manager for any draft
+    const senderIsSalesExec = sender.type === "staff" && sender.isSalesExec && sender.userId;
 
     // Strategy 1: Match via b2b_applications
     const { data: apps } = await supabaseAdmin
