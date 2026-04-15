@@ -391,6 +391,45 @@ serve(async (req) => {
     // If sender is a staff member with is_sales_executive, they become the account manager for any draft
     const senderIsSalesExec = sender.type === "staff" && sender.isSalesExec && sender.userId;
 
+    // ── STAFF SENDER RE-WIRE ──
+    // When a sales exec sends a message mentioning a client (e.g. "Order for Evergreen"),
+    // we create the order for the CLIENT, not for the staff member.
+    // The staff member becomes the executive_id / account_manager.
+    if (senderIsSalesExec && messageBody) {
+      // Try to extract a client name from the message
+      const clientPatterns = [
+        /(?:order\s+for|client|customer|party|for\s+M\/s\.?|for)\s+[:\-]?\s*([A-Z][A-Za-z\s&'.]+)/i,
+        /([A-Z][A-Za-z\s&'.]{3,})\s+(?:ka|ke|ki|order|wants?|need)/i,
+      ];
+      let mentionedClient: string | null = null;
+      for (const pat of clientPatterns) {
+        const m = messageBody.match(pat);
+        if (m) { mentionedClient = m[1].trim(); break; }
+      }
+
+      if (mentionedClient) {
+        // Fuzzy search companies by name
+        const { data: clientMatch } = await supabaseAdmin
+          .from("companies")
+          .select("id, business_name, account_manager_id")
+          .ilike("business_name", `%${mentionedClient}%`)
+          .limit(1);
+
+        if (clientMatch && clientMatch.length > 0) {
+          companyId = clientMatch[0].id;
+          companyName = clientMatch[0].business_name;
+          accountManagerId = sender.userId!;
+          // Assign this exec as account manager if not already set
+          if (!clientMatch[0].account_manager_id) {
+            await supabaseAdmin.from("companies")
+              .update({ account_manager_id: sender.userId })
+              .eq("id", companyId);
+          }
+          console.log(`Staff re-wire: ${sender.name} → order for client "${companyName}" (${companyId})`);
+        }
+      }
+    }
+
     // Strategy 1: Match via b2b_applications
     const { data: apps } = await supabaseAdmin
       .from("b2b_applications")
