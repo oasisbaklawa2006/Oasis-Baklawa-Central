@@ -8,11 +8,9 @@ interface Props {
 export default function StagnancyBadge({ createdAt, className = "" }: Props) {
   const { label, tier } = useMemo(() => {
     if (!createdAt) return { label: "—", tier: "neutral" as const };
-    // Use IST offset (+5:30) for consistent local time display
-    const IST_OFFSET_MS = 5.5 * 60 * 60 * 1000;
-    const nowIST = Date.now() + IST_OFFSET_MS;
-    const createdIST = new Date(createdAt).getTime() + IST_OFFSET_MS;
-    const diffMs = nowIST - createdIST;
+    const nowMs = Date.now();
+    const createdMs = new Date(createdAt).getTime();
+    const diffMs = nowMs - createdMs;
     if (diffMs < 0) return { label: "0m", tier: "neutral" as const };
     const hours = Math.floor(diffMs / 3600000);
     const mins = Math.floor((diffMs % 3600000) / 60000);
