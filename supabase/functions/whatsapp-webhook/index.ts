@@ -627,6 +627,7 @@ serve(async (req) => {
 
       // ── CREATE DRAFT ORDER ──
       if (orderItems.length > 0 || hasOrderIntent) {
+        console.log(`Creating draft order for ${companyId}, items: ${orderItems.length}`);
         const { data: draftOrder, error: orderErr } = await supabaseAdmin
           .from("orders")
           .insert({
@@ -638,6 +639,7 @@ serve(async (req) => {
           .select("id")
           .single();
 
+        console.log(`Draft result: ${JSON.stringify(draftOrder)}, err: ${orderErr?.message || "none"}`);
         if (!orderErr && draftOrder) {
           draftOrderId = draftOrder.id;
 
