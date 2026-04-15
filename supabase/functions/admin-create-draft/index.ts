@@ -100,12 +100,14 @@ serve(async (req) => {
     }
 
     // Create draft order using service role (bypasses RLS)
+    // Supply tracking_token explicitly to avoid gen_random_bytes trigger issue
     const { data: order, error: orderErr } = await supabaseAdmin
       .from("orders")
       .insert({
         company_id: resolvedCompanyId,
         status: "draft",
         dispatch_urgency: "standard",
+        tracking_token: generateHexToken(16),
       })
       .select("id")
       .single();
