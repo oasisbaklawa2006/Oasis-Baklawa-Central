@@ -27,26 +27,27 @@ function to91(raw: string): string {
 async function classifySender(
   phone10: string,
   supabaseAdmin: any
-): Promise<{ type: "staff" | "client" | "lead"; userId?: string; role?: string; name?: string }> {
+): Promise<{ type: "staff" | "client" | "lead"; userId?: string; role?: string; name?: string; isSalesExec?: boolean }> {
   // Check users table for staff match
   const { data: staffMatch } = await supabaseAdmin
     .from("users")
-    .select("id, role, name, full_name, phone, mobile_number")
+    .select("id, role, name, full_name, phone, mobile_number, is_sales_executive")
     .or(`phone.ilike.%${phone10},mobile_number.ilike.%${phone10}`)
     .limit(1);
 
   if (staffMatch && staffMatch.length > 0) {
     const user = staffMatch[0];
     const role = (user.role || "").toUpperCase();
+    const isSalesExec = !!user.is_sales_executive;
     const staffRoles = [
       "SUPER_ADMIN", "ADMIN", "FINANCE_HEAD", "FINANCE_EXEC",
       "OPERATIONS_MANAGER", "PRODUCTION_MANAGER", "SALES_EXECUTIVE",
       "SUPPORT_EXECUTIVE", "DISPATCH_MANAGER", "STORE_INCHARGE",
     ];
-    if (staffRoles.some((r) => role.includes(r))) {
-      return { type: "staff", userId: user.id, role, name: user.full_name || user.name };
+    if (staffRoles.some((r) => role.includes(r)) || isSalesExec) {
+      return { type: "staff", userId: user.id, role, name: user.full_name || user.name, isSalesExec };
     }
-    return { type: "client", userId: user.id, name: user.full_name || user.name };
+    return { type: "client", userId: user.id, name: user.full_name || user.name, isSalesExec };
   }
   return { type: "lead" };
 }
