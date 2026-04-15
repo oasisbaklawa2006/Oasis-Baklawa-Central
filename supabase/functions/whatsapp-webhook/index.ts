@@ -494,7 +494,16 @@ serve(async (req) => {
       }
     }
 
-    console.log(`Mapped phone ${phone91} → company: ${companyName} (${companyId}), shadow: ${isShadowClient}, sender: ${sender.type}`);
+    // If sender is a sales exec staff member, assign them as account manager on the company
+    if (senderIsSalesExec && companyId && !accountManagerId) {
+      accountManagerId = sender.userId!;
+      await supabaseAdmin.from("companies")
+        .update({ account_manager_id: sender.userId })
+        .eq("id", companyId);
+      console.log(`Auto-assigned ${sender.name} as account manager for company ${companyId}`);
+    }
+
+    console.log(`Mapped phone ${phone91} → company: ${companyName} (${companyId}), shadow: ${isShadowClient}, sender: ${sender.type}, salesExec: ${senderIsSalesExec}`);
 
     // ── MEDIA / ATTACHMENT HANDLING ──
     let attachmentUrl: string | null = null;
