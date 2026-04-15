@@ -41,6 +41,7 @@ const formatDate = (dateString: string) =>
     year: "numeric",
     hour: "2-digit",
     minute: "2-digit",
+    timeZone: "Asia/Kolkata",
   });
 
 const GOLD = "#c58B07";
@@ -190,7 +191,6 @@ const Dashboard = () => {
   const QUICK_TOOLS = [
     { icon: Package, label: t("dash.productCatalogue"), path: "/catalogue" },
     { icon: ListOrdered, label: t("dash.myOrders"), path: "/orders" },
-    { icon: Building2, label: t("dash.buyerPortal"), path: "/buyer-portal" },
     { icon: FileText, label: t("dash.documents"), path: "/documents" },
     { icon: Star, label: t("dash.favorites"), path: "/favorites" },
     { icon: User, label: t("dash.myAccount"), path: "/account" },

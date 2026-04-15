@@ -46,6 +46,7 @@ interface WalletTx {
 }
 
 const settingsMenu = [
+  { label: "Change Password", desc: "Update your login credentials", icon: Settings, path: "/reset-password" },
   { label: "Manage Users", desc: "Add or remove team members", icon: Users, path: "/account/users" },
   { label: "Delivery Addresses", desc: "Manage shipping locations", icon: MapPin, path: "/account/addresses" },
   { label: "Preferred Courier", desc: "Set default transporter", icon: Truck, path: "/account/logistics" },

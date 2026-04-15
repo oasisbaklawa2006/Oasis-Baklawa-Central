@@ -41,7 +41,7 @@ function getStepIndex(status: string): number {
 
 const formatPrice = (n: number) => "₹" + n.toLocaleString("en-IN");
 const formatDate = (d: string) =>
-  new Date(d).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" });
+  new Date(d).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric", timeZone: "Asia/Kolkata" });
 
 const OrderTracking = () => {
   const { id } = useParams<{ id: string }>();
