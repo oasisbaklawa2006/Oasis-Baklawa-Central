@@ -54,7 +54,7 @@ async function classifySender(
 // ── AI PRODUCT PARSING (Lovable AI Gateway) ──
 async function aiParseOrder(
   messageBody: string,
-  products: { id: string; name: string; sku_code?: string | null }[],
+  products: { id: string; name: string; sku?: string | null }[],
   aliases: { alias_text: string; canonical_name: string; product_id?: string | null }[]
 ): Promise<{
   items: { productId: string; productName: string; quantity: number; confidence: number }[];
@@ -66,7 +66,7 @@ async function aiParseOrder(
     return { items: [], businessInfo: null };
   }
 
-  const productList = products.slice(0, 100).map((p) => `${p.name} (SKU: ${p.sku_code || "N/A"})`).join("\n");
+  const productList = products.slice(0, 100).map((p) => `${p.name} (SKU: ${p.sku || "N/A"})`).join("\n");
   const aliasList = aliases.slice(0, 50).map((a) => `"${a.alias_text}" → "${a.canonical_name}"`).join("\n");
 
   const prompt = `You are an order parser for Oasis Baklawa (a B2B wholesale bakery). Parse the following WhatsApp message into structured order items and business info.
@@ -142,7 +142,7 @@ Rules:
 // ── RULE-BASED FALLBACK ──
 function aliasMatchProduct(
   text: string,
-  products: { id: string; name: string; sku_code?: string | null }[],
+  products: { id: string; name: string; sku?: string | null }[],
   aliases: { alias_text: string; canonical_name: string; product_id?: string | null }[]
 ): { id: string; name: string } | null {
   const lower = text.toLowerCase();
@@ -161,7 +161,7 @@ function aliasMatchProduct(
   }
 
   for (const p of products) {
-    if (p.sku_code && lower.includes(p.sku_code.toLowerCase())) return { id: p.id, name: p.name };
+    if (p.sku && lower.includes(p.sku.toLowerCase())) return { id: p.id, name: p.name };
   }
   for (const p of products) {
     if (lower.includes(p.name.toLowerCase())) return { id: p.id, name: p.name };
