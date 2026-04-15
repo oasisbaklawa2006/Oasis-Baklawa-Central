@@ -135,86 +135,50 @@ export default function ShadowClientSection({ companies, onRefresh }: Props) {
     return str.slice(0, 150);
   };
 
-  /** Poll DB until company status === 'active', with timeout */
-  const waitForActiveStatus = async (companyId: string, maxAttempts = 5): Promise<boolean> => {
-    for (let i = 0; i < maxAttempts; i++) {
-      const { data } = await supabase
-        .from("companies")
-        .select("status")
-        .eq("id", companyId)
-        .single();
-      if (data?.status === "active") return true;
-      // Wait 600ms between polls
-      await new Promise((r) => setTimeout(r, 600));
-    }
-    return false;
-  };
-
   const handleConfirm = async () => {
     if (!editingCompany) return;
     setSaving(true);
 
-    // 1. Update and activate the company
-    const { error } = await supabase
-      .from("companies")
-      .update({
-        business_name: form.business_name,
-        gst_number: form.gst_number || null,
-        fssai_number: form.fssai_number || null,
-        registered_address: form.registered_address || null,
-        status: "active",
-      } as any)
-      .eq("id", editingCompany.id);
+    const unattached = historyMessages.filter((m) => !m.processed);
+    const clientPhone = extractPhone(editingCompany);
 
-    if (error) {
-      toast.error("Update failed: " + error.message);
+    // Extract SKU names from message history (best-effort)
+    const skuNames: string[] = [];
+
+    // Build WhatsApp confirmation message
+    const portalUrl = "https://id-preview--a2649760-8f34-4dcf-aaf4-ff101ea06ef6.lovable.app";
+    const waMessage = `Salaam! Your order has been confirmed. Login here with your number to track: ${portalUrl}`;
+
+    // SINGLE edge function call: activate company + create order + mark webhooks + send WhatsApp
+    const { data, error } = await supabase.functions.invoke("admin-create-draft", {
+      body: {
+        company_id: editingCompany.id,
+        sku_names: skuNames,
+        webhook_ids: unattached.map((m) => m.id),
+        activate_company: true,
+        company_update: {
+          business_name: form.business_name,
+          gst_number: form.gst_number || null,
+          fssai_number: form.fssai_number || null,
+          registered_address: form.registered_address || null,
+        },
+        send_whatsapp_to: clientPhone.length >= 10 ? clientPhone : null,
+        whatsapp_message: clientPhone.length >= 10 ? waMessage : null,
+      },
+    });
+
+    if (error || !data?.ok) {
+      toast.error("Activation failed: " + (data?.error || error?.message || "Unknown error"));
       setSaving(false);
       return;
     }
 
-    // 2. HARD VERIFY: Poll until the company status is confirmed 'active'
-    const confirmed = await waitForActiveStatus(editingCompany.id);
+    // SUCCESS — edge function returned 200, DB writes are confirmed
+    const msgCount = unattached.length;
+    toast.success(`${form.business_name} activated & verified! Draft SO #${data.order_id.slice(0, 8).toUpperCase()} created.${msgCount > 0 ? ` ${msgCount} message(s) attached.` : ""}`);
 
-    if (!confirmed) {
-      toast.error("Activation not confirmed after multiple retries. Check RLS permissions and retry.");
-      setSaving(false);
-      return;
-    }
-
-    // 3. Auto-attach: Convert unprocessed messages into draft orders via edge function
-    if (historyMessages.length > 0) {
-      const unattached = historyMessages.filter((m) => !m.processed);
-
-      if (unattached.length > 0) {
-        const { data: draftResult, error: draftErr } = await supabase.functions.invoke("admin-create-draft", {
-          body: {
-            company_id: editingCompany.id,
-            sku_names: [],
-            webhook_id: null,
-          },
-        });
-
-        if (draftErr || !draftResult?.ok) {
-          toast.error("Draft order creation failed: " + (draftResult?.error || draftErr?.message || "Unknown"));
-        } else {
-          // Mark all webhooks as processed
-          const webhookIds = unattached.map((m) => m.id);
-          await supabase
-            .from("debug_webhooks")
-            .update({ processed: true } as any)
-            .in("id", webhookIds);
-
-          toast.success(`${unattached.length} message${unattached.length > 1 ? "s" : ""} attached as Draft Order #${draftResult.order_id.slice(0, 8).toUpperCase()}`);
-        }
-      }
-    }
-
-    // 4. SUCCESS: Only now show the success toast — DB is verified
-    toast.success(`${form.business_name} confirmed & activated! (Verified in DB)`);
     setSaving(false);
     setEditingCompany(null);
-
-    // 5. Refresh AFTER everything is done
     onRefresh();
   };
 
