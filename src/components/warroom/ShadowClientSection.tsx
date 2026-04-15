@@ -135,6 +135,21 @@ export default function ShadowClientSection({ companies, onRefresh }: Props) {
     return str.slice(0, 150);
   };
 
+  /** Poll DB until company status === 'active', with timeout */
+  const waitForActiveStatus = async (companyId: string, maxAttempts = 5): Promise<boolean> => {
+    for (let i = 0; i < maxAttempts; i++) {
+      const { data } = await supabase
+        .from("companies")
+        .select("status")
+        .eq("id", companyId)
+        .single();
+      if (data?.status === "active") return true;
+      // Wait 600ms between polls
+      await new Promise((r) => setTimeout(r, 600));
+    }
+    return false;
+  };
+
   const handleConfirm = async () => {
     if (!editingCompany) return;
     setSaving(true);
@@ -157,15 +172,11 @@ export default function ShadowClientSection({ companies, onRefresh }: Props) {
       return;
     }
 
-    // 2. HARD VERIFY: Re-read the company status to confirm the write landed
-    const { data: verified } = await supabase
-      .from("companies")
-      .select("status")
-      .eq("id", editingCompany.id)
-      .single();
+    // 2. HARD VERIFY: Poll until the company status is confirmed 'active'
+    const confirmed = await waitForActiveStatus(editingCompany.id);
 
-    if (!verified || verified.status !== "active") {
-      toast.error("Activation not confirmed in database. Please retry.");
+    if (!confirmed) {
+      toast.error("Activation not confirmed after multiple retries. Check RLS permissions and retry.");
       setSaving(false);
       return;
     }
@@ -185,7 +196,6 @@ export default function ShadowClientSection({ companies, onRefresh }: Props) {
 
         if (draftErr || !draftResult?.ok) {
           toast.error("Draft order creation failed: " + (draftResult?.error || draftErr?.message || "Unknown"));
-          // Don't block activation — company is already active
         } else {
           // Mark all webhooks as processed
           const webhookIds = unattached.map((m) => m.id);
@@ -199,9 +209,12 @@ export default function ShadowClientSection({ companies, onRefresh }: Props) {
       }
     }
 
+    // 4. SUCCESS: Only now show the success toast — DB is verified
     toast.success(`${form.business_name} confirmed & activated! (Verified in DB)`);
     setSaving(false);
     setEditingCompany(null);
+
+    // 5. Refresh AFTER everything is done
     onRefresh();
   };
 

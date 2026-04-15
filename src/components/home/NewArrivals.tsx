@@ -1,23 +1,56 @@
 import { useNavigate } from "react-router-dom";
-import { useProducts } from "@/hooks/useProducts";
 import { useCurrency } from "@/contexts/CurrencyContext";
 import { useAuth } from "@/hooks/useAuth";
 import { useCart } from "@/hooks/useCart";
 import { Package, Lock, Plus, Loader2 } from "lucide-react";
 import { motion } from "framer-motion";
 import { getDisplayPrice, getMinOrderQty } from "@/utils/pricing";
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { supabase } from "@/integrations/supabase/client";
 
 const NewArrivals = ({ priceTier }: { priceTier?: string | null }) => {
   const navigate = useNavigate();
-  const { products, loading } = useProducts();
   const { isAuthenticated } = useAuth();
   const { formatPrice } = useCurrency();
   const { addToCart } = useCart();
+  const [arrivals, setArrivals] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  const arrivals = [...(products || [])]
-    .sort((a, b) => (b.created_at || "").localeCompare(a.created_at || ""))
-    .slice(0, 8);
+  useEffect(() => {
+    (async () => {
+      // Fetch products tagged as 'new-arrivals' via product_tag_mapping
+      const { data: tag } = await supabase
+        .from("product_tags")
+        .select("id")
+        .eq("tag_key", "new-arrivals")
+        .eq("is_active", true)
+        .maybeSingle();
+
+      if (!tag) { setLoading(false); return; }
+
+      const { data: mappings } = await supabase
+        .from("product_tag_mapping")
+        .select("product_id, manual_sort_index")
+        .eq("tag_id", tag.id)
+        .order("manual_sort_index", { ascending: true })
+        .limit(8);
+
+      if (!mappings || mappings.length === 0) { setLoading(false); return; }
+
+      const productIds = mappings.map((m: any) => m.product_id);
+      const { data: products } = await supabase
+        .from("products")
+        .select("*")
+        .in("id", productIds);
+
+      const sorted = productIds
+        .map((pid: string) => products?.find((p: any) => p.id === pid))
+        .filter(Boolean);
+
+      setArrivals(sorted);
+      setLoading(false);
+    })();
+  }, []);
 
   if (loading || arrivals.length === 0) return null;
 
@@ -93,7 +126,6 @@ const ArrivalCard = ({ product, index, navigate, formatPrice, isAuthenticated, a
         <span className="absolute top-2 left-2 font-body text-[7px] tracking-[0.15em] uppercase bg-primary/90 text-white px-2 py-0.5 rounded-full">
           New
         </span>
-        {/* Quick-add overlay */}
         {isAuthenticated && (
           <button
             onClick={handleQuickAdd}
