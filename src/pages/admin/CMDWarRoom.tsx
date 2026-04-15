@@ -2,8 +2,10 @@ import { useEffect, useState, useMemo, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Eye, EyeOff, RefreshCw } from "lucide-react";
 import { removeDuplicateRealtimeChannel } from "@/utils/realtime";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import ShadowClientSection from "@/components/warroom/ShadowClientSection";
 import WarRoomOrderCard from "@/components/warroom/WarRoomOrderCard";
+import RawIntelligenceTab from "@/components/warroom/RawIntelligenceTab";
 
 interface Order {
   id: string;
@@ -69,7 +71,6 @@ const CMDWarRoom = () => {
       .in("order_id", orderIds);
     const complainedOrders = new Set(tickets?.map((t: any) => t.order_id) ?? []);
 
-    // Fetch order items with product names
     const { data: items } = await supabase
       .from("order_items")
       .select("order_id, quantity, product_id, products(name)")
@@ -101,8 +102,10 @@ const CMDWarRoom = () => {
 
     const ordersChannel = "warroom-orders-live";
     const companiesChannel = "warroom-companies-live";
+    const itemsChannel = "warroom-items-live";
     removeDuplicateRealtimeChannel(ordersChannel);
     removeDuplicateRealtimeChannel(companiesChannel);
+    removeDuplicateRealtimeChannel(itemsChannel);
 
     const ch1 = supabase
       .channel(ordersChannel)
@@ -114,9 +117,16 @@ const CMDWarRoom = () => {
       .on("postgres_changes", { event: "*", schema: "public", table: "companies" }, () => fetchShadowCompanies())
       .subscribe();
 
+    // Listen to order_items changes so SKU chips refresh instantly
+    const ch3 = supabase
+      .channel(itemsChannel)
+      .on("postgres_changes", { event: "*", schema: "public", table: "order_items" }, () => fetchOrders())
+      .subscribe();
+
     return () => {
       supabase.removeChannel(ch1);
       supabase.removeChannel(ch2);
+      supabase.removeChannel(ch3);
     };
   }, [fetchOrders, fetchShadowCompanies]);
 
@@ -126,7 +136,6 @@ const CMDWarRoom = () => {
       if (!a.has_complaint && b.has_complaint) return 1;
       if (a.dispatch_urgency === "panic" && b.dispatch_urgency !== "panic") return -1;
       if (a.dispatch_urgency !== "panic" && b.dispatch_urgency === "panic") return 1;
-      // Newest first
       return new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime();
     });
   }, [orders]);
@@ -167,20 +176,32 @@ const CMDWarRoom = () => {
       {/* Shadow Client Verification Section */}
       <ShadowClientSection companies={shadowCompanies} onRefresh={() => { fetchShadowCompanies(); fetchOrders(); }} />
 
-      {visibleOrders.length === 0 && (
-        <p className="text-muted-foreground text-sm text-center py-12">No active orders in the pipeline.</p>
-      )}
+      <Tabs defaultValue="battlefield" className="w-full">
+        <TabsList className="w-full">
+          <TabsTrigger value="battlefield" className="flex-1">Live Battlefield</TabsTrigger>
+          <TabsTrigger value="raw" className="flex-1">Raw Intelligence</TabsTrigger>
+        </TabsList>
 
-      <div className="space-y-3">
-        {visibleOrders.map((order) => (
-          <WarRoomOrderCard
-            key={order.id}
-            order={order}
-            isMinimized={hidden.has(order.id)}
-            onToggleMinimize={() => toggleHide(order.id)}
-          />
-        ))}
-      </div>
+        <TabsContent value="battlefield">
+          {visibleOrders.length === 0 && (
+            <p className="text-muted-foreground text-sm text-center py-12">No active orders in the pipeline.</p>
+          )}
+          <div className="space-y-3">
+            {visibleOrders.map((order) => (
+              <WarRoomOrderCard
+                key={order.id}
+                order={order}
+                isMinimized={hidden.has(order.id)}
+                onToggleMinimize={() => toggleHide(order.id)}
+              />
+            ))}
+          </div>
+        </TabsContent>
+
+        <TabsContent value="raw">
+          <RawIntelligenceTab />
+        </TabsContent>
+      </Tabs>
     </div>
   );
 };
