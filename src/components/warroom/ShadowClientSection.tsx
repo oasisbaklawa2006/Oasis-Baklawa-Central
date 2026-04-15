@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { MessageSquare, Phone, Building2, Edit2, CheckCircle, Package } from "lucide-react";
+import { MessageSquare, Phone, Building2, Edit2, CheckCircle, Package, Search, ArrowRight } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
@@ -20,6 +20,14 @@ interface DraftOrderInfo {
   items: { product_name: string; quantity: number }[];
 }
 
+interface HistoryMessage {
+  id: string;
+  phone_number: string | null;
+  raw_payload: any;
+  created_at: string;
+  processed: boolean | null;
+}
+
 interface Props {
   companies: ShadowCompany[];
   onRefresh: () => void;
@@ -30,8 +38,10 @@ export default function ShadowClientSection({ companies, onRefresh }: Props) {
   const [form, setForm] = useState({ business_name: "", gst_number: "", fssai_number: "", registered_address: "" });
   const [saving, setSaving] = useState(false);
   const [draftOrders, setDraftOrders] = useState<Record<string, DraftOrderInfo[]>>({});
+  const [historyMessages, setHistoryMessages] = useState<HistoryMessage[]>([]);
+  const [scanningHistory, setScanningHistory] = useState(false);
+  const [historyScanned, setHistoryScanned] = useState(false);
 
-  // Fetch draft orders for all shadow companies
   useEffect(() => {
     if (companies.length === 0) return;
     const companyIds = companies.map((c) => c.id);
@@ -63,14 +73,19 @@ export default function ShadowClientSection({ companies, onRefresh }: Props) {
     })();
   }, [companies]);
 
-  const openEdit = (c: ShadowCompany) => {
+  const openEdit = async (c: ShadowCompany) => {
     setEditingCompany(c);
+    setHistoryMessages([]);
+    setHistoryScanned(false);
     setForm({
       business_name: c.business_name.replace(" (WhatsApp)", ""),
       gst_number: c.gst_number?.startsWith("WA:") ? "" : c.gst_number || "",
       fssai_number: c.fssai_number || "",
       registered_address: c.registered_address || "",
     });
+
+    // Auto-scan history
+    await scanHistory(c);
   };
 
   const extractPhone = (c: ShadowCompany): string => {
@@ -79,9 +94,46 @@ export default function ShadowClientSection({ companies, onRefresh }: Props) {
     return "—";
   };
 
+  const scanHistory = async (c: ShadowCompany) => {
+    setScanningHistory(true);
+    const phone = extractPhone(c).replace(/\D/g, "");
+    if (!phone || phone === "") {
+      setScanningHistory(false);
+      setHistoryScanned(true);
+      return;
+    }
+
+    // Search for unprocessed messages from this phone
+    const { data } = await supabase
+      .from("debug_webhooks")
+      .select("id, phone_number, raw_payload, created_at, processed")
+      .eq("direction", "inbound")
+      .or(`phone_number.ilike.%${phone.slice(-10)}%`)
+      .eq("processed", false)
+      .order("created_at", { ascending: false })
+      .limit(20);
+
+    setHistoryMessages((data as HistoryMessage[]) ?? []);
+    setScanningHistory(false);
+    setHistoryScanned(true);
+  };
+
+  const extractText = (payload: any): string => {
+    if (!payload) return "";
+    const msg = payload?.entry?.[0]?.changes?.[0]?.value?.messages?.[0];
+    if (msg?.text?.body) return msg.text.body;
+    if (typeof payload === "string") return payload.slice(0, 200);
+    const str = JSON.stringify(payload);
+    const textMatch = str.match(/"body"\s*:\s*"([^"]+)"/);
+    if (textMatch) return textMatch[1];
+    return str.slice(0, 150);
+  };
+
   const handleConfirm = async () => {
     if (!editingCompany) return;
     setSaving(true);
+
+    // 1. Update and activate the company
     const { error } = await supabase
       .from("companies")
       .update({
@@ -93,14 +145,53 @@ export default function ShadowClientSection({ companies, onRefresh }: Props) {
       } as any)
       .eq("id", editingCompany.id);
 
-    setSaving(false);
     if (error) {
       toast.error("Update failed: " + error.message);
-    } else {
-      toast.success(`${form.business_name} confirmed & activated!`);
-      setEditingCompany(null);
-      onRefresh();
+      setSaving(false);
+      return;
     }
+
+    // 2. Attach unprocessed messages as draft orders
+    if (historyMessages.length > 0) {
+      const unattached = historyMessages.filter((m) => !m.processed);
+      for (const msg of unattached) {
+        // Check if a draft already exists for this company from this message
+        const { data: existingOrders } = await supabase
+          .from("orders")
+          .select("id")
+          .eq("company_id", editingCompany.id)
+          .eq("status", "draft")
+          .limit(1);
+
+        let orderId: string;
+        if (existingOrders && existingOrders.length > 0) {
+          orderId = existingOrders[0].id;
+        } else {
+          const { data: newOrder } = await supabase
+            .from("orders")
+            .insert({
+              company_id: editingCompany.id,
+              status: "draft",
+              dispatch_urgency: "standard",
+            } as any)
+            .select("id")
+            .single();
+          if (!newOrder) continue;
+          orderId = newOrder.id;
+        }
+
+        // Mark webhook as processed
+        await supabase
+          .from("debug_webhooks")
+          .update({ processed: true } as any)
+          .eq("id", msg.id);
+      }
+    }
+
+    toast.success(`${form.business_name} confirmed & activated!`);
+    setSaving(false);
+    setEditingCompany(null);
+    onRefresh();
   };
 
   if (companies.length === 0) return null;
@@ -152,13 +243,43 @@ export default function ShadowClientSection({ companies, onRefresh }: Props) {
       </div>
 
       <Dialog open={!!editingCompany} onOpenChange={(o) => !o && setEditingCompany(null)}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <CheckCircle size={18} className="text-primary" /> Verify & Activate Client
             </DialogTitle>
           </DialogHeader>
           <div className="space-y-3 mt-2">
+            {/* Scanned WhatsApp History */}
+            {scanningHistory && (
+              <div className="flex items-center gap-2 text-xs text-muted-foreground py-3 justify-center">
+                <Search size={14} className="animate-pulse" /> Scanning WhatsApp history…
+              </div>
+            )}
+
+            {historyScanned && historyMessages.length > 0 && (
+              <div className="rounded-lg border border-blue-500/20 bg-blue-500/5 p-3">
+                <p className="text-xs font-bold text-blue-500 mb-2 flex items-center gap-1.5">
+                  <Search size={12} /> {historyMessages.length} Unprocessed Message{historyMessages.length > 1 ? "s" : ""} Found
+                </p>
+                <div className="space-y-1.5 max-h-32 overflow-y-auto">
+                  {historyMessages.map((m) => (
+                    <div key={m.id} className="text-[10px] bg-background rounded p-2 border border-border">
+                      <p className="text-foreground truncate">{extractText(m.raw_payload) || "Non-text message"}</p>
+                      <p className="text-muted-foreground mt-0.5">{new Date(m.created_at).toLocaleString("en-IN", { timeZone: "Asia/Kolkata" })}</p>
+                    </div>
+                  ))}
+                </div>
+                <p className="text-[10px] text-blue-400 mt-2 flex items-center gap-1">
+                  <ArrowRight size={10} /> These will be attached as Draft Orders on confirmation
+                </p>
+              </div>
+            )}
+
+            {historyScanned && historyMessages.length === 0 && (
+              <p className="text-[10px] text-muted-foreground text-center py-1">No unprocessed messages found for this number.</p>
+            )}
+
             {/* Pending WhatsApp Items Preview */}
             {editingDrafts.length > 0 && (
               <div className="rounded-lg border border-primary/20 bg-primary/5 p-3">
@@ -204,7 +325,7 @@ export default function ShadowClientSection({ companies, onRefresh }: Props) {
               disabled={saving || !form.business_name.trim()}
               className="w-full py-2.5 rounded-lg bg-primary text-primary-foreground font-semibold text-sm hover:bg-primary/90 transition-colors disabled:opacity-50"
             >
-              {saving ? "Saving…" : "✅ Confirm & Activate"}
+              {saving ? "Saving…" : `✅ Confirm & Activate${historyMessages.length > 0 ? ` (+ ${historyMessages.length} messages)` : ""}`}
             </button>
           </div>
         </DialogContent>
