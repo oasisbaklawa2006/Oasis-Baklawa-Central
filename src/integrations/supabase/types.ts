@@ -3043,6 +3043,7 @@ export type Database = {
           id: string
           invite_status: string | null
           is_active: boolean | null
+          is_sales_executive: boolean
           joined_at: string | null
           mobile_number: string | null
           name: string | null
@@ -3062,6 +3063,7 @@ export type Database = {
           id?: string
           invite_status?: string | null
           is_active?: boolean | null
+          is_sales_executive?: boolean
           joined_at?: string | null
           mobile_number?: string | null
           name?: string | null
@@ -3081,6 +3083,7 @@ export type Database = {
           id?: string
           invite_status?: string | null
           is_active?: boolean | null
+          is_sales_executive?: boolean
           joined_at?: string | null
           mobile_number?: string | null
           name?: string | null
