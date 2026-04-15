@@ -54,7 +54,18 @@ serve(async (req) => {
 
   try {
     const body = await req.json();
-    const { company_id, phone, sku_names, webhook_id } = body;
+    const {
+      company_id,
+      phone,
+      sku_names,
+      webhook_ids,
+      // Company activation fields (optional)
+      activate_company,
+      company_update,
+      // WhatsApp notification (optional)
+      send_whatsapp_to,
+      whatsapp_message,
+    } = body;
 
     if (!company_id && !phone) {
       return new Response(JSON.stringify({ error: "company_id or phone required" }), {
@@ -64,7 +75,7 @@ serve(async (req) => {
 
     let resolvedCompanyId = company_id;
 
-    // If no company_id, try to find or create by phone
+    // --- STEP 1: Resolve or create company ---
     if (!resolvedCompanyId && phone) {
       const digits = phone.replace(/\D/g, "");
       const last10 = digits.slice(-10);
@@ -78,7 +89,6 @@ serve(async (req) => {
       if (companies && companies.length > 0) {
         resolvedCompanyId = companies[0].id;
       } else {
-        // Create shadow company
         const { data: newCompany, error: compErr } = await supabaseAdmin
           .from("companies")
           .insert({
@@ -99,8 +109,42 @@ serve(async (req) => {
       }
     }
 
-    // Create draft order using service role (bypasses RLS)
-    // Supply tracking_token explicitly to avoid gen_random_bytes trigger issue
+    // --- STEP 2: Activate / update company if requested ---
+    if (activate_company && resolvedCompanyId) {
+      const updatePayload: Record<string, any> = { status: "active" };
+      if (company_update) {
+        if (company_update.business_name) updatePayload.business_name = company_update.business_name;
+        if (company_update.gst_number !== undefined) updatePayload.gst_number = company_update.gst_number || null;
+        if (company_update.fssai_number !== undefined) updatePayload.fssai_number = company_update.fssai_number || null;
+        if (company_update.registered_address !== undefined) updatePayload.registered_address = company_update.registered_address || null;
+      }
+
+      const { error: updateErr } = await supabaseAdmin
+        .from("companies")
+        .update(updatePayload)
+        .eq("id", resolvedCompanyId);
+
+      if (updateErr) {
+        return new Response(JSON.stringify({ error: "Company activation failed", detail: updateErr.message }), {
+          status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      // Hard-verify the update landed
+      const { data: verifyRow } = await supabaseAdmin
+        .from("companies")
+        .select("status")
+        .eq("id", resolvedCompanyId)
+        .single();
+
+      if (verifyRow?.status !== "active") {
+        return new Response(JSON.stringify({ error: "Company activation not confirmed in DB" }), {
+          status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+    }
+
+    // --- STEP 3: Create draft order with tracking token (bypass trigger) ---
     const { data: order, error: orderErr } = await supabaseAdmin
       .from("orders")
       .insert({
@@ -118,7 +162,7 @@ serve(async (req) => {
       });
     }
 
-    // Try to match SKUs and insert order items
+    // --- STEP 4: Match SKUs and insert order items atomically ---
     if (sku_names && sku_names.length > 0) {
       const { data: products } = await supabaseAdmin
         .from("products")
@@ -131,19 +175,49 @@ serve(async (req) => {
           product_id: p.id,
           quantity: 1,
         }));
-        await supabaseAdmin.from("order_items").insert(items);
+        const { error: itemsErr } = await supabaseAdmin.from("order_items").insert(items);
+
+        if (itemsErr) {
+          // Rollback: delete the shell order
+          await supabaseAdmin.from("orders").delete().eq("id", order.id);
+          return new Response(JSON.stringify({ error: "Failed to insert order items — order rolled back", detail: itemsErr.message }), {
+            status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
       }
     }
 
-    // Mark webhook as processed if provided
-    if (webhook_id) {
+    // --- STEP 5: Mark webhooks as processed ---
+    if (webhook_ids && webhook_ids.length > 0) {
       await supabaseAdmin
         .from("debug_webhooks")
         .update({ processed: true })
-        .eq("id", webhook_id);
+        .in("id", webhook_ids);
     }
 
-    return new Response(JSON.stringify({ ok: true, order_id: order.id }), {
+    // --- STEP 6: Send WhatsApp notification if requested ---
+    if (send_whatsapp_to && whatsapp_message) {
+      try {
+        const waUrl = `${Deno.env.get("SUPABASE_URL")}/functions/v1/send-whatsapp`;
+        await fetch(waUrl, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
+          },
+          body: JSON.stringify({
+            to: send_whatsapp_to,
+            message: whatsapp_message,
+            company_id: resolvedCompanyId,
+            order_id: order.id,
+          }),
+        });
+      } catch (waErr) {
+        console.error("WhatsApp send failed (non-blocking):", waErr);
+      }
+    }
+
+    return new Response(JSON.stringify({ ok: true, order_id: order.id, company_id: resolvedCompanyId }), {
       status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (e) {
