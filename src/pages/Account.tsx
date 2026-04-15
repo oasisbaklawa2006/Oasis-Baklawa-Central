@@ -190,6 +190,15 @@ const Account = () => {
               </div>
             </div>
           </div>
+
+          {/* Edit Company Details button */}
+          <button
+            onClick={() => toast.info("Contact your Account Manager to update company details.")}
+            className="w-full py-3 rounded-xl border border-[#C5A059]/30 text-[#C5A059] font-bold text-xs hover:bg-[#C5A059]/5 transition-colors flex items-center justify-center gap-2"
+          >
+            <Building2 size={14} />
+            Edit Company Details
+          </button>
         </motion.section>
 
         {/* Digital Wallet (REAL DATA) */}
