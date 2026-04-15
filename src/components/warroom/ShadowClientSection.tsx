@@ -74,7 +74,6 @@ export default function ShadowClientSection({ companies, onRefresh }: Props) {
   }, [companies]);
 
   const extractPhone = (c: ShadowCompany): string => {
-    // Priority: direct phone field → GST WA: prefix → empty
     if (c.phone && c.phone.trim().length > 0) return c.phone.trim();
     if (c.gst_number?.startsWith("WA:")) return c.gst_number.replace("WA:", "+");
     return "";
@@ -96,7 +95,6 @@ export default function ShadowClientSection({ companies, onRefresh }: Props) {
       registered_address: c.registered_address || "",
     });
 
-    // Auto-scan history using real phone string
     await scanHistory(c);
   };
 
@@ -110,10 +108,8 @@ export default function ShadowClientSection({ companies, onRefresh }: Props) {
       return;
     }
 
-    // Use last 10 digits for matching (strips country code variations)
     const last10 = digits.slice(-10);
 
-    // Real-time scan of debug_webhooks by phone number
     const { data } = await supabase
       .from("debug_webhooks")
       .select("id, phone_number, raw_payload, created_at, processed")
@@ -161,23 +157,36 @@ export default function ShadowClientSection({ companies, onRefresh }: Props) {
       return;
     }
 
-    // 2. Auto-attach: Convert all unprocessed messages into draft orders
+    // 2. HARD VERIFY: Re-read the company status to confirm the write landed
+    const { data: verified } = await supabase
+      .from("companies")
+      .select("status")
+      .eq("id", editingCompany.id)
+      .single();
+
+    if (!verified || verified.status !== "active") {
+      toast.error("Activation not confirmed in database. Please retry.");
+      setSaving(false);
+      return;
+    }
+
+    // 3. Auto-attach: Convert unprocessed messages into draft orders via edge function
     if (historyMessages.length > 0) {
       const unattached = historyMessages.filter((m) => !m.processed);
 
       if (unattached.length > 0) {
-        // Create one draft order for the batch
-        const { data: newOrder } = await supabase
-          .from("orders")
-          .insert({
+        const { data: draftResult, error: draftErr } = await supabase.functions.invoke("admin-create-draft", {
+          body: {
             company_id: editingCompany.id,
-            status: "draft",
-            dispatch_urgency: "standard",
-          } as any)
-          .select("id")
-          .single();
+            sku_names: [],
+            webhook_id: null,
+          },
+        });
 
-        if (newOrder) {
+        if (draftErr || !draftResult?.ok) {
+          toast.error("Draft order creation failed: " + (draftResult?.error || draftErr?.message || "Unknown"));
+          // Don't block activation — company is already active
+        } else {
           // Mark all webhooks as processed
           const webhookIds = unattached.map((m) => m.id);
           await supabase
@@ -185,12 +194,12 @@ export default function ShadowClientSection({ companies, onRefresh }: Props) {
             .update({ processed: true } as any)
             .in("id", webhookIds);
 
-          toast.success(`${unattached.length} message${unattached.length > 1 ? "s" : ""} attached as Draft Order #${newOrder.id.slice(0, 8).toUpperCase()}`);
+          toast.success(`${unattached.length} message${unattached.length > 1 ? "s" : ""} attached as Draft Order #${draftResult.order_id.slice(0, 8).toUpperCase()}`);
         }
       }
     }
 
-    toast.success(`${form.business_name} confirmed & activated!`);
+    toast.success(`${form.business_name} confirmed & activated! (Verified in DB)`);
     setSaving(false);
     setEditingCompany(null);
     onRefresh();
@@ -253,14 +262,12 @@ export default function ShadowClientSection({ companies, onRefresh }: Props) {
             </DialogTitle>
           </DialogHeader>
           <div className="space-y-3 mt-2">
-            {/* Scanning indicator */}
             {scanningHistory && (
               <div className="flex items-center gap-2 text-xs text-muted-foreground py-3 justify-center">
                 <Search size={14} className="animate-pulse" /> Scanning WhatsApp history…
               </div>
             )}
 
-            {/* History found */}
             {historyScanned && historyMessages.length > 0 && (
               <div className="rounded-lg border border-blue-500/20 bg-blue-500/5 p-3">
                 <p className="text-xs font-bold text-blue-500 mb-2 flex items-center gap-1.5">
@@ -280,7 +287,6 @@ export default function ShadowClientSection({ companies, onRefresh }: Props) {
               </div>
             )}
 
-            {/* No history — New Lead */}
             {historyScanned && historyMessages.length === 0 && (
               <div className="flex items-center gap-2 text-xs text-muted-foreground bg-muted/50 rounded-lg px-3 py-2.5">
                 <AlertTriangle size={14} className="text-amber-500 flex-shrink-0" />
@@ -288,7 +294,6 @@ export default function ShadowClientSection({ companies, onRefresh }: Props) {
               </div>
             )}
 
-            {/* Pending WhatsApp Items Preview */}
             {editingDrafts.length > 0 && (
               <div className="rounded-lg border border-primary/20 bg-primary/5 p-3">
                 <p className="text-xs font-bold text-primary mb-2 flex items-center gap-1.5">
@@ -333,7 +338,7 @@ export default function ShadowClientSection({ companies, onRefresh }: Props) {
               disabled={saving || !form.business_name.trim()}
               className="w-full py-2.5 rounded-lg bg-primary text-primary-foreground font-semibold text-sm hover:bg-primary/90 transition-colors disabled:opacity-50"
             >
-              {saving ? "Saving…" : `✅ Confirm & Activate${historyMessages.length > 0 ? ` (+ ${historyMessages.length} messages)` : ""}`}
+              {saving ? "Verifying in DB…" : `✅ Confirm & Activate${historyMessages.length > 0 ? ` (+ ${historyMessages.length} messages)` : ""}`}
             </button>
           </div>
         </DialogContent>

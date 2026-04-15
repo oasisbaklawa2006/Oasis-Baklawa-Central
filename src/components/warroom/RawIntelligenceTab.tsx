@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { removeDuplicateRealtimeChannel } from "@/utils/realtime";
-import { AlertCircle, RefreshCw, MessageSquare, Send, FileText, Mic, Image as ImageIcon, Package } from "lucide-react";
+import { AlertCircle, RefreshCw, MessageSquare, Send, FileText, Mic, Image as ImageIcon, Package, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
 interface RawMessage {
@@ -23,6 +23,7 @@ export default function RawIntelligenceTab() {
   const [loading, setLoading] = useState(true);
   const [aliases, setAliases] = useState<AliasMatch[]>([]);
   const [creatingDraft, setCreatingDraft] = useState<string | null>(null);
+  const [markingWaste, setMarkingWaste] = useState<string | null>(null);
 
   const fetchAliases = useCallback(async () => {
     const { data } = await supabase
@@ -60,9 +61,7 @@ export default function RawIntelligenceTab() {
     const msg = payload?.entry?.[0]?.changes?.[0]?.value?.messages?.[0];
     if (msg?.text?.body) return msg.text.body;
     if (typeof payload === "string") return payload.slice(0, 500);
-    // Try to find any text-like content in the payload
     const str = JSON.stringify(payload);
-    // Extract text from known patterns
     const textMatch = str.match(/"body"\s*:\s*"([^"]+)"/);
     if (textMatch) return textMatch[1];
     return str.slice(0, 300);
@@ -105,89 +104,50 @@ export default function RawIntelligenceTab() {
     return `${Math.floor(hours / 24)}d ago`;
   };
 
+  const handleMarkWaste = async (msg: RawMessage) => {
+    setMarkingWaste(msg.id);
+    try {
+      const { error } = await supabase
+        .from("debug_webhooks")
+        .update({ processed: true, error_message: "Non-Order Message" } as any)
+        .eq("id", msg.id);
+
+      if (error) {
+        toast.error("Failed to mark as waste");
+      } else {
+        toast.success("Marked as non-order waste");
+        fetchRaw();
+      }
+    } catch {
+      toast.error("Error marking waste");
+    }
+    setMarkingWaste(null);
+  };
+
   const handleCreateDraftSO = async (msg: RawMessage) => {
     setCreatingDraft(msg.id);
     try {
       const sender = extractSender(msg.raw_payload, msg.phone_number);
+      const text = extractText(msg.raw_payload);
+      const detectedSKUs = detectSKUs(text);
       const phone = sender.phone.replace(/\D/g, "");
 
-      // Try to find matching company by phone
-      const { data: companies } = await supabase
-        .from("companies")
-        .select("id, business_name")
-        .or(`phone.ilike.%${phone.slice(-10)}%,gst_number.ilike.%${phone}%`)
-        .limit(1);
+      // Use edge function with service role to bypass RLS
+      const { data, error } = await supabase.functions.invoke("admin-create-draft", {
+        body: {
+          phone,
+          sku_names: detectedSKUs,
+          webhook_id: msg.id,
+        },
+      });
 
-      let companyId: string;
-
-      if (companies && companies.length > 0) {
-        companyId = companies[0].id;
-      } else {
-        // Create shadow company
-        const { data: newCompany, error: companyErr } = await supabase
-          .from("companies")
-          .insert({
-            business_name: `${sender.name} (WhatsApp)`,
-            phone: `+${phone}`,
-            gst_number: `WA:${phone}`,
-            status: "shadow",
-          } as any)
-          .select("id")
-          .single();
-
-        if (companyErr || !newCompany) {
-          toast.error("Failed to create shadow client");
-          setCreatingDraft(null);
-          return;
-        }
-        companyId = newCompany.id;
-      }
-
-      // Create draft order
-      const { data: order, error: orderErr } = await supabase
-        .from("orders")
-        .insert({
-          company_id: companyId,
-          status: "draft",
-          dispatch_urgency: "standard",
-        } as any)
-        .select("id")
-        .single();
-
-      if (orderErr || !order) {
-        toast.error("Failed to create draft order");
+      if (error || !data?.ok) {
+        toast.error(data?.error || "Failed to create draft order");
         setCreatingDraft(null);
         return;
       }
 
-      // Try to match SKUs and insert order items
-      const text = extractText(msg.raw_payload);
-      const skuMatches = detectSKUs(text);
-
-      if (skuMatches.length > 0) {
-        // Find product IDs for matched SKUs
-        const { data: products } = await supabase
-          .from("products")
-          .select("id, name")
-          .in("name", skuMatches);
-
-        if (products && products.length > 0) {
-          const items = products.map((p) => ({
-            order_id: order.id,
-            product_id: p.id,
-            quantity: 1, // Default quantity — admin will adjust
-          }));
-          await supabase.from("order_items").insert(items);
-        }
-      }
-
-      // Mark webhook as processed
-      await supabase
-        .from("debug_webhooks")
-        .update({ processed: true } as any)
-        .eq("id", msg.id);
-
-      toast.success(`Draft SO created! Order #${order.id.slice(0, 8).toUpperCase()}`);
+      toast.success(`Draft SO created! Order #${data.order_id.slice(0, 8).toUpperCase()}`);
       fetchRaw();
     } catch (err) {
       toast.error("Error creating draft SO");
@@ -288,8 +248,19 @@ export default function RawIntelligenceTab() {
               </p>
             )}
 
-            {/* Action: Create Draft SO */}
-            <div className="flex items-center justify-end pt-1">
+            {/* Actions: Create Draft SO + Mark as Waste */}
+            <div className="flex items-center justify-end gap-2 pt-1">
+              <button
+                onClick={() => handleMarkWaste(msg)}
+                disabled={markingWaste === msg.id}
+                className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground hover:text-destructive transition-colors px-3 py-1.5 rounded-md border border-border hover:border-destructive/30 hover:bg-destructive/5 disabled:opacity-50"
+              >
+                {markingWaste === msg.id ? (
+                  <>Marking…</>
+                ) : (
+                  <><Trash2 size={12} /> Mark as Waste</>
+                )}
+              </button>
               <button
                 onClick={() => handleCreateDraftSO(msg)}
                 disabled={creatingDraft === msg.id}
