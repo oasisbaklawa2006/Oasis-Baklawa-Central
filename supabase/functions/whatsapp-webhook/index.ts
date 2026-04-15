@@ -94,7 +94,7 @@ Rules:
 - Extract any business details (name, address, GST) from the message`;
 
   try {
-    const res = await fetch("https://ai.lovable.dev/api/v1/chat/completions", {
+    const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
