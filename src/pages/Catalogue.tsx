@@ -136,10 +136,7 @@ const Catalogue = () => {
     <AppShell>
       <div className="min-h-screen bg-background pb-36">
         <main className="px-4 max-w-5xl mx-auto pt-2">
-          {/* Growth Intelligence + Search */}
-          <div className="flex items-center gap-2.5 mb-2">
-            <GrowthIntelligenceButton variant="pill" />
-          </div>
+          {/* Search */}
           <div className="flex items-center gap-2.5 mb-4">
             <div className="relative flex-1">
               <input
