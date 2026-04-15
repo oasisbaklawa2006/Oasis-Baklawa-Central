@@ -1,7 +1,7 @@
 import { Package, CheckCircle2, Settings, Wrench, Box, FileText, Truck, MapPin, ShieldCheck, Circle } from "lucide-react";
 import { motion } from "framer-motion";
 
-const GOLD = "#c58B07";
+// Color tokens: Past=Grey(muted), Current=Brand Teal(primary), Future=Hazel
 const HAZEL = "#8B7355";
 
 const ORDER_STEPS = [
@@ -52,32 +52,47 @@ const DashboardTimeline = ({ order }: Props) => {
         const isUpcoming = i > currentStep;
         const StepIcon = step.icon;
 
+        // Past = Grey (muted), Current = Brand Teal (primary), Future = Hazel
         const bgColor = isPassed
-          ? "bg-muted text-muted-foreground"
+          ? "bg-muted"
           : isCurrent
-            ? "bg-primary text-primary-foreground"
+            ? "bg-primary"
             : "bg-transparent";
-
-        const borderColor = isUpcoming ? `2px solid ${HAZEL}` : "none";
-        const iconColor = isPassed ? "text-muted-foreground" : isCurrent ? "text-primary-foreground" : HAZEL;
 
         return (
           <div key={step.key} className="flex items-start gap-4 relative">
+            {/* Connector line */}
             {i < ORDER_STEPS.length - 1 && (
               <div
                 className="absolute left-[17px] top-[36px] w-0.5 h-[calc(100%-4px)]"
-                style={{ backgroundColor: isPassed ? "hsl(var(--muted-foreground))" : isCurrent ? "hsl(var(--primary))" : HAZEL }}
+                style={{
+                  backgroundColor: isPassed
+                    ? "hsl(var(--muted-foreground))"
+                    : isCurrent
+                      ? "hsl(var(--primary))"
+                      : HAZEL,
+                }}
               />
             )}
+            {/* Step circle */}
             <div
               className={`relative z-10 w-[36px] h-[36px] rounded-full flex items-center justify-center shrink-0 ${bgColor} ${isCurrent ? "ring-2 ring-primary/30 ring-offset-2 ring-offset-background animate-pulse" : ""}`}
-              style={isUpcoming ? { border: borderColor } : {}}
+              style={isUpcoming ? { border: `2px solid ${HAZEL}` } : {}}
             >
-              {isPassed || isCurrent ? <StepIcon size={16} className={iconColor} /> : <Circle size={16} style={{ color: HAZEL }} />}
+              {isPassed ? (
+                <StepIcon size={16} className="text-muted-foreground" />
+              ) : isCurrent ? (
+                <StepIcon size={16} className="text-primary-foreground" />
+              ) : (
+                <Circle size={16} style={{ color: HAZEL }} />
+              )}
             </div>
+            {/* Step label */}
             <div className="pb-5">
-              <p className={`text-sm font-semibold ${isPassed ? "text-muted-foreground" : isCurrent ? "text-foreground" : ""}`}
-                style={isUpcoming ? { color: HAZEL } : {}}>
+              <p
+                className={`text-sm font-semibold ${isPassed ? "text-muted-foreground" : isCurrent ? "text-foreground" : ""}`}
+                style={isUpcoming ? { color: HAZEL } : {}}
+              >
                 {step.label}
               </p>
               {isCurrent && (

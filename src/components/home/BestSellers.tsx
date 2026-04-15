@@ -1,5 +1,4 @@
 import { useNavigate } from "react-router-dom";
-import { useProducts } from "@/hooks/useProducts";
 import { useAuth } from "@/hooks/useAuth";
 import { useCart } from "@/hooks/useCart";
 import { useCurrency } from "@/contexts/CurrencyContext";
@@ -7,16 +6,53 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Lock, Package, Plus, Loader2 } from "lucide-react";
 import { motion } from "framer-motion";
 import { getDisplayPrice, getMinOrderQty } from "@/utils/pricing";
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { supabase } from "@/integrations/supabase/client";
 
 const BestSellers = ({ priceTier }: { priceTier?: string | null }) => {
   const navigate = useNavigate();
-  const { products, loading } = useProducts();
   const { isAuthenticated } = useAuth();
   const { formatPrice } = useCurrency();
   const { addToCart } = useCart();
+  const [bestSellers, setBestSellers] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  const bestSellers = products?.slice(0, 6) || [];
+  useEffect(() => {
+    (async () => {
+      // Fetch products tagged as 'bestseller' via product_tag_mapping
+      const { data: tag } = await supabase
+        .from("product_tags")
+        .select("id")
+        .eq("tag_key", "bestseller")
+        .eq("is_active", true)
+        .maybeSingle();
+
+      if (!tag) { setLoading(false); return; }
+
+      const { data: mappings } = await supabase
+        .from("product_tag_mapping")
+        .select("product_id, manual_sort_index")
+        .eq("tag_id", tag.id)
+        .order("manual_sort_index", { ascending: true })
+        .limit(6);
+
+      if (!mappings || mappings.length === 0) { setLoading(false); return; }
+
+      const productIds = mappings.map((m: any) => m.product_id);
+      const { data: products } = await supabase
+        .from("products")
+        .select("*")
+        .in("id", productIds);
+
+      // Preserve tag sort order
+      const sorted = productIds
+        .map((pid: string) => products?.find((p: any) => p.id === pid))
+        .filter(Boolean);
+
+      setBestSellers(sorted);
+      setLoading(false);
+    })();
+  }, []);
 
   if (loading) {
     return (
@@ -27,6 +63,8 @@ const BestSellers = ({ priceTier }: { priceTier?: string | null }) => {
       </div>
     );
   }
+
+  if (bestSellers.length === 0) return null;
 
   return (
     <div className="grid grid-cols-2 gap-2.5">
