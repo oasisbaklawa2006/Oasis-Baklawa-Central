@@ -46,6 +46,7 @@ interface WalletTx {
 }
 
 const settingsMenu = [
+  { label: "Change Password", desc: "Update your login credentials", icon: Settings, path: "/reset-password" },
   { label: "Manage Users", desc: "Add or remove team members", icon: Users, path: "/account/users" },
   { label: "Delivery Addresses", desc: "Manage shipping locations", icon: MapPin, path: "/account/addresses" },
   { label: "Preferred Courier", desc: "Set default transporter", icon: Truck, path: "/account/logistics" },
@@ -189,6 +190,15 @@ const Account = () => {
               </div>
             </div>
           </div>
+
+          {/* Edit Company Details button */}
+          <button
+            onClick={() => toast.info("Contact your Account Manager to update company details.")}
+            className="w-full py-3 rounded-xl border border-[#C5A059]/30 text-[#C5A059] font-bold text-xs hover:bg-[#C5A059]/5 transition-colors flex items-center justify-center gap-2"
+          >
+            <Building2 size={14} />
+            Edit Company Details
+          </button>
         </motion.section>
 
         {/* Digital Wallet (REAL DATA) */}

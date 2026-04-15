@@ -111,11 +111,6 @@ const Index = () => {
 
         <SectionDivider />
 
-        {/* ─── STARTER GUIDE HERO TILE ─── */}
-        <motion.section {...fade(0.05)} className="px-5 mb-6">
-          <GrowthIntelligenceButton variant="hero" />
-        </motion.section>
-
         <SectionDivider />
         <motion.div {...fade(0.06)}>
           <CuratedCollections />

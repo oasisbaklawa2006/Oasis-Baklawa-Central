@@ -213,7 +213,7 @@ const Cart = () => {
   }, 0);
 
   const grandTotal = Math.round(subtotal + totalTax);
-  const minimumToken = Math.ceil(grandTotal * 0.2);
+  const minimumToken = Math.round(Math.ceil(grandTotal * 0.2) / 1000) * 1000;
 
   // Sealed carton check across all sections
   const hasIncompleteCartons = sections.some((section) => {

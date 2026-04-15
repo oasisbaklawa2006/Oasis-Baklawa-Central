@@ -41,7 +41,7 @@ function getStepIndex(status: string): number {
 
 const formatPrice = (n: number) => "₹" + n.toLocaleString("en-IN");
 const formatDate = (d: string) =>
-  new Date(d).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" });
+  new Date(d).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric", timeZone: "Asia/Kolkata" });
 
 const OrderTracking = () => {
   const { id } = useParams<{ id: string }>();
@@ -203,6 +203,21 @@ const OrderTracking = () => {
                       >
                         Current Status
                       </motion.span>
+                    )}
+                    {/* LR Number / Transporter details next to Dispatched */}
+                    {step.key === "dispatched" && isCompleted && (order.tracking_number || order.courier_name) && (
+                      <div className="mt-1.5 bg-muted/60 rounded-lg px-3 py-2 border border-border">
+                        {order.tracking_number && (
+                          <p className="text-[11px] font-semibold text-foreground">
+                            LR No: <span className="font-number">{order.tracking_number}</span>
+                          </p>
+                        )}
+                        {order.courier_name && (
+                          <p className="text-[11px] text-muted-foreground">
+                            Transporter: {order.courier_name}
+                          </p>
+                        )}
+                      </div>
                     )}
                   </div>
                 </div>
