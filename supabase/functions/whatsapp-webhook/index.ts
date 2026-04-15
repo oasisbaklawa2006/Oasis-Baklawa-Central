@@ -562,6 +562,7 @@ serve(async (req) => {
       const aliases = aliasRows || [];
 
       // Try AI parsing first, fallback to rule-based
+      console.log(`Products loaded: ${products.length}, Aliases loaded: ${aliases.length}`);
       const aiResult = await aiParseOrder(messageBody, products, aliases);
       let orderItems: { productId: string; productName: string; quantity: number; confidence: number }[] = aiResult.items;
 
@@ -569,10 +570,12 @@ serve(async (req) => {
       if (orderItems.length === 0) {
         const matched = aliasMatchProduct(messageBody, products, aliases);
         const qty = parseQuantity(messageBody);
+        console.log(`Rule-based match: ${matched ? matched.name : "NONE"}, qty: ${qty}`);
         if (matched) {
           orderItems = [{ productId: matched.id, productName: matched.name, quantity: qty, confidence: 0.7 }];
         }
       }
+      console.log(`Order items resolved: ${orderItems.length}`);
 
       // ── PART 3: AUTO-FILL SHADOW DATA ──
       if (isShadowClient && companyId) {
