@@ -384,10 +384,13 @@ export type Database = {
           credit_limit: number | null
           current_balance: number | null
           discount_percentage: number | null
+          fssai_number: string | null
           gst_number: string | null
           id: string
+          phone: string | null
           preferred_courier: string | null
           price_tier: string | null
+          registered_address: string | null
           status: string | null
           wallet_balance: number | null
           website: string | null
@@ -402,10 +405,13 @@ export type Database = {
           credit_limit?: number | null
           current_balance?: number | null
           discount_percentage?: number | null
+          fssai_number?: string | null
           gst_number?: string | null
           id?: string
+          phone?: string | null
           preferred_courier?: string | null
           price_tier?: string | null
+          registered_address?: string | null
           status?: string | null
           wallet_balance?: number | null
           website?: string | null
@@ -420,10 +426,13 @@ export type Database = {
           credit_limit?: number | null
           current_balance?: number | null
           discount_percentage?: number | null
+          fssai_number?: string | null
           gst_number?: string | null
           id?: string
+          phone?: string | null
           preferred_courier?: string | null
           price_tier?: string | null
+          registered_address?: string | null
           status?: string | null
           wallet_balance?: number | null
           website?: string | null

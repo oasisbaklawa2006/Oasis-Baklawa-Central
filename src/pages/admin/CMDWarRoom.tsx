@@ -1,27 +1,9 @@
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState, useMemo, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { ChevronDown, ChevronUp, AlertTriangle, Eye, EyeOff } from "lucide-react";
-import StagnancyBadge from "@/components/StagnancyBadge";
-import { normalizeOrderStatus } from "@/utils/orderStatus";
-
-const STEPS = [
-  { key: "draft", label: "Cart / Draft", statuses: ["draft", "cart"] },
-  { key: "finance", label: "Finance Approval", statuses: ["submitted", "confirmed", "approved"] },
-  { key: "production", label: "Production / FGS", statuses: ["manufacturing", "in_production"] },
-  { key: "assembly", label: "Assembly", statuses: ["assembly"] },
-  { key: "packing", label: "Packing", statuses: ["packing", "packed_ready"] },
-  { key: "billing", label: "Billing / E-Way", statuses: ["invoice_generated", "awaiting_payment", "payment_cleared"] },
-  { key: "security", label: "Security Exit", statuses: ["dispatched", "in_transit"] },
-  { key: "support", label: "10-Day Support", statuses: ["delivered"] },
-];
-
-function getActiveStep(status: string) {
-  const s = normalizeOrderStatus(status).replace(/[\s-]/g, "_");
-  for (let i = 0; i < STEPS.length; i++) {
-    if (STEPS[i].statuses.includes(s)) return i;
-  }
-  return 0;
-}
+import { Eye, EyeOff, RefreshCw } from "lucide-react";
+import { removeDuplicateRealtimeChannel } from "@/utils/realtime";
+import ShadowClientSection from "@/components/warroom/ShadowClientSection";
+import WarRoomOrderCard from "@/components/warroom/WarRoomOrderCard";
 
 interface Order {
   id: string;
@@ -32,14 +14,35 @@ interface Order {
   company_id: string | null;
   company_name?: string;
   has_complaint?: boolean;
+  items?: { quantity: number; product_name?: string }[];
+}
+
+interface ShadowCompany {
+  id: string;
+  business_name: string;
+  gst_number: string | null;
+  phone: string | null;
+  fssai_number: string | null;
+  registered_address: string | null;
+  created_at: string | null;
 }
 
 const CMDWarRoom = () => {
   const [orders, setOrders] = useState<Order[]>([]);
+  const [shadowCompanies, setShadowCompanies] = useState<ShadowCompany[]>([]);
   const [hidden, setHidden] = useState<Set<string>>(new Set());
   const [showHidden, setShowHidden] = useState(false);
 
-  const fetchOrders = async () => {
+  const fetchShadowCompanies = useCallback(async () => {
+    const { data } = await supabase
+      .from("companies")
+      .select("id, business_name, gst_number, phone, fssai_number, registered_address, created_at")
+      .eq("status", "shadow")
+      .order("created_at", { ascending: false });
+    setShadowCompanies((data as ShadowCompany[]) ?? []);
+  }, []);
+
+  const fetchOrders = useCallback(async () => {
     const { data } = await supabase
       .from("orders")
       .select("id, status, created_at, sales_order_value, dispatch_urgency, company_id")
@@ -49,7 +52,6 @@ const CMDWarRoom = () => {
 
     if (!data) return;
 
-    // Fetch company names for CMD view
     const companyIds = [...new Set(data.map((o) => o.company_id).filter(Boolean))] as string[];
     let companyMap: Record<string, string> = {};
     if (companyIds.length) {
@@ -60,38 +62,72 @@ const CMDWarRoom = () => {
       companies?.forEach((c) => { companyMap[c.id] = c.business_name; });
     }
 
-    // Check for complaints (support_tickets on these orders)
     const orderIds = data.map((o) => o.id);
     const { data: tickets } = await supabase
       .from("support_tickets")
       .select("order_id")
       .in("order_id", orderIds);
-    const complainedOrders = new Set(tickets?.map((t) => t.order_id) ?? []);
+    const complainedOrders = new Set(tickets?.map((t: any) => t.order_id) ?? []);
+
+    // Fetch order items with product names
+    const { data: items } = await supabase
+      .from("order_items")
+      .select("order_id, quantity, product_id, products(name)")
+      .in("order_id", orderIds);
+
+    const itemsByOrder: Record<string, { quantity: number; product_name?: string }[]> = {};
+    items?.forEach((item: any) => {
+      const oid = item.order_id;
+      if (!itemsByOrder[oid]) itemsByOrder[oid] = [];
+      itemsByOrder[oid].push({
+        quantity: item.quantity,
+        product_name: item.products?.name,
+      });
+    });
 
     setOrders(
       data.map((o) => ({
         ...o,
         company_name: o.company_id ? companyMap[o.company_id] ?? "Unknown" : "Unknown",
         has_complaint: complainedOrders.has(o.id),
+        items: itemsByOrder[o.id] || [],
       }))
     );
-  };
+  }, []);
 
   useEffect(() => {
     fetchOrders();
-    const ch = supabase.channel("war-room-orders").on("postgres_changes", { event: "*", schema: "public", table: "orders" }, fetchOrders).subscribe();
-    return () => { supabase.removeChannel(ch); };
-  }, []);
+    fetchShadowCompanies();
+
+    const ordersChannel = "warroom-orders-live";
+    const companiesChannel = "warroom-companies-live";
+    removeDuplicateRealtimeChannel(ordersChannel);
+    removeDuplicateRealtimeChannel(companiesChannel);
+
+    const ch1 = supabase
+      .channel(ordersChannel)
+      .on("postgres_changes", { event: "*", schema: "public", table: "orders" }, () => fetchOrders())
+      .subscribe();
+
+    const ch2 = supabase
+      .channel(companiesChannel)
+      .on("postgres_changes", { event: "*", schema: "public", table: "companies" }, () => fetchShadowCompanies())
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(ch1);
+      supabase.removeChannel(ch2);
+    };
+  }, [fetchOrders, fetchShadowCompanies]);
 
   const sortedOrders = useMemo(() => {
     return [...orders].sort((a, b) => {
-      // Complaints first
       if (a.has_complaint && !b.has_complaint) return -1;
       if (!a.has_complaint && b.has_complaint) return 1;
-      // Then panic
       if (a.dispatch_urgency === "panic" && b.dispatch_urgency !== "panic") return -1;
       if (a.dispatch_urgency !== "panic" && b.dispatch_urgency === "panic") return 1;
-      return 0;
+      // Newest first
+      return new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime();
     });
   }, [orders]);
 
@@ -109,114 +145,41 @@ const CMDWarRoom = () => {
     <div className="p-4 space-y-4 min-h-screen bg-background">
       <div className="flex items-center justify-between">
         <h1 className="text-xl font-bold text-foreground tracking-tight">
-          ⚔️ CMD War Room — Live Order Battlefield v2
+          ⚔️ CMD War Room — Live Order Battlefield v3
         </h1>
-        <button
-          onClick={() => setShowHidden(!showHidden)}
-          className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors px-3 py-1.5 rounded-md border border-border"
-        >
-          {showHidden ? <EyeOff size={14} /> : <Eye size={14} />}
-          {showHidden ? "Hide Minimized" : `Show Minimized (${hidden.size})`}
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => { fetchOrders(); fetchShadowCompanies(); }}
+            className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors px-3 py-1.5 rounded-md border border-border"
+          >
+            <RefreshCw size={14} /> Refresh
+          </button>
+          <button
+            onClick={() => setShowHidden(!showHidden)}
+            className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors px-3 py-1.5 rounded-md border border-border"
+          >
+            {showHidden ? <EyeOff size={14} /> : <Eye size={14} />}
+            {showHidden ? "Hide Minimized" : `Show Minimized (${hidden.size})`}
+          </button>
+        </div>
       </div>
+
+      {/* Shadow Client Verification Section */}
+      <ShadowClientSection companies={shadowCompanies} onRefresh={() => { fetchShadowCompanies(); fetchOrders(); }} />
 
       {visibleOrders.length === 0 && (
         <p className="text-muted-foreground text-sm text-center py-12">No active orders in the pipeline.</p>
       )}
 
       <div className="space-y-3">
-        {visibleOrders.map((order) => {
-          const activeStep = getActiveStep(order.status);
-          const isPanic = order.dispatch_urgency === "panic";
-          const isComplaint = order.has_complaint;
-          const isMinimized = hidden.has(order.id);
-
-          return (
-            <div
-              key={order.id}
-              className={`rounded-xl border p-4 transition-all
-                ${isComplaint ? "bg-red-500/5 border-red-500/40" : isPanic ? "border-violet-500/60 shadow-[0_0_12px_rgba(139,92,246,0.25)]" : "bg-card border-border"}
-                ${isPanic ? "animate-pulse" : ""}
-              `}
-              style={isPanic ? { animationDuration: "2s" } : undefined}
-            >
-              {/* Header */}
-              <div className="flex items-center justify-between mb-3">
-                <div className="flex items-center gap-3">
-                  <StagnancyBadge createdAt={order.created_at} />
-                  <div>
-                    <span className="text-sm font-bold text-foreground">
-                      #{order.id.slice(0, 8).toUpperCase()}
-                    </span>
-                    <span className="ml-2 text-xs text-muted-foreground">
-                      {order.company_name}
-                    </span>
-                  </div>
-                  {isPanic && (
-                    <span className="flex items-center gap-1 text-[10px] font-bold text-violet-400 bg-violet-500/10 px-2 py-0.5 rounded-full">
-                      <AlertTriangle size={10} /> PANIC
-                    </span>
-                  )}
-                  {isComplaint && (
-                    <span className="text-[10px] font-bold text-red-500 bg-red-500/10 px-2 py-0.5 rounded-full">
-                      🚨 COMPLAINT RAISED
-                    </span>
-                  )}
-                </div>
-                <div className="flex items-center gap-3">
-                  <span className="text-sm font-semibold text-foreground">
-                    ₹{(order.sales_order_value ?? 0).toLocaleString("en-IN")}
-                  </span>
-                  <button
-                    onClick={() => toggleHide(order.id)}
-                    className="text-muted-foreground hover:text-foreground transition-colors"
-                    title={isMinimized ? "Restore" : "Minimize"}
-                  >
-                    {isMinimized ? <ChevronDown size={16} /> : <ChevronUp size={16} />}
-                  </button>
-                </div>
-              </div>
-
-              {/* Lifecycle Steps */}
-              {!isMinimized && (
-                <div className="flex items-center gap-0 overflow-x-auto pb-1">
-                  {STEPS.map((step, i) => {
-                    const isActive = i === activeStep;
-                    const isCompleted = i < activeStep;
-                    return (
-                      <div key={step.key} className="flex items-center">
-                        <div
-                          className={`flex flex-col items-center min-w-[90px] px-2 py-2 rounded-lg text-center transition-all
-                            ${isActive ? "bg-primary/10 ring-1 ring-primary/30" : isCompleted ? "opacity-60" : "opacity-30"}
-                          `}
-                        >
-                          <div
-                            className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold mb-1
-                              ${isActive ? "bg-primary text-primary-foreground" : isCompleted ? "bg-muted-foreground/40 text-background" : "bg-muted text-muted-foreground"}
-                            `}
-                          >
-                            {isCompleted ? "✓" : i + 1}
-                          </div>
-                          <span className={`text-[10px] font-medium leading-tight ${isActive ? "text-primary" : "text-muted-foreground"}`}>
-                            {step.label}
-                          </span>
-                          {isActive && (
-                            <span className="mt-1 text-[9px] font-semibold text-primary bg-primary/5 px-1.5 py-0.5 rounded">
-                              CURRENT
-                            </span>
-                          )}
-                        </div>
-                        {i < STEPS.length - 1 && (
-                          <div className={`w-4 h-[2px] ${i < activeStep ? "bg-muted-foreground/40" : "bg-border"}`} />
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-          );
-        })}
+        {visibleOrders.map((order) => (
+          <WarRoomOrderCard
+            key={order.id}
+            order={order}
+            isMinimized={hidden.has(order.id)}
+            onToggleMinimize={() => toggleHide(order.id)}
+          />
+        ))}
       </div>
     </div>
   );
