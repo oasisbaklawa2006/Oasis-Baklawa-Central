@@ -550,7 +550,7 @@ serve(async (req) => {
     if (hasOrderIntent && companyId && messageBody) {
       const { data: allProducts } = await supabaseAdmin
         .from("products")
-        .select("id, name, sku_code, base_price, price_b2b, price_wholesale, wholesale_price, price_per_kg")
+        .select("id, name, sku, base_price, price_b2b, price_wholesale, wholesale_price, price_per_kg")
         .limit(500);
 
       const { data: aliasRows } = await supabaseAdmin
