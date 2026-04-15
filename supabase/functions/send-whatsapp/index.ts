@@ -48,11 +48,14 @@ serve(async (req) => {
 
     console.log(`Sending WhatsApp to: ${apiPhone} via ${SEND_ENDPOINT}`);
 
+    // Append CTA footer to all outgoing messages
+    const fullMessage = message + CTA_FOOTER;
+
     const requestBody = {
       messaging_product: "whatsapp",
       to: apiPhone,
       type: "text",
-      text: { body: message },
+      text: { body: fullMessage },
     };
 
     const apiRes = await fetch(SEND_ENDPOINT, {
