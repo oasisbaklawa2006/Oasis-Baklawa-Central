@@ -15,6 +15,8 @@ interface ShadowCompany {
   created_at: string;
   account_manager_id: string | null;
   status: string;
+  website: string | null;
+  price_tier: string | null;
 }
 
 interface DraftOrder {
@@ -39,12 +41,16 @@ const VerificationWarRoom = () => {
   const [editingName, setEditingName] = useState<string | null>(null);
   const [newName, setNewName] = useState("");
   const [confirmingId, setConfirmingId] = useState<string | null>(null);
+  const [editingDetails, setEditingDetails] = useState<string | null>(null);
+  const [editForm, setEditForm] = useState<{ business_name: string; gst_number: string; website: string; price_tier: string }>({
+    business_name: "", gst_number: "", website: "", price_tier: "",
+  });
 
   const fetchData = async () => {
     setLoading(true);
     const { data: companies } = await supabase
       .from("companies")
-      .select("id, business_name, gst_number, created_at, account_manager_id, status")
+      .select("id, business_name, gst_number, created_at, account_manager_id, status, website, price_tier")
       .eq("status", "shadow")
       .order("created_at", { ascending: false });
 
@@ -237,43 +243,24 @@ const VerificationWarRoom = () => {
                     <Ghost size={20} className="text-amber-600" />
                   </div>
                   <div className="flex-1 min-w-0">
-                    {editingName === company.id ? (
-                      <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
-                        <input
-                          value={newName}
-                          onChange={(e) => setNewName(e.target.value)}
-                          className="border border-border rounded px-2 py-1 text-sm bg-background flex-1"
-                          placeholder="New business name"
-                          autoFocus
-                        />
-                        <button
-                          onClick={() => handleRename(company.id)}
-                          className="text-primary font-bold text-xs"
-                        >
-                          Save
-                        </button>
-                        <button
-                          onClick={() => setEditingName(null)}
-                          className="text-muted-foreground text-xs"
-                        >
-                          Cancel
-                        </button>
-                      </div>
-                    ) : (
-                      <div className="flex items-center gap-2">
-                        <p className="font-semibold text-foreground truncate">{company.business_name}</p>
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setEditingName(company.id);
-                            setNewName(company.business_name);
-                          }}
-                          className="p-1 hover:bg-muted rounded"
-                        >
-                          <Edit3 size={12} className="text-muted-foreground" />
-                        </button>
-                      </div>
-                    )}
+                    <div className="flex items-center gap-2">
+                      <p className="font-semibold text-foreground truncate">{company.business_name}</p>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setEditingDetails(editingDetails === company.id ? null : company.id);
+                          setEditForm({
+                            business_name: company.business_name,
+                            gst_number: (company.gst_number || "").replace("WA:", ""),
+                            website: company.website || "",
+                            price_tier: company.price_tier || "",
+                          });
+                        }}
+                        className="p-1 hover:bg-muted rounded"
+                      >
+                        <Edit3 size={12} className="text-muted-foreground" />
+                      </button>
+                    </div>
                     <div className="flex items-center gap-3 text-xs text-muted-foreground mt-0.5">
                       {phone && (
                         <span className="flex items-center gap-1">
@@ -312,6 +299,64 @@ const VerificationWarRoom = () => {
                     {isExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
                   </div>
                 </div>
+
+                {/* INLINE EDIT FORM */}
+                <AnimatePresence>
+                  {editingDetails === company.id && (
+                    <motion.div
+                      initial={{ height: 0, opacity: 0 }}
+                      animate={{ height: "auto", opacity: 1 }}
+                      exit={{ height: 0, opacity: 0 }}
+                      className="border-t border-border overflow-hidden"
+                    >
+                      <div className="p-4 grid grid-cols-2 gap-3" onClick={(e) => e.stopPropagation()}>
+                        <div>
+                          <label className="text-[10px] font-bold text-muted-foreground uppercase">Business Name</label>
+                          <input value={editForm.business_name} onChange={(e) => setEditForm(f => ({ ...f, business_name: e.target.value }))}
+                            className="w-full border border-border rounded px-2 py-1.5 text-sm bg-background mt-1" />
+                        </div>
+                        <div>
+                          <label className="text-[10px] font-bold text-muted-foreground uppercase">GST Number</label>
+                          <input value={editForm.gst_number} onChange={(e) => setEditForm(f => ({ ...f, gst_number: e.target.value }))}
+                            className="w-full border border-border rounded px-2 py-1.5 text-sm bg-background mt-1" placeholder="Enter GST" />
+                        </div>
+                        <div>
+                          <label className="text-[10px] font-bold text-muted-foreground uppercase">Website / Address</label>
+                          <input value={editForm.website} onChange={(e) => setEditForm(f => ({ ...f, website: e.target.value }))}
+                            className="w-full border border-border rounded px-2 py-1.5 text-sm bg-background mt-1" placeholder="Address or website" />
+                        </div>
+                        <div>
+                          <label className="text-[10px] font-bold text-muted-foreground uppercase">Price Tier</label>
+                          <select value={editForm.price_tier} onChange={(e) => setEditForm(f => ({ ...f, price_tier: e.target.value }))}
+                            className="w-full border border-border rounded px-2 py-1.5 text-sm bg-background mt-1">
+                            <option value="">Select…</option>
+                            <option value="silver">Silver</option>
+                            <option value="gold">Gold</option>
+                            <option value="platinum">Platinum</option>
+                          </select>
+                        </div>
+                        <div className="col-span-2 flex gap-2 justify-end">
+                          <button onClick={() => setEditingDetails(null)} className="px-3 py-1.5 text-xs text-muted-foreground">Cancel</button>
+                          <button
+                            onClick={async () => {
+                              const { error } = await supabase.from("companies").update({
+                                business_name: editForm.business_name.trim(),
+                                gst_number: editForm.gst_number.trim() || null,
+                                website: editForm.website.trim() || null,
+                                price_tier: editForm.price_tier || null,
+                              }).eq("id", company.id);
+                              if (error) { toast.error("Failed to save"); return; }
+                              toast.success("Details updated!");
+                              setEditingDetails(null);
+                              fetchData();
+                            }}
+                            className="px-4 py-1.5 bg-primary text-primary-foreground text-xs font-bold rounded-lg"
+                          >Save All</button>
+                        </div>
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
 
                 <AnimatePresence>
                   {isExpanded && (

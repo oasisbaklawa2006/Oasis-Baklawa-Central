@@ -29,6 +29,7 @@ import { useNavigate } from "react-router-dom";
 import AiOrderModal from "@/components/AiOrderModal";
 import GrowthIntelligenceButton from "@/components/growth/GrowthIntelligenceButton";
 import SupportTicketModal from "@/components/SupportTicketModal";
+import DashboardTimeline from "@/components/DashboardTimeline";
 import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "sonner";
 import { useLanguage } from "@/contexts/LanguageContext";
@@ -178,6 +179,7 @@ const Dashboard = () => {
   const hasAwaitingAdvance = activeOrders.some((o) => o.payment_status === "awaiting_advance" || o.payment_status === "awaiting_receipt");
   const latestOrder = activeOrders[0];
 
+  // Legacy helper kept for advance upload logic
   const getTimelineStep = (order: any) => {
     if (order.status === "dispatched") return 4;
     if (order.status === "awaiting_final_payment" || order.status === "cleared_for_dispatch") return 3;
@@ -366,148 +368,66 @@ const Dashboard = () => {
                   </div>
                 </div>
 
-                <div className="p-8 relative">
-                  <div className="absolute left-12 top-12 bottom-12 w-[2px] bg-border"></div>
+              {/* 10-POINT ARTISAN TIMELINE */}
+              <div className="p-6">
+                <h3 className="font-display text-sm text-muted-foreground uppercase tracking-widest mb-5">Artisan Timeline</h3>
+                <DashboardTimeline order={latestOrder} />
 
-                  {/* Step 1 */}
-                  <div className="relative flex items-start gap-5 mb-10">
-                    <div
-                      className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 z-10 ${getTimelineStep(latestOrder) >= 1 ? "bg-emerald-500 text-white shadow-lg shadow-emerald-500/20" : "bg-muted text-muted-foreground"}`}
+                {/* Action Buttons for current state */}
+                {needsAdvanceUpload(latestOrder) && (
+                  <div className="mt-4 bg-orange-50 dark:bg-orange-950/30 border border-orange-400/40 rounded-xl p-4">
+                    <p className="text-xs font-bold flex items-center gap-1.5 mb-2 text-orange-600">
+                      <AlertTriangle size={14} /> {t("dash.actionRequired")}
+                    </p>
+                    <p className="text-[11px] text-muted-foreground mb-4 font-medium">{t("dash.advanceTransferMsg")}</p>
+                    <button
+                      onClick={() => setUtrModal({ isOpen: true, orderId: latestOrder.id, type: "advance" })}
+                      className="w-full py-3 text-white rounded-xl text-sm font-bold shadow-lg flex justify-center items-center gap-2 transition-colors"
+                      style={{ backgroundColor: "#f97316" }}
                     >
-                      <span className="font-bold">1</span>
-                    </div>
-                    <div className="flex-1 pt-2">
-                      <h4 className="font-bold text-foreground text-base">{t("dash.orderLogged")}</h4>
-                      {needsAdvanceUpload(latestOrder) ? (
-                        <div className="mt-4 bg-orange-50 dark:bg-orange-950/30 border border-orange-400/40 rounded-xl p-4">
-                          <p className="text-xs font-bold flex items-center gap-1.5 mb-2 text-orange-600">
-                            <AlertTriangle size={14} /> {t("dash.actionRequired")}
-                          </p>
-                          <p className="text-[11px] text-muted-foreground mb-4 font-medium">{t("dash.advanceTransferMsg")}</p>
-                          <button
-                            onClick={() => setUtrModal({ isOpen: true, orderId: latestOrder.id, type: "advance" })}
-                            className="w-full py-3 text-white rounded-xl text-sm font-bold shadow-lg flex justify-center items-center gap-2 transition-colors animate-pulse"
-                            style={{ backgroundColor: "#f97316" }}
-                          >
-                            <UploadCloud size={16} /> Upload Advance Receipt Now
-                          </button>
-                        </div>
-                      ) : latestOrder.payment_status === "awaiting_receipt" ? (
-                        <div className="mt-4 bg-muted border border-[#c58B07]/20 rounded-xl p-4">
-                          <p className="text-xs font-bold flex items-center gap-1.5 mb-2" style={{ color: GOLD }}>
-                            <AlertTriangle size={14} /> {t("dash.actionRequired")}
-                          </p>
-                          <p className="text-[11px] text-muted-foreground mb-4 font-medium">{t("dash.advanceTransferMsg")}</p>
-                          <button
-                            onClick={() => setUtrModal({ isOpen: true, orderId: latestOrder.id, type: "advance" })}
-                            className="w-full py-2.5 text-white rounded-xl text-xs font-bold shadow-md flex justify-center items-center gap-2 transition-colors"
-                            style={{ backgroundColor: GOLD }}
-                          >
-                            <UploadCloud size={14} /> {t("dash.uploadAdvanceReceipt")}
-                          </button>
-                        </div>
-                      ) : (
-                        <p className="text-xs text-muted-foreground font-medium mt-1">{t("dash.financialsVerified")}</p>
-                      )}
-                    </div>
+                      <UploadCloud size={16} /> Upload Advance Receipt Now
+                    </button>
                   </div>
+                )}
 
-                  {/* Step 2 */}
-                  <div className="relative flex items-start gap-5 mb-10">
-                    <div
-                      className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 z-10 transition-colors ${getTimelineStep(latestOrder) >= 2 ? "text-white shadow-lg" : "bg-muted border border-border text-muted-foreground"}`}
-                      style={getTimelineStep(latestOrder) >= 2 ? { backgroundColor: GOLD } : {}}
+                {latestOrder.status === "awaiting_final_payment" && (
+                  <div className="mt-4 flex gap-3">
+                    <button className="flex-1 py-2 bg-muted border border-border text-foreground rounded-lg text-[10px] font-bold flex justify-center items-center gap-1 hover:bg-muted/80">
+                      <FileText size={12} /> {t("dash.viewInvoice")}
+                    </button>
+                    <button
+                      onClick={() => setUtrModal({ isOpen: true, orderId: latestOrder.id, type: "final" })}
+                      className="flex-1 py-2 bg-blue-500 text-white rounded-lg text-[10px] font-bold shadow-md hover:bg-blue-600 flex justify-center items-center gap-1"
                     >
-                      <span className="font-bold">2</span>
-                    </div>
-                    <div className="flex-1 pt-2">
-                      <h4
-                        className={`font-bold text-base ${getTimelineStep(latestOrder) >= 2 ? "text-foreground" : "text-muted-foreground"}`}
-                      >
-                        {t("dash.productionAssembly")}
-                      </h4>
-                      {getTimelineStep(latestOrder) === 2 && (
-                        <p className="text-xs font-bold mt-1 flex items-center gap-1" style={{ color: GOLD }}>
-                          <Loader2 size={12} className="animate-spin" /> {t("dash.packagingAssembling")}
-                        </p>
-                      )}
-                    </div>
+                      <UploadCloud size={12} /> {t("dash.uploadFinalReceipt")}
+                    </button>
                   </div>
+                )}
 
-                  {/* Step 3 */}
-                  <div className="relative flex items-start gap-5 mb-10">
-                    <div
-                      className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 z-10 transition-colors ${getTimelineStep(latestOrder) >= 3 ? "bg-blue-500 text-white shadow-lg shadow-blue-500/20" : "bg-muted border border-border text-muted-foreground"}`}
+                {getTimelineStep(latestOrder) >= 4 && (
+                  <div className="mt-4 flex gap-3">
+                    <button
+                      onClick={() => {
+                        if (latestOrder.tracking_number) {
+                          toast.info(`Tracking: ${latestOrder.tracking_number} via ${latestOrder.courier_name || "Courier"}`);
+                        } else {
+                          toast.info("LR / Waybill not yet available for this order.");
+                        }
+                      }}
+                      className="flex-1 py-2.5 bg-muted border border-border text-foreground rounded-xl text-xs font-bold hover:border-[#c58B07]/30 flex items-center justify-center gap-2 transition-all"
                     >
-                      <span className="font-bold">3</span>
-                    </div>
-                    <div className="flex-1 pt-2">
-                      <h4
-                        className={`font-bold text-base ${getTimelineStep(latestOrder) >= 3 ? "text-foreground" : "text-muted-foreground"}`}
-                      >
-                        {t("dash.finalInvoicing")}
-                      </h4>
-                      {latestOrder.status === "awaiting_final_payment" && (
-                        <div className="mt-4 bg-muted border border-blue-500/20 rounded-xl p-4">
-                          <p className="text-xs font-bold text-blue-600 flex items-center gap-1.5 mb-2">
-                            <AlertTriangle size={14} /> {t("dash.finalPaymentRequired")}
-                          </p>
-                          <p className="text-[11px] text-muted-foreground mb-4 font-medium">{t("dash.finalInvoiceMsg")}</p>
-                          <div className="flex gap-2">
-                            <button className="flex-1 py-2 bg-muted border border-border text-foreground rounded-lg text-[10px] font-bold flex justify-center items-center gap-1 hover:bg-muted/80">
-                              <FileText size={12} /> {t("dash.viewInvoice")}
-                            </button>
-                            <button
-                              onClick={() => setUtrModal({ isOpen: true, orderId: latestOrder.id, type: "final" })}
-                              className="flex-1 py-2 bg-blue-500 text-white rounded-lg text-[10px] font-bold shadow-md hover:bg-blue-600 flex justify-center items-center gap-1"
-                            >
-                              <UploadCloud size={12} /> {t("dash.uploadFinalReceipt")}
-                            </button>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Step 4 */}
-                  <div className="relative flex items-start gap-5">
-                    <div
-                      className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 z-10 transition-colors ${getTimelineStep(latestOrder) >= 4 ? "bg-foreground text-background shadow-lg" : "bg-muted border border-border text-muted-foreground"}`}
+                      <Download size={14} style={{ color: GOLD }} /> {t("dash.lrCopyWaybill")}
+                    </button>
+                    <button
+                      onClick={() => setTicketOpen(true)}
+                      className="flex-1 py-2.5 text-white rounded-xl text-xs font-bold shadow-md flex items-center justify-center gap-2 transition-all"
+                      style={{ backgroundColor: GOLD }}
                     >
-                      <Truck size={18} />
-                    </div>
-                    <div className="flex-1 pt-2">
-                      <h4
-                        className={`font-bold text-base ${getTimelineStep(latestOrder) >= 4 ? "text-foreground" : "text-muted-foreground"}`}
-                      >
-                        {t("dash.dispatched")}
-                      </h4>
-                      {getTimelineStep(latestOrder) >= 4 && (
-                        <div className="mt-4 flex gap-3">
-                          <button
-                            onClick={() => {
-                              if (latestOrder.tracking_number) {
-                                toast.info(`Tracking: ${latestOrder.tracking_number} via ${latestOrder.courier_name || "Courier"}`);
-                              } else {
-                                toast.info("LR / Waybill not yet available for this order.");
-                              }
-                            }}
-                            className="flex-1 py-2.5 bg-muted border border-border text-foreground rounded-xl text-xs font-bold hover:border-[#c58B07]/30 flex items-center justify-center gap-2 transition-all"
-                          >
-                            <Download size={14} style={{ color: GOLD }} /> {t("dash.lrCopyWaybill")}
-                          </button>
-                          <button
-                            onClick={() => setTicketOpen(true)}
-                            className="flex-1 py-2.5 text-white rounded-xl text-xs font-bold shadow-md flex items-center justify-center gap-2 transition-all"
-                            style={{ backgroundColor: GOLD }}
-                          >
-                            <Headphones size={14} /> {t("dash.logisticsSupport")}
-                          </button>
-                        </div>
-                      )}
-                    </div>
+                      <Headphones size={14} /> {t("dash.logisticsSupport")}
+                    </button>
                   </div>
-                </div>
+                )}
+              </div>
               </div>
             ) : (
               <div className="bg-card rounded-[2rem] border border-border p-10 text-center shadow-sm">
