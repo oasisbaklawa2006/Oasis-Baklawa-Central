@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { MessageSquare, Phone, Building2, Edit2, CheckCircle, Package, Search, ArrowRight } from "lucide-react";
+import { MessageSquare, Phone, Building2, Edit2, CheckCircle, Package, Search, ArrowRight, AlertTriangle } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
@@ -73,6 +73,18 @@ export default function ShadowClientSection({ companies, onRefresh }: Props) {
     })();
   }, [companies]);
 
+  const extractPhone = (c: ShadowCompany): string => {
+    // Priority: direct phone field → GST WA: prefix → empty
+    if (c.phone && c.phone.trim().length > 0) return c.phone.trim();
+    if (c.gst_number?.startsWith("WA:")) return c.gst_number.replace("WA:", "+");
+    return "";
+  };
+
+  const extractPhoneDigits = (c: ShadowCompany): string => {
+    const raw = extractPhone(c);
+    return raw.replace(/\D/g, "");
+  };
+
   const openEdit = async (c: ShadowCompany) => {
     setEditingCompany(c);
     setHistoryMessages([]);
@@ -84,34 +96,32 @@ export default function ShadowClientSection({ companies, onRefresh }: Props) {
       registered_address: c.registered_address || "",
     });
 
-    // Auto-scan history
+    // Auto-scan history using real phone string
     await scanHistory(c);
-  };
-
-  const extractPhone = (c: ShadowCompany): string => {
-    if (c.phone) return c.phone;
-    if (c.gst_number?.startsWith("WA:")) return c.gst_number.replace("WA:", "+");
-    return "—";
   };
 
   const scanHistory = async (c: ShadowCompany) => {
     setScanningHistory(true);
-    const phone = extractPhone(c).replace(/\D/g, "");
-    if (!phone || phone === "") {
+    const digits = extractPhoneDigits(c);
+
+    if (!digits || digits.length < 10) {
       setScanningHistory(false);
       setHistoryScanned(true);
       return;
     }
 
-    // Search for unprocessed messages from this phone
+    // Use last 10 digits for matching (strips country code variations)
+    const last10 = digits.slice(-10);
+
+    // Real-time scan of debug_webhooks by phone number
     const { data } = await supabase
       .from("debug_webhooks")
       .select("id, phone_number, raw_payload, created_at, processed")
       .eq("direction", "inbound")
-      .or(`phone_number.ilike.%${phone.slice(-10)}%`)
+      .or(`phone_number.ilike.%${last10}%`)
       .eq("processed", false)
       .order("created_at", { ascending: false })
-      .limit(20);
+      .limit(50);
 
     setHistoryMessages((data as HistoryMessage[]) ?? []);
     setScanningHistory(false);
@@ -151,40 +161,32 @@ export default function ShadowClientSection({ companies, onRefresh }: Props) {
       return;
     }
 
-    // 2. Attach unprocessed messages as draft orders
+    // 2. Auto-attach: Convert all unprocessed messages into draft orders
     if (historyMessages.length > 0) {
       const unattached = historyMessages.filter((m) => !m.processed);
-      for (const msg of unattached) {
-        // Check if a draft already exists for this company from this message
-        const { data: existingOrders } = await supabase
+
+      if (unattached.length > 0) {
+        // Create one draft order for the batch
+        const { data: newOrder } = await supabase
           .from("orders")
+          .insert({
+            company_id: editingCompany.id,
+            status: "draft",
+            dispatch_urgency: "standard",
+          } as any)
           .select("id")
-          .eq("company_id", editingCompany.id)
-          .eq("status", "draft")
-          .limit(1);
+          .single();
 
-        let orderId: string;
-        if (existingOrders && existingOrders.length > 0) {
-          orderId = existingOrders[0].id;
-        } else {
-          const { data: newOrder } = await supabase
-            .from("orders")
-            .insert({
-              company_id: editingCompany.id,
-              status: "draft",
-              dispatch_urgency: "standard",
-            } as any)
-            .select("id")
-            .single();
-          if (!newOrder) continue;
-          orderId = newOrder.id;
+        if (newOrder) {
+          // Mark all webhooks as processed
+          const webhookIds = unattached.map((m) => m.id);
+          await supabase
+            .from("debug_webhooks")
+            .update({ processed: true } as any)
+            .in("id", webhookIds);
+
+          toast.success(`${unattached.length} message${unattached.length > 1 ? "s" : ""} attached as Draft Order #${newOrder.id.slice(0, 8).toUpperCase()}`);
         }
-
-        // Mark webhook as processed
-        await supabase
-          .from("debug_webhooks")
-          .update({ processed: true } as any)
-          .eq("id", msg.id);
       }
     }
 
@@ -211,6 +213,7 @@ export default function ShadowClientSection({ companies, onRefresh }: Props) {
         <div className="space-y-2">
           {companies.map((c) => {
             const drafts = draftOrders[c.id] || [];
+            const phone = extractPhone(c);
             return (
               <div key={c.id} className="flex items-center justify-between bg-background rounded-lg border border-border px-3 py-2.5">
                 <div className="flex items-center gap-3 min-w-0">
@@ -221,7 +224,7 @@ export default function ShadowClientSection({ companies, onRefresh }: Props) {
                     <p className="text-sm font-semibold text-foreground truncate">{c.business_name}</p>
                     <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
                       <Phone size={10} />
-                      <span>{extractPhone(c)}</span>
+                      <span>{phone || "No phone"}</span>
                       {drafts.length > 0 && (
                         <span className="flex items-center gap-1 text-[10px] font-bold text-primary bg-primary/10 px-1.5 py-0.5 rounded-full">
                           <Package size={9} /> {drafts.length} Order{drafts.length > 1 ? "s" : ""} Pending
@@ -250,19 +253,20 @@ export default function ShadowClientSection({ companies, onRefresh }: Props) {
             </DialogTitle>
           </DialogHeader>
           <div className="space-y-3 mt-2">
-            {/* Scanned WhatsApp History */}
+            {/* Scanning indicator */}
             {scanningHistory && (
               <div className="flex items-center gap-2 text-xs text-muted-foreground py-3 justify-center">
                 <Search size={14} className="animate-pulse" /> Scanning WhatsApp history…
               </div>
             )}
 
+            {/* History found */}
             {historyScanned && historyMessages.length > 0 && (
               <div className="rounded-lg border border-blue-500/20 bg-blue-500/5 p-3">
                 <p className="text-xs font-bold text-blue-500 mb-2 flex items-center gap-1.5">
                   <Search size={12} /> {historyMessages.length} Unprocessed Message{historyMessages.length > 1 ? "s" : ""} Found
                 </p>
-                <div className="space-y-1.5 max-h-32 overflow-y-auto">
+                <div className="space-y-1.5 max-h-40 overflow-y-auto">
                   {historyMessages.map((m) => (
                     <div key={m.id} className="text-[10px] bg-background rounded p-2 border border-border">
                       <p className="text-foreground truncate">{extractText(m.raw_payload) || "Non-text message"}</p>
@@ -276,8 +280,12 @@ export default function ShadowClientSection({ companies, onRefresh }: Props) {
               </div>
             )}
 
+            {/* No history — New Lead */}
             {historyScanned && historyMessages.length === 0 && (
-              <p className="text-[10px] text-muted-foreground text-center py-1">No unprocessed messages found for this number.</p>
+              <div className="flex items-center gap-2 text-xs text-muted-foreground bg-muted/50 rounded-lg px-3 py-2.5">
+                <AlertTriangle size={14} className="text-amber-500 flex-shrink-0" />
+                <span>New Lead — No WhatsApp history detected for this number.</span>
+              </div>
             )}
 
             {/* Pending WhatsApp Items Preview */}
