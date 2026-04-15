@@ -141,13 +141,22 @@ export function useCart() {
           return existing[0].id;
         }
 
+        // Generate tracking_token client-side to avoid gen_random_bytes trigger issue
+        const tokenArr = new Uint8Array(16);
+        crypto.getRandomValues(tokenArr);
+        const tracking_token = Array.from(tokenArr).map(b => b.toString(16).padStart(2, '0')).join('');
+
         const { data: newOrder, error } = await supabase
           .from("orders")
-          .insert({ status: "draft", company_id: effectiveCompanyId })
+          .insert({ status: "draft", company_id: effectiveCompanyId, tracking_token })
           .select("id, company_id, status")
           .single();
 
-        if (error || !newOrder) { toast.error("Could not create cart order"); return null; }
+        if (error || !newOrder) {
+          console.error("Cart order creation failed:", error);
+          toast.error("Could not create cart order");
+          return null;
+        }
 
         setDraftOrder(newOrder);
         return newOrder.id;
