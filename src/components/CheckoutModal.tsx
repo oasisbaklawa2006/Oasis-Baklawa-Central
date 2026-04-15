@@ -24,7 +24,8 @@ const paymentMethods = [
 const CheckoutModal = ({ open, onClose, grandTotal, orderId, companyId, onOrderConfirmed }: CheckoutModalProps) => {
   const [selected, setSelected] = useState("upi");
   const [confirming, setConfirming] = useState(false);
-  const advance = Math.round(grandTotal * 0.5);
+  const rawAdvance = grandTotal * 0.2;
+  const advance = Math.round(rawAdvance / 1000) * 1000;
   const isReady = !!orderId && !!companyId;
 
   const handleConfirm = async () => {
@@ -97,7 +98,7 @@ const CheckoutModal = ({ open, onClose, grandTotal, orderId, companyId, onOrderC
               <div className="bg-primary/5 rounded-2xl border border-primary/20 p-5 space-y-2">
                 <div className="flex items-center gap-2">
                   <ShieldCheck size={16} className="text-primary" />
-                  <p className="font-body font-bold text-foreground text-sm">50% Advance Required for Production</p>
+                  <p className="font-body font-bold text-foreground text-sm">20% Advance Required for Production</p>
                 </div>
                 <p className="font-display text-2xl text-primary tracking-wide">{formatPrice(advance)}</p>
                 <p className="font-body text-[11px] text-muted-foreground leading-relaxed">
