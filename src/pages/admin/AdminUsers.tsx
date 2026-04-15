@@ -8,6 +8,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import { useAuth } from "@/hooks/useAuth";
 
 /* ─── types ─── */
@@ -24,6 +25,7 @@ interface UserRow {
   company_id: string | null;
   created_at: string | null;
   commission_rate_percentage: number | null;
+  is_sales_executive: boolean | null;
 }
 
 interface CompanyRow {
@@ -173,9 +175,9 @@ const AdminUsers = () => {
     setAllPermissions((permsRes.data as PermissionRow[]) ?? []);
     setRolePermMap((rpMapRes.data as RolePermMap[]) ?? []);
 
-    // Build managers list from sales_executive and admin roles
+    // Build managers list from sales_executive, admin roles, OR is_sales_executive flag
     const mgrs: ManagerOption[] = allUsers
-      .filter((u) => u.role === "sales_executive" || u.role === "admin")
+      .filter((u) => u.role === "sales_executive" || u.role === "admin" || u.is_sales_executive)
       .map((u) => ({ id: u.id, label: u.full_name || u.email || u.id }));
     setManagers(mgrs);
 
@@ -476,6 +478,9 @@ const AdminUsers = () => {
                     <th className="text-left px-5 py-4 text-xs font-bold uppercase tracking-wider text-muted-foreground">
                       Status
                     </th>
+                    <th className="text-center px-5 py-4 text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                      Sales Exec
+                    </th>
                     {currentUserRole === "super_admin" && (
                       <th className="text-right px-5 py-4 text-xs font-bold uppercase tracking-wider text-muted-foreground">
                         Comm %
@@ -544,6 +549,34 @@ const AdminUsers = () => {
                           >
                             {st.label}
                           </span>
+                        </td>
+                        <td className="px-5 py-4 text-center">
+                          <Switch
+                            checked={!!u.is_sales_executive}
+                            onCheckedChange={async (checked) => {
+                              const { error } = await supabase
+                                .from("users")
+                                .update({ is_sales_executive: checked } as any)
+                                .eq("id", u.id);
+                              if (error) {
+                                toast.error("Failed to update sales exec flag");
+                                return;
+                              }
+                              toast.success(`${u.full_name || u.email} ${checked ? "enabled" : "disabled"} as Sales Executive`);
+                              setUsers((prev) =>
+                                prev.map((x) => (x.id === u.id ? { ...x, is_sales_executive: checked } : x))
+                              );
+                              await supabase.from("audit_logs").insert({
+                                action_type: "toggle_sales_executive",
+                                module_name: "user_role_control",
+                                entity_name: u.full_name || u.email || u.id,
+                                entity_id: u.id,
+                                actor_id: user?.id ?? null,
+                                old_value: { is_sales_executive: u.is_sales_executive },
+                                new_value: { is_sales_executive: checked },
+                              });
+                            }}
+                          />
                         </td>
                         {currentUserRole === "super_admin" && (
                           <td className="px-5 py-4 text-right">

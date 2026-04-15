@@ -27,26 +27,27 @@ function to91(raw: string): string {
 async function classifySender(
   phone10: string,
   supabaseAdmin: any
-): Promise<{ type: "staff" | "client" | "lead"; userId?: string; role?: string; name?: string }> {
+): Promise<{ type: "staff" | "client" | "lead"; userId?: string; role?: string; name?: string; isSalesExec?: boolean }> {
   // Check users table for staff match
   const { data: staffMatch } = await supabaseAdmin
     .from("users")
-    .select("id, role, name, full_name, phone, mobile_number")
+    .select("id, role, name, full_name, phone, mobile_number, is_sales_executive")
     .or(`phone.ilike.%${phone10},mobile_number.ilike.%${phone10}`)
     .limit(1);
 
   if (staffMatch && staffMatch.length > 0) {
     const user = staffMatch[0];
     const role = (user.role || "").toUpperCase();
+    const isSalesExec = !!user.is_sales_executive;
     const staffRoles = [
       "SUPER_ADMIN", "ADMIN", "FINANCE_HEAD", "FINANCE_EXEC",
       "OPERATIONS_MANAGER", "PRODUCTION_MANAGER", "SALES_EXECUTIVE",
       "SUPPORT_EXECUTIVE", "DISPATCH_MANAGER", "STORE_INCHARGE",
     ];
-    if (staffRoles.some((r) => role.includes(r))) {
-      return { type: "staff", userId: user.id, role, name: user.full_name || user.name };
+    if (staffRoles.some((r) => role.includes(r)) || isSalesExec) {
+      return { type: "staff", userId: user.id, role, name: user.full_name || user.name, isSalesExec };
     }
-    return { type: "client", userId: user.id, name: user.full_name || user.name };
+    return { type: "client", userId: user.id, name: user.full_name || user.name, isSalesExec };
   }
   return { type: "lead" };
 }
@@ -379,13 +380,16 @@ serve(async (req) => {
     // PART 1: SENDER CLASSIFICATION
     // ══════════════════════════════════════════
     const sender = await classifySender(last10, supabaseAdmin);
-    console.log(`Sender classified: ${sender.type} (${sender.name || "unknown"}) phone=${phone91}`);
+    console.log(`Sender classified: ${sender.type} (${sender.name || "unknown"}) phone=${phone91}, isSalesExec=${sender.isSalesExec}`);
 
     // ── PHONE → COMPANY MAPPING (multi-table fuzzy lookup) ──
     let companyId: string | null = null;
     let companyName = profileName || "Unknown";
     let accountManagerId: string | null = null;
     let isShadowClient = false;
+
+    // If sender is a staff member with is_sales_executive, they become the account manager for any draft
+    const senderIsSalesExec = sender.type === "staff" && sender.isSalesExec && sender.userId;
 
     // Strategy 1: Match via b2b_applications
     const { data: apps } = await supabaseAdmin
@@ -490,7 +494,16 @@ serve(async (req) => {
       }
     }
 
-    console.log(`Mapped phone ${phone91} → company: ${companyName} (${companyId}), shadow: ${isShadowClient}, sender: ${sender.type}`);
+    // If sender is a sales exec staff member, assign them as account manager on the company
+    if (senderIsSalesExec && companyId && !accountManagerId) {
+      accountManagerId = sender.userId!;
+      await supabaseAdmin.from("companies")
+        .update({ account_manager_id: sender.userId })
+        .eq("id", companyId);
+      console.log(`Auto-assigned ${sender.name} as account manager for company ${companyId}`);
+    }
+
+    console.log(`Mapped phone ${phone91} → company: ${companyName} (${companyId}), shadow: ${isShadowClient}, sender: ${sender.type}, salesExec: ${senderIsSalesExec}`);
 
     // ── MEDIA / ATTACHMENT HANDLING ──
     let attachmentUrl: string | null = null;

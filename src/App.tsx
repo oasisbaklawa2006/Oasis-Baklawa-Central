@@ -258,7 +258,7 @@ const App = () => (
               path="/sales/dashboard"
               element={
                 <ProtectedRoute>
-                  <RoleProtectedRoute allowedRoles={['SALES_EXECUTIVE', 'SUPER_ADMIN', 'ADMIN']}>
+                  <RoleProtectedRoute allowedRoles={[...ADMIN_STAFF_ROLES]}>
                     <SalesDashboard />
                   </RoleProtectedRoute>
                 </ProtectedRoute>
