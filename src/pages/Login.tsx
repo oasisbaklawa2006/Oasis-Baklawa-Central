@@ -418,7 +418,7 @@ const Login = () => {
               onClick={async () => {
                 const { error } = await supabase.auth.signInWithOAuth({
                   provider: "google",
-                  options: { redirectTo: `${window.location.origin}/welcome` },
+                  options: { redirectTo: "https://b2b.oasisbaklawa.com/welcome" },
                 });
                 if (error) {
                   if (error.message?.includes("provider") || error.message?.includes("enabled")) {
@@ -437,7 +437,7 @@ const Login = () => {
               onClick={async () => {
                 const { error } = await supabase.auth.signInWithOAuth({
                   provider: "apple",
-                  options: { redirectTo: `${window.location.origin}/welcome` },
+                  options: { redirectTo: "https://b2b.oasisbaklawa.com/welcome" },
                 });
                 if (error) {
                   if (error.message?.includes("provider") || error.message?.includes("enabled")) {

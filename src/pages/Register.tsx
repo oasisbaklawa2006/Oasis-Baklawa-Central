@@ -223,7 +223,7 @@ const Register = () => {
       // Sign out immediately — pending users should not be logged in
       await signOutAndClearSession();
 
-      toast.success("✅ Application Sent Successfully! Our team will review and get back to you shortly.");
+      toast.success("Application submitted successfully. Our team will review your details and respond shortly.");
       setSubmitted(true);
     } catch (err) {
       console.error("Submission error:", err);

@@ -63,7 +63,7 @@ serve(async (req) => {
         updated_at: new Date().toISOString(),
       }, { onConflict: "setting_key" });
 
-      const message = `Your Oasis B2B Login OTP is: *${code}*\n\nValid for 5 minutes. Do not share this code.`;
+      const message = `Your Oasis B2B Login OTP is: *${code}*\n\nValid for 5 minutes. Do not share this code.\n\nLogin at: https://b2b.oasisbaklawa.com/login`;
 
       const apiRes = await fetch(SEND_ENDPOINT, {
         method: "POST",
@@ -221,6 +221,7 @@ serve(async (req) => {
         const { data: linkData, error: linkErr } = await supabaseAdmin.auth.admin.generateLink({
           type: "magiclink",
           email: userEmail,
+          options: { redirectTo: "https://b2b.oasisbaklawa.com/welcome" },
         });
 
         if (linkData && !linkErr) {
