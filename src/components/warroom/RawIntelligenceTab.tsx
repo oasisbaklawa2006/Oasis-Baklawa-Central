@@ -1,8 +1,9 @@
 import { useEffect, useState, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { removeDuplicateRealtimeChannel } from "@/utils/realtime";
-import { AlertCircle, RefreshCw, MessageSquare, Send, FileText, Mic, Image as ImageIcon, Package, Trash2 } from "lucide-react";
+import { AlertCircle, RefreshCw, MessageSquare, Send, FileText, Mic, Image as ImageIcon, Package, Trash2, AlertTriangle } from "lucide-react";
 import { toast } from "sonner";
+import { parseBanyanMessage } from "@/lib/banyan-parser";
 
 interface RawMessage {
   id: string;
@@ -80,16 +81,8 @@ export default function RawIntelligenceTab() {
     return { name: senderName, phone: senderPhone };
   };
 
-  const detectSKUs = (text: string): string[] => {
-    if (!text || aliases.length === 0) return [];
-    const lower = text.toLowerCase();
-    const matched = new Set<string>();
-    for (const alias of aliases) {
-      if (lower.includes(alias.alias_text.toLowerCase())) {
-        matched.add(alias.canonical_name);
-      }
-    }
-    return Array.from(matched);
+  const parseMessage = (text: string, phone: string | null) => {
+    return parseBanyanMessage(text, aliases, phone);
   };
 
   const relativeTimeIST = (dateStr: string): string => {
