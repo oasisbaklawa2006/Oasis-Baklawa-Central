@@ -228,10 +228,10 @@ export default function RawIntelligenceTab() {
             </div>
 
             {/* AI Detected SKUs */}
-            {detectedSKUs.length > 0 && (
+            {parsed.detectedSKUs.length > 0 && (
               <div className="flex flex-wrap items-center gap-1.5">
                 <span className="text-[10px] font-bold text-primary">AI Detected SKUs:</span>
-                {detectedSKUs.map((sku, i) => (
+                {parsed.detectedSKUs.map((sku, i) => (
                   <span key={i} className="text-[10px] bg-primary/10 text-primary px-2 py-0.5 rounded-full font-medium">
                     {sku}
                   </span>
@@ -239,7 +239,26 @@ export default function RawIntelligenceTab() {
               </div>
             )}
 
-            {detectedSKUs.length === 0 && text && (
+            {/* Invoice / Voucher References */}
+            {parsed.invoiceRefs.length > 0 && (
+              <div className="flex flex-wrap items-center gap-1.5">
+                <span className="text-[10px] font-bold text-amber-600">📋 Repeat Order Ref:</span>
+                {parsed.invoiceRefs.map((ref, i) => (
+                  <span key={i} className="text-[10px] bg-amber-500/10 text-amber-700 px-2 py-0.5 rounded-full font-medium border border-amber-500/20">
+                    {ref}
+                  </span>
+                ))}
+              </div>
+            )}
+
+            {/* Validation warnings */}
+            {parsed.missingQty && (
+              <p className="text-[10px] text-amber-600 flex items-center gap-1">
+                <AlertTriangle size={10} /> Quantity not detected — ask client for Kg/Pcs
+              </p>
+            )}
+
+            {parsed.detectedSKUs.length === 0 && text && (
               <p className="text-[10px] text-muted-foreground italic">⚠ No SKU matches found — manual review needed</p>
             )}
 
