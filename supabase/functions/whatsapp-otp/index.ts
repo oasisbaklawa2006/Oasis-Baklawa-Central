@@ -191,20 +191,13 @@ serve(async (req) => {
         });
       }
 
-      // Generate a session token for this user
-      const { data: session, error: sessionErr } = await supabaseAdmin.auth.admin.generateLink({
-        type: "magiclink",
-        email: `wa_${normalizedPhone}@oasis.internal`,
-      });
-
-      // Use signInWithPassword alternative — generate a custom token
-      // Since we can't directly create sessions via admin API easily,
-      // we'll use the OTP flow built into Supabase
-      // Try to sign in via phone OTP natively
-      const { data: signInData, error: signInErr } = await supabaseAdmin.auth.admin.generateLink({
-        type: "magiclink",
-        email: matchedUser?.email || `wa_${normalizedPhone}@oasis.internal`,
-      });
+      // Generate link for session (best-effort, not critical)
+      try {
+        await supabaseAdmin.auth.admin.generateLink({
+          type: "magiclink",
+          email: `wa_${normalizedPhone}@oasis.internal`,
+        });
+      } catch (_) { /* non-critical */ }
 
       return new Response(JSON.stringify({
         success: true,
