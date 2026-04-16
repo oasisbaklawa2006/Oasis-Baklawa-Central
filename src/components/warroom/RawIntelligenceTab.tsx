@@ -127,10 +127,10 @@ export default function RawIntelligenceTab() {
 
       // Active enforcement: missing qty or phone
       if (parsed.missingQty) {
-        toast.info("Salaam! Please specify Qty in Kg or Pcs.");
+        toast.info("The quantity was not detected. Please specify the required amount in Kg or Boxes to proceed.");
       }
       if (parsed.missingPhone) {
-        toast.info("Please provide the Customer Mobile number to generate the Portal Link.");
+        toast.info("The Customer Mobile number is required to generate the Portal Link. Please provide it to proceed.");
       }
 
       // Use edge function with service role to bypass RLS
@@ -254,7 +254,7 @@ export default function RawIntelligenceTab() {
             {/* Validation warnings */}
             {parsed.missingQty && (
               <p className="text-[10px] text-amber-600 flex items-center gap-1">
-                <AlertTriangle size={10} /> Quantity not detected — ask client for Kg/Pcs
+                <AlertTriangle size={10} /> Quantity not detected. Request the client to specify the required amount in Kg or Boxes.
               </p>
             )}
 
