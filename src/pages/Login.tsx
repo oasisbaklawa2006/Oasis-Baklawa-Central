@@ -89,7 +89,17 @@ const Login = () => {
     setLoading(true);
     const { error } = await supabase.auth.signInWithOtp({ phone: `+91${cleaned}` });
     setLoading(false);
-    if (error) { toast.error(error.message); return; }
+    if (error) {
+      // Twilio/SMS failure — show fallback
+      if (error.message?.toLowerCase().includes("sms") || error.message?.toLowerCase().includes("twilio") || error.message?.toLowerCase().includes("provider") || error.message?.toLowerCase().includes("otp")) {
+        toast.info("SMS service is temporarily undergoing maintenance. Please use the WhatsApp Login tab for a faster experience.", { duration: 6000 });
+        setActiveTab("whatsapp");
+        setWaPhone(cleaned);
+        return;
+      }
+      toast.error(error.message);
+      return;
+    }
     setOtpSent(true);
     toast.success("OTP sent to your mobile number");
   };
@@ -146,20 +156,45 @@ const Login = () => {
       if (verifyData?.error) { toast.error(verifyData.error); setLoading(false); return; }
 
       if (verifyData?.verified) {
-        // Now sign in via Supabase phone OTP (the user was created/confirmed server-side)
-        // Use signInWithOtp to create a session
+        // Try to establish session using token_hash from edge function
+        if (verifyData.token_hash && verifyData.email) {
+          const { error: verifyErr, data: sessionData } = await supabase.auth.verifyOtp({
+            token_hash: verifyData.token_hash,
+            type: "magiclink",
+          });
+          if (!verifyErr && sessionData?.user) {
+            if (!sessionStorage.getItem("oasis_welcomed")) {
+              toast.success("Welcome back!");
+              sessionStorage.setItem("oasis_welcomed", "1");
+            }
+            await resolveRedirect(sessionData.user.id);
+            setLoading(false);
+            return;
+          }
+          console.warn("token_hash login failed, trying email OTP fallback:", verifyErr?.message);
+        }
+
+        // Fallback: try native email OTP with internal email
+        if (verifyData.email) {
+          const { error: emailOtpErr } = await supabase.auth.signInWithOtp({
+            email: verifyData.email,
+          });
+          if (!emailOtpErr) {
+            toast.info("WhatsApp verified. Check your email for the login link to complete sign-in.");
+            setLoading(false);
+            return;
+          }
+        }
+
+        // Last resort: try Supabase phone OTP (may fail if Twilio is down)
         const e164 = `+91${cleaned}`;
         const { error: signErr } = await supabase.auth.signInWithOtp({ phone: e164 });
         if (signErr) {
-          // If native OTP fails, try password-less redirect
-          toast.info("WhatsApp verified! Complete login with the SMS code sent.");
-          setActiveTab("phone");
-          setPhone(cleaned);
-          setOtpSent(true);
+          toast.info("WhatsApp verified. SMS service is under maintenance. Please try Email login with: " + (verifyData.email || "your registered email"), { duration: 8000 });
           setLoading(false);
           return;
         }
-        toast.success("WhatsApp verified! Enter the SMS code to complete login.");
+        toast.success("WhatsApp verified. Enter the SMS code to complete login.");
         setActiveTab("phone");
         setPhone(cleaned);
         setOtpSent(true);
@@ -385,7 +420,13 @@ const Login = () => {
                   provider: "google",
                   options: { redirectTo: `${window.location.origin}/welcome` },
                 });
-                if (error) toast.error(error.message);
+                if (error) {
+                  if (error.message?.includes("provider") || error.message?.includes("enabled")) {
+                    toast.info("Google login is being configured. Please use WhatsApp or Email login for now.", { duration: 5000 });
+                  } else {
+                    toast.error(error.message);
+                  }
+                }
               }}
               className="flex-1 py-3 rounded-xl border border-border bg-card text-foreground font-bold text-sm flex items-center justify-center gap-2 hover:bg-muted transition-colors"
             >
@@ -398,7 +439,13 @@ const Login = () => {
                   provider: "apple",
                   options: { redirectTo: `${window.location.origin}/welcome` },
                 });
-                if (error) toast.error(error.message);
+                if (error) {
+                  if (error.message?.includes("provider") || error.message?.includes("enabled")) {
+                    toast.info("Apple login is being configured. Please use WhatsApp or Email login for now.", { duration: 5000 });
+                  } else {
+                    toast.error(error.message);
+                  }
+                }
               }}
               className="flex-1 py-3 rounded-xl border border-border bg-card text-foreground font-bold text-sm flex items-center justify-center gap-2 hover:bg-muted transition-colors"
             >

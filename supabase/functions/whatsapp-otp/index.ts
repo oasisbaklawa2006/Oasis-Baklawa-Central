@@ -11,7 +11,6 @@ const corsHeaders = {
 const BASE_URL = "https://crm.click2api.in";
 const SEND_ENDPOINT = `${BASE_URL}/api/v1/messages`;
 
-// In-memory OTP store (edge function instance scoped)
 const otpStore = new Map<string, { code: string; expiresAt: number }>();
 
 function generateOTP(): string {
@@ -28,7 +27,7 @@ serve(async (req) => {
     const accessToken = Deno.env.get("CLICK2API_ACCESS_TOKEN");
     if (!apiKey) {
       return new Response(JSON.stringify({ error: "WhatsApp API key not configured" }), {
-        status: 500,
+        status: 200,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
@@ -51,21 +50,20 @@ serve(async (req) => {
     const cleaned = phone.replace(/\D/g, "");
     const normalizedPhone = cleaned.length === 10 ? `91${cleaned}` : cleaned;
     const e164 = `+${normalizedPhone}`;
+    const internalEmail = `wa_${normalizedPhone}@oasis.internal`;
 
     // ── SEND OTP ──
     if (action === "send") {
       const code = generateOTP();
-      // Store OTP with 5-min expiry
       otpStore.set(normalizedPhone, { code, expiresAt: Date.now() + 5 * 60 * 1000 });
 
-      // Also persist in DB for cross-instance verification
       await supabaseAdmin.from("app_settings").upsert({
         setting_key: `wa_otp_${normalizedPhone}`,
         setting_value: { code, expiresAt: Date.now() + 5 * 60 * 1000 },
         updated_at: new Date().toISOString(),
       }, { onConflict: "setting_key" });
 
-      const message = `🔐 Your Oasis B2B Login OTP is: *${code}*\n\nValid for 5 minutes. Do not share this code.`;
+      const message = `Your Oasis B2B Login OTP is: *${code}*\n\nValid for 5 minutes. Do not share this code.`;
 
       const apiRes = await fetch(SEND_ENDPOINT, {
         method: "POST",
@@ -90,7 +88,7 @@ serve(async (req) => {
 
       if (!apiRes.ok) {
         return new Response(JSON.stringify({ error: "Failed to send OTP via WhatsApp", details: apiData }), {
-          status: 502,
+          status: 200,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
@@ -110,7 +108,6 @@ serve(async (req) => {
         });
       }
 
-      // Check in-memory first, then DB fallback
       let stored = otpStore.get(normalizedPhone);
 
       if (!stored) {
@@ -128,8 +125,7 @@ serve(async (req) => {
 
       if (!stored) {
         return new Response(JSON.stringify({ error: "No OTP found. Please request a new one." }), {
-          status: 400,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
+          status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
 
@@ -137,15 +133,13 @@ serve(async (req) => {
         otpStore.delete(normalizedPhone);
         await supabaseAdmin.from("app_settings").delete().eq("setting_key", `wa_otp_${normalizedPhone}`);
         return new Response(JSON.stringify({ error: "OTP expired. Please request a new one." }), {
-          status: 400,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
+          status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
 
       if (stored.code !== otp) {
         return new Response(JSON.stringify({ error: "Invalid OTP. Please try again." }), {
-          status: 400,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
+          status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
 
@@ -153,51 +147,104 @@ serve(async (req) => {
       otpStore.delete(normalizedPhone);
       await supabaseAdmin.from("app_settings").delete().eq("setting_key", `wa_otp_${normalizedPhone}`);
 
-      // Find or create user by phone
+      // ── Find or create user ──
       let userId: string;
       let isNewUser = false;
+      let userEmail = internalEmail;
 
-      // Try to create user first — if phone exists, we'll catch the error
-      const { data: newUser, error: createErr } = await supabaseAdmin.auth.admin.createUser({
-        phone: e164,
-        phone_confirm: true,
-      });
+      // Step 1: Check if phone user already exists by trying to find them
+      const { data: existingUsers } = await supabaseAdmin.auth.admin.listUsers({ page: 1, perPage: 1000 });
+      const allUsers = existingUsers?.users || [];
+      const matchedUser = allUsers.find(
+        (u: any) => u.phone === e164 || u.phone === normalizedPhone || u.phone === `+${normalizedPhone}`,
+      );
 
-      if (newUser?.user) {
-        userId = newUser.user.id;
-        isNewUser = true;
-      } else if (createErr?.message?.toLowerCase().includes("already") || createErr?.message?.toLowerCase().includes("exists")) {
-        // Phone already registered — find existing user
-        let page = 1;
-        let found = false;
-        userId = "";
-        while (!found) {
-          const { data: listData } = await supabaseAdmin.auth.admin.listUsers({ page, perPage: 500 });
-          const users = listData?.users || [];
-          if (users.length === 0) break;
-          const match = users.find((u: any) => u.phone === e164 || u.phone === normalizedPhone || u.phone === `+${normalizedPhone}`);
-          if (match) { userId = match.id; found = true; break; }
-          page++;
-        }
-        if (!found) {
-          return new Response(JSON.stringify({ error: "Phone registered but user not found. Contact support." }), {
-            status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
-          });
+      if (matchedUser) {
+        userId = matchedUser.id;
+        userEmail = matchedUser.email || internalEmail;
+
+        // Ensure the user has an email set (needed for magiclink generation)
+        if (!matchedUser.email) {
+          await supabaseAdmin.auth.admin.updateUser(userId, { email: internalEmail, email_confirm: true });
+          userEmail = internalEmail;
         }
       } else {
-        console.error("createUser error:", createErr?.message);
-        return new Response(JSON.stringify({ error: "SERVICE_FAILED", fallback: true, details: createErr?.message }), {
-          status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        // Create new user with both phone and internal email
+        const { data: newUser, error: createErr } = await supabaseAdmin.auth.admin.createUser({
+          phone: e164,
+          phone_confirm: true,
+          email: internalEmail,
+          email_confirm: true,
         });
+
+        if (createErr) {
+          // If phone_exists error despite not finding in list (pagination edge case)
+          if (createErr.message?.toLowerCase().includes("already") || createErr.message?.toLowerCase().includes("exists") || createErr.message?.toLowerCase().includes("registered")) {
+            // Try paginating further
+            let page = 2;
+            let found = false;
+            userId = "";
+            while (!found && page <= 20) {
+              const { data: pageData } = await supabaseAdmin.auth.admin.listUsers({ page, perPage: 500 });
+              const users = pageData?.users || [];
+              if (users.length === 0) break;
+              const match = users.find((u: any) => u.phone === e164 || u.phone === normalizedPhone || u.phone === `+${normalizedPhone}`);
+              if (match) { 
+                userId = match.id; 
+                userEmail = match.email || internalEmail;
+                found = true; 
+              }
+              page++;
+            }
+            if (!found) {
+              return new Response(JSON.stringify({ error: "Account exists but could not be located. Please try Email login or contact support." }), {
+                status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
+              });
+            }
+          } else {
+            console.error("createUser error:", createErr.message);
+            return new Response(JSON.stringify({ error: "SERVICE_FAILED", fallback: true, details: createErr.message }), {
+              status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
+            });
+          }
+        } else {
+          userId = newUser!.user.id;
+          isNewUser = true;
+        }
       }
 
-      // Generate link for session (best-effort, not critical)
+      // ── Generate a magiclink token so the client can establish a session ──
+      let tokenHash: string | null = null;
+      let redirectUrl: string | null = null;
+
       try {
-        await supabaseAdmin.auth.admin.generateLink({
+        const { data: linkData, error: linkErr } = await supabaseAdmin.auth.admin.generateLink({
           type: "magiclink",
-          email: `wa_${normalizedPhone}@oasis.internal`,
+          email: userEmail,
         });
-      } catch (_) { /* non-critical */ }
+
+        if (linkData && !linkErr) {
+          // Extract token_hash from the action_link URL
+          const url = new URL(linkData.properties?.action_link || "");
+          tokenHash = url.searchParams.get("token") || url.hash?.match(/token=([^&]+)/)?.[1] || null;
+          
+          // Also try hashed_token from properties
+          if (!tokenHash && (linkData.properties as any)?.hashed_token) {
+            tokenHash = (linkData.properties as any).hashed_token;
+          }
+          
+          // Parse token_hash from the URL fragment if present
+          if (!tokenHash && linkData.properties?.action_link) {
+            const linkUrl = linkData.properties.action_link;
+            const hashMatch = linkUrl.match(/token_hash=([^&]+)/);
+            if (hashMatch) tokenHash = hashMatch[1];
+          }
+        } else {
+          console.error("generateLink error:", linkErr?.message);
+        }
+      } catch (e) {
+        console.error("generateLink exception:", e);
+      }
 
       return new Response(JSON.stringify({
         success: true,
@@ -205,6 +252,8 @@ serve(async (req) => {
         userId,
         isNewUser,
         phone: e164,
+        email: userEmail,
+        token_hash: tokenHash,
       }), {
         status: 200,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -218,8 +267,8 @@ serve(async (req) => {
   } catch (e) {
     const message = e instanceof Error ? e.message : "Unexpected error";
     console.error("whatsapp-otp error:", message);
-    return new Response(JSON.stringify({ error: message }), {
-      status: 500,
+    return new Response(JSON.stringify({ error: message, fallback: true }), {
+      status: 200,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
