@@ -420,7 +420,13 @@ const Login = () => {
                   provider: "google",
                   options: { redirectTo: `${window.location.origin}/welcome` },
                 });
-                if (error) toast.error(error.message);
+                if (error) {
+                  if (error.message?.includes("provider") || error.message?.includes("enabled")) {
+                    toast.info("Google login is being configured. Please use WhatsApp or Email login for now.", { duration: 5000 });
+                  } else {
+                    toast.error(error.message);
+                  }
+                }
               }}
               className="flex-1 py-3 rounded-xl border border-border bg-card text-foreground font-bold text-sm flex items-center justify-center gap-2 hover:bg-muted transition-colors"
             >
@@ -433,7 +439,13 @@ const Login = () => {
                   provider: "apple",
                   options: { redirectTo: `${window.location.origin}/welcome` },
                 });
-                if (error) toast.error(error.message);
+                if (error) {
+                  if (error.message?.includes("provider") || error.message?.includes("enabled")) {
+                    toast.info("Apple login is being configured. Please use WhatsApp or Email login for now.", { duration: 5000 });
+                  } else {
+                    toast.error(error.message);
+                  }
+                }
               }}
               className="flex-1 py-3 rounded-xl border border-border bg-card text-foreground font-bold text-sm flex items-center justify-center gap-2 hover:bg-muted transition-colors"
             >
