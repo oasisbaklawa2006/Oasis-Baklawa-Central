@@ -122,15 +122,24 @@ export default function RawIntelligenceTab() {
     try {
       const sender = extractSender(msg.raw_payload, msg.phone_number);
       const text = extractText(msg.raw_payload);
-      const detectedSKUs = detectSKUs(text);
+      const parsed = parseMessage(text, sender.phone);
       const phone = sender.phone.replace(/\D/g, "");
+
+      // Active enforcement: missing qty or phone
+      if (parsed.missingQty) {
+        toast.info("Salaam! Please specify Qty in Kg or Pcs.");
+      }
+      if (parsed.missingPhone) {
+        toast.info("Please provide the Customer Mobile number to generate the Portal Link.");
+      }
 
       // Use edge function with service role to bypass RLS
       const { data, error } = await supabase.functions.invoke("admin-create-draft", {
         body: {
           phone,
-          sku_names: detectedSKUs,
+          sku_names: parsed.detectedSKUs,
           webhook_id: msg.id,
+          invoice_refs: parsed.invoiceRefs,
         },
       });
 
@@ -181,7 +190,7 @@ export default function RawIntelligenceTab() {
         const sender = extractSender(msg.raw_payload, msg.phone_number);
         const text = extractText(msg.raw_payload);
         const msgType = extractMessageType(msg.raw_payload);
-        const detectedSKUs = detectSKUs(text);
+        const parsed = parseMessage(text, sender.phone);
 
         return (
           <div key={msg.id} className="rounded-lg border border-border bg-card p-3 space-y-2">
