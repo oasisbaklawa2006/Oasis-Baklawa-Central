@@ -165,7 +165,7 @@ serve(async (req) => {
 
         // Ensure the user has an email set (needed for magiclink generation)
         if (!matchedUser.email) {
-          await supabaseAdmin.auth.admin.updateUser(userId, { email: internalEmail, email_confirm: true });
+          await supabaseAdmin.auth.admin.updateUserById(userId, { email: internalEmail, email_confirm: true });
           userEmail = internalEmail;
         }
       } else {
