@@ -2,7 +2,7 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
 
 const PORTAL_URL = "https://id-preview--a2649760-8f34-4dcf-aaf4-ff101ea06ef6.lovable.app";
-const CTA_FOOTER = `\n\n🔗 Login to your B2B Portal to track your 10-point artisan journey: ${PORTAL_URL}`;
+const CTA_FOOTER = `\n\nPlease login to your B2B Portal to track your 10-point artisan journey:\n${PORTAL_URL}`;
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -44,9 +44,7 @@ serve(async (req) => {
       });
     }
 
-    // Clean phone number — strip everything except digits
     const digitsOnly = to.replace(/[^0-9]/g, "");
-    // Ensure we have country code: if 10 digits, prepend 91
     const apiPhone = digitsOnly.length === 10 ? `91${digitsOnly}` : digitsOnly;
 
     console.log(`Sending WhatsApp to: ${apiPhone} via ${SEND_ENDPOINT}`);
