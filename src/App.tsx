@@ -32,6 +32,10 @@ import PublicOrderTracking from "./pages/PublicOrderTracking.tsx";
 import ResetPassword from "./pages/ResetPassword.tsx";
 import FAQ from "./pages/FAQ.tsx";
 import Terms from "./pages/Terms.tsx";
+import PublicLanding from "./pages/PublicLanding.tsx";
+import Privacy from "./pages/Privacy.tsx";
+import PublicTerms from "./pages/PublicTerms.tsx";
+import Shipping from "./pages/Shipping.tsx";
 import ErrorBoundary from "./components/ErrorBoundary.tsx";
 import AdminLayout from "./components/AdminLayout.tsx";
 import AdminDashboard from "./pages/admin/AdminDashboard.tsx";
@@ -121,7 +125,7 @@ const RootGate = () => {
     return <AuthSpinner />;
   }
 
-  if (!user) return <Navigate to="/splash" replace />;
+  if (!user) return <PublicLanding />;
 
   if (!normalizedRole) {
     return <Navigate to="/approval-pending" replace />;
@@ -202,7 +206,9 @@ const App = () => (
             <Route path="/account/logistics" element={<ProtectedRoute><RoleProtectedRoute allowedRoles={ALL_BUYER_ROLES}><ManageLogistics /></RoleProtectedRoute></ProtectedRoute>} />
             <Route path="/documents" element={<ProtectedRoute><RoleProtectedRoute allowedRoles={ALL_BUYER_ROLES}><Documents /></RoleProtectedRoute></ProtectedRoute>} />
             <Route path="/faq" element={<ProtectedRoute><FAQ /></ProtectedRoute>} />
-            <Route path="/terms" element={<ProtectedRoute><Terms /></ProtectedRoute>} />
+            <Route path="/terms" element={<PublicTerms />} />
+            <Route path="/privacy" element={<Privacy />} />
+            <Route path="/shipping" element={<Shipping />} />
             <Route path="/approval-pending" element={<ProtectedRoute><ApprovalPending /></ProtectedRoute>} />
 
             <Route
