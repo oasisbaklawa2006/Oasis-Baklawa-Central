@@ -1,8 +1,9 @@
 import { useEffect, useState, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { removeDuplicateRealtimeChannel } from "@/utils/realtime";
-import { AlertCircle, RefreshCw, MessageSquare, Send, FileText, Mic, Image as ImageIcon, Package, Trash2 } from "lucide-react";
+import { AlertCircle, RefreshCw, MessageSquare, Send, FileText, Mic, Image as ImageIcon, Package, Trash2, AlertTriangle } from "lucide-react";
 import { toast } from "sonner";
+import { parseBanyanMessage } from "@/lib/banyan-parser";
 
 interface RawMessage {
   id: string;
@@ -80,16 +81,8 @@ export default function RawIntelligenceTab() {
     return { name: senderName, phone: senderPhone };
   };
 
-  const detectSKUs = (text: string): string[] => {
-    if (!text || aliases.length === 0) return [];
-    const lower = text.toLowerCase();
-    const matched = new Set<string>();
-    for (const alias of aliases) {
-      if (lower.includes(alias.alias_text.toLowerCase())) {
-        matched.add(alias.canonical_name);
-      }
-    }
-    return Array.from(matched);
+  const parseMessage = (text: string, phone: string | null) => {
+    return parseBanyanMessage(text, aliases, phone);
   };
 
   const relativeTimeIST = (dateStr: string): string => {
@@ -129,15 +122,24 @@ export default function RawIntelligenceTab() {
     try {
       const sender = extractSender(msg.raw_payload, msg.phone_number);
       const text = extractText(msg.raw_payload);
-      const detectedSKUs = detectSKUs(text);
+      const parsed = parseMessage(text, sender.phone);
       const phone = sender.phone.replace(/\D/g, "");
+
+      // Active enforcement: missing qty or phone
+      if (parsed.missingQty) {
+        toast.info("Salaam! Please specify Qty in Kg or Pcs.");
+      }
+      if (parsed.missingPhone) {
+        toast.info("Please provide the Customer Mobile number to generate the Portal Link.");
+      }
 
       // Use edge function with service role to bypass RLS
       const { data, error } = await supabase.functions.invoke("admin-create-draft", {
         body: {
           phone,
-          sku_names: detectedSKUs,
+          sku_names: parsed.detectedSKUs,
           webhook_id: msg.id,
+          invoice_refs: parsed.invoiceRefs,
         },
       });
 
@@ -188,7 +190,7 @@ export default function RawIntelligenceTab() {
         const sender = extractSender(msg.raw_payload, msg.phone_number);
         const text = extractText(msg.raw_payload);
         const msgType = extractMessageType(msg.raw_payload);
-        const detectedSKUs = detectSKUs(text);
+        const parsed = parseMessage(text, sender.phone);
 
         return (
           <div key={msg.id} className="rounded-lg border border-border bg-card p-3 space-y-2">
@@ -226,10 +228,10 @@ export default function RawIntelligenceTab() {
             </div>
 
             {/* AI Detected SKUs */}
-            {detectedSKUs.length > 0 && (
+            {parsed.detectedSKUs.length > 0 && (
               <div className="flex flex-wrap items-center gap-1.5">
                 <span className="text-[10px] font-bold text-primary">AI Detected SKUs:</span>
-                {detectedSKUs.map((sku, i) => (
+                {parsed.detectedSKUs.map((sku, i) => (
                   <span key={i} className="text-[10px] bg-primary/10 text-primary px-2 py-0.5 rounded-full font-medium">
                     {sku}
                   </span>
@@ -237,7 +239,26 @@ export default function RawIntelligenceTab() {
               </div>
             )}
 
-            {detectedSKUs.length === 0 && text && (
+            {/* Invoice / Voucher References */}
+            {parsed.invoiceRefs.length > 0 && (
+              <div className="flex flex-wrap items-center gap-1.5">
+                <span className="text-[10px] font-bold text-amber-600">📋 Repeat Order Ref:</span>
+                {parsed.invoiceRefs.map((ref, i) => (
+                  <span key={i} className="text-[10px] bg-amber-500/10 text-amber-700 px-2 py-0.5 rounded-full font-medium border border-amber-500/20">
+                    {ref}
+                  </span>
+                ))}
+              </div>
+            )}
+
+            {/* Validation warnings */}
+            {parsed.missingQty && (
+              <p className="text-[10px] text-amber-600 flex items-center gap-1">
+                <AlertTriangle size={10} /> Quantity not detected — ask client for Kg/Pcs
+              </p>
+            )}
+
+            {parsed.detectedSKUs.length === 0 && text && (
               <p className="text-[10px] text-muted-foreground italic">⚠ No SKU matches found — manual review needed</p>
             )}
 
