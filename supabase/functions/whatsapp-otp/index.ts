@@ -154,31 +154,41 @@ serve(async (req) => {
       await supabaseAdmin.from("app_settings").delete().eq("setting_key", `wa_otp_${normalizedPhone}`);
 
       // Find or create user by phone
-      // First check if a user exists with this phone in auth
-      const { data: existingUsers } = await supabaseAdmin.auth.admin.listUsers();
-      const matchedUser = existingUsers?.users?.find(
-        (u: any) => u.phone === e164 || u.phone === `+${normalizedPhone}`,
-      );
-
       let userId: string;
       let isNewUser = false;
 
-      if (matchedUser) {
-        userId = matchedUser.id;
-      } else {
-        // Create a new user with this phone
-        const { data: newUser, error: createErr } = await supabaseAdmin.auth.admin.createUser({
-          phone: e164,
-          phone_confirm: true,
-        });
-        if (createErr || !newUser?.user) {
-          return new Response(JSON.stringify({ error: "Failed to create user account" }), {
-            status: 500,
-            headers: { ...corsHeaders, "Content-Type": "application/json" },
-          });
-        }
+      // Try to create user first — if phone exists, we'll catch the error
+      const { data: newUser, error: createErr } = await supabaseAdmin.auth.admin.createUser({
+        phone: e164,
+        phone_confirm: true,
+      });
+
+      if (newUser?.user) {
         userId = newUser.user.id;
         isNewUser = true;
+      } else if (createErr?.message?.toLowerCase().includes("already") || createErr?.message?.toLowerCase().includes("exists")) {
+        // Phone already registered — find existing user
+        let page = 1;
+        let found = false;
+        userId = "";
+        while (!found) {
+          const { data: listData } = await supabaseAdmin.auth.admin.listUsers({ page, perPage: 500 });
+          const users = listData?.users || [];
+          if (users.length === 0) break;
+          const match = users.find((u: any) => u.phone === e164 || u.phone === normalizedPhone || u.phone === `+${normalizedPhone}`);
+          if (match) { userId = match.id; found = true; break; }
+          page++;
+        }
+        if (!found) {
+          return new Response(JSON.stringify({ error: "Phone registered but user not found. Contact support." }), {
+            status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
+      } else {
+        console.error("createUser error:", createErr?.message);
+        return new Response(JSON.stringify({ error: "SERVICE_FAILED", fallback: true, details: createErr?.message }), {
+          status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
       }
 
       // Generate a session token for this user
