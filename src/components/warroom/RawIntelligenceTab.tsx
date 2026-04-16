@@ -242,7 +242,7 @@ export default function RawIntelligenceTab() {
             {/* Invoice / Voucher References */}
             {parsed.invoiceRefs.length > 0 && (
               <div className="flex flex-wrap items-center gap-1.5">
-                <span className="text-[10px] font-bold text-amber-600">📋 Repeat Order Ref:</span>
+                <span className="text-[10px] font-bold text-amber-600">Repeat Order Ref:</span>
                 {parsed.invoiceRefs.map((ref, i) => (
                   <span key={i} className="text-[10px] bg-amber-500/10 text-amber-700 px-2 py-0.5 rounded-full font-medium border border-amber-500/20">
                     {ref}
