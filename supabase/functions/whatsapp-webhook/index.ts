@@ -439,6 +439,74 @@ serve(async (req) => {
       }
     }
 
+    // ── LEDGER DISPUTE KEYWORD DETECTION ──
+    // If a credit-client replies "request correction" / "ledger dispute" / "disputed",
+    // open a dispute against their most recent sent ledger.
+    try {
+      const txt = (messageBody || "").toLowerCase().trim();
+      const isDispute =
+        txt.includes("request correction") ||
+        txt.includes("ledger dispute") ||
+        txt.includes("ledger correction") ||
+        txt.includes("account mismatch") ||
+        txt === "disputed" ||
+        txt === "dispute";
+      if (last10 && isDispute) {
+        const { data: comp } = await supabaseAdmin
+          .from("companies")
+          .select("id, business_name")
+          .or(`phone.ilike.%${last10}`)
+          .limit(1)
+          .maybeSingle();
+        if (comp?.id) {
+          const { data: latestLedger } = await supabaseAdmin
+            .from("bi_monthly_ledgers")
+            .select("id")
+            .eq("company_id", comp.id)
+            .order("generated_at", { ascending: false })
+            .limit(1)
+            .maybeSingle();
+          if (latestLedger?.id) {
+            await supabaseAdmin.from("ledger_disputes").insert({
+              ledger_id: latestLedger.id,
+              company_id: comp.id,
+              raised_via: "whatsapp",
+              description: messageBody?.slice(0, 500) || null,
+              status: "open",
+            });
+            await supabaseAdmin
+              .from("bi_monthly_ledgers")
+              .update({ status: "disputed" })
+              .eq("id", latestLedger.id);
+            // Soft acknowledgement
+            const apiKey = Deno.env.get("CLICK2API_API_KEY");
+            const accessToken = Deno.env.get("CLICK2API_ACCESS_TOKEN");
+            if (apiKey) {
+              await fetch("https://crm.click2api.in/api/v1/messages", {
+                method: "POST",
+                headers: {
+                  "Content-Type": "application/json",
+                  apikey: apiKey,
+                  ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+                },
+                body: JSON.stringify({
+                  messaging_product: "whatsapp",
+                  to: phone91,
+                  type: "text",
+                  text: {
+                    body:
+                      `Thank you for flagging this. Our Finance team has been notified and will review your account together with you shortly.\n\n— Team Oasis Baklawa`,
+                  },
+                }),
+              }).catch(() => {});
+            }
+          }
+        }
+      }
+    } catch (dispErr) {
+      console.error("Dispute keyword detection error:", dispErr);
+    }
+
     // Guard: skip outgoing echoes or status updates
     const direction = payload?.direction || payload?.statuses ? "status" : "";
     if (direction === "outgoing" || direction === "sent" || direction === "status") {

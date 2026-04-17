@@ -21,11 +21,13 @@ import {
   RotateCcw,
   IndianRupee,
   Wallet,
+  BookOpen,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useAuth } from "@/hooks/useAuth";
 import { queueNotification } from "@/utils/notificationOutbox";
 import { classifyFlow } from "@/utils/departmentClassifier";
+import { LedgerDisputesPanel } from "@/components/admin/LedgerDisputesPanel";
 
 interface FinanceOrder {
   id: string;
@@ -92,7 +94,7 @@ const formatDate = (dateString: string) =>
     minute: "2-digit",
   });
 
-type FinanceQueue = "validation" | "approvals" | "invoicing" | "returns" | "returns_scrutiny" | "commission_payouts";
+type FinanceQueue = "validation" | "approvals" | "invoicing" | "returns" | "returns_scrutiny" | "commission_payouts" | "ledger";
 
 interface SalesExecPayout {
   id: string;
@@ -884,6 +886,7 @@ const AdminFinance = () => {
             { id: "returns", label: "Returns Settlement", count: returnRecords.length, icon: RotateCcw },
             { id: "returns_scrutiny", label: "Returns Scrutiny", count: scrutinyRecords.length, icon: ShieldAlert },
             { id: "commission_payouts", label: "Commission Payouts", count: salesExecPayouts.length, icon: IndianRupee },
+            { id: "ledger", label: "Ledger & Disputes", count: 0, icon: BookOpen },
           ].map((tab) => (
             <button
               key={tab.id}
@@ -1342,6 +1345,9 @@ const AdminFinance = () => {
               )}
             </div>
           )}
+
+          {/* QUEUE 7: BI-MONTHLY LEDGER & DISPUTES */}
+          {activeQueue === "ledger" && <LedgerDisputesPanel />}
         </div>
       </div>
 

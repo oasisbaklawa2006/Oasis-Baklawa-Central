@@ -30,6 +30,7 @@ interface OrderRow {
   status: string;
   created_at: string | null;
   sales_order_value: number | null;
+  company_id: string | null;
   company: { business_name: string } | null;
 }
 
@@ -51,7 +52,7 @@ const OrderManagement = () => {
   const fetchOrders = useCallback(async () => {
     const { data, error } = await supabase
       .from("orders")
-      .select("id, status, created_at, sales_order_value, company:companies(business_name)")
+      .select("id, status, created_at, sales_order_value, company_id, company:companies(business_name)")
       .neq("status", "draft")
       .order("created_at", { ascending: false });
 
@@ -82,17 +83,92 @@ const OrderManagement = () => {
       setActionLoading(null);
       return;
     }
-    const { error } = await supabase.from("orders").update({ status: nextStatus }).eq("id", orderId);
+
+    // ── CREDIT TIERING BRANCH ──
+    // When confirming an order (submitted → confirmed), check the company's payment_terms.
+    //   credit  → fast-track to in_production + send "Thank You" WhatsApp
+    //   prepaid → keep at awaiting_advance and send manual UPI/bank instructions
+    //             (Razorpay auto-link integration plugs in here later)
+    let effectiveNext = nextStatus;
+    let creditFastTracked = false;
+    if (currentOrder?.status === "submitted" && nextStatus === "confirmed") {
+      const { data: comp } = await supabase
+        .from("companies")
+        .select("id, business_name, phone, payment_terms")
+        .eq("id", currentOrder.company_id || "")
+        .maybeSingle();
+      const terms = (comp as any)?.payment_terms || "prepaid";
+      if (terms === "credit") {
+        effectiveNext = "in_production";
+        creditFastTracked = true;
+      } else {
+        effectiveNext = "awaiting_advance";
+      }
+    }
+
+    const { error } = await supabase.from("orders").update({ status: effectiveNext }).eq("id", orderId);
     if (error) {
       toast.error("Failed to update status");
-    } else {
-      await supabase.from("order_status_history").insert({
-        order_id: orderId,
-        old_status: currentOrder?.status ?? null,
-        new_status: nextStatus,
-      });
-      toast.success(`Order moved to ${getStatusInfo(nextStatus).label}`);
+      setActionLoading(null);
+      return;
     }
+
+    await supabase.from("order_status_history").insert({
+      order_id: orderId,
+      old_status: currentOrder?.status ?? null,
+      new_status: effectiveNext,
+    });
+
+    // Trigger payment-terms-aware notifications
+    if (currentOrder?.status === "submitted" && nextStatus === "confirmed" && currentOrder.company_id) {
+      const { data: comp } = await supabase
+        .from("companies")
+        .select("business_name, phone, payment_terms")
+        .eq("id", currentOrder.company_id)
+        .maybeSingle();
+      const orderRef = "SO-" + orderId.slice(0, 8).toUpperCase();
+      const phone = (comp as any)?.phone;
+      const businessName = (comp as any)?.business_name || "Valued Customer";
+
+      if (creditFastTracked) {
+        if (phone) {
+          await supabase.functions.invoke("send-whatsapp", {
+            body: {
+              to: phone,
+              message:
+                `Dear ${businessName},\n\n` +
+                `Thank you for your order ${orderRef}. As a valued credit-account partner, your order has been confirmed and moved directly into production.\n\n` +
+                `Track your 10-point artisan journey on the B2B portal.\n\n` +
+                `— Team Oasis Baklawa`,
+              company_id: currentOrder.company_id,
+              order_id: orderId,
+            },
+          }).catch(() => {});
+        }
+      } else {
+        if (phone) {
+          await supabase.functions.invoke("send-whatsapp", {
+            body: {
+              to: phone,
+              message:
+                `Dear ${businessName},\n\n` +
+                `Your order ${orderRef} has been confirmed and is awaiting advance payment.\n\n` +
+                `Please remit the advance via UPI / NEFT / RTGS to the bank details shared by your Sales Executive, or reply to this message for assistance.\n\n` +
+                `Once payment is verified, your order will move into production.\n\n` +
+                `— Team Oasis Baklawa`,
+              company_id: currentOrder.company_id,
+              order_id: orderId,
+            },
+          }).catch(() => {});
+        }
+      }
+    }
+
+    toast.success(
+      creditFastTracked
+        ? "Credit client — fast-tracked to Production"
+        : `Order moved to ${getStatusInfo(effectiveNext).label}`,
+    );
     setActionLoading(null);
   };
 
