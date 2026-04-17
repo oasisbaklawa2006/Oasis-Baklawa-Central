@@ -441,13 +441,13 @@ const Register = () => {
 
               <div className="space-y-3">
                 <h2 className="font-display text-2xl sm:text-3xl tracking-wide text-foreground">
-                  Application Submitted Successfully
+                  Application Received!
                 </h2>
                 <p className="text-body-p2 text-muted-foreground leading-relaxed max-w-sm mx-auto">
-                  Your application is currently under review.
+                  Our team will review your GST details and notify you via WhatsApp.
                 </p>
                 <p className="text-fine text-muted-foreground/80 leading-relaxed max-w-sm mx-auto">
-                  Due to a high volume of submissions, review times may vary, but we are working hard to get through all applications as soon as possible.
+                  Redirecting you to your application status…
                 </p>
               </div>
 
