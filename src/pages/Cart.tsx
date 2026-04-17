@@ -30,6 +30,7 @@ import { cn } from "@/lib/utils";
 import { useCart } from "@/hooks/useCart";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
+import { notifyOrderPlaced } from "@/utils/notifyEvent";
 import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
 import ProductRecommendations from "@/components/ProductRecommendations";

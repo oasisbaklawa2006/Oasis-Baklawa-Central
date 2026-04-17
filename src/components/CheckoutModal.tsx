@@ -3,6 +3,7 @@ import { X, Wallet, Smartphone, Building, CheckCircle2, ShieldCheck, Loader2 } f
 import { useState } from "react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+import { notifyOrderPlaced } from "@/utils/notifyEvent";
 
 interface CheckoutModalProps {
   open: boolean;
