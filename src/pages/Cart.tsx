@@ -411,6 +411,8 @@ const Cart = () => {
       } else {
         toast.success("Sales Order submitted! Please upload your payment receipt.");
       }
+      // Fire milestone notification (buyer + sales exec + admin)
+      notifyOrderPlaced(draftOrder.id, draftOrder.id.slice(0, 8).toUpperCase(), grandTotal).catch(() => {});
       setShowPaymentModal(false);
       setTimeout(() => navigate("/orders"), 1500);
     } catch (error: any) {

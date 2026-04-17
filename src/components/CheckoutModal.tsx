@@ -58,6 +58,8 @@ const CheckoutModal = ({ open, onClose, grandTotal, orderId, companyId, onOrderC
       return;
     }
     toast.success("Order confirmed! Advance payment initiated.");
+    // Fire milestone notification (buyer + sales exec + admin)
+    notifyOrderPlaced(orderId, orderId.slice(0, 8).toUpperCase(), grandTotal).catch(() => {});
     onOrderConfirmed?.();
     onClose();
   };
