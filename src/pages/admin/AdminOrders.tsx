@@ -7,6 +7,7 @@ import TopNavBar from "@/components/TopNavBar";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { generateProFormaInvoice } from "@/utils/invoiceGenerator";
+import { notifyOrderConfirmed, notifyOrderDispatched, notifyOrderDelivered } from "@/utils/notifyEvent";
 const PACKS_PER_CARTON = 9;
 
 const STATUSES = [
@@ -155,6 +156,12 @@ const AdminOrders = () => {
       toast.error("Failed to update status");
     } else {
       toast.success(`Moved to ${STATUS_LABELS[next as OrderStatus]}`);
+
+      // Milestone notifications (key events only)
+      const ref = order.id.slice(0, 8).toUpperCase();
+      if (next === "approved") notifyOrderConfirmed(order.id, ref).catch(() => {});
+      else if (next === "dispatched") notifyOrderDispatched(order.id, ref).catch(() => {});
+      else if (next === "delivered") notifyOrderDelivered(order.id, ref).catch(() => {});
 
       // Auto-split when advancing to in_production — lazy fetch items first
       if (next === "in_production") {

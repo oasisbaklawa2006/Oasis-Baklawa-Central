@@ -30,6 +30,7 @@ import { cn } from "@/lib/utils";
 import { useCart } from "@/hooks/useCart";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
+import { notifyOrderPlaced } from "@/utils/notifyEvent";
 import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
 import ProductRecommendations from "@/components/ProductRecommendations";
@@ -411,6 +412,8 @@ const Cart = () => {
       } else {
         toast.success("Sales Order submitted! Please upload your payment receipt.");
       }
+      // Fire milestone notification (buyer + sales exec + admin)
+      notifyOrderPlaced(draftOrder.id, draftOrder.id.slice(0, 8).toUpperCase(), grandTotal).catch(() => {});
       setShowPaymentModal(false);
       setTimeout(() => navigate("/orders"), 1500);
     } catch (error: any) {

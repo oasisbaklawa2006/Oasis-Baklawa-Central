@@ -26,6 +26,7 @@ const Login = () => {
   const [waPhone, setWaPhone] = useState("");
   const [waOtp, setWaOtp] = useState("");
   const [waOtpSent, setWaOtpSent] = useState(false);
+  const emailBackupTimer = useState<{ id: ReturnType<typeof setTimeout> | null }>({ id: null })[0];
   const navigate = useNavigate();
 
   const resolveRedirect = async (userId: string) => {
@@ -144,6 +145,19 @@ const Login = () => {
           duration: 8000,
         });
       }, 1500);
+
+      // ── 15s EMAIL BACKUP: if user hasn't entered OTP, fire email fallback ──
+      if (emailBackupTimer.id) clearTimeout(emailBackupTimer.id);
+      emailBackupTimer.id = setTimeout(async () => {
+        try {
+          const { data: bk } = await supabase.functions.invoke("whatsapp-otp", {
+            body: { action: "email_backup", phone: cleaned },
+          });
+          if (bk?.success) {
+            toast.info(`Backup OTP sent to your email (${bk.sent_to}). Please check your inbox.`, { duration: 8000 });
+          }
+        } catch {}
+      }, 15000);
     } catch (err: any) {
       toast.error(err?.message || "Failed to send WhatsApp OTP");
     }
@@ -152,6 +166,7 @@ const Login = () => {
 
   const handleVerifyWaOtp = async () => {
     if (waOtp.length !== 6) { toast.error("Enter the 6-digit OTP"); return; }
+    if (emailBackupTimer.id) { clearTimeout(emailBackupTimer.id); emailBackupTimer.id = null; }
     const cleaned = waPhone.replace(/\D/g, "");
     setLoading(true);
     try {

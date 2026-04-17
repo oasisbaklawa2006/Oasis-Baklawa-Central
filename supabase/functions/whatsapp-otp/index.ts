@@ -52,6 +52,65 @@ serve(async (req) => {
     const e164 = `+${normalizedPhone}`;
     const internalEmail = `wa_${normalizedPhone}@oasis.internal`;
 
+    // ── EMAIL BACKUP: send same OTP via Resend ──
+    if (action === "email_backup") {
+      // Look up cached OTP
+      const { data: settingRow } = await supabaseAdmin
+        .from("app_settings")
+        .select("setting_value")
+        .eq("setting_key", `wa_otp_${normalizedPhone}`)
+        .maybeSingle();
+      const sv = settingRow?.setting_value as any;
+      if (!sv?.code || Date.now() > sv.expiresAt) {
+        return new Response(JSON.stringify({ error: "OTP expired or missing" }), {
+          status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      // Find recipient email from b2b_applications
+      const { data: app } = await supabaseAdmin
+        .from("b2b_applications")
+        .select("contact_email")
+        .eq("mobile_number", cleaned)
+        .maybeSingle();
+
+      const recipientEmail = app?.contact_email;
+      if (!recipientEmail) {
+        return new Response(JSON.stringify({ error: "No verified email on file for this number" }), {
+          status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      const resendKey = Deno.env.get("RESEND_API_KEY");
+      if (!resendKey) {
+        return new Response(JSON.stringify({ error: "Email service unavailable" }), {
+          status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      const emailRes = await fetch("https://api.resend.com/emails", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${resendKey}` },
+        body: JSON.stringify({
+          from: "Oasis Baklawa <team@oasisbaklawa.com>",
+          to: recipientEmail,
+          subject: `Your Oasis B2B Login OTP: ${sv.code}`,
+          html: `<div style="font-family:Arial,sans-serif;max-width:480px;margin:0 auto;padding:24px">
+            <h2 style="color:#1a1a1a">Oasis Baklawa B2B</h2>
+            <p>Your one-time login code is:</p>
+            <div style="font-size:32px;font-weight:700;letter-spacing:6px;color:#c9a961;padding:16px;background:#faf7f0;border-radius:8px;text-align:center;margin:16px 0">${sv.code}</div>
+            <p style="font-size:13px;color:#666">This code expires in 5 minutes. If you didn't request it, please ignore this email.</p>
+            <p style="font-size:12px;color:#888;margin-top:24px">— Team Oasis Baklawa</p>
+          </div>`,
+        }),
+      });
+
+      return new Response(JSON.stringify({ success: emailRes.ok, sent_to: recipientEmail.replace(/(.{2}).+@/, "$1***@") }), {
+        status: 200,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     // ── SEND OTP ──
     if (action === "send") {
       const code = generateOTP();

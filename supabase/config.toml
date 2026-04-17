@@ -1,1 +1,13 @@
 project_id = "tcxvcatsqqertcnycuop"
+
+[functions.notify-event]
+verify_jwt = false
+
+[functions.whatsapp-otp]
+verify_jwt = false
+
+[functions.public-order-tracking]
+verify_jwt = false
+
+[functions.whatsapp-webhook]
+verify_jwt = false

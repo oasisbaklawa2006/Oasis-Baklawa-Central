@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { notifyEvent } from "@/utils/notifyEvent";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Loader2,
@@ -344,6 +345,17 @@ const AdminClients = () => {
       }
 
       toast.success(`${app.business_name} approved`);
+
+      // Fire approval welcome email + WhatsApp (buyer)
+      notifyEvent({
+        event: "approval_granted",
+        subject: "Welcome to Oasis B2B! Your account is active",
+        message: `Welcome to Oasis B2B! Your account is now active.\n\nLogin here: https://b2b.oasisbaklawa.com\n\nYour assigned tier: ${priceTier[app.id] || "Standard"}.\nYou can now place orders, track production live, and access invoices.\n\n— Team Oasis Baklawa`,
+        audiences: [],
+        email: app.contact_email,
+        phone: app.mobile_number,
+      }).catch(() => {});
+
       setSheetOpen(false);
       fetchApps(tab);
     } catch (error) {

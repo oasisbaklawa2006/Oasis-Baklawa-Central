@@ -3,6 +3,7 @@ import { X, Wallet, Smartphone, Building, CheckCircle2, ShieldCheck, Loader2 } f
 import { useState } from "react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+import { notifyOrderPlaced } from "@/utils/notifyEvent";
 
 interface CheckoutModalProps {
   open: boolean;
@@ -58,6 +59,8 @@ const CheckoutModal = ({ open, onClose, grandTotal, orderId, companyId, onOrderC
       return;
     }
     toast.success("Order confirmed! Advance payment initiated.");
+    // Fire milestone notification (buyer + sales exec + admin)
+    notifyOrderPlaced(orderId, orderId.slice(0, 8).toUpperCase(), grandTotal).catch(() => {});
     onOrderConfirmed?.();
     onClose();
   };
