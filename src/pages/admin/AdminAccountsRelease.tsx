@@ -7,6 +7,7 @@ import { useLanguage } from "@/hooks/useLanguage";
 import { useCurrency } from "@/hooks/useCurrency";
 import { queueNotification } from "@/utils/notificationOutbox";
 import { sendWhatsAppMessage } from "@/utils/whatsapp";
+import { notifyOrderDispatched } from "@/utils/notifyEvent";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -245,6 +246,8 @@ const AdminAccountsRelease = () => {
         old_status: gatePassOrder.status,
         new_status: "dispatched",
       });
+      // Fire dispatch notification (buyer + sales exec + admin)
+      notifyOrderDispatched(orderId, orderId.slice(0, 8).toUpperCase()).catch(() => {});
       await supabase.from("audit_logs").insert({
         action_type: "finance_issue_gate_pass",
         module_name: "Finance",
