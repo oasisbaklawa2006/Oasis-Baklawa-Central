@@ -63,26 +63,37 @@ serve(async (req) => {
         updated_at: new Date().toISOString(),
       }, { onConflict: "setting_key" });
 
-      // EMERGENCY BYPASS (24h): Meta template "b2b otp login" pending approval.
-      // Send a simple text message via Click2API send-text endpoint instead.
-      const textPayload = {
+      // Approved Meta template "b2b_otp_login" — official Template API
+      const templatePayload = {
         instance_id: apiKey,
         access_token: accessToken ?? "",
-        number: normalizedPhone, // digits only, no '+' (e.g., 919891162212)
-        message: `Your Oasis B2B OTP is: ${code}`,
-        type: "text",
+        number: normalizedPhone, // 91xxxxxxxxxx, no '+'
+        type: "template",
+        template_name: "b2b_otp_login",
+        language_code: "en",
+        body_params: [code],
+        components: [
+          {
+            type: "body",
+            parameters: [{ type: "text", text: code }],
+          },
+          {
+            type: "button",
+            sub_type: "url",
+            index: "0",
+            parameters: [{ type: "text", text: code }],
+          },
+        ],
       };
 
-      const SEND_TEXT_ENDPOINT = `${BASE_URL}/api/v1/send-text`;
-
-      const apiRes = await fetch(SEND_TEXT_ENDPOINT, {
+      const apiRes = await fetch(SEND_ENDPOINT, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           apikey: apiKey,
           ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
         },
-        body: JSON.stringify(textPayload),
+        body: JSON.stringify(templatePayload),
       });
 
       const responseText = await apiRes.text();
