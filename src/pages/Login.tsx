@@ -138,6 +138,12 @@ const Login = () => {
       if (data?.error) { toast.error(data.error); setLoading(false); return; }
       setWaOtpSent(true);
       toast.success("OTP sent via WhatsApp!");
+      setTimeout(() => {
+        toast("Session Active. Check WhatsApp 'Archive' or 'Request' folders.", {
+          description: "If you don't see the OTP, check filtered chats.",
+          duration: 8000,
+        });
+      }, 1500);
     } catch (err: any) {
       toast.error(err?.message || "Failed to send WhatsApp OTP");
     }

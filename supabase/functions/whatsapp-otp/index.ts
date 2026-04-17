@@ -63,35 +63,26 @@ serve(async (req) => {
         updated_at: new Date().toISOString(),
       }, { onConflict: "setting_key" });
 
-      // Send via pre-approved Meta WhatsApp template "b2b otp login"
-      const templatePayload = {
-        messaging_product: "whatsapp",
-        to: normalizedPhone, // digits only, no '+' (e.g., 919891162212)
-        type: "template",
-        template_name: "b2b otp login",
-        language_code: "en",
-        body_params: [code],
-        // Compatibility with Meta-style payloads (some gateways require nested template object)
-        template: {
-          name: "b2b_otp_login",
-          language: { code: "en" },
-          components: [
-            {
-              type: "body",
-              parameters: [{ type: "text", text: code }],
-            },
-          ],
-        },
+      // EMERGENCY BYPASS (24h): Meta template "b2b otp login" pending approval.
+      // Send a simple text message via Click2API send-text endpoint instead.
+      const textPayload = {
+        instance_id: apiKey,
+        access_token: accessToken ?? "",
+        number: normalizedPhone, // digits only, no '+' (e.g., 919891162212)
+        message: `Your Oasis B2B OTP is: ${code}`,
+        type: "text",
       };
 
-      const apiRes = await fetch(SEND_ENDPOINT, {
+      const SEND_TEXT_ENDPOINT = `${BASE_URL}/api/v1/send-text`;
+
+      const apiRes = await fetch(SEND_TEXT_ENDPOINT, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           apikey: apiKey,
           ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
         },
-        body: JSON.stringify(templatePayload),
+        body: JSON.stringify(textPayload),
       });
 
       const responseText = await apiRes.text();
