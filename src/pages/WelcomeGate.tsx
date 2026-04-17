@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
+import { toast } from "sonner";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { getRoleDestination, isStaffRole, normalizeRole } from "@/lib/auth-routing";
@@ -18,6 +19,22 @@ const WelcomeGate = () => {
   const [greetingIdx, setGreetingIdx] = useState(0);
   const normalizedRole = normalizeRole(role);
   const isStaff = normalizedRole ? isStaffRole(normalizedRole) : false;
+
+  // OAuth recovery — if Google returns server_error, bail to /login with guidance
+  useEffect(() => {
+    const search = new URLSearchParams(window.location.search);
+    const hash = new URLSearchParams(
+      window.location.hash.startsWith("#") ? window.location.hash.slice(1) : window.location.hash
+    );
+    const err = search.get("error") || hash.get("error");
+    const errCode = search.get("error_code") || hash.get("error_code");
+    if (err === "server_error" || errCode === "server_error" || err === "access_denied") {
+      toast.error("Google Auth is pending branding approval. Please use WhatsApp/SMS for the demo.", {
+        duration: 8000,
+      });
+      navigate("/login", { replace: true });
+    }
+  }, [navigate]);
 
   // Ready when: staff role known OR (non-staff profile resolved with companyId)
   const ready = !loading && (isStaff || (profileReady && !!companyId));
