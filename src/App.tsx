@@ -128,6 +128,11 @@ const RootGate = () => {
 
   if (!user) return <PublicLanding />;
 
+  // Admin / staff bypass — never blocked by approval / company checks
+  if (normalizedRole && isStaffRole(normalizedRole)) {
+    return <Navigate to={getRoleDestination(normalizedRole)} replace />;
+  }
+
   if (!normalizedRole) {
     return <Navigate to="/approval-pending" replace />;
   }

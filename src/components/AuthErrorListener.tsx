@@ -24,6 +24,17 @@ export default function AuthErrorListener() {
 
     if (!serverError && !errorCode && !errorDescription) return;
 
+    const blob = `${serverError ?? ""} ${errorCode ?? ""} ${errorDescription ?? ""}`.toLowerCase();
+    const isGoogleOAuth = blob.includes("google") || blob.includes("oauth") || blob.includes("provider");
+
+    if (isGoogleOAuth || location.pathname.startsWith("/welcome")) {
+      toast.error("Google configuration in progress. Please use WhatsApp login for the demo.", {
+        duration: 8000,
+      });
+      navigate("/login", { replace: true });
+      return;
+    }
+
     toast.error("Auth configuration mismatch. Please check Supabase Site URL.", {
       description: errorDescription || serverError || errorCode || undefined,
       duration: 8000,
