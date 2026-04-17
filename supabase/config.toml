@@ -17,3 +17,6 @@ verify_jwt = false
 
 [functions.generate-bi-monthly-ledger]
 verify_jwt = false
+
+[functions.generate-rescue-ledger]
+verify_jwt = false
