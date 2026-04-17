@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
+import { getRoleDestination, isStaffRole, normalizeRole } from "@/lib/auth-routing";
 
 const GREETINGS = [
   { lang: "English", text: "Welcome" },
@@ -12,9 +13,14 @@ const GREETINGS = [
 
 const WelcomeGate = () => {
   const navigate = useNavigate();
-  const { companyId } = useAuth();
+  const { user, companyId, role, loading, profileReady } = useAuth();
   const [companyName, setCompanyName] = useState("");
   const [greetingIdx, setGreetingIdx] = useState(0);
+  const normalizedRole = normalizeRole(role);
+  const isStaff = normalizedRole ? isStaffRole(normalizedRole) : false;
+
+  // Ready when: staff role known OR (non-staff profile resolved with companyId)
+  const ready = !loading && (isStaff || (profileReady && !!companyId));
 
   useEffect(() => {
     if (!companyId) return;
@@ -28,7 +34,6 @@ const WelcomeGate = () => {
       });
   }, [companyId]);
 
-  // Cycle greetings
   useEffect(() => {
     const interval = setInterval(() => {
       setGreetingIdx((prev) => (prev + 1) % GREETINGS.length);
@@ -36,13 +41,24 @@ const WelcomeGate = () => {
     return () => clearInterval(interval);
   }, []);
 
-  // Auto-navigate after 2.5s
+  // Auto-navigate only after auth+profile are ready (min 2.5s for branding)
   useEffect(() => {
+    if (!ready) return;
     const timer = setTimeout(() => {
-      navigate("/home", { replace: true });
+      const dest = isStaff ? getRoleDestination(normalizedRole) : "/home";
+      navigate(dest, { replace: true });
     }, 2500);
     return () => clearTimeout(timer);
-  }, [navigate]);
+  }, [ready, isStaff, normalizedRole, navigate]);
+
+  // If auth not loaded after a generous window, redirect to login
+  useEffect(() => {
+    if (user) return;
+    const timeout = setTimeout(() => {
+      if (!user) navigate("/login", { replace: true });
+    }, 6000);
+    return () => clearTimeout(timeout);
+  }, [user, navigate]);
 
   return (
     <div
@@ -55,7 +71,6 @@ const WelcomeGate = () => {
         transition={{ duration: 0.6 }}
         className="text-center space-y-5 px-6"
       >
-        {/* Cycling greeting */}
         <AnimatePresence mode="wait">
           <motion.p
             key={greetingIdx}
@@ -70,7 +85,6 @@ const WelcomeGate = () => {
           </motion.p>
         </AnimatePresence>
 
-        {/* Company name */}
         <motion.p
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
@@ -80,7 +94,6 @@ const WelcomeGate = () => {
           {companyName || "Oasis B2B Partner"}
         </motion.p>
 
-        {/* Divider */}
         <motion.div
           initial={{ scaleX: 0 }}
           animate={{ scaleX: 1 }}
@@ -95,7 +108,7 @@ const WelcomeGate = () => {
           transition={{ delay: 0.8, duration: 0.5 }}
           className="font-body text-[10px] tracking-[0.25em] uppercase text-white/40"
         >
-          Premium B2B Portal
+          {ready ? "Premium B2B Portal" : "Loading your dashboard…"}
         </motion.p>
       </motion.div>
     </div>
