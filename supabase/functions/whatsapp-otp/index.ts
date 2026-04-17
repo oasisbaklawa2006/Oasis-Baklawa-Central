@@ -63,7 +63,7 @@ serve(async (req) => {
         updated_at: new Date().toISOString(),
       }, { onConflict: "setting_key" });
 
-      // Approved Meta template "b2b_otp_login" — official Template API
+      // Approved Meta template "b2b_otp_login" — body-only (no button)
       const templatePayload = {
         instance_id: apiKey,
         access_token: accessToken ?? "",
@@ -72,15 +72,19 @@ serve(async (req) => {
         template_name: "b2b_otp_login",
         language_code: "en",
         body_params: [code],
+        template: {
+          name: "b2b_otp_login",
+          language: { code: "en" },
+          components: [
+            {
+              type: "body",
+              parameters: [{ type: "text", text: code }],
+            },
+          ],
+        },
         components: [
           {
             type: "body",
-            parameters: [{ type: "text", text: code }],
-          },
-          {
-            type: "button",
-            sub_type: "url",
-            index: "0",
             parameters: [{ type: "text", text: code }],
           },
         ],
