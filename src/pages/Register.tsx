@@ -205,16 +205,22 @@ const Register = () => {
       if (outboxErr) {
         console.error("[Register] Outbox insert failed:", outboxErr);
       } else if (outboxRow) {
-        // Auto-trigger: dispatch email immediately
+        // Auto-trigger via public notify-event (no staff gate required for buyer self-service)
         try {
-          await supabase.functions.invoke("send-email", {
+          await supabase.functions.invoke("notify-event", {
             body: {
-              outboxId: outboxRow.id,
-              to: email,
+              event: "b2b_application_received",
               subject: "Application Received — Oasis Baklawa B2B",
-              text: "Thank you for your application to the Oasis Baklawa B2B Portal. Our team is reviewing your details.",
+              message: "Thank you for your application to the Oasis Baklawa B2B Portal. Our team is reviewing your details.",
+              audiences: [],
+              email,
             },
           });
+          // Mark outbox sent
+          await supabase
+            .from("notification_outbox")
+            .update({ status: "sent", sent_at: new Date().toISOString() } as any)
+            .eq("id", outboxRow.id);
         } catch (dispatchErr) {
           console.error("[Register] Auto-dispatch failed:", dispatchErr);
         }
