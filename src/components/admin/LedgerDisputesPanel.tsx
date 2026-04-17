@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { Loader2, FileText, Send, AlertTriangle, CheckCircle2, Download } from "lucide-react";
+import { Loader2, FileText, Send, AlertTriangle, CheckCircle2, Download, Lock, Unlock, ShieldAlert } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 
 interface CreditCompany {
@@ -10,6 +10,10 @@ interface CreditCompany {
   phone: string | null;
   current_balance: number | null;
   credit_limit: number | null;
+  total_outstanding?: number | null;
+  is_frozen?: boolean | null;
+  rescue_payment_date?: string | null;
+  settlement_deadline?: string | null;
 }
 
 interface LedgerRow {
@@ -61,7 +65,7 @@ export const LedgerDisputesPanel = () => {
     const [companiesRes, ledgersRes, disputesRes] = await Promise.all([
       supabase
         .from("companies")
-        .select("id, business_name, phone, current_balance, credit_limit")
+        .select("id, business_name, phone, current_balance, credit_limit, total_outstanding, is_frozen, rescue_payment_date, settlement_deadline")
         .eq("payment_terms", "credit")
         .order("business_name"),
       supabase
@@ -105,6 +109,51 @@ export const LedgerDisputesPanel = () => {
     } finally {
       setGenerating(null);
     }
+  };
+
+  const handleManualUnlock = async (company: CreditCompany) => {
+    const out = Number(company.total_outstanding || 0);
+    const minUnlock = (out * 0.7).toLocaleString("en-IN");
+    const ok = window.confirm(
+      `Verify rescue payment for ${company.business_name}?\n\nOutstanding: ₹${out.toLocaleString("en-IN")}\nMinimum required (70%): ₹${minUnlock}\n\nThis will unfreeze the account and set settlement deadline to month-end.`,
+    );
+    if (!ok) return;
+    const { data, error } = await supabase.rpc("manual_unlock_credit", {
+      _company_id: company.id,
+      _notes: "Manual rescue verification by Finance",
+    });
+    if (error) {
+      toast.error("Unlock failed: " + error.message);
+      return;
+    }
+    toast.success(`${company.business_name} unfrozen. Settlement due by month-end.`);
+    // Send rescue WhatsApp via the rescue ledger function (single-company)
+    supabase.functions.invoke("generate-rescue-ledger", { body: { company_id: company.id } }).catch(() => {});
+    fetchAll();
+  };
+
+  const handleFreezeNow = async (company: CreditCompany) => {
+    const ok = window.confirm(
+      `Manually freeze ${company.business_name}?\n\nThis will block their dashboard and new orders until rescue payment is verified.`,
+    );
+    if (!ok) return;
+    const { error } = await supabase
+      .from("companies")
+      .update({ is_frozen: true })
+      .eq("id", company.id);
+    if (error) {
+      toast.error("Freeze failed: " + error.message);
+      return;
+    }
+    await supabase.from("credit_rescue_events").insert({
+      company_id: company.id,
+      event_type: "manual_override",
+      outstanding_at_event: company.total_outstanding || 0,
+      notes: "Manual freeze by Finance",
+      actor_id: user?.id || null,
+    });
+    toast.success(`${company.business_name} frozen.`);
+    fetchAll();
   };
 
   const handleResolveDispute = async () => {
