@@ -353,7 +353,7 @@ const AdminClients = () => {
         message: `Welcome to Oasis B2B! Your account is now active.\n\nLogin here: https://b2b.oasisbaklawa.com\n\nYour assigned tier: ${priceTier[app.id] || "Standard"}.\nYou can now place orders, track production live, and access invoices.\n\n— Team Oasis Baklawa`,
         audiences: [],
         email: app.contact_email,
-        phone: app.mobile_number || app.contact_phone,
+        phone: app.mobile_number,
       }).catch(() => {});
 
       setSheetOpen(false);
