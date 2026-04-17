@@ -166,6 +166,7 @@ const Login = () => {
 
   const handleVerifyWaOtp = async () => {
     if (waOtp.length !== 6) { toast.error("Enter the 6-digit OTP"); return; }
+    if (emailBackupTimer.id) { clearTimeout(emailBackupTimer.id); emailBackupTimer.id = null; }
     const cleaned = waPhone.replace(/\D/g, "");
     setLoading(true);
     try {
