@@ -257,6 +257,62 @@ export type Database = {
         }
         Relationships: []
       }
+      bi_monthly_ledgers: {
+        Row: {
+          company_id: string
+          created_at: string
+          generated_at: string
+          generated_by: string | null
+          id: string
+          order_count: number
+          pdf_url: string | null
+          period_end: string
+          period_start: string
+          sent_at: string | null
+          status: string
+          total_amount: number
+          whatsapp_message_id: string | null
+        }
+        Insert: {
+          company_id: string
+          created_at?: string
+          generated_at?: string
+          generated_by?: string | null
+          id?: string
+          order_count?: number
+          pdf_url?: string | null
+          period_end: string
+          period_start: string
+          sent_at?: string | null
+          status?: string
+          total_amount?: number
+          whatsapp_message_id?: string | null
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          generated_at?: string
+          generated_by?: string | null
+          id?: string
+          order_count?: number
+          pdf_url?: string | null
+          period_end?: string
+          period_start?: string
+          sent_at?: string | null
+          status?: string
+          total_amount?: number
+          whatsapp_message_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bi_monthly_ledgers_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       categories: {
         Row: {
           id: string
@@ -387,6 +443,7 @@ export type Database = {
           fssai_number: string | null
           gst_number: string | null
           id: string
+          payment_terms: string
           phone: string | null
           preferred_courier: string | null
           price_tier: string | null
@@ -408,6 +465,7 @@ export type Database = {
           fssai_number?: string | null
           gst_number?: string | null
           id?: string
+          payment_terms?: string
           phone?: string | null
           preferred_courier?: string | null
           price_tier?: string | null
@@ -429,6 +487,7 @@ export type Database = {
           fssai_number?: string | null
           gst_number?: string | null
           id?: string
+          payment_terms?: string
           phone?: string | null
           preferred_courier?: string | null
           price_tier?: string | null
@@ -1192,6 +1251,60 @@ export type Database = {
             columns: ["product_id"]
             isOneToOne: false
             referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ledger_disputes: {
+        Row: {
+          company_id: string
+          created_at: string
+          description: string | null
+          id: string
+          ledger_id: string
+          raised_via: string
+          resolution_notes: string | null
+          resolved_at: string | null
+          resolved_by: string | null
+          status: string
+        }
+        Insert: {
+          company_id: string
+          created_at?: string
+          description?: string | null
+          id?: string
+          ledger_id: string
+          raised_via?: string
+          resolution_notes?: string | null
+          resolved_at?: string | null
+          resolved_by?: string | null
+          status?: string
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          description?: string | null
+          id?: string
+          ledger_id?: string
+          raised_via?: string
+          resolution_notes?: string | null
+          resolved_at?: string | null
+          resolved_by?: string | null
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ledger_disputes_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ledger_disputes_ledger_id_fkey"
+            columns: ["ledger_id"]
+            isOneToOne: false
+            referencedRelation: "bi_monthly_ledgers"
             referencedColumns: ["id"]
           },
         ]
