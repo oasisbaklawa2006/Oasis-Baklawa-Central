@@ -70,7 +70,12 @@ export default function CentralOrderPool() {
         .limit(100),
       supabase.from("companies").select("id, business_name").order("business_name"),
     ]);
-    setOrders((ordersRes.data as SuggestedOrder[]) ?? []);
+    const rawOrders = (ordersRes.data ?? []) as unknown as Array<Omit<SuggestedOrder, "extracted_items"> & { extracted_items: unknown }>;
+    const normalized: SuggestedOrder[] = rawOrders.map((o) => ({
+      ...o,
+      extracted_items: Array.isArray(o.extracted_items) ? (o.extracted_items as SuggestedItem[]) : [],
+    }));
+    setOrders(normalized);
     setCompanies((companiesRes.data as Company[]) ?? []);
     setLoading(false);
   }, []);
