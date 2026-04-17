@@ -71,6 +71,7 @@ import CMDHeartbeat from "./pages/admin/CMDHeartbeat.tsx";
 import CMDWarRoom from "./pages/admin/CMDWarRoom.tsx";
 import AdminMerchandising from "./pages/admin/AdminMerchandising.tsx";
 import OrderManagement from "./pages/admin/OrderManagement.tsx";
+import CentralOrderPool from "./pages/admin/CentralOrderPool.tsx";
 import FactoryTVModule from "./components/FactoryTVModule.tsx";
 import AssemblyManagement from "./pages/admin/AssemblyManagement.tsx";
 import AssemblyTV from "./pages/admin/AssemblyTV.tsx";
@@ -255,6 +256,7 @@ const App = () => (
               <Route path="heartbeat" element={<CMDHeartbeat />} />
               <Route path="merchandising" element={<AdminMerchandising />} />
               <Route path="order-management" element={<OrderManagement />} />
+              <Route path="central-pool" element={<CentralOrderPool />} />
               <Route path="cmd-war-room" element={<CMDWarRoom />} />
               <Route path="assembly-tasks" element={<AssemblyManagement />} />
               <Route path="assembly-tv" element={<AssemblyTV />} />

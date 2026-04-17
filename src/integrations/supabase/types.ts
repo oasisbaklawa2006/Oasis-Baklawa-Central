@@ -2634,6 +2634,54 @@ export type Database = {
         }
         Relationships: []
       }
+      shadow_clients: {
+        Row: {
+          created_at: string
+          extracted_address: string | null
+          extracted_business_name: string | null
+          extracted_contact_email: string | null
+          extracted_gst: string | null
+          id: string
+          last_prompt_sent_at: string | null
+          notes: string | null
+          promoted_to_company_id: string | null
+          sender_name: string | null
+          sender_phone: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          extracted_address?: string | null
+          extracted_business_name?: string | null
+          extracted_contact_email?: string | null
+          extracted_gst?: string | null
+          id?: string
+          last_prompt_sent_at?: string | null
+          notes?: string | null
+          promoted_to_company_id?: string | null
+          sender_name?: string | null
+          sender_phone: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          extracted_address?: string | null
+          extracted_business_name?: string | null
+          extracted_contact_email?: string | null
+          extracted_gst?: string | null
+          id?: string
+          last_prompt_sent_at?: string | null
+          notes?: string | null
+          promoted_to_company_id?: string | null
+          sender_name?: string | null
+          sender_phone?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       stock_logs: {
         Row: {
           created_at: string | null
@@ -2742,6 +2790,100 @@ export type Database = {
             columns: ["order_id"]
             isOneToOne: false
             referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      suggested_orders: {
+        Row: {
+          ai_confidence: number | null
+          ai_model: string | null
+          created_at: string
+          extracted_business_name: string | null
+          extracted_delivery_date: string | null
+          extracted_items: Json
+          extracted_notes: string | null
+          id: string
+          matched_company_id: string | null
+          promoted_order_id: string | null
+          rejection_reason: string | null
+          reviewed_at: string | null
+          reviewed_by: string | null
+          sender_name: string | null
+          sender_phone: string
+          shadow_client_id: string | null
+          source_image_url: string | null
+          source_message_ids: string[] | null
+          source_text: string | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          ai_confidence?: number | null
+          ai_model?: string | null
+          created_at?: string
+          extracted_business_name?: string | null
+          extracted_delivery_date?: string | null
+          extracted_items?: Json
+          extracted_notes?: string | null
+          id?: string
+          matched_company_id?: string | null
+          promoted_order_id?: string | null
+          rejection_reason?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          sender_name?: string | null
+          sender_phone: string
+          shadow_client_id?: string | null
+          source_image_url?: string | null
+          source_message_ids?: string[] | null
+          source_text?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          ai_confidence?: number | null
+          ai_model?: string | null
+          created_at?: string
+          extracted_business_name?: string | null
+          extracted_delivery_date?: string | null
+          extracted_items?: Json
+          extracted_notes?: string | null
+          id?: string
+          matched_company_id?: string | null
+          promoted_order_id?: string | null
+          rejection_reason?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          sender_name?: string | null
+          sender_phone?: string
+          shadow_client_id?: string | null
+          source_image_url?: string | null
+          source_message_ids?: string[] | null
+          source_text?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "suggested_orders_matched_company_id_fkey"
+            columns: ["matched_company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "suggested_orders_promoted_order_id_fkey"
+            columns: ["promoted_order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "suggested_orders_shadow_client_id_fkey"
+            columns: ["shadow_client_id"]
+            isOneToOne: false
+            referencedRelation: "shadow_clients"
             referencedColumns: ["id"]
           },
         ]
@@ -3135,6 +3277,51 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      whatsapp_buffer: {
+        Row: {
+          bundle_status: string
+          created_at: string
+          flushed_at: string | null
+          id: string
+          media_mime_type: string | null
+          media_url: string | null
+          message_type: string | null
+          raw_payload: Json | null
+          sender_name: string | null
+          sender_phone: string
+          text_content: string | null
+          webhook_id: string | null
+        }
+        Insert: {
+          bundle_status?: string
+          created_at?: string
+          flushed_at?: string | null
+          id?: string
+          media_mime_type?: string | null
+          media_url?: string | null
+          message_type?: string | null
+          raw_payload?: Json | null
+          sender_name?: string | null
+          sender_phone: string
+          text_content?: string | null
+          webhook_id?: string | null
+        }
+        Update: {
+          bundle_status?: string
+          created_at?: string
+          flushed_at?: string | null
+          id?: string
+          media_mime_type?: string | null
+          media_url?: string | null
+          message_type?: string | null
+          raw_payload?: Json | null
+          sender_name?: string | null
+          sender_phone?: string
+          text_content?: string | null
+          webhook_id?: string | null
+        }
+        Relationships: []
       }
       whatsapp_config: {
         Row: {
