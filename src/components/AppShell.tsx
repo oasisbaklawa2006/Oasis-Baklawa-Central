@@ -4,6 +4,7 @@ import BottomNavBar from "./BottomNavBar";
 import FloatingActions from "./FloatingActions";
 import SystemAlertBanner from "./SystemAlertBanner";
 import BackButton from "./BackButton";
+import CreditLockOverlay from "./CreditLockOverlay";
 import { AlertTriangle, X } from "lucide-react";
 
 interface AppShellProps {
@@ -59,6 +60,7 @@ const AppShell = ({ children }: AppShellProps) => {
       </main>
       <FloatingActions />
       <BottomNavBar />
+      <CreditLockOverlay />
     </div>
   );
 };

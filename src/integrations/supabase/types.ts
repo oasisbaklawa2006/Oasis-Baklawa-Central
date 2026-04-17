@@ -443,12 +443,16 @@ export type Database = {
           fssai_number: string | null
           gst_number: string | null
           id: string
+          is_frozen: boolean
           payment_terms: string
           phone: string | null
           preferred_courier: string | null
           price_tier: string | null
           registered_address: string | null
+          rescue_payment_date: string | null
+          settlement_deadline: string | null
           status: string | null
+          total_outstanding: number
           wallet_balance: number | null
           website: string | null
         }
@@ -465,12 +469,16 @@ export type Database = {
           fssai_number?: string | null
           gst_number?: string | null
           id?: string
+          is_frozen?: boolean
           payment_terms?: string
           phone?: string | null
           preferred_courier?: string | null
           price_tier?: string | null
           registered_address?: string | null
+          rescue_payment_date?: string | null
+          settlement_deadline?: string | null
           status?: string | null
+          total_outstanding?: number
           wallet_balance?: number | null
           website?: string | null
         }
@@ -487,12 +495,16 @@ export type Database = {
           fssai_number?: string | null
           gst_number?: string | null
           id?: string
+          is_frozen?: boolean
           payment_terms?: string
           phone?: string | null
           preferred_courier?: string | null
           price_tier?: string | null
           registered_address?: string | null
+          rescue_payment_date?: string | null
+          settlement_deadline?: string | null
           status?: string | null
+          total_outstanding?: number
           wallet_balance?: number | null
           website?: string | null
         }
@@ -550,6 +562,47 @@ export type Database = {
             columns: ["requested_by"]
             isOneToOne: false
             referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      credit_rescue_events: {
+        Row: {
+          actor_id: string | null
+          amount: number | null
+          company_id: string
+          created_at: string
+          event_type: string
+          id: string
+          notes: string | null
+          outstanding_at_event: number | null
+        }
+        Insert: {
+          actor_id?: string | null
+          amount?: number | null
+          company_id: string
+          created_at?: string
+          event_type: string
+          id?: string
+          notes?: string | null
+          outstanding_at_event?: number | null
+        }
+        Update: {
+          actor_id?: string | null
+          amount?: number | null
+          company_id?: string
+          created_at?: string
+          event_type?: string
+          id?: string
+          notes?: string | null
+          outstanding_at_event?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "credit_rescue_events_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
             referencedColumns: ["id"]
           },
         ]
@@ -3493,7 +3546,12 @@ export type Database = {
       }
       is_internal_staff: { Args: { _user_id: string }; Returns: boolean }
       is_staff_role: { Args: { _role: string }; Returns: boolean }
+      manual_unlock_credit: {
+        Args: { _company_id: string; _notes?: string }
+        Returns: Json
+      }
       restore_order_financials: { Args: { _order_id: string }; Returns: number }
+      run_month_end_credit_lock: { Args: never; Returns: Json }
     }
     Enums: {
       [_ in never]: never

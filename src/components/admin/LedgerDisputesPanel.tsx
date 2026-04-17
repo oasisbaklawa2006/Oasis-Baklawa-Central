@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { Loader2, FileText, Send, AlertTriangle, CheckCircle2, Download } from "lucide-react";
+import { Loader2, FileText, Send, AlertTriangle, CheckCircle2, Download, Lock, Unlock, ShieldAlert } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 
 interface CreditCompany {
@@ -10,6 +10,10 @@ interface CreditCompany {
   phone: string | null;
   current_balance: number | null;
   credit_limit: number | null;
+  total_outstanding?: number | null;
+  is_frozen?: boolean | null;
+  rescue_payment_date?: string | null;
+  settlement_deadline?: string | null;
 }
 
 interface LedgerRow {
@@ -61,7 +65,7 @@ export const LedgerDisputesPanel = () => {
     const [companiesRes, ledgersRes, disputesRes] = await Promise.all([
       supabase
         .from("companies")
-        .select("id, business_name, phone, current_balance, credit_limit")
+        .select("id, business_name, phone, current_balance, credit_limit, total_outstanding, is_frozen, rescue_payment_date, settlement_deadline")
         .eq("payment_terms", "credit")
         .order("business_name"),
       supabase
@@ -105,6 +109,51 @@ export const LedgerDisputesPanel = () => {
     } finally {
       setGenerating(null);
     }
+  };
+
+  const handleManualUnlock = async (company: CreditCompany) => {
+    const out = Number(company.total_outstanding || 0);
+    const minUnlock = (out * 0.7).toLocaleString("en-IN");
+    const ok = window.confirm(
+      `Verify rescue payment for ${company.business_name}?\n\nOutstanding: ₹${out.toLocaleString("en-IN")}\nMinimum required (70%): ₹${minUnlock}\n\nThis will unfreeze the account and set settlement deadline to month-end.`,
+    );
+    if (!ok) return;
+    const { data, error } = await supabase.rpc("manual_unlock_credit", {
+      _company_id: company.id,
+      _notes: "Manual rescue verification by Finance",
+    });
+    if (error) {
+      toast.error("Unlock failed: " + error.message);
+      return;
+    }
+    toast.success(`${company.business_name} unfrozen. Settlement due by month-end.`);
+    // Send rescue WhatsApp via the rescue ledger function (single-company)
+    supabase.functions.invoke("generate-rescue-ledger", { body: { company_id: company.id } }).catch(() => {});
+    fetchAll();
+  };
+
+  const handleFreezeNow = async (company: CreditCompany) => {
+    const ok = window.confirm(
+      `Manually freeze ${company.business_name}?\n\nThis will block their dashboard and new orders until rescue payment is verified.`,
+    );
+    if (!ok) return;
+    const { error } = await supabase
+      .from("companies")
+      .update({ is_frozen: true })
+      .eq("id", company.id);
+    if (error) {
+      toast.error("Freeze failed: " + error.message);
+      return;
+    }
+    await supabase.from("credit_rescue_events").insert({
+      company_id: company.id,
+      event_type: "manual_override",
+      outstanding_at_event: company.total_outstanding || 0,
+      notes: "Manual freeze by Finance",
+      actor_id: user?.id || null,
+    });
+    toast.success(`${company.business_name} frozen.`);
+    fetchAll();
   };
 
   const handleResolveDispute = async () => {
@@ -170,22 +219,74 @@ export const LedgerDisputesPanel = () => {
         </div>
 
         <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-3">
-          {creditCompanies.map((c) => (
-            <div key={c.id} className="bg-slate-50 border border-slate-200 rounded-xl p-3">
-              <p className="font-bold text-slate-900 text-sm">{c.business_name}</p>
-              <p className="text-[11px] text-slate-500 mt-0.5">
-                Limit: {fmtINR(c.credit_limit || 0)} • Outstanding: {fmtINR(c.current_balance || 0)}
-              </p>
-              <button
-                onClick={() => handleGenerate(c.id)}
-                disabled={generating === c.id}
-                className="mt-2 w-full py-1.5 bg-[#B8860B] text-white rounded-lg text-[11px] font-bold hover:opacity-90 flex justify-center items-center gap-1.5 disabled:opacity-60"
+          {creditCompanies.map((c) => {
+            const out = Number(c.total_outstanding || 0);
+            const minUnlock = out * 0.7;
+            return (
+              <div
+                key={c.id}
+                className={`rounded-xl p-3 border ${
+                  c.is_frozen ? "bg-red-50 border-red-300" : "bg-slate-50 border-slate-200"
+                }`}
               >
-                {generating === c.id ? <Loader2 size={12} className="animate-spin" /> : <FileText size={12} />}
-                Generate Now
-              </button>
-            </div>
-          ))}
+                <div className="flex items-start justify-between">
+                  <p className="font-bold text-slate-900 text-sm">{c.business_name}</p>
+                  {c.is_frozen ? (
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-red-600 text-white rounded-full text-[9px] font-bold">
+                      <Lock size={9} /> FROZEN
+                    </span>
+                  ) : out > 0 ? (
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-amber-100 text-amber-800 rounded-full text-[9px] font-bold">
+                      <ShieldAlert size={9} /> ACCRUED
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-emerald-100 text-emerald-800 rounded-full text-[9px] font-bold">
+                      <CheckCircle2 size={9} /> CLEAR
+                    </span>
+                  )}
+                </div>
+                <p className="text-[11px] text-slate-500 mt-0.5">
+                  Limit: {fmtINR(c.credit_limit || 0)} • Outstanding: <span className="font-bold text-slate-900">{fmtINR(out)}</span>
+                </p>
+                {c.is_frozen && (
+                  <p className="text-[10px] text-red-700 font-bold mt-1">
+                    Min unlock (70%): {fmtINR(minUnlock)}
+                  </p>
+                )}
+                {c.settlement_deadline && !c.is_frozen && (
+                  <p className="text-[10px] text-amber-700 mt-1">
+                    Deadline: {fmtDate(c.settlement_deadline)}
+                  </p>
+                )}
+                <div className="mt-2 grid grid-cols-2 gap-1.5">
+                  <button
+                    onClick={() => handleGenerate(c.id)}
+                    disabled={generating === c.id}
+                    className="py-1.5 bg-[#B8860B] text-white rounded-lg text-[10px] font-bold hover:opacity-90 flex justify-center items-center gap-1 disabled:opacity-60"
+                  >
+                    {generating === c.id ? <Loader2 size={10} className="animate-spin" /> : <FileText size={10} />}
+                    Ledger
+                  </button>
+                  {c.is_frozen ? (
+                    <button
+                      onClick={() => handleManualUnlock(c)}
+                      className="py-1.5 bg-emerald-600 text-white rounded-lg text-[10px] font-bold hover:bg-emerald-700 flex justify-center items-center gap-1"
+                    >
+                      <Unlock size={10} /> Verify 70%
+                    </button>
+                  ) : (
+                    <button
+                      onClick={() => handleFreezeNow(c)}
+                      disabled={out <= 0}
+                      className="py-1.5 bg-slate-700 text-white rounded-lg text-[10px] font-bold hover:bg-slate-800 flex justify-center items-center gap-1 disabled:opacity-40"
+                    >
+                      <Lock size={10} /> Freeze
+                    </button>
+                  )}
+                </div>
+              </div>
+            );
+          })}
           {creditCompanies.length === 0 && (
             <p className="text-sm text-slate-500 col-span-full">
               No clients on credit terms yet. Set <code>payment_terms = 'credit'</code> on companies to enable.
