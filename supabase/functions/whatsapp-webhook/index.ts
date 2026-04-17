@@ -412,13 +412,32 @@ serve(async (req) => {
     const phone91 = to91(senderPhone);
 
     // Always log raw payload
-    await supabaseAdmin.from("debug_webhooks").insert({
+    const { data: webhookRow } = await supabaseAdmin.from("debug_webhooks").insert({
       direction: "inbound",
       raw_payload: payload,
       phone_number: phone91 || senderPhone || null,
       error_message: null,
       processed: false,
-    });
+    }).select("id").maybeSingle();
+
+    // ── BANYAN BUFFER: stash this message for the Central Parser (60s debounce) ──
+    if (last10 && (messageBody || mediaUrl)) {
+      try {
+        await supabaseAdmin.from("whatsapp_buffer").insert({
+          sender_phone: last10,
+          sender_name: profileName,
+          message_type: messageType || "text",
+          text_content: messageBody || null,
+          media_url: mediaUrl,
+          media_mime_type: mediaMime,
+          raw_payload: payload,
+          webhook_id: (webhookRow as any)?.id || null,
+          bundle_status: "pending",
+        });
+      } catch (bufErr) {
+        console.error("Buffer insert error:", bufErr);
+      }
+    }
 
     // Guard: skip outgoing echoes or status updates
     const direction = payload?.direction || payload?.statuses ? "status" : "";
