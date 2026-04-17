@@ -439,7 +439,7 @@ const Login = () => {
               onClick={async () => {
                 const { error } = await supabase.auth.signInWithOAuth({
                   provider: "google",
-                  options: { redirectTo: "https://b2b.oasisbaklawa.com/welcome" },
+                  options: { redirectTo: "https://b2b.oasisbaklawa.com/auth/callback" },
                 });
                 if (error) {
                   if (error.message?.includes("provider") || error.message?.includes("enabled")) {
