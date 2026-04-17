@@ -3546,10 +3546,6 @@ export type Database = {
       }
       is_internal_staff: { Args: { _user_id: string }; Returns: boolean }
       is_staff_role: { Args: { _role: string }; Returns: boolean }
-      manual_unlock_credit: {
-        Args: { _company_id: string; _notes?: string }
-        Returns: Json
-      }
       restore_order_financials: { Args: { _order_id: string }; Returns: number }
       run_month_end_credit_lock: { Args: never; Returns: Json }
     }
