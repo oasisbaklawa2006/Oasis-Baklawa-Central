@@ -37,6 +37,7 @@ import Privacy from "./pages/Privacy.tsx";
 import PublicTerms from "./pages/PublicTerms.tsx";
 import Shipping from "./pages/Shipping.tsx";
 import ErrorBoundary from "./components/ErrorBoundary.tsx";
+import AuthErrorListener from "./components/AuthErrorListener.tsx";
 import AdminLayout from "./components/AdminLayout.tsx";
 import AdminDashboard from "./pages/admin/AdminDashboard.tsx";
 import AdminClients from "./pages/admin/AdminClients.tsx";
@@ -178,6 +179,7 @@ const App = () => (
       <BrowserRouter>
         <LanguageProvider>
         <CurrencyProvider>
+          <AuthErrorListener />
           <PremiumAnnouncementOverlay />
           <Routes>
             <Route path="/splash" element={<Splash />} />

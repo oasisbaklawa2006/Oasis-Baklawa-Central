@@ -5,7 +5,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
-import { getRoleDestination, isStorefrontRole, normalizeRole } from "@/lib/auth-routing";
+import { getRoleDestination, isStaffRole, isStorefrontRole, normalizeRole } from "@/lib/auth-routing";
 
 function getRouteForRole(role?: string | null) {
   const normalizedRole = normalizeRole(role);
@@ -19,6 +19,14 @@ export default function ApprovalPending() {
   const [checkingStatus, setCheckingStatus] = useState(false);
 
   const destination = useMemo(() => getRouteForRole(role), [role]);
+  const normalizedRole = normalizeRole(role);
+
+  // BYPASS REVIEW: Staff/admin roles never see the review screen
+  useEffect(() => {
+    if (normalizedRole && isStaffRole(normalizedRole)) {
+      navigate(getRoleDestination(normalizedRole), { replace: true });
+    }
+  }, [normalizedRole, navigate]);
 
   useEffect(() => {
     if (!profileReady || !destination) return;
