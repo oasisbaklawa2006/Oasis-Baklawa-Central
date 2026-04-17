@@ -106,10 +106,19 @@ export default function CreditLockOverlay() {
             </p>
           </div>
 
-          <p className="text-xs text-slate-500 mb-4">
+          <p className="text-xs text-slate-500 mb-3">
             Once your rescue payment is verified, full access resumes automatically.
             The remaining balance + new purchases must clear by the last day of this month.
           </p>
+
+          <div className="w-full bg-slate-900 text-white rounded-xl p-3 mb-4 text-left">
+            <p className="text-[10px] uppercase tracking-wider text-amber-300 font-bold mb-1">
+              Automated Credit Governance Active
+            </p>
+            <p className="text-[11px] text-slate-200 leading-relaxed">
+              Manual override is disabled for financial compliance. Please follow the payment protocol below to resume.
+            </p>
+          </div>
 
           <div className="w-full grid grid-cols-2 gap-2">
             <a
