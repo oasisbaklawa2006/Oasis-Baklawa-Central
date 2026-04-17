@@ -63,7 +63,26 @@ serve(async (req) => {
         updated_at: new Date().toISOString(),
       }, { onConflict: "setting_key" });
 
-      const message = `Your Oasis B2B Login OTP is: *${code}*\n\nValid for 5 minutes. Do not share this code.\n\nLogin at: https://b2b.oasisbaklawa.com/login`;
+      // Send via pre-approved Meta WhatsApp template "b2b otp login"
+      const templatePayload = {
+        messaging_product: "whatsapp",
+        to: normalizedPhone, // digits only, no '+' (e.g., 919891162212)
+        type: "template",
+        template_name: "b2b otp login",
+        language_code: "en",
+        body_params: [code],
+        // Compatibility with Meta-style payloads (some gateways require nested template object)
+        template: {
+          name: "b2b_otp_login",
+          language: { code: "en" },
+          components: [
+            {
+              type: "body",
+              parameters: [{ type: "text", text: code }],
+            },
+          ],
+        },
+      };
 
       const apiRes = await fetch(SEND_ENDPOINT, {
         method: "POST",
@@ -72,12 +91,7 @@ serve(async (req) => {
           apikey: apiKey,
           ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
         },
-        body: JSON.stringify({
-          messaging_product: "whatsapp",
-          to: normalizedPhone,
-          type: "text",
-          text: { body: message },
-        }),
+        body: JSON.stringify(templatePayload),
       });
 
       const responseText = await apiRes.text();
