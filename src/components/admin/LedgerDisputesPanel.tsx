@@ -219,22 +219,74 @@ export const LedgerDisputesPanel = () => {
         </div>
 
         <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-3">
-          {creditCompanies.map((c) => (
-            <div key={c.id} className="bg-slate-50 border border-slate-200 rounded-xl p-3">
-              <p className="font-bold text-slate-900 text-sm">{c.business_name}</p>
-              <p className="text-[11px] text-slate-500 mt-0.5">
-                Limit: {fmtINR(c.credit_limit || 0)} • Outstanding: {fmtINR(c.current_balance || 0)}
-              </p>
-              <button
-                onClick={() => handleGenerate(c.id)}
-                disabled={generating === c.id}
-                className="mt-2 w-full py-1.5 bg-[#B8860B] text-white rounded-lg text-[11px] font-bold hover:opacity-90 flex justify-center items-center gap-1.5 disabled:opacity-60"
+          {creditCompanies.map((c) => {
+            const out = Number(c.total_outstanding || 0);
+            const minUnlock = out * 0.7;
+            return (
+              <div
+                key={c.id}
+                className={`rounded-xl p-3 border ${
+                  c.is_frozen ? "bg-red-50 border-red-300" : "bg-slate-50 border-slate-200"
+                }`}
               >
-                {generating === c.id ? <Loader2 size={12} className="animate-spin" /> : <FileText size={12} />}
-                Generate Now
-              </button>
-            </div>
-          ))}
+                <div className="flex items-start justify-between">
+                  <p className="font-bold text-slate-900 text-sm">{c.business_name}</p>
+                  {c.is_frozen ? (
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-red-600 text-white rounded-full text-[9px] font-bold">
+                      <Lock size={9} /> FROZEN
+                    </span>
+                  ) : out > 0 ? (
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-amber-100 text-amber-800 rounded-full text-[9px] font-bold">
+                      <ShieldAlert size={9} /> ACCRUED
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-emerald-100 text-emerald-800 rounded-full text-[9px] font-bold">
+                      <CheckCircle2 size={9} /> CLEAR
+                    </span>
+                  )}
+                </div>
+                <p className="text-[11px] text-slate-500 mt-0.5">
+                  Limit: {fmtINR(c.credit_limit || 0)} • Outstanding: <span className="font-bold text-slate-900">{fmtINR(out)}</span>
+                </p>
+                {c.is_frozen && (
+                  <p className="text-[10px] text-red-700 font-bold mt-1">
+                    Min unlock (70%): {fmtINR(minUnlock)}
+                  </p>
+                )}
+                {c.settlement_deadline && !c.is_frozen && (
+                  <p className="text-[10px] text-amber-700 mt-1">
+                    Deadline: {fmtDate(c.settlement_deadline)}
+                  </p>
+                )}
+                <div className="mt-2 grid grid-cols-2 gap-1.5">
+                  <button
+                    onClick={() => handleGenerate(c.id)}
+                    disabled={generating === c.id}
+                    className="py-1.5 bg-[#B8860B] text-white rounded-lg text-[10px] font-bold hover:opacity-90 flex justify-center items-center gap-1 disabled:opacity-60"
+                  >
+                    {generating === c.id ? <Loader2 size={10} className="animate-spin" /> : <FileText size={10} />}
+                    Ledger
+                  </button>
+                  {c.is_frozen ? (
+                    <button
+                      onClick={() => handleManualUnlock(c)}
+                      className="py-1.5 bg-emerald-600 text-white rounded-lg text-[10px] font-bold hover:bg-emerald-700 flex justify-center items-center gap-1"
+                    >
+                      <Unlock size={10} /> Verify 70%
+                    </button>
+                  ) : (
+                    <button
+                      onClick={() => handleFreezeNow(c)}
+                      disabled={out <= 0}
+                      className="py-1.5 bg-slate-700 text-white rounded-lg text-[10px] font-bold hover:bg-slate-800 flex justify-center items-center gap-1 disabled:opacity-40"
+                    >
+                      <Lock size={10} /> Freeze
+                    </button>
+                  )}
+                </div>
+              </div>
+            );
+          })}
           {creditCompanies.length === 0 && (
             <p className="text-sm text-slate-500 col-span-full">
               No clients on credit terms yet. Set <code>payment_terms = 'credit'</code> on companies to enable.
