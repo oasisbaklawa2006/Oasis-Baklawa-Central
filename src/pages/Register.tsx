@@ -77,7 +77,7 @@ const Register = () => {
     else if (!/^\d{6}$/.test(pincode.trim())) e.pincode = "Enter valid 6-digit pincode";
     if (!businessType) e.businessType = "Required";
     if (!gstNumber.trim()) e.gstNumber = "GST Number is mandatory";
-    else if (!/^\d{2}[A-Z]{5}\d{4}[A-Z]{1}[A-Z\d]{1}[Z]{1}[A-Z\d]{1}$/i.test(gstNumber.trim())) e.gstNumber = "Enter a valid 15-character GST number";
+    else if (!/^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/.test(gstNumber.trim().toUpperCase())) e.gstNumber = "Enter a valid 15-character GST number";
     if (!tradeDeclaration) e.tradeDeclaration = "You must accept the trade declaration";
     if (!dataConsent) e.dataConsent = "You must consent to data processing";
     setErrors(e);
@@ -223,8 +223,12 @@ const Register = () => {
       // Sign out immediately — pending users should not be logged in
       await signOutAndClearSession();
 
-      toast.success("Application submitted successfully. Our team will review your details and respond shortly.");
+      toast.success("Application Received! Our team will review your GST details and notify you via WhatsApp.");
       setSubmitted(true);
+      // Redirect to approval-pending after 3 seconds
+      setTimeout(() => {
+        navigate("/approval-pending", { replace: true });
+      }, 3000);
     } catch (err) {
       console.error("Submission error:", err);
       toast.error("An unexpected error occurred");
@@ -437,13 +441,13 @@ const Register = () => {
 
               <div className="space-y-3">
                 <h2 className="font-display text-2xl sm:text-3xl tracking-wide text-foreground">
-                  Application Submitted Successfully
+                  Application Received!
                 </h2>
                 <p className="text-body-p2 text-muted-foreground leading-relaxed max-w-sm mx-auto">
-                  Your application is currently under review.
+                  Our team will review your GST details and notify you via WhatsApp.
                 </p>
                 <p className="text-fine text-muted-foreground/80 leading-relaxed max-w-sm mx-auto">
-                  Due to a high volume of submissions, review times may vary, but we are working hard to get through all applications as soon as possible.
+                  Redirecting you to your application status…
                 </p>
               </div>
 
