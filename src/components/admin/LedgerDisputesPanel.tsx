@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { Loader2, FileText, Send, AlertTriangle, CheckCircle2, Download, Lock, Unlock, ShieldAlert } from "lucide-react";
+import { Loader2, FileText, Send, AlertTriangle, CheckCircle2, Download, Lock, ShieldAlert } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 
 interface CreditCompany {
