@@ -208,7 +208,7 @@ const Login = () => {
   const handleResetPassword = async () => {
     if (!email) { toast.error("Enter your email first"); return; }
     const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: `${window.location.origin}/reset-password`,
+      redirectTo: "https://b2b.oasisbaklawa.com/reset-password",
     });
     if (error) toast.error(error.message);
     else toast.success("Password reset email sent");
