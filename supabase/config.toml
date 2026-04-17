@@ -14,3 +14,6 @@ verify_jwt = false
 
 [functions.banyan-central-parser]
 verify_jwt = false
+
+[functions.generate-bi-monthly-ledger]
+verify_jwt = false
