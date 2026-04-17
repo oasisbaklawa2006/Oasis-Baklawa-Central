@@ -30,6 +30,7 @@ interface OrderRow {
   status: string;
   created_at: string | null;
   sales_order_value: number | null;
+  company_id: string | null;
   company: { business_name: string } | null;
 }
 
@@ -51,7 +52,7 @@ const OrderManagement = () => {
   const fetchOrders = useCallback(async () => {
     const { data, error } = await supabase
       .from("orders")
-      .select("id, status, created_at, sales_order_value, company:companies(business_name)")
+      .select("id, status, created_at, sales_order_value, company_id, company:companies(business_name)")
       .neq("status", "draft")
       .order("created_at", { ascending: false });
 
