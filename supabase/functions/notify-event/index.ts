@@ -21,15 +21,15 @@ type Channel = "email" | "whatsapp" | "both";
 type Audience = "buyer" | "sales_exec" | "admin";
 
 interface NotifyPayload {
-  event: string;                    // e.g. "order_placed", "order_confirmed", "order_dispatched", "order_delivered", "approval_granted", "otp_backup"
-  subject: string;                  // email subject + WA prefix
-  message: string;                  // plain-text body
-  audiences?: Audience[];           // default: ["buyer"]
+  event: string;
+  subject: string;
+  message: string;
+  audiences?: Audience[];
   orderId?: string | null;
   companyId?: string | null;
-  // direct recipient overrides (used by OTP backup, approval)
   email?: string | null;
   phone?: string | null;
+  outboxId?: string | null;         // optional outbox row to mark sent/failed
 }
 
 const sendWhatsApp = async (phone: string, message: string) => {
@@ -85,7 +85,7 @@ const sendEmail = async (to: string, subject: string, text: string) => {
       method: "POST",
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${resendKey}` },
       body: JSON.stringify({
-        from: "Oasis Baklawa <team@oasisbaklawa.com>",
+        from: "team@oasisbaklawa.com",
         to,
         subject,
         html,
@@ -103,7 +103,7 @@ serve(async (req) => {
 
   try {
     const payload = (await req.json()) as NotifyPayload;
-    const { event, subject, message, audiences = ["buyer"], orderId, companyId } = payload;
+    const { event, subject, message, audiences = ["buyer"], orderId, companyId, outboxId } = payload;
 
     if (!event || !subject || !message) {
       return new Response(JSON.stringify({ error: "event, subject, message required" }), {
@@ -192,15 +192,43 @@ serve(async (req) => {
       }
     }
 
-    // Audit
+    // Determine success / capture failures
+    const emailResults = results.filter((r) => r.channel === "email");
+    const anyEmailOk = emailResults.some((r) => r.ok);
+    const failedEmails = emailResults.filter((r) => !r.ok);
+
+    // Update outbox if provided
+    if (outboxId) {
+      if (anyEmailOk || emailResults.length === 0) {
+        await supabase
+          .from("notification_outbox")
+          .update({ status: "sent", sent_at: new Date().toISOString() })
+          .eq("id", outboxId);
+      } else {
+        await supabase
+          .from("notification_outbox")
+          .update({
+            status: "failed",
+            error_log: JSON.stringify(failedEmails[0]?.data ?? failedEmails[0] ?? "unknown"),
+          })
+          .eq("id", outboxId);
+      }
+    }
+
+    // Always audit (success + failures with full Resend payload)
     await supabase.from("audit_logs").insert({
       action_type: "notify_event",
       module_name: "notifications",
       entity_name: event,
-      entity_id: orderId ?? resolvedCompanyId ?? null,
-      risk_level: "low",
+      entity_id: orderId ?? resolvedCompanyId ?? outboxId ?? null,
+      risk_level: failedEmails.length > 0 ? "high" : "low",
       reason: subject,
-      new_value: { recipients: recipients.length, results: results.slice(0, 10) },
+      new_value: {
+        recipients: recipients.length,
+        dispatched: results.length,
+        failures: failedEmails,
+        results: results.slice(0, 10),
+      },
     });
 
     return new Response(JSON.stringify({ success: true, dispatched: results.length, results }), {
@@ -210,6 +238,20 @@ serve(async (req) => {
   } catch (e) {
     const msg = e instanceof Error ? e.message : "Unexpected error";
     console.error("notify-event error:", msg);
+    try {
+      const supabase = createClient(
+        Deno.env.get("SUPABASE_URL")!,
+        Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
+      );
+      await supabase.from("audit_logs").insert({
+        action_type: "notify_event_error",
+        module_name: "notifications",
+        entity_name: "exception",
+        risk_level: "high",
+        reason: msg,
+        new_value: { error: msg },
+      });
+    } catch (_) { /* ignore */ }
     return new Response(JSON.stringify({ error: msg }), {
       status: 500,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
