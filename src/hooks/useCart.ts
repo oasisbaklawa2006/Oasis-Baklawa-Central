@@ -154,7 +154,22 @@ export function useCart() {
 
         if (error || !newOrder) {
           console.error("Cart order creation failed:", error);
-          toast.error("Could not create cart order");
+          // Log exact Postgres error to audit_logs for diagnostics
+          try {
+            await supabase.rpc("log_cart_failure", {
+              _company_id: effectiveCompanyId,
+              _error_message: error?.message ?? "unknown error (no row returned)",
+              _error_code: (error as any)?.code ?? null,
+              _context: {
+                details: (error as any)?.details ?? null,
+                hint: (error as any)?.hint ?? null,
+                user_id: user?.id ?? null,
+              } as any,
+            });
+          } catch (logErr) {
+            console.error("Failed to log cart failure to audit_logs:", logErr);
+          }
+          toast.error(`Could not create cart order: ${error?.message ?? "unknown"}`);
           return null;
         }
 
