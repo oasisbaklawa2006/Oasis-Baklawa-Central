@@ -45,11 +45,25 @@ const NotificationsPanel = ({ open, onClose }: { open: boolean; onClose: () => v
     const channelName = `outbox-live-${user.id}`;
 
     const load = async () => {
-      const { data } = await supabase
+      // Resolve buyer's email so we only show personal notifications (filter out
+      // admin/system-wide events like new b2b applications).
+      const personalEmail = user.email ?? null;
+      let query = supabase
         .from("notification_outbox")
         .select("id, event_type, message_body, status, created_at, recipient_email")
         .order("created_at", { ascending: false })
         .limit(10);
+
+      if (personalEmail) {
+        query = query.eq("recipient_email", personalEmail);
+      } else {
+        // No email on auth user → show nothing rather than leaking system events.
+        setNotifications([]);
+        setHasNew(false);
+        return;
+      }
+
+      const { data } = await query;
       setNotifications((data as OutboxNotification[]) || []);
       setHasNew(false);
     };
@@ -64,6 +78,7 @@ const NotificationsPanel = ({ open, onClose }: { open: boolean; onClose: () => v
         { event: "INSERT", schema: "public", table: "notification_outbox" },
         (payload) => {
           const row = payload.new as OutboxNotification;
+          if (user.email && row.recipient_email !== user.email) return; // personal-only
           setNotifications((prev) => [row, ...prev].slice(0, 10));
           setHasNew(true);
         }
@@ -73,6 +88,7 @@ const NotificationsPanel = ({ open, onClose }: { open: boolean; onClose: () => v
         { event: "UPDATE", schema: "public", table: "notification_outbox" },
         (payload) => {
           const row = payload.new as OutboxNotification;
+          if (user.email && row.recipient_email !== user.email) return;
           setNotifications((prev) =>
             prev.map((n) => (n.id === row.id ? row : n))
           );

@@ -20,12 +20,14 @@ import {
   LogOut,
   Loader2,
   AlertCircle,
+  Pencil,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { signOutAndClearSession } from "@/utils/authSession";
+import ProfileChangeRequestModal from "@/components/ProfileChangeRequestModal";
 
 // Adjusted to match your exact Supabase schema
 interface CompanyProfile {
@@ -33,6 +35,7 @@ interface CompanyProfile {
   business_name: string;
   gst_number: string | null;
   website: string | null;
+  registered_address: string | null;
   current_balance: number | null; // Changed from wallet_balance
   credit_limit: number | null;
 }
@@ -61,6 +64,7 @@ const formatDate = (dateString: string) =>
 const Account = () => {
   const navigate = useNavigate();
   const [showWithdrawal, setShowWithdrawal] = useState(false);
+  const [editField, setEditField] = useState<null | "business_name" | "gst_number" | "registered_address">(null);
 
   // Real Data State
   const [loading, setLoading] = useState(true);
@@ -166,39 +170,58 @@ const Account = () => {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="flex items-start gap-3 py-3 border-b border-gray-100">
               <FileText size={16} className="text-[#C5A059] mt-0.5 flex-shrink-0" />
-              <div>
+              <div className="flex-1">
                 <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400">GSTIN</p>
-                <p className="font-bold text-sm text-gray-900">{company?.gst_number || "Pending Update"}</p>
+                <div className="flex items-center justify-between gap-2">
+                  <p className="font-bold text-sm text-gray-900">{company?.gst_number || "Pending Update"}</p>
+                  <button
+                    onClick={() => setEditField("gst_number")}
+                    className="text-[10px] font-bold text-[#C5A059] hover:underline flex items-center gap-1"
+                  >
+                    <Pencil size={11} /> Request Change
+                  </button>
+                </div>
               </div>
             </div>
             <div className="flex items-start gap-3 py-3 border-b border-gray-100">
-              <FileText size={16} className="text-[#C5A059] mt-0.5 flex-shrink-0" />
-              <div>
-                <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400">FSSAI License</p>
-                <p className="font-bold text-sm text-gray-900">Pending Update</p>
+              <Building2 size={16} className="text-[#C5A059] mt-0.5 flex-shrink-0" />
+              <div className="flex-1">
+                <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400">Company Name</p>
+                <div className="flex items-center justify-between gap-2">
+                  <p className="font-bold text-sm text-gray-900">{company?.business_name || "Pending Update"}</p>
+                  <button
+                    onClick={() => setEditField("business_name")}
+                    className="text-[10px] font-bold text-[#C5A059] hover:underline flex items-center gap-1"
+                  >
+                    <Pencil size={11} /> Request Change
+                  </button>
+                </div>
               </div>
             </div>
             <div className="flex items-start gap-3 py-3 border-b border-gray-100 md:col-span-2">
               <MapPin size={16} className="text-[#C5A059] mt-0.5 flex-shrink-0" />
-              <div>
+              <div className="flex-1">
                 <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400">
                   Registered Billing Address
                 </p>
-                <p className="font-medium text-sm text-gray-900 leading-relaxed">
-                  No address on file. Please update your profile.
-                </p>
+                <div className="flex items-start justify-between gap-2">
+                  <p className="font-medium text-sm text-gray-900 leading-relaxed">
+                    {company?.registered_address || "No address on file."}
+                  </p>
+                  <button
+                    onClick={() => setEditField("registered_address")}
+                    className="text-[10px] font-bold text-[#C5A059] hover:underline flex items-center gap-1 shrink-0"
+                  >
+                    <Pencil size={11} /> Request Change
+                  </button>
+                </div>
               </div>
             </div>
           </div>
 
-          {/* Edit Company Details button */}
-          <button
-            onClick={() => toast.info("Contact your Account Manager to update company details.")}
-            className="w-full py-3 rounded-xl border border-[#C5A059]/30 text-[#C5A059] font-bold text-xs hover:bg-[#C5A059]/5 transition-colors flex items-center justify-center gap-2"
-          >
-            <Building2 size={14} />
-            Edit Company Details
-          </button>
+          <p className="text-[10px] text-gray-500 italic text-center">
+            Edits to legally sensitive fields are queued for admin approval.
+          </p>
         </motion.section>
 
         {/* Digital Wallet (REAL DATA) */}
@@ -226,7 +249,7 @@ const Account = () => {
               <p className="text-[10px] font-bold uppercase tracking-widest text-gray-500 mb-1">
                 Approved Credit Limit
               </p>
-              <p className="font-serif text-3xl font-bold text-gray-900">{formatAccountPrice(company?.credit_limit || 0)}</p>
+              <p className="font-serif text-3xl font-bold text-gray-900">{formatAccountPrice(Math.max(0, company?.credit_limit || 0))}</p>
             </div>
           </div>
 
@@ -369,6 +392,19 @@ const Account = () => {
       </div>
 
       <WithdrawalModal open={showWithdrawal} onClose={() => setShowWithdrawal(false)} />
+      {editField && company && (
+        <ProfileChangeRequestModal
+          open={!!editField}
+          onClose={() => setEditField(null)}
+          companyId={company.id}
+          field={editField}
+          currentValue={
+            editField === "business_name" ? (company.business_name || "")
+            : editField === "gst_number" ? (company.gst_number || "")
+            : (company.registered_address || "")
+          }
+        />
+      )}
     </AppShell>
   );
 };

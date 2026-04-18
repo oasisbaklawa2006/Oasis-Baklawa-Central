@@ -2690,6 +2690,56 @@ export type Database = {
           },
         ]
       }
+      profile_change_requests: {
+        Row: {
+          admin_notes: string | null
+          company_id: string
+          created_at: string
+          current_value: string | null
+          field_name: string
+          id: string
+          requested_by: string | null
+          requested_value: string
+          reviewed_at: string | null
+          reviewed_by: string | null
+          status: string
+        }
+        Insert: {
+          admin_notes?: string | null
+          company_id: string
+          created_at?: string
+          current_value?: string | null
+          field_name: string
+          id?: string
+          requested_by?: string | null
+          requested_value: string
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          status?: string
+        }
+        Update: {
+          admin_notes?: string | null
+          company_id?: string
+          created_at?: string
+          current_value?: string | null
+          field_name?: string
+          id?: string
+          requested_by?: string | null
+          requested_value?: string
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "profile_change_requests_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
           company_id: string | null
@@ -2847,6 +2897,45 @@ export type Database = {
           sender_name?: string | null
           sender_phone?: string
           status?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      starter_packs: {
+        Row: {
+          created_at: string
+          description: string | null
+          estimated_investment: number
+          id: string
+          is_active: boolean
+          items: Json
+          name: string
+          sort_order: number
+          tier: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          estimated_investment?: number
+          id?: string
+          is_active?: boolean
+          items?: Json
+          name: string
+          sort_order?: number
+          tier: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          estimated_investment?: number
+          id?: string
+          is_active?: boolean
+          items?: Json
+          name?: string
+          sort_order?: number
+          tier?: string
           updated_at?: string
         }
         Relationships: []
