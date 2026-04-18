@@ -205,24 +205,31 @@ const Register = () => {
       if (outboxErr) {
         console.error("[Register] Outbox insert failed:", outboxErr);
       } else if (outboxRow) {
-        // Auto-trigger via public notify-event (no staff gate required for buyer self-service)
+        // Auto-trigger via public notify-event (notify-event will mark outbox sent/failed + write audit_logs)
         try {
-          await supabase.functions.invoke("notify-event", {
+          const { error: invokeErr } = await supabase.functions.invoke("notify-event", {
             body: {
               event: "b2b_application_received",
               subject: "Application Received — Oasis Baklawa B2B",
               message: "Thank you for your application to the Oasis Baklawa B2B Portal. Our team is reviewing your details.",
               audiences: [],
               email,
+              outboxId: outboxRow.id,
             },
           });
-          // Mark outbox sent
+          if (invokeErr) {
+            console.error("[Register] notify-event invoke error:", invokeErr);
+            await supabase
+              .from("notification_outbox")
+              .update({ status: "failed", error_log: invokeErr.message } as any)
+              .eq("id", outboxRow.id);
+          }
+        } catch (dispatchErr: any) {
+          console.error("[Register] Auto-dispatch failed:", dispatchErr);
           await supabase
             .from("notification_outbox")
-            .update({ status: "sent", sent_at: new Date().toISOString() } as any)
+            .update({ status: "failed", error_log: dispatchErr?.message || "dispatch threw" } as any)
             .eq("id", outboxRow.id);
-        } catch (dispatchErr) {
-          console.error("[Register] Auto-dispatch failed:", dispatchErr);
         }
       }
 
