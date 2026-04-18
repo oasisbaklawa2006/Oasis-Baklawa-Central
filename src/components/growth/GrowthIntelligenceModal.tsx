@@ -280,11 +280,27 @@ const GrowthIntelligenceModal = ({ open, onClose }: Props) => {
   const { stage, orderCount, loading, orderedCategories, orderedProductIds, productFrequency } = useGrowthStage();
   const { products } = useProducts();
   const { addToCart } = useCart();
+  const { priceTier } = useAuth();
   const navigate = useNavigate();
 
-  const handleAddToCart = async (ids: string[]) => {
+  // Starter Pack flow: marks the draft order as is_starter_pack so cart waives MOQ.
+  const handleAddStarterPack = async (lines: { id: string; qty: number }[], _totalInr: number) => {
+    let count = 0;
+    for (const l of lines) {
+      const ok = await addToCart(l.id, l.qty, null, null, { isStarterPack: true });
+      if (ok) count++;
+    }
+    toast.success(`Starter Pack added — ${count} items, MOQ waived`);
+    onClose();
+    navigate("/cart");
+  };
+
+  // Reorder/expansion uses normal flow (full MOQ enforcement).
+  const handleAddReorder = async (ids: string[]) => {
     for (const id of ids) {
-      await addToCart(id, 5);
+      const product = products.find((p) => p.id === id);
+      const qty = product ? getMinOrderQty(product) : 5;
+      await addToCart(id, qty);
     }
     toast.success(`${ids.length} items added to cart`);
     onClose();
@@ -335,13 +351,13 @@ const GrowthIntelligenceModal = ({ open, onClose }: Props) => {
                   <div className="w-6 h-6 border-2 border-t-transparent rounded-full animate-spin" style={{ borderColor: `${GOLD} transparent` }} />
                 </div>
               ) : stage === "new" ? (
-                <StarterBuilder products={products} onAddToCart={handleAddToCart} />
+                <StarterBuilder products={products} priceTier={priceTier} onAddToCart={handleAddStarterPack} />
               ) : stage === "growth" ? (
                 <ReorderExpansion
                   orderedCategories={orderedCategories}
                   orderedProductIds={orderedProductIds}
                   products={products}
-                  onAddToCart={handleAddToCart}
+                  onAddToCart={handleAddReorder}
                 />
               ) : (
                 <GrowthInsights productFrequency={productFrequency} products={products} />
