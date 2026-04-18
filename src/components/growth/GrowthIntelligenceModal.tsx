@@ -4,8 +4,10 @@ import { X, Sparkles, TrendingUp, TrendingDown, Package, ArrowRight, Zap, Shoppi
 import { useGrowthStage } from "@/hooks/useGrowthStage";
 import { useProducts } from "@/hooks/useProducts";
 import { useCart } from "@/hooks/useCart";
+import { useAuth } from "@/hooks/useAuth";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
+import { calculatePackPrice, calculateLineTax, getMinOrderQty } from "@/utils/pricing";
 
 const GOLD = "#c58b07";
 
@@ -15,7 +17,15 @@ interface Props {
 }
 
 /* ── STAGE 1: Starter Builder ── */
-const StarterBuilder = ({ products, onAddToCart }: { products: any[]; onAddToCart: (ids: string[]) => void }) => {
+const StarterBuilder = ({
+  products,
+  priceTier,
+  onAddToCart,
+}: {
+  products: any[];
+  priceTier: string | null;
+  onAddToCart: (lines: { id: string; qty: number }[], totalInr: number) => void;
+}) => {
   const bestSellers = useMemo(() => {
     const keywords = ["pyramid", "bulbul", "finger", "cashew", "baklawa", "tart"];
     return products
@@ -31,7 +41,20 @@ const StarterBuilder = ({ products, onAddToCart }: { products: any[]; onAddToCar
 
   const [selectedTier, setSelectedTier] = useState(1);
   const tierProducts = bestSellers.slice(0, tiers[selectedTier].count);
-  const totalInvestment = tierProducts.reduce((s, p) => s + (p.price_b2b || p.base_price || p.price_wholesale || 0) * 5, 0);
+
+  // Build lines using SAME math as cart so Grand Total === Estimated Investment.
+  const lines = useMemo(
+    () =>
+      tierProducts.map((p) => {
+        const qty = getMinOrderQty(p);
+        const subtotal = calculatePackPrice(p, priceTier) * qty;
+        const tax = calculateLineTax(p, qty, priceTier);
+        return { product: p, qty, lineTotal: Math.round(subtotal + tax) };
+      }),
+    [tierProducts, priceTier]
+  );
+
+  const totalInvestment = lines.reduce((s, l) => s + l.lineTotal, 0);
 
   return (
     <div className="space-y-5">
@@ -60,17 +83,17 @@ const StarterBuilder = ({ products, onAddToCart }: { products: any[]; onAddToCar
 
       {/* Product list */}
       <div className="space-y-2 max-h-48 overflow-y-auto">
-        {tierProducts.map((p) => (
-          <div key={p.id} className="flex items-center gap-3 p-2.5 rounded-xl bg-muted/30 border border-border">
+        {lines.map((l) => (
+          <div key={l.product.id} className="flex items-center gap-3 p-2.5 rounded-xl bg-muted/30 border border-border">
             <div className="w-10 h-10 rounded-lg bg-muted overflow-hidden shrink-0">
-              {p.image_url && <img src={p.image_url} className="w-full h-full object-cover" alt="" />}
+              {l.product.image_url && <img src={l.product.image_url} className="w-full h-full object-cover" alt="" loading="lazy" />}
             </div>
             <div className="flex-1 min-w-0">
-              <p className="text-xs font-semibold text-foreground truncate">{p.name}</p>
-              <p className="text-[10px] text-muted-foreground">{p.category}</p>
+              <p className="text-xs font-semibold text-foreground truncate">{l.product.name}</p>
+              <p className="text-[10px] text-muted-foreground">{l.product.category} • MOQ {l.qty}</p>
             </div>
             <span className="text-xs font-bold" style={{ color: GOLD }}>
-              ₹{(p.price_b2b || p.base_price || 0).toLocaleString()}
+              ₹{l.lineTotal.toLocaleString("en-IN")}
             </span>
           </div>
         ))}
@@ -79,13 +102,13 @@ const StarterBuilder = ({ products, onAddToCart }: { products: any[]; onAddToCar
       {/* Summary */}
       <div className="flex items-center justify-between p-4 rounded-xl border-2" style={{ borderColor: GOLD, background: `${GOLD}08` }}>
         <div>
-          <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Est. Investment (MOQ × 5)</p>
+          <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Estimated Investment (incl. tax)</p>
           <p className="text-lg font-bold" style={{ color: GOLD, fontFamily: "'DM Sans', sans-serif" }}>
             ₹{totalInvestment.toLocaleString("en-IN")}
           </p>
         </div>
         <button
-          onClick={() => onAddToCart(tierProducts.map((p) => p.id))}
+          onClick={() => onAddToCart(lines.map((l) => ({ id: l.product.id, qty: l.qty })), totalInvestment)}
           className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs font-bold text-white"
           style={{ background: `linear-gradient(135deg, ${GOLD}, #d4a843)` }}
         >
@@ -94,7 +117,7 @@ const StarterBuilder = ({ products, onAddToCart }: { products: any[]; onAddToCar
       </div>
 
       <p className="text-[10px] text-center text-muted-foreground italic">
-        🎁 First-order Starter MOQ exception: minimum quantities reduced by 50%
+        🎁 First-order Starter MOQ exception: carton-fill checks are waived
       </p>
     </div>
   );
@@ -257,11 +280,27 @@ const GrowthIntelligenceModal = ({ open, onClose }: Props) => {
   const { stage, orderCount, loading, orderedCategories, orderedProductIds, productFrequency } = useGrowthStage();
   const { products } = useProducts();
   const { addToCart } = useCart();
+  const { priceTier } = useAuth();
   const navigate = useNavigate();
 
-  const handleAddToCart = async (ids: string[]) => {
+  // Starter Pack flow: marks the draft order as is_starter_pack so cart waives MOQ.
+  const handleAddStarterPack = async (lines: { id: string; qty: number }[], _totalInr: number) => {
+    let count = 0;
+    for (const l of lines) {
+      const ok = await addToCart(l.id, l.qty, null, null, { isStarterPack: true });
+      if (ok) count++;
+    }
+    toast.success(`Starter Pack added — ${count} items, MOQ waived`);
+    onClose();
+    navigate("/cart");
+  };
+
+  // Reorder/expansion uses normal flow (full MOQ enforcement).
+  const handleAddReorder = async (ids: string[]) => {
     for (const id of ids) {
-      await addToCart(id, 5);
+      const product = products.find((p) => p.id === id);
+      const qty = product ? getMinOrderQty(product) : 5;
+      await addToCart(id, qty);
     }
     toast.success(`${ids.length} items added to cart`);
     onClose();
@@ -312,13 +351,13 @@ const GrowthIntelligenceModal = ({ open, onClose }: Props) => {
                   <div className="w-6 h-6 border-2 border-t-transparent rounded-full animate-spin" style={{ borderColor: `${GOLD} transparent` }} />
                 </div>
               ) : stage === "new" ? (
-                <StarterBuilder products={products} onAddToCart={handleAddToCart} />
+                <StarterBuilder products={products} priceTier={priceTier} onAddToCart={handleAddStarterPack} />
               ) : stage === "growth" ? (
                 <ReorderExpansion
                   orderedCategories={orderedCategories}
                   orderedProductIds={orderedProductIds}
                   products={products}
-                  onAddToCart={handleAddToCart}
+                  onAddToCart={handleAddReorder}
                 />
               ) : (
                 <GrowthInsights productFrequency={productFrequency} products={products} />

@@ -25,6 +25,7 @@ export interface DraftOrder {
   id: string;
   company_id: string | null;
   status: string;
+  is_starter_pack?: boolean;
 }
 
 const sortCartItems = (cartItems: CartItem[]) =>
@@ -68,7 +69,7 @@ export function useCart() {
 
     const { data: orders } = await supabase
       .from("orders")
-      .select("*")
+      .select("id, company_id, status, is_starter_pack")
       .eq("company_id", effectiveCompanyId)
       .eq("status", "draft")
       .limit(1);
@@ -103,15 +104,20 @@ export function useCart() {
     fetchCart();
   }, [effectiveCompanyId, profileReady, fetchCart, user, authLoading]);
 
-  const getOrCreateDraftOrder = async (): Promise<string | null> => {
+  const getOrCreateDraftOrder = async (isStarterPack = false): Promise<string | null> => {
     if (draftOrder) {
       const { data: liveDraft, error: liveDraftError } = await supabase
         .from("orders")
-        .select("id, company_id, status")
+        .select("id, company_id, status, is_starter_pack")
         .eq("id", draftOrder.id)
         .maybeSingle();
 
       if (!liveDraftError && liveDraft?.status === "draft" && liveDraft.company_id === effectiveCompanyId) {
+        // Promote draft to starter pack if requested and not already
+        if (isStarterPack && !liveDraft.is_starter_pack) {
+          await supabase.from("orders").update({ is_starter_pack: true }).eq("id", liveDraft.id);
+          (liveDraft as any).is_starter_pack = true;
+        }
         setDraftOrder(liveDraft as DraftOrder);
         return liveDraft.id;
       }
@@ -131,12 +137,16 @@ export function useCart() {
         // Double-check: maybe another tab/request already created one
         const { data: existing } = await supabase
           .from("orders")
-          .select("id, company_id, status")
+          .select("id, company_id, status, is_starter_pack")
           .eq("company_id", effectiveCompanyId)
           .eq("status", "draft")
           .limit(1);
 
         if (existing && existing.length > 0) {
+          if (isStarterPack && !existing[0].is_starter_pack) {
+            await supabase.from("orders").update({ is_starter_pack: true }).eq("id", existing[0].id);
+            (existing[0] as any).is_starter_pack = true;
+          }
           setDraftOrder(existing[0] as DraftOrder);
           return existing[0].id;
         }
@@ -148,8 +158,8 @@ export function useCart() {
 
         const { data: newOrder, error } = await supabase
           .from("orders")
-          .insert({ status: "draft", company_id: effectiveCompanyId, tracking_token })
-          .select("id, company_id, status")
+          .insert({ status: "draft", company_id: effectiveCompanyId, tracking_token, is_starter_pack: isStarterPack })
+          .select("id, company_id, status, is_starter_pack")
           .single();
 
         if (error || !newOrder) {
@@ -188,9 +198,10 @@ export function useCart() {
     productId: string,
     quantity: number,
     packSize?: string | null,
-    cartonType?: string | null
+    cartonType?: string | null,
+    options?: { isStarterPack?: boolean }
   ) => {
-    const orderId = await getOrCreateDraftOrder();
+    const orderId = await getOrCreateDraftOrder(options?.isStarterPack ?? false);
     if (!orderId) return false;
 
     const existing = items.find((it) => it.product_id === productId);

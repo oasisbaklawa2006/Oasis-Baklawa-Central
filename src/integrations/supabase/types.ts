@@ -1797,6 +1797,7 @@ export type Database = {
           gate_pass_number: string | null
           id: string
           is_export: boolean | null
+          is_starter_pack: boolean
           payment_cleared: boolean | null
           payment_receipt_url: string | null
           payment_status: string | null
@@ -1829,6 +1830,7 @@ export type Database = {
           gate_pass_number?: string | null
           id?: string
           is_export?: boolean | null
+          is_starter_pack?: boolean
           payment_cleared?: boolean | null
           payment_receipt_url?: string | null
           payment_status?: string | null
@@ -1861,6 +1863,7 @@ export type Database = {
           gate_pass_number?: string | null
           id?: string
           is_export?: boolean | null
+          is_starter_pack?: boolean
           payment_cleared?: boolean | null
           payment_receipt_url?: string | null
           payment_status?: string | null

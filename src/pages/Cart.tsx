@@ -217,7 +217,12 @@ const Cart = () => {
   const minimumToken = Math.round(Math.ceil(grandTotal * 0.2) / 1000) * 1000;
 
   // Sealed carton check across all sections
-  const hasIncompleteCartons = sections.some((section) => {
+  // Starter Pack: silences carton-fill + MOQ enforcement so Grand Total
+  // exactly matches the Estimated Investment shown in Growth Intelligence.
+  const isStarterPack = !!(draftOrder as any)?.is_starter_pack;
+
+  // Sealed carton check across all sections
+  const hasIncompleteCartons = !isStarterPack && sections.some((section) => {
     if (section.category === "premium_pc") {
       return section.items.some((item) => !isCartonSealed(item.product, item.quantity));
     }
@@ -227,6 +232,7 @@ const Cart = () => {
 
   // MOQ Validation
   const moqViolations = useMemo((): MoqViolation[] => {
+    if (isStarterPack) return [];
     if (!moqRules.length || !sortedItems.length) return [];
     const violations: MoqViolation[] = [];
 
@@ -264,7 +270,7 @@ const Cart = () => {
       }
     }
     return violations;
-  }, [moqRules, sortedItems, sections]);
+  }, [moqRules, sortedItems, sections, isStarterPack]);
 
   // Safety: if profile loaded but no company_id, show approval message
   if (profileReady && !authCompanyId) {
