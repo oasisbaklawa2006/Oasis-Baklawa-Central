@@ -20,12 +20,14 @@ import {
   LogOut,
   Loader2,
   AlertCircle,
+  Pencil,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { signOutAndClearSession } from "@/utils/authSession";
+import ProfileChangeRequestModal from "@/components/ProfileChangeRequestModal";
 
 // Adjusted to match your exact Supabase schema
 interface CompanyProfile {
@@ -33,6 +35,7 @@ interface CompanyProfile {
   business_name: string;
   gst_number: string | null;
   website: string | null;
+  registered_address: string | null;
   current_balance: number | null; // Changed from wallet_balance
   credit_limit: number | null;
 }
@@ -61,6 +64,7 @@ const formatDate = (dateString: string) =>
 const Account = () => {
   const navigate = useNavigate();
   const [showWithdrawal, setShowWithdrawal] = useState(false);
+  const [editField, setEditField] = useState<null | "business_name" | "gst_number" | "registered_address">(null);
 
   // Real Data State
   const [loading, setLoading] = useState(true);
