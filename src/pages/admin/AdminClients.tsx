@@ -428,6 +428,10 @@ const AdminClients = () => {
 
   const executeUpdateCompany = async () => {
     if (!selectedCompany) return;
+    if (editCreditLimit < 0) {
+      toast.error("Credit limit cannot be negative.");
+      return;
+    }
     setIsUpdatingCompany(true);
     const { error } = await (supabase as any)
       .from("companies")
