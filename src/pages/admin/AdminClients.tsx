@@ -428,6 +428,10 @@ const AdminClients = () => {
 
   const executeUpdateCompany = async () => {
     if (!selectedCompany) return;
+    if (editCreditLimit < 0) {
+      toast.error("Credit limit cannot be negative.");
+      return;
+    }
     setIsUpdatingCompany(true);
     const { error } = await (supabase as any)
       .from("companies")
@@ -792,8 +796,17 @@ const AdminClients = () => {
               </Label>
               <Input
                 type="number"
+                min={0}
                 value={editCreditLimit}
-                onChange={(e) => setEditCreditLimit(Number(e.target.value))}
+                onChange={(e) => {
+                  const v = Number(e.target.value);
+                  if (v < 0) {
+                    toast.error("Credit limit cannot be negative.");
+                    setEditCreditLimit(0);
+                  } else {
+                    setEditCreditLimit(v);
+                  }
+                }}
                 className="bg-slate-50 font-black text-lg h-12 rounded-xl focus:border-[#B8860B]"
               />
             </div>
