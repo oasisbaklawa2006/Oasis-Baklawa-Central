@@ -1,13 +1,24 @@
 import { useState, useEffect, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { X, Sparkles, TrendingUp, TrendingDown, Package, ArrowRight, Zap, ShoppingCart } from "lucide-react";
+import { X, Sparkles, TrendingUp, TrendingDown, Package, ArrowRight, Zap, ShoppingCart, Loader2 } from "lucide-react";
 import { useGrowthStage } from "@/hooks/useGrowthStage";
 import { useProducts } from "@/hooks/useProducts";
 import { useCart } from "@/hooks/useCart";
 import { useAuth } from "@/hooks/useAuth";
 import { useNavigate } from "react-router-dom";
+import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { calculatePackPrice, calculateLineTax, getMinOrderQty } from "@/utils/pricing";
+
+interface StarterPackRow {
+  id: string;
+  name: string;
+  tier: string;
+  description: string | null;
+  estimated_investment: number;
+  sort_order: number;
+  items: Array<{ product_id: string; quantity: number }>;
+}
 
 const GOLD = "#c58b07";
 
@@ -16,7 +27,7 @@ interface Props {
   onClose: () => void;
 }
 
-/* ── STAGE 1: Starter Builder ── */
+/* ── STAGE 1: Starter Builder (admin-defined packs) ── */
 const StarterBuilder = ({
   products,
   priceTier,
@@ -26,77 +37,111 @@ const StarterBuilder = ({
   priceTier: string | null;
   onAddToCart: (lines: { id: string; qty: number }[], totalInr: number) => void;
 }) => {
-  const bestSellers = useMemo(() => {
-    const keywords = ["pyramid", "bulbul", "finger", "cashew", "baklawa", "tart"];
-    return products
-      .filter((p) => keywords.some((k) => p.name?.toLowerCase().includes(k)))
-      .slice(0, 6);
-  }, [products]);
+  const [packs, setPacks] = useState<StarterPackRow[]>([]);
+  const [loadingPacks, setLoadingPacks] = useState(true);
+  const [selectedIdx, setSelectedIdx] = useState(1); // default Smart
 
-  const tiers = [
-    { name: "Basic", count: 3, color: "border-border", desc: "3 best-sellers to start" },
-    { name: "Smart", count: 5, color: "border-[#c58b07]/50", desc: "5 curated SKUs + variety" },
-    { name: "Premium", count: 8, color: "border-[#c58b07]", desc: "Full range starter kit" },
-  ];
+  useEffect(() => {
+    (async () => {
+      const { data } = await supabase
+        .from("starter_packs" as any)
+        .select("id, name, tier, description, estimated_investment, sort_order, items")
+        .eq("is_active", true)
+        .order("sort_order", { ascending: true });
+      setPacks(((data ?? []) as unknown) as StarterPackRow[]);
+      setLoadingPacks(false);
+    })();
+  }, []);
 
-  const [selectedTier, setSelectedTier] = useState(1);
-  const tierProducts = bestSellers.slice(0, tiers[selectedTier].count);
+  const selectedPack = packs[selectedIdx];
 
-  // Build lines using SAME math as cart so Grand Total === Estimated Investment.
-  const lines = useMemo(
-    () =>
-      tierProducts.map((p) => {
-        const qty = getMinOrderQty(p);
-        const subtotal = calculatePackPrice(p, priceTier) * qty;
-        const tax = calculateLineTax(p, qty, priceTier);
-        return { product: p, qty, lineTotal: Math.round(subtotal + tax) };
-      }),
-    [tierProducts, priceTier]
-  );
+  // Resolve admin items → live product rows + cart math (Grand Total === Estimated Investment).
+  const lines = useMemo(() => {
+    if (!selectedPack) return [];
+    return selectedPack.items
+      .map((it) => {
+        const product = products.find((p) => p.id === it.product_id);
+        if (!product) return null;
+        const qty = it.quantity;
+        const subtotal = calculatePackPrice(product, priceTier) * qty;
+        const tax = calculateLineTax(product, qty, priceTier);
+        return { product, qty, lineTotal: Math.round(subtotal + tax) };
+      })
+      .filter(Boolean) as Array<{ product: any; qty: number; lineTotal: number }>;
+  }, [selectedPack, products, priceTier]);
 
-  const totalInvestment = lines.reduce((s, l) => s + l.lineTotal, 0);
+  const computedTotal = lines.reduce((s, l) => s + l.lineTotal, 0);
+  // Display admin-set Estimated Investment when items not yet configured.
+  const displayTotal = lines.length > 0 ? computedTotal : (selectedPack?.estimated_investment ?? 0);
+
+  if (loadingPacks) {
+    return (
+      <div className="flex items-center justify-center py-12">
+        <Loader2 size={20} className="animate-spin" style={{ color: GOLD }} />
+      </div>
+    );
+  }
+
+  if (packs.length === 0) {
+    return (
+      <div className="text-center py-8">
+        <p className="text-sm text-muted-foreground">Starter packs are being curated. Please check back shortly.</p>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-5">
       <div>
         <h3 className="text-sm font-bold text-foreground mb-1" style={{ fontFamily: "'Playfair Display', serif" }}>
-          Starter Pack Builder
+          Admin-Curated Starter Packs
         </h3>
-        <p className="text-xs text-muted-foreground">Choose your tier — first-order MOQ relaxation applied automatically</p>
+        <p className="text-xs text-muted-foreground">Pre-built assortments — first-order MOQ rules waived automatically</p>
       </div>
 
-      {/* Tier selector */}
+      {/* Pack selector */}
       <div className="grid grid-cols-3 gap-2">
-        {tiers.map((tier, i) => (
-          <button
-            key={tier.name}
-            onClick={() => setSelectedTier(i)}
-            className={`p-3 rounded-xl border-2 text-center transition-all ${
-              selectedTier === i ? `${tier.color} bg-card shadow-md scale-[1.02]` : "border-border bg-muted/30"
-            }`}
-          >
-            <span className="text-xs font-bold text-foreground block">{tier.name}</span>
-            <span className="text-[10px] text-muted-foreground">{tier.desc}</span>
-          </button>
-        ))}
+        {packs.map((pack, i) => {
+          const accent = pack.tier === "premium" ? "border-[#c58b07]" : pack.tier === "smart" ? "border-[#c58b07]/50" : "border-border";
+          return (
+            <button
+              key={pack.id}
+              onClick={() => setSelectedIdx(i)}
+              className={`p-3 rounded-xl border-2 text-center transition-all ${
+                selectedIdx === i ? `${accent} bg-card shadow-md scale-[1.02]` : "border-border bg-muted/30"
+              }`}
+            >
+              <span className="text-xs font-bold text-foreground block">{pack.name.replace(" Starter Pack", "")}</span>
+              <span className="text-[10px] text-muted-foreground line-clamp-2">{pack.description}</span>
+            </button>
+          );
+        })}
       </div>
 
-      {/* Product list */}
+      {/* Item list (admin quantities) */}
       <div className="space-y-2 max-h-48 overflow-y-auto">
-        {lines.map((l) => (
-          <div key={l.product.id} className="flex items-center gap-3 p-2.5 rounded-xl bg-muted/30 border border-border">
-            <div className="w-10 h-10 rounded-lg bg-muted overflow-hidden shrink-0">
-              {l.product.image_url && <img src={l.product.image_url} className="w-full h-full object-cover" alt="" loading="lazy" />}
-            </div>
-            <div className="flex-1 min-w-0">
-              <p className="text-xs font-semibold text-foreground truncate">{l.product.name}</p>
-              <p className="text-[10px] text-muted-foreground">{l.product.category} • MOQ {l.qty}</p>
-            </div>
-            <span className="text-xs font-bold" style={{ color: GOLD }}>
-              ₹{l.lineTotal.toLocaleString("en-IN")}
-            </span>
+        {lines.length === 0 ? (
+          <div className="p-3 rounded-xl bg-muted/30 border border-dashed border-border text-center">
+            <p className="text-[11px] text-muted-foreground">
+              Pack items pending admin configuration. Estimated investment is shown below.
+            </p>
           </div>
-        ))}
+        ) : (
+          lines.map((l) => (
+            <div key={l.product.id} className="flex items-center gap-3 p-2.5 rounded-xl bg-muted/30 border border-border">
+              <div className="w-10 h-10 rounded-lg bg-muted overflow-hidden shrink-0">
+                {l.product.image_url && <img src={l.product.image_url} className="w-full h-full object-cover" alt="" loading="lazy" />}
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-xs font-semibold text-foreground truncate">{l.product.name}</p>
+                <p className="text-[10px] text-muted-foreground">{l.product.category} • {l.qty} units</p>
+              </div>
+              <span className="text-xs font-bold" style={{ color: GOLD }}>
+                ₹{l.lineTotal.toLocaleString("en-IN")}
+              </span>
+            </div>
+          ))
+        )}
       </div>
 
       {/* Summary */}
@@ -104,12 +149,13 @@ const StarterBuilder = ({
         <div>
           <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Estimated Investment (incl. tax)</p>
           <p className="text-lg font-bold" style={{ color: GOLD, fontFamily: "'DM Sans', sans-serif" }}>
-            ₹{totalInvestment.toLocaleString("en-IN")}
+            ₹{displayTotal.toLocaleString("en-IN")}
           </p>
         </div>
         <button
-          onClick={() => onAddToCart(lines.map((l) => ({ id: l.product.id, qty: l.qty })), totalInvestment)}
-          className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs font-bold text-white"
+          disabled={lines.length === 0}
+          onClick={() => onAddToCart(lines.map((l) => ({ id: l.product.id, qty: l.qty })), computedTotal)}
+          className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs font-bold text-white disabled:opacity-50 disabled:cursor-not-allowed"
           style={{ background: `linear-gradient(135deg, ${GOLD}, #d4a843)` }}
         >
           <ShoppingCart size={14} /> Add to Cart
@@ -117,7 +163,7 @@ const StarterBuilder = ({
       </div>
 
       <p className="text-[10px] text-center text-muted-foreground italic">
-        🎁 First-order Starter MOQ exception: carton-fill checks are waived
+        🎁 Starter Pack: carton-fill & MOQ checks waived. Grand Total will match Estimated Investment exactly.
       </p>
     </div>
   );
