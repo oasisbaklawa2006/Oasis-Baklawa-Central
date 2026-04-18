@@ -64,9 +64,10 @@ serve(async (req) => {
       }
 
       const userId = userData.user.id;
-      const [{ data: isStaff, error: staffError }, { data: profile, error: profileError }] = await Promise.all([
+      const [{ data: isStaff, error: staffError }, { data: profile, error: profileError }, { data: userRow, error: userRowError }] = await Promise.all([
         supabaseAdmin.rpc("is_internal_staff", { _user_id: userId }),
         supabaseAdmin.from("profiles").select("role").eq("id", userId).maybeSingle(),
+        supabaseAdmin.from("users").select("role").eq("id", userId).maybeSingle(),
       ]);
 
       if (staffError) {
@@ -75,8 +76,11 @@ serve(async (req) => {
       if (profileError) {
         console.error("Profile lookup failed:", profileError);
       }
+      if (userRowError) {
+        console.error("User role lookup failed:", userRowError);
+      }
 
-      if (!isStaff && !isAdminRole(profile?.role)) {
+      if (!isStaff && !isAdminRole(profile?.role) && !isAdminRole(userRow?.role)) {
         return jsonResponse({ error: "Forbidden" }, 403);
       }
     }
