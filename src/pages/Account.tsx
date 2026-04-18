@@ -392,6 +392,19 @@ const Account = () => {
       </div>
 
       <WithdrawalModal open={showWithdrawal} onClose={() => setShowWithdrawal(false)} />
+      {editField && company && (
+        <ProfileChangeRequestModal
+          open={!!editField}
+          onClose={() => setEditField(null)}
+          companyId={company.id}
+          field={editField}
+          currentValue={
+            editField === "business_name" ? (company.business_name || "")
+            : editField === "gst_number" ? (company.gst_number || "")
+            : (company.registered_address || "")
+          }
+        />
+      )}
     </AppShell>
   );
 };
