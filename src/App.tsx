@@ -179,15 +179,16 @@ const StorefrontGate = ({ children }: { children: React.ReactNode }) => {
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
-    <TooltipProvider>
-      <Toaster />
-      <Sonner />
-      <BrowserRouter>
-        <LanguageProvider>
-        <CurrencyProvider>
-          <AuthErrorListener />
-          <PremiumAnnouncementOverlay />
-          <Routes>
+    <ErrorBoundary fallbackTitle="Application connection interrupted">
+      <TooltipProvider>
+        <Toaster />
+        <Sonner />
+        <BrowserRouter>
+          <LanguageProvider>
+          <CurrencyProvider>
+            <AuthErrorListener />
+            <PremiumAnnouncementOverlay />
+            <Routes>
             <Route path="/splash" element={<Splash />} />
             <Route path="/intro" element={<CompanyIntro />} />
             <Route path="/track" element={<PublicOrderTracking />} />
@@ -289,12 +290,13 @@ const App = () => (
             <Route path="/tv/nuts" element={<RoleProtectedRoute allowedRoles={['HOD_NUTS', 'PROD_NUTS', 'SUPER_ADMIN', 'ADMIN']}><FactoryTVModule category="Seasoned Nuts" departmentFilter="Nuts Roasting" title="Nuts & Dry Fruits Line" /></RoleProtectedRoute>} />
 
             <Route path="*" element={<NotFound />} />
-          </Routes>
-        
-        </CurrencyProvider>
-        </LanguageProvider>
-      </BrowserRouter>
-    </TooltipProvider>
+            </Routes>
+          
+          </CurrencyProvider>
+          </LanguageProvider>
+        </BrowserRouter>
+      </TooltipProvider>
+    </ErrorBoundary>
   </QueryClientProvider>
 );
 

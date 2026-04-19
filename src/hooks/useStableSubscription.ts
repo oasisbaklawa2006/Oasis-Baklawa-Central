@@ -1,6 +1,7 @@
 import { useEffect, useRef } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { isRealtimeEnabled } from "@/hooks/useRealtime";
 import { removeDuplicateRealtimeChannel } from "@/utils/realtime";
 
 /**
@@ -24,7 +25,7 @@ export function useStableSubscription(
   }, [queryKeys, onChange]);
 
   useEffect(() => {
-    if (!enabled) return;
+    if (!enabled || !isRealtimeEnabled) return;
 
     let retries = 0;
     let retryTimer: ReturnType<typeof setTimeout> | null = null;
