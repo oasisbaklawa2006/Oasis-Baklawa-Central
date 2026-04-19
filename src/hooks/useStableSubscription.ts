@@ -26,27 +26,61 @@ export function useStableSubscription(
   useEffect(() => {
     if (!enabled) return;
 
-    const channelName = `stable-${tableName}`;
-    removeDuplicateRealtimeChannel(channelName);
+    let retries = 0;
+    let retryTimer: ReturnType<typeof setTimeout> | null = null;
+    let cancelled = false;
+    const MAX_RETRIES = 5;
+    const baseChannelName = `stable-${tableName}`;
 
-    const channel = supabase
-      .channel(channelName)
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: tableName },
-        () => {
-          queryKeysRef.current.forEach((key) => {
-            queryClient.invalidateQueries({ queryKey: key });
+    const connect = () => {
+      if (cancelled) return;
+      removeDuplicateRealtimeChannel(baseChannelName);
+
+      try {
+        const channel = supabase
+          .channel(baseChannelName)
+          .on(
+            "postgres_changes",
+            { event: "*", schema: "public", table: tableName },
+            () => {
+              queryKeysRef.current.forEach((key) => {
+                queryClient.invalidateQueries({ queryKey: key });
+              });
+              onChangeRef.current?.();
+            }
+          )
+          .subscribe((status) => {
+            if (status === "SUBSCRIBED") {
+              retries = 0;
+            } else if (
+              (status === "CHANNEL_ERROR" || status === "TIMED_OUT" || status === "CLOSED") &&
+              !cancelled &&
+              retries < MAX_RETRIES
+            ) {
+              retries += 1;
+              if (channelRef.current) {
+                void supabase.removeChannel(channelRef.current);
+                channelRef.current = null;
+              }
+              retryTimer = setTimeout(connect, 10000);
+            }
           });
 
-          onChangeRef.current?.();
+        channelRef.current = channel;
+      } catch (err) {
+        console.warn(`[useStableSubscription:${tableName}] connect failed`, err);
+        if (!cancelled && retries < MAX_RETRIES) {
+          retries += 1;
+          retryTimer = setTimeout(connect, 10000);
         }
-      )
-      .subscribe();
+      }
+    };
 
-    channelRef.current = channel;
+    connect();
 
     return () => {
+      cancelled = true;
+      if (retryTimer) clearTimeout(retryTimer);
       if (channelRef.current) {
         supabase.removeChannel(channelRef.current);
         channelRef.current = null;
