@@ -21,14 +21,6 @@ const ROLE_TIPS: Record<string, { title: string; tips: { icon: string; label: st
       { icon: "🔒", label: "Credit Approvals", desc: "Credit requests appear in Finance Control. Approve or reject with mandatory notes for audit trail." },
     ],
   },
-  dispatch_head: {
-    title: "Dispatch Manual",
-    tips: [
-      { icon: "📦", label: "Packing Protocol", desc: "Verify packed quantities match production output. Any discrepancy triggers a partial-dispatch invoice." },
-      { icon: "🚚", label: "Gate Pass", desc: "Issue gate passes only after accounts release. LR Number and transporter details are mandatory fields." },
-      { icon: "📡", label: "Notifications", desc: "Client notifications auto-trigger on dispatch. Check the Outbox to confirm delivery." },
-    ],
-  },
   production_manager: {
     title: "Production Manual",
     tips: [
