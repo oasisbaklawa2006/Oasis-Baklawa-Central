@@ -35,25 +35,62 @@ export default function ApprovalPending() {
   }, [companyId, destination, navigate, profileReady, role]);
 
   // REAL-TIME APPROVAL LISTENER: auto-redirect the moment admin approves the account.
+  // Hardened with reconnect-on-timeout to survive Realtime gateway hiccups.
   useEffect(() => {
     if (!user?.id) return;
-    const channel = supabase
-      .channel(`approval-watch-${user.id}`)
-      .on(
-        "postgres_changes",
-        { event: "UPDATE", schema: "public", table: "profiles", filter: `id=eq.${user.id}` },
-        async (payload) => {
-          const next = (payload.new as any)?.status?.toString().toLowerCase();
-          const approved = (payload.new as any)?.is_approved === true || next === "approved";
-          if (!approved) return;
-          toast.success("🎉 Your account has been approved! Redirecting…");
-          await refreshProfile();
-          setTimeout(() => navigate("/home", { replace: true }), 800);
+
+    let currentChannel: ReturnType<typeof supabase.channel> | null = null;
+    let retryTimer: ReturnType<typeof setTimeout> | null = null;
+    let retries = 0;
+    let cancelled = false;
+    const MAX_RETRIES = 5;
+
+    const connect = () => {
+      if (cancelled) return;
+      try {
+        const channel = supabase
+          .channel(`approval-watch-${user.id}-${Date.now()}`)
+          .on(
+            "postgres_changes",
+            { event: "UPDATE", schema: "public", table: "profiles", filter: `id=eq.${user.id}` },
+            async (payload) => {
+              const next = (payload.new as any)?.status?.toString().toLowerCase();
+              const approved = (payload.new as any)?.is_approved === true || next === "approved";
+              if (!approved) return;
+              toast.success("🎉 Your account has been approved! Redirecting…");
+              await refreshProfile();
+              setTimeout(() => navigate("/home", { replace: true }), 800);
+            }
+          )
+          .subscribe((status) => {
+            if (status === "SUBSCRIBED") {
+              retries = 0;
+            } else if (status === "CHANNEL_ERROR" || status === "TIMED_OUT" || status === "CLOSED") {
+              if (cancelled || retries >= MAX_RETRIES) return;
+              retries += 1;
+              if (currentChannel) {
+                void supabase.removeChannel(currentChannel);
+                currentChannel = null;
+              }
+              retryTimer = setTimeout(connect, 10000);
+            }
+          });
+        currentChannel = channel;
+      } catch (err) {
+        console.warn("[ApprovalPending] realtime connect failed", err);
+        if (!cancelled && retries < MAX_RETRIES) {
+          retries += 1;
+          retryTimer = setTimeout(connect, 10000);
         }
-      )
-      .subscribe();
+      }
+    };
+
+    connect();
+
     return () => {
-      void supabase.removeChannel(channel);
+      cancelled = true;
+      if (retryTimer) clearTimeout(retryTimer);
+      if (currentChannel) void supabase.removeChannel(currentChannel);
     };
   }, [user?.id, navigate, refreshProfile]);
 
