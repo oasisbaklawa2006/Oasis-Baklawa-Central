@@ -1,4 +1,4 @@
-export const REALTIME_STATUS = "disabled" as const;
+export const REALTIME_STATUS: "enabled" | "disabled" = "disabled";
 
 export const isRealtimeEnabled = REALTIME_STATUS === "enabled";
 
