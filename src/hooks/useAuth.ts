@@ -263,10 +263,27 @@ export function useAuth() {
     profileFetchedForRef.current = user.id;
     setProfileReady(false);
 
+    // 3s fallback: if RPC stalls, unblock UI using cached/metadata role
+    const fallbackTimer = setTimeout(() => {
+      const cached = getCachedForUser(user.id);
+      if (cached?.role) {
+        setRole(cached.role.toUpperCase());
+        setCompanyId(cached.companyId);
+        setPriceTier(cached.priceTier ?? null);
+      } else {
+        const metaRole = (user.user_metadata as any)?.role
+          ?? (user.app_metadata as any)?.role
+          ?? null;
+        if (metaRole) setRole(String(metaRole).toUpperCase());
+      }
+      setProfileReady(true);
+    }, 3000);
+
     fetchProfile(user).finally(() => {
+      clearTimeout(fallbackTimer);
       setProfileReady(true);
     });
-  }, [fetchProfile, loading, user]);
+  }, [fetchProfile, getCachedForUser, loading, user]);
 
   // Removed: pending-role auto-refresh was causing infinite redirect storms
 
