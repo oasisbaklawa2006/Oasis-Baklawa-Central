@@ -34,6 +34,29 @@ export default function ApprovalPending() {
     navigate(destination, { replace: true });
   }, [companyId, destination, navigate, profileReady, role]);
 
+  // REAL-TIME APPROVAL LISTENER: auto-redirect the moment admin approves the account.
+  useEffect(() => {
+    if (!user?.id) return;
+    const channel = supabase
+      .channel(`approval-watch-${user.id}`)
+      .on(
+        "postgres_changes",
+        { event: "UPDATE", schema: "public", table: "profiles", filter: `id=eq.${user.id}` },
+        async (payload) => {
+          const next = (payload.new as any)?.status?.toString().toLowerCase();
+          const approved = (payload.new as any)?.is_approved === true || next === "approved";
+          if (!approved) return;
+          toast.success("🎉 Your account has been approved! Redirecting…");
+          await refreshProfile();
+          setTimeout(() => navigate("/home", { replace: true }), 800);
+        }
+      )
+      .subscribe();
+    return () => {
+      void supabase.removeChannel(channel);
+    };
+  }, [user?.id, navigate, refreshProfile]);
+
   const handleCheckStatus = async () => {
     if (!user) {
       toast.error("Please log in again.");

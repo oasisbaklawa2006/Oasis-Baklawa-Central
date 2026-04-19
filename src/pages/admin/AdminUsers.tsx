@@ -231,64 +231,88 @@ const AdminUsers = () => {
       email: nf.email.trim(),
       password: chosenPassword,
       options: {
-        data: {
-          full_name: nf.name,
-          role: nf.role,
-        },
+        emailRedirectTo: `${window.location.origin}/login`,
+        data: { full_name: nf.name, role: nf.role },
       },
     });
 
     if (authError) {
-      toast.error("Failed to create auth account: " + authError.message);
+      // Handles "User already registered" gracefully — falls back to a magic-link invite.
+      const looksDuplicate = /already|exist|registered/i.test(authError.message);
+      if (looksDuplicate) {
+        const { error: linkErr } = await supabase.auth.signInWithOtp({
+          email: nf.email.trim(),
+          options: { emailRedirectTo: `${window.location.origin}/login` },
+        });
+        if (linkErr) {
+          toast.error("User already exists; failed to send invite link: " + linkErr.message);
+        } else {
+          toast.success(`Invite link sent to ${nf.email.trim()} (user already existed).`);
+        }
+      } else {
+        toast.error("Failed to create auth account: " + authError.message);
+      }
       setSaving(null);
       return;
     }
 
     const newUserId = authData.user?.id;
 
-    // 2. Update the users table record (created by trigger) with full details
-    if (newUserId) {
-      await supabase
-        .from("users")
-        .update({
-          full_name: nf.name,
-          mobile_number: nf.mobile || null,
-          role: nf.role,
-          department: nf.dept || null,
-          designation: nf.designation || null,
-          is_active: true,
-          invite_status: "active",
-        })
-        .eq("id", newUserId);
+    // GUARD: if email confirmation is required, no user row exists yet — send invite link instead.
+    if (!newUserId) {
+      await supabase.auth.signInWithOtp({
+        email: nf.email.trim(),
+        options: { emailRedirectTo: `${window.location.origin}/login` },
+      });
+      toast.success(`Invite link sent to ${nf.email.trim()}. They'll complete setup on first login.`);
+      setSaving(null);
+      setShowModal(false);
+      setNf({ name: "", email: "", mobile: "", dept: "", designation: "", role: "", password: "", status: "invited" });
+      setSelectedPermIds([]);
+      return;
+    }
 
-      // Staff roles: auto-approve in profiles table
-      const staffRoleSet = new Set([
-        "super_admin", "admin", "finance_head", "finance_exec",
-        "operations_manager", "production_manager",
-        "hod_arabic", "hod_fusion", "hod_chocolate", "hod_bakery", "hod_nuts", "hod_assembly",
-        "store_incharge", "dispatch_manager", "dispatch_incharge", "security_control",
-        "sales_executive", "support_executive",
-      ]);
-      if (staffRoleSet.has(nf.role)) {
-        await supabase
-          .from("profiles")
-          .upsert({
-            id: newUserId,
-            email: nf.email.trim(),
-            full_name: nf.name,
-            role: nf.role,
-            is_approved: true,
-            department: nf.dept || null,
-          } as any, { onConflict: "id" });
+    // 2. Update the users table record (created by trigger) with full details
+    await supabase
+      .from("users")
+      .update({
+        full_name: nf.name,
+        mobile_number: nf.mobile || null,
+        role: nf.role,
+        department: nf.dept || null,
+        designation: nf.designation || null,
+        is_active: true,
+        invite_status: "active",
+      })
+      .eq("id", newUserId);
+
+    // Staff roles: auto-approve in profiles table (defensive — non-fatal if it fails)
+    const staffRoleSet = new Set([
+      "super_admin", "admin", "finance_head", "finance_exec",
+      "operations_manager", "production_manager",
+      "hod_arabic", "hod_fusion", "hod_chocolate", "hod_bakery", "hod_nuts", "hod_assembly",
+      "store_incharge", "dispatch_manager", "dispatch_incharge", "security_control",
+      "sales_executive", "support_executive",
+    ]);
+    if (staffRoleSet.has(nf.role)) {
+      const { error: profileErr } = await supabase
+        .from("profiles")
+        .upsert({
+          id: newUserId,
+          email: nf.email.trim(),
+          full_name: nf.name,
+          role: nf.role,
+          is_approved: true,
+          department: nf.dept || null,
+        } as any, { onConflict: "id" });
+      if (profileErr) {
+        console.warn("[AdminUsers] profiles upsert non-fatal:", profileErr.message);
       }
     }
 
     // 3. Map role permissions
-    if (roleRecord && newUserId) {
-      await supabase.from("user_role_map").insert({
-        user_id: newUserId,
-        role_id: roleRecord.id,
-      });
+    if (roleRecord) {
+      await supabase.from("user_role_map").insert({ user_id: newUserId, role_id: roleRecord.id });
     }
 
     if (roleRecord && selectedPermIds.length > 0) {
