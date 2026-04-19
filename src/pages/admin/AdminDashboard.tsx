@@ -172,6 +172,7 @@ const ClusterCard = ({ title, icon: Icon, color, metrics, route }: {
 
 const AdminDashboard = () => {
   const [loading, setLoading] = useState(true);
+  const [loadTimeout, setLoadTimeout] = useState(false);
   const [alerts, setAlerts] = useState<AlertItem[]>([]);
   const [recentActions, setRecentActions] = useState<AuditEntry[]>([]);
   const [pipeline, setPipeline] = useState<Record<string, number>>({});
@@ -245,7 +246,9 @@ const AdminDashboard = () => {
   }, [t]);
 
   useEffect(() => {
-    fetchData();
+    setLoadTimeout(false);
+    const timer = setTimeout(() => { if (loading) setLoadTimeout(true); }, 10000);
+    fetchData().finally(() => clearTimeout(timer));
     const channelName = "governance-rt";
     removeDuplicateRealtimeChannel(channelName);
     const ch = supabase.channel(channelName)
@@ -254,12 +257,29 @@ const AdminDashboard = () => {
       .on("postgres_changes", { event: "*", schema: "public", table: "audit_logs" }, () => fetchData())
       .on("postgres_changes", { event: "*", schema: "public", table: "factory_inventory" }, () => fetchData())
       .subscribe();
-    return () => { void supabase.removeChannel(ch); };
+    return () => { clearTimeout(timer); void supabase.removeChannel(ch); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fetchData]);
 
   const handleLogout = async () => { await signOutAndClearSession(); navigate("/splash"); };
 
-  if (loading) return <div className="flex items-center justify-center py-20"><Loader2 size={24} className="animate-spin text-primary" /></div>;
+  const handleRetry = () => {
+    setLoadTimeout(false);
+    setLoading(true);
+    fetchData();
+  };
+
+  if (loading && !loadTimeout) return <div className="flex items-center justify-center py-20"><Loader2 size={24} className="animate-spin text-primary" /></div>;
+
+  if (loading && loadTimeout) return (
+    <div className="flex flex-col items-center justify-center py-20 gap-4">
+      <AlertTriangle size={32} className="text-amber-500" />
+      <p className="text-sm font-ui text-muted-foreground">Connection is taking longer than expected.</p>
+      <button onClick={handleRetry} className="px-5 py-2 bg-primary text-primary-foreground rounded-lg text-sm font-ui font-medium hover:bg-primary/90 transition-colors">
+        Retry Connection
+      </button>
+    </div>
+  );
 
   const fmtNum = (n: number) => n > 99999 ? `₹${(n / 100000).toFixed(1)}L` : n.toLocaleString("en-IN");
 
