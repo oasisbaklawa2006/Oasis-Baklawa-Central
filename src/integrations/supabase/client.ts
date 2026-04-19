@@ -15,9 +15,38 @@ export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABL
     autoRefreshToken: true,
   },
   realtime: {
+    // Realtime temporarily disabled — fall back to REST polling/refetch.
+    // Throttle events to a minimum and prevent automatic reconnect storms.
     params: {
-      eventsPerSecond: 10,
+      eventsPerSecond: 1,
     },
-    reconnectAfterMs: (tries: number) => Math.min(tries * 5000, 30000),
+    reconnectAfterMs: () => 1_000_000_000, // effectively never reconnect
+    heartbeatIntervalMs: 1_000_000_000,
   } as any,
 });
+
+// Hard-disable realtime: stub out channel creation so no WebSocket is opened.
+try {
+  const noopChannel: any = {
+    on: () => noopChannel,
+    subscribe: (cb?: (status: string) => void) => {
+      try { cb?.("CLOSED"); } catch {}
+      return noopChannel;
+    },
+    unsubscribe: () => Promise.resolve("ok"),
+    send: () => {},
+    topic: "realtime:disabled",
+  };
+  (supabase as any).channel = () => noopChannel;
+  (supabase as any).removeChannel = () => Promise.resolve("ok");
+  (supabase as any).removeAllChannels = () => Promise.resolve("ok");
+  (supabase as any).getChannels = () => [];
+  // Prevent the underlying socket from connecting
+  const rt: any = (supabase as any).realtime;
+  if (rt) {
+    rt.connect = () => {};
+    try { rt.disconnect?.(); } catch {}
+  }
+} catch (err) {
+  console.warn("[supabase] realtime disable shim failed", err);
+}
