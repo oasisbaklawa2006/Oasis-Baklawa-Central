@@ -226,12 +226,16 @@ const AdminUsers = () => {
     const roleRecord = roles.find((r) => r.role_key === nf.role);
     const chosenPassword = nf.password;
 
+    // Auth redirect is locked to the production domain to avoid preview-URL leakage.
+    const SITE_URL = "https://b2b.oasisbaklawa.com";
+    const inviteRedirect = `${SITE_URL}/login`;
+
     // 1. Create the auth user with admin-set password
     const { data: authData, error: authError } = await supabase.auth.signUp({
       email: nf.email.trim(),
       password: chosenPassword,
       options: {
-        emailRedirectTo: `${window.location.origin}/login`,
+        emailRedirectTo: inviteRedirect,
         data: { full_name: nf.name, role: nf.role },
       },
     });
@@ -242,7 +246,7 @@ const AdminUsers = () => {
       if (looksDuplicate) {
         const { error: linkErr } = await supabase.auth.signInWithOtp({
           email: nf.email.trim(),
-          options: { emailRedirectTo: `${window.location.origin}/login` },
+          options: { emailRedirectTo: inviteRedirect },
         });
         if (linkErr) {
           toast.error("User already exists; failed to send invite link: " + linkErr.message);
@@ -262,7 +266,7 @@ const AdminUsers = () => {
     if (!newUserId) {
       await supabase.auth.signInWithOtp({
         email: nf.email.trim(),
-        options: { emailRedirectTo: `${window.location.origin}/login` },
+        options: { emailRedirectTo: inviteRedirect },
       });
       toast.success(`Invite link sent to ${nf.email.trim()}. They'll complete setup on first login.`);
       setSaving(null);
