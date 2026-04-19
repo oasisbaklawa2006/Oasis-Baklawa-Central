@@ -1,4 +1,4 @@
-import { NavLink, Outlet, Navigate } from "react-router-dom";
+import { NavLink, Outlet } from "react-router-dom";
 import {
   LayoutDashboard, UserCheck, ClipboardList, Truck, DollarSign, LogOut, Menu, X, Loader2,
   Headphones, Users, Package, BarChart3, Scale, Globe, Settings, Shield,
@@ -19,31 +19,32 @@ import { signOutAndClearSession } from "@/utils/authSession";
 import { useAdminRealtimeToasts } from "@/hooks/useAdminRealtimeToasts";
 
 const ROLE_MODULE_ACCESS: Record<string, string[]> = {
-  super_admin: ["*"],
-  admin: ["dashboard", "orders", "clients", "products", "pricing", "finance", "users", "moq", "currency", "support", "settings", "audit", "inventory", "packing", "production", "accounts", "exceptions"],
-  finance_head: ["dashboard", "finance", "accounts", "orders", "audit"],
-  finance_exec: ["dashboard", "finance", "accounts", "orders"],
-  operations_manager: ["dashboard", "orders", "production", "packing", "dispatch", "inventory"],
-  production_manager: ["dashboard", "orders", "production"],
-  hod_arabic: ["dashboard", "production", "orders"],
-  hod_fusion: ["dashboard", "production", "orders"],
-  hod_chocolate: ["dashboard", "production", "orders"],
-  hod_bakery: ["dashboard", "production", "orders"],
-  hod_nuts: ["dashboard", "production", "orders"],
-  hod_assembly: ["dashboard", "production", "orders"],
-  store_incharge: ["dashboard", "inventory", "orders", "production"],
-  dispatch_manager: ["dashboard", "packing", "dispatch", "orders", "inventory"],
-  dispatch_incharge: ["dashboard", "packing", "dispatch", "orders"],
-  security_control: ["dashboard", "packing"],
-  sales_executive: ["dashboard", "orders", "clients", "products"],
-  support_executive: ["dashboard", "support", "exceptions", "orders"],
+  SUPER_ADMIN: ["*"],
+  ADMIN: ["dashboard", "orders", "clients", "products", "pricing", "finance", "users", "moq", "currency", "support", "settings", "audit", "inventory", "packing", "production", "accounts", "exceptions"],
+  FINANCE_HEAD: ["dashboard", "finance", "accounts", "orders", "audit"],
+  FINANCE_EXEC: ["dashboard", "finance", "accounts", "orders"],
+  OPERATIONS_MANAGER: ["dashboard", "orders", "production", "packing", "dispatch", "inventory"],
+  PRODUCTION_MANAGER: ["dashboard", "orders", "production"],
+  HOD_ARABIC: ["dashboard", "production", "orders"],
+  HOD_FUSION: ["dashboard", "production", "orders"],
+  HOD_CHOCOLATE: ["dashboard", "production", "orders"],
+  HOD_BAKERY: ["dashboard", "production", "orders"],
+  HOD_NUTS: ["dashboard", "production", "orders"],
+  HOD_ASSEMBLY: ["dashboard", "production", "orders"],
+  HOD_DRAGEES: ["dashboard", "production", "orders"],
+  STORE_INCHARGE: ["dashboard", "inventory", "orders", "production"],
+  DISPATCH_MANAGER: ["dashboard", "packing", "dispatch", "orders", "inventory"],
+  DISPATCH_INCHARGE: ["dashboard", "packing", "dispatch", "orders"],
+  SECURITY_CONTROL: ["dashboard", "packing"],
+  SALES_EXECUTIVE: ["dashboard", "orders", "clients", "products"],
+  SUPPORT_EXECUTIVE: ["dashboard", "support", "exceptions", "orders"],
   // Legacy compat
-  dispatch_head: ["dashboard", "packing", "dispatch", "orders", "inventory"],
-  assembly_manager: ["dashboard", "production", "orders"],
-  packing_supervisor: ["dashboard", "packing", "dispatch"],
-  store_ready_goods: ["dashboard", "inventory", "orders", "production"],
-  rgs_admin: ["dashboard", "inventory", "orders", "production"],
-  customer_user: [],
+  DISPATCH_HEAD: ["dashboard", "packing", "dispatch", "orders", "inventory"],
+  ASSEMBLY_MANAGER: ["dashboard", "production", "orders"],
+  PACKING_SUPERVISOR: ["dashboard", "packing", "dispatch"],
+  STORE_READY_GOODS: ["dashboard", "inventory", "orders", "production"],
+  RGS_ADMIN: ["dashboard", "inventory", "orders", "production"],
+  CUSTOMER_USER: [],
 };
 
 interface NavItem {
@@ -52,13 +53,13 @@ interface NavItem {
 
 const AdminLayout = () => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [role, setRole] = useState<string | null>(null);
   const [isSalesExec, setIsSalesExec] = useState(false);
-  const [roleLoading, setRoleLoading] = useState(true);
-  const { user, loading: authLoading } = useAuth();
+  const { user, loading: authLoading, role: authRole, profileReady } = useAuth();
+  // Single source of truth: normalized uppercase role from useAuth (RPC-backed)
+  const role = authRole ? authRole.trim().toUpperCase() : null;
   const navigate = useNavigate();
   const { t, lang, setLang } = useLanguage();
-  const isAdmin = role === "super_admin" || role === "admin";
+  const isAdmin = role === "SUPER_ADMIN" || role === "ADMIN";
   const pendingApplications = useApplicationBadge(isAdmin);
   useAdminRealtimeToasts(!!user && !authLoading);
 
@@ -117,29 +118,31 @@ const AdminLayout = () => {
     },
   ];
 
+  // Sales-exec flag only (role itself comes from unified useAuth/RPC)
   useEffect(() => {
     if (authLoading || !user) return;
-    const fetchRole = async () => {
-      const { data } = await supabase.from("users").select("role, is_sales_executive").eq("id", user.id).maybeSingle();
-      setRole(data?.role ?? null);
-      setIsSalesExec(!!(data as any)?.is_sales_executive);
-      setRoleLoading(false);
-    };
-    fetchRole();
+    let cancelled = false;
+    (async () => {
+      const { data } = await supabase
+        .from("users")
+        .select("is_sales_executive")
+        .eq("id", user.id)
+        .maybeSingle();
+      if (!cancelled) setIsSalesExec(!!(data as any)?.is_sales_executive);
+    })();
+    return () => { cancelled = true; };
   }, [user, authLoading]);
 
   const handleLogout = async () => { await signOutAndClearSession(); navigate("/splash"); };
 
-  if (authLoading || roleLoading) {
+  if (authLoading || !profileReady) {
     return <div className="min-h-screen flex items-center justify-center bg-background"><Loader2 size={24} className="animate-spin text-primary" /></div>;
   }
 
-  const knownAdminRoles = Object.keys(ROLE_MODULE_ACCESS);
-  if (!role || !knownAdminRoles.includes(role)) {
-    return <Navigate to="/" replace />;
-  }
+  // No manual back-to-root redirect: ProtectedRoute + RoleProtectedRoute already
+  // gate access. If an unknown role somehow reaches here, just hide nav (no flicker).
+  const allowedModules = role ? (ROLE_MODULE_ACCESS[role] ?? []) : [];
 
-  const allowedModules = ROLE_MODULE_ACCESS[role] ?? [];
   const hasAccess = (moduleKey: string) => {
     if (allowedModules.includes("*") || allowedModules.includes(moduleKey)) return true;
     // Multi-role: if user has is_sales_executive flag, grant access to clients module (Sales Console)
