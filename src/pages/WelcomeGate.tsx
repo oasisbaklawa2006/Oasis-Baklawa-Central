@@ -10,6 +10,7 @@ const GREETINGS = [
   { lang: "English", text: "Welcome" },
   { lang: "Hindi", text: "स्वागत है" },
   { lang: "Arabic", text: "أهلاً وسهلاً" },
+  { lang: "Punjabi", text: "ਸਤਿ ਸ੍ਰੀ ਅਕਾਲ" },
 ];
 
 const WelcomeGate = () => {
@@ -24,7 +25,7 @@ const WelcomeGate = () => {
   useEffect(() => {
     const search = new URLSearchParams(window.location.search);
     const hash = new URLSearchParams(
-      window.location.hash.startsWith("#") ? window.location.hash.slice(1) : window.location.hash
+      window.location.hash.startsWith("#") ? window.location.hash.slice(1) : window.location.hash,
     );
     const err = search.get("error") || hash.get("error");
     const errCode = search.get("error_code") || hash.get("error_code");
@@ -78,10 +79,7 @@ const WelcomeGate = () => {
   }, [user, navigate]);
 
   return (
-    <div
-      className="min-h-screen flex items-center justify-center"
-      style={{ backgroundColor: "#1c1c1c" }}
-    >
+    <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: "#1c1c1c" }}>
       <motion.div
         initial={{ opacity: 0, scale: 0.95 }}
         animate={{ opacity: 1, scale: 1 }}
