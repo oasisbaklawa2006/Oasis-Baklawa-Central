@@ -172,6 +172,7 @@ const ClusterCard = ({ title, icon: Icon, color, metrics, route }: {
 
 const AdminDashboard = () => {
   const [loading, setLoading] = useState(true);
+  const [loadTimeout, setLoadTimeout] = useState(false);
   const [alerts, setAlerts] = useState<AlertItem[]>([]);
   const [recentActions, setRecentActions] = useState<AuditEntry[]>([]);
   const [pipeline, setPipeline] = useState<Record<string, number>>({});
