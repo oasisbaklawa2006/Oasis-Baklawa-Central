@@ -8,7 +8,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { calculatePackPrice, calculateLineTax, getMinOrderQty } from "@/utils/pricing";
+import { calculatePackPrice, calculateLineTax, getMinOrderQty, getTieredPricePerKg, getPrimaryPackWeightKg, getGstRate } from "@/utils/pricing";
 
 interface StarterPackRow {
   id: string;
@@ -55,19 +55,21 @@ const StarterBuilder = ({
 
   const selectedPack = packs[selectedIdx];
 
-  // Resolve admin items → live product rows + cart math (Grand Total === Estimated Investment).
+  // STARTER PACK RULE: `quantity` from starter_packs.items represents KILOGRAMS, not packs.
+  // We compute pricing per kg, then convert kg → packs at cart-insert time.
   const lines = useMemo(() => {
     if (!selectedPack) return [];
     return selectedPack.items
       .map((it) => {
         const product = products.find((p) => p.id === it.product_id);
         if (!product) return null;
-        const qty = it.quantity;
-        const subtotal = calculatePackPrice(product, priceTier) * qty;
-        const tax = calculateLineTax(product, qty, priceTier);
-        return { product, qty, lineTotal: Math.round(subtotal + tax) };
+        const kg = it.quantity; // total kilograms
+        const pricePerKg = getTieredPricePerKg(product, priceTier);
+        const subtotal = pricePerKg * kg;
+        const tax = subtotal * (getGstRate(product) / 100);
+        return { product, kg, lineTotal: Math.round(subtotal + tax) };
       })
-      .filter(Boolean) as Array<{ product: any; qty: number; lineTotal: number }>;
+      .filter(Boolean) as Array<{ product: any; kg: number; lineTotal: number }>;
   }, [selectedPack, products, priceTier]);
 
   const computedTotal = lines.reduce((s, l) => s + l.lineTotal, 0);
@@ -134,7 +136,7 @@ const StarterBuilder = ({
               </div>
               <div className="flex-1 min-w-0">
                 <p className="text-xs font-semibold text-foreground truncate">{l.product.name}</p>
-                <p className="text-[10px] text-muted-foreground">{l.product.category} • {l.qty} units</p>
+                <p className="text-[10px] text-muted-foreground">{l.product.category} • {l.kg} kg</p>
               </div>
               <span className="text-xs font-bold" style={{ color: GOLD }}>
                 ₹{l.lineTotal.toLocaleString("en-IN")}
@@ -154,7 +156,15 @@ const StarterBuilder = ({
         </div>
         <button
           disabled={lines.length === 0}
-          onClick={() => onAddToCart(lines.map((l) => ({ id: l.product.id, qty: l.qty })), computedTotal)}
+          onClick={() => onAddToCart(
+            lines.map((l) => {
+              // Convert kg → packs for order_items (factory ships in pack units).
+              const packWeightKg = getPrimaryPackWeightKg(l.product) || 1;
+              const packs = +(l.kg / packWeightKg).toFixed(3);
+              return { id: l.product.id, qty: packs };
+            }),
+            computedTotal,
+          )}
           className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs font-bold text-white disabled:opacity-50 disabled:cursor-not-allowed"
           style={{ background: `linear-gradient(135deg, ${GOLD}, #d4a843)` }}
         >
