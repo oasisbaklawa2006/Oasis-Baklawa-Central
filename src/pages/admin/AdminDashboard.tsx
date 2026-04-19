@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
+import { isRealtimeEnabled } from "@/hooks/useRealtime";
 import { useAuth } from "@/hooks/useAuth";
 import { useLanguage } from "@/hooks/useLanguage";
 import { useCurrency } from "@/hooks/useCurrency";
@@ -249,6 +250,11 @@ const AdminDashboard = () => {
     setLoadTimeout(false);
     const timer = setTimeout(() => { if (loading) setLoadTimeout(true); }, 10000);
     fetchData().finally(() => clearTimeout(timer));
+
+    if (!isRealtimeEnabled) {
+      return () => clearTimeout(timer);
+    }
+
     const channelName = "governance-rt";
     removeDuplicateRealtimeChannel(channelName);
     const ch = supabase.channel(channelName)
