@@ -135,13 +135,14 @@ const AdminLayout = () => {
 
   const handleLogout = async () => { await signOutAndClearSession(); navigate("/splash"); };
 
-  if (authLoading || !profileReady) {
+  // Only block on initial Supabase auth check. If profile is slow, fall through
+  // with allowedModules=[] — useAuth has a 3s fallback that resolves role.
+  if (authLoading) {
     return <div className="min-h-screen flex items-center justify-center bg-background"><Loader2 size={24} className="animate-spin text-primary" /></div>;
   }
 
-  // No manual back-to-root redirect: ProtectedRoute + RoleProtectedRoute already
-  // gate access. If an unknown role somehow reaches here, just hide nav (no flicker).
-  const allowedModules = role ? (ROLE_MODULE_ACCESS[role] ?? []) : [];
+  // Default to [] so layout renders even if role is missing (no infinite loader).
+  const allowedModules: string[] = role ? (ROLE_MODULE_ACCESS[role] ?? []) : [];
 
   const hasAccess = (moduleKey: string) => {
     if (allowedModules.includes("*") || allowedModules.includes(moduleKey)) return true;
