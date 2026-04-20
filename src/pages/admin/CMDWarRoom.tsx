@@ -53,7 +53,7 @@ const CMDWarRoom = () => {
   const fetchOrders = useCallback(async () => {
     const { data } = await supabase
       .from("orders")
-      .select("id, status, created_at, sales_order_value, dispatch_urgency, company_id, total_weight_kg, needs_clarification, is_waste")
+      .select("id, status, created_at, sales_order_value, dispatch_urgency, company_id, total_weight_kg, needs_clarification, is_waste, is_duplicate, duplicate_of_order_id")
       .not("status", "in", '("closed","cancelled")')
       .eq("is_waste", false)
       .order("created_at", { ascending: false })
