@@ -397,6 +397,8 @@ const Cart = () => {
         dispatch_urgency: dispatchUrgency,
         system_estimated_date: systemEstimatedDate ? format(systemEstimatedDate, "yyyy-MM-dd") : null,
         requested_dispatch_date: requestedDispatchDate ? format(requestedDispatchDate, "yyyy-MM-dd") : null,
+        // Timestamp normalization — record fresh UTC submission time
+        created_at: new Date().toISOString(),
       };
 
       if (paymentMethod !== "credit") {
