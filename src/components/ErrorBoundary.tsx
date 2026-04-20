@@ -25,25 +25,53 @@ class ErrorBoundary extends Component<Props, State> {
   }
 
   static getDerivedStateFromError(error: Error): Partial<State> {
+    // Ignore browser-extension noise (AdBlock, password managers, etc.)
+    const msg = `${error?.message ?? ""} ${error?.stack ?? ""}`;
+    if (/chrome-extension:\/\/|moz-extension:\/\/|safari-extension:\/\//i.test(msg)) {
+      return {};
+    }
+    // Network / fetch / websocket failures → degrade to Static Mode (cached data),
+    // do NOT blank the screen.
+    if (/Failed to fetch|NetworkError|WebSocket.+(closed|failed)|ERR_NETWORK|Load failed/i.test(msg)) {
+      return { networkStabilizing: true };
+    }
     return { hasError: true, error };
   }
 
   componentDidMount() {
+    const isExtensionNoise = (text: string) =>
+      /chrome-extension:\/\/|moz-extension:\/\/|safari-extension:\/\//i.test(text);
+
     const onWindowError = (event: ErrorEvent) => {
+      const text = `${event.message ?? ""} ${event.filename ?? ""} ${event.error?.stack ?? ""}`;
+      if (isExtensionNoise(text)) {
+        event.preventDefault?.();
+        return;
+      }
       this.trackNetworkFailure(event.message || event.error?.message);
     };
 
     const onUnhandledRejection = (event: PromiseRejectionEvent) => {
-      const reason = event.reason instanceof Error ? event.reason.message : String(event.reason ?? "");
+      const reason = event.reason instanceof Error
+        ? `${event.reason.message} ${event.reason.stack ?? ""}`
+        : String(event.reason ?? "");
+      if (isExtensionNoise(reason)) {
+        event.preventDefault?.();
+        return;
+      }
       this.trackNetworkFailure(reason);
     };
 
     console.error = (...args) => {
+      const text = args.map((a) => this.stringifyEntry(a)).join(" ");
+      if (isExtensionNoise(text)) return; // swallow extension errors silently
       this.trackNetworkFailure(args);
       this.originalConsoleError(...args);
     };
 
     console.warn = (...args) => {
+      const text = args.map((a) => this.stringifyEntry(a)).join(" ");
+      if (isExtensionNoise(text)) return;
       this.trackNetworkFailure(args);
       this.originalConsoleWarn(...args);
     };
@@ -106,10 +134,16 @@ class ErrorBoundary extends Component<Props, State> {
       return (
         <div className="min-h-screen flex items-center justify-center bg-background p-8">
           <div className="w-full max-w-xl rounded-2xl border border-border bg-card p-8 text-center shadow-lg">
-            <h2 className="text-xl font-bold text-foreground">Network Stabilizing...</h2>
+            <h2 className="text-xl font-bold text-foreground">Static Mode Active</h2>
             <p className="mt-3 text-sm text-muted-foreground">
-              Live connection retries were paused after repeated failures. Standard fetching remains active.
+              Network unstable — showing cached catalogue & pricing. Live updates will resume automatically.
             </p>
+            <button
+              onClick={() => this.setState({ networkStabilizing: false, hasError: false, error: null })}
+              className="mt-6 rounded-lg bg-primary px-6 py-2 text-sm font-bold text-primary-foreground transition-opacity hover:opacity-90"
+            >
+              Retry Live Connection
+            </button>
           </div>
         </div>
       );
