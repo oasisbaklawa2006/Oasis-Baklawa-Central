@@ -384,6 +384,11 @@ const Cart = () => {
     // Simulate payment processing delay
     await new Promise((resolve) => setTimeout(resolve, 2000));
     try {
+      // Force JWT re-sync so latest RLS policies are evaluated against a fresh token
+      try { await supabase.auth.refreshSession(); } catch (refreshErr) {
+        console.warn("[Cart] Session refresh skipped:", refreshErr);
+      }
+
       const updatePayload: any = {
         status: "submitted",
         sales_order_value: grandTotal,
@@ -399,16 +404,26 @@ const Cart = () => {
         updatePayload.advance_required = deposit;
       }
 
-      const { data: updatedOrders, error: updateError } = await supabase
+      // Submit with one automatic retry on RLS lag
+      const submitOnce = () => supabase
         .from("orders")
         .update(updatePayload)
         .eq("id", draftOrder.id)
         .eq("status", "draft")
         .select("id");
 
+      let { data: updatedOrders, error: updateError } = await submitOnce();
+
+      if (updateError && /row-level security|violates row-level/i.test(updateError.message ?? "")) {
+        console.warn("[Cart] RLS lag detected — retrying after 1s...");
+        await new Promise((r) => setTimeout(r, 1000));
+        try { await supabase.auth.refreshSession(); } catch {}
+        ({ data: updatedOrders, error: updateError } = await submitOnce());
+      }
+
       if (updateError) throw updateError;
       if (!updatedOrders || updatedOrders.length === 0) {
-        throw new Error("Failed to submit order to database: no draft order was updated.");
+        throw new Error("This order was already submitted or is no longer a draft. Please refresh and try again.");
       }
 
       clearCart();
