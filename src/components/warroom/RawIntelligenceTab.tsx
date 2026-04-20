@@ -425,7 +425,9 @@ export default function RawIntelligenceTab() {
                   <><Package size={12} /> Create Draft SO</>
                 )}
               </button>
-            </div>
+                </div>
+              );
+            })()}
           </div>
         );
       })}
