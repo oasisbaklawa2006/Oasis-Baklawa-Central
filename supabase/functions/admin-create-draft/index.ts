@@ -84,11 +84,31 @@ serve(async (req) => {
       candidate_company_name,   // new: scanned business name from message
       webhook_id,
       webhook_ids,
+      wamid,                    // WhatsApp message ID for idempotency
       activate_company,
       company_update,
       send_whatsapp_to,
       whatsapp_message,
     } = body;
+
+    // --- WAMID IDEMPOTENCY: short-circuit if order already exists for this message ---
+    if (wamid) {
+      const { data: existingByWamid } = await supabaseAdmin
+        .from("orders")
+        .select("id, company_id, status, total_weight_kg, parser_confidence, needs_clarification, is_duplicate")
+        .eq("wamid", wamid)
+        .limit(1)
+        .maybeSingle();
+      if (existingByWamid?.id) {
+        console.log(`[admin-create-draft] WAMID ${wamid} already processed → returning existing order ${existingByWamid.id}`);
+        return new Response(JSON.stringify({
+          ok: true,
+          deduped: "wamid",
+          order_id: existingByWamid.id,
+          ...existingByWamid,
+        }), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      }
+    }
 
     let resolvedCompanyId: string | null = company_id ?? null;
 
