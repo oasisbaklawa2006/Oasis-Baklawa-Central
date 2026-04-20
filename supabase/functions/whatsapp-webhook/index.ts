@@ -411,11 +411,38 @@ serve(async (req) => {
     const last10 = normalizePhone(senderPhone);
     const phone91 = to91(senderPhone);
 
+    // ── WAMID IDEMPOTENCY GUARD: discard duplicate WhatsApp messages early ──
+    if (messageId) {
+      const { data: existingWamid } = await supabaseAdmin
+        .from("debug_webhooks")
+        .select("id")
+        .eq("wamid", messageId)
+        .limit(1)
+        .maybeSingle();
+      if (existingWamid?.id) {
+        console.log(`[WAMID_DEDUP] Discarding duplicate wamid=${messageId}`);
+        // Log the duplicate attempt (do not silently drop)
+        await supabaseAdmin.from("debug_webhooks").insert({
+          direction: "inbound",
+          raw_payload: payload,
+          phone_number: phone91 || senderPhone || null,
+          wamid: messageId,
+          processed: true,
+          discard_reason: "duplicate_wamid",
+          error_message: `Duplicate WhatsApp message ID — original webhook ${existingWamid.id}`,
+        });
+        return new Response(JSON.stringify({ ok: true, discarded: "duplicate_wamid" }), {
+          status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+    }
+
     // Always log raw payload
     const { data: webhookRow } = await supabaseAdmin.from("debug_webhooks").insert({
       direction: "inbound",
       raw_payload: payload,
       phone_number: phone91 || senderPhone || null,
+      wamid: messageId || null,
       error_message: null,
       processed: false,
     }).select("id").maybeSingle();
