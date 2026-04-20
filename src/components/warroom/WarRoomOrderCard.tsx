@@ -55,19 +55,23 @@ interface Order {
   items?: OrderItem[];
   total_weight_kg?: number | null;
   needs_clarification?: boolean | null;
+  is_duplicate?: boolean | null;
+  duplicate_of_order_id?: string | null;
 }
 
 interface Props {
   order: Order;
   isMinimized: boolean;
   onToggleMinimize: () => void;
+  onValidateAsUnique?: () => void;
 }
 
-export default function WarRoomOrderCard({ order, isMinimized, onToggleMinimize }: Props) {
+export default function WarRoomOrderCard({ order, isMinimized, onToggleMinimize, onValidateAsUnique }: Props) {
   const activeStep = getActiveStep(order.status);
   const isPanic = order.dispatch_urgency === "panic";
   const isComplaint = order.has_complaint;
   const isAmbiguous = !!order.needs_clarification;
+  const isDuplicate = !!order.is_duplicate || order.status === "potential_duplicate";
   const timeAgo = relativeTimeIST(order.created_at);
 
   const tierColor = useMemo(() => {
