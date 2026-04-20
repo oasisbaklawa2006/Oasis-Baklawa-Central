@@ -25,6 +25,16 @@ class ErrorBoundary extends Component<Props, State> {
   }
 
   static getDerivedStateFromError(error: Error): Partial<State> {
+    // Ignore browser-extension noise (AdBlock, password managers, etc.)
+    const msg = `${error?.message ?? ""} ${error?.stack ?? ""}`;
+    if (/chrome-extension:\/\/|moz-extension:\/\/|safari-extension:\/\//i.test(msg)) {
+      return {};
+    }
+    // Network / fetch / websocket failures → degrade to Static Mode (cached data),
+    // do NOT blank the screen.
+    if (/Failed to fetch|NetworkError|WebSocket.+(closed|failed)|ERR_NETWORK|Load failed/i.test(msg)) {
+      return { networkStabilizing: true };
+    }
     return { hasError: true, error };
   }
 
