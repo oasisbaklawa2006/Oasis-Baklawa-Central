@@ -34,6 +34,7 @@ const CMDWarRoom = () => {
   const [shadowCompanies, setShadowCompanies] = useState<ShadowCompany[]>([]);
   const [hidden, setHidden] = useState<Set<string>>(new Set());
   const [showHidden, setShowHidden] = useState(false);
+  const [todayOnly, setTodayOnly] = useState(true);
 
   const fetchShadowCompanies = useCallback(async () => {
     const { data } = await supabase
@@ -131,14 +132,19 @@ const CMDWarRoom = () => {
   }, [fetchOrders, fetchShadowCompanies]);
 
   const sortedOrders = useMemo(() => {
-    return [...orders].sort((a, b) => {
+    const startOfToday = new Date();
+    startOfToday.setHours(0, 0, 0, 0);
+    const filtered = todayOnly
+      ? orders.filter((o) => o.created_at && new Date(o.created_at) >= startOfToday)
+      : orders;
+    return [...filtered].sort((a, b) => {
       if (a.has_complaint && !b.has_complaint) return -1;
       if (!a.has_complaint && b.has_complaint) return 1;
       if (a.dispatch_urgency === "panic" && b.dispatch_urgency !== "panic") return -1;
       if (a.dispatch_urgency !== "panic" && b.dispatch_urgency === "panic") return 1;
       return new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime();
     });
-  }, [orders]);
+  }, [orders, todayOnly]);
 
   const visibleOrders = sortedOrders.filter((o) => showHidden || !hidden.has(o.id));
 
@@ -157,6 +163,16 @@ const CMDWarRoom = () => {
           ⚔️ CMD War Room — Live Order Battlefield v3
         </h1>
         <div className="flex items-center gap-2">
+          <button
+            onClick={() => setTodayOnly(!todayOnly)}
+            className={`flex items-center gap-1.5 text-xs font-medium transition-colors px-3 py-1.5 rounded-md border ${
+              todayOnly
+                ? "bg-primary text-primary-foreground border-primary"
+                : "text-muted-foreground hover:text-foreground border-border"
+            }`}
+          >
+            {todayOnly ? "Today Only" : "All Active"}
+          </button>
           <button
             onClick={() => { fetchOrders(); fetchShadowCompanies(); }}
             className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors px-3 py-1.5 rounded-md border border-border"
