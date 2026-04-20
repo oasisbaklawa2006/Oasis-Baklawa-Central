@@ -25,12 +25,36 @@ export default function RawIntelligenceTab() {
   const [aliases, setAliases] = useState<AliasMatch[]>([]);
   const [creatingDraft, setCreatingDraft] = useState<string | null>(null);
   const [markingWaste, setMarkingWaste] = useState<string | null>(null);
+  const [merging, setMerging] = useState<string | null>(null);
+  // sender phone (10-digit) → recent shadow/unknown order id available for merge
+  const [orphanByPhone, setOrphanByPhone] = useState<Record<string, { orderId: string; createdAt: string }>>({});
 
   const fetchAliases = useCallback(async () => {
     const { data } = await supabase
       .from("product_aliases")
       .select("alias_text, canonical_name");
     setAliases((data as AliasMatch[]) ?? []);
+  }, []);
+
+  const fetchOrphans = useCallback(async () => {
+    const tenMinAgo = new Date(Date.now() - 10 * 60 * 1000).toISOString();
+    const { data } = await supabase
+      .from("orders")
+      .select("id, created_at, company_id, companies(business_name, phone, status)")
+      .gte("created_at", tenMinAgo)
+      .order("created_at", { ascending: false })
+      .limit(40);
+    const map: Record<string, { orderId: string; createdAt: string }> = {};
+    (data ?? []).forEach((o: any) => {
+      const phone = (o.companies?.phone || "").replace(/\D/g, "").slice(-10);
+      if (!phone) return;
+      const isShadow = !o.companies || o.companies.status === "shadow" || /unknown/i.test(o.companies.business_name || "");
+      if (!isShadow) return;
+      if (!map[phone] || map[phone].createdAt < o.created_at) {
+        map[phone] = { orderId: o.id, createdAt: o.created_at };
+      }
+    });
+    setOrphanByPhone(map);
   }, []);
 
   const fetchRaw = useCallback(async () => {
@@ -59,14 +83,67 @@ export default function RawIntelligenceTab() {
   useEffect(() => {
     fetchRaw();
     fetchAliases();
+    fetchOrphans();
     const channelName = "warroom-raw-intel";
     removeDuplicateRealtimeChannel(channelName);
     const ch = supabase
       .channel(channelName)
-      .on("postgres_changes", { event: "INSERT", schema: "public", table: "debug_webhooks" }, () => fetchRaw())
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "debug_webhooks" }, () => {
+        // Immediate refresh, then a 1s follow-up to catch the storage upload patching `_oasis_attachment_url`.
+        fetchRaw();
+        setTimeout(() => fetchRaw(), 1000);
+        fetchOrphans();
+      })
+      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "debug_webhooks" }, () => fetchRaw())
       .subscribe();
     return () => { supabase.removeChannel(ch); };
-  }, [fetchRaw, fetchAliases]);
+  }, [fetchRaw, fetchAliases, fetchOrphans]);
+
+  const handleMergeIntoOrphan = async (msg: RawMessage, orphanOrderId: string, candidateName: string) => {
+    setMerging(msg.id);
+    try {
+      const trimmed = candidateName.trim();
+      const { data: existing } = await supabase
+        .from("companies")
+        .select("id")
+        .ilike("business_name", trimmed)
+        .maybeSingle();
+
+      let companyId = (existing as any)?.id as string | undefined;
+      if (!companyId) {
+        const { data: created, error: insErr } = await supabase
+          .from("companies")
+          .insert({ business_name: trimmed, status: "active" } as any)
+          .select("id")
+          .single();
+        if (insErr || !created) {
+          toast.error("Could not create company for merge");
+          setMerging(null);
+          return;
+        }
+        companyId = (created as any).id;
+      }
+
+      const { error: updErr } = await supabase
+        .from("orders")
+        .update({ company_id: companyId } as any)
+        .eq("id", orphanOrderId);
+      if (updErr) {
+        toast.error("Failed to merge into prior order");
+      } else {
+        await supabase
+          .from("debug_webhooks")
+          .update({ processed: true, error_message: `Merged into order ${orphanOrderId.slice(0, 8)}` } as any)
+          .eq("id", msg.id);
+        toast.success(`Merged "${trimmed}" into order #${orphanOrderId.slice(0, 8).toUpperCase()}`);
+        fetchRaw();
+        fetchOrphans();
+      }
+    } catch {
+      toast.error("Merge failed");
+    }
+    setMerging(null);
+  };
 
   const extractText = (payload: any): string => {
     if (!payload) return "";
@@ -309,8 +386,23 @@ export default function RawIntelligenceTab() {
               </p>
             )}
 
-            {/* Actions: Create Draft SO + Mark as Waste */}
-            <div className="flex items-center justify-end gap-2 pt-1">
+            {/* Actions: Merge (if orphan exists for this sender) + Create Draft SO + Mark as Waste */}
+            {(() => {
+              const phoneKey = (sender.phone || "").replace(/\D/g, "").slice(-10);
+              const orphan = phoneKey ? orphanByPhone[phoneKey] : null;
+              const canMerge = !!orphan && !!parsed.candidateCompanyName && parsed.matchedSKUs.length === 0;
+              return (
+                <div className="flex items-center justify-end gap-2 pt-1 flex-wrap">
+                  {canMerge && (
+                    <button
+                      onClick={() => handleMergeIntoOrphan(msg, orphan!.orderId, parsed.candidateCompanyName!)}
+                      disabled={merging === msg.id}
+                      className="flex items-center gap-1.5 text-xs font-medium text-amber-700 hover:text-amber-800 transition-colors px-3 py-1.5 rounded-md border border-amber-500/30 hover:bg-amber-500/10 disabled:opacity-50"
+                      title={`Attach "${parsed.candidateCompanyName}" to recent unknown order #${orphan!.orderId.slice(0, 8).toUpperCase()}`}
+                    >
+                      {merging === msg.id ? <>Merging…</> : <>🔗 Merge into #{orphan!.orderId.slice(0, 8).toUpperCase()}</>}
+                    </button>
+                  )}
               <button
                 onClick={() => handleMarkWaste(msg)}
                 disabled={markingWaste === msg.id}
@@ -333,7 +425,9 @@ export default function RawIntelligenceTab() {
                   <><Package size={12} /> Create Draft SO</>
                 )}
               </button>
-            </div>
+                </div>
+              );
+            })()}
           </div>
         );
       })}

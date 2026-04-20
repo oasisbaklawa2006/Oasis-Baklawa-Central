@@ -45,25 +45,31 @@ export interface SKUMatch {
 }
 
 const QTY_UNIT_RE = /(\d+(?:\.\d+)?)\s*(kgs?|kilograms?|gms?|grams?|gm|pcs?|pieces?|boxes?|box|cartons?|ctns?|units?)\b/i;
+// Metadata patterns to BLACKLIST — wa_id / user_id / phone / wamid digits must never become quantities.
+const METADATA_NUMBER_RE = /(?:wa[_\s-]?id|user[_\s-]?id|wamid|phone|mobile|order[_\s-]?id|ref|#)\s*[:=]?\s*\d+/i;
 
-/** Scan a text window around an alias hit for a quantity + unit. */
+/**
+ * Strict quantity extraction:
+ * 1. Search a 60-char window around the alias for a number ADJACENT to a unit (kg/gm/box/pcs/etc).
+ * 2. Reject any candidate that sits inside a metadata phrase like "wa_id: 4558718".
+ * 3. NEVER fall back to a bare number — silence > guessing.
+ */
 function extractQtyForAlias(fullText: string, aliasHit: string): { quantity: number | null; unit: string | null } {
   if (!aliasHit) return { quantity: null, unit: null };
   const lower = fullText.toLowerCase();
   const aliasLower = aliasHit.toLowerCase();
   const idx = lower.indexOf(aliasLower);
   if (idx < 0) return { quantity: null, unit: null };
-  // Search a 60-char window around the match (covers same line "Pista Tart 5kg" or "5 kg Pista Tart").
   const start = Math.max(0, idx - 30);
   const end = Math.min(fullText.length, idx + aliasHit.length + 40);
   const window = fullText.slice(start, end);
+  // Reject window if it is dominated by metadata
+  if (METADATA_NUMBER_RE.test(window)) return { quantity: null, unit: null };
   const m = window.match(QTY_UNIT_RE);
   if (m) {
     return { quantity: parseFloat(m[1]), unit: m[2].toLowerCase() };
   }
-  // Fallback: bare number near the alias (e.g. "Pista Tart 5") — assume kg later via catalogue.
-  const bare = window.match(/(\d+(?:\.\d+)?)/);
-  if (bare) return { quantity: parseFloat(bare[1]), unit: null };
+  // Strict mode: no unit → no quantity. Prevents 'Asabi 4558718' from becoming "× 4558718".
   return { quantity: null, unit: null };
 }
 
@@ -120,24 +126,39 @@ export function parseBanyanMessage(
   senderPhone: string | null,
 ): ParsedIntent {
   const lower = (text || "").toLowerCase();
-  const matches = new Map<string, { confidence: number; aliasHit: string }>();
+  // Multi-SKU aggregation: collect EVERY occurrence of EVERY alias across the entire message body.
+  type Hit = { canonical: string; aliasHit: string; index: number; confidence: number };
+  const hits: Hit[] = [];
 
-  const record = (canonical: string, score: number, aliasHit: string) => {
-    const prev = matches.get(canonical);
-    if (!prev || score > prev.confidence) matches.set(canonical, { confidence: score, aliasHit });
+  const findAll = (haystack: string, needle: string): number[] => {
+    const out: number[] = [];
+    if (!needle) return out;
+    let from = 0;
+    while (true) {
+      const i = haystack.indexOf(needle, from);
+      if (i < 0) break;
+      out.push(i);
+      from = i + needle.length;
+    }
+    return out;
   };
 
-  // 1. Exact substring hits → 1.0
+  // 1. Exact alias scans (DB + shorthand) — every occurrence becomes a hit
   for (const alias of dbAliases) {
     const a = (alias.alias_text || "").toLowerCase();
-    if (a && lower.includes(a)) record(alias.canonical_name, 1.0, alias.alias_text);
+    if (!a) continue;
+    for (const idx of findAll(lower, a)) {
+      hits.push({ canonical: alias.canonical_name, aliasHit: alias.alias_text, index: idx, confidence: 1.0 });
+    }
   }
   for (const [key, canonical] of Object.entries(SHORTHAND_MAP)) {
-    if (lower.includes(key)) record(canonical, 1.0, key);
+    for (const idx of findAll(lower, key)) {
+      hits.push({ canonical, aliasHit: key, index: idx, confidence: 1.0 });
+    }
   }
 
-  // 2. Fuzzy hits on word tokens — only if no exact hit covers them
-  if (matches.size === 0) {
+  // 2. Fuzzy fallback ONLY if zero exact hits
+  if (hits.length === 0) {
     const tokens = lower.split(/[^a-z]+/i).filter((t) => t.length >= 4);
     const candidates = [
       ...dbAliases.map((a) => ({ key: a.alias_text, canonical: a.canonical_name })),
@@ -149,18 +170,26 @@ export function parseBanyanMessage(
         const s = diceCoefficient(tok, c.key);
         if (s >= 0.5 && (!best || s > best.score)) best = { canonical: c.canonical, score: s, aliasHit: tok };
       }
-      // Cap fuzzy confidence at 0.84 to force clarification gate
-      if (best) record(best.canonical, Math.min(0.84, best.score), best.aliasHit);
+      if (best) hits.push({ canonical: best.canonical, aliasHit: best.aliasHit, index: lower.indexOf(best.aliasHit), confidence: Math.min(0.84, best.score) });
     }
   }
 
-  // Build matchedSKUs with per-line quantity extraction for each match.
-  const matchedSKUs: SKUMatch[] = Array.from(matches.entries())
-    .map(([name, info]) => {
-      const { quantity, unit } = extractQtyForAlias(text || "", info.aliasHit);
-      return { name, confidence: info.confidence, quantity, unit };
-    })
-    .sort((a, b) => b.confidence - a.confidence);
+  // De-dupe per (canonical + ~line band) so multi-line orders keep separate items but a single canonical isn't doubled.
+  const matchedSKUs: SKUMatch[] = [];
+  const seen = new Set<string>();
+  const sortedHits = hits.sort((a, b) => b.aliasHit.length - a.aliasHit.length);
+  for (const h of sortedHits) {
+    const lineKey = `${h.canonical}@${Math.floor(h.index / 40)}`;
+    if (seen.has(lineKey)) continue;
+    seen.add(lineKey);
+    const { quantity, unit } = extractQtyForAlias(text || "", h.aliasHit);
+    matchedSKUs.push({ name: h.canonical, confidence: h.confidence, quantity, unit });
+  }
+  matchedSKUs.sort((a, b) => {
+    const ai = lower.indexOf(a.name.toLowerCase()) >>> 0;
+    const bi = lower.indexOf(b.name.toLowerCase()) >>> 0;
+    return ai - bi;
+  });
 
   const detectedSKUs = matchedSKUs.map((m) => m.name);
   const overallConfidence = matchedSKUs.length === 0 ? 1 : Math.min(...matchedSKUs.map((m) => m.confidence));
