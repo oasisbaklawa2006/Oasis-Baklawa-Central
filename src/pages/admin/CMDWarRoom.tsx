@@ -34,6 +34,7 @@ const CMDWarRoom = () => {
   const [shadowCompanies, setShadowCompanies] = useState<ShadowCompany[]>([]);
   const [hidden, setHidden] = useState<Set<string>>(new Set());
   const [showHidden, setShowHidden] = useState(false);
+  const [todayOnly, setTodayOnly] = useState(true);
 
   const fetchShadowCompanies = useCallback(async () => {
     const { data } = await supabase
