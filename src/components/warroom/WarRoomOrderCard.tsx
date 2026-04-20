@@ -85,7 +85,8 @@ export default function WarRoomOrderCard({ order, isMinimized, onToggleMinimize,
   return (
     <div
       className={`rounded-xl border p-4 transition-all
-        ${isComplaint ? "bg-red-500/5 border-red-500/40"
+        ${isDuplicate ? "bg-red-500/5 border-red-600 ring-2 ring-red-500/60 shadow-[0_0_14px_rgba(220,38,38,0.35)]"
+          : isComplaint ? "bg-red-500/5 border-red-500/40"
           : isAmbiguous ? "bg-orange-500/5 border-orange-500/50 ring-1 ring-orange-400/40"
           : isPanic ? "border-violet-500/60 shadow-[0_0_12px_rgba(139,92,246,0.25)]"
           : "bg-card border-border"}
@@ -111,7 +112,12 @@ export default function WarRoomOrderCard({ order, isMinimized, onToggleMinimize,
           {isComplaint && (
             <span className="text-[10px] font-bold text-red-500 bg-red-500/10 px-2 py-0.5 rounded-full">🚨 COMPLAINT</span>
           )}
-          {isAmbiguous && (
+          {isDuplicate && (
+            <span className="flex items-center gap-1 text-[10px] font-bold text-white bg-red-600 px-2 py-0.5 rounded-full animate-pulse">
+              <AlertTriangle size={10} /> POTENTIAL DUPLICATE
+            </span>
+          )}
+          {isAmbiguous && !isDuplicate && (
             <span className="text-[10px] font-bold text-orange-600 bg-orange-500/10 border border-orange-400/40 px-2 py-0.5 rounded-full">
               ⚠ AWAITING CLARIFICATION
             </span>
