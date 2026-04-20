@@ -132,14 +132,19 @@ const CMDWarRoom = () => {
   }, [fetchOrders, fetchShadowCompanies]);
 
   const sortedOrders = useMemo(() => {
-    return [...orders].sort((a, b) => {
+    const startOfToday = new Date();
+    startOfToday.setHours(0, 0, 0, 0);
+    const filtered = todayOnly
+      ? orders.filter((o) => o.created_at && new Date(o.created_at) >= startOfToday)
+      : orders;
+    return [...filtered].sort((a, b) => {
       if (a.has_complaint && !b.has_complaint) return -1;
       if (!a.has_complaint && b.has_complaint) return 1;
       if (a.dispatch_urgency === "panic" && b.dispatch_urgency !== "panic") return -1;
       if (a.dispatch_urgency !== "panic" && b.dispatch_urgency === "panic") return 1;
       return new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime();
     });
-  }, [orders]);
+  }, [orders, todayOnly]);
 
   const visibleOrders = sortedOrders.filter((o) => showHidden || !hidden.has(o.id));
 
