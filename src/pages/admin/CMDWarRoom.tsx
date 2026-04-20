@@ -17,6 +17,9 @@ interface Order {
   company_name?: string;
   has_complaint?: boolean;
   items?: { quantity: number; product_name?: string }[];
+  total_weight_kg?: number | null;
+  needs_clarification?: boolean | null;
+  is_waste?: boolean | null;
 }
 
 interface ShadowCompany {
@@ -48,8 +51,9 @@ const CMDWarRoom = () => {
   const fetchOrders = useCallback(async () => {
     const { data } = await supabase
       .from("orders")
-      .select("id, status, created_at, sales_order_value, dispatch_urgency, company_id")
+      .select("id, status, created_at, sales_order_value, dispatch_urgency, company_id, total_weight_kg, needs_clarification, is_waste")
       .not("status", "in", '("closed","cancelled")')
+      .eq("is_waste", false)
       .order("created_at", { ascending: false })
       .limit(200);
 

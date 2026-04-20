@@ -40,8 +40,19 @@ export default function RawIntelligenceTab() {
       .select("id, phone_number, raw_payload, created_at, error_message, processed")
       .eq("direction", "inbound")
       .order("created_at", { ascending: false })
-      .limit(50);
-    setMessages((data as RawMessage[]) ?? []);
+      .limit(80);
+
+    // Hard metadata filter — hide wamid-only acks, OAuthExceptions, and empty payloads.
+    const filtered = ((data as RawMessage[]) ?? []).filter((m) => {
+      const str = JSON.stringify(m.raw_payload || "");
+      const hasMessage = !!m.raw_payload?.entry?.[0]?.changes?.[0]?.value?.messages?.[0];
+      if (!hasMessage) return false;                          // status pings, no actual content
+      if (str.includes("OAuthException")) return false;       // auth errors
+      if (str.includes("statuses") && !str.includes('"text"') && !str.includes('"image"')) return false;
+      return true;
+    });
+
+    setMessages(filtered);
     setLoading(false);
   }, []);
 
@@ -125,21 +136,22 @@ export default function RawIntelligenceTab() {
       const parsed = parseMessage(text, sender.phone);
       const phone = sender.phone.replace(/\D/g, "");
 
-      // Active enforcement: missing qty or phone
       if (parsed.missingQty) {
         toast.info("The quantity was not detected. Please specify the required amount in Kg or Boxes to proceed.");
       }
       if (parsed.missingPhone) {
         toast.info("The Customer Mobile number is required to generate the Portal Link. Please provide it to proceed.");
       }
+      if (parsed.needsClarification) {
+        toast.warning("Low confidence SKU match — order will be flagged ORANGE for clarification.");
+      }
 
-      // Use edge function with service role to bypass RLS
       const { data, error } = await supabase.functions.invoke("admin-create-draft", {
         body: {
           phone,
-          sku_names: parsed.detectedSKUs,
+          sku_items: parsed.matchedSKUs.map((m) => ({ name: m.name, confidence: m.confidence })),
+          candidate_company_name: parsed.candidateCompanyName,
           webhook_id: msg.id,
-          invoice_refs: parsed.invoiceRefs,
         },
       });
 
@@ -149,7 +161,11 @@ export default function RawIntelligenceTab() {
         return;
       }
 
-      toast.success(`Draft SO created! Order #${data.order_id.slice(0, 8).toUpperCase()}`);
+      if (data.needs_clarification) {
+        toast.warning(`Order #${data.order_id.slice(0, 8).toUpperCase()} created — AWAITING CLARIFICATION`);
+      } else {
+        toast.success(`Draft SO created! Order #${data.order_id.slice(0, 8).toUpperCase()}`);
+      }
       fetchRaw();
     } catch (err) {
       toast.error("Error creating draft SO");
