@@ -53,6 +53,8 @@ interface Order {
   company_name?: string;
   has_complaint?: boolean;
   items?: OrderItem[];
+  total_weight_kg?: number | null;
+  needs_clarification?: boolean | null;
 }
 
 interface Props {
@@ -65,6 +67,7 @@ export default function WarRoomOrderCard({ order, isMinimized, onToggleMinimize 
   const activeStep = getActiveStep(order.status);
   const isPanic = order.dispatch_urgency === "panic";
   const isComplaint = order.has_complaint;
+  const isAmbiguous = !!order.needs_clarification;
   const timeAgo = relativeTimeIST(order.created_at);
 
   const tierColor = useMemo(() => {
@@ -78,7 +81,10 @@ export default function WarRoomOrderCard({ order, isMinimized, onToggleMinimize 
   return (
     <div
       className={`rounded-xl border p-4 transition-all
-        ${isComplaint ? "bg-red-500/5 border-red-500/40" : isPanic ? "border-violet-500/60 shadow-[0_0_12px_rgba(139,92,246,0.25)]" : "bg-card border-border"}
+        ${isComplaint ? "bg-red-500/5 border-red-500/40"
+          : isAmbiguous ? "bg-orange-500/5 border-orange-500/50 ring-1 ring-orange-400/40"
+          : isPanic ? "border-violet-500/60 shadow-[0_0_12px_rgba(139,92,246,0.25)]"
+          : "bg-card border-border"}
         ${isPanic ? "animate-pulse" : ""}
       `}
       style={isPanic ? { animationDuration: "2s" } : undefined}
@@ -101,9 +107,20 @@ export default function WarRoomOrderCard({ order, isMinimized, onToggleMinimize 
           {isComplaint && (
             <span className="text-[10px] font-bold text-red-500 bg-red-500/10 px-2 py-0.5 rounded-full">🚨 COMPLAINT</span>
           )}
+          {isAmbiguous && (
+            <span className="text-[10px] font-bold text-orange-600 bg-orange-500/10 border border-orange-400/40 px-2 py-0.5 rounded-full">
+              ⚠ AWAITING CLARIFICATION
+            </span>
+          )}
         </div>
         <div className="flex items-center gap-3 flex-shrink-0">
-          <span className="text-sm font-semibold text-foreground">₹{(order.sales_order_value ?? 0).toLocaleString("en-IN")}</span>
+          {order.total_weight_kg && order.total_weight_kg > 0 ? (
+            <span className="text-sm font-bold text-foreground">
+              {order.total_weight_kg.toLocaleString("en-IN", { maximumFractionDigits: 2 })} kg
+            </span>
+          ) : (
+            <span className="text-sm font-semibold text-foreground">₹{(order.sales_order_value ?? 0).toLocaleString("en-IN")}</span>
+          )}
           <button onClick={onToggleMinimize} className="text-muted-foreground hover:text-foreground transition-colors">
             {isMinimized ? <ChevronDown size={16} /> : <ChevronUp size={16} />}
           </button>
