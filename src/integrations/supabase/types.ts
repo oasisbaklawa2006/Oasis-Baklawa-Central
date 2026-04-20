@@ -1567,6 +1567,7 @@ export type Database = {
           production_status: string | null
           quantity: number
           task_type: string | null
+          weight_kg: number | null
         }
         Insert: {
           actual_packed_qty?: number | null
@@ -1580,6 +1581,7 @@ export type Database = {
           production_status?: string | null
           quantity?: number
           task_type?: string | null
+          weight_kg?: number | null
         }
         Update: {
           actual_packed_qty?: number | null
@@ -1593,6 +1595,7 @@ export type Database = {
           production_status?: string | null
           quantity?: number
           task_type?: string | null
+          weight_kg?: number | null
         }
         Relationships: [
           {
@@ -1798,6 +1801,9 @@ export type Database = {
           id: string
           is_export: boolean | null
           is_starter_pack: boolean
+          is_waste: boolean
+          needs_clarification: boolean
+          parser_confidence: number | null
           payment_cleared: boolean | null
           payment_receipt_url: string | null
           payment_status: string | null
@@ -1807,6 +1813,7 @@ export type Database = {
           sales_order_value: number | null
           status: string
           system_estimated_date: string | null
+          total_weight_kg: number | null
           tracking_number: string | null
           tracking_token: string | null
         }
@@ -1831,6 +1838,9 @@ export type Database = {
           id?: string
           is_export?: boolean | null
           is_starter_pack?: boolean
+          is_waste?: boolean
+          needs_clarification?: boolean
+          parser_confidence?: number | null
           payment_cleared?: boolean | null
           payment_receipt_url?: string | null
           payment_status?: string | null
@@ -1840,6 +1850,7 @@ export type Database = {
           sales_order_value?: number | null
           status?: string
           system_estimated_date?: string | null
+          total_weight_kg?: number | null
           tracking_number?: string | null
           tracking_token?: string | null
         }
@@ -1864,6 +1875,9 @@ export type Database = {
           id?: string
           is_export?: boolean | null
           is_starter_pack?: boolean
+          is_waste?: boolean
+          needs_clarification?: boolean
+          parser_confidence?: number | null
           payment_cleared?: boolean | null
           payment_receipt_url?: string | null
           payment_status?: string | null
@@ -1873,6 +1887,7 @@ export type Database = {
           sales_order_value?: number | null
           status?: string
           system_estimated_date?: string | null
+          total_weight_kg?: number | null
           tracking_number?: string | null
           tracking_token?: string | null
         }
@@ -2524,6 +2539,7 @@ export type Database = {
           description: string | null
           dietary_tags: string[] | null
           festival_tags: string | null
+          grams_per_piece: number | null
           gross_weight_grams: number | null
           gst_percentage: number | null
           gst_rate: number | null
@@ -2563,6 +2579,7 @@ export type Database = {
           sub_category: string | null
           uom: string | null
           visible_in_catalog: boolean
+          weight_per_box_kg: number | null
           weight_per_pc_grams: number | null
           wholesale_price: number | null
         }
@@ -2581,6 +2598,7 @@ export type Database = {
           description?: string | null
           dietary_tags?: string[] | null
           festival_tags?: string | null
+          grams_per_piece?: number | null
           gross_weight_grams?: number | null
           gst_percentage?: number | null
           gst_rate?: number | null
@@ -2620,6 +2638,7 @@ export type Database = {
           sub_category?: string | null
           uom?: string | null
           visible_in_catalog?: boolean
+          weight_per_box_kg?: number | null
           weight_per_pc_grams?: number | null
           wholesale_price?: number | null
         }
@@ -2638,6 +2657,7 @@ export type Database = {
           description?: string | null
           dietary_tags?: string[] | null
           festival_tags?: string | null
+          grams_per_piece?: number | null
           gross_weight_grams?: number | null
           gst_percentage?: number | null
           gst_rate?: number | null
@@ -2677,6 +2697,7 @@ export type Database = {
           sub_category?: string | null
           uom?: string | null
           visible_in_catalog?: boolean
+          weight_per_box_kg?: number | null
           weight_per_pc_grams?: number | null
           wholesale_price?: number | null
         }
@@ -3450,6 +3471,7 @@ export type Database = {
           phone: string | null
           preferred_language: string | null
           role: string
+          secondary_phones: string[] | null
         }
         Insert: {
           commission_rate_percentage?: number | null
@@ -3470,6 +3492,7 @@ export type Database = {
           phone?: string | null
           preferred_language?: string | null
           role: string
+          secondary_phones?: string[] | null
         }
         Update: {
           commission_rate_percentage?: number | null
@@ -3490,6 +3513,7 @@ export type Database = {
           phone?: string | null
           preferred_language?: string | null
           role?: string
+          secondary_phones?: string[] | null
         }
         Relationships: [
           {
