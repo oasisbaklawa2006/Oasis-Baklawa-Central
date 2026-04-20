@@ -386,8 +386,23 @@ export default function RawIntelligenceTab() {
               </p>
             )}
 
-            {/* Actions: Create Draft SO + Mark as Waste */}
-            <div className="flex items-center justify-end gap-2 pt-1">
+            {/* Actions: Merge (if orphan exists for this sender) + Create Draft SO + Mark as Waste */}
+            {(() => {
+              const phoneKey = (sender.phone || "").replace(/\D/g, "").slice(-10);
+              const orphan = phoneKey ? orphanByPhone[phoneKey] : null;
+              const canMerge = !!orphan && !!parsed.candidateCompanyName && parsed.matchedSKUs.length === 0;
+              return (
+                <div className="flex items-center justify-end gap-2 pt-1 flex-wrap">
+                  {canMerge && (
+                    <button
+                      onClick={() => handleMergeIntoOrphan(msg, orphan!.orderId, parsed.candidateCompanyName!)}
+                      disabled={merging === msg.id}
+                      className="flex items-center gap-1.5 text-xs font-medium text-amber-700 hover:text-amber-800 transition-colors px-3 py-1.5 rounded-md border border-amber-500/30 hover:bg-amber-500/10 disabled:opacity-50"
+                      title={`Attach "${parsed.candidateCompanyName}" to recent unknown order #${orphan!.orderId.slice(0, 8).toUpperCase()}`}
+                    >
+                      {merging === msg.id ? <>Merging…</> : <>🔗 Merge into #{orphan!.orderId.slice(0, 8).toUpperCase()}</>}
+                    </button>
+                  )}
               <button
                 onClick={() => handleMarkWaste(msg)}
                 disabled={markingWaste === msg.id}
