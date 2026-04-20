@@ -162,6 +162,18 @@ const CMDWarRoom = () => {
     });
   };
 
+  const validateAsUnique = useCallback(async (orderId: string) => {
+    const { error } = await supabase
+      .from("orders")
+      .update({ is_duplicate: false, duplicate_of_order_id: null, status: "draft" })
+      .eq("id", orderId);
+    if (error) {
+      console.error("[War Room] validateAsUnique failed:", error);
+      return;
+    }
+    fetchOrders();
+  }, [fetchOrders]);
+
   return (
     <div className="p-4 space-y-4 min-h-screen bg-background">
       <div className="flex items-center justify-between">
