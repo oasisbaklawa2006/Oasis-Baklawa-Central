@@ -710,29 +710,35 @@ export type Database = {
         Row: {
           created_at: string
           direction: string
+          discard_reason: string | null
           error_message: string | null
           id: string
           phone_number: string | null
           processed: boolean | null
           raw_payload: Json
+          wamid: string | null
         }
         Insert: {
           created_at?: string
           direction?: string
+          discard_reason?: string | null
           error_message?: string | null
           id?: string
           phone_number?: string | null
           processed?: boolean | null
           raw_payload?: Json
+          wamid?: string | null
         }
         Update: {
           created_at?: string
           direction?: string
+          discard_reason?: string | null
           error_message?: string | null
           id?: string
           phone_number?: string | null
           processed?: boolean | null
           raw_payload?: Json
+          wamid?: string | null
         }
         Relationships: []
       }
@@ -1793,12 +1799,14 @@ export type Database = {
           created_at: string | null
           dispatch_urgency: string | null
           document_stage: string | null
+          duplicate_of_order_id: string | null
           estimated_despatch_date: string | null
           eway_bill_number: string | null
           eway_bill_url: string | null
           final_invoice_url: string | null
           gate_pass_number: string | null
           id: string
+          is_duplicate: boolean
           is_export: boolean | null
           is_starter_pack: boolean
           is_waste: boolean
@@ -1816,6 +1824,7 @@ export type Database = {
           total_weight_kg: number | null
           tracking_number: string | null
           tracking_token: string | null
+          wamid: string | null
         }
         Insert: {
           actual_despatch_date?: string | null
@@ -1830,12 +1839,14 @@ export type Database = {
           created_at?: string | null
           dispatch_urgency?: string | null
           document_stage?: string | null
+          duplicate_of_order_id?: string | null
           estimated_despatch_date?: string | null
           eway_bill_number?: string | null
           eway_bill_url?: string | null
           final_invoice_url?: string | null
           gate_pass_number?: string | null
           id?: string
+          is_duplicate?: boolean
           is_export?: boolean | null
           is_starter_pack?: boolean
           is_waste?: boolean
@@ -1853,6 +1864,7 @@ export type Database = {
           total_weight_kg?: number | null
           tracking_number?: string | null
           tracking_token?: string | null
+          wamid?: string | null
         }
         Update: {
           actual_despatch_date?: string | null
@@ -1867,12 +1879,14 @@ export type Database = {
           created_at?: string | null
           dispatch_urgency?: string | null
           document_stage?: string | null
+          duplicate_of_order_id?: string | null
           estimated_despatch_date?: string | null
           eway_bill_number?: string | null
           eway_bill_url?: string | null
           final_invoice_url?: string | null
           gate_pass_number?: string | null
           id?: string
+          is_duplicate?: boolean
           is_export?: boolean | null
           is_starter_pack?: boolean
           is_waste?: boolean
@@ -1890,6 +1904,7 @@ export type Database = {
           total_weight_kg?: number | null
           tracking_number?: string | null
           tracking_token?: string | null
+          wamid?: string | null
         }
         Relationships: [
           {
@@ -1897,6 +1912,13 @@ export type Database = {
             columns: ["company_id"]
             isOneToOne: false
             referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "orders_duplicate_of_order_id_fkey"
+            columns: ["duplicate_of_order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
             referencedColumns: ["id"]
           },
         ]
