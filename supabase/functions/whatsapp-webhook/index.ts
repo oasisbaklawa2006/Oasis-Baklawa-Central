@@ -23,6 +23,20 @@ function to91(raw: string): string {
   return digits;
 }
 
+// Lightweight company-name extraction (mirror of frontend banyan-parser).
+function extractCompanyNameFromText(text: string): string | null {
+  if (!text) return null;
+  const patterns = [
+    /(?:from|for|m\/s\.?|client|company)\s*[:\-]?\s*([A-Z][A-Za-z0-9 &.\-]{2,40})/i,
+    /([A-Z][A-Za-z]+(?:\s+[A-Z][A-Za-z]+){0,3})\s+(?:traders|enterprises|sweets|foods|catering|hotel|restaurant|stores|paharganj|bakery)/i,
+  ];
+  for (const re of patterns) {
+    const m = text.match(re);
+    if (m?.[1]) return m[1].trim();
+  }
+  return null;
+}
+
 // ── SENDER CLASSIFICATION ──
 async function classifySender(
   phone10: string,
