@@ -227,6 +227,7 @@ const CMDWarRoom = () => {
                 order={order}
                 isMinimized={hidden.has(order.id)}
                 onToggleMinimize={() => toggleHide(order.id)}
+                onValidateAsUnique={() => validateAsUnique(order.id)}
               />
             ))}
           </div>
