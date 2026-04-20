@@ -45,25 +45,31 @@ export interface SKUMatch {
 }
 
 const QTY_UNIT_RE = /(\d+(?:\.\d+)?)\s*(kgs?|kilograms?|gms?|grams?|gm|pcs?|pieces?|boxes?|box|cartons?|ctns?|units?)\b/i;
+// Metadata patterns to BLACKLIST — wa_id / user_id / phone / wamid digits must never become quantities.
+const METADATA_NUMBER_RE = /(?:wa[_\s-]?id|user[_\s-]?id|wamid|phone|mobile|order[_\s-]?id|ref|#)\s*[:=]?\s*\d+/i;
 
-/** Scan a text window around an alias hit for a quantity + unit. */
+/**
+ * Strict quantity extraction:
+ * 1. Search a 60-char window around the alias for a number ADJACENT to a unit (kg/gm/box/pcs/etc).
+ * 2. Reject any candidate that sits inside a metadata phrase like "wa_id: 4558718".
+ * 3. NEVER fall back to a bare number — silence > guessing.
+ */
 function extractQtyForAlias(fullText: string, aliasHit: string): { quantity: number | null; unit: string | null } {
   if (!aliasHit) return { quantity: null, unit: null };
   const lower = fullText.toLowerCase();
   const aliasLower = aliasHit.toLowerCase();
   const idx = lower.indexOf(aliasLower);
   if (idx < 0) return { quantity: null, unit: null };
-  // Search a 60-char window around the match (covers same line "Pista Tart 5kg" or "5 kg Pista Tart").
   const start = Math.max(0, idx - 30);
   const end = Math.min(fullText.length, idx + aliasHit.length + 40);
   const window = fullText.slice(start, end);
+  // Reject window if it is dominated by metadata
+  if (METADATA_NUMBER_RE.test(window)) return { quantity: null, unit: null };
   const m = window.match(QTY_UNIT_RE);
   if (m) {
     return { quantity: parseFloat(m[1]), unit: m[2].toLowerCase() };
   }
-  // Fallback: bare number near the alias (e.g. "Pista Tart 5") — assume kg later via catalogue.
-  const bare = window.match(/(\d+(?:\.\d+)?)/);
-  if (bare) return { quantity: parseFloat(bare[1]), unit: null };
+  // Strict mode: no unit → no quantity. Prevents 'Asabi 4558718' from becoming "× 4558718".
   return { quantity: null, unit: null };
 }
 
