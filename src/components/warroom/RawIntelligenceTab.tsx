@@ -63,7 +63,12 @@ export default function RawIntelligenceTab() {
     removeDuplicateRealtimeChannel(channelName);
     const ch = supabase
       .channel(channelName)
-      .on("postgres_changes", { event: "INSERT", schema: "public", table: "debug_webhooks" }, () => fetchRaw())
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "debug_webhooks" }, () => {
+        // Immediate refresh, then a 1s follow-up to catch the storage upload patching `_oasis_attachment_url`.
+        fetchRaw();
+        setTimeout(() => fetchRaw(), 1000);
+      })
+      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "debug_webhooks" }, () => fetchRaw())
       .subscribe();
     return () => { supabase.removeChannel(ch); };
   }, [fetchRaw, fetchAliases]);
