@@ -126,24 +126,39 @@ export function parseBanyanMessage(
   senderPhone: string | null,
 ): ParsedIntent {
   const lower = (text || "").toLowerCase();
-  const matches = new Map<string, { confidence: number; aliasHit: string }>();
+  // Multi-SKU aggregation: collect EVERY occurrence of EVERY alias across the entire message body.
+  type Hit = { canonical: string; aliasHit: string; index: number; confidence: number };
+  const hits: Hit[] = [];
 
-  const record = (canonical: string, score: number, aliasHit: string) => {
-    const prev = matches.get(canonical);
-    if (!prev || score > prev.confidence) matches.set(canonical, { confidence: score, aliasHit });
+  const findAll = (haystack: string, needle: string): number[] => {
+    const out: number[] = [];
+    if (!needle) return out;
+    let from = 0;
+    while (true) {
+      const i = haystack.indexOf(needle, from);
+      if (i < 0) break;
+      out.push(i);
+      from = i + needle.length;
+    }
+    return out;
   };
 
-  // 1. Exact substring hits → 1.0
+  // 1. Exact alias scans (DB + shorthand) — every occurrence becomes a hit
   for (const alias of dbAliases) {
     const a = (alias.alias_text || "").toLowerCase();
-    if (a && lower.includes(a)) record(alias.canonical_name, 1.0, alias.alias_text);
+    if (!a) continue;
+    for (const idx of findAll(lower, a)) {
+      hits.push({ canonical: alias.canonical_name, aliasHit: alias.alias_text, index: idx, confidence: 1.0 });
+    }
   }
   for (const [key, canonical] of Object.entries(SHORTHAND_MAP)) {
-    if (lower.includes(key)) record(canonical, 1.0, key);
+    for (const idx of findAll(lower, key)) {
+      hits.push({ canonical, aliasHit: key, index: idx, confidence: 1.0 });
+    }
   }
 
-  // 2. Fuzzy hits on word tokens — only if no exact hit covers them
-  if (matches.size === 0) {
+  // 2. Fuzzy fallback ONLY if zero exact hits
+  if (hits.length === 0) {
     const tokens = lower.split(/[^a-z]+/i).filter((t) => t.length >= 4);
     const candidates = [
       ...dbAliases.map((a) => ({ key: a.alias_text, canonical: a.canonical_name })),
@@ -155,18 +170,26 @@ export function parseBanyanMessage(
         const s = diceCoefficient(tok, c.key);
         if (s >= 0.5 && (!best || s > best.score)) best = { canonical: c.canonical, score: s, aliasHit: tok };
       }
-      // Cap fuzzy confidence at 0.84 to force clarification gate
-      if (best) record(best.canonical, Math.min(0.84, best.score), best.aliasHit);
+      if (best) hits.push({ canonical: best.canonical, aliasHit: best.aliasHit, index: lower.indexOf(best.aliasHit), confidence: Math.min(0.84, best.score) });
     }
   }
 
-  // Build matchedSKUs with per-line quantity extraction for each match.
-  const matchedSKUs: SKUMatch[] = Array.from(matches.entries())
-    .map(([name, info]) => {
-      const { quantity, unit } = extractQtyForAlias(text || "", info.aliasHit);
-      return { name, confidence: info.confidence, quantity, unit };
-    })
-    .sort((a, b) => b.confidence - a.confidence);
+  // De-dupe per (canonical + ~line band) so multi-line orders keep separate items but a single canonical isn't doubled.
+  const matchedSKUs: SKUMatch[] = [];
+  const seen = new Set<string>();
+  const sortedHits = hits.sort((a, b) => b.aliasHit.length - a.aliasHit.length);
+  for (const h of sortedHits) {
+    const lineKey = `${h.canonical}@${Math.floor(h.index / 40)}`;
+    if (seen.has(lineKey)) continue;
+    seen.add(lineKey);
+    const { quantity, unit } = extractQtyForAlias(text || "", h.aliasHit);
+    matchedSKUs.push({ name: h.canonical, confidence: h.confidence, quantity, unit });
+  }
+  matchedSKUs.sort((a, b) => {
+    const ai = lower.indexOf(a.name.toLowerCase()) >>> 0;
+    const bi = lower.indexOf(b.name.toLowerCase()) >>> 0;
+    return ai - bi;
+  });
 
   const detectedSKUs = matchedSKUs.map((m) => m.name);
   const overallConfidence = matchedSKUs.length === 0 ? 1 : Math.min(...matchedSKUs.map((m) => m.confidence));
