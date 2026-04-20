@@ -139,6 +139,29 @@ export default function WarRoomOrderCard({ order, isMinimized, onToggleMinimize,
 
       {!isMinimized && (
         <>
+          {/* Duplicate banner + Validate as Unique override */}
+          {isDuplicate && (
+            <div className="mb-2 flex items-center justify-between gap-2 rounded-lg border border-red-500/40 bg-red-500/10 px-3 py-2">
+              <div className="text-[11px] text-red-700 dark:text-red-300">
+                Same SKU + Qty + Client detected within 4 hours
+                {order.duplicate_of_order_id && (
+                  <span className="ml-1 font-mono opacity-70">
+                    (orig #{order.duplicate_of_order_id.slice(0, 8).toUpperCase()})
+                  </span>
+                )}
+                . No SO generated.
+              </div>
+              {onValidateAsUnique && (
+                <button
+                  onClick={onValidateAsUnique}
+                  className="text-[10px] font-bold uppercase tracking-wide bg-red-600 text-white px-2.5 py-1 rounded-md hover:bg-red-700 transition-colors whitespace-nowrap"
+                >
+                  Validate as Unique
+                </button>
+              )}
+            </div>
+          )}
+
           {/* Order items preview */}
           {order.items && order.items.length > 0 && (
             <div className="mb-2 flex flex-wrap gap-1">
