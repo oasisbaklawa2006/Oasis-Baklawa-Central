@@ -134,10 +134,16 @@ class ErrorBoundary extends Component<Props, State> {
       return (
         <div className="min-h-screen flex items-center justify-center bg-background p-8">
           <div className="w-full max-w-xl rounded-2xl border border-border bg-card p-8 text-center shadow-lg">
-            <h2 className="text-xl font-bold text-foreground">Network Stabilizing...</h2>
+            <h2 className="text-xl font-bold text-foreground">Static Mode Active</h2>
             <p className="mt-3 text-sm text-muted-foreground">
-              Live connection retries were paused after repeated failures. Standard fetching remains active.
+              Network unstable — showing cached catalogue & pricing. Live updates will resume automatically.
             </p>
+            <button
+              onClick={() => this.setState({ networkStabilizing: false, hasError: false, error: null })}
+              className="mt-6 rounded-lg bg-primary px-6 py-2 text-sm font-bold text-primary-foreground transition-opacity hover:opacity-90"
+            >
+              Retry Live Connection
+            </button>
           </div>
         </div>
       );
