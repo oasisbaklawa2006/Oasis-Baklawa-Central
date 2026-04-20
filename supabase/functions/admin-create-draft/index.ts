@@ -359,6 +359,8 @@ serve(async (req) => {
       total_weight_kg: orderTotalKg,
       parser_confidence: minConfidence,
       needs_clarification: needsClarification,
+      is_duplicate: isDuplicate,
+      duplicate_of_order_id: duplicateOfOrderId,
       status: orderStatus,
     }), {
       status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
