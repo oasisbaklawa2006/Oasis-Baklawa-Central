@@ -16,7 +16,7 @@ interface Order {
   company_id: string | null;
   company_name?: string;
   has_complaint?: boolean;
-  items?: { quantity: number; product_name?: string }[];
+  items?: { quantity: number; product_name?: string; weight_kg?: number | null }[];
   total_weight_kg?: number | null;
   needs_clarification?: boolean | null;
   is_waste?: boolean | null;
