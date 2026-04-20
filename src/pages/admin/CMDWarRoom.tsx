@@ -164,6 +164,16 @@ const CMDWarRoom = () => {
         </h1>
         <div className="flex items-center gap-2">
           <button
+            onClick={() => setTodayOnly(!todayOnly)}
+            className={`flex items-center gap-1.5 text-xs font-medium transition-colors px-3 py-1.5 rounded-md border ${
+              todayOnly
+                ? "bg-primary text-primary-foreground border-primary"
+                : "text-muted-foreground hover:text-foreground border-border"
+            }`}
+          >
+            {todayOnly ? "Today Only" : "All Active"}
+          </button>
+          <button
             onClick={() => { fetchOrders(); fetchShadowCompanies(); }}
             className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors px-3 py-1.5 rounded-md border border-border"
           >
