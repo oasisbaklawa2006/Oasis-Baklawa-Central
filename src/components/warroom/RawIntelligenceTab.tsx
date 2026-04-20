@@ -83,6 +83,7 @@ export default function RawIntelligenceTab() {
   useEffect(() => {
     fetchRaw();
     fetchAliases();
+    fetchOrphans();
     const channelName = "warroom-raw-intel";
     removeDuplicateRealtimeChannel(channelName);
     const ch = supabase
@@ -91,11 +92,58 @@ export default function RawIntelligenceTab() {
         // Immediate refresh, then a 1s follow-up to catch the storage upload patching `_oasis_attachment_url`.
         fetchRaw();
         setTimeout(() => fetchRaw(), 1000);
+        fetchOrphans();
       })
       .on("postgres_changes", { event: "UPDATE", schema: "public", table: "debug_webhooks" }, () => fetchRaw())
       .subscribe();
     return () => { supabase.removeChannel(ch); };
-  }, [fetchRaw, fetchAliases]);
+  }, [fetchRaw, fetchAliases, fetchOrphans]);
+
+  const handleMergeIntoOrphan = async (msg: RawMessage, orphanOrderId: string, candidateName: string) => {
+    setMerging(msg.id);
+    try {
+      const trimmed = candidateName.trim();
+      const { data: existing } = await supabase
+        .from("companies")
+        .select("id")
+        .ilike("business_name", trimmed)
+        .maybeSingle();
+
+      let companyId = (existing as any)?.id as string | undefined;
+      if (!companyId) {
+        const { data: created, error: insErr } = await supabase
+          .from("companies")
+          .insert({ business_name: trimmed, status: "active" } as any)
+          .select("id")
+          .single();
+        if (insErr || !created) {
+          toast.error("Could not create company for merge");
+          setMerging(null);
+          return;
+        }
+        companyId = (created as any).id;
+      }
+
+      const { error: updErr } = await supabase
+        .from("orders")
+        .update({ company_id: companyId } as any)
+        .eq("id", orphanOrderId);
+      if (updErr) {
+        toast.error("Failed to merge into prior order");
+      } else {
+        await supabase
+          .from("debug_webhooks")
+          .update({ processed: true, error_message: `Merged into order ${orphanOrderId.slice(0, 8)}` } as any)
+          .eq("id", msg.id);
+        toast.success(`Merged "${trimmed}" into order #${orphanOrderId.slice(0, 8).toUpperCase()}`);
+        fetchRaw();
+        fetchOrphans();
+      }
+    } catch {
+      toast.error("Merge failed");
+    }
+    setMerging(null);
+  };
 
   const extractText = (payload: any): string => {
     if (!payload) return "";
