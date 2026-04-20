@@ -41,6 +41,7 @@ function getActiveStep(status: string) {
 interface OrderItem {
   quantity: number;
   product_name?: string;
+  weight_kg?: number | null;
 }
 
 interface Order {
