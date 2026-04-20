@@ -84,11 +84,31 @@ serve(async (req) => {
       candidate_company_name,   // new: scanned business name from message
       webhook_id,
       webhook_ids,
+      wamid,                    // WhatsApp message ID for idempotency
       activate_company,
       company_update,
       send_whatsapp_to,
       whatsapp_message,
     } = body;
+
+    // --- WAMID IDEMPOTENCY: short-circuit if order already exists for this message ---
+    if (wamid) {
+      const { data: existingByWamid } = await supabaseAdmin
+        .from("orders")
+        .select("id, company_id, status, total_weight_kg, parser_confidence, needs_clarification, is_duplicate")
+        .eq("wamid", wamid)
+        .limit(1)
+        .maybeSingle();
+      if (existingByWamid?.id) {
+        console.log(`[admin-create-draft] WAMID ${wamid} already processed → returning existing order ${existingByWamid.id}`);
+        return new Response(JSON.stringify({
+          ok: true,
+          deduped: "wamid",
+          order_id: existingByWamid.id,
+          ...existingByWamid,
+        }), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      }
+    }
 
     let resolvedCompanyId: string | null = company_id ?? null;
 
@@ -222,8 +242,47 @@ serve(async (req) => {
       }
     }
 
-    // --- STEP 4: Insert order with confidence + clarification flag ---
-    const orderStatus = needsClarification ? "awaiting_clarification" : "draft";
+    // --- STEP 3b: 4-HOUR DUPLICATE CONTENT GUARD ---
+    // Same company + same SKU set + same quantities within last 4 hours → flag as potential duplicate.
+    let isDuplicate = false;
+    let duplicateOfOrderId: string | null = null;
+    if (orderItemsPayload.length > 0 && resolvedCompanyId) {
+      const fourHoursAgo = new Date(Date.now() - 4 * 3600 * 1000).toISOString();
+      const { data: recentOrders } = await supabaseAdmin
+        .from("orders")
+        .select("id, total_weight_kg, order_items(product_id, quantity)")
+        .eq("company_id", resolvedCompanyId)
+        .gte("created_at", fourHoursAgo)
+        .neq("is_waste", true)
+        .limit(20);
+
+      const newSig = orderItemsPayload
+        .map((p: any) => `${p.product_id}:${Number(p.quantity)}`)
+        .sort()
+        .join("|");
+      const newKg = Math.round((orderTotalKg || 0) * 100) / 100;
+
+      for (const ro of recentOrders || []) {
+        const items = (ro as any).order_items || [];
+        if (items.length !== orderItemsPayload.length) continue;
+        const oldSig = items
+          .map((i: any) => `${i.product_id}:${Number(i.quantity)}`)
+          .sort()
+          .join("|");
+        const oldKg = Math.round(Number((ro as any).total_weight_kg || 0) * 100) / 100;
+        // Catalogue-first match: SKU+qty signature equal AND total_weight_kg equal (or both 0)
+        if (oldSig === newSig && (oldKg === newKg || (oldKg === 0 && newKg === 0))) {
+          isDuplicate = true;
+          duplicateOfOrderId = (ro as any).id;
+          break;
+        }
+      }
+    }
+
+    // --- STEP 4: Insert order with confidence + clarification + duplicate flags ---
+    const orderStatus = isDuplicate
+      ? "potential_duplicate"
+      : needsClarification ? "awaiting_clarification" : "draft";
     const { data: order, error: orderErr } = await supabaseAdmin
       .from("orders")
       .insert({
@@ -234,6 +293,9 @@ serve(async (req) => {
         total_weight_kg: orderTotalKg > 0 ? orderTotalKg : null,
         parser_confidence: minConfidence,
         needs_clarification: needsClarification,
+        is_duplicate: isDuplicate,
+        duplicate_of_order_id: duplicateOfOrderId,
+        wamid: wamid || null,
       })
       .select("id")
       .single();
@@ -297,6 +359,8 @@ serve(async (req) => {
       total_weight_kg: orderTotalKg,
       parser_confidence: minConfidence,
       needs_clarification: needsClarification,
+      is_duplicate: isDuplicate,
+      duplicate_of_order_id: duplicateOfOrderId,
       status: orderStatus,
     }), {
       status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },

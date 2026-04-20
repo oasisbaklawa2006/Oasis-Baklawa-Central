@@ -438,13 +438,13 @@ const Cart = () => {
       // Fire milestone notification (buyer + sales exec + admin)
       notifyOrderPlaced(draftOrder.id, draftOrder.id.slice(0, 8).toUpperCase(), grandTotal).catch(() => {});
       setShowPaymentModal(false);
+      // Keep button disabled through navigation — no early enabling
       setTimeout(() => navigate("/orders"), 1500);
     } catch (error: any) {
       console.error("[Cart] Order submission failed:", error);
       toast.error(error?.message || "Failed to submit order to database. Please try again.");
+      setIsSubmitting(false); // re-enable ONLY on failure
       return;
-    } finally {
-      setIsSubmitting(false);
     }
   };
 

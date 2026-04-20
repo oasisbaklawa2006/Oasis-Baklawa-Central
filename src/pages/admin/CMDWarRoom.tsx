@@ -20,6 +20,8 @@ interface Order {
   total_weight_kg?: number | null;
   needs_clarification?: boolean | null;
   is_waste?: boolean | null;
+  is_duplicate?: boolean | null;
+  duplicate_of_order_id?: string | null;
 }
 
 interface ShadowCompany {
@@ -51,7 +53,7 @@ const CMDWarRoom = () => {
   const fetchOrders = useCallback(async () => {
     const { data } = await supabase
       .from("orders")
-      .select("id, status, created_at, sales_order_value, dispatch_urgency, company_id, total_weight_kg, needs_clarification, is_waste")
+      .select("id, status, created_at, sales_order_value, dispatch_urgency, company_id, total_weight_kg, needs_clarification, is_waste, is_duplicate, duplicate_of_order_id")
       .not("status", "in", '("closed","cancelled")')
       .eq("is_waste", false)
       .order("created_at", { ascending: false })
@@ -160,6 +162,18 @@ const CMDWarRoom = () => {
     });
   };
 
+  const validateAsUnique = useCallback(async (orderId: string) => {
+    const { error } = await supabase
+      .from("orders")
+      .update({ is_duplicate: false, duplicate_of_order_id: null, status: "draft" })
+      .eq("id", orderId);
+    if (error) {
+      console.error("[War Room] validateAsUnique failed:", error);
+      return;
+    }
+    fetchOrders();
+  }, [fetchOrders]);
+
   return (
     <div className="p-4 space-y-4 min-h-screen bg-background">
       <div className="flex items-center justify-between">
@@ -213,6 +227,7 @@ const CMDWarRoom = () => {
                 order={order}
                 isMinimized={hidden.has(order.id)}
                 onToggleMinimize={() => toggleHide(order.id)}
+                onValidateAsUnique={() => validateAsUnique(order.id)}
               />
             ))}
           </div>

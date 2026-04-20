@@ -55,19 +55,23 @@ interface Order {
   items?: OrderItem[];
   total_weight_kg?: number | null;
   needs_clarification?: boolean | null;
+  is_duplicate?: boolean | null;
+  duplicate_of_order_id?: string | null;
 }
 
 interface Props {
   order: Order;
   isMinimized: boolean;
   onToggleMinimize: () => void;
+  onValidateAsUnique?: () => void;
 }
 
-export default function WarRoomOrderCard({ order, isMinimized, onToggleMinimize }: Props) {
+export default function WarRoomOrderCard({ order, isMinimized, onToggleMinimize, onValidateAsUnique }: Props) {
   const activeStep = getActiveStep(order.status);
   const isPanic = order.dispatch_urgency === "panic";
   const isComplaint = order.has_complaint;
   const isAmbiguous = !!order.needs_clarification;
+  const isDuplicate = !!order.is_duplicate || order.status === "potential_duplicate";
   const timeAgo = relativeTimeIST(order.created_at);
 
   const tierColor = useMemo(() => {
@@ -81,7 +85,8 @@ export default function WarRoomOrderCard({ order, isMinimized, onToggleMinimize 
   return (
     <div
       className={`rounded-xl border p-4 transition-all
-        ${isComplaint ? "bg-red-500/5 border-red-500/40"
+        ${isDuplicate ? "bg-red-500/5 border-red-600 ring-2 ring-red-500/60 shadow-[0_0_14px_rgba(220,38,38,0.35)]"
+          : isComplaint ? "bg-red-500/5 border-red-500/40"
           : isAmbiguous ? "bg-orange-500/5 border-orange-500/50 ring-1 ring-orange-400/40"
           : isPanic ? "border-violet-500/60 shadow-[0_0_12px_rgba(139,92,246,0.25)]"
           : "bg-card border-border"}
@@ -107,7 +112,12 @@ export default function WarRoomOrderCard({ order, isMinimized, onToggleMinimize 
           {isComplaint && (
             <span className="text-[10px] font-bold text-red-500 bg-red-500/10 px-2 py-0.5 rounded-full">🚨 COMPLAINT</span>
           )}
-          {isAmbiguous && (
+          {isDuplicate && (
+            <span className="flex items-center gap-1 text-[10px] font-bold text-white bg-red-600 px-2 py-0.5 rounded-full animate-pulse">
+              <AlertTriangle size={10} /> POTENTIAL DUPLICATE
+            </span>
+          )}
+          {isAmbiguous && !isDuplicate && (
             <span className="text-[10px] font-bold text-orange-600 bg-orange-500/10 border border-orange-400/40 px-2 py-0.5 rounded-full">
               ⚠ AWAITING CLARIFICATION
             </span>
@@ -129,6 +139,29 @@ export default function WarRoomOrderCard({ order, isMinimized, onToggleMinimize 
 
       {!isMinimized && (
         <>
+          {/* Duplicate banner + Validate as Unique override */}
+          {isDuplicate && (
+            <div className="mb-2 flex items-center justify-between gap-2 rounded-lg border border-red-500/40 bg-red-500/10 px-3 py-2">
+              <div className="text-[11px] text-red-700 dark:text-red-300">
+                Same SKU + Qty + Client detected within 4 hours
+                {order.duplicate_of_order_id && (
+                  <span className="ml-1 font-mono opacity-70">
+                    (orig #{order.duplicate_of_order_id.slice(0, 8).toUpperCase()})
+                  </span>
+                )}
+                . No SO generated.
+              </div>
+              {onValidateAsUnique && (
+                <button
+                  onClick={onValidateAsUnique}
+                  className="text-[10px] font-bold uppercase tracking-wide bg-red-600 text-white px-2.5 py-1 rounded-md hover:bg-red-700 transition-colors whitespace-nowrap"
+                >
+                  Validate as Unique
+                </button>
+              )}
+            </div>
+          )}
+
           {/* Order items preview */}
           {order.items && order.items.length > 0 && (
             <div className="mb-2 flex flex-wrap gap-1">
