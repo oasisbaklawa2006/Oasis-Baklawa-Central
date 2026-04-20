@@ -146,12 +146,21 @@ export default function RawIntelligenceTab() {
         toast.warning("Low confidence SKU match — order will be flagged ORANGE for clarification.");
       }
 
+      const wamid =
+        msg.raw_payload?.entry?.[0]?.changes?.[0]?.value?.messages?.[0]?.id || null;
+
       const { data, error } = await supabase.functions.invoke("admin-create-draft", {
         body: {
           phone,
-          sku_items: parsed.matchedSKUs.map((m) => ({ name: m.name, confidence: m.confidence })),
+          sku_items: parsed.matchedSKUs.map((m) => ({
+            name: m.name,
+            confidence: m.confidence,
+            quantity: m.quantity ?? undefined,
+            unit: m.unit ?? undefined,
+          })),
           candidate_company_name: parsed.candidateCompanyName,
           webhook_id: msg.id,
+          wamid,
         },
       });
 
