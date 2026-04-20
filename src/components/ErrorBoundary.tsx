@@ -39,21 +39,39 @@ class ErrorBoundary extends Component<Props, State> {
   }
 
   componentDidMount() {
+    const isExtensionNoise = (text: string) =>
+      /chrome-extension:\/\/|moz-extension:\/\/|safari-extension:\/\//i.test(text);
+
     const onWindowError = (event: ErrorEvent) => {
+      const text = `${event.message ?? ""} ${event.filename ?? ""} ${event.error?.stack ?? ""}`;
+      if (isExtensionNoise(text)) {
+        event.preventDefault?.();
+        return;
+      }
       this.trackNetworkFailure(event.message || event.error?.message);
     };
 
     const onUnhandledRejection = (event: PromiseRejectionEvent) => {
-      const reason = event.reason instanceof Error ? event.reason.message : String(event.reason ?? "");
+      const reason = event.reason instanceof Error
+        ? `${event.reason.message} ${event.reason.stack ?? ""}`
+        : String(event.reason ?? "");
+      if (isExtensionNoise(reason)) {
+        event.preventDefault?.();
+        return;
+      }
       this.trackNetworkFailure(reason);
     };
 
     console.error = (...args) => {
+      const text = args.map((a) => this.stringifyEntry(a)).join(" ");
+      if (isExtensionNoise(text)) return; // swallow extension errors silently
       this.trackNetworkFailure(args);
       this.originalConsoleError(...args);
     };
 
     console.warn = (...args) => {
+      const text = args.map((a) => this.stringifyEntry(a)).join(" ");
+      if (isExtensionNoise(text)) return;
       this.trackNetworkFailure(args);
       this.originalConsoleWarn(...args);
     };
