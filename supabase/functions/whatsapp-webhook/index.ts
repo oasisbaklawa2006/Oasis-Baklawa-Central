@@ -736,6 +736,19 @@ serve(async (req) => {
           if (!uploadErr) {
             const { data: urlData } = supabaseAdmin.storage.from("whatsapp_attachments").getPublicUrl(filePath);
             attachmentUrl = urlData?.publicUrl || filePath;
+            // Patch the debug_webhooks row so the War Room Raw Intel tab can render the image preview.
+            if ((webhookRow as any)?.id && attachmentUrl) {
+              try {
+                await supabaseAdmin
+                  .from("debug_webhooks")
+                  .update({
+                    raw_payload: { ...(payload as any), _oasis_attachment_url: attachmentUrl },
+                  } as any)
+                  .eq("id", (webhookRow as any).id);
+              } catch (patchErr) {
+                console.error("debug_webhooks attachment patch failed:", patchErr);
+              }
+            }
           }
 
           // If it's a document (PDF), attempt to parse for repeat order
