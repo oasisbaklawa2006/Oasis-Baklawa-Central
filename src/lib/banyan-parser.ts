@@ -40,6 +40,31 @@ const INVOICE_PATTERN = /(?:voucher\s*no|invoice\s*no|inv\s*no|tcf)\s*[:/]?\s*[\
 export interface SKUMatch {
   name: string;
   confidence: number; // 0–1
+  quantity?: number | null;
+  unit?: string | null;
+}
+
+const QTY_UNIT_RE = /(\d+(?:\.\d+)?)\s*(kgs?|kilograms?|gms?|grams?|gm|pcs?|pieces?|boxes?|box|cartons?|ctns?|units?)\b/i;
+
+/** Scan a text window around an alias hit for a quantity + unit. */
+function extractQtyForAlias(fullText: string, aliasHit: string): { quantity: number | null; unit: string | null } {
+  if (!aliasHit) return { quantity: null, unit: null };
+  const lower = fullText.toLowerCase();
+  const aliasLower = aliasHit.toLowerCase();
+  const idx = lower.indexOf(aliasLower);
+  if (idx < 0) return { quantity: null, unit: null };
+  // Search a 60-char window around the match (covers same line "Pista Tart 5kg" or "5 kg Pista Tart").
+  const start = Math.max(0, idx - 30);
+  const end = Math.min(fullText.length, idx + aliasHit.length + 40);
+  const window = fullText.slice(start, end);
+  const m = window.match(QTY_UNIT_RE);
+  if (m) {
+    return { quantity: parseFloat(m[1]), unit: m[2].toLowerCase() };
+  }
+  // Fallback: bare number near the alias (e.g. "Pista Tart 5") — assume kg later via catalogue.
+  const bare = window.match(/(\d+(?:\.\d+)?)/);
+  if (bare) return { quantity: parseFloat(bare[1]), unit: null };
+  return { quantity: null, unit: null };
 }
 
 export interface ParsedIntent {
@@ -95,20 +120,20 @@ export function parseBanyanMessage(
   senderPhone: string | null,
 ): ParsedIntent {
   const lower = (text || "").toLowerCase();
-  const matches = new Map<string, number>(); // canonical → max confidence
+  const matches = new Map<string, { confidence: number; aliasHit: string }>();
 
-  const record = (canonical: string, score: number) => {
-    const prev = matches.get(canonical) ?? 0;
-    if (score > prev) matches.set(canonical, score);
+  const record = (canonical: string, score: number, aliasHit: string) => {
+    const prev = matches.get(canonical);
+    if (!prev || score > prev.confidence) matches.set(canonical, { confidence: score, aliasHit });
   };
 
   // 1. Exact substring hits → 1.0
   for (const alias of dbAliases) {
     const a = (alias.alias_text || "").toLowerCase();
-    if (a && lower.includes(a)) record(alias.canonical_name, 1.0);
+    if (a && lower.includes(a)) record(alias.canonical_name, 1.0, alias.alias_text);
   }
   for (const [key, canonical] of Object.entries(SHORTHAND_MAP)) {
-    if (lower.includes(key)) record(canonical, 1.0);
+    if (lower.includes(key)) record(canonical, 1.0, key);
   }
 
   // 2. Fuzzy hits on word tokens — only if no exact hit covers them
@@ -119,18 +144,22 @@ export function parseBanyanMessage(
       ...Object.entries(SHORTHAND_MAP).map(([key, canonical]) => ({ key, canonical })),
     ];
     for (const tok of tokens) {
-      let best: { canonical: string; score: number } | null = null;
+      let best: { canonical: string; score: number; aliasHit: string } | null = null;
       for (const c of candidates) {
         const s = diceCoefficient(tok, c.key);
-        if (s >= 0.5 && (!best || s > best.score)) best = { canonical: c.canonical, score: s };
+        if (s >= 0.5 && (!best || s > best.score)) best = { canonical: c.canonical, score: s, aliasHit: tok };
       }
       // Cap fuzzy confidence at 0.84 to force clarification gate
-      if (best) record(best.canonical, Math.min(0.84, best.score));
+      if (best) record(best.canonical, Math.min(0.84, best.score), best.aliasHit);
     }
   }
 
+  // Build matchedSKUs with per-line quantity extraction for each match.
   const matchedSKUs: SKUMatch[] = Array.from(matches.entries())
-    .map(([name, confidence]) => ({ name, confidence }))
+    .map(([name, info]) => {
+      const { quantity, unit } = extractQtyForAlias(text || "", info.aliasHit);
+      return { name, confidence: info.confidence, quantity, unit };
+    })
     .sort((a, b) => b.confidence - a.confidence);
 
   const detectedSKUs = matchedSKUs.map((m) => m.name);

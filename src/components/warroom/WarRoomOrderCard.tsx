@@ -41,6 +41,7 @@ function getActiveStep(status: string) {
 interface OrderItem {
   quantity: number;
   product_name?: string;
+  weight_kg?: number | null;
 }
 
 interface Order {
@@ -162,17 +163,15 @@ export default function WarRoomOrderCard({ order, isMinimized, onToggleMinimize,
             </div>
           )}
 
-          {/* Order items preview */}
+          {/* Order items preview — FULL list, no truncation */}
           {order.items && order.items.length > 0 && (
             <div className="mb-2 flex flex-wrap gap-1">
-              {order.items.slice(0, 5).map((item, i) => (
+              {order.items.map((item, i) => (
                 <span key={i} className="text-[10px] bg-muted px-2 py-0.5 rounded-full text-muted-foreground">
                   {item.product_name || "SKU"} × {item.quantity}
+                  {item.weight_kg ? ` · ${Number(item.weight_kg).toLocaleString("en-IN", { maximumFractionDigits: 2 })}kg` : ""}
                 </span>
               ))}
-              {order.items.length > 5 && (
-                <span className="text-[10px] bg-muted px-2 py-0.5 rounded-full text-muted-foreground">+{order.items.length - 5} more</span>
-              )}
             </div>
           )}
 

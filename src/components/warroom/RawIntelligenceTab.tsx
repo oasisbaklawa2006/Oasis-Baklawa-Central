@@ -146,12 +146,21 @@ export default function RawIntelligenceTab() {
         toast.warning("Low confidence SKU match — order will be flagged ORANGE for clarification.");
       }
 
+      const wamid =
+        msg.raw_payload?.entry?.[0]?.changes?.[0]?.value?.messages?.[0]?.id || null;
+
       const { data, error } = await supabase.functions.invoke("admin-create-draft", {
         body: {
           phone,
-          sku_items: parsed.matchedSKUs.map((m) => ({ name: m.name, confidence: m.confidence })),
+          sku_items: parsed.matchedSKUs.map((m) => ({
+            name: m.name,
+            confidence: m.confidence,
+            quantity: m.quantity ?? undefined,
+            unit: m.unit ?? undefined,
+          })),
           candidate_company_name: parsed.candidateCompanyName,
           webhook_id: msg.id,
+          wamid,
         },
       });
 
@@ -230,7 +239,21 @@ export default function RawIntelligenceTab() {
             {/* Message Content */}
             <div className="bg-background rounded-md p-2.5 border border-border">
               {msgType === "image" && (
-                <p className="text-xs text-blue-400 mb-1 flex items-center gap-1"><ImageIcon size={12} /> Image Attachment</p>
+                <div className="mb-2">
+                  <p className="text-xs text-blue-400 mb-1 flex items-center gap-1"><ImageIcon size={12} /> Image Attachment</p>
+                  {msg.raw_payload?._oasis_attachment_url ? (
+                    <a href={msg.raw_payload._oasis_attachment_url} target="_blank" rel="noopener noreferrer">
+                      <img
+                        src={msg.raw_payload._oasis_attachment_url}
+                        alt="WhatsApp attachment"
+                        className="max-h-48 w-auto rounded border border-border object-cover hover:opacity-90 transition-opacity"
+                        loading="lazy"
+                      />
+                    </a>
+                  ) : (
+                    <p className="text-[10px] text-muted-foreground italic">Image stored — preview not yet available.</p>
+                  )}
+                </div>
               )}
               {msgType === "audio" && (
                 <p className="text-xs text-purple-400 mb-1 flex items-center gap-1"><Mic size={12} /> Audio Message</p>
@@ -243,13 +266,14 @@ export default function RawIntelligenceTab() {
               </p>
             </div>
 
-            {/* AI Detected SKUs */}
-            {parsed.detectedSKUs.length > 0 && (
+            {/* AI Detected SKUs (with per-line quantity) */}
+            {parsed.matchedSKUs.length > 0 && (
               <div className="flex flex-wrap items-center gap-1.5">
                 <span className="text-[10px] font-bold text-primary">AI Detected SKUs:</span>
-                {parsed.detectedSKUs.map((sku, i) => (
+                {parsed.matchedSKUs.map((sku, i) => (
                   <span key={i} className="text-[10px] bg-primary/10 text-primary px-2 py-0.5 rounded-full font-medium">
-                    {sku}
+                    {sku.name}
+                    {sku.quantity ? ` × ${sku.quantity}${sku.unit ? sku.unit : ""}` : ""}
                   </span>
                 ))}
               </div>

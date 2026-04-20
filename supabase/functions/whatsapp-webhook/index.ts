@@ -23,6 +23,20 @@ function to91(raw: string): string {
   return digits;
 }
 
+// Lightweight company-name extraction (mirror of frontend banyan-parser).
+function extractCompanyNameFromText(text: string): string | null {
+  if (!text) return null;
+  const patterns = [
+    /(?:from|for|m\/s\.?|client|company)\s*[:\-]?\s*([A-Z][A-Za-z0-9 &.\-]{2,40})/i,
+    /([A-Z][A-Za-z]+(?:\s+[A-Z][A-Za-z]+){0,3})\s+(?:traders|enterprises|sweets|foods|catering|hotel|restaurant|stores|paharganj|bakery)/i,
+  ];
+  for (const re of patterns) {
+    const m = text.match(re);
+    if (m?.[1]) return m[1].trim();
+  }
+  return null;
+}
+
 // ── SENDER CLASSIFICATION ──
 async function classifySender(
   phone10: string,
@@ -658,6 +672,59 @@ serve(async (req) => {
       }
     }
 
+    // Strategy 3.5 — CONTEXT STITCHING (120s window):
+    // If THIS message has a clear company name (e.g. "Bikaner Paharganj") AND we already have
+    // a shadow-client order from the SAME sender phone within the last 120 seconds, retarget
+    // that order's company_id to the matched real company instead of leaving it as Unknown.
+    try {
+      const candidateName = extractCompanyNameFromText(messageBody || "");
+      if (candidateName && last10) {
+        const { data: realCompany } = await supabaseAdmin
+          .from("companies")
+          .select("id, business_name, account_manager_id, status")
+          .ilike("business_name", `%${candidateName}%`)
+          .neq("status", "shadow")
+          .limit(1)
+          .maybeSingle();
+
+        if (realCompany?.id) {
+          const cutoff = new Date(Date.now() - 120 * 1000).toISOString();
+          // Find most recent order from a shadow company tied to this sender's last 10 digits.
+          const { data: shadowCompanies } = await supabaseAdmin
+            .from("companies")
+            .select("id")
+            .eq("status", "shadow")
+            .ilike("gst_number", `%${last10}%`)
+            .limit(5);
+          const shadowIds = (shadowCompanies || []).map((c: any) => c.id);
+          if (shadowIds.length > 0) {
+            const { data: recentShadowOrder } = await supabaseAdmin
+              .from("orders")
+              .select("id")
+              .in("company_id", shadowIds)
+              .gte("created_at", cutoff)
+              .order("created_at", { ascending: false })
+              .limit(1)
+              .maybeSingle();
+            if (recentShadowOrder?.id) {
+              await supabaseAdmin
+                .from("orders")
+                .update({ company_id: realCompany.id })
+                .eq("id", recentShadowOrder.id);
+              console.log(`[CONTEXT STITCH] Retargeted order ${recentShadowOrder.id} → ${realCompany.business_name} via "${candidateName}"`);
+              // Use the real company for the rest of this message too.
+              companyId = realCompany.id;
+              companyName = realCompany.business_name;
+              accountManagerId = realCompany.account_manager_id;
+              isShadowClient = false;
+            }
+          }
+        }
+      }
+    } catch (stitchErr) {
+      console.error("Context stitching failed:", stitchErr);
+    }
+
     // Strategy 4: SHADOW CLIENT CREATION
     const orderKeywords = [
       "need", "order", "send", "want", "box", "boxes", "carton", "cartons",
@@ -736,6 +803,19 @@ serve(async (req) => {
           if (!uploadErr) {
             const { data: urlData } = supabaseAdmin.storage.from("whatsapp_attachments").getPublicUrl(filePath);
             attachmentUrl = urlData?.publicUrl || filePath;
+            // Patch the debug_webhooks row so the War Room Raw Intel tab can render the image preview.
+            if ((webhookRow as any)?.id && attachmentUrl) {
+              try {
+                await supabaseAdmin
+                  .from("debug_webhooks")
+                  .update({
+                    raw_payload: { ...(payload as any), _oasis_attachment_url: attachmentUrl },
+                  } as any)
+                  .eq("id", (webhookRow as any).id);
+              } catch (patchErr) {
+                console.error("debug_webhooks attachment patch failed:", patchErr);
+              }
+            }
           }
 
           // If it's a document (PDF), attempt to parse for repeat order
