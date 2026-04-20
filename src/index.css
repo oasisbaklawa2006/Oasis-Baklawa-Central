@@ -127,3 +127,20 @@
 .animate-marquee {
   animation: marquee 20s linear infinite;
 }
+
+/* APK Performance — force GPU compositing for smooth 60fps transitions on Android */
+@layer utilities {
+  .gpu {
+    transform: translateZ(0);
+    will-change: transform, opacity;
+    backface-visibility: hidden;
+    -webkit-backface-visibility: hidden;
+    -webkit-transform: translateZ(0);
+  }
+}
+
+html, body, #root {
+  -webkit-tap-highlight-color: transparent;
+  -webkit-overflow-scrolling: touch;
+  transform: translateZ(0);
+}
