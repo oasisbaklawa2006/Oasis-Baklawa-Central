@@ -25,12 +25,36 @@ export default function RawIntelligenceTab() {
   const [aliases, setAliases] = useState<AliasMatch[]>([]);
   const [creatingDraft, setCreatingDraft] = useState<string | null>(null);
   const [markingWaste, setMarkingWaste] = useState<string | null>(null);
+  const [merging, setMerging] = useState<string | null>(null);
+  // sender phone (10-digit) → recent shadow/unknown order id available for merge
+  const [orphanByPhone, setOrphanByPhone] = useState<Record<string, { orderId: string; createdAt: string }>>({});
 
   const fetchAliases = useCallback(async () => {
     const { data } = await supabase
       .from("product_aliases")
       .select("alias_text, canonical_name");
     setAliases((data as AliasMatch[]) ?? []);
+  }, []);
+
+  const fetchOrphans = useCallback(async () => {
+    const tenMinAgo = new Date(Date.now() - 10 * 60 * 1000).toISOString();
+    const { data } = await supabase
+      .from("orders")
+      .select("id, created_at, company_id, companies(business_name, phone, status)")
+      .gte("created_at", tenMinAgo)
+      .order("created_at", { ascending: false })
+      .limit(40);
+    const map: Record<string, { orderId: string; createdAt: string }> = {};
+    (data ?? []).forEach((o: any) => {
+      const phone = (o.companies?.phone || "").replace(/\D/g, "").slice(-10);
+      if (!phone) return;
+      const isShadow = !o.companies || o.companies.status === "shadow" || /unknown/i.test(o.companies.business_name || "");
+      if (!isShadow) return;
+      if (!map[phone] || map[phone].createdAt < o.created_at) {
+        map[phone] = { orderId: o.id, createdAt: o.created_at };
+      }
+    });
+    setOrphanByPhone(map);
   }, []);
 
   const fetchRaw = useCallback(async () => {
