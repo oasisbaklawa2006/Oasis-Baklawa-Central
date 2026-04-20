@@ -40,6 +40,31 @@ const INVOICE_PATTERN = /(?:voucher\s*no|invoice\s*no|inv\s*no|tcf)\s*[:/]?\s*[\
 export interface SKUMatch {
   name: string;
   confidence: number; // 0–1
+  quantity?: number | null;
+  unit?: string | null;
+}
+
+const QTY_UNIT_RE = /(\d+(?:\.\d+)?)\s*(kgs?|kilograms?|gms?|grams?|gm|pcs?|pieces?|boxes?|box|cartons?|ctns?|units?)\b/i;
+
+/** Scan a text window around an alias hit for a quantity + unit. */
+function extractQtyForAlias(fullText: string, aliasHit: string): { quantity: number | null; unit: string | null } {
+  if (!aliasHit) return { quantity: null, unit: null };
+  const lower = fullText.toLowerCase();
+  const aliasLower = aliasHit.toLowerCase();
+  const idx = lower.indexOf(aliasLower);
+  if (idx < 0) return { quantity: null, unit: null };
+  // Search a 60-char window around the match (covers same line "Pista Tart 5kg" or "5 kg Pista Tart").
+  const start = Math.max(0, idx - 30);
+  const end = Math.min(fullText.length, idx + aliasHit.length + 40);
+  const window = fullText.slice(start, end);
+  const m = window.match(QTY_UNIT_RE);
+  if (m) {
+    return { quantity: parseFloat(m[1]), unit: m[2].toLowerCase() };
+  }
+  // Fallback: bare number near the alias (e.g. "Pista Tart 5") — assume kg later via catalogue.
+  const bare = window.match(/(\d+(?:\.\d+)?)/);
+  if (bare) return { quantity: parseFloat(bare[1]), unit: null };
+  return { quantity: null, unit: null };
 }
 
 export interface ParsedIntent {
