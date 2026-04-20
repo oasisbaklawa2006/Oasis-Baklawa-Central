@@ -80,16 +80,17 @@ const CMDWarRoom = () => {
 
     const { data: items } = await supabase
       .from("order_items")
-      .select("order_id, quantity, product_id, products(name)")
+      .select("order_id, quantity, weight_kg, product_id, products(name)")
       .in("order_id", orderIds);
 
-    const itemsByOrder: Record<string, { quantity: number; product_name?: string }[]> = {};
+    const itemsByOrder: Record<string, { quantity: number; product_name?: string; weight_kg?: number | null }[]> = {};
     items?.forEach((item: any) => {
       const oid = item.order_id;
       if (!itemsByOrder[oid]) itemsByOrder[oid] = [];
       itemsByOrder[oid].push({
         quantity: item.quantity,
         product_name: item.products?.name,
+        weight_kg: item.weight_kg,
       });
     });
 
