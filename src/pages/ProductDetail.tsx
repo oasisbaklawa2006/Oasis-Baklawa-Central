@@ -29,6 +29,7 @@ import {
   calculateLineGrandTotal,
   getPackDescription,
 } from "@/utils/pricing";
+import { resolveProductFamily, getDisplayScale, familyHidesWeight } from "@/lib/product-family";
 
 const ProductDetail = () => {
   const { id } = useParams<{ id: string }>();
@@ -109,9 +110,13 @@ const ProductDetail = () => {
   const heroImages = images.length > 0 ? images : ["/placeholder.svg"];
   const mrp = Number(product?.mrp) || Number(product?.mrp_per_pc) || 0;
   const showMrpStrike = mrp > 0 && displayInfo.price > 0 && Math.abs(mrp - displayInfo.price) > 0.5;
-  const weightLabel = isBulk && weightKg > 0
-    ? (weightKg >= 1 ? `${weightKg} kg` : `${Math.round(weightKg * 1000)} g`)
-    : product.pack_size || "Standard";
+  const family = resolveProductFamily(product);
+  const displayScale = getDisplayScale(product);
+  const weightLabel = familyHidesWeight(family)
+    ? (displayScale || "1 Unit")
+    : (isBulk && weightKg > 0
+        ? (weightKg >= 1 ? `${weightKg} kg` : `${Math.round(weightKg * 1000)} g`)
+        : (displayScale || product.pack_size || "Standard"));
 
   const handleAddToCart = async () => {
     if (boxes <= 0) return;
@@ -131,9 +136,13 @@ const ProductDetail = () => {
   };
 
   const infoLines = [
+    family === "goldware" && product.dimensions && `Size: ${product.dimensions}`,
+    family === "goldware" && product.material && `Material: ${product.material}`,
+    family === "hampers" && product.bom_summary && `Includes: ${product.bom_summary}`,
+    family === "hampers" && product.gross_weight_kg && `Gross Weight: ${product.gross_weight_kg} kg`,
     product.shelf_life && `Shelf Life: ${product.shelf_life}`,
     product.storage_type && `Storage: ${product.storage_type}`,
-    getPacksPerCarton(product) && `Master Carton: ${getPacksPerCarton(product)} packs`,
+    !familyHidesWeight(family) && getPacksPerCarton(product) && `Master Carton: ${getPacksPerCarton(product)} packs`,
   ].filter(Boolean);
 
   return (
