@@ -418,6 +418,9 @@ const AdminProducts = () => {
         material: (product as any).material || "",
         gross_weight_kg: (product as any).gross_weight_kg?.toString() || "",
         bom_summary: (product as any).bom_summary || "",
+        aliases: Array.isArray((product as any).aliases) ? (product as any).aliases.join(", ") : "",
+        grams_per_piece: (product as any).grams_per_piece?.toString() || "",
+        weight_per_box_kg: (product as any).weight_per_box_kg?.toString() || "",
       });
       const components = await loadBom(product.id);
       // Load variants
