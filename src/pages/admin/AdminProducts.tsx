@@ -1254,30 +1254,121 @@ const AdminProducts = () => {
                       />
                     </div>
 
-                    <div>
+                    {/* Product Family selector — drives which fields appear below */}
+                    <div className="col-span-2">
                       <label className="block text-[10px] font-semibold text-muted-foreground uppercase mb-1.5">
-                        Avg Wt / Pack (g)
+                        Product Family *
                       </label>
-                      <input
-                        type="number"
-                        name="net_weight_grams"
-                        value={formData.net_weight_grams}
+                      <select
+                        name="product_family"
+                        value={formData.product_family}
                         onChange={handleInputChange}
                         className="w-full bg-background border border-border rounded-lg p-2.5 text-sm outline-none focus:ring-1 focus:ring-[#C5A059]"
-                      />
+                      >
+                        <option value="bulk_sweets">Bulk Sweets (sold by weight)</option>
+                        <option value="retail_pack">Retail Pack</option>
+                        <option value="goldware">Goldware / Packaging</option>
+                        <option value="hampers">Hamper / Gift Pack</option>
+                      </select>
+                      <p className="text-[10px] text-muted-foreground mt-1">
+                        Determines which catalogue fields are shown and how the item is displayed to buyers.
+                      </p>
                     </div>
-                    <div>
-                      <label className="block text-[10px] font-semibold text-muted-foreground uppercase mb-1.5">
-                        Avg Wt / Pc (g)
-                      </label>
-                      <input
-                        type="number"
-                        name="weight_per_pc_grams"
-                        value={formData.weight_per_pc_grams}
-                        onChange={handleInputChange}
-                        className="w-full bg-background border border-border rounded-lg p-2.5 text-sm outline-none focus:ring-1 focus:ring-[#C5A059]"
-                      />
-                    </div>
+
+                    {/* BULK SWEETS / RETAIL — weight fields */}
+                    {(formData.product_family === "bulk_sweets" || formData.product_family === "retail_pack" || !formData.product_family) && (
+                      <>
+                        <div>
+                          <label className="block text-[10px] font-semibold text-muted-foreground uppercase mb-1.5">
+                            Avg Wt / Pack (g)
+                          </label>
+                          <input
+                            type="number"
+                            name="net_weight_grams"
+                            value={formData.net_weight_grams}
+                            onChange={handleInputChange}
+                            className="w-full bg-background border border-border rounded-lg p-2.5 text-sm outline-none focus:ring-1 focus:ring-[#C5A059]"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[10px] font-semibold text-muted-foreground uppercase mb-1.5">
+                            Avg Wt / Pc (g)
+                          </label>
+                          <input
+                            type="number"
+                            name="weight_per_pc_grams"
+                            value={formData.weight_per_pc_grams}
+                            onChange={handleInputChange}
+                            className="w-full bg-background border border-border rounded-lg p-2.5 text-sm outline-none focus:ring-1 focus:ring-[#C5A059]"
+                          />
+                        </div>
+                      </>
+                    )}
+
+                    {/* GOLDWARE — dimensions + material (weight hidden) */}
+                    {formData.product_family === "goldware" && (
+                      <>
+                        <div>
+                          <label className="block text-[10px] font-semibold text-muted-foreground uppercase mb-1.5">
+                            Dimensions / Size
+                          </label>
+                          <input
+                            type="text"
+                            name="dimensions"
+                            placeholder='e.g. "12-inch" or "10 x 8 in"'
+                            value={formData.dimensions}
+                            onChange={handleInputChange}
+                            className="w-full bg-background border border-border rounded-lg p-2.5 text-sm outline-none focus:ring-1 focus:ring-[#C5A059]"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[10px] font-semibold text-muted-foreground uppercase mb-1.5">
+                            Material
+                          </label>
+                          <input
+                            type="text"
+                            name="material"
+                            placeholder="e.g. Brass, Acrylic, Wood"
+                            value={formData.material}
+                            onChange={handleInputChange}
+                            className="w-full bg-background border border-border rounded-lg p-2.5 text-sm outline-none focus:ring-1 focus:ring-[#C5A059]"
+                          />
+                        </div>
+                      </>
+                    )}
+
+                    {/* HAMPERS — BOM summary + gross weight */}
+                    {formData.product_family === "hampers" && (
+                      <>
+                        <div className="col-span-2">
+                          <label className="block text-[10px] font-semibold text-muted-foreground uppercase mb-1.5">
+                            BOM / Included Items
+                          </label>
+                          <textarea
+                            name="bom_summary"
+                            placeholder="e.g. 2x Asabi 250g, 1x Pyramid 500g, 1x Brass Tray 10in"
+                            value={formData.bom_summary}
+                            onChange={handleInputChange}
+                            rows={2}
+                            className="w-full bg-background border border-border rounded-lg p-2.5 text-sm outline-none focus:ring-1 focus:ring-[#C5A059]"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[10px] font-semibold text-muted-foreground uppercase mb-1.5">
+                            Gross Weight (kg)
+                          </label>
+                          <input
+                            type="number"
+                            step="0.01"
+                            name="gross_weight_kg"
+                            value={formData.gross_weight_kg}
+                            onChange={handleInputChange}
+                            className="w-full bg-background border border-border rounded-lg p-2.5 text-sm outline-none focus:ring-1 focus:ring-[#C5A059]"
+                          />
+                        </div>
+                      </>
+                    )}
+
                     <div>
                       <label className="block text-[10px] font-semibold text-muted-foreground uppercase mb-1.5">
                         Packs / Carton
