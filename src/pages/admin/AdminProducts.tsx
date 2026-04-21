@@ -1760,11 +1760,15 @@ const AdminProducts = () => {
                       <button
                         type="button"
                         onClick={handleAiAliases}
-                        disabled={isAiLoading === "aliases"}
-                        className="text-[10px] font-bold text-[#C5A059] hover:text-[#B38F48] flex items-center gap-1 disabled:opacity-50"
+                        disabled={isAiLoading === "aliases" || !formData.name?.trim()}
+                        title={!formData.name?.trim() ? "Enter Product Name first" : "Generate AI Aliases"}
+                        className="text-[10px] font-bold text-[#C5A059] hover:text-[#B38F48] flex items-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed"
                       >
-                        {isAiLoading === "aliases" ? <Loader2 size={10} className="animate-spin" /> : <Wand2 size={10} />}
-                        Generate AI Aliases
+                        {isAiLoading === "aliases" ? (
+                          <><Loader2 size={10} className="animate-spin" /> Generating…</>
+                        ) : (
+                          <><Wand2 size={10} /> Generate AI Aliases</>
+                        )}
                       </button>
                     </div>
                     <textarea
