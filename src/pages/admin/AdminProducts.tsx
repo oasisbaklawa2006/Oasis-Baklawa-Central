@@ -1695,6 +1695,79 @@ const AdminProducts = () => {
                   )}
                 </section>
 
+                {/* 6. INTELLIGENCE & SEARCH — aliases + unit math for parser/SO */}
+                <section className="space-y-4">
+                  <h3 className="text-xs font-bold text-muted-foreground uppercase tracking-widest border-b border-border pb-2 flex items-center gap-2">
+                    <Sparkles size={14} className="text-[#C5A059]" /> 6. Intelligence & Search
+                  </h3>
+
+                  <div>
+                    <div className="flex items-center justify-between mb-1.5">
+                      <label className="block text-[10px] font-semibold text-muted-foreground uppercase">
+                        Aliases / Nicknames
+                      </label>
+                      <button
+                        type="button"
+                        onClick={handleAiAliases}
+                        disabled={isAiLoading === "aliases"}
+                        className="text-[10px] font-bold text-[#C5A059] hover:text-[#B38F48] flex items-center gap-1 disabled:opacity-50"
+                      >
+                        {isAiLoading === "aliases" ? <Loader2 size={10} className="animate-spin" /> : <Wand2 size={10} />}
+                        Generate AI Aliases
+                      </button>
+                    </div>
+                    <textarea
+                      name="aliases"
+                      rows={2}
+                      placeholder="e.g. pyramid, kitta, kita, cashew pyramid"
+                      value={formData.aliases}
+                      onChange={handleInputChange}
+                      className="w-full bg-background border border-border rounded-lg p-2.5 text-xs outline-none focus:ring-1 focus:ring-[#C5A059] resize-none"
+                    />
+                    <p className="text-[10px] text-muted-foreground mt-1">
+                      Comma-separated. Used by the WhatsApp/AI parser to match this SKU from informal customer text.
+                    </p>
+                  </div>
+
+                  {/* Unit Math — mandatory when settling by KG (food families) */}
+                  {((formData.product_family || "bulk_sweets") !== "goldware") && (
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-[10px] font-bold text-blue-600 uppercase mb-1.5 flex items-center gap-1">
+                          Grams per Piece {formData.settlement_unit === "KG" && <span className="text-destructive">*</span>}
+                        </label>
+                        <input
+                          type="number"
+                          step="0.01"
+                          name="grams_per_piece"
+                          placeholder="e.g. 22"
+                          value={formData.grams_per_piece}
+                          onChange={handleInputChange}
+                          className="w-full bg-blue-50 dark:bg-blue-950/20 border border-blue-300 dark:border-blue-800 rounded-lg p-2.5 text-sm font-semibold outline-none focus:ring-1 focus:ring-blue-500"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[10px] font-bold text-blue-600 uppercase mb-1.5 flex items-center gap-1">
+                          Kg per Box {formData.settlement_unit === "KG" && <span className="text-destructive">*</span>}
+                        </label>
+                        <input
+                          type="number"
+                          step="0.01"
+                          name="weight_per_box_kg"
+                          placeholder="e.g. 6"
+                          value={formData.weight_per_box_kg}
+                          onChange={handleInputChange}
+                          className="w-full bg-blue-50 dark:bg-blue-950/20 border border-blue-300 dark:border-blue-800 rounded-lg p-2.5 text-sm font-semibold outline-none focus:ring-1 focus:ring-blue-500"
+                        />
+                      </div>
+                      <p className="col-span-2 text-[10px] text-muted-foreground -mt-1">
+                        Used by the AI Draft SO engine to convert "2 box" or "10 pcs" into total kilograms automatically.
+                        {formData.settlement_unit === "KG" && " Required when Settlement Unit is Weight (KG)."}
+                      </p>
+                    </div>
+                  )}
+                </section>
+
                 {/* Active Toggle */}
                 <div className="flex items-center gap-3 bg-muted/20 p-4 rounded-xl border border-border mt-4">
                   <input
