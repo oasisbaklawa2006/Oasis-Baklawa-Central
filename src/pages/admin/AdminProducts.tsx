@@ -515,6 +515,17 @@ const AdminProducts = () => {
       if (!formData.hsn_code || !formData.hsn_code.trim()) return toast.error("HSN Code is mandatory for Active products.");
       if (!formData.gst_percentage && formData.gst_percentage !== "0") return toast.error("GST Rate is mandatory for Active products.");
     }
+    // UNIT MATH ENFORCEMENT: when settling by weight, parser/SO need both conversion factors.
+    const fam = (formData.product_family || "").toLowerCase();
+    const isFoodFamily = fam === "bulk_sweets" || fam === "retail_pack" || fam === "hampers" || !fam;
+    if (formData.is_active && formData.settlement_unit === "KG" && isFoodFamily) {
+      if (!formData.grams_per_piece || Number(formData.grams_per_piece) <= 0) {
+        return toast.error("Grams per Piece is mandatory when Settlement Unit is Weight (KG).");
+      }
+      if (!formData.weight_per_box_kg || Number(formData.weight_per_box_kg) <= 0) {
+        return toast.error("Kg per Box is mandatory when Settlement Unit is Weight (KG).");
+      }
+    }
     setSaving(true);
 
     const payload: any = {
