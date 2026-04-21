@@ -1,9 +1,10 @@
 import { useEffect, useState, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { removeDuplicateRealtimeChannel } from "@/utils/realtime";
-import { AlertCircle, RefreshCw, MessageSquare, Send, FileText, Mic, Image as ImageIcon, Package, Trash2, AlertTriangle } from "lucide-react";
+import { AlertCircle, RefreshCw, MessageSquare, Send, FileText, Mic, Image as ImageIcon, Package, Trash2, AlertTriangle, Tag } from "lucide-react";
 import { toast } from "sonner";
 import { parseBanyanMessage } from "@/lib/banyan-parser";
+import AliasDrawer from "./AliasDrawer";
 
 interface RawMessage {
   id: string;
@@ -28,12 +29,32 @@ export default function RawIntelligenceTab() {
   const [merging, setMerging] = useState<string | null>(null);
   // sender phone (10-digit) → recent shadow/unknown order id available for merge
   const [orphanByPhone, setOrphanByPhone] = useState<Record<string, { orderId: string; createdAt: string }>>({});
+  // Alias drawer state — opens with optional pre-filled token from an UNRECOGNIZED SKU.
+  const [aliasDrawerOpen, setAliasDrawerOpen] = useState(false);
+  const [pendingAliasToken, setPendingAliasToken] = useState<string | null>(null);
 
+  // Pull aliases from BOTH sources: (1) product_aliases lookup table,
+  // (2) products.aliases[] array column. The merged list is fed to the parser
+  // so anything an admin adds via the AliasDrawer is recognized on the next message.
   const fetchAliases = useCallback(async () => {
-    const { data } = await supabase
-      .from("product_aliases")
-      .select("alias_text, canonical_name");
-    setAliases((data as AliasMatch[]) ?? []);
+    const [{ data: lookup }, { data: prodAliasRows }] = await Promise.all([
+      supabase.from("product_aliases").select("alias_text, canonical_name"),
+      supabase.from("products").select("name, aliases").not("aliases", "is", null),
+    ]);
+    const merged: AliasMatch[] = [...((lookup as AliasMatch[]) ?? [])];
+    (prodAliasRows ?? []).forEach((p: any) => {
+      (p.aliases ?? []).forEach((a: string) => {
+        if (a && typeof a === "string") {
+          merged.push({ alias_text: a, canonical_name: p.name });
+        }
+      });
+    });
+    setAliases(merged);
+  }, []);
+
+  const openAliasDrawer = useCallback((token?: string | null) => {
+    setPendingAliasToken(token ?? null);
+    setAliasDrawerOpen(true);
   }, []);
 
   const fetchOrphans = useCallback(async () => {
@@ -277,9 +298,18 @@ export default function RawIntelligenceTab() {
         <p className="text-xs text-muted-foreground">
           {failed.length} inbound message{failed.length !== 1 ? "s" : ""} need attention.
         </p>
-        <button onClick={fetchRaw} className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground px-2 py-1 rounded border border-border">
-          <RefreshCw size={12} /> Refresh
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => openAliasDrawer(null)}
+            className="flex items-center gap-1 text-xs text-primary hover:opacity-80 px-2 py-1 rounded border border-primary/30"
+            title="Approve / add SKU aliases on the fly"
+          >
+            <Tag size={12} /> Edit Aliases
+          </button>
+          <button onClick={fetchRaw} className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground px-2 py-1 rounded border border-border">
+            <RefreshCw size={12} /> Refresh
+          </button>
+        </div>
       </div>
 
       {loading && <p className="text-sm text-muted-foreground text-center py-8">Loading…</p>}
@@ -388,7 +418,19 @@ export default function RawIntelligenceTab() {
             )}
 
             {parsed.detectedSKUs.length === 0 && text && (
-              <p className="text-[10px] text-muted-foreground italic">⚠ No SKU matches found — manual review needed</p>
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-[10px] text-muted-foreground italic">⚠ No SKU matches found — manual review needed</p>
+                <button
+                  onClick={() => {
+                    // Pre-fill drawer with the first non-trivial word from the message
+                    const firstToken = (text.match(/\b[A-Za-z]{3,}\b/) || [])[0] || null;
+                    openAliasDrawer(firstToken);
+                  }}
+                  className="flex items-center gap-1 text-[10px] text-primary hover:opacity-80 px-2 py-0.5 rounded border border-primary/30 flex-shrink-0"
+                >
+                  <Tag size={10} /> Teach SKU
+                </button>
+              </div>
             )}
 
             {/* Error */}
@@ -467,6 +509,13 @@ export default function RawIntelligenceTab() {
           </div>
         </details>
       )}
+
+      <AliasDrawer
+        open={aliasDrawerOpen}
+        onOpenChange={setAliasDrawerOpen}
+        pendingToken={pendingAliasToken}
+        onAliasesChanged={fetchAliases}
+      />
     </div>
   );
 }
