@@ -29,12 +29,32 @@ export default function RawIntelligenceTab() {
   const [merging, setMerging] = useState<string | null>(null);
   // sender phone (10-digit) → recent shadow/unknown order id available for merge
   const [orphanByPhone, setOrphanByPhone] = useState<Record<string, { orderId: string; createdAt: string }>>({});
+  // Alias drawer state — opens with optional pre-filled token from an UNRECOGNIZED SKU.
+  const [aliasDrawerOpen, setAliasDrawerOpen] = useState(false);
+  const [pendingAliasToken, setPendingAliasToken] = useState<string | null>(null);
 
+  // Pull aliases from BOTH sources: (1) product_aliases lookup table,
+  // (2) products.aliases[] array column. The merged list is fed to the parser
+  // so anything an admin adds via the AliasDrawer is recognized on the next message.
   const fetchAliases = useCallback(async () => {
-    const { data } = await supabase
-      .from("product_aliases")
-      .select("alias_text, canonical_name");
-    setAliases((data as AliasMatch[]) ?? []);
+    const [{ data: lookup }, { data: prodAliasRows }] = await Promise.all([
+      supabase.from("product_aliases").select("alias_text, canonical_name"),
+      supabase.from("products").select("name, aliases").not("aliases", "is", null),
+    ]);
+    const merged: AliasMatch[] = [...((lookup as AliasMatch[]) ?? [])];
+    (prodAliasRows ?? []).forEach((p: any) => {
+      (p.aliases ?? []).forEach((a: string) => {
+        if (a && typeof a === "string") {
+          merged.push({ alias_text: a, canonical_name: p.name });
+        }
+      });
+    });
+    setAliases(merged);
+  }, []);
+
+  const openAliasDrawer = useCallback((token?: string | null) => {
+    setPendingAliasToken(token ?? null);
+    setAliasDrawerOpen(true);
   }, []);
 
   const fetchOrphans = useCallback(async () => {
