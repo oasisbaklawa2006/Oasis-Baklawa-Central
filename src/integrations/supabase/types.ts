@@ -2553,6 +2553,7 @@ export type Database = {
           avg_weight_per_pc: number | null
           barcode_sku: string | null
           base_price: number | null
+          bom_summary: string | null
           carton_type: string | null
           category: string
           category_id: string | null
@@ -2561,9 +2562,11 @@ export type Database = {
           department: string | null
           description: string | null
           dietary_tags: string[] | null
+          dimensions: string | null
           festival_tags: string | null
           grams_per_piece: number | null
           gross_weight_grams: number | null
+          gross_weight_kg: number | null
           gst_percentage: number | null
           gst_rate: number | null
           hsn_code: string
@@ -2571,6 +2574,7 @@ export type Database = {
           image_url: string | null
           ingredients: string | null
           is_active: boolean
+          material: string | null
           moq: number | null
           moq_packs: number | null
           mrp: number | null
@@ -2592,6 +2596,7 @@ export type Database = {
           primary_pack_weight_kg: number
           private_label_moq: number | null
           private_label_price: number | null
+          product_family: string | null
           production_department: string | null
           settlement_unit: string | null
           shelf_life: string | null
@@ -2613,6 +2618,7 @@ export type Database = {
           avg_weight_per_pc?: number | null
           barcode_sku?: string | null
           base_price?: number | null
+          bom_summary?: string | null
           carton_type?: string | null
           category: string
           category_id?: string | null
@@ -2621,9 +2627,11 @@ export type Database = {
           department?: string | null
           description?: string | null
           dietary_tags?: string[] | null
+          dimensions?: string | null
           festival_tags?: string | null
           grams_per_piece?: number | null
           gross_weight_grams?: number | null
+          gross_weight_kg?: number | null
           gst_percentage?: number | null
           gst_rate?: number | null
           hsn_code: string
@@ -2631,6 +2639,7 @@ export type Database = {
           image_url?: string | null
           ingredients?: string | null
           is_active?: boolean
+          material?: string | null
           moq?: number | null
           moq_packs?: number | null
           mrp?: number | null
@@ -2652,6 +2661,7 @@ export type Database = {
           primary_pack_weight_kg?: number
           private_label_moq?: number | null
           private_label_price?: number | null
+          product_family?: string | null
           production_department?: string | null
           settlement_unit?: string | null
           shelf_life?: string | null
@@ -2673,6 +2683,7 @@ export type Database = {
           avg_weight_per_pc?: number | null
           barcode_sku?: string | null
           base_price?: number | null
+          bom_summary?: string | null
           carton_type?: string | null
           category?: string
           category_id?: string | null
@@ -2681,9 +2692,11 @@ export type Database = {
           department?: string | null
           description?: string | null
           dietary_tags?: string[] | null
+          dimensions?: string | null
           festival_tags?: string | null
           grams_per_piece?: number | null
           gross_weight_grams?: number | null
+          gross_weight_kg?: number | null
           gst_percentage?: number | null
           gst_rate?: number | null
           hsn_code?: string
@@ -2691,6 +2704,7 @@ export type Database = {
           image_url?: string | null
           ingredients?: string | null
           is_active?: boolean
+          material?: string | null
           moq?: number | null
           moq_packs?: number | null
           mrp?: number | null
@@ -2712,6 +2726,7 @@ export type Database = {
           primary_pack_weight_kg?: number
           private_label_moq?: number | null
           private_label_price?: number | null
+          product_family?: string | null
           production_department?: string | null
           settlement_unit?: string | null
           shelf_life?: string | null

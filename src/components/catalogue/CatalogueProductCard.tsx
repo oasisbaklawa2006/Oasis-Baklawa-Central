@@ -59,10 +59,17 @@ const CatalogueProductCard = ({ item, priceTier }: CatalogueProductCardProps) =>
   // Show MRP strikethrough only if B2B price is different from MRP
   const showMrpStrike = mrp > 0 && displayInfo.price > 0 && Math.abs(mrp - displayInfo.price) > 0.5;
 
-  // Weight label
-  const weightLabel = cat === "bulk_kg" && weightKg > 0
-    ? (weightKg >= 1 ? `${weightKg} kg` : `${Math.round(weightKg * 1000)} g`)
-    : null;
+  // Weight / scale label — family-aware (no "0kg" for hampers / goldware)
+  const family = (item?.product_family || "").toLowerCase();
+  const isGoldware = family === "goldware" || /goldware|platter|basket|tray|packaging/i.test(item?.category || "");
+  const isHamper = family === "hampers" || /hamper|gift/i.test(item?.category || "");
+  const weightLabel = isGoldware
+    ? (item?.dimensions || item?.material || null)
+    : isHamper
+      ? (item?.gross_weight_kg ? `${item.gross_weight_kg} kg gross` : "1 Hamper")
+      : (cat === "bulk_kg" && weightKg > 0
+          ? (weightKg >= 1 ? `${weightKg} kg` : `${Math.round(weightKg * 1000)} g`)
+          : null);
 
   return (
     <div
