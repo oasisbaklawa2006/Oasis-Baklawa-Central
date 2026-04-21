@@ -337,6 +337,39 @@ const AdminProducts = () => {
     }
   };
 
+  // AI ALIAS SUGGESTIONS — uses oasis-ai-chat to propose B2B nicknames for the SKU.
+  const handleAiAliases = async () => {
+    if (!formData.name) return toast.error("Enter Product Name first.");
+    setIsAiLoading("aliases");
+    try {
+      const prompt = `Suggest 6-10 short, common B2B/WhatsApp shorthand nicknames a wholesale customer might use to order the product "${formData.name}"${formData.category ? ` (category: ${formData.category})` : ""}. Return ONLY a JSON array of lowercase strings, no commentary. Example: ["pyramid","kitta","cashew pyramid"]`;
+      const { data, error } = await supabase.functions.invoke("oasis-ai-chat", {
+        body: { messages: [{ role: "user", content: prompt }] },
+      });
+      if (error) throw error;
+      const raw = (data?.reply || data?.message || data?.content || "").toString();
+      let parsed: string[] = [];
+      const m = raw.match(/\[[\s\S]*\]/);
+      if (m) {
+        try { parsed = JSON.parse(m[0]); } catch { /* fall through */ }
+      }
+      if (!Array.isArray(parsed) || parsed.length === 0) {
+        // Fallback: split by comma / newline
+        parsed = raw.split(/[,\n]/).map((s: string) => s.replace(/^[\s"\-•*\d.]+|["\s]+$/g, "").trim()).filter(Boolean);
+      }
+      const cleaned = parsed.map((s) => String(s).toLowerCase().trim()).filter((s) => s && s.length <= 40);
+      const existing = (formData.aliases || "").split(",").map((s: string) => s.trim().toLowerCase()).filter(Boolean);
+      const merged = Array.from(new Set([...existing, ...cleaned]));
+      setFormData((prev: any) => ({ ...prev, aliases: merged.join(", ") }));
+      toast.success(`Suggested ${cleaned.length} aliases — review & save.`, { icon: "✨" });
+    } catch (err: any) {
+      console.error("AI aliases error:", err);
+      toast.error(err.message || "Could not generate aliases.");
+    } finally {
+      setIsAiLoading(null);
+    }
+  };
+
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     try {
       if (!e.target.files || e.target.files.length === 0) return;
