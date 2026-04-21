@@ -47,6 +47,8 @@ export interface SKUMatch {
 }
 
 const QTY_UNIT_RE = /(\d+(?:\.\d+)?)\s*(kgs?|kilograms?|gms?|grams?|gm|pcs?|pieces?|boxes?|box|cartons?|ctns?|units?)\b/i;
+// Goldware / non-food: dimensional sizes like "12-inch", "10 in", "8 inch".
+const SIZE_DIM_RE = /(\d+(?:\.\d+)?)\s*[-\s]?\s*(inch|inches|in|cm|mm|ft|feet)\b/i;
 // Metadata patterns to BLACKLIST — wa_id / user_id / phone / wamid digits must never become quantities.
 const METADATA_NUMBER_RE = /(?:wa[_\s-]?id|user[_\s-]?id|wamid|phone|mobile|order[_\s-]?id|ref|#)\s*[:=]?\s*\d+/i;
 
@@ -70,6 +72,11 @@ function extractQtyForAlias(fullText: string, aliasHit: string): { quantity: num
   const m = window.match(QTY_UNIT_RE);
   if (m) {
     return { quantity: parseFloat(m[1]), unit: m[2].toLowerCase() };
+  }
+  // Goldware path: a dimensional size (12-inch) IS the quantity descriptor — qty defaults to 1.
+  const dim = window.match(SIZE_DIM_RE);
+  if (dim) {
+    return { quantity: 1, unit: `${dim[1]}-${dim[2].toLowerCase()}` };
   }
   // Strict mode: no unit → no quantity. Prevents 'Asabi 4558718' from becoming "× 4558718".
   return { quantity: null, unit: null };
