@@ -157,6 +157,10 @@ const EMPTY_FORM = {
   material: "",
   gross_weight_kg: "",
   bom_summary: "",
+  // Intelligence & Search (parser/SO math)
+  aliases: "" as string, // comma-separated in UI; stored as text[]
+  grams_per_piece: "",
+  weight_per_box_kg: "",
 };
 
 const AdminProducts = () => {
