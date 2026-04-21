@@ -338,34 +338,85 @@ const AdminProducts = () => {
   };
 
   // AI ALIAS SUGGESTIONS — uses oasis-ai-chat to propose B2B nicknames for the SKU.
+  // Hardened: empty-name guard, 5s timeout fallback, streaming SSE parsing, manual fallback toast.
   const handleAiAliases = async () => {
-    if (!formData.name) return toast.error("Enter Product Name first.");
+    const productName = (formData.name || "").trim();
+    if (!productName) {
+      return toast.error("Please enter a Product Name first so the AI has context.");
+    }
     setIsAiLoading("aliases");
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 5000);
     try {
-      const prompt = `Suggest 6-10 short, common B2B/WhatsApp shorthand nicknames a wholesale customer might use to order the product "${formData.name}"${formData.category ? ` (category: ${formData.category})` : ""}. Return ONLY a JSON array of lowercase strings, no commentary. Example: ["pyramid","kitta","cashew pyramid"]`;
-      const { data, error } = await supabase.functions.invoke("oasis-ai-chat", {
-        body: { messages: [{ role: "user", content: prompt }] },
+      const prompt = `Suggest 8 common B2B nicknames for ${productName}${formData.category ? ` in ${formData.category}` : ""}. Return only a comma-separated list.`;
+
+      const SUPABASE_URL = (import.meta as any).env?.VITE_SUPABASE_URL;
+      const SUPABASE_KEY = (import.meta as any).env?.VITE_SUPABASE_PUBLISHABLE_KEY;
+      const { data: sessionData } = await supabase.auth.getSession();
+      const authToken = sessionData?.session?.access_token || SUPABASE_KEY;
+
+      const resp = await fetch(`${SUPABASE_URL}/functions/v1/oasis-ai-chat`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          apikey: SUPABASE_KEY,
+          Authorization: `Bearer ${authToken}`,
+        },
+        body: JSON.stringify({ messages: [{ role: "user", content: prompt }] }),
+        signal: controller.signal,
       });
-      if (error) throw error;
-      const raw = (data?.reply || data?.message || data?.content || "").toString();
-      let parsed: string[] = [];
-      const m = raw.match(/\[[\s\S]*\]/);
-      if (m) {
-        try { parsed = JSON.parse(m[0]); } catch { /* fall through */ }
+
+      if (!resp.ok || !resp.body) throw new Error(`AI gateway ${resp.status}`);
+
+      // Read SSE stream into a single text buffer.
+      const reader = resp.body.getReader();
+      const decoder = new TextDecoder();
+      let raw = "";
+      let done = false;
+      while (!done) {
+        const { value, done: d } = await reader.read();
+        done = d;
+        if (value) {
+          const chunk = decoder.decode(value, { stream: true });
+          for (const line of chunk.split("\n")) {
+            const trimmed = line.trim();
+            if (!trimmed.startsWith("data:")) continue;
+            const payload = trimmed.slice(5).trim();
+            if (!payload || payload === "[DONE]") continue;
+            try {
+              const json = JSON.parse(payload);
+              const delta = json?.choices?.[0]?.delta?.content || json?.choices?.[0]?.message?.content || "";
+              if (delta) raw += delta;
+            } catch { /* ignore non-JSON keepalive */ }
+          }
+        }
       }
-      if (!Array.isArray(parsed) || parsed.length === 0) {
-        // Fallback: split by comma / newline
-        parsed = raw.split(/[,\n]/).map((s: string) => s.replace(/^[\s"\-•*\d.]+|["\s]+$/g, "").trim()).filter(Boolean);
+      clearTimeout(timeoutId);
+
+      const cleaned = raw
+        .split(/[,\n]/)
+        .map((s) => s.replace(/^[\s"\-•*\d.]+|["\s]+$/g, "").trim().toLowerCase())
+        .filter((s) => s && s.length <= 40);
+
+      if (cleaned.length === 0) {
+        toast.error("AI is busy. Please type common nicknames (e.g. Kitta, Pyramid) manually for now.");
+        return;
       }
-      const cleaned = parsed.map((s) => String(s).toLowerCase().trim()).filter((s) => s && s.length <= 40);
+
       const existing = (formData.aliases || "").split(",").map((s: string) => s.trim().toLowerCase()).filter(Boolean);
       const merged = Array.from(new Set([...existing, ...cleaned]));
       setFormData((prev: any) => ({ ...prev, aliases: merged.join(", ") }));
       toast.success(`Suggested ${cleaned.length} aliases — review & save.`, { icon: "✨" });
     } catch (err: any) {
+      clearTimeout(timeoutId);
       console.error("AI aliases error:", err);
-      toast.error(err.message || "Could not generate aliases.");
+      if (err?.name === "AbortError") {
+        toast.error("AI is busy. Please type common nicknames (e.g. Kitta, Pyramid) manually for now.");
+      } else {
+        toast.error("AI is busy. Please type common nicknames (e.g. Kitta, Pyramid) manually for now.");
+      }
     } finally {
+      clearTimeout(timeoutId);
       setIsAiLoading(null);
     }
   };
