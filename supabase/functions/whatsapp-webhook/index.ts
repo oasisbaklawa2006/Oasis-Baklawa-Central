@@ -425,6 +425,27 @@ serve(async (req) => {
     const last10 = normalizePhone(senderPhone);
     const phone91 = to91(senderPhone);
 
+    // ── NOISE PURGE: discard reactions, unsupported types, and empty bodies BEFORE buffering ──
+    const noiseTypes = new Set(["reaction", "unsupported", "system", "ephemeral", "sticker_reaction"]);
+    const isNoise = noiseTypes.has((messageType || "").toLowerCase());
+    const isEmpty = !messageBody && !mediaUrl;
+    if (isNoise || isEmpty) {
+      try {
+        await supabaseAdmin.from("debug_webhooks").insert({
+          direction: "inbound",
+          raw_payload: payload,
+          phone_number: phone91 || senderPhone || null,
+          wamid: messageId || null,
+          processed: true,
+          discard_reason: isNoise ? `noise_${messageType}` : "empty_body",
+          error_message: isNoise ? `Discarded ${messageType} (no order intent)` : "Empty payload — nothing to parse",
+        });
+      } catch (_) { /* best-effort log */ }
+      return new Response(JSON.stringify({ ok: true, discarded: isNoise ? messageType : "empty" }), {
+        status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     // ── WAMID IDEMPOTENCY GUARD: discard duplicate WhatsApp messages early ──
     if (messageId) {
       const { data: existingWamid } = await supabaseAdmin
@@ -688,7 +709,8 @@ serve(async (req) => {
           .maybeSingle();
 
         if (realCompany?.id) {
-          const cutoff = new Date(Date.now() - 120 * 1000).toISOString();
+          // Force-sync window extended to 180s per Engine Repair spec.
+          const cutoff = new Date(Date.now() - 180 * 1000).toISOString();
           // Find most recent order from a shadow company tied to this sender's last 10 digits.
           const { data: shadowCompanies } = await supabaseAdmin
             .from("companies")
