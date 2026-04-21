@@ -143,17 +143,33 @@ export function parseBanyanMessage(
     return out;
   };
 
-  // 1. Exact alias scans (DB + shorthand) — every occurrence becomes a hit
-  for (const alias of dbAliases) {
-    const a = (alias.alias_text || "").toLowerCase();
-    if (!a) continue;
-    for (const idx of findAll(lower, a)) {
-      hits.push({ canonical: alias.canonical_name, aliasHit: alias.alias_text, index: idx, confidence: 1.0 });
-    }
-  }
-  for (const [key, canonical] of Object.entries(SHORTHAND_MAP)) {
-    for (const idx of findAll(lower, key)) {
-      hits.push({ canonical, aliasHit: key, index: idx, confidence: 1.0 });
+  // 1. Exact alias scans (DB + shorthand) — every occurrence becomes a hit.
+  //    WINNER-TAKES-ALL: build a unified candidate list, sort by alias length DESC,
+  //    then mask consumed character ranges so a longer match (e.g. "pyramid kaju")
+  //    blocks a shorter overlapping match (e.g. "pyramid").
+  type Cand = { canonical: string; aliasHit: string; key: string; confidence: number };
+  const candidates: Cand[] = [
+    ...dbAliases
+      .filter((a) => a.alias_text)
+      .map((a) => ({ canonical: a.canonical_name, aliasHit: a.alias_text, key: a.alias_text.toLowerCase(), confidence: 1.0 })),
+    ...Object.entries(SHORTHAND_MAP).map(([key, canonical]) => ({
+      canonical, aliasHit: key, key: key.toLowerCase(), confidence: 1.0,
+    })),
+  ].sort((a, b) => b.key.length - a.key.length);
+
+  const consumed = new Array(lower.length).fill(false);
+  const isFree = (s: number, e: number) => {
+    for (let i = s; i < e; i++) if (consumed[i]) return false;
+    return true;
+  };
+  const mark = (s: number, e: number) => { for (let i = s; i < e; i++) consumed[i] = true; };
+
+  for (const c of candidates) {
+    for (const idx of findAll(lower, c.key)) {
+      const end = idx + c.key.length;
+      if (!isFree(idx, end)) continue; // a longer alias already claimed this span
+      mark(idx, end);
+      hits.push({ canonical: c.canonical, aliasHit: c.aliasHit, index: idx, confidence: c.confidence });
     }
   }
 
