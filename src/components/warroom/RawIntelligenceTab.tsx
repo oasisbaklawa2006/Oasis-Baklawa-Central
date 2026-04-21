@@ -303,8 +303,20 @@ export default function RawIntelligenceTab() {
                   <MessageSquare size={14} className="text-primary" />
                 </div>
                 <div>
-                  <p className="text-sm font-semibold text-foreground">{sender.name}</p>
-                  <p className="text-[10px] text-muted-foreground">{sender.phone}</p>
+                  {parsed.candidateCompanyName ? (
+                    <>
+                      <p className="text-sm font-semibold text-foreground flex items-center gap-1.5">
+                        <span>🏢 {parsed.candidateCompanyName}</span>
+                        <span className="text-[9px] font-normal text-emerald-600 bg-emerald-500/10 px-1.5 py-0.5 rounded">CLIENT</span>
+                      </p>
+                      <p className="text-[10px] text-muted-foreground">via {sender.name} · {sender.phone}</p>
+                    </>
+                  ) : (
+                    <>
+                      <p className="text-sm font-semibold text-foreground">{sender.name}</p>
+                      <p className="text-[10px] text-muted-foreground">{sender.phone}</p>
+                    </>
+                  )}
                 </div>
               </div>
               <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground">

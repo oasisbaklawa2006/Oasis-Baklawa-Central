@@ -9,7 +9,9 @@
  * Any SKU below 0.85 → order is flagged `needs_clarification` and shown ORANGE.
  */
 
-export const CONFIDENCE_THRESHOLD = 0.85;
+// Anti-hallucination: any token below 0.9 with no exact alias hit is dropped entirely.
+// Tokens with exact alias hits remain at confidence 1.0; fuzzy is no longer trusted.
+export const CONFIDENCE_THRESHOLD = 0.9;
 
 // Hard-coded shorthand map (supplements DB product_aliases)
 export const SHORTHAND_MAP: Record<string, string> = {
@@ -173,22 +175,10 @@ export function parseBanyanMessage(
     }
   }
 
-  // 2. Fuzzy fallback ONLY if zero exact hits
-  if (hits.length === 0) {
-    const tokens = lower.split(/[^a-z]+/i).filter((t) => t.length >= 4);
-    const candidates = [
-      ...dbAliases.map((a) => ({ key: a.alias_text, canonical: a.canonical_name })),
-      ...Object.entries(SHORTHAND_MAP).map(([key, canonical]) => ({ key, canonical })),
-    ];
-    for (const tok of tokens) {
-      let best: { canonical: string; score: number; aliasHit: string } | null = null;
-      for (const c of candidates) {
-        const s = diceCoefficient(tok, c.key);
-        if (s >= 0.5 && (!best || s > best.score)) best = { canonical: c.canonical, score: s, aliasHit: tok };
-      }
-      if (best) hits.push({ canonical: best.canonical, aliasHit: best.aliasHit, index: lower.indexOf(best.aliasHit), confidence: Math.min(0.84, best.score) });
-    }
-  }
+  // 2. ANTI-HALLUCINATION: fuzzy matching DISABLED.
+  //    If we cannot find an EXACT alias hit, we do NOT guess. The token is silently
+  //    dropped (UNRECOGNIZED) and the operator gets "No SKU matches found — manual review needed".
+  //    Adding a new shorthand requires inserting into product_aliases or SHORTHAND_MAP.
 
   // De-dupe per (canonical + ~line band) so multi-line orders keep separate items but a single canonical isn't doubled.
   const matchedSKUs: SKUMatch[] = [];
