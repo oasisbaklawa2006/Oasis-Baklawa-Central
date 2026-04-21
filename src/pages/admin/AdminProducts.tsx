@@ -151,6 +151,12 @@ const EMPTY_FORM = {
   ingredients: "",
   has_bom: false,
   enable_variants: false,
+  // Category-aware additive fields
+  product_family: "bulk_sweets",
+  dimensions: "",
+  material: "",
+  gross_weight_kg: "",
+  bom_summary: "",
 };
 
 const AdminProducts = () => {
@@ -403,6 +409,11 @@ const AdminProducts = () => {
         ingredients: product.ingredients || "",
         has_bom: false,
         enable_variants: false,
+        product_family: (product as any).product_family || "bulk_sweets",
+        dimensions: (product as any).dimensions || "",
+        material: (product as any).material || "",
+        gross_weight_kg: (product as any).gross_weight_kg?.toString() || "",
+        bom_summary: (product as any).bom_summary || "",
       });
       const components = await loadBom(product.id);
       // Load variants
@@ -534,6 +545,11 @@ const AdminProducts = () => {
       nutrition_facts: formData.nutrition_facts || null,
       allergen_warnings: formData.allergen_warnings || null,
       ingredients: formData.ingredients || null,
+      product_family: formData.product_family || null,
+      dimensions: formData.dimensions || null,
+      material: formData.material || null,
+      gross_weight_kg: parseFloat(formData.gross_weight_kg) || null,
+      bom_summary: formData.bom_summary || null,
     };
 
     try {
