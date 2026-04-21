@@ -509,6 +509,13 @@ export default function RawIntelligenceTab() {
           </div>
         </details>
       )}
+
+      <AliasDrawer
+        open={aliasDrawerOpen}
+        onOpenChange={setAliasDrawerOpen}
+        pendingToken={pendingAliasToken}
+        onAliasesChanged={fetchAliases}
+      />
     </div>
   );
 }
