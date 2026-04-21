@@ -2547,6 +2547,7 @@ export type Database = {
       }
       products: {
         Row: {
+          aliases: string[] | null
           allergen_warnings: string | null
           avg_weight_per_pack: number | null
           avg_weight_per_pc: number | null
@@ -2606,6 +2607,7 @@ export type Database = {
           wholesale_price: number | null
         }
         Insert: {
+          aliases?: string[] | null
           allergen_warnings?: string | null
           avg_weight_per_pack?: number | null
           avg_weight_per_pc?: number | null
@@ -2665,6 +2667,7 @@ export type Database = {
           wholesale_price?: number | null
         }
         Update: {
+          aliases?: string[] | null
           allergen_warnings?: string | null
           avg_weight_per_pack?: number | null
           avg_weight_per_pc?: number | null
