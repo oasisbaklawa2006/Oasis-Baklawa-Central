@@ -568,6 +568,11 @@ const AdminProducts = () => {
       material: formData.material || null,
       gross_weight_kg: parseFloat(formData.gross_weight_kg) || null,
       bom_summary: formData.bom_summary || null,
+      aliases: typeof formData.aliases === "string" && formData.aliases.trim()
+        ? formData.aliases.split(",").map((s: string) => s.trim()).filter(Boolean)
+        : [],
+      grams_per_piece: parseFloat(formData.grams_per_piece) || null,
+      weight_per_box_kg: parseFloat(formData.weight_per_box_kg) || null,
     };
 
     try {
