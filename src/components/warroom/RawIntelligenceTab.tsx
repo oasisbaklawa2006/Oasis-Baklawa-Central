@@ -298,9 +298,18 @@ export default function RawIntelligenceTab() {
         <p className="text-xs text-muted-foreground">
           {failed.length} inbound message{failed.length !== 1 ? "s" : ""} need attention.
         </p>
-        <button onClick={fetchRaw} className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground px-2 py-1 rounded border border-border">
-          <RefreshCw size={12} /> Refresh
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => openAliasDrawer(null)}
+            className="flex items-center gap-1 text-xs text-primary hover:opacity-80 px-2 py-1 rounded border border-primary/30"
+            title="Approve / add SKU aliases on the fly"
+          >
+            <Tag size={12} /> Edit Aliases
+          </button>
+          <button onClick={fetchRaw} className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground px-2 py-1 rounded border border-border">
+            <RefreshCw size={12} /> Refresh
+          </button>
+        </div>
       </div>
 
       {loading && <p className="text-sm text-muted-foreground text-center py-8">Loading…</p>}
