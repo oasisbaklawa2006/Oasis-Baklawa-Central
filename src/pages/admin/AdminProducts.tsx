@@ -157,6 +157,10 @@ const EMPTY_FORM = {
   material: "",
   gross_weight_kg: "",
   bom_summary: "",
+  // Intelligence & Search (parser/SO math)
+  aliases: "" as string, // comma-separated in UI; stored as text[]
+  grams_per_piece: "",
+  weight_per_box_kg: "",
 };
 
 const AdminProducts = () => {
@@ -333,6 +337,39 @@ const AdminProducts = () => {
     }
   };
 
+  // AI ALIAS SUGGESTIONS — uses oasis-ai-chat to propose B2B nicknames for the SKU.
+  const handleAiAliases = async () => {
+    if (!formData.name) return toast.error("Enter Product Name first.");
+    setIsAiLoading("aliases");
+    try {
+      const prompt = `Suggest 6-10 short, common B2B/WhatsApp shorthand nicknames a wholesale customer might use to order the product "${formData.name}"${formData.category ? ` (category: ${formData.category})` : ""}. Return ONLY a JSON array of lowercase strings, no commentary. Example: ["pyramid","kitta","cashew pyramid"]`;
+      const { data, error } = await supabase.functions.invoke("oasis-ai-chat", {
+        body: { messages: [{ role: "user", content: prompt }] },
+      });
+      if (error) throw error;
+      const raw = (data?.reply || data?.message || data?.content || "").toString();
+      let parsed: string[] = [];
+      const m = raw.match(/\[[\s\S]*\]/);
+      if (m) {
+        try { parsed = JSON.parse(m[0]); } catch { /* fall through */ }
+      }
+      if (!Array.isArray(parsed) || parsed.length === 0) {
+        // Fallback: split by comma / newline
+        parsed = raw.split(/[,\n]/).map((s: string) => s.replace(/^[\s"\-•*\d.]+|["\s]+$/g, "").trim()).filter(Boolean);
+      }
+      const cleaned = parsed.map((s) => String(s).toLowerCase().trim()).filter((s) => s && s.length <= 40);
+      const existing = (formData.aliases || "").split(",").map((s: string) => s.trim().toLowerCase()).filter(Boolean);
+      const merged = Array.from(new Set([...existing, ...cleaned]));
+      setFormData((prev: any) => ({ ...prev, aliases: merged.join(", ") }));
+      toast.success(`Suggested ${cleaned.length} aliases — review & save.`, { icon: "✨" });
+    } catch (err: any) {
+      console.error("AI aliases error:", err);
+      toast.error(err.message || "Could not generate aliases.");
+    } finally {
+      setIsAiLoading(null);
+    }
+  };
+
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     try {
       if (!e.target.files || e.target.files.length === 0) return;
@@ -414,6 +451,9 @@ const AdminProducts = () => {
         material: (product as any).material || "",
         gross_weight_kg: (product as any).gross_weight_kg?.toString() || "",
         bom_summary: (product as any).bom_summary || "",
+        aliases: Array.isArray((product as any).aliases) ? (product as any).aliases.join(", ") : "",
+        grams_per_piece: (product as any).grams_per_piece?.toString() || "",
+        weight_per_box_kg: (product as any).weight_per_box_kg?.toString() || "",
       });
       const components = await loadBom(product.id);
       // Load variants
@@ -508,6 +548,17 @@ const AdminProducts = () => {
       if (!formData.hsn_code || !formData.hsn_code.trim()) return toast.error("HSN Code is mandatory for Active products.");
       if (!formData.gst_percentage && formData.gst_percentage !== "0") return toast.error("GST Rate is mandatory for Active products.");
     }
+    // UNIT MATH ENFORCEMENT: when settling by weight, parser/SO need both conversion factors.
+    const fam = (formData.product_family || "").toLowerCase();
+    const isFoodFamily = fam === "bulk_sweets" || fam === "retail_pack" || fam === "hampers" || !fam;
+    if (formData.is_active && formData.settlement_unit === "KG" && isFoodFamily) {
+      if (!formData.grams_per_piece || Number(formData.grams_per_piece) <= 0) {
+        return toast.error("Grams per Piece is mandatory when Settlement Unit is Weight (KG).");
+      }
+      if (!formData.weight_per_box_kg || Number(formData.weight_per_box_kg) <= 0) {
+        return toast.error("Kg per Box is mandatory when Settlement Unit is Weight (KG).");
+      }
+    }
     setSaving(true);
 
     const payload: any = {
@@ -550,6 +601,11 @@ const AdminProducts = () => {
       material: formData.material || null,
       gross_weight_kg: parseFloat(formData.gross_weight_kg) || null,
       bom_summary: formData.bom_summary || null,
+      aliases: typeof formData.aliases === "string" && formData.aliases.trim()
+        ? formData.aliases.split(",").map((s: string) => s.trim()).filter(Boolean)
+        : [],
+      grams_per_piece: parseFloat(formData.grams_per_piece) || null,
+      weight_per_box_kg: parseFloat(formData.weight_per_box_kg) || null,
     };
 
     try {
@@ -1636,6 +1692,79 @@ const AdminProducts = () => {
                   </div>
                   {formData.enable_variants && (
                     <VariantManager variants={productVariants} onChange={setProductVariants} />
+                  )}
+                </section>
+
+                {/* 6. INTELLIGENCE & SEARCH — aliases + unit math for parser/SO */}
+                <section className="space-y-4">
+                  <h3 className="text-xs font-bold text-muted-foreground uppercase tracking-widest border-b border-border pb-2 flex items-center gap-2">
+                    <Sparkles size={14} className="text-[#C5A059]" /> 6. Intelligence & Search
+                  </h3>
+
+                  <div>
+                    <div className="flex items-center justify-between mb-1.5">
+                      <label className="block text-[10px] font-semibold text-muted-foreground uppercase">
+                        Aliases / Nicknames
+                      </label>
+                      <button
+                        type="button"
+                        onClick={handleAiAliases}
+                        disabled={isAiLoading === "aliases"}
+                        className="text-[10px] font-bold text-[#C5A059] hover:text-[#B38F48] flex items-center gap-1 disabled:opacity-50"
+                      >
+                        {isAiLoading === "aliases" ? <Loader2 size={10} className="animate-spin" /> : <Wand2 size={10} />}
+                        Generate AI Aliases
+                      </button>
+                    </div>
+                    <textarea
+                      name="aliases"
+                      rows={2}
+                      placeholder="e.g. pyramid, kitta, kita, cashew pyramid"
+                      value={formData.aliases}
+                      onChange={handleInputChange}
+                      className="w-full bg-background border border-border rounded-lg p-2.5 text-xs outline-none focus:ring-1 focus:ring-[#C5A059] resize-none"
+                    />
+                    <p className="text-[10px] text-muted-foreground mt-1">
+                      Comma-separated. Used by the WhatsApp/AI parser to match this SKU from informal customer text.
+                    </p>
+                  </div>
+
+                  {/* Unit Math — mandatory when settling by KG (food families) */}
+                  {((formData.product_family || "bulk_sweets") !== "goldware") && (
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-[10px] font-bold text-blue-600 uppercase mb-1.5 flex items-center gap-1">
+                          Grams per Piece {formData.settlement_unit === "KG" && <span className="text-destructive">*</span>}
+                        </label>
+                        <input
+                          type="number"
+                          step="0.01"
+                          name="grams_per_piece"
+                          placeholder="e.g. 22"
+                          value={formData.grams_per_piece}
+                          onChange={handleInputChange}
+                          className="w-full bg-blue-50 dark:bg-blue-950/20 border border-blue-300 dark:border-blue-800 rounded-lg p-2.5 text-sm font-semibold outline-none focus:ring-1 focus:ring-blue-500"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[10px] font-bold text-blue-600 uppercase mb-1.5 flex items-center gap-1">
+                          Kg per Box {formData.settlement_unit === "KG" && <span className="text-destructive">*</span>}
+                        </label>
+                        <input
+                          type="number"
+                          step="0.01"
+                          name="weight_per_box_kg"
+                          placeholder="e.g. 6"
+                          value={formData.weight_per_box_kg}
+                          onChange={handleInputChange}
+                          className="w-full bg-blue-50 dark:bg-blue-950/20 border border-blue-300 dark:border-blue-800 rounded-lg p-2.5 text-sm font-semibold outline-none focus:ring-1 focus:ring-blue-500"
+                        />
+                      </div>
+                      <p className="col-span-2 text-[10px] text-muted-foreground -mt-1">
+                        Used by the AI Draft SO engine to convert "2 box" or "10 pcs" into total kilograms automatically.
+                        {formData.settlement_unit === "KG" && " Required when Settlement Unit is Weight (KG)."}
+                      </p>
+                    </div>
                   )}
                 </section>
 
