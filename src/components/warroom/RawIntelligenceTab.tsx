@@ -418,7 +418,19 @@ export default function RawIntelligenceTab() {
             )}
 
             {parsed.detectedSKUs.length === 0 && text && (
-              <p className="text-[10px] text-muted-foreground italic">⚠ No SKU matches found — manual review needed</p>
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-[10px] text-muted-foreground italic">⚠ No SKU matches found — manual review needed</p>
+                <button
+                  onClick={() => {
+                    // Pre-fill drawer with the first non-trivial word from the message
+                    const firstToken = (text.match(/\b[A-Za-z]{3,}\b/) || [])[0] || null;
+                    openAliasDrawer(firstToken);
+                  }}
+                  className="flex items-center gap-1 text-[10px] text-primary hover:opacity-80 px-2 py-0.5 rounded border border-primary/30 flex-shrink-0"
+                >
+                  <Tag size={10} /> Teach SKU
+                </button>
+              </div>
             )}
 
             {/* Error */}
