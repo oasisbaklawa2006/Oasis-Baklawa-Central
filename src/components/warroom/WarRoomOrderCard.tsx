@@ -231,6 +231,25 @@ export default function WarRoomOrderCard({
     }
   };
 
+  /** One-click promotion: Shadow/Draft → Active, no extra fields required. */
+  const handleConfirmClient = async () => {
+    if (!order.company_id || cardBusy) return;
+    setSavingProfile(true);
+    try {
+      const { error } = await supabase
+        .from("companies")
+        .update({ status: "active" } as any)
+        .eq("id", order.company_id);
+      if (error) throw error;
+      toast.success("Client confirmed & activated");
+      onRefresh?.();
+    } catch (e: any) {
+      toast.error(e?.message || "Failed to confirm client");
+    } finally {
+      setSavingProfile(false);
+    }
+  };
+
 
   return (
     <>
@@ -502,15 +521,25 @@ export default function WarRoomOrderCard({
               <div className="mb-2 rounded-md border border-sky-500/30 bg-sky-500/5 p-2">
                 <div className="flex items-center justify-between gap-2">
                   <span className="text-[10px] font-bold text-sky-700 flex items-center gap-1">
-                    <UserPlus size={10} /> Draft client — finish profile to activate
+                    <UserPlus size={10} /> NEW LEAD — confirm or finish profile to activate
                   </span>
-                  <button
-                    onClick={() => setProfileOpen((v) => !v)}
-                    disabled={cardBusy}
-                    className="text-[10px] font-semibold px-2 py-0.5 rounded bg-sky-600 text-white hover:bg-sky-700 disabled:opacity-40"
-                  >
-                    {profileOpen ? "Close" : "Complete Profile"}
-                  </button>
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      onClick={handleConfirmClient}
+                      disabled={cardBusy}
+                      className="text-[10px] font-bold px-2 py-0.5 rounded bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-40"
+                      title="One-click promote Shadow → Active client"
+                    >
+                      ✓ Confirm Client
+                    </button>
+                    <button
+                      onClick={() => setProfileOpen((v) => !v)}
+                      disabled={cardBusy}
+                      className="text-[10px] font-semibold px-2 py-0.5 rounded bg-sky-600 text-white hover:bg-sky-700 disabled:opacity-40"
+                    >
+                      {profileOpen ? "Close" : "Complete Profile"}
+                    </button>
+                  </div>
                 </div>
                 {profileOpen && (
                   <div className="mt-2 grid grid-cols-1 sm:grid-cols-3 gap-1.5">
