@@ -439,11 +439,53 @@ const CMDWarRoom = () => {
             ))}
           </div>
 
+          {/* AUTO-PILOT — Ready for Approval (green glow) */}
+          {autoPilotOrders.length > 0 && (
+            <div className="mb-4 rounded-xl border-2 border-emerald-500/50 bg-emerald-500/5 p-3 shadow-[0_0_20px_rgba(16,185,129,0.18)]">
+              <div className="flex items-center justify-between mb-2">
+                <h2 className="text-xs font-bold uppercase tracking-wider text-emerald-700 flex items-center gap-2">
+                  ⚡ Ready for Approval
+                  <span className="text-[10px] font-semibold bg-emerald-600 text-white px-2 py-0.5 rounded-full">
+                    {autoPilotOrders.length}
+                  </span>
+                </h2>
+                <button
+                  onClick={processAllClear}
+                  disabled={bulkProcessing}
+                  className="text-[11px] font-bold px-3 py-1 rounded-md bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-50 transition-colors"
+                >
+                  {bulkProcessing ? "Processing…" : `Approve & Build All (${autoPilotOrders.length})`}
+                </button>
+              </div>
+              <div className="space-y-3">
+                {autoPilotOrders
+                  .filter((o) => showHidden || !hidden.has(o.id))
+                  .map((order) => (
+                    <WarRoomOrderCard
+                      key={`ap-${order.id}`}
+                      order={order}
+                      isMinimized={hidden.has(order.id)}
+                      onToggleMinimize={() => toggleHide(order.id)}
+                      onValidateAsUnique={() => validateAsUnique(order.id)}
+                      companies={activeCompanies}
+                      onAssignClient={assignClientToOrder}
+                      onBuildSO={buildSO}
+                      onTeachSku={(token) => openAliasDrawer(token)}
+                      onEditAliases={() => openAliasDrawer()}
+                      onRefresh={fetchOrders}
+                    />
+                  ))}
+              </div>
+            </div>
+          )}
+
           {visibleOrders.length === 0 && (
             <p className="text-muted-foreground text-sm text-center py-12">No active orders in the pipeline.</p>
           )}
           <div className="space-y-3">
-            {visibleOrders.map((order) => (
+            {visibleOrders
+              .filter((o) => !autoPilotOrders.some((ap) => ap.id === o.id))
+              .map((order) => (
               <WarRoomOrderCard
                 key={order.id}
                 order={order}
