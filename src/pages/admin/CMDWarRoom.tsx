@@ -195,6 +195,36 @@ const CMDWarRoom = () => {
     );
   }, []);
 
+  /** Fetch soft-rejected orders (is_waste=true) for the Rejected tab. Lightweight — last 100. */
+  const fetchRejectedOrders = useCallback(async () => {
+    const { data } = await supabase
+      .from("orders")
+      .select("id, status, created_at, sales_order_value, dispatch_urgency, company_id, total_weight_kg, needs_clarification, is_waste, is_duplicate, duplicate_of_order_id")
+      .eq("is_waste", true)
+      .order("created_at", { ascending: false })
+      .limit(100);
+    if (!data) { setRejectedOrders([]); return; }
+    const companyIds = [...new Set(data.map((o) => o.company_id).filter(Boolean))] as string[];
+    let companyMap: Record<string, { name: string; status: string | null }> = {};
+    if (companyIds.length) {
+      const { data: companies } = await supabase
+        .from("companies")
+        .select("id, business_name, status")
+        .in("id", companyIds);
+      companies?.forEach((c: any) => { companyMap[c.id] = { name: c.business_name, status: c.status }; });
+    }
+    setRejectedOrders(
+      data.map((o) => ({
+        ...o,
+        company_name: o.company_id ? companyMap[o.company_id]?.name ?? "Unknown" : "Unknown",
+        company_status: o.company_id ? companyMap[o.company_id]?.status ?? null : null,
+        items: [],
+        attachment_urls: [],
+        min_confidence: null,
+      }))
+    );
+  }, []);
+
   useEffect(() => {
     fetchOrders();
     fetchShadowCompanies();
