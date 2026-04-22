@@ -41,6 +41,7 @@ function getActiveStep(status: string) {
 }
 
 interface OrderItem {
+  id?: string;
   quantity: number;
   product_name?: string;
   weight_kg?: number | null;
@@ -62,6 +63,9 @@ interface Order {
   company_id: string | null;
   company_name?: string;
   company_status?: string | null;
+  company_phone?: string | null;
+  company_gst?: string | null;
+  company_address?: string | null;
   has_complaint?: boolean;
   items?: OrderItem[];
   total_weight_kg?: number | null;
@@ -83,6 +87,12 @@ interface Props {
   onAssignClient?: (orderId: string, companyId: string) => Promise<void> | void;
   /** Called when admin clicks "Build SO" — only enabled once client is mapped. */
   onBuildSO?: (orderId: string) => Promise<void> | void;
+  /** Open Teach-SKU side drawer with optional pre-fill token (instant). */
+  onTeachSku?: (token?: string) => void;
+  /** Open Edit-Aliases side drawer (instant). */
+  onEditAliases?: () => void;
+  /** Refresh callback after inline edits / profile completion. */
+  onRefresh?: () => void;
 }
 
 export default function WarRoomOrderCard({
@@ -93,6 +103,9 @@ export default function WarRoomOrderCard({
   companies = [],
   onAssignClient,
   onBuildSO,
+  onTeachSku,
+  onEditAliases,
+  onRefresh,
 }: Props) {
   const activeStep = getActiveStep(order.status);
   const isPanic = order.dispatch_urgency === "panic";
