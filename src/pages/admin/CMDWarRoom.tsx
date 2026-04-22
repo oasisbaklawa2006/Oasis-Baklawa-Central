@@ -101,14 +101,20 @@ const CMDWarRoom = () => {
     if (!data) return;
 
     const companyIds = [...new Set(data.map((o) => o.company_id).filter(Boolean))] as string[];
-    let companyMap: Record<string, { name: string; status: string | null }> = {};
+    let companyMap: Record<string, { name: string; status: string | null; phone: string | null; gst: string | null; address: string | null }> = {};
     if (companyIds.length) {
       const { data: companies } = await supabase
         .from("companies")
-        .select("id, business_name, status")
+        .select("id, business_name, status, phone, gst_number, registered_address")
         .in("id", companyIds);
       companies?.forEach((c: any) => {
-        companyMap[c.id] = { name: c.business_name, status: c.status };
+        companyMap[c.id] = {
+          name: c.business_name,
+          status: c.status,
+          phone: c.phone ?? null,
+          gst: c.gst_number ?? null,
+          address: c.registered_address ?? null,
+        };
       });
     }
 
