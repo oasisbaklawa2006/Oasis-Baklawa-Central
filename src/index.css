@@ -143,4 +143,11 @@ html, body, #root {
   -webkit-tap-highlight-color: transparent;
   -webkit-overflow-scrolling: touch;
   transform: translateZ(0);
+  max-width: 100vw;
+  overflow-x: hidden;
+  overscroll-behavior-x: none;
+}
+
+@media (max-width: 767px) {
+  html, body { touch-action: pan-y; }
 }

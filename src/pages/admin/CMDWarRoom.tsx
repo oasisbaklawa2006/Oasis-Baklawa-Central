@@ -357,46 +357,51 @@ const CMDWarRoom = () => {
   }, [orders, todayOnly]);
 
   return (
-    <div className="p-4 space-y-4 min-h-screen bg-background">
-      <div className="flex items-center justify-between">
-        <h1 className="text-xl font-bold text-foreground tracking-tight">
-          ⚔️ CMD War Room — Live Order Battlefield v3
+    <div className="p-3 sm:p-4 space-y-4 min-h-screen bg-background max-w-full overflow-x-hidden">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h1 className="text-base sm:text-xl font-bold text-foreground tracking-tight">
+          ⚔️ CMD War Room <span className="hidden sm:inline">— Live Order Battlefield v3</span>
         </h1>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
           <button
             onClick={() => openAliasDrawer()}
-            className="flex items-center gap-1.5 text-xs font-medium text-primary hover:opacity-80 transition-colors px-3 py-1.5 rounded-md border border-primary/30"
+            className="flex items-center gap-1 sm:gap-1.5 text-[11px] sm:text-xs font-medium text-primary hover:opacity-80 transition-colors px-2 sm:px-3 py-1 sm:py-1.5 rounded-md border border-primary/30"
           >
-            <Tag size={14} /> Edit Aliases
+            <Tag size={12} className="sm:hidden" /><Tag size={14} className="hidden sm:inline" />
+            <span className="hidden xs:inline sm:inline">Edit Aliases</span>
+            <span className="inline xs:hidden sm:hidden">Aliases</span>
           </button>
           {autoPilotOrders.length > 0 && (
             <button
               onClick={processAllClear}
               disabled={bulkProcessing}
-              className="flex items-center gap-1.5 text-xs font-bold transition-colors px-3 py-1.5 rounded-md border bg-emerald-600 text-white border-emerald-600 hover:bg-emerald-700 disabled:opacity-50"
+              className="flex items-center gap-1 sm:gap-1.5 text-[11px] sm:text-xs font-bold transition-colors px-2 sm:px-3 py-1 sm:py-1.5 rounded-md border bg-emerald-600 text-white border-emerald-600 hover:bg-emerald-700 disabled:opacity-50"
             >
-              {bulkProcessing ? "Processing…" : `⚡ Process All Clear (${autoPilotOrders.length})`}
+              {bulkProcessing ? "…" : `⚡ ${autoPilotOrders.length}`}
+              <span className="hidden sm:inline">{bulkProcessing ? "" : " Clear"}</span>
             </button>
           )}
           <button
             onClick={() => setTodayOnly(!todayOnly)}
-            className={`flex items-center gap-1.5 text-xs font-medium transition-colors px-3 py-1.5 rounded-md border ${
+            className={`flex items-center gap-1 sm:gap-1.5 text-[11px] sm:text-xs font-medium transition-colors px-2 sm:px-3 py-1 sm:py-1.5 rounded-md border ${
               todayOnly
                 ? "bg-primary text-primary-foreground border-primary"
                 : "text-muted-foreground hover:text-foreground border-border"
             }`}
           >
-            {todayOnly ? "Today Only" : "All Active"}
+            {todayOnly ? "Today" : "All"}
           </button>
           <button
             onClick={() => { fetchOrders(); fetchShadowCompanies(); fetchActiveCompanies(); }}
-            className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors px-3 py-1.5 rounded-md border border-border"
+            className="flex items-center gap-1 sm:gap-1.5 text-[11px] sm:text-xs font-medium text-muted-foreground hover:text-foreground transition-colors px-2 sm:px-3 py-1 sm:py-1.5 rounded-md border border-border"
+            aria-label="Refresh"
           >
-            <RefreshCw size={14} /> Refresh
+            <RefreshCw size={12} className="sm:hidden" /><RefreshCw size={14} className="hidden sm:inline" />
+            <span className="hidden sm:inline">Refresh</span>
           </button>
           <button
             onClick={() => setShowHidden(!showHidden)}
-            className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors px-3 py-1.5 rounded-md border border-border"
+            className="hidden sm:flex items-center gap-1.5 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors px-3 py-1.5 rounded-md border border-border"
           >
             {showHidden ? <EyeOff size={14} /> : <Eye size={14} />}
             {showHidden ? "Hide Minimized" : `Show Minimized (${hidden.size})`}
@@ -404,8 +409,21 @@ const CMDWarRoom = () => {
         </div>
       </div>
 
-      {/* Shadow Client Verification Section */}
-      <ShadowClientSection companies={shadowCompanies} onRefresh={() => { fetchShadowCompanies(); fetchOrders(); }} />
+      {/* Shadow Client Verification Section — collapsible on mobile */}
+      {shadowCompanies.length > 0 && (
+        <details className="md:hidden rounded-xl border border-amber-500/30 bg-amber-500/5 overflow-hidden" open={false}>
+          <summary className="cursor-pointer px-3 py-2 text-xs font-bold text-amber-700 flex items-center justify-between list-none">
+            <span>📩 WhatsApp Lead Verification ({shadowCompanies.length} pending)</span>
+            <span className="text-[10px] opacity-70">Tap to expand</span>
+          </summary>
+          <div className="p-2">
+            <ShadowClientSection companies={shadowCompanies} onRefresh={() => { fetchShadowCompanies(); fetchOrders(); }} />
+          </div>
+        </details>
+      )}
+      <div className="hidden md:block">
+        <ShadowClientSection companies={shadowCompanies} onRefresh={() => { fetchShadowCompanies(); fetchOrders(); }} />
+      </div>
 
       <Tabs defaultValue="battlefield" className="w-full">
         <TabsList className="w-full">
