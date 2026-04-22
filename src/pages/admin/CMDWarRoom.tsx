@@ -261,7 +261,7 @@ const CMDWarRoom = () => {
       supabase.removeChannel(ch2);
       supabase.removeChannel(ch3);
     };
-  }, [fetchOrders, fetchShadowCompanies, fetchActiveCompanies]);
+  }, [fetchOrders, fetchRejectedOrders, fetchShadowCompanies, fetchActiveCompanies]);
 
   const sortedOrders = useMemo(() => {
     const startOfToday = new Date();
