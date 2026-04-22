@@ -9,9 +9,11 @@
  * Any SKU below 0.85 → order is flagged `needs_clarification` and shown ORANGE.
  */
 
-// Anti-hallucination: any token below 0.9 with no exact alias hit is dropped entirely.
+// Anti-hallucination: any token below 0.95 with no exact alias hit is dropped entirely.
 // Tokens with exact alias hits remain at confidence 1.0; fuzzy is no longer trusted.
-export const CONFIDENCE_THRESHOLD = 0.9;
+// STRICT MAPPING: an exact alias from products.aliases[] or product_aliases ALWAYS wins
+// over inferred matches. Below threshold → UNRECOGNIZED → triggers Teach SKU.
+export const CONFIDENCE_THRESHOLD = 0.95;
 
 // Hard-coded shorthand map (supplements DB product_aliases)
 export const SHORTHAND_MAP: Record<string, string> = {
