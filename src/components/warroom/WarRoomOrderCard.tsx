@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { ChevronDown, ChevronUp, AlertTriangle, CheckCircle2, Package, Truck, CreditCard, Factory, Box, Hammer, FileText, HeartHandshake, Eye, EyeOff, Image as ImageIcon, X, UserPlus, Pencil, Save, Tag } from "lucide-react";
+import { ChevronDown, ChevronUp, AlertTriangle, CheckCircle2, Package, Truck, CreditCard, Factory, Box, Hammer, FileText, HeartHandshake, Eye, EyeOff, Image as ImageIcon, X, UserPlus, Pencil, Save, Tag, Trash2, RotateCcw } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { normalizeOrderStatus } from "@/utils/orderStatus";
@@ -93,6 +93,8 @@ interface Props {
   onEditAliases?: () => void;
   /** Refresh callback after inline edits / profile completion. */
   onRefresh?: () => void;
+  /** When true, render this card in "rejected" mode — show Restore action only. */
+  isRejected?: boolean;
 }
 
 export default function WarRoomOrderCard({
@@ -106,6 +108,7 @@ export default function WarRoomOrderCard({
   onTeachSku,
   onEditAliases,
   onRefresh,
+  isRejected = false,
 }: Props) {
   const activeStep = getActiveStep(order.status);
   const isPanic = order.dispatch_urgency === "panic";
