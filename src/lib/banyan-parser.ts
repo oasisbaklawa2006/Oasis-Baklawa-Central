@@ -200,7 +200,7 @@ export function parseBanyanMessage(
     if (seen.has(lineKey)) continue;
     seen.add(lineKey);
     const { quantity, unit } = extractQtyForAlias(text || "", h.aliasHit);
-    matchedSKUs.push({ name: h.canonical, confidence: h.confidence, quantity, unit });
+    matchedSKUs.push({ name: h.canonical, confidence: h.confidence, quantity, unit, matchedAlias: h.aliasHit });
   }
   matchedSKUs.sort((a, b) => {
     const ai = lower.indexOf(a.name.toLowerCase()) >>> 0;
