@@ -252,6 +252,46 @@ export default function WarRoomOrderCard({
       setSavingProfile(false);
     }
   };
+  const [rejecting, setRejecting] = useState(false);
+
+  /** Soft-hide an order: flag is_waste=true (kept in DB; filtered from main queue). */
+  const handleReject = async () => {
+    if (cardBusy || rejecting) return;
+    if (!confirm("Reject this message? It will be moved to the Rejected tab (not deleted).")) return;
+    setRejecting(true);
+    try {
+      const { error } = await supabase
+        .from("orders")
+        .update({ is_waste: true } as any)
+        .eq("id", order.id);
+      if (error) throw error;
+      toast.success("Moved to Rejected");
+      onRefresh?.();
+    } catch (e: any) {
+      toast.error(e?.message || "Failed to reject");
+    } finally {
+      setRejecting(false);
+    }
+  };
+
+  /** Restore a previously rejected order back to the active queue. */
+  const handleRestore = async () => {
+    if (rejecting) return;
+    setRejecting(true);
+    try {
+      const { error } = await supabase
+        .from("orders")
+        .update({ is_waste: false } as any)
+        .eq("id", order.id);
+      if (error) throw error;
+      toast.success("Order restored to queue");
+      onRefresh?.();
+    } catch (e: any) {
+      toast.error(e?.message || "Failed to restore");
+    } finally {
+      setRejecting(false);
+    }
+  };
 
 
   return (
