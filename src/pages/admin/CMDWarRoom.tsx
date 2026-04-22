@@ -55,6 +55,7 @@ type FilterMode = "all" | "needs_review" | "clear";
 
 const CMDWarRoom = () => {
   const [orders, setOrders] = useState<Order[]>([]);
+  const [rejectedOrders, setRejectedOrders] = useState<Order[]>([]);
   const [shadowCompanies, setShadowCompanies] = useState<ShadowCompany[]>([]);
   const [activeCompanies, setActiveCompanies] = useState<{ id: string; business_name: string }[]>([]);
   const [hidden, setHidden] = useState<Set<string>>(new Set());
