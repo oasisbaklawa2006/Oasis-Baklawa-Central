@@ -62,6 +62,14 @@ const CMDWarRoom = () => {
   const [todayOnly, setTodayOnly] = useState(true);
   const [filterMode, setFilterMode] = useState<FilterMode>("all");
   const [aliasDrawerOpen, setAliasDrawerOpen] = useState(false);
+  const [pendingToken, setPendingToken] = useState<string | null>(null);
+  const [bulkProcessing, setBulkProcessing] = useState(false);
+
+  // Open the alias drawer instantly (single global state, zero-lag).
+  const openAliasDrawer = useCallback((token?: string) => {
+    setPendingToken(token ? token.trim() : null);
+    setAliasDrawerOpen(true);
+  }, []);
 
   const fetchShadowCompanies = useCallback(async () => {
     const { data } = await supabase
