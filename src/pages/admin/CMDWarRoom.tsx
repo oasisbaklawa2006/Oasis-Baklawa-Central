@@ -55,6 +55,7 @@ type FilterMode = "all" | "needs_review" | "clear";
 
 const CMDWarRoom = () => {
   const [orders, setOrders] = useState<Order[]>([]);
+  const [rejectedOrders, setRejectedOrders] = useState<Order[]>([]);
   const [shadowCompanies, setShadowCompanies] = useState<ShadowCompany[]>([]);
   const [activeCompanies, setActiveCompanies] = useState<{ id: string; business_name: string }[]>([]);
   const [hidden, setHidden] = useState<Set<string>>(new Set());
@@ -194,8 +195,39 @@ const CMDWarRoom = () => {
     );
   }, []);
 
+  /** Fetch soft-rejected orders (is_waste=true) for the Rejected tab. Lightweight — last 100. */
+  const fetchRejectedOrders = useCallback(async () => {
+    const { data } = await supabase
+      .from("orders")
+      .select("id, status, created_at, sales_order_value, dispatch_urgency, company_id, total_weight_kg, needs_clarification, is_waste, is_duplicate, duplicate_of_order_id")
+      .eq("is_waste", true)
+      .order("created_at", { ascending: false })
+      .limit(100);
+    if (!data) { setRejectedOrders([]); return; }
+    const companyIds = [...new Set(data.map((o) => o.company_id).filter(Boolean))] as string[];
+    let companyMap: Record<string, { name: string; status: string | null }> = {};
+    if (companyIds.length) {
+      const { data: companies } = await supabase
+        .from("companies")
+        .select("id, business_name, status")
+        .in("id", companyIds);
+      companies?.forEach((c: any) => { companyMap[c.id] = { name: c.business_name, status: c.status }; });
+    }
+    setRejectedOrders(
+      data.map((o) => ({
+        ...o,
+        company_name: o.company_id ? companyMap[o.company_id]?.name ?? "Unknown" : "Unknown",
+        company_status: o.company_id ? companyMap[o.company_id]?.status ?? null : null,
+        items: [],
+        attachment_urls: [],
+        min_confidence: null,
+      }))
+    );
+  }, []);
+
   useEffect(() => {
     fetchOrders();
+    fetchRejectedOrders();
     fetchShadowCompanies();
     fetchActiveCompanies();
 
@@ -208,7 +240,7 @@ const CMDWarRoom = () => {
 
     const ch1 = supabase
       .channel(ordersChannel)
-      .on("postgres_changes", { event: "*", schema: "public", table: "orders" }, () => fetchOrders())
+      .on("postgres_changes", { event: "*", schema: "public", table: "orders" }, () => { fetchOrders(); fetchRejectedOrders(); })
       .subscribe();
 
     const ch2 = supabase
@@ -229,7 +261,7 @@ const CMDWarRoom = () => {
       supabase.removeChannel(ch2);
       supabase.removeChannel(ch3);
     };
-  }, [fetchOrders, fetchShadowCompanies, fetchActiveCompanies]);
+  }, [fetchOrders, fetchRejectedOrders, fetchShadowCompanies, fetchActiveCompanies]);
 
   const sortedOrders = useMemo(() => {
     const startOfToday = new Date();
@@ -429,6 +461,9 @@ const CMDWarRoom = () => {
         <TabsList className="w-full">
           <TabsTrigger value="battlefield" className="flex-1">Live Battlefield</TabsTrigger>
           <TabsTrigger value="raw" className="flex-1">Raw Intelligence</TabsTrigger>
+          <TabsTrigger value="rejected" className="flex-1">
+            Rejected{rejectedOrders.length > 0 && <span className="ml-1 text-[10px] opacity-70">({rejectedOrders.length})</span>}
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="battlefield">
@@ -523,6 +558,28 @@ const CMDWarRoom = () => {
 
         <TabsContent value="raw">
           <RawIntelligenceTab />
+        </TabsContent>
+
+        <TabsContent value="rejected">
+          {rejectedOrders.length === 0 ? (
+            <p className="text-muted-foreground text-sm text-center py-12">No rejected messages.</p>
+          ) : (
+            <div className="space-y-3">
+              <p className="text-[11px] text-muted-foreground">
+                These messages were soft-rejected and hidden from the active queue. Records remain in the database for audit. Click <span className="font-semibold">Restore</span> to send back to the battlefield.
+              </p>
+              {rejectedOrders.map((order) => (
+                <WarRoomOrderCard
+                  key={`rj-${order.id}`}
+                  order={order}
+                  isMinimized={false}
+                  onToggleMinimize={() => {}}
+                  isRejected
+                  onRefresh={() => { fetchRejectedOrders(); fetchOrders(); }}
+                />
+              ))}
+            </div>
+          )}
         </TabsContent>
       </Tabs>
 

@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { ChevronDown, ChevronUp, AlertTriangle, CheckCircle2, Package, Truck, CreditCard, Factory, Box, Hammer, FileText, HeartHandshake, Eye, EyeOff, Image as ImageIcon, X, UserPlus, Pencil, Save, Tag } from "lucide-react";
+import { ChevronDown, ChevronUp, AlertTriangle, CheckCircle2, Package, Truck, CreditCard, Factory, Box, Hammer, FileText, HeartHandshake, Eye, EyeOff, Image as ImageIcon, X, UserPlus, Pencil, Save, Tag, Trash2, RotateCcw } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { normalizeOrderStatus } from "@/utils/orderStatus";
@@ -93,6 +93,8 @@ interface Props {
   onEditAliases?: () => void;
   /** Refresh callback after inline edits / profile completion. */
   onRefresh?: () => void;
+  /** When true, render this card in "rejected" mode — show Restore action only. */
+  isRejected?: boolean;
 }
 
 export default function WarRoomOrderCard({
@@ -106,6 +108,7 @@ export default function WarRoomOrderCard({
   onTeachSku,
   onEditAliases,
   onRefresh,
+  isRejected = false,
 }: Props) {
   const activeStep = getActiveStep(order.status);
   const isPanic = order.dispatch_urgency === "panic";
@@ -249,6 +252,46 @@ export default function WarRoomOrderCard({
       setSavingProfile(false);
     }
   };
+  const [rejecting, setRejecting] = useState(false);
+
+  /** Soft-hide an order: flag is_waste=true (kept in DB; filtered from main queue). */
+  const handleReject = async () => {
+    if (cardBusy || rejecting) return;
+    if (!confirm("Reject this message? It will be moved to the Rejected tab (not deleted).")) return;
+    setRejecting(true);
+    try {
+      const { error } = await supabase
+        .from("orders")
+        .update({ is_waste: true } as any)
+        .eq("id", order.id);
+      if (error) throw error;
+      toast.success("Moved to Rejected");
+      onRefresh?.();
+    } catch (e: any) {
+      toast.error(e?.message || "Failed to reject");
+    } finally {
+      setRejecting(false);
+    }
+  };
+
+  /** Restore a previously rejected order back to the active queue. */
+  const handleRestore = async () => {
+    if (rejecting) return;
+    setRejecting(true);
+    try {
+      const { error } = await supabase
+        .from("orders")
+        .update({ is_waste: false } as any)
+        .eq("id", order.id);
+      if (error) throw error;
+      toast.success("Order restored to queue");
+      onRefresh?.();
+    } catch (e: any) {
+      toast.error(e?.message || "Failed to restore");
+    } finally {
+      setRejecting(false);
+    }
+  };
 
 
   return (
@@ -316,6 +359,26 @@ export default function WarRoomOrderCard({
               </span>
             ) : (
               <span className="text-sm font-semibold text-foreground">₹{(order.sales_order_value ?? 0).toLocaleString("en-IN")}</span>
+            )}
+            {isRejected ? (
+              <button
+                onClick={handleRestore}
+                disabled={rejecting}
+                title="Restore to active queue"
+                className="flex items-center gap-1 text-[10px] font-semibold text-emerald-700 hover:text-emerald-800 border border-emerald-500/30 hover:border-emerald-500/60 rounded px-1.5 py-0.5 disabled:opacity-40"
+              >
+                <RotateCcw size={11} /> Restore
+              </button>
+            ) : (
+              <button
+                onClick={handleReject}
+                disabled={cardBusy || rejecting}
+                title="Reject (soft-hide; record kept)"
+                aria-label="Reject message"
+                className="text-muted-foreground hover:text-destructive border border-transparent hover:border-destructive/30 rounded p-1 transition-colors disabled:opacity-40"
+              >
+                <Trash2 size={13} />
+              </button>
             )}
             <button onClick={onToggleMinimize} className="text-muted-foreground hover:text-foreground transition-colors">
               {isMinimized ? <ChevronDown size={16} /> : <ChevronUp size={16} />}
