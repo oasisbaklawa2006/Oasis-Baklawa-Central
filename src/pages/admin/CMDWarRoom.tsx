@@ -240,7 +240,7 @@ const CMDWarRoom = () => {
 
     const ch1 = supabase
       .channel(ordersChannel)
-      .on("postgres_changes", { event: "*", schema: "public", table: "orders" }, () => fetchOrders())
+      .on("postgres_changes", { event: "*", schema: "public", table: "orders" }, () => { fetchOrders(); fetchRejectedOrders(); })
       .subscribe();
 
     const ch2 = supabase
