@@ -360,6 +360,26 @@ export default function WarRoomOrderCard({
             ) : (
               <span className="text-sm font-semibold text-foreground">₹{(order.sales_order_value ?? 0).toLocaleString("en-IN")}</span>
             )}
+            {isRejected ? (
+              <button
+                onClick={handleRestore}
+                disabled={rejecting}
+                title="Restore to active queue"
+                className="flex items-center gap-1 text-[10px] font-semibold text-emerald-700 hover:text-emerald-800 border border-emerald-500/30 hover:border-emerald-500/60 rounded px-1.5 py-0.5 disabled:opacity-40"
+              >
+                <RotateCcw size={11} /> Restore
+              </button>
+            ) : (
+              <button
+                onClick={handleReject}
+                disabled={cardBusy || rejecting}
+                title="Reject (soft-hide; record kept)"
+                aria-label="Reject message"
+                className="text-muted-foreground hover:text-destructive border border-transparent hover:border-destructive/30 rounded p-1 transition-colors disabled:opacity-40"
+              >
+                <Trash2 size={13} />
+              </button>
+            )}
             <button onClick={onToggleMinimize} className="text-muted-foreground hover:text-foreground transition-colors">
               {isMinimized ? <ChevronDown size={16} /> : <ChevronUp size={16} />}
             </button>
