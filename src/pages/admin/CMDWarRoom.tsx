@@ -453,6 +453,9 @@ const CMDWarRoom = () => {
                 companies={activeCompanies}
                 onAssignClient={assignClientToOrder}
                 onBuildSO={buildSO}
+                onTeachSku={(token) => openAliasDrawer(token)}
+                onEditAliases={() => openAliasDrawer()}
+                onRefresh={fetchOrders}
               />
             ))}
           </div>
@@ -465,8 +468,9 @@ const CMDWarRoom = () => {
 
       <AliasDrawer
         open={aliasDrawerOpen}
-        onOpenChange={setAliasDrawerOpen}
-        pendingToken={null}
+        onOpenChange={(v) => { setAliasDrawerOpen(v); if (!v) setPendingToken(null); }}
+        pendingToken={pendingToken}
+        onAliasesChanged={fetchOrders}
       />
     </div>
   );
