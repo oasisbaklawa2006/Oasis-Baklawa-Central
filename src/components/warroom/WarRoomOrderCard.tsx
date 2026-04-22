@@ -537,9 +537,15 @@ export default function WarRoomOrderCard({
                     </button>
                     {onTeachSku && (
                       <button
-                        onClick={() => onTeachSku(order.items?.find((it) => (it.confidence ?? 1) < 0.9)?.product_name || undefined)}
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          const lowItem = order.items?.find((it) => (it.confidence ?? 1) < 0.95);
+                          const token = lowItem?.product_name || lowItem?.matched_alias || order.items?.[0]?.product_name || undefined;
+                          onTeachSku(token);
+                        }}
                         disabled={cardBusy}
-                        className="flex items-center gap-1 text-[10px] text-primary hover:opacity-80 disabled:opacity-40"
+                        className="flex items-center gap-1 text-[10px] font-semibold text-primary hover:opacity-80 disabled:opacity-40 border border-primary/30 hover:border-primary/60 px-1.5 py-0.5 rounded"
                         title="Open the SKU/Alias drawer to teach this term"
                       >
                         <Tag size={10} /> Teach SKU
@@ -547,9 +553,9 @@ export default function WarRoomOrderCard({
                     )}
                     {onEditAliases && (
                       <button
-                        onClick={() => onEditAliases()}
+                        onClick={(e) => { e.preventDefault(); e.stopPropagation(); onEditAliases(); }}
                         disabled={cardBusy}
-                        className="flex items-center gap-1 text-[10px] text-muted-foreground hover:text-foreground disabled:opacity-40"
+                        className="flex items-center gap-1 text-[10px] text-muted-foreground hover:text-foreground disabled:opacity-40 border border-border hover:border-foreground/30 px-1.5 py-0.5 rounded"
                       >
                         Edit Aliases
                       </button>
@@ -558,7 +564,7 @@ export default function WarRoomOrderCard({
                   {typeof order.min_confidence === "number" && (
                     <span
                       className={`text-[9px] font-bold px-1.5 py-0.5 rounded ${
-                        order.min_confidence >= 0.9
+                        order.min_confidence >= 0.95
                           ? "bg-emerald-500/10 text-emerald-700"
                           : "bg-orange-500/10 text-orange-700"
                       }`}
