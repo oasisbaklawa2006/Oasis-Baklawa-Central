@@ -605,8 +605,8 @@ export default function WarRoomOrderCard({
               </div>
             )}
 
-            {/* Lifecycle Steps with Icons */}
-            <div className="flex items-center gap-0 overflow-x-auto pb-1">
+            {/* Lifecycle: full timeline on ≥sm, single status badge on mobile */}
+            <div className="hidden sm:flex items-center gap-0 overflow-x-auto pb-1">
               {STEPS.map((step, i) => {
                 const isActive = i === activeStep;
                 const isCompleted = i < activeStep;
@@ -639,15 +639,30 @@ export default function WarRoomOrderCard({
                 );
               })}
             </div>
+            {/* Mobile: single current-status pill */}
+            <div className="sm:hidden flex items-center justify-between gap-2 rounded-lg bg-primary/10 border border-primary/20 px-3 py-2">
+              <div className="flex items-center gap-2 min-w-0">
+                {(() => {
+                  const ActiveIcon = STEPS[activeStep]?.icon || Package;
+                  return <ActiveIcon size={14} className="text-primary flex-shrink-0" />;
+                })()}
+                <span className="text-[11px] font-semibold text-primary truncate">
+                  Status: {STEPS[activeStep]?.label || "—"}
+                </span>
+              </div>
+              <span className="text-[9px] font-bold text-primary/70 bg-primary/5 px-1.5 py-0.5 rounded flex-shrink-0">
+                {activeStep + 1}/{STEPS.length}
+              </span>
+            </div>
 
-            {/* Build SO — final action, gated on client mapping */}
+            {/* Build SO — final action, gated on client mapping. Full-width on mobile. */}
             {onBuildSO && (
               <div className="flex items-center justify-end pt-2">
                 <button
                   onClick={handleBuild}
                   disabled={isUnmappedClient || cardBusy}
                   title={isUnmappedClient ? "Map a client first to enable Build SO" : "Generate Sales Order"}
-                  className="text-xs font-semibold px-3 py-1.5 rounded-md bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1.5"
+                  className="text-xs font-semibold px-3 py-2.5 sm:py-1.5 rounded-md bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-1.5 w-full sm:w-auto"
                 >
                   <FileText size={12} /> {buildingSO ? "Building…" : "Build SO"}
                 </button>
