@@ -278,6 +278,16 @@ export default function WarRoomOrderCard({
                 UNMAPPED CLIENT
               </span>
             )}
+            {isDraftClient && (
+              <span className="flex items-center gap-1 text-[10px] font-bold text-sky-700 bg-sky-500/10 border border-sky-500/30 px-2 py-0.5 rounded-full">
+                <UserPlus size={10} /> NEW CLIENT
+              </span>
+            )}
+            {isAutoPilot && (
+              <span className="text-[10px] font-bold text-emerald-700 bg-emerald-500/15 border border-emerald-500/40 px-2 py-0.5 rounded-full">
+                ✓ AUTO-PILOT READY
+              </span>
+            )}
           </div>
           <div className="flex items-center gap-3 flex-shrink-0">
             {order.total_weight_kg && order.total_weight_kg > 0 ? (
