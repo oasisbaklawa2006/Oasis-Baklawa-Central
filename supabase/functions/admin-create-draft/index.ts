@@ -1,5 +1,5 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
+import { createClient } from "npm:@supabase/supabase-js@2.45.0";
 
 const CONFIDENCE_THRESHOLD = 0.85;
 const BULK_DEFAULT_BOX_KG = 6;
