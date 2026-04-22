@@ -409,8 +409,21 @@ const CMDWarRoom = () => {
         </div>
       </div>
 
-      {/* Shadow Client Verification Section */}
-      <ShadowClientSection companies={shadowCompanies} onRefresh={() => { fetchShadowCompanies(); fetchOrders(); }} />
+      {/* Shadow Client Verification Section — collapsible on mobile */}
+      {shadowCompanies.length > 0 && (
+        <details className="md:hidden rounded-xl border border-amber-500/30 bg-amber-500/5 overflow-hidden" open={false}>
+          <summary className="cursor-pointer px-3 py-2 text-xs font-bold text-amber-700 flex items-center justify-between list-none">
+            <span>📩 WhatsApp Lead Verification ({shadowCompanies.length} pending)</span>
+            <span className="text-[10px] opacity-70">Tap to expand</span>
+          </summary>
+          <div className="p-2">
+            <ShadowClientSection companies={shadowCompanies} onRefresh={() => { fetchShadowCompanies(); fetchOrders(); }} />
+          </div>
+        </details>
+      )}
+      <div className="hidden md:block">
+        <ShadowClientSection companies={shadowCompanies} onRefresh={() => { fetchShadowCompanies(); fetchOrders(); }} />
+      </div>
 
       <Tabs defaultValue="battlefield" className="w-full">
         <TabsList className="w-full">
