@@ -461,6 +461,9 @@ const CMDWarRoom = () => {
         <TabsList className="w-full">
           <TabsTrigger value="battlefield" className="flex-1">Live Battlefield</TabsTrigger>
           <TabsTrigger value="raw" className="flex-1">Raw Intelligence</TabsTrigger>
+          <TabsTrigger value="rejected" className="flex-1">
+            Rejected{rejectedOrders.length > 0 && <span className="ml-1 text-[10px] opacity-70">({rejectedOrders.length})</span>}
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="battlefield">
