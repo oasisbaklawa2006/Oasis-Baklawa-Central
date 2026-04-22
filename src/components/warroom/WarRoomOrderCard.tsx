@@ -127,6 +127,33 @@ export default function WarRoomOrderCard({
   const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
   const [buildingSO, setBuildingSO] = useState(false);
 
+  // Inline qty edit state — keyed by order_item id.
+  const [editQty, setEditQty] = useState<Record<string, string>>({});
+  const [savingQtyId, setSavingQtyId] = useState<string | null>(null);
+
+  // Complete-Profile mini-form state (for Draft / Shadow clients).
+  const [profileOpen, setProfileOpen] = useState(false);
+  const [profilePhone, setProfilePhone] = useState(order.company_phone || "");
+  const [profileGst, setProfileGst] = useState(order.company_gst || "");
+  const [profileAddr, setProfileAddr] = useState(order.company_address || "");
+  const [savingProfile, setSavingProfile] = useState(false);
+
+  // Auto-Pilot detection: high confidence + recognized client + no duplicates/clarification.
+  const isAutoPilot =
+    !isUnmappedClient &&
+    !isAmbiguous &&
+    !isDuplicate &&
+    typeof order.min_confidence === "number" &&
+    order.min_confidence >= 0.95;
+
+  // Draft / new-lead detection — company exists but is a Draft/Shadow placeholder.
+  const isDraftClient =
+    !!order.company_id &&
+    (order.company_status === "shadow" || order.company_status === "draft");
+
+  // Global per-card action lock — prevents double-processing.
+  const cardBusy = assigning || buildingSO || savingProfile || !!savingQtyId;
+
   const tierColor = useMemo(() => {
     if (!order.created_at) return "bg-muted text-muted-foreground";
     const hours = (Date.now() - new Date(order.created_at).getTime()) / 3600000;
@@ -136,7 +163,7 @@ export default function WarRoomOrderCard({
   }, [order.created_at]);
 
   const handleAssign = async () => {
-    if (!assignId || !onAssignClient) return;
+    if (!assignId || !onAssignClient || cardBusy) return;
     setAssigning(true);
     try {
       await onAssignClient(order.id, assignId);
@@ -146,7 +173,7 @@ export default function WarRoomOrderCard({
   };
 
   const handleBuild = async () => {
-    if (!onBuildSO || isUnmappedClient) return;
+    if (!onBuildSO || isUnmappedClient || cardBusy) return;
     setBuildingSO(true);
     try {
       await onBuildSO(order.id);
@@ -154,6 +181,56 @@ export default function WarRoomOrderCard({
       setBuildingSO(false);
     }
   };
+
+  const handleSaveQty = async (itemId: string) => {
+    const raw = editQty[itemId];
+    const n = Number(raw);
+    if (!itemId || !raw || !Number.isFinite(n) || n <= 0) {
+      toast.error("Enter a valid quantity");
+      return;
+    }
+    setSavingQtyId(itemId);
+    try {
+      const { error } = await supabase
+        .from("order_items")
+        .update({ quantity: n } as any)
+        .eq("id", itemId);
+      if (error) throw error;
+      toast.success("Quantity updated");
+      setEditQty((p) => { const x = { ...p }; delete x[itemId]; return x; });
+      onRefresh?.();
+    } catch (e: any) {
+      toast.error(e?.message || "Failed to update quantity");
+    } finally {
+      setSavingQtyId(null);
+    }
+  };
+
+  const handleSaveProfile = async () => {
+    if (!order.company_id || cardBusy) return;
+    setSavingProfile(true);
+    try {
+      const payload: any = {};
+      if (profilePhone.trim()) payload.phone = profilePhone.trim();
+      if (profileGst.trim()) payload.gst_number = profileGst.trim();
+      if (profileAddr.trim()) payload.registered_address = profileAddr.trim();
+      // Promote Draft/Shadow to Active so it leaves the "unmapped" filter.
+      payload.status = "active";
+      const { error } = await supabase
+        .from("companies")
+        .update(payload)
+        .eq("id", order.company_id);
+      if (error) throw error;
+      toast.success("Client profile completed");
+      setProfileOpen(false);
+      onRefresh?.();
+    } catch (e: any) {
+      toast.error(e?.message || "Failed to save profile");
+    } finally {
+      setSavingProfile(false);
+    }
+  };
+
 
   return (
     <>
