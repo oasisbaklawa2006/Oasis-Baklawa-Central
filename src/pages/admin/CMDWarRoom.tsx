@@ -127,7 +127,7 @@ const CMDWarRoom = () => {
 
     const { data: items } = await supabase
       .from("order_items")
-      .select("order_id, quantity, weight_kg, product_id, notes, products(name, aliases)")
+      .select("id, order_id, quantity, weight_kg, product_id, notes, products(name, aliases)")
       .in("order_id", orderIds);
 
     const itemsByOrder: Record<string, OrderItem[]> = {};
@@ -135,7 +135,6 @@ const CMDWarRoom = () => {
       const oid = item.order_id;
       if (!itemsByOrder[oid]) itemsByOrder[oid] = [];
 
-      // Soft parse confidence + matched alias from notes (parser may stash JSON tag)
       let conf: number | null = null;
       let alias: string | null = null;
       if (item.notes && typeof item.notes === "string") {
@@ -144,12 +143,12 @@ const CMDWarRoom = () => {
         const aMatch = item.notes.match(/alias[=:]\s*([^|;,\n]+)/i);
         if (aMatch) alias = aMatch[1].trim();
       }
-      // Fallback: first alias from product if no explicit match
       if (!alias && item.products?.aliases?.length) {
         alias = item.products.aliases[0];
       }
 
       itemsByOrder[oid].push({
+        id: item.id,
         quantity: item.quantity,
         product_name: item.products?.name,
         weight_kg: item.weight_kg,
