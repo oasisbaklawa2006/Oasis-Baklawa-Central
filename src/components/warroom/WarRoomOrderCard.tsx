@@ -615,7 +615,7 @@ export default function WarRoomOrderCard({
               <div className="flex items-center justify-end pt-2">
                 <button
                   onClick={handleBuild}
-                  disabled={isUnmappedClient || buildingSO}
+                  disabled={isUnmappedClient || cardBusy}
                   title={isUnmappedClient ? "Map a client first to enable Build SO" : "Generate Sales Order"}
                   className="text-xs font-semibold px-3 py-1.5 rounded-md bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1.5"
                 >
