@@ -364,11 +364,20 @@ const CMDWarRoom = () => {
         </h1>
         <div className="flex items-center gap-2">
           <button
-            onClick={() => setAliasDrawerOpen(true)}
+            onClick={() => openAliasDrawer()}
             className="flex items-center gap-1.5 text-xs font-medium text-primary hover:opacity-80 transition-colors px-3 py-1.5 rounded-md border border-primary/30"
           >
             <Tag size={14} /> Edit Aliases
           </button>
+          {autoPilotOrders.length > 0 && (
+            <button
+              onClick={processAllClear}
+              disabled={bulkProcessing}
+              className="flex items-center gap-1.5 text-xs font-bold transition-colors px-3 py-1.5 rounded-md border bg-emerald-600 text-white border-emerald-600 hover:bg-emerald-700 disabled:opacity-50"
+            >
+              {bulkProcessing ? "Processing…" : `⚡ Process All Clear (${autoPilotOrders.length})`}
+            </button>
+          )}
           <button
             onClick={() => setTodayOnly(!todayOnly)}
             className={`flex items-center gap-1.5 text-xs font-medium transition-colors px-3 py-1.5 rounded-md border ${
