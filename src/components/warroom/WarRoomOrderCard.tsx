@@ -231,6 +231,25 @@ export default function WarRoomOrderCard({
     }
   };
 
+  /** One-click promotion: Shadow/Draft → Active, no extra fields required. */
+  const handleConfirmClient = async () => {
+    if (!order.company_id || cardBusy) return;
+    setSavingProfile(true);
+    try {
+      const { error } = await supabase
+        .from("companies")
+        .update({ status: "active" } as any)
+        .eq("id", order.company_id);
+      if (error) throw error;
+      toast.success("Client confirmed & activated");
+      onRefresh?.();
+    } catch (e: any) {
+      toast.error(e?.message || "Failed to confirm client");
+    } finally {
+      setSavingProfile(false);
+    }
+  };
+
 
   return (
     <>
