@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { MessageSquare, Phone, Building2, Edit2, CheckCircle, Package, Search, ArrowRight, AlertTriangle } from "lucide-react";
+import { MessageSquare, Phone, Building2, Edit2, CheckCircle, Package, Search, ArrowRight, AlertTriangle, Trash2 } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
@@ -219,12 +219,31 @@ export default function ShadowClientSection({ companies, onRefresh }: Props) {
                     </div>
                   </div>
                 </div>
-                <button
-                  onClick={() => openEdit(c)}
-                  className="flex items-center gap-1.5 text-xs font-medium text-primary hover:text-primary/80 transition-colors px-2 py-1 rounded-md border border-primary/20 hover:bg-primary/5"
-                >
-                  <Edit2 size={12} /> Edit & Verify
-                </button>
+                <div className="flex items-center gap-1.5 flex-shrink-0">
+                  <button
+                    onClick={() => openEdit(c)}
+                    className="flex items-center gap-1.5 text-xs font-medium text-primary hover:text-primary/80 transition-colors px-2 py-1 rounded-md border border-primary/20 hover:bg-primary/5"
+                  >
+                    <Edit2 size={12} /> Edit & Verify
+                  </button>
+                  <button
+                    onClick={async () => {
+                      if (!confirm(`Reject lead "${c.business_name}"? It will be hidden from the queue (record kept in DB).`)) return;
+                      const { error } = await supabase
+                        .from("companies")
+                        .update({ status: "rejected" } as any)
+                        .eq("id", c.id);
+                      if (error) { toast.error("Failed to reject lead"); return; }
+                      toast.success("Lead rejected & hidden");
+                      onRefresh();
+                    }}
+                    className="flex items-center justify-center text-muted-foreground hover:text-destructive transition-colors p-1.5 rounded-md border border-border hover:border-destructive/40 hover:bg-destructive/5"
+                    title="Reject lead (soft-hide, log retained)"
+                    aria-label="Reject lead"
+                  >
+                    <Trash2 size={12} />
+                  </button>
+                </div>
               </div>
             );
           })}
