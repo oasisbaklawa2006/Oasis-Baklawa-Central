@@ -240,6 +240,7 @@ export default function WarRoomOrderCard({
             : isComplaint ? "bg-red-500/5 border-red-500/40"
             : isAmbiguous ? "bg-orange-500/5 border-orange-500/50 ring-1 ring-orange-400/40"
             : isPanic ? "border-violet-500/60 shadow-[0_0_12px_rgba(139,92,246,0.25)]"
+            : isAutoPilot ? "bg-emerald-500/5 border-emerald-500/40"
             : "bg-card border-border"}
           ${isPanic ? "animate-pulse" : ""}
         `}
