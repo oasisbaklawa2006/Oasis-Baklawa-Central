@@ -445,7 +445,27 @@ export default function WarRoomOrderCard({
                     const isSavingThis = savingQtyId === itemId;
                     return (
                       <div key={itemId || i} className="flex items-center justify-between gap-2 text-[11px] bg-muted/40 px-2 py-1 rounded">
-                        <span className="text-foreground truncate flex-1 min-w-0">{item.product_name || "SKU"}</span>
+                        <div className="flex items-center gap-1.5 flex-1 min-w-0 flex-wrap">
+                          <span className="text-foreground truncate">{item.product_name || "SKU"}</span>
+                          {item.matched_alias && (
+                            <span
+                              title={`Matched on alias: "${item.matched_alias}"`}
+                              className="inline-flex items-center gap-0.5 text-[9px] font-semibold text-primary/80 bg-primary/5 border border-primary/20 px-1.5 py-0.5 rounded"
+                            >
+                              <Tag size={8} /> {item.matched_alias}
+                            </span>
+                          )}
+                          {typeof item.confidence === "number" && item.confidence < 0.95 && (
+                            <button
+                              onClick={() => onTeachSku?.(item.product_name || item.matched_alias || undefined)}
+                              disabled={cardBusy}
+                              className="text-[9px] font-bold text-orange-700 bg-orange-500/10 border border-orange-400/40 px-1.5 py-0.5 rounded hover:bg-orange-500/20 disabled:opacity-40"
+                              title="Confidence below 95% — teach this SKU"
+                            >
+                              UNRECOGNIZED · Teach
+                            </button>
+                          )}
+                        </div>
                         <div className="flex items-center gap-1.5 flex-shrink-0">
                           {isEditing && itemId ? (
                             <>
