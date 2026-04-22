@@ -1,5 +1,5 @@
-import { useMemo } from "react";
-import { ChevronDown, ChevronUp, AlertTriangle, Eye, Package, Truck, CheckCircle2, Clock, CreditCard, ShieldCheck, Factory, Box, Hammer, FileText, HeartHandshake } from "lucide-react";
+import { useMemo, useState } from "react";
+import { ChevronDown, ChevronUp, AlertTriangle, CheckCircle2, Package, Truck, CreditCard, Factory, Box, Hammer, FileText, HeartHandshake, Eye, EyeOff, Image as ImageIcon, X } from "lucide-react";
 import { normalizeOrderStatus } from "@/utils/orderStatus";
 
 const IST_OFFSET = 5.5 * 3600000;
@@ -42,6 +42,13 @@ interface OrderItem {
   quantity: number;
   product_name?: string;
   weight_kg?: number | null;
+  matched_alias?: string | null;
+  confidence?: number | null;
+}
+
+interface CompanyOption {
+  id: string;
+  business_name: string;
 }
 
 interface Order {
@@ -52,12 +59,15 @@ interface Order {
   dispatch_urgency: string | null;
   company_id: string | null;
   company_name?: string;
+  company_status?: string | null;
   has_complaint?: boolean;
   items?: OrderItem[];
   total_weight_kg?: number | null;
   needs_clarification?: boolean | null;
   is_duplicate?: boolean | null;
   duplicate_of_order_id?: string | null;
+  attachment_urls?: string[];
+  min_confidence?: number | null;
 }
 
 interface Props {
@@ -65,15 +75,42 @@ interface Props {
   isMinimized: boolean;
   onToggleMinimize: () => void;
   onValidateAsUnique?: () => void;
+  /** Companies available for "Assign to Client" dropdown (shadow/unknown only). */
+  companies?: CompanyOption[];
+  /** Called when admin assigns a client to a shadow/unknown order. */
+  onAssignClient?: (orderId: string, companyId: string) => Promise<void> | void;
+  /** Called when admin clicks "Build SO" — only enabled once client is mapped. */
+  onBuildSO?: (orderId: string) => Promise<void> | void;
 }
 
-export default function WarRoomOrderCard({ order, isMinimized, onToggleMinimize, onValidateAsUnique }: Props) {
+export default function WarRoomOrderCard({
+  order,
+  isMinimized,
+  onToggleMinimize,
+  onValidateAsUnique,
+  companies = [],
+  onAssignClient,
+  onBuildSO,
+}: Props) {
   const activeStep = getActiveStep(order.status);
   const isPanic = order.dispatch_urgency === "panic";
   const isComplaint = order.has_complaint;
   const isAmbiguous = !!order.needs_clarification;
   const isDuplicate = !!order.is_duplicate || order.status === "potential_duplicate";
   const timeAgo = relativeTimeIST(order.created_at);
+
+  // Shadow / Unknown client detection — same trigger used in Central Pool merger.
+  const isUnmappedClient =
+    !order.company_id ||
+    order.company_status === "shadow" ||
+    !order.company_name ||
+    /unknown/i.test(order.company_name || "");
+
+  const [assignId, setAssignId] = useState("");
+  const [assigning, setAssigning] = useState(false);
+  const [showAiLogic, setShowAiLogic] = useState(false);
+  const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
+  const [buildingSO, setBuildingSO] = useState(false);
 
   const tierColor = useMemo(() => {
     if (!order.created_at) return "bg-muted text-muted-foreground";
@@ -83,134 +120,300 @@ export default function WarRoomOrderCard({ order, isMinimized, onToggleMinimize,
     return "bg-muted text-muted-foreground";
   }, [order.created_at]);
 
+  const handleAssign = async () => {
+    if (!assignId || !onAssignClient) return;
+    setAssigning(true);
+    try {
+      await onAssignClient(order.id, assignId);
+    } finally {
+      setAssigning(false);
+    }
+  };
+
+  const handleBuild = async () => {
+    if (!onBuildSO || isUnmappedClient) return;
+    setBuildingSO(true);
+    try {
+      await onBuildSO(order.id);
+    } finally {
+      setBuildingSO(false);
+    }
+  };
+
   return (
-    <div
-      className={`rounded-xl border p-4 transition-all
-        ${isDuplicate ? "bg-red-500/5 border-red-600 ring-2 ring-red-500/60 shadow-[0_0_14px_rgba(220,38,38,0.35)]"
-          : isComplaint ? "bg-red-500/5 border-red-500/40"
-          : isAmbiguous ? "bg-orange-500/5 border-orange-500/50 ring-1 ring-orange-400/40"
-          : isPanic ? "border-violet-500/60 shadow-[0_0_12px_rgba(139,92,246,0.25)]"
-          : "bg-card border-border"}
-        ${isPanic ? "animate-pulse" : ""}
-      `}
-      style={isPanic ? { animationDuration: "2s" } : undefined}
-    >
-      {/* Header */}
-      <div className="flex items-center justify-between mb-2">
-        <div className="flex items-center gap-2.5 min-w-0">
-          <span className={`inline-flex items-center justify-center min-w-[3.5rem] px-1.5 py-0.5 rounded-full text-[10px] font-bold leading-none ${tierColor}`}>
-            {timeAgo}
-          </span>
-          <div className="min-w-0">
-            <span className="text-sm font-bold text-foreground">#{order.id.slice(0, 8).toUpperCase()}</span>
-            <span className="ml-2 text-xs text-muted-foreground truncate">{order.company_name}</span>
+    <>
+      <div
+        className={`rounded-xl border p-4 transition-all
+          ${isDuplicate ? "bg-red-500/5 border-red-600 ring-2 ring-red-500/60 shadow-[0_0_14px_rgba(220,38,38,0.35)]"
+            : isComplaint ? "bg-red-500/5 border-red-500/40"
+            : isAmbiguous ? "bg-orange-500/5 border-orange-500/50 ring-1 ring-orange-400/40"
+            : isPanic ? "border-violet-500/60 shadow-[0_0_12px_rgba(139,92,246,0.25)]"
+            : "bg-card border-border"}
+          ${isPanic ? "animate-pulse" : ""}
+        `}
+        style={isPanic ? { animationDuration: "2s" } : undefined}
+      >
+        {/* Header */}
+        <div className="flex items-center justify-between mb-2">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <span className={`inline-flex items-center justify-center min-w-[3.5rem] px-1.5 py-0.5 rounded-full text-[10px] font-bold leading-none ${tierColor}`}>
+              {timeAgo}
+            </span>
+            <div className="min-w-0">
+              <span className="text-sm font-bold text-foreground">#{order.id.slice(0, 8).toUpperCase()}</span>
+              <span className="ml-2 text-xs text-muted-foreground truncate">{order.company_name}</span>
+            </div>
+            {isPanic && (
+              <span className="flex items-center gap-1 text-[10px] font-bold text-violet-400 bg-violet-500/10 px-2 py-0.5 rounded-full">
+                <AlertTriangle size={10} /> PANIC
+              </span>
+            )}
+            {isComplaint && (
+              <span className="text-[10px] font-bold text-red-500 bg-red-500/10 px-2 py-0.5 rounded-full">🚨 COMPLAINT</span>
+            )}
+            {isDuplicate && (
+              <span className="flex items-center gap-1 text-[10px] font-bold text-white bg-red-600 px-2 py-0.5 rounded-full animate-pulse">
+                <AlertTriangle size={10} /> POTENTIAL DUPLICATE
+              </span>
+            )}
+            {isAmbiguous && !isDuplicate && (
+              <span className="text-[10px] font-bold text-orange-600 bg-orange-500/10 border border-orange-400/40 px-2 py-0.5 rounded-full">
+                ⚠ AWAITING CLARIFICATION
+              </span>
+            )}
+            {isUnmappedClient && (
+              <span className="text-[10px] font-bold text-amber-700 bg-amber-500/10 border border-amber-500/30 px-2 py-0.5 rounded-full">
+                UNMAPPED CLIENT
+              </span>
+            )}
           </div>
-          {isPanic && (
-            <span className="flex items-center gap-1 text-[10px] font-bold text-violet-400 bg-violet-500/10 px-2 py-0.5 rounded-full">
-              <AlertTriangle size={10} /> PANIC
-            </span>
-          )}
-          {isComplaint && (
-            <span className="text-[10px] font-bold text-red-500 bg-red-500/10 px-2 py-0.5 rounded-full">🚨 COMPLAINT</span>
-          )}
-          {isDuplicate && (
-            <span className="flex items-center gap-1 text-[10px] font-bold text-white bg-red-600 px-2 py-0.5 rounded-full animate-pulse">
-              <AlertTriangle size={10} /> POTENTIAL DUPLICATE
-            </span>
-          )}
-          {isAmbiguous && !isDuplicate && (
-            <span className="text-[10px] font-bold text-orange-600 bg-orange-500/10 border border-orange-400/40 px-2 py-0.5 rounded-full">
-              ⚠ AWAITING CLARIFICATION
-            </span>
-          )}
+          <div className="flex items-center gap-3 flex-shrink-0">
+            {order.total_weight_kg && order.total_weight_kg > 0 ? (
+              <span className="text-sm font-bold text-foreground">
+                {order.total_weight_kg.toLocaleString("en-IN", { maximumFractionDigits: 2 })} kg
+              </span>
+            ) : (
+              <span className="text-sm font-semibold text-foreground">₹{(order.sales_order_value ?? 0).toLocaleString("en-IN")}</span>
+            )}
+            <button onClick={onToggleMinimize} className="text-muted-foreground hover:text-foreground transition-colors">
+              {isMinimized ? <ChevronDown size={16} /> : <ChevronUp size={16} />}
+            </button>
+          </div>
         </div>
-        <div className="flex items-center gap-3 flex-shrink-0">
-          {order.total_weight_kg && order.total_weight_kg > 0 ? (
-            <span className="text-sm font-bold text-foreground">
-              {order.total_weight_kg.toLocaleString("en-IN", { maximumFractionDigits: 2 })} kg
-            </span>
-          ) : (
-            <span className="text-sm font-semibold text-foreground">₹{(order.sales_order_value ?? 0).toLocaleString("en-IN")}</span>
-          )}
-          <button onClick={onToggleMinimize} className="text-muted-foreground hover:text-foreground transition-colors">
-            {isMinimized ? <ChevronDown size={16} /> : <ChevronUp size={16} />}
-          </button>
-        </div>
-      </div>
 
-      {!isMinimized && (
-        <>
-          {/* Duplicate banner + Validate as Unique override */}
-          {isDuplicate && (
-            <div className="mb-2 flex items-center justify-between gap-2 rounded-lg border border-red-500/40 bg-red-500/10 px-3 py-2">
-              <div className="text-[11px] text-red-700 dark:text-red-300">
-                Same SKU + Qty + Client detected within 4 hours
-                {order.duplicate_of_order_id && (
-                  <span className="ml-1 font-mono opacity-70">
-                    (orig #{order.duplicate_of_order_id.slice(0, 8).toUpperCase()})
-                  </span>
-                )}
-                . No SO generated.
-              </div>
-              {onValidateAsUnique && (
-                <button
-                  onClick={onValidateAsUnique}
-                  className="text-[10px] font-bold uppercase tracking-wide bg-red-600 text-white px-2.5 py-1 rounded-md hover:bg-red-700 transition-colors whitespace-nowrap"
-                >
-                  Validate as Unique
-                </button>
-              )}
-            </div>
-          )}
-
-          {/* Order items preview — FULL list, no truncation */}
-          {order.items && order.items.length > 0 && (
-            <div className="mb-2 flex flex-wrap gap-1">
-              {order.items.map((item, i) => (
-                <span key={i} className="text-[10px] bg-muted px-2 py-0.5 rounded-full text-muted-foreground">
-                  {item.product_name || "SKU"} × {item.quantity}
-                  {item.weight_kg ? ` · ${Number(item.weight_kg).toLocaleString("en-IN", { maximumFractionDigits: 2 })}kg` : ""}
-                </span>
-              ))}
-            </div>
-          )}
-
-          {/* Lifecycle Steps with Icons */}
-          <div className="flex items-center gap-0 overflow-x-auto pb-1">
-            {STEPS.map((step, i) => {
-              const isActive = i === activeStep;
-              const isCompleted = i < activeStep;
-              const Icon = step.icon;
-              return (
-                <div key={step.key} className="flex items-center">
-                  <div
-                    className={`flex flex-col items-center min-w-[72px] px-1.5 py-2 rounded-lg text-center transition-all
-                      ${isActive ? "bg-primary/10 ring-1 ring-primary/30" : isCompleted ? "opacity-50" : "opacity-30"}
-                    `}
-                  >
-                    <div
-                      className={`w-7 h-7 rounded-full flex items-center justify-center mb-1
-                        ${isActive ? "bg-primary text-primary-foreground animate-pulse" : isCompleted ? "bg-muted-foreground/30 text-background" : "bg-[hsl(30,30%,60%)] text-white/70"}
-                      `}
-                    >
-                      {isCompleted ? <CheckCircle2 size={14} /> : <Icon size={14} />}
-                    </div>
-                    <span className={`text-[9px] font-medium leading-tight ${isActive ? "text-primary" : "text-muted-foreground"}`}>
-                      {step.label}
+        {!isMinimized && (
+          <>
+            {/* Duplicate banner + Validate as Unique override */}
+            {isDuplicate && (
+              <div className="mb-2 flex items-center justify-between gap-2 rounded-lg border border-red-500/40 bg-red-500/10 px-3 py-2">
+                <div className="text-[11px] text-red-700 dark:text-red-300">
+                  Same SKU + Qty + Client detected within 4 hours
+                  {order.duplicate_of_order_id && (
+                    <span className="ml-1 font-mono opacity-70">
+                      (orig #{order.duplicate_of_order_id.slice(0, 8).toUpperCase()})
                     </span>
-                    {isActive && (
-                      <span className="mt-0.5 text-[8px] font-semibold text-primary bg-primary/5 px-1 py-0.5 rounded">CURRENT</span>
-                    )}
-                  </div>
-                  {i < STEPS.length - 1 && (
-                    <div className={`w-3 h-[2px] ${i < activeStep ? "bg-muted-foreground/30" : "bg-border"}`} />
+                  )}
+                  . No SO generated.
+                </div>
+                {onValidateAsUnique && (
+                  <button
+                    onClick={onValidateAsUnique}
+                    className="text-[10px] font-bold uppercase tracking-wide bg-red-600 text-white px-2.5 py-1 rounded-md hover:bg-red-700 transition-colors whitespace-nowrap"
+                  >
+                    Validate as Unique
+                  </button>
+                )}
+              </div>
+            )}
+
+            {/* Image attachments — clickable lightbox */}
+            {order.attachment_urls && order.attachment_urls.length > 0 && (
+              <div className="mb-2 flex flex-wrap gap-2">
+                {order.attachment_urls.map((url, i) => (
+                  <button
+                    key={i}
+                    onClick={() => setLightboxUrl(url)}
+                    className="group relative rounded-md border border-border overflow-hidden hover:ring-2 hover:ring-primary/40 transition-all"
+                    title="Click to view full size"
+                  >
+                    <img
+                      src={url}
+                      alt={`Attachment ${i + 1}`}
+                      className="h-16 w-16 object-cover group-hover:opacity-90 transition-opacity"
+                      loading="lazy"
+                    />
+                    <span className="absolute bottom-0 right-0 bg-black/60 text-white p-0.5 rounded-tl">
+                      <ImageIcon size={10} />
+                    </span>
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {/* Order items preview — FULL list */}
+            {order.items && order.items.length > 0 && (
+              <div className="mb-2 space-y-1">
+                <div className="flex flex-wrap gap-1">
+                  {order.items.map((item, i) => (
+                    <span key={i} className="text-[10px] bg-muted px-2 py-0.5 rounded-full text-muted-foreground">
+                      {item.product_name || "SKU"} × {item.quantity}
+                      {item.weight_kg ? ` · ${Number(item.weight_kg).toLocaleString("en-IN", { maximumFractionDigits: 2 })}kg` : ""}
+                    </span>
+                  ))}
+                </div>
+
+                {/* AI Logic Toggle */}
+                <div className="flex items-center justify-between pt-1">
+                  <button
+                    onClick={() => setShowAiLogic((v) => !v)}
+                    className="flex items-center gap-1 text-[10px] text-primary hover:opacity-80"
+                  >
+                    {showAiLogic ? <EyeOff size={10} /> : <Eye size={10} />}
+                    {showAiLogic ? "Hide AI Logic" : "View AI Logic"}
+                  </button>
+                  {typeof order.min_confidence === "number" && (
+                    <span
+                      className={`text-[9px] font-bold px-1.5 py-0.5 rounded ${
+                        order.min_confidence >= 0.9
+                          ? "bg-emerald-500/10 text-emerald-700"
+                          : "bg-orange-500/10 text-orange-700"
+                      }`}
+                    >
+                      {Math.round(order.min_confidence * 100)}% conf
+                    </span>
                   )}
                 </div>
-              );
-            })}
-          </div>
-        </>
+
+                {showAiLogic && (
+                  <div className="rounded-md border border-border bg-background/60 p-2 space-y-1">
+                    {order.items.map((item, i) => {
+                      const conf = typeof item.confidence === "number" ? item.confidence : null;
+                      return (
+                        <div key={i} className="flex items-center justify-between gap-2 text-[10px]">
+                          <span className="text-foreground truncate">{item.product_name || "SKU"}</span>
+                          <div className="flex items-center gap-1.5 flex-shrink-0">
+                            <span className="text-muted-foreground italic">
+                              alias: {item.matched_alias || "—"}
+                            </span>
+                            <span
+                              className={`font-bold px-1.5 py-0.5 rounded ${
+                                conf == null
+                                  ? "bg-muted text-muted-foreground"
+                                  : conf >= 0.9
+                                  ? "bg-emerald-500/10 text-emerald-700"
+                                  : "bg-orange-500/10 text-orange-700"
+                              }`}
+                            >
+                              {conf == null ? "—" : `${Math.round(conf * 100)}%`}
+                            </span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Assign-to-Client (Central Pool merger) */}
+            {isUnmappedClient && onAssignClient && (
+              <div className="mb-2 flex flex-wrap items-center gap-2 rounded-md border border-amber-500/30 bg-amber-500/5 p-2">
+                <span className="text-[10px] font-bold text-amber-700">Map this order →</span>
+                <select
+                  value={assignId}
+                  onChange={(e) => setAssignId(e.target.value)}
+                  className="text-xs px-2 py-1 rounded border border-border bg-background flex-1 min-w-[160px]"
+                >
+                  <option value="">— Assign to client —</option>
+                  {companies.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.business_name}
+                    </option>
+                  ))}
+                </select>
+                <button
+                  onClick={handleAssign}
+                  disabled={!assignId || assigning}
+                  className="text-[10px] font-semibold px-2.5 py-1 rounded bg-amber-600 text-white hover:bg-amber-700 disabled:opacity-50"
+                >
+                  {assigning ? "Assigning…" : "Assign"}
+                </button>
+              </div>
+            )}
+
+            {/* Lifecycle Steps with Icons */}
+            <div className="flex items-center gap-0 overflow-x-auto pb-1">
+              {STEPS.map((step, i) => {
+                const isActive = i === activeStep;
+                const isCompleted = i < activeStep;
+                const Icon = step.icon;
+                return (
+                  <div key={step.key} className="flex items-center">
+                    <div
+                      className={`flex flex-col items-center min-w-[72px] px-1.5 py-2 rounded-lg text-center transition-all
+                        ${isActive ? "bg-primary/10 ring-1 ring-primary/30" : isCompleted ? "opacity-50" : "opacity-30"}
+                      `}
+                    >
+                      <div
+                        className={`w-7 h-7 rounded-full flex items-center justify-center mb-1
+                          ${isActive ? "bg-primary text-primary-foreground animate-pulse" : isCompleted ? "bg-muted-foreground/30 text-background" : "bg-[hsl(30,30%,60%)] text-white/70"}
+                        `}
+                      >
+                        {isCompleted ? <CheckCircle2 size={14} /> : <Icon size={14} />}
+                      </div>
+                      <span className={`text-[9px] font-medium leading-tight ${isActive ? "text-primary" : "text-muted-foreground"}`}>
+                        {step.label}
+                      </span>
+                      {isActive && (
+                        <span className="mt-0.5 text-[8px] font-semibold text-primary bg-primary/5 px-1 py-0.5 rounded">CURRENT</span>
+                      )}
+                    </div>
+                    {i < STEPS.length - 1 && (
+                      <div className={`w-3 h-[2px] ${i < activeStep ? "bg-muted-foreground/30" : "bg-border"}`} />
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Build SO — final action, gated on client mapping */}
+            {onBuildSO && (
+              <div className="flex items-center justify-end pt-2">
+                <button
+                  onClick={handleBuild}
+                  disabled={isUnmappedClient || buildingSO}
+                  title={isUnmappedClient ? "Map a client first to enable Build SO" : "Generate Sales Order"}
+                  className="text-xs font-semibold px-3 py-1.5 rounded-md bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1.5"
+                >
+                  <FileText size={12} /> {buildingSO ? "Building…" : "Build SO"}
+                </button>
+              </div>
+            )}
+          </>
+        )}
+      </div>
+
+      {/* Lightbox */}
+      {lightboxUrl && (
+        <div
+          onClick={() => setLightboxUrl(null)}
+          className="fixed inset-0 z-[100] bg-black/85 flex items-center justify-center p-4 cursor-zoom-out"
+        >
+          <button
+            onClick={(e) => { e.stopPropagation(); setLightboxUrl(null); }}
+            className="absolute top-4 right-4 text-white bg-white/10 hover:bg-white/20 rounded-full p-2"
+            aria-label="Close"
+          >
+            <X size={20} />
+          </button>
+          <img
+            src={lightboxUrl}
+            alt="Attachment full view"
+            className="max-h-[90vh] max-w-[95vw] object-contain rounded-lg shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          />
+        </div>
       )}
-    </div>
+    </>
   );
 }
