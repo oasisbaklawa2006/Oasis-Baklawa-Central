@@ -297,7 +297,6 @@ const CMDWarRoom = () => {
   }, [fetchOrders]);
 
   const buildSO = useCallback(async (orderId: string) => {
-    // Final action: promote draft to submitted (preserves total_weight_kg + SO logic untouched).
     const { error } = await supabase
       .from("orders")
       .update({ status: "submitted" } as any)
@@ -309,6 +308,34 @@ const CMDWarRoom = () => {
     toast.success(`SO #${orderId.slice(0, 8).toUpperCase()} submitted`);
     fetchOrders();
   }, [fetchOrders]);
+
+  // Auto-Pilot: orders ready for one-click bulk submission.
+  const autoPilotOrders = useMemo(() => {
+    return orders.filter((o) => {
+      const mapped = !!o.company_id && o.company_status !== "shadow" && o.company_status !== "draft" && !!o.company_name && !/unknown/i.test(o.company_name || "");
+      const highConf = typeof o.min_confidence === "number" && o.min_confidence >= 0.95;
+      const clean = !o.needs_clarification && !o.is_duplicate;
+      const isDraftStatus = (o.status || "").toLowerCase() === "draft";
+      return mapped && highConf && clean && isDraftStatus;
+    });
+  }, [orders]);
+
+  const processAllClear = useCallback(async () => {
+    if (!autoPilotOrders.length || bulkProcessing) return;
+    setBulkProcessing(true);
+    const ids = autoPilotOrders.map((o) => o.id);
+    const { error } = await supabase
+      .from("orders")
+      .update({ status: "submitted" } as any)
+      .in("id", ids);
+    setBulkProcessing(false);
+    if (error) {
+      toast.error("Bulk processing failed");
+      return;
+    }
+    toast.success(`✓ ${ids.length} SOs submitted`);
+    fetchOrders();
+  }, [autoPilotOrders, bulkProcessing, fetchOrders]);
 
   const counts = useMemo(() => {
     const startOfToday = new Date();
