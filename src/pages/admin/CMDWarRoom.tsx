@@ -559,6 +559,28 @@ const CMDWarRoom = () => {
         <TabsContent value="raw">
           <RawIntelligenceTab />
         </TabsContent>
+
+        <TabsContent value="rejected">
+          {rejectedOrders.length === 0 ? (
+            <p className="text-muted-foreground text-sm text-center py-12">No rejected messages.</p>
+          ) : (
+            <div className="space-y-3">
+              <p className="text-[11px] text-muted-foreground">
+                These messages were soft-rejected and hidden from the active queue. Records remain in the database for audit. Click <span className="font-semibold">Restore</span> to send back to the battlefield.
+              </p>
+              {rejectedOrders.map((order) => (
+                <WarRoomOrderCard
+                  key={`rj-${order.id}`}
+                  order={order}
+                  isMinimized={false}
+                  onToggleMinimize={() => {}}
+                  isRejected
+                  onRefresh={() => { fetchRejectedOrders(); fetchOrders(); }}
+                />
+              ))}
+            </div>
+          )}
+        </TabsContent>
       </Tabs>
 
       <AliasDrawer
