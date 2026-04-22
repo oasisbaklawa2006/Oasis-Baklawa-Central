@@ -46,6 +46,8 @@ export interface SKUMatch {
   confidence: number; // 0–1
   quantity?: number | null;
   unit?: string | null;
+  /** The exact alias token that triggered this match (for UI "Reasoning" badge). */
+  matchedAlias?: string | null;
 }
 
 const QTY_UNIT_RE = /(\d+(?:\.\d+)?)\s*(kgs?|kilograms?|gms?|grams?|gm|pcs?|pieces?|boxes?|box|cartons?|ctns?|units?)\b/i;
