@@ -227,6 +227,7 @@ const CMDWarRoom = () => {
 
   useEffect(() => {
     fetchOrders();
+    fetchRejectedOrders();
     fetchShadowCompanies();
     fetchActiveCompanies();
 
