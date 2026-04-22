@@ -10,6 +10,7 @@ import RawIntelligenceTab from "@/components/warroom/RawIntelligenceTab";
 import AliasDrawer from "@/components/warroom/AliasDrawer";
 
 interface OrderItem {
+  id?: string;
   quantity: number;
   product_name?: string;
   weight_kg?: number | null;
@@ -26,6 +27,9 @@ interface Order {
   company_id: string | null;
   company_name?: string;
   company_status?: string | null;
+  company_phone?: string | null;
+  company_gst?: string | null;
+  company_address?: string | null;
   has_complaint?: boolean;
   items?: OrderItem[];
   total_weight_kg?: number | null;
