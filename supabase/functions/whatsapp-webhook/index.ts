@@ -354,7 +354,10 @@ Look for:
 }
 
 // ── PAYLOAD EXTRACTION ──
+// Supports: Meta Cloud API (entry/changes/value), Click2Api flat shape,
+// and MSG91 WhatsApp Inbound webhook (payload.* / data.payload.* with `messages[0]` & `media`).
 function extractPayloadFields(payload: any) {
+  // Meta Cloud API shape (also used by some MSG91 mirror modes)
   const entry = payload?.entry?.[0]?.changes?.[0]?.value;
   if (entry) {
     const msg = entry?.messages?.[0];
@@ -370,16 +373,41 @@ function extractPayloadFields(payload: any) {
     };
   }
 
+  // MSG91 native WhatsApp inbound shape:
+  //   { type:"message", payload:{ _id, type, mobile/from, sender, message:{type,text|media}, ... } }
+  // or { data:{ payload:{ ... } } }
+  const m91 =
+    payload?.payload?.message ? payload.payload :
+    payload?.data?.payload?.message ? payload.data.payload :
+    payload?.payload && (payload.payload?.mobile || payload.payload?.from || payload.payload?.sender) ? payload.payload :
+    null;
+  if (m91) {
+    const message = m91.message || {};
+    const media = message.media || message.image || message.document || message.video || null;
+    const text =
+      message.text?.body || message.text || message.caption || media?.caption || m91.text || "";
+    return {
+      senderPhone: m91.mobile || m91.from || m91.sender || m91.contact?.wa_id || "",
+      messageBody: typeof text === "string" ? text : (text?.body || ""),
+      messageType: message.type || m91.type || (media ? "image" : "text"),
+      mediaUrl: media?.url || media?.link || media?.media_url || null,
+      mediaMime: media?.mime_type || media?.mimeType || "image/jpeg",
+      messageId: m91._id || m91.id || m91.message_id || message.id || null,
+      profileName: m91.sender_name || m91.name || m91.contact?.profile?.name || null,
+    };
+  }
+
+  // Generic / Click2Api flat fallback
   return {
-    senderPhone: payload?.from || payload?.sender || payload?.data?.from || payload?.contact?.wa_id || payload?.waId || "",
+    senderPhone: payload?.from || payload?.sender || payload?.mobile || payload?.data?.from || payload?.contact?.wa_id || payload?.waId || "",
     messageBody: payload?.message || payload?.body || payload?.data?.body || payload?.text?.body || payload?.text || "",
     messageType: payload?.messageType || payload?.type || payload?.data?.type || "text",
     mediaUrl: payload?.mediaUrl || payload?.media_url || payload?.data?.media_url ||
       payload?.image?.url || payload?.document?.url || payload?.data?.image?.url || null,
     mediaMime: payload?.mediaMimeType || payload?.media_mime_type ||
       payload?.image?.mime_type || payload?.document?.mime_type || "image/jpeg",
-    messageId: payload?.messageId || payload?.id || null,
-    profileName: payload?.pushName || payload?.profileName || payload?.contact?.name || null,
+    messageId: payload?.messageId || payload?.id || payload?.message_id || null,
+    profileName: payload?.pushName || payload?.profileName || payload?.contact?.name || payload?.sender_name || null,
   };
 }
 
