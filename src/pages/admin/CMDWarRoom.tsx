@@ -10,6 +10,7 @@ import RawIntelligenceTab from "@/components/warroom/RawIntelligenceTab";
 import AliasDrawer from "@/components/warroom/AliasDrawer";
 
 interface OrderItem {
+  id?: string;
   quantity: number;
   product_name?: string;
   weight_kg?: number | null;
@@ -26,6 +27,9 @@ interface Order {
   company_id: string | null;
   company_name?: string;
   company_status?: string | null;
+  company_phone?: string | null;
+  company_gst?: string | null;
+  company_address?: string | null;
   has_complaint?: boolean;
   items?: OrderItem[];
   total_weight_kg?: number | null;
@@ -58,6 +62,14 @@ const CMDWarRoom = () => {
   const [todayOnly, setTodayOnly] = useState(true);
   const [filterMode, setFilterMode] = useState<FilterMode>("all");
   const [aliasDrawerOpen, setAliasDrawerOpen] = useState(false);
+  const [pendingToken, setPendingToken] = useState<string | null>(null);
+  const [bulkProcessing, setBulkProcessing] = useState(false);
+
+  // Open the alias drawer instantly (single global state, zero-lag).
+  const openAliasDrawer = useCallback((token?: string) => {
+    setPendingToken(token ? token.trim() : null);
+    setAliasDrawerOpen(true);
+  }, []);
 
   const fetchShadowCompanies = useCallback(async () => {
     const { data } = await supabase
@@ -89,14 +101,20 @@ const CMDWarRoom = () => {
     if (!data) return;
 
     const companyIds = [...new Set(data.map((o) => o.company_id).filter(Boolean))] as string[];
-    let companyMap: Record<string, { name: string; status: string | null }> = {};
+    let companyMap: Record<string, { name: string; status: string | null; phone: string | null; gst: string | null; address: string | null }> = {};
     if (companyIds.length) {
       const { data: companies } = await supabase
         .from("companies")
-        .select("id, business_name, status")
+        .select("id, business_name, status, phone, gst_number, registered_address")
         .in("id", companyIds);
       companies?.forEach((c: any) => {
-        companyMap[c.id] = { name: c.business_name, status: c.status };
+        companyMap[c.id] = {
+          name: c.business_name,
+          status: c.status,
+          phone: c.phone ?? null,
+          gst: c.gst_number ?? null,
+          address: c.registered_address ?? null,
+        };
       });
     }
 
@@ -109,7 +127,7 @@ const CMDWarRoom = () => {
 
     const { data: items } = await supabase
       .from("order_items")
-      .select("order_id, quantity, weight_kg, product_id, notes, products(name, aliases)")
+      .select("id, order_id, quantity, weight_kg, product_id, notes, products(name, aliases)")
       .in("order_id", orderIds);
 
     const itemsByOrder: Record<string, OrderItem[]> = {};
@@ -117,7 +135,6 @@ const CMDWarRoom = () => {
       const oid = item.order_id;
       if (!itemsByOrder[oid]) itemsByOrder[oid] = [];
 
-      // Soft parse confidence + matched alias from notes (parser may stash JSON tag)
       let conf: number | null = null;
       let alias: string | null = null;
       if (item.notes && typeof item.notes === "string") {
@@ -126,12 +143,12 @@ const CMDWarRoom = () => {
         const aMatch = item.notes.match(/alias[=:]\s*([^|;,\n]+)/i);
         if (aMatch) alias = aMatch[1].trim();
       }
-      // Fallback: first alias from product if no explicit match
       if (!alias && item.products?.aliases?.length) {
         alias = item.products.aliases[0];
       }
 
       itemsByOrder[oid].push({
+        id: item.id,
         quantity: item.quantity,
         product_name: item.products?.name,
         weight_kg: item.weight_kg,
@@ -165,6 +182,9 @@ const CMDWarRoom = () => {
           ...o,
           company_name: cInfo?.name ?? "Unknown",
           company_status: cInfo?.status ?? null,
+          company_phone: cInfo?.phone ?? null,
+          company_gst: cInfo?.gst ?? null,
+          company_address: cInfo?.address ?? null,
           has_complaint: complainedOrders.has(o.id),
           items: list,
           attachment_urls: attByOrder[o.id] || [],
@@ -277,7 +297,6 @@ const CMDWarRoom = () => {
   }, [fetchOrders]);
 
   const buildSO = useCallback(async (orderId: string) => {
-    // Final action: promote draft to submitted (preserves total_weight_kg + SO logic untouched).
     const { error } = await supabase
       .from("orders")
       .update({ status: "submitted" } as any)
@@ -289,6 +308,34 @@ const CMDWarRoom = () => {
     toast.success(`SO #${orderId.slice(0, 8).toUpperCase()} submitted`);
     fetchOrders();
   }, [fetchOrders]);
+
+  // Auto-Pilot: orders ready for one-click bulk submission.
+  const autoPilotOrders = useMemo(() => {
+    return orders.filter((o) => {
+      const mapped = !!o.company_id && o.company_status !== "shadow" && o.company_status !== "draft" && !!o.company_name && !/unknown/i.test(o.company_name || "");
+      const highConf = typeof o.min_confidence === "number" && o.min_confidence >= 0.95;
+      const clean = !o.needs_clarification && !o.is_duplicate;
+      const isDraftStatus = (o.status || "").toLowerCase() === "draft";
+      return mapped && highConf && clean && isDraftStatus;
+    });
+  }, [orders]);
+
+  const processAllClear = useCallback(async () => {
+    if (!autoPilotOrders.length || bulkProcessing) return;
+    setBulkProcessing(true);
+    const ids = autoPilotOrders.map((o) => o.id);
+    const { error } = await supabase
+      .from("orders")
+      .update({ status: "submitted" } as any)
+      .in("id", ids);
+    setBulkProcessing(false);
+    if (error) {
+      toast.error("Bulk processing failed");
+      return;
+    }
+    toast.success(`✓ ${ids.length} SOs submitted`);
+    fetchOrders();
+  }, [autoPilotOrders, bulkProcessing, fetchOrders]);
 
   const counts = useMemo(() => {
     const startOfToday = new Date();
@@ -317,11 +364,20 @@ const CMDWarRoom = () => {
         </h1>
         <div className="flex items-center gap-2">
           <button
-            onClick={() => setAliasDrawerOpen(true)}
+            onClick={() => openAliasDrawer()}
             className="flex items-center gap-1.5 text-xs font-medium text-primary hover:opacity-80 transition-colors px-3 py-1.5 rounded-md border border-primary/30"
           >
             <Tag size={14} /> Edit Aliases
           </button>
+          {autoPilotOrders.length > 0 && (
+            <button
+              onClick={processAllClear}
+              disabled={bulkProcessing}
+              className="flex items-center gap-1.5 text-xs font-bold transition-colors px-3 py-1.5 rounded-md border bg-emerald-600 text-white border-emerald-600 hover:bg-emerald-700 disabled:opacity-50"
+            >
+              {bulkProcessing ? "Processing…" : `⚡ Process All Clear (${autoPilotOrders.length})`}
+            </button>
+          )}
           <button
             onClick={() => setTodayOnly(!todayOnly)}
             className={`flex items-center gap-1.5 text-xs font-medium transition-colors px-3 py-1.5 rounded-md border ${
@@ -397,6 +453,9 @@ const CMDWarRoom = () => {
                 companies={activeCompanies}
                 onAssignClient={assignClientToOrder}
                 onBuildSO={buildSO}
+                onTeachSku={(token) => openAliasDrawer(token)}
+                onEditAliases={() => openAliasDrawer()}
+                onRefresh={fetchOrders}
               />
             ))}
           </div>
@@ -409,8 +468,9 @@ const CMDWarRoom = () => {
 
       <AliasDrawer
         open={aliasDrawerOpen}
-        onOpenChange={setAliasDrawerOpen}
-        pendingToken={null}
+        onOpenChange={(v) => { setAliasDrawerOpen(v); if (!v) setPendingToken(null); }}
+        pendingToken={pendingToken}
+        onAliasesChanged={fetchOrders}
       />
     </div>
   );

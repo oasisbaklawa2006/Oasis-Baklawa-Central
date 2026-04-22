@@ -1,5 +1,7 @@
 import { useMemo, useState } from "react";
-import { ChevronDown, ChevronUp, AlertTriangle, CheckCircle2, Package, Truck, CreditCard, Factory, Box, Hammer, FileText, HeartHandshake, Eye, EyeOff, Image as ImageIcon, X } from "lucide-react";
+import { ChevronDown, ChevronUp, AlertTriangle, CheckCircle2, Package, Truck, CreditCard, Factory, Box, Hammer, FileText, HeartHandshake, Eye, EyeOff, Image as ImageIcon, X, UserPlus, Pencil, Save, Tag } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
 import { normalizeOrderStatus } from "@/utils/orderStatus";
 
 const IST_OFFSET = 5.5 * 3600000;
@@ -39,6 +41,7 @@ function getActiveStep(status: string) {
 }
 
 interface OrderItem {
+  id?: string;
   quantity: number;
   product_name?: string;
   weight_kg?: number | null;
@@ -60,6 +63,9 @@ interface Order {
   company_id: string | null;
   company_name?: string;
   company_status?: string | null;
+  company_phone?: string | null;
+  company_gst?: string | null;
+  company_address?: string | null;
   has_complaint?: boolean;
   items?: OrderItem[];
   total_weight_kg?: number | null;
@@ -81,6 +87,12 @@ interface Props {
   onAssignClient?: (orderId: string, companyId: string) => Promise<void> | void;
   /** Called when admin clicks "Build SO" — only enabled once client is mapped. */
   onBuildSO?: (orderId: string) => Promise<void> | void;
+  /** Open Teach-SKU side drawer with optional pre-fill token (instant). */
+  onTeachSku?: (token?: string) => void;
+  /** Open Edit-Aliases side drawer (instant). */
+  onEditAliases?: () => void;
+  /** Refresh callback after inline edits / profile completion. */
+  onRefresh?: () => void;
 }
 
 export default function WarRoomOrderCard({
@@ -91,6 +103,9 @@ export default function WarRoomOrderCard({
   companies = [],
   onAssignClient,
   onBuildSO,
+  onTeachSku,
+  onEditAliases,
+  onRefresh,
 }: Props) {
   const activeStep = getActiveStep(order.status);
   const isPanic = order.dispatch_urgency === "panic";
@@ -112,6 +127,33 @@ export default function WarRoomOrderCard({
   const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
   const [buildingSO, setBuildingSO] = useState(false);
 
+  // Inline qty edit state — keyed by order_item id.
+  const [editQty, setEditQty] = useState<Record<string, string>>({});
+  const [savingQtyId, setSavingQtyId] = useState<string | null>(null);
+
+  // Complete-Profile mini-form state (for Draft / Shadow clients).
+  const [profileOpen, setProfileOpen] = useState(false);
+  const [profilePhone, setProfilePhone] = useState(order.company_phone || "");
+  const [profileGst, setProfileGst] = useState(order.company_gst || "");
+  const [profileAddr, setProfileAddr] = useState(order.company_address || "");
+  const [savingProfile, setSavingProfile] = useState(false);
+
+  // Auto-Pilot detection: high confidence + recognized client + no duplicates/clarification.
+  const isAutoPilot =
+    !isUnmappedClient &&
+    !isAmbiguous &&
+    !isDuplicate &&
+    typeof order.min_confidence === "number" &&
+    order.min_confidence >= 0.95;
+
+  // Draft / new-lead detection — company exists but is a Draft/Shadow placeholder.
+  const isDraftClient =
+    !!order.company_id &&
+    (order.company_status === "shadow" || order.company_status === "draft");
+
+  // Global per-card action lock — prevents double-processing.
+  const cardBusy = assigning || buildingSO || savingProfile || !!savingQtyId;
+
   const tierColor = useMemo(() => {
     if (!order.created_at) return "bg-muted text-muted-foreground";
     const hours = (Date.now() - new Date(order.created_at).getTime()) / 3600000;
@@ -121,7 +163,7 @@ export default function WarRoomOrderCard({
   }, [order.created_at]);
 
   const handleAssign = async () => {
-    if (!assignId || !onAssignClient) return;
+    if (!assignId || !onAssignClient || cardBusy) return;
     setAssigning(true);
     try {
       await onAssignClient(order.id, assignId);
@@ -131,7 +173,7 @@ export default function WarRoomOrderCard({
   };
 
   const handleBuild = async () => {
-    if (!onBuildSO || isUnmappedClient) return;
+    if (!onBuildSO || isUnmappedClient || cardBusy) return;
     setBuildingSO(true);
     try {
       await onBuildSO(order.id);
@@ -139,6 +181,56 @@ export default function WarRoomOrderCard({
       setBuildingSO(false);
     }
   };
+
+  const handleSaveQty = async (itemId: string) => {
+    const raw = editQty[itemId];
+    const n = Number(raw);
+    if (!itemId || !raw || !Number.isFinite(n) || n <= 0) {
+      toast.error("Enter a valid quantity");
+      return;
+    }
+    setSavingQtyId(itemId);
+    try {
+      const { error } = await supabase
+        .from("order_items")
+        .update({ quantity: n } as any)
+        .eq("id", itemId);
+      if (error) throw error;
+      toast.success("Quantity updated");
+      setEditQty((p) => { const x = { ...p }; delete x[itemId]; return x; });
+      onRefresh?.();
+    } catch (e: any) {
+      toast.error(e?.message || "Failed to update quantity");
+    } finally {
+      setSavingQtyId(null);
+    }
+  };
+
+  const handleSaveProfile = async () => {
+    if (!order.company_id || cardBusy) return;
+    setSavingProfile(true);
+    try {
+      const payload: any = {};
+      if (profilePhone.trim()) payload.phone = profilePhone.trim();
+      if (profileGst.trim()) payload.gst_number = profileGst.trim();
+      if (profileAddr.trim()) payload.registered_address = profileAddr.trim();
+      // Promote Draft/Shadow to Active so it leaves the "unmapped" filter.
+      payload.status = "active";
+      const { error } = await supabase
+        .from("companies")
+        .update(payload)
+        .eq("id", order.company_id);
+      if (error) throw error;
+      toast.success("Client profile completed");
+      setProfileOpen(false);
+      onRefresh?.();
+    } catch (e: any) {
+      toast.error(e?.message || "Failed to save profile");
+    } finally {
+      setSavingProfile(false);
+    }
+  };
+
 
   return (
     <>
@@ -148,6 +240,7 @@ export default function WarRoomOrderCard({
             : isComplaint ? "bg-red-500/5 border-red-500/40"
             : isAmbiguous ? "bg-orange-500/5 border-orange-500/50 ring-1 ring-orange-400/40"
             : isPanic ? "border-violet-500/60 shadow-[0_0_12px_rgba(139,92,246,0.25)]"
+            : isAutoPilot ? "bg-emerald-500/5 border-emerald-500/40"
             : "bg-card border-border"}
           ${isPanic ? "animate-pulse" : ""}
         `}
@@ -184,6 +277,16 @@ export default function WarRoomOrderCard({
             {isUnmappedClient && (
               <span className="text-[10px] font-bold text-amber-700 bg-amber-500/10 border border-amber-500/30 px-2 py-0.5 rounded-full">
                 UNMAPPED CLIENT
+              </span>
+            )}
+            {isDraftClient && (
+              <span className="flex items-center gap-1 text-[10px] font-bold text-sky-700 bg-sky-500/10 border border-sky-500/30 px-2 py-0.5 rounded-full">
+                <UserPlus size={10} /> NEW CLIENT
+              </span>
+            )}
+            {isAutoPilot && (
+              <span className="text-[10px] font-bold text-emerald-700 bg-emerald-500/15 border border-emerald-500/40 px-2 py-0.5 rounded-full">
+                ✓ AUTO-PILOT READY
               </span>
             )}
           </div>
@@ -250,27 +353,106 @@ export default function WarRoomOrderCard({
               </div>
             )}
 
-            {/* Order items preview — FULL list */}
+            {/* Order items — inline-editable rows */}
             {order.items && order.items.length > 0 && (
               <div className="mb-2 space-y-1">
-                <div className="flex flex-wrap gap-1">
-                  {order.items.map((item, i) => (
-                    <span key={i} className="text-[10px] bg-muted px-2 py-0.5 rounded-full text-muted-foreground">
-                      {item.product_name || "SKU"} × {item.quantity}
-                      {item.weight_kg ? ` · ${Number(item.weight_kg).toLocaleString("en-IN", { maximumFractionDigits: 2 })}kg` : ""}
-                    </span>
-                  ))}
+                <div className="space-y-1">
+                  {order.items.map((item, i) => {
+                    const itemId = item.id || "";
+                    const isEditing = !!itemId && Object.prototype.hasOwnProperty.call(editQty, itemId);
+                    const isSavingThis = savingQtyId === itemId;
+                    return (
+                      <div key={itemId || i} className="flex items-center justify-between gap-2 text-[11px] bg-muted/40 px-2 py-1 rounded">
+                        <span className="text-foreground truncate flex-1 min-w-0">{item.product_name || "SKU"}</span>
+                        <div className="flex items-center gap-1.5 flex-shrink-0">
+                          {isEditing && itemId ? (
+                            <>
+                              <input
+                                type="number"
+                                inputMode="decimal"
+                                step="0.01"
+                                min="0"
+                                autoFocus
+                                value={editQty[itemId]}
+                                onChange={(e) => setEditQty((p) => ({ ...p, [itemId]: e.target.value }))}
+                                onKeyDown={(e) => {
+                                  if (e.key === "Enter") handleSaveQty(itemId);
+                                  if (e.key === "Escape") setEditQty((p) => { const x = { ...p }; delete x[itemId]; return x; });
+                                }}
+                                disabled={cardBusy && !isSavingThis}
+                                className="w-16 px-1.5 py-0.5 text-[11px] rounded border border-border bg-background text-right"
+                              />
+                              <button
+                                onClick={() => handleSaveQty(itemId)}
+                                disabled={cardBusy && !isSavingThis}
+                                className="text-emerald-700 hover:text-emerald-800 disabled:opacity-40"
+                                title="Save"
+                              >
+                                <Save size={12} />
+                              </button>
+                              <button
+                                onClick={() => setEditQty((p) => { const x = { ...p }; delete x[itemId]; return x; })}
+                                disabled={isSavingThis}
+                                className="text-muted-foreground hover:text-foreground disabled:opacity-40"
+                                title="Cancel"
+                              >
+                                <X size={12} />
+                              </button>
+                            </>
+                          ) : (
+                            <>
+                              <span className="font-semibold text-foreground">× {item.quantity}</span>
+                              {item.weight_kg ? (
+                                <span className="text-muted-foreground">· {Number(item.weight_kg).toLocaleString("en-IN", { maximumFractionDigits: 2 })}kg</span>
+                              ) : null}
+                              {itemId && (
+                                <button
+                                  onClick={() => setEditQty((p) => ({ ...p, [itemId]: String(item.quantity) }))}
+                                  disabled={cardBusy}
+                                  title="Edit quantity"
+                                  className="text-muted-foreground hover:text-primary disabled:opacity-40"
+                                >
+                                  <Pencil size={11} />
+                                </button>
+                              )}
+                            </>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
 
-                {/* AI Logic Toggle */}
-                <div className="flex items-center justify-between pt-1">
-                  <button
-                    onClick={() => setShowAiLogic((v) => !v)}
-                    className="flex items-center gap-1 text-[10px] text-primary hover:opacity-80"
-                  >
-                    {showAiLogic ? <EyeOff size={10} /> : <Eye size={10} />}
-                    {showAiLogic ? "Hide AI Logic" : "View AI Logic"}
-                  </button>
+                {/* AI Logic Toggle + Teach SKU */}
+                <div className="flex items-center justify-between pt-1 gap-2 flex-wrap">
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => setShowAiLogic((v) => !v)}
+                      className="flex items-center gap-1 text-[10px] text-primary hover:opacity-80"
+                    >
+                      {showAiLogic ? <EyeOff size={10} /> : <Eye size={10} />}
+                      {showAiLogic ? "Hide AI Logic" : "View AI Logic"}
+                    </button>
+                    {onTeachSku && (
+                      <button
+                        onClick={() => onTeachSku(order.items?.find((it) => (it.confidence ?? 1) < 0.9)?.product_name || undefined)}
+                        disabled={cardBusy}
+                        className="flex items-center gap-1 text-[10px] text-primary hover:opacity-80 disabled:opacity-40"
+                        title="Open the SKU/Alias drawer to teach this term"
+                      >
+                        <Tag size={10} /> Teach SKU
+                      </button>
+                    )}
+                    {onEditAliases && (
+                      <button
+                        onClick={() => onEditAliases()}
+                        disabled={cardBusy}
+                        className="flex items-center gap-1 text-[10px] text-muted-foreground hover:text-foreground disabled:opacity-40"
+                      >
+                        Edit Aliases
+                      </button>
+                    )}
+                  </div>
                   {typeof order.min_confidence === "number" && (
                     <span
                       className={`text-[9px] font-bold px-1.5 py-0.5 rounded ${
@@ -315,6 +497,58 @@ export default function WarRoomOrderCard({
               </div>
             )}
 
+            {/* Complete Profile mini-form (Draft / Shadow / mapped-but-incomplete) */}
+            {isDraftClient && order.company_id && (
+              <div className="mb-2 rounded-md border border-sky-500/30 bg-sky-500/5 p-2">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-[10px] font-bold text-sky-700 flex items-center gap-1">
+                    <UserPlus size={10} /> Draft client — finish profile to activate
+                  </span>
+                  <button
+                    onClick={() => setProfileOpen((v) => !v)}
+                    disabled={cardBusy}
+                    className="text-[10px] font-semibold px-2 py-0.5 rounded bg-sky-600 text-white hover:bg-sky-700 disabled:opacity-40"
+                  >
+                    {profileOpen ? "Close" : "Complete Profile"}
+                  </button>
+                </div>
+                {profileOpen && (
+                  <div className="mt-2 grid grid-cols-1 sm:grid-cols-3 gap-1.5">
+                    <input
+                      type="tel"
+                      placeholder="Phone"
+                      value={profilePhone}
+                      onChange={(e) => setProfilePhone(e.target.value)}
+                      className="text-xs px-2 py-1 rounded border border-border bg-background"
+                    />
+                    <input
+                      type="text"
+                      placeholder="GST Number"
+                      value={profileGst}
+                      onChange={(e) => setProfileGst(e.target.value)}
+                      className="text-xs px-2 py-1 rounded border border-border bg-background"
+                    />
+                    <input
+                      type="text"
+                      placeholder="Address"
+                      value={profileAddr}
+                      onChange={(e) => setProfileAddr(e.target.value)}
+                      className="text-xs px-2 py-1 rounded border border-border bg-background"
+                    />
+                    <div className="sm:col-span-3 flex justify-end">
+                      <button
+                        onClick={handleSaveProfile}
+                        disabled={savingProfile}
+                        className="text-[10px] font-semibold px-3 py-1 rounded bg-sky-600 text-white hover:bg-sky-700 disabled:opacity-40"
+                      >
+                        {savingProfile ? "Saving…" : "Save & Activate"}
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
             {/* Assign-to-Client (Central Pool merger) */}
             {isUnmappedClient && onAssignClient && (
               <div className="mb-2 flex flex-wrap items-center gap-2 rounded-md border border-amber-500/30 bg-amber-500/5 p-2">
@@ -322,7 +556,8 @@ export default function WarRoomOrderCard({
                 <select
                   value={assignId}
                   onChange={(e) => setAssignId(e.target.value)}
-                  className="text-xs px-2 py-1 rounded border border-border bg-background flex-1 min-w-[160px]"
+                  disabled={cardBusy}
+                  className="text-xs px-2 py-1 rounded border border-border bg-background flex-1 min-w-[160px] disabled:opacity-50"
                 >
                   <option value="">— Assign to client —</option>
                   {companies.map((c) => (
@@ -333,7 +568,7 @@ export default function WarRoomOrderCard({
                 </select>
                 <button
                   onClick={handleAssign}
-                  disabled={!assignId || assigning}
+                  disabled={!assignId || cardBusy}
                   className="text-[10px] font-semibold px-2.5 py-1 rounded bg-amber-600 text-white hover:bg-amber-700 disabled:opacity-50"
                 >
                   {assigning ? "Assigning…" : "Assign"}
@@ -381,7 +616,7 @@ export default function WarRoomOrderCard({
               <div className="flex items-center justify-end pt-2">
                 <button
                   onClick={handleBuild}
-                  disabled={isUnmappedClient || buildingSO}
+                  disabled={isUnmappedClient || cardBusy}
                   title={isUnmappedClient ? "Map a client first to enable Build SO" : "Generate Sales Order"}
                   className="text-xs font-semibold px-3 py-1.5 rounded-md bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1.5"
                 >
