@@ -1,5 +1,7 @@
 import { useMemo, useState } from "react";
-import { ChevronDown, ChevronUp, AlertTriangle, CheckCircle2, Package, Truck, CreditCard, Factory, Box, Hammer, FileText, HeartHandshake, Eye, EyeOff, Image as ImageIcon, X } from "lucide-react";
+import { ChevronDown, ChevronUp, AlertTriangle, CheckCircle2, Package, Truck, CreditCard, Factory, Box, Hammer, FileText, HeartHandshake, Eye, EyeOff, Image as ImageIcon, X, UserPlus, Pencil, Save, Tag } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
 import { normalizeOrderStatus } from "@/utils/orderStatus";
 
 const IST_OFFSET = 5.5 * 3600000;
