@@ -157,7 +157,7 @@ const AdminLayout = () => {
     .filter(section => section.items.length > 0);
 
   return (
-    <div className="min-h-screen flex bg-background">
+    <div className="min-h-screen flex bg-background max-w-[100vw] overflow-x-hidden">
       {sidebarOpen && <div className="fixed inset-0 bg-black/30 z-40 lg:hidden" onClick={() => setSidebarOpen(false)} />}
 
       <aside className={`fixed lg:static inset-y-0 left-0 z-50 w-64 flex flex-col bg-card border-r border-border transition-transform lg:translate-x-0 ${sidebarOpen ? "translate-x-0" : "-translate-x-full"}`}
@@ -208,13 +208,13 @@ const AdminLayout = () => {
         </div>
       </aside>
 
-      <div className="flex-1 flex flex-col min-h-screen">
+      <div className="flex-1 flex flex-col min-h-screen min-w-0 max-w-full overflow-x-hidden">
         <header className="h-14 flex items-center px-5 border-b border-border bg-card lg:hidden">
           <button onClick={() => setSidebarOpen(true)}><Menu size={20} className="text-primary" /></button>
           <span className="ml-3 text-ui-h5 text-primary">Admin Panel</span>
         </header>
         <PanicAlertBanner />
-        <main className="flex-1 p-6 overflow-y-auto">
+        <main className="flex-1 p-4 sm:p-6 overflow-y-auto overflow-x-hidden max-w-full">
           <AdminRouteGuard><Outlet /></AdminRouteGuard>
         </main>
       </div>
