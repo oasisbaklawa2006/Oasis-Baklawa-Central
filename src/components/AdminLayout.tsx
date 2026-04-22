@@ -75,7 +75,9 @@ const AdminLayout = () => {
     {
       title: t("Operations"),
       items: [
-        { to: "/admin/central-pool", icon: Inbox, label: "Central Pool", moduleKey: "orders" },
+        // Central Pool hidden for Admin/Super-Admin — War Room is the active track.
+        // Kept visible to non-admin staff (Ops/Support) as the read-only DB log.
+        ...(isAdmin ? [] : [{ to: "/admin/central-pool", icon: Inbox, label: "Central Pool", moduleKey: "orders" }] as NavItem[]),
         { to: "/admin/order-management", icon: ClipboardList, label: t("Order Pipeline"), moduleKey: "orders" },
         { to: "/admin/order-management?view=production", icon: Factory, label: t("Production"), moduleKey: "production" },
         { to: "/admin/order-management?view=packing", icon: PackageCheck, label: t("Packing & Dispatch"), moduleKey: "packing" },
