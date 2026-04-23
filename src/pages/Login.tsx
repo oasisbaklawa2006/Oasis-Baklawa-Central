@@ -24,7 +24,7 @@ declare global {
 const AUTH_CACHE_KEY = "oasis_auth_cache";
 
 const Login = () => {
-  const [activeTab, setActiveTab] = useState<AuthTab>("phone");
+  const [activeTab, setActiveTab] = useState<AuthTab>("msg91");
   const [showPwd, setShowPwd] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -295,149 +295,7 @@ const Login = () => {
     await resolveRedirect(data.user.id);
   };
 
-  // ── Phone OTP ──
-  const handleSendOtp = async () => {
-    const cleaned = phone.replace(/\D/g, "");
-    if (cleaned.length !== 10) {
-      toast.error("Enter a valid 10-digit mobile number");
-      return;
-    }
-    setLoading(true);
-    const { error } = await supabase.auth.signInWithOtp({ phone: `+91${cleaned}` });
-    setLoading(false);
-    if (error) {
-      // [msg91] SMS/provider failure — route user to MSG91 WhatsApp flow.
-      if (error.message?.toLowerCase().includes("sms") || error.message?.toLowerCase().includes("provider") || error.message?.toLowerCase().includes("otp")) {
-        toast.info("SMS service unavailable. Please use the WhatsApp (MSG91) tab — or fall back to Email login.", { duration: 6000 });
-        setActiveTab("whatsapp");
-        setWaPhone(cleaned);
-        return;
-      }
-      toast.error(error.message);
-      return;
-    }
-    setOtpSent(true);
-    toast.success("OTP sent to your mobile number");
-  };
-
-  const handleVerifyOtp = async () => {
-    if (otp.length !== 6) { toast.error("Enter the 6-digit OTP"); return; }
-    const cleaned = phone.replace(/\D/g, "");
-    setLoading(true);
-    const { error, data } = await supabase.auth.verifyOtp({
-      phone: `+91${cleaned}`,
-      token: otp,
-      type: "sms",
-    });
-    setLoading(false);
-    if (error) { toast.error(error.message); return; }
-    if (!sessionStorage.getItem("oasis_welcomed")) {
-      toast.success("Welcome back!");
-      sessionStorage.setItem("oasis_welcomed", "1");
-    }
-    if (data.user) await resolveRedirect(data.user.id);
-  };
-
-  // ── WhatsApp OTP via Click2API ──
-  const handleSendWaOtp = async () => {
-    const cleaned = waPhone.replace(/\D/g, "");
-    if (cleaned.length !== 10) {
-      toast.error("Enter a valid 10-digit mobile number");
-      return;
-    }
-    setLoading(true);
-    try {
-      const { data, error } = await supabase.functions.invoke("whatsapp-otp", {
-        body: { action: "send", phone: cleaned },
-      });
-      if (error) throw error;
-      if (data?.error) { toast.error(data.error); setLoading(false); return; }
-      setWaOtpSent(true);
-      toast.success("OTP sent via WhatsApp!");
-      setTimeout(() => {
-        toast("Session Active. Check WhatsApp 'Archive' or 'Request' folders.", {
-          description: "If you don't see the OTP, check filtered chats.",
-          duration: 8000,
-        });
-      }, 1500);
-
-      // ── 15s EMAIL BACKUP: if user hasn't entered OTP, fire email fallback ──
-      if (emailBackupTimer.id) clearTimeout(emailBackupTimer.id);
-      emailBackupTimer.id = setTimeout(async () => {
-        try {
-          const { data: bk } = await supabase.functions.invoke("whatsapp-otp", {
-            body: { action: "email_backup", phone: cleaned },
-          });
-          if (bk?.success) {
-            toast.info(`Backup OTP sent to your email (${bk.sent_to}). Please check your inbox.`, { duration: 8000 });
-          }
-        } catch {}
-      }, 15000);
-    } catch (err: any) {
-      toast.error(err?.message || "Failed to send WhatsApp OTP");
-    }
-    setLoading(false);
-  };
-
-  const handleVerifyWaOtp = async () => {
-    if (waOtp.length !== 6) { toast.error("Enter the 6-digit OTP"); return; }
-    if (emailBackupTimer.id) { clearTimeout(emailBackupTimer.id); emailBackupTimer.id = null; }
-    const cleaned = waPhone.replace(/\D/g, "");
-    setLoading(true);
-    try {
-      const { data: verifyData, error } = await supabase.functions.invoke("whatsapp-otp", {
-        body: { action: "verify", phone: cleaned, otp: waOtp },
-      });
-      if (error) throw error;
-      if (verifyData?.error) { toast.error(verifyData.error); setLoading(false); return; }
-
-      if (verifyData?.verified) {
-        // Try to establish session using token_hash from edge function
-        if (verifyData.token_hash && verifyData.email) {
-          const { error: verifyErr, data: sessionData } = await supabase.auth.verifyOtp({
-            token_hash: verifyData.token_hash,
-            type: "magiclink",
-          });
-          if (!verifyErr && sessionData?.user) {
-            if (!sessionStorage.getItem("oasis_welcomed")) {
-              toast.success("Welcome back!");
-              sessionStorage.setItem("oasis_welcomed", "1");
-            }
-            await resolveRedirect(sessionData.user.id);
-            setLoading(false);
-            return;
-          }
-          console.warn("token_hash login failed, trying email OTP fallback:", verifyErr?.message);
-        }
-
-        // Fallback: try native email OTP with internal email
-        if (verifyData.email) {
-          const { error: emailOtpErr } = await supabase.auth.signInWithOtp({
-            email: verifyData.email,
-          });
-          if (!emailOtpErr) {
-            toast.info("WhatsApp verified. Check your email for the login link to complete sign-in.");
-            setLoading(false);
-            return;
-          }
-        }
-
-        // [msg91] Final fallback: WhatsApp verified but session minting failed.
-        // We are 100% on MSG91 for phone/WhatsApp — no Supabase phone-OTP retry.
-        // Direct user to Email Login so business never stops.
-        toast.info(
-          "WhatsApp verified. Please complete sign-in via Email login: " + (verifyData.email || "your registered email"),
-          { duration: 8000 },
-        );
-        setActiveTab("email");
-        setLoading(false);
-        return;
-      }
-    } catch (err: any) {
-      toast.error(err?.message || "Failed to verify WhatsApp OTP");
-    }
-    setLoading(false);
-  };
+  // ── Phone OTP & WhatsApp OTP handlers removed — superseded by MSG91 omnichannel widget ──
 
   const handleResetPassword = async () => {
     if (!email) { toast.error("Enter your email first"); return; }
@@ -470,15 +328,9 @@ const Login = () => {
 
         <div className="bg-card rounded-2xl p-6 space-y-5 border border-border" style={{ boxShadow: "var(--card-shadow)" }}>
           {/* Tab Toggle */}
-          <div className="flex gap-1 p-1 rounded-xl bg-muted flex-wrap">
+          <div className="flex gap-1 p-1 rounded-xl bg-muted">
             <button onClick={() => setActiveTab("msg91")} className={tabClass("msg91")}>
-              <ShieldCheck size={12} className="inline mr-1 -mt-0.5" />Secure
-            </button>
-            <button onClick={() => { setActiveTab("phone"); setOtpSent(false); setOtp(""); }} className={tabClass("phone")}>
-              <Phone size={12} className="inline mr-1 -mt-0.5" />Phone
-            </button>
-            <button onClick={() => setActiveTab("whatsapp")} className={tabClass("whatsapp")}>
-              <MessageCircle size={12} className="inline mr-1 -mt-0.5" />WhatsApp
+              <ShieldCheck size={12} className="inline mr-1 -mt-0.5" />Phone / WhatsApp
             </button>
             <button onClick={() => setActiveTab("email")} className={tabClass("email")}>
               <Mail size={12} className="inline mr-1 -mt-0.5" />Email
