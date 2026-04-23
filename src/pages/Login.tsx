@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { motion } from "framer-motion";
-import { LogIn, Eye, EyeOff, Loader2, Phone, Mail, MessageCircle, ShieldCheck } from "lucide-react";
+import { LogIn, Eye, EyeOff, Loader2, Mail, ShieldCheck } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { Input } from "@/components/ui/input";
 import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp";
