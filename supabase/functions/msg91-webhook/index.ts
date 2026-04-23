@@ -84,8 +84,38 @@ serve(async (req) => {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
-    console.log(`[msg91-webhook] logged ${rows.length} delivery event(s)`);
-    return new Response(JSON.stringify({ ok: true, logged: rows.length }), {
+
+    // Real-time War Room alert: notify admins for any 'Failed' delivery so the
+    // team can proactively reach out to clients struggling to log in.
+    const failures = rows.filter(
+      (r) => typeof r.status === "string" && /fail|undeliv|reject|error/i.test(r.status),
+    );
+    if (failures.length > 0) {
+      try {
+        const { data: admins } = await supabaseAdmin
+          .from("users")
+          .select("id")
+          .in("role", ["ADMIN", "SUPER_ADMIN", "admin", "super_admin"])
+          .limit(20);
+        const adminIds = (admins || []).map((a: any) => a.id);
+        if (adminIds.length > 0) {
+          const notifs = failures.flatMap((f) =>
+            adminIds.map((uid) => ({
+              user_id: uid,
+              type: "auth_failure",
+              message: `⚠️ Login failure (MSG91): ${f.phone || "unknown phone"} via ${f.channel || "?"} — ${f.description || f.status}`,
+              is_read: false,
+            })),
+          );
+          await supabaseAdmin.from("notifications").insert(notifs);
+        }
+      } catch (notifyErr) {
+        console.warn("[msg91-webhook] admin notification soft-failed:", notifyErr);
+      }
+    }
+
+    console.log(`[msg91-webhook] logged ${rows.length} delivery event(s), ${failures.length} failure(s)`);
+    return new Response(JSON.stringify({ ok: true, logged: rows.length, failures: failures.length }), {
       status: 200,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
