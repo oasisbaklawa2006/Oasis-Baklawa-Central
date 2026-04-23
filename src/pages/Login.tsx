@@ -309,7 +309,10 @@ const Login = () => {
 
         <div className="bg-card rounded-2xl p-6 space-y-5 border border-border" style={{ boxShadow: "var(--card-shadow)" }}>
           {/* Tab Toggle */}
-          <div className="flex gap-1 p-1 rounded-xl bg-muted">
+          <div className="flex gap-1 p-1 rounded-xl bg-muted flex-wrap">
+            <button onClick={() => setActiveTab("msg91")} className={tabClass("msg91")}>
+              <ShieldCheck size={12} className="inline mr-1 -mt-0.5" />Secure
+            </button>
             <button onClick={() => { setActiveTab("phone"); setOtpSent(false); setOtp(""); }} className={tabClass("phone")}>
               <Phone size={12} className="inline mr-1 -mt-0.5" />Phone
             </button>
@@ -320,6 +323,30 @@ const Login = () => {
               <Mail size={12} className="inline mr-1 -mt-0.5" />Email
             </button>
           </div>
+
+          {/* ── MSG91 Secure OTP Tab ── */}
+          {activeTab === "msg91" && (
+            <div className="space-y-4">
+              <div className="rounded-xl border border-primary/20 bg-primary/5 p-4 text-center space-y-2">
+                <ShieldCheck size={28} className="mx-auto text-primary" />
+                <p className="font-ui text-sm font-bold text-foreground">MSG91 Secure Verification</p>
+                <p className="font-body text-xs text-muted-foreground">
+                  Multi-channel OTP via SMS · WhatsApp · Voice with auto-failover.
+                </p>
+              </div>
+              <button
+                onClick={launchMsg91Widget}
+                disabled={msg91Loading}
+                className="w-full py-3.5 rounded-xl bg-primary text-primary-foreground font-ui font-bold text-sm flex items-center justify-center gap-2 transition-colors shadow-sm disabled:opacity-60"
+              >
+                {msg91Loading ? <Loader2 size={18} className="animate-spin" /> : <ShieldCheck size={18} />}
+                {msg91Loading ? "Launching widget…" : "Verify with MSG91"}
+              </button>
+              <p className="text-[10px] text-center text-muted-foreground">
+                Successful verification redirects to the War Room dashboard.
+              </p>
+            </div>
+          )}
 
           {/* ── Phone Tab ── */}
           {activeTab === "phone" && (
