@@ -92,7 +92,10 @@ const Login = () => {
   }, []);
 
   // Trigger MSG91 widget. On success → mint session via edge function → role-redirect.
-  const launchMsg91Widget = () => {
+  // `isSilentRetry` is true when re-invoked automatically after an AuthenticationFailure
+  // — known race where the very first widget handshake fails but the second succeeds.
+  const launchMsg91Widget = (isSilentRetry = false) => {
+    if (!isSilentRetry) msg91RetriedRef.current = false;
     if (typeof window === "undefined" || !msg91ScriptReady || typeof window.initSendOTP !== "function") {
       toast.error("MSG91 widget is still loading — please retry in a moment.");
       return;
@@ -207,8 +210,17 @@ const Login = () => {
       },
       failure: (err: any) => {
         settleHandshake();
+        const errMsg = err?.message || err?.errorMessage || err?.type || "";
+        const isAuthFail = /authentication\s*fail|authfail|invalid\s*auth/i.test(errMsg);
+        // Silent auto-retry: known MSG91 race where the first handshake fails
+        // with AuthenticationFailure but the second click succeeds.
+        if (isAuthFail && !msg91RetriedRef.current) {
+          msg91RetriedRef.current = true;
+          console.warn("[MSG91] AuthenticationFailure on first attempt — silent retry…");
+          setTimeout(() => launchMsg91Widget(true), 250);
+          return;
+        }
         setMsg91Loading(false);
-        const errMsg = err?.message || err?.errorMessage || "";
         if (/cors|origin|domain|access-control/i.test(errMsg)) {
           console.error(`[MSG91] Domain Mismatch (CORS) on origin: ${origin}. Whitelist this domain in your MSG91 Widget settings.`, err);
           toast.error("Handshake Failed: Please ensure this domain is whitelisted in your MSG91 Widget settings.", { duration: 8000 });
