@@ -61,7 +61,7 @@ function genOtp(): string {
 // ---- Channel implementations -------------------------------------------------
 
 async function sendWhatsApp(phone: string, body: string): Promise<boolean> {
-  if (!AUTH_KEY) return false;
+  if (!MSG91_ENABLED) return false;
   try {
     const res = await fetch("https://control.msg91.com/api/v5/whatsapp/whatsapp-outbound-message/bulk/", {
       method: "POST",
@@ -80,7 +80,7 @@ async function sendWhatsApp(phone: string, body: string): Promise<boolean> {
 }
 
 async function sendSMS(phone: string, body: string): Promise<boolean> {
-  if (!AUTH_KEY) return false;
+  if (!MSG91_ENABLED) return false;
   try {
     const res = await fetch("https://control.msg91.com/api/v5/flow/", {
       method: "POST",
@@ -120,7 +120,7 @@ async function sendEmail(email: string, subject: string, body: string): Promise<
 }
 
 async function sendVoice(phone: string, body: string): Promise<boolean> {
-  if (!AUTH_KEY || !VOICE_DID) return false;
+  if (!MSG91_ENABLED || !VOICE_DID) return false;
   try {
     const res = await fetch("https://control.msg91.com/api/v5/voice/outbound", {
       method: "POST",
