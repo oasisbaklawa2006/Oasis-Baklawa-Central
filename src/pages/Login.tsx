@@ -85,8 +85,9 @@ const Login = () => {
       }, 250);
     };
     script.onerror = () => {
-      console.error("[MSG91] Failed to load otp-provider.js — check network / CSP.");
-      toast.error("MSG91 widget script failed to load. Please refresh and try again.");
+      console.error("[msg91] Failed to load otp-provider.js — check network / CSP. Falling back to Email login.");
+      toast.error("MSG91 widget unavailable. Please use Email login to continue — business never stops.", { duration: 8000 });
+      setActiveTab("email");
     };
     document.body.appendChild(script);
   }, []);
