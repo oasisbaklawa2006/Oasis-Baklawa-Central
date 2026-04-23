@@ -27,6 +27,18 @@ const digitsOnly = (v: string) => v.replace(/\D+/g, "");
 const isEmail = (v: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v);
 
 serve(async (req) => {
+  // Diagnostics — visible in Supabase Edge Function logs
+  console.log("[validate-user] Full Request URL:", req.url);
+  console.log("[validate-user] Method:", req.method);
+  try {
+    console.log(
+      "[validate-user] Headers Received:",
+      JSON.stringify(Object.fromEntries(req.headers.entries())),
+    );
+  } catch (_) {
+    console.log("[validate-user] Headers Received: <unserializable>");
+  }
+
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
