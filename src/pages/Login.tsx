@@ -13,7 +13,7 @@ type AuthTab = "phone" | "email" | "whatsapp" | "msg91";
 
 // MSG91 Widget configuration (Token Auth + Widget ID)
 const MSG91_WIDGET_ID = "3664766e464b383030383331";
-const MSG91_TOKEN_AUTH = "509994TXZQ2DgorzaO69e9d36eP1";
+const MSG91_TOKEN_AUTH = "509994AgMgjQib69e9dc60P1";
 
 declare global {
   interface Window {
@@ -64,14 +64,8 @@ const Login = () => {
       exposeMethods: false,
       success: async (_data: any) => {
         setMsg91Loading(false);
-        toast.success("Verified via MSG91 — redirecting…");
-        try {
-          const { data: sessionData } = await supabase.auth.getSession();
-          if (sessionData?.session?.user) {
-            await resolveRedirect(sessionData.session.user.id);
-            return;
-          }
-        } catch {}
+        toast.success("Identity Verified via MSG91");
+        // Per spec: ALL successful MSG91 verifications land directly on the War Room.
         window.location.assign("/admin/cmd-war-room");
       },
       failure: (err: any) => {
@@ -337,7 +331,7 @@ const Login = () => {
               <button
                 onClick={launchMsg91Widget}
                 disabled={msg91Loading}
-                className="w-full py-3.5 rounded-xl bg-primary text-primary-foreground font-ui font-bold text-sm flex items-center justify-center gap-2 transition-colors shadow-sm disabled:opacity-60"
+                className="w-full py-3.5 rounded-xl bg-foreground text-background font-ui font-bold text-sm flex items-center justify-center gap-2 transition-colors shadow-lg hover:opacity-90 disabled:opacity-60 ring-2 ring-primary/40"
               >
                 {msg91Loading ? <Loader2 size={18} className="animate-spin" /> : <ShieldCheck size={18} />}
                 {msg91Loading ? "Launching widget…" : "Verify with MSG91"}
