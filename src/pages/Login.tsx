@@ -88,7 +88,7 @@ const Login = () => {
 
   // Trigger MSG91 widget. On success → mint session via edge function → role-redirect.
   const launchMsg91Widget = () => {
-    if (typeof window === "undefined" || typeof window.initSendOTP !== "function") {
+    if (typeof window === "undefined" || !msg91ScriptReady || typeof window.initSendOTP !== "function") {
       toast.error("MSG91 widget is still loading — please retry in a moment.");
       return;
     }
