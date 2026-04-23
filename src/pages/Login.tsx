@@ -85,8 +85,9 @@ const Login = () => {
       }, 250);
     };
     script.onerror = () => {
-      console.error("[MSG91] Failed to load otp-provider.js — check network / CSP.");
-      toast.error("MSG91 widget script failed to load. Please refresh and try again.");
+      console.error("[msg91] Failed to load otp-provider.js — check network / CSP. Falling back to Email login.");
+      toast.error("MSG91 widget unavailable. Please use Email login to continue — business never stops.", { duration: 8000 });
+      setActiveTab("email");
     };
     document.body.appendChild(script);
   }, []);
@@ -102,7 +103,7 @@ const Login = () => {
     }
     // Guard: ensure widget credentials are present before attempting handshake.
     if (!MSG91_WIDGET_ID || !MSG91_TOKEN_AUTH) {
-      console.error("[MSG91] Missing widgetId or tokenAuth — aborting init.");
+      console.error("[msg91] Missing widgetId or tokenAuth — aborting init.");
       toast.error("Handshake Failed: MSG91 widget is not configured.");
       return;
     }
@@ -113,7 +114,7 @@ const Login = () => {
     const handlePossibleCorsError = (event: ErrorEvent | PromiseRejectionEvent) => {
       const msg = (event as any)?.message || (event as any)?.reason?.message || "";
       if (typeof msg === "string" && /msg91|cors|access-control-allow-origin/i.test(msg)) {
-        console.error(`[MSG91] Domain Mismatch (CORS) suspected for origin: ${origin}. Whitelist this domain in your MSG91 Widget settings.`);
+        console.error(`[msg91] Domain Mismatch (CORS) suspected for origin: ${origin}. Whitelist this domain in your MSG91 Widget settings.`);
         toast.error("Handshake Failed: Please ensure this domain is whitelisted in your MSG91 Widget settings.", { duration: 8000 });
       }
     };
@@ -135,7 +136,7 @@ const Login = () => {
       if (handshakeSettled) return;
       handshakeSettled = true;
       setMsg91Loading(false);
-      console.error(`[MSG91] Handshake timeout (5s) on origin: ${origin}. Check MSG91 Dashboard / domain whitelist.`);
+      console.error(`[msg91] Handshake timeout (5s) on origin: ${origin}. Check MSG91 Dashboard / domain whitelist.`);
       toast.error("Connection Timeout: Check MSG91 Dashboard Status.", { duration: 8000 });
     }, 5000);
     const settleHandshake = () => {
@@ -216,13 +217,13 @@ const Login = () => {
         // with AuthenticationFailure but the second click succeeds.
         if (isAuthFail && !msg91RetriedRef.current) {
           msg91RetriedRef.current = true;
-          console.warn("[MSG91] AuthenticationFailure on first attempt — silent retry…");
+          console.warn("[msg91] AuthenticationFailure on first attempt — silent retry…");
           setTimeout(() => launchMsg91Widget(true), 250);
           return;
         }
         setMsg91Loading(false);
         if (/cors|origin|domain|access-control/i.test(errMsg)) {
-          console.error(`[MSG91] Domain Mismatch (CORS) on origin: ${origin}. Whitelist this domain in your MSG91 Widget settings.`, err);
+          console.error(`[msg91] Domain Mismatch (CORS) on origin: ${origin}. Whitelist this domain in your MSG91 Widget settings.`, err);
           toast.error("Handshake Failed: Please ensure this domain is whitelisted in your MSG91 Widget settings.", { duration: 8000 });
         } else {
           toast.error(errMsg || "MSG91 verification failed");
@@ -232,7 +233,7 @@ const Login = () => {
     } catch (initErr: any) {
       settleHandshake();
       setMsg91Loading(false);
-      console.error(`[MSG91] initSendOTP threw on origin: ${origin}. Likely Domain Mismatch (CORS).`, initErr);
+      console.error(`[msg91] initSendOTP threw on origin: ${origin}. Likely Domain Mismatch (CORS).`, initErr);
       toast.error("Handshake Failed: Please ensure this domain is whitelisted in your MSG91 Widget settings.", { duration: 8000 });
     }
   };
@@ -299,9 +300,9 @@ const Login = () => {
     const { error } = await supabase.auth.signInWithOtp({ phone: `+91${cleaned}` });
     setLoading(false);
     if (error) {
-      // Twilio/SMS failure — show fallback
-      if (error.message?.toLowerCase().includes("sms") || error.message?.toLowerCase().includes("twilio") || error.message?.toLowerCase().includes("provider") || error.message?.toLowerCase().includes("otp")) {
-        toast.info("SMS service is temporarily undergoing maintenance. Please use the WhatsApp Login tab for a faster experience.", { duration: 6000 });
+      // [msg91] SMS/provider failure — route user to MSG91 WhatsApp flow.
+      if (error.message?.toLowerCase().includes("sms") || error.message?.toLowerCase().includes("provider") || error.message?.toLowerCase().includes("otp")) {
+        toast.info("SMS service unavailable. Please use the WhatsApp (MSG91) tab — or fall back to Email login.", { duration: 6000 });
         setActiveTab("whatsapp");
         setWaPhone(cleaned);
         return;
@@ -415,18 +416,16 @@ const Login = () => {
           }
         }
 
-        // Last resort: try Supabase phone OTP (may fail if Twilio is down)
-        const e164 = `+91${cleaned}`;
-        const { error: signErr } = await supabase.auth.signInWithOtp({ phone: e164 });
-        if (signErr) {
-          toast.info("WhatsApp verified. SMS service is under maintenance. Please try Email login with: " + (verifyData.email || "your registered email"), { duration: 8000 });
-          setLoading(false);
-          return;
-        }
-        toast.success("WhatsApp verified. Enter the SMS code to complete login.");
-        setActiveTab("phone");
-        setPhone(cleaned);
-        setOtpSent(true);
+        // [msg91] Final fallback: WhatsApp verified but session minting failed.
+        // We are 100% on MSG91 for phone/WhatsApp — no Supabase phone-OTP retry.
+        // Direct user to Email Login so business never stops.
+        toast.info(
+          "WhatsApp verified. Please complete sign-in via Email login: " + (verifyData.email || "your registered email"),
+          { duration: 8000 },
+        );
+        setActiveTab("email");
+        setLoading(false);
+        return;
       }
     } catch (err: any) {
       toast.error(err?.message || "Failed to verify WhatsApp OTP");
