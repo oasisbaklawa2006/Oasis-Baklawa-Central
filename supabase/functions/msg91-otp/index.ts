@@ -18,6 +18,7 @@
 
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -30,11 +31,91 @@ interface RequestBody {
   mode: "verify_widget" | "login_otp" | "order_received";
   /** verify_widget: the access-token returned by MSG91 widget success callback. */
   accessToken?: string;
+  /** verify_widget: the verified phone number (10-digit or +91...) — required to mint session. */
   phone?: string;
   email?: string | null;
   message?: string;
   otp?: string;
   skip?: Channel[];
+}
+
+// Service-role client used ONLY for minting sessions on verified phones.
+const SUPABASE_URL = Deno.env.get("SUPABASE_URL") || "";
+const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
+const supabaseAdmin = SUPABASE_URL && SERVICE_ROLE_KEY
+  ? createClient(SUPABASE_URL, SERVICE_ROLE_KEY, { auth: { persistSession: false } })
+  : null;
+
+function internalEmailFor(phoneDigits: string): string {
+  return `${phoneDigits}@phone.oasis.local`;
+}
+
+async function findOrCreateAuthUserByPhone(e164: string, normalized: string): Promise<{ userId: string; email: string; isNew: boolean } | { error: string }> {
+  if (!supabaseAdmin) return { error: "service_role_unavailable" };
+  const internalEmail = internalEmailFor(normalized);
+
+  // Find existing user across pages
+  for (let page = 1; page <= 20; page++) {
+    const { data, error } = await supabaseAdmin.auth.admin.listUsers({ page, perPage: 500 });
+    if (error) break;
+    const users = data?.users || [];
+    if (!users.length) break;
+    const match = users.find((u: any) => u.phone === e164 || u.phone === normalized || u.phone === `+${normalized}` || u.email === internalEmail);
+    if (match) {
+      let email = match.email || internalEmail;
+      if (!match.email) {
+        await supabaseAdmin.auth.admin.updateUserById(match.id, { email: internalEmail, email_confirm: true });
+        email = internalEmail;
+      }
+      return { userId: match.id, email, isNew: false };
+    }
+    if (users.length < 500) break;
+  }
+
+  // Create
+  const { data: created, error: createErr } = await supabaseAdmin.auth.admin.createUser({
+    phone: e164,
+    phone_confirm: true,
+    email: internalEmail,
+    email_confirm: true,
+  });
+  if (createErr || !created?.user) {
+    return { error: createErr?.message || "create_user_failed" };
+  }
+  return { userId: created.user.id, email: internalEmail, isNew: true };
+}
+
+async function mintMagicTokenHash(email: string): Promise<string | null> {
+  if (!supabaseAdmin) return null;
+  try {
+    const { data, error } = await supabaseAdmin.auth.admin.generateLink({
+      type: "magiclink",
+      email,
+      options: { redirectTo: "https://b2b.oasisbaklawa.com/welcome" },
+    });
+    if (error || !data) return null;
+    const props: any = data.properties || {};
+    if (props.hashed_token) return props.hashed_token as string;
+    const link: string = props.action_link || "";
+    const m = link.match(/token_hash=([^&]+)/) || link.match(/[?#&]token=([^&]+)/);
+    return m ? decodeURIComponent(m[1]) : null;
+  } catch (e) {
+    console.error("[msg91] generateLink failed:", e);
+    return null;
+  }
+}
+
+async function ensurePendingProfile(userId: string, phoneE164: string): Promise<void> {
+  if (!supabaseAdmin) return;
+  try {
+    // Insert a PENDING users row if none exists. Approval flow handles the rest.
+    await supabaseAdmin.from("users").upsert(
+      { id: userId, role: "PENDING", phone: phoneE164 } as any,
+      { onConflict: "id", ignoreDuplicates: true } as any,
+    );
+  } catch (e) {
+    console.warn("[msg91] ensurePendingProfile soft-failed:", e);
+  }
 }
 
 // Unified MSG91 auth key (matches client widget tokenAuth: 509994AgMgjQib69e9dc60P1).
@@ -178,9 +259,54 @@ serve(async (req) => {
         });
       }
       const result = await verifyAccessToken(body.accessToken);
+      if (!result.ok) {
+        return new Response(
+          JSON.stringify({ ok: false, type: result.raw?.type ?? null, raw: result.raw }),
+          { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+        );
+      }
+
+      // ── Mint a Supabase session for the verified phone ──
+      // Phone may come from request body OR from MSG91's verifyAccessToken response.
+      const rawPhone =
+        body.phone ||
+        result.raw?.message?.mobile ||
+        result.raw?.data?.mobile ||
+        result.raw?.mobile ||
+        "";
+      const normalized = to91(String(rawPhone));
+      if (!normalized || normalized.length < 10) {
+        // Verification succeeded but no phone available — return ok without session.
+        return new Response(
+          JSON.stringify({ ok: true, type: "success", session: null, reason: "phone_missing", raw: result.raw }),
+          { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+        );
+      }
+      const e164 = `+${normalized}`;
+
+      const upsertRes = await findOrCreateAuthUserByPhone(e164, normalized);
+      if ("error" in upsertRes) {
+        return new Response(
+          JSON.stringify({ ok: true, type: "success", session: null, error: upsertRes.error }),
+          { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+        );
+      }
+      if (upsertRes.isNew) {
+        await ensurePendingProfile(upsertRes.userId, e164);
+      }
+
+      const tokenHash = await mintMagicTokenHash(upsertRes.email);
       return new Response(
-        JSON.stringify({ ok: result.ok, type: result.raw?.type ?? null, raw: result.raw }),
-        { status: result.ok ? 200 : 401, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+        JSON.stringify({
+          ok: true,
+          type: "success",
+          user_id: upsertRes.userId,
+          email: upsertRes.email,
+          phone: e164,
+          is_new: upsertRes.isNew,
+          token_hash: tokenHash,
+        }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
       );
     }
 

@@ -40,6 +40,29 @@ const WelcomeGate = () => {
   // Ready when: staff role known OR (non-staff profile resolved with companyId)
   const ready = !loading && (isStaff || (profileReady && !!companyId));
 
+  // Ensure an OAuth (Google/Apple) sign-in has a public.users row so role resolution works.
+  useEffect(() => {
+    if (!user?.id) return;
+    (async () => {
+      try {
+        const { data: existing } = await supabase
+          .from("users")
+          .select("id")
+          .eq("id", user.id)
+          .maybeSingle();
+        if (!existing) {
+          await supabase.from("users").insert({
+            id: user.id,
+            email: user.email ?? null,
+            role: "PENDING",
+          } as any);
+        }
+      } catch (e) {
+        console.warn("[WelcomeGate] OAuth user-row sync soft-failed", e);
+      }
+    })();
+  }, [user?.id, user?.email]);
+
   useEffect(() => {
     if (!companyId) return;
     supabase

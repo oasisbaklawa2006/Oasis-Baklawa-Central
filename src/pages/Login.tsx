@@ -51,7 +51,7 @@ const Login = () => {
     document.body.appendChild(script);
   }, []);
 
-  // Trigger MSG91 widget. On success → resolve session → War Room.
+  // Trigger MSG91 widget. On success → mint session via edge function → role-redirect.
   const launchMsg91Widget = () => {
     if (typeof window === "undefined" || typeof window.initSendOTP !== "function") {
       toast.error("MSG91 widget is still loading — please retry in a moment.");
@@ -70,6 +70,13 @@ const Login = () => {
           data?.["access-token"] ||
           data?.accessToken ||
           null;
+        // Try to extract the verified phone the widget collected so backend can mint a session.
+        const verifiedPhone =
+          data?.mobile ||
+          data?.phone ||
+          data?.message?.mobile ||
+          data?.data?.mobile ||
+          null;
         if (!accessToken) {
           setMsg91Loading(false);
           toast.error("Security Breach: OTP Verification Failed.");
@@ -77,22 +84,37 @@ const Login = () => {
         }
         try {
           const { data: verifyRes, error } = await supabase.functions.invoke("msg91-otp", {
-            body: { mode: "verify_widget", accessToken },
+            body: { mode: "verify_widget", accessToken, phone: verifiedPhone },
           });
-          setMsg91Loading(false);
           if (error || !verifyRes?.ok || verifyRes?.type !== "success") {
+            setMsg91Loading(false);
             toast.error("Security Breach: OTP Verification Failed.");
             return;
           }
+
+          // ── Establish a real Supabase session via the magiclink token_hash ──
+          if (verifyRes.token_hash) {
+            const { data: sess, error: sessErr } = await supabase.auth.verifyOtp({
+              token_hash: verifyRes.token_hash,
+              type: "magiclink",
+            });
+            if (!sessErr && sess?.user) {
+              toast.success("Identity Verified — signing you in…");
+              await resolveRedirect(sess.user.id);
+              setMsg91Loading(false);
+              return;
+            }
+            console.warn("[msg91] token_hash redemption failed:", sessErr?.message);
+          }
+
+          // Fallback: verification succeeded but session minting failed — bounce to WelcomeGate.
+          setMsg91Loading(false);
           toast.success("Identity Verified via MSG91");
-          // Role-based redirect — never hard-code War Room.
-          // If a Supabase session exists, resolve the user's role and route accordingly.
-          // Otherwise, fall through to /welcome which routes via WelcomeGate.
           const { data: { session } } = await supabase.auth.getSession();
           if (session?.user?.id) {
             await resolveRedirect(session.user.id);
           } else {
-            window.location.assign("/welcome");
+            toast.info("Verified, but unable to start your session automatically. Please use Email or WhatsApp login.", { duration: 7000 });
           }
         } catch (err) {
           setMsg91Loading(false);
