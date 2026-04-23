@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { motion } from "framer-motion";
 import { LogIn, Eye, EyeOff, Loader2, Phone, Mail, MessageCircle, ShieldCheck } from "lucide-react";
 import { useNavigate } from "react-router-dom";
