@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { motion } from "framer-motion";
 import { LogIn, Eye, EyeOff, Loader2, Phone, Mail, MessageCircle, ShieldCheck } from "lucide-react";
 import { useNavigate } from "react-router-dom";
@@ -38,17 +38,22 @@ const Login = () => {
   const [waOtpSent, setWaOtpSent] = useState(false);
   const emailBackupTimer = useState<{ id: ReturnType<typeof setTimeout> | null }>({ id: null })[0];
   const [msg91Loading, setMsg91Loading] = useState(false);
-  const [msg91ScriptReady, setMsg91ScriptReady] = useState(false);
+  // `isMsg91Ready` flips true ONLY after `otp-provider.js` is loaded AND
+  // `window.initSendOTP` is callable. Pre-emptively loaded on mount (see
+  // useEffect below) so the first user click is never a "premature click".
+  const [isMsg91Ready, setIsMsg91Ready] = useState(false);
+  // Retry guard so the silent re-attempt on AuthenticationFailure runs once.
+  const msg91RetriedRef = useRef(false);
   const navigate = useNavigate();
 
-  // Load MSG91 OTP widget script once on mount; flip `msg91ScriptReady` only
+  // Load MSG91 OTP widget script once on mount; flip `isMsg91Ready` only
   // after the script's `onload` fires AND `window.initSendOTP` is exposed.
   useEffect(() => {
     if (typeof window === "undefined") return;
 
     const markReadyWhenAvailable = () => {
       if (typeof window.initSendOTP === "function") {
-        setMsg91ScriptReady(true);
+        setIsMsg91Ready(true);
         return true;
       }
       return false;
@@ -87,8 +92,11 @@ const Login = () => {
   }, []);
 
   // Trigger MSG91 widget. On success → mint session via edge function → role-redirect.
-  const launchMsg91Widget = () => {
-    if (typeof window === "undefined" || !msg91ScriptReady || typeof window.initSendOTP !== "function") {
+  // `isSilentRetry` is true when re-invoked automatically after an AuthenticationFailure
+  // — known race where the very first widget handshake fails but the second succeeds.
+  const launchMsg91Widget = (isSilentRetry = false) => {
+    if (!isSilentRetry) msg91RetriedRef.current = false;
+    if (typeof window === "undefined" || !isMsg91Ready || typeof window.initSendOTP !== "function") {
       toast.error("MSG91 widget is still loading — please retry in a moment.");
       return;
     }
@@ -202,8 +210,17 @@ const Login = () => {
       },
       failure: (err: any) => {
         settleHandshake();
+        const errMsg = err?.message || err?.errorMessage || err?.type || "";
+        const isAuthFail = /authentication\s*fail|authfail|invalid\s*auth/i.test(errMsg);
+        // Silent auto-retry: known MSG91 race where the first handshake fails
+        // with AuthenticationFailure but the second click succeeds.
+        if (isAuthFail && !msg91RetriedRef.current) {
+          msg91RetriedRef.current = true;
+          console.warn("[MSG91] AuthenticationFailure on first attempt — silent retry…");
+          setTimeout(() => launchMsg91Widget(true), 250);
+          return;
+        }
         setMsg91Loading(false);
-        const errMsg = err?.message || err?.errorMessage || "";
         if (/cors|origin|domain|access-control/i.test(errMsg)) {
           console.error(`[MSG91] Domain Mismatch (CORS) on origin: ${origin}. Whitelist this domain in your MSG91 Widget settings.`, err);
           toast.error("Handshake Failed: Please ensure this domain is whitelisted in your MSG91 Widget settings.", { duration: 8000 });
@@ -474,12 +491,12 @@ const Login = () => {
                 </p>
               </div>
               <button
-                onClick={launchMsg91Widget}
-                disabled={msg91Loading || !msg91ScriptReady}
+                onClick={() => launchMsg91Widget()}
+                disabled={msg91Loading || !isMsg91Ready}
                 className="w-full py-3.5 rounded-xl bg-foreground text-background font-ui font-bold text-sm flex items-center justify-center gap-2 transition-colors shadow-lg hover:opacity-90 disabled:opacity-60 ring-2 ring-primary/40"
               >
-                {(msg91Loading || !msg91ScriptReady) ? <Loader2 size={18} className="animate-spin" /> : <ShieldCheck size={18} />}
-                {!msg91ScriptReady ? "Loading secure widget…" : msg91Loading ? "Launching widget…" : "Verify with MSG91"}
+                {(msg91Loading || !isMsg91Ready) ? <Loader2 size={18} className="animate-spin" /> : <ShieldCheck size={18} />}
+                {!isMsg91Ready ? "Loading secure widget…" : msg91Loading ? "Launching widget…" : "Verify with MSG91"}
               </button>
               <p className="text-[10px] text-center text-muted-foreground">
                 Successful verification redirects to the War Room dashboard.
