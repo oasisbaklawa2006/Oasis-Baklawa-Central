@@ -13,7 +13,7 @@
 // Tokens with exact alias hits remain at confidence 1.0; fuzzy is no longer trusted.
 // STRICT MAPPING: an exact alias from products.aliases[] or product_aliases ALWAYS wins
 // over inferred matches. Below threshold → UNRECOGNIZED → triggers Teach SKU.
-export const CONFIDENCE_THRESHOLD = 0.95;
+export const CONFIDENCE_THRESHOLD = 0.98;
 
 // Hard-coded shorthand map (supplements DB product_aliases)
 export const SHORTHAND_MAP: Record<string, string> = {

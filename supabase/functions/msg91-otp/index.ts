@@ -38,9 +38,12 @@ interface RequestBody {
   skip?: Channel[];
 }
 
-const AUTH_KEY = Deno.env.get("MSG91_AUTH_KEY") || "";
+// Placeholder allows the function to deploy & boot without crashing.
+// Real sends are short-circuited (mocked) until a real key is configured.
+const AUTH_KEY = Deno.env.get("MSG91_AUTH_KEY") || "PLACEHOLDER_NOT_CONFIGURED";
 const SENDER_ID = Deno.env.get("MSG91_SENDER_ID") || "OASBKL";
 const VOICE_DID = Deno.env.get("MSG91_VOICE_DID") || "";
+const MSG91_ENABLED = AUTH_KEY !== "PLACEHOLDER_NOT_CONFIGURED";
 const RESEND_KEY = Deno.env.get("RESEND_API_KEY") || "";
 
 function to91(raw: string): string {
