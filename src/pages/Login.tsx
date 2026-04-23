@@ -149,9 +149,20 @@ const Login = () => {
       },
       failure: (err: any) => {
         setMsg91Loading(false);
-        toast.error(err?.message || "MSG91 verification failed");
+        const errMsg = err?.message || err?.errorMessage || "";
+        if (/cors|origin|domain|access-control/i.test(errMsg)) {
+          console.error(`[MSG91] Domain Mismatch (CORS) on origin: ${origin}. Whitelist this domain in your MSG91 Widget settings.`, err);
+          toast.error("Handshake Failed: Please ensure this domain is whitelisted in your MSG91 Widget settings.", { duration: 8000 });
+        } else {
+          toast.error(errMsg || "MSG91 verification failed");
+        }
       },
-    });
+      });
+    } catch (initErr: any) {
+      setMsg91Loading(false);
+      console.error(`[MSG91] initSendOTP threw on origin: ${origin}. Likely Domain Mismatch (CORS).`, initErr);
+      toast.error("Handshake Failed: Please ensure this domain is whitelisted in your MSG91 Widget settings.", { duration: 8000 });
+    }
   };
 
   const resolveRedirect = async (userId: string) => {
