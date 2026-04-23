@@ -1,0 +1,1 @@
+ALTER TABLE public.auth_logs ADD COLUMN IF NOT EXISTS event_name text;

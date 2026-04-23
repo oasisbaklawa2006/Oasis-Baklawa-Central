@@ -52,15 +52,20 @@ serve(async (req) => {
       ? payload
       : [payload];
 
-  const rows = events.map((ev: any) => ({
-    event_type: pick(ev, ["event", "event_type", "type"]) || "delivery",
-    phone: pick(ev, ["mobile", "phone", "to", "number"]),
-    channel: pick(ev, ["channel", "route", "service"]),
-    status: pick(ev, ["status", "delivery_status", "state"]),
-    request_id: pick(ev, ["requestId", "request_id", "id", "messageId"]),
-    description: pick(ev, ["description", "message", "reason"]),
-    raw_payload: ev ?? {},
-  }));
+  const rows = events.map((ev: any) => {
+    const status = pick(ev, ["status", "delivery_status", "state"]);
+    const event_name = pick(ev, ["event", "event_name", "eventName", "type"]) || "delivery";
+    return {
+      event_type: event_name,
+      event_name,
+      phone: pick(ev, ["mobile", "phone", "to", "number"]),
+      channel: pick(ev, ["channel", "route", "service"]),
+      status,
+      request_id: pick(ev, ["requestId", "request_id", "id", "messageId"]),
+      description: pick(ev, ["description", "message", "reason"]),
+      raw_payload: ev ?? {},
+    };
+  });
 
   if (!supabaseAdmin) {
     console.error("[msg91-webhook] service role unavailable — cannot persist", rows.length, "events");
