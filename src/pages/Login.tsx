@@ -491,7 +491,7 @@ const Login = () => {
                 </p>
               </div>
               <button
-                onClick={launchMsg91Widget}
+                onClick={() => launchMsg91Widget()}
                 disabled={msg91Loading || !isMsg91Ready}
                 className="w-full py-3.5 rounded-xl bg-foreground text-background font-ui font-bold text-sm flex items-center justify-center gap-2 transition-colors shadow-lg hover:opacity-90 disabled:opacity-60 ring-2 ring-primary/40"
               >
