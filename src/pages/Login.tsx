@@ -57,11 +57,37 @@ const Login = () => {
       toast.error("MSG91 widget is still loading — please retry in a moment.");
       return;
     }
+    // Guard: ensure widget credentials are present before attempting handshake.
+    if (!MSG91_WIDGET_ID || !MSG91_TOKEN_AUTH) {
+      console.error("[MSG91] Missing widgetId or tokenAuth — aborting init.");
+      toast.error("Handshake Failed: MSG91 widget is not configured.");
+      return;
+    }
+
+    // Domain-mismatch (CORS) detector — MSG91 blocks non-whitelisted origins
+    // silently, so we listen for the matching console error window during init.
+    const origin = typeof window !== "undefined" ? window.location.origin : "unknown";
+    const handlePossibleCorsError = (event: ErrorEvent | PromiseRejectionEvent) => {
+      const msg = (event as any)?.message || (event as any)?.reason?.message || "";
+      if (typeof msg === "string" && /msg91|cors|access-control-allow-origin/i.test(msg)) {
+        console.error(`[MSG91] Domain Mismatch (CORS) suspected for origin: ${origin}. Whitelist this domain in your MSG91 Widget settings.`);
+        toast.error("Handshake Failed: Please ensure this domain is whitelisted in your MSG91 Widget settings.", { duration: 8000 });
+      }
+    };
+    window.addEventListener("error", handlePossibleCorsError as EventListener, { once: true });
+    window.addEventListener("unhandledrejection", handlePossibleCorsError as EventListener, { once: true });
+    // Cleanup listeners after 10s — handshake completes well before this.
+    setTimeout(() => {
+      window.removeEventListener("error", handlePossibleCorsError as EventListener);
+      window.removeEventListener("unhandledrejection", handlePossibleCorsError as EventListener);
+    }, 10000);
+
     setMsg91Loading(true);
-    window.initSendOTP({
-      widgetId: MSG91_WIDGET_ID,
-      tokenAuth: MSG91_TOKEN_AUTH,
-      exposeMethods: false,
+    try {
+      window.initSendOTP({
+        widgetId: MSG91_WIDGET_ID,
+        tokenAuth: MSG91_TOKEN_AUTH,
+        exposeMethods: false,
       success: async (data: any) => {
         // Widget returns an access-token; verify it server-side before trusting.
         const accessToken =
@@ -123,9 +149,20 @@ const Login = () => {
       },
       failure: (err: any) => {
         setMsg91Loading(false);
-        toast.error(err?.message || "MSG91 verification failed");
+        const errMsg = err?.message || err?.errorMessage || "";
+        if (/cors|origin|domain|access-control/i.test(errMsg)) {
+          console.error(`[MSG91] Domain Mismatch (CORS) on origin: ${origin}. Whitelist this domain in your MSG91 Widget settings.`, err);
+          toast.error("Handshake Failed: Please ensure this domain is whitelisted in your MSG91 Widget settings.", { duration: 8000 });
+        } else {
+          toast.error(errMsg || "MSG91 verification failed");
+        }
       },
-    });
+      });
+    } catch (initErr: any) {
+      setMsg91Loading(false);
+      console.error(`[MSG91] initSendOTP threw on origin: ${origin}. Likely Domain Mismatch (CORS).`, initErr);
+      toast.error("Handshake Failed: Please ensure this domain is whitelisted in your MSG91 Widget settings.", { duration: 8000 });
+    }
   };
 
   const resolveRedirect = async (userId: string) => {
