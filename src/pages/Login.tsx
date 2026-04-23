@@ -103,7 +103,7 @@ const Login = () => {
     }
     // Guard: ensure widget credentials are present before attempting handshake.
     if (!MSG91_WIDGET_ID || !MSG91_TOKEN_AUTH) {
-      console.error("[MSG91] Missing widgetId or tokenAuth — aborting init.");
+      console.error("[msg91] Missing widgetId or tokenAuth — aborting init.");
       toast.error("Handshake Failed: MSG91 widget is not configured.");
       return;
     }
@@ -114,7 +114,7 @@ const Login = () => {
     const handlePossibleCorsError = (event: ErrorEvent | PromiseRejectionEvent) => {
       const msg = (event as any)?.message || (event as any)?.reason?.message || "";
       if (typeof msg === "string" && /msg91|cors|access-control-allow-origin/i.test(msg)) {
-        console.error(`[MSG91] Domain Mismatch (CORS) suspected for origin: ${origin}. Whitelist this domain in your MSG91 Widget settings.`);
+        console.error(`[msg91] Domain Mismatch (CORS) suspected for origin: ${origin}. Whitelist this domain in your MSG91 Widget settings.`);
         toast.error("Handshake Failed: Please ensure this domain is whitelisted in your MSG91 Widget settings.", { duration: 8000 });
       }
     };
@@ -136,7 +136,7 @@ const Login = () => {
       if (handshakeSettled) return;
       handshakeSettled = true;
       setMsg91Loading(false);
-      console.error(`[MSG91] Handshake timeout (5s) on origin: ${origin}. Check MSG91 Dashboard / domain whitelist.`);
+      console.error(`[msg91] Handshake timeout (5s) on origin: ${origin}. Check MSG91 Dashboard / domain whitelist.`);
       toast.error("Connection Timeout: Check MSG91 Dashboard Status.", { duration: 8000 });
     }, 5000);
     const settleHandshake = () => {
@@ -217,13 +217,13 @@ const Login = () => {
         // with AuthenticationFailure but the second click succeeds.
         if (isAuthFail && !msg91RetriedRef.current) {
           msg91RetriedRef.current = true;
-          console.warn("[MSG91] AuthenticationFailure on first attempt — silent retry…");
+          console.warn("[msg91] AuthenticationFailure on first attempt — silent retry…");
           setTimeout(() => launchMsg91Widget(true), 250);
           return;
         }
         setMsg91Loading(false);
         if (/cors|origin|domain|access-control/i.test(errMsg)) {
-          console.error(`[MSG91] Domain Mismatch (CORS) on origin: ${origin}. Whitelist this domain in your MSG91 Widget settings.`, err);
+          console.error(`[msg91] Domain Mismatch (CORS) on origin: ${origin}. Whitelist this domain in your MSG91 Widget settings.`, err);
           toast.error("Handshake Failed: Please ensure this domain is whitelisted in your MSG91 Widget settings.", { duration: 8000 });
         } else {
           toast.error(errMsg || "MSG91 verification failed");
@@ -233,7 +233,7 @@ const Login = () => {
     } catch (initErr: any) {
       settleHandshake();
       setMsg91Loading(false);
-      console.error(`[MSG91] initSendOTP threw on origin: ${origin}. Likely Domain Mismatch (CORS).`, initErr);
+      console.error(`[msg91] initSendOTP threw on origin: ${origin}. Likely Domain Mismatch (CORS).`, initErr);
       toast.error("Handshake Failed: Please ensure this domain is whitelisted in your MSG91 Widget settings.", { duration: 8000 });
     }
   };
