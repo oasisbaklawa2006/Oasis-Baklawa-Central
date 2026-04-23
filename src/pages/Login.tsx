@@ -85,8 +85,11 @@ const Login = () => {
       }, 250);
     };
     script.onerror = () => {
-      console.error("[msg91] Failed to load otp-provider.js — check network / CSP. Falling back to Email login.");
-      toast.error("MSG91 widget unavailable. Please use Email login to continue — business never stops.", { duration: 8000 });
+      console.error("[msg91] Failed to load otp-provider.js — possible IP block, network failure, or CSP. Falling back to Email login.");
+      toast.error(
+        "MSG91 widget unavailable. This may be a temporary IP block — please wait ~15 minutes and retry, or use Email login to continue.",
+        { duration: 10000 },
+      );
       setActiveTab("email");
     };
     document.body.appendChild(script);
