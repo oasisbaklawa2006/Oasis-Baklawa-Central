@@ -140,7 +140,10 @@ const Login = () => {
       handshakeSettled = true;
       setMsg91Loading(false);
       console.error(`[msg91] Handshake timeout (5s) on origin: ${origin}. Check MSG91 Dashboard / domain whitelist.`);
-      toast.error("Connection Timeout: Check MSG91 Dashboard Status.", { duration: 8000 });
+      toast.error(
+        "Connection Timeout. If this keeps failing, your IP may be temporarily blocked by MSG91 — please wait ~15 minutes and retry, or use Email login.",
+        { duration: 10000 },
+      );
     }, 5000);
     const settleHandshake = () => {
       handshakeSettled = true;
