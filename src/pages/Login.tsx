@@ -38,7 +38,12 @@ const Login = () => {
   const [waOtpSent, setWaOtpSent] = useState(false);
   const emailBackupTimer = useState<{ id: ReturnType<typeof setTimeout> | null }>({ id: null })[0];
   const [msg91Loading, setMsg91Loading] = useState(false);
-  const [msg91ScriptReady, setMsg91ScriptReady] = useState(false);
+  // `isMsg91Ready` flips true ONLY after `otp-provider.js` is loaded AND
+  // `window.initSendOTP` is callable. Pre-emptively loaded on mount (see
+  // useEffect below) so the first user click is never a "premature click".
+  const [isMsg91Ready, setIsMsg91Ready] = useState(false);
+  // Retry guard so the silent re-attempt on AuthenticationFailure runs once.
+  const msg91RetriedRef = useRef(false);
   const navigate = useNavigate();
 
   // Load MSG91 OTP widget script once on mount; flip `msg91ScriptReady` only
