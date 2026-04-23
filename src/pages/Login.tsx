@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { motion } from "framer-motion";
-import { LogIn, Eye, EyeOff, Loader2, Phone, Mail, MessageCircle, ShieldCheck } from "lucide-react";
+import { LogIn, Eye, EyeOff, Loader2, Mail, ShieldCheck } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { Input } from "@/components/ui/input";
 import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp";
@@ -9,7 +9,7 @@ import { toast } from "sonner";
 import logoImg from "@/assets/logo-open.png";
 import { getRoleDestination, fetchAuthRoleRecord, isInternalStaffUser, isStorefrontRole, normalizeRole } from "@/lib/auth-routing";
 
-type AuthTab = "phone" | "email" | "whatsapp" | "msg91";
+type AuthTab = "msg91" | "email";
 
 // MSG91 Widget configuration (Token Auth + Widget ID)
 const MSG91_WIDGET_ID = "3664766e464b383030383331";
@@ -24,7 +24,7 @@ declare global {
 const AUTH_CACHE_KEY = "oasis_auth_cache";
 
 const Login = () => {
-  const [activeTab, setActiveTab] = useState<AuthTab>("phone");
+  const [activeTab, setActiveTab] = useState<AuthTab>("msg91");
   const [showPwd, setShowPwd] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -295,149 +295,7 @@ const Login = () => {
     await resolveRedirect(data.user.id);
   };
 
-  // ── Phone OTP ──
-  const handleSendOtp = async () => {
-    const cleaned = phone.replace(/\D/g, "");
-    if (cleaned.length !== 10) {
-      toast.error("Enter a valid 10-digit mobile number");
-      return;
-    }
-    setLoading(true);
-    const { error } = await supabase.auth.signInWithOtp({ phone: `+91${cleaned}` });
-    setLoading(false);
-    if (error) {
-      // [msg91] SMS/provider failure — route user to MSG91 WhatsApp flow.
-      if (error.message?.toLowerCase().includes("sms") || error.message?.toLowerCase().includes("provider") || error.message?.toLowerCase().includes("otp")) {
-        toast.info("SMS service unavailable. Please use the WhatsApp (MSG91) tab — or fall back to Email login.", { duration: 6000 });
-        setActiveTab("whatsapp");
-        setWaPhone(cleaned);
-        return;
-      }
-      toast.error(error.message);
-      return;
-    }
-    setOtpSent(true);
-    toast.success("OTP sent to your mobile number");
-  };
-
-  const handleVerifyOtp = async () => {
-    if (otp.length !== 6) { toast.error("Enter the 6-digit OTP"); return; }
-    const cleaned = phone.replace(/\D/g, "");
-    setLoading(true);
-    const { error, data } = await supabase.auth.verifyOtp({
-      phone: `+91${cleaned}`,
-      token: otp,
-      type: "sms",
-    });
-    setLoading(false);
-    if (error) { toast.error(error.message); return; }
-    if (!sessionStorage.getItem("oasis_welcomed")) {
-      toast.success("Welcome back!");
-      sessionStorage.setItem("oasis_welcomed", "1");
-    }
-    if (data.user) await resolveRedirect(data.user.id);
-  };
-
-  // ── WhatsApp OTP via Click2API ──
-  const handleSendWaOtp = async () => {
-    const cleaned = waPhone.replace(/\D/g, "");
-    if (cleaned.length !== 10) {
-      toast.error("Enter a valid 10-digit mobile number");
-      return;
-    }
-    setLoading(true);
-    try {
-      const { data, error } = await supabase.functions.invoke("whatsapp-otp", {
-        body: { action: "send", phone: cleaned },
-      });
-      if (error) throw error;
-      if (data?.error) { toast.error(data.error); setLoading(false); return; }
-      setWaOtpSent(true);
-      toast.success("OTP sent via WhatsApp!");
-      setTimeout(() => {
-        toast("Session Active. Check WhatsApp 'Archive' or 'Request' folders.", {
-          description: "If you don't see the OTP, check filtered chats.",
-          duration: 8000,
-        });
-      }, 1500);
-
-      // ── 15s EMAIL BACKUP: if user hasn't entered OTP, fire email fallback ──
-      if (emailBackupTimer.id) clearTimeout(emailBackupTimer.id);
-      emailBackupTimer.id = setTimeout(async () => {
-        try {
-          const { data: bk } = await supabase.functions.invoke("whatsapp-otp", {
-            body: { action: "email_backup", phone: cleaned },
-          });
-          if (bk?.success) {
-            toast.info(`Backup OTP sent to your email (${bk.sent_to}). Please check your inbox.`, { duration: 8000 });
-          }
-        } catch {}
-      }, 15000);
-    } catch (err: any) {
-      toast.error(err?.message || "Failed to send WhatsApp OTP");
-    }
-    setLoading(false);
-  };
-
-  const handleVerifyWaOtp = async () => {
-    if (waOtp.length !== 6) { toast.error("Enter the 6-digit OTP"); return; }
-    if (emailBackupTimer.id) { clearTimeout(emailBackupTimer.id); emailBackupTimer.id = null; }
-    const cleaned = waPhone.replace(/\D/g, "");
-    setLoading(true);
-    try {
-      const { data: verifyData, error } = await supabase.functions.invoke("whatsapp-otp", {
-        body: { action: "verify", phone: cleaned, otp: waOtp },
-      });
-      if (error) throw error;
-      if (verifyData?.error) { toast.error(verifyData.error); setLoading(false); return; }
-
-      if (verifyData?.verified) {
-        // Try to establish session using token_hash from edge function
-        if (verifyData.token_hash && verifyData.email) {
-          const { error: verifyErr, data: sessionData } = await supabase.auth.verifyOtp({
-            token_hash: verifyData.token_hash,
-            type: "magiclink",
-          });
-          if (!verifyErr && sessionData?.user) {
-            if (!sessionStorage.getItem("oasis_welcomed")) {
-              toast.success("Welcome back!");
-              sessionStorage.setItem("oasis_welcomed", "1");
-            }
-            await resolveRedirect(sessionData.user.id);
-            setLoading(false);
-            return;
-          }
-          console.warn("token_hash login failed, trying email OTP fallback:", verifyErr?.message);
-        }
-
-        // Fallback: try native email OTP with internal email
-        if (verifyData.email) {
-          const { error: emailOtpErr } = await supabase.auth.signInWithOtp({
-            email: verifyData.email,
-          });
-          if (!emailOtpErr) {
-            toast.info("WhatsApp verified. Check your email for the login link to complete sign-in.");
-            setLoading(false);
-            return;
-          }
-        }
-
-        // [msg91] Final fallback: WhatsApp verified but session minting failed.
-        // We are 100% on MSG91 for phone/WhatsApp — no Supabase phone-OTP retry.
-        // Direct user to Email Login so business never stops.
-        toast.info(
-          "WhatsApp verified. Please complete sign-in via Email login: " + (verifyData.email || "your registered email"),
-          { duration: 8000 },
-        );
-        setActiveTab("email");
-        setLoading(false);
-        return;
-      }
-    } catch (err: any) {
-      toast.error(err?.message || "Failed to verify WhatsApp OTP");
-    }
-    setLoading(false);
-  };
+  // ── Phone OTP & WhatsApp OTP handlers removed — superseded by MSG91 omnichannel widget ──
 
   const handleResetPassword = async () => {
     if (!email) { toast.error("Enter your email first"); return; }
@@ -470,15 +328,9 @@ const Login = () => {
 
         <div className="bg-card rounded-2xl p-6 space-y-5 border border-border" style={{ boxShadow: "var(--card-shadow)" }}>
           {/* Tab Toggle */}
-          <div className="flex gap-1 p-1 rounded-xl bg-muted flex-wrap">
+          <div className="flex gap-1 p-1 rounded-xl bg-muted">
             <button onClick={() => setActiveTab("msg91")} className={tabClass("msg91")}>
-              <ShieldCheck size={12} className="inline mr-1 -mt-0.5" />Secure
-            </button>
-            <button onClick={() => { setActiveTab("phone"); setOtpSent(false); setOtp(""); }} className={tabClass("phone")}>
-              <Phone size={12} className="inline mr-1 -mt-0.5" />Phone
-            </button>
-            <button onClick={() => setActiveTab("whatsapp")} className={tabClass("whatsapp")}>
-              <MessageCircle size={12} className="inline mr-1 -mt-0.5" />WhatsApp
+              <ShieldCheck size={12} className="inline mr-1 -mt-0.5" />Phone / WhatsApp
             </button>
             <button onClick={() => setActiveTab("email")} className={tabClass("email")}>
               <Mail size={12} className="inline mr-1 -mt-0.5" />Email
@@ -509,112 +361,7 @@ const Login = () => {
             </div>
           )}
 
-          {/* ── Phone Tab ── */}
-          {activeTab === "phone" && (
-            <div className="space-y-4">
-              <div className="space-y-2">
-                <label className="font-ui text-xs font-semibold text-foreground">Mobile Number</label>
-                <div className="flex gap-2">
-                  <div className="flex items-center px-3 rounded-xl border border-input bg-muted text-sm font-semibold text-muted-foreground shrink-0">+91</div>
-                  <Input
-                    type="tel"
-                    placeholder="10-digit mobile"
-                    className="rounded-xl"
-                    value={phone}
-                    maxLength={10}
-                    onChange={(e) => setPhone(e.target.value.replace(/\D/g, ""))}
-                    onKeyDown={(e) => e.key === "Enter" && !otpSent && handleSendOtp()}
-                  />
-                </div>
-              </div>
-
-              {otpSent && (
-                <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="space-y-2">
-                  <label className="font-ui text-xs font-semibold text-foreground">Enter 6-Digit OTP</label>
-                  <div className="flex justify-center">
-                    <InputOTP maxLength={6} value={otp} onChange={setOtp}>
-                      <InputOTPGroup>
-                        <InputOTPSlot index={0} />
-                        <InputOTPSlot index={1} />
-                        <InputOTPSlot index={2} />
-                        <InputOTPSlot index={3} />
-                        <InputOTPSlot index={4} />
-                        <InputOTPSlot index={5} />
-                      </InputOTPGroup>
-                    </InputOTP>
-                  </div>
-                  <p className="text-center text-xs text-muted-foreground">
-                    Didn't receive it?{" "}
-                    <button onClick={handleSendOtp} className="text-primary font-semibold hover:underline">Resend OTP</button>
-                  </p>
-                </motion.div>
-              )}
-
-              <button
-                onClick={otpSent ? handleVerifyOtp : handleSendOtp}
-                disabled={loading}
-                className="w-full py-3.5 rounded-xl bg-primary text-primary-foreground font-ui font-bold text-sm flex items-center justify-center gap-2 transition-colors shadow-sm disabled:opacity-60"
-              >
-                {loading ? <Loader2 size={18} className="animate-spin" /> : <Phone size={18} />}
-                {loading ? "Please wait…" : otpSent ? "Verify & Login" : "Send OTP"}
-              </button>
-            </div>
-          )}
-
-          {/* ── WhatsApp Tab ── */}
-          {activeTab === "whatsapp" && (
-            <div className="space-y-4">
-              <div className="space-y-2">
-                <label className="font-ui text-xs font-semibold text-foreground">WhatsApp Number</label>
-                <div className="flex gap-2">
-                  <div className="flex items-center px-3 rounded-xl border border-input bg-muted text-sm font-semibold text-muted-foreground shrink-0">+91</div>
-                  <Input
-                    type="tel"
-                    placeholder="10-digit WhatsApp number"
-                    className="rounded-xl"
-                    value={waPhone}
-                    maxLength={10}
-                    onChange={(e) => setWaPhone(e.target.value.replace(/\D/g, ""))}
-                    onKeyDown={(e) => e.key === "Enter" && !waOtpSent && handleSendWaOtp()}
-                  />
-                </div>
-                <p className="text-[10px] text-muted-foreground">OTP will be delivered via WhatsApp message</p>
-              </div>
-
-              {waOtpSent && (
-                <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="space-y-2">
-                  <label className="font-ui text-xs font-semibold text-foreground">Enter 6-Digit OTP</label>
-                  <div className="flex justify-center">
-                    <InputOTP maxLength={6} value={waOtp} onChange={setWaOtp}>
-                      <InputOTPGroup>
-                        <InputOTPSlot index={0} />
-                        <InputOTPSlot index={1} />
-                        <InputOTPSlot index={2} />
-                        <InputOTPSlot index={3} />
-                        <InputOTPSlot index={4} />
-                        <InputOTPSlot index={5} />
-                      </InputOTPGroup>
-                    </InputOTP>
-                  </div>
-                  <p className="text-center text-xs text-muted-foreground">
-                    Didn't receive it?{" "}
-                    <button onClick={handleSendWaOtp} className="text-primary font-semibold hover:underline">Resend via WhatsApp</button>
-                  </p>
-                </motion.div>
-              )}
-
-              <button
-                onClick={waOtpSent ? handleVerifyWaOtp : handleSendWaOtp}
-                disabled={loading}
-                className="w-full py-3.5 rounded-xl bg-[#25D366] text-white font-ui font-bold text-sm flex items-center justify-center gap-2 transition-colors shadow-sm disabled:opacity-60 hover:bg-[#20BD5A]"
-              >
-                {loading ? <Loader2 size={18} className="animate-spin" /> : <MessageCircle size={18} />}
-                {loading ? "Please wait…" : waOtpSent ? "Verify & Login" : "Send WhatsApp OTP"}
-              </button>
-            </div>
-          )}
-
-          {/* ── Email Tab ── */}
+          {/* Phone & WhatsApp tabs removed — MSG91 omnichannel widget handles all phone/WA verification */}
           {activeTab === "email" && (
             <div className="space-y-4">
               <div className="space-y-2">
