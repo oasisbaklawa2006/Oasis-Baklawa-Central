@@ -1,6 +1,6 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import { LogIn, Eye, EyeOff, Loader2, Phone, Mail, MessageCircle } from "lucide-react";
+import { LogIn, Eye, EyeOff, Loader2, Phone, Mail, MessageCircle, ShieldCheck } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { Input } from "@/components/ui/input";
 import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp";
@@ -9,7 +9,17 @@ import { toast } from "sonner";
 import logoImg from "@/assets/logo-open.png";
 import { getRoleDestination, fetchAuthRoleRecord, isInternalStaffUser, isStorefrontRole, normalizeRole } from "@/lib/auth-routing";
 
-type AuthTab = "phone" | "email" | "whatsapp";
+type AuthTab = "phone" | "email" | "whatsapp" | "msg91";
+
+// MSG91 Widget configuration (Token Auth + Widget ID)
+const MSG91_WIDGET_ID = "3664766e464b383030383331";
+const MSG91_TOKEN_AUTH = "509994TXZQ2DgorzaO69e9d36eP1";
+
+declare global {
+  interface Window {
+    initSendOTP?: (cfg: any) => void;
+  }
+}
 
 const AUTH_CACHE_KEY = "oasis_auth_cache";
 
