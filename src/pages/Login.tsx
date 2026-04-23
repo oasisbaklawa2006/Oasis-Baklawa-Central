@@ -46,14 +46,14 @@ const Login = () => {
   const msg91RetriedRef = useRef(false);
   const navigate = useNavigate();
 
-  // Load MSG91 OTP widget script once on mount; flip `msg91ScriptReady` only
+  // Load MSG91 OTP widget script once on mount; flip `isMsg91Ready` only
   // after the script's `onload` fires AND `window.initSendOTP` is exposed.
   useEffect(() => {
     if (typeof window === "undefined") return;
 
     const markReadyWhenAvailable = () => {
       if (typeof window.initSendOTP === "function") {
-        setMsg91ScriptReady(true);
+        setIsMsg91Ready(true);
         return true;
       }
       return false;
@@ -96,7 +96,7 @@ const Login = () => {
   // — known race where the very first widget handshake fails but the second succeeds.
   const launchMsg91Widget = (isSilentRetry = false) => {
     if (!isSilentRetry) msg91RetriedRef.current = false;
-    if (typeof window === "undefined" || !msg91ScriptReady || typeof window.initSendOTP !== "function") {
+    if (typeof window === "undefined" || !isMsg91Ready || typeof window.initSendOTP !== "function") {
       toast.error("MSG91 widget is still loading — please retry in a moment.");
       return;
     }
@@ -492,11 +492,11 @@ const Login = () => {
               </div>
               <button
                 onClick={launchMsg91Widget}
-                disabled={msg91Loading || !msg91ScriptReady}
+                disabled={msg91Loading || !isMsg91Ready}
                 className="w-full py-3.5 rounded-xl bg-foreground text-background font-ui font-bold text-sm flex items-center justify-center gap-2 transition-colors shadow-lg hover:opacity-90 disabled:opacity-60 ring-2 ring-primary/40"
               >
-                {(msg91Loading || !msg91ScriptReady) ? <Loader2 size={18} className="animate-spin" /> : <ShieldCheck size={18} />}
-                {!msg91ScriptReady ? "Loading secure widget…" : msg91Loading ? "Launching widget…" : "Verify with MSG91"}
+                {(msg91Loading || !isMsg91Ready) ? <Loader2 size={18} className="animate-spin" /> : <ShieldCheck size={18} />}
+                {!isMsg91Ready ? "Loading secure widget…" : msg91Loading ? "Launching widget…" : "Verify with MSG91"}
               </button>
               <p className="text-[10px] text-center text-muted-foreground">
                 Successful verification redirects to the War Room dashboard.
