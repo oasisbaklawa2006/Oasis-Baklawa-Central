@@ -37,7 +37,49 @@ const Login = () => {
   const [waOtp, setWaOtp] = useState("");
   const [waOtpSent, setWaOtpSent] = useState(false);
   const emailBackupTimer = useState<{ id: ReturnType<typeof setTimeout> | null }>({ id: null })[0];
+  const [msg91Loading, setMsg91Loading] = useState(false);
   const navigate = useNavigate();
+
+  // Load MSG91 OTP widget script once on mount.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (document.getElementById("msg91-otp-provider")) return;
+    const script = document.createElement("script");
+    script.id = "msg91-otp-provider";
+    script.src = "https://verify.msg91.com/otp-provider.js";
+    script.async = true;
+    document.body.appendChild(script);
+  }, []);
+
+  // Trigger MSG91 widget. On success → resolve session → War Room.
+  const launchMsg91Widget = () => {
+    if (typeof window === "undefined" || typeof window.initSendOTP !== "function") {
+      toast.error("MSG91 widget is still loading — please retry in a moment.");
+      return;
+    }
+    setMsg91Loading(true);
+    window.initSendOTP({
+      widgetId: MSG91_WIDGET_ID,
+      tokenAuth: MSG91_TOKEN_AUTH,
+      exposeMethods: false,
+      success: async (_data: any) => {
+        setMsg91Loading(false);
+        toast.success("Verified via MSG91 — redirecting…");
+        try {
+          const { data: sessionData } = await supabase.auth.getSession();
+          if (sessionData?.session?.user) {
+            await resolveRedirect(sessionData.session.user.id);
+            return;
+          }
+        } catch {}
+        window.location.assign("/admin/cmd-war-room");
+      },
+      failure: (err: any) => {
+        setMsg91Loading(false);
+        toast.error(err?.message || "MSG91 verification failed");
+      },
+    });
+  };
 
   const resolveRedirect = async (userId: string) => {
     const [authRecord, isInternalStaff] = await Promise.all([
