@@ -62,11 +62,34 @@ const Login = () => {
       widgetId: MSG91_WIDGET_ID,
       tokenAuth: MSG91_TOKEN_AUTH,
       exposeMethods: false,
-      success: async (_data: any) => {
-        setMsg91Loading(false);
-        toast.success("Identity Verified via MSG91");
-        // Per spec: ALL successful MSG91 verifications land directly on the War Room.
-        window.location.assign("/admin/cmd-war-room");
+      success: async (data: any) => {
+        // Widget returns an access-token; verify it server-side before trusting.
+        const accessToken =
+          (typeof data === "string" ? data : null) ||
+          data?.message ||
+          data?.["access-token"] ||
+          data?.accessToken ||
+          null;
+        if (!accessToken) {
+          setMsg91Loading(false);
+          toast.error("Security Breach: OTP Verification Failed.");
+          return;
+        }
+        try {
+          const { data: verifyRes, error } = await supabase.functions.invoke("msg91-otp", {
+            body: { mode: "verify_widget", accessToken },
+          });
+          setMsg91Loading(false);
+          if (error || !verifyRes?.ok || verifyRes?.type !== "success") {
+            toast.error("Security Breach: OTP Verification Failed.");
+            return;
+          }
+          toast.success("Identity Verified via MSG91");
+          window.location.assign("/admin/cmd-war-room");
+        } catch (err) {
+          setMsg91Loading(false);
+          toast.error("Security Breach: OTP Verification Failed.");
+        }
       },
       failure: (err: any) => {
         setMsg91Loading(false);

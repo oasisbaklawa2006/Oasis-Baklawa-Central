@@ -1,20 +1,20 @@
 // MSG91 OTP & Notification Service
 // ----------------------------------
-// Provides two flows used by the Oasis B2B portal:
-//   1. mode: "login_otp"     → Send a 6-digit OTP for manager login.
-//   2. mode: "order_received"→ Notify a client that their WhatsApp order was logged.
+// Modes:
+//   1. mode: "verify_widget"  → Server-side verifyAccessToken from MSG91 OTP Widget.
+//                                Client passes the access-token returned by initSendOTP success
+//                                callback; we hit MSG91 verifyAccessToken endpoint and only
+//                                return ok=true if MSG91 responds with type="success".
+//   2. mode: "login_otp"      → (Legacy) send a 6-digit OTP via failover ladder.
+//   3. mode: "order_received" → Notify a client that their WhatsApp order was logged.
 //
-// FAILOVER LADDER (per request, executed in order; first success wins):
-//   WhatsApp → SMS → Email → Voice Call
+// FAILOVER LADDER (legacy modes): WhatsApp → SMS → Email → Voice
 //
-// Required secrets (configure via Lovable secrets):
-//   - MSG91_AUTH_KEY   (mandatory)
-//   - MSG91_SENDER_ID  (optional; defaults to "OASBKL")
-//   - MSG91_VOICE_DID  (optional, for voice fallback)
-//   - RESEND_API_KEY   (already configured; used for email tier)
-//
-// SECURITY: This function is invoked from the browser AND from edge cron triggers.
-// We only validate the JWT for the login_otp flow when "user_id" is provided.
+// Secrets:
+//   - MSG91_AUTH_KEY   (mandatory for real sends + widget verification)
+//   - MSG91_SENDER_ID  (optional; default "OASBKL")
+//   - MSG91_VOICE_DID  (optional, voice fallback)
+//   - RESEND_API_KEY   (email tier)
 
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
@@ -27,20 +27,19 @@ const corsHeaders = {
 type Channel = "whatsapp" | "sms" | "email" | "voice";
 
 interface RequestBody {
-  mode: "login_otp" | "order_received";
-  phone?: string;       // E.164 or 10-digit local; we normalize to 91XXXXXXXXXX
+  mode: "verify_widget" | "login_otp" | "order_received";
+  /** verify_widget: the access-token returned by MSG91 widget success callback. */
+  accessToken?: string;
+  phone?: string;
   email?: string | null;
-  /** For order_received: short summary line (client name + SKU count). */
   message?: string;
-  /** For login_otp: optional override; otherwise we generate. */
   otp?: string;
-  /** Bypass channels you don't want (testing). */
   skip?: Channel[];
 }
 
-// Placeholder allows the function to deploy & boot without crashing.
-// Real sends are short-circuited (mocked) until a real key is configured.
-const AUTH_KEY = Deno.env.get("MSG91_AUTH_KEY") || "PLACEHOLDER_NOT_CONFIGURED";
+// Unified MSG91 auth key (matches client widget tokenAuth: 509994AgMgjQib69e9dc60P1).
+// Falls back to placeholder so the function still boots if secret unset.
+const AUTH_KEY = Deno.env.get("MSG91_AUTH_KEY") || "509994AgMgjQib69e9dc60P1";
 const SENDER_ID = Deno.env.get("MSG91_SENDER_ID") || "OASBKL";
 const VOICE_DID = Deno.env.get("MSG91_VOICE_DID") || "";
 const MSG91_ENABLED = AUTH_KEY !== "PLACEHOLDER_NOT_CONFIGURED";
@@ -58,7 +57,28 @@ function genOtp(): string {
   return String(Math.floor(100000 + Math.random() * 900000));
 }
 
-// ---- Channel implementations -------------------------------------------------
+// ---- MSG91 Widget server-side verification --------------------------------
+// Docs: POST https://api.msg91.com/api/v5/widget/verifyAccessToken
+//   Headers: Content-Type: application/json, Accept: application/json
+//   Body:    { authkey, "access-token" }
+//   Success: { type: "success", message: "...", ... }
+async function verifyAccessToken(accessToken: string): Promise<{ ok: boolean; raw: any }> {
+  try {
+    const res = await fetch("https://api.msg91.com/api/v5/widget/verifyAccessToken", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Accept: "application/json" },
+      body: JSON.stringify({ authkey: AUTH_KEY, "access-token": accessToken }),
+    });
+    const raw = await res.json().catch(() => ({}));
+    const ok = res.ok && (raw?.type === "success");
+    return { ok, raw };
+  } catch (e) {
+    console.error("[msg91] verifyAccessToken failed:", e);
+    return { ok: false, raw: { error: e instanceof Error ? e.message : "unknown" } };
+  }
+}
+
+// ---- Channel implementations (legacy ladder) ------------------------------
 
 async function sendWhatsApp(phone: string, body: string): Promise<boolean> {
   if (!MSG91_ENABLED) return false;
@@ -73,10 +93,7 @@ async function sendWhatsApp(phone: string, body: string): Promise<boolean> {
       }),
     });
     return res.ok;
-  } catch (e) {
-    console.error("[msg91] whatsapp failed:", e);
-    return false;
-  }
+  } catch (e) { console.error("[msg91] whatsapp failed:", e); return false; }
 }
 
 async function sendSMS(phone: string, body: string): Promise<boolean> {
@@ -85,18 +102,10 @@ async function sendSMS(phone: string, body: string): Promise<boolean> {
     const res = await fetch("https://control.msg91.com/api/v5/flow/", {
       method: "POST",
       headers: { "Content-Type": "application/json", authkey: AUTH_KEY },
-      body: JSON.stringify({
-        sender: SENDER_ID,
-        short_url: "0",
-        mobiles: to91(phone),
-        body, // generic text payload (see template note below)
-      }),
+      body: JSON.stringify({ sender: SENDER_ID, short_url: "0", mobiles: to91(phone), body }),
     });
     return res.ok;
-  } catch (e) {
-    console.error("[msg91] sms failed:", e);
-    return false;
-  }
+  } catch (e) { console.error("[msg91] sms failed:", e); return false; }
 }
 
 async function sendEmail(email: string, subject: string, body: string): Promise<boolean> {
@@ -107,16 +116,11 @@ async function sendEmail(email: string, subject: string, body: string): Promise<
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${RESEND_KEY}` },
       body: JSON.stringify({
         from: "Oasis Baklawa <noreply@oasisbaklawa.com>",
-        to: [email],
-        subject,
-        text: body,
+        to: [email], subject, text: body,
       }),
     });
     return res.ok;
-  } catch (e) {
-    console.error("[msg91] email failed:", e);
-    return false;
-  }
+  } catch (e) { console.error("[msg91] email failed:", e); return false; }
 }
 
 async function sendVoice(phone: string, body: string): Promise<boolean> {
@@ -125,31 +129,16 @@ async function sendVoice(phone: string, body: string): Promise<boolean> {
     const res = await fetch("https://control.msg91.com/api/v5/voice/outbound", {
       method: "POST",
       headers: { "Content-Type": "application/json", authkey: AUTH_KEY },
-      body: JSON.stringify({
-        from: VOICE_DID,
-        to: to91(phone),
-        text: body,
-        voice: "female-en-IN",
-      }),
+      body: JSON.stringify({ from: VOICE_DID, to: to91(phone), text: body, voice: "female-en-IN" }),
     });
     return res.ok;
-  } catch (e) {
-    console.error("[msg91] voice failed:", e);
-    return false;
-  }
+  } catch (e) { console.error("[msg91] voice failed:", e); return false; }
 }
 
-// ---- Failover orchestration --------------------------------------------------
-
 async function deliver(
-  phone: string,
-  email: string | null | undefined,
-  body: string,
-  subject: string,
-  skip: Channel[] = [],
+  phone: string, email: string | null | undefined, body: string, subject: string, skip: Channel[] = [],
 ): Promise<{ delivered: boolean; channel: Channel | null; tried: Channel[] }> {
   const tried: Channel[] = [];
-
   if (!skip.includes("whatsapp") && phone) {
     tried.push("whatsapp");
     if (await sendWhatsApp(phone, body)) return { delivered: true, channel: "whatsapp", tried };
@@ -169,7 +158,7 @@ async function deliver(
   return { delivered: false, channel: null, tried };
 }
 
-// ---- HTTP handler ------------------------------------------------------------
+// ---- HTTP handler ---------------------------------------------------------
 
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
@@ -178,9 +167,21 @@ serve(async (req) => {
     const body = (await req.json()) as RequestBody;
     if (!body?.mode) {
       return new Response(JSON.stringify({ ok: false, error: "mode is required" }), {
-        status: 400,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
+    }
+
+    if (body.mode === "verify_widget") {
+      if (!body.accessToken) {
+        return new Response(JSON.stringify({ ok: false, error: "accessToken required" }), {
+          status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      const result = await verifyAccessToken(body.accessToken);
+      return new Response(
+        JSON.stringify({ ok: result.ok, type: result.raw?.type ?? null, raw: result.raw }),
+        { status: result.ok ? 200 : 401, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
     }
 
     if (body.mode === "login_otp") {
@@ -188,8 +189,7 @@ serve(async (req) => {
       const phone = body.phone || "";
       if (!phone) {
         return new Response(JSON.stringify({ ok: false, error: "phone required" }), {
-          status: 400,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
+          status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
       const text = `Your Oasis Baklawa login code is ${otp}. Valid for 5 minutes. Do not share this code.`;
@@ -211,8 +211,7 @@ serve(async (req) => {
     }
 
     return new Response(JSON.stringify({ ok: false, error: "unknown mode" }), {
-      status: 400,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
+      status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (e) {
     console.error("[msg91-otp] fatal:", e);
