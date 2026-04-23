@@ -330,7 +330,7 @@ const Login = () => {
           {/* Tab Toggle */}
           <div className="flex gap-1 p-1 rounded-xl bg-muted">
             <button onClick={() => setActiveTab("msg91")} className={tabClass("msg91")}>
-              <ShieldCheck size={12} className="inline mr-1 -mt-0.5" />Phone / WhatsApp
+              <ShieldCheck size={12} className="inline mr-1 -mt-0.5" />Mobile Verification
             </button>
             <button onClick={() => setActiveTab("email")} className={tabClass("email")}>
               <Mail size={12} className="inline mr-1 -mt-0.5" />Email
