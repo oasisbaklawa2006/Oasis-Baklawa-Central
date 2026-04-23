@@ -415,18 +415,16 @@ const Login = () => {
           }
         }
 
-        // Last resort: try Supabase phone OTP (may fail if Twilio is down)
-        const e164 = `+91${cleaned}`;
-        const { error: signErr } = await supabase.auth.signInWithOtp({ phone: e164 });
-        if (signErr) {
-          toast.info("WhatsApp verified. SMS service is under maintenance. Please try Email login with: " + (verifyData.email || "your registered email"), { duration: 8000 });
-          setLoading(false);
-          return;
-        }
-        toast.success("WhatsApp verified. Enter the SMS code to complete login.");
-        setActiveTab("phone");
-        setPhone(cleaned);
-        setOtpSent(true);
+        // [msg91] Final fallback: WhatsApp verified but session minting failed.
+        // We are 100% on MSG91 for phone/WhatsApp — no Supabase phone-OTP retry.
+        // Direct user to Email Login so business never stops.
+        toast.info(
+          "WhatsApp verified. Please complete sign-in via Email login: " + (verifyData.email || "your registered email"),
+          { duration: 8000 },
+        );
+        setActiveTab("email");
+        setLoading(false);
+        return;
       }
     } catch (err: any) {
       toast.error(err?.message || "Failed to verify WhatsApp OTP");
