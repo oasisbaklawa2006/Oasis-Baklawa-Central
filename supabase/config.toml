@@ -27,5 +27,8 @@ verify_jwt = false
 [functions.msg91-otp]
 verify_jwt = false
 
+[functions.msg91-webhook]
+verify_jwt = false
+
 [functions.validate-user]
 verify_jwt = false
