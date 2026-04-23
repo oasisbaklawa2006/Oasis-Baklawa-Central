@@ -38,9 +38,12 @@ interface RequestBody {
   skip?: Channel[];
 }
 
-const AUTH_KEY = Deno.env.get("MSG91_AUTH_KEY") || "";
+// Placeholder allows the function to deploy & boot without crashing.
+// Real sends are short-circuited (mocked) until a real key is configured.
+const AUTH_KEY = Deno.env.get("MSG91_AUTH_KEY") || "PLACEHOLDER_NOT_CONFIGURED";
 const SENDER_ID = Deno.env.get("MSG91_SENDER_ID") || "OASBKL";
 const VOICE_DID = Deno.env.get("MSG91_VOICE_DID") || "";
+const MSG91_ENABLED = AUTH_KEY !== "PLACEHOLDER_NOT_CONFIGURED";
 const RESEND_KEY = Deno.env.get("RESEND_API_KEY") || "";
 
 function to91(raw: string): string {
@@ -58,7 +61,7 @@ function genOtp(): string {
 // ---- Channel implementations -------------------------------------------------
 
 async function sendWhatsApp(phone: string, body: string): Promise<boolean> {
-  if (!AUTH_KEY) return false;
+  if (!MSG91_ENABLED) return false;
   try {
     const res = await fetch("https://control.msg91.com/api/v5/whatsapp/whatsapp-outbound-message/bulk/", {
       method: "POST",
@@ -77,7 +80,7 @@ async function sendWhatsApp(phone: string, body: string): Promise<boolean> {
 }
 
 async function sendSMS(phone: string, body: string): Promise<boolean> {
-  if (!AUTH_KEY) return false;
+  if (!MSG91_ENABLED) return false;
   try {
     const res = await fetch("https://control.msg91.com/api/v5/flow/", {
       method: "POST",
@@ -117,7 +120,7 @@ async function sendEmail(email: string, subject: string, body: string): Promise<
 }
 
 async function sendVoice(phone: string, body: string): Promise<boolean> {
-  if (!AUTH_KEY || !VOICE_DID) return false;
+  if (!MSG91_ENABLED || !VOICE_DID) return false;
   try {
     const res = await fetch("https://control.msg91.com/api/v5/voice/outbound", {
       method: "POST",

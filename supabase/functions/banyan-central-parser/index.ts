@@ -3,7 +3,7 @@
 // bundles their messages, runs Vision+Text AI, matches to companies / shadow_clients,
 // and writes a row into suggested_orders for Ops review.
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
+import { createClient } from "npm:@supabase/supabase-js@2.45.0";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
