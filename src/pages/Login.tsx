@@ -342,22 +342,20 @@ const Login = () => {
             <div className="space-y-4">
               <div className="rounded-xl border border-primary/20 bg-primary/5 p-4 text-center space-y-2">
                 <ShieldCheck size={28} className="mx-auto text-primary" />
-                <p className="font-ui text-sm font-bold text-foreground">MSG91 Secure Verification</p>
+                <p className="font-ui text-sm font-bold text-foreground">Secure Mobile Verification</p>
                 <p className="font-body text-xs text-muted-foreground">
-                  Multi-channel OTP via SMS · WhatsApp · Voice with auto-failover.
+                  Verification via SMS, WhatsApp, or Voice.
                 </p>
               </div>
               <button
                 onClick={() => launchMsg91Widget()}
                 disabled={msg91Loading || !isMsg91Ready}
-                className="w-full py-3.5 rounded-xl bg-foreground text-background font-ui font-bold text-sm flex items-center justify-center gap-2 transition-colors shadow-lg hover:opacity-90 disabled:opacity-60 ring-2 ring-primary/40"
+                style={{ backgroundColor: "#D4AF37", color: "#1a1a1a" }}
+                className="w-full py-3.5 rounded-xl font-ui font-bold text-sm flex items-center justify-center gap-2 transition-all shadow-lg hover:brightness-110 disabled:opacity-60 ring-1 ring-[#b8941f]"
               >
                 {(msg91Loading || !isMsg91Ready) ? <Loader2 size={18} className="animate-spin" /> : <ShieldCheck size={18} />}
                 {!isMsg91Ready ? "Loading secure widget…" : msg91Loading ? "Launching widget…" : "Verify with MSG91"}
               </button>
-              <p className="text-[10px] text-center text-muted-foreground">
-                Successful verification redirects to the War Room dashboard.
-              </p>
             </div>
           )}
 

@@ -155,6 +155,42 @@ export type Database = {
         }
         Relationships: []
       }
+      auth_logs: {
+        Row: {
+          channel: string | null
+          created_at: string
+          description: string | null
+          event_type: string | null
+          id: string
+          phone: string | null
+          raw_payload: Json | null
+          request_id: string | null
+          status: string | null
+        }
+        Insert: {
+          channel?: string | null
+          created_at?: string
+          description?: string | null
+          event_type?: string | null
+          id?: string
+          phone?: string | null
+          raw_payload?: Json | null
+          request_id?: string | null
+          status?: string | null
+        }
+        Update: {
+          channel?: string | null
+          created_at?: string
+          description?: string | null
+          event_type?: string | null
+          id?: string
+          phone?: string | null
+          raw_payload?: Json | null
+          request_id?: string | null
+          status?: string | null
+        }
+        Relationships: []
+      }
       b2b_applications: {
         Row: {
           admin_notes: string | null
