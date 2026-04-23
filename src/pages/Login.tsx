@@ -1,6 +1,6 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import { LogIn, Eye, EyeOff, Loader2, Phone, Mail, MessageCircle } from "lucide-react";
+import { LogIn, Eye, EyeOff, Loader2, Phone, Mail, MessageCircle, ShieldCheck } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { Input } from "@/components/ui/input";
 import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp";
@@ -9,7 +9,17 @@ import { toast } from "sonner";
 import logoImg from "@/assets/logo-open.png";
 import { getRoleDestination, fetchAuthRoleRecord, isInternalStaffUser, isStorefrontRole, normalizeRole } from "@/lib/auth-routing";
 
-type AuthTab = "phone" | "email" | "whatsapp";
+type AuthTab = "phone" | "email" | "whatsapp" | "msg91";
+
+// MSG91 Widget configuration (Token Auth + Widget ID)
+const MSG91_WIDGET_ID = "3664766e464b383030383331";
+const MSG91_TOKEN_AUTH = "509994TXZQ2DgorzaO69e9d36eP1";
+
+declare global {
+  interface Window {
+    initSendOTP?: (cfg: any) => void;
+  }
+}
 
 const AUTH_CACHE_KEY = "oasis_auth_cache";
 
@@ -27,7 +37,49 @@ const Login = () => {
   const [waOtp, setWaOtp] = useState("");
   const [waOtpSent, setWaOtpSent] = useState(false);
   const emailBackupTimer = useState<{ id: ReturnType<typeof setTimeout> | null }>({ id: null })[0];
+  const [msg91Loading, setMsg91Loading] = useState(false);
   const navigate = useNavigate();
+
+  // Load MSG91 OTP widget script once on mount.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (document.getElementById("msg91-otp-provider")) return;
+    const script = document.createElement("script");
+    script.id = "msg91-otp-provider";
+    script.src = "https://verify.msg91.com/otp-provider.js";
+    script.async = true;
+    document.body.appendChild(script);
+  }, []);
+
+  // Trigger MSG91 widget. On success → resolve session → War Room.
+  const launchMsg91Widget = () => {
+    if (typeof window === "undefined" || typeof window.initSendOTP !== "function") {
+      toast.error("MSG91 widget is still loading — please retry in a moment.");
+      return;
+    }
+    setMsg91Loading(true);
+    window.initSendOTP({
+      widgetId: MSG91_WIDGET_ID,
+      tokenAuth: MSG91_TOKEN_AUTH,
+      exposeMethods: false,
+      success: async (_data: any) => {
+        setMsg91Loading(false);
+        toast.success("Verified via MSG91 — redirecting…");
+        try {
+          const { data: sessionData } = await supabase.auth.getSession();
+          if (sessionData?.session?.user) {
+            await resolveRedirect(sessionData.session.user.id);
+            return;
+          }
+        } catch {}
+        window.location.assign("/admin/cmd-war-room");
+      },
+      failure: (err: any) => {
+        setMsg91Loading(false);
+        toast.error(err?.message || "MSG91 verification failed");
+      },
+    });
+  };
 
   const resolveRedirect = async (userId: string) => {
     const [authRecord, isInternalStaff] = await Promise.all([
@@ -257,7 +309,10 @@ const Login = () => {
 
         <div className="bg-card rounded-2xl p-6 space-y-5 border border-border" style={{ boxShadow: "var(--card-shadow)" }}>
           {/* Tab Toggle */}
-          <div className="flex gap-1 p-1 rounded-xl bg-muted">
+          <div className="flex gap-1 p-1 rounded-xl bg-muted flex-wrap">
+            <button onClick={() => setActiveTab("msg91")} className={tabClass("msg91")}>
+              <ShieldCheck size={12} className="inline mr-1 -mt-0.5" />Secure
+            </button>
             <button onClick={() => { setActiveTab("phone"); setOtpSent(false); setOtp(""); }} className={tabClass("phone")}>
               <Phone size={12} className="inline mr-1 -mt-0.5" />Phone
             </button>
@@ -268,6 +323,30 @@ const Login = () => {
               <Mail size={12} className="inline mr-1 -mt-0.5" />Email
             </button>
           </div>
+
+          {/* ── MSG91 Secure OTP Tab ── */}
+          {activeTab === "msg91" && (
+            <div className="space-y-4">
+              <div className="rounded-xl border border-primary/20 bg-primary/5 p-4 text-center space-y-2">
+                <ShieldCheck size={28} className="mx-auto text-primary" />
+                <p className="font-ui text-sm font-bold text-foreground">MSG91 Secure Verification</p>
+                <p className="font-body text-xs text-muted-foreground">
+                  Multi-channel OTP via SMS · WhatsApp · Voice with auto-failover.
+                </p>
+              </div>
+              <button
+                onClick={launchMsg91Widget}
+                disabled={msg91Loading}
+                className="w-full py-3.5 rounded-xl bg-primary text-primary-foreground font-ui font-bold text-sm flex items-center justify-center gap-2 transition-colors shadow-sm disabled:opacity-60"
+              >
+                {msg91Loading ? <Loader2 size={18} className="animate-spin" /> : <ShieldCheck size={18} />}
+                {msg91Loading ? "Launching widget…" : "Verify with MSG91"}
+              </button>
+              <p className="text-[10px] text-center text-muted-foreground">
+                Successful verification redirects to the War Room dashboard.
+              </p>
+            </div>
+          )}
 
           {/* ── Phone Tab ── */}
           {activeTab === "phone" && (

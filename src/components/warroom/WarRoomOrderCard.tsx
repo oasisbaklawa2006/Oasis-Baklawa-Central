@@ -141,13 +141,19 @@ export default function WarRoomOrderCard({
   const [profileAddr, setProfileAddr] = useState(order.company_address || "");
   const [savingProfile, setSavingProfile] = useState(false);
 
+  // Banyan 0.98 — anything below this is "Needs Review" (orange) and Build SO is disabled.
+  const CONFIDENCE_GATE = 0.98;
+  const lowConfidence =
+    typeof order.min_confidence === "number" && order.min_confidence < CONFIDENCE_GATE;
+  const needsReview = lowConfidence || isAmbiguous;
+
   // Auto-Pilot detection: high confidence + recognized client + no duplicates/clarification.
   const isAutoPilot =
     !isUnmappedClient &&
-    !isAmbiguous &&
+    !needsReview &&
     !isDuplicate &&
     typeof order.min_confidence === "number" &&
-    order.min_confidence >= 0.95;
+    order.min_confidence >= CONFIDENCE_GATE;
 
   // Draft / new-lead detection — company exists but is a Draft/Shadow placeholder.
   const isDraftClient =
@@ -455,12 +461,12 @@ export default function WarRoomOrderCard({
                               <Tag size={8} /> {item.matched_alias}
                             </span>
                           )}
-                          {typeof item.confidence === "number" && item.confidence < 0.95 && (
+                          {typeof item.confidence === "number" && item.confidence < CONFIDENCE_GATE && (
                             <button
                               onClick={() => onTeachSku?.(item.product_name || item.matched_alias || undefined)}
                               disabled={cardBusy}
                               className="text-[9px] font-bold text-orange-700 bg-orange-500/10 border border-orange-400/40 px-1.5 py-0.5 rounded hover:bg-orange-500/20 disabled:opacity-40"
-                              title="Confidence below 95% — teach this SKU"
+                              title="Confidence below 98% — teach this SKU"
                             >
                               UNRECOGNIZED · Teach
                             </button>
@@ -540,7 +546,7 @@ export default function WarRoomOrderCard({
                         onClick={(e) => {
                           e.preventDefault();
                           e.stopPropagation();
-                          const lowItem = order.items?.find((it) => (it.confidence ?? 1) < 0.95);
+                          const lowItem = order.items?.find((it) => (it.confidence ?? 1) < CONFIDENCE_GATE);
                           const token = lowItem?.product_name || lowItem?.matched_alias || order.items?.[0]?.product_name || undefined;
                           onTeachSku(token);
                         }}
@@ -564,7 +570,7 @@ export default function WarRoomOrderCard({
                   {typeof order.min_confidence === "number" && (
                     <span
                       className={`text-[9px] font-bold px-1.5 py-0.5 rounded ${
-                        order.min_confidence >= 0.95
+                        order.min_confidence >= CONFIDENCE_GATE
                           ? "bg-emerald-500/10 text-emerald-700"
                           : "bg-orange-500/10 text-orange-700"
                       }`}
@@ -744,13 +750,24 @@ export default function WarRoomOrderCard({
               </span>
             </div>
 
-            {/* Build SO — final action, gated on client mapping. Full-width on mobile. */}
+            {/* Build SO — final action, gated on client mapping AND Banyan 0.98 confidence. */}
             {onBuildSO && (
-              <div className="flex items-center justify-end pt-2">
+              <div className="flex items-center justify-end pt-2 gap-2 flex-wrap">
+                {needsReview && (
+                  <span className="text-[10px] font-bold text-orange-700 bg-orange-500/10 border border-orange-400/40 px-2 py-1 rounded">
+                    ⚠ NEEDS REVIEW · confidence &lt; 98% — correct SKUs to enable Build SO
+                  </span>
+                )}
                 <button
                   onClick={handleBuild}
-                  disabled={isUnmappedClient || cardBusy}
-                  title={isUnmappedClient ? "Map a client first to enable Build SO" : "Generate Sales Order"}
+                  disabled={isUnmappedClient || needsReview || cardBusy}
+                  title={
+                    isUnmappedClient
+                      ? "Map a client first to enable Build SO"
+                      : needsReview
+                      ? "Resolve low-confidence SKUs (Teach SKU) to enable Build SO"
+                      : "Generate Sales Order"
+                  }
                   className="text-xs font-semibold px-3 py-2.5 sm:py-1.5 rounded-md bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-1.5 w-full sm:w-auto"
                 >
                   <FileText size={12} /> {buildingSO ? "Building…" : "Build SO"}
