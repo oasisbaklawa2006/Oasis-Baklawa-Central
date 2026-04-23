@@ -475,11 +475,11 @@ const Login = () => {
               </div>
               <button
                 onClick={launchMsg91Widget}
-                disabled={msg91Loading}
+                disabled={msg91Loading || !msg91ScriptReady}
                 className="w-full py-3.5 rounded-xl bg-foreground text-background font-ui font-bold text-sm flex items-center justify-center gap-2 transition-colors shadow-lg hover:opacity-90 disabled:opacity-60 ring-2 ring-primary/40"
               >
-                {msg91Loading ? <Loader2 size={18} className="animate-spin" /> : <ShieldCheck size={18} />}
-                {msg91Loading ? "Launching widget…" : "Verify with MSG91"}
+                {(msg91Loading || !msg91ScriptReady) ? <Loader2 size={18} className="animate-spin" /> : <ShieldCheck size={18} />}
+                {!msg91ScriptReady ? "Loading secure widget…" : msg91Loading ? "Launching widget…" : "Verify with MSG91"}
               </button>
               <p className="text-[10px] text-center text-muted-foreground">
                 Successful verification redirects to the War Room dashboard.
