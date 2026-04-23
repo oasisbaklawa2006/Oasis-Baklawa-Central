@@ -38,22 +38,57 @@ const Login = () => {
   const [waOtpSent, setWaOtpSent] = useState(false);
   const emailBackupTimer = useState<{ id: ReturnType<typeof setTimeout> | null }>({ id: null })[0];
   const [msg91Loading, setMsg91Loading] = useState(false);
+  const [msg91ScriptReady, setMsg91ScriptReady] = useState(false);
   const navigate = useNavigate();
 
-  // Load MSG91 OTP widget script once on mount.
+  // Load MSG91 OTP widget script once on mount; flip `msg91ScriptReady` only
+  // after the script's `onload` fires AND `window.initSendOTP` is exposed.
   useEffect(() => {
     if (typeof window === "undefined") return;
-    if (document.getElementById("msg91-otp-provider")) return;
+
+    const markReadyWhenAvailable = () => {
+      if (typeof window.initSendOTP === "function") {
+        setMsg91ScriptReady(true);
+        return true;
+      }
+      return false;
+    };
+
+    // Already injected (HMR / re-mount): just probe.
+    const existing = document.getElementById("msg91-otp-provider") as HTMLScriptElement | null;
+    if (existing) {
+      if (markReadyWhenAvailable()) return;
+      existing.addEventListener("load", () => markReadyWhenAvailable(), { once: true });
+      // Poll briefly in case the script already loaded but global isn't bound yet.
+      let tries = 0;
+      const poll = setInterval(() => {
+        if (markReadyWhenAvailable() || ++tries > 20) clearInterval(poll);
+      }, 250);
+      return () => clearInterval(poll);
+    }
+
     const script = document.createElement("script");
     script.id = "msg91-otp-provider";
     script.src = "https://verify.msg91.com/otp-provider.js";
     script.async = true;
+    script.onload = () => {
+      // Some browsers expose initSendOTP a tick later; poll briefly.
+      if (markReadyWhenAvailable()) return;
+      let tries = 0;
+      const poll = setInterval(() => {
+        if (markReadyWhenAvailable() || ++tries > 20) clearInterval(poll);
+      }, 250);
+    };
+    script.onerror = () => {
+      console.error("[MSG91] Failed to load otp-provider.js — check network / CSP.");
+      toast.error("MSG91 widget script failed to load. Please refresh and try again.");
+    };
     document.body.appendChild(script);
   }, []);
 
   // Trigger MSG91 widget. On success → mint session via edge function → role-redirect.
   const launchMsg91Widget = () => {
-    if (typeof window === "undefined" || typeof window.initSendOTP !== "function") {
+    if (typeof window === "undefined" || !msg91ScriptReady || typeof window.initSendOTP !== "function") {
       toast.error("MSG91 widget is still loading — please retry in a moment.");
       return;
     }
@@ -83,12 +118,30 @@ const Login = () => {
     }, 10000);
 
     setMsg91Loading(true);
+
+    // 5-second handshake timeout — MSG91 sometimes silently hangs when the
+    // domain isn't whitelisted or the widget config is stale. Reset state
+    // and surface a clear message to the user.
+    let handshakeSettled = false;
+    const handshakeTimeout = setTimeout(() => {
+      if (handshakeSettled) return;
+      handshakeSettled = true;
+      setMsg91Loading(false);
+      console.error(`[MSG91] Handshake timeout (5s) on origin: ${origin}. Check MSG91 Dashboard / domain whitelist.`);
+      toast.error("Connection Timeout: Check MSG91 Dashboard Status.", { duration: 8000 });
+    }, 5000);
+    const settleHandshake = () => {
+      handshakeSettled = true;
+      clearTimeout(handshakeTimeout);
+    };
+
     try {
       window.initSendOTP({
         widgetId: MSG91_WIDGET_ID,
         tokenAuth: MSG91_TOKEN_AUTH,
         exposeMethods: false,
       success: async (data: any) => {
+        settleHandshake();
         // Widget returns an access-token; verify it server-side before trusting.
         const accessToken =
           (typeof data === "string" ? data : null) ||
@@ -148,6 +201,7 @@ const Login = () => {
         }
       },
       failure: (err: any) => {
+        settleHandshake();
         setMsg91Loading(false);
         const errMsg = err?.message || err?.errorMessage || "";
         if (/cors|origin|domain|access-control/i.test(errMsg)) {
@@ -159,6 +213,7 @@ const Login = () => {
       },
       });
     } catch (initErr: any) {
+      settleHandshake();
       setMsg91Loading(false);
       console.error(`[MSG91] initSendOTP threw on origin: ${origin}. Likely Domain Mismatch (CORS).`, initErr);
       toast.error("Handshake Failed: Please ensure this domain is whitelisted in your MSG91 Widget settings.", { duration: 8000 });
@@ -420,11 +475,11 @@ const Login = () => {
               </div>
               <button
                 onClick={launchMsg91Widget}
-                disabled={msg91Loading}
+                disabled={msg91Loading || !msg91ScriptReady}
                 className="w-full py-3.5 rounded-xl bg-foreground text-background font-ui font-bold text-sm flex items-center justify-center gap-2 transition-colors shadow-lg hover:opacity-90 disabled:opacity-60 ring-2 ring-primary/40"
               >
-                {msg91Loading ? <Loader2 size={18} className="animate-spin" /> : <ShieldCheck size={18} />}
-                {msg91Loading ? "Launching widget…" : "Verify with MSG91"}
+                {(msg91Loading || !msg91ScriptReady) ? <Loader2 size={18} className="animate-spin" /> : <ShieldCheck size={18} />}
+                {!msg91ScriptReady ? "Loading secure widget…" : msg91Loading ? "Launching widget…" : "Verify with MSG91"}
               </button>
               <p className="text-[10px] text-center text-muted-foreground">
                 Successful verification redirects to the War Room dashboard.
