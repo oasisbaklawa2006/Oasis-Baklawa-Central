@@ -38,16 +38,51 @@ const Login = () => {
   const [waOtpSent, setWaOtpSent] = useState(false);
   const emailBackupTimer = useState<{ id: ReturnType<typeof setTimeout> | null }>({ id: null })[0];
   const [msg91Loading, setMsg91Loading] = useState(false);
+  const [msg91ScriptReady, setMsg91ScriptReady] = useState(false);
   const navigate = useNavigate();
 
-  // Load MSG91 OTP widget script once on mount.
+  // Load MSG91 OTP widget script once on mount; flip `msg91ScriptReady` only
+  // after the script's `onload` fires AND `window.initSendOTP` is exposed.
   useEffect(() => {
     if (typeof window === "undefined") return;
-    if (document.getElementById("msg91-otp-provider")) return;
+
+    const markReadyWhenAvailable = () => {
+      if (typeof window.initSendOTP === "function") {
+        setMsg91ScriptReady(true);
+        return true;
+      }
+      return false;
+    };
+
+    // Already injected (HMR / re-mount): just probe.
+    const existing = document.getElementById("msg91-otp-provider") as HTMLScriptElement | null;
+    if (existing) {
+      if (markReadyWhenAvailable()) return;
+      existing.addEventListener("load", () => markReadyWhenAvailable(), { once: true });
+      // Poll briefly in case the script already loaded but global isn't bound yet.
+      let tries = 0;
+      const poll = setInterval(() => {
+        if (markReadyWhenAvailable() || ++tries > 20) clearInterval(poll);
+      }, 250);
+      return () => clearInterval(poll);
+    }
+
     const script = document.createElement("script");
     script.id = "msg91-otp-provider";
     script.src = "https://verify.msg91.com/otp-provider.js";
     script.async = true;
+    script.onload = () => {
+      // Some browsers expose initSendOTP a tick later; poll briefly.
+      if (markReadyWhenAvailable()) return;
+      let tries = 0;
+      const poll = setInterval(() => {
+        if (markReadyWhenAvailable() || ++tries > 20) clearInterval(poll);
+      }, 250);
+    };
+    script.onerror = () => {
+      console.error("[MSG91] Failed to load otp-provider.js — check network / CSP.");
+      toast.error("MSG91 widget script failed to load. Please refresh and try again.");
+    };
     document.body.appendChild(script);
   }, []);
 
