@@ -81,10 +81,18 @@ export default function RoleProtectedRoute({ allowedRoles, children }: Props) {
   });
   const isWithinDestination = isPathWithinRoleDestination(location.pathname, normalizedRole);
 
+  // Helper: toast + redirect when bouncing user from a forbidden route.
+  const bounce = (to: string) => {
+    if (location.pathname !== to) {
+      toast.error("Unauthorized Access — redirecting to your dashboard.");
+    }
+    return <Navigate to={to} replace />;
+  };
+
   // Staff roles: skip profileReady wait — land instantly
   if (normalizedRole && isStaffRole(normalizedRole)) {
     if (!isAllowed && !isWithinDestination) {
-      return <Navigate to={destination} replace />;
+      return bounce(destination);
     }
     return <>{children}</>;
   }
@@ -108,7 +116,7 @@ export default function RoleProtectedRoute({ allowedRoles, children }: Props) {
   }
 
   if (!isAllowed && !isWithinDestination) {
-    return <Navigate to={destination} replace />;
+    return bounce(destination);
   }
 
   return <>{children}</>;
