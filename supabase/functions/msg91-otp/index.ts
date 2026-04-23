@@ -259,9 +259,54 @@ serve(async (req) => {
         });
       }
       const result = await verifyAccessToken(body.accessToken);
+      if (!result.ok) {
+        return new Response(
+          JSON.stringify({ ok: false, type: result.raw?.type ?? null, raw: result.raw }),
+          { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+        );
+      }
+
+      // ── Mint a Supabase session for the verified phone ──
+      // Phone may come from request body OR from MSG91's verifyAccessToken response.
+      const rawPhone =
+        body.phone ||
+        result.raw?.message?.mobile ||
+        result.raw?.data?.mobile ||
+        result.raw?.mobile ||
+        "";
+      const normalized = to91(String(rawPhone));
+      if (!normalized || normalized.length < 10) {
+        // Verification succeeded but no phone available — return ok without session.
+        return new Response(
+          JSON.stringify({ ok: true, type: "success", session: null, reason: "phone_missing", raw: result.raw }),
+          { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+        );
+      }
+      const e164 = `+${normalized}`;
+
+      const upsertRes = await findOrCreateAuthUserByPhone(e164, normalized);
+      if ("error" in upsertRes) {
+        return new Response(
+          JSON.stringify({ ok: true, type: "success", session: null, error: upsertRes.error }),
+          { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+        );
+      }
+      if (upsertRes.isNew) {
+        await ensurePendingProfile(upsertRes.userId, e164);
+      }
+
+      const tokenHash = await mintMagicTokenHash(upsertRes.email);
       return new Response(
-        JSON.stringify({ ok: result.ok, type: result.raw?.type ?? null, raw: result.raw }),
-        { status: result.ok ? 200 : 401, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+        JSON.stringify({
+          ok: true,
+          type: "success",
+          user_id: upsertRes.userId,
+          email: upsertRes.email,
+          phone: e164,
+          is_new: upsertRes.isNew,
+          token_hash: tokenHash,
+        }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
       );
     }
 
