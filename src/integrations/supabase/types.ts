@@ -160,6 +160,7 @@ export type Database = {
           channel: string | null
           created_at: string
           description: string | null
+          event_name: string | null
           event_type: string | null
           id: string
           phone: string | null
@@ -171,6 +172,7 @@ export type Database = {
           channel?: string | null
           created_at?: string
           description?: string | null
+          event_name?: string | null
           event_type?: string | null
           id?: string
           phone?: string | null
@@ -182,6 +184,7 @@ export type Database = {
           channel?: string | null
           created_at?: string
           description?: string | null
+          event_name?: string | null
           event_type?: string | null
           id?: string
           phone?: string | null
