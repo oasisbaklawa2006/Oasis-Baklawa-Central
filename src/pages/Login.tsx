@@ -299,9 +299,9 @@ const Login = () => {
     const { error } = await supabase.auth.signInWithOtp({ phone: `+91${cleaned}` });
     setLoading(false);
     if (error) {
-      // Twilio/SMS failure — show fallback
-      if (error.message?.toLowerCase().includes("sms") || error.message?.toLowerCase().includes("twilio") || error.message?.toLowerCase().includes("provider") || error.message?.toLowerCase().includes("otp")) {
-        toast.info("SMS service is temporarily undergoing maintenance. Please use the WhatsApp Login tab for a faster experience.", { duration: 6000 });
+      // [msg91] SMS/provider failure — route user to MSG91 WhatsApp flow.
+      if (error.message?.toLowerCase().includes("sms") || error.message?.toLowerCase().includes("provider") || error.message?.toLowerCase().includes("otp")) {
+        toast.info("SMS service unavailable. Please use the WhatsApp (MSG91) tab — or fall back to Email login.", { duration: 6000 });
         setActiveTab("whatsapp");
         setWaPhone(cleaned);
         return;
