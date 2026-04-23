@@ -104,8 +104,8 @@ serve(async (req) => {
           const notifs = failures.flatMap((f) =>
             adminIds.map((uid) => ({
               user_id: uid,
-              type: "auth_failure",
-              message: `⚠️ Login failure (MSG91): ${f.phone || "unknown phone"} via ${f.channel || "?"} — ${f.description || f.status}`,
+              type: "auth_failure_low_confidence",
+              message: `⚠️ Low Confidence Login (MSG91): ${f.phone || "unknown phone"} via ${f.channel || "?"} — ${f.failure_reason || f.description || `status=${f.status}`}`,
               is_read: false,
             })),
           );
