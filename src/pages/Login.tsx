@@ -9,7 +9,7 @@ import { toast } from "sonner";
 import logoImg from "@/assets/logo-open.png";
 import { getRoleDestination, fetchAuthRoleRecord, isInternalStaffUser, isStorefrontRole, normalizeRole } from "@/lib/auth-routing";
 
-type AuthTab = "phone" | "email" | "whatsapp" | "msg91";
+type AuthTab = "msg91" | "email";
 
 // MSG91 Widget configuration (Token Auth + Widget ID)
 const MSG91_WIDGET_ID = "3664766e464b383030383331";
