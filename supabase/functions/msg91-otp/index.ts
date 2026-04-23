@@ -120,7 +120,7 @@ async function ensurePendingProfile(userId: string, phoneE164: string): Promise<
 
 // Unified MSG91 auth key (matches client widget tokenAuth: 509994AgMgjQib69e9dc60P1).
 // Falls back to placeholder so the function still boots if secret unset.
-const AUTH_KEY = Deno.env.get("MSG91_AUTH_KEY") || "509994AgMgjQib69e9dc60P1";
+const AUTH_KEY = Deno.env.get("MSG91_AUTH_KEY") || "509994A5pbHkTLr69ea2a63P1";
 const SENDER_ID = Deno.env.get("MSG91_SENDER_ID") || "OASBKL";
 const VOICE_DID = Deno.env.get("MSG91_VOICE_DID") || "";
 const MSG91_ENABLED = AUTH_KEY !== "PLACEHOLDER_NOT_CONFIGURED";

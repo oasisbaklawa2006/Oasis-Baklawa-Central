@@ -13,7 +13,7 @@ type AuthTab = "phone" | "email" | "whatsapp" | "msg91";
 
 // MSG91 Widget configuration (Token Auth + Widget ID)
 const MSG91_WIDGET_ID = "3664766e464b383030383331";
-const MSG91_TOKEN_AUTH = "509994AgMgjQib69e9dc60P1";
+const MSG91_TOKEN_AUTH = "509994T6SRbi4LqM69ea72d0P1";
 
 declare global {
   interface Window {
