@@ -64,7 +64,7 @@ function genOtp(): string {
 //   Success: { type: "success", message: "...", ... }
 async function verifyAccessToken(accessToken: string): Promise<{ ok: boolean; raw: any }> {
   try {
-    const res = await fetch("https://api.msg91.com/api/v5/widget/verifyAccessToken", {
+    const res = await fetch("https://control.msg91.com/api/v5/widget/verifyAccessToken", {
       method: "POST",
       headers: { "Content-Type": "application/json", Accept: "application/json" },
       body: JSON.stringify({ authkey: AUTH_KEY, "access-token": accessToken }),
