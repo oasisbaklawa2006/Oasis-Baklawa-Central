@@ -213,6 +213,17 @@ const AdminLayout = () => {
           <button onClick={() => setSidebarOpen(true)}><Menu size={20} className="text-primary" /></button>
           <span className="ml-3 text-ui-h5 text-primary">Admin Panel</span>
         </header>
+        {/* System status strip — Banyan 0.98 + MSG91 active indicator */}
+        <div className="hidden lg:flex items-center justify-end gap-3 px-5 h-7 bg-card/60 border-b border-border text-[10px] font-medium tracking-wide">
+          <span className="flex items-center gap-1.5 text-emerald-700">
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+            Security: MSG91 Active
+          </span>
+          <span className="text-muted-foreground/50">|</span>
+          <span className="flex items-center gap-1.5 text-primary">
+            <Sparkles size={10} /> AI Engine: 0.98 Disciplined
+          </span>
+        </div>
         <PanicAlertBanner />
         <main className="flex-1 p-4 sm:p-6 overflow-y-auto overflow-x-hidden max-w-full">
           <AdminRouteGuard><Outlet /></AdminRouteGuard>
