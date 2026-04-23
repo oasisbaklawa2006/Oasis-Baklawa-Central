@@ -350,8 +350,8 @@ const Login = () => {
               <button
                 onClick={() => launchMsg91Widget()}
                 disabled={msg91Loading || !isMsg91Ready}
-                style={{ backgroundColor: "#D4AF37", color: "#1a1a1a" }}
-                className="w-full py-3.5 rounded-xl font-ui font-bold text-sm flex items-center justify-center gap-2 transition-all shadow-lg hover:brightness-110 disabled:opacity-60 ring-1 ring-[#b8941f]"
+                style={{ backgroundColor: "#C5A059", color: "#1A1A1A" }}
+                className="w-full py-3.5 rounded-xl font-ui font-bold text-sm flex items-center justify-center gap-2 transition-all shadow-lg hover:brightness-110 disabled:opacity-60 ring-1 ring-[#a8884a]"
               >
                 {(msg91Loading || !isMsg91Ready) ? <Loader2 size={18} className="animate-spin" /> : <ShieldCheck size={18} />}
                 {!isMsg91Ready ? "Loading secure widget…" : msg91Loading ? "Launching widget…" : "Verify with MSG91"}

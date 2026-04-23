@@ -55,12 +55,14 @@ serve(async (req) => {
   const rows = events.map((ev: any) => {
     const status = pick(ev, ["status", "delivery_status", "state"]);
     const event_name = pick(ev, ["event", "event_name", "eventName", "type"]) || "delivery";
+    const failure_reason = pick(ev, ["failure_reason", "failureReason", "err", "error", "errorMessage", "reason", "description"]);
     return {
       event_type: event_name,
       event_name,
-      phone: pick(ev, ["mobile", "phone", "to", "number"]),
+      phone: pick(ev, ["telNum", "mobile", "phone", "to", "number"]),
       channel: pick(ev, ["channel", "route", "service"]),
       status,
+      failure_reason,
       request_id: pick(ev, ["requestId", "request_id", "id", "messageId"]),
       description: pick(ev, ["description", "message", "reason"]),
       raw_payload: ev ?? {},
@@ -85,10 +87,10 @@ serve(async (req) => {
       });
     }
 
-    // Real-time War Room alert: notify admins for any 'Failed' delivery so the
-    // team can proactively reach out to clients struggling to log in.
+    // Real-time War Room 'Low Confidence' alert: status === "2" is MSG91's
+    // numeric failure code; also catch textual failure variants.
     const failures = rows.filter(
-      (r) => typeof r.status === "string" && /fail|undeliv|reject|error/i.test(r.status),
+      (r) => r.status === "2" || (typeof r.status === "string" && /fail|undeliv|reject|error/i.test(r.status)),
     );
     if (failures.length > 0) {
       try {
@@ -102,8 +104,8 @@ serve(async (req) => {
           const notifs = failures.flatMap((f) =>
             adminIds.map((uid) => ({
               user_id: uid,
-              type: "auth_failure",
-              message: `⚠️ Login failure (MSG91): ${f.phone || "unknown phone"} via ${f.channel || "?"} — ${f.description || f.status}`,
+              type: "auth_failure_low_confidence",
+              message: `⚠️ Low Confidence Login (MSG91): ${f.phone || "unknown phone"} via ${f.channel || "?"} — ${f.failure_reason || f.description || `status=${f.status}`}`,
               is_read: false,
             })),
           );
