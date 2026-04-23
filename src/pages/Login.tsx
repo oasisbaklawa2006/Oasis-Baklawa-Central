@@ -118,12 +118,30 @@ const Login = () => {
     }, 10000);
 
     setMsg91Loading(true);
+
+    // 5-second handshake timeout — MSG91 sometimes silently hangs when the
+    // domain isn't whitelisted or the widget config is stale. Reset state
+    // and surface a clear message to the user.
+    let handshakeSettled = false;
+    const handshakeTimeout = setTimeout(() => {
+      if (handshakeSettled) return;
+      handshakeSettled = true;
+      setMsg91Loading(false);
+      console.error(`[MSG91] Handshake timeout (5s) on origin: ${origin}. Check MSG91 Dashboard / domain whitelist.`);
+      toast.error("Connection Timeout: Check MSG91 Dashboard Status.", { duration: 8000 });
+    }, 5000);
+    const settleHandshake = () => {
+      handshakeSettled = true;
+      clearTimeout(handshakeTimeout);
+    };
+
     try {
       window.initSendOTP({
         widgetId: MSG91_WIDGET_ID,
         tokenAuth: MSG91_TOKEN_AUTH,
         exposeMethods: false,
       success: async (data: any) => {
+        settleHandshake();
         // Widget returns an access-token; verify it server-side before trusting.
         const accessToken =
           (typeof data === "string" ? data : null) ||
@@ -183,6 +201,7 @@ const Login = () => {
         }
       },
       failure: (err: any) => {
+        settleHandshake();
         setMsg91Loading(false);
         const errMsg = err?.message || err?.errorMessage || "";
         if (/cors|origin|domain|access-control/i.test(errMsg)) {
@@ -194,6 +213,7 @@ const Login = () => {
       },
       });
     } catch (initErr: any) {
+      settleHandshake();
       setMsg91Loading(false);
       console.error(`[MSG91] initSendOTP threw on origin: ${origin}. Likely Domain Mismatch (CORS).`, initErr);
       toast.error("Handshake Failed: Please ensure this domain is whitelisted in your MSG91 Widget settings.", { duration: 8000 });
