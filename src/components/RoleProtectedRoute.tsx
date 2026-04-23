@@ -1,5 +1,6 @@
 import { useEffect, useState, useRef } from "react";
 import { Navigate, useLocation } from "react-router-dom";
+import { toast } from "sonner";
 import { useAuth } from "@/hooks/useAuth";
 import { Loader2 } from "lucide-react";
 import { getRoleDestination, normalizeRole, isStaffRole, isPathWithinRoleDestination, fetchAuthRoleRecord } from "@/lib/auth-routing";
@@ -80,10 +81,18 @@ export default function RoleProtectedRoute({ allowedRoles, children }: Props) {
   });
   const isWithinDestination = isPathWithinRoleDestination(location.pathname, normalizedRole);
 
+  // Helper: toast + redirect when bouncing user from a forbidden route.
+  const bounce = (to: string) => {
+    if (location.pathname !== to) {
+      toast.error("Unauthorized Access — redirecting to your dashboard.");
+    }
+    return <Navigate to={to} replace />;
+  };
+
   // Staff roles: skip profileReady wait — land instantly
   if (normalizedRole && isStaffRole(normalizedRole)) {
     if (!isAllowed && !isWithinDestination) {
-      return <Navigate to={destination} replace />;
+      return bounce(destination);
     }
     return <>{children}</>;
   }
@@ -107,7 +116,7 @@ export default function RoleProtectedRoute({ allowedRoles, children }: Props) {
   }
 
   if (!isAllowed && !isWithinDestination) {
-    return <Navigate to={destination} replace />;
+    return bounce(destination);
   }
 
   return <>{children}</>;

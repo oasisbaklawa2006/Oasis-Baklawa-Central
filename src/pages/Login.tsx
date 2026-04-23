@@ -85,7 +85,15 @@ const Login = () => {
             return;
           }
           toast.success("Identity Verified via MSG91");
-          window.location.assign("/admin/cmd-war-room");
+          // Role-based redirect — never hard-code War Room.
+          // If a Supabase session exists, resolve the user's role and route accordingly.
+          // Otherwise, fall through to /welcome which routes via WelcomeGate.
+          const { data: { session } } = await supabase.auth.getSession();
+          if (session?.user?.id) {
+            await resolveRedirect(session.user.id);
+          } else {
+            window.location.assign("/welcome");
+          }
         } catch (err) {
           setMsg91Loading(false);
           toast.error("Security Breach: OTP Verification Failed.");
