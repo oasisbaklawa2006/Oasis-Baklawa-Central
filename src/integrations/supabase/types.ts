@@ -162,6 +162,7 @@ export type Database = {
           description: string | null
           event_name: string | null
           event_type: string | null
+          failure_reason: string | null
           id: string
           phone: string | null
           raw_payload: Json | null
@@ -174,6 +175,7 @@ export type Database = {
           description?: string | null
           event_name?: string | null
           event_type?: string | null
+          failure_reason?: string | null
           id?: string
           phone?: string | null
           raw_payload?: Json | null
@@ -186,6 +188,7 @@ export type Database = {
           description?: string | null
           event_name?: string | null
           event_type?: string | null
+          failure_reason?: string | null
           id?: string
           phone?: string | null
           raw_payload?: Json | null
