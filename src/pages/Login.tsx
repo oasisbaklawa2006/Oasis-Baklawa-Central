@@ -93,6 +93,17 @@ const Login = () => {
       setActiveTab("email");
     };
     document.body.appendChild(script);
+
+    // Silent failover: if the widget script never becomes callable within 10s,
+    // auto-switch the user to the Email tab so they're never stuck on a dead widget.
+    const failoverTimer = setTimeout(() => {
+      if (typeof window.initSendOTP !== "function") {
+        console.warn("[msg91] Widget not ready after 10s — failing over to Email login.");
+        toast.info("Mobile verification is taking too long. Switched to Email login.", { duration: 6000 });
+        setActiveTab("email");
+      }
+    }, 10000);
+    return () => clearTimeout(failoverTimer);
   }, []);
 
   // Trigger MSG91 widget. On success → mint session via edge function → role-redirect.
