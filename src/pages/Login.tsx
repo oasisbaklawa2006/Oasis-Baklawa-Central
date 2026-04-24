@@ -93,6 +93,17 @@ const Login = () => {
       setActiveTab("email");
     };
     document.body.appendChild(script);
+
+    // Silent failover: if the widget script never becomes callable within 10s,
+    // auto-switch the user to the Email tab so they're never stuck on a dead widget.
+    const failoverTimer = setTimeout(() => {
+      if (typeof window.initSendOTP !== "function") {
+        console.warn("[msg91] Widget not ready after 10s — failing over to Email login.");
+        toast.info("Mobile verification is taking too long. Switched to Email login.", { duration: 6000 });
+        setActiveTab("email");
+      }
+    }, 10000);
+    return () => clearTimeout(failoverTimer);
   }, []);
 
   // Trigger MSG91 widget. On success → mint session via edge function → role-redirect.
@@ -131,20 +142,21 @@ const Login = () => {
 
     setMsg91Loading(true);
 
-    // 5-second handshake timeout — MSG91 sometimes silently hangs when the
-    // domain isn't whitelisted or the widget config is stale. Reset state
-    // and surface a clear message to the user.
+    // 10-second handshake timeout — extended from 5s to give the widget more
+    // time on slower networks / preview domains. On timeout we reset state and
+    // silently fail the user over to the Email tab so they're never stuck.
     let handshakeSettled = false;
     const handshakeTimeout = setTimeout(() => {
       if (handshakeSettled) return;
       handshakeSettled = true;
       setMsg91Loading(false);
-      console.error(`[msg91] Handshake timeout (5s) on origin: ${origin}. Check MSG91 Dashboard / domain whitelist.`);
+      console.error(`[msg91] Handshake timeout (10s) on origin: ${origin}. Failing over to Email login.`);
       toast.error(
-        "Connection Timeout. If this keeps failing, your IP may be temporarily blocked by MSG91 — please wait ~15 minutes and retry, or use Email login.",
-        { duration: 10000 },
+        "Mobile verification timed out. Switched to Email login — please continue there.",
+        { duration: 8000 },
       );
-    }, 5000);
+      setActiveTab("email");
+    }, 10000);
     const settleHandshake = () => {
       handshakeSettled = true;
       clearTimeout(handshakeTimeout);
@@ -155,7 +167,13 @@ const Login = () => {
         widgetId: MSG91_WIDGET_ID,
         tokenAuth: MSG91_TOKEN_AUTH,
         exposeMethods: false,
-      success: async (data: any) => {
+        // Hardcode India (+91) and skip the api.db-ip.com auto-country lookup
+        // which fails CORS on Lovable preview domains.
+        identifier: "",
+        "country-code": "91",
+        "auto-country": false,
+        captchaRenderId: "",
+        success: async (data: any) => {
         settleHandshake();
         // Widget returns an access-token; verify it server-side before trusting.
         const accessToken =
