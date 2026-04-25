@@ -79,8 +79,34 @@ export function useAuth() {
   const fetchProfile = useCallback(async (activeUser: User) => {
     try {
       const profile = await fetchAuthRoleRecord(activeUser.id);
-      const cid = profile.company_id;
-      const r = profile.role?.trim().toUpperCase() ?? null;
+      let cid = profile.company_id;
+      let r = profile.role?.trim().toUpperCase() ?? null;
+
+      // Phone-based fallback lookup — captures role when ID lookup misses
+      const phone = activeUser.phone ?? (activeUser.user_metadata as any)?.phone ?? null;
+      if (!r && phone) {
+        try {
+          const normalized = `+${String(phone).replace(/\D/g, "")}`;
+          const { data: byPhone } = await supabase
+            .from("users")
+            .select("role, company_id")
+            .or(`phone.eq.${normalized},phone.eq.${String(phone).replace(/\D/g, "")}`)
+            .maybeSingle();
+          if (byPhone?.role) r = String(byPhone.role).toUpperCase();
+          if (!cid && byPhone?.company_id) cid = byPhone.company_id;
+        } catch (e) {
+          console.warn("[useAuth] phone-based role lookup failed", e);
+        }
+      }
+
+      // Hardcoded admin bypass for owner phone
+      const ownerPhone = phone ? `+${String(phone).replace(/\D/g, "")}` : null;
+      if (ownerPhone === "+919891162212" && (!r || r === "PENDING")) {
+        r = "ADMIN";
+      }
+
+      console.log(`[useAuth] Auth User ID: ${activeUser.id}, Phone: ${phone ?? "(none)"}, Public Profile Role: ${r ?? "(none)"}`);
+
       setCompanyId(cid);
       setRole(r);
 
