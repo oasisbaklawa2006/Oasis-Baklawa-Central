@@ -363,10 +363,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     role,
     priceTier,
     profileReady,
+    hasAppliedB2B,
+    profileStatus,
     refreshProfile,
     refreshPriceTier,
     logout,
-  }), [companyId, loading, logout, priceTier, profileReady, refreshPriceTier, refreshProfile, role, user]);
+  }), [companyId, hasAppliedB2B, loading, logout, priceTier, profileReady, profileStatus, refreshPriceTier, refreshProfile, role, user]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
