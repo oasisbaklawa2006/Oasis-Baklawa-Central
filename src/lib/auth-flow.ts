@@ -108,7 +108,7 @@ export function clearAuthCache() {
 
 export function createAuthStateController(initialStatus: AuthStatus = "idle") {
   let status = initialStatus;
-  const timers = new Set<ReturnType<typeof setTimeout>>();
+  const timers = new Set<number | ReturnType<typeof setTimeout>>();
   const abortControllers = new Set<AbortController>();
 
   return {
@@ -123,17 +123,17 @@ export function createAuthStateController(initialStatus: AuthStatus = "idle") {
         });
       }
     },
-    registerTimer: (timer: ReturnType<typeof setTimeout>) => {
+    registerTimer: (timer: number | ReturnType<typeof setTimeout>) => {
       timers.add(timer);
       return timer;
     },
-    clearTimer: (timer: ReturnType<typeof setTimeout> | null | undefined) => {
+    clearTimer: (timer: number | ReturnType<typeof setTimeout> | null | undefined) => {
       if (!timer) return;
-      clearTimeout(timer);
+      clearTimeout(timer as ReturnType<typeof setTimeout>);
       timers.delete(timer);
     },
     clearAllTimers: () => {
-      timers.forEach((timer) => clearTimeout(timer));
+      timers.forEach((timer) => clearTimeout(timer as ReturnType<typeof setTimeout>));
       timers.clear();
     },
     createAbortController: () => {
@@ -142,7 +142,7 @@ export function createAuthStateController(initialStatus: AuthStatus = "idle") {
       return controller;
     },
     finalize: () => {
-      timers.forEach((timer) => clearTimeout(timer));
+      timers.forEach((timer) => clearTimeout(timer as ReturnType<typeof setTimeout>));
       timers.clear();
       abortControllers.forEach((controller) => controller.abort());
       abortControllers.clear();
