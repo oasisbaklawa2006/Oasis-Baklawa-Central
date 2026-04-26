@@ -1151,12 +1151,14 @@ serve(async (req) => {
     const msg = e instanceof Error ? e.message : "Unexpected error";
     console.error("whatsapp-webhook error:", msg);
 
-    await supabaseAdmin.from("debug_webhooks").insert({
-      direction: "inbound",
-      raw_payload: { error: msg },
-      error_message: msg,
-      processed: false,
-    }).catch(() => {});
+    try {
+      await supabaseAdmin.from("debug_webhooks").insert({
+        direction: "inbound",
+        raw_payload: { error: msg },
+        error_message: msg,
+        processed: false,
+      });
+    } catch { /* swallow */ }
 
     return new Response(JSON.stringify({ error: msg }), {
       status: 500,
