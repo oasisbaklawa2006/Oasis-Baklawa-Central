@@ -214,6 +214,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setCompanyId(resolvedCompanyId);
       setRole(resolvedRole);
       setPriceTier(nextPriceTier);
+      setHasAppliedB2B(Boolean(b2bAppRow.data?.id));
+      setProfileStatus(profileRow.data?.status ?? null);
       setProfileReady(true);
 
       console.log(`[useAuth] Auth User ID: ${activeUser.id}, Public Profile Role: ${resolvedRole ?? "(none)"}`);
