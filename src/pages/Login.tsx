@@ -39,6 +39,7 @@ const Login = () => {
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [isMsg91Ready, setIsMsg91Ready] = useState(false);
+  const [widgetEpoch, setWidgetEpoch] = useState(0);
   const controllerRef = useRef(createAuthStateController("idle"));
   const attemptRef = useRef<{ id: string; method: AuthAttemptMethod; identifier: string | null } | null>(null);
 
@@ -150,7 +151,7 @@ const Login = () => {
     return () => {
       controllerRef.current.finalize();
     };
-  }, []);
+  }, [widgetEpoch]);
 
   useEffect(() => {
     updateStatus("entering_identifier", { result: "info", details: { tab: activeTab } });
@@ -158,6 +159,19 @@ const Login = () => {
       setStatusMessage(null);
     }
   }, [activeTab]);
+
+  const teardownMsg91Widget = () => {
+    if (typeof document === "undefined") return;
+    try {
+      document
+        .querySelectorAll(
+          "[id^='msg91'], [class*='msg91'], iframe[src*='msg91'], #msg91-otp-provider",
+        )
+        .forEach((node) => node.parentElement?.removeChild(node));
+    } catch {}
+    try { delete (window as any).initSendOTP; } catch {}
+    setIsMsg91Ready(false);
+  };
 
   const finalizeFailure = async (message: string, finalState: AuthStatus = "failed", shouldSignOut = false) => {
     controllerRef.current.clearAllTimers();
@@ -168,11 +182,18 @@ const Login = () => {
     updateStatus(finalState, { result: "failed", error: message });
     setStatusMessage(message);
     setLoading(false);
+    // Force a clean widget re-init on next attempt so retries are deterministic.
+    teardownMsg91Widget();
+    setWidgetEpoch((n) => n + 1);
   };
 
   const launchMsg91Widget = () => {
-    if (typeof window === "undefined" || !isMsg91Ready || typeof window.initSendOTP !== "function") {
-      toast.error("MSG91 widget is still loading — please retry in a moment.");
+    if (typeof window === "undefined") return;
+    if (!isMsg91Ready || typeof window.initSendOTP !== "function") {
+      // Auto-bootstrap (e.g. after a previous teardown) instead of yelling at the user.
+      teardownMsg91Widget();
+      setWidgetEpoch((n) => n + 1);
+      toast.message("Preparing secure widget…", { description: "Tap Verify with MSG91 again in a second." });
       return;
     }
 
@@ -214,8 +235,35 @@ const Login = () => {
           // ── HARD GUARD #2: Cancel ALL armed timers IMMEDIATELY. No path can show "timed out" + "verified". ──
           controllerRef.current.clearAllTimers();
 
-          const accessToken = payload?.message || payload?.["access-token"] || payload?.accessToken || (typeof payload === "string" ? payload : null);
-          const verifiedPhone = payload?.mobile || payload?.phone || payload?.message?.mobile || payload?.data?.mobile || null;
+          // MSG91 widget success payload is documented to be the access-token string
+          // OR an object containing { message: <access-token>, ... }. We accept all sensible shapes.
+          const accessToken =
+            (typeof payload === "string" ? payload : null) ||
+            payload?.["access-token"] ||
+            payload?.accessToken ||
+            payload?.access_token ||
+            (typeof payload?.message === "string" ? payload.message : null) ||
+            payload?.data?.message ||
+            payload?.data?.["access-token"] ||
+            payload?.data?.accessToken ||
+            null;
+          const verifiedPhone =
+            payload?.mobile ||
+            payload?.phone ||
+            payload?.identifier ||
+            payload?.data?.mobile ||
+            payload?.data?.identifier ||
+            (typeof payload?.message === "object" ? payload?.message?.mobile : null) ||
+            null;
+          console.info("[auth] MSG91 success payload", {
+            hasAccessToken: Boolean(accessToken),
+            verifiedPhone: verifiedPhone ? String(verifiedPhone).slice(-4).padStart(String(verifiedPhone).length, "*") : null,
+            payloadKeys: payload && typeof payload === "object" ? Object.keys(payload) : typeof payload,
+          });
+          if (!accessToken) {
+            await finalizeFailure("Verification did not return a valid token. Please retry or use Email login.", "failed", false);
+            return;
+          }
           const normalizedIdentifier = verifiedPhone ? normalizeIdentifier(String(verifiedPhone)).normalized : null;
           attemptRef.current = { id: attemptId, method, identifier: normalizedIdentifier };
 
