@@ -598,7 +598,7 @@ serve(async (req) => {
     }
 
     // Guard: skip outgoing echoes or status updates
-    const direction = payload?.direction || payload?.statuses ? "status" : "";
+    const direction: string = (payload?.direction as string) || (payload?.statuses ? "status" : "");
     if (direction === "outgoing" || direction === "sent" || direction === "status") {
       if (payload?.statuses) {
         console.log("Status update received, skipping:", JSON.stringify(payload.statuses).substring(0, 200));
