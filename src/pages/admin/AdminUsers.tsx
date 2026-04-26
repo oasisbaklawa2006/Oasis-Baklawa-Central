@@ -378,6 +378,24 @@ const AdminUsers = () => {
       new_value: { role: nf.role, email: nf.email, auth_created: true },
     });
 
+    // Optimistic UI: prepend new user to local state so the table reflects the change instantly.
+    const optimisticUser: UserRow = {
+      id: newUserId,
+      email: nf.email.trim(),
+      full_name: nf.name,
+      role: nf.role,
+      department: nf.dept || null,
+      designation: nf.designation || null,
+      is_active: true,
+      invite_status: "active",
+      mobile_number: nf.mobile || null,
+      company_id: null,
+      created_at: new Date().toISOString(),
+      commission_rate_percentage: null,
+      is_sales_executive: nf.role === "sales_executive",
+    };
+    setUsers((prev) => [optimisticUser, ...prev.filter((u) => u.id !== newUserId)]);
+
     // Show credentials modal
     setCreatedCredentials({ name: nf.name, email: nf.email.trim(), password: chosenPassword, role: nf.role });
     setShowCredentialsModal(true);
@@ -385,7 +403,8 @@ const AdminUsers = () => {
     setShowModal(false);
     setNf({ name: "", email: "", mobile: "", dept: "", designation: "", role: "", password: "", status: "invited" });
     setSelectedPermIds([]);
-    fetchData();
+    // Background reconciliation — does not block the UI.
+    void fetchData();
     setSaving(null);
   };
 
