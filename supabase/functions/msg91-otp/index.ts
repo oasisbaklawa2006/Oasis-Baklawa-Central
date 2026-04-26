@@ -182,6 +182,13 @@ async function verifyAccessToken(accessToken: string): Promise<{ ok: boolean; ra
       body: JSON.stringify({ authkey: AUTH_KEY, "access-token": accessToken }),
     });
     const raw = await res.json().catch(() => ({}));
+    console.log("[msg91-otp] verifyAccessToken response", JSON.stringify({
+      ok: res.ok,
+      status: res.status,
+      authKey: maskSecret(AUTH_KEY),
+      accessToken: maskSecret(accessToken),
+      raw,
+    }));
     const ok = res.ok && (raw?.type === "success");
     return { ok, raw };
   } catch (e) {
@@ -284,6 +291,11 @@ serve(async (req) => {
     }
 
     if (body.mode === "verify_widget") {
+      console.log("[msg91-otp] verify_widget request", JSON.stringify({
+        mode: body.mode,
+        accessToken: maskSecret(body.accessToken ?? null),
+        phone: body.phone ?? null,
+      }));
       if (!body.accessToken) {
         return new Response(JSON.stringify({ ok: false, error: "accessToken required" }), {
           status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -299,15 +311,17 @@ serve(async (req) => {
 
       // ── Mint a Supabase session for the verified phone ──
       // Phone may come from request body OR from MSG91's verifyAccessToken response.
-      const rawPhone =
-        body.phone ||
-        result.raw?.message?.mobile ||
-        result.raw?.data?.mobile ||
-        result.raw?.mobile ||
-        "";
+      const rawPhone = extractVerifiedPhone(result.raw, body.phone ?? null) || "";
       const normalized = to91(String(rawPhone));
       if (!normalized || normalized.length < 10) {
         // Verification succeeded but no phone available — return ok without session.
+        console.log("[msg91-otp] verify_widget response", JSON.stringify({
+          ok: true,
+          type: "success",
+          session: null,
+          reason: "phone_missing",
+          raw: result.raw,
+        }));
         return new Response(
           JSON.stringify({ ok: true, type: "success", session: null, reason: "phone_missing", raw: result.raw }),
           { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
@@ -327,6 +341,15 @@ serve(async (req) => {
       }
 
       const tokenHash = await mintMagicTokenHash(upsertRes.email);
+      console.log("[msg91-otp] verify_widget response", JSON.stringify({
+        ok: true,
+        type: "success",
+        user_id: upsertRes.userId,
+        email: upsertRes.email,
+        phone: e164,
+        is_new: upsertRes.isNew,
+        token_hash: maskSecret(tokenHash),
+      }));
       return new Response(
         JSON.stringify({
           ok: true,
