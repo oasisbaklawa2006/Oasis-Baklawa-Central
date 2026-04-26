@@ -158,7 +158,7 @@ serve(async (req) => {
         });
       }
 
-      if (audiences.includes("sales_exec") && company.account_manager_id) {
+      if (audiences.includes("sales_exec") && company?.account_manager_id) {
         const { data: exec } = await supabase
           .from("users")
           .select("email, phone")
