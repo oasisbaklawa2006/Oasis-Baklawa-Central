@@ -598,7 +598,7 @@ serve(async (req) => {
     }
 
     // Guard: skip outgoing echoes or status updates
-    const direction = payload?.direction || payload?.statuses ? "status" : "";
+    const direction: string = (payload?.direction as string) || (payload?.statuses ? "status" : "");
     if (direction === "outgoing" || direction === "sent" || direction === "status") {
       if (payload?.statuses) {
         console.log("Status update received, skipping:", JSON.stringify(payload.statuses).substring(0, 200));
@@ -1151,12 +1151,14 @@ serve(async (req) => {
     const msg = e instanceof Error ? e.message : "Unexpected error";
     console.error("whatsapp-webhook error:", msg);
 
-    await supabaseAdmin.from("debug_webhooks").insert({
-      direction: "inbound",
-      raw_payload: { error: msg },
-      error_message: msg,
-      processed: false,
-    }).catch(() => {});
+    try {
+      await supabaseAdmin.from("debug_webhooks").insert({
+        direction: "inbound",
+        raw_payload: { error: msg },
+        error_message: msg,
+        processed: false,
+      });
+    } catch { /* swallow */ }
 
     return new Response(JSON.stringify({ error: msg }), {
       status: 500,
