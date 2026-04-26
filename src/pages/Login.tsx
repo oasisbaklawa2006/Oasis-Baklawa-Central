@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import logoImg from "@/assets/logo-open.png";
-import { createAuthStateController, completeAuthLogin, getAuthUserMessage, type AuthStatus } from "@/lib/auth-flow";
+import { createAuthStateController, completeAuthLogin, getAuthUserMessage, readAuthCache, type AuthStatus } from "@/lib/auth-flow";
 import { createAuthAttemptId, logAuthEvent, type AuthAttemptMethod } from "@/lib/auth-logging";
 import { normalizeIdentifier } from "@/lib/auth-identity";
 import { signOutAndClearSession } from "@/utils/authSession";
