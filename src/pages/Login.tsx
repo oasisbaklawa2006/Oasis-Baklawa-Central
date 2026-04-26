@@ -55,6 +55,29 @@ const Login = () => {
   const [isMsg91Ready, setIsMsg91Ready] = useState(false);
   // Retry guard so the silent re-attempt on AuthenticationFailure runs once.
   const msg91RetriedRef = useRef(false);
+  // Auth state machine — single source of truth for MSG91 → Supabase pipeline.
+  const [authStatus, setAuthStatus] = useState<AuthStatus>("IDLE");
+  const authStatusRef = useRef<AuthStatus>("IDLE");
+  const handshakeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Status setter that respects the SUCCESS terminal state — once SUCCESS is
+  // entered, no later TIMEOUT/ERROR can override it.
+  const setAuthStatusSafe = (next: AuthStatus) => {
+    if (authStatusRef.current === "SUCCESS" && next !== "SUCCESS") return;
+    authStatusRef.current = next;
+    setAuthStatus(next);
+  };
+
+  const clearHandshakeTimer = () => {
+    if (handshakeTimerRef.current) {
+      clearTimeout(handshakeTimerRef.current);
+      handshakeTimerRef.current = null;
+    }
+  };
+
+  const isMinting =
+    authStatus === "VERIFYING_OTP" || authStatus === "MINTING_SESSION";
+
   const navigate = useNavigate();
 
   // Load MSG91 OTP widget script once on mount; flip `isMsg91Ready` only
