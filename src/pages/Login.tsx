@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { LogIn, Eye, EyeOff, Loader2, Mail, ShieldCheck } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { Input } from "@/components/ui/input";
@@ -82,6 +82,21 @@ function maskSecret(value?: string | null) {
   return `${value.slice(0, 4)}***${value.slice(-4)}`;
 }
 
+function sanitizeAuthDebugPayload(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map((item) => sanitizeAuthDebugPayload(item));
+  if (!value || typeof value !== "object") return value;
+
+  return Object.fromEntries(
+    Object.entries(value as Record<string, unknown>).map(([key, entryValue]) => {
+      const normalizedKey = key.toLowerCase();
+      if (["access-token", "accesstoken", "access_token", "token_hash", "tokenhash"].includes(normalizedKey)) {
+        return [key, maskSecret(typeof entryValue === "string" ? entryValue : null)];
+      }
+      return [key, sanitizeAuthDebugPayload(entryValue)];
+    }),
+  );
+}
+
 const Login = () => {
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState<AuthTab>("msg91");
@@ -163,48 +178,69 @@ const Login = () => {
     }
   };
 
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-
-    const markReadyWhenAvailable = () => {
-      if (typeof window.initSendOTP === "function") {
-        setIsMsg91Ready(true);
-        return true;
-      }
-      return false;
-    };
-
-    const existing = document.getElementById("msg91-otp-provider") as HTMLScriptElement | null;
-    if (existing) {
-      if (markReadyWhenAvailable()) return;
-      existing.addEventListener("load", () => markReadyWhenAvailable(), { once: true });
-      const poll = window.setInterval(() => {
-        if (markReadyWhenAvailable()) window.clearInterval(poll);
-      }, 250);
-      return () => window.clearInterval(poll);
+  const ensureMsg91Provider = useCallback(() => {
+    if (typeof window === "undefined") return Promise.resolve();
+    if (typeof window.initSendOTP === "function") {
+      setIsMsg91Ready(true);
+      return Promise.resolve();
     }
+    if (providerLoadRef.current) return providerLoadRef.current;
 
-    const script = document.createElement("script");
-    script.id = "msg91-otp-provider";
-    script.src = "https://verify.msg91.com/otp-provider.js";
-    script.async = true;
-    script.onload = () => {
-      if (markReadyWhenAvailable()) return;
-      const poll = window.setInterval(() => {
-        if (markReadyWhenAvailable()) window.clearInterval(poll);
-      }, 250);
-    };
-    script.onerror = () => {
-      setIsMsg91Ready(false);
+    providerLoadRef.current = new Promise<void>((resolve, reject) => {
+      const markReadyWhenAvailable = () => {
+        if (typeof window.initSendOTP === "function") {
+          setIsMsg91Ready(true);
+          resolve();
+          return true;
+        }
+        return false;
+      };
+
+      const existing = document.getElementById(MSG91_PROVIDER_SCRIPT_ID) as HTMLScriptElement | null;
+      if (existing) {
+        if (markReadyWhenAvailable()) return;
+        const poll = window.setInterval(() => {
+          if (markReadyWhenAvailable()) window.clearInterval(poll);
+        }, 250);
+        existing.addEventListener("error", () => {
+          window.clearInterval(poll);
+          providerLoadRef.current = null;
+          reject(new Error("msg91_provider_load_failed"));
+        }, { once: true });
+        return;
+      }
+
+      const script = document.createElement("script");
+      script.id = MSG91_PROVIDER_SCRIPT_ID;
+      script.src = "https://verify.msg91.com/otp-provider.js";
+      script.async = true;
+      script.onload = () => {
+        if (markReadyWhenAvailable()) return;
+        const poll = window.setInterval(() => {
+          if (markReadyWhenAvailable()) window.clearInterval(poll);
+        }, 250);
+      };
+      script.onerror = () => {
+        providerLoadRef.current = null;
+        setIsMsg91Ready(false);
+        reject(new Error("msg91_provider_load_failed"));
+      };
+      document.body.appendChild(script);
+    });
+
+    return providerLoadRef.current;
+  }, []);
+
+  useEffect(() => {
+    void ensureMsg91Provider().catch(() => {
       setStatusMessage("Mobile verification is unavailable right now. Please use Email login.");
       setActiveTab("email");
-    };
-    document.body.appendChild(script);
+    });
 
     return () => {
       controllerRef.current.finalize();
     };
-  }, [widgetEpoch]);
+  }, [ensureMsg91Provider]);
 
   useEffect(() => {
     updateStatus("entering_identifier", { result: "info", details: { tab: activeTab } });
@@ -218,12 +254,10 @@ const Login = () => {
     try {
       document
         .querySelectorAll(
-          "[id^='msg91'], [class*='msg91'], iframe[src*='msg91'], #msg91-otp-provider",
+          "[id^='msg91'], [class*='msg91'], iframe[src*='msg91']",
         )
         .forEach((node) => node.parentElement?.removeChild(node));
     } catch {}
-    try { delete (window as any).initSendOTP; } catch {}
-    setIsMsg91Ready(false);
   };
 
   const finalizeFailure = async (message: string, finalState: AuthStatus = "failed", shouldSignOut = false) => {
@@ -235,18 +269,14 @@ const Login = () => {
     updateStatus(finalState, { result: "failed", error: message });
     setStatusMessage(message);
     setLoading(false);
-    // Force a clean widget re-init on next attempt so retries are deterministic.
     teardownMsg91Widget();
-    setWidgetEpoch((n) => n + 1);
   };
 
   const launchMsg91Widget = () => {
     if (typeof window === "undefined") return;
     if (!isMsg91Ready || typeof window.initSendOTP !== "function") {
-      // Auto-bootstrap (e.g. after a previous teardown) instead of yelling at the user.
-      teardownMsg91Widget();
-      setWidgetEpoch((n) => n + 1);
-      toast.message("Preparing secure widget…", { description: "Tap Verify with MSG91 again in a second." });
+      void ensureMsg91Provider();
+      setStatusMessage("Secure widget is still loading. Please wait a moment.");
       return;
     }
 
