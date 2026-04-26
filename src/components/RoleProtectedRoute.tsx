@@ -13,7 +13,7 @@ interface Props {
 
 export default function RoleProtectedRoute({ allowedRoles, children }: Props) {
   const location = useLocation();
-  const { user, loading: authLoading, role, profileReady } = useAuth();
+  const { user, loading: authLoading, role, profileReady, hasAppliedB2B, profileStatus } = useAuth();
   const [serverVerified, setServerVerified] = useState(false);
   const normalizedRole = normalizeRole(role);
 
