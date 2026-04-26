@@ -42,6 +42,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [role, setRole] = useState<string | null>(null);
   const [priceTier, setPriceTier] = useState<string | null>(null);
   const [profileReady, setProfileReady] = useState(false);
+  const [hasAppliedB2B, setHasAppliedB2B] = useState(false);
+  const [profileStatus, setProfileStatus] = useState<string | null>(null);
 
   const bootstrapTokenRef = useRef(0);
   const cachedProfileRef = useRef<AuthCache | null>(null);
