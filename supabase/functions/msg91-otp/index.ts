@@ -138,6 +138,37 @@ function genOtp(): string {
   return String(Math.floor(100000 + Math.random() * 900000));
 }
 
+function firstString(...values: unknown[]): string | null {
+  for (const value of values) {
+    if (typeof value === "string" && value.trim()) return value.trim();
+  }
+  return null;
+}
+
+function maskSecret(value?: string | null): string | null {
+  if (!value) return null;
+  if (value.length <= 8) return `${value.slice(0, 2)}***${value.slice(-2)}`;
+  return `${value.slice(0, 4)}***${value.slice(-4)}`;
+}
+
+function extractVerifiedPhone(raw: any, requestPhone?: string | null): string | null {
+  return firstString(
+    requestPhone,
+    raw?.message?.mobile,
+    raw?.message?.phone,
+    raw?.message?.identifier,
+    raw?.message?.number,
+    raw?.data?.mobile,
+    raw?.data?.phone,
+    raw?.data?.identifier,
+    raw?.data?.number,
+    raw?.mobile,
+    raw?.phone,
+    raw?.identifier,
+    raw?.number,
+  );
+}
+
 // ---- MSG91 Widget server-side verification --------------------------------
 // Docs: POST https://api.msg91.com/api/v5/widget/verifyAccessToken
 //   Headers: Content-Type: application/json, Accept: application/json
@@ -151,6 +182,13 @@ async function verifyAccessToken(accessToken: string): Promise<{ ok: boolean; ra
       body: JSON.stringify({ authkey: AUTH_KEY, "access-token": accessToken }),
     });
     const raw = await res.json().catch(() => ({}));
+    console.log("[msg91-otp] verifyAccessToken response", JSON.stringify({
+      ok: res.ok,
+      status: res.status,
+      authKey: maskSecret(AUTH_KEY),
+      accessToken: maskSecret(accessToken),
+      raw,
+    }));
     const ok = res.ok && (raw?.type === "success");
     return { ok, raw };
   } catch (e) {
@@ -253,6 +291,11 @@ serve(async (req) => {
     }
 
     if (body.mode === "verify_widget") {
+      console.log("[msg91-otp] verify_widget request", JSON.stringify({
+        mode: body.mode,
+        accessToken: maskSecret(body.accessToken ?? null),
+        phone: body.phone ?? null,
+      }));
       if (!body.accessToken) {
         return new Response(JSON.stringify({ ok: false, error: "accessToken required" }), {
           status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -268,15 +311,17 @@ serve(async (req) => {
 
       // ── Mint a Supabase session for the verified phone ──
       // Phone may come from request body OR from MSG91's verifyAccessToken response.
-      const rawPhone =
-        body.phone ||
-        result.raw?.message?.mobile ||
-        result.raw?.data?.mobile ||
-        result.raw?.mobile ||
-        "";
+      const rawPhone = extractVerifiedPhone(result.raw, body.phone ?? null) || "";
       const normalized = to91(String(rawPhone));
       if (!normalized || normalized.length < 10) {
         // Verification succeeded but no phone available — return ok without session.
+        console.log("[msg91-otp] verify_widget response", JSON.stringify({
+          ok: true,
+          type: "success",
+          session: null,
+          reason: "phone_missing",
+          raw: result.raw,
+        }));
         return new Response(
           JSON.stringify({ ok: true, type: "success", session: null, reason: "phone_missing", raw: result.raw }),
           { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
@@ -296,6 +341,15 @@ serve(async (req) => {
       }
 
       const tokenHash = await mintMagicTokenHash(upsertRes.email);
+      console.log("[msg91-otp] verify_widget response", JSON.stringify({
+        ok: true,
+        type: "success",
+        user_id: upsertRes.userId,
+        email: upsertRes.email,
+        phone: e164,
+        is_new: upsertRes.isNew,
+        token_hash: maskSecret(tokenHash),
+      }));
       return new Response(
         JSON.stringify({
           ok: true,

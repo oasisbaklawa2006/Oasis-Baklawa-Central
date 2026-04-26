@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { LogIn, Eye, EyeOff, Loader2, Mail, ShieldCheck } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { Input } from "@/components/ui/input";
@@ -12,6 +12,7 @@ import { signOutAndClearSession } from "@/utils/authSession";
 
 const MSG91_WIDGET_ID = "3664766e464b383030383331";
 const MSG91_TOKEN_AUTH = "509994T6SRbi4LqM69ea72d0P1";
+const MSG91_PROVIDER_SCRIPT_ID = "msg91-otp-provider";
 
 type AuthTab = "msg91" | "email";
 
@@ -22,11 +23,84 @@ declare global {
 }
 
 function mapOtpErrorMessage(rawMessage?: string | null) {
-  const message = (rawMessage ?? "").toLowerCase();
+  const normalized = rawMessage ?? "";
+  const stageMessage = normalized.includes(":") ? normalized.split(":").slice(1).join(":") : normalized;
+  const message = stageMessage.toLowerCase();
+  if (message.includes("phone_missing_from_widget_and_edge")) return "Phone number was missing after verification. Please retry.";
+  if (message.includes("token_hash_missing")) return "Verification succeeded, but session token generation failed. Please retry.";
+  if (message.includes("user_id_missing")) return "Verification succeeded, but account binding failed. Please retry.";
+  if (message.includes("provider_not_linked") || message.includes("phone_not_linked")) return "This phone number is not linked to an approved account.";
   if (message.includes("expired")) return "OTP expired. Please request a new code.";
   if (message.includes("invalid")) return "OTP invalid. Please enter the correct code and try again.";
   if (message.includes("network")) return "Network error. Please check your connection and try again.";
   return "OTP verification failed. Please try again.";
+}
+
+function firstNonEmptyString(...values: unknown[]) {
+  for (const value of values) {
+    if (typeof value === "string" && value.trim()) return value.trim();
+  }
+  return null;
+}
+
+function extractMsg91AccessToken(payload: any) {
+  return firstNonEmptyString(
+    typeof payload === "string" ? payload : null,
+    payload?.["access-token"],
+    payload?.accessToken,
+    payload?.access_token,
+    typeof payload?.message === "string" ? payload.message : null,
+    payload?.message?.["access-token"],
+    payload?.message?.accessToken,
+    payload?.message?.access_token,
+    payload?.data?.message,
+    payload?.data?.["access-token"],
+    payload?.data?.accessToken,
+    payload?.data?.access_token,
+  );
+}
+
+function extractMsg91Phone(payload: any) {
+  return firstNonEmptyString(
+    payload?.mobile,
+    payload?.phone,
+    payload?.identifier,
+    payload?.number,
+    payload?.msisdn,
+    payload?.message?.mobile,
+    payload?.message?.phone,
+    payload?.message?.identifier,
+    payload?.message?.number,
+    payload?.message?.msisdn,
+    payload?.data?.mobile,
+    payload?.data?.phone,
+    payload?.data?.identifier,
+    payload?.data?.number,
+    payload?.data?.msisdn,
+    payload?.data?.user?.mobile,
+    payload?.data?.user?.phone,
+  );
+}
+
+function maskSecret(value?: string | null) {
+  if (!value) return null;
+  if (value.length <= 8) return `${value.slice(0, 2)}***${value.slice(-2)}`;
+  return `${value.slice(0, 4)}***${value.slice(-4)}`;
+}
+
+function sanitizeAuthDebugPayload(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map((item) => sanitizeAuthDebugPayload(item));
+  if (!value || typeof value !== "object") return value;
+
+  return Object.fromEntries(
+    Object.entries(value as Record<string, unknown>).map(([key, entryValue]) => {
+      const normalizedKey = key.toLowerCase();
+      if (["access-token", "accesstoken", "access_token", "token_hash", "tokenhash"].includes(normalizedKey)) {
+        return [key, maskSecret(typeof entryValue === "string" ? entryValue : null)];
+      }
+      return [key, sanitizeAuthDebugPayload(entryValue)];
+    }),
+  );
 }
 
 const Login = () => {
@@ -39,9 +113,9 @@ const Login = () => {
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [isMsg91Ready, setIsMsg91Ready] = useState(false);
-  const [widgetEpoch, setWidgetEpoch] = useState(0);
   const controllerRef = useRef(createAuthStateController("idle"));
   const attemptRef = useRef<{ id: string; method: AuthAttemptMethod; identifier: string | null } | null>(null);
+  const providerLoadRef = useRef<Promise<void> | null>(null);
 
   const isMinting = useMemo(
     () => ["verifying_otp", "verification_success", "session_creation_in_progress", "account_resolution_in_progress", "profile_loading", "role_loading"].includes(authStatus),
@@ -71,13 +145,19 @@ const Login = () => {
     const currentAttemptId = attemptId ?? createAuthAttemptId();
     const normalized = normalizeIdentifier(identity);
 
-    const result = await completeAuthLogin({
-      identity: normalized.normalized,
-      method,
-      userId,
-      attemptId: currentAttemptId,
-      setStatus: (next, meta) => updateStatus(next, meta),
-    });
+    let result;
+    try {
+      result = await completeAuthLogin({
+        identity: normalized.normalized,
+        method,
+        userId,
+        attemptId: currentAttemptId,
+        setStatus: (next, meta) => updateStatus(next, meta),
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "account_resolution_failed";
+      throw new Error(`ACCOUNT_RESOLUTION_FAILED:${message}`);
+    }
 
     logAuthEvent("REDIRECT_STARTED", {
       attemptId: currentAttemptId,
@@ -106,52 +186,73 @@ const Login = () => {
         error: message,
         details: { destination: result.destination },
       });
-      throw error;
+      throw new Error(`REDIRECT_FAILED:${message}`);
     }
   };
 
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-
-    const markReadyWhenAvailable = () => {
-      if (typeof window.initSendOTP === "function") {
-        setIsMsg91Ready(true);
-        return true;
-      }
-      return false;
-    };
-
-    const existing = document.getElementById("msg91-otp-provider") as HTMLScriptElement | null;
-    if (existing) {
-      if (markReadyWhenAvailable()) return;
-      existing.addEventListener("load", () => markReadyWhenAvailable(), { once: true });
-      const poll = window.setInterval(() => {
-        if (markReadyWhenAvailable()) window.clearInterval(poll);
-      }, 250);
-      return () => window.clearInterval(poll);
+  const ensureMsg91Provider = useCallback(() => {
+    if (typeof window === "undefined") return Promise.resolve();
+    if (typeof window.initSendOTP === "function") {
+      setIsMsg91Ready(true);
+      return Promise.resolve();
     }
+    if (providerLoadRef.current) return providerLoadRef.current;
 
-    const script = document.createElement("script");
-    script.id = "msg91-otp-provider";
-    script.src = "https://verify.msg91.com/otp-provider.js";
-    script.async = true;
-    script.onload = () => {
-      if (markReadyWhenAvailable()) return;
-      const poll = window.setInterval(() => {
-        if (markReadyWhenAvailable()) window.clearInterval(poll);
-      }, 250);
-    };
-    script.onerror = () => {
-      setIsMsg91Ready(false);
+    providerLoadRef.current = new Promise<void>((resolve, reject) => {
+      const markReadyWhenAvailable = () => {
+        if (typeof window.initSendOTP === "function") {
+          setIsMsg91Ready(true);
+          resolve();
+          return true;
+        }
+        return false;
+      };
+
+      const existing = document.getElementById(MSG91_PROVIDER_SCRIPT_ID) as HTMLScriptElement | null;
+      if (existing) {
+        if (markReadyWhenAvailable()) return;
+        const poll = window.setInterval(() => {
+          if (markReadyWhenAvailable()) window.clearInterval(poll);
+        }, 250);
+        existing.addEventListener("error", () => {
+          window.clearInterval(poll);
+          providerLoadRef.current = null;
+          reject(new Error("msg91_provider_load_failed"));
+        }, { once: true });
+        return;
+      }
+
+      const script = document.createElement("script");
+      script.id = MSG91_PROVIDER_SCRIPT_ID;
+      script.src = "https://verify.msg91.com/otp-provider.js";
+      script.async = true;
+      script.onload = () => {
+        if (markReadyWhenAvailable()) return;
+        const poll = window.setInterval(() => {
+          if (markReadyWhenAvailable()) window.clearInterval(poll);
+        }, 250);
+      };
+      script.onerror = () => {
+        providerLoadRef.current = null;
+        setIsMsg91Ready(false);
+        reject(new Error("msg91_provider_load_failed"));
+      };
+      document.body.appendChild(script);
+    });
+
+    return providerLoadRef.current;
+  }, []);
+
+  useEffect(() => {
+    void ensureMsg91Provider().catch(() => {
       setStatusMessage("Mobile verification is unavailable right now. Please use Email login.");
       setActiveTab("email");
-    };
-    document.body.appendChild(script);
+    });
 
     return () => {
       controllerRef.current.finalize();
     };
-  }, [widgetEpoch]);
+  }, [ensureMsg91Provider]);
 
   useEffect(() => {
     updateStatus("entering_identifier", { result: "info", details: { tab: activeTab } });
@@ -165,12 +266,10 @@ const Login = () => {
     try {
       document
         .querySelectorAll(
-          "[id^='msg91'], [class*='msg91'], iframe[src*='msg91'], #msg91-otp-provider",
+          "[id^='msg91'], [class*='msg91'], iframe[src*='msg91']",
         )
         .forEach((node) => node.parentElement?.removeChild(node));
     } catch {}
-    try { delete (window as any).initSendOTP; } catch {}
-    setIsMsg91Ready(false);
   };
 
   const finalizeFailure = async (message: string, finalState: AuthStatus = "failed", shouldSignOut = false) => {
@@ -182,18 +281,14 @@ const Login = () => {
     updateStatus(finalState, { result: "failed", error: message });
     setStatusMessage(message);
     setLoading(false);
-    // Force a clean widget re-init on next attempt so retries are deterministic.
     teardownMsg91Widget();
-    setWidgetEpoch((n) => n + 1);
   };
 
   const launchMsg91Widget = () => {
     if (typeof window === "undefined") return;
     if (!isMsg91Ready || typeof window.initSendOTP !== "function") {
-      // Auto-bootstrap (e.g. after a previous teardown) instead of yelling at the user.
-      teardownMsg91Widget();
-      setWidgetEpoch((n) => n + 1);
-      toast.message("Preparing secure widget…", { description: "Tap Verify with MSG91 again in a second." });
+      void ensureMsg91Provider();
+      setStatusMessage("Secure widget is still loading. Please wait a moment.");
       return;
     }
 
@@ -235,30 +330,12 @@ const Login = () => {
           // ── HARD GUARD #2: Cancel ALL armed timers IMMEDIATELY. No path can show "timed out" + "verified". ──
           controllerRef.current.clearAllTimers();
 
-          // MSG91 widget success payload is documented to be the access-token string
-          // OR an object containing { message: <access-token>, ... }. We accept all sensible shapes.
-          const accessToken =
-            (typeof payload === "string" ? payload : null) ||
-            payload?.["access-token"] ||
-            payload?.accessToken ||
-            payload?.access_token ||
-            (typeof payload?.message === "string" ? payload.message : null) ||
-            payload?.data?.message ||
-            payload?.data?.["access-token"] ||
-            payload?.data?.accessToken ||
-            null;
-          const verifiedPhone =
-            payload?.mobile ||
-            payload?.phone ||
-            payload?.identifier ||
-            payload?.data?.mobile ||
-            payload?.data?.identifier ||
-            (typeof payload?.message === "object" ? payload?.message?.mobile : null) ||
-            null;
-          console.info("[auth] MSG91 success payload", {
-            hasAccessToken: Boolean(accessToken),
-            verifiedPhone: verifiedPhone ? String(verifiedPhone).slice(-4).padStart(String(verifiedPhone).length, "*") : null,
-            payloadKeys: payload && typeof payload === "object" ? Object.keys(payload) : typeof payload,
+          const accessToken = extractMsg91AccessToken(payload);
+          const verifiedPhone = extractMsg91Phone(payload);
+          console.info("[auth] MSG91 success payload raw", sanitizeAuthDebugPayload(payload));
+          console.info("[auth] MSG91 success payload parsed", {
+            accessToken: maskSecret(accessToken),
+            verifiedPhone,
           });
           if (!accessToken) {
             await finalizeFailure("Verification did not return a valid token. Please retry or use Email login.", "failed", false);
@@ -293,14 +370,40 @@ const Login = () => {
               body: { mode: "verify_widget", accessToken, phone: verifiedPhone },
             });
 
-            if (error || !verifyRes?.ok || !verifyRes?.token_hash || !verifyRes?.phone || !verifyRes?.user_id) {
-              throw new Error(verifyRes?.error || error?.message || "otp_verify_failed");
+            console.info("[auth] verify_widget frontend request", sanitizeAuthDebugPayload({
+              mode: "verify_widget",
+              accessToken,
+              phone: verifiedPhone,
+            }));
+            console.info("[auth] verify_widget frontend response", sanitizeAuthDebugPayload({
+              error: error?.message ?? null,
+              data: verifyRes ?? null,
+            }));
+
+            if (error) {
+              throw new Error(`edge_verify_failed:${error.message}`);
             }
+
+            if (!verifyRes?.ok) {
+              throw new Error(`edge_verify_failed:${verifyRes?.error || verifyRes?.reason || "verification_rejected"}`);
+            }
+
+            const resolvedIdentifier = firstNonEmptyString(verifyRes?.phone, verifiedPhone);
+            if (!resolvedIdentifier) {
+              throw new Error("edge_verify_failed:phone_missing_from_widget_and_edge");
+            }
+
+            if (!verifyRes?.token_hash || !verifyRes?.user_id) {
+              throw new Error(`edge_verify_failed:${!verifyRes?.token_hash ? "token_hash_missing" : "user_id_missing"}`);
+            }
+
+            const normalizedResolvedIdentifier = normalizeIdentifier(String(resolvedIdentifier)).normalized;
+            attemptRef.current = { id: attemptId, method, identifier: normalizedResolvedIdentifier };
 
             logAuthEvent("OTP_VERIFY_SUCCESS", {
               attemptId,
               method,
-              identifier: verifyRes.phone,
+              identifier: normalizedResolvedIdentifier,
               result: "success",
               details: { userId: verifyRes.user_id },
             });
@@ -310,7 +413,7 @@ const Login = () => {
             logAuthEvent("SESSION_CREATE_STARTED", {
               attemptId,
               method,
-              identifier: verifyRes.phone,
+              identifier: normalizedResolvedIdentifier,
               result: "started",
               details: { userId: verifyRes.user_id },
             });
@@ -321,37 +424,61 @@ const Login = () => {
             });
 
             if (sessionError || !sessionData.user) {
-              throw new Error(sessionError?.message || "session_create_failed");
+              throw new Error(`supabase_verifyOtp_failed:${sessionError?.message || "session_create_failed"}`);
             }
 
             logAuthEvent("SESSION_CREATE_SUCCESS", {
               attemptId,
               method,
-              identifier: verifyRes.phone,
+              identifier: normalizedResolvedIdentifier,
               result: "success",
               details: { userId: sessionData.user.id },
             });
             console.log("SESSION_CREATED - Redirecting to Dashboard...");
 
-            await redirectAfterAuth(verifyRes.phone, method, sessionData.user.id, attemptId);
+            await redirectAfterAuth(normalizedResolvedIdentifier, method, sessionData.user.id, attemptId);
             controllerRef.current.finalize();
             setLoading(false);
           } catch (error) {
             const message = error instanceof Error ? error.message : "otp_verify_failed";
-            logAuthEvent("OTP_VERIFY_FAILED", {
-              attemptId,
-              method,
-              identifier: normalizedIdentifier,
-              result: "failed",
-              error: message,
-            });
-            logAuthEvent("SESSION_CREATE_FAILED", {
-              attemptId,
-              method,
-              identifier: normalizedIdentifier,
-              result: "failed",
-              error: message,
-            });
+            const stage = message.startsWith("edge_verify_failed:")
+              ? "EDGE_VERIFY_FAILED"
+              : message.startsWith("supabase_verifyOtp_failed:")
+                ? "SUPABASE_VERIFYOTP_FAILED"
+                : message.startsWith("ACCOUNT_RESOLUTION_FAILED:")
+                  ? "ACCOUNT_RESOLUTION_FAILED"
+                  : message.startsWith("REDIRECT_FAILED:")
+                    ? "REDIRECT_FAILED"
+                    : "OTP_VERIFY_FAILED";
+            console.error(`[auth] ${stage}`, { attemptId, message, identifier: attemptRef.current?.identifier ?? normalizedIdentifier });
+            if (stage === "EDGE_VERIFY_FAILED") {
+              logAuthEvent("OTP_VERIFY_FAILED", {
+                attemptId,
+                method,
+                identifier: attemptRef.current?.identifier ?? normalizedIdentifier,
+                result: "failed",
+                error: message,
+                details: { stage },
+              });
+            } else if (stage === "SUPABASE_VERIFYOTP_FAILED") {
+              logAuthEvent("SESSION_CREATE_FAILED", {
+                attemptId,
+                method,
+                identifier: attemptRef.current?.identifier ?? normalizedIdentifier,
+                result: "failed",
+                error: message,
+                details: { stage },
+              });
+            } else {
+              logAuthEvent("SESSION_CREATE_FAILED", {
+                attemptId,
+                method,
+                identifier: attemptRef.current?.identifier ?? normalizedIdentifier,
+                result: "failed",
+                error: message,
+                details: { stage },
+              });
+            }
             await finalizeFailure(mapOtpErrorMessage(message), "failed", true);
           }
         },
