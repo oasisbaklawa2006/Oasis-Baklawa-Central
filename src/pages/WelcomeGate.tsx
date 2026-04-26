@@ -15,7 +15,7 @@ const GREETINGS = [
 
 const WelcomeGate = () => {
   const navigate = useNavigate();
-  const { user, companyId, role, loading, profileReady } = useAuth();
+  const { user, companyId, role, loading, profileReady, hasAppliedB2B, profileStatus } = useAuth();
   const [companyName, setCompanyName] = useState("");
   const [greetingIdx, setGreetingIdx] = useState(0);
   const normalizedRole = normalizeRole(role);
