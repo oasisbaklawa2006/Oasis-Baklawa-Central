@@ -138,6 +138,37 @@ function genOtp(): string {
   return String(Math.floor(100000 + Math.random() * 900000));
 }
 
+function firstString(...values: unknown[]): string | null {
+  for (const value of values) {
+    if (typeof value === "string" && value.trim()) return value.trim();
+  }
+  return null;
+}
+
+function maskSecret(value?: string | null): string | null {
+  if (!value) return null;
+  if (value.length <= 8) return `${value.slice(0, 2)}***${value.slice(-2)}`;
+  return `${value.slice(0, 4)}***${value.slice(-4)}`;
+}
+
+function extractVerifiedPhone(raw: any, requestPhone?: string | null): string | null {
+  return firstString(
+    requestPhone,
+    raw?.message?.mobile,
+    raw?.message?.phone,
+    raw?.message?.identifier,
+    raw?.message?.number,
+    raw?.data?.mobile,
+    raw?.data?.phone,
+    raw?.data?.identifier,
+    raw?.data?.number,
+    raw?.mobile,
+    raw?.phone,
+    raw?.identifier,
+    raw?.number,
+  );
+}
+
 // ---- MSG91 Widget server-side verification --------------------------------
 // Docs: POST https://api.msg91.com/api/v5/widget/verifyAccessToken
 //   Headers: Content-Type: application/json, Accept: application/json
