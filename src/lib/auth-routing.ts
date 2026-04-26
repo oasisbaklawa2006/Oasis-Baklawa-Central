@@ -7,7 +7,8 @@ type RoleRecord = {
 
 const STAFF_ROLE_DESTINATIONS = {
   SUPER_ADMIN: "/admin/cmd-war-room",
-  ADMIN: "/admin",
+  OWNER: "/admin/cmd-war-room",
+  ADMIN: "/admin/cmd-war-room",
   FINANCE_HEAD: "/admin/accounts-release",
   FINANCE_EXEC: "/admin/accounts-release",
   OPERATIONS_MANAGER: "/operations-controller",
