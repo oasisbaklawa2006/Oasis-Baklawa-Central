@@ -34,11 +34,8 @@ function destroyMsg91Widget() {
   if (typeof document === "undefined") return;
   try {
     document.querySelectorAll(
-      "[id^='msg91'], [class*='msg91'], iframe[src*='msg91'], #msg91-otp-provider",
+      "[id^='msg91'], [class*='msg91'], iframe[src*='msg91']",
     ).forEach((node) => node.parentElement?.removeChild(node));
-  } catch {}
-  try {
-    delete (window as any).initSendOTP;
   } catch {}
 }
 
