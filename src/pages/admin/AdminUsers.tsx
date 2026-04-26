@@ -154,8 +154,8 @@ const AdminUsers = () => {
   });
   const [selectedPermIds, setSelectedPermIds] = useState<string[]>([]);
 
-  const fetchData = useCallback(async () => {
-    setLoading(true);
+  const fetchData = useCallback(async (opts?: { silent?: boolean }) => {
+    if (!opts?.silent) setLoading(true);
     const [usersRes, companiesRes, rolesRes, permsRes, rpMapRes] = await Promise.all([
       supabase.from("users").select("*").order("created_at", { ascending: false }),
       supabase.from("companies").select("*").order("created_at", { ascending: false }),
@@ -166,7 +166,6 @@ const AdminUsers = () => {
     const allUsers = (usersRes.data as UserRow[]) ?? [];
     setUsers(allUsers);
 
-    // Get current user's role
     const me = allUsers.find((u) => u.id === user?.id);
     if (me) setCurrentUserRole(me.role);
 
@@ -175,14 +174,13 @@ const AdminUsers = () => {
     setAllPermissions((permsRes.data as PermissionRow[]) ?? []);
     setRolePermMap((rpMapRes.data as RolePermMap[]) ?? []);
 
-    // Build managers list from sales_executive, admin roles, OR is_sales_executive flag
     const mgrs: ManagerOption[] = allUsers
       .filter((u) => u.role === "sales_executive" || u.role === "admin" || u.is_sales_executive)
       .map((u) => ({ id: u.id, label: u.full_name || u.email || u.id }));
     setManagers(mgrs);
 
-    setLoading(false);
-  }, []);
+    if (!opts?.silent) setLoading(false);
+  }, [user?.id]);
 
   useEffect(() => {
     fetchData();
