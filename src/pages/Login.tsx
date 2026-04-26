@@ -11,6 +11,17 @@ import { getRoleDestination, fetchAuthRoleRecord, isInternalStaffUser, isStorefr
 
 type AuthTab = "msg91" | "email";
 
+// Single source of truth for the MSG91 → Supabase session pipeline.
+// Only ONE status can exist at a time; SUCCESS short-circuits any pending
+// timeout/error transitions (see `setAuthStatusSafe` below).
+type AuthStatus =
+  | "IDLE"
+  | "LOADING_WIDGET"
+  | "VERIFYING_OTP"
+  | "MINTING_SESSION"
+  | "SUCCESS"
+  | "ERROR";
+
 // MSG91 Widget configuration (Token Auth + Widget ID)
 const MSG91_WIDGET_ID = "3664766e464b383030383331";
 const MSG91_TOKEN_AUTH = "509994T6SRbi4LqM69ea72d0P1";
