@@ -37,8 +37,8 @@ const WelcomeGate = () => {
     }
   }, [navigate]);
 
-  // Ready when: staff role known OR (non-staff profile resolved with companyId)
-  const ready = !loading && (isStaff || (profileReady && !!companyId));
+  // Ready when: staff role known OR profile resolved (regardless of company linkage — pending users go to /approval-pending)
+  const ready = !loading && (isStaff || profileReady);
 
   // Ensure an OAuth (Google/Apple) sign-in has a public.users row so role resolution works.
   useEffect(() => {
@@ -82,15 +82,17 @@ const WelcomeGate = () => {
     return () => clearInterval(interval);
   }, []);
 
-  // Auto-navigate only after auth+profile are ready (min 2.5s for branding)
+  // Auto-navigate only after auth+profile are ready. Three exact destinations, no hangs.
   useEffect(() => {
     if (!ready) return;
     const timer = setTimeout(() => {
-      const dest = isStaff ? getRoleDestination(normalizedRole) : "/home";
+      let dest = "/approval-pending";
+      if (isStaff) dest = getRoleDestination(normalizedRole);
+      else if (companyId && normalizedRole && normalizedRole !== "PENDING") dest = "/home";
       navigate(dest, { replace: true });
     }, 2500);
     return () => clearTimeout(timer);
-  }, [ready, isStaff, normalizedRole, navigate]);
+  }, [ready, isStaff, normalizedRole, companyId, navigate]);
 
   // If auth not loaded after a generous window, redirect to login
   useEffect(() => {

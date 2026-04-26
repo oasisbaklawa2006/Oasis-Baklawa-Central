@@ -4,7 +4,7 @@ import { toast } from "sonner";
 import { Loader2 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { getRoleDestination, normalizeRole, isStaffRole, isPathWithinRoleDestination, fetchAuthRoleRecord } from "@/lib/auth-routing";
-import { supabase } from "@/integrations/supabase/client";
+import { signOutAndClearSession } from "@/utils/authSession";
 
 interface Props {
   allowedRoles: (string | null)[];
@@ -34,7 +34,7 @@ export default function RoleProtectedRoute({ allowedRoles, children }: Props) {
 
         if (!serverRole || serverRole !== normalizedRole) {
           console.warn("[RoleProtectedRoute] Server role mismatch — forcing logout");
-          await supabase.auth.signOut();
+          await signOutAndClearSession({ reason: "role_mismatch" });
           window.location.replace("/login");
           return;
         }
