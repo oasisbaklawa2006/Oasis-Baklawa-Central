@@ -152,8 +152,15 @@ function maskSecret(value?: string | null): string | null {
 }
 
 function extractVerifiedPhone(raw: any, requestPhone?: string | null): string | null {
+  // MSG91 verifyAccessToken commonly returns: { type: "success", message: "919891162212" }
+  // where `message` is the verified phone as a STRING. Handle that first, then fall back
+  // to nested object shapes from older/alternate widget versions.
+  const messageAsString = typeof raw?.message === "string" ? raw.message : null;
+  const dataAsString = typeof raw?.data === "string" ? raw.data : null;
   return firstString(
     requestPhone,
+    messageAsString,
+    dataAsString,
     raw?.message?.mobile,
     raw?.message?.phone,
     raw?.message?.identifier,
