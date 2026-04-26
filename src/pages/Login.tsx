@@ -175,15 +175,17 @@ const Login = () => {
     }, 10000);
 
     setMsg91Loading(true);
+    setAuthStatusSafe("LOADING_WIDGET");
 
-    // 10-second handshake timeout — extended from 5s to give the widget more
-    // time on slower networks / preview domains. On timeout we reset state and
-    // silently fail the user over to the Email tab so they're never stuck.
-    let handshakeSettled = false;
-    const handshakeTimeout = setTimeout(() => {
-      if (handshakeSettled) return;
-      handshakeSettled = true;
+    // 10-second handshake timeout. Stored in a ref so the success callback can
+    // KILL it as its very first instruction (prevents the "Timed out" toast
+    // from racing a real verification success).
+    clearHandshakeTimer();
+    handshakeTimerRef.current = setTimeout(() => {
+      handshakeTimerRef.current = null;
+      if (authStatusRef.current === "SUCCESS" || authStatusRef.current === "VERIFYING_OTP" || authStatusRef.current === "MINTING_SESSION") return;
       setMsg91Loading(false);
+      setAuthStatusSafe("ERROR");
       console.error(`[msg91] Handshake timeout (10s) on origin: ${origin}. Failing over to Email login.`);
       toast.error(
         "Mobile verification timed out. Switched to Email login — please continue there.",
@@ -191,10 +193,6 @@ const Login = () => {
       );
       setActiveTab("email");
     }, 10000);
-    const settleHandshake = () => {
-      handshakeSettled = true;
-      clearTimeout(handshakeTimeout);
-    };
 
     try {
       window.initSendOTP({
@@ -208,89 +206,107 @@ const Login = () => {
         "auto-country": false,
         captchaRenderId: "",
         success: async (data: any) => {
-        settleHandshake();
-        // Widget returns an access-token; verify it server-side before trusting.
-        const accessToken =
-          (typeof data === "string" ? data : null) ||
-          data?.message ||
-          data?.["access-token"] ||
-          data?.accessToken ||
-          null;
-        // Try to extract the verified phone the widget collected so backend can mint a session.
-        const verifiedPhone =
-          data?.mobile ||
-          data?.phone ||
-          data?.message?.mobile ||
-          data?.data?.mobile ||
-          null;
-        if (!accessToken) {
-          setMsg91Loading(false);
-          toast.error("Security Breach: OTP Verification Failed.");
-          return;
-        }
-        try {
-          const { data: verifyRes, error } = await supabase.functions.invoke("msg91-otp", {
-            body: { mode: "verify_widget", accessToken, phone: verifiedPhone },
-          });
-          if (error || !verifyRes?.ok || verifyRes?.type !== "success") {
+          // ── KILL the handshake timeout FIRST so a successful verify can never
+          //    be overridden by a stale "Timed out" toast/state transition. ──
+          clearHandshakeTimer();
+          setAuthStatusSafe("VERIFYING_OTP");
+          console.log("[auth] OTP_VERIFIED — Starting Session Minting...");
+
+          // Widget returns an access-token; verify it server-side before trusting.
+          const accessToken =
+            (typeof data === "string" ? data : null) ||
+            data?.message ||
+            data?.["access-token"] ||
+            data?.accessToken ||
+            null;
+          const verifiedPhone =
+            data?.mobile ||
+            data?.phone ||
+            data?.message?.mobile ||
+            data?.data?.mobile ||
+            null;
+          if (!accessToken) {
             setMsg91Loading(false);
+            setAuthStatusSafe("ERROR");
             toast.error("Security Breach: OTP Verification Failed.");
             return;
           }
-
-          // ── Establish a real Supabase session via the magiclink token_hash ──
-          if (verifyRes.token_hash) {
-            const { data: sess, error: sessErr } = await supabase.auth.verifyOtp({
-              token_hash: verifyRes.token_hash,
-              type: "magiclink",
+          try {
+            const { data: verifyRes, error } = await supabase.functions.invoke("msg91-otp", {
+              body: { mode: "verify_widget", accessToken, phone: verifiedPhone },
             });
-            if (!sessErr && sess?.user) {
-              toast.success("Identity Verified — signing you in…");
-              await resolveRedirect(sess.user.id);
+            if (error || !verifyRes?.ok || verifyRes?.type !== "success") {
               setMsg91Loading(false);
+              setAuthStatusSafe("ERROR");
+              toast.error("Security Breach: OTP Verification Failed.");
               return;
             }
-            console.warn("[msg91] token_hash redemption failed:", sessErr?.message);
-          }
 
-          // Fallback: verification succeeded but session minting failed — bounce to WelcomeGate.
-          setMsg91Loading(false);
-          toast.success("Identity Verified via MSG91");
-          const { data: { session } } = await supabase.auth.getSession();
-          if (session?.user?.id) {
-            await resolveRedirect(session.user.id);
-          } else {
-            toast.info("Verified, but unable to start your session automatically. Please use Email or WhatsApp login.", { duration: 7000 });
+            // ── Establish a real Supabase session via the magiclink token_hash ──
+            setAuthStatusSafe("MINTING_SESSION");
+            if (verifyRes.token_hash) {
+              const { data: sess, error: sessErr } = await supabase.auth.verifyOtp({
+                token_hash: verifyRes.token_hash,
+                type: "magiclink",
+              });
+              if (!sessErr && sess?.user) {
+                console.log("[auth] SESSION_CREATED — Redirecting to Dashboard...");
+                setAuthStatusSafe("SUCCESS");
+                clearHandshakeTimer();
+                toast.success("Identity Verified — signing you in…");
+                await resolveRedirect(sess.user.id);
+                setMsg91Loading(false);
+                return;
+              }
+              console.warn("[msg91] token_hash redemption failed:", sessErr?.message);
+            }
+
+            // Fallback: verification succeeded but session minting failed.
+            const { data: { session } } = await supabase.auth.getSession();
+            if (session?.user?.id) {
+              console.log("[auth] SESSION_CREATED (fallback) — Redirecting to Dashboard...");
+              setAuthStatusSafe("SUCCESS");
+              clearHandshakeTimer();
+              toast.success("Identity Verified via MSG91");
+              await resolveRedirect(session.user.id);
+              setMsg91Loading(false);
+            } else {
+              setMsg91Loading(false);
+              setAuthStatusSafe("ERROR");
+              toast.info("Verified, but unable to start your session automatically. Please use Email or WhatsApp login.", { duration: 7000 });
+            }
+          } catch (err) {
+            setMsg91Loading(false);
+            setAuthStatusSafe("ERROR");
+            toast.error("Security Breach: OTP Verification Failed.");
           }
-        } catch (err) {
+        },
+        failure: (err: any) => {
+          clearHandshakeTimer();
+          // Don't override a successful pipeline that may have already settled.
+          if (authStatusRef.current === "SUCCESS" || authStatusRef.current === "MINTING_SESSION") return;
+          const errMsg = err?.message || err?.errorMessage || err?.type || "";
+          const isAuthFail = /authentication\s*fail|authfail|invalid\s*auth/i.test(errMsg);
+          if (isAuthFail && !msg91RetriedRef.current) {
+            msg91RetriedRef.current = true;
+            console.warn("[msg91] AuthenticationFailure on first attempt — silent retry…");
+            setTimeout(() => launchMsg91Widget(true), 250);
+            return;
+          }
           setMsg91Loading(false);
-          toast.error("Security Breach: OTP Verification Failed.");
-        }
-      },
-      failure: (err: any) => {
-        settleHandshake();
-        const errMsg = err?.message || err?.errorMessage || err?.type || "";
-        const isAuthFail = /authentication\s*fail|authfail|invalid\s*auth/i.test(errMsg);
-        // Silent auto-retry: known MSG91 race where the first handshake fails
-        // with AuthenticationFailure but the second click succeeds.
-        if (isAuthFail && !msg91RetriedRef.current) {
-          msg91RetriedRef.current = true;
-          console.warn("[msg91] AuthenticationFailure on first attempt — silent retry…");
-          setTimeout(() => launchMsg91Widget(true), 250);
-          return;
-        }
-        setMsg91Loading(false);
-        if (/cors|origin|domain|access-control/i.test(errMsg)) {
-          console.error(`[msg91] Domain Mismatch (CORS) on origin: ${origin}. Whitelist this domain in your MSG91 Widget settings.`, err);
-          toast.error("Handshake Failed: Please ensure this domain is whitelisted in your MSG91 Widget settings.", { duration: 8000 });
-        } else {
-          toast.error(errMsg || "MSG91 verification failed");
-        }
-      },
+          setAuthStatusSafe("ERROR");
+          if (/cors|origin|domain|access-control/i.test(errMsg)) {
+            console.error(`[msg91] Domain Mismatch (CORS) on origin: ${origin}. Whitelist this domain in your MSG91 Widget settings.`, err);
+            toast.error("Handshake Failed: Please ensure this domain is whitelisted in your MSG91 Widget settings.", { duration: 8000 });
+          } else {
+            toast.error(errMsg || "MSG91 verification failed");
+          }
+        },
       });
     } catch (initErr: any) {
-      settleHandshake();
+      clearHandshakeTimer();
       setMsg91Loading(false);
+      setAuthStatusSafe("ERROR");
       console.error(`[msg91] initSendOTP threw on origin: ${origin}. Likely Domain Mismatch (CORS).`, initErr);
       toast.error("Handshake Failed: Please ensure this domain is whitelisted in your MSG91 Widget settings.", { duration: 8000 });
     }
