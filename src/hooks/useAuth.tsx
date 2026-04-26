@@ -115,7 +115,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const normalizedPhone = normalizePhone(activeUser.phone ?? "");
       const phonePattern = normalizedPhone.last10 ? `%${normalizedPhone.last10}%` : null;
 
-      const [authRecord, internalStaff, publicUserById, publicUserByPhone, profileRow] = await Promise.all([
+      const [authRecord, internalStaff, publicUserById, publicUserByPhone, profileRow, b2bAppRow] = await Promise.all([
         fetchAuthRoleRecord(activeUser.id),
         isInternalStaffUser(activeUser.id),
         supabase
@@ -134,6 +134,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           .from("profiles")
           .select("company_id, status, is_approved")
           .eq("id", activeUser.id)
+          .maybeSingle(),
+        supabase
+          .from("b2b_applications")
+          .select("id, status")
+          .eq("user_id", activeUser.id)
+          .limit(1)
           .maybeSingle(),
       ]);
 
