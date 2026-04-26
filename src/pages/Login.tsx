@@ -209,42 +209,38 @@ const Login = () => {
         "auto-country": false,
         captchaRenderId: "",
         success: async (payload: any) => {
+          // ── HARD GUARD #1: Stale attempt → ignore. ──
           if (attemptRef.current?.id !== attemptId) return;
+          // ── HARD GUARD #2: Cancel ALL armed timers IMMEDIATELY. No path can show "timed out" + "verified". ──
+          controllerRef.current.clearAllTimers();
+
           const accessToken = payload?.message || payload?.["access-token"] || payload?.accessToken || (typeof payload === "string" ? payload : null);
           const verifiedPhone = payload?.mobile || payload?.phone || payload?.message?.mobile || payload?.data?.mobile || null;
           const normalizedIdentifier = verifiedPhone ? normalizeIdentifier(String(verifiedPhone)).normalized : null;
           attemptRef.current = { id: attemptId, method, identifier: normalizedIdentifier };
 
+          // ── Re-arm a single 20s "session minting" guard, scoped to this attempt only. ──
           verificationTimer = controllerRef.current.registerTimer(window.setTimeout(async () => {
             if (attemptRef.current?.id !== attemptId) return;
+            // If we reach here, status will already be "authenticated" or "failed"; only fire on a stuck mint.
+            if (["authenticated", "failed", "fallback_to_email"].includes(controllerRef.current.getStatus())) return;
             logAuthEvent("AUTH_TIMEOUT_TRIGGERED", {
-              attemptId,
-              method,
-              identifier: normalizedIdentifier,
-              result: "failed",
-              error: "verification_timeout",
+              attemptId, method, identifier: normalizedIdentifier, result: "failed", error: "session_mint_timeout",
             });
+            await finalizeFailure("Session creation took too long. Please retry or use Email login.", "fallback_to_email", true);
             setActiveTab("email");
-            await finalizeFailure("Verification timed out. Please try again or use Email login.", "fallback_to_email");
           }, 20000));
 
           updateStatus("verifying_otp", { result: "started" });
           logAuthEvent("OTP_REQUEST_SUCCESS", {
-            attemptId,
-            method,
-            identifier: normalizedIdentifier,
-            result: "success",
+            attemptId, method, identifier: normalizedIdentifier, result: "success",
           });
           logAuthEvent("OTP_VERIFY_STARTED", {
-            attemptId,
-            method,
-            identifier: normalizedIdentifier,
-            result: "started",
+            attemptId, method, identifier: normalizedIdentifier, result: "started",
           });
           console.log("OTP_VERIFIED - Starting Session Minting...");
 
           try {
-            controllerRef.current.clearTimer(verificationTimer);
             const { data: verifyRes, error } = await supabase.functions.invoke("msg91-otp", {
               body: { mode: "verify_widget", accessToken, phone: verifiedPhone },
             });
