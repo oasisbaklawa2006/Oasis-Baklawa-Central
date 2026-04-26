@@ -118,7 +118,13 @@ const Login = () => {
   const providerLoadRef = useRef<Promise<void> | null>(null);
 
   const isMinting = useMemo(
-    () => ["verifying_otp", "verification_success", "session_creation_in_progress", "account_resolution_in_progress", "profile_loading", "role_loading"].includes(authStatus),
+    () => {
+      const minting = ["verifying_otp", "verification_success", "session_creation_in_progress", "account_resolution_in_progress", "profile_loading", "role_loading"].includes(authStatus);
+      if (!minting) return false;
+      // Skip the "Securing your Oasis session" overlay when role is already cached locally.
+      const cached = typeof window !== "undefined" ? readAuthCache() : null;
+      return !(cached && cached.role);
+    },
     [authStatus],
   );
 
