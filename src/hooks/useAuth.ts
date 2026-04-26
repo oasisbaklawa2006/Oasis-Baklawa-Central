@@ -1,327 +1,389 @@
 /* eslint-disable react-refresh/only-export-components */
-import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
+import type { Session, User } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
-import type { User } from "@supabase/supabase-js";
-import { fetchAuthRoleRecord } from "@/lib/auth-routing";
+import { fetchAuthRoleRecord, isInternalStaffUser, normalizeRole } from "@/lib/auth-routing";
+import { normalizePhone } from "@/lib/auth-identity";
+import { clearAuthCache, readAuthCache, writeAuthCache, type AuthCache } from "@/lib/auth-flow";
+import { createAuthAttemptId, logAuthEvent, type AuthAttemptMethod } from "@/lib/auth-logging";
 
-const CACHE_KEY = "oasis_auth_cache";
+interface RefreshProfileOptions {
+  forceRefresh?: boolean;
+  attemptId?: string;
+  method?: AuthAttemptMethod;
+}
 
-interface AuthCache {
-  userId: string;
+interface AuthContextValue {
+  user: User | null;
+  loading: boolean;
+  isAuthenticated: boolean;
   companyId: string | null;
   role: string | null;
   priceTier: string | null;
+  profileReady: boolean;
+  refreshProfile: (options?: RefreshProfileOptions) => Promise<boolean>;
+  refreshPriceTier: () => Promise<string | null>;
+  logout: () => Promise<void>;
 }
 
-function isPendingRole(role?: string | null) {
-  const normalizedRole = role?.trim().toUpperCase() ?? null;
-  return !normalizedRole || normalizedRole === "PENDING";
+const AuthContext = createContext<AuthContextValue | undefined>(undefined);
+
+function getSupabaseStorageKeys() {
+  return Object.keys(localStorage).filter((key) => key.startsWith("sb-") && key.includes("auth-token"));
 }
 
-function readCache(): AuthCache | null {
-  try {
-    const raw = localStorage.getItem(CACHE_KEY);
-    return raw ? JSON.parse(raw) : null;
-  } catch {
-    return null;
-  }
+function applyCachedState(
+  cached: AuthCache | null,
+  setters: {
+    setCompanyId: (value: string | null) => void;
+    setRole: (value: string | null) => void;
+    setPriceTier: (value: string | null) => void;
+  },
+) {
+  if (!cached) return false;
+  setters.setCompanyId(cached.companyId);
+  setters.setRole(cached.role ?? null);
+  setters.setPriceTier(cached.priceTier ?? null);
+  return true;
 }
 
-function writeCache(data: AuthCache) {
-  try {
-    localStorage.setItem(CACHE_KEY, JSON.stringify(data));
-  } catch {}
-}
-
-function clearCache() {
-  try {
-    localStorage.removeItem(CACHE_KEY);
-  } catch {}
-}
-
-export function useAuth() {
+export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const [companyId, setCompanyId] = useState<string | null>(null);
   const [role, setRole] = useState<string | null>(null);
   const [priceTier, setPriceTier] = useState<string | null>(null);
   const [profileReady, setProfileReady] = useState(false);
+
+  const bootstrapTokenRef = useRef(0);
   const cachedProfileRef = useRef<AuthCache | null>(null);
-  const currentUserIdRef = useRef<string | null>(null);
-  const profileFetchedForRef = useRef<string | null>(null);
-  const forcedPendingRefreshForRef = useRef<string | null>(null);
+  const sessionUserIdRef = useRef<string | null>(null);
 
   useEffect(() => {
-    cachedProfileRef.current = readCache();
+    cachedProfileRef.current = readAuthCache();
   }, []);
 
-  const getCachedForUser = useCallback((userId?: string | null) => {
-    const cached = cachedProfileRef.current;
-    if (!userId || !cached || cached.userId !== userId) return null;
-    return cached;
-  }, []);
-
-  const applyCachedCommerceState = useCallback((userId?: string | null) => {
-    const cached = getCachedForUser(userId);
-    if (!cached) return false;
-
-    setCompanyId(cached.companyId);
-    setRole(cached.role ?? null);
-    setPriceTier(cached.priceTier ?? null);
-    return true;
-  }, [getCachedForUser]);
-
-  const persistCache = useCallback((data: AuthCache) => {
-    cachedProfileRef.current = data;
-    writeCache(data);
-  }, []);
-
-  const fetchProfile = useCallback(async (activeUser: User) => {
-    try {
-      const profile = await fetchAuthRoleRecord(activeUser.id);
-      let cid = profile.company_id;
-      let r = profile.role?.trim().toUpperCase() ?? null;
-
-      // Phone-based fallback lookup — captures role when ID lookup misses
-      const phone = activeUser.phone ?? (activeUser.user_metadata as any)?.phone ?? null;
-      if (!r && phone) {
-        try {
-          const normalized = `+${String(phone).replace(/\D/g, "")}`;
-          const { data: byPhone } = await supabase
-            .from("users")
-            .select("role, company_id")
-            .or(`phone.eq.${normalized},phone.eq.${String(phone).replace(/\D/g, "")}`)
-            .maybeSingle();
-          if (byPhone?.role) r = String(byPhone.role).toUpperCase();
-          if (!cid && byPhone?.company_id) cid = byPhone.company_id;
-        } catch (e) {
-          console.warn("[useAuth] phone-based role lookup failed", e);
-        }
-      }
-
-      // Hardcoded admin bypass for owner phone
-      const ownerPhone = phone ? `+${String(phone).replace(/\D/g, "")}` : null;
-      if (ownerPhone === "+919891162212" && (!r || r === "PENDING")) {
-        r = "ADMIN";
-      }
-
-      console.log(`[useAuth] Auth User ID: ${activeUser.id}, Phone: ${phone ?? "(none)"}, Public Profile Role: ${r ?? "(none)"}`);
-
-      setCompanyId(cid);
-      setRole(r);
-
-      const { data: isInternalStaff } = await supabase.rpc("is_internal_staff", {
-        _user_id: activeUser.id,
-      });
-
-      if (isInternalStaff) {
-        void supabase
-          .from("profiles")
-          .update({ is_approved: true, status: "approved" })
-          .eq("id", activeUser.id);
-      }
-
-      let pt: string | null = null;
-      if (cid) {
-        const { data: compData } = await supabase
-          .from("companies")
-          .select("price_tier")
-          .eq("id", cid)
-          .maybeSingle();
-        pt = compData?.price_tier ?? null;
-      }
-
-      setPriceTier(pt);
-      persistCache({ userId: activeUser.id, companyId: cid, role: r, priceTier: pt });
-    } catch {
-      const cached = getCachedForUser(activeUser.id);
-      if (cached) {
-        setCompanyId(cached.companyId);
-        setRole(cached.role);
-        setPriceTier(cached.priceTier ?? null);
-      }
+  const resetState = useCallback((clearCache = false) => {
+    sessionUserIdRef.current = null;
+    setUser(null);
+    setCompanyId(null);
+    setRole(null);
+    setPriceTier(null);
+    setProfileReady(true);
+    if (clearCache) {
+      cachedProfileRef.current = null;
+      clearAuthCache();
     }
-  }, [getCachedForUser, persistCache]);
+  }, []);
 
-  const refreshPriceTier = useCallback(async () => {
-    if (!user) return null;
+  const fetchPriceTier = useCallback(async (resolvedCompanyId: string | null) => {
+    if (!resolvedCompanyId) return null;
 
-    try {
-      let resolvedCompanyId = companyId;
+    const { data, error } = await supabase
+      .from("companies")
+      .select("price_tier")
+      .eq("id", resolvedCompanyId)
+      .maybeSingle();
 
-      if (!resolvedCompanyId) {
-        const profile = await fetchAuthRoleRecord(user.id);
+    if (error) throw error;
+    return data?.price_tier ?? null;
+  }, []);
 
-        resolvedCompanyId = profile.company_id;
-        setCompanyId(resolvedCompanyId);
-        setRole(profile.role ?? null);
-      }
+  const bootstrapUser = useCallback(async (activeUser: User, options: RefreshProfileOptions = {}) => {
+    const attemptId = options.attemptId ?? createAuthAttemptId();
+    const method = options.method ?? "session_restore";
+    const identifier = activeUser.phone || activeUser.email || activeUser.id;
+    const bootstrapToken = ++bootstrapTokenRef.current;
+    const cached = !options.forceRefresh && cachedProfileRef.current?.userId === activeUser.id
+      ? cachedProfileRef.current
+      : null;
 
-      if (!resolvedCompanyId) {
-        setPriceTier(null);
-        const cached = getCachedForUser(user.id);
-        persistCache({
-          userId: user.id,
-          companyId: null,
-          role: role ?? cached?.role ?? null,
-          priceTier: null,
-        });
-        return null;
-      }
-
-      const { data: companyData } = await supabase
-        .from("companies")
-        .select("price_tier")
-        .eq("id", resolvedCompanyId)
-        .maybeSingle();
-
-      const nextPriceTier = companyData?.price_tier ?? null;
-      setPriceTier(nextPriceTier);
-
-      const cached = getCachedForUser(user.id);
-      persistCache({
-        userId: user.id,
-        companyId: resolvedCompanyId,
-        role: role ?? cached?.role ?? null,
-        priceTier: nextPriceTier,
-      });
-
-      return nextPriceTier;
-    } catch {
-      return getCachedForUser(user.id)?.priceTier ?? null;
+    if (cached) {
+      applyCachedState(cached, { setCompanyId, setRole, setPriceTier });
     }
-  }, [companyId, getCachedForUser, persistCache, role, user]);
 
-  const refreshProfile = useCallback(async () => {
-    if (!user) return null;
-
-    profileFetchedForRef.current = user.id;
     setProfileReady(false);
+    logAuthEvent("AUTH_START", {
+      attemptId,
+      method,
+      identifier,
+      result: "started",
+      details: { sessionUserId: activeUser.id, forceRefresh: Boolean(options.forceRefresh) },
+    });
 
     try {
-      await fetchProfile(user);
-      return true;
-    } finally {
-      setProfileReady(true);
-    }
-  }, [fetchProfile, user]);
+      logAuthEvent("PROFILE_FETCH_STARTED", {
+        attemptId,
+        method,
+        identifier,
+        result: "started",
+        details: { sessionUserId: activeUser.id },
+      });
 
-  // Auth listener — silent, no remounts
+      const normalizedPhone = normalizePhone(activeUser.phone ?? "");
+      const phonePattern = normalizedPhone.last10 ? `%${normalizedPhone.last10}%` : null;
+
+      const [authRecord, internalStaff, publicUserById, publicUserByPhone, profileRow] = await Promise.all([
+        fetchAuthRoleRecord(activeUser.id),
+        isInternalStaffUser(activeUser.id),
+        supabase
+          .from("users")
+          .select("id, role, company_id, is_active, phone, mobile_number, email")
+          .eq("id", activeUser.id)
+          .maybeSingle(),
+        phonePattern
+          ? supabase
+              .from("users")
+              .select("id, role, company_id, is_active, phone, mobile_number, email")
+              .or(`phone.ilike.${phonePattern},mobile_number.ilike.${phonePattern}`)
+              .limit(5)
+          : Promise.resolve({ data: [], error: null } as any),
+        supabase
+          .from("profiles")
+          .select("company_id, status, is_approved")
+          .eq("id", activeUser.id)
+          .maybeSingle(),
+      ]);
+
+      if (bootstrapTokenRef.current !== bootstrapToken) return false;
+
+      if (publicUserById.error) throw publicUserById.error;
+      if (profileRow.error) throw profileRow.error;
+      if (publicUserByPhone.error) throw publicUserByPhone.error;
+
+      const phoneMatches = (publicUserByPhone.data ?? []).filter((row: any) => row.id !== activeUser.id);
+      if (phoneMatches.length) {
+        logAuthEvent("USER_RESOLUTION_FAILED", {
+          attemptId,
+          method,
+          identifier,
+          result: "failed",
+          error: "phone_maps_to_different_user",
+          details: {
+            sessionUserId: activeUser.id,
+            conflictingIds: phoneMatches.map((row: any) => row.id),
+          },
+        });
+      }
+
+      logAuthEvent("PROFILE_FETCH_SUCCESS", {
+        attemptId,
+        method,
+        identifier,
+        result: "success",
+        details: { sessionUserId: activeUser.id },
+      });
+
+      logAuthEvent("ROLE_FETCH_STARTED", {
+        attemptId,
+        method,
+        identifier,
+        result: "started",
+        details: { sessionUserId: activeUser.id },
+      });
+
+      const resolvedRole = normalizeRole(authRecord.role ?? publicUserById.data?.role);
+      const resolvedCompanyId = authRecord.company_id ?? profileRow.data?.company_id ?? publicUserById.data?.company_id ?? null;
+      const isActive = publicUserById.data?.is_active ?? null;
+
+      logAuthEvent("ROLE_FETCH_SUCCESS", {
+        attemptId,
+        method,
+        identifier,
+        result: "success",
+        details: {
+          sessionUserId: activeUser.id,
+          resolvedRole,
+          resolvedCompanyId,
+          internalStaff,
+          isActive,
+        },
+      });
+
+      const nextPriceTier = await fetchPriceTier(resolvedCompanyId);
+      if (bootstrapTokenRef.current !== bootstrapToken) return false;
+
+      const nextCache: AuthCache = {
+        userId: activeUser.id,
+        companyId: resolvedCompanyId,
+        role: resolvedRole,
+        priceTier: nextPriceTier,
+      };
+
+      cachedProfileRef.current = nextCache;
+      writeAuthCache(nextCache);
+
+      setCompanyId(resolvedCompanyId);
+      setRole(resolvedRole);
+      setPriceTier(nextPriceTier);
+      setProfileReady(true);
+
+      console.log(`[useAuth] Auth User ID: ${activeUser.id}, Public Profile Role: ${resolvedRole ?? "(none)"}`);
+      return true;
+    } catch (error) {
+      if (bootstrapTokenRef.current !== bootstrapToken) return false;
+      const message = error instanceof Error ? error.message : "bootstrap_failed";
+      logAuthEvent("PROFILE_FETCH_FAILED", {
+        attemptId,
+        method,
+        identifier,
+        result: "failed",
+        error: message,
+        details: { sessionUserId: activeUser.id },
+      });
+
+      const fallbackCache = cachedProfileRef.current?.userId === activeUser.id ? cachedProfileRef.current : null;
+      if (fallbackCache) {
+        applyCachedState(fallbackCache, { setCompanyId, setRole, setPriceTier });
+      } else {
+        setCompanyId(null);
+        setRole(null);
+        setPriceTier(null);
+      }
+      setProfileReady(true);
+      return false;
+    }
+  }, [fetchPriceTier]);
+
+  const syncSession = useCallback(async (session: Session | null, method: AuthAttemptMethod) => {
+    const nextUser = session?.user ?? null;
+    sessionUserIdRef.current = nextUser?.id ?? null;
+    setUser(nextUser);
+
+    if (!nextUser) {
+      resetState(true);
+      setLoading(false);
+      return;
+    }
+
+    const cached = cachedProfileRef.current?.userId === nextUser.id ? cachedProfileRef.current : null;
+    if (!cached) {
+      setCompanyId(null);
+      setRole(null);
+      setPriceTier(null);
+    } else {
+      applyCachedState(cached, { setCompanyId, setRole, setPriceTier });
+    }
+
+    setLoading(false);
+    await bootstrapUser(nextUser, { method, forceRefresh: !cached });
+  }, [bootstrapUser, resetState]);
+
   useEffect(() => {
     let mounted = true;
 
-    supabase.auth.getSession().then(async ({ data: { session } }) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       if (!mounted) return;
 
-      const nextUser = session?.user ?? null;
-      currentUserIdRef.current = nextUser?.id ?? null;
-      setUser(nextUser);
-      setLoading(false);
+      const method: AuthAttemptMethod = event === "SIGNED_OUT"
+        ? "logout"
+        : event === "SIGNED_IN"
+          ? "email_password"
+          : "session_restore";
 
-      if (!nextUser) {
-        clearCache();
-        cachedProfileRef.current = null;
-        setCompanyId(null);
-        setRole(null);
-        setPriceTier(null);
-        setProfileReady(true);
-          forcedPendingRefreshForRef.current = null;
-        return;
-      }
-
-      setProfileReady(false);
-      if (!applyCachedCommerceState(nextUser.id)) {
-        setRole(null);
-        setCompanyId(null);
-        setPriceTier(null);
-      }
+      void syncSession(session, method);
     });
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (_event, session) => {
-        const nextUser = session?.user ?? null;
-        const nextUserId = nextUser?.id ?? null;
-        const userChanged = currentUserIdRef.current !== nextUserId;
-
-        currentUserIdRef.current = nextUserId;
-        setUser(nextUser);
-        setLoading(false);
-
-        if (!nextUser) {
-          clearCache();
-          cachedProfileRef.current = null;
-          setCompanyId(null);
-          setRole(null);
-          setPriceTier(null);
-          setProfileReady(true);
-          profileFetchedForRef.current = null;
-          forcedPendingRefreshForRef.current = null;
-          return;
-        }
-
-        if (userChanged) {
-          profileFetchedForRef.current = null;
-          forcedPendingRefreshForRef.current = null;
-          setProfileReady(false);
-
-          if (!applyCachedCommerceState(nextUser.id)) {
-            setRole(null);
-            setCompanyId(null);
-            setPriceTier(null);
-          }
-        }
-      }
-    );
+    void supabase.auth.getSession().then(({ data: { session } }) => {
+      if (!mounted) return;
+      void syncSession(session, "session_restore");
+    });
 
     return () => {
       mounted = false;
       subscription.unsubscribe();
     };
-  }, [applyCachedCommerceState]);
+  }, [syncSession]);
 
-  useEffect(() => {
-    if (loading) return;
-    if (!user) {
-      setProfileReady(true);
-      return;
-    }
-    if (profileFetchedForRef.current === user.id) return;
-    profileFetchedForRef.current = user.id;
-    setProfileReady(false);
-
-    // 3s fallback: if RPC stalls, unblock UI using cached/metadata role
-    const fallbackTimer = setTimeout(() => {
-      const cached = getCachedForUser(user.id);
-      if (cached?.role) {
-        setRole(cached.role.toUpperCase());
-        setCompanyId(cached.companyId);
-        setPriceTier(cached.priceTier ?? null);
-      } else {
-        const metaRole = (user.user_metadata as any)?.role
-          ?? (user.app_metadata as any)?.role
-          ?? null;
-        if (metaRole) setRole(String(metaRole).toUpperCase());
-      }
-      setProfileReady(true);
-    }, 3000);
-
-    fetchProfile(user).finally(() => {
-      clearTimeout(fallbackTimer);
-      setProfileReady(true);
+  const refreshProfile = useCallback(async (options: RefreshProfileOptions = {}) => {
+    if (!user) return false;
+    return bootstrapUser(user, {
+      forceRefresh: true,
+      method: options.method ?? "session_restore",
+      attemptId: options.attemptId,
     });
-  }, [fetchProfile, getCachedForUser, loading, user]);
+  }, [bootstrapUser, user]);
 
-  // Removed: pending-role auto-refresh was causing infinite redirect storms
+  const refreshPriceTier = useCallback(async () => {
+    if (!user) return null;
 
-  return {
+    const nextPriceTier = await fetchPriceTier(companyId);
+    setPriceTier(nextPriceTier);
+    const nextCache: AuthCache = {
+      userId: user.id,
+      companyId,
+      role,
+      priceTier: nextPriceTier,
+    };
+    cachedProfileRef.current = nextCache;
+    writeAuthCache(nextCache);
+    return nextPriceTier;
+  }, [companyId, fetchPriceTier, role, user]);
+
+  const logout = useCallback(async () => {
+    const attemptId = createAuthAttemptId();
+    const identifier = user?.email || user?.phone || user?.id || null;
+    logAuthEvent("LOGOUT_STARTED", {
+      attemptId,
+      method: "logout",
+      identifier,
+      result: "started",
+    });
+
+    bootstrapTokenRef.current += 1;
+    resetState(true);
+
+    const storageKeys = typeof window === "undefined" ? [] : getSupabaseStorageKeys();
+
+    try {
+      await supabase.auth.signOut();
+    } finally {
+      storageKeys.forEach((key) => {
+        try {
+          localStorage.removeItem(key);
+        } catch {}
+      });
+      try {
+        sessionStorage.removeItem("oasis_welcomed");
+      } catch {}
+      logAuthEvent("LOGOUT_SUCCESS", {
+        attemptId,
+        method: "logout",
+        identifier,
+        result: "success",
+      });
+    }
+  }, [resetState, user]);
+
+  const value = useMemo<AuthContextValue>(() => ({
     user,
     loading,
-    isAuthenticated: !!user,
+    isAuthenticated: Boolean(user),
     companyId,
     role,
     priceTier,
     profileReady,
     refreshProfile,
     refreshPriceTier,
-  };
+    logout,
+  }), [companyId, loading, logout, priceTier, profileReady, refreshPriceTier, refreshProfile, role, user]);
+
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+}
+
+export function useAuth() {
+  const context = useContext(AuthContext);
+  if (!context) {
+    throw new Error("useAuth must be used within an AuthProvider");
+  }
+  return context;
 }
