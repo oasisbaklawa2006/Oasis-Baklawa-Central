@@ -523,22 +523,45 @@ export async function completeAuthLogin(params: {
   setStatus("profile_loading", { result: "success", details: { userId: resolved.userId, profileStatus: resolved.profileStatus } });
   setStatus("role_loading", { result: "started", details: { role: resolved.role, companyId: resolved.companyId } });
 
-  const priceTier = await fetchPriceTier(resolved.companyId);
-  writeAuthCache({
-    userId: resolved.userId,
-    companyId: resolved.companyId,
-    role: resolved.role,
-    priceTier,
-  });
-
   const destination = isStorefrontRole(resolved.role) && resolved.companyId
     ? "/welcome"
     : getRoleDestination(resolved.role);
 
-  setStatus("authenticated", {
-    result: "success",
-    details: { userId: resolved.userId, destination, role: resolved.role },
-  });
+  // INSTANT REDIRECT for internal staff: skip price-tier hop (not used by admin/staff dashboards).
+  // Cache is written synchronously with priceTier=null; refreshed in background.
+  if (resolved.isInternalStaff) {
+    writeAuthCache({
+      userId: resolved.userId,
+      companyId: resolved.companyId,
+      role: resolved.role,
+      priceTier: null,
+    });
+    setStatus("authenticated", {
+      result: "success",
+      details: { userId: resolved.userId, destination, role: resolved.role, fastPath: true },
+    });
+    // Fire-and-forget price tier hydration for any later staff-as-buyer scenarios.
+    void fetchPriceTier(resolved.companyId).then((priceTier) => {
+      writeAuthCache({
+        userId: resolved.userId,
+        companyId: resolved.companyId,
+        role: resolved.role,
+        priceTier,
+      });
+    }).catch(() => {});
+  } else {
+    const priceTier = await fetchPriceTier(resolved.companyId);
+    writeAuthCache({
+      userId: resolved.userId,
+      companyId: resolved.companyId,
+      role: resolved.role,
+      priceTier,
+    });
+    setStatus("authenticated", {
+      result: "success",
+      details: { userId: resolved.userId, destination, role: resolved.role },
+    });
+  }
 
   return {
     attemptId,

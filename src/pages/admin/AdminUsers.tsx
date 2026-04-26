@@ -154,8 +154,8 @@ const AdminUsers = () => {
   });
   const [selectedPermIds, setSelectedPermIds] = useState<string[]>([]);
 
-  const fetchData = useCallback(async () => {
-    setLoading(true);
+  const fetchData = useCallback(async (opts?: { silent?: boolean }) => {
+    if (!opts?.silent) setLoading(true);
     const [usersRes, companiesRes, rolesRes, permsRes, rpMapRes] = await Promise.all([
       supabase.from("users").select("*").order("created_at", { ascending: false }),
       supabase.from("companies").select("*").order("created_at", { ascending: false }),
@@ -166,7 +166,6 @@ const AdminUsers = () => {
     const allUsers = (usersRes.data as UserRow[]) ?? [];
     setUsers(allUsers);
 
-    // Get current user's role
     const me = allUsers.find((u) => u.id === user?.id);
     if (me) setCurrentUserRole(me.role);
 
@@ -175,14 +174,13 @@ const AdminUsers = () => {
     setAllPermissions((permsRes.data as PermissionRow[]) ?? []);
     setRolePermMap((rpMapRes.data as RolePermMap[]) ?? []);
 
-    // Build managers list from sales_executive, admin roles, OR is_sales_executive flag
     const mgrs: ManagerOption[] = allUsers
       .filter((u) => u.role === "sales_executive" || u.role === "admin" || u.is_sales_executive)
       .map((u) => ({ id: u.id, label: u.full_name || u.email || u.id }));
     setManagers(mgrs);
 
-    setLoading(false);
-  }, []);
+    if (!opts?.silent) setLoading(false);
+  }, [user?.id]);
 
   useEffect(() => {
     fetchData();
@@ -378,6 +376,24 @@ const AdminUsers = () => {
       new_value: { role: nf.role, email: nf.email, auth_created: true },
     });
 
+    // Optimistic UI: prepend new user to local state so the table reflects the change instantly.
+    const optimisticUser: UserRow = {
+      id: newUserId,
+      email: nf.email.trim(),
+      full_name: nf.name,
+      role: nf.role,
+      department: nf.dept || null,
+      designation: nf.designation || null,
+      is_active: true,
+      invite_status: "active",
+      mobile_number: nf.mobile || null,
+      company_id: null,
+      created_at: new Date().toISOString(),
+      commission_rate_percentage: null,
+      is_sales_executive: nf.role === "sales_executive",
+    };
+    setUsers((prev) => [optimisticUser, ...prev.filter((u) => u.id !== newUserId)]);
+
     // Show credentials modal
     setCreatedCredentials({ name: nf.name, email: nf.email.trim(), password: chosenPassword, role: nf.role });
     setShowCredentialsModal(true);
@@ -385,7 +401,8 @@ const AdminUsers = () => {
     setShowModal(false);
     setNf({ name: "", email: "", mobile: "", dept: "", designation: "", role: "", password: "", status: "invited" });
     setSelectedPermIds([]);
-    fetchData();
+    // Background reconciliation — does not block the UI.
+    void fetchData({ silent: true });
     setSaving(null);
   };
 
