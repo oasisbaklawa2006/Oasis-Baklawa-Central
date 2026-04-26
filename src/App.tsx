@@ -115,8 +115,28 @@ const AuthSpinner = () => (
   </div>
 );
 
+/**
+ * Decide where an authenticated user with no resolved buyer role should land.
+ * - Pending applicant (b2b application exists OR profile.status pending OR role='PENDING') → /approval-pending
+ * - Fresh lead (auth.users only, zero portal records) → /register
+ */
+function getUnresolvedDestination(opts: {
+  hasAppliedB2B: boolean;
+  profileStatus: string | null;
+  role: string | null;
+}): "/approval-pending" | "/register" {
+  const status = opts.profileStatus?.trim().toLowerCase() ?? null;
+  const isPendingApplicant =
+    opts.hasAppliedB2B ||
+    status === "pending" ||
+    status === "approved" ||
+    status === "rejected" ||
+    opts.role === "PENDING";
+  return isPendingApplicant ? "/approval-pending" : "/register";
+}
+
 const RootGate = () => {
-  const { user, loading: authLoading, role, companyId, profileReady } = useAuth();
+  const { user, loading: authLoading, role, companyId, profileReady, hasAppliedB2B, profileStatus } = useAuth();
   const normalizedRole = normalizeRole(role);
 
   if (authLoading || (user && !profileReady)) {
@@ -130,18 +150,18 @@ const RootGate = () => {
   }
 
   if (!normalizedRole) {
-    return <Navigate to="/approval-pending" replace />;
+    return <Navigate to={getUnresolvedDestination({ hasAppliedB2B, profileStatus, role: normalizedRole })} replace />;
   }
 
   if (isStorefrontRole(normalizedRole) && !companyId) {
-    return <Navigate to="/approval-pending" replace />;
+    return <Navigate to={getUnresolvedDestination({ hasAppliedB2B, profileStatus, role: normalizedRole })} replace />;
   }
 
   return <Navigate to={getRoleDestination(normalizedRole)} replace />;
 };
 
 const StorefrontGate = ({ children }: { children: React.ReactNode }) => {
-  const { user, loading: authLoading, role, companyId, profileReady } = useAuth();
+  const { user, loading: authLoading, role, companyId, profileReady, hasAppliedB2B, profileStatus } = useAuth();
   const normalizedRole = normalizeRole(role);
 
   if (authLoading || (user && !profileReady)) {
@@ -157,7 +177,7 @@ const StorefrontGate = ({ children }: { children: React.ReactNode }) => {
   }
 
   if (!normalizedRole) {
-    return <Navigate to="/approval-pending" replace />;
+    return <Navigate to={getUnresolvedDestination({ hasAppliedB2B, profileStatus, role: normalizedRole })} replace />;
   }
 
   if (!isStorefrontRole(normalizedRole)) {
@@ -165,7 +185,7 @@ const StorefrontGate = ({ children }: { children: React.ReactNode }) => {
   }
 
   if (!companyId) {
-    return <Navigate to="/approval-pending" replace />;
+    return <Navigate to={getUnresolvedDestination({ hasAppliedB2B, profileStatus, role: normalizedRole })} replace />;
   }
 
   return <>{children}</>;

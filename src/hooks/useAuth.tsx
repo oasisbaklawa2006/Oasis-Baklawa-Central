@@ -42,6 +42,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [role, setRole] = useState<string | null>(null);
   const [priceTier, setPriceTier] = useState<string | null>(null);
   const [profileReady, setProfileReady] = useState(false);
+  const [hasAppliedB2B, setHasAppliedB2B] = useState(false);
+  const [profileStatus, setProfileStatus] = useState<string | null>(null);
 
   const bootstrapTokenRef = useRef(0);
   const cachedProfileRef = useRef<AuthCache | null>(null);
@@ -57,6 +59,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setCompanyId(null);
     setRole(null);
     setPriceTier(null);
+    setHasAppliedB2B(false);
+    setProfileStatus(null);
     setProfileReady(true);
     if (clearCache) {
       cachedProfileRef.current = null;
@@ -111,7 +115,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const normalizedPhone = normalizePhone(activeUser.phone ?? "");
       const phonePattern = normalizedPhone.last10 ? `%${normalizedPhone.last10}%` : null;
 
-      const [authRecord, internalStaff, publicUserById, publicUserByPhone, profileRow] = await Promise.all([
+      const [authRecord, internalStaff, publicUserById, publicUserByPhone, profileRow, b2bAppRow] = await Promise.all([
         fetchAuthRoleRecord(activeUser.id),
         isInternalStaffUser(activeUser.id),
         supabase
@@ -130,6 +134,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           .from("profiles")
           .select("company_id, status, is_approved")
           .eq("id", activeUser.id)
+          .maybeSingle(),
+        supabase
+          .from("b2b_applications")
+          .select("id, status")
+          .eq("user_id", activeUser.id)
+          .limit(1)
           .maybeSingle(),
       ]);
 
@@ -204,6 +214,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setCompanyId(resolvedCompanyId);
       setRole(resolvedRole);
       setPriceTier(nextPriceTier);
+      setHasAppliedB2B(Boolean(b2bAppRow.data?.id));
+      setProfileStatus(profileRow.data?.status ?? null);
       setProfileReady(true);
 
       console.log(`[useAuth] Auth User ID: ${activeUser.id}, Public Profile Role: ${resolvedRole ?? "(none)"}`);
@@ -351,10 +363,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     role,
     priceTier,
     profileReady,
+    hasAppliedB2B,
+    profileStatus,
     refreshProfile,
     refreshPriceTier,
     logout,
-  }), [companyId, loading, logout, priceTier, profileReady, refreshPriceTier, refreshProfile, role, user]);
+  }), [companyId, hasAppliedB2B, loading, logout, priceTier, profileReady, profileStatus, refreshPriceTier, refreshProfile, role, user]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

@@ -16,6 +16,8 @@ export interface AuthContextValue {
   role: string | null;
   priceTier: string | null;
   profileReady: boolean;
+  hasAppliedB2B: boolean;
+  profileStatus: string | null;
   refreshProfile: (options?: RefreshProfileOptions) => Promise<boolean>;
   refreshPriceTier: () => Promise<string | null>;
   logout: () => Promise<void>;
