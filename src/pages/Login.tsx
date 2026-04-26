@@ -318,30 +318,12 @@ const Login = () => {
           // ── HARD GUARD #2: Cancel ALL armed timers IMMEDIATELY. No path can show "timed out" + "verified". ──
           controllerRef.current.clearAllTimers();
 
-          // MSG91 widget success payload is documented to be the access-token string
-          // OR an object containing { message: <access-token>, ... }. We accept all sensible shapes.
-          const accessToken =
-            (typeof payload === "string" ? payload : null) ||
-            payload?.["access-token"] ||
-            payload?.accessToken ||
-            payload?.access_token ||
-            (typeof payload?.message === "string" ? payload.message : null) ||
-            payload?.data?.message ||
-            payload?.data?.["access-token"] ||
-            payload?.data?.accessToken ||
-            null;
-          const verifiedPhone =
-            payload?.mobile ||
-            payload?.phone ||
-            payload?.identifier ||
-            payload?.data?.mobile ||
-            payload?.data?.identifier ||
-            (typeof payload?.message === "object" ? payload?.message?.mobile : null) ||
-            null;
-          console.info("[auth] MSG91 success payload", {
-            hasAccessToken: Boolean(accessToken),
-            verifiedPhone: verifiedPhone ? String(verifiedPhone).slice(-4).padStart(String(verifiedPhone).length, "*") : null,
-            payloadKeys: payload && typeof payload === "object" ? Object.keys(payload) : typeof payload,
+          const accessToken = extractMsg91AccessToken(payload);
+          const verifiedPhone = extractMsg91Phone(payload);
+          console.info("[auth] MSG91 success payload raw", sanitizeAuthDebugPayload(payload));
+          console.info("[auth] MSG91 success payload parsed", {
+            accessToken: maskSecret(accessToken),
+            verifiedPhone,
           });
           if (!accessToken) {
             await finalizeFailure("Verification did not return a valid token. Please retry or use Email login.", "failed", false);
@@ -376,14 +358,40 @@ const Login = () => {
               body: { mode: "verify_widget", accessToken, phone: verifiedPhone },
             });
 
-            if (error || !verifyRes?.ok || !verifyRes?.token_hash || !verifyRes?.phone || !verifyRes?.user_id) {
-              throw new Error(verifyRes?.error || error?.message || "otp_verify_failed");
+            console.info("[auth] verify_widget frontend request", sanitizeAuthDebugPayload({
+              mode: "verify_widget",
+              accessToken,
+              phone: verifiedPhone,
+            }));
+            console.info("[auth] verify_widget frontend response", sanitizeAuthDebugPayload({
+              error: error?.message ?? null,
+              data: verifyRes ?? null,
+            }));
+
+            if (error) {
+              throw new Error(`edge_verify_failed:${error.message}`);
             }
+
+            if (!verifyRes?.ok) {
+              throw new Error(`edge_verify_failed:${verifyRes?.error || verifyRes?.reason || "verification_rejected"}`);
+            }
+
+            const resolvedIdentifier = firstNonEmptyString(verifyRes?.phone, verifiedPhone);
+            if (!resolvedIdentifier) {
+              throw new Error("edge_verify_failed:phone_missing_from_widget_and_edge");
+            }
+
+            if (!verifyRes?.token_hash || !verifyRes?.user_id) {
+              throw new Error(`edge_verify_failed:${!verifyRes?.token_hash ? "token_hash_missing" : "user_id_missing"}`);
+            }
+
+            const normalizedResolvedIdentifier = normalizeIdentifier(String(resolvedIdentifier)).normalized;
+            attemptRef.current = { id: attemptId, method, identifier: normalizedResolvedIdentifier };
 
             logAuthEvent("OTP_VERIFY_SUCCESS", {
               attemptId,
               method,
-              identifier: verifyRes.phone,
+              identifier: normalizedResolvedIdentifier,
               result: "success",
               details: { userId: verifyRes.user_id },
             });
@@ -393,7 +401,7 @@ const Login = () => {
             logAuthEvent("SESSION_CREATE_STARTED", {
               attemptId,
               method,
-              identifier: verifyRes.phone,
+              identifier: normalizedResolvedIdentifier,
               result: "started",
               details: { userId: verifyRes.user_id },
             });
@@ -404,37 +412,61 @@ const Login = () => {
             });
 
             if (sessionError || !sessionData.user) {
-              throw new Error(sessionError?.message || "session_create_failed");
+              throw new Error(`supabase_verifyOtp_failed:${sessionError?.message || "session_create_failed"}`);
             }
 
             logAuthEvent("SESSION_CREATE_SUCCESS", {
               attemptId,
               method,
-              identifier: verifyRes.phone,
+              identifier: normalizedResolvedIdentifier,
               result: "success",
               details: { userId: sessionData.user.id },
             });
             console.log("SESSION_CREATED - Redirecting to Dashboard...");
 
-            await redirectAfterAuth(verifyRes.phone, method, sessionData.user.id, attemptId);
+            await redirectAfterAuth(normalizedResolvedIdentifier, method, sessionData.user.id, attemptId);
             controllerRef.current.finalize();
             setLoading(false);
           } catch (error) {
             const message = error instanceof Error ? error.message : "otp_verify_failed";
-            logAuthEvent("OTP_VERIFY_FAILED", {
-              attemptId,
-              method,
-              identifier: normalizedIdentifier,
-              result: "failed",
-              error: message,
-            });
-            logAuthEvent("SESSION_CREATE_FAILED", {
-              attemptId,
-              method,
-              identifier: normalizedIdentifier,
-              result: "failed",
-              error: message,
-            });
+            const stage = message.startsWith("edge_verify_failed:")
+              ? "EDGE_VERIFY_FAILED"
+              : message.startsWith("supabase_verifyOtp_failed:")
+                ? "SUPABASE_VERIFYOTP_FAILED"
+                : message.startsWith("ACCOUNT_RESOLUTION_FAILED:")
+                  ? "ACCOUNT_RESOLUTION_FAILED"
+                  : message.startsWith("REDIRECT_FAILED:")
+                    ? "REDIRECT_FAILED"
+                    : "OTP_VERIFY_FAILED";
+            console.error(`[auth] ${stage}`, { attemptId, message, identifier: attemptRef.current?.identifier ?? normalizedIdentifier });
+            if (stage === "EDGE_VERIFY_FAILED") {
+              logAuthEvent("OTP_VERIFY_FAILED", {
+                attemptId,
+                method,
+                identifier: attemptRef.current?.identifier ?? normalizedIdentifier,
+                result: "failed",
+                error: message,
+                details: { stage },
+              });
+            } else if (stage === "SUPABASE_VERIFYOTP_FAILED") {
+              logAuthEvent("SESSION_CREATE_FAILED", {
+                attemptId,
+                method,
+                identifier: attemptRef.current?.identifier ?? normalizedIdentifier,
+                result: "failed",
+                error: message,
+                details: { stage },
+              });
+            } else {
+              logAuthEvent("SESSION_CREATE_FAILED", {
+                attemptId,
+                method,
+                identifier: attemptRef.current?.identifier ?? normalizedIdentifier,
+                result: "failed",
+                error: message,
+                details: { stage },
+              });
+            }
             await finalizeFailure(mapOtpErrorMessage(message), "failed", true);
           }
         },
