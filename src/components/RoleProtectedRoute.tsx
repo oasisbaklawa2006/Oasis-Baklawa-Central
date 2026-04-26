@@ -92,7 +92,10 @@ export default function RoleProtectedRoute({ allowedRoles, children }: Props) {
   }
 
   if (!normalizedRole || normalizedRole === "PENDING") {
-    return <Navigate to="/approval-pending" replace />;
+    const status = profileStatus?.trim().toLowerCase() ?? null;
+    const isPendingApplicant =
+      hasAppliedB2B || status === "pending" || status === "approved" || status === "rejected" || normalizedRole === "PENDING";
+    return <Navigate to={isPendingApplicant ? "/approval-pending" : "/register"} replace />;
   }
 
   if (!serverVerified) {
