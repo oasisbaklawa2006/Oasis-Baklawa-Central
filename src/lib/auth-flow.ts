@@ -12,9 +12,10 @@ export type AuthStatus =
   | "otp_sent"
   | "verifying_otp"
   | "verification_success"
-  | "user_resolution_in_progress"
-  | "session_creation_in_progress"
+  | "account_resolution_in_progress"
+  | "profile_loading"
   | "role_loading"
+  | "session_creation_in_progress"
   | "authenticated"
   | "failed"
   | "fallback_to_email";
@@ -26,13 +27,10 @@ export interface AuthCache {
   priceTier: string | null;
 }
 
-export type ResolvedUserStatus = "approved" | "pending" | "blocked" | "missing_role" | "not_registered" | "duplicate";
-
 export interface ResolvedUserRecord {
   userId: string;
   role: string | null;
   companyId: string | null;
-  status: ResolvedUserStatus;
   profileStatus: string | null;
   isInternalStaff: boolean;
   isActive: boolean | null;
@@ -64,13 +62,28 @@ const USER_MESSAGE_BY_CODE: Record<string, string> = {
   NETWORK_ERROR: "Network error. Please check your connection and try again.",
   VERIFICATION_TIMED_OUT: "Verification timed out. Please try again or use Email login.",
   USER_NOT_REGISTERED: "User not registered.",
+  PHONE_NOT_LINKED: "Phone not linked to an approved portal account.",
+  EMAIL_NOT_LINKED: "Email not linked to an approved portal account.",
   ACCOUNT_PENDING: "Account pending approval.",
   ACCOUNT_BLOCKED: "Account blocked. Please contact support.",
   ROLE_NOT_ASSIGNED: "Role not assigned. Please contact an administrator.",
+  PROFILE_MISSING: "Profile missing. Please contact support.",
   DUPLICATE_IDENTITY: "Duplicate identity records found. Please contact support.",
   SESSION_CREATE_FAILED: "Session could not be created.",
   DASHBOARD_LOAD_FAILED: "Dashboard could not be loaded.",
   AUTH_UNAUTHORIZED: "You are not authorized to access this app.",
+  PROVIDER_NOT_LINKED: "Provider login not linked to an approved portal account.",
+};
+
+type PublicUserRow = {
+  id: string;
+  role: string | null;
+  company_id: string | null;
+  is_active: boolean | null;
+  phone: string | null;
+  mobile_number: string | null;
+  email: string | null;
+  secondary_phones?: string[] | null;
 };
 
 export function getAuthUserMessage(error: unknown) {
@@ -177,79 +190,175 @@ function dedupeRecords<T extends { id: string }>(rows: T[] | null | undefined) {
   return Array.from(map.values());
 }
 
-async function resolveUserByIdentifier(identifier: string, attemptId: string, method: AuthAttemptMethod): Promise<ResolvedUserRecord> {
-  const normalized = normalizeIdentifier(identifier);
-  logAuthEvent("USER_RESOLUTION_STARTED", {
-    attemptId,
-    method,
-    identifier: normalized.normalized,
-    result: "started",
-  });
+function rowMatchesIdentifier(row: PublicUserRow, identifier: ReturnType<typeof normalizeIdentifier>) {
+  if (identifier.kind === "email") {
+    return (row.email ?? "").trim().toLowerCase() === identifier.normalized;
+  }
 
-  const baseSelect = "id, role, company_id, is_active, phone, mobile_number, email";
-  let userMatches:
-    | Array<{ id: string; role: string | null; company_id: string | null; is_active: boolean | null; phone: string | null; mobile_number: string | null; email: string | null }>
-    | null = null;
+  const phoneVariants = [row.phone, row.mobile_number, ...(row.secondary_phones ?? [])]
+    .filter(Boolean)
+    .map((value) => normalizePhone(String(value)).last10)
+    .filter(Boolean);
 
-  if (normalized.kind === "email") {
+  return phoneVariants.includes(identifier.last10 ?? "");
+}
+
+async function fetchUsersByIdentifier(identifier: ReturnType<typeof normalizeIdentifier>, attemptId: string, method: AuthAttemptMethod) {
+  const baseSelect = "id, role, company_id, is_active, phone, mobile_number, email, secondary_phones";
+
+  if (identifier.kind === "email") {
     const { data, error } = await supabase
       .from("users")
       .select(baseSelect)
-      .ilike("email", normalized.normalized)
+      .ilike("email", identifier.normalized)
       .limit(5);
 
     if (error) {
       logAuthEvent("USER_RESOLUTION_FAILED", {
         attemptId,
         method,
-        identifier: normalized.normalized,
+        identifier: identifier.normalized,
         result: "failed",
         error: error.message,
       });
       throw new AuthFlowError("NETWORK_ERROR", error.message);
     }
 
-    userMatches = data;
-  } else {
-    const phone = normalizePhone(identifier);
-    const pattern = `%${phone.last10}%`;
-
-    const { data, error } = await supabase
-      .from("users")
-      .select(baseSelect)
-      .or(
-        `phone.ilike.${pattern},mobile_number.ilike.${pattern},secondary_phones.cs.{${phone.last10}}`,
-      )
-      .limit(10);
-
-    if (error) {
-      logAuthEvent("USER_RESOLUTION_FAILED", {
-        attemptId,
-        method,
-        identifier: normalized.normalized,
-        result: "failed",
-        error: error.message,
-      });
-      throw new AuthFlowError("NETWORK_ERROR", error.message);
-    }
-
-    userMatches = data;
+    return dedupeRecords((data ?? []) as PublicUserRow[]).filter((row) => rowMatchesIdentifier(row, identifier));
   }
 
-  const dedupedUsers = dedupeRecords(userMatches).filter((row) => {
-    if (normalized.kind === "email") {
-      return (row.email ?? "").trim().toLowerCase() === normalized.normalized;
-    }
+  const pattern = `%${identifier.last10}%`;
+  const { data, error } = await supabase
+    .from("users")
+    .select(baseSelect)
+    .or(`phone.ilike.${pattern},mobile_number.ilike.${pattern},secondary_phones.cs.{${identifier.last10}}`)
+    .limit(10);
 
-    const phoneVariants = [row.phone, row.mobile_number, ...(row as any).secondary_phones ?? []]
-      .filter(Boolean)
-      .map((value) => normalizePhone(String(value)).last10)
-      .filter(Boolean);
+  if (error) {
+    logAuthEvent("USER_RESOLUTION_FAILED", {
+      attemptId,
+      method,
+      identifier: identifier.normalized,
+      result: "failed",
+      error: error.message,
+    });
+    throw new AuthFlowError("NETWORK_ERROR", error.message);
+  }
 
-    return phoneVariants.includes(normalized.last10 ?? "");
+  return dedupeRecords((data ?? []) as PublicUserRow[]).filter((row) => rowMatchesIdentifier(row, identifier));
+}
+
+async function resolveLinkedAccount(identifier: ReturnType<typeof normalizeIdentifier>, attemptId: string, method: AuthAttemptMethod, userId?: string) {
+  logAuthEvent("ACCOUNT_LINK_RESOLUTION_STARTED", {
+    attemptId,
+    method,
+    identifier: identifier.normalized,
+    result: "started",
+    details: { userId: userId ?? null },
   });
 
-  if (!dedupedUsers.length) {
+  let directUser: PublicUserRow | null = null;
+  if (userId) {
+    const { data, error } = await supabase
+      .from("users")
+      .select("id, role, company_id, is_active, phone, mobile_number, email, secondary_phones")
+      .eq("id", userId)
+      .maybeSingle();
+
+    if (error) {
+      logAuthEvent("ACCOUNT_LINK_RESOLUTION_FAILED", {
+        attemptId,
+        method,
+        identifier: identifier.normalized,
+        result: "failed",
+        error: error.message,
+        details: { userId },
+      });
+      throw new AuthFlowError("NETWORK_ERROR", error.message);
+    }
+
+    directUser = (data as PublicUserRow | null) ?? null;
+  }
+
+  const matches = await fetchUsersByIdentifier(identifier, attemptId, method);
+
+  if (directUser) {
+    if (!rowMatchesIdentifier(directUser, identifier)) {
+      logAuthEvent("ACCOUNT_LINK_RESOLUTION_FAILED", {
+        attemptId,
+        method,
+        identifier: identifier.normalized,
+        result: "failed",
+        error: "identifier_not_linked_to_authenticated_user",
+        details: { userId },
+      });
+      throw new AuthFlowError(
+        identifier.kind === "phone" ? "PHONE_NOT_LINKED" : "EMAIL_NOT_LINKED",
+        identifier.kind === "phone" ? USER_MESSAGE_BY_CODE.PHONE_NOT_LINKED : USER_MESSAGE_BY_CODE.EMAIL_NOT_LINKED,
+      );
+    }
+
+    logAuthEvent("ACCOUNT_LINK_RESOLUTION_SUCCESS", {
+      attemptId,
+      method,
+      identifier: identifier.normalized,
+      result: "success",
+      details: { userId: directUser.id, matchedBy: "authenticated_user" },
+    });
+
+    return { directUser, matches };
+  }
+
+  if (!matches.length) {
+    logAuthEvent("ACCOUNT_LINK_RESOLUTION_FAILED", {
+      attemptId,
+      method,
+      identifier: identifier.normalized,
+      result: "failed",
+      error: "not_linked",
+    });
+    throw new AuthFlowError(
+      identifier.kind === "phone" ? "PHONE_NOT_LINKED" : "EMAIL_NOT_LINKED",
+      identifier.kind === "phone" ? USER_MESSAGE_BY_CODE.PHONE_NOT_LINKED : USER_MESSAGE_BY_CODE.EMAIL_NOT_LINKED,
+    );
+  }
+
+  if (matches.length > 1) {
+    logAuthEvent("ACCOUNT_LINK_RESOLUTION_FAILED", {
+      attemptId,
+      method,
+      identifier: identifier.normalized,
+      result: "failed",
+      error: `duplicate_records:${matches.length}`,
+    });
+    throw new AuthFlowError("DUPLICATE_IDENTITY", USER_MESSAGE_BY_CODE.DUPLICATE_IDENTITY);
+  }
+
+  logAuthEvent("ACCOUNT_LINK_RESOLUTION_SUCCESS", {
+    attemptId,
+    method,
+    identifier: identifier.normalized,
+    result: "success",
+    details: { userId: matches[0].id, matchedBy: identifier.kind },
+  });
+
+  return { directUser: matches[0], matches };
+}
+
+async function resolveUserByIdentifier(identifierInput: string, attemptId: string, method: AuthAttemptMethod, userId?: string): Promise<ResolvedUserRecord> {
+  const normalized = normalizeIdentifier(identifierInput);
+  logAuthEvent("USER_RESOLUTION_STARTED", {
+    attemptId,
+    method,
+    identifier: normalized.normalized,
+    result: "started",
+    details: { userId: userId ?? null },
+  });
+
+  const { directUser, matches } = await resolveLinkedAccount(normalized, attemptId, method, userId);
+  const matchedUser = directUser ?? matches[0];
+
+  if (!matchedUser) {
     logAuthEvent("USER_RESOLUTION_FAILED", {
       attemptId,
       method,
@@ -259,19 +368,6 @@ async function resolveUserByIdentifier(identifier: string, attemptId: string, me
     });
     throw new AuthFlowError("USER_NOT_REGISTERED", USER_MESSAGE_BY_CODE.USER_NOT_REGISTERED);
   }
-
-  if (dedupedUsers.length > 1) {
-    logAuthEvent("USER_RESOLUTION_FAILED", {
-      attemptId,
-      method,
-      identifier: normalized.normalized,
-      result: "failed",
-      error: `duplicate_records:${dedupedUsers.length}`,
-    });
-    throw new AuthFlowError("DUPLICATE_IDENTITY", USER_MESSAGE_BY_CODE.DUPLICATE_IDENTITY);
-  }
-
-  const matchedUser = dedupedUsers[0];
 
   logAuthEvent("PROFILE_FETCH_STARTED", {
     attemptId,
@@ -297,6 +393,18 @@ async function resolveUserByIdentifier(identifier: string, attemptId: string, me
       details: { userId: matchedUser.id },
     });
     throw new AuthFlowError("NETWORK_ERROR", profileError.message);
+  }
+
+  if (!profileRow && !matchedUser.company_id) {
+    logAuthEvent("PROFILE_FETCH_FAILED", {
+      attemptId,
+      method,
+      identifier: normalized.normalized,
+      result: "failed",
+      error: "profile_missing",
+      details: { userId: matchedUser.id },
+    });
+    throw new AuthFlowError("PROFILE_MISSING", USER_MESSAGE_BY_CODE.PROFILE_MISSING);
   }
 
   logAuthEvent("PROFILE_FETCH_SUCCESS", {
@@ -381,7 +489,6 @@ async function resolveUserByIdentifier(identifier: string, attemptId: string, me
     userId: matchedUser.id,
     role: resolvedRole,
     companyId: resolvedCompanyId,
-    status: "approved",
     profileStatus: resolvedProfileStatus,
     isInternalStaff,
     isActive: active,
@@ -410,13 +517,10 @@ export async function completeAuthLogin(params: {
     });
   };
 
-  setStatus("user_resolution_in_progress", { result: "started" });
-  const resolved = await resolveUserByIdentifier(normalized.normalized, attemptId, params.method);
+  setStatus("account_resolution_in_progress", { result: "started" });
+  const resolved = await resolveUserByIdentifier(normalized.normalized, attemptId, params.method, params.userId);
 
-  if (params.userId && params.userId !== resolved.userId) {
-    throw new AuthFlowError("AUTH_UNAUTHORIZED", "Verified identity does not match the authenticated user.");
-  }
-
+  setStatus("profile_loading", { result: "success", details: { userId: resolved.userId, profileStatus: resolved.profileStatus } });
   setStatus("role_loading", { result: "started", details: { role: resolved.role, companyId: resolved.companyId } });
 
   const priceTier = await fetchPriceTier(resolved.companyId);
