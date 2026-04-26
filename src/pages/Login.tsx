@@ -12,6 +12,7 @@ import { signOutAndClearSession } from "@/utils/authSession";
 
 const MSG91_WIDGET_ID = "3664766e464b383030383331";
 const MSG91_TOKEN_AUTH = "509994T6SRbi4LqM69ea72d0P1";
+const MSG91_PROVIDER_SCRIPT_ID = "msg91-otp-provider";
 
 type AuthTab = "msg91" | "email";
 
@@ -29,6 +30,58 @@ function mapOtpErrorMessage(rawMessage?: string | null) {
   return "OTP verification failed. Please try again.";
 }
 
+function firstNonEmptyString(...values: unknown[]) {
+  for (const value of values) {
+    if (typeof value === "string" && value.trim()) return value.trim();
+  }
+  return null;
+}
+
+function extractMsg91AccessToken(payload: any) {
+  return firstNonEmptyString(
+    typeof payload === "string" ? payload : null,
+    payload?.["access-token"],
+    payload?.accessToken,
+    payload?.access_token,
+    typeof payload?.message === "string" ? payload.message : null,
+    payload?.message?.["access-token"],
+    payload?.message?.accessToken,
+    payload?.message?.access_token,
+    payload?.data?.message,
+    payload?.data?.["access-token"],
+    payload?.data?.accessToken,
+    payload?.data?.access_token,
+  );
+}
+
+function extractMsg91Phone(payload: any) {
+  return firstNonEmptyString(
+    payload?.mobile,
+    payload?.phone,
+    payload?.identifier,
+    payload?.number,
+    payload?.msisdn,
+    payload?.message?.mobile,
+    payload?.message?.phone,
+    payload?.message?.identifier,
+    payload?.message?.number,
+    payload?.message?.msisdn,
+    payload?.data?.mobile,
+    payload?.data?.phone,
+    payload?.data?.identifier,
+    payload?.data?.number,
+    payload?.data?.msisdn,
+    payload?.data?.user?.mobile,
+    payload?.data?.user?.phone,
+  );
+}
+
+function maskSecret(value?: string | null) {
+  if (!value) return null;
+  if (value.length <= 8) return `${value.slice(0, 2)}***${value.slice(-2)}`;
+  return `${value.slice(0, 4)}***${value.slice(-4)}`;
+}
+
 const Login = () => {
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState<AuthTab>("msg91");
@@ -39,9 +92,9 @@ const Login = () => {
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [isMsg91Ready, setIsMsg91Ready] = useState(false);
-  const [widgetEpoch, setWidgetEpoch] = useState(0);
   const controllerRef = useRef(createAuthStateController("idle"));
   const attemptRef = useRef<{ id: string; method: AuthAttemptMethod; identifier: string | null } | null>(null);
+  const providerLoadRef = useRef<Promise<void> | null>(null);
 
   const isMinting = useMemo(
     () => ["verifying_otp", "verification_success", "session_creation_in_progress", "account_resolution_in_progress", "profile_loading", "role_loading"].includes(authStatus),
