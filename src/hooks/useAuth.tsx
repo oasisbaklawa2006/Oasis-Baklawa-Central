@@ -1,6 +1,5 @@
 /* eslint-disable react-refresh/only-export-components */
 import {
-  createContext,
   useCallback,
   useContext,
   useEffect,
@@ -15,27 +14,7 @@ import { fetchAuthRoleRecord, isInternalStaffUser, normalizeRole } from "@/lib/a
 import { normalizePhone } from "@/lib/auth-identity";
 import { clearAuthCache, readAuthCache, writeAuthCache, type AuthCache } from "@/lib/auth-flow";
 import { createAuthAttemptId, logAuthEvent, type AuthAttemptMethod } from "@/lib/auth-logging";
-
-interface RefreshProfileOptions {
-  forceRefresh?: boolean;
-  attemptId?: string;
-  method?: AuthAttemptMethod;
-}
-
-interface AuthContextValue {
-  user: User | null;
-  loading: boolean;
-  isAuthenticated: boolean;
-  companyId: string | null;
-  role: string | null;
-  priceTier: string | null;
-  profileReady: boolean;
-  refreshProfile: (options?: RefreshProfileOptions) => Promise<boolean>;
-  refreshPriceTier: () => Promise<string | null>;
-  logout: () => Promise<void>;
-}
-
-const AuthContext = createContext<AuthContextValue | undefined>(undefined);
+import { AuthContext, type AuthContextValue, type RefreshProfileOptions } from "./auth-context";
 
 function getSupabaseStorageKeys() {
   return Object.keys(localStorage).filter((key) => key.startsWith("sb-") && key.includes("auth-token"));
