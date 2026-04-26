@@ -86,13 +86,21 @@ const WelcomeGate = () => {
   useEffect(() => {
     if (!ready) return;
     const timer = setTimeout(() => {
-      let dest = "/approval-pending";
-      if (isStaff) dest = getRoleDestination(normalizedRole);
-      else if (companyId && normalizedRole && normalizedRole !== "PENDING") dest = "/home";
+      let dest = "/register";
+      if (isStaff) {
+        dest = getRoleDestination(normalizedRole);
+      } else if (companyId && normalizedRole && normalizedRole !== "PENDING") {
+        dest = "/home";
+      } else {
+        const status = profileStatus?.trim().toLowerCase() ?? null;
+        const isPendingApplicant =
+          hasAppliedB2B || status === "pending" || status === "approved" || status === "rejected" || normalizedRole === "PENDING";
+        dest = isPendingApplicant ? "/approval-pending" : "/register";
+      }
       navigate(dest, { replace: true });
     }, 2500);
     return () => clearTimeout(timer);
-  }, [ready, isStaff, normalizedRole, companyId, navigate]);
+  }, [ready, isStaff, normalizedRole, companyId, hasAppliedB2B, profileStatus, navigate]);
 
   // If auth not loaded after a generous window, redirect to login
   useEffect(() => {
