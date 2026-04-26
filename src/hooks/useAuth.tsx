@@ -59,6 +59,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setCompanyId(null);
     setRole(null);
     setPriceTier(null);
+    setHasAppliedB2B(false);
+    setProfileStatus(null);
     setProfileReady(true);
     if (clearCache) {
       cachedProfileRef.current = null;
