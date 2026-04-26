@@ -383,6 +383,15 @@ const Login = () => {
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-center px-5 bg-background">
+      {/* ── Full-screen Gold Session Minting Overlay ── */}
+      {isMinting && (
+        <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-background/95 backdrop-blur-sm">
+          <Loader2 size={42} className="animate-spin" style={{ color: "#C5A059" }} />
+          <p className="mt-5 font-display text-base tracking-wide" style={{ color: "#C5A059" }}>
+            Securing your Oasis session…
+          </p>
+        </div>
+      )}
       <motion.div
         initial={{ opacity: 0, y: 24 }}
         animate={{ opacity: 1, y: 0 }}
