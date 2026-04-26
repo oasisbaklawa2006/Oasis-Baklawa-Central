@@ -683,7 +683,7 @@ const AdminUsers = () => {
                                   <LockKeyhole size={14} />
                                 </button>
                                 <button
-                                  title="Resend Activation Email"
+                                  title="Send Magic Login Link"
                                   className="p-1.5 rounded-md text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors"
                                   onClick={async () => {
                                     if (!u.email) {
@@ -691,20 +691,18 @@ const AdminUsers = () => {
                                       return;
                                     }
                                     try {
-                                      const { error } = await supabase.from("notification_outbox").insert({
-                                        recipient_email: u.email,
-                                        event_type: "account_activation",
-                                        message_body:
-                                          "Welcome to Oasis Baklawa! Your B2B account has been approved and activated. You can now log in to view our catalog and place orders.",
-                                        status: "pending",
+                                      // Trigger Supabase magic link → user is auto-signed-in on click and lands on /welcome.
+                                      const { error } = await supabase.auth.signInWithOtp({
+                                        email: u.email,
+                                        options: {
+                                          emailRedirectTo: "https://b2b.oasisbaklawa.com/welcome",
+                                          shouldCreateUser: false,
+                                        },
                                       });
                                       if (error) throw error;
-                                      // Auto-dispatch immediately
-                                      const { processOutboxQueue } = await import("@/utils/notificationOutbox");
-                                      const sent = await processOutboxQueue();
-                                      toast.success(`Email sent (${sent} dispatched)`);
+                                      toast.success(`Magic login link sent to ${u.email}`);
                                     } catch (err: any) {
-                                      toast.error("Failed to send email: " + (err.message || "Unknown error"));
+                                      toast.error("Failed to send magic link: " + (err.message || "Unknown error"));
                                     }
                                   }}
                                 >
