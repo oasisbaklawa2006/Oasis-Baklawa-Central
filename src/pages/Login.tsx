@@ -43,7 +43,7 @@ const Login = () => {
   const attemptRef = useRef<{ id: string; method: AuthAttemptMethod; identifier: string | null } | null>(null);
 
   const isMinting = useMemo(
-    () => ["verifying_otp", "verification_success", "session_creation_in_progress", "user_resolution_in_progress", "role_loading"].includes(authStatus),
+    () => ["verifying_otp", "verification_success", "session_creation_in_progress", "account_resolution_in_progress", "profile_loading", "role_loading"].includes(authStatus),
     [authStatus],
   );
 
@@ -197,17 +197,7 @@ const Login = () => {
       result: "started",
     });
 
-    const handshakeTimer = controllerRef.current.registerTimer(window.setTimeout(async () => {
-      logAuthEvent("AUTH_TIMEOUT_TRIGGERED", {
-        attemptId,
-        method,
-        identifier: attemptRef.current?.identifier ?? null,
-        result: "failed",
-        error: "verification_timeout",
-      });
-      setActiveTab("email");
-      await finalizeFailure("Verification timed out. Please try again or use Email login.", "fallback_to_email");
-    }, 10000));
+    let verificationTimer: number | ReturnType<typeof setTimeout> | null = null;
 
     try {
       window.initSendOTP({
@@ -219,11 +209,24 @@ const Login = () => {
         "auto-country": false,
         captchaRenderId: "",
         success: async (payload: any) => {
-          controllerRef.current.clearTimer(handshakeTimer);
+          if (attemptRef.current?.id !== attemptId) return;
           const accessToken = payload?.message || payload?.["access-token"] || payload?.accessToken || (typeof payload === "string" ? payload : null);
           const verifiedPhone = payload?.mobile || payload?.phone || payload?.message?.mobile || payload?.data?.mobile || null;
           const normalizedIdentifier = verifiedPhone ? normalizeIdentifier(String(verifiedPhone)).normalized : null;
           attemptRef.current = { id: attemptId, method, identifier: normalizedIdentifier };
+
+          verificationTimer = controllerRef.current.registerTimer(window.setTimeout(async () => {
+            if (attemptRef.current?.id !== attemptId) return;
+            logAuthEvent("AUTH_TIMEOUT_TRIGGERED", {
+              attemptId,
+              method,
+              identifier: normalizedIdentifier,
+              result: "failed",
+              error: "verification_timeout",
+            });
+            setActiveTab("email");
+            await finalizeFailure("Verification timed out. Please try again or use Email login.", "fallback_to_email");
+          }, 20000));
 
           updateStatus("verifying_otp", { result: "started" });
           logAuthEvent("OTP_REQUEST_SUCCESS", {
@@ -241,6 +244,7 @@ const Login = () => {
           console.log("OTP_VERIFIED - Starting Session Minting...");
 
           try {
+            controllerRef.current.clearTimer(verificationTimer);
             const { data: verifyRes, error } = await supabase.functions.invoke("msg91-otp", {
               body: { mode: "verify_widget", accessToken, phone: verifiedPhone },
             });
@@ -308,7 +312,8 @@ const Login = () => {
           }
         },
         failure: async (error: any) => {
-          controllerRef.current.clearTimer(handshakeTimer);
+          if (attemptRef.current?.id !== attemptId) return;
+          controllerRef.current.clearTimer(verificationTimer);
           const message = error?.message || error?.errorMessage || error?.type || "otp_verify_failed";
           logAuthEvent("OTP_REQUEST_FAILED", {
             attemptId,
@@ -323,7 +328,7 @@ const Login = () => {
 
       updateStatus("otp_sent", { result: "success" });
     } catch (error) {
-      controllerRef.current.clearTimer(handshakeTimer);
+      controllerRef.current.clearTimer(verificationTimer);
       const message = error instanceof Error ? error.message : "otp_request_failed";
       logAuthEvent("OTP_REQUEST_FAILED", {
         attemptId,
