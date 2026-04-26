@@ -402,7 +402,7 @@ const AdminUsers = () => {
     setNf({ name: "", email: "", mobile: "", dept: "", designation: "", role: "", password: "", status: "invited" });
     setSelectedPermIds([]);
     // Background reconciliation — does not block the UI.
-    void fetchData();
+    void fetchData({ silent: true });
     setSaving(null);
   };
 
