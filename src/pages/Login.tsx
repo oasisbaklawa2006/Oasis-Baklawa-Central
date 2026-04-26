@@ -23,7 +23,13 @@ declare global {
 }
 
 function mapOtpErrorMessage(rawMessage?: string | null) {
-  const message = (rawMessage ?? "").toLowerCase();
+  const normalized = rawMessage ?? "";
+  const stageMessage = normalized.includes(":") ? normalized.split(":").slice(1).join(":") : normalized;
+  const message = stageMessage.toLowerCase();
+  if (message.includes("phone_missing_from_widget_and_edge")) return "Phone number was missing after verification. Please retry.";
+  if (message.includes("token_hash_missing")) return "Verification succeeded, but session token generation failed. Please retry.";
+  if (message.includes("user_id_missing")) return "Verification succeeded, but account binding failed. Please retry.";
+  if (message.includes("provider_not_linked") || message.includes("phone_not_linked")) return "This phone number is not linked to an approved account.";
   if (message.includes("expired")) return "OTP expired. Please request a new code.";
   if (message.includes("invalid")) return "OTP invalid. Please enter the correct code and try again.";
   if (message.includes("network")) return "Network error. Please check your connection and try again.";
@@ -139,13 +145,19 @@ const Login = () => {
     const currentAttemptId = attemptId ?? createAuthAttemptId();
     const normalized = normalizeIdentifier(identity);
 
-    const result = await completeAuthLogin({
-      identity: normalized.normalized,
-      method,
-      userId,
-      attemptId: currentAttemptId,
-      setStatus: (next, meta) => updateStatus(next, meta),
-    });
+    let result;
+    try {
+      result = await completeAuthLogin({
+        identity: normalized.normalized,
+        method,
+        userId,
+        attemptId: currentAttemptId,
+        setStatus: (next, meta) => updateStatus(next, meta),
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "account_resolution_failed";
+      throw new Error(`ACCOUNT_RESOLUTION_FAILED:${message}`);
+    }
 
     logAuthEvent("REDIRECT_STARTED", {
       attemptId: currentAttemptId,
@@ -174,7 +186,7 @@ const Login = () => {
         error: message,
         details: { destination: result.destination },
       });
-      throw error;
+      throw new Error(`REDIRECT_FAILED:${message}`);
     }
   };
 
