@@ -53,7 +53,7 @@ export default function RoleProtectedRoute({ allowedRoles, children }: Props) {
   if (authLoading || (user && !profileReady)) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
-        <Loader2 size={24} className="animate-spin text-primary" />
+        <div className="w-8 h-8 border-2 border-t-transparent rounded-full animate-spin" style={{ borderColor: "#C5A059", borderTopColor: "transparent" }} />
       </div>
     );
   }
