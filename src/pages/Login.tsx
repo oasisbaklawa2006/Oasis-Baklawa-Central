@@ -173,7 +173,7 @@ const Login = () => {
       details: { destination: result.destination, role: result.role },
     });
 
-    // Admin express bypass: force immediate DOM-level redirect to skip React state lag
+    // Admin express lane — use react-router native navigation to avoid Safari hard-refresh bugs
     const idLower = (normalized.normalized || identity || "").toLowerCase();
     const isAdminExpress =
       idLower === "admin@oasisbaklawa.com" ||
@@ -184,11 +184,8 @@ const Login = () => {
       String(result.role || "").toUpperCase() === "SUPER_ADMIN";
 
     try {
-      if (isAdminExpress) {
-        window.location.replace("/admin/cmd-war-room");
-        return;
-      }
-      window.location.assign(result.destination);
+      const target = isAdminExpress ? "/admin/cmd-war-room" : result.destination;
+      navigate(target, { replace: true });
       logAuthEvent("REDIRECT_SUCCESS", {
         attemptId: currentAttemptId,
         method,
