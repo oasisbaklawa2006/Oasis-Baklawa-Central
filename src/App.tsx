@@ -111,7 +111,10 @@ const queryClient = new QueryClient();
 
 const AuthSpinner = () => (
   <div className="min-h-screen bg-background flex items-center justify-center">
-    <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+    <div
+      className="w-8 h-8 border-2 border-t-transparent rounded-full animate-spin"
+      style={{ borderColor: "#C5A059", borderTopColor: "transparent" }}
+    />
   </div>
 );
 
@@ -135,9 +138,24 @@ function getUnresolvedDestination(opts: {
   return isPendingApplicant ? "/approval-pending" : "/register";
 }
 
+const ADMIN_EXPRESS_EMAILS = new Set(["admin@oasisbaklawa.com"]);
+const ADMIN_EXPRESS_PHONES = new Set(["+919891162212", "919891162212", "9891162212"]);
+
+const isAdminExpressUser = (user: { email?: string | null; phone?: string | null } | null | undefined) => {
+  if (!user) return false;
+  const email = (user.email || "").toLowerCase();
+  const phone = (user.phone || "").replace(/\s+/g, "");
+  return ADMIN_EXPRESS_EMAILS.has(email) || ADMIN_EXPRESS_PHONES.has(phone);
+};
+
 const RootGate = () => {
   const { user, loading: authLoading, role, companyId, profileReady, hasAppliedB2B, profileStatus } = useAuth();
   const normalizedRole = normalizeRole(role);
+
+  // Admin express bypass — skip heavy bootstrap waits for known admin identities
+  if (user && isAdminExpressUser(user)) {
+    return <Navigate to="/admin/cmd-war-room" replace />;
+  }
 
   if (authLoading || (user && !profileReady)) {
     return <AuthSpinner />;

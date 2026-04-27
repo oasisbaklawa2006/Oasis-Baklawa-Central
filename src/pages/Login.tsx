@@ -173,7 +173,21 @@ const Login = () => {
       details: { destination: result.destination, role: result.role },
     });
 
+    // Admin express bypass: force immediate DOM-level redirect to skip React state lag
+    const idLower = (normalized.normalized || identity || "").toLowerCase();
+    const isAdminExpress =
+      idLower === "admin@oasisbaklawa.com" ||
+      idLower === "9891162212" ||
+      idLower === "+919891162212" ||
+      idLower === "919891162212" ||
+      String(result.role || "").toLowerCase() === "admin" ||
+      String(result.role || "").toUpperCase() === "SUPER_ADMIN";
+
     try {
+      if (isAdminExpress) {
+        window.location.href = "/admin/cmd-war-room";
+        return;
+      }
       window.location.assign(result.destination);
       logAuthEvent("REDIRECT_SUCCESS", {
         attemptId: currentAttemptId,
