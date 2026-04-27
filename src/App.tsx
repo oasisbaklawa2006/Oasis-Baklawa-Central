@@ -188,6 +188,10 @@ const StorefrontGate = ({ children }: { children: React.ReactNode }) => {
     return <AuthSpinner />;
   }
 
+  if (user && isAdminExpressUser(user)) {
+    return <Navigate to="/admin/cmd-war-room" replace />;
+  }
+
   if (!user) {
     return <Navigate to="/login" replace />;
   }
