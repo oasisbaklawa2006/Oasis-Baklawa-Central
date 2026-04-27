@@ -163,7 +163,7 @@ const RootGate = () => {
     return <AuthSpinner />;
   }
 
-  if (!user) return <PublicLanding />;
+  if (!user) return <Navigate to="/login" replace />;
 
   if (normalizedRole && isStaffRole(normalizedRole)) {
     return <Navigate to={getRoleDestination(normalizedRole)} replace />;
