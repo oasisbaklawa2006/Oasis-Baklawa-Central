@@ -185,7 +185,7 @@ const Login = () => {
 
     try {
       if (isAdminExpress) {
-        window.location.href = "/admin/cmd-war-room";
+        window.location.replace("/admin/cmd-war-room");
         return;
       }
       window.location.assign(result.destination);
