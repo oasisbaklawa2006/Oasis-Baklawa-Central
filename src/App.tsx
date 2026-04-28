@@ -123,21 +123,14 @@ const AuthSpinner = () => (
  * - Pending applicant (b2b application exists OR profile.status pending OR role='PENDING') → /approval-pending
  * - Fresh lead (auth.users only, zero portal records) → /register
  */
-function getUnresolvedDestination(opts: {
+function getUnresolvedDestination(_opts: {
   hasAppliedB2B: boolean;
   profileStatus: string | null;
   role: string | null;
-}): "/approval-pending" | "/welcome" {
-  const status = opts.profileStatus?.trim().toLowerCase() ?? null;
-  const isPendingApplicant =
-    opts.hasAppliedB2B ||
-    status === "pending" ||
-    status === "approved" ||
-    status === "rejected" ||
-    opts.role === "PENDING";
-  // Verified-but-unresolved users park on /welcome (soft holding bay) instead of
-  // being dumped onto the B2B Trade Application form.
-  return isPendingApplicant ? "/approval-pending" : "/welcome";
+}): "/welcome" {
+  // Nuclear option: never auto-route unresolved users to /register or /approval-pending
+  // from the RootGate. Always park them at /welcome and let them choose.
+  return "/welcome";
 }
 
 const ADMIN_EXPRESS_EMAILS = new Set(["admin@oasisbaklawa.com"]);
