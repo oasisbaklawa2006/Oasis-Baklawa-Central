@@ -457,46 +457,9 @@ const Login = () => {
             controllerRef.current.finalize();
             setLoading(false);
           } catch (error) {
-            const message = error instanceof Error ? error.message : "otp_verify_failed";
-            const stage = message.startsWith("edge_verify_failed:")
-              ? "EDGE_VERIFY_FAILED"
-              : message.startsWith("supabase_verifyOtp_failed:")
-                ? "SUPABASE_VERIFYOTP_FAILED"
-                : message.startsWith("ACCOUNT_RESOLUTION_FAILED:")
-                  ? "ACCOUNT_RESOLUTION_FAILED"
-                  : message.startsWith("REDIRECT_FAILED:")
-                    ? "REDIRECT_FAILED"
-                    : "OTP_VERIFY_FAILED";
-            console.error(`[auth] ${stage}`, { attemptId, message, identifier: attemptRef.current?.identifier ?? normalizedIdentifier });
-            if (stage === "EDGE_VERIFY_FAILED") {
-              logAuthEvent("OTP_VERIFY_FAILED", {
-                attemptId,
-                method,
-                identifier: attemptRef.current?.identifier ?? normalizedIdentifier,
-                result: "failed",
-                error: message,
-                details: { stage },
-              });
-            } else if (stage === "SUPABASE_VERIFYOTP_FAILED") {
-              logAuthEvent("SESSION_CREATE_FAILED", {
-                attemptId,
-                method,
-                identifier: attemptRef.current?.identifier ?? normalizedIdentifier,
-                result: "failed",
-                error: message,
-                details: { stage },
-              });
-            } else {
-              logAuthEvent("SESSION_CREATE_FAILED", {
-                attemptId,
-                method,
-                identifier: attemptRef.current?.identifier ?? normalizedIdentifier,
-                result: "failed",
-                error: message,
-                details: { stage },
-              });
-            }
-            await finalizeFailure(mapOtpErrorMessage(message), "failed", true);
+            console.error("[auth] Session minting failed:", error);
+            await finalizeFailure("Session creation failed. Please try Email login.", "fallback_to_email", true);
+            setActiveTab("email");
           }
         },
         failure: async (error: any) => {
