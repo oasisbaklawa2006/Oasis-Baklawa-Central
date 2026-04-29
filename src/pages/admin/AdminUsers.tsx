@@ -1021,25 +1021,12 @@ const AdminUsers = () => {
                 <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
                   Initial Status
                 </Label>
-                <Select value={nf.status} onValueChange={(v) => setNf((p) => ({ ...p, status: v }))}>
-                  <SelectTrigger className="rounded-xl h-11 border-border focus:ring-primary">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent className="rounded-xl border-border">
-                    <SelectItem value="invited" className="focus:bg-primary/10 focus:text-primary cursor-pointer">
-                      Invited
-                    </SelectItem>
-                    <SelectItem value="active" className="focus:bg-primary/10 focus:text-primary cursor-pointer">
-                      Active
-                    </SelectItem>
-                    <SelectItem value="inactive" className="focus:bg-primary/10 focus:text-primary cursor-pointer">
-                      Inactive
-                    </SelectItem>
-                    <SelectItem value="blocked" className="focus:bg-primary/10 focus:text-primary cursor-pointer">
-                      Blocked
-                    </SelectItem>
-                  </SelectContent>
-                </Select>
+                <select value={nf.status} onChange={(e) => setNf((p) => ({ ...p, status: e.target.value }))} className="flex h-11 w-full rounded-xl border border-border bg-card px-3 py-2 text-sm focus:ring-1 focus:ring-primary focus:outline-none appearance-none">
+                  <option value="invited">Invited</option>
+                  <option value="active">Active</option>
+                  <option value="inactive">Inactive</option>
+                  <option value="blocked">Blocked</option>
+                </select>
               </div>
             </div>
 
