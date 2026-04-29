@@ -309,7 +309,7 @@ const AdminUsers = () => {
           full_name: nf.name,
           role: nf.role,
           is_approved: true,
-          department: nf.dept || null,
+          department: nf.dept === "none" ? null : nf.dept,
         } as any, { onConflict: "id" });
       if (profileErr) {
         console.warn("[AdminUsers] profiles upsert non-fatal:", profileErr.message);
