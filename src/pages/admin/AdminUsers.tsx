@@ -1017,7 +1017,7 @@ const AdminUsers = () => {
                     <SelectValue placeholder="Select role" />
                   </SelectTrigger>
                   <SelectContent className="rounded-xl border-border">
-                    <SelectItem value="none" className="hidden">Select Role...</SelectItem>
+                    <SelectItem value="none" className="hidden">Select role...</SelectItem>
                     {roles.map((r) => (
                       <SelectItem
                         key={r.id}
