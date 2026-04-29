@@ -386,7 +386,7 @@ const AdminUsers = () => {
       email: nf.email.trim(),
       full_name: nf.name,
       role: nf.role,
-      department: nf.dept || null,
+      department: nf.dept === "none" ? null : nf.dept,
       designation: nf.designation || null,
       is_active: true,
       invite_status: "active",
