@@ -1034,7 +1034,7 @@ const AdminUsers = () => {
                 <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
                   Initial Status
                 </Label>
-                <Select value={nf.status || undefined} onValueChange={(v) => setNf((p) => ({ ...p, status: v }))}>
+                <Select value={nf.status} onValueChange={(v) => setNf((p) => ({ ...p, status: v }))}>
                   <SelectTrigger className="rounded-xl h-11 border-border focus:ring-primary">
                     <SelectValue />
                   </SelectTrigger>
