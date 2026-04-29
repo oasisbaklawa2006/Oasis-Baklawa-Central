@@ -1060,11 +1060,12 @@ const AdminUsers = () => {
               <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-2">
                 <Building2 size={14} className="text-primary" /> Production Department
               </Label>
-              <Select value={nf.dept || undefined} onValueChange={(v) => setNf((p) => ({ ...p, dept: v }))}>
+              <Select value={nf.dept} onValueChange={(v) => setNf((p) => ({ ...p, dept: v }))}>
                 <SelectTrigger className="rounded-xl h-11 border-border focus:ring-primary bg-muted/30">
                   <SelectValue placeholder="Assign a specific operational floor" />
                 </SelectTrigger>
                 <SelectContent className="rounded-xl border-border max-h-[250px]">
+                  <SelectItem value="none" className="hidden">Assign a specific floor...</SelectItem>
                   {DEPARTMENTS.map((dept) => (
                     <SelectItem
                       key={dept}
