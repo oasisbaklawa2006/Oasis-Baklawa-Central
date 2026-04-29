@@ -1034,23 +1034,10 @@ const AdminUsers = () => {
               <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-2">
                 <Building2 size={14} className="text-primary" /> Production Department
               </Label>
-              <Select value={nf.dept} onValueChange={(v) => setNf((p) => ({ ...p, dept: v }))}>
-                <SelectTrigger className="rounded-xl h-11 border-border focus:ring-primary bg-muted/30">
-                  <SelectValue placeholder="Assign a specific operational floor" />
-                </SelectTrigger>
-                <SelectContent className="rounded-xl border-border max-h-[250px]">
-                  <SelectItem value="none" className="hidden">Assign a specific floor...</SelectItem>
-                  {DEPARTMENTS.map((dept) => (
-                    <SelectItem
-                      key={dept}
-                      value={dept}
-                      className="focus:bg-primary/10 focus:text-primary cursor-pointer font-medium"
-                    >
-                      {dept}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <select value={nf.dept} onChange={(e) => setNf((p) => ({ ...p, dept: e.target.value }))} className="flex h-11 w-full rounded-xl border border-border bg-muted/30 px-3 py-2 text-sm focus:ring-1 focus:ring-primary focus:outline-none appearance-none">
+                <option value="none" className="hidden">Assign a specific operational floor</option>
+                {DEPARTMENTS.map((dept) => <option key={dept} value={dept}>{dept}</option>)}
+              </select>
               <p className="text-[10px] text-muted-foreground italic">
                 Critical for routing manufacturing orders to the correct team.
               </p>
