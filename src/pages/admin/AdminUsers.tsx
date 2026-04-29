@@ -211,8 +211,12 @@ const AdminUsers = () => {
   };
 
   const handleCreateEmployee = async () => {
-    if (!nf.name.trim() || !nf.email.trim() || !nf.role) {
-      toast.error("Name, Email, and Role are required");
+    if (!nf.name.trim() || !nf.email.trim()) {
+      toast.error("Name and Email are required");
+      return;
+    }
+    if (nf.role === "none" || !nf.role) {
+      toast.error("Role is required");
       return;
     }
     if (!nf.password || nf.password.length < 6) {
