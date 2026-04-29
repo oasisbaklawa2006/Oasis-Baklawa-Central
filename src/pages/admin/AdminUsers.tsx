@@ -146,9 +146,9 @@ const AdminUsers = () => {
     name: "",
     email: "",
     mobile: "",
-    dept: "",
+    dept: "none",
     designation: "",
-    role: "",
+    role: "none",
     password: "",
     status: "invited" as string,
   });
@@ -211,8 +211,12 @@ const AdminUsers = () => {
   };
 
   const handleCreateEmployee = async () => {
-    if (!nf.name.trim() || !nf.email.trim() || !nf.role) {
-      toast.error("Name, Email, and Role are required");
+    if (!nf.name.trim() || !nf.email.trim()) {
+      toast.error("Name and Email are required");
+      return;
+    }
+    if (nf.role === "none" || !nf.role) {
+      toast.error("Role is required");
       return;
     }
     if (!nf.password || nf.password.length < 6) {
@@ -269,7 +273,7 @@ const AdminUsers = () => {
       toast.success(`Invite link sent to ${nf.email.trim()}. They'll complete setup on first login.`);
       setSaving(null);
       setShowModal(false);
-      setNf({ name: "", email: "", mobile: "", dept: "", designation: "", role: "", password: "", status: "invited" });
+      setNf({ name: "", email: "", mobile: "", dept: "none", designation: "", role: "none", password: "", status: "invited" });
       setSelectedPermIds([]);
       return;
     }
@@ -281,7 +285,7 @@ const AdminUsers = () => {
         full_name: nf.name,
         mobile_number: nf.mobile || null,
         role: nf.role,
-        department: nf.dept || null,
+        department: nf.dept === "none" ? null : nf.dept,
         designation: nf.designation || null,
         is_active: true,
         invite_status: "active",
@@ -305,7 +309,7 @@ const AdminUsers = () => {
           full_name: nf.name,
           role: nf.role,
           is_approved: true,
-          department: nf.dept || null,
+          department: nf.dept === "none" ? null : nf.dept,
         } as any, { onConflict: "id" });
       if (profileErr) {
         console.warn("[AdminUsers] profiles upsert non-fatal:", profileErr.message);
@@ -382,7 +386,7 @@ const AdminUsers = () => {
       email: nf.email.trim(),
       full_name: nf.name,
       role: nf.role,
-      department: nf.dept || null,
+      department: nf.dept === "none" ? null : nf.dept,
       designation: nf.designation || null,
       is_active: true,
       invite_status: "active",
@@ -399,7 +403,7 @@ const AdminUsers = () => {
     setShowCredentialsModal(true);
     toast.success(`User Created. Credentials: ${nf.email.trim()} / ${chosenPassword}`);
     setShowModal(false);
-    setNf({ name: "", email: "", mobile: "", dept: "", designation: "", role: "", password: "", status: "invited" });
+    setNf({ name: "", email: "", mobile: "", dept: "none", designation: "", role: "none", password: "", status: "invited" });
     setSelectedPermIds([]);
     // Background reconciliation — does not block the UI.
     void fetchData({ silent: true });
@@ -896,7 +900,7 @@ const AdminUsers = () => {
           if (!open) setSelectedRoleId(null);
         }}
       >
-        <DialogContent className="fixed top-[50%] left-[50%] -translate-x-[50%] -translate-y-[50%] z-[100] w-[95vw] max-w-xl max-h-[85vh] overflow-y-auto bg-card border border-border rounded-3xl p-6 shadow-2xl">
+        <DialogContent className="sm:max-w-xl max-h-[85vh] overflow-y-auto bg-card border border-border rounded-3xl p-6">
           <DialogHeader className="mb-6">
             <DialogTitle className="text-2xl font-serif font-bold text-foreground">
               Edit Permissions: {roles.find((r) => r.id === selectedRoleId)?.role_name}
@@ -940,7 +944,7 @@ const AdminUsers = () => {
       </Dialog>
 
       <Dialog open={showModal} onOpenChange={setShowModal}>
-        <DialogContent className="fixed top-[50%] left-[50%] -translate-x-[50%] -translate-y-[50%] z-[100] w-[95vw] max-w-lg max-h-[90vh] overflow-y-auto bg-card border border-border rounded-3xl p-6 md:p-8 shadow-2xl">
+        <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto bg-card border border-border rounded-3xl p-6 md:p-8">
           <DialogHeader className="mb-2">
             <DialogTitle className="text-2xl font-serif font-bold text-foreground">Invite Employee</DialogTitle>
             <DialogDescription className="hidden">Modal description</DialogDescription>
@@ -1008,12 +1012,12 @@ const AdminUsers = () => {
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Role *</Label>
-                <Select value={nf.role || "none"} onValueChange={handleNewRoleChange}>
+                <Select value={nf.role} onValueChange={handleNewRoleChange}>
                   <SelectTrigger className="rounded-xl h-11 border-border focus:ring-primary">
                     <SelectValue placeholder="Select role" />
                   </SelectTrigger>
                   <SelectContent className="rounded-xl border-border">
-                    <SelectItem value="none" className="hidden">Select Role...</SelectItem>
+                    <SelectItem value="none" className="hidden">Select role...</SelectItem>
                     {roles.map((r) => (
                       <SelectItem
                         key={r.id}
@@ -1030,7 +1034,7 @@ const AdminUsers = () => {
                 <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
                   Initial Status
                 </Label>
-                <Select value={nf.status || undefined} onValueChange={(v) => setNf((p) => ({ ...p, status: v }))}>
+                <Select value={nf.status} onValueChange={(v) => setNf((p) => ({ ...p, status: v }))}>
                   <SelectTrigger className="rounded-xl h-11 border-border focus:ring-primary">
                     <SelectValue />
                   </SelectTrigger>
@@ -1056,11 +1060,12 @@ const AdminUsers = () => {
               <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-2">
                 <Building2 size={14} className="text-primary" /> Production Department
               </Label>
-              <Select value={nf.dept || undefined} onValueChange={(v) => setNf((p) => ({ ...p, dept: v }))}>
+              <Select value={nf.dept} onValueChange={(v) => setNf((p) => ({ ...p, dept: v }))}>
                 <SelectTrigger className="rounded-xl h-11 border-border focus:ring-primary bg-muted/30">
                   <SelectValue placeholder="Assign a specific operational floor" />
                 </SelectTrigger>
                 <SelectContent className="rounded-xl border-border max-h-[250px]">
+                  <SelectItem value="none" className="hidden">Assign a specific floor...</SelectItem>
                   {DEPARTMENTS.map((dept) => (
                     <SelectItem
                       key={dept}
@@ -1077,7 +1082,7 @@ const AdminUsers = () => {
               </p>
             </div>
 
-            {nf.role && (
+            {nf.role && nf.role !== "none" && (
               <div className="pt-4 border-t border-border">
                 <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-3 block">
                   Module Access (Auto-filled by Role)
@@ -1131,7 +1136,7 @@ const AdminUsers = () => {
 
       {/* Credentials Success Modal */}
       <Dialog open={showCredentialsModal} onOpenChange={setShowCredentialsModal}>
-        <DialogContent className="fixed top-[50%] left-[50%] -translate-x-[50%] -translate-y-[50%] z-[100] w-[95vw] max-w-md bg-card border border-border rounded-3xl p-6 shadow-2xl">
+        <DialogContent className="sm:max-w-md bg-card border border-border rounded-3xl p-6">
           <DialogHeader className="mb-4">
             <DialogTitle className="text-xl font-serif font-bold text-foreground flex items-center gap-2">
               <UserPlus size={20} className="text-primary" /> Employee Created
