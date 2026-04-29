@@ -1012,47 +1012,21 @@ const AdminUsers = () => {
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Role *</Label>
-                <Select value={nf.role} onValueChange={handleNewRoleChange}>
-                  <SelectTrigger className="rounded-xl h-11 border-border focus:ring-primary">
-                    <SelectValue placeholder="Select role" />
-                  </SelectTrigger>
-                  <SelectContent className="rounded-xl border-border">
-                    <SelectItem value="none" className="hidden">Select role...</SelectItem>
-                    {roles.map((r) => (
-                      <SelectItem
-                        key={r.id}
-                        value={r.role_key || r.id}
-                        className="focus:bg-primary/10 focus:text-primary cursor-pointer"
-                      >
-                        {r.role_name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <select value={nf.role} onChange={(e) => handleNewRoleChange(e.target.value)} className="flex h-11 w-full rounded-xl border border-border bg-card px-3 py-2 text-sm focus:ring-1 focus:ring-primary focus:outline-none appearance-none">
+                  <option value="none" className="hidden">Select role...</option>
+                  {roles.map((r) => <option key={r.id} value={r.role_key || r.id}>{r.role_name}</option>)}
+                </select>
               </div>
               <div className="space-y-2">
                 <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
                   Initial Status
                 </Label>
-                <Select value={nf.status} onValueChange={(v) => setNf((p) => ({ ...p, status: v }))}>
-                  <SelectTrigger className="rounded-xl h-11 border-border focus:ring-primary">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent className="rounded-xl border-border">
-                    <SelectItem value="invited" className="focus:bg-primary/10 focus:text-primary cursor-pointer">
-                      Invited
-                    </SelectItem>
-                    <SelectItem value="active" className="focus:bg-primary/10 focus:text-primary cursor-pointer">
-                      Active
-                    </SelectItem>
-                    <SelectItem value="inactive" className="focus:bg-primary/10 focus:text-primary cursor-pointer">
-                      Inactive
-                    </SelectItem>
-                    <SelectItem value="blocked" className="focus:bg-primary/10 focus:text-primary cursor-pointer">
-                      Blocked
-                    </SelectItem>
-                  </SelectContent>
-                </Select>
+                <select value={nf.status} onChange={(e) => setNf((p) => ({ ...p, status: e.target.value }))} className="flex h-11 w-full rounded-xl border border-border bg-card px-3 py-2 text-sm focus:ring-1 focus:ring-primary focus:outline-none appearance-none">
+                  <option value="invited">Invited</option>
+                  <option value="active">Active</option>
+                  <option value="inactive">Inactive</option>
+                  <option value="blocked">Blocked</option>
+                </select>
               </div>
             </div>
 
@@ -1060,23 +1034,10 @@ const AdminUsers = () => {
               <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-2">
                 <Building2 size={14} className="text-primary" /> Production Department
               </Label>
-              <Select value={nf.dept} onValueChange={(v) => setNf((p) => ({ ...p, dept: v }))}>
-                <SelectTrigger className="rounded-xl h-11 border-border focus:ring-primary bg-muted/30">
-                  <SelectValue placeholder="Assign a specific operational floor" />
-                </SelectTrigger>
-                <SelectContent className="rounded-xl border-border max-h-[250px]">
-                  <SelectItem value="none" className="hidden">Assign a specific floor...</SelectItem>
-                  {DEPARTMENTS.map((dept) => (
-                    <SelectItem
-                      key={dept}
-                      value={dept}
-                      className="focus:bg-primary/10 focus:text-primary cursor-pointer font-medium"
-                    >
-                      {dept}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <select value={nf.dept} onChange={(e) => setNf((p) => ({ ...p, dept: e.target.value }))} className="flex h-11 w-full rounded-xl border border-border bg-muted/30 px-3 py-2 text-sm focus:ring-1 focus:ring-primary focus:outline-none appearance-none">
+                <option value="none" className="hidden">Assign a specific operational floor</option>
+                {DEPARTMENTS.map((dept) => <option key={dept} value={dept}>{dept}</option>)}
+              </select>
               <p className="text-[10px] text-muted-foreground italic">
                 Critical for routing manufacturing orders to the correct team.
               </p>
