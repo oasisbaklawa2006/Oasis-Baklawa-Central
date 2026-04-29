@@ -1135,7 +1135,7 @@ const AdminUsers = () => {
 
       {/* Credentials Success Modal */}
       <Dialog open={showCredentialsModal} onOpenChange={setShowCredentialsModal}>
-        <DialogContent className="fixed top-[50%] left-[50%] -translate-x-[50%] -translate-y-[50%] z-[100] w-[95vw] max-w-md bg-card border border-border rounded-3xl p-6 shadow-2xl">
+        <DialogContent className="sm:max-w-md bg-card border border-border rounded-3xl p-6">
           <DialogHeader className="mb-4">
             <DialogTitle className="text-xl font-serif font-bold text-foreground flex items-center gap-2">
               <UserPlus size={20} className="text-primary" /> Employee Created
