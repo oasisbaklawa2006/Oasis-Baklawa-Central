@@ -1012,23 +1012,10 @@ const AdminUsers = () => {
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Role *</Label>
-                <Select value={nf.role} onValueChange={handleNewRoleChange}>
-                  <SelectTrigger className="rounded-xl h-11 border-border focus:ring-primary">
-                    <SelectValue placeholder="Select role" />
-                  </SelectTrigger>
-                  <SelectContent className="rounded-xl border-border">
-                    <SelectItem value="none" className="hidden">Select role...</SelectItem>
-                    {roles.map((r) => (
-                      <SelectItem
-                        key={r.id}
-                        value={r.role_key || r.id}
-                        className="focus:bg-primary/10 focus:text-primary cursor-pointer"
-                      >
-                        {r.role_name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <select value={nf.role} onChange={(e) => handleNewRoleChange(e.target.value)} className="flex h-11 w-full rounded-xl border border-border bg-card px-3 py-2 text-sm focus:ring-1 focus:ring-primary focus:outline-none appearance-none">
+                  <option value="none" className="hidden">Select role...</option>
+                  {roles.map((r) => <option key={r.id} value={r.role_key || r.id}>{r.role_name}</option>)}
+                </select>
               </div>
               <div className="space-y-2">
                 <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
