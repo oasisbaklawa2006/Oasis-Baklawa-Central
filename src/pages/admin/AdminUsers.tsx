@@ -146,9 +146,9 @@ const AdminUsers = () => {
     name: "",
     email: "",
     mobile: "",
-    dept: "",
+    dept: "none",
     designation: "",
-    role: "",
+    role: "none",
     password: "",
     status: "invited" as string,
   });
