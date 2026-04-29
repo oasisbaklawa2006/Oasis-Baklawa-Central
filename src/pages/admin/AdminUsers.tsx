@@ -900,7 +900,7 @@ const AdminUsers = () => {
           if (!open) setSelectedRoleId(null);
         }}
       >
-        <DialogContent className="fixed top-[50%] left-[50%] -translate-x-[50%] -translate-y-[50%] z-[100] w-[95vw] max-w-xl max-h-[85vh] overflow-y-auto bg-card border border-border rounded-3xl p-6 shadow-2xl">
+        <DialogContent className="sm:max-w-xl max-h-[85vh] overflow-y-auto bg-card border border-border rounded-3xl p-6">
           <DialogHeader className="mb-6">
             <DialogTitle className="text-2xl font-serif font-bold text-foreground">
               Edit Permissions: {roles.find((r) => r.id === selectedRoleId)?.role_name}
