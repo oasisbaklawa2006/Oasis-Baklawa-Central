@@ -273,7 +273,7 @@ const AdminUsers = () => {
       toast.success(`Invite link sent to ${nf.email.trim()}. They'll complete setup on first login.`);
       setSaving(null);
       setShowModal(false);
-      setNf({ name: "", email: "", mobile: "", dept: "", designation: "", role: "", password: "", status: "invited" });
+      setNf({ name: "", email: "", mobile: "", dept: "none", designation: "", role: "none", password: "", status: "invited" });
       setSelectedPermIds([]);
       return;
     }
