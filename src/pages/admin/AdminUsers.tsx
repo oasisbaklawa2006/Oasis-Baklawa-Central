@@ -896,7 +896,7 @@ const AdminUsers = () => {
           if (!open) setSelectedRoleId(null);
         }}
       >
-        <DialogContent className="max-w-xl max-h-[85vh] overflow-y-auto bg-card border-border rounded-3xl p-6">
+        <DialogContent className="fixed top-[50%] left-[50%] -translate-x-[50%] -translate-y-[50%] z-[100] w-[95vw] max-w-xl max-h-[85vh] overflow-y-auto bg-card border border-border rounded-3xl p-6 shadow-2xl">
           <DialogHeader className="mb-6">
             <DialogTitle className="text-2xl font-serif font-bold text-foreground">
               Edit Permissions: {roles.find((r) => r.id === selectedRoleId)?.role_name}
@@ -940,7 +940,7 @@ const AdminUsers = () => {
       </Dialog>
 
       <Dialog open={showModal} onOpenChange={setShowModal}>
-        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto bg-card border-border rounded-3xl p-6 md:p-8">
+        <DialogContent className="fixed top-[50%] left-[50%] -translate-x-[50%] -translate-y-[50%] z-[100] w-[95vw] max-w-lg max-h-[90vh] overflow-y-auto bg-card border border-border rounded-3xl p-6 md:p-8 shadow-2xl">
           <DialogHeader className="mb-2">
             <DialogTitle className="text-2xl font-serif font-bold text-foreground">Invite Employee</DialogTitle>
             <DialogDescription className="hidden">Modal description</DialogDescription>
@@ -1008,11 +1008,12 @@ const AdminUsers = () => {
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Role *</Label>
-                <Select value={nf.role || undefined} onValueChange={handleNewRoleChange}>
+                <Select value={nf.role || "none"} onValueChange={handleNewRoleChange}>
                   <SelectTrigger className="rounded-xl h-11 border-border focus:ring-primary">
                     <SelectValue placeholder="Select role" />
                   </SelectTrigger>
                   <SelectContent className="rounded-xl border-border">
+                    <SelectItem value="none" className="hidden">Select Role...</SelectItem>
                     {roles.map((r) => (
                       <SelectItem
                         key={r.id}
@@ -1130,7 +1131,7 @@ const AdminUsers = () => {
 
       {/* Credentials Success Modal */}
       <Dialog open={showCredentialsModal} onOpenChange={setShowCredentialsModal}>
-        <DialogContent className="max-w-md bg-card border-border rounded-3xl p-6">
+        <DialogContent className="fixed top-[50%] left-[50%] -translate-x-[50%] -translate-y-[50%] z-[100] w-[95vw] max-w-md bg-card border border-border rounded-3xl p-6 shadow-2xl">
           <DialogHeader className="mb-4">
             <DialogTitle className="text-xl font-serif font-bold text-foreground flex items-center gap-2">
               <UserPlus size={20} className="text-primary" /> Employee Created
