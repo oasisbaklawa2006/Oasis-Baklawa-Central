@@ -1082,7 +1082,7 @@ const AdminUsers = () => {
               </p>
             </div>
 
-            {nf.role && (
+            {nf.role && nf.role !== "none" && (
               <div className="pt-4 border-t border-border">
                 <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-3 block">
                   Module Access (Auto-filled by Role)
