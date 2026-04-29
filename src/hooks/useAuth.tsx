@@ -184,6 +184,33 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const resolvedCompanyId = authRecord.company_id ?? profileRow.data?.company_id ?? publicUserById.data?.company_id ?? null;
       const isActive = publicUserById.data?.is_active ?? null;
 
+      // ⚡ Admin Fast-Track: unblock route guards immediately, skip priceTier fetch
+      if (resolvedRole === "ADMIN" || resolvedRole === "OWNER") {
+        console.log(`[useAuth] Fast-tracking Admin: ${activeUser.id}`);
+        const fastCache: AuthCache = {
+          userId: activeUser.id,
+          companyId: resolvedCompanyId,
+          role: resolvedRole,
+          priceTier: cachedProfileRef.current?.priceTier ?? null,
+        };
+        cachedProfileRef.current = fastCache;
+        writeAuthCache(fastCache);
+        setCompanyId(resolvedCompanyId);
+        setRole(resolvedRole);
+        setHasAppliedB2B(Boolean(b2bAppRow.data?.id));
+        setProfileStatus(profileRow.data?.status ?? null);
+        setProfileReady(true);
+        // Background: still fetch priceTier (non-blocking) for completeness
+        void fetchPriceTier(resolvedCompanyId).then((tier) => {
+          if (bootstrapTokenRef.current !== bootstrapToken) return;
+          setPriceTier(tier);
+          const updated: AuthCache = { ...fastCache, priceTier: tier };
+          cachedProfileRef.current = updated;
+          writeAuthCache(updated);
+        }).catch(() => {});
+        return true;
+      }
+
       logAuthEvent("ROLE_FETCH_SUCCESS", {
         attemptId,
         method,
