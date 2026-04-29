@@ -1012,7 +1012,7 @@ const AdminUsers = () => {
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Role *</Label>
-                <Select value={nf.role || "none"} onValueChange={handleNewRoleChange}>
+                <Select value={nf.role} onValueChange={handleNewRoleChange}>
                   <SelectTrigger className="rounded-xl h-11 border-border focus:ring-primary">
                     <SelectValue placeholder="Select role" />
                   </SelectTrigger>
