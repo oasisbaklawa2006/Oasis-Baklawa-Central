@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { useAuth } from "@/hooks/useAuth";
@@ -549,7 +549,7 @@ const AdminUsers = () => {
                         <td className="px-5 py-4 text-sm text-muted-foreground">{u.email ?? "—"}</td>
                         <td className="px-5 py-4">
                           <Select
-                            value={u.role}
+                            value={u.role || undefined}
                             onValueChange={async (newRole) => {
                               const { error } = await supabase.from("users").update({ role: newRole }).eq("id", u.id);
                               if (error) {
@@ -901,6 +901,7 @@ const AdminUsers = () => {
             <DialogTitle className="text-2xl font-serif font-bold text-foreground">
               Edit Permissions: {roles.find((r) => r.id === selectedRoleId)?.role_name}
             </DialogTitle>
+            <DialogDescription className="hidden">Modal description</DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
             {MODULES.map((mod) => {
@@ -942,6 +943,7 @@ const AdminUsers = () => {
         <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto bg-card border-border rounded-3xl p-6 md:p-8">
           <DialogHeader className="mb-2">
             <DialogTitle className="text-2xl font-serif font-bold text-foreground">Invite Employee</DialogTitle>
+            <DialogDescription className="hidden">Modal description</DialogDescription>
           </DialogHeader>
           <p className="text-xs font-medium text-muted-foreground mb-6">
             This creates an internal employee record. A separate auth account will be provisioned.
@@ -1006,7 +1008,7 @@ const AdminUsers = () => {
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Role *</Label>
-                <Select value={nf.role} onValueChange={handleNewRoleChange}>
+                <Select value={nf.role || undefined} onValueChange={handleNewRoleChange}>
                   <SelectTrigger className="rounded-xl h-11 border-border focus:ring-primary">
                     <SelectValue placeholder="Select role" />
                   </SelectTrigger>
@@ -1014,7 +1016,7 @@ const AdminUsers = () => {
                     {roles.map((r) => (
                       <SelectItem
                         key={r.id}
-                        value={r.role_key}
+                        value={r.role_key || r.id}
                         className="focus:bg-primary/10 focus:text-primary cursor-pointer"
                       >
                         {r.role_name}
@@ -1027,7 +1029,7 @@ const AdminUsers = () => {
                 <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
                   Initial Status
                 </Label>
-                <Select value={nf.status} onValueChange={(v) => setNf((p) => ({ ...p, status: v }))}>
+                <Select value={nf.status || undefined} onValueChange={(v) => setNf((p) => ({ ...p, status: v }))}>
                   <SelectTrigger className="rounded-xl h-11 border-border focus:ring-primary">
                     <SelectValue />
                   </SelectTrigger>
@@ -1053,7 +1055,7 @@ const AdminUsers = () => {
               <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-2">
                 <Building2 size={14} className="text-primary" /> Production Department
               </Label>
-              <Select value={nf.dept} onValueChange={(v) => setNf((p) => ({ ...p, dept: v }))}>
+              <Select value={nf.dept || undefined} onValueChange={(v) => setNf((p) => ({ ...p, dept: v }))}>
                 <SelectTrigger className="rounded-xl h-11 border-border focus:ring-primary bg-muted/30">
                   <SelectValue placeholder="Assign a specific operational floor" />
                 </SelectTrigger>
@@ -1133,6 +1135,7 @@ const AdminUsers = () => {
             <DialogTitle className="text-xl font-serif font-bold text-foreground flex items-center gap-2">
               <UserPlus size={20} className="text-primary" /> Employee Created
             </DialogTitle>
+            <DialogDescription className="hidden">Modal description</DialogDescription>
           </DialogHeader>
           {createdCredentials && (
             <div className="space-y-4">
