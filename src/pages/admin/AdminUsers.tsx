@@ -944,7 +944,7 @@ const AdminUsers = () => {
       </Dialog>
 
       <Dialog open={showModal} onOpenChange={setShowModal}>
-        <DialogContent className="fixed top-[50%] left-[50%] -translate-x-[50%] -translate-y-[50%] z-[100] w-[95vw] max-w-lg max-h-[90vh] overflow-y-auto bg-card border border-border rounded-3xl p-6 md:p-8 shadow-2xl">
+        <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto bg-card border border-border rounded-3xl p-6 md:p-8">
           <DialogHeader className="mb-2">
             <DialogTitle className="text-2xl font-serif font-bold text-foreground">Invite Employee</DialogTitle>
             <DialogDescription className="hidden">Modal description</DialogDescription>
