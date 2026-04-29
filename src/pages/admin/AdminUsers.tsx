@@ -403,7 +403,7 @@ const AdminUsers = () => {
     setShowCredentialsModal(true);
     toast.success(`User Created. Credentials: ${nf.email.trim()} / ${chosenPassword}`);
     setShowModal(false);
-    setNf({ name: "", email: "", mobile: "", dept: "", designation: "", role: "", password: "", status: "invited" });
+    setNf({ name: "", email: "", mobile: "", dept: "none", designation: "", role: "none", password: "", status: "invited" });
     setSelectedPermIds([]);
     // Background reconciliation — does not block the UI.
     void fetchData({ silent: true });
