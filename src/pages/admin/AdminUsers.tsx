@@ -140,7 +140,12 @@ const AdminUsers = () => {
 
   // Temp password success modal
   const [showCredentialsModal, setShowCredentialsModal] = useState(false);
-  const [createdCredentials, setCreatedCredentials] = useState<{ name: string; email: string; password: string; role: string } | null>(null);
+  const [createdCredentials, setCreatedCredentials] = useState<{
+    name: string;
+    email: string;
+    password: string;
+    role: string;
+  } | null>(null);
 
   const [nf, setNf] = useState({
     name: "",
@@ -154,33 +159,36 @@ const AdminUsers = () => {
   });
   const [selectedPermIds, setSelectedPermIds] = useState<string[]>([]);
 
-  const fetchData = useCallback(async (opts?: { silent?: boolean }) => {
-    if (!opts?.silent) setLoading(true);
-    const [usersRes, companiesRes, rolesRes, permsRes, rpMapRes] = await Promise.all([
-      supabase.from("users").select("*").order("created_at", { ascending: false }),
-      supabase.from("companies").select("*").order("created_at", { ascending: false }),
-      supabase.from("roles").select("*").order("role_name"),
-      supabase.from("permissions").select("*").order("module_name, permission_name"),
-      supabase.from("role_permission_map").select("*"),
-    ]);
-    const allUsers = (usersRes.data as UserRow[]) ?? [];
-    setUsers(allUsers);
+  const fetchData = useCallback(
+    async (opts?: { silent?: boolean }) => {
+      if (!opts?.silent) setLoading(true);
+      const [usersRes, companiesRes, rolesRes, permsRes, rpMapRes] = await Promise.all([
+        supabase.from("users").select("*").order("created_at", { ascending: false }),
+        supabase.from("companies").select("*").order("created_at", { ascending: false }),
+        supabase.from("roles").select("*").order("role_name"),
+        supabase.from("permissions").select("*").order("module_name, permission_name"),
+        supabase.from("role_permission_map").select("*"),
+      ]);
+      const allUsers = (usersRes.data as UserRow[]) ?? [];
+      setUsers(allUsers);
 
-    const me = allUsers.find((u) => u.id === user?.id);
-    if (me) setCurrentUserRole(me.role);
+      const me = allUsers.find((u) => u.id === user?.id);
+      if (me) setCurrentUserRole(me.role);
 
-    setCompanies((companiesRes.data as CompanyRow[]) ?? []);
-    setRoles((rolesRes.data as RoleRow[]) ?? []);
-    setAllPermissions((permsRes.data as PermissionRow[]) ?? []);
-    setRolePermMap((rpMapRes.data as RolePermMap[]) ?? []);
+      setCompanies((companiesRes.data as CompanyRow[]) ?? []);
+      setRoles((rolesRes.data as RoleRow[]) ?? []);
+      setAllPermissions((permsRes.data as PermissionRow[]) ?? []);
+      setRolePermMap((rpMapRes.data as RolePermMap[]) ?? []);
 
-    const mgrs: ManagerOption[] = allUsers
-      .filter((u) => u.role === "sales_executive" || u.role === "admin" || u.is_sales_executive)
-      .map((u) => ({ id: u.id, label: u.full_name || u.email || u.id }));
-    setManagers(mgrs);
+      const mgrs: ManagerOption[] = allUsers
+        .filter((u) => u.role === "sales_executive" || u.role === "admin" || u.is_sales_executive)
+        .map((u) => ({ id: u.id, label: u.full_name || u.email || u.id }));
+      setManagers(mgrs);
 
-    if (!opts?.silent) setLoading(false);
-  }, [user?.id]);
+      if (!opts?.silent) setLoading(false);
+    },
+    [user?.id],
+  );
 
   useEffect(() => {
     fetchData();
@@ -273,7 +281,16 @@ const AdminUsers = () => {
       toast.success(`Invite link sent to ${nf.email.trim()}. They'll complete setup on first login.`);
       setSaving(null);
       setShowModal(false);
-      setNf({ name: "", email: "", mobile: "", dept: "none", designation: "", role: "none", password: "", status: "invited" });
+      setNf({
+        name: "",
+        email: "",
+        mobile: "",
+        dept: "none",
+        designation: "",
+        role: "none",
+        password: "",
+        status: "invited",
+      });
       setSelectedPermIds([]);
       return;
     }
@@ -294,23 +311,37 @@ const AdminUsers = () => {
 
     // Staff roles: auto-approve in profiles table (defensive — non-fatal if it fails)
     const staffRoleSet = new Set([
-      "super_admin", "admin", "finance_head", "finance_exec",
-      "operations_manager", "production_manager",
-      "hod_arabic", "hod_fusion", "hod_chocolate", "hod_bakery", "hod_nuts", "hod_assembly",
-      "store_incharge", "dispatch_manager", "dispatch_incharge", "security_control",
-      "sales_executive", "support_executive",
+      "super_admin",
+      "admin",
+      "finance_head",
+      "finance_exec",
+      "operations_manager",
+      "production_manager",
+      "hod_arabic",
+      "hod_fusion",
+      "hod_chocolate",
+      "hod_bakery",
+      "hod_nuts",
+      "hod_assembly",
+      "store_incharge",
+      "dispatch_manager",
+      "dispatch_incharge",
+      "security_control",
+      "sales_executive",
+      "support_executive",
     ]);
     if (staffRoleSet.has(nf.role)) {
-      const { error: profileErr } = await supabase
-        .from("profiles")
-        .upsert({
+      const { error: profileErr } = await supabase.from("profiles").upsert(
+        {
           id: newUserId,
           email: nf.email.trim(),
           full_name: nf.name,
           role: nf.role,
           is_approved: true,
           department: nf.dept === "none" ? null : nf.dept,
-        } as any, { onConflict: "id" });
+        } as any,
+        { onConflict: "id" },
+      );
       if (profileErr) {
         console.warn("[AdminUsers] profiles upsert non-fatal:", profileErr.message);
       }
@@ -403,7 +434,16 @@ const AdminUsers = () => {
     setShowCredentialsModal(true);
     toast.success(`User Created. Credentials: ${nf.email.trim()} / ${chosenPassword}`);
     setShowModal(false);
-    setNf({ name: "", email: "", mobile: "", dept: "none", designation: "", role: "none", password: "", status: "invited" });
+    setNf({
+      name: "",
+      email: "",
+      mobile: "",
+      dept: "none",
+      designation: "",
+      role: "none",
+      password: "",
+      status: "invited",
+    });
     setSelectedPermIds([]);
     // Background reconciliation — does not block the UI.
     void fetchData({ silent: true });
@@ -577,16 +617,34 @@ const AdminUsers = () => {
                               <SelectValue />
                             </SelectTrigger>
                             <SelectContent>
-              {[
-                "super_admin", "admin",
-                "finance_head", "finance_exec",
-                "operations_manager", "production_manager",
-                "hod_arabic", "hod_fusion", "hod_chocolate", "hod_bakery", "hod_nuts", "hod_assembly",
-                "store_incharge", "dispatch_manager", "dispatch_incharge", "security_control",
-                "sales_executive", "support_executive",
-                "b2b_buyer", "special_buyer", "horeca_buyer", "wholesale_buyer", "bulk_buyer",
-              ].map((r) => (
-                                <SelectItem key={r} value={r} className="text-xs font-semibold uppercase">{r.replace(/_/g, " ")}</SelectItem>
+                              {[
+                                "super_admin",
+                                "admin",
+                                "finance_head",
+                                "finance_exec",
+                                "operations_manager",
+                                "production_manager",
+                                "hod_arabic",
+                                "hod_fusion",
+                                "hod_chocolate",
+                                "hod_bakery",
+                                "hod_nuts",
+                                "hod_assembly",
+                                "store_incharge",
+                                "dispatch_manager",
+                                "dispatch_incharge",
+                                "security_control",
+                                "sales_executive",
+                                "support_executive",
+                                "b2b_buyer",
+                                "special_buyer",
+                                "horeca_buyer",
+                                "wholesale_buyer",
+                                "bulk_buyer",
+                              ].map((r) => (
+                                <SelectItem key={r} value={r} className="text-xs font-semibold uppercase">
+                                  {r.replace(/_/g, " ")}
+                                </SelectItem>
                               ))}
                             </SelectContent>
                           </Select>
@@ -611,9 +669,11 @@ const AdminUsers = () => {
                                 toast.error("Failed to update sales exec flag");
                                 return;
                               }
-                              toast.success(`${u.full_name || u.email} ${checked ? "enabled" : "disabled"} as Sales Executive`);
+                              toast.success(
+                                `${u.full_name || u.email} ${checked ? "enabled" : "disabled"} as Sales Executive`,
+                              );
                               setUsers((prev) =>
-                                prev.map((x) => (x.id === u.id ? { ...x, is_sales_executive: checked } : x))
+                                prev.map((x) => (x.id === u.id ? { ...x, is_sales_executive: checked } : x)),
                               );
                               await supabase.from("audit_logs").insert({
                                 action_type: "toggle_sales_executive",
@@ -650,7 +710,9 @@ const AdminUsers = () => {
                                   }
                                   toast.success(`Commission rate updated to ${newRate}%`);
                                   setUsers((prev) =>
-                                    prev.map((x) => (x.id === u.id ? { ...x, commission_rate_percentage: newRate } : x))
+                                    prev.map((x) =>
+                                      x.id === u.id ? { ...x, commission_rate_percentage: newRate } : x,
+                                    ),
                                   );
                                   await supabase.from("audit_logs").insert({
                                     action_type: "update_commission_rate",
@@ -687,8 +749,8 @@ const AdminUsers = () => {
                                     toast.success(`Access revoked for ${u.full_name || u.email}`);
                                     setUsers((prev) =>
                                       prev.map((x) =>
-                                        x.id === u.id ? { ...x, invite_status: "inactive", is_active: false } : x
-                                      )
+                                        x.id === u.id ? { ...x, invite_status: "inactive", is_active: false } : x,
+                                      ),
                                     );
                                     await supabase.from("audit_logs").insert({
                                       action_type: "revoke_access",
@@ -793,7 +855,7 @@ const AdminUsers = () => {
                             const mgrName = managers.find((m) => m.id === managerId)?.label ?? "None";
                             toast.success(`${c.business_name} → ${mgrName}`);
                             setCompanies((prev) =>
-                              prev.map((x) => (x.id === c.id ? { ...x, account_manager_id: managerId } : x))
+                              prev.map((x) => (x.id === c.id ? { ...x, account_manager_id: managerId } : x)),
                             );
                             await supabase.from("audit_logs").insert({
                               action_type: "assign_account_manager",
@@ -809,7 +871,9 @@ const AdminUsers = () => {
                             <SelectValue placeholder="Unassigned" />
                           </SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="unassigned" className="text-xs text-muted-foreground">Unassigned</SelectItem>
+                            <SelectItem value="unassigned" className="text-xs text-muted-foreground">
+                              Unassigned
+                            </SelectItem>
                             {managers.map((m) => (
                               <SelectItem key={m.id} value={m.id} className="text-xs font-semibold">
                                 {m.label}
@@ -900,7 +964,10 @@ const AdminUsers = () => {
           if (!open) setSelectedRoleId(null);
         }}
       >
-        <DialogContent className="sm:max-w-xl max-h-[85vh] overflow-y-auto bg-card border border-border rounded-3xl p-6">
+        <DialogContent
+          onOpenAutoFocus={(e) => e.preventDefault()}
+          className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-[100] w-[95vw] max-w-xl max-h-[85vh] overflow-y-auto bg-card border border-border rounded-3xl p-6 shadow-2xl"
+        >
           <DialogHeader className="mb-6">
             <DialogTitle className="text-2xl font-serif font-bold text-foreground">
               Edit Permissions: {roles.find((r) => r.id === selectedRoleId)?.role_name}
@@ -944,7 +1011,10 @@ const AdminUsers = () => {
       </Dialog>
 
       <Dialog open={showModal} onOpenChange={setShowModal}>
-        <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto bg-card border border-border rounded-3xl p-6 md:p-8">
+        <DialogContent
+          onOpenAutoFocus={(e) => e.preventDefault()}
+          className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-[100] w-[95vw] max-w-lg max-h-[90vh] overflow-y-auto bg-card border border-border rounded-3xl p-6 md:p-8 shadow-2xl"
+        >
           <DialogHeader className="mb-2">
             <DialogTitle className="text-2xl font-serif font-bold text-foreground">Invite Employee</DialogTitle>
             <DialogDescription className="hidden">Modal description</DialogDescription>
@@ -975,7 +1045,9 @@ const AdminUsers = () => {
             </div>
 
             <div className="space-y-2">
-              <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Initial Password *</Label>
+              <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                Initial Password *
+              </Label>
               <Input
                 type="password"
                 value={nf.password}
@@ -1012,16 +1084,30 @@ const AdminUsers = () => {
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Role *</Label>
-                <select value={nf.role} onChange={(e) => handleNewRoleChange(e.target.value)} className="flex h-11 w-full rounded-xl border border-border bg-card px-3 py-2 text-sm focus:ring-1 focus:ring-primary focus:outline-none appearance-none">
-                  <option value="none" className="hidden">Select role...</option>
-                  {roles.map((r) => <option key={r.id} value={r.role_key || r.id}>{r.role_name}</option>)}
+                <select
+                  value={nf.role}
+                  onChange={(e) => handleNewRoleChange(e.target.value)}
+                  className="flex h-11 w-full rounded-xl border border-border bg-card px-3 py-2 text-sm focus:ring-1 focus:ring-primary focus:outline-none appearance-none"
+                >
+                  <option value="none" className="hidden" disabled>
+                    Select role...
+                  </option>
+                  {roles.map((r) => (
+                    <option key={r.id} value={r.role_key || r.id}>
+                      {r.role_name}
+                    </option>
+                  ))}
                 </select>
               </div>
               <div className="space-y-2">
                 <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
                   Initial Status
                 </Label>
-                <select value={nf.status} onChange={(e) => setNf((p) => ({ ...p, status: e.target.value }))} className="flex h-11 w-full rounded-xl border border-border bg-card px-3 py-2 text-sm focus:ring-1 focus:ring-primary focus:outline-none appearance-none">
+                <select
+                  value={nf.status}
+                  onChange={(e) => setNf((p) => ({ ...p, status: e.target.value }))}
+                  className="flex h-11 w-full rounded-xl border border-border bg-card px-3 py-2 text-sm focus:ring-1 focus:ring-primary focus:outline-none appearance-none"
+                >
                   <option value="invited">Invited</option>
                   <option value="active">Active</option>
                   <option value="inactive">Inactive</option>
@@ -1034,16 +1120,26 @@ const AdminUsers = () => {
               <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-2">
                 <Building2 size={14} className="text-primary" /> Production Department
               </Label>
-              <select value={nf.dept} onChange={(e) => setNf((p) => ({ ...p, dept: e.target.value }))} className="flex h-11 w-full rounded-xl border border-border bg-muted/30 px-3 py-2 text-sm focus:ring-1 focus:ring-primary focus:outline-none appearance-none">
-                <option value="none" className="hidden">Assign a specific operational floor</option>
-                {DEPARTMENTS.map((dept) => <option key={dept} value={dept}>{dept}</option>)}
+              <select
+                value={nf.dept}
+                onChange={(e) => setNf((p) => ({ ...p, dept: e.target.value }))}
+                className="flex h-11 w-full rounded-xl border border-border bg-muted/30 px-3 py-2 text-sm focus:ring-1 focus:ring-primary focus:outline-none appearance-none"
+              >
+                <option value="none" className="hidden" disabled>
+                  Assign a specific operational floor
+                </option>
+                {DEPARTMENTS.map((dept) => (
+                  <option key={dept} value={dept}>
+                    {dept}
+                  </option>
+                ))}
               </select>
               <p className="text-[10px] text-muted-foreground italic">
                 Critical for routing manufacturing orders to the correct team.
               </p>
             </div>
 
-            {nf.role && nf.role !== "none" && (
+            {nf.role !== "none" && (
               <div className="pt-4 border-t border-border">
                 <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-3 block">
                   Module Access (Auto-filled by Role)
@@ -1097,7 +1193,10 @@ const AdminUsers = () => {
 
       {/* Credentials Success Modal */}
       <Dialog open={showCredentialsModal} onOpenChange={setShowCredentialsModal}>
-        <DialogContent className="sm:max-w-md bg-card border border-border rounded-3xl p-6">
+        <DialogContent
+          onOpenAutoFocus={(e) => e.preventDefault()}
+          className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-[100] w-[95vw] max-w-md bg-card border border-border rounded-3xl p-6 shadow-2xl"
+        >
           <DialogHeader className="mb-4">
             <DialogTitle className="text-xl font-serif font-bold text-foreground flex items-center gap-2">
               <UserPlus size={20} className="text-primary" /> Employee Created
@@ -1107,7 +1206,10 @@ const AdminUsers = () => {
           {createdCredentials && (
             <div className="space-y-4">
               <p className="text-sm text-muted-foreground">
-                Account created successfully. <strong className="text-destructive">Copy the temporary password now — it will not be shown again.</strong>
+                Account created successfully.{" "}
+                <strong className="text-destructive">
+                  Copy the temporary password now — it will not be shown again.
+                </strong>
               </p>
               <div className="bg-muted/50 rounded-xl p-4 space-y-3 border border-border">
                 <div className="flex justify-between items-center">
@@ -1120,10 +1222,14 @@ const AdminUsers = () => {
                 </div>
                 <div className="flex justify-between items-center">
                   <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Role</span>
-                  <span className="text-sm font-bold text-primary uppercase">{createdCredentials.role.replace(/_/g, " ")}</span>
+                  <span className="text-sm font-bold text-primary uppercase">
+                    {createdCredentials.role.replace(/_/g, " ")}
+                  </span>
                 </div>
                 <div className="border-t border-border pt-3">
-                  <span className="text-xs font-bold uppercase tracking-wider text-destructive block mb-1">Temporary Password</span>
+                  <span className="text-xs font-bold uppercase tracking-wider text-destructive block mb-1">
+                    Temporary Password
+                  </span>
                   <div className="flex items-center gap-2">
                     <code className="flex-1 bg-card border border-primary/30 rounded-lg px-3 py-2 text-sm font-mono font-bold text-foreground select-all">
                       {createdCredentials.password}
