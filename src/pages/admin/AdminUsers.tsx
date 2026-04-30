@@ -1013,7 +1013,7 @@ const AdminUsers = () => {
       <Dialog open={showModal} onOpenChange={setShowModal}>
         <DialogContent
           onOpenAutoFocus={(e) => e.preventDefault()}
-          className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-[100] w-[95vw] max-w-lg max-h-[90vh] overflow-y-auto bg-card border border-border rounded-3xl p-6 md:p-8 shadow-2xl"
+          className="sm:max-w-lg max-h-[90vh] overflow-y-auto bg-card border border-border rounded-3xl p-6 md:p-8"
         >
           <DialogHeader className="mb-2">
             <DialogTitle className="text-2xl font-serif font-bold text-foreground">Invite Employee</DialogTitle>
