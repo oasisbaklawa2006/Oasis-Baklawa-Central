@@ -1195,7 +1195,7 @@ const AdminUsers = () => {
       <Dialog open={showCredentialsModal} onOpenChange={setShowCredentialsModal}>
         <DialogContent
           onOpenAutoFocus={(e) => e.preventDefault()}
-          className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-[100] w-[95vw] max-w-md bg-card border border-border rounded-3xl p-6 shadow-2xl"
+          className="sm:max-w-md bg-card border border-border rounded-3xl p-6"
         >
           <DialogHeader className="mb-4">
             <DialogTitle className="text-xl font-serif font-bold text-foreground flex items-center gap-2">
