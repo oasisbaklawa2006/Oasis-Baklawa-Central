@@ -966,7 +966,7 @@ const AdminUsers = () => {
       >
         <DialogContent
           onOpenAutoFocus={(e) => e.preventDefault()}
-          className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-[100] w-[95vw] max-w-xl max-h-[85vh] overflow-y-auto bg-card border border-border rounded-3xl p-6 shadow-2xl"
+          className="sm:max-w-xl max-h-[85vh] overflow-y-auto bg-card border border-border rounded-3xl p-6"
         >
           <DialogHeader className="mb-6">
             <DialogTitle className="text-2xl font-serif font-bold text-foreground">
