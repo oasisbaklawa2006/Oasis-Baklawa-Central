@@ -432,6 +432,9 @@ const AdminUsers = () => {
                         Email
                       </th>
                       <th className="text-left px-5 py-4 text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                        Mobile
+                      </th>
+                      <th className="text-left px-5 py-4 text-xs font-bold uppercase tracking-wider text-muted-foreground">
                         Role
                       </th>
                       <th className="text-left px-5 py-4 text-xs font-bold uppercase tracking-wider text-muted-foreground">
@@ -465,6 +468,9 @@ const AdminUsers = () => {
                           </td>
                           <td className="px-5 py-4 text-sm text-muted-foreground whitespace-nowrap">
                             {u.email ?? "—"}
+                          </td>
+                          <td className="px-5 py-4 text-sm text-muted-foreground whitespace-nowrap">
+                            {u.mobile_number ?? "—"}
                           </td>
                           <td className="px-5 py-4 min-w-[160px]">
                             {/* Native Select for maximum performance in lists */}
@@ -748,11 +754,11 @@ const AdminUsers = () => {
       {/* 1. NATIVE EDIT PERMISSIONS MODAL */}
       {!!selectedRoleId && (
         <div
-          className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/60 p-4"
+          className="fixed inset-0 z-[9999] flex justify-center bg-black/60 p-4 pt-12 pb-24 overflow-y-auto"
           onClick={() => setSelectedRoleId(null)}
         >
           <div
-            className="w-full max-w-xl max-h-[85vh] overflow-y-auto bg-card border border-border rounded-3xl p-6 shadow-2xl relative animate-in fade-in zoom-in-95 duration-200"
+            className="w-full max-w-xl h-fit my-auto bg-card border border-border rounded-3xl p-6 shadow-2xl relative animate-in fade-in zoom-in-95 duration-200"
             onClick={(e) => e.stopPropagation()}
           >
             <button
@@ -806,11 +812,11 @@ const AdminUsers = () => {
       {/* 2. NATIVE INVITE EMPLOYEE MODAL */}
       {showModal && (
         <div
-          className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/60 p-4"
+          className="fixed inset-0 z-[9999] flex justify-center bg-black/60 p-4 pt-12 pb-24 overflow-y-auto"
           onClick={() => setShowModal(false)}
         >
           <div
-            className="w-full max-w-lg max-h-[90vh] overflow-y-auto bg-card border border-border rounded-3xl p-6 md:p-8 shadow-2xl relative animate-in fade-in zoom-in-95 duration-200"
+            className="w-full max-w-lg h-fit my-auto bg-card border border-border rounded-3xl p-6 md:p-8 shadow-2xl relative animate-in fade-in zoom-in-95 duration-200"
             onClick={(e) => e.stopPropagation()}
           >
             <button
@@ -928,11 +934,11 @@ const AdminUsers = () => {
       {/* 3. NATIVE CREDENTIALS SUCCESS MODAL */}
       {showCredentialsModal && (
         <div
-          className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/60 p-4"
+          className="fixed inset-0 z-[9999] flex justify-center bg-black/60 p-4 pt-12 pb-24 overflow-y-auto"
           onClick={() => setShowCredentialsModal(false)}
         >
           <div
-            className="w-full max-w-md max-h-[90vh] overflow-y-auto bg-card border border-border rounded-3xl p-6 shadow-2xl relative animate-in fade-in zoom-in-95 duration-200"
+            className="w-full max-w-md h-fit my-auto bg-card border border-border rounded-3xl p-6 shadow-2xl relative animate-in fade-in zoom-in-95 duration-200"
             onClick={(e) => e.stopPropagation()}
           >
             <button

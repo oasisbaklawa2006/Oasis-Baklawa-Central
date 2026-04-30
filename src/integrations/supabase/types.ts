@@ -3742,6 +3742,7 @@ export type Database = {
         Args: { _company_id: string; _user_id: string }
         Returns: boolean
       }
+      is_admin: { Args: never; Returns: boolean }
       is_internal_staff: { Args: { _user_id: string }; Returns: boolean }
       is_staff_role: { Args: { _role: string }; Returns: boolean }
       log_cart_failure: {
