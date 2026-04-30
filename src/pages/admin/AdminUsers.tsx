@@ -1,12 +1,11 @@
 import { useEffect, useState, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { Loader2, Save, Plus, UserPlus, Building2, LockKeyhole, Mail } from "lucide-react";
+import { Loader2, Save, Plus, UserPlus, Building2, LockKeyhole, Mail, X } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { useAuth } from "@/hooks/useAuth";
@@ -958,304 +957,335 @@ const AdminUsers = () => {
         </TabsContent>
       </Tabs>
 
-      <Dialog
-        open={!!selectedRoleId}
-        onOpenChange={(open) => {
-          if (!open) setSelectedRoleId(null);
-        }}
-      >
-        <DialogContent
-          onOpenAutoFocus={(e) => e.preventDefault()}
-          className="sm:max-w-xl max-h-[85vh] overflow-y-auto bg-card border border-border rounded-3xl p-6"
+      {/* 1. NATIVE EDIT PERMISSIONS MODAL */}
+      {!!selectedRoleId && (
+        <div
+          className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/60 p-4"
+          onClick={() => setSelectedRoleId(null)}
         >
-          <DialogHeader className="mb-6">
-            <DialogTitle className="text-2xl font-serif font-bold text-foreground">
-              Edit Permissions: {roles.find((r) => r.id === selectedRoleId)?.role_name}
-            </DialogTitle>
-            <DialogDescription className="hidden">Modal description</DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4">
-            {MODULES.map((mod) => {
-              const modPerms = permsByModule(mod);
-              if (modPerms.length === 0) return null;
-              return (
-                <div key={mod} className="border border-border rounded-xl p-4 bg-muted/20">
-                  <p className="text-sm font-bold text-foreground mb-3">{mod}</p>
-                  <div className="grid grid-cols-2 gap-2">
-                    {modPerms.map((p) => (
-                      <label
-                        key={p.id}
-                        className="flex items-center gap-3 text-sm font-medium text-muted-foreground cursor-pointer p-2 rounded-lg hover:bg-white hover:shadow-sm border border-transparent hover:border-border transition-all"
-                      >
-                        <Checkbox
-                          checked={rolePermsEditing.includes(p.id)}
-                          onCheckedChange={() => toggleRolePerm(p.id)}
-                          className="data-[state=checked]:bg-primary data-[state=checked]:border-primary"
-                        />
-                        <span>{p.permission_name}</span>
-                      </label>
-                    ))}
-                  </div>
-                </div>
-              );
-            })}
+          <div
+            className="w-full max-w-xl max-h-[85vh] overflow-y-auto bg-card border border-border rounded-3xl p-6 shadow-2xl relative animate-in fade-in zoom-in-95 duration-200"
+            onClick={(e) => e.stopPropagation()}
+          >
             <button
-              onClick={saveRolePerms}
-              disabled={savingRole}
-              className="w-full mt-6 py-3.5 rounded-xl bg-primary text-primary-foreground font-bold text-sm shadow-md hover:shadow-lg hover:-translate-y-0.5 transition-all disabled:opacity-50"
+              onClick={() => setSelectedRoleId(null)}
+              className="absolute top-6 right-6 p-2 rounded-full hover:bg-muted transition-colors"
             >
-              {savingRole ? <Loader2 size={16} className="animate-spin mx-auto" /> : "Save Security Matrix"}
+              <X size={20} className="text-muted-foreground" />
             </button>
+            <div className="mb-6 pr-8">
+              <h2 className="text-2xl font-serif font-bold text-foreground">
+                Edit Permissions: {roles.find((r) => r.id === selectedRoleId)?.role_name}
+              </h2>
+            </div>
+            <div className="space-y-4">
+              {MODULES.map((mod) => {
+                const modPerms = permsByModule(mod);
+                if (modPerms.length === 0) return null;
+                return (
+                  <div key={mod} className="border border-border rounded-xl p-4 bg-muted/20">
+                    <p className="text-sm font-bold text-foreground mb-3">{mod}</p>
+                    <div className="grid grid-cols-2 gap-2">
+                      {modPerms.map((p) => (
+                        <label
+                          key={p.id}
+                          className="flex items-center gap-3 text-sm font-medium text-muted-foreground cursor-pointer p-2 rounded-lg hover:bg-white hover:shadow-sm border border-transparent hover:border-border transition-all"
+                        >
+                          <Checkbox
+                            checked={rolePermsEditing.includes(p.id)}
+                            onCheckedChange={() => toggleRolePerm(p.id)}
+                            className="data-[state=checked]:bg-primary data-[state=checked]:border-primary"
+                          />
+                          <span>{p.permission_name}</span>
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })}
+              <button
+                onClick={saveRolePerms}
+                disabled={savingRole}
+                className="w-full mt-6 py-3.5 rounded-xl bg-primary text-primary-foreground font-bold text-sm shadow-md hover:shadow-lg hover:-translate-y-0.5 transition-all disabled:opacity-50"
+              >
+                {savingRole ? <Loader2 size={16} className="animate-spin mx-auto" /> : "Save Security Matrix"}
+              </button>
+            </div>
           </div>
-        </DialogContent>
-      </Dialog>
+        </div>
+      )}
 
-      <Dialog open={showModal} onOpenChange={setShowModal}>
-        <DialogContent
-          onOpenAutoFocus={(e) => e.preventDefault()}
-          className="sm:max-w-lg max-h-[90vh] overflow-y-auto bg-card border border-border rounded-3xl p-6 md:p-8"
+      {/* 2. NATIVE INVITE EMPLOYEE MODAL */}
+      {showModal && (
+        <div
+          className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/60 p-4"
+          onClick={() => setShowModal(false)}
         >
-          <DialogHeader className="mb-2">
-            <DialogTitle className="text-2xl font-serif font-bold text-foreground">Invite Employee</DialogTitle>
-            <DialogDescription className="hidden">Modal description</DialogDescription>
-          </DialogHeader>
-          <p className="text-xs font-medium text-muted-foreground mb-6">
-            This creates an internal employee record. A separate auth account will be provisioned.
-          </p>
-          <div className="space-y-5">
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Full Name *</Label>
-                <Input
-                  value={nf.name}
-                  onChange={(e) => setNf((p) => ({ ...p, name: e.target.value }))}
-                  className="rounded-xl h-11 border-border focus-visible:ring-primary"
-                  placeholder="Full name"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Email *</Label>
-                <Input
-                  value={nf.email}
-                  onChange={(e) => setNf((p) => ({ ...p, email: e.target.value }))}
-                  className="rounded-xl h-11 border-border focus-visible:ring-primary"
-                  placeholder="email@oasis.com"
-                />
-              </div>
+          <div
+            className="w-full max-w-lg max-h-[90vh] overflow-y-auto bg-card border border-border rounded-3xl p-6 md:p-8 shadow-2xl relative animate-in fade-in zoom-in-95 duration-200"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              onClick={() => setShowModal(false)}
+              className="absolute top-6 right-6 p-2 rounded-full hover:bg-muted transition-colors"
+            >
+              <X size={20} className="text-muted-foreground" />
+            </button>
+            <div className="mb-2 pr-8">
+              <h2 className="text-2xl font-serif font-bold text-foreground">Invite Employee</h2>
             </div>
-
-            <div className="space-y-2">
-              <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
-                Initial Password *
-              </Label>
-              <Input
-                type="password"
-                value={nf.password}
-                onChange={(e) => setNf((p) => ({ ...p, password: e.target.value }))}
-                className="rounded-xl h-11 border-border focus-visible:ring-primary"
-                placeholder="Min 6 characters"
-              />
-              <p className="text-[10px] text-muted-foreground italic">
-                This password will be shared with the employee for first login.
-              </p>
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Mobile</Label>
-                <Input
-                  value={nf.mobile}
-                  onChange={(e) => setNf((p) => ({ ...p, mobile: e.target.value }))}
-                  className="rounded-xl h-11 border-border focus-visible:ring-primary"
-                  placeholder="+91…"
-                />
+            <p className="text-xs font-medium text-muted-foreground mb-6">
+              This creates an internal employee record. A separate auth account will be provisioned.
+            </p>
+            <div className="space-y-5">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                    Full Name *
+                  </Label>
+                  <Input
+                    value={nf.name}
+                    onChange={(e) => setNf((p) => ({ ...p, name: e.target.value }))}
+                    className="rounded-xl h-11 border-border focus-visible:ring-primary"
+                    placeholder="Full name"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Email *</Label>
+                  <Input
+                    value={nf.email}
+                    onChange={(e) => setNf((p) => ({ ...p, email: e.target.value }))}
+                    className="rounded-xl h-11 border-border focus-visible:ring-primary"
+                    placeholder="email@oasis.com"
+                  />
+                </div>
               </div>
-              <div className="space-y-2">
-                <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Designation</Label>
-                <Input
-                  value={nf.designation}
-                  onChange={(e) => setNf((p) => ({ ...p, designation: e.target.value }))}
-                  className="rounded-xl h-11 border-border focus-visible:ring-primary"
-                  placeholder="Floor Manager"
-                />
-              </div>
-            </div>
 
-            <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Role *</Label>
+                <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                  Initial Password *
+                </Label>
+                <Input
+                  type="password"
+                  value={nf.password}
+                  onChange={(e) => setNf((p) => ({ ...p, password: e.target.value }))}
+                  className="rounded-xl h-11 border-border focus-visible:ring-primary"
+                  placeholder="Min 6 characters"
+                />
+                <p className="text-[10px] text-muted-foreground italic">
+                  This password will be shared with the employee for first login.
+                </p>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Mobile</Label>
+                  <Input
+                    value={nf.mobile}
+                    onChange={(e) => setNf((p) => ({ ...p, mobile: e.target.value }))}
+                    className="rounded-xl h-11 border-border focus-visible:ring-primary"
+                    placeholder="+91…"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                    Designation
+                  </Label>
+                  <Input
+                    value={nf.designation}
+                    onChange={(e) => setNf((p) => ({ ...p, designation: e.target.value }))}
+                    className="rounded-xl h-11 border-border focus-visible:ring-primary"
+                    placeholder="Floor Manager"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Role *</Label>
+                  <select
+                    value={nf.role}
+                    onChange={(e) => handleNewRoleChange(e.target.value)}
+                    className="flex h-11 w-full rounded-xl border border-border bg-card px-3 py-2 text-sm focus:ring-1 focus:ring-primary focus:outline-none appearance-none"
+                  >
+                    <option value="none" className="hidden" disabled>
+                      Select role...
+                    </option>
+                    {roles.map((r) => (
+                      <option key={r.id} value={r.role_key || r.id}>
+                        {r.role_name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                    Initial Status
+                  </Label>
+                  <select
+                    value={nf.status}
+                    onChange={(e) => setNf((p) => ({ ...p, status: e.target.value }))}
+                    className="flex h-11 w-full rounded-xl border border-border bg-card px-3 py-2 text-sm focus:ring-1 focus:ring-primary focus:outline-none appearance-none"
+                  >
+                    <option value="invited">Invited</option>
+                    <option value="active">Active</option>
+                    <option value="inactive">Inactive</option>
+                    <option value="blocked">Blocked</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="space-y-2 pt-2 border-t border-border">
+                <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-2">
+                  <Building2 size={14} className="text-primary" /> Production Department
+                </Label>
                 <select
-                  value={nf.role}
-                  onChange={(e) => handleNewRoleChange(e.target.value)}
-                  className="flex h-11 w-full rounded-xl border border-border bg-card px-3 py-2 text-sm focus:ring-1 focus:ring-primary focus:outline-none appearance-none"
+                  value={nf.dept}
+                  onChange={(e) => setNf((p) => ({ ...p, dept: e.target.value }))}
+                  className="flex h-11 w-full rounded-xl border border-border bg-muted/30 px-3 py-2 text-sm focus:ring-1 focus:ring-primary focus:outline-none appearance-none"
                 >
                   <option value="none" className="hidden" disabled>
-                    Select role...
+                    Assign a specific operational floor
                   </option>
-                  {roles.map((r) => (
-                    <option key={r.id} value={r.role_key || r.id}>
-                      {r.role_name}
+                  {DEPARTMENTS.map((dept) => (
+                    <option key={dept} value={dept}>
+                      {dept}
                     </option>
                   ))}
                 </select>
+                <p className="text-[10px] text-muted-foreground italic">
+                  Critical for routing manufacturing orders to the correct team.
+                </p>
               </div>
-              <div className="space-y-2">
-                <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
-                  Initial Status
-                </Label>
-                <select
-                  value={nf.status}
-                  onChange={(e) => setNf((p) => ({ ...p, status: e.target.value }))}
-                  className="flex h-11 w-full rounded-xl border border-border bg-card px-3 py-2 text-sm focus:ring-1 focus:ring-primary focus:outline-none appearance-none"
-                >
-                  <option value="invited">Invited</option>
-                  <option value="active">Active</option>
-                  <option value="inactive">Inactive</option>
-                  <option value="blocked">Blocked</option>
-                </select>
-              </div>
-            </div>
 
-            <div className="space-y-2 pt-2 border-t border-border">
-              <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-2">
-                <Building2 size={14} className="text-primary" /> Production Department
-              </Label>
-              <select
-                value={nf.dept}
-                onChange={(e) => setNf((p) => ({ ...p, dept: e.target.value }))}
-                className="flex h-11 w-full rounded-xl border border-border bg-muted/30 px-3 py-2 text-sm focus:ring-1 focus:ring-primary focus:outline-none appearance-none"
-              >
-                <option value="none" className="hidden" disabled>
-                  Assign a specific operational floor
-                </option>
-                {DEPARTMENTS.map((dept) => (
-                  <option key={dept} value={dept}>
-                    {dept}
-                  </option>
-                ))}
-              </select>
-              <p className="text-[10px] text-muted-foreground italic">
-                Critical for routing manufacturing orders to the correct team.
-              </p>
-            </div>
-
-            {nf.role !== "none" && (
-              <div className="pt-4 border-t border-border">
-                <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-3 block">
-                  Module Access (Auto-filled by Role)
-                </Label>
-                <div className="grid grid-cols-2 gap-2 max-h-48 overflow-y-auto pr-2">
-                  {MODULES.map((mod) => {
-                    const modPerms = permsByModule(mod);
-                    const allSelected = modPerms.every((p) => selectedPermIds.includes(p.id));
-                    const someSelected = modPerms.some((p) => selectedPermIds.includes(p.id));
-                    return (
-                      <label
-                        key={mod}
-                        className="flex items-center gap-3 text-sm font-medium text-foreground cursor-pointer p-2.5 rounded-xl border border-border hover:border-primary hover:bg-primary/5 transition-colors"
-                      >
-                        <Checkbox
-                          checked={allSelected}
-                          className="data-[state=checked]:bg-primary data-[state=checked]:border-primary"
-                          onCheckedChange={() => {
-                            if (allSelected) {
-                              setSelectedPermIds((prev) =>
-                                prev.filter((id) => !modPerms.map((p) => p.id).includes(id)),
-                              );
-                            } else {
-                              setSelectedPermIds((prev) => [...new Set([...prev, ...modPerms.map((p) => p.id)])]);
-                            }
-                          }}
-                        />
-                        <span className="text-xs">{mod}</span>
-                        {someSelected && !allSelected && (
-                          <span className="text-[10px] font-bold text-primary ml-auto uppercase tracking-wider">
-                            (Partial)
-                          </span>
-                        )}
-                      </label>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
-
-            <button
-              onClick={handleCreateEmployee}
-              disabled={saving === "new"}
-              className="w-full mt-4 py-3.5 rounded-xl bg-primary text-primary-foreground font-bold text-sm shadow-md hover:shadow-lg hover:-translate-y-0.5 transition-all disabled:opacity-50"
-            >
-              {saving === "new" ? <Loader2 size={16} className="animate-spin mx-auto" /> : "Deploy Employee Profile"}
-            </button>
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      {/* Credentials Success Modal */}
-      <Dialog open={showCredentialsModal} onOpenChange={setShowCredentialsModal}>
-        <DialogContent
-          onOpenAutoFocus={(e) => e.preventDefault()}
-          className="sm:max-w-md bg-card border border-border rounded-3xl p-6"
-        >
-          <DialogHeader className="mb-4">
-            <DialogTitle className="text-xl font-serif font-bold text-foreground flex items-center gap-2">
-              <UserPlus size={20} className="text-primary" /> Employee Created
-            </DialogTitle>
-            <DialogDescription className="hidden">Modal description</DialogDescription>
-          </DialogHeader>
-          {createdCredentials && (
-            <div className="space-y-4">
-              <p className="text-sm text-muted-foreground">
-                Account created successfully.{" "}
-                <strong className="text-destructive">
-                  Copy the temporary password now — it will not be shown again.
-                </strong>
-              </p>
-              <div className="bg-muted/50 rounded-xl p-4 space-y-3 border border-border">
-                <div className="flex justify-between items-center">
-                  <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Name</span>
-                  <span className="text-sm font-bold text-foreground">{createdCredentials.name}</span>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Email</span>
-                  <span className="text-sm font-bold text-foreground">{createdCredentials.email}</span>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Role</span>
-                  <span className="text-sm font-bold text-primary uppercase">
-                    {createdCredentials.role.replace(/_/g, " ")}
-                  </span>
-                </div>
-                <div className="border-t border-border pt-3">
-                  <span className="text-xs font-bold uppercase tracking-wider text-destructive block mb-1">
-                    Temporary Password
-                  </span>
-                  <div className="flex items-center gap-2">
-                    <code className="flex-1 bg-card border border-primary/30 rounded-lg px-3 py-2 text-sm font-mono font-bold text-foreground select-all">
-                      {createdCredentials.password}
-                    </code>
-                    <button
-                      onClick={() => {
-                        navigator.clipboard.writeText(createdCredentials.password);
-                        toast.success("Password copied to clipboard");
-                      }}
-                      className="px-3 py-2 rounded-lg bg-primary text-primary-foreground text-xs font-bold hover:bg-primary/90 transition-colors"
-                    >
-                      Copy
-                    </button>
+              {nf.role !== "none" && (
+                <div className="pt-4 border-t border-border">
+                  <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-3 block">
+                    Module Access (Auto-filled by Role)
+                  </Label>
+                  <div className="grid grid-cols-2 gap-2 max-h-48 overflow-y-auto pr-2">
+                    {MODULES.map((mod) => {
+                      const modPerms = permsByModule(mod);
+                      const allSelected = modPerms.every((p) => selectedPermIds.includes(p.id));
+                      const someSelected = modPerms.some((p) => selectedPermIds.includes(p.id));
+                      return (
+                        <label
+                          key={mod}
+                          className="flex items-center gap-3 text-sm font-medium text-foreground cursor-pointer p-2.5 rounded-xl border border-border hover:border-primary hover:bg-primary/5 transition-colors"
+                        >
+                          <Checkbox
+                            checked={allSelected}
+                            className="data-[state=checked]:bg-primary data-[state=checked]:border-primary"
+                            onCheckedChange={() => {
+                              if (allSelected) {
+                                setSelectedPermIds((prev) =>
+                                  prev.filter((id) => !modPerms.map((p) => p.id).includes(id)),
+                                );
+                              } else {
+                                setSelectedPermIds((prev) => [...new Set([...prev, ...modPerms.map((p) => p.id)])]);
+                              }
+                            }}
+                          />
+                          <span className="text-xs">{mod}</span>
+                          {someSelected && !allSelected && (
+                            <span className="text-[10px] font-bold text-primary ml-auto uppercase tracking-wider">
+                              (Partial)
+                            </span>
+                          )}
+                        </label>
+                      );
+                    })}
                   </div>
                 </div>
-              </div>
+              )}
+
               <button
-                onClick={() => setShowCredentialsModal(false)}
-                className="w-full py-3 rounded-xl bg-primary text-primary-foreground font-bold text-sm hover:bg-primary/90 transition-colors"
+                onClick={handleCreateEmployee}
+                disabled={saving === "new"}
+                className="w-full mt-4 py-3.5 rounded-xl bg-primary text-primary-foreground font-bold text-sm shadow-md hover:shadow-lg hover:-translate-y-0.5 transition-all disabled:opacity-50"
               >
-                Done
+                {saving === "new" ? <Loader2 size={16} className="animate-spin mx-auto" /> : "Deploy Employee Profile"}
               </button>
             </div>
-          )}
-        </DialogContent>
-      </Dialog>
+          </div>
+        </div>
+      )}
+
+      {/* 3. NATIVE CREDENTIALS SUCCESS MODAL */}
+      {showCredentialsModal && (
+        <div
+          className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/60 p-4"
+          onClick={() => setShowCredentialsModal(false)}
+        >
+          <div
+            className="w-full max-w-md max-h-[90vh] overflow-y-auto bg-card border border-border rounded-3xl p-6 shadow-2xl relative animate-in fade-in zoom-in-95 duration-200"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              onClick={() => setShowCredentialsModal(false)}
+              className="absolute top-6 right-6 p-2 rounded-full hover:bg-muted transition-colors"
+            >
+              <X size={20} className="text-muted-foreground" />
+            </button>
+            <div className="mb-4 pr-8">
+              <h2 className="text-xl font-serif font-bold text-foreground flex items-center gap-2">
+                <UserPlus size={20} className="text-primary" /> Employee Created
+              </h2>
+            </div>
+            {createdCredentials && (
+              <div className="space-y-4">
+                <p className="text-sm text-muted-foreground">
+                  Account created successfully.{" "}
+                  <strong className="text-destructive">
+                    Copy the temporary password now — it will not be shown again.
+                  </strong>
+                </p>
+                <div className="bg-muted/50 rounded-xl p-4 space-y-3 border border-border">
+                  <div className="flex justify-between items-center">
+                    <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Name</span>
+                    <span className="text-sm font-bold text-foreground">{createdCredentials.name}</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Email</span>
+                    <span className="text-sm font-bold text-foreground">{createdCredentials.email}</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Role</span>
+                    <span className="text-sm font-bold text-primary uppercase">
+                      {createdCredentials.role.replace(/_/g, " ")}
+                    </span>
+                  </div>
+                  <div className="border-t border-border pt-3">
+                    <span className="text-xs font-bold uppercase tracking-wider text-destructive block mb-1">
+                      Temporary Password
+                    </span>
+                    <div className="flex items-center gap-2">
+                      <code className="flex-1 bg-card border border-primary/30 rounded-lg px-3 py-2 text-sm font-mono font-bold text-foreground select-all">
+                        {createdCredentials.password}
+                      </code>
+                      <button
+                        onClick={() => {
+                          navigator.clipboard.writeText(createdCredentials.password);
+                          toast.success("Password copied to clipboard");
+                        }}
+                        className="px-3 py-2 rounded-lg bg-primary text-primary-foreground text-xs font-bold hover:bg-primary/90 transition-colors"
+                      >
+                        Copy
+                      </button>
+                    </div>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setShowCredentialsModal(false)}
+                  className="w-full py-3 rounded-xl bg-primary text-primary-foreground font-bold text-sm hover:bg-primary/90 transition-colors"
+                >
+                  Done
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 };
