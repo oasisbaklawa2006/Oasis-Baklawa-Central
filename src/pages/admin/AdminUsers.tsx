@@ -604,7 +604,7 @@ const AdminUsers = () => {
                                       const { error } = await supabase.auth.signInWithOtp({
                                         email: u.email,
                                         options: {
-                                          emailRedirectTo: "https://b2b.oasisbaklawa.com/welcome",
+                                          emailRedirectTo: "https://b2b.oasisbaklawa.com/login",
                                           shouldCreateUser: false,
                                         },
                                       });
