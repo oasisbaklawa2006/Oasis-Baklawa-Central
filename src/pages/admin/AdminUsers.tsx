@@ -899,7 +899,21 @@ const AdminUsers = () => {
                     className="rounded-xl h-11 border-border focus-visible:ring-primary"
                     placeholder="email@oasis.com"
                   />
-                </div>
+              </div>
+              <div className="space-y-2">
+                <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                  Mobile Number
+                </Label>
+                <Input
+                  type="tel"
+                  value={nf.mobile}
+                  onChange={(e) => setNf((p) => ({ ...p, mobile: formatPlusPhone(e.target.value) }))}
+                  className="rounded-xl h-11 border-border focus-visible:ring-primary font-number"
+                  placeholder="+919876543210"
+                />
+                <p className="text-[10px] text-muted-foreground italic">
+                  Stored in <code>secondary_phones</code>. Always saved with a "+" prefix.
+                </p>
               </div>
               <div className="space-y-2">
                 <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
