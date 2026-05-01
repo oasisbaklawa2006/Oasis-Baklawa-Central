@@ -432,7 +432,7 @@ export default function ShadowClientSection({ companies, onRefresh }: Props) {
       </div>
 
       <Dialog open={!!editingCompany} onOpenChange={(o) => !o && setEditingCompany(null)}>
-        <DialogContent className="sm:max-w-3xl bg-card border-border rounded-3xl p-6 h-fit my-auto max-h-[90dvh] overflow-y-auto">
+        <DialogContent className="sm:max-w-lg bg-card border-border rounded-3xl p-6 max-h-[85vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <CheckCircle size={18} className="text-primary" /> Triage WhatsApp Lead
