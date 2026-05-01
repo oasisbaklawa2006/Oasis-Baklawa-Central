@@ -665,7 +665,6 @@ const AdminUsers = () => {
                               >
                                 <Archive size={14} />
                               </button>
-                              )}
                             </div>
                           </td>
                         </tr>
