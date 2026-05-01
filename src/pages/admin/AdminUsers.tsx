@@ -874,9 +874,13 @@ const AdminUsers = () => {
             >
               <X size={20} className="text-muted-foreground" />
             </button>
-            <div className="mb-2 pr-8">
+            <div className="mb-2 pr-8 flex items-center gap-3">
               <h2 className="text-2xl font-serif font-bold text-foreground">Invite Employee</h2>
+              <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                Step {wizardStep} of 2
+              </span>
             </div>
+            {wizardStep === 1 && (
             <div className="space-y-5 mt-6">
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
