@@ -140,6 +140,7 @@ const AdminUsers = () => {
   const [editingCredit, setEditingCredit] = useState<Record<string, number>>({});
   const [saving, setSaving] = useState<string | null>(null);
   const [showModal, setShowModal] = useState(false);
+  const [wizardStep, setWizardStep] = useState<1 | 2>(1);
   const [currentUserRole, setCurrentUserRole] = useState<string | null>(null);
 
   const [selectedRoleId, setSelectedRoleId] = useState<string | null>(null);
