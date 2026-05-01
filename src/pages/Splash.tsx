@@ -1,10 +1,12 @@
 import { useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
+import { useIsMobile } from "@/hooks/use-mobile";
 import logoImg from "@/assets/logo-open.png";
 
 const Splash = () => {
   const navigate = useNavigate();
+  const isMobile = useIsMobile();
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -13,6 +15,35 @@ const Splash = () => {
 
     return () => clearTimeout(timer);
   }, [navigate]);
+
+  // ── PART 4: On mobile/touch, framer-motion animations have caused white-screen
+  // crashes on some Android WebViews. Render a static, GPU-friendly version. ──
+  if (isMobile) {
+    return (
+      <div
+        className="min-h-screen flex items-center justify-center"
+        style={{ backgroundColor: "#1c1c1c" }}
+      >
+        <div className="text-center space-y-6 gpu animate-fade-in">
+          <img
+            src={logoImg}
+            alt="Oasis Baklawa"
+            className="w-[145px] sm:w-[190px] md:w-[220px] mx-auto object-contain"
+          />
+          <p
+            className="font-body text-xs tracking-[0.3em] uppercase"
+            style={{ color: "#c6a769" }}
+          >
+            Premium B2B Portal
+          </p>
+          <div
+            className="h-[1px] w-32 mx-auto"
+            style={{ backgroundColor: "#c6a769" }}
+          />
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: "#1c1c1c" }}>

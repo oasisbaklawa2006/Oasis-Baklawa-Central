@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { Loader2, Save, UserPlus, Building2, LockKeyhole, Mail, X } from "lucide-react";
+import { Loader2, Save, UserPlus, Building2, LockKeyhole, Mail, X, Archive, AlertTriangle } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -20,6 +20,7 @@ interface UserRow {
   is_active: boolean | null;
   invite_status: string | null;
   mobile_number: string | null;
+  secondary_phones: string[] | null;
   company_id: string | null;
   created_at: string | null;
   commission_rate_percentage: number | null;
@@ -153,6 +154,9 @@ const AdminUsers = () => {
     role: string;
   } | null>(null);
 
+  const [archiveTarget, setArchiveTarget] = useState<UserRow | null>(null);
+  const [archiving, setArchiving] = useState(false);
+
   const [nf, setNf] = useState({
     name: "",
     email: "",
@@ -164,6 +168,12 @@ const AdminUsers = () => {
     status: "invited" as string,
   });
   const [selectedPermIds, setSelectedPermIds] = useState<string[]>([]);
+
+  const formatPlusPhone = (raw: string) => {
+    const digits = (raw || "").replace(/[^\d]/g, "");
+    if (!digits) return "";
+    return `+${digits}`;
+  };
 
   const fetchData = useCallback(
     async (opts?: { silent?: boolean }) => {
@@ -269,13 +279,17 @@ const AdminUsers = () => {
       return;
     }
 
+    const formattedMobile = nf.mobile ? formatPlusPhone(nf.mobile) : null;
+    const secondaryPhonesArr = formattedMobile ? [formattedMobile] : null;
+
     try {
       await supabase.from("users").upsert(
         {
           id: newUserId,
           full_name: nf.name,
           email: nf.email.trim(),
-          mobile_number: nf.mobile || null,
+          mobile_number: formattedMobile,
+          secondary_phones: secondaryPhonesArr,
           role: nf.role,
           department: nf.dept === "none" ? null : nf.dept,
           designation: nf.designation || null,
@@ -317,7 +331,8 @@ const AdminUsers = () => {
         designation: nf.designation || null,
         is_active: true,
         invite_status: "active",
-        mobile_number: nf.mobile || null,
+        mobile_number: formattedMobile,
+        secondary_phones: secondaryPhonesArr,
         company_id: null,
         created_at: new Date().toISOString(),
         commission_rate_percentage: null,
@@ -355,6 +370,34 @@ const AdminUsers = () => {
       fetchData({ silent: true });
     } else toast.error("Failed to update limit");
     setSaving(null);
+  };
+
+  const handleArchiveEmployee = async () => {
+    if (!archiveTarget) return;
+    setArchiving(true);
+    try {
+      const { error: profErr } = await supabase
+        .from("profiles")
+        .update({ status: "rejected", is_approved: false })
+        .eq("id", archiveTarget.id);
+      const { error: userErr } = await supabase
+        .from("users")
+        .update({ is_active: false, invite_status: "blocked" })
+        .eq("id", archiveTarget.id);
+      if (profErr && userErr) {
+        toast.error("Failed to archive employee");
+      } else {
+        toast.success(`${archiveTarget.full_name || archiveTarget.email} archived`);
+        setUsers((prev) =>
+          prev.map((x) =>
+            x.id === archiveTarget.id ? { ...x, is_active: false, invite_status: "blocked" } : x,
+          ),
+        );
+        setArchiveTarget(null);
+      }
+    } finally {
+      setArchiving(false);
+    }
   };
 
   const openRolePermEdit = (role: RoleRow) => {
@@ -469,8 +512,8 @@ const AdminUsers = () => {
                           <td className="px-5 py-4 text-sm text-muted-foreground whitespace-nowrap">
                             {u.email ?? "—"}
                           </td>
-                          <td className="px-5 py-4 text-sm text-muted-foreground whitespace-nowrap">
-                            {u.mobile_number ?? "—"}
+                          <td className="px-5 py-4 text-sm text-muted-foreground whitespace-nowrap font-number">
+                            {(u.secondary_phones && u.secondary_phones[0]) || u.mobile_number || "—"}
                           </td>
                           <td className="px-5 py-4 min-w-[160px]">
                             {/* Native Select for maximum performance in lists */}
@@ -604,7 +647,7 @@ const AdminUsers = () => {
                                       const { error } = await supabase.auth.signInWithOtp({
                                         email: u.email,
                                         options: {
-                                          emailRedirectTo: "https://b2b.oasisbaklawa.com/login",
+                                          emailRedirectTo: "https://b2b.oasisbaklawa.com/login?manual_auth=true",
                                           shouldCreateUser: false,
                                         },
                                       });
@@ -615,6 +658,13 @@ const AdminUsers = () => {
                                   </button>
                                 </>
                               )}
+                              <button
+                                title="Archive Employee"
+                                className="p-1.5 rounded-md text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
+                                onClick={() => setArchiveTarget(u)}
+                              >
+                                <Archive size={14} />
+                              </button>
                             </div>
                           </td>
                         </tr>
@@ -853,6 +903,21 @@ const AdminUsers = () => {
               </div>
               <div className="space-y-2">
                 <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                  Mobile Number
+                </Label>
+                <Input
+                  type="tel"
+                  value={nf.mobile}
+                  onChange={(e) => setNf((p) => ({ ...p, mobile: formatPlusPhone(e.target.value) }))}
+                  className="rounded-xl h-11 border-border focus-visible:ring-primary font-number"
+                  placeholder="+919876543210"
+                />
+                <p className="text-[10px] text-muted-foreground italic">
+                  Stored in <code>secondary_phones</code>. Always saved with a "+" prefix.
+                </p>
+              </div>
+              <div className="space-y-2">
+                <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
                   Initial Password *
                 </Label>
                 <Input
@@ -991,6 +1056,59 @@ const AdminUsers = () => {
                 </div>
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* 4. ARCHIVE EMPLOYEE — HARD CONFIRM */}
+      {archiveTarget && (
+        <div
+          className="fixed inset-0 z-[9999] flex justify-center bg-black/70 p-4 pt-12 pb-24 overflow-y-auto"
+          onClick={() => !archiving && setArchiveTarget(null)}
+        >
+          <div
+            className="w-full max-w-md h-fit my-auto bg-card border border-destructive/40 rounded-3xl p-6 shadow-2xl relative animate-in fade-in zoom-in-95 duration-200"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-start gap-3 mb-4">
+              <div className="p-2 rounded-full bg-destructive/10 text-destructive shrink-0">
+                <AlertTriangle size={20} />
+              </div>
+              <div>
+                <h2 className="text-xl font-serif font-bold text-foreground">Archive Employee?</h2>
+                <p className="text-xs text-muted-foreground mt-1 uppercase tracking-wider">
+                  This action is irreversible
+                </p>
+              </div>
+            </div>
+            <div className="bg-muted/40 border border-border rounded-xl p-4 mb-5">
+              <p className="text-sm font-bold text-foreground">
+                {archiveTarget.full_name || archiveTarget.email}
+              </p>
+              <p className="text-xs text-muted-foreground">{archiveTarget.email}</p>
+            </div>
+            <p className="text-sm text-muted-foreground mb-5">
+              This will <strong className="text-destructive">permanently remove their access to the portal</strong>.
+              Their profile status will be set to <code className="px-1 rounded bg-muted">rejected</code> and their
+              user record will be deactivated.
+            </p>
+            <div className="flex items-center justify-end gap-2">
+              <button
+                onClick={() => setArchiveTarget(null)}
+                disabled={archiving}
+                className="px-4 py-2.5 rounded-xl text-xs font-bold text-muted-foreground hover:bg-muted transition-colors disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleArchiveEmployee}
+                disabled={archiving}
+                className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold bg-destructive text-destructive-foreground hover:opacity-90 transition-all disabled:opacity-50"
+              >
+                {archiving ? <Loader2 size={14} className="animate-spin" /> : <Archive size={14} />}
+                Archive Permanently
+              </button>
+            </div>
           </div>
         </div>
       )}

@@ -260,6 +260,50 @@ const Login = () => {
     return providerLoadRef.current;
   }, []);
 
+  // ── PART 3: Manual Magic-Link bypass ──
+  // When the magic link redirects with ?manual_auth=true, completely bypass
+  // onAuthStateChange and manually extract the access/refresh tokens from the
+  // URL hash, then call supabase.auth.setSession() directly. This sidesteps
+  // the SMTP redirection conflict that was causing "Auth configuration mismatch".
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const url = new URL(window.location.href);
+    const isManual = url.searchParams.get("manual_auth") === "true";
+    if (!isManual) return;
+
+    // Tokens come back in the URL fragment from Supabase magic-link emails.
+    const hash = window.location.hash?.startsWith("#") ? window.location.hash.slice(1) : window.location.hash;
+    const params = new URLSearchParams(hash || "");
+    const access_token = params.get("access_token");
+    const refresh_token = params.get("refresh_token");
+
+    if (!access_token || !refresh_token) {
+      // Nothing to do — fall back to normal flow silently.
+      return;
+    }
+
+    (async () => {
+      setLoading(true);
+      setStatusMessage("Authenticating via secure magic link…");
+      try {
+        const { data, error } = await supabase.auth.setSession({ access_token, refresh_token });
+        if (error || !data.session) {
+          toast.error("Magic link session failed. Please request a new link.");
+          setLoading(false);
+          return;
+        }
+        // Clear sensitive tokens from URL
+        window.history.replaceState({}, "", url.pathname);
+        const identity = data.session.user.email || data.session.user.phone || data.session.user.id;
+        await redirectAfterAuth(identity, "session_restore", data.session.user.id);
+      } catch (err: any) {
+        toast.error(err?.message || "Manual auth failed");
+        setLoading(false);
+      }
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   useEffect(() => {
     void ensureMsg91Provider().catch(() => {
       setStatusMessage("Mobile verification is unavailable right now. Please use Email login.");
