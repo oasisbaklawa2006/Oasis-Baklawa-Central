@@ -140,6 +140,7 @@ const AdminUsers = () => {
   const [editingCredit, setEditingCredit] = useState<Record<string, number>>({});
   const [saving, setSaving] = useState<string | null>(null);
   const [showModal, setShowModal] = useState(false);
+  const [wizardStep, setWizardStep] = useState<1 | 2>(1);
   const [currentUserRole, setCurrentUserRole] = useState<string | null>(null);
 
   const [selectedRoleId, setSelectedRoleId] = useState<string | null>(null);
@@ -280,7 +281,6 @@ const AdminUsers = () => {
     }
 
     const formattedMobile = nf.mobile ? formatPlusPhone(nf.mobile) : null;
-    const secondaryPhonesArr = formattedMobile ? [formattedMobile] : null;
 
     try {
       await supabase.from("users").upsert(
@@ -289,7 +289,6 @@ const AdminUsers = () => {
           full_name: nf.name,
           email: nf.email.trim(),
           mobile_number: formattedMobile,
-          secondary_phones: secondaryPhonesArr,
           role: nf.role,
           department: nf.dept === "none" ? null : nf.dept,
           designation: nf.designation || null,
@@ -332,7 +331,7 @@ const AdminUsers = () => {
         is_active: true,
         invite_status: "active",
         mobile_number: formattedMobile,
-        secondary_phones: secondaryPhonesArr,
+        secondary_phones: null,
         company_id: null,
         created_at: new Date().toISOString(),
         commission_rate_percentage: null,
@@ -437,7 +436,7 @@ const AdminUsers = () => {
       <div className="flex items-center justify-between">
         <h1 className="text-display-h2 text-foreground">User & Role Control</h1>
         <button
-          onClick={() => setShowModal(true)}
+          onClick={() => { setWizardStep(1); setShowModal(true); }}
           className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-semibold bg-primary text-primary-foreground hover:bg-primary/90 transition-colors shadow-sm"
         >
           <UserPlus size={14} /> Invite Employee
@@ -513,7 +512,7 @@ const AdminUsers = () => {
                             {u.email ?? "—"}
                           </td>
                           <td className="px-5 py-4 text-sm text-muted-foreground whitespace-nowrap font-number">
-                            {(u.secondary_phones && u.secondary_phones[0]) || u.mobile_number || "—"}
+                            {u.mobile_number || "—"}
                           </td>
                           <td className="px-5 py-4 min-w-[160px]">
                             {/* Native Select for maximum performance in lists */}
@@ -647,7 +646,7 @@ const AdminUsers = () => {
                                       const { error } = await supabase.auth.signInWithOtp({
                                         email: u.email,
                                         options: {
-                                          emailRedirectTo: "https://b2b.oasisbaklawa.com/login?manual_auth=true",
+                                          emailRedirectTo: `${window.location.origin}/login?manual_auth=true`,
                                           shouldCreateUser: false,
                                         },
                                       });
@@ -875,9 +874,13 @@ const AdminUsers = () => {
             >
               <X size={20} className="text-muted-foreground" />
             </button>
-            <div className="mb-2 pr-8">
+            <div className="mb-2 pr-8 flex items-center gap-3">
               <h2 className="text-2xl font-serif font-bold text-foreground">Invite Employee</h2>
+              <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                Step {wizardStep} of 2
+              </span>
             </div>
+            {wizardStep === 1 && (
             <div className="space-y-5 mt-6">
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
@@ -985,13 +988,58 @@ const AdminUsers = () => {
                 </select>
               </div>
               <button
-                onClick={handleCreateEmployee}
-                disabled={saving === "new"}
-                className="w-full mt-4 py-3.5 rounded-xl bg-primary text-primary-foreground font-bold text-sm shadow-md hover:shadow-lg hover:-translate-y-0.5 transition-all disabled:opacity-50"
+                onClick={() => {
+                  if (!nf.name.trim() || !nf.email.trim()) return toast.error("Name and Email are required");
+                  if (nf.role === "none" || !nf.role) return toast.error("Role is required");
+                  if (!nf.password || nf.password.length < 6) return toast.error("Password must be at least 6 characters");
+                  setWizardStep(2);
+                }}
+                className="w-full mt-4 py-3.5 rounded-xl bg-primary text-primary-foreground font-bold text-sm shadow-md hover:shadow-lg hover:-translate-y-0.5 transition-all"
               >
-                {saving === "new" ? <Loader2 size={16} className="animate-spin mx-auto" /> : "Deploy Employee Profile"}
+                Review Details →
               </button>
             </div>
+            )}
+            {wizardStep === 2 && (
+              <div className="space-y-5 mt-6">
+                <div className="rounded-2xl border border-border bg-muted/20 p-5 space-y-3">
+                  <p className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground mb-2">
+                    Confirm employee details
+                  </p>
+                  {[
+                    { label: "Full Name", value: nf.name },
+                    { label: "Email", value: nf.email },
+                    { label: "Mobile", value: nf.mobile || "—" },
+                    { label: "Password", value: nf.password, mono: true },
+                    { label: "Role", value: (roles.find((r) => r.role_key === nf.role)?.role_name) || nf.role },
+                    { label: "Status", value: nf.status },
+                    { label: "Department", value: nf.dept === "none" ? "—" : nf.dept },
+                    { label: "Designation", value: nf.designation || "—" },
+                  ].map((row) => (
+                    <div key={row.label} className="flex items-center justify-between text-sm border-b border-border/50 pb-2 last:border-0">
+                      <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{row.label}</span>
+                      <span className={`text-foreground ${row.mono ? "font-mono text-xs" : "font-medium"}`}>{row.value}</span>
+                    </div>
+                  ))}
+                </div>
+                <div className="grid grid-cols-2 gap-3 mt-4">
+                  <button
+                    onClick={() => setWizardStep(1)}
+                    disabled={saving === "new"}
+                    className="py-3.5 rounded-xl bg-muted text-foreground font-bold text-sm hover:bg-muted/70 transition-all disabled:opacity-50"
+                  >
+                    ← Back
+                  </button>
+                  <button
+                    onClick={handleCreateEmployee}
+                    disabled={saving === "new"}
+                    className="py-3.5 rounded-xl bg-primary text-primary-foreground font-bold text-sm shadow-md hover:shadow-lg hover:-translate-y-0.5 transition-all disabled:opacity-50"
+                  >
+                    {saving === "new" ? <Loader2 size={16} className="animate-spin mx-auto" /> : "Confirm & Create"}
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}
