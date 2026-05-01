@@ -604,10 +604,10 @@ const AdminClients = () => {
       <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
         <SheetContent
           onOpenAutoFocus={(e) => e.preventDefault()}
-          className="fixed top-0 right-0 h-[100dvh] z-[100] w-full sm:max-w-lg overflow-y-auto border-l border-border bg-background p-0"
+          className="sm:max-w-lg border-l border-border bg-background p-0"
         >
           {selectedApp && (
-            <div className="flex flex-col h-full">
+            <div className="flex flex-col h-full max-h-screen overflow-y-auto pb-8">
               <div className="px-6 pt-6 pb-4 border-b border-border bg-muted/20">
                 <SheetHeader className="space-y-1">
                   <SheetTitle className="text-lg font-display text-foreground">{selectedApp.business_name}</SheetTitle>
