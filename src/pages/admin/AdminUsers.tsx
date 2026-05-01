@@ -330,7 +330,7 @@ const AdminUsers = () => {
         is_active: true,
         invite_status: "active",
         mobile_number: formattedMobile,
-        secondary_phones: secondaryPhonesArr,
+        secondary_phones: null,
         company_id: null,
         created_at: new Date().toISOString(),
         commission_rate_percentage: null,
