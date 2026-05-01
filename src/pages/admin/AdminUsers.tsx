@@ -988,13 +988,58 @@ const AdminUsers = () => {
                 </select>
               </div>
               <button
-                onClick={handleCreateEmployee}
-                disabled={saving === "new"}
-                className="w-full mt-4 py-3.5 rounded-xl bg-primary text-primary-foreground font-bold text-sm shadow-md hover:shadow-lg hover:-translate-y-0.5 transition-all disabled:opacity-50"
+                onClick={() => {
+                  if (!nf.name.trim() || !nf.email.trim()) return toast.error("Name and Email are required");
+                  if (nf.role === "none" || !nf.role) return toast.error("Role is required");
+                  if (!nf.password || nf.password.length < 6) return toast.error("Password must be at least 6 characters");
+                  setWizardStep(2);
+                }}
+                className="w-full mt-4 py-3.5 rounded-xl bg-primary text-primary-foreground font-bold text-sm shadow-md hover:shadow-lg hover:-translate-y-0.5 transition-all"
               >
-                {saving === "new" ? <Loader2 size={16} className="animate-spin mx-auto" /> : "Deploy Employee Profile"}
+                Review Details →
               </button>
             </div>
+            )}
+            {wizardStep === 2 && (
+              <div className="space-y-5 mt-6">
+                <div className="rounded-2xl border border-border bg-muted/20 p-5 space-y-3">
+                  <p className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground mb-2">
+                    Confirm employee details
+                  </p>
+                  {[
+                    { label: "Full Name", value: nf.name },
+                    { label: "Email", value: nf.email },
+                    { label: "Mobile", value: nf.mobile || "—" },
+                    { label: "Password", value: nf.password, mono: true },
+                    { label: "Role", value: (roles.find((r) => r.role_key === nf.role)?.role_name) || nf.role },
+                    { label: "Status", value: nf.status },
+                    { label: "Department", value: nf.dept === "none" ? "—" : nf.dept },
+                    { label: "Designation", value: nf.designation || "—" },
+                  ].map((row) => (
+                    <div key={row.label} className="flex items-center justify-between text-sm border-b border-border/50 pb-2 last:border-0">
+                      <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{row.label}</span>
+                      <span className={`text-foreground ${row.mono ? "font-mono text-xs" : "font-medium"}`}>{row.value}</span>
+                    </div>
+                  ))}
+                </div>
+                <div className="grid grid-cols-2 gap-3 mt-4">
+                  <button
+                    onClick={() => setWizardStep(1)}
+                    disabled={saving === "new"}
+                    className="py-3.5 rounded-xl bg-muted text-foreground font-bold text-sm hover:bg-muted/70 transition-all disabled:opacity-50"
+                  >
+                    ← Back
+                  </button>
+                  <button
+                    onClick={handleCreateEmployee}
+                    disabled={saving === "new"}
+                    className="py-3.5 rounded-xl bg-primary text-primary-foreground font-bold text-sm shadow-md hover:shadow-lg hover:-translate-y-0.5 transition-all disabled:opacity-50"
+                  >
+                    {saving === "new" ? <Loader2 size={16} className="animate-spin mx-auto" /> : "Confirm & Create"}
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}
