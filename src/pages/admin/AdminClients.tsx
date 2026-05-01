@@ -78,13 +78,13 @@ interface PortalInvite {
 interface Company {
   id: string;
   business_name: string;
-  contact_person: string;
-  phone: string;
-  email: string;
-  status: string;
-  credit_limit: number;
-  discount_percentage: number;
-  created_at: string;
+  contact_person?: string | null;
+  phone?: string | null;
+  email?: string | null;
+  status?: string | null;
+  credit_limit?: number | null;
+  discount_percentage?: number | null;
+  created_at?: string | null;
 }
 
 /* ─── dummy data ─── */
@@ -141,13 +141,13 @@ const AdminClients = () => {
       .select("id, slab_name")
       .eq("is_active", true)
       .then(({ data }) => {
-        if (data && data.length > 0) setPricingSlabs(data as PricingSlab[]);
+        if (data && data.length > 0) setPricingSlabs(data as unknown as PricingSlab[]);
       });
     supabase
       .from("portal_access_invites")
       .select("*")
       .then(({ data }) => {
-        setInvites((data as PortalInvite[]) ?? []);
+        setInvites((data as unknown as PortalInvite[]) ?? []);
       });
 
     // Stable counter query — single source of truth with Error Boundary
@@ -176,7 +176,7 @@ const AdminClients = () => {
       if (status === "directory") {
         const { data, error } = await supabase.from("companies").select("*").order("created_at", { ascending: false });
         if (error) throw error;
-        setActiveCompanies((data as Company[]) ?? []);
+        setActiveCompanies((data as unknown as Company[]) ?? []);
       } else {
         const { data, error } = await supabase
           .from("b2b_applications")
@@ -184,7 +184,7 @@ const AdminClients = () => {
           .eq("status", status)
           .order("created_at", { ascending: false });
         if (error) throw error;
-        setApps((data as Application[]) ?? []);
+        setApps((data as unknown as Application[]) ?? []);
       }
     } catch (err: any) {
       console.error("Failed to fetch applications:", err);
@@ -346,7 +346,7 @@ const AdminClients = () => {
     if (!error) {
       toast.success(`Portal invite sent to ${app.contact_email}`);
       const { data } = await supabase.from("portal_access_invites").select("*");
-      setInvites((data as PortalInvite[]) ?? []);
+      setInvites((data as unknown as PortalInvite[]) ?? []);
     } else {
       toast.error("Failed to send portal invite.");
     }
