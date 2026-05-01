@@ -52,11 +52,21 @@ async function callVisionAI(textBundle: string, imageUrls: string[]): Promise<{
 
   const systemPrompt = `You are the Oasis Baklawa Central Parser. Extract structured order intent from a bundle of WhatsApp messages (text + invoice/PO images). Return ONLY a tool call.
 
-Rules:
-- business_name: the buyer's company / shop name if visible on letterhead, signature, or stated in text. Null if unclear.
-- items: every product line with its quantity. Quantity must be a number; unit one of "kg","pcs","box","carton","gm" or null.
-- delivery_date: ISO date (YYYY-MM-DD) if a clear delivery / requested-by date is mentioned, else null.
-- confidence: 0.0-1.0 reflecting overall extraction reliability.`;
+CHAIN-OF-THOUGHT EXTRACTION PROTOCOL (mandatory):
+1. Read the bundle line-by-line. Do NOT skim or summarize.
+2. For each line, isolate ONLY explicit number-unit-product triples that are physically adjacent (e.g., "30 kg spl pyramid", "5 box baklawa"). The number, unit, and product name MUST appear next to each other in the same clause.
+3. NEVER carry a quantity from one product to another. NEVER infer a quantity from context, prior messages, or surrounding lines. If a product name appears without an adjacent number, SKIP it entirely.
+4. If a unit is malformed, glued to other characters, or genuinely unclear (e.g., "kgMor", "k g", garbled OCR), DO NOT GUESS. Emit the item with quantity=null, unit=null, and set its row-level note to "ambiguous_unit". This forces human review.
+5. If the same product appears multiple times with different quantities, emit each occurrence as a SEPARATE item — never sum or merge silently.
+6. raw_source: for EVERY item you emit, copy the exact source substring (max 80 chars) you extracted it from. This is non-negotiable — it is the audit trail.
+
+OUTPUT RULES:
+- business_name: buyer's company / shop name if visible on letterhead, signature, or stated in text. Null if unclear.
+- items: array of {product_name, quantity (number or null), unit ("kg"|"gm"|"pcs"|"box"|"carton"|null), notes (string or null), raw_source (string)}.
+- delivery_date: ISO date (YYYY-MM-DD) if explicitly stated, else null.
+- confidence: 0.0-1.0 — REDUCE this aggressively. If ANY item has null quantity or ambiguous unit, confidence MUST be ≤ 0.5.
+
+When in doubt, return less data with higher integrity. Hallucinated quantities are a critical failure.`;
 
   const userContent: any[] = [{ type: "text", text: `Message bundle:\n\n${textBundle || "(no text)"}` }];
   for (const url of imageUrls.slice(0, 4)) {
@@ -78,11 +88,12 @@ Rules:
               type: "object",
               properties: {
                 product_name: { type: "string" },
-                quantity: { type: "number" },
+                quantity: { type: ["number", "null"] },
                 unit: { type: ["string", "null"] },
                 notes: { type: ["string", "null"] },
+                raw_source: { type: "string" },
               },
-              required: ["product_name", "quantity"],
+              required: ["product_name", "quantity", "unit", "raw_source"],
               additionalProperties: false,
             },
           },
