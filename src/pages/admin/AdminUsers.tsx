@@ -436,7 +436,7 @@ const AdminUsers = () => {
       <div className="flex items-center justify-between">
         <h1 className="text-display-h2 text-foreground">User & Role Control</h1>
         <button
-          onClick={() => setShowModal(true)}
+          onClick={() => { setWizardStep(1); setShowModal(true); }}
           className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-semibold bg-primary text-primary-foreground hover:bg-primary/90 transition-colors shadow-sm"
         >
           <UserPlus size={14} /> Invite Employee
