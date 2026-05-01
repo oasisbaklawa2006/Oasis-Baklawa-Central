@@ -280,7 +280,6 @@ const AdminUsers = () => {
     }
 
     const formattedMobile = nf.mobile ? formatPlusPhone(nf.mobile) : null;
-    const secondaryPhonesArr = formattedMobile ? [formattedMobile] : null;
 
     try {
       await supabase.from("users").upsert(
@@ -289,7 +288,6 @@ const AdminUsers = () => {
           full_name: nf.name,
           email: nf.email.trim(),
           mobile_number: formattedMobile,
-          secondary_phones: secondaryPhonesArr,
           role: nf.role,
           department: nf.dept === "none" ? null : nf.dept,
           designation: nf.designation || null,
