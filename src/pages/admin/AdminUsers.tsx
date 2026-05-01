@@ -915,7 +915,7 @@ const AdminUsers = () => {
                   placeholder="+919876543210"
                 />
                 <p className="text-[10px] text-muted-foreground italic">
-                  Stored in <code>secondary_phones</code>. Always saved with a "+" prefix.
+                  Stored as the user's primary <code>mobile_number</code>. Always saved with a "+" prefix.
                 </p>
               </div>
               <div className="space-y-2">
