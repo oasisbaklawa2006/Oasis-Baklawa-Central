@@ -372,6 +372,34 @@ const AdminUsers = () => {
     setSaving(null);
   };
 
+  const handleArchiveEmployee = async () => {
+    if (!archiveTarget) return;
+    setArchiving(true);
+    try {
+      const { error: profErr } = await supabase
+        .from("profiles")
+        .update({ status: "rejected", is_approved: false })
+        .eq("id", archiveTarget.id);
+      const { error: userErr } = await supabase
+        .from("users")
+        .update({ is_active: false, invite_status: "blocked" })
+        .eq("id", archiveTarget.id);
+      if (profErr && userErr) {
+        toast.error("Failed to archive employee");
+      } else {
+        toast.success(`${archiveTarget.full_name || archiveTarget.email} archived`);
+        setUsers((prev) =>
+          prev.map((x) =>
+            x.id === archiveTarget.id ? { ...x, is_active: false, invite_status: "blocked" } : x,
+          ),
+        );
+        setArchiveTarget(null);
+      }
+    } finally {
+      setArchiving(false);
+    }
+  };
+
   const openRolePermEdit = (role: RoleRow) => {
     setSelectedRoleId(role.id);
     setRolePermsEditing(getRolePermIds(role.id));
