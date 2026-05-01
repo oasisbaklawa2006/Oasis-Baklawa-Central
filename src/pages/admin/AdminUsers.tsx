@@ -512,8 +512,8 @@ const AdminUsers = () => {
                           <td className="px-5 py-4 text-sm text-muted-foreground whitespace-nowrap">
                             {u.email ?? "—"}
                           </td>
-                          <td className="px-5 py-4 text-sm text-muted-foreground whitespace-nowrap">
-                            {u.mobile_number ?? "—"}
+                          <td className="px-5 py-4 text-sm text-muted-foreground whitespace-nowrap font-number">
+                            {(u.secondary_phones && u.secondary_phones[0]) || u.mobile_number || "—"}
                           </td>
                           <td className="px-5 py-4 min-w-[160px]">
                             {/* Native Select for maximum performance in lists */}
