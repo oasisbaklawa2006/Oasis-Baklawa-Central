@@ -295,7 +295,7 @@ const Login = () => {
         // Clear sensitive tokens from URL
         window.history.replaceState({}, "", url.pathname);
         const identity = data.session.user.email || data.session.user.phone || data.session.user.id;
-        await redirectAfterAuth(identity, "email", data.session.user.id);
+        await redirectAfterAuth(identity, "session_restore", data.session.user.id);
       } catch (err: any) {
         toast.error(err?.message || "Manual auth failed");
         setLoading(false);
