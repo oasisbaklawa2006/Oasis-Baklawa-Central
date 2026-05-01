@@ -1059,6 +1059,59 @@ const AdminUsers = () => {
           </div>
         </div>
       )}
+
+      {/* 4. ARCHIVE EMPLOYEE — HARD CONFIRM */}
+      {archiveTarget && (
+        <div
+          className="fixed inset-0 z-[9999] flex justify-center bg-black/70 p-4 pt-12 pb-24 overflow-y-auto"
+          onClick={() => !archiving && setArchiveTarget(null)}
+        >
+          <div
+            className="w-full max-w-md h-fit my-auto bg-card border border-destructive/40 rounded-3xl p-6 shadow-2xl relative animate-in fade-in zoom-in-95 duration-200"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-start gap-3 mb-4">
+              <div className="p-2 rounded-full bg-destructive/10 text-destructive shrink-0">
+                <AlertTriangle size={20} />
+              </div>
+              <div>
+                <h2 className="text-xl font-serif font-bold text-foreground">Archive Employee?</h2>
+                <p className="text-xs text-muted-foreground mt-1 uppercase tracking-wider">
+                  This action is irreversible
+                </p>
+              </div>
+            </div>
+            <div className="bg-muted/40 border border-border rounded-xl p-4 mb-5">
+              <p className="text-sm font-bold text-foreground">
+                {archiveTarget.full_name || archiveTarget.email}
+              </p>
+              <p className="text-xs text-muted-foreground">{archiveTarget.email}</p>
+            </div>
+            <p className="text-sm text-muted-foreground mb-5">
+              This will <strong className="text-destructive">permanently remove their access to the portal</strong>.
+              Their profile status will be set to <code className="px-1 rounded bg-muted">rejected</code> and their
+              user record will be deactivated.
+            </p>
+            <div className="flex items-center justify-end gap-2">
+              <button
+                onClick={() => setArchiveTarget(null)}
+                disabled={archiving}
+                className="px-4 py-2.5 rounded-xl text-xs font-bold text-muted-foreground hover:bg-muted transition-colors disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleArchiveEmployee}
+                disabled={archiving}
+                className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold bg-destructive text-destructive-foreground hover:opacity-90 transition-all disabled:opacity-50"
+              >
+                {archiving ? <Loader2 size={14} className="animate-spin" /> : <Archive size={14} />}
+                Archive Permanently
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
