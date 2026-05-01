@@ -279,13 +279,17 @@ const AdminUsers = () => {
       return;
     }
 
+    const formattedMobile = nf.mobile ? formatPlusPhone(nf.mobile) : null;
+    const secondaryPhonesArr = formattedMobile ? [formattedMobile] : null;
+
     try {
       await supabase.from("users").upsert(
         {
           id: newUserId,
           full_name: nf.name,
           email: nf.email.trim(),
-          mobile_number: nf.mobile || null,
+          mobile_number: formattedMobile,
+          secondary_phones: secondaryPhonesArr,
           role: nf.role,
           department: nf.dept === "none" ? null : nf.dept,
           designation: nf.designation || null,
@@ -327,7 +331,8 @@ const AdminUsers = () => {
         designation: nf.designation || null,
         is_active: true,
         invite_status: "active",
-        mobile_number: nf.mobile || null,
+        mobile_number: formattedMobile,
+        secondary_phones: secondaryPhonesArr,
         company_id: null,
         created_at: new Date().toISOString(),
         commission_rate_percentage: null,
