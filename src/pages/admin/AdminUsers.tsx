@@ -20,6 +20,7 @@ interface UserRow {
   is_active: boolean | null;
   invite_status: string | null;
   mobile_number: string | null;
+  secondary_phones: string[] | null;
   company_id: string | null;
   created_at: string | null;
   commission_rate_percentage: number | null;
