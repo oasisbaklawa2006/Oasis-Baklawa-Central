@@ -246,8 +246,7 @@ const AdminUsers = () => {
     setSaving("new");
     const roleRecord = roles.find((r) => r.role_key === nf.role);
     const chosenPassword = nf.password;
-    const SITE_URL = "https://b2b.oasisbaklawa.com";
-    const inviteRedirect = `${SITE_URL}/login`;
+    const inviteRedirect = `${window.location.origin}/login?manual_auth=true`;
 
     const { data: authData, error: authError } = await supabase.auth.signUp({
       email: nf.email.trim(),
@@ -916,7 +915,7 @@ const AdminUsers = () => {
                   placeholder="+919876543210"
                 />
                 <p className="text-[10px] text-muted-foreground italic">
-                  Stored in <code>secondary_phones</code>. Always saved with a "+" prefix.
+                  Stored as the user's primary <code>mobile_number</code>. Always saved with a "+" prefix.
                 </p>
               </div>
               <div className="space-y-2">
