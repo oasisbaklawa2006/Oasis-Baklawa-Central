@@ -647,7 +647,7 @@ const AdminUsers = () => {
                                       const { error } = await supabase.auth.signInWithOtp({
                                         email: u.email,
                                         options: {
-                                          emailRedirectTo: "https://b2b.oasisbaklawa.com/login",
+                                          emailRedirectTo: "https://b2b.oasisbaklawa.com/login?manual_auth=true",
                                           shouldCreateUser: false,
                                         },
                                       });
@@ -657,6 +657,14 @@ const AdminUsers = () => {
                                     <Mail size={14} />
                                   </button>
                                 </>
+                              )}
+                              <button
+                                title="Archive Employee"
+                                className="p-1.5 rounded-md text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
+                                onClick={() => setArchiveTarget(u)}
+                              >
+                                <Archive size={14} />
+                              </button>
                               )}
                             </div>
                           </td>
