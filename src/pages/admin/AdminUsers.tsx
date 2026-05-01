@@ -154,6 +154,9 @@ const AdminUsers = () => {
     role: string;
   } | null>(null);
 
+  const [archiveTarget, setArchiveTarget] = useState<UserRow | null>(null);
+  const [archiving, setArchiving] = useState(false);
+
   const [nf, setNf] = useState({
     name: "",
     email: "",
@@ -165,6 +168,12 @@ const AdminUsers = () => {
     status: "invited" as string,
   });
   const [selectedPermIds, setSelectedPermIds] = useState<string[]>([]);
+
+  const formatPlusPhone = (raw: string) => {
+    const digits = (raw || "").replace(/[^\d]/g, "");
+    if (!digits) return "";
+    return `+${digits}`;
+  };
 
   const fetchData = useCallback(
     async (opts?: { silent?: boolean }) => {
