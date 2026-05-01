@@ -246,8 +246,7 @@ const AdminUsers = () => {
     setSaving("new");
     const roleRecord = roles.find((r) => r.role_key === nf.role);
     const chosenPassword = nf.password;
-    const SITE_URL = "https://b2b.oasisbaklawa.com";
-    const inviteRedirect = `${SITE_URL}/login`;
+    const inviteRedirect = `${window.location.origin}/login?manual_auth=true`;
 
     const { data: authData, error: authError } = await supabase.auth.signUp({
       email: nf.email.trim(),
