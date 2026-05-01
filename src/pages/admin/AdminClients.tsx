@@ -23,14 +23,11 @@ import {
   Percent,
   Edit,
   ShieldCheck,
-  ShieldAlert,
   Building,
-  X,
 } from "lucide-react";
 import TopNavBar from "@/components/TopNavBar";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -91,69 +88,6 @@ interface Company {
 }
 
 /* ─── dummy data ─── */
-const DUMMY_APPS: Application[] = [
-  {
-    id: "d1",
-    business_name: "Royal Sweets Emporium",
-    trade_name: "Royal Sweets",
-    business_type: "Distributor",
-    contact_person: "Rajesh Sharma",
-    contact_email: "rajesh@royalsweets.in",
-    mobile_number: "+91 98765 43210",
-    gst_number: "27AABCU9603R1ZM",
-    expected_volume: "500-1000 kg",
-    city: "Mumbai",
-    state: "Maharashtra",
-    registered_address: "42, Mithai Lane, Dadar West, Mumbai 400028",
-    status: "pending",
-    created_at: "2026-03-15T10:30:00Z",
-    user_id: null,
-    admin_notes: null,
-    rejection_reason: null,
-    assigned_price_tier: null,
-  },
-  {
-    id: "d2",
-    business_name: "Bombay Bakery House",
-    trade_name: "BBH",
-    business_type: "Retailer",
-    contact_person: "Priya Mehta",
-    contact_email: "priya@bbh.co.in",
-    mobile_number: "+91 87654 32109",
-    gst_number: "27AABCU9604R1ZN",
-    expected_volume: "100-500 kg",
-    city: "Pune",
-    state: "Maharashtra",
-    registered_address: "15, Baker Street, Koregaon Park, Pune 411001",
-    status: "pending",
-    created_at: "2026-03-14T08:15:00Z",
-    user_id: null,
-    admin_notes: null,
-    rejection_reason: null,
-    assigned_price_tier: null,
-  },
-  {
-    id: "d3",
-    business_name: "Delhi Dry Fruits Co.",
-    trade_name: "DDFC",
-    business_type: "Wholesaler",
-    contact_person: "Amit Gupta",
-    contact_email: "amit@ddfc.in",
-    mobile_number: "+91 99876 54321",
-    gst_number: "07AABCU9605R1ZO",
-    expected_volume: "1000-5000 kg",
-    city: "New Delhi",
-    state: "Delhi",
-    registered_address: "78, Chandni Chowk, Old Delhi 110006",
-    status: "approved",
-    created_at: "2026-03-10T14:00:00Z",
-    user_id: null,
-    admin_notes: "Premium client",
-    rejection_reason: null,
-    assigned_price_tier: "Slab A",
-  },
-];
-
 const DUMMY_SLABS: PricingSlab[] = [
   { id: "s1", slab_name: "Slab A" },
   { id: "s2", slab_name: "Slab B" },
@@ -161,8 +95,6 @@ const DUMMY_SLABS: PricingSlab[] = [
 ];
 const STATUS_TABS = ["pending", "approved", "rejected", "directory"] as const;
 
-const fmtDate = (d: string | null) =>
-  d ? new Date(d).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }) : "—";
 const statusBadgeClass = (status: string) => {
   switch (status) {
     case "pending":
@@ -217,36 +149,49 @@ const AdminClients = () => {
       .then(({ data }) => {
         setInvites((data as PortalInvite[]) ?? []);
       });
-    // Stable counter query — single source of truth
+
+    // Stable counter query — single source of truth with Error Boundary
     const fetchStableCounts = async () => {
-      const [pendingRes, approvedRes, activeRes] = await Promise.all([
-        supabase.from("b2b_applications").select("id", { count: "exact", head: true }).eq("status", "pending"),
-        supabase.from("b2b_applications").select("id", { count: "exact", head: true }).eq("status", "approved"),
-        supabase.from("companies").select("id", { count: "exact", head: true }),
-      ]);
-      setStableCounts({
-        pending: pendingRes.count ?? 0,
-        approved: approvedRes.count ?? 0,
-        active: activeRes.count ?? 0,
-      });
+      try {
+        const [pendingRes, approvedRes, activeRes] = await Promise.all([
+          supabase.from("b2b_applications").select("id", { count: "exact", head: true }).eq("status", "pending"),
+          supabase.from("b2b_applications").select("id", { count: "exact", head: true }).eq("status", "approved"),
+          supabase.from("companies").select("id", { count: "exact", head: true }),
+        ]);
+        setStableCounts({
+          pending: pendingRes.count ?? 0,
+          approved: approvedRes.count ?? 0,
+          active: activeRes.count ?? 0,
+        });
+      } catch (err) {
+        console.error("Failed to fetch stable counts:", err);
+      }
     };
     fetchStableCounts();
   }, []);
 
   const fetchApps = async (status: string) => {
     setLoading(true);
-    if (status === "directory") {
-      const { data } = await (supabase as any).from("companies").select("*").order("created_at", { ascending: false });
-      setActiveCompanies((data as Company[]) ?? []);
-    } else {
-      const { data } = await supabase
-        .from("b2b_applications")
-        .select("*")
-        .eq("status", status)
-        .order("created_at", { ascending: false });
-      setApps((data as Application[]) ?? []);
+    try {
+      if (status === "directory") {
+        const { data, error } = await supabase.from("companies").select("*").order("created_at", { ascending: false });
+        if (error) throw error;
+        setActiveCompanies((data as Company[]) ?? []);
+      } else {
+        const { data, error } = await supabase
+          .from("b2b_applications")
+          .select("*")
+          .eq("status", status)
+          .order("created_at", { ascending: false });
+        if (error) throw error;
+        setApps((data as Application[]) ?? []);
+      }
+    } catch (err: any) {
+      console.error("Failed to fetch applications:", err);
+      toast.error("Failed to load records. Please refresh.");
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   useEffect(() => {
@@ -309,40 +254,25 @@ const AdminClients = () => {
           })
           .eq("id", app.id),
         app.user_id && companyId
-          ? supabase
-              .from("users")
-              .update({ role: approvedRole, company_id: companyId })
-              .eq("id", app.user_id)
+          ? supabase.from("users").update({ role: approvedRole, company_id: companyId }).eq("id", app.user_id)
           : Promise.resolve({ error: null }),
         app.user_id && companyId
-          ? supabase
-              .from("profiles")
-              .upsert(
-                {
-                  id: app.user_id,
-                  role: approvedRole,
-                  company_id: companyId,
-                  is_approved: true,
-                  status: "approved",
-                },
-                { onConflict: "id" },
-              )
+          ? supabase.from("profiles").upsert(
+              {
+                id: app.user_id,
+                role: approvedRole,
+                company_id: companyId,
+                is_approved: true,
+                status: "approved",
+              },
+              { onConflict: "id" },
+            )
           : Promise.resolve({ error: null }),
       ]);
 
-      if (applicationUpdate.error) {
-        throw applicationUpdate.error;
-      }
-
-      if (userUpdate.error) {
-        console.error("[AdminClients] Users table update failed:", userUpdate.error);
-        throw userUpdate.error;
-      }
-
-      if (profileSync.error) {
-        console.error("[AdminClients] Profiles table sync failed:", profileSync.error);
-        throw profileSync.error;
-      }
+      if (applicationUpdate.error) throw applicationUpdate.error;
+      if (userUpdate.error) throw userUpdate.error;
+      if (profileSync.error) throw profileSync.error;
 
       toast.success(`${app.business_name} approved`);
 
@@ -360,7 +290,7 @@ const AdminClients = () => {
       fetchApps(tab);
     } catch (error) {
       console.error("[AdminClients] Approval failed:", error);
-      toast.error("Failed to approve");
+      toast.error("Failed to approve client.");
     } finally {
       setActionLoading(null);
     }
@@ -383,6 +313,8 @@ const AdminClients = () => {
       toast.success(`${app.business_name} rejected`);
       setSheetOpen(false);
       fetchApps(tab);
+    } else {
+      toast.error("Failed to reject application.");
     }
     setActionLoading(null);
   };
@@ -394,7 +326,7 @@ const AdminClients = () => {
 
   const handleSendInvite = async (app: Application) => {
     if (!app.contact_email) {
-      toast.error("No contact email");
+      toast.error("No contact email available");
       return;
     }
     if (app.id.startsWith("d")) {
@@ -415,6 +347,8 @@ const AdminClients = () => {
       toast.success(`Portal invite sent to ${app.contact_email}`);
       const { data } = await supabase.from("portal_access_invites").select("*");
       setInvites((data as PortalInvite[]) ?? []);
+    } else {
+      toast.error("Failed to send portal invite.");
     }
     setInviteSending(null);
   };
@@ -433,7 +367,7 @@ const AdminClients = () => {
       return;
     }
     setIsUpdatingCompany(true);
-    const { error } = await (supabase as any)
+    const { error } = await supabase
       .from("companies")
       .update({
         credit_limit: editCreditLimit,
@@ -446,7 +380,7 @@ const AdminClients = () => {
       setSelectedCompany(null);
       fetchApps("directory");
     } else {
-      toast.error("Failed to update client.");
+      toast.error("Failed to update client profile.");
     }
     setIsUpdatingCompany(false);
   };
@@ -620,7 +554,7 @@ const AdminClients = () => {
                       </TableHeader>
                       <TableBody>
                         <AnimatePresence>
-                          {apps.map((a, i) => (
+                          {apps.map((a) => (
                             <motion.tr
                               key={a.id}
                               initial={{ opacity: 0, y: 6 }}
@@ -668,7 +602,10 @@ const AdminClients = () => {
 
       {/* ─── Application Review Sheet ─── */}
       <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
-        <SheetContent className="w-full sm:max-w-lg overflow-y-auto border-l border-border bg-background p-0">
+        <SheetContent
+          onOpenAutoFocus={(e) => e.preventDefault()}
+          className="fixed top-0 right-0 h-[100dvh] z-[100] w-full sm:max-w-lg overflow-y-auto border-l border-border bg-background p-0"
+        >
           {selectedApp && (
             <div className="flex flex-col h-full">
               <div className="px-6 pt-6 pb-4 border-b border-border bg-muted/20">
@@ -782,7 +719,10 @@ const AdminClients = () => {
           if (!open) setSelectedCompany(null);
         }}
       >
-        <DialogContent className="max-w-md bg-white border-slate-200 rounded-3xl p-6">
+        <DialogContent
+          onOpenAutoFocus={(e) => e.preventDefault()}
+          className="sm:max-w-md bg-white border-slate-200 rounded-3xl p-6 h-fit my-auto max-h-[90vh] overflow-y-auto z-[100]"
+        >
           <DialogHeader className="mb-4">
             <DialogTitle className="text-xl font-black text-slate-900 flex items-center gap-2">
               <Building className="text-[#B8860B]" /> Edit B2B Credit Profile
@@ -848,6 +788,7 @@ const DetailRow = ({ icon: Icon, label, value }: { icon: React.ElementType; labe
     </div>
   </div>
 );
+
 const PortalInviteSection = ({ app, invite, onSendInvite, sending }: any) => (
   <div className="space-y-3">
     <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Portal Access</h4>
