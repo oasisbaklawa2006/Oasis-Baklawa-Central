@@ -111,6 +111,7 @@ const AdminLayout = () => {
         { to: "/admin/logistics", icon: Truck, label: t("Logistics"), moduleKey: "settings" },
         { to: "/admin/notifications", icon: Bell, label: t("Notifications"), moduleKey: "settings" },
         { to: "/admin/announcements", icon: Megaphone, label: t("Announcements"), moduleKey: "settings" },
+        { to: "/admin/display-management", icon: Monitor, label: t("Display Management"), moduleKey: "settings" },
       ],
     },
   ];
