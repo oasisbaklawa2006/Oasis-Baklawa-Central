@@ -4,40 +4,14 @@ import { useParams, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import {
-  Loader2, ChevronLeft, CheckCircle2, Circle, Clock, MessageSquarePlus,
-  Package, Settings, Wrench, Box, FileText, Truck, MapPin, ShieldCheck, X,
+  Loader2, ChevronLeft, MessageSquarePlus,
+  Package, ShieldCheck, X,
 } from "lucide-react";
 import { motion } from "framer-motion";
 import { toast } from "sonner";
+import OrderTimeline, { getStepIndex } from "@/components/OrderTimeline";
 
-const ORDER_STEPS = [
-  { key: "submitted", label: "Order Placed", icon: Package },
-  { key: "confirmed", label: "Confirmed", icon: CheckCircle2 },
-  { key: "in_production", label: "Manufacturing", icon: Settings },
-  { key: "assembly", label: "Assembly", icon: Wrench },
-  { key: "packing", label: "Packing", icon: Box },
-  { key: "invoice_generated", label: "Invoice Generated", icon: FileText },
-  { key: "dispatched", label: "Dispatched", icon: Truck },
-  { key: "in_transit", label: "In Transit", icon: MapPin },
-  { key: "delivered", label: "Delivered", icon: CheckCircle2 },
-  { key: "support_window", label: "10-Day Support", icon: ShieldCheck },
-];
-
-function getStepIndex(status: string): number {
-  const map: Record<string, number> = {
-    submitted: 0, pending: 0,
-    confirmed: 1, approved: 1,
-    in_production: 2, manufacturing: 2, processing: 2,
-    assembly: 3,
-    packing: 4, packed_ready: 4,
-    invoice_generated: 5,
-    dispatched: 6,
-    in_transit: 7,
-    delivered: 8,
-    support_window: 9, closed: 9,
-  };
-  return map[status?.toLowerCase()] ?? 0;
-}
+// Timeline steps + getStepIndex are owned by OrderTimeline component.
 
 const formatPrice = (n: number) => "₹" + n.toLocaleString("en-IN");
 const formatDate = (d: string) =>
@@ -135,7 +109,7 @@ const OrderTracking = () => {
   }
 
   const currentStep = getStepIndex(order.status);
-  const isInSupportWindow = currentStep >= 8;
+  const isInSupportWindow = currentStep >= 9;
 
   return (
     <AppShell>
@@ -163,67 +137,10 @@ const OrderTracking = () => {
 
         <div className="bg-card rounded-2xl border border-border p-5">
           <h2 className="font-display text-base mb-5">Order Timeline</h2>
-          <div className="relative">
-            {ORDER_STEPS.map((step, i) => {
-              const isCompleted = i <= currentStep;
-              const isCurrent = i === currentStep;
-              const StepIcon = step.icon;
-
-              return (
-                <div key={step.key} className="flex items-start gap-4 relative">
-                  {i < ORDER_STEPS.length - 1 && (
-                    <div
-                      className={`absolute left-[17px] top-[36px] w-0.5 h-[calc(100%-4px)] ${
-                        i < currentStep ? "bg-primary" : "bg-border"
-                      }`}
-                    />
-                  )}
-                  <div
-                    className={`relative z-10 w-[36px] h-[36px] rounded-full flex items-center justify-center shrink-0 ${
-                      isCompleted
-                        ? "bg-primary text-primary-foreground"
-                        : "bg-muted text-muted-foreground"
-                    } ${isCurrent ? "ring-2 ring-primary/30 ring-offset-2 ring-offset-background" : ""}`}
-                  >
-                    {isCompleted ? <StepIcon size={16} /> : <Circle size={16} />}
-                  </div>
-                  <div className={`pb-6 ${isCurrent ? "pt-0" : ""}`}>
-                    <p
-                      className={`text-sm font-semibold ${
-                        isCompleted ? "text-foreground" : "text-muted-foreground"
-                      }`}
-                    >
-                      {step.label}
-                    </p>
-                    {isCurrent && (
-                      <motion.span
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        className="text-[10px] text-primary font-bold uppercase tracking-wider"
-                      >
-                        Current Status
-                      </motion.span>
-                    )}
-                    {/* LR Number / Transporter details next to Dispatched */}
-                    {step.key === "dispatched" && isCompleted && (order.tracking_number || order.courier_name) && (
-                      <div className="mt-1.5 bg-muted/60 rounded-lg px-3 py-2 border border-border">
-                        {order.tracking_number && (
-                          <p className="text-[11px] font-semibold text-foreground">
-                            LR No: <span className="font-number">{order.tracking_number}</span>
-                          </p>
-                        )}
-                        {order.courier_name && (
-                          <p className="text-[11px] text-muted-foreground">
-                            Transporter: {order.courier_name}
-                          </p>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
+          <OrderTimeline
+            status={order.status}
+            tracking={{ number: order.tracking_number, courier: order.courier_name }}
+          />
         </div>
 
         {order.order_items?.length > 0 && (

@@ -4,6 +4,7 @@ import { Eye, EyeOff, RefreshCw, Tag } from "lucide-react";
 import { toast } from "sonner";
 import { removeDuplicateRealtimeChannel } from "@/utils/realtime";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import ShadowClientSection from "@/components/warroom/ShadowClientSection";
 import WarRoomOrderCard from "@/components/warroom/WarRoomOrderCard";
 import RawIntelligenceTab from "@/components/warroom/RawIntelligenceTab";
@@ -65,6 +66,7 @@ const CMDWarRoom = () => {
   const [aliasDrawerOpen, setAliasDrawerOpen] = useState(false);
   const [pendingToken, setPendingToken] = useState<string | null>(null);
   const [bulkProcessing, setBulkProcessing] = useState(false);
+  const [triageOrderId, setTriageOrderId] = useState<string | null>(null);
 
   // Open the alias drawer instantly (single global state, zero-lag).
   const openAliasDrawer = useCallback((token?: string) => {
@@ -510,24 +512,22 @@ const CMDWarRoom = () => {
                   {bulkProcessing ? "Processing…" : `Approve & Build All (${autoPilotOrders.length})`}
                 </button>
               </div>
-              <div className="space-y-3">
-                {autoPilotOrders
-                  .filter((o) => showHidden || !hidden.has(o.id))
-                  .map((order) => (
+              <div className="space-y-2">
+                {autoPilotOrders.map((order) => (
+                  <button
+                    key={`ap-${order.id}`}
+                    onClick={() => setTriageOrderId(order.id)}
+                    className="w-full text-left"
+                  >
                     <WarRoomOrderCard
-                      key={`ap-${order.id}`}
                       order={order}
-                      isMinimized={hidden.has(order.id)}
-                      onToggleMinimize={() => toggleHide(order.id)}
-                      onValidateAsUnique={() => validateAsUnique(order.id)}
+                      isMinimized={true}
+                      onToggleMinimize={() => setTriageOrderId(order.id)}
                       companies={activeCompanies}
-                      onAssignClient={assignClientToOrder}
-                      onBuildSO={buildSO}
-                      onTeachSku={(token) => openAliasDrawer(token)}
-                      onEditAliases={() => openAliasDrawer()}
                       onRefresh={fetchOrders}
                     />
-                  ))}
+                  </button>
+                ))}
               </div>
             </div>
           )}
@@ -535,24 +535,24 @@ const CMDWarRoom = () => {
           {visibleOrders.length === 0 && (
             <p className="text-muted-foreground text-sm text-center py-12">No active orders in the pipeline.</p>
           )}
-          <div className="space-y-3">
+          <div className="space-y-2">
             {visibleOrders
               .filter((o) => !autoPilotOrders.some((ap) => ap.id === o.id))
               .map((order) => (
-              <WarRoomOrderCard
-                key={order.id}
-                order={order}
-                isMinimized={hidden.has(order.id)}
-                onToggleMinimize={() => toggleHide(order.id)}
-                onValidateAsUnique={() => validateAsUnique(order.id)}
-                companies={activeCompanies}
-                onAssignClient={assignClientToOrder}
-                onBuildSO={buildSO}
-                onTeachSku={(token) => openAliasDrawer(token)}
-                onEditAliases={() => openAliasDrawer()}
-                onRefresh={fetchOrders}
-              />
-            ))}
+                <button
+                  key={order.id}
+                  onClick={() => setTriageOrderId(order.id)}
+                  className="w-full text-left"
+                >
+                  <WarRoomOrderCard
+                    order={order}
+                    isMinimized={true}
+                    onToggleMinimize={() => setTriageOrderId(order.id)}
+                    companies={activeCompanies}
+                    onRefresh={fetchOrders}
+                  />
+                </button>
+              ))}
           </div>
         </TabsContent>
 
@@ -589,6 +589,33 @@ const CMDWarRoom = () => {
         pendingToken={pendingToken}
         onAliasesChanged={fetchOrders}
       />
+
+      {/* Floating triage modal — replaces inline expansion so list stays stable */}
+      <Dialog open={!!triageOrderId} onOpenChange={(v) => !v && setTriageOrderId(null)}>
+        <DialogContent className="sm:max-w-2xl bg-card border-border max-h-[90vh] overflow-y-auto p-4">
+          <DialogHeader>
+            <DialogTitle className="text-base">Order Triage</DialogTitle>
+          </DialogHeader>
+          {(() => {
+            const o = [...orders, ...rejectedOrders].find((x) => x.id === triageOrderId);
+            if (!o) return null;
+            return (
+              <WarRoomOrderCard
+                order={o}
+                isMinimized={false}
+                onToggleMinimize={() => setTriageOrderId(null)}
+                onValidateAsUnique={() => { validateAsUnique(o.id); setTriageOrderId(null); }}
+                companies={activeCompanies}
+                onAssignClient={assignClientToOrder}
+                onBuildSO={async (id) => { await buildSO(id); setTriageOrderId(null); }}
+                onTeachSku={(token) => openAliasDrawer(token)}
+                onEditAliases={() => openAliasDrawer()}
+                onRefresh={fetchOrders}
+              />
+            );
+          })()}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
