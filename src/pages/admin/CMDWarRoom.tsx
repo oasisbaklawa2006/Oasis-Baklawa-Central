@@ -512,24 +512,22 @@ const CMDWarRoom = () => {
                   {bulkProcessing ? "Processing…" : `Approve & Build All (${autoPilotOrders.length})`}
                 </button>
               </div>
-              <div className="space-y-3">
-                {autoPilotOrders
-                  .filter((o) => showHidden || !hidden.has(o.id))
-                  .map((order) => (
+              <div className="space-y-2">
+                {autoPilotOrders.map((order) => (
+                  <button
+                    key={`ap-${order.id}`}
+                    onClick={() => setTriageOrderId(order.id)}
+                    className="w-full text-left"
+                  >
                     <WarRoomOrderCard
-                      key={`ap-${order.id}`}
                       order={order}
-                      isMinimized={hidden.has(order.id)}
-                      onToggleMinimize={() => toggleHide(order.id)}
-                      onValidateAsUnique={() => validateAsUnique(order.id)}
+                      isMinimized={true}
+                      onToggleMinimize={() => setTriageOrderId(order.id)}
                       companies={activeCompanies}
-                      onAssignClient={assignClientToOrder}
-                      onBuildSO={buildSO}
-                      onTeachSku={(token) => openAliasDrawer(token)}
-                      onEditAliases={() => openAliasDrawer()}
                       onRefresh={fetchOrders}
                     />
-                  ))}
+                  </button>
+                ))}
               </div>
             </div>
           )}
@@ -537,24 +535,24 @@ const CMDWarRoom = () => {
           {visibleOrders.length === 0 && (
             <p className="text-muted-foreground text-sm text-center py-12">No active orders in the pipeline.</p>
           )}
-          <div className="space-y-3">
+          <div className="space-y-2">
             {visibleOrders
               .filter((o) => !autoPilotOrders.some((ap) => ap.id === o.id))
               .map((order) => (
-              <WarRoomOrderCard
-                key={order.id}
-                order={order}
-                isMinimized={hidden.has(order.id)}
-                onToggleMinimize={() => toggleHide(order.id)}
-                onValidateAsUnique={() => validateAsUnique(order.id)}
-                companies={activeCompanies}
-                onAssignClient={assignClientToOrder}
-                onBuildSO={buildSO}
-                onTeachSku={(token) => openAliasDrawer(token)}
-                onEditAliases={() => openAliasDrawer()}
-                onRefresh={fetchOrders}
-              />
-            ))}
+                <button
+                  key={order.id}
+                  onClick={() => setTriageOrderId(order.id)}
+                  className="w-full text-left"
+                >
+                  <WarRoomOrderCard
+                    order={order}
+                    isMinimized={true}
+                    onToggleMinimize={() => setTriageOrderId(order.id)}
+                    companies={activeCompanies}
+                    onRefresh={fetchOrders}
+                  />
+                </button>
+              ))}
           </div>
         </TabsContent>
 
