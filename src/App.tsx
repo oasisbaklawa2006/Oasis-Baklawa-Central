@@ -12,6 +12,7 @@ import ProtectedRoute from "@/components/ProtectedRoute";
 import Splash from "./pages/Splash.tsx";
 import CompanyIntro from "./pages/CompanyIntro.tsx";
 import Catalogue from "./pages/Catalogue.tsx";
+import QuickOrder from "./pages/QuickOrder.tsx";
 import Orders from "./pages/Orders.tsx";
 import Cart from "./pages/Cart.tsx";
 import Dashboard from "./pages/Dashboard.tsx";
@@ -79,6 +80,7 @@ import ReadyGoodsStore from "./pages/admin/ReadyGoodsStore.tsx";
 import ReadyGoodsTV from "./pages/admin/ReadyGoodsTV.tsx";
 import DispatchManagement from "./pages/admin/DispatchManagement.tsx";
 import DispatchTV from "./pages/admin/DispatchTV.tsx";
+import DisplayManagement from "./pages/admin/DisplayManagement.tsx";
 import TargetVsActual from "./pages/admin/TargetVsActual.tsx";
 import ThirdPartyStore from "./pages/admin/ThirdPartyStore.tsx";
 import VerificationWarRoom from "./pages/admin/VerificationWarRoom.tsx";
@@ -230,6 +232,7 @@ const App = () => (
                   <Route path="/home" element={<StorefrontGate><Index /></StorefrontGate>} />
                   <Route path="/welcome" element={<ProtectedRoute><WelcomeGate /></ProtectedRoute>} />
                   <Route path="/catalogue" element={<StorefrontGate><Catalogue /></StorefrontGate>} />
+                  <Route path="/quick-order" element={<StorefrontGate><QuickOrder /></StorefrontGate>} />
                   <Route path="/product/:id" element={<StorefrontGate><ProductDetail /></StorefrontGate>} />
                   <Route path="/login" element={<Login />} />
                   <Route path="/register" element={<Register />} />
