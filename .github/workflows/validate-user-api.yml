@@ -1,0 +1,22 @@
+name: Validate User API
+
+on:
+  push:
+    branches: [ audit/ui-ux-playwright ]
+  workflow_dispatch:
+
+jobs:
+  test-api:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Test API (admin user)
+        run: |
+          res=$(curl -s "https://api.oasisbaklawa.com/functions/v1/validate-user?identifier=admin@oasisbaklawa.com")
+          echo $res
+          echo $res | grep '"user_found":true'
+      - name: Test API (fake user)
+        run: |
+          res=$(curl -s "https://api.oasisbaklawa.com/functions/v1/validate-user?identifier=test@example.com")
+          echo $res
+          echo $res | grep '"user_found":false'
