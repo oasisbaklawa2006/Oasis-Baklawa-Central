@@ -24,8 +24,8 @@ jobs:
       - name: Install Playwright Browsers
         run: npx playwright install --with-deps
 
-      - name: Run fixed UI/UX audit only
-        run: npx playwright test tests/ui-ux-audit.spec.ts
+      - name: Run CLEAN UI UX audit
+        run: npm run test:ui-ux-audit
         env:
           APP_URL: ${{ secrets.APP_URL }}
           ADMIN_EMAIL: ${{ secrets.ADMIN_EMAIL }}
@@ -39,7 +39,7 @@ jobs:
           path: playwright-report
           if-no-files-found: ignore
 
-      - name: Upload test results (screenshots + videos + traces)
+      - name: Upload test results
         if: always()
         uses: actions/upload-artifact@v4
         with:
