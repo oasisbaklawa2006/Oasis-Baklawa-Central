@@ -5,32 +5,7 @@ import { Loader2, Package } from "lucide-react";
 import { motion } from "framer-motion";
 import OrderTimeline from "@/components/OrderTimeline";
 
-const ARTISAN_STEPS = [
-  { key: "submitted", label: "Order Logged", icon: Package, description: "Your order has been received by our team." },
-  { key: "confirmed", label: "Order Confirmed", icon: CheckCircle2, description: "Our team has verified your order details." },
-  { key: "in_production", label: "Ingredients Sourced", icon: Leaf, description: "Premium ingredients are being prepared." },
-  { key: "assembly", label: "Hand-Crafting", icon: ChefHat, description: "Our master artisans are crafting your order." },
-  { key: "packing", label: "Artisan Packing", icon: Scissors, description: "Each piece is being carefully packed." },
-  { key: "packed_ready", label: "Quality Checked", icon: ShieldCheck, description: "Final quality inspection complete." },
-  { key: "dispatched", label: "Dispatched", icon: Box, description: "Your order is on its way!" },
-  { key: "in_transit", label: "In Transit", icon: Truck, description: "En route to your location." },
-  { key: "delivered", label: "Delivered", icon: MapPin, description: "Enjoy your Oasis Baklawa!" },
-];
-
-function getStepIndex(status: string): number {
-  const map: Record<string, number> = {
-    submitted: 0, pending: 0, draft: 0,
-    confirmed: 1, approved: 1,
-    in_production: 2, manufacturing: 2, processing: 2,
-    assembly: 3,
-    packing: 4, packed_ready: 5,
-    invoice_generated: 5,
-    dispatched: 6, cleared_for_dispatch: 6,
-    in_transit: 7,
-    delivered: 8, closed: 8, support_window: 8,
-  };
-  return map[status?.toLowerCase()] ?? 0;
-}
+// Timeline + status mapping owned by OrderTimeline component.
 
 interface TrackingOrder {
   order_ref: string;
