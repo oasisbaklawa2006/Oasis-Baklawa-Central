@@ -10,7 +10,8 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "test:ui-ux-audit": "playwright test tests/ui-ux-audit.spec.ts --project=mobile-safari-size --project=desktop-chrome-size"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",
