@@ -11,20 +11,7 @@ import { motion } from "framer-motion";
 import { toast } from "sonner";
 import OrderTimeline, { getStepIndex } from "@/components/OrderTimeline";
 
-const _LEGACY_STEPS_UNUSED = [
-  { key: "submitted", label: "Order Placed", icon: Package },
-  { key: "confirmed", label: "Confirmed", icon: CheckCircle2 },
-  { key: "in_production", label: "Manufacturing", icon: Settings },
-  { key: "assembly", label: "Assembly", icon: Wrench },
-  { key: "packing", label: "Packing", icon: Box },
-  { key: "invoice_generated", label: "Invoice Generated", icon: FileText },
-  { key: "dispatched", label: "Dispatched", icon: Truck },
-  { key: "in_transit", label: "In Transit", icon: MapPin },
-  { key: "delivered", label: "Delivered", icon: CheckCircle2 },
-  { key: "support_window", label: "10-Day Support", icon: ShieldCheck },
-];
-
-// getStepIndex now imported from OrderTimeline (single source of truth)
+// Timeline steps + getStepIndex are owned by OrderTimeline component.
 
 const formatPrice = (n: number) => "₹" + n.toLocaleString("en-IN");
 const formatDate = (d: string) =>
