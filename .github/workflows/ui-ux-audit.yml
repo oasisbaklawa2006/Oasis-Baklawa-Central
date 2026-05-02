@@ -1,0 +1,44 @@
+name: UI UX Audit (Playwright)
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ audit/ui-ux-playwright ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Install Playwright Browsers
+        run: npx playwright install --with-deps
+
+      - name: Run UI/UX Tests
+        run: npx playwright test
+        env:
+          APP_URL: ${{ secrets.APP_URL }}
+          ADMIN_EMAIL: ${{ secrets.ADMIN_EMAIL }}
+          ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD }}
+
+      - name: Upload report
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: playwright-report
+
+      - name: Upload test results (screenshots + videos)
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: test-results
