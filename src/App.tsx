@@ -288,7 +288,8 @@ const App = () => (
                     <Route path="logistics" element={<AdminLogistics />} />
                     <Route path="sales-hub" element={<SalesPerformanceHub />} />
                     <Route path="notifications" element={<AdminNotifications />} />
-                    <Route path="heartbeat" element={<CMDHeartbeat />} />
+                    <Route path="heartbeat" element={<AdminDashboard />} />
+                    <Route path="display-management" element={<DisplayManagement />} />
                     <Route path="merchandising" element={<AdminMerchandising />} />
                     <Route path="order-management" element={<OrderManagement />} />
                     <Route path="central-pool" element={<CentralOrderPool />} />
