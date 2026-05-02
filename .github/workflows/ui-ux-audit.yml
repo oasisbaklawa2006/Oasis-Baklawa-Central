@@ -2,8 +2,6 @@ name: UI UX Audit (Playwright)
 
 on:
   workflow_dispatch:
-  push:
-    branches: [ audit/ui-ux-playwright ]
 
 jobs:
   test:
