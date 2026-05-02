@@ -589,6 +589,33 @@ const CMDWarRoom = () => {
         pendingToken={pendingToken}
         onAliasesChanged={fetchOrders}
       />
+
+      {/* Floating triage modal — replaces inline expansion so list stays stable */}
+      <Dialog open={!!triageOrderId} onOpenChange={(v) => !v && setTriageOrderId(null)}>
+        <DialogContent className="sm:max-w-2xl bg-card border-border max-h-[90vh] overflow-y-auto p-4">
+          <DialogHeader>
+            <DialogTitle className="text-base">Order Triage</DialogTitle>
+          </DialogHeader>
+          {(() => {
+            const o = [...orders, ...rejectedOrders].find((x) => x.id === triageOrderId);
+            if (!o) return null;
+            return (
+              <WarRoomOrderCard
+                order={o}
+                isMinimized={false}
+                onToggleMinimize={() => setTriageOrderId(null)}
+                onValidateAsUnique={() => { validateAsUnique(o.id); setTriageOrderId(null); }}
+                companies={activeCompanies}
+                onAssignClient={assignClientToOrder}
+                onBuildSO={async (id) => { await buildSO(id); setTriageOrderId(null); }}
+                onTeachSku={(token) => openAliasDrawer(token)}
+                onEditAliases={() => openAliasDrawer()}
+                onRefresh={fetchOrders}
+              />
+            );
+          })()}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
