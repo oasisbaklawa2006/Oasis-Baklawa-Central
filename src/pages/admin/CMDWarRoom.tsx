@@ -4,6 +4,7 @@ import { Eye, EyeOff, RefreshCw, Tag } from "lucide-react";
 import { toast } from "sonner";
 import { removeDuplicateRealtimeChannel } from "@/utils/realtime";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import ShadowClientSection from "@/components/warroom/ShadowClientSection";
 import WarRoomOrderCard from "@/components/warroom/WarRoomOrderCard";
 import RawIntelligenceTab from "@/components/warroom/RawIntelligenceTab";
@@ -65,6 +66,7 @@ const CMDWarRoom = () => {
   const [aliasDrawerOpen, setAliasDrawerOpen] = useState(false);
   const [pendingToken, setPendingToken] = useState<string | null>(null);
   const [bulkProcessing, setBulkProcessing] = useState(false);
+  const [triageOrderId, setTriageOrderId] = useState<string | null>(null);
 
   // Open the alias drawer instantly (single global state, zero-lag).
   const openAliasDrawer = useCallback((token?: string) => {
