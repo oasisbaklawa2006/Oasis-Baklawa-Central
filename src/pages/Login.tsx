@@ -629,7 +629,7 @@ const Login = () => {
 
       <div className="w-full max-w-sm space-y-8">
         <div className="text-center space-y-3">
-          <img src={logoImg} alt="Oasis Baklawa" className="h-10 sm:h-12 mx-auto object-contain" />
+          <img src={logoImg} alt="Oasis Baklawa" width={134} height={96} fetchPriority="high" decoding="async" className="h-10 sm:h-12 w-auto mx-auto object-contain" />
           <h1 className="text-3xl text-foreground">Welcome Back</h1>
           <p className="text-sm text-muted-foreground">Sign in to your B2B account</p>
         </div>
