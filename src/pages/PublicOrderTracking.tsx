@@ -92,7 +92,7 @@ const PublicOrderTracking = () => {
     );
   }
 
-  const currentStep = getStepIndex(order.status);
+  
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-amber-50 via-orange-50 to-amber-100">
