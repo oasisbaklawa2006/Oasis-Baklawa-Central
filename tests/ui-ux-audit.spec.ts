@@ -25,18 +25,35 @@ async function waitForApp(page: Page) {
 async function loginAsAdmin(page: Page) {
   await page.goto(`${BASE_URL}/login`);
   await waitForApp(page);
+  await page.screenshot({ path: 'test-results/00-login-initial.png' });
 
-  const email = page.locator('input[type="email"]').first();
+  const emailTab = page.getByRole('button', { name: /email/i }).first();
+  await expect(emailTab).toBeVisible({ timeout: 15000 });
+  await emailTab.click();
+  await page.waitForTimeout(500);
+  await page.screenshot({ path: 'test-results/00-login-email-tab.png' });
+
+  const email = page.locator('input[type="email"], input[placeholder*="email" i], input[placeholder*="business" i]').first();
   const password = page.locator('input[type="password"]').first();
 
+  await expect(email).toBeVisible({ timeout: 15000 });
   await email.fill(ADMIN_EMAIL || '');
+
+  await expect(password).toBeVisible({ timeout: 15000 });
   await password.fill(ADMIN_PASSWORD || '');
 
-  await page.getByRole('button', { name: /login|sign/i }).click();
-  await page.waitForTimeout(3000);
+  await page.getByRole('button', { name: /login|sign/i }).first().click();
+  await page.waitForTimeout(4000);
+
+  if (page.url().includes('/login')) {
+    await page.screenshot({ path: 'test-results/00-login-failed-still-on-login.png' });
+    throw new Error('Login failed: still on login page after email/password submit.');
+  }
 }
 
 async function captureViewportShots(page: Page, name: string) {
+  await page.evaluate(() => window.scrollTo(0, 0));
+  await page.waitForTimeout(300);
   await page.screenshot({ path: `test-results/${name}-top.png` });
 
   await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight / 2));
@@ -52,7 +69,12 @@ async function auditRoute(page: Page, name: string, path: string, mustSee: RegEx
   await page.goto(`${BASE_URL}${path}`);
   await waitForApp(page);
 
-  await expect(page.locator('body')).toContainText(mustSee);
+  if (page.url().includes('/login')) {
+    await page.screenshot({ path: `test-results/${name}-redirected-to-login.png` });
+    throw new Error(`${name} redirected to login.`);
+  }
+
+  await expect(page.locator('body')).toContainText(mustSee, { timeout: 15000 });
   await captureViewportShots(page, name);
 }
 
