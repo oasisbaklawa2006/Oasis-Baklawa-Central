@@ -1,11 +1,9 @@
 import { useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
-import {
-  Loader2, Package, Leaf, ChefHat, Scissors, Box, Truck, CheckCircle2,
-  MapPin, ShieldCheck,
-} from "lucide-react";
+import { Loader2, Package } from "lucide-react";
 import { motion } from "framer-motion";
+import OrderTimeline from "@/components/OrderTimeline";
 
 const ARTISAN_STEPS = [
   { key: "submitted", label: "Order Logged", icon: Package, description: "Your order has been received by our team." },
@@ -163,58 +161,7 @@ const PublicOrderTracking = () => {
           className="bg-white rounded-2xl shadow-lg p-5 border border-amber-200"
         >
           <h2 className="text-base font-bold text-amber-900 mb-5">Your Order Journey</h2>
-          <div className="relative">
-            {ARTISAN_STEPS.map((step, i) => {
-              const isCompleted = i <= currentStep;
-              const isCurrent = i === currentStep;
-              const StepIcon = step.icon;
-
-              return (
-                <div key={step.key} className="flex items-start gap-4 relative">
-                  {i < ARTISAN_STEPS.length - 1 && (
-                    <div
-                      className={`absolute left-[19px] top-[40px] w-0.5 h-[calc(100%-8px)] transition-colors ${
-                        i < currentStep ? "bg-amber-500" : "bg-amber-200"
-                      }`}
-                    />
-                  )}
-                  <motion.div
-                    initial={isCurrent ? { scale: 0.8 } : {}}
-                    animate={isCurrent ? { scale: [0.8, 1.1, 1] } : {}}
-                    transition={{ duration: 0.5 }}
-                    className={`relative z-10 w-[40px] h-[40px] rounded-full flex items-center justify-center shrink-0 transition-colors ${
-                      isCompleted
-                        ? "bg-amber-500 text-white shadow-md"
-                        : "bg-amber-100 text-amber-300"
-                    } ${isCurrent ? "ring-4 ring-amber-200" : ""}`}
-                  >
-                    <StepIcon size={18} />
-                  </motion.div>
-                  <div className={`pb-7 ${isCurrent ? "pt-0" : ""}`}>
-                    <p
-                      className={`text-sm font-bold ${
-                        isCompleted ? "text-amber-900" : "text-amber-400"
-                      }`}
-                    >
-                      {step.label}
-                    </p>
-                    {(isCurrent || isCompleted) && (
-                      <p className="text-xs text-amber-600 mt-0.5">{step.description}</p>
-                    )}
-                    {isCurrent && (
-                      <motion.div
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        className="mt-1 inline-block text-[10px] bg-amber-500 text-white px-2 py-0.5 rounded-full font-bold uppercase tracking-wider"
-                      >
-                        Current
-                      </motion.div>
-                    )}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
+          <OrderTimeline status={order.status} variant="amber" />
         </motion.div>
 
         {/* Items */}
