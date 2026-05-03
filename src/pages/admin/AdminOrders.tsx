@@ -555,7 +555,7 @@ const AdminOrders = () => {
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               onClick={closeDrawer}
-              className="fixed inset-0 bg-black/40 backdrop-blur-sm z-40"
+              className="fixed inset-0 bg-black/40 backdrop-blur-sm z-[180]"
             />
 
             <motion.div
@@ -563,7 +563,7 @@ const AdminOrders = () => {
               animate={{ x: 0 }}
               exit={{ x: "100%" }}
               transition={{ type: "spring", damping: 25, stiffness: 200 }}
-              className="fixed top-0 right-0 bottom-0 w-full max-w-md bg-background shadow-2xl z-50 border-l border-border flex flex-col"
+              className="fixed top-0 right-0 bottom-0 w-full max-w-md bg-background shadow-2xl z-[190] border-l border-border flex flex-col"
             >
               <div className="flex items-center justify-between p-6 border-b border-border bg-muted/10">
                 <div>
