@@ -1,7 +1,8 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useMemo } from "react";
+import { Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { Loader2, Save, UserPlus, Building2, LockKeyhole, Mail, X, Archive, AlertTriangle } from "lucide-react";
+import { Loader2, UserPlus, Building2, LockKeyhole, Mail, X, Archive, AlertTriangle, Search, ExternalLink } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -25,20 +26,7 @@ interface UserRow {
   created_at: string | null;
   commission_rate_percentage: number | null;
   is_sales_executive: boolean | null;
-}
-
-interface CompanyRow {
-  id: string;
-  business_name: string;
-  gst_number: string | null;
-  credit_limit: number | null;
-  wallet_balance: number | null;
-  account_manager_id: string | null;
-}
-
-interface ManagerOption {
-  id: string;
-  label: string;
+  deleted_at: string | null;
 }
 
 interface RoleRow {
@@ -120,6 +108,14 @@ const INVITE_STATUS_LABELS: Record<string, { label: string; color: string }> = {
   blocked: { label: "Blocked", color: "bg-red-100 text-red-700" },
 };
 
+const ROLES_REQUIRING_DEPARTMENT = new Set([
+  "hod_arabic", "hod_fusion", "hod_chocolate", "hod_bakery",
+  "hod_nuts", "hod_assembly", "hod_dragees",
+  "store_incharge", "production_manager", "assembly_manager",
+  "dispatch_manager", "dispatch_incharge", "packing_supervisor",
+  "store_ready_goods", "rgs_admin",
+]);
+
 const generateTempPassword = () => {
   const chars = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789!@#$%";
   let pwd = "";
@@ -131,16 +127,17 @@ const AdminUsers = () => {
   const { user } = useAuth();
   const [tab, setTab] = useState("employees");
   const [users, setUsers] = useState<UserRow[]>([]);
-  const [companies, setCompanies] = useState<CompanyRow[]>([]);
-  const [managers, setManagers] = useState<ManagerOption[]>([]);
   const [roles, setRoles] = useState<RoleRow[]>([]);
   const [allPermissions, setAllPermissions] = useState<PermissionRow[]>([]);
   const [rolePermMap, setRolePermMap] = useState<RolePermMap[]>([]);
   const [loading, setLoading] = useState(true);
-  const [editingCredit, setEditingCredit] = useState<Record<string, number>>({});
   const [saving, setSaving] = useState<string | null>(null);
   const [showModal, setShowModal] = useState(false);
   const [wizardStep, setWizardStep] = useState<1 | 2>(1);
+
+  // Employee search + filter
+  const [empSearch, setEmpSearch] = useState("");
+  const [roleFilter, setRoleFilter] = useState("");
   const [currentUserRole, setCurrentUserRole] = useState<string | null>(null);
 
   const [selectedRoleId, setSelectedRoleId] = useState<string | null>(null);
@@ -162,11 +159,14 @@ const AdminUsers = () => {
     name: "",
     email: "",
     mobile: "",
+    secondary_mobile: "",
     dept: "none",
     designation: "",
     role: "none",
     password: "",
     status: "invited" as string,
+    is_sales_executive: false,
+    commission_rate: 0,
   });
   const [selectedPermIds, setSelectedPermIds] = useState<string[]>([]);
 
@@ -180,9 +180,8 @@ const AdminUsers = () => {
     async (opts?: { silent?: boolean }) => {
       if (!opts?.silent) setLoading(true);
       try {
-        const [usersRes, companiesRes, rolesRes, permsRes, rpMapRes] = await Promise.all([
+        const [usersRes, rolesRes, permsRes, rpMapRes] = await Promise.all([
           supabase.from("users").select("*").order("created_at", { ascending: false }),
-          supabase.from("companies").select("*").order("created_at", { ascending: false }),
           supabase.from("roles").select("*").order("role_name"),
           supabase.from("permissions").select("*").order("module_name, permission_name"),
           supabase.from("role_permission_map").select("*"),
@@ -194,15 +193,9 @@ const AdminUsers = () => {
         const me = allUsers.find((u) => u.id === user?.id);
         if (me) setCurrentUserRole(me.role);
 
-        setCompanies((companiesRes.data as CompanyRow[]) ?? []);
         setRoles((rolesRes.data as RoleRow[]) ?? []);
         setAllPermissions((permsRes.data as PermissionRow[]) ?? []);
         setRolePermMap((rpMapRes.data as RolePermMap[]) ?? []);
-
-        const mgrs: ManagerOption[] = allUsers
-          .filter((u) => u.role === "sales_executive" || u.role === "admin" || u.is_sales_executive)
-          .map((u) => ({ id: u.id, label: u.full_name || u.email || u.id }));
-        setManagers(mgrs);
       } catch (error) {
         console.error("Fetch error", error);
       } finally {
@@ -233,10 +226,26 @@ const AdminUsers = () => {
       .filter(Boolean);
 
   const handleNewRoleChange = (roleKey: string) => {
-    setNf((prev) => ({ ...prev, role: roleKey }));
+    const needsDept = ROLES_REQUIRING_DEPARTMENT.has(roleKey);
+    setNf((prev) => ({
+      ...prev,
+      role: roleKey,
+      dept: needsDept ? prev.dept : "none",
+    }));
     const defaults = DEFAULT_MODULE_MAP[roleKey] ?? [];
     setSelectedPermIds(getPermIdsForModules(defaults));
   };
+
+  const filteredUsers = useMemo(() => {
+    return users
+      .filter((u) => !u.deleted_at)
+      .filter((u) => {
+        const q = empSearch.toLowerCase();
+        if (q && !`${u.full_name ?? ""} ${u.email ?? ""} ${u.role ?? ""} ${u.department ?? ""}`.toLowerCase().includes(q)) return false;
+        if (roleFilter && u.role !== roleFilter) return false;
+        return true;
+      });
+  }, [users, empSearch, roleFilter]);
 
   const handleCreateEmployee = async () => {
     if (!nf.name.trim() || !nf.email.trim()) return toast.error("Name and Email are required");
@@ -280,20 +289,25 @@ const AdminUsers = () => {
     }
 
     const formattedMobile = nf.mobile ? formatPlusPhone(nf.mobile) : null;
+    const formattedSecondary = nf.secondary_mobile ? formatPlusPhone(nf.secondary_mobile) : null;
 
     try {
+      const isSalesExec = nf.is_sales_executive || nf.role === "sales_executive";
       await supabase.from("users").upsert(
         {
           id: newUserId,
           full_name: nf.name,
           email: nf.email.trim(),
           mobile_number: formattedMobile,
+          ...(formattedSecondary ? { secondary_phones: [formattedSecondary] } : {}),
           role: nf.role,
           department: nf.dept === "none" ? null : nf.dept,
           designation: nf.designation || null,
           is_active: true,
           invite_status: "active",
-        },
+          is_sales_executive: isSalesExec,
+          ...(isSalesExec && nf.commission_rate > 0 ? { commission_rate_percentage: nf.commission_rate } : {}),
+        } as Parameters<ReturnType<typeof supabase.from>["upsert"]>[0],
         { onConflict: "id" },
       );
 
@@ -330,11 +344,12 @@ const AdminUsers = () => {
         is_active: true,
         invite_status: "active",
         mobile_number: formattedMobile,
-        secondary_phones: null,
+        secondary_phones: formattedSecondary ? [formattedSecondary] : null,
         company_id: null,
         created_at: new Date().toISOString(),
-        commission_rate_percentage: null,
-        is_sales_executive: nf.role === "sales_executive",
+        commission_rate_percentage: isSalesExec && nf.commission_rate > 0 ? nf.commission_rate : null,
+        is_sales_executive: isSalesExec,
+        deleted_at: null,
       };
 
       setUsers((prev) => [optimisticUser, ...prev]);
@@ -345,11 +360,14 @@ const AdminUsers = () => {
         name: "",
         email: "",
         mobile: "",
+        secondary_mobile: "",
         dept: "none",
         designation: "",
         role: "none",
         password: "",
         status: "invited",
+        is_sales_executive: false,
+        commission_rate: 0,
       });
     } catch (err: any) {
       toast.error(err.message || "Failed to finalize setup.");
@@ -359,20 +377,10 @@ const AdminUsers = () => {
     }
   };
 
-  const handleSaveCredit = async (c: CompanyRow) => {
-    const newLimit = editingCredit[c.id] ?? c.credit_limit ?? 0;
-    setSaving(c.id);
-    const { error } = await supabase.from("companies").update({ credit_limit: newLimit }).eq("id", c.id);
-    if (!error) {
-      toast.success(`Credit limit updated for ${c.business_name}`);
-      fetchData({ silent: true });
-    } else toast.error("Failed to update limit");
-    setSaving(null);
-  };
-
   const handleArchiveEmployee = async () => {
     if (!archiveTarget) return;
     setArchiving(true);
+    const now = new Date().toISOString();
     try {
       const { error: profErr } = await supabase
         .from("profiles")
@@ -380,7 +388,7 @@ const AdminUsers = () => {
         .eq("id", archiveTarget.id);
       const { error: userErr } = await supabase
         .from("users")
-        .update({ is_active: false, invite_status: "blocked" })
+        .update({ is_active: false, invite_status: "blocked", deleted_at: now } as Parameters<ReturnType<typeof supabase.from>["update"]>[0])
         .eq("id", archiveTarget.id);
       if (profErr && userErr) {
         toast.error("Failed to archive employee");
@@ -388,7 +396,7 @@ const AdminUsers = () => {
         toast.success(`${archiveTarget.full_name || archiveTarget.email} archived`);
         setUsers((prev) =>
           prev.map((x) =>
-            x.id === archiveTarget.id ? { ...x, is_active: false, invite_status: "blocked" } : x,
+            x.id === archiveTarget.id ? { ...x, is_active: false, invite_status: "blocked", deleted_at: now } : x,
           ),
         );
         setArchiveTarget(null);
@@ -421,8 +429,6 @@ const AdminUsers = () => {
     fetchData({ silent: true });
   };
 
-  const fmt = (n: number | null) => `₹${(n ?? 0).toLocaleString("en-IN")}`;
-
   if (loading)
     return (
       <div className="flex justify-center py-20">
@@ -448,7 +454,7 @@ const AdminUsers = () => {
             Employees
           </TabsTrigger>
           <TabsTrigger value="companies" className="text-ui-label rounded-lg">
-            Companies & Credit
+            Client Directory
           </TabsTrigger>
           <TabsTrigger value="roles" className="text-ui-label rounded-lg">
             Roles & Permissions
@@ -456,9 +462,42 @@ const AdminUsers = () => {
         </TabsList>
 
         <TabsContent value="employees">
-          {users.length === 0 ? (
+          {/* Search + filter bar */}
+          <div className="flex flex-wrap items-center gap-2 mb-3">
+            <div className="relative flex-1 min-w-[200px] max-w-sm">
+              <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                value={empSearch}
+                onChange={(e) => setEmpSearch(e.target.value)}
+                placeholder="Search by name, email, role, dept…"
+                className="pl-8 h-9 text-sm rounded-lg"
+              />
+            </div>
+            <select
+              value={roleFilter}
+              onChange={(e) => setRoleFilter(e.target.value)}
+              className="h-9 rounded-lg border border-border bg-card px-3 text-sm focus:ring-1 focus:ring-primary focus:outline-none cursor-pointer"
+            >
+              <option value="">All Roles</option>
+              {roles.map((r) => (
+                <option key={r.id} value={r.role_key}>{r.role_name}</option>
+              ))}
+            </select>
+            {(empSearch || roleFilter) && (
+              <button
+                onClick={() => { setEmpSearch(""); setRoleFilter(""); }}
+                className="h-9 px-3 rounded-lg text-xs font-semibold text-muted-foreground hover:text-foreground border border-border hover:border-foreground/30 transition-colors"
+              >
+                Clear
+              </button>
+            )}
+            <span className="text-xs text-muted-foreground ml-1">
+              {filteredUsers.length} employee{filteredUsers.length !== 1 ? "s" : ""}
+            </span>
+          </div>
+          {filteredUsers.length === 0 ? (
             <div className="bg-card border border-border rounded-xl p-8 text-center">
-              <p className="text-sm text-muted-foreground">No users found.</p>
+              <p className="text-sm text-muted-foreground">{empSearch || roleFilter ? "No employees match the current filters." : "No active employees found."}</p>
             </div>
           ) : (
             <div className="rounded-xl overflow-hidden border border-border bg-card shadow-sm">
@@ -498,7 +537,7 @@ const AdminUsers = () => {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-border">
-                    {users.map((u) => {
+                    {filteredUsers.map((u) => {
                       const st =
                         INVITE_STATUS_LABELS[u.invite_status ?? (u.is_active ? "active" : "inactive")] ??
                         INVITE_STATUS_LABELS.active;
@@ -676,85 +715,22 @@ const AdminUsers = () => {
         </TabsContent>
 
         <TabsContent value="companies">
-          <div className="rounded-xl overflow-hidden border border-border bg-card shadow-sm">
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead>
-                  <tr className="bg-muted/30 whitespace-nowrap">
-                    <th className="text-left px-5 py-4 text-xs font-bold uppercase tracking-wider text-muted-foreground">
-                      Company
-                    </th>
-                    <th className="text-left px-5 py-4 text-xs font-bold uppercase tracking-wider text-muted-foreground">
-                      Account Manager
-                    </th>
-                    <th className="text-right px-5 py-4 text-xs font-bold uppercase tracking-wider text-muted-foreground">
-                      Wallet
-                    </th>
-                    <th className="text-right px-5 py-4 text-xs font-bold uppercase tracking-wider text-muted-foreground">
-                      Credit Limit
-                    </th>
-                    <th className="text-right px-5 py-4 text-xs font-bold uppercase tracking-wider text-muted-foreground">
-                      Action
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-border">
-                  {companies.map((c) => (
-                    <tr key={c.id} className="hover:bg-muted/20 transition-colors">
-                      <td className="px-5 py-4 text-sm text-foreground font-semibold whitespace-nowrap">
-                        {c.business_name}
-                      </td>
-                      <td className="px-5 py-4 min-w-[180px]">
-                        <select
-                          value={c.account_manager_id || "unassigned"}
-                          onChange={async (e) => {
-                            const managerId = e.target.value === "unassigned" ? null : e.target.value;
-                            const { error } = await supabase
-                              .from("companies")
-                              .update({ account_manager_id: managerId })
-                              .eq("id", c.id);
-                            if (!error) {
-                              toast.success(`Manager assigned`);
-                              setCompanies((prev) =>
-                                prev.map((x) => (x.id === c.id ? { ...x, account_manager_id: managerId } : x)),
-                              );
-                            }
-                          }}
-                          className="w-full bg-transparent text-xs font-semibold border border-border rounded-lg py-1.5 px-2 focus:ring-1 focus:ring-primary focus:outline-none appearance-none cursor-pointer"
-                        >
-                          <option value="unassigned">Unassigned</option>
-                          {managers.map((m) => (
-                            <option key={m.id} value={m.id}>
-                              {m.label}
-                            </option>
-                          ))}
-                        </select>
-                      </td>
-                      <td className="px-5 py-4 text-right text-sm font-black text-foreground whitespace-nowrap">
-                        {fmt(c.wallet_balance)}
-                      </td>
-                      <td className="px-5 py-4 text-right">
-                        <Input
-                          type="number"
-                          className="w-32 text-right text-sm font-bold inline-block rounded-lg focus-visible:ring-primary ml-auto"
-                          value={editingCredit[c.id] ?? c.credit_limit ?? 0}
-                          onChange={(e) => setEditingCredit({ ...editingCredit, [c.id]: Number(e.target.value) || 0 })}
-                        />
-                      </td>
-                      <td className="px-5 py-4 text-right">
-                        <button
-                          onClick={() => handleSaveCredit(c)}
-                          disabled={saving === c.id}
-                          className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-bold bg-primary/10 text-primary hover:bg-primary/20 transition-colors disabled:opacity-50 border border-primary/20"
-                        >
-                          {saving === c.id ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />} Save
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+          <div className="rounded-xl border border-border bg-card p-8 flex flex-col items-center text-center gap-4 shadow-sm">
+            <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center">
+              <Building2 size={22} className="text-primary" />
             </div>
+            <div>
+              <h3 className="text-base font-semibold text-foreground">Client & Credit Management</h3>
+              <p className="text-sm text-muted-foreground mt-1 max-w-sm">
+                B2B client directory, credit limits, approval pipeline, slab assignment, and account manager assignment are managed in Client Governance.
+              </p>
+            </div>
+            <Link
+              to="/admin/clients"
+              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-semibold bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
+            >
+              <ExternalLink size={14} /> Go to Client Governance
+            </Link>
           </div>
         </TabsContent>
 
@@ -903,20 +879,31 @@ const AdminUsers = () => {
                   />
                 </div>
               </div>
-              <div className="space-y-2">
-                <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
-                  Mobile Number
-                </Label>
-                <Input
-                  type="tel"
-                  value={nf.mobile}
-                  onChange={(e) => setNf((p) => ({ ...p, mobile: formatPlusPhone(e.target.value) }))}
-                  className="rounded-xl h-11 border-border focus-visible:ring-primary font-number"
-                  placeholder="+919876543210"
-                />
-                <p className="text-[10px] text-muted-foreground italic">
-                  Stored as the user's primary <code>mobile_number</code>. Always saved with a "+" prefix.
-                </p>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                    Primary Mobile
+                  </Label>
+                  <Input
+                    type="tel"
+                    value={nf.mobile}
+                    onChange={(e) => setNf((p) => ({ ...p, mobile: formatPlusPhone(e.target.value) }))}
+                    className="rounded-xl h-11 border-border focus-visible:ring-primary font-number"
+                    placeholder="+919876543210"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                    Secondary Mobile
+                  </Label>
+                  <Input
+                    type="tel"
+                    value={nf.secondary_mobile}
+                    onChange={(e) => setNf((p) => ({ ...p, secondary_mobile: formatPlusPhone(e.target.value) }))}
+                    className="rounded-xl h-11 border-border focus-visible:ring-primary font-number"
+                    placeholder="+919876543211 (optional)"
+                  />
+                </div>
               </div>
               <div className="space-y-2">
                 <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
@@ -967,24 +954,58 @@ const AdminUsers = () => {
                   </select>
                 </div>
               </div>
-              <div className="space-y-2 pt-2 border-t border-border">
-                <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-2">
-                  <Building2 size={14} className="text-primary" /> Production Department
-                </Label>
-                <select
-                  value={nf.dept}
-                  onChange={(e) => setNf((p) => ({ ...p, dept: e.target.value }))}
-                  className="flex h-11 w-full rounded-xl border border-border bg-muted/30 px-3 py-2 text-sm focus:ring-1 focus:ring-primary focus:outline-none appearance-none cursor-pointer"
-                >
-                  <option value="none" className="hidden" disabled>
-                    Assign a specific operational floor
-                  </option>
-                  {DEPARTMENTS.map((dept) => (
-                    <option key={dept} value={dept}>
-                      {dept}
+              {ROLES_REQUIRING_DEPARTMENT.has(nf.role) && (
+                <div className="space-y-2 pt-2 border-t border-border">
+                  <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-2">
+                    <Building2 size={14} className="text-primary" /> Department <span className="text-destructive">*</span>
+                  </Label>
+                  <select
+                    value={nf.dept}
+                    onChange={(e) => setNf((p) => ({ ...p, dept: e.target.value }))}
+                    className="flex h-11 w-full rounded-xl border border-border bg-muted/30 px-3 py-2 text-sm focus:ring-1 focus:ring-primary focus:outline-none appearance-none cursor-pointer"
+                  >
+                    <option value="none" disabled>
+                      Select department…
                     </option>
-                  ))}
-                </select>
+                    {DEPARTMENTS.map((dept) => (
+                      <option key={dept} value={dept}>
+                        {dept}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              <div className="pt-2 border-t border-border space-y-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                      Sales Executive
+                    </Label>
+                    <p className="text-[10px] text-muted-foreground mt-0.5">Enables commission tracking and sales console access.</p>
+                  </div>
+                  <Switch
+                    checked={nf.is_sales_executive || nf.role === "sales_executive"}
+                    onCheckedChange={(v) => setNf((p) => ({ ...p, is_sales_executive: v }))}
+                  />
+                </div>
+                {(nf.is_sales_executive || nf.role === "sales_executive") && (
+                  <div className="space-y-2">
+                    <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                      Commission Rate (%)
+                    </Label>
+                    <Input
+                      type="number"
+                      min={0}
+                      max={100}
+                      step={0.5}
+                      value={nf.commission_rate}
+                      onChange={(e) => setNf((p) => ({ ...p, commission_rate: parseFloat(e.target.value) || 0 }))}
+                      className="rounded-xl h-11 border-border focus-visible:ring-primary font-number w-36"
+                      placeholder="0.0"
+                    />
+                  </div>
+                )}
               </div>
               <button
                 onClick={() => {
@@ -1008,12 +1029,15 @@ const AdminUsers = () => {
                   {[
                     { label: "Full Name", value: nf.name },
                     { label: "Email", value: nf.email },
-                    { label: "Mobile", value: nf.mobile || "—" },
+                    { label: "Primary Mobile", value: nf.mobile || "—" },
+                    { label: "Secondary Mobile", value: nf.secondary_mobile || "—" },
                     { label: "Password", value: nf.password, mono: true },
                     { label: "Role", value: (roles.find((r) => r.role_key === nf.role)?.role_name) || nf.role },
                     { label: "Status", value: nf.status },
-                    { label: "Department", value: nf.dept === "none" ? "—" : nf.dept },
+                    ...(ROLES_REQUIRING_DEPARTMENT.has(nf.role) ? [{ label: "Department", value: nf.dept === "none" ? "—" : nf.dept }] : []),
                     { label: "Designation", value: nf.designation || "—" },
+                    { label: "Sales Executive", value: (nf.is_sales_executive || nf.role === "sales_executive") ? "Yes" : "No" },
+                    ...((nf.is_sales_executive || nf.role === "sales_executive") ? [{ label: "Commission %", value: `${nf.commission_rate}%` }] : []),
                   ].map((row) => (
                     <div key={row.label} className="flex items-center justify-between text-sm border-b border-border/50 pb-2 last:border-0">
                       <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{row.label}</span>
