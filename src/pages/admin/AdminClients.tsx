@@ -25,7 +25,6 @@ import {
   ShieldCheck,
   Building,
 } from "lucide-react";
-import TopNavBar from "@/components/TopNavBar";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -87,12 +86,6 @@ interface Company {
   created_at?: string | null;
 }
 
-/* ─── dummy data ─── */
-const DUMMY_SLABS: PricingSlab[] = [
-  { id: "s1", slab_name: "Slab A" },
-  { id: "s2", slab_name: "Slab B" },
-  { id: "s3", slab_name: "Slab C" },
-];
 const STATUS_TABS = ["pending", "approved", "rejected", "directory"] as const;
 
 const statusBadgeClass = (status: string) => {
@@ -124,9 +117,17 @@ const AdminClients = () => {
   const [notes, setNotes] = useState<Record<string, string>>({});
   const [priceTier, setPriceTier] = useState<Record<string, string>>({});
   const [rejectionReason, setRejectionReason] = useState<Record<string, string>>({});
-  const [pricingSlabs, setPricingSlabs] = useState<PricingSlab[]>(DUMMY_SLABS);
+  const [pricingSlabs, setPricingSlabs] = useState<PricingSlab[]>([]);
   const [inviteSending, setInviteSending] = useState<string | null>(null);
   const [invites, setInvites] = useState<PortalInvite[]>([]);
+
+  // Request Info state
+  const [requestInfoNote, setRequestInfoNote] = useState<Record<string, string>>({});
+  const [requestingInfo, setRequestingInfo] = useState<string | null>(null);
+
+  // Account Manager assignment state
+  const [accountManager, setAccountManager] = useState<Record<string, string>>({});
+  const [managers, setManagers] = useState<{ id: string; label: string }[]>([]);
 
   // Directory State
   const [searchQuery, setSearchQuery] = useState("");
@@ -141,13 +142,25 @@ const AdminClients = () => {
       .select("id, slab_name")
       .eq("is_active", true)
       .then(({ data }) => {
-        if (data && data.length > 0) setPricingSlabs(data as unknown as PricingSlab[]);
+        setPricingSlabs((data as unknown as PricingSlab[]) ?? []);
       });
     supabase
       .from("portal_access_invites")
       .select("*")
       .then(({ data }) => {
         setInvites((data as unknown as PortalInvite[]) ?? []);
+      });
+    supabase
+      .from("users")
+      .select("id, full_name, email, role, is_sales_executive")
+      .or("role.eq.sales_executive,role.eq.admin,role.eq.super_admin,is_sales_executive.eq.true")
+      .eq("is_active", true)
+      .then(({ data }) => {
+        const mgrs = ((data as { id: string; full_name: string | null; email: string | null }[]) ?? []).map((u) => ({
+          id: u.id,
+          label: u.full_name || u.email || u.id,
+        }));
+        setManagers(mgrs);
       });
 
     // Stable counter query — single source of truth with Error Boundary
@@ -203,11 +216,17 @@ const AdminClients = () => {
 
   /* ─── App Pipeline Logic ─── */
   const handleApprove = async (app: Application) => {
+    // Mandatory slab gate — approval cannot proceed without a pricing slab assigned.
+    if (!priceTier[app.id]) {
+      toast.error("Pricing slab is required before approval. Please select a slab.");
+      return;
+    }
+
     setActionLoading(app.id);
 
     try {
       let companyId: string | null = null;
-      const approvedRole = "CLIENT";
+      const approvedRole = "b2b_buyer";
 
       if (app.gst_number) {
         const { data, error: companyLookupError } = await supabase
@@ -242,13 +261,29 @@ const AdminClients = () => {
         companyId = data?.id ?? null;
       }
 
+      // Write price_tier and account_manager_id to the company row.
+      // This is the canonical slab assignment that the storefront reads.
+      if (companyId) {
+        const companyUpdate: Record<string, string | null> = {
+          price_tier: priceTier[app.id],
+        };
+        if (accountManager[app.id]) {
+          companyUpdate.account_manager_id = accountManager[app.id];
+        }
+        const { error: companyTierError } = await supabase
+          .from("companies")
+          .update(companyUpdate as Parameters<ReturnType<typeof supabase.from>["update"]>[0])
+          .eq("id", companyId);
+        if (companyTierError) throw companyTierError;
+      }
+
       const [applicationUpdate, userUpdate, profileSync] = await Promise.all([
         supabase
           .from("b2b_applications")
           .update({
             status: "approved",
             admin_notes: notes[app.id] || null,
-            assigned_price_tier: priceTier[app.id] || null,
+            assigned_price_tier: priceTier[app.id],
             reviewed_at: new Date().toISOString(),
             reviewed_by: user?.id ?? null,
           })
@@ -264,6 +299,7 @@ const AdminClients = () => {
                 company_id: companyId,
                 is_approved: true,
                 status: "approved",
+                price_tier: priceTier[app.id],
               },
               { onConflict: "id" },
             )
@@ -276,11 +312,10 @@ const AdminClients = () => {
 
       toast.success(`${app.business_name} approved`);
 
-      // Fire approval welcome email + WhatsApp (buyer)
       notifyEvent({
         event: "approval_granted",
         subject: "Welcome to Oasis B2B! Your account is active",
-        message: `Welcome to Oasis B2B! Your account is now active.\n\nLogin here: https://b2b.oasisbaklawa.com\n\nYour assigned tier: ${priceTier[app.id] || "Standard"}.\nYou can now place orders, track production live, and access invoices.\n\n— Team Oasis Baklawa`,
+        message: `Welcome to Oasis B2B! Your account is now active.\n\nLogin here: https://b2b.oasisbaklawa.com\n\nYour assigned tier: ${priceTier[app.id]}.\nYou can now place orders, track production live, and access invoices.\n\n— Team Oasis Baklawa`,
         audiences: [],
         email: app.contact_email,
         phone: app.mobile_number,
@@ -317,6 +352,32 @@ const AdminClients = () => {
       toast.error("Failed to reject application.");
     }
     setActionLoading(null);
+  };
+
+  const handleRequestInfo = async (app: Application) => {
+    const note = requestInfoNote[app.id]?.trim();
+    if (!note) {
+      toast.error("Enter a note describing what information is needed.");
+      return;
+    }
+    setRequestingInfo(app.id);
+    const { error } = await supabase
+      .from("b2b_applications")
+      .update({
+        requested_info_at: new Date().toISOString(),
+        requested_info_note: note,
+        admin_notes: notes[app.id] || null,
+      } as unknown as Parameters<ReturnType<typeof supabase.from>["update"]>[0])
+      .eq("id", app.id);
+
+    if (!error) {
+      toast.success("Information request logged. Application remains pending.");
+      setSheetOpen(false);
+      fetchApps(tab);
+    } else {
+      toast.error("Failed to log request.");
+    }
+    setRequestingInfo(null);
   };
 
   const getInviteForApp = (appId: string) =>
@@ -392,9 +453,7 @@ const AdminClients = () => {
   /* ─── Render ─── */
   return (
     <div className="space-y-6">
-      <TopNavBar />
-
-      <main className="pt-24 px-4 sm:px-6 max-w-7xl mx-auto space-y-6 pb-20">
+      <main className="space-y-6">
         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.3 }}>
           <h1 className="text-display-h2 text-foreground flex items-center gap-3">
             <Users className="text-[#B8860B]" size={32} /> Client Governance
@@ -598,8 +657,6 @@ const AdminClients = () => {
             ))}
           </Tabs>
         </motion.div>
-      </main>
-
       {/* ─── Application Review Sheet ─── */}
       <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
         <SheetContent
@@ -663,38 +720,85 @@ const AdminClients = () => {
               </div>
               {selectedApp.status === "pending" && (
                 <div className="border-t border-border px-6 py-5 bg-muted/10 space-y-4">
+                  {/* Pricing Slab — mandatory */}
+                  <div>
+                    <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1">
+                      Pricing Slab <span className="text-destructive">*</span>
+                    </label>
+                    {pricingSlabs.length === 0 ? (
+                      <p className="mt-1.5 text-xs text-destructive font-medium">No active slabs found. Add slabs in Pricing settings before approving.</p>
+                    ) : (
+                      <Select
+                        value={priceTier[selectedApp.id] || ""}
+                        onValueChange={(v) => setPriceTier({ ...priceTier, [selectedApp.id]: v })}
+                      >
+                        <SelectTrigger className={`mt-1.5 rounded-lg bg-card ${!priceTier[selectedApp.id] ? "border-destructive/50" : ""}`}>
+                          <SelectValue placeholder="Select pricing slab (required)…" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {pricingSlabs.map((s) => (
+                            <SelectItem key={s.id} value={s.slab_name}>
+                              {s.slab_name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    )}
+                    {!priceTier[selectedApp.id] && (
+                      <p className="mt-1 text-[11px] text-destructive">Slab must be assigned before approval.</p>
+                    )}
+                  </div>
+
+                  {/* Account Manager — optional */}
                   <div>
                     <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                      Pricing Slab
+                      Account Manager
                     </label>
                     <Select
-                      value={priceTier[selectedApp.id] || ""}
-                      onValueChange={(v) => setPriceTier({ ...priceTier, [selectedApp.id]: v })}
+                      value={accountManager[selectedApp.id] || ""}
+                      onValueChange={(v) => setAccountManager({ ...accountManager, [selectedApp.id]: v })}
                     >
                       <SelectTrigger className="mt-1.5 rounded-lg bg-card">
-                        <SelectValue placeholder="Select pricing slab…" />
+                        <SelectValue placeholder="Assign account manager (optional)…" />
                       </SelectTrigger>
                       <SelectContent>
-                        {pricingSlabs.map((s) => (
-                          <SelectItem key={s.id} value={s.slab_name}>
-                            {s.slab_name}
+                        {managers.map((m) => (
+                          <SelectItem key={m.id} value={m.id}>
+                            {m.label}
                           </SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
                   </div>
+
+                  {/* Admin Notes */}
+                  <div>
+                    <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                      Admin Notes
+                    </label>
+                    <textarea
+                      rows={2}
+                      value={notes[selectedApp.id] || ""}
+                      onChange={(e) => setNotes({ ...notes, [selectedApp.id]: e.target.value })}
+                      placeholder="Internal notes (optional)…"
+                      className="mt-1.5 w-full rounded-lg border border-border bg-card px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground resize-none focus:outline-none focus:ring-1 focus:ring-ring"
+                    />
+                  </div>
+
+                  {/* Primary actions */}
                   <div className="flex gap-3 pt-1">
                     <Button
                       onClick={() => handleApprove(selectedApp)}
-                      disabled={actionLoading === selectedApp.id}
-                      className="flex-1 bg-primary hover:bg-primary/90 text-primary-foreground font-semibold rounded-lg"
+                      disabled={actionLoading === selectedApp.id || !priceTier[selectedApp.id]}
+                      title={!priceTier[selectedApp.id] ? "Select a pricing slab to enable approval" : undefined}
+                      className="flex-1 bg-primary hover:bg-primary/90 text-primary-foreground font-semibold rounded-lg disabled:opacity-40"
                     >
                       {actionLoading === selectedApp.id ? (
                         <Loader2 size={14} className="animate-spin mr-1.5" />
                       ) : (
                         <CheckCircle2 size={14} className="mr-1.5" />
                       )}
-                      Approve & Assign
+                      Approve & Activate
                     </Button>
                     <Button
                       variant="ghost"
@@ -705,12 +809,42 @@ const AdminClients = () => {
                       <XCircle size={14} className="mr-1.5" /> Reject
                     </Button>
                   </div>
+
+                  {/* Request Info section */}
+                  <div className="border-t border-border pt-4 space-y-2">
+                    <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
+                      <AlertCircle size={11} /> Request More Information
+                    </label>
+                    <textarea
+                      rows={2}
+                      value={requestInfoNote[selectedApp.id] || ""}
+                      onChange={(e) => setRequestInfoNote({ ...requestInfoNote, [selectedApp.id]: e.target.value })}
+                      placeholder="Describe what documents or info is needed…"
+                      className="w-full rounded-lg border border-border bg-card px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground resize-none focus:outline-none focus:ring-1 focus:ring-ring"
+                    />
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleRequestInfo(selectedApp)}
+                      disabled={requestingInfo === selectedApp.id || !requestInfoNote[selectedApp.id]?.trim()}
+                      className="text-xs font-semibold border-border"
+                    >
+                      {requestingInfo === selectedApp.id ? (
+                        <Loader2 size={12} className="animate-spin mr-1.5" />
+                      ) : (
+                        <Send size={12} className="mr-1.5" />
+                      )}
+                      Log Request (keeps pending)
+                    </Button>
+                  </div>
                 </div>
               )}
             </div>
           )}
         </SheetContent>
       </Sheet>
+
+      </main>
 
       {/* ─── Directory Edit Modal ─── */}
       <Dialog
