@@ -721,7 +721,7 @@ const AdminClients = () => {
       >
         <DialogContent
           onOpenAutoFocus={(e) => e.preventDefault()}
-          className="sm:max-w-md bg-white border-slate-200 rounded-3xl p-6 h-fit my-auto max-h-[90vh] overflow-y-auto z-[100]"
+          className="sm:max-w-md bg-white border-slate-200 rounded-3xl p-6 h-fit my-auto max-h-[90vh] overflow-y-auto"
         >
           <DialogHeader className="mb-4">
             <DialogTitle className="text-xl font-black text-slate-900 flex items-center gap-2">

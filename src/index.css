@@ -143,14 +143,12 @@
  * Z-INDEX SCALE (admin shell — do not deviate without updating this comment)
  *   z-40   : mobile sidebar scrim
  *   z-50   : sidebar (mobile fixed / desktop static)
- *   z-[180]: page-level custom backdrops
+ *   z-[160]: AdminHelpSidebar FAB       ← always below dialogs/sheets
+ *   z-[170]: AdminHelpSidebar backdrop
+ *   z-[180]: AdminHelpSidebar panel  |  page-level custom backdrops
  *   z-[190]: page-level custom drawers / panels
- *   z-[200]: Radix Dialog / Sheet overlay + content  ← dialogs/sheets always above page drawers
- *   z-[210]: AdminHelpSidebar FAB                    ← FAB below dialogs intentionally
- *   z-[220]: AdminHelpSidebar backdrop
- *   z-[230]: AdminHelpSidebar panel
+ *   z-[200]: Radix Dialog / Sheet overlay + content  ← always above everything above
  *   z-[250]: lightboxes (War Room attachment zoom)
- *   z-[500]: OnboardingOverlay (reserved — Pass 2+)
  *   z-[9999]: PremiumAnnouncementOverlay (global, untouched)
  *
  * NOTE: transform: translateZ(0) was intentionally removed from html/body/#root
