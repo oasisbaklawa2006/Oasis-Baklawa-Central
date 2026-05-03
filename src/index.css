@@ -139,10 +139,28 @@
   }
 }
 
+/*
+ * Z-INDEX SCALE (admin shell — do not deviate without updating this comment)
+ *   z-40   : mobile sidebar scrim
+ *   z-50   : sidebar (mobile fixed / desktop static)
+ *   z-[180]: page-level custom backdrops
+ *   z-[190]: page-level custom drawers / panels
+ *   z-[200]: Radix Dialog / Sheet overlay + content  ← dialogs/sheets always above page drawers
+ *   z-[210]: AdminHelpSidebar FAB                    ← FAB below dialogs intentionally
+ *   z-[220]: AdminHelpSidebar backdrop
+ *   z-[230]: AdminHelpSidebar panel
+ *   z-[250]: lightboxes (War Room attachment zoom)
+ *   z-[500]: OnboardingOverlay (reserved — Pass 2+)
+ *   z-[9999]: PremiumAnnouncementOverlay (global, untouched)
+ *
+ * NOTE: transform: translateZ(0) was intentionally removed from html/body/#root
+ * because any CSS transform on an ancestor creates a containing block for
+ * position:fixed descendants, trapping them inside that element's box rather
+ * than the viewport. GPU compositing is opt-in via the .gpu utility class below.
+ */
 html, body, #root {
   -webkit-tap-highlight-color: transparent;
   -webkit-overflow-scrolling: touch;
-  transform: translateZ(0);
   max-width: 100vw;
   overflow-x: hidden;
   overscroll-behavior-x: none;
