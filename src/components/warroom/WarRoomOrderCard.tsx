@@ -223,14 +223,26 @@ export default function WarRoomOrderCard({
       if (profilePhone.trim()) payload.phone = profilePhone.trim();
       if (profileGst.trim()) payload.gst_number = profileGst.trim();
       if (profileAddr.trim()) payload.registered_address = profileAddr.trim();
-      // Promote Draft/Shadow to Active so it leaves the "unmapped" filter.
-      payload.status = "active";
+      // Route through governance queue — do not promote directly to active.
+      payload.status = "pending_approval";
       const { error } = await supabase
         .from("companies")
         .update(payload)
         .eq("id", order.company_id);
       if (error) throw error;
-      toast.success("Client profile completed");
+
+      // Create a formal pending application so this client appears in the
+      // Client Governance approval queue for slab assignment and activation.
+      await supabase.from("b2b_applications").insert({
+        business_name: order.company_name || "Unknown",
+        gst_number: profileGst.trim() || order.company_gst || null,
+        contact_phone: profilePhone.trim() || order.company_phone || null,
+        registered_address: profileAddr.trim() || order.company_address || null,
+        status: "pending",
+        admin_notes: "War Room order card profile — pending governance approval",
+      } as Parameters<ReturnType<typeof supabase.from>["insert"]>[0]);
+
+      toast.success("Profile saved. Client queued for governance approval in Client Governance.");
       setProfileOpen(false);
       onRefresh?.();
     } catch (e: any) {
@@ -240,20 +252,32 @@ export default function WarRoomOrderCard({
     }
   };
 
-  /** One-click promotion: Shadow/Draft → Active, no extra fields required. */
+  /** One-click triage: Shadow/Draft → pending_approval, creates governance application. */
   const handleConfirmClient = async () => {
     if (!order.company_id || cardBusy) return;
     setSavingProfile(true);
     try {
       const { error } = await supabase
         .from("companies")
-        .update({ status: "active" } as any)
+        .update({ status: "pending_approval" } as any)
         .eq("id", order.company_id);
       if (error) throw error;
-      toast.success("Client confirmed & activated");
+
+      // Create a formal pending application so this client appears in the
+      // Client Governance approval queue for slab assignment and activation.
+      await supabase.from("b2b_applications").insert({
+        business_name: order.company_name || "Unknown",
+        gst_number: order.company_gst || null,
+        contact_phone: order.company_phone || null,
+        registered_address: order.company_address || null,
+        status: "pending",
+        admin_notes: "War Room order card — pending governance approval",
+      } as Parameters<ReturnType<typeof supabase.from>["insert"]>[0]);
+
+      toast.success("Client queued for governance approval. Complete activation in Client Governance.");
       onRefresh?.();
     } catch (e: any) {
-      toast.error(e?.message || "Failed to confirm client");
+      toast.error(e?.message || "Failed to queue client for approval");
     } finally {
       setSavingProfile(false);
     }
@@ -625,7 +649,7 @@ export default function WarRoomOrderCard({
                       className="text-[10px] font-bold px-2 py-0.5 rounded bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-40"
                       title="One-click promote Shadow → Active client"
                     >
-                      ✓ Confirm Client
+                      ✓ Queue for Approval
                     </button>
                     <button
                       onClick={() => setProfileOpen((v) => !v)}
@@ -665,7 +689,7 @@ export default function WarRoomOrderCard({
                         disabled={savingProfile}
                         className="text-[10px] font-semibold px-3 py-1 rounded bg-sky-600 text-white hover:bg-sky-700 disabled:opacity-40"
                       >
-                        {savingProfile ? "Saving…" : "Save & Activate"}
+                        {savingProfile ? "Saving…" : "Save & Queue for Approval"}
                       </button>
                     </div>
                   </div>
