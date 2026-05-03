@@ -802,11 +802,11 @@ const AdminUsers = () => {
       {/* 1. NATIVE EDIT PERMISSIONS MODAL */}
       {!!selectedRoleId && (
         <div
-          className="fixed inset-0 z-[9999] flex justify-center bg-black/60 p-4 pt-12 pb-24 overflow-y-auto"
+          className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/60 p-4"
           onClick={() => setSelectedRoleId(null)}
         >
           <div
-            className="w-full max-w-xl h-fit my-auto bg-card border border-border rounded-3xl p-6 shadow-2xl relative animate-in fade-in zoom-in-95 duration-200"
+            className="w-full max-w-xl max-h-[90vh] overflow-y-auto bg-card border border-border rounded-3xl p-6 shadow-2xl relative animate-in fade-in zoom-in-95 duration-200"
             onClick={(e) => e.stopPropagation()}
           >
             <button
@@ -860,11 +860,11 @@ const AdminUsers = () => {
       {/* 2. NATIVE INVITE EMPLOYEE MODAL */}
       {showModal && (
         <div
-          className="fixed inset-0 z-[9999] flex justify-center bg-black/60 p-4 pt-12 pb-24 overflow-y-auto"
+          className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/60 p-4"
           onClick={() => setShowModal(false)}
         >
           <div
-            className="w-full max-w-lg h-fit my-auto bg-card border border-border rounded-3xl p-6 md:p-8 shadow-2xl relative animate-in fade-in zoom-in-95 duration-200"
+            className="w-full max-w-lg max-h-[90vh] overflow-y-auto bg-card border border-border rounded-3xl p-6 md:p-8 shadow-2xl relative animate-in fade-in zoom-in-95 duration-200"
             onClick={(e) => e.stopPropagation()}
           >
             <button
@@ -1046,11 +1046,11 @@ const AdminUsers = () => {
       {/* 3. NATIVE CREDENTIALS SUCCESS MODAL */}
       {showCredentialsModal && (
         <div
-          className="fixed inset-0 z-[9999] flex justify-center bg-black/60 p-4 pt-12 pb-24 overflow-y-auto"
+          className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/60 p-4"
           onClick={() => setShowCredentialsModal(false)}
         >
           <div
-            className="w-full max-w-md h-fit my-auto bg-card border border-border rounded-3xl p-6 shadow-2xl relative animate-in fade-in zoom-in-95 duration-200"
+            className="w-full max-w-md max-h-[90vh] overflow-y-auto bg-card border border-border rounded-3xl p-6 shadow-2xl relative animate-in fade-in zoom-in-95 duration-200"
             onClick={(e) => e.stopPropagation()}
           >
             <button
@@ -1110,11 +1110,11 @@ const AdminUsers = () => {
       {/* 4. ARCHIVE EMPLOYEE — HARD CONFIRM */}
       {archiveTarget && (
         <div
-          className="fixed inset-0 z-[9999] flex justify-center bg-black/70 p-4 pt-12 pb-24 overflow-y-auto"
+          className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/70 p-4"
           onClick={() => !archiving && setArchiveTarget(null)}
         >
           <div
-            className="w-full max-w-md h-fit my-auto bg-card border border-destructive/40 rounded-3xl p-6 shadow-2xl relative animate-in fade-in zoom-in-95 duration-200"
+            className="w-full max-w-md max-h-[90vh] overflow-y-auto bg-card border border-destructive/40 rounded-3xl p-6 shadow-2xl relative animate-in fade-in zoom-in-95 duration-200"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-start gap-3 mb-4">
