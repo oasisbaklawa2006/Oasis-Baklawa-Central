@@ -134,7 +134,7 @@ export default function RawIntelligenceTab() {
       if (!companyId) {
         const { data: created, error: insErr } = await supabase
           .from("companies")
-          .insert({ business_name: trimmed, status: "active" } as any)
+          .insert({ business_name: trimmed, status: "shadow" } as any)
           .select("id")
           .single();
         if (insErr || !created) {
