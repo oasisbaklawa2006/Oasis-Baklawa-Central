@@ -389,7 +389,7 @@ const CMDWarRoom = () => {
   }, [orders, todayOnly]);
 
   return (
-    <div className="p-3 sm:p-4 space-y-4 min-h-screen bg-background max-w-full overflow-x-hidden">
+    <div className="p-3 sm:p-4 space-y-4 bg-background max-w-full overflow-x-hidden">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h1 className="text-base sm:text-xl font-bold text-foreground tracking-tight">
           ⚔️ CMD War Room <span className="hidden sm:inline">— Live Order Battlefield v3</span>

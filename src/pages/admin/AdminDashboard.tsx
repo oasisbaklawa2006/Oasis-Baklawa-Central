@@ -112,7 +112,7 @@ const FlowStage = ({ label, count, isBottleneck, isLast, onClick }: {
 
 /* ── Drill-down Overlay ── */
 const DrillOverlay = ({ title, items, onClose }: { title: string; items: { label: string; value: string | number }[]; onClose: () => void }) => (
-  <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 animate-fade-in" onClick={onClose}>
+  <div className="fixed inset-0 z-[190] flex items-center justify-center bg-black/40 animate-fade-in" onClick={onClose}>
     <div className="bg-card rounded-2xl shadow-2xl w-full max-w-md mx-4 p-6 animate-scale-in" onClick={e => e.stopPropagation()}>
       <div className="flex items-center justify-between mb-4">
         <h3 className="font-display text-lg text-foreground">{title}</h3>

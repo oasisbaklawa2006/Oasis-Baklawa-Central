@@ -454,7 +454,7 @@ const AdminOperations = () => {
 
         {/* TASK MODAL */}
         {isTaskModalOpen && (
-          <div className="fixed inset-0 bg-background/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="fixed inset-0 bg-background/80 backdrop-blur-sm z-[190] flex items-center justify-center p-4">
             <div className="bg-card w-full max-w-sm rounded-2xl p-6 border border-border shadow-lg">
               <div className="flex items-center gap-2 mb-1">
                 <Zap size={20} className="text-amber-500" />
@@ -538,7 +538,7 @@ const AdminOperations = () => {
 
         {/* ADJUST MODAL */}
         {adjustingProduct && (
-          <div className="fixed inset-0 bg-background/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="fixed inset-0 bg-background/80 backdrop-blur-sm z-[190] flex items-center justify-center p-4">
             <div className="bg-card w-full max-w-sm rounded-2xl p-6 border border-border shadow-lg">
               <h3 className="text-lg font-bold mb-1">Adjust {adjustingProduct.name}</h3>
               <p className="text-sm text-muted-foreground mb-6">
