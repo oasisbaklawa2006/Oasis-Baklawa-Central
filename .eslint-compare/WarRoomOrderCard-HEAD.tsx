@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+﻿import { useMemo, useState } from "react";
 import { ChevronDown, ChevronUp, AlertTriangle, CheckCircle2, Package, Truck, CreditCard, Factory, Box, Hammer, FileText, HeartHandshake, Eye, EyeOff, Image as ImageIcon, X, UserPlus, Pencil, Save, Tag, Trash2, RotateCcw } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -7,7 +7,7 @@ import { normalizeOrderStatus } from "@/utils/orderStatus";
 const IST_OFFSET = 5.5 * 3600000;
 
 function relativeTimeIST(dateStr: string | null): string {
-  if (!dateStr) return "—";
+  if (!dateStr) return "ΓÇö";
   const nowUtc = Date.now();
   const createdUtc = new Date(dateStr).getTime();
   const diffMs = nowUtc - createdUtc;
@@ -22,7 +22,7 @@ function relativeTimeIST(dateStr: string | null): string {
 }
 
 const STEPS = [
-  { key: "draft", label: "Cart / Draft", statuses: ["draft", "cart", "awaiting_clarification"], icon: Package },
+  { key: "draft", label: "Cart / Draft", statuses: ["draft", "cart"], icon: Package },
   { key: "finance", label: "Finance", statuses: ["submitted", "confirmed", "approved"], icon: CreditCard },
   { key: "production", label: "Production", statuses: ["manufacturing", "in_production"], icon: Factory },
   { key: "assembly", label: "Assembly", statuses: ["assembly"], icon: Hammer },
@@ -85,7 +85,7 @@ interface Props {
   companies?: CompanyOption[];
   /** Called when admin assigns a client to a shadow/unknown order. */
   onAssignClient?: (orderId: string, companyId: string) => Promise<void> | void;
-  /** Called when admin clicks "Build SO" — only enabled once client is mapped. */
+  /** Called when admin clicks "Build SO" ΓÇö only enabled once client is mapped. */
   onBuildSO?: (orderId: string) => Promise<void> | void;
   /** Open Teach-SKU side drawer with optional pre-fill token (instant). */
   onTeachSku?: (token?: string) => void;
@@ -93,7 +93,7 @@ interface Props {
   onEditAliases?: () => void;
   /** Refresh callback after inline edits / profile completion. */
   onRefresh?: () => void;
-  /** When true, render this card in "rejected" mode — show Restore action only. */
+  /** When true, render this card in "rejected" mode ΓÇö show Restore action only. */
   isRejected?: boolean;
 }
 
@@ -117,7 +117,7 @@ export default function WarRoomOrderCard({
   const isDuplicate = !!order.is_duplicate || order.status === "potential_duplicate";
   const timeAgo = relativeTimeIST(order.created_at);
 
-  // Shadow / Unknown client detection — same trigger used in Central Pool merger.
+  // Shadow / Unknown client detection ΓÇö same trigger used in Central Pool merger.
   const isUnmappedClient =
     !order.company_id ||
     order.company_status === "shadow" ||
@@ -130,7 +130,7 @@ export default function WarRoomOrderCard({
   const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
   const [buildingSO, setBuildingSO] = useState(false);
 
-  // Inline qty edit state — keyed by order_item id.
+  // Inline qty edit state ΓÇö keyed by order_item id.
   const [editQty, setEditQty] = useState<Record<string, string>>({});
   const [savingQtyId, setSavingQtyId] = useState<string | null>(null);
 
@@ -141,7 +141,7 @@ export default function WarRoomOrderCard({
   const [profileAddr, setProfileAddr] = useState(order.company_address || "");
   const [savingProfile, setSavingProfile] = useState(false);
 
-  // Banyan 0.98 — anything below this is "Needs Review" (orange) and Build SO is disabled.
+  // Banyan 0.98 ΓÇö anything below this is "Needs Review" (orange) and Build SO is disabled.
   const CONFIDENCE_GATE = 0.98;
   const lowConfidence =
     typeof order.min_confidence === "number" && order.min_confidence < CONFIDENCE_GATE;
@@ -155,12 +155,12 @@ export default function WarRoomOrderCard({
     typeof order.min_confidence === "number" &&
     order.min_confidence >= CONFIDENCE_GATE;
 
-  // Draft / new-lead detection — company exists but is a Draft/Shadow placeholder.
+  // Draft / new-lead detection ΓÇö company exists but is a Draft/Shadow placeholder.
   const isDraftClient =
     !!order.company_id &&
     (order.company_status === "shadow" || order.company_status === "draft");
 
-  // Global per-card action lock — prevents double-processing.
+  // Global per-card action lock ΓÇö prevents double-processing.
   const cardBusy = assigning || buildingSO || savingProfile || !!savingQtyId;
 
   const tierColor = useMemo(() => {
@@ -223,7 +223,7 @@ export default function WarRoomOrderCard({
       if (profilePhone.trim()) payload.phone = profilePhone.trim();
       if (profileGst.trim()) payload.gst_number = profileGst.trim();
       if (profileAddr.trim()) payload.registered_address = profileAddr.trim();
-      // Route through governance queue — do not promote directly to active.
+      // Route through governance queue ΓÇö do not promote directly to active.
       payload.status = "pending_approval";
       const { error } = await supabase
         .from("companies")
@@ -239,7 +239,7 @@ export default function WarRoomOrderCard({
         contact_phone: profilePhone.trim() || order.company_phone || null,
         registered_address: profileAddr.trim() || order.company_address || null,
         status: "pending",
-        admin_notes: "War Room order card profile — pending governance approval",
+        admin_notes: "War Room order card profile ΓÇö pending governance approval",
       } as Parameters<ReturnType<typeof supabase.from>["insert"]>[0]);
 
       toast.success("Profile saved. Client queued for governance approval in Client Governance.");
@@ -252,7 +252,7 @@ export default function WarRoomOrderCard({
     }
   };
 
-  /** One-click triage: Shadow/Draft → pending_approval, creates governance application. */
+  /** One-click triage: Shadow/Draft ΓåÆ pending_approval, creates governance application. */
   const handleConfirmClient = async () => {
     if (!order.company_id || cardBusy) return;
     setSavingProfile(true);
@@ -271,7 +271,7 @@ export default function WarRoomOrderCard({
         contact_phone: order.company_phone || null,
         registered_address: order.company_address || null,
         status: "pending",
-        admin_notes: "War Room order card — pending governance approval",
+        admin_notes: "War Room order card ΓÇö pending governance approval",
       } as Parameters<ReturnType<typeof supabase.from>["insert"]>[0]);
 
       toast.success("Client queued for governance approval. Complete activation in Client Governance.");
@@ -354,7 +354,7 @@ export default function WarRoomOrderCard({
               </span>
             )}
             {isComplaint && (
-              <span className="text-[10px] font-bold text-red-500 bg-red-500/10 px-2 py-0.5 rounded-full">🚨 COMPLAINT</span>
+              <span className="text-[10px] font-bold text-red-500 bg-red-500/10 px-2 py-0.5 rounded-full">≡ƒÜ¿ COMPLAINT</span>
             )}
             {isDuplicate && (
               <span className="flex items-center gap-1 text-[10px] font-bold text-white bg-red-600 px-2 py-0.5 rounded-full animate-pulse">
@@ -363,7 +363,7 @@ export default function WarRoomOrderCard({
             )}
             {isAmbiguous && !isDuplicate && (
               <span className="text-[10px] font-bold text-orange-600 bg-orange-500/10 border border-orange-400/40 px-2 py-0.5 rounded-full">
-                ⚠ AWAITING CLARIFICATION
+                ΓÜá AWAITING CLARIFICATION
               </span>
             )}
             {isUnmappedClient && (
@@ -378,7 +378,7 @@ export default function WarRoomOrderCard({
             )}
             {isAutoPilot && (
               <span className="text-[10px] font-bold text-emerald-700 bg-emerald-500/15 border border-emerald-500/40 px-2 py-0.5 rounded-full">
-                ✓ AUTO-PILOT READY
+                Γ£ô AUTO-PILOT READY
               </span>
             )}
           </div>
@@ -388,7 +388,7 @@ export default function WarRoomOrderCard({
                 {order.total_weight_kg.toLocaleString("en-IN", { maximumFractionDigits: 2 })} kg
               </span>
             ) : (
-              <span className="text-sm font-semibold text-foreground">₹{(order.sales_order_value ?? 0).toLocaleString("en-IN")}</span>
+              <span className="text-sm font-semibold text-foreground">Γé╣{(order.sales_order_value ?? 0).toLocaleString("en-IN")}</span>
             )}
             {isRejected ? (
               <button
@@ -441,7 +441,7 @@ export default function WarRoomOrderCard({
               </div>
             )}
 
-            {/* Image attachments — clickable lightbox */}
+            {/* Image attachments ΓÇö clickable lightbox */}
             {order.attachment_urls && order.attachment_urls.length > 0 && (
               <div className="mb-2 flex flex-wrap gap-2">
                 {order.attachment_urls.map((url, i) => (
@@ -465,7 +465,7 @@ export default function WarRoomOrderCard({
               </div>
             )}
 
-            {/* Order items — inline-editable rows */}
+            {/* Order items ΓÇö inline-editable rows */}
             {order.items && order.items.length > 0 && (
               <div className="mb-2 space-y-1">
                 <div className="space-y-1">
@@ -490,9 +490,9 @@ export default function WarRoomOrderCard({
                               onClick={() => onTeachSku?.(item.product_name || item.matched_alias || undefined)}
                               disabled={cardBusy}
                               className="text-[9px] font-bold text-orange-700 bg-orange-500/10 border border-orange-400/40 px-1.5 py-0.5 rounded hover:bg-orange-500/20 disabled:opacity-40"
-                              title="Confidence below 98% — teach this SKU"
+                              title="Confidence below 98% ΓÇö teach this SKU"
                             >
-                              UNRECOGNIZED · Teach
+                              UNRECOGNIZED ┬╖ Teach
                             </button>
                           )}
                         </div>
@@ -533,9 +533,9 @@ export default function WarRoomOrderCard({
                             </>
                           ) : (
                             <>
-                              <span className="font-semibold text-foreground">× {item.quantity}</span>
+                              <span className="font-semibold text-foreground">├ù {item.quantity}</span>
                               {item.weight_kg ? (
-                                <span className="text-muted-foreground">· {Number(item.weight_kg).toLocaleString("en-IN", { maximumFractionDigits: 2 })}kg</span>
+                                <span className="text-muted-foreground">┬╖ {Number(item.weight_kg).toLocaleString("en-IN", { maximumFractionDigits: 2 })}kg</span>
                               ) : null}
                               {itemId && (
                                 <button
@@ -613,7 +613,7 @@ export default function WarRoomOrderCard({
                           <span className="text-foreground truncate">{item.product_name || "SKU"}</span>
                           <div className="flex items-center gap-1.5 flex-shrink-0">
                             <span className="text-muted-foreground italic">
-                              alias: {item.matched_alias || "—"}
+                              alias: {item.matched_alias || "ΓÇö"}
                             </span>
                             <span
                               className={`font-bold px-1.5 py-0.5 rounded ${
@@ -624,7 +624,7 @@ export default function WarRoomOrderCard({
                                   : "bg-orange-500/10 text-orange-700"
                               }`}
                             >
-                              {conf == null ? "—" : `${Math.round(conf * 100)}%`}
+                              {conf == null ? "ΓÇö" : `${Math.round(conf * 100)}%`}
                             </span>
                           </div>
                         </div>
@@ -640,16 +640,16 @@ export default function WarRoomOrderCard({
               <div className="mb-2 rounded-md border border-sky-500/30 bg-sky-500/5 p-2">
                 <div className="flex items-center justify-between gap-2">
                   <span className="text-[10px] font-bold text-sky-700 flex items-center gap-1">
-                    <UserPlus size={10} /> NEW LEAD — confirm or finish profile to activate
+                    <UserPlus size={10} /> NEW LEAD ΓÇö confirm or finish profile to activate
                   </span>
                   <div className="flex items-center gap-1.5">
                     <button
                       onClick={handleConfirmClient}
                       disabled={cardBusy}
                       className="text-[10px] font-bold px-2 py-0.5 rounded bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-40"
-                      title="One-click promote Shadow → Active client"
+                      title="One-click promote Shadow ΓåÆ Active client"
                     >
-                      ✓ Queue for Approval
+                      Γ£ô Queue for Approval
                     </button>
                     <button
                       onClick={() => setProfileOpen((v) => !v)}
@@ -689,7 +689,7 @@ export default function WarRoomOrderCard({
                         disabled={savingProfile}
                         className="text-[10px] font-semibold px-3 py-1 rounded bg-sky-600 text-white hover:bg-sky-700 disabled:opacity-40"
                       >
-                        {savingProfile ? "Saving…" : "Save & Queue for Approval"}
+                        {savingProfile ? "SavingΓÇª" : "Save & Queue for Approval"}
                       </button>
                     </div>
                   </div>
@@ -700,14 +700,14 @@ export default function WarRoomOrderCard({
             {/* Assign-to-Client (Central Pool merger) */}
             {isUnmappedClient && onAssignClient && (
               <div className="mb-2 flex flex-wrap items-center gap-2 rounded-md border border-amber-500/30 bg-amber-500/5 p-2">
-                <span className="text-[10px] font-bold text-amber-700">Map this order →</span>
+                <span className="text-[10px] font-bold text-amber-700">Map this order ΓåÆ</span>
                 <select
                   value={assignId}
                   onChange={(e) => setAssignId(e.target.value)}
                   disabled={cardBusy}
                   className="text-xs px-2 py-1 rounded border border-border bg-background flex-1 min-w-[160px] disabled:opacity-50"
                 >
-                  <option value="">— Assign to client —</option>
+                  <option value="">ΓÇö Assign to client ΓÇö</option>
                   {companies.map((c) => (
                     <option key={c.id} value={c.id}>
                       {c.business_name}
@@ -719,12 +719,12 @@ export default function WarRoomOrderCard({
                   disabled={!assignId || cardBusy}
                   className="text-[10px] font-semibold px-2.5 py-1 rounded bg-amber-600 text-white hover:bg-amber-700 disabled:opacity-50"
                 >
-                  {assigning ? "Assigning…" : "Assign"}
+                  {assigning ? "AssigningΓÇª" : "Assign"}
                 </button>
               </div>
             )}
 
-            {/* Lifecycle: full timeline on ≥sm, single status badge on mobile */}
+            {/* Lifecycle: full timeline on ΓëÑsm, single status badge on mobile */}
             <div className="hidden sm:flex items-center gap-0 overflow-x-auto pb-1">
               {STEPS.map((step, i) => {
                 const isActive = i === activeStep;
@@ -766,7 +766,7 @@ export default function WarRoomOrderCard({
                   return <ActiveIcon size={14} className="text-primary flex-shrink-0" />;
                 })()}
                 <span className="text-[11px] font-semibold text-primary truncate">
-                  Status: {STEPS[activeStep]?.label || "—"}
+                  Status: {STEPS[activeStep]?.label || "ΓÇö"}
                 </span>
               </div>
               <span className="text-[9px] font-bold text-primary/70 bg-primary/5 px-1.5 py-0.5 rounded flex-shrink-0">
@@ -774,12 +774,12 @@ export default function WarRoomOrderCard({
               </span>
             </div>
 
-            {/* Build SO — final action, gated on client mapping AND Banyan 0.98 confidence. */}
+            {/* Build SO ΓÇö final action, gated on client mapping AND Banyan 0.98 confidence. */}
             {onBuildSO && (
               <div className="flex items-center justify-end pt-2 gap-2 flex-wrap">
                 {needsReview && (
                   <span className="text-[10px] font-bold text-orange-700 bg-orange-500/10 border border-orange-400/40 px-2 py-1 rounded">
-                    ⚠ NEEDS REVIEW · confidence &lt; 98% — correct SKUs to enable Build SO
+                    ΓÜá NEEDS REVIEW ┬╖ confidence &lt; 98% ΓÇö correct SKUs to enable Build SO
                   </span>
                 )}
                 <button
@@ -794,7 +794,7 @@ export default function WarRoomOrderCard({
                   }
                   className="text-xs font-semibold px-3 py-2.5 sm:py-1.5 rounded-md bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-1.5 w-full sm:w-auto"
                 >
-                  <FileText size={12} /> {buildingSO ? "Building…" : "Build SO"}
+                  <FileText size={12} /> {buildingSO ? "BuildingΓÇª" : "Build SO"}
                 </button>
               </div>
             )}
