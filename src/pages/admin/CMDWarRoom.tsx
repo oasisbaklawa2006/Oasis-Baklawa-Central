@@ -7,6 +7,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import ShadowClientSection from "@/components/warroom/ShadowClientSection";
 import WarRoomOrderCard from "@/components/warroom/WarRoomOrderCard";
 import RawIntelligenceTab from "@/components/warroom/RawIntelligenceTab";
+import SuggestedOrdersTab from "@/components/warroom/SuggestedOrdersTab";
 import AliasDrawer from "@/components/warroom/AliasDrawer";
 
 interface OrderItem {
@@ -464,6 +465,7 @@ const CMDWarRoom = () => {
           <TabsTrigger value="rejected" className="flex-1">
             Rejected{rejectedOrders.length > 0 && <span className="ml-1 text-[10px] opacity-70">({rejectedOrders.length})</span>}
           </TabsTrigger>
+          <TabsTrigger value="suggested" className="flex-1">Suggested Orders</TabsTrigger>
         </TabsList>
 
         <TabsContent value="battlefield">
@@ -580,6 +582,10 @@ const CMDWarRoom = () => {
               ))}
             </div>
           )}
+        </TabsContent>
+
+        <TabsContent value="suggested">
+          <SuggestedOrdersTab activeCompanies={activeCompanies} />
         </TabsContent>
       </Tabs>
 
