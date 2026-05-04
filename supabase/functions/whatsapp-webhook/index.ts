@@ -217,6 +217,87 @@ function parseQuantity(text: string): number {
   return 1;
 }
 
+// ── RULE-BASED INTENT CLASSIFICATION ──
+// Pure function — no DB calls, no AI, no side effects.
+// Evaluated in priority order: later checks only run if earlier ones do not match.
+// Returns one of the canonical intent strings used as message_intent in debug_webhooks.
+function classifyMessageIntent(
+  messageBody: string,
+  messageType: string,
+  mediaMime: string
+): string {
+  const t = (messageBody || "").toLowerCase().trim();
+  const mt = (messageType || "").toLowerCase();
+  const mm = (mediaMime || "").toLowerCase();
+
+  // ── Tier 1: media type signals (highest priority) ──
+  if ((mt === "document" || mm.includes("pdf")) && t.length < 500) {
+    return "PURCHASE_ORDER_DOCUMENT";
+  }
+
+  // ── Tier 2: explicit keyword sets ──
+
+  // Internal / test messages — suppress entirely
+  if (/\b(test|testing|ignore this|admin note|internal message|internal note)\b/i.test(t)) {
+    return "INTERNAL_NOTE";
+  }
+
+  // Cancellation — check before modification to avoid "cancel changes" mis-classifying
+  if (/\b(cancel|cancellation|don't send|do not send|hold order|stop order|ruk jao|band karo|mat bhejo)\b/i.test(t)) {
+    return "ORDER_CANCELLATION";
+  }
+
+  // Order modification
+  if (/\b(change|modify|update order|replace|add more|reduce|increase|edit order|correction in order|order correction|update the order)\b/i.test(t)) {
+    return "ORDER_MODIFICATION";
+  }
+
+  // Complaint
+  if (/\b(complaint|complain|damaged|broken|wrong item|wrong quantity|missing item|not received|short delivery|quality issue|mouldy|stale|expired|rotten|not as ordered|bad quality|defective|contaminated)\b/i.test(t)) {
+    return "COMPLAINT";
+  }
+
+  // Payment proof
+  if (
+    /\b(paid|payment done|transferred|neft|rtgs|upi|gpay|phone ?pe|paytm|bank transfer|transaction id|utr|reference no|attached payment|bhej diya|payment kar diya|amount sent)\b/i.test(t) ||
+    (mt === "image" && /\b(payment|paid|transfer|receipt|transaction)\b/i.test(t))
+  ) {
+    return "PAYMENT_PROOF";
+  }
+
+  // KYC / identity documents
+  if (/\b(gst certificate|fssai|pan card|aadhaar|aadhar|kyc|registration certificate|trade license|drug license)\b/i.test(t)) {
+    return "CLIENT_KYC_DOCUMENT";
+  }
+
+  // SO / invoice reference
+  if (/\b(order number|sales order|so number|invoice|inv no|tcf|my previous order|same as before|repeat (?:my )?order|reference|last (?:time |week )?order|previous order)\b/i.test(t)) {
+    return "SO_REFERENCE";
+  }
+
+  // Dispatch follow-up
+  if (/\b(dispatch|dispatched|tracking|when (?:will|is|does) (?:my )?(?:order|delivery)|kab aayega|delivery status|where is my order|lr number|transporter|awb|docket|out for delivery|truck|vehicle)\b/i.test(t)) {
+    return "DISPATCH_FOLLOWUP";
+  }
+
+  // Packaging material request — checked before ORDER to prevent spurious SOs
+  // "box" alone is in orderKeywords; here it must appear with packaging-specific context
+  if (
+    /\b(acrylic (?:box|jar|tray)|empty (?:box|jar|tray|carton)|packing material|packaging material|cavity tray|tart shell|shell|box only|just (?:box|jar|tray)|carton only)\b/i.test(t) &&
+    !/\b(need|order|send|want)\s+\d+/.test(t)  // not if it looks like a qty order
+  ) {
+    return "PACKAGING_MATERIAL_REQUEST";
+  }
+
+  // General inquiry — price / catalogue / policy
+  if (/\b(price list|rate list|catalogue|catalog|what do you have|product list|minimum order|moq|delivery time|terms and conditions|return policy|rate (?:hai|kya|batao)|kya hai|kya milta)\b/i.test(t)) {
+    return "GENERAL_INQUIRY";
+  }
+
+  // Falls through to ORDER if orderKeywords are present (checked at call site)
+  return "OTHER";
+}
+
 // ── SEND WHATSAPP REPLY ──
 async function sendReply(phone: string, message: string, supabaseAdmin: any, companyId?: string | null) {
   const apiKey = Deno.env.get("CLICK2API_API_KEY");
@@ -773,6 +854,38 @@ serve(async (req) => {
       }
     }
 
+    // ── INTENT CLASSIFICATION ──
+    // Pure rule-based; no DB/AI calls. Written to debug_webhooks as message_intent.
+    const messageIntent = classifyMessageIntent(
+      messageBody || "",
+      messageType || "",
+      mediaMime || ""
+    );
+    console.log(`[INTENT] ${messageIntent} | phone=${phone91} | type=${messageType}`);
+
+    // Persist intent on the webhook row (best-effort — failure does not block processing).
+    if ((webhookRow as any)?.id) {
+      supabaseAdmin
+        .from("debug_webhooks")
+        .update({ message_intent: messageIntent })
+        .eq("id", (webhookRow as any).id)
+        .then(() => {/* no-op */})
+        .catch((e: unknown) => console.error("intent write failed:", e));
+    }
+
+    // INTERNAL_NOTE: mark processed immediately and skip further handling.
+    if (messageIntent === "INTERNAL_NOTE") {
+      if ((webhookRow as any)?.id) {
+        await supabaseAdmin
+          .from("debug_webhooks")
+          .update({ processed: true, discard_reason: "internal_note" })
+          .eq("id", (webhookRow as any).id);
+      }
+      return new Response(JSON.stringify({ ok: true, intent: "INTERNAL_NOTE", skipped: true }), {
+        status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     // ── LEDGER DISPUTE KEYWORD DETECTION ──
     // If a credit-client replies "request correction" / "ledger dispute" / "disputed",
     // open a dispute against their most recent sent ledger.
@@ -1025,7 +1138,11 @@ serve(async (req) => {
       "kg", "pcs", "pieces", "rate", "price", "quote",
     ];
     const msgLower = (messageBody || "").toLowerCase();
-    const hasOrderIntent = orderKeywords.some((kw) => msgLower.includes(kw));
+    // PACKAGING_MATERIAL_REQUEST: suppress order intent to prevent spurious draft SOs
+    // for messages about empty boxes, acrylic trays, tart shells, etc.
+    const hasOrderIntent =
+      messageIntent !== "PACKAGING_MATERIAL_REQUEST" &&
+      orderKeywords.some((kw) => msgLower.includes(kw));
 
     if (!companyId && senderPhone) {
       const shadowName = profileName ? `${profileName} (WhatsApp)` : `WhatsApp Lead ${phone91}`;
@@ -1460,11 +1577,49 @@ serve(async (req) => {
         }
       }
     } else if (messageBody && companyId && !hasOrderIntent) {
-      const ackMsg = [
-        `Greetings from Oasis Baklawa.`,
-        ``,
-        `Thank you for reaching out${profileName ? ", " + profileName : ""}. Our team will get back to you shortly.`,
-      ].join("\n");
+      // Intent-aware acknowledgement in corporate tone.
+      let ackMsg: string;
+      if (messageIntent === "PAYMENT_PROOF") {
+        ackMsg = [
+          `Oasis Operations has received your payment notification.`,
+          ``,
+          `Our Finance team will verify and update your account within one working day.`,
+          ``,
+          `— Oasis Operations`,
+        ].join("\n");
+      } else if (messageIntent === "COMPLAINT") {
+        ackMsg = [
+          `Oasis Operations has received your complaint.`,
+          ``,
+          `Our team has been notified and will review and respond within 24 hours.`,
+          ``,
+          `— Oasis Operations`,
+        ].join("\n");
+      } else if (messageIntent === "DISPATCH_FOLLOWUP") {
+        ackMsg = [
+          `Oasis Operations has received your dispatch inquiry.`,
+          ``,
+          `Our logistics team will share the current status of your shipment shortly.`,
+          ``,
+          `— Oasis Operations`,
+        ].join("\n");
+      } else if (messageIntent === "PACKAGING_MATERIAL_REQUEST") {
+        ackMsg = [
+          `Oasis Operations has received your packaging material request.`,
+          ``,
+          `Our team will review availability and respond shortly.`,
+          ``,
+          `— Oasis Operations`,
+        ].join("\n");
+      } else {
+        ackMsg = [
+          `Oasis Operations has received your message.`,
+          ``,
+          `Our team will review and respond shortly.`,
+          ``,
+          `— Oasis Operations`,
+        ].join("\n");
+      }
       await sendReply(phone91, ackMsg, supabaseAdmin, companyId);
     }
 
@@ -1490,6 +1645,7 @@ serve(async (req) => {
         company: companyName,
         company_id: companyId,
         sender_type: sender.type,
+        message_intent: messageIntent,
         order_intent: hasOrderIntent,
         draft_order_id: draftOrderId,
         pi_sent: piSent,
