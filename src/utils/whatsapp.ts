@@ -50,16 +50,16 @@ export const sendDispatchAlert = async (params: {
     : "";
 
   const message = [
-    `Greetings from Oasis Baklawa.`,
+    `Oasis Operations has dispatched your order.`,
     ``,
-    `Your order (${params.orderId.slice(0, 8).toUpperCase()}) has been dispatched from our facility.`,
+    `Order Reference: ${params.orderId.slice(0, 8).toUpperCase()}`,
     ``,
     trackingLine,
     invoiceLine,
     ``,
-    `For any queries, contact your Sales Executive or reply to this message.`,
+    `For any queries, please contact your Sales Executive or reply to this message.`,
     ``,
-    `— Team Oasis Baklawa`,
+    `— Oasis Operations`,
   ]
     .filter(Boolean)
     .join("\n");
