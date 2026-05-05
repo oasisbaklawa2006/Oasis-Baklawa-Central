@@ -21,6 +21,12 @@ const HELD_ORDER_MAX_AGE_MS = 72 * 60 * 60 * 1000;
 const FOLLOWUP_PARSE_MAX_CHARS = 280;
 const CONFIRM_FOLLOWUP_MAX_CHARS = 80;
 
+/** Substrings that indicate order-ish commerce intent when paired with classifier output (see handler). */
+const ORDER_INTENT_KEYWORDS = [
+  "need", "order", "send", "want", "box", "boxes", "carton", "cartons",
+  "kg", "pcs", "pieces", "rate", "price", "quote",
+];
+
 // ── PHONE HELPERS ──
 function normalizePhone(raw: string): string {
   const digits = raw.replace(/[^0-9]/g, "");
@@ -237,8 +243,12 @@ function classifyMessageIntent(
 
   // ── Tier 2: explicit keyword sets ──
 
-  // Internal / test messages — suppress entirely
-  if (/\b(test|testing|ignore this|admin note|internal message|internal note)\b/i.test(t)) {
+  // Internal / admin pings — narrow: bare "test"/"testing" in prose must NOT match (e.g. lab test, send test samples).
+  const trimmed = (messageBody || "").trim();
+  if (
+    /\b(ignore this|internal message|internal note|admin note)\b/i.test(t) ||
+    /^(test|testing)[\s.!?]*$/i.test(trimmed)
+  ) {
     return "INTERNAL_NOTE";
   }
 
@@ -280,13 +290,18 @@ function classifyMessageIntent(
     return "DISPATCH_FOLLOWUP";
   }
 
-  // Packaging material request — checked before ORDER to prevent spurious SOs
-  // "box" alone is in orderKeywords; here it must appear with packaging-specific context
-  if (
-    /\b(acrylic (?:box|jar|tray)|empty (?:box|jar|tray|carton)|packing material|packaging material|cavity tray|tart shell|shell|box only|just (?:box|jar|tray)|carton only)\b/i.test(t) &&
-    !/\b(need|order|send|want)\s+\d+/.test(t)  // not if it looks like a qty order
-  ) {
-    return "PACKAGING_MATERIAL_REQUEST";
+  // Packaging material inquiry — checked before ORDER to prevent spurious SOs.
+  // Suppress only when there is no quantity/order pattern (e.g. "send empty box 10 pcs" stays eligible for ORDER downstream).
+  const packagingContext =
+    /\b(acrylic (?:box|jar|tray)|empty (?:box|jar|tray|carton)|packing material|packaging material|cavity tray|tart shell|shell|box only|just (?:box|jar|tray)|carton only)\b/i.test(t);
+  if (packagingContext) {
+    const looksLikePackagingQtyOrder =
+      /\d+\s*(?:pcs|pieces|nos\.?|units?|boxes|cartons?)/i.test(t) ||
+      /\b(?:empty\s+)?(?:box|jar|tray|carton|cavity\s+tray|acrylic\s+(?:jar|box|tray))\s+\d+/i.test(t) ||
+      /\b(?:need|send|want|order)\s+.+\d/i.test(t);
+    if (!looksLikePackagingQtyOrder) {
+      return "PACKAGING_MATERIAL_REQUEST";
+    }
   }
 
   // General inquiry — price / catalogue / policy
@@ -856,25 +871,40 @@ serve(async (req) => {
 
     // ── INTENT CLASSIFICATION ──
     // Pure rule-based; no DB/AI calls. Written to debug_webhooks as message_intent.
-    const messageIntent = classifyMessageIntent(
+    const messageIntentRaw = classifyMessageIntent(
       messageBody || "",
       messageType || "",
       mediaMime || ""
     );
+
+    let messageIntent = messageIntentRaw;
+    let hasOrderIntent = false;
+    if (messageIntentRaw !== "INTERNAL_NOTE") {
+      const msgLowerForOrder = (messageBody || "").toLowerCase();
+      hasOrderIntent =
+        messageIntentRaw !== "PACKAGING_MATERIAL_REQUEST" &&
+        ORDER_INTENT_KEYWORDS.some((kw) => msgLowerForOrder.includes(kw));
+      if (messageIntentRaw === "OTHER" && hasOrderIntent) {
+        messageIntent = "ORDER";
+      }
+    }
+
     console.log(`[INTENT] ${messageIntent} | phone=${phone91} | type=${messageType}`);
 
     // Persist intent on the webhook row (best-effort — failure does not block processing).
     if ((webhookRow as any)?.id) {
-      supabaseAdmin
+      void supabaseAdmin
         .from("debug_webhooks")
         .update({ message_intent: messageIntent })
         .eq("id", (webhookRow as any).id)
-        .then(() => {/* no-op */})
-        .catch((e: unknown) => console.error("intent write failed:", e));
+        .then(
+          () => { /* no-op */ },
+          (e: unknown) => console.error("intent write failed:", e),
+        );
     }
 
     // INTERNAL_NOTE: mark processed immediately and skip further handling.
-    if (messageIntent === "INTERNAL_NOTE") {
+    if (messageIntentRaw === "INTERNAL_NOTE") {
       if ((webhookRow as any)?.id) {
         await supabaseAdmin
           .from("debug_webhooks")
@@ -1133,16 +1163,7 @@ serve(async (req) => {
     }
 
     // Strategy 4: SHADOW CLIENT CREATION
-    const orderKeywords = [
-      "need", "order", "send", "want", "box", "boxes", "carton", "cartons",
-      "kg", "pcs", "pieces", "rate", "price", "quote",
-    ];
-    const msgLower = (messageBody || "").toLowerCase();
-    // PACKAGING_MATERIAL_REQUEST: suppress order intent to prevent spurious draft SOs
-    // for messages about empty boxes, acrylic trays, tart shells, etc.
-    const hasOrderIntent =
-      messageIntent !== "PACKAGING_MATERIAL_REQUEST" &&
-      orderKeywords.some((kw) => msgLower.includes(kw));
+    // hasOrderIntent: computed after classify + ORDER coercion (same keywords as ORDER_INTENT_KEYWORDS).
 
     if (!companyId && senderPhone) {
       const shadowName = profileName ? `${profileName} (WhatsApp)` : `WhatsApp Lead ${phone91}`;
