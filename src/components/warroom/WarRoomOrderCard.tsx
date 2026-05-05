@@ -3,7 +3,7 @@ import { ChevronDown, ChevronUp, AlertTriangle, CheckCircle2, Package, Truck, Cr
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { normalizeOrderStatus } from "@/utils/orderStatus";
-
+import type { Database } from "@/integrations/supabase/types";
 const IST_OFFSET = 5.5 * 3600000;
 
 function relativeTimeIST(dateStr: string | null): string {
@@ -214,7 +214,6 @@ export default function WarRoomOrderCard({
       setSavingQtyId(null);
     }
   };
-
   const handleSaveProfile = async () => {
     if (!order.company_id || cardBusy) return;
     setSavingProfile(true);
@@ -223,25 +222,34 @@ export default function WarRoomOrderCard({
       if (profilePhone.trim()) payload.phone = profilePhone.trim();
       if (profileGst.trim()) payload.gst_number = profileGst.trim();
       if (profileAddr.trim()) payload.registered_address = profileAddr.trim();
+  
       // Route through governance queue — do not promote directly to active.
       payload.status = "pending_approval";
+  
       const { error } = await supabase
         .from("companies")
         .update(payload)
         .eq("id", order.company_id);
+  
       if (error) throw error;
-
+  
       // Create a formal pending application so this client appears in the
       // Client Governance approval queue for slab assignment and activation.
-      await supabase.from("b2b_applications").insert({
+      const applicationPayload: Database["public"]["Tables"]["b2b_applications"]["Insert"] = {
         business_name: order.company_name || "Unknown",
         gst_number: profileGst.trim() || order.company_gst || null,
         contact_phone: profilePhone.trim() || order.company_phone || null,
         registered_address: profileAddr.trim() || order.company_address || null,
         status: "pending",
         admin_notes: "War Room order card profile — pending governance approval",
-      } as Parameters<ReturnType<typeof supabase.from>["insert"]>[0]);
-
+      };
+  
+      const { error: appInsertError } = await supabase
+        .from("b2b_applications")
+        .insert(applicationPayload);
+  
+      if (appInsertError) throw appInsertError;
+  
       toast.success("Profile saved. Client queued for governance approval in Client Governance.");
       setProfileOpen(false);
       onRefresh?.();
@@ -251,7 +259,7 @@ export default function WarRoomOrderCard({
       setSavingProfile(false);
     }
   };
-
+  
   /** One-click triage: Shadow/Draft → pending_approval, creates governance application. */
   const handleConfirmClient = async () => {
     if (!order.company_id || cardBusy) return;
@@ -261,19 +269,26 @@ export default function WarRoomOrderCard({
         .from("companies")
         .update({ status: "pending_approval" } as any)
         .eq("id", order.company_id);
+  
       if (error) throw error;
-
+  
       // Create a formal pending application so this client appears in the
       // Client Governance approval queue for slab assignment and activation.
-      await supabase.from("b2b_applications").insert({
+      const applicationPayload: Database["public"]["Tables"]["b2b_applications"]["Insert"] = {
         business_name: order.company_name || "Unknown",
         gst_number: order.company_gst || null,
         contact_phone: order.company_phone || null,
         registered_address: order.company_address || null,
         status: "pending",
         admin_notes: "War Room order card — pending governance approval",
-      } as Parameters<ReturnType<typeof supabase.from>["insert"]>[0]);
-
+      };
+  
+      const { error: appInsertError } = await supabase
+        .from("b2b_applications")
+        .insert(applicationPayload);
+  
+      if (appInsertError) throw appInsertError;
+  
       toast.success("Client queued for governance approval. Complete activation in Client Governance.");
       onRefresh?.();
     } catch (e: any) {
@@ -282,8 +297,8 @@ export default function WarRoomOrderCard({
       setSavingProfile(false);
     }
   };
+  
   const [rejecting, setRejecting] = useState(false);
-
   /** Soft-hide an order: flag is_waste=true (kept in DB; filtered from main queue). */
   const handleReject = async () => {
     if (cardBusy || rejecting) return;

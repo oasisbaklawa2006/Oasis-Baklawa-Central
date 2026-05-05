@@ -1,8 +1,7 @@
 import { supabase } from "@/integrations/supabase/client";
 
-const PORTAL_URL = "https://id-preview--a2649760-8f34-4dcf-aaf4-ff101ea06ef6.lovable.app";
+const PORTAL_URL = Deno.env.get("B2B_PORTAL_URL") || "https://b2b.oasisbaklawa.com";
 const CTA_FOOTER = `\n\nPlease login to your B2B Portal to track your 10-point artisan journey:\n${PORTAL_URL}`;
-
 /**
  * Send a WhatsApp message via Click2API through the send-whatsapp Edge Function.
  * Every message is auto-logged to client_interactions timeline.
