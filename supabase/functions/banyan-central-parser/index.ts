@@ -241,6 +241,7 @@ serve(async (req) => {
     const { data: companies } = await supabaseAdmin
       .from("companies")
       .select("id, business_name")
+      .neq("status", "shadow")
       .order("business_name");
 
     for (const sender of eligibleSenders) {
