@@ -14,7 +14,7 @@ test('UI/UX Visual Audit and Video Capture', async ({ page }) => {
   await page.fill('input[type="email"]', 'dinesh@oasisbaklawa.com');
   await page.fill('input[type="password"]', 'your_test_password');
   await page.click('button:has-text("Login")');
-  await page.waitForURL('**/admin*');
+  await page.waitForURL('**' + '/admin*');
   */
 
   // 3. Visit Dashboard

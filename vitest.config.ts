@@ -9,6 +9,8 @@ export default defineConfig({
     globals: true,
     setupFiles: ["./src/test/setup.ts"],
     include: ["src/**/*.{test,spec}.{ts,tsx}"],
+    // Playwright specs (e.g. visual-audit) use @playwright/test, not Vitest.
+    exclude: ["src/test/tests/**"],
   },
   resolve: {
     alias: { "@": path.resolve(__dirname, "./src") },
