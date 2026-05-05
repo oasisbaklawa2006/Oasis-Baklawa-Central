@@ -297,8 +297,7 @@ function classifyMessageIntent(
   if (packagingContext) {
     const looksLikePackagingQtyOrder =
       /\d+\s*(?:pcs|pieces|nos\.?|units?|boxes|cartons?)/i.test(t) ||
-      /\b(?:empty\s+)?(?:box|jar|tray|carton|cavity\s+tray|acrylic\s+(?:jar|box|tray))\s+\d+/i.test(t) ||
-      /\b(?:need|send|want|order)\s+.+\d/i.test(t);
+      /\b(?:empty\s+)?(?:box|jar|tray|carton|cavity\s+tray|acrylic\s+(?:jar|box|tray))\s+\d+/i.test(t);
     if (!looksLikePackagingQtyOrder) {
       return "PACKAGING_MATERIAL_REQUEST";
     }
