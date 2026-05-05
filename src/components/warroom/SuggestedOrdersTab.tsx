@@ -184,7 +184,6 @@ export default function SuggestedOrdersTab({ activeCompanies }: Props) {
           company_id: row.matched_company_id,
           sku_items: skuItems,
           activate_company: false,
-          webhook_ids: row.source_message_ids ?? [],
         },
       });
 
@@ -193,7 +192,7 @@ export default function SuggestedOrdersTab({ activeCompanies }: Props) {
         return;
       }
 
-      await supabase
+      const { error: updateError } = await supabase
         .from("suggested_orders")
         .update({
           status: "confirmed",
@@ -202,6 +201,11 @@ export default function SuggestedOrdersTab({ activeCompanies }: Props) {
           reviewed_by: user?.id ?? null,
         } as Parameters<ReturnType<typeof supabase.from>["update"]>[0])
         .eq("id", row.id);
+
+      if (updateError) {
+        toast.error("Draft SO was created but updating the suggestion failed: " + updateError.message);
+        return;
+      }
 
       toast.success(
         `Draft SO #${data.order_id.slice(0, 8).toUpperCase()} created. Review in Live Battlefield.`,
@@ -218,7 +222,7 @@ export default function SuggestedOrdersTab({ activeCompanies }: Props) {
   const handleReject = async (row: SuggestedOrder) => {
     setRejecting(row.id);
     try {
-      await supabase
+      const { error: updateError } = await supabase
         .from("suggested_orders")
         .update({
           status: "rejected",
@@ -227,6 +231,11 @@ export default function SuggestedOrdersTab({ activeCompanies }: Props) {
           reviewed_by: user?.id ?? null,
         } as Parameters<ReturnType<typeof supabase.from>["update"]>[0])
         .eq("id", row.id);
+
+      if (updateError) {
+        toast.error("Failed to reject suggestion: " + updateError.message);
+        return;
+      }
 
       toast.success("Suggestion rejected.");
       setRows((prev) => prev.filter((r) => r.id !== row.id));
@@ -261,7 +270,7 @@ export default function SuggestedOrdersTab({ activeCompanies }: Props) {
         return;
       }
 
-      await supabase
+      const { error: updateError } = await supabase
         .from("suggested_orders")
         .update({
           status: "needs_clarification",
@@ -269,6 +278,13 @@ export default function SuggestedOrdersTab({ activeCompanies }: Props) {
           reviewed_by: user?.id ?? null,
         } as Parameters<ReturnType<typeof supabase.from>["update"]>[0])
         .eq("id", clarifyTarget.id);
+
+      if (updateError) {
+        toast.error(
+          "Message was sent but updating the suggestion failed: " + updateError.message,
+        );
+        return;
+      }
 
       toast.success("Clarification message sent via WhatsApp.");
       setRows((prev) => prev.filter((r) => r.id !== clarifyTarget.id));
