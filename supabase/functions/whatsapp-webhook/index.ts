@@ -1014,10 +1014,12 @@ serve(async (req) => {
     let accountManagerId: string | null = null;
     let isShadowClient = false;
 
+    const senderIsStaffProxy = sender.type === "staff" && !!sender.userId;
     const senderIsSalesExec = sender.type === "staff" && sender.isSalesExec && sender.userId;
+    let companyResolutionLocked = false;
 
     // ── STAFF SENDER RE-WIRE ──
-    if (senderIsSalesExec && messageBody) {
+    if (senderIsStaffProxy && messageBody) {
       const clientPatterns = [
         /(?:order\s+for|client|customer|party|for\s+M\/s\.?|for)\s+[:\-]?\s*([A-Z][A-Za-z\s&'.]+)/i,
         /([A-Z][A-Za-z\s&'.]{3,})\s+(?:ka|ke|ki|order|wants?|need)/i,
@@ -1039,6 +1041,7 @@ serve(async (req) => {
           companyId = clientMatch[0].id;
           companyName = clientMatch[0].business_name;
           accountManagerId = sender.userId!;
+          companyResolutionLocked = true;
           if (!clientMatch[0].account_manager_id) {
             await supabaseAdmin.from("companies")
               .update({ account_manager_id: sender.userId })
@@ -1050,23 +1053,25 @@ serve(async (req) => {
     }
 
     // Strategy 1: Match via b2b_applications
-    const { data: apps } = await supabaseAdmin
-      .from("b2b_applications")
-      .select("id, business_name, user_id, contact_phone, mobile_number")
-      .or(`contact_phone.ilike.%${last10},mobile_number.ilike.%${last10}`)
-      .eq("status", "approved")
-      .limit(1);
-
-    if (apps && apps.length > 0) {
-      companyName = apps[0].business_name;
-      const { data: companies } = await supabaseAdmin
-        .from("companies")
-        .select("id, account_manager_id")
-        .eq("business_name", apps[0].business_name)
+    if (!companyResolutionLocked) {
+      const { data: apps } = await supabaseAdmin
+        .from("b2b_applications")
+        .select("id, business_name, user_id, contact_phone, mobile_number")
+        .or(`contact_phone.ilike.%${last10},mobile_number.ilike.%${last10}`)
+        .eq("status", "approved")
         .limit(1);
-      if (companies && companies.length > 0) {
-        companyId = companies[0].id;
-        accountManagerId = companies[0].account_manager_id;
+
+      if (apps && apps.length > 0) {
+        companyName = apps[0].business_name;
+        const { data: companies } = await supabaseAdmin
+          .from("companies")
+          .select("id, account_manager_id")
+          .eq("business_name", apps[0].business_name)
+          .limit(1);
+        if (companies && companies.length > 0) {
+          companyId = companies[0].id;
+          accountManagerId = companies[0].account_manager_id;
+        }
       }
     }
 
@@ -1155,6 +1160,7 @@ serve(async (req) => {
               companyName = realCompany.business_name;
               accountManagerId = realCompany.account_manager_id;
               isShadowClient = false;
+              if (senderIsStaffProxy) companyResolutionLocked = true;
             }
           }
         }
@@ -1166,7 +1172,7 @@ serve(async (req) => {
     // Strategy 4: SHADOW CLIENT CREATION
     // hasOrderIntent: computed after classify + ORDER coercion (same keywords as ORDER_INTENT_KEYWORDS).
 
-    if (!companyId && senderPhone) {
+    if (!companyId && senderPhone && !senderIsStaffProxy) {
       const shadowName = profileName ? `${profileName} (WhatsApp)` : `WhatsApp Lead ${phone91}`;
 
       const { data: newCompany, error: compErr } = await supabaseAdmin
@@ -1199,6 +1205,9 @@ serve(async (req) => {
           });
         }
       }
+    }
+    if (!companyId && senderIsStaffProxy) {
+      console.log(`Proxy staff sender unresolved: ${sender.name || sender.userId} phone=${phone91} (shadow creation skipped)`);
     }
 
     // If sender is a sales exec, assign them as account manager

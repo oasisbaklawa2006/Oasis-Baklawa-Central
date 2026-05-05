@@ -265,7 +265,12 @@ export default function RawIntelligenceTab() {
       });
 
       if (error || !data?.ok) {
-        toast.error(data?.error || "Failed to create draft order");
+        const endpointError = data?.error || error?.message || "Failed to create draft order";
+        if (String(endpointError).includes("Proxy employee order requires explicit client resolution")) {
+          toast.error("Client resolution required for proxy/staff order. Include the client business name before creating Draft SO.");
+        } else {
+          toast.error(endpointError);
+        }
         setCreatingDraft(null);
         return;
       }
