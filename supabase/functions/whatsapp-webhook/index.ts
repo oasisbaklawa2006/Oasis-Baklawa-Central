@@ -389,9 +389,9 @@ function generateTextPI(orderId: string, companyName: string, items: { name: str
   lines.push(``);
   lines.push(`Track your order: ${PORTAL_URL}/track?token=${orderId}`);
   lines.push(``);
-  lines.push(`Status: Pre-Approved | Advance Unpaid`);
+  lines.push(`Status: Pre-Approved | Advance Pending`);
   lines.push(``);
-  lines.push(`— Team Oasis Baklawa`);
+  lines.push(`— Oasis Operations`);
 
   return lines.join("\n");
 }
@@ -460,11 +460,13 @@ async function sendPiNotificationsAndCrm(args: {
     console.log(`PI sent to ${phone91} for order ${draftOrderId}`);
   } else {
     const ackMsg = [
-      `Greetings from Oasis Baklawa.`,
+      `Oasis Operations has created your draft sales order.`,
       ``,
-      `We have received your order request and our team will review it shortly.`,
+      `Reference: SO #${draftOrderId.split("-")[0].toUpperCase()}`,
       ``,
-      `Your order reference: SO #${draftOrderId.split("-")[0].toUpperCase()}`,
+      `Our team will share the next update shortly.`,
+      ``,
+      `— Oasis Operations`,
     ].join("\n");
     await sendReply(phone91, ackMsg, supabaseAdmin, companyId);
   }
@@ -971,7 +973,7 @@ serve(async (req) => {
                   type: "text",
                   text: {
                     body:
-                      `Thank you for flagging this. Our Finance team has been notified and will review your account together with you shortly.\n\n— Team Oasis Baklawa`,
+                      `Oasis Operations has received your account discrepancy request.\n\nOur Finance team has been notified and will review your ledger with you shortly.\n\n— Oasis Operations`,
                   },
                 }),
               }).catch(() => {});
@@ -1357,9 +1359,11 @@ serve(async (req) => {
           skipNewOrderPipeline = true;
         } else {
           const neutralHold = [
-            `Thanks — we're still clarifying your pending order (ref ${heldEarly.id.slice(0, 8).toUpperCase()}).`,
+            `Oasis Operations is still clarifying your pending order (ref ${heldEarly.id.slice(0, 8).toUpperCase()}).`,
             ``,
-            `Please reply to our earlier WhatsApp message with the details we asked for, or send a brief confirmation if everything is already correct.`,
+            `Please reply to our earlier WhatsApp message with the requested details, or send a brief confirmation if the information is already correct.`,
+            ``,
+            `— Oasis Operations`,
           ].join("\n");
           await sendReply(phone91, neutralHold, supabaseAdmin, companyId);
           skipNewOrderPipeline = true;
@@ -1424,13 +1428,15 @@ serve(async (req) => {
             (i) => `- "${i.productName}" x ${i.quantity}`,
           );
           const clarifyMsg = [
-            `Thanks — we've logged your request and need one quick clarification before we share pricing:`,
+            `Oasis Operations has logged your order request and requires one clarification before sharing pricing:`,
             ``,
-            `We would like to confirm the specific variant or quantity for:`,
+            `Please confirm the specific variant or quantity for:`,
             ``,
             ...clarificationLines,
             ``,
-            `Please reply with corrections or a brief confirmation if the above is correct.`,
+            `Please reply with corrections, or send a brief confirmation if the above is correct.`,
+            ``,
+            `— Oasis Operations`,
           ].join("\n");
 
           await sendReply(phone91, clarifyMsg, supabaseAdmin, companyId);
@@ -1601,7 +1607,7 @@ serve(async (req) => {
       let ackMsg: string;
       if (messageIntent === "PAYMENT_PROOF") {
         ackMsg = [
-          `Oasis Operations has received your payment notification.`,
+          `Oasis Operations has received your payment proof.`,
           ``,
           `Our Finance team will verify and update your account within one working day.`,
           ``,
@@ -1617,9 +1623,9 @@ serve(async (req) => {
         ].join("\n");
       } else if (messageIntent === "DISPATCH_FOLLOWUP") {
         ackMsg = [
-          `Oasis Operations has received your dispatch inquiry.`,
+          `Oasis Operations has received your dispatch follow-up request.`,
           ``,
-          `Our logistics team will share the current status of your shipment shortly.`,
+          `Our Logistics team will share the latest shipment status shortly.`,
           ``,
           `— Oasis Operations`,
         ].join("\n");

@@ -94,11 +94,11 @@ function buildClarificationTemplate(row: SuggestedOrder, items: ExtractedItem[])
   return [
     `Oasis Operations has received your order request dated ${date}.`,
     ``,
-    `To process your order accurately, we need to confirm the following:`,
+    `To proceed, please confirm the following details:`,
     ``,
     ...itemLines,
     ``,
-    `Please reply with the correct product names and quantities so we can draft your Sales Order.`,
+    `Please reply with corrected product names and quantities so we can prepare your draft sales order.`,
     ``,
     `— Oasis Operations`,
   ].join("\n");
