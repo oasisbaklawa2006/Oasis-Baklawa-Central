@@ -1,8 +1,9 @@
 import { useEffect, useState, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import { normalizeRole } from "@/lib/auth-routing";
 import {
-  Loader2, TrendingUp, Shield, AlertTriangle, Users, RotateCcw, X, IndianRupee, ClipboardList,
+  Loader2, TrendingUp, Shield, AlertTriangle, Users, RotateCcw, IndianRupee, ClipboardList,
 } from "lucide-react";
 import InwardAdviceModal from "@/components/sales/InwardAdviceModal";
 import ClientInteractionsTab from "@/components/sales/ClientInteractionsTab";
@@ -40,6 +41,9 @@ interface OrderRow {
   payment_status: string | null;
 }
 
+const ADMIN_ROLES = new Set(["SUPER_ADMIN", "OWNER", "ADMIN"]);
+const SALES_EXECUTIVE_ROLE = "SALES_EXECUTIVE";
+
 const SalesPerformanceHub = () => {
   const { user } = useAuth();
   const [loading, setLoading] = useState(true);
@@ -62,44 +66,56 @@ const SalesPerformanceHub = () => {
   const [returnSaving, setReturnSaving] = useState(false);
   const [products, setProducts] = useState<{ id: string; name: string }[]>([]);
 
-  const isAdmin = myRole === "super_admin" || myRole === "admin";
+  const normalizedRole = useMemo(() => normalizeRole(myRole), [myRole]);
+  const isAdmin = normalizedRole ? ADMIN_ROLES.has(normalizedRole) : false;
+  const isSalesExecutive = normalizedRole === SALES_EXECUTIVE_ROLE;
+  const canUseHub = isAdmin || isSalesExecutive;
+  const effectiveManagerId = isAdmin ? selectedManagerId : isSalesExecutive ? user?.id ?? null : null;
 
   // 1. Load user role & managers
   useEffect(() => {
     if (!user) return;
     (async () => {
       const { data: u } = await supabase.from("users").select("role, commission_rate_percentage").eq("id", user.id).single();
-      if (u) {
-        setMyRole(u.role);
-        setCommissionRate(u.commission_rate_percentage || 0);
-        if (u.role === "sales_executive") {
-          setSelectedManagerId(user.id);
-        }
+      const resolvedRole = normalizeRole(u?.role);
+      setMyRole(resolvedRole);
+      setCommissionRate(u?.commission_rate_percentage || 0);
+
+      if (resolvedRole === SALES_EXECUTIVE_ROLE) {
+        setSelectedManagerId(user.id);
+        setManagers([]);
+        return;
       }
-      // Fetch managers list (for admin dropdown)
-      const { data: mgrs } = await supabase
-        .from("users")
-        .select("id, full_name, name, commission_rate_percentage")
-        .in("role", ["sales_executive", "admin"]);
-      if (mgrs) setManagers(mgrs);
+
+      if (resolvedRole && ADMIN_ROLES.has(resolvedRole)) {
+        // Fetch managers list only for admin/owner roles. Include legacy lowercase values to survive old seed data.
+        const { data: mgrs } = await supabase
+          .from("users")
+          .select("id, full_name, name, commission_rate_percentage")
+          .in("role", ["SALES_EXECUTIVE", "sales_executive", "ADMIN", "admin", "SUPER_ADMIN", "super_admin", "OWNER", "owner"]);
+        if (mgrs) setManagers(mgrs);
+      }
     })();
   }, [user]);
 
   // 2. Load data when manager selected
   useEffect(() => {
-    if (!selectedManagerId) { setLoading(false); return; }
+    if (!user || !normalizedRole) return;
+    if (!canUseHub) { setLoading(false); return; }
+    if (!effectiveManagerId) { setLoading(false); return; }
+
     (async () => {
       setLoading(true);
 
       // Update commission rate for selected manager
-      const mgr = managers.find((m) => m.id === selectedManagerId);
+      const mgr = managers.find((m) => m.id === effectiveManagerId);
       if (mgr) setCommissionRate(mgr.commission_rate_percentage || 0);
 
-      // Fetch companies assigned to this manager
+      // Fetch companies assigned to this manager. Non-admin users are forced to their own user.id via effectiveManagerId.
       const { data: comps } = await supabase
         .from("companies")
         .select("id, business_name, wallet_balance, account_manager_id")
-        .eq("account_manager_id", selectedManagerId);
+        .eq("account_manager_id", effectiveManagerId);
       setCompanies(comps || []);
 
       const companyIds = (comps || []).map((c) => c.id);
@@ -133,7 +149,7 @@ const SalesPerformanceHub = () => {
       const { data: advices } = await supabase
         .from("inward_material_advice")
         .select("id, expected_value, settlement_value, fault_attribution, status")
-        .eq("sales_exec_id", selectedManagerId)
+        .eq("sales_exec_id", effectiveManagerId)
         .eq("status", "settled");
       setInwardAdvices(advices || []);
 
@@ -143,7 +159,7 @@ const SalesPerformanceHub = () => {
 
       setLoading(false);
     })();
-  }, [selectedManagerId, managers]);
+  }, [user, normalizedRole, canUseHub, effectiveManagerId, managers]);
 
   // ─── Calculations ───
   const last30 = useMemo(() => {
@@ -207,7 +223,28 @@ const SalesPerformanceHub = () => {
       toast.error("All fields are required.");
       return;
     }
+
+    const companyIds = companies.map((c) => c.id);
+    if (companyIds.length === 0) {
+      toast.error("No assigned clients available for this return.");
+      return;
+    }
+
     setReturnSaving(true);
+
+    const { data: allowedOrder, error: allowedOrderError } = await supabase
+      .from("orders")
+      .select("id")
+      .eq("id", returnOrderId)
+      .in("company_id", companyIds)
+      .maybeSingle();
+
+    if (allowedOrderError || !allowedOrder) {
+      toast.error("This order is not assigned to your visible client scope.");
+      setReturnSaving(false);
+      return;
+    }
+
     const { error } = await supabase.from("order_returns").insert({
       order_id: returnOrderId,
       product_id: returnProductId,
@@ -230,6 +267,17 @@ const SalesPerformanceHub = () => {
   };
 
   if (!user) return null;
+
+  if (!loading && normalizedRole && !canUseHub) {
+    return (
+      <div className="space-y-4">
+        <h1 className="text-3xl font-bold tracking-tight text-foreground">Sales Performance Hub</h1>
+        <div className="bg-card border border-border rounded-2xl p-6 shadow-sm">
+          <p className="text-sm text-muted-foreground">You are not authorized to view sales performance data.</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-8">
@@ -254,10 +302,10 @@ const SalesPerformanceHub = () => {
               </SelectContent>
             </Select>
           )}
-          <Button variant="outline" onClick={() => setShowAdviceModal(true)} className="gap-2">
+          <Button variant="outline" onClick={() => setShowAdviceModal(true)} className="gap-2" disabled={!canUseHub || !effectiveManagerId}>
             <ClipboardList size={16} /> Pre-Entry: Advise Return
           </Button>
-          <Button variant="outline" onClick={() => setShowReturnModal(true)} className="gap-2">
+          <Button variant="outline" onClick={() => setShowReturnModal(true)} className="gap-2" disabled={!canUseHub || !effectiveManagerId}>
             <RotateCcw size={16} /> Log Return
           </Button>
         </div>
@@ -267,7 +315,7 @@ const SalesPerformanceHub = () => {
         <div className="flex items-center justify-center py-20">
           <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
         </div>
-      ) : !selectedManagerId ? (
+      ) : !effectiveManagerId ? (
         <div className="text-center py-20 text-muted-foreground text-lg">Select a Sales Executive to view performance.</div>
       ) : (
         <>
@@ -430,7 +478,7 @@ const SalesPerformanceHub = () => {
         onOpenChange={setShowAdviceModal}
         companies={companies}
         products={products}
-        userId={user?.id}
+        userId={effectiveManagerId ?? user?.id}
       />
     </div>
   );
