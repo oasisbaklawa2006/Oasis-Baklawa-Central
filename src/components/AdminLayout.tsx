@@ -2,10 +2,9 @@ import { NavLink, Outlet } from "react-router-dom";
 import {
   LayoutDashboard, UserCheck, ClipboardList, Truck, DollarSign, LogOut, Menu, X, Loader2,
   Headphones, Users, Package, BarChart3, Scale, Globe, Settings, Shield,
-  Factory, PackageCheck, Landmark, AlertCircle, Languages, Bell, Sparkles, Monitor, Activity, Megaphone, Inbox
+  Factory, PackageCheck, Landmark, AlertCircle, Languages, Bell, Sparkles, Monitor, Activity, Megaphone
 } from "lucide-react";
-import { useState, useEffect } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { useLanguage } from "@/hooks/useLanguage";
@@ -36,7 +35,7 @@ const ROLE_MODULE_ACCESS: Record<string, string[]> = {
   DISPATCH_MANAGER: ["dashboard", "packing", "dispatch", "orders", "inventory"],
   DISPATCH_INCHARGE: ["dashboard", "packing", "dispatch", "orders"],
   SECURITY_CONTROL: ["dashboard", "packing"],
-  SALES_EXECUTIVE: ["dashboard", "orders", "clients", "products"],
+  SALES_EXECUTIVE: [],
   SUPPORT_EXECUTIVE: ["dashboard", "support", "exceptions", "orders"],
   // Legacy compat
   DISPATCH_HEAD: ["dashboard", "packing", "dispatch", "orders", "inventory"],
@@ -53,8 +52,7 @@ interface NavItem {
 
 const AdminLayout = () => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [isSalesExec, setIsSalesExec] = useState(false);
-  const { user, loading: authLoading, role: authRole, profileReady } = useAuth();
+  const { user, loading: authLoading, role: authRole } = useAuth();
   // Single source of truth: normalized uppercase role from useAuth (RPC-backed)
   const role = authRole ? authRole.trim().toUpperCase() : null;
   const navigate = useNavigate();
@@ -119,21 +117,6 @@ const AdminLayout = () => {
     },
   ];
 
-  // Sales-exec flag only (role itself comes from unified useAuth/RPC)
-  useEffect(() => {
-    if (authLoading || !user) return;
-    let cancelled = false;
-    (async () => {
-      const { data } = await supabase
-        .from("users")
-        .select("is_sales_executive")
-        .eq("id", user.id)
-        .maybeSingle();
-      if (!cancelled) setIsSalesExec(!!(data as any)?.is_sales_executive);
-    })();
-    return () => { cancelled = true; };
-  }, [user, authLoading]);
-
   const handleLogout = async () => { await signOutAndClearSession(); navigate("/splash"); };
 
   // Only block on initial Supabase auth check. If profile is slow, fall through
@@ -147,8 +130,6 @@ const AdminLayout = () => {
 
   const hasAccess = (moduleKey: string) => {
     if (allowedModules.includes("*") || allowedModules.includes(moduleKey)) return true;
-    // Multi-role: if user has is_sales_executive flag, grant access to clients module (Sales Console)
-    if (isSalesExec && moduleKey === "clients") return true;
     return false;
   };
 
