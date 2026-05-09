@@ -73,6 +73,8 @@ USING (
 
 -- Re-scope legacy broad UPDATE policy that becomes active once orders RLS is enabled.
 DROP POLICY IF EXISTS "Staff can update all orders" ON public.orders;
+DROP POLICY IF EXISTS "Staff can insert all orders" ON public.orders;
+DROP POLICY IF EXISTS "Staff can delete all orders" ON public.orders;
 
 CREATE POLICY "Staff can update all orders"
 ON public.orders
@@ -83,6 +85,24 @@ USING (
   AND upper(public.get_user_role(auth.uid())) <> 'SALES_EXECUTIVE'
 )
 WITH CHECK (
+  public.is_internal_staff(auth.uid())
+  AND upper(public.get_user_role(auth.uid())) <> 'SALES_EXECUTIVE'
+);
+
+CREATE POLICY "Staff can insert all orders"
+ON public.orders
+FOR INSERT
+TO authenticated
+WITH CHECK (
+  public.is_internal_staff(auth.uid())
+  AND upper(public.get_user_role(auth.uid())) <> 'SALES_EXECUTIVE'
+);
+
+CREATE POLICY "Staff can delete all orders"
+ON public.orders
+FOR DELETE
+TO authenticated
+USING (
   public.is_internal_staff(auth.uid())
   AND upper(public.get_user_role(auth.uid())) <> 'SALES_EXECUTIVE'
 );
