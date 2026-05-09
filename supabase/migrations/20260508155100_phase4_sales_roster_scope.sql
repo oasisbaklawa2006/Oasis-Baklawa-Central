@@ -71,6 +71,22 @@ USING (
   company_id = (SELECT u.company_id FROM public.users u WHERE u.id = auth.uid() LIMIT 1)
 );
 
+-- Re-scope legacy broad UPDATE policy that becomes active once orders RLS is enabled.
+DROP POLICY IF EXISTS "Staff can update all orders" ON public.orders;
+
+CREATE POLICY "Staff can update all orders"
+ON public.orders
+FOR UPDATE
+TO authenticated
+USING (
+  public.is_internal_staff(auth.uid())
+  AND upper(public.get_user_role(auth.uid())) <> 'SALES_EXECUTIVE'
+)
+WITH CHECK (
+  public.is_internal_staff(auth.uid())
+  AND upper(public.get_user_role(auth.uid())) <> 'SALES_EXECUTIVE'
+);
+
 -- ===========================
 -- order_items (SELECT scoping)
 -- ===========================
