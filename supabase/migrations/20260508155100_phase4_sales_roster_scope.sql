@@ -27,7 +27,8 @@ ON public.companies
 FOR SELECT
 TO authenticated
 USING (
-  public.is_account_manager(auth.uid(), id)
+  upper(public.get_user_role(auth.uid())) = 'SALES_EXECUTIVE'
+  AND public.is_account_manager(auth.uid(), id)
 );
 
 CREATE POLICY "Buyers read own companies"
@@ -66,7 +67,8 @@ ON public.orders
 FOR SELECT
 TO authenticated
 USING (
-  public.is_account_manager(auth.uid(), company_id)
+  upper(public.get_user_role(auth.uid())) = 'SALES_EXECUTIVE'
+  AND public.is_account_manager(auth.uid(), company_id)
 );
 
 CREATE POLICY "Buyers read own orders"
@@ -159,7 +161,8 @@ ON public.order_items
 FOR SELECT
 TO authenticated
 USING (
-  EXISTS (
+  upper(public.get_user_role(auth.uid())) = 'SALES_EXECUTIVE'
+  AND EXISTS (
     SELECT 1
     FROM public.orders o
     WHERE o.id = order_items.order_id
