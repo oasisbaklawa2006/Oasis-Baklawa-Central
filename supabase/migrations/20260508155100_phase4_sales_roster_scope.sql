@@ -45,6 +45,12 @@ DROP POLICY IF EXISTS "Authenticated can read orders" ON public.orders;
 DROP POLICY IF EXISTS "Staff read all orders" ON public.orders;
 DROP POLICY IF EXISTS "Sales executives read assigned orders" ON public.orders;
 DROP POLICY IF EXISTS "Buyers read own orders" ON public.orders;
+DROP POLICY IF EXISTS "Authenticated users can insert orders with company" ON public.orders;
+DROP POLICY IF EXISTS "Buyers and staff insert orders" ON public.orders;
+DROP POLICY IF EXISTS "Users can insert orders for their company" ON public.orders;
+DROP POLICY IF EXISTS "Users can update their company orders" ON public.orders;
+DROP POLICY IF EXISTS "Allow authenticated users to update orders" ON public.orders;
+DROP POLICY IF EXISTS "Buyers update own draft orders" ON public.orders;
 
 CREATE POLICY "Staff read all orders"
 ON public.orders
@@ -68,6 +74,27 @@ ON public.orders
 FOR SELECT
 TO authenticated
 USING (
+  company_id = (SELECT u.company_id FROM public.users u WHERE u.id = auth.uid() LIMIT 1)
+);
+
+CREATE POLICY "Buyers insert own orders"
+ON public.orders
+FOR INSERT
+TO authenticated
+WITH CHECK (
+  company_id IS NOT NULL
+  AND company_id = (SELECT u.company_id FROM public.users u WHERE u.id = auth.uid() LIMIT 1)
+);
+
+CREATE POLICY "Buyers update own draft orders"
+ON public.orders
+FOR UPDATE
+TO authenticated
+USING (
+  status = 'draft'
+  AND company_id = (SELECT u.company_id FROM public.users u WHERE u.id = auth.uid() LIMIT 1)
+)
+WITH CHECK (
   company_id = (SELECT u.company_id FROM public.users u WHERE u.id = auth.uid() LIMIT 1)
 );
 
