@@ -1,6 +1,6 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Upload, CheckCircle2, ArrowLeft, Loader2, FileText, Image, AlertCircle } from "lucide-react";
+import { Upload, CheckCircle2, ArrowLeft, Loader2, FileText, Image, AlertCircle, ShieldCheck } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -28,10 +28,47 @@ const INDIAN_STATES = [
   "Delhi", "Jammu & Kashmir", "Ladakh",
 ];
 
+const GSTIN_FORMAT =
+  /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/;
+
+function matchIndianState(apiState: string): string {
+  const t = apiState.trim().toLowerCase();
+  if (!t) return "";
+  const exact = INDIAN_STATES.find((s) => s.toLowerCase() === t);
+  if (exact) return exact;
+  return INDIAN_STATES.find((s) => t.includes(s.toLowerCase()) || s.toLowerCase().includes(t)) ?? "";
+}
+
+function formatPrincipalAddress(pr: unknown): string {
+  if (pr == null) return "";
+  if (typeof pr === "string") return pr.trim();
+  if (typeof pr !== "object") return "";
+  const o = pr as Record<string, unknown>;
+  const parts = [o.addr, o.flno, o.bno, o.bnm, o.st, o.loc, o.dst, o.stcd, o.pncd]
+    .filter((x) => typeof x === "string" && x.trim())
+    .map((x) => (x as string).trim());
+  return parts.join(", ");
+}
+
 const Register = () => {
   const [submitted, setSubmitted] = useState(false);
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [accountReady, setAccountReady] = useState(false);
+  const [accountLoading, setAccountLoading] = useState(false);
+  const [gstVerifying, setGstVerifying] = useState(false);
+  const [gstVerifyHint, setGstVerifyHint] = useState<string | null>(null);
+  const [gstVerifyError, setGstVerifyError] = useState<string | null>(null);
+  const [providerUnavailable, setProviderUnavailable] = useState(false);
+  const [manualOfflineAck, setManualOfflineAck] = useState(false);
+  const [gstReady, setGstReady] = useState(false);
+  const [lastVerifiedGstin, setLastVerifiedGstin] = useState<string | null>(null);
+  const [autofillOffer, setAutofillOffer] = useState<{
+    legal_name?: string | null;
+    trade_name?: string | null;
+    principal_address?: unknown;
+    state?: string | null;
+  } | null>(null);
 
   // Form fields
   const [businessName, setBusinessName] = useState("");
@@ -58,6 +95,22 @@ const Register = () => {
 
   const navigate = useNavigate();
 
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session?.user) setAccountReady(true);
+    });
+  }, []);
+
+  useEffect(() => {
+    setGstVerifyHint(null);
+    setGstVerifyError(null);
+    setProviderUnavailable(false);
+    setManualOfflineAck(false);
+    setGstReady(false);
+    setLastVerifiedGstin(null);
+    setAutofillOffer(null);
+  }, [gstNumber]);
+
   const validate = (): boolean => {
     const e: Record<string, string> = {};
     if (!businessName.trim()) e.businessName = "Required";
@@ -77,7 +130,7 @@ const Register = () => {
     else if (!/^\d{6}$/.test(pincode.trim())) e.pincode = "Enter valid 6-digit pincode";
     if (!businessType) e.businessType = "Required";
     if (!gstNumber.trim()) e.gstNumber = "GST Number is mandatory";
-    else if (!/^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/.test(gstNumber.trim().toUpperCase())) e.gstNumber = "Enter a valid 15-character GST number";
+    else if (!GSTIN_FORMAT.test(gstNumber.trim().toUpperCase())) e.gstNumber = "Enter a valid 15-character GST number";
     if (!tradeDeclaration) e.tradeDeclaration = "You must accept the trade declaration";
     if (!dataConsent) e.dataConsent = "You must consent to data processing";
     setErrors(e);
@@ -95,49 +148,251 @@ const Register = () => {
     return path;
   };
 
+  const ensureProfile = async (userId: string, email: string) => {
+    const { error: profileError } = await supabase.from("profiles").insert({
+      id: userId,
+      email,
+      full_name: contactPerson.trim(),
+      mobile_number: mobileNumber.trim(),
+      role: "buyer",
+      is_approved: false,
+    });
+    if (profileError) {
+      console.error("[Register] Profile insert failed:", profileError);
+    }
+  };
+
+  const handleCreateAccount = async () => {
+    const e: Record<string, string> = {};
+    if (!contactPerson.trim()) e.contactPerson = "Required";
+    if (!mobileNumber.trim()) e.mobileNumber = "Required";
+    else if (!/^\d{10}$/.test(mobileNumber.trim())) e.mobileNumber = "Enter valid 10-digit number";
+    if (!contactEmail.trim()) e.contactEmail = "Required";
+    else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(contactEmail.trim())) e.contactEmail = "Invalid email";
+    if (!password) e.password = "Required";
+    else if (password.length < 6) e.password = "Minimum 6 characters";
+    if (!confirmPassword) e.confirmPassword = "Required";
+    else if (password !== confirmPassword) e.confirmPassword = "Passwords do not match";
+    setErrors((prev) => ({ ...prev, ...e }));
+    if (Object.keys(e).length > 0) {
+      toast.error("Complete contact details to create your account");
+      return;
+    }
+
+    setAccountLoading(true);
+    try {
+      const email = contactEmail.trim().toLowerCase();
+      const { data: authData, error: authError } = await supabase.auth.signUp({ email, password });
+      if (authError) {
+        toast.error(authError.message);
+        return;
+      }
+      if (!authData.user) {
+        toast.error("Failed to create account. Please try again.");
+        return;
+      }
+      if (!authData.session) {
+        toast.error(
+          "No active session after sign-up. Confirm your email if prompted, refresh, then verify GSTIN.",
+        );
+        return;
+      }
+      await ensureProfile(authData.user.id, email);
+      setAccountReady(true);
+      toast.success("Account created. You can verify your GSTIN below.");
+    } finally {
+      setAccountLoading(false);
+    }
+  };
+
+  const handleVerifyGstin = async (opts?: { manualOffline?: boolean }) => {
+    const g = gstNumber.trim().toUpperCase();
+    if (!GSTIN_FORMAT.test(g)) {
+      toast.error("Enter a valid GSTIN before verifying");
+      return;
+    }
+    if (!accountReady) {
+      toast.error("Create your account first (button above)");
+      return;
+    }
+
+    setGstVerifying(true);
+    setGstVerifyError(null);
+    setGstVerifyHint(null);
+    if (!opts?.manualOffline) setProviderUnavailable(false);
+
+    try {
+      const body = opts?.manualOffline
+        ? { gstin: g, manual_offline_confirm: true as const }
+        : { gstin: g };
+
+      const { data, error: fnErr } = await supabase.functions.invoke("verify-gstin", { body });
+
+      if (fnErr) {
+        console.error("[Register] verify-gstin:", fnErr);
+        setGstVerifyError(fnErr.message || "Verification failed");
+        toast.error("Could not verify GSTIN. Try again or use manual confirmation if shown.");
+        return;
+      }
+
+      const row = data as {
+        ok?: boolean;
+        error?: string;
+        code?: string;
+        registration_status?: string;
+        legal_name?: string | null;
+        trade_name?: string | null;
+        principal_address?: unknown;
+        state_hint?: string | null;
+        blocked?: boolean;
+        manual_offline?: boolean;
+      };
+
+      if (!row?.ok) {
+        if (row?.code === "provider_unavailable" || row?.error === "provider_not_configured") {
+          setProviderUnavailable(true);
+          setGstVerifyError(
+            "Automated GST check is unavailable. You can confirm below for manual review by our team.",
+          );
+          return;
+        }
+        setGstVerifyError(row?.error || "Verification failed");
+        toast.error(row?.error || "Verification failed");
+        return;
+      }
+
+      if (row.blocked || ["cancelled", "suspended", "invalid"].includes(row.registration_status ?? "")) {
+        setGstReady(false);
+        setGstVerifyError(
+          "This GSTIN is not active for onboarding. Please use a valid GST registration or contact support.",
+        );
+        toast.error("GST registration is not eligible");
+        return;
+      }
+
+      if (row.registration_status === "unknown") {
+        setGstReady(false);
+        setGstVerifyError(
+          "We could not confirm registration status from the GST service. Try again or use manual confirmation.",
+        );
+        setProviderUnavailable(true);
+        return;
+      }
+
+      const legal = row.legal_name?.trim() || null;
+      const trade = row.trade_name?.trim() || null;
+      if (row.manual_offline) {
+        setGstVerifyHint("Recorded for manual GST review by Oasis (automated check not used).");
+        setGstReady(true);
+        setLastVerifiedGstin(g);
+        setAutofillOffer(null);
+        toast.success("Manual GST confirmation recorded");
+        return;
+      }
+
+      setGstVerifyHint(
+        legal
+          ? `Verified: ${legal}${trade && trade !== legal ? ` · Trade: ${trade}` : ""}`
+          : "GSTIN verified successfully.",
+      );
+      setGstReady(true);
+      setLastVerifiedGstin(g);
+      setAutofillOffer({
+        legal_name: legal,
+        trade_name: trade,
+        principal_address: row.principal_address,
+        state: row.state_hint,
+      });
+      toast.success("GSTIN verified");
+    } finally {
+      setGstVerifying(false);
+    }
+  };
+
+  const handleApplyAutofill = () => {
+    if (!autofillOffer) return;
+    const legal = autofillOffer.legal_name?.trim();
+    const trade = autofillOffer.trade_name?.trim();
+    if (legal && !businessName.trim()) setBusinessName(legal);
+    if (trade && !tradeName.trim()) setTradeName(trade);
+    const addrStr = formatPrincipalAddress(autofillOffer.principal_address);
+    if (addrStr && !registeredAddress.trim()) setRegisteredAddress(addrStr);
+    const st = typeof autofillOffer.state === "string" ? matchIndianState(autofillOffer.state) : "";
+    if (st && !state) setState(st);
+    toast.info("Applied available details — please review before submitting.");
+    setAutofillOffer(null);
+  };
+
   const handleSubmit = async () => {
     if (!validate()) {
       toast.error("Please fix the highlighted errors");
       return;
     }
+    if (!gstReady || lastVerifiedGstin !== gstNumber.trim().toUpperCase()) {
+      toast.error("Verify your GSTIN before submitting");
+      return;
+    }
     setLoading(true);
 
     try {
-      // Step 1: Create Auth user FIRST
       const email = contactEmail.trim().toLowerCase();
-      const { data: authData, error: authError } = await supabase.auth.signUp({
-        email,
-        password,
-      });
+      const normalizedGst = gstNumber.trim().toUpperCase();
 
-      if (authError) {
-        console.error("[Register] Auth signUp failed:", authError);
-        toast.error(authError.message);
+      const { data: sessionData } = await supabase.auth.getSession();
+      let userId: string;
+
+      if (
+        sessionData.session?.user &&
+        sessionData.session.user.email?.toLowerCase() !== email
+      ) {
+        toast.error("Email must match the account you used to verify GSTIN.");
         setLoading(false);
         return;
       }
 
-      if (!authData.user) {
-        toast.error("Failed to create account. Please try again.");
+      if (sessionData.session?.user?.email?.toLowerCase() === email) {
+        userId = sessionData.session.user.id;
+      } else {
+        const { data: authData, error: authError } = await supabase.auth.signUp({
+          email,
+          password,
+        });
+
+        if (authError) {
+          console.error("[Register] Auth signUp failed:", authError);
+          toast.error(authError.message);
+          setLoading(false);
+          return;
+        }
+
+        if (!authData.user) {
+          toast.error("Failed to create account. Please try again.");
+          setLoading(false);
+          return;
+        }
+
+        userId = authData.user.id;
+        await ensureProfile(userId, email);
+        setAccountReady(true);
+      }
+
+      const { data: attRow, error: attErr } = await supabase
+        .from("gstin_verification_attestations")
+        .select("registration_status")
+        .eq("user_id", userId)
+        .eq("gstin", normalizedGst)
+        .maybeSingle();
+
+      if (attErr || !attRow) {
+        toast.error("GSTIN verification missing. Verify again before submitting.");
         setLoading(false);
         return;
       }
 
-      const userId = authData.user.id;
-
-      // Step 2: Create profile with role=buyer, is_approved=false
-      const { error: profileError } = await supabase.from("profiles").insert({
-        id: userId,
-        email,
-        full_name: contactPerson.trim(),
-        mobile_number: mobileNumber.trim(),
-        role: "buyer",
-        is_approved: false,
-      });
-
-      if (profileError) {
-        console.error("[Register] Profile insert failed:", profileError);
-        // Don't block — the trigger may have created it already
+      if (!["active", "unverified_offline"].includes(attRow.registration_status ?? "")) {
+        toast.error("GSTIN is not eligible. Verify again or contact support.");
+        setLoading(false);
+        return;
       }
 
       // Step 3: Upload files
@@ -189,7 +444,10 @@ const Register = () => {
 
       if (insertErr) {
         console.error("Insert error:", insertErr);
-        toast.error("Failed to submit application. Please try again.");
+        const msg = insertErr.message?.includes("GSTIN")
+          ? insertErr.message
+          : "Failed to submit application. Please try again.";
+        toast.error(msg);
         setLoading(false);
         return;
       }
@@ -338,6 +596,21 @@ const Register = () => {
                 </div>
               </div>
 
+              <div className="rounded-xl border border-border bg-muted/30 p-4 space-y-2">
+                <p className="text-body-p3 text-muted-foreground">
+                  Create your account before GST verification (required for a secure check).
+                </p>
+                <button
+                  type="button"
+                  onClick={handleCreateAccount}
+                  disabled={accountLoading || accountReady}
+                  className="w-full py-2.5 rounded-xl border border-primary/40 text-primary font-ui font-semibold text-sm hover:bg-primary/5 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+                >
+                  {accountLoading && <Loader2 size={16} className="animate-spin" />}
+                  {accountReady ? "Account ready ✓" : "Create account for GST verification"}
+                </button>
+              </div>
+
               {/* Section 3: Address */}
               <SectionTitle>Registered Address</SectionTitle>
               <div>
@@ -372,7 +645,71 @@ const Register = () => {
                 <label className="text-ui-label text-foreground">GST Number *</label>
                 <Input placeholder="e.g. 07AAFCT0640R1ZZ" className="rounded-xl mt-1" value={gstNumber} onChange={(e) => setGstNumber(e.target.value.toUpperCase())} />
                 <FieldError field="gstNumber" />
+                <p className="text-fine text-muted-foreground mt-1">
+                  We verify registration status with our GST partner. Your certificate may still be required for approval.
+                </p>
               </div>
+
+              <div className="flex flex-col sm:flex-row gap-2 sm:items-center">
+                <button
+                  type="button"
+                  onClick={() => handleVerifyGstin()}
+                  disabled={gstVerifying || !accountReady || !GSTIN_FORMAT.test(gstNumber.trim())}
+                  className="flex-1 py-2.5 rounded-xl bg-secondary text-secondary-foreground text-sm font-semibold hover:bg-secondary/90 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+                >
+                  {gstVerifying ? <Loader2 size={16} className="animate-spin" /> : <ShieldCheck size={16} />}
+                  {gstVerifying ? "Verifying…" : "Verify GSTIN"}
+                </button>
+                {autofillOffer &&
+                  (autofillOffer.legal_name ||
+                    autofillOffer.trade_name ||
+                    autofillOffer.principal_address) && (
+                  <button
+                    type="button"
+                    onClick={handleApplyAutofill}
+                    className="py-2.5 px-3 rounded-xl border border-border text-sm font-medium hover:bg-muted/50 transition-colors"
+                  >
+                    Apply to form
+                  </button>
+                )}
+              </div>
+
+              {gstVerifyHint && (
+                <p className="text-sm text-emerald-700 dark:text-emerald-400 flex items-start gap-2">
+                  <CheckCircle2 size={16} className="shrink-0 mt-0.5" />
+                  {gstVerifyHint}
+                </p>
+              )}
+              {gstVerifyError && (
+                <p className="text-sm text-destructive flex items-start gap-2">
+                  <AlertCircle size={16} className="shrink-0 mt-0.5" />
+                  {gstVerifyError}
+                </p>
+              )}
+
+              {providerUnavailable && (
+                <div className="rounded-xl border border-amber-500/30 bg-amber-500/5 p-4 space-y-3">
+                  <div className="flex items-start gap-3">
+                    <Checkbox
+                      id="manual-gst"
+                      checked={manualOfflineAck}
+                      onCheckedChange={(v) => setManualOfflineAck(v === true)}
+                      className="mt-0.5"
+                    />
+                    <label htmlFor="manual-gst" className="text-body-p3 text-foreground leading-snug cursor-pointer">
+                      I confirm this GSTIN is correct. Oasis will verify manually if automated check is unavailable.
+                    </label>
+                  </div>
+                  <button
+                    type="button"
+                    disabled={!manualOfflineAck || gstVerifying || !accountReady || !GSTIN_FORMAT.test(gstNumber.trim())}
+                    onClick={() => handleVerifyGstin({ manualOffline: true })}
+                    className="w-full py-2 rounded-lg border border-border text-sm font-medium hover:bg-muted/50 disabled:opacity-50"
+                  >
+                    Record manual GST confirmation
+                  </button>
+                </div>
+              )}
               <div>
                 <label className="text-ui-label text-foreground">FSSAI Number <span className="text-muted-foreground text-[10px]">(Optional)</span></label>
                 <Input placeholder="e.g. 10012345678901" className="rounded-xl mt-1" maxLength={14} />
@@ -425,12 +762,15 @@ const Register = () => {
 
               <button
                 onClick={handleSubmit}
-                disabled={loading}
+                disabled={loading || !gstReady || lastVerifiedGstin !== gstNumber.trim().toUpperCase()}
                 className="w-full py-3.5 rounded-xl bg-primary text-primary-foreground text-ui-button hover:bg-primary/90 transition-colors shadow-sm disabled:opacity-60 flex items-center justify-center gap-2"
               >
                 {loading && <Loader2 size={18} className="animate-spin" />}
                 {loading ? "Submitting…" : "Submit Trade Application"}
               </button>
+              {!gstReady && (
+                <p className="text-center text-fine text-muted-foreground">Verify GSTIN above to enable submit.</p>
+              )}
             </motion.div>
           ) : (
             <motion.div

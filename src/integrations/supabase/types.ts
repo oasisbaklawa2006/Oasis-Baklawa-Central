@@ -215,6 +215,9 @@ export type Database = {
           expected_volume: string | null
           gst_certificate_path: string | null
           gst_number: string | null
+          gstin_registration_status: string | null
+          gstin_verification_snapshot: Json | null
+          gstin_verified_at: string | null
           id: string
           mobile_number: string | null
           pincode: string | null
@@ -248,6 +251,9 @@ export type Database = {
           expected_volume?: string | null
           gst_certificate_path?: string | null
           gst_number?: string | null
+          gstin_registration_status?: string | null
+          gstin_verification_snapshot?: Json | null
+          gstin_verified_at?: string | null
           id?: string
           mobile_number?: string | null
           pincode?: string | null
@@ -281,6 +287,9 @@ export type Database = {
           expected_volume?: string | null
           gst_certificate_path?: string | null
           gst_number?: string | null
+          gstin_registration_status?: string | null
+          gstin_verification_snapshot?: Json | null
+          gstin_verified_at?: string | null
           id?: string
           mobile_number?: string | null
           pincode?: string | null
@@ -296,6 +305,33 @@ export type Database = {
           trade_name?: string | null
           updated_at?: string | null
           user_id?: string | null
+        }
+        Relationships: []
+      }
+      gstin_verification_attestations: {
+        Row: {
+          gstin: string
+          registration_status: string
+          snapshot: Json
+          updated_at: string
+          user_id: string
+          verified_at: string
+        }
+        Insert: {
+          gstin: string
+          registration_status: string
+          snapshot?: Json
+          updated_at?: string
+          user_id: string
+          verified_at?: string
+        }
+        Update: {
+          gstin?: string
+          registration_status?: string
+          snapshot?: Json
+          updated_at?: string
+          user_id?: string
+          verified_at?: string
         }
         Relationships: []
       }

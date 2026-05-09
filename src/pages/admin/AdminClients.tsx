@@ -57,6 +57,9 @@ interface Application {
   admin_notes: string | null;
   rejection_reason: string | null;
   assigned_price_tier: string | null;
+  gstin_verified_at: string | null;
+  gstin_registration_status: string | null;
+  gstin_verification_snapshot: Record<string, unknown> | null;
 }
 
 interface PricingSlab {
@@ -698,6 +701,30 @@ const AdminClients = () => {
                   </h4>
                   <div className="space-y-2.5">
                     <DetailRow icon={FileText} label="GSTIN" value={selectedApp.gst_number} />
+                    {selectedApp.gstin_verified_at && (
+                      <DetailRow
+                        icon={ShieldCheck}
+                        label="GST verified at"
+                        value={new Date(selectedApp.gstin_verified_at).toLocaleString()}
+                      />
+                    )}
+                    <DetailRow
+                      icon={FileText}
+                      label="GST check status"
+                      value={
+                        selectedApp.gstin_registration_status
+                          ? String(selectedApp.gstin_registration_status)
+                          : "—"
+                      }
+                    />
+                    {typeof selectedApp.gstin_verification_snapshot?.legal_name === "string" &&
+                      selectedApp.gstin_verification_snapshot.legal_name && (
+                        <DetailRow
+                          icon={Building2}
+                          label="Legal name (from GST check)"
+                          value={selectedApp.gstin_verification_snapshot.legal_name}
+                        />
+                      )}
                     <DetailRow
                       icon={MapPin}
                       label="Address"

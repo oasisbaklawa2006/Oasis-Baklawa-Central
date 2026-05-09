@@ -32,3 +32,6 @@ verify_jwt = false
 
 [functions.validate-user]
 verify_jwt = false
+
+[functions.verify-gstin]
+verify_jwt = true
