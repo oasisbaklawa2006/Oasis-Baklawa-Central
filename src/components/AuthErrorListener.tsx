@@ -28,7 +28,7 @@ export default function AuthErrorListener() {
     const isGoogleOAuth = blob.includes("google") || blob.includes("oauth") || blob.includes("provider");
 
     if (isGoogleOAuth || location.pathname.startsWith("/welcome")) {
-      toast.error("Google configuration in progress. Please use WhatsApp login for the demo.", {
+      toast.error("We couldn’t complete sign-in. Please use mobile verification or email, or contact support@oasisbaklawa.com.", {
         duration: 8000,
       });
       navigate("/login", { replace: true });
