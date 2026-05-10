@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import {
@@ -22,12 +22,14 @@ import {
   IndianRupee,
   Wallet,
   BookOpen,
+  Download,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useAuth } from "@/hooks/useAuth";
 import { queueNotification } from "@/utils/notificationOutbox";
 import { classifyFlow } from "@/utils/departmentClassifier";
 import { LedgerDisputesPanel } from "@/components/admin/LedgerDisputesPanel";
+import { exportTallyBridgeV1ToCsv, isOrderReadyForTallyExportV1 } from "@/utils/tallyExportV1";
 
 interface FinanceOrder {
   id: string;
@@ -38,6 +40,7 @@ interface FinanceOrder {
   created_at: string;
   company_id: string | null;
   payment_receipt_url: string | null;
+  final_invoice_url?: string | null;
   company?: { business_name: string } | null;
 }
 
@@ -164,11 +167,17 @@ const AdminFinance = () => {
   const [payoutAmounts, setPayoutAmounts] = useState<Record<string, string>>({});
   const [payoutRefs, setPayoutRefs] = useState<Record<string, string>>({});
 
+  // Tally Bridge v1 (single-order CSV, per-dispatch legs)
+  const [tallyExportOrderId, setTallyExportOrderId] = useState("");
+  const [tallyExportDispatchId, setTallyExportDispatchId] = useState("");
+  const [tallyDispatchOptions, setTallyDispatchOptions] = useState<{ id: string; label: string }[]>([]);
+  const [tallyExporting, setTallyExporting] = useState(false);
+
   const fetchOrders = async () => {
     const { data, error } = await supabase
       .from("orders")
       .select(
-        "id, status, payment_status, sales_order_value, advance_paid, created_at, company_id, payment_receipt_url, company:companies(business_name)",
+        "id, status, payment_status, sales_order_value, advance_paid, created_at, company_id, payment_receipt_url, final_invoice_url, company:companies(business_name)",
       )
       .order("created_at", { ascending: false });
 
@@ -448,6 +457,28 @@ const AdminFinance = () => {
   useEffect(() => {
     fetchAll();
   }, []);
+
+  useEffect(() => {
+    if (!tallyExportOrderId) {
+      setTallyDispatchOptions([]);
+      setTallyExportDispatchId("");
+      return;
+    }
+    (async () => {
+      const { data } = await supabase
+        .from("dispatches")
+        .select("id, dispatch_date, dispatch_number, is_partial")
+        .eq("order_id", tallyExportOrderId)
+        .order("dispatch_date", { ascending: true, nullsFirst: false });
+      setTallyDispatchOptions(
+        (data || []).map((d) => ({
+          id: d.id,
+          label: `${d.dispatch_number || d.id.slice(0, 8)}${d.dispatch_date ? ` · ${d.dispatch_date}` : ""}${d.is_partial ? " (partial)" : ""}`,
+        })),
+      );
+      setTallyExportDispatchId("");
+    })();
+  }, [tallyExportOrderId]);
 
   const handleValidatePayment = async (orderId: string) => {
     setActing(orderId);
@@ -850,6 +881,43 @@ const AdminFinance = () => {
   const zeroValueOrders = orders.filter((o) => (o.sales_order_value || 0) <= 0 && o.status !== "draft");
   const validationQueue = valuedOrders.filter((o) => o.status === "submitted" || o.payment_status === "awaiting_receipt" || o.payment_status === "unpaid");
   const invoicingQueue = valuedOrders.filter((o) => o.status === "in_production" || o.status === "packed_ready");
+  const tallyEligibleOrders = useMemo(
+    () =>
+      orders
+        .filter((o) => (o.sales_order_value || 0) > 0)
+        .filter((o) => isOrderReadyForTallyExportV1(o.status)),
+    [orders],
+  );
+
+  const handleTallyBridgeExport = async () => {
+    if (!tallyExportOrderId) {
+      toast.error("Select an order to export.");
+      return;
+    }
+    setTallyExporting(true);
+    try {
+      const res = await exportTallyBridgeV1ToCsv(supabase, tallyExportOrderId, {
+        dispatchId: tallyExportDispatchId || undefined,
+      });
+      if (!res.ok) {
+        toast.error(res.error);
+        return;
+      }
+      for (const w of res.warnings) {
+        toast.warning(w, { duration: 8000 });
+      }
+      const blob = new Blob(["\uFEFF", res.csv], { type: "text/csv;charset=utf-8;" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = res.filename;
+      a.click();
+      URL.revokeObjectURL(url);
+      toast.success("Tally Bridge v1 CSV downloaded.");
+    } finally {
+      setTallyExporting(false);
+    }
+  };
 
   const totalValueToday = orders.reduce((sum, o) => sum + (o.sales_order_value || 0), 0);
 
@@ -1347,7 +1415,75 @@ const AdminFinance = () => {
           )}
 
           {/* QUEUE 7: BI-MONTHLY LEDGER & DISPUTES */}
-          {activeQueue === "ledger" && <LedgerDisputesPanel />}
+          {activeQueue === "ledger" && (
+            <div className="space-y-6">
+              <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
+                <h3 className="font-display text-lg font-bold text-slate-900 flex items-center gap-2 mb-1">
+                  <Receipt size={18} className="text-[#B8860B]" />
+                  Tally Bridge v1
+                </h3>
+                <p className="text-sm text-slate-500 mb-4">
+                  Single-order CSV export: one row per packing line per dispatch leg (packed quantities only). Order must be at least dispatched.
+                </p>
+                {tallyEligibleOrders.length === 0 ? (
+                  <p className="text-sm text-slate-500 font-medium">No dispatched / delivered orders with value in the current list.</p>
+                ) : (
+                  <div className="flex flex-col md:flex-row md:flex-wrap gap-3 md:items-end">
+                    <div className="flex-1 min-w-[200px]">
+                      <label className="block text-[11px] font-bold text-slate-500 uppercase mb-1.5">Order</label>
+                      <select
+                        value={tallyExportOrderId}
+                        onChange={(e) => setTallyExportOrderId(e.target.value)}
+                        className="w-full bg-white border border-slate-200 rounded-xl p-3 text-sm font-bold outline-none focus:border-[#B8860B]"
+                      >
+                        <option value="">Select order…</option>
+                        {tallyEligibleOrders.map((o) => (
+                          <option key={o.id} value={o.id}>
+                            {o.company?.business_name || "Unknown"} · {o.id.slice(0, 8)}… · {o.status} · {formatPrice(o.sales_order_value || 0)}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="flex-1 min-w-[180px]">
+                      <label className="block text-[11px] font-bold text-slate-500 uppercase mb-1.5">Dispatch leg</label>
+                      <select
+                        value={tallyExportDispatchId}
+                        onChange={(e) => setTallyExportDispatchId(e.target.value)}
+                        disabled={!tallyExportOrderId || tallyDispatchOptions.length === 0}
+                        className="w-full bg-white border border-slate-200 rounded-xl p-3 text-sm font-bold outline-none focus:border-[#B8860B] disabled:opacity-50"
+                      >
+                        <option value="">All legs in one file</option>
+                        {tallyDispatchOptions.map((d) => (
+                          <option key={d.id} value={d.id}>
+                            {d.label}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => void handleTallyBridgeExport()}
+                      disabled={tallyExporting || !tallyExportOrderId}
+                      className="py-3 px-5 rounded-xl bg-slate-900 text-white text-sm font-bold hover:bg-slate-800 flex items-center justify-center gap-2 disabled:opacity-50"
+                    >
+                      {tallyExporting ? <Loader2 size={18} className="animate-spin" /> : <Download size={18} />}
+                      Download CSV
+                    </button>
+                  </div>
+                )}
+                {tallyExportOrderId &&
+                  !orders.find((o) => o.id === tallyExportOrderId)?.final_invoice_url && (
+                    <div className="mt-4 flex gap-2 items-start rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-950">
+                      <AlertTriangle size={18} className="shrink-0 mt-0.5 text-amber-600" />
+                      <p>
+                        <span className="font-bold">No final invoice URL on this order.</span> Export is still allowed — reconcile line totals with your signed tax invoice before posting to Tally.
+                      </p>
+                    </div>
+                  )}
+              </div>
+              <LedgerDisputesPanel />
+            </div>
+          )}
         </div>
       </div>
 
