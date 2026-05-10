@@ -7,7 +7,7 @@ import TopNavBar from "@/components/TopNavBar";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { generateProFormaInvoice } from "@/utils/invoiceGenerator";
-import { notifyOrderConfirmed, notifyOrderDispatched, notifyOrderDelivered } from "@/utils/notifyEvent";
+import { notifyOrderConfirmed, notifyOrderDelivered } from "@/utils/notifyEvent";
 const PACKS_PER_CARTON = 9;
 
 const STATUSES = [
@@ -148,6 +148,10 @@ const AdminOrders = () => {
   const handleAdvance = async (order: OrderCard) => {
     const next = nextStatus(order.status);
     if (!next) return;
+    if (next === "dispatched") {
+      toast.error("Dispatch is recorded via Packing & Dispatch or Gate Pass with proof — pipeline advance disabled here.");
+      return;
+    }
     setUpdating(order.id);
 
     const { error } = await supabase.from("orders").update({ status: next }).eq("id", order.id);
@@ -160,7 +164,6 @@ const AdminOrders = () => {
       // Milestone notifications (key events only)
       const ref = order.id.slice(0, 8).toUpperCase();
       if (next === "approved") notifyOrderConfirmed(order.id, ref).catch(() => {});
-      else if (next === "dispatched") notifyOrderDispatched(order.id, ref).catch(() => {});
       else if (next === "delivered") notifyOrderDelivered(order.id, ref).catch(() => {});
 
       // Auto-split when advancing to in_production — lazy fetch items first
@@ -522,7 +525,7 @@ const AdminOrders = () => {
                             {packs === 0 && <span className="text-amber-600">No items</span>}
                           </div>
 
-                          {next && (
+                          {next && next !== "dispatched" && (
                             <button
                               onClick={(e) => {
                                 e.stopPropagation();

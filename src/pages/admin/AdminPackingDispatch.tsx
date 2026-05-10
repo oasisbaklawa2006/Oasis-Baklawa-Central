@@ -6,6 +6,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useLanguage } from "@/hooks/useLanguage";
+import { notifyOrderDispatched } from "@/utils/notifyEvent";
 
 const PACKS_PER_CARTON = 9;
 
@@ -48,6 +49,7 @@ const AdminPackingDispatch = () => {
   const [trackingNumber, setTrackingNumber] = useState("");
   const [driverName, setDriverName] = useState("");
   const [driverPhone, setDriverPhone] = useState("");
+  const [dispatchProofFile, setDispatchProofFile] = useState<File | null>(null);
 
   const fetchOrders = async () => {
     setLoading(true);
@@ -85,6 +87,7 @@ const AdminPackingDispatch = () => {
   const openDispatchModal = async (order: DispatchOrder) => {
     setSelectedOrder(order);
     setTransporterName(""); setTrackingNumber(""); setDriverName(""); setDriverPhone("");
+    setDispatchProofFile(null);
     setPartialDispatch(false); setShowSuccess(false); setModalLoading(true);
 
     const { data } = await supabase.from("order_items")
@@ -148,16 +151,32 @@ const AdminPackingDispatch = () => {
 
   const handleSubmitDispatch = async () => {
     if (!selectedOrder) return;
-    if (!transporterName.trim()) { toast.error("Transporter name is required"); return; }
+    const tp = transporterName.trim();
+    const lr = trackingNumber.trim();
+    if (!tp) { toast.error("Transporter name is required"); return; }
+    if (!lr) { toast.error("LR / Bilty / AWB number is required"); return; }
+    if (!dispatchProofFile) { toast.error("Dispatch proof file is required"); return; }
     setSubmitting(true);
 
     try {
-      // 1. Create dispatch record
+      const ext = dispatchProofFile.name.split(".").pop() || "bin";
+      const proofPath = `dispatch-proof/${selectedOrder.id}/${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`;
+      const { error: upErr } = await supabase.storage.from("receipts").upload(proofPath, dispatchProofFile);
+      if (upErr) {
+        console.error(upErr);
+        toast.error("Proof upload failed");
+        setSubmitting(false);
+        return;
+      }
+
+      // 1. Create dispatch record (partial legs are flagged; full closure drives order status + security gate)
       const { data: dispatch, error: dispErr } = await supabase.from("dispatches").insert({
         order_id: selectedOrder.id, company_id: selectedOrder.company_id,
-        transporter_name: transporterName, tracking_number: trackingNumber,
-        driver_name: driverName, driver_phone: driverPhone,
+        transporter_name: tp, tracking_number: lr,
+        driver_name: driverName.trim() || null, driver_phone: driverPhone.trim() || null,
         status: "dispatched", dispatch_date: new Date().toISOString().split("T")[0],
+        proof_storage_path: proofPath,
+        is_partial: partialDispatch,
       }).select().single();
 
       if (dispErr || !dispatch) { toast.error("Failed to create dispatch"); setSubmitting(false); return; }
@@ -176,15 +195,20 @@ const AdminPackingDispatch = () => {
         }).eq("id", item.id);
       }
 
-      // 4. Update order status and recalculated value
+      // 4. Full shipment only: close order + notify (after proof persisted on dispatches)
       if (!partialDispatch) {
         await supabase.from("orders").update({
           status: "dispatched",
           sales_order_value: finalInvoiceTotal,
+          tracking_number: lr,
         }).eq("id", selectedOrder.id);
         await supabase.from("order_status_history").insert({
           order_id: selectedOrder.id, old_status: "cleared_for_dispatch", new_status: "dispatched",
         });
+        notifyOrderDispatched(selectedOrder.id, selectedOrder.id.slice(0, 8).toUpperCase(), {
+          transporter: tp,
+          lr,
+        }).catch(() => {});
       }
 
       // 5. Wallet reconciliation if variance exists
@@ -351,9 +375,19 @@ const AdminPackingDispatch = () => {
                   </div>
                   <div className="grid grid-cols-2 gap-3">
                     <div className="space-y-1.5"><Label className="text-ui-label text-muted-foreground">{t("Transporter Name")} *</Label><Input value={transporterName} onChange={e => setTransporterName(e.target.value)} className="rounded-xl" /></div>
-                    <div className="space-y-1.5"><Label className="text-ui-label text-muted-foreground">LR / Bilty</Label><Input value={trackingNumber} onChange={e => setTrackingNumber(e.target.value)} className="rounded-xl" /></div>
+                    <div className="space-y-1.5"><Label className="text-ui-label text-muted-foreground">LR / Bilty / AWB *</Label><Input value={trackingNumber} onChange={e => setTrackingNumber(e.target.value)} className="rounded-xl" /></div>
                     <div className="space-y-1.5"><Label className="text-ui-label text-muted-foreground">{t("Driver Name")}</Label><Input value={driverName} onChange={e => setDriverName(e.target.value)} className="rounded-xl" /></div>
                     <div className="space-y-1.5"><Label className="text-ui-label text-muted-foreground">{t("Driver Phone")}</Label><Input value={driverPhone} onChange={e => setDriverPhone(e.target.value)} className="rounded-xl" /></div>
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-ui-label text-muted-foreground">Dispatch proof (PDF / image) *</Label>
+                    <Input
+                      type="file"
+                      accept=".pdf,.jpg,.jpeg,.png,.webp"
+                      className="rounded-xl cursor-pointer"
+                      onChange={(e) => setDispatchProofFile(e.target.files?.[0] ?? null)}
+                    />
+                    {dispatchProofFile && <p className="text-fine text-muted-foreground">{dispatchProofFile.name}</p>}
                   </div>
 
                   {/* Weight Variance Packing List */}

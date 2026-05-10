@@ -896,7 +896,9 @@ export type Database = {
           driver_name: string | null
           driver_phone: string | null
           id: string
+          is_partial: boolean
           order_id: string | null
+          proof_storage_path: string | null
           status: string | null
           tracking_number: string | null
           transporter_name: string | null
@@ -908,7 +910,9 @@ export type Database = {
           driver_name?: string | null
           driver_phone?: string | null
           id?: string
+          is_partial?: boolean
           order_id?: string | null
+          proof_storage_path?: string | null
           status?: string | null
           tracking_number?: string | null
           transporter_name?: string | null
@@ -920,7 +924,9 @@ export type Database = {
           driver_name?: string | null
           driver_phone?: string | null
           id?: string
+          is_partial?: boolean
           order_id?: string | null
+          proof_storage_path?: string | null
           status?: string | null
           tracking_number?: string | null
           transporter_name?: string | null
