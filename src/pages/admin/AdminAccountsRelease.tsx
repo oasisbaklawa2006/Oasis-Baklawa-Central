@@ -90,6 +90,7 @@ const AdminAccountsRelease = () => {
   const [submittingGatePass, setSubmittingGatePass] = useState(false);
   const [agreedFreight, setAgreedFreight] = useState<string>("");
   const [freightAdvance, setFreightAdvance] = useState<string>("");
+  const [gatePassProofFile, setGatePassProofFile] = useState<File | null>(null);
 
   // Document upload state
   const [docUploadOrder, setDocUploadOrder] = useState<FinanceOrder | null>(null);
@@ -119,10 +120,25 @@ const AdminAccountsRelease = () => {
     setDriverPhone("");
     setAgreedFreight("");
     setFreightAdvance("");
+    setGatePassProofFile(null);
   };
 
   const handleGatePassSubmit = async () => {
     if (!gatePassOrder) return;
+    const tp = transporterName.trim();
+    const lr = trackingNumber.trim();
+    if (!tp) {
+      toast.error("Transporter name is required");
+      return;
+    }
+    if (!lr) {
+      toast.error("LR / Bilty / AWB number is required");
+      return;
+    }
+    if (!gatePassProofFile) {
+      toast.error("Dispatch proof file is required");
+      return;
+    }
     const freightAmt = parseFloat(agreedFreight);
     const freightAdv = parseFloat(freightAdvance);
     if (isNaN(freightAmt) || isNaN(freightAdv)) {
@@ -133,6 +149,16 @@ const AdminAccountsRelease = () => {
     try {
       const orderId = gatePassOrder.id;
       const companyId = gatePassOrder.company_id;
+
+      const ext = gatePassProofFile.name.split(".").pop() || "bin";
+      const proofPath = `dispatch-proof/${orderId}/gate-${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`;
+      const { error: proofUpErr } = await supabase.storage.from("receipts").upload(proofPath, gatePassProofFile);
+      if (proofUpErr) {
+        console.error(proofUpErr);
+        toast.error("Proof upload failed");
+        setSubmittingGatePass(false);
+        return;
+      }
 
       // Fetch packed data for partial dispatch billing
       const { data: packedData } = await supabase
@@ -152,11 +178,13 @@ const AdminAccountsRelease = () => {
         .insert({
           order_id: orderId,
           company_id: companyId,
-          transporter_name: transporterName || null,
-          tracking_number: trackingNumber || null,
-          driver_phone: driverPhone || null,
+          transporter_name: tp,
+          tracking_number: lr,
+          driver_phone: driverPhone.trim() || null,
           status: "dispatched",
           dispatch_date: new Date().toISOString().split("T")[0],
+          proof_storage_path: proofPath,
+          is_partial: false,
         })
         .select("id")
         .single();
@@ -183,7 +211,7 @@ const AdminAccountsRelease = () => {
       // Insert freight ledger
       await supabase.from("freight_ledger").insert({
         order_id: orderId,
-        transporter_name: transporterName || null,
+        transporter_name: tp,
         total_freight_amt: freightAmt,
         advance_paid_amt: freightAdv,
         balance_due_amt: freightAmt - freightAdv,
@@ -240,14 +268,14 @@ const AdminAccountsRelease = () => {
       }
 
       // Update order status
-      await supabase.from("orders").update({ status: "dispatched" }).eq("id", orderId);
+      await supabase.from("orders").update({ status: "dispatched", tracking_number: lr }).eq("id", orderId);
       await supabase.from("order_status_history").insert({
         order_id: orderId,
         old_status: gatePassOrder.status,
         new_status: "dispatched",
       });
       // Fire dispatch notification (buyer + sales exec + admin)
-      notifyOrderDispatched(orderId, orderId.slice(0, 8).toUpperCase()).catch(() => {});
+      notifyOrderDispatched(orderId, orderId.slice(0, 8).toUpperCase(), { transporter: tp, lr }).catch(() => {});
       await supabase.from("audit_logs").insert({
         action_type: "finance_issue_gate_pass",
         module_name: "Finance",
@@ -314,8 +342,8 @@ const AdminAccountsRelease = () => {
         }
       };
       await triggerClientNotification(orderId, {
-        lr_number: trackingNumber || "N/A",
-        transporter: transporterName || "N/A",
+        lr_number: lr,
+        transporter: tp,
       });
 
       toast.success(`Gate Pass issued — ${totalBoxes} carton barcode(s) pushed to Security Gate`);
@@ -621,16 +649,27 @@ const AdminAccountsRelease = () => {
             {/* Logistics Inputs */}
             <div className="space-y-3">
               <div>
-                <Label htmlFor="gp-transporter">Transporter Name</Label>
+                <Label htmlFor="gp-transporter">Transporter Name *</Label>
                 <Input id="gp-transporter" placeholder="e.g. BlueDart, DTDC" value={transporterName} onChange={e => setTransporterName(e.target.value)} />
               </div>
               <div>
-                <Label htmlFor="gp-tracking">LR / Bilty Number</Label>
-                <Input id="gp-tracking" placeholder="Tracking / LR number" value={trackingNumber} onChange={e => setTrackingNumber(e.target.value)} />
+                <Label htmlFor="gp-tracking">LR / Bilty / AWB *</Label>
+                <Input id="gp-tracking" placeholder="Consignment reference" value={trackingNumber} onChange={e => setTrackingNumber(e.target.value)} />
               </div>
               <div>
                 <Label htmlFor="gp-driver">Driver Phone</Label>
                 <Input id="gp-driver" placeholder="+91 XXXXX XXXXX" value={driverPhone} onChange={e => setDriverPhone(e.target.value)} />
+              </div>
+              <div>
+                <Label htmlFor="gp-proof">Dispatch proof (PDF / image) *</Label>
+                <Input
+                  id="gp-proof"
+                  type="file"
+                  accept=".pdf,.jpg,.jpeg,.png,.webp"
+                  className="cursor-pointer"
+                  onChange={(e) => setGatePassProofFile(e.target.files?.[0] ?? null)}
+                />
+                {gatePassProofFile && <p className="text-xs text-muted-foreground">{gatePassProofFile.name}</p>}
               </div>
             </div>
 

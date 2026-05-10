@@ -233,9 +233,39 @@ const AdminSecurityGate = () => {
               .eq("order_id", carton.order_id);
             const allDispatched = (allCartons || []).every((c: any) => c.status === "physically_dispatched" || c.id === carton.id);
             if (allDispatched) {
-              await supabase.from("orders").update({ 
-                status: "dispatched", 
-                actual_despatch_date: new Date().toISOString().split("T")[0] 
+              const { data: dispRows } = await supabase
+                .from("dispatches")
+                .select("transporter_name, tracking_number, proof_storage_path, is_partial")
+                .eq("order_id", carton.order_id);
+              const hasFullClosureProof = (dispRows || []).some(
+                (d: {
+                  transporter_name: string | null;
+                  tracking_number: string | null;
+                  proof_storage_path: string | null;
+                  is_partial: boolean | null;
+                }) =>
+                  d.is_partial === false &&
+                  (d.transporter_name || "").trim().length > 0 &&
+                  (d.tracking_number || "").trim().length > 0 &&
+                  (d.proof_storage_path || "").trim().length > 0,
+              );
+
+              if (!hasFullClosureProof) {
+                toast.error(
+                  "Order cannot close: add a full shipment dispatch with transporter, LR/AWB, and proof in Packing & Dispatch (or Finance gate pass) first.",
+                );
+                setScreenState("success");
+                setLastMessage(
+                  "Carton released — order stays open until dispatch proof (full shipment) is recorded.",
+                );
+                addToHistory(barcode, companyName, "success", "Released; order closure pending dispatch proof.");
+                playAudio("success");
+                return;
+              }
+
+              await supabase.from("orders").update({
+                status: "dispatched",
+                actual_despatch_date: new Date().toISOString().split("T")[0],
               }).eq("id", carton.order_id);
               await supabase.from("order_status_history").insert({
                 order_id: carton.order_id, old_status: "cleared_for_dispatch", new_status: "dispatched",

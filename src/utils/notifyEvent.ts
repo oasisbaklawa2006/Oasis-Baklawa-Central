@@ -55,16 +55,24 @@ export const notifyOrderConfirmed = (orderId: string, orderRef: string) =>
     orderId,
   });
 
-export const notifyOrderDispatched = (orderId: string, orderRef: string, tracking?: string) =>
-  notifyEvent({
+export const notifyOrderDispatched = (
+  orderId: string,
+  orderRef: string,
+  opts?: { tracking?: string; transporter?: string; lr?: string },
+) => {
+  const lines: string[] = [`Your order ${orderRef} has been dispatched from our facility.`];
+  if (opts?.transporter?.trim()) lines.push(`Transporter: ${opts.transporter.trim()}`);
+  if (opts?.lr?.trim()) lines.push(`LR / AWB / Bilty: ${opts.lr.trim()}`);
+  else if (opts?.tracking?.trim()) lines.push(`Tracking: ${opts.tracking.trim()}`);
+  else lines.push("See your portal for consignment details.");
+  return notifyEvent({
     event: "order_dispatched",
     subject: `Order Dispatched — ${orderRef}`,
-    message: `Your order ${orderRef} has been dispatched from our facility.${
-      tracking ? `\nTracking: ${tracking}` : "\nTracking details follow shortly."
-    }`,
+    message: lines.join("\n"),
     audiences: ["buyer", "sales_exec", "admin"],
     orderId,
   });
+};
 
 export const notifyOrderDelivered = (orderId: string, orderRef: string) =>
   notifyEvent({
