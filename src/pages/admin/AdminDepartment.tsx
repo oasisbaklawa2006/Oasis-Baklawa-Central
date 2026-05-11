@@ -22,6 +22,33 @@ const DEPT_LABELS: Record<string, string> = {
   nuts_mixes: "Nuts & Mixes",
 };
 
+/** Department matching is normalized because catalog values and internal tab keys use different naming formats. */
+function normalizeDeptForMatch(raw: string | null | undefined): string {
+  if (raw == null || raw === "") return "";
+  const stripped = raw
+    .normalize("NFD")
+    .replace(/\p{M}/gu, "")
+    .toLowerCase()
+    .trim();
+  let s = stripped.replace(/_/g, " ");
+  s = s.replace(/\s*&\s*/g, " and ");
+  s = s.replace(/\s+/g, " ").trim();
+  s = s.replace(/\band\b/g, " ").replace(/\s+/g, " ").trim();
+  return s;
+}
+
+function productDepartmentMatchesTab(activeDept: string, product: RequisitionItem["product"]): boolean {
+  if (!product) return false;
+  const tabVariants = [
+    normalizeDeptForMatch(activeDept),
+    normalizeDeptForMatch(DEPT_LABELS[activeDept]),
+  ].filter((v) => v.length > 0);
+  if (tabVariants.length === 0) return false;
+  const d1 = normalizeDeptForMatch(product.department);
+  const d2 = normalizeDeptForMatch(product.production_department);
+  return tabVariants.some((t) => t === d1 || t === d2);
+}
+
 interface RequisitionItem {
   id: string;
   product_id: string;
@@ -104,15 +131,9 @@ const AdminDepartment = () => {
     return () => clearInterval(interval);
   }, []);
 
-  // Filter requisitions by department — match product's department or production_department
+  // Filter requisitions by department — match product's department or production_department (normalized)
   const filteredReqs = useMemo(() => {
-    return requisitions.filter((r) =>
-      r.items.some(
-        (i) =>
-          i.product?.department === activeDept ||
-          i.product?.production_department === activeDept
-      )
-    );
+    return requisitions.filter((r) => r.items.some((i) => productDepartmentMatchesTab(activeDept, i.product)));
   }, [requisitions, activeDept]);
 
   // Split: URGENT = linked to sales orders (target_store typically != 'stock'), STANDBY = production for stock
