@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import type { Database } from "@/integrations/supabase/types";
 import { MessageSquare, Phone, Building2, Edit2, CheckCircle, Package, Search, ArrowRight, AlertTriangle, Trash2, UserCog, Ban, Sparkles } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
@@ -343,33 +344,30 @@ export default function ShadowClientSection({ companies, onRefresh }: Props) {
 
       // Update the company profile fields and mark as pending_approval so it
       // leaves the shadow queue and enters the Client Governance approval queue.
-      const { error: companyErr } = await supabase
-        .from("companies")
-        .update({
-          business_name: form.business_name,
-          gst_number: form.gst_number || null,
-          fssai_number: form.fssai_number || null,
-          registered_address: form.registered_address || null,
-          phone: formattedPhone || null,
-          status: "pending_approval",
-        } as Parameters<ReturnType<typeof supabase.from>["update"]>[0])
-        .eq("id", editingCompany.id);
+      const companyPatch: Database["public"]["Tables"]["companies"]["Update"] = {
+        business_name: form.business_name,
+        gst_number: form.gst_number || null,
+        fssai_number: form.fssai_number || null,
+        registered_address: form.registered_address || null,
+        phone: formattedPhone || null,
+        status: "pending_approval",
+      };
+      const { error: companyErr } = await supabase.from("companies").update(companyPatch).eq("id", editingCompany.id);
 
       if (companyErr) console.error("[ShadowClientSection] company update failed:", companyErr.message);
 
       // Create a b2b_applications row so this client appears in the formal approval
       // queue in Client Governance. Admin must assign a slab and approve before the
       // client gains portal access.
-      const { error: appErr } = await supabase
-        .from("b2b_applications")
-        .insert({
-          business_name: form.business_name,
-          gst_number: form.gst_number || null,
-          contact_phone: formattedPhone || null,
-          registered_address: form.registered_address || null,
-          status: "pending",
-          admin_notes: "War Room WhatsApp triage — pending governance approval",
-        } as Parameters<ReturnType<typeof supabase.from>["insert"]>[0]);
+      const newApplication: Database["public"]["Tables"]["b2b_applications"]["Insert"] = {
+        business_name: form.business_name,
+        gst_number: form.gst_number || null,
+        contact_phone: formattedPhone || null,
+        registered_address: form.registered_address || null,
+        status: "pending",
+        admin_notes: "War Room WhatsApp triage — pending governance approval",
+      };
+      const { error: appErr } = await supabase.from("b2b_applications").insert(newApplication);
 
       if (appErr) console.error("[ShadowClientSection] b2b_applications insert failed:", appErr.message);
 

@@ -90,7 +90,9 @@ export default function RawIntelligenceTab() {
       .limit(80);
 
     // Hard metadata filter — hide wamid-only acks, OAuthExceptions, and empty payloads.
-    const filtered = ((data as RawMessage[]) ?? []).filter((m) => {
+    // `message_intent` may exist at runtime; generated `debug_webhooks` Row omits it until types are regenerated.
+    const rows = (data ?? []) as unknown as RawMessage[];
+    const filtered = rows.filter((m) => {
       const str = JSON.stringify(m.raw_payload || "");
       const hasMessage = !!m.raw_payload?.entry?.[0]?.changes?.[0]?.value?.messages?.[0];
       if (!hasMessage) return false;                          // status pings, no actual content
