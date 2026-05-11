@@ -93,12 +93,13 @@ export default function DispatchManagement() {
       if (fetchErr) throw fetchErr;
       const priorStatus = currentRow?.status ?? orders.find((o) => o.id === orderId)?.status ?? null;
 
-      await supabase.from("orders").update({ status: "awaiting_payment" }).eq("id", orderId);
+      // Align with canonical OrderManagement STATUS_FLOW payment stage.
+      await supabase.from("orders").update({ status: "awaiting_final_payment" }).eq("id", orderId);
       // Use actual prior order status for accurate dispatch audit history.
       await supabase.from("order_status_history").insert({
         order_id: orderId,
         old_status: priorStatus,
-        new_status: "awaiting_payment",
+        new_status: "awaiting_final_payment",
       });
       await supabase.from("audit_logs").insert({
         action_type: "DPL_FINALIZED",
