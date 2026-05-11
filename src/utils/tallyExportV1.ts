@@ -160,9 +160,13 @@ export async function fetchTallyBridgeV1ExportData(
 
   const productsById = new Map<string, Record<string, unknown>>();
   if (productIds.length > 0) {
-    const { data: products } = await client.from("products").select(PRODUCT_SELECT).in("id", productIds);
-    for (const p of products || []) {
-      productsById.set(p.id, p as Record<string, unknown>);
+    const productsRes = await client.from("products").select(PRODUCT_SELECT).in("id", productIds);
+    const rawData = productsRes.data;
+    const productRows = Array.isArray(rawData)
+      ? (rawData as unknown as Array<{ id: string }>)
+      : [];
+    for (const p of productRows) {
+      productsById.set(p.id, p as unknown as Record<string, unknown>);
     }
   }
 
@@ -358,7 +362,7 @@ export async function exportTallyBridgeV1ToCsv(
   { ok: true; csv: string; filename: string; warnings: string[] } | { ok: false; error: string; warnings?: string[] }
 > {
   const fetched = await fetchTallyBridgeV1ExportData(client, orderId);
-  if (!fetched.ok) {
+  if ("error" in fetched) {
     return { ok: false, error: fetched.error };
   }
   return buildTallyBridgeV1Csv(fetched.data, options);

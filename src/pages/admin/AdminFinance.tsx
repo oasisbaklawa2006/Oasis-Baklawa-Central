@@ -901,21 +901,21 @@ const AdminFinance = () => {
     }
     setTallyExporting(true);
     try {
-      const res = await exportTallyBridgeV1ToCsv(supabase, tallyExportOrderId, {
+      const tallyResult = await exportTallyBridgeV1ToCsv(supabase, tallyExportOrderId, {
         dispatchId: tallyExportDispatchId || undefined,
       });
-      if (!res.ok) {
-        toast.error(res.error);
+      if ("error" in tallyResult) {
+        toast.error(tallyResult.error);
         return;
       }
-      for (const w of res.warnings) {
+      for (const w of tallyResult.warnings) {
         toast.warning(w, { duration: 8000 });
       }
-      const blob = new Blob(["\uFEFF", res.csv], { type: "text/csv;charset=utf-8;" });
+      const blob = new Blob(["\uFEFF", tallyResult.csv], { type: "text/csv;charset=utf-8;" });
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = res.filename;
+      a.download = tallyResult.filename;
       a.click();
       URL.revokeObjectURL(url);
       toast.success("Tally Bridge v1 CSV downloaded.");
