@@ -464,12 +464,14 @@ const AdminFinance = () => {
       setTallyExportDispatchId("");
       return;
     }
+    let cancelled = false;
     (async () => {
       const { data } = await supabase
         .from("dispatches")
         .select("id, dispatch_date, dispatch_number, is_partial")
         .eq("order_id", tallyExportOrderId)
         .order("dispatch_date", { ascending: true, nullsFirst: false });
+      if (cancelled) return;
       setTallyDispatchOptions(
         (data || []).map((d) => ({
           id: d.id,
@@ -478,6 +480,9 @@ const AdminFinance = () => {
       );
       setTallyExportDispatchId("");
     })();
+    return () => {
+      cancelled = true;
+    };
   }, [tallyExportOrderId]);
 
   const handleValidatePayment = async (orderId: string) => {
