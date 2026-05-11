@@ -9,25 +9,13 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { useAuth } from "@/hooks/useAuth";
+import type { Database } from "@/integrations/supabase/types";
 
 /* ─── types ─── */
-interface UserRow {
-  id: string;
-  email: string | null;
-  full_name: string | null;
-  role: string;
-  department: string | null;
-  designation: string | null;
-  is_active: boolean | null;
-  invite_status: string | null;
-  mobile_number: string | null;
-  secondary_phones: string[] | null;
-  company_id: string | null;
-  created_at: string | null;
-  commission_rate_percentage: number | null;
-  is_sales_executive: boolean | null;
-  deleted_at: string | null;
-}
+type UserRow = Database["public"]["Tables"]["users"]["Row"] & {
+  /** Soft-delete column when present in DB; may be absent from generated Row */
+  deleted_at?: string | null;
+};
 
 interface RoleRow {
   id: string;
@@ -187,7 +175,7 @@ const AdminUsers = () => {
           supabase.from("role_permission_map").select("*"),
         ]);
 
-        const allUsers = (usersRes.data as UserRow[]) ?? [];
+        const allUsers = (usersRes.data ?? []) as UserRow[];
         setUsers(allUsers);
 
         const me = allUsers.find((u) => u.id === user?.id);
@@ -293,23 +281,21 @@ const AdminUsers = () => {
 
     try {
       const isSalesExec = nf.is_sales_executive || nf.role === "sales_executive";
-      await supabase.from("users").upsert(
-        {
-          id: newUserId,
-          full_name: nf.name,
-          email: nf.email.trim(),
-          mobile_number: formattedMobile,
-          ...(formattedSecondary ? { secondary_phones: [formattedSecondary] } : {}),
-          role: nf.role,
-          department: nf.dept === "none" ? null : nf.dept,
-          designation: nf.designation || null,
-          is_active: true,
-          invite_status: "active",
-          is_sales_executive: isSalesExec,
-          ...(isSalesExec && nf.commission_rate > 0 ? { commission_rate_percentage: nf.commission_rate } : {}),
-        } as Parameters<ReturnType<typeof supabase.from>["upsert"]>[0],
-        { onConflict: "id" },
-      );
+      const upsertRow: Database["public"]["Tables"]["users"]["Insert"] = {
+        id: newUserId,
+        full_name: nf.name,
+        email: nf.email.trim(),
+        mobile_number: formattedMobile,
+        ...(formattedSecondary ? { secondary_phones: [formattedSecondary] } : {}),
+        role: nf.role,
+        department: nf.dept === "none" ? null : nf.dept,
+        designation: nf.designation || null,
+        is_active: true,
+        invite_status: "active",
+        is_sales_executive: isSalesExec,
+        ...(isSalesExec && nf.commission_rate > 0 ? { commission_rate_percentage: nf.commission_rate } : {}),
+      };
+      await supabase.from("users").upsert(upsertRow, { onConflict: "id" });
 
       if (roleRecord) {
         await supabase
@@ -349,6 +335,11 @@ const AdminUsers = () => {
         created_at: new Date().toISOString(),
         commission_rate_percentage: isSalesExec && nf.commission_rate > 0 ? nf.commission_rate : null,
         is_sales_executive: isSalesExec,
+        has_seen_tutorial: null,
+        joined_at: null,
+        name: null,
+        phone: null,
+        preferred_language: null,
         deleted_at: null,
       };
 
