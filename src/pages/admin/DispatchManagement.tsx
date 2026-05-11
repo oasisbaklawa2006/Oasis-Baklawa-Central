@@ -85,8 +85,21 @@ export default function DispatchManagement() {
   const handleFinalizeDpl = async (orderId: string) => {
     setFinalizingDpl(true);
     try {
+      const { data: currentRow, error: fetchErr } = await supabase
+        .from("orders")
+        .select("status")
+        .eq("id", orderId)
+        .maybeSingle();
+      if (fetchErr) throw fetchErr;
+      const priorStatus = currentRow?.status ?? orders.find((o) => o.id === orderId)?.status ?? null;
+
       await supabase.from("orders").update({ status: "awaiting_payment" }).eq("id", orderId);
-      await supabase.from("order_status_history").insert({ order_id: orderId, old_status: "in_production", new_status: "awaiting_payment" });
+      // Use actual prior order status for accurate dispatch audit history.
+      await supabase.from("order_status_history").insert({
+        order_id: orderId,
+        old_status: priorStatus,
+        new_status: "awaiting_payment",
+      });
       await supabase.from("audit_logs").insert({
         action_type: "DPL_FINALIZED",
         module_name: "Dispatch",
