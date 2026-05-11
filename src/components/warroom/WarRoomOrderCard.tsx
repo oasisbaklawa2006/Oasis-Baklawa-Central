@@ -27,7 +27,7 @@ const STEPS = [
   { key: "production", label: "Production", statuses: ["manufacturing", "in_production"], icon: Factory },
   { key: "assembly", label: "Assembly", statuses: ["assembly"], icon: Hammer },
   { key: "packing", label: "Packing", statuses: ["packing", "packed_ready"], icon: Box },
-  { key: "billing", label: "Billing", statuses: ["invoice_generated", "awaiting_payment", "payment_cleared"], icon: FileText },
+  { key: "billing", label: "Billing", statuses: ["invoice_generated", "awaiting_payment", "awaiting_final_payment", "payment_cleared"], icon: FileText },
   { key: "security", label: "Dispatch", statuses: ["dispatched", "in_transit"], icon: Truck },
   { key: "support", label: "Delivered", statuses: ["delivered"], icon: HeartHandshake },
 ];

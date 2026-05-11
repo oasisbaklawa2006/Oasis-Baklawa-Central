@@ -31,7 +31,7 @@ const STATUS_TO_INDEX: Record<string, number> = {
   in_production: 3, manufacturing: 3, processing: 3,
   assembly: 4,
   packing: 5, packed_ready: 5, cleared_for_dispatch: 5,
-  invoice_generated: 6, awaiting_payment: 6, payment_cleared: 6,
+  invoice_generated: 6, awaiting_payment: 6, awaiting_final_payment: 6, payment_cleared: 6,
   dispatched: 7,
   in_transit: 8,
   delivered: 9, closed: 10,

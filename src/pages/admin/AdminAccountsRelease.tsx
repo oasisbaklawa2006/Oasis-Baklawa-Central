@@ -400,7 +400,7 @@ const AdminAccountsRelease = () => {
           }
         }
       }
-      await supabase.from("order_status_history").insert({ order_id: order.id, old_status: order.status, new_status: "awaiting_payment" });
+      await supabase.from("order_status_history").insert({ order_id: order.id, old_status: order.status, new_status: "awaiting_final_payment" });
       fetchOrders();
     } catch { toast.error("PI generation failed"); }
     setGeneratingPi(null);
@@ -533,7 +533,7 @@ const AdminAccountsRelease = () => {
                     <td className="px-4 py-3 text-right text-ui-kpi text-sm text-primary">{format(due)}</td>
                     <td className="px-4 py-3 text-right">
                       <div className="flex items-center gap-1.5 justify-end flex-wrap">
-                        {/* PI Generation for awaiting_payment orders */}
+                        {/* PI Generation for orders awaiting final payment (canonical status + legacy alias) */}
                         {(order.status === "awaiting_payment" || order.status === "awaiting_final_payment") && !order.payment_cleared && (
                           <button onClick={() => handleGeneratePI(order)} disabled={generatingPi === order.id}
                             className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-blue-500/10 text-blue-600 hover:bg-blue-500/20 disabled:opacity-50">

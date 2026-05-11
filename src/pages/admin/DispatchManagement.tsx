@@ -85,8 +85,8 @@ export default function DispatchManagement() {
   const handleFinalizeDpl = async (orderId: string) => {
     setFinalizingDpl(true);
     try {
-      await supabase.from("orders").update({ status: "awaiting_payment" }).eq("id", orderId);
-      await supabase.from("order_status_history").insert({ order_id: orderId, old_status: "in_production", new_status: "awaiting_payment" });
+      await supabase.from("orders").update({ status: "awaiting_final_payment" }).eq("id", orderId);
+      await supabase.from("order_status_history").insert({ order_id: orderId, old_status: "in_production", new_status: "awaiting_final_payment" });
       await supabase.from("audit_logs").insert({
         action_type: "DPL_FINALIZED",
         module_name: "Dispatch",

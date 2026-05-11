@@ -231,7 +231,7 @@ const AdminDashboard = () => {
 
     const a: AlertItem[] = [];
     if ((pendingApps.count ?? 0) > 0) a.push({ label: "Pending Approvals", count: pendingApps.count ?? 0, route: "/admin/clients", severity: "high" });
-    if (pc.awaiting_final_payment > 0) a.push({ label: "Awaiting Payment", count: pc.awaiting_final_payment, route: "/admin/accounts-release", severity: "high" });
+    if (pc.awaiting_final_payment > 0) a.push({ label: "Awaiting Final Payment", count: pc.awaiting_final_payment, route: "/admin/accounts-release", severity: "high" });
     if (pc.cleared_for_dispatch > 0) a.push({ label: t("Dispatch Ready"), count: pc.cleared_for_dispatch, route: "/admin/packing-dispatch", severity: "medium" });
     if (financeHold > 0) a.push({ label: "Finance Hold", count: financeHold, route: "/admin/accounts-release", severity: "high" });
     if ((supportOpen.count ?? 0) > 0) a.push({ label: "Support Escalations", count: supportOpen.count ?? 0, route: "/admin/exceptions", severity: "medium" });
@@ -435,7 +435,7 @@ const AdminDashboard = () => {
             { l: "Dispatched", v: pipeline.dispatched ?? 0 },
           ]} />
           <ClusterCard title="Finance Control" icon={Landmark} color="#dc2626" route="/admin/accounts-release" metrics={[
-            { l: "Awaiting Payment", v: pipeline.awaiting_final_payment ?? 0, actionable: true },
+            { l: "Awaiting Final Payment", v: pipeline.awaiting_final_payment ?? 0, actionable: true },
             { l: "Finance Hold", v: Number(counts.financeHold) || 0, actionable: true },
             { l: "Exposure (₹K)", v: Math.round((Number(counts.totalDue) || 0) / 1000) },
             { l: "Pending Collections (₹K)", v: Math.round((Number(counts.pendingCollections) || 0) / 1000) },

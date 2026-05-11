@@ -16,14 +16,18 @@ const STATUS_FLOW = [
   { status: "assembled", label: "Assembled", action: "Send to Packing", next: "packing", color: "bg-violet-100 text-violet-800 border-violet-200" },
   { status: "packing", label: "Packing", action: "Mark Packed", next: "packed_ready", color: "bg-purple-100 text-purple-800 border-purple-200" },
   { status: "packed_ready", label: "Packed Ready", action: "Request Payment", next: "awaiting_final_payment", color: "bg-emerald-100 text-emerald-800 border-emerald-200" },
-  { status: "awaiting_final_payment", label: "Awaiting Payment", action: "Clear for Dispatch", next: "cleared_for_dispatch", color: "bg-orange-100 text-orange-800 border-orange-200" },
+  { status: "awaiting_final_payment", label: "Awaiting Final Payment", action: "Clear for Dispatch", next: "cleared_for_dispatch", color: "bg-orange-100 text-orange-800 border-orange-200" },
   { status: "cleared_for_dispatch", label: "Cleared", action: "Mark Dispatched", next: "dispatched", color: "bg-teal-100 text-teal-800 border-teal-200" },
   { status: "dispatched", label: "Dispatched", action: "Confirm Delivery", next: "delivered", color: "bg-cyan-100 text-cyan-800 border-cyan-200" },
   { status: "delivered", label: "Delivered", action: null, next: null, color: "bg-green-100 text-green-800 border-green-200" },
   { status: "cancelled", label: "Cancelled", action: null, next: null, color: "bg-red-100 text-red-800 border-red-200" },
 ];
 
-const getStatusInfo = (status: string) => STATUS_FLOW.find(s => s.status === status) || { label: status, action: null, next: null, color: "bg-muted text-muted-foreground border-border" };
+const normalizeStatusForFlow = (status: string) => (status === "awaiting_payment" ? "awaiting_final_payment" : status);
+
+const getStatusInfo = (status: string) =>
+  STATUS_FLOW.find(s => s.status === normalizeStatusForFlow(status)) ||
+  { label: status, action: null, next: null, color: "bg-muted text-muted-foreground border-border" };
 
 interface OrderRow {
   id: string;
