@@ -1,4 +1,5 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useMemo } from "react";
+import { useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { removeDuplicateRealtimeChannel } from "@/utils/realtime";
 import { toast } from "sonner";
@@ -25,6 +26,30 @@ const STATUS_FLOW = [
 
 const getStatusInfo = (status: string) => STATUS_FLOW.find(s => s.status === status) || { label: status, action: null, next: null, color: "bg-muted text-muted-foreground border-border" };
 
+/** Sidebar links slice STATUS_FLOW into two queues: shop-floor work vs pack / finance / dispatch handoff (same statuses as the linear flow, no new values). */
+const PIPELINE_VIEW_PRODUCTION_STATUSES = new Set([
+  "confirmed",
+  "manufacturing",
+  "in_production",
+  "assembled",
+]);
+
+const PIPELINE_VIEW_PACKING_STATUSES = new Set([
+  "packing",
+  "packed_ready",
+  "awaiting_final_payment",
+  "cleared_for_dispatch",
+  "dispatched",
+]);
+
+type PipelineView = "all" | "production" | "packing";
+
+function parsePipelineViewParam(raw: string | null): PipelineView {
+  if (raw === "production") return "production";
+  if (raw === "packing") return "packing";
+  return "all";
+}
+
 interface OrderRow {
   id: string;
   status: string;
@@ -42,6 +67,9 @@ interface OrderItem {
 }
 
 const OrderManagement = () => {
+  const [searchParams] = useSearchParams();
+  const pipelineView = parsePipelineViewParam(searchParams.get("view"));
+
   const [orders, setOrders] = useState<OrderRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
@@ -74,6 +102,16 @@ const OrderManagement = () => {
       .subscribe();
     return () => { void supabase.removeChannel(ch); };
   }, [fetchOrders]);
+
+  const displayOrders = useMemo(() => {
+    if (pipelineView === "production") {
+      return orders.filter((o) => PIPELINE_VIEW_PRODUCTION_STATUSES.has(o.status));
+    }
+    if (pipelineView === "packing") {
+      return orders.filter((o) => PIPELINE_VIEW_PACKING_STATUSES.has(o.status));
+    }
+    return orders;
+  }, [orders, pipelineView]);
 
   const handleAction = async (orderId: string, nextStatus: string) => {
     setActionLoading(orderId);
@@ -192,7 +230,10 @@ const OrderManagement = () => {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-xl font-semibold text-foreground">Order Management</h1>
-          <p className="text-sm text-muted-foreground">{orders.length} active orders</p>
+          <p className="text-sm text-muted-foreground">
+            {displayOrders.length} orders
+            {pipelineView === "production" ? " · Production" : pipelineView === "packing" ? " · Packing & Dispatch" : ""}
+          </p>
         </div>
         <Button variant="outline" size="sm" onClick={fetchOrders} className="gap-2">
           <RefreshCw size={14} /> Refresh
@@ -215,7 +256,10 @@ const OrderManagement = () => {
             {orders.length === 0 && (
               <tr><td colSpan={6} className="text-center py-12 text-muted-foreground">No orders found</td></tr>
             )}
-            {orders.map((order) => {
+            {orders.length > 0 && displayOrders.length === 0 && (
+              <tr><td colSpan={6} className="text-center py-12 text-muted-foreground">No orders in this view</td></tr>
+            )}
+            {displayOrders.map((order) => {
               const info = getStatusInfo(order.status);
               const companyName = (order.company as any)?.business_name ?? "—";
               return (
