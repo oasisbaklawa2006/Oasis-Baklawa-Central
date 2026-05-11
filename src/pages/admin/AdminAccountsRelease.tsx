@@ -160,14 +160,21 @@ const AdminAccountsRelease = () => {
         return;
       }
 
-      // Fetch packed data for partial dispatch billing
-      const { data: packedData } = await supabase
-        .from("packing_lists")
-        .select("product_id, packed_quantity")
-        .eq("dispatch_id", orderId);
-      
+      const { data: dispatchRows } = await supabase.from("dispatches").select("id").eq("order_id", orderId);
+      const dispatchIds = ((dispatchRows ?? []) as { id: string }[]).map((d) => d.id).filter(Boolean);
+
+      // packing_lists.dispatch_id references dispatches.id, so resolve dispatch ids from the order first.
+      let packedData: { product_id: unknown; packed_quantity: unknown }[] = [];
+      if (dispatchIds.length > 0) {
+        const { data } = await supabase
+          .from("packing_lists")
+          .select("product_id, packed_quantity")
+          .in("dispatch_id", dispatchIds);
+        packedData = (data ?? []) as { product_id: unknown; packed_quantity: unknown }[];
+      }
+
       // Store packed items for invoice generation
-      const packedItems = (packedData || []).map((pl: any) => ({
+      const packedItems = packedData.map((pl: any) => ({
         product_id: pl.product_id,
         packed_quantity: Number(pl.packed_quantity),
       }));
