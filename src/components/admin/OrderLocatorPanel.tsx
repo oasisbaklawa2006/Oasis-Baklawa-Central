@@ -26,6 +26,7 @@ const DEBOUNCE_MS = 380;
 const RESULT_CAP = 35;
 const SCAN_CAP = 200;
 
+/** Left join — orders without a company row still appear (non–client-tab searches). */
 const ORDER_LOCATOR_SELECT = `
   id,
   status,
@@ -40,6 +41,23 @@ const ORDER_LOCATOR_SELECT = `
   created_at,
   company_id,
   company:companies(business_name, phone, gst_number)
+`;
+
+/** Inner join — client-tab filters on company fields must only return rows with a matching company embed. */
+const ORDER_LOCATOR_SELECT_CLIENT = `
+  id,
+  status,
+  payment_status,
+  advance_paid,
+  advance_required,
+  sales_order_value,
+  courier_name,
+  tracking_number,
+  eway_bill_number,
+  admin_promised_date,
+  created_at,
+  company_id,
+  company:companies!inner(business_name, phone, gst_number)
 `;
 
 interface LocatorCompany {
@@ -224,7 +242,7 @@ export default function OrderLocatorPanel({ onOpenTrace }: OrderLocatorPanelProp
           const pattern = `%${q}%`;
           const { data, error } = await supabase
             .from("orders")
-            .select(ORDER_LOCATOR_SELECT)
+            .select(ORDER_LOCATOR_SELECT_CLIENT)
             .neq("status", "draft")
             .or(
               `business_name.ilike.${pattern},phone.ilike.${pattern},gst_number.ilike.${pattern}`,

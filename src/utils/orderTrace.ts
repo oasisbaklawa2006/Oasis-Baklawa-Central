@@ -195,6 +195,9 @@ export function computeTimelineCursor(
 
   if (st === "cancelled") return 0;
 
+  /** Do not let advance/payment anomalies move the cursor backward from shipped/done stages. */
+  const skipAdvanceFinanceClamp = ["delivered", "dispatched", "in_transit", "closed"];
+
   const statusCursor: Record<string, number> = {
     cart: 0,
     draft: 0,
@@ -215,12 +218,16 @@ export function computeTimelineCursor(
     dispatched: 9,
     in_transit: 9,
     delivered: 11,
+    closed: 11,
   };
 
   let cur = statusCursor[st] ?? 4;
 
-  if (!advanceDone) cur = Math.min(cur, 1);
-  else cur = Math.max(cur, 2);
+  if (!skipAdvanceFinanceClamp.includes(st)) {
+    if (!advanceDone) cur = Math.min(cur, 1);
+    /** Only treat "Advance Verified" as passed when an advance was actually required. */
+    else if (advReq > 0) cur = Math.max(cur, 2);
+  }
 
   if (pendingReqUnits > 0) cur = Math.max(cur, 4);
   if (hasOpenProductionJobs || ["manufacturing", "in_production", "assembly", "partial_ready"].includes(st)) {
