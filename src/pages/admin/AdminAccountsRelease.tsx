@@ -435,7 +435,8 @@ const AdminAccountsRelease = () => {
           }
         }
       }
-      await supabase.from("order_status_history").insert({ order_id: order.id, old_status: order.status, new_status: "awaiting_payment" });
+      // Keep PI history aligned with canonical OrderManagement payment-stage vocabulary.
+      await supabase.from("order_status_history").insert({ order_id: order.id, old_status: order.status, new_status: "awaiting_final_payment" });
       fetchOrders();
     } catch { toast.error("PI generation failed"); }
     setGeneratingPi(null);
