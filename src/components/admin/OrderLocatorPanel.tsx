@@ -234,8 +234,13 @@ export default function OrderLocatorPanel({ onOpenTrace }: OrderLocatorPanelProp
             setLoading(false);
             return;
           }
-          const rhsHuman = quotePostgrestOrRhs(`%${tail}%`);
           const idCompact = tail.replace(/-/g, "");
+          if (idCompact.length < 2) {
+            setResults([]);
+            setLoading(false);
+            return;
+          }
+          const rhsHuman = quotePostgrestOrRhs(`%${tail}%`);
           const rhsUuid = quotePostgrestOrRhs(`%${idCompact}%`);
           const { data, error } = await supabase
             .from("orders")
