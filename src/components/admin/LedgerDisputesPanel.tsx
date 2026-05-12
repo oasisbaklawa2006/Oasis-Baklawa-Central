@@ -341,8 +341,8 @@ export const LedgerDisputesPanel = () => {
 
       {/* RESOLVE MODAL */}
       {resolveTarget && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
-          <div className="bg-white rounded-2xl w-full max-w-md p-6 shadow-2xl">
+        <div className="fixed inset-0 z-[180] flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
+          <div className="relative z-[190] bg-white rounded-2xl w-full max-w-md p-6 shadow-2xl">
             <h3 className="font-display text-lg font-bold text-slate-900 mb-1">Resolve Dispute</h3>
             <p className="text-sm text-slate-500 mb-4">{resolveTarget.company?.business_name}</p>
             <textarea
