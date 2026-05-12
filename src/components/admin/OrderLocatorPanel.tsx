@@ -90,6 +90,15 @@ function sanitizeIlike(q: string): string {
   return q.replace(/%/g, "").replace(/_/g, "").trim();
 }
 
+/**
+ * Quote the right-hand side of a PostgREST filter atom inside a comma-separated `.or()` string.
+ * Without this, user commas/parens/operators split or corrupt the expression.
+ */
+function quotePostgrestOrRhs(value: string): string {
+  const escaped = value.replace(/"/g, '""');
+  return `"${escaped}"`;
+}
+
 function groupByOrderId<T extends { order_id: string | null }>(rows: T[]): Map<string, T[]> {
   const m = new Map<string, T[]>();
   for (const r of rows) {
@@ -157,15 +166,15 @@ async function enrichOrders(bases: LocatorOrderBase[]): Promise<LocatorResultRow
   });
 }
 
-function mergeUniqueById(rows: LocatorOrderBase[]): LocatorOrderBase[] {
-  const seen = new Set<string>();
-  const out: LocatorOrderBase[] = [];
-  for (const r of rows) {
-    if (seen.has(r.id)) continue;
-    seen.add(r.id);
-    out.push(r);
+/** Dedupe enriched locator rows by order id (first occurrence wins). */
+function mergeLocatorResultRows(buckets: LocatorResultRow[][]): LocatorResultRow[] {
+  const byId = new Map<string, LocatorResultRow>();
+  for (const rows of buckets) {
+    for (const r of rows) {
+      if (!byId.has(r.base.id)) byId.set(r.base.id, r);
+    }
   }
-  return out;
+  return [...byId.values()];
 }
 
 export default function OrderLocatorPanel({ onOpenTrace }: OrderLocatorPanelProps) {
@@ -240,14 +249,14 @@ export default function OrderLocatorPanel({ onOpenTrace }: OrderLocatorPanelProp
             return;
           }
           const pattern = `%${q}%`;
+          const rhs = quotePostgrestOrRhs(pattern);
           const { data, error } = await supabase
             .from("orders")
             .select(ORDER_LOCATOR_SELECT_CLIENT)
             .neq("status", "draft")
-            .or(
-              `business_name.ilike.${pattern},phone.ilike.${pattern},gst_number.ilike.${pattern}`,
-              { foreignTable: "companies" },
-            )
+            .or(`business_name.ilike.${rhs},phone.ilike.${rhs},gst_number.ilike.${rhs}`, {
+              foreignTable: "companies",
+            })
             .order("created_at", { ascending: false })
             .limit(RESULT_CAP);
           if (error) throw error;
@@ -331,10 +340,11 @@ export default function OrderLocatorPanel({ onOpenTrace }: OrderLocatorPanelProp
             return;
           }
           const pattern = `%${q}%`;
+          const rhs = quotePostgrestOrRhs(pattern);
           const { data: prodRows, error: pe } = await supabase
             .from("products")
             .select("id")
-            .or(`name.ilike.${pattern},sku.ilike.${pattern},category.ilike.${pattern}`)
+            .or(`name.ilike.${rhs},sku.ilike.${rhs},category.ilike.${rhs}`)
             .limit(250);
           if (pe) throw pe;
           const pids = [...new Set((prodRows ?? []).map((p: { id: string }) => p.id))];
@@ -375,7 +385,8 @@ export default function OrderLocatorPanel({ onOpenTrace }: OrderLocatorPanelProp
 
           if (t.length >= 2) {
             const pattern = `%${t}%`;
-            query = query.or(`tracking_number.ilike.${pattern},courier_name.ilike.${pattern},eway_bill_number.ilike.${pattern}`);
+            const rhs = quotePostgrestOrRhs(pattern);
+            query = query.or(`tracking_number.ilike.${rhs},courier_name.ilike.${rhs},eway_bill_number.ilike.${rhs}`);
           }
 
           const { data, error } = await query;
@@ -403,7 +414,7 @@ export default function OrderLocatorPanel({ onOpenTrace }: OrderLocatorPanelProp
           setLoading(false);
           return;
         } else if (mode === "exceptions") {
-          const parts: LocatorOrderBase[][] = [];
+          const resultBuckets: LocatorResultRow[][] = [];
 
           if (exceptionDelayed) {
             const today = new Date().toISOString().slice(0, 10);
@@ -418,7 +429,7 @@ export default function OrderLocatorPanel({ onOpenTrace }: OrderLocatorPanelProp
               .order("admin_promised_date", { ascending: true })
               .limit(RESULT_CAP);
             if (error) throw error;
-            parts.push((data ?? []) as LocatorOrderBase[]);
+            resultBuckets.push(await enrichOrders((data ?? []) as LocatorOrderBase[]));
           }
 
           const needsEnrichedScan =
@@ -435,27 +446,32 @@ export default function OrderLocatorPanel({ onOpenTrace }: OrderLocatorPanelProp
             const scan = (data ?? []) as LocatorOrderBase[];
             const enriched = await enrichOrders(scan);
             if (signal?.cancelled) return;
-            const matched: LocatorOrderBase[] = [];
-            for (const row of enriched) {
-              let hit = false;
-              if (exceptionAdvance && row.preview.finance.awaiting_advance) hit = true;
-              if (exceptionBalance && row.preview.finance.balance_pending) hit = true;
-              if (exceptionPartial && (row.base.status === "partial_ready" || row.preview.dispatch === "partially_ready")) {
-                hit = true;
+            const matchedRows = enriched.filter((row) => {
+              if (exceptionAdvance && row.preview.finance.awaiting_advance) return true;
+              if (exceptionBalance && row.preview.finance.balance_pending) return true;
+              if (
+                exceptionPartial &&
+                (row.base.status === "partial_ready" || row.preview.dispatch === "partially_ready")
+              ) {
+                return true;
               }
-              if (exceptionReq && row.preview.requisitionPendingUnits > 0) hit = true;
-              if (hit) matched.push(row.base);
-            }
-            parts.push(matched);
+              if (exceptionReq && row.preview.requisitionPendingUnits > 0) return true;
+              return false;
+            });
+            resultBuckets.push(matchedRows);
           }
 
-          if (parts.length === 0) {
+          if (resultBuckets.length === 0) {
             setResults([]);
             setLoading(false);
             return;
           }
 
-          bases = mergeUniqueById(parts.flat()).slice(0, RESULT_CAP);
+          const merged = mergeLocatorResultRows(resultBuckets).slice(0, RESULT_CAP);
+          if (signal?.cancelled) return;
+          setResults(merged);
+          setLoading(false);
+          return;
         }
 
         if (signal?.cancelled) return;
@@ -472,8 +488,7 @@ export default function OrderLocatorPanel({ onOpenTrace }: OrderLocatorPanelProp
           mode === "so" ||
           mode === "client" ||
           mode === "department" ||
-          mode === "product" ||
-          (mode === "exceptions" && bases.length > 0)
+          mode === "product"
         ) {
           const enriched = await enrichOrders(bases.slice(0, RESULT_CAP));
           if (signal?.cancelled) return;
