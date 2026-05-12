@@ -3,7 +3,9 @@ import { useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { removeDuplicateRealtimeChannel } from "@/utils/realtime";
 import { toast } from "sonner";
-import { Loader2, ChevronRight, Printer, Package, RefreshCw } from "lucide-react";
+import { Loader2, ChevronRight, Printer, Package, RefreshCw, Route } from "lucide-react";
+import OrderTraceSheet from "@/components/admin/OrderTraceSheet";
+import OrderLocatorPanel from "@/components/admin/OrderLocatorPanel";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import StagnancyBadge from "@/components/StagnancyBadge";
@@ -76,6 +78,7 @@ const OrderManagement = () => {
   const [selectedOrder, setSelectedOrder] = useState<string | null>(null);
   const [orderItems, setOrderItems] = useState<OrderItem[]>([]);
   const [itemsLoading, setItemsLoading] = useState(false);
+  const [traceOrderId, setTraceOrderId] = useState<string | null>(null);
 
   const fetchOrders = useCallback(async () => {
     const { data, error } = await supabase
@@ -240,6 +243,8 @@ const OrderManagement = () => {
         </Button>
       </div>
 
+      <OrderLocatorPanel onOpenTrace={(id) => setTraceOrderId(id)} />
+
       <div className="bg-card border border-border rounded-xl overflow-hidden">
         <table className="w-full text-sm">
           <thead>
@@ -296,9 +301,14 @@ const OrderManagement = () => {
                     )}
                   </td>
                   <td className="px-4 py-3 text-center">
-                    <Button variant="ghost" size="sm" onClick={() => openPickingList(order.id)} className="gap-1 text-xs">
-                      <Package size={12} /> View
-                    </Button>
+                    <div className="flex flex-wrap items-center justify-center gap-1">
+                      <Button variant="ghost" size="sm" onClick={() => openPickingList(order.id)} className="gap-1 text-xs">
+                        <Package size={12} /> View
+                      </Button>
+                      <Button variant="ghost" size="sm" onClick={() => setTraceOrderId(order.id)} className="gap-1 text-xs">
+                        <Route size={12} /> Trace
+                      </Button>
+                    </div>
                   </td>
                 </tr>
               );
@@ -349,6 +359,14 @@ const OrderManagement = () => {
           </div>
         </SheetContent>
       </Sheet>
+
+      <OrderTraceSheet
+        orderId={traceOrderId}
+        open={!!traceOrderId}
+        onOpenChange={(o) => {
+          if (!o) setTraceOrderId(null);
+        }}
+      />
     </div>
   );
 };
