@@ -7,10 +7,10 @@ ADD COLUMN IF NOT EXISTS order_number text;
 WITH numbered AS (
   SELECT
     id,
-    (EXTRACT(YEAR FROM COALESCE(created_at, timezone('utc', now())) AT TIME ZONE 'UTC'))::integer AS yr,
+    (EXTRACT(YEAR FROM COALESCE(created_at, now()) AT TIME ZONE 'UTC'))::integer AS yr,
     ROW_NUMBER() OVER (
-      PARTITION BY (EXTRACT(YEAR FROM COALESCE(created_at, timezone('utc', now())) AT TIME ZONE 'UTC'))::integer
-      ORDER BY COALESCE(created_at, timezone('utc', now())) ASC, id ASC
+      PARTITION BY (EXTRACT(YEAR FROM COALESCE(created_at, now()) AT TIME ZONE 'UTC'))::integer
+      ORDER BY COALESCE(created_at, now()) ASC, id ASC
     ) AS rn
   FROM public.orders
 )
@@ -40,7 +40,7 @@ BEGIN
     RETURN NEW;
   END IF;
 
-  v_year := (EXTRACT(YEAR FROM COALESCE(NEW.created_at, timezone('utc', now())) AT TIME ZONE 'UTC'))::integer;
+  v_year := (EXTRACT(YEAR FROM COALESCE(NEW.created_at, now()) AT TIME ZONE 'UTC'))::integer;
 
   PERFORM pg_advisory_xact_lock(58492001, v_year);
 
