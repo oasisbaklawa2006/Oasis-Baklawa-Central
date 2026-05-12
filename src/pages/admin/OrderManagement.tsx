@@ -10,6 +10,7 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sh
 import { Button } from "@/components/ui/button";
 import StagnancyBadge from "@/components/StagnancyBadge";
 import { shouldIgnoreOrderRegression } from "@/utils/orderStatus";
+import { formatSalesOrderLabel } from "@/utils/orderSoLabel";
 
 const STATUS_FLOW = [
   { status: "submitted", label: "Order Placed", action: "Confirm Order", next: "confirmed", color: "bg-amber-100 text-amber-800 border-amber-200" },
@@ -54,6 +55,8 @@ function parsePipelineViewParam(raw: string | null): PipelineView {
 
 interface OrderRow {
   id: string;
+  /** Persisted SO-YYYY-NNNNNN when present */
+  order_number?: string | null;
   status: string;
   created_at: string | null;
   sales_order_value: number | null;
@@ -83,7 +86,7 @@ const OrderManagement = () => {
   const fetchOrders = useCallback(async () => {
     const { data, error } = await supabase
       .from("orders")
-      .select("id, status, created_at, sales_order_value, company_id, company:companies(business_name)")
+      .select("id, order_number, status, created_at, sales_order_value, company_id, company:companies(business_name)")
       .neq("status", "draft")
       .order("created_at", { ascending: false });
 
@@ -167,7 +170,10 @@ const OrderManagement = () => {
         .select("business_name, phone, payment_terms")
         .eq("id", currentOrder.company_id)
         .maybeSingle();
-      const orderRef = "SO-" + orderId.slice(0, 8).toUpperCase();
+      const orderRef = formatSalesOrderLabel({
+        id: orderId,
+        order_number: currentOrder?.order_number,
+      });
       const phone = (comp as any)?.phone;
       const businessName = (comp as any)?.business_name || "Valued Customer";
 
@@ -272,7 +278,7 @@ const OrderManagement = () => {
                   <td className="px-4 py-3 font-mono text-xs text-foreground">
                     <div className="flex items-center gap-2">
                       <StagnancyBadge createdAt={order.created_at} />
-                      {order.id.slice(0, 8).toUpperCase()}
+                      {formatSalesOrderLabel(order)}
                     </div>
                   </td>
                   <td className="px-4 py-3 text-foreground">{companyName}</td>
@@ -327,7 +333,12 @@ const OrderManagement = () => {
           </SheetHeader>
           <div className="mt-4 space-y-2">
             {selectedOrder && (
-              <p className="text-xs text-muted-foreground font-mono mb-3">Order: {selectedOrder.slice(0, 8).toUpperCase()}</p>
+              <p className="mb-3 font-mono text-xs text-muted-foreground">
+                Order:{" "}
+                <span className="font-medium text-foreground">
+                  {formatSalesOrderLabel(orders.find((o) => o.id === selectedOrder) ?? { id: selectedOrder })}
+                </span>
+              </p>
             )}
             {itemsLoading ? (
               <div className="flex justify-center py-8"><Loader2 size={20} className="animate-spin text-primary" /></div>

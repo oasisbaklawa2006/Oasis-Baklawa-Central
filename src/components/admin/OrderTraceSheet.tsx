@@ -11,6 +11,7 @@ import {
   pendingRequisitionQty,
   type OrderTraceInputs,
 } from "@/utils/orderTrace";
+import { formatSalesOrderLabel } from "@/utils/orderSoLabel";
 
 interface OrderTraceSheetProps {
   orderId: string | null;
@@ -21,7 +22,7 @@ interface OrderTraceSheetProps {
 type TraceOrderRow = Pick<
   OrderTraceInputs,
   "status" | "payment_status" | "advance_paid" | "advance_required" | "sales_order_value"
-> & { id: string };
+> & { id: string; order_number?: string | null };
 
 type TraceItemRow = {
   quantity: number;
@@ -96,7 +97,7 @@ export default function OrderTraceSheet({ orderId, open, onOpenChange }: OrderTr
         const [orderRes, itemsRes, reqsRes, jobsRes] = await Promise.all([
           supabase
             .from("orders")
-            .select("id, status, payment_status, advance_paid, advance_required, sales_order_value")
+            .select("id, order_number, status, payment_status, advance_paid, advance_required, sales_order_value")
             .eq("id", orderId)
             .maybeSingle(),
           supabase
@@ -212,9 +213,14 @@ export default function OrderTraceSheet({ orderId, open, onOpenChange }: OrderTr
 
         <div className="mt-4 space-y-6 text-sm">
           {orderId && (
-            <p className="font-mono text-xs text-muted-foreground">
-              Order ID · {(orderId ?? "").slice(0, 8).toUpperCase()}
-            </p>
+            <div className="space-y-1 rounded-md border border-border bg-muted/40 px-3 py-2">
+              <p className="font-mono text-sm font-semibold text-foreground">
+                {order ? formatSalesOrderLabel(order) : formatSalesOrderLabel({ id: orderId })}
+              </p>
+              <p className="break-all font-mono text-[11px] text-muted-foreground" title={order?.id ?? orderId}>
+                UUID · {order?.id ?? orderId}
+              </p>
+            </div>
           )}
 
           {loading && (

@@ -20,6 +20,7 @@ import {
   type OrderTraceInputs,
   type OrderTracePreview,
 } from "@/utils/orderTrace";
+import { formatSalesOrderLabel } from "@/utils/orderSoLabel";
 
 const ANY_VALUE = "__any__";
 const DEBOUNCE_MS = 380;
@@ -29,6 +30,7 @@ const SCAN_CAP = 200;
 /** Left join — orders without a company row still appear (non–client-tab searches). */
 const ORDER_LOCATOR_SELECT = `
   id,
+  order_number,
   status,
   payment_status,
   advance_paid,
@@ -46,6 +48,7 @@ const ORDER_LOCATOR_SELECT = `
 /** Inner join — client-tab filters on company fields must only return rows with a matching company embed. */
 const ORDER_LOCATOR_SELECT_CLIENT = `
   id,
+  order_number,
   status,
   payment_status,
   advance_paid,
@@ -68,6 +71,8 @@ interface LocatorCompany {
 
 export interface LocatorOrderBase extends OrderTraceInputs {
   id: string;
+  /** Persisted human-readable SO (SO-YYYY-NNNNNN); missing only before migration / anomaly. */
+  order_number?: string | null;
   courier_name: string | null;
   tracking_number: string | null;
   eway_bill_number: string | null;
@@ -108,10 +113,6 @@ function groupByOrderId<T extends { order_id: string | null }>(rows: T[]): Map<s
     m.get(oid)!.push(r);
   }
   return m;
-}
-
-function formatSO(id: string): string {
-  return `SO-${id.slice(0, 8).toUpperCase()}`;
 }
 
 async function enrichOrders(bases: LocatorOrderBase[]): Promise<LocatorResultRow[]> {
@@ -226,17 +227,26 @@ export default function OrderLocatorPanel({ onOpenTrace }: OrderLocatorPanelProp
         let bases: LocatorOrderBase[] = [];
 
         if (mode === "so") {
-          const q = sanitizeIlike(soQuery).replace(/^SO-/i, "").replace(/-/g, "");
-          if (q.length < 2) {
+          const raw = sanitizeIlike(soQuery);
+          const tail = raw.replace(/^SO-/i, "").trim();
+          if (tail.length < 2) {
             setResults([]);
             setLoading(false);
             return;
           }
+          const idCompact = tail.replace(/-/g, "");
+          if (idCompact.length < 2) {
+            setResults([]);
+            setLoading(false);
+            return;
+          }
+          const rhsHuman = quotePostgrestOrRhs(`%${tail}%`);
+          const rhsUuid = quotePostgrestOrRhs(`%${idCompact}%`);
           const { data, error } = await supabase
             .from("orders")
             .select(ORDER_LOCATOR_SELECT)
             .neq("status", "draft")
-            .ilike("id", `%${q}%`)
+            .or(`order_number.ilike.${rhsHuman},id.ilike.${rhsUuid}`)
             .order("created_at", { ascending: false })
             .limit(RESULT_CAP);
           if (error) throw error;
@@ -619,7 +629,7 @@ export default function OrderLocatorPanel({ onOpenTrace }: OrderLocatorPanelProp
 
         <TabsContent value="so" className="space-y-2">
           <Input
-            placeholder="SO prefix or order UUID fragment (min 2 chars)"
+            placeholder="SO number (e.g. SO-2026-000142) or UUID fragment (min 2 chars)"
             value={soQuery}
             onChange={(e) => setSoQuery(e.target.value)}
             className="font-mono text-sm"
@@ -815,7 +825,9 @@ export default function OrderLocatorPanel({ onOpenTrace }: OrderLocatorPanelProp
               >
                 <div className="min-w-0 flex-1 space-y-1">
                   <div className="flex flex-wrap items-center gap-2">
-                    <span className="font-mono font-medium text-foreground">{formatSO(row.base.id)}</span>
+                    <span className="font-mono font-medium text-foreground">
+                      {formatSalesOrderLabel(row.base)}
+                    </span>
                     <Badge variant="secondary" className="font-normal">
                       {row.base.status}
                     </Badge>
