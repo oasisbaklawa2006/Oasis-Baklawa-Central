@@ -1859,6 +1859,7 @@ export type Database = {
           is_starter_pack: boolean
           is_waste: boolean
           needs_clarification: boolean
+          order_number: string
           parser_confidence: number | null
           payment_cleared: boolean | null
           payment_receipt_url: string | null
@@ -1899,6 +1900,7 @@ export type Database = {
           is_starter_pack?: boolean
           is_waste?: boolean
           needs_clarification?: boolean
+          order_number?: string
           parser_confidence?: number | null
           payment_cleared?: boolean | null
           payment_receipt_url?: string | null
@@ -1939,6 +1941,7 @@ export type Database = {
           is_starter_pack?: boolean
           is_waste?: boolean
           needs_clarification?: boolean
+          order_number?: string
           parser_confidence?: number | null
           payment_cleared?: boolean | null
           payment_receipt_url?: string | null

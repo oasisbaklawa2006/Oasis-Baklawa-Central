@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { generateProFormaInvoice } from "@/utils/invoiceGenerator";
 import { notifyOrderConfirmed, notifyOrderDelivered } from "@/utils/notifyEvent";
+import { formatSalesOrderLabel } from "@/utils/orderSoLabel";
 const PACKS_PER_CARTON = 9;
 
 const STATUSES = [
@@ -72,6 +73,7 @@ interface OrderItem {
 
 interface OrderCard {
   id: string;
+  order_number?: string | null;
   status: string;
   sales_order_value: number | null;
   company_id: string | null;
@@ -114,7 +116,7 @@ const AdminOrders = () => {
       .from("orders")
       .select(
         `
-        id, status, sales_order_value, company_id,
+        id, order_number, status, sales_order_value, company_id,
         document_stage, payment_cleared, eway_bill_number, gate_pass_number,
         company:companies(business_name, gst_number)
       `,
@@ -573,7 +575,10 @@ const AdminOrders = () => {
                   <h2 className="text-lg font-display tracking-wide text-foreground">
                     {selectedOrder.company?.business_name || "Order Details"}
                   </h2>
-                  <p className="text-xs font-mono text-muted-foreground mt-1 uppercase">#{selectedOrder.id}</p>
+                  <p className="mt-1 font-mono text-xs font-semibold text-foreground">
+                    {formatSalesOrderLabel(selectedOrder)}
+                  </p>
+                  <p className="mt-0.5 break-all font-mono text-[10px] text-muted-foreground">{selectedOrder.id}</p>
                 </div>
                 <button
                   onClick={closeDrawer}
@@ -704,7 +709,7 @@ const AdminOrders = () => {
                           );
                         })}
                         <p className="text-[10px] text-muted-foreground italic">
-                          SO-{selectedOrder.id.slice(0, 8).toUpperCase()} routed successfully.
+                          {formatSalesOrderLabel(selectedOrder)} routed successfully.
                         </p>
                       </div>
                     )}
