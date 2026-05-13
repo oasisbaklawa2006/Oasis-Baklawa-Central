@@ -48,6 +48,7 @@ interface ProdOrderEntry {
 
 // RGS uses classifyFlow for strict filtering
 import { classifyFlow } from "@/utils/departmentClassifier";
+import { getPackedReadyBlockers, type PackedReadyGateInput, type PackedReadyGateOrder } from "@/utils/packedReadyGate";
 
 export default function ReadyGoodsStore() {
   const { user } = useAuth();
@@ -195,6 +196,51 @@ export default function ReadyGoodsStore() {
     setActing(orderId);
     if (status === "fully_available") {
       const order = orders.find(o => o.id === orderId);
+      const [{ data: fullOrder }, { data: allItems }, { data: reqs }] = await Promise.all([
+        supabase.from("orders").select("status, payment_status, advance_paid, advance_required, sales_order_value").eq("id", orderId).maybeSingle(),
+        supabase.from("order_items").select("id, quantity, actual_packed_qty, production_status").eq("order_id", orderId),
+        supabase.from("store_requisitions").select("status, store_requisition_items(requested_qty, fulfilled_qty)").eq("order_id", orderId),
+      ]);
+      const rgsIds = new Set((order?.items || []).map((i) => i.id));
+      type OiRow = {
+        id: string;
+        quantity: number;
+        actual_packed_qty: number | null;
+        production_status: string | null;
+      };
+      const rows = (allItems as OiRow[]) || [];
+      const prospectiveItems = rows.map((row) =>
+        rgsIds.has(row.id)
+          ? {
+              quantity: row.quantity,
+              actual_packed_qty: row.quantity,
+              production_status: "completed" as const,
+            }
+          : {
+              quantity: row.quantity,
+              actual_packed_qty: row.actual_packed_qty,
+              production_status: row.production_status,
+            },
+      );
+      const fo = fullOrder as PackedReadyGateOrder | null;
+      const gateInput: PackedReadyGateInput = {
+        order: {
+          status: fo?.status ?? "",
+          payment_status: fo?.payment_status ?? null,
+          advance_paid: fo?.advance_paid ?? null,
+          advance_required: fo?.advance_required ?? null,
+          sales_order_value: fo?.sales_order_value ?? null,
+        },
+        items: prospectiveItems,
+        requisitions: (reqs ?? []) as PackedReadyGateInput["requisitions"],
+      };
+      const gate = getPackedReadyBlockers(gateInput);
+      if (gate.length > 0) {
+        toast.error(gate.map((b) => b.message).join("; "));
+        setActing(null);
+        return;
+      }
+
       for (const item of (order?.items || [])) {
         await supabase.from("order_items").update({
           production_status: "completed",
