@@ -1,172 +1,196 @@
-import { supabase } from "@/integrations/supabase/client";
+// src/lib/auth-routing.ts
+// OASIS BAKLAWA CENTRAL — Role-Based Routing
+// Single source of truth for all role → destination decisions
+// Last updated: 14 May 2026
 
-type RoleRecord = {
-  company_id: string | null;
+import { supabase } from '@/integrations/supabase/client';
+
+// ─── Role Groups ───────────────────────────────────────────────
+// All lowercase — matches the users.role column after normalisation
+
+export const ADMIN_ROLES = [
+  'super_admin',
+  'admin',
+];
+
+export const STAFF_ROLES = [
+  'super_admin', 'admin',
+  'finance_head', 'finance_exec',
+  'operations_manager',
+  'production_manager',
+  'prod_arabic_sweets', 'prod_fusion', 'prod_chocolate',
+  'prod_bakery', 'prod_nuts',
+  'hod_assembly',
+  'dispatch_head', 'dispatch_manager',
+  'store_incharge',
+  'sales_executive',
+  'support_executive',
+  'catalogue_contributor',
+  'security_control',
+];
+
+export const BUYER_ROLES = [
+  'b2b_buyer',
+  'customer_user',
+  'buyer',
+  'client',
+  'wholesale_buyer',
+  'special_buyer',
+];
+
+// ─── Route Destinations ────────────────────────────────────────
+
+export function getRoleDestination(role: string | null | undefined): string {
+  const r = (role ?? '').toLowerCase().trim();
+
+  // Super admin & admin → CMD War Room
+  if (r === 'super_admin' || r === 'admin') {
+    return '/admin/cmd-war-room';
+  }
+
+  // Finance
+  if (r === 'finance_head' || r === 'finance_exec') {
+    return '/admin/finance';
+  }
+
+  // Operations
+  if (r === 'operations_manager') {
+    return '/admin/orders';
+  }
+
+  // Production floor staff
+  if ([
+    'production_manager',
+    'prod_arabic_sweets',
+    'prod_fusion',
+    'prod_chocolate',
+    'prod_bakery',
+    'prod_nuts',
+    'hod_assembly',
+  ].includes(r)) {
+    return '/admin/production';
+  }
+
+  // Dispatch
+  if (r === 'dispatch_head' || r === 'dispatch_manager') {
+    return '/admin/dispatch';
+  }
+
+  // Ready Goods Store
+  if (r === 'store_incharge') {
+    return '/admin/rgs';
+  }
+
+  // Sales
+  if (r === 'sales_executive') {
+    return '/sales/dashboard';
+  }
+
+  // Support
+  if (r === 'support_executive') {
+    return '/admin/support';
+  }
+
+  // Catalogue
+  if (r === 'catalogue_contributor') {
+    return '/admin/catalogue';
+  }
+
+  // Security Gate
+  if (r === 'security_control') {
+    return '/admin/security-gate';
+  }
+
+  // All buyer variants → customer home
+  if (BUYER_ROLES.includes(r)) {
+    return '/home';
+  }
+
+  // Unknown / pending → approval pending
+  return '/approval-pending';
+}
+
+// ─── Role Checks ───────────────────────────────────────────────
+
+export function isAdminRole(role: string | null | undefined): boolean {
+  return ADMIN_ROLES.includes((role ?? '').toLowerCase().trim());
+}
+
+export function isStaffRole(role: string | null | undefined): boolean {
+  return STAFF_ROLES.includes((role ?? '').toLowerCase().trim());
+}
+
+export function isBuyerRole(role: string | null | undefined): boolean {
+  return BUYER_ROLES.includes((role ?? '').toLowerCase().trim());
+}
+
+// ─── Auth Record Fetcher ───────────────────────────────────────
+// Fetches role from users table — maybeSingle() to never crash
+
+export async function fetchAuthRoleRecord(userId: string): Promise<{
   role: string | null;
-};
+  company_id: string | null;
+  is_active: boolean;
+}> {
+  if (!userId) {
+    return { role: null, company_id: null, is_active: false };
+  }
 
-const STAFF_ROLE_DESTINATIONS = {
-  SUPER_ADMIN: "/admin/cmd-war-room",
-  OWNER: "/admin/cmd-war-room",
-  ADMIN: "/admin/cmd-war-room",
-  FINANCE_HEAD: "/admin/accounts-release",
-  FINANCE_EXEC: "/admin/accounts-release",
-  OPERATIONS_MANAGER: "/operations-controller",
-  PRODUCTION_MANAGER: "/admin/order-management",
-  HOD_ARABIC: "/operations-controller",
-  HOD_FUSION: "/operations-controller",
-  HOD_CHOCOLATE: "/operations-controller",
-  HOD_DRAGEES: "/operations-controller",
-  HOD_BAKERY: "/operations-controller",
-  HOD_NUTS: "/operations-controller",
-  HOD_ASSEMBLY: "/operations-controller",
-  STORE_INCHARGE: "/admin/ready-goods",
-  DISPATCH_MANAGER: "/admin/dispatch-mgmt",
-  DISPATCH_INCHARGE: "/admin/dispatch-mgmt",
-  SECURITY_CONTROL: "/security-gate",
-  SALES_EXECUTIVE: "/sales/dashboard",
-  SUPPORT_EXECUTIVE: "/admin/support",
-} as const;
-
-const LEGACY_ROLE_DESTINATIONS: Record<string, string> = {
-  GATE_SECURITY: "/security-gate",
-  STORE_READY_GOODS: "/admin/ready-goods",
-  RGS_ADMIN: "/admin/ready-goods",
-  STORE_3RD_PARTY: "/admin/3pcs-store",
-  ASSEMBLY_MANAGER: "/admin/order-management",
-  PACKING_SUPERVISOR: "/admin/order-management",
-  DISPATCH_HEAD: "/admin/dispatch-mgmt",
-  PROD_ARABIC_SWEETS: "/tv/arabic-sweets",
-  PROD_CHOCOLATE: "/tv/chocolate",
-  PROD_DRAGEES: "/tv/dragees",
-  PROD_FUSION: "/tv/fusion",
-  PROD_BAKERY: "/tv/bakery",
-  PROD_NUTS: "/tv/nuts",
-};
-
-export const STAFF_ROLES = new Set([
-  ...Object.keys(STAFF_ROLE_DESTINATIONS),
-  ...Object.keys(LEGACY_ROLE_DESTINATIONS),
-]);
-
-export const BUYER_ROLES = new Set([
-  "B2B_BUYER",
-  "SPECIAL_BUYER",
-  "HORECA_BUYER",
-  "WHOLESALE_BUYER",
-  "BULK_BUYER",
-]);
-
-const LEGACY_BUYER_ROLES = new Set(["BUYER", "CLIENT", "CUSTOMER_USER"]);
-
-const CLIENT_ROLES = new Set([...BUYER_ROLES, ...LEGACY_BUYER_ROLES]);
-
-const ROLE_DESTINATIONS: Record<string, string> = {
-  ...STAFF_ROLE_DESTINATIONS,
-  ...LEGACY_ROLE_DESTINATIONS,
-};
-
-export function isStaffRole(role?: string | null): boolean {
-  const normalizedRole = normalizeRole(role);
-  return normalizedRole ? STAFF_ROLES.has(normalizedRole) : false;
-}
-
-function normalizeRecord(data: Partial<RoleRecord> | null | undefined): RoleRecord | null {
-  if (!data) return null;
-
-  return {
-    company_id: data.company_id ?? null,
-    role: data.role ?? null,
-  };
-}
-
-async function readRoleRecord(table: "profiles" | "users", userId: string): Promise<RoleRecord | null> {
-  const { data, error } = await supabase
-    .from(table)
-    .select("company_id, role")
-    .eq("id", userId)
+  // Primary: check users table
+  const { data: userData } = await supabase
+    .from('users')
+    .select('role, company_id, is_active')
+    .eq('id', userId)
     .maybeSingle();
 
-  if (error) throw error;
-  return normalizeRecord(data);
-}
-
-export async function getServerRole(userId: string): Promise<string | null> {
-  const { data, error } = await supabase.rpc("get_user_role", { _user_id: userId });
-  if (error) return null;
-  return normalizeRole(data);
-}
-
-export async function isInternalStaffUser(userId: string): Promise<boolean> {
-  const { data, error } = await supabase.rpc("is_internal_staff", { _user_id: userId });
-  if (error) return false;
-  return Boolean(data);
-}
-
-export async function fetchAuthRoleRecord(userId: string): Promise<RoleRecord> {
-  try {
-    const [serverRole, profileRecord, userRecord] = await Promise.all([
-      getServerRole(userId),
-      readRoleRecord("profiles", userId).catch(() => null),
-      readRoleRecord("users", userId).catch(() => null),
-    ]);
-
+  if (userData) {
     return {
-      company_id: profileRecord?.company_id ?? userRecord?.company_id ?? null,
-      role: serverRole ?? normalizeRole(profileRecord?.role) ?? normalizeRole(userRecord?.role),
-    };
-  } catch {
-    const [serverRole, userRecord] = await Promise.all([
-      getServerRole(userId).catch(() => null),
-      readRoleRecord("users", userId).catch(() => null),
-    ]);
-
-    return {
-      company_id: userRecord?.company_id ?? null,
-      role: serverRole ?? normalizeRole(userRecord?.role),
+      role: (userData.role ?? '').toLowerCase().trim() || null,
+      company_id: userData.company_id ?? null,
+      is_active: userData.is_active ?? true,
     };
   }
+
+  // Fallback: check profiles table
+  const { data: profileData } = await supabase
+    .from('profiles')
+    .select('role, company_id, is_approved')
+    .eq('id', userId)
+    .maybeSingle();
+
+  if (profileData) {
+    return {
+      role: (profileData.role ?? '').toLowerCase().trim() || null,
+      company_id: profileData.company_id ?? null,
+      is_active: profileData.is_approved ?? false,
+    };
+  }
+
+  return { role: null, company_id: null, is_active: false };
 }
 
-export function normalizeRole(role?: string | null) {
-  return role?.trim().toUpperCase() ?? null;
-}
+// ─── Main: resolve redirect after login ───────────────────────
 
-function normalizePathname(pathname: string) {
-  if (!pathname || pathname === "/") return "/";
-  return pathname.endsWith("/") ? pathname.slice(0, -1) : pathname;
-}
+export async function resolveRedirect(userId: string): Promise<string> {
+  if (!userId) return '/login';
 
-export function isStorefrontRole(role?: string | null) {
-  const normalizedRole = normalizeRole(role);
-  return normalizedRole ? CLIENT_ROLES.has(normalizedRole) : false;
-}
+  try {
+    const { role, is_active } = await fetchAuthRoleRecord(userId);
 
-export function getRoleDestination(role?: string | null) {
-  const normalizedRole = normalizeRole(role);
+    // Inactive account
+    if (is_active === false) {
+      return '/approval-pending';
+    }
 
-  if (!normalizedRole || normalizedRole === "PENDING") return "/approval-pending";
+    // No role yet
+    if (!role) {
+      return '/approval-pending';
+    }
 
-  const directDestination = ROLE_DESTINATIONS[normalizedRole];
-  if (directDestination) return directDestination;
+    return getRoleDestination(role);
 
-  if (STAFF_ROLES.has(normalizedRole)) return "/admin";
-
-  if (CLIENT_ROLES.has(normalizedRole)) return "/home";
-
-  return "/admin";
-}
-
-export function isPathWithinRoleDestination(pathname: string, role?: string | null) {
-  const normalizedRole = normalizeRole(role);
-  if (!normalizedRole) return false;
-
-  const currentPath = normalizePathname(pathname);
-  const roleDestination = normalizePathname(getRoleDestination(normalizedRole));
-
-  return (
-    currentPath === roleDestination ||
-    currentPath.startsWith(`${roleDestination}/`) ||
-    roleDestination.startsWith(`${currentPath}/`)
-  );
+  } catch {
+    // Never crash — safe fallback
+    return '/login';
+  }
 }
