@@ -27,3 +27,6 @@ dist-ssr
 playwright-report/
 test-results/
 
+# Supabase CLI local link artifacts (do not commit)
+supabase/.temp/
+
