@@ -12,6 +12,8 @@ import {
   type OrderTraceInputs,
 } from "@/utils/orderTrace";
 import { formatSalesOrderLabel } from "@/utils/orderSoLabel";
+import { deriveFinanceReleaseState, getFinanceReleaseBlockers } from "@/utils/financeReleaseState";
+import { FinanceReleaseChips } from "@/components/admin/FinanceReleaseChips";
 
 interface OrderTraceSheetProps {
   orderId: string | null;
@@ -167,6 +169,9 @@ export default function OrderTraceSheet({ orderId, open, onOpenChange }: OrderTr
       sales_order_value: order.sales_order_value,
     };
 
+    const financeDetailed = deriveFinanceReleaseState(orderInputs);
+    const blockers = getFinanceReleaseBlockers(orderInputs);
+
     const finance = deriveFinanceVisibility(orderInputs);
     const dispatchBucket = deriveDispatchBucket(order.status, items);
 
@@ -191,6 +196,8 @@ export default function OrderTraceSheet({ orderId, open, onOpenChange }: OrderTr
 
     return {
       finance,
+      financeDetailed,
+      releaseBlockers: blockers,
       dispatchBucket,
       deptAgg,
       reqPending,
@@ -245,12 +252,20 @@ export default function OrderTraceSheet({ orderId, open, onOpenChange }: OrderTr
               </section>
 
               <section className="space-y-2">
-                <h3 className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Finance visibility</h3>
-                <div className="flex flex-wrap gap-1.5">
-                  <VisibilityChip label="awaiting_advance" active={derived.finance.awaiting_advance} />
-                  <VisibilityChip label="advance_verified" active={derived.finance.advance_verified} />
-                  <VisibilityChip label="balance_pending" active={derived.finance.balance_pending} />
-                </div>
+                <h3 className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Finance release</h3>
+                <FinanceReleaseChips variant="compact" state={derived.financeDetailed} />
+                {derived.releaseBlockers.length > 0 && (
+                  <ul className="list-disc space-y-0.5 pl-4 text-[11px] text-destructive">
+                    {derived.releaseBlockers.map((b) => (
+                      <li key={b.code}>{b.message}</li>
+                    ))}
+                  </ul>
+                )}
+                {derived.releaseBlockers.length === 0 && (
+                  <p className="text-[11px] text-muted-foreground">
+                    No finance blockers on this snapshot (operations / dispatch lanes clear per existing rules).
+                  </p>
+                )}
               </section>
 
               <section className="space-y-2">

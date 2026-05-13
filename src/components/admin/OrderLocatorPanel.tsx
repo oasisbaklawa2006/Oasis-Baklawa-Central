@@ -21,6 +21,8 @@ import {
   type OrderTracePreview,
 } from "@/utils/orderTrace";
 import { formatSalesOrderLabel } from "@/utils/orderSoLabel";
+import { deriveFinanceReleaseState } from "@/utils/financeReleaseState";
+import { FinanceReleaseChips } from "@/components/admin/FinanceReleaseChips";
 
 const ANY_VALUE = "__any__";
 const DEBOUNCE_MS = 380;
@@ -565,28 +567,9 @@ export default function OrderLocatorPanel({ onOpenTrace }: OrderLocatorPanelProp
     [],
   );
 
-  const financeBadge = (preview: OrderTracePreview) => (
+  const financeBadge = (base: OrderTraceInputs) => (
     <div className="flex flex-wrap gap-1">
-      {preview.finance.awaiting_advance && (
-        <Badge variant="outline" className="text-[10px] font-normal">
-          awaiting_advance
-        </Badge>
-      )}
-      {preview.finance.advance_verified && (
-        <Badge variant="outline" className="text-[10px] font-normal">
-          advance_verified
-        </Badge>
-      )}
-      {preview.finance.balance_pending && (
-        <Badge variant="outline" className="text-[10px] font-normal">
-          balance_pending
-        </Badge>
-      )}
-      {!preview.finance.awaiting_advance &&
-        !preview.finance.advance_verified &&
-        !preview.finance.balance_pending && (
-          <span className="text-[10px] text-muted-foreground">—</span>
-        )}
+      <FinanceReleaseChips variant="compact" state={deriveFinanceReleaseState(base)} />
     </div>
   );
 
@@ -845,7 +828,7 @@ export default function OrderLocatorPanel({ onOpenTrace }: OrderLocatorPanelProp
                   </p>
                   <div className="flex flex-wrap items-center gap-2">
                     <span className="text-muted-foreground">Finance:</span>
-                    {financeBadge(row.preview)}
+                    {financeBadge(row.base)}
                   </div>
                   <p className="font-mono text-[11px] text-muted-foreground">
                     Line pending {row.preview.pendingLineCount} · units {row.preview.pendingUnitTotal}

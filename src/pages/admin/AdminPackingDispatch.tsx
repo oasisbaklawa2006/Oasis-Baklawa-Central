@@ -8,6 +8,12 @@ import { Label } from "@/components/ui/label";
 import { useLanguage } from "@/hooks/useLanguage";
 import { notifyOrderDispatched } from "@/utils/notifyEvent";
 import { getPackedReadyBlockers } from "@/utils/packedReadyGate";
+import {
+  canReleaseOrderToDispatch,
+  deriveFinanceReleaseState,
+  getFinanceReleaseBlockers,
+} from "@/utils/financeReleaseState";
+import { FinanceReleaseChips } from "@/components/admin/FinanceReleaseChips";
 
 const PACKS_PER_CARTON = 9;
 
@@ -117,15 +123,17 @@ const AdminPackingDispatch = () => {
 
   useEffect(() => { fetchOrders(); }, []);
 
-  const isFinanceBlocked = (o: DispatchOrder) => {
-    const advReq = o.advance_required ?? 0;
-    const advPaid = o.advance_paid ?? 0;
-    return advReq > 0 && advPaid < advReq;
-  };
+  const isDispatchFinanceBlocked = (o: DispatchOrder) => !canReleaseOrderToDispatch({
+    status: o.status,
+    payment_status: o.payment_status,
+    advance_paid: o.advance_paid,
+    advance_required: o.advance_required,
+    sales_order_value: o.sales_order_value,
+  });
 
   const packingOrders = orders.filter(o => o.status === "packed_ready");
-  const dispatchReady = orders.filter(o => o.status === "cleared_for_dispatch" && !isFinanceBlocked(o));
-  const blockedOrders = orders.filter(o => isFinanceBlocked(o));
+  const dispatchReady = orders.filter(o => o.status === "cleared_for_dispatch" && !isDispatchFinanceBlocked(o));
+  const blockedOrders = orders.filter(o => isDispatchFinanceBlocked(o));
   const displayed = tab === "packing" ? packingOrders : tab === "dispatch_ready" ? dispatchReady : blockedOrders;
 
   const handleAdvanceToPacking = async (order: DispatchOrder) => {
@@ -138,6 +146,17 @@ const AdminPackingDispatch = () => {
   };
 
   const openDispatchModal = async (order: DispatchOrder) => {
+    const traceInput = {
+      status: order.status,
+      payment_status: order.payment_status,
+      advance_paid: order.advance_paid,
+      advance_required: order.advance_required,
+      sales_order_value: order.sales_order_value,
+    };
+    if (!canReleaseOrderToDispatch(traceInput)) {
+      toast.error(getFinanceReleaseBlockers(traceInput).map((b) => b.message).join("; "));
+      return;
+    }
     setSelectedOrder(order);
     setTransporterName(""); setTrackingNumber(""); setDriverName(""); setDriverPhone("");
     setDispatchProofFile(null);
@@ -204,6 +223,17 @@ const AdminPackingDispatch = () => {
 
   const handleSubmitDispatch = async () => {
     if (!selectedOrder) return;
+    const traceInput = {
+      status: selectedOrder.status,
+      payment_status: selectedOrder.payment_status,
+      advance_paid: selectedOrder.advance_paid,
+      advance_required: selectedOrder.advance_required,
+      sales_order_value: selectedOrder.sales_order_value,
+    };
+    if (!canReleaseOrderToDispatch(traceInput)) {
+      toast.error(getFinanceReleaseBlockers(traceInput).map((b) => b.message).join("; "));
+      return;
+    }
     const tp = transporterName.trim();
     const lr = trackingNumber.trim();
     if (!tp) { toast.error("Transporter name is required"); return; }
@@ -358,13 +388,21 @@ const AdminPackingDispatch = () => {
                 <th className="text-left px-4 py-3 text-ui-label text-muted-foreground">{t("Order ID")}</th>
                 <th className="text-left px-4 py-3 text-ui-label text-muted-foreground">{t("Status")}</th>
                 <th className="text-left px-4 py-3 text-ui-label text-muted-foreground">{t("Value")}</th>
+                <th className="text-left px-4 py-3 text-ui-label text-muted-foreground">Finance release</th>
                 <th className="text-left px-4 py-3 text-ui-label text-muted-foreground">Packed_ready gate</th>
                 <th className="text-right px-4 py-3 text-ui-label text-muted-foreground">{t("Actions")}</th>
               </tr>
             </thead>
             <tbody>
               {displayed.map(order => {
-                const blocked = isFinanceBlocked(order);
+                const blocked = isDispatchFinanceBlocked(order);
+                const finState = deriveFinanceReleaseState({
+                  status: order.status,
+                  payment_status: order.payment_status,
+                  advance_paid: order.advance_paid,
+                  advance_required: order.advance_required,
+                  sales_order_value: order.sales_order_value,
+                });
                 return (
                   <tr key={order.id} className="border-t border-border">
                     <td className="px-4 py-3 text-ui-cell text-foreground">{order.company?.business_name ?? "—"}</td>
@@ -375,6 +413,9 @@ const AdminPackingDispatch = () => {
                       </span>
                     </td>
                     <td className="px-4 py-3 text-ui-cell text-foreground">₹{(order.sales_order_value ?? 0).toLocaleString("en-IN")}</td>
+                    <td className="px-4 py-3 align-top">
+                      <FinanceReleaseChips variant="compact" state={finState} />
+                    </td>
                     <td className="px-4 py-3 text-ui-cell text-xs">
                       {packedReadyChecksByOrder[order.id]?.length === 0 ? (
                         <span className="font-semibold text-emerald-600" title="Eligible for packed_ready">Eligible</span>
@@ -400,7 +441,19 @@ const AdminPackingDispatch = () => {
                           <Truck size={12} /> {t("Create Dispatch")}
                         </button>
                       )}
-                      {blocked && <span className="text-fine text-destructive">Advance pending</span>}
+                      {blocked && (
+                        <span className="text-fine text-destructive max-w-[140px] inline-block text-left">
+                          {getFinanceReleaseBlockers({
+                            status: order.status,
+                            payment_status: order.payment_status,
+                            advance_paid: order.advance_paid,
+                            advance_required: order.advance_required,
+                            sales_order_value: order.sales_order_value,
+                          })
+                            .map((b) => b.message)
+                            .join(" ") || "Finance hold"}
+                        </span>
+                      )}
                     </td>
                   </tr>
                 );

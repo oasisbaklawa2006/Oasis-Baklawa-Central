@@ -12,6 +12,8 @@ import StagnancyBadge from "@/components/StagnancyBadge";
 import { shouldIgnoreOrderRegression } from "@/utils/orderStatus";
 import { formatSalesOrderLabel } from "@/utils/orderSoLabel";
 import { getPackedReadyBlockers, type PackedReadyBlocker } from "@/utils/packedReadyGate";
+import { deriveFinanceReleaseState } from "@/utils/financeReleaseState";
+import { FinanceReleaseChips } from "@/components/admin/FinanceReleaseChips";
 
 const STATUS_FLOW = [
   { status: "submitted", label: "Order Placed", action: "Confirm Order", next: "confirmed", color: "bg-amber-100 text-amber-800 border-amber-200" },
@@ -351,6 +353,7 @@ const OrderManagement = () => {
               <th className="text-left px-4 py-3 font-medium text-muted-foreground">Customer</th>
               <th className="text-right px-4 py-3 font-medium text-muted-foreground">Value</th>
               <th className="text-center px-4 py-3 font-medium text-muted-foreground">Status</th>
+              <th className="text-left px-4 py-3 font-medium text-muted-foreground min-w-[220px]">Finance release</th>
               <th className="text-center px-4 py-3 font-medium text-muted-foreground">Packed ready gate</th>
               <th className="text-center px-4 py-3 font-medium text-muted-foreground">Action</th>
               <th className="text-center px-4 py-3 font-medium text-muted-foreground">Details</th>
@@ -358,10 +361,10 @@ const OrderManagement = () => {
           </thead>
           <tbody>
             {orders.length === 0 && (
-              <tr><td colSpan={7} className="text-center py-12 text-muted-foreground">No orders found</td></tr>
+              <tr><td colSpan={8} className="text-center py-12 text-muted-foreground">No orders found</td></tr>
             )}
             {orders.length > 0 && displayOrders.length === 0 && (
-              <tr><td colSpan={7} className="text-center py-12 text-muted-foreground">No orders in this view</td></tr>
+              <tr><td colSpan={8} className="text-center py-12 text-muted-foreground">No orders in this view</td></tr>
             )}
             {displayOrders.map((order) => {
               const info = getStatusInfo(order.status);
@@ -386,6 +389,19 @@ const OrderManagement = () => {
                     <span className={`inline-block px-2.5 py-1 rounded-full text-xs font-medium border ${info.color}`}>
                       {info.label}
                     </span>
+                  </td>
+                  <td className="px-4 py-3 text-left align-top">
+                    <FinanceReleaseChips
+                      variant="compact"
+                      className="max-w-md"
+                      state={deriveFinanceReleaseState({
+                        status: order.status,
+                        payment_status: order.payment_status,
+                        advance_paid: order.advance_paid,
+                        advance_required: order.advance_required,
+                        sales_order_value: order.sales_order_value,
+                      })}
+                    />
                   </td>
                   <td className="px-4 py-3 text-center text-xs">
                     {order.status !== "packing" ? (

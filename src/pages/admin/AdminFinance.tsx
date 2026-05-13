@@ -30,6 +30,13 @@ import { queueNotification } from "@/utils/notificationOutbox";
 import { classifyFlow } from "@/utils/departmentClassifier";
 import { LedgerDisputesPanel } from "@/components/admin/LedgerDisputesPanel";
 import { exportTallyBridgeV1ToCsv, isOrderReadyForTallyExportV1 } from "@/utils/tallyExportV1";
+import {
+  deriveFinanceReleaseState,
+  getAdvanceVerificationGuardMessages,
+  getFinanceReleaseBlockers,
+  getShortTermCreditReleaseGuardMessages,
+} from "@/utils/financeReleaseState";
+import { FinanceReleaseChips } from "@/components/admin/FinanceReleaseChips";
 
 interface FinanceOrder {
   id: string;
@@ -37,6 +44,7 @@ interface FinanceOrder {
   payment_status: string | null;
   sales_order_value: number | null;
   advance_paid: number | null;
+  advance_required: number | null;
   created_at: string;
   company_id: string | null;
   payment_receipt_url: string | null;
@@ -177,7 +185,7 @@ const AdminFinance = () => {
     const { data, error } = await supabase
       .from("orders")
       .select(
-        "id, status, payment_status, sales_order_value, advance_paid, created_at, company_id, payment_receipt_url, final_invoice_url, company:companies(business_name)",
+        "id, status, payment_status, sales_order_value, advance_paid, advance_required, created_at, company_id, payment_receipt_url, final_invoice_url, company:companies(business_name)",
       )
       .order("created_at", { ascending: false });
 
@@ -496,6 +504,18 @@ const AdminFinance = () => {
         setActing(null);
         return;
       }
+      const releaseGuards = getAdvanceVerificationGuardMessages({
+        status: target.status,
+        payment_status: target.payment_status,
+        advance_paid: target.advance_paid,
+        advance_required: target.advance_required,
+        sales_order_value: target.sales_order_value,
+      });
+      if (releaseGuards.length > 0) {
+        toast.error(releaseGuards.join(" "));
+        setActing(null);
+        return;
+      }
       await supabase
         .from("orders")
         .update({ payment_status: "verified_advance", status: "manufacturing" })
@@ -522,13 +542,26 @@ const AdminFinance = () => {
       // IMMUTABLE VALUE PROTECTION: Fetch the LIVE database value — never trust local state
       const { data: liveOrder, error: liveErr } = await supabase
         .from("orders")
-        .select("sales_order_value, company_id, status")
+        .select("sales_order_value, company_id, status, payment_status, advance_paid, advance_required")
         .eq("id", financialEntry.orderId)
         .single();
 
       if (liveErr || !liveOrder) {
         toast.error("⛔ Could not fetch live order data. Aborting.");
         console.error("[Finance] ABORT: Failed to fetch live order", liveErr);
+        setSavingEntry(false);
+        return;
+      }
+
+      const liveGuards = getAdvanceVerificationGuardMessages({
+        status: liveOrder.status,
+        payment_status: liveOrder.payment_status,
+        advance_paid: liveOrder.advance_paid,
+        advance_required: liveOrder.advance_required,
+        sales_order_value: liveOrder.sales_order_value,
+      });
+      if (liveGuards.length > 0) {
+        toast.error(liveGuards.join(" "));
         setSavingEntry(false);
         return;
       }
@@ -663,6 +696,18 @@ const AdminFinance = () => {
     if (isNaN(days) || days <= 0) { toast.error("Invalid deadline."); return; }
     setSavingShortTerm(true);
     try {
+      const creditGuards = getShortTermCreditReleaseGuardMessages({
+        status: shortTermTarget.status,
+        payment_status: shortTermTarget.payment_status,
+        advance_paid: shortTermTarget.advance_paid,
+        advance_required: shortTermTarget.advance_required,
+        sales_order_value: shortTermTarget.sales_order_value,
+      });
+      if (creditGuards.length > 0) {
+        toast.error(creditGuards.join(" "));
+        setSavingShortTerm(false);
+        return;
+      }
       // GUARD: Never release a ₹0 order
       if ((shortTermTarget.sales_order_value ?? 0) <= 0) {
         toast.error("⛔ Cannot release order with ₹0 value.");
@@ -1047,6 +1092,29 @@ const AdminFinance = () => {
                         <AlertTriangle size={12} /> Advance Receipt
                       </span>
                     </div>
+                    <div className="mb-3 space-y-1.5">
+                      <FinanceReleaseChips
+                        variant="admin"
+                        state={deriveFinanceReleaseState({
+                          status: order.status,
+                          payment_status: order.payment_status,
+                          advance_paid: order.advance_paid,
+                          advance_required: order.advance_required,
+                          sales_order_value: order.sales_order_value,
+                        })}
+                      />
+                      <p className="text-[10px] leading-snug text-slate-600">
+                        {(getFinanceReleaseBlockers({
+                          status: order.status,
+                          payment_status: order.payment_status,
+                          advance_paid: order.advance_paid,
+                          advance_required: order.advance_required,
+                          sales_order_value: order.sales_order_value,
+                        })
+                          .map((b) => b.message)
+                          .join(" · ") || "No finance blockers — awaiting finance action or customer receipt.")}
+                      </p>
+                    </div>
                     {order.payment_receipt_url && (
                       <button
                         onClick={() => window.open(order.payment_receipt_url!, "_blank")}
@@ -1195,6 +1263,18 @@ const AdminFinance = () => {
                       <span className="bg-blue-50 text-blue-600 px-2 py-1 rounded text-[10px] font-bold uppercase flex items-center gap-1">
                         <Package size={12} /> Packed by Ops
                       </span>
+                    </div>
+                    <div className="mb-3">
+                      <FinanceReleaseChips
+                        variant="admin"
+                        state={deriveFinanceReleaseState({
+                          status: order.status,
+                          payment_status: order.payment_status,
+                          advance_paid: order.advance_paid,
+                          advance_required: order.advance_required,
+                          sales_order_value: order.sales_order_value,
+                        })}
+                      />
                     </div>
                     <div className="space-y-2">
                       <button

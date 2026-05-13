@@ -11,6 +11,8 @@ import { notifyOrderConfirmed, notifyOrderDelivered } from "@/utils/notifyEvent"
 import { formatSalesOrderLabel } from "@/utils/orderSoLabel";
 import { getPackedReadyBlockers, type PackedReadyGateInput } from "@/utils/packedReadyGate";
 import { PackedReadyEligibilityCard } from "@/components/admin/PackedReadyEligibility";
+import { deriveFinanceReleaseState, getFinanceReleaseBlockers } from "@/utils/financeReleaseState";
+import { FinanceReleaseChips } from "@/components/admin/FinanceReleaseChips";
 const PACKS_PER_CARTON = 9;
 
 const STATUSES = [
@@ -575,6 +577,19 @@ const AdminOrders = () => {
                             ₹{(order.sales_order_value ?? 0).toLocaleString("en-IN")}
                           </p>
 
+                          <div className="mb-2">
+                            <FinanceReleaseChips
+                              variant="compact"
+                              state={deriveFinanceReleaseState({
+                                status: order.status,
+                                payment_status: order.payment_status,
+                                advance_paid: order.advance_paid,
+                                advance_required: order.advance_required,
+                                sales_order_value: order.sales_order_value,
+                              })}
+                            />
+                          </div>
+
                           <div className="flex gap-3 text-xs font-semibold text-muted-foreground bg-muted/30 p-2 rounded-lg mb-3">
                             <span>📦 {packs} Packs</span>
                             <span>📦 {cartons > 0 ? cartons : Math.ceil(packs / PACKS_PER_CARTON)} Ctns</span>
@@ -666,6 +681,31 @@ const AdminOrders = () => {
                       ₹{(selectedOrder.sales_order_value ?? 0).toLocaleString("en-IN")}
                     </p>
                   </div>
+                </div>
+
+                <div className="rounded-xl border border-border bg-muted/20 p-4 space-y-2">
+                  <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Finance release</p>
+                  <FinanceReleaseChips
+                    variant="admin"
+                    state={deriveFinanceReleaseState({
+                      status: selectedOrder.status,
+                      payment_status: selectedOrder.payment_status,
+                      advance_paid: selectedOrder.advance_paid,
+                      advance_required: selectedOrder.advance_required,
+                      sales_order_value: selectedOrder.sales_order_value,
+                    })}
+                  />
+                  <p className="text-[11px] text-muted-foreground leading-snug">
+                    {getFinanceReleaseBlockers({
+                      status: selectedOrder.status,
+                      payment_status: selectedOrder.payment_status,
+                      advance_paid: selectedOrder.advance_paid,
+                      advance_required: selectedOrder.advance_required,
+                      sales_order_value: selectedOrder.sales_order_value,
+                    })
+                      .map((b) => b.message)
+                      .join(" · ") || "No finance blockers on this snapshot."}
+                  </p>
                 </div>
 
                 {/* Order Items */}
