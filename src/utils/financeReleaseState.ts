@@ -19,10 +19,14 @@ function norm(s: string | null | undefined): string {
   return (s || "").trim().toLowerCase();
 }
 
-/** Clears advance hold without requiring recorded advance ≥ required (short-term credit, verified paths). */
+/**
+ * Advance / finance path cleared for operations without requiring advance_paid ≥ advance_required.
+ * Includes full settlement (`paid`) — e.g. PI wallet auto-deduct can set paid without bumping advance_paid.
+ */
 export function isAdvanceVerificationPathCleared(order: OrderTraceInputs): boolean {
   const ps = norm(order.payment_status);
   return (
+    ps === "paid" ||
     ps === "short_term_credit" ||
     ps === "verified_advance" ||
     ps === "advance_paid" ||
@@ -153,59 +157,8 @@ export function getFinanceReleaseBlockers(order: OrderTraceInputs): FinanceRelea
   return blockers;
 }
 
-export function canReleaseOrderToOperations(order: OrderTraceInputs): boolean {
-  const st = norm(order.status);
-  if (TERMINAL_PIPELINE.has(st)) return false;
-  return !operationsFinanceHold(order);
-}
-
 export function canReleaseOrderToDispatch(order: OrderTraceInputs): boolean {
   const st = norm(order.status);
   if (TERMINAL_PIPELINE.has(st)) return false;
   return !dispatchFinanceHold(order);
-}
-
-/** Guard existing verify-advance mutations. Non-empty ⇒ cancel and show messages (toast). */
-export function getAdvanceVerificationGuardMessages(order: OrderTraceInputs): string[] {
-  const reasons: string[] = [];
-  const st = norm(order.status);
-  const total = order.sales_order_value ?? 0;
-
-  if (total <= 0) {
-    reasons.push("Order value is ₹0 — restore total before finance release.");
-  }
-
-  if (TERMINAL_PIPELINE.has(st)) {
-    reasons.push(`Order is terminal (${order.status}) — advance verification not applicable.`);
-  }
-
-  if (!operationsFinanceHold(order)) {
-    reasons.push("No finance hold on advance / verification — this release action is not needed.");
-  }
-
-  return reasons;
-}
-
-export function getShortTermCreditReleaseGuardMessages(order: OrderTraceInputs): string[] {
-  const reasons: string[] = [];
-  const st = norm(order.status);
-  const total = order.sales_order_value ?? 0;
-
-  if (total <= 0) {
-    reasons.push("Order value is ₹0 — cannot issue short-term credit release.");
-  }
-
-  if (TERMINAL_PIPELINE.has(st)) {
-    reasons.push(`Order is terminal (${order.status}) — short-term credit not applicable.`);
-  }
-
-  if (isAdvanceVerificationPathCleared(order)) {
-    reasons.push("Order already has verified advance or credit on file.");
-  }
-
-  if (!operationsFinanceHold(order)) {
-    reasons.push("No advance hold — short-term credit release is not needed.");
-  }
-
-  return reasons;
 }
