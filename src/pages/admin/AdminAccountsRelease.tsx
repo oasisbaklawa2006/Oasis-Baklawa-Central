@@ -13,6 +13,12 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { FinanceReleaseChips } from "@/components/admin/FinanceReleaseChips";
+import {
+  canReleaseOrderToDispatch,
+  deriveFinanceReleaseState,
+  getFinanceReleaseBlockers,
+} from "@/utils/financeReleaseState";
 
 interface FinanceOrder {
   id: string; status: string; payment_status: string | null;
@@ -72,6 +78,16 @@ const RELEASE_LABELS: Record<ReleaseStatus, { label: string; color: string }> = 
   paid: { label: "Fully Paid", color: "bg-green-100 text-green-700" },
 };
 
+function financeTraceInput(order: FinanceOrder) {
+  return {
+    status: order.status,
+    payment_status: order.payment_status,
+    advance_paid: order.advance_paid,
+    advance_required: order.advance_required,
+    sales_order_value: order.sales_order_value,
+  };
+}
+
 const AdminAccountsRelease = () => {
   const [orders, setOrders] = useState<FinanceOrder[]>([]);
   const [loading, setLoading] = useState(true);
@@ -125,6 +141,11 @@ const AdminAccountsRelease = () => {
 
   const handleGatePassSubmit = async () => {
     if (!gatePassOrder) return;
+    const gateTrace = financeTraceInput(gatePassOrder);
+    if (!canReleaseOrderToDispatch(gateTrace)) {
+      toast.error(getFinanceReleaseBlockers(gateTrace).map((b) => b.message).join("; "));
+      return;
+    }
     const tp = transporterName.trim();
     const lr = trackingNumber.trim();
     if (!tp) {
@@ -364,6 +385,12 @@ const AdminAccountsRelease = () => {
 
   const handleAction = async (order: FinanceOrder, action: PaymentAction) => {
     if (action === "issue_gate_pass") {
+      const traceIn = financeTraceInput(order);
+      if (!canReleaseOrderToDispatch(traceIn)) {
+        toast.error(getFinanceReleaseBlockers(traceIn).map((b) => b.message).join("; "));
+        setOpenDropdown(null);
+        return;
+      }
       openGatePassModal(order);
       setOpenDropdown(null);
       return;
@@ -499,6 +526,14 @@ const AdminAccountsRelease = () => {
 
   if (loading) return <div className="flex items-center justify-center py-20"><Loader2 size={24} className="animate-spin text-primary" /></div>;
 
+  const gateFinanceTrace = gatePassOrder ? financeTraceInput(gatePassOrder) : null;
+  const gateFinState = gateFinanceTrace ? deriveFinanceReleaseState(gateFinanceTrace) : null;
+  const gateFinBlockers = gateFinanceTrace ? getFinanceReleaseBlockers(gateFinanceTrace) : [];
+
+  const docFinanceTrace = docUploadOrder ? financeTraceInput(docUploadOrder) : null;
+  const docFinState = docFinanceTrace ? deriveFinanceReleaseState(docFinanceTrace) : null;
+  const docFinBlockers = docFinanceTrace ? getFinanceReleaseBlockers(docFinanceTrace) : [];
+
   return (
     <div className="space-y-6">
       <h1 className="text-display-h2 text-foreground">{t("Accounts & Release")}</h1>
@@ -545,6 +580,7 @@ const AdminAccountsRelease = () => {
                 <th className="text-left px-4 py-3 text-ui-label text-muted-foreground">{t("Company")}</th>
                 <th className="text-left px-4 py-3 text-ui-label text-muted-foreground">Order</th>
                 <th className="text-left px-4 py-3 text-ui-label text-muted-foreground">Release Status</th>
+                <th className="text-left px-4 py-3 text-ui-label text-muted-foreground min-w-[200px]">Finance release</th>
                 <th className="text-right px-4 py-3 text-ui-label text-muted-foreground">{t("Advance Required")}</th>
                 <th className="text-right px-4 py-3 text-ui-label text-muted-foreground">{t("Advance Paid")}</th>
                 <th className="text-right px-4 py-3 text-ui-label text-muted-foreground">{t("Sales Order Value")}</th>
@@ -558,11 +594,22 @@ const AdminAccountsRelease = () => {
                 const rs = getReleaseStatus(order);
                 const rl = RELEASE_LABELS[rs];
                 const actions = getAvailableActions(order);
+                const traceIn = financeTraceInput(order);
+                const finState = deriveFinanceReleaseState(traceIn);
+                const finBlockers = getFinanceReleaseBlockers(traceIn);
                 return (
                   <tr key={order.id} className="border-t border-border">
                     <td className="px-4 py-3 text-ui-cell text-foreground">{order.company?.business_name ?? "—"}</td>
                     <td className="px-4 py-3 text-ui-cell text-muted-foreground text-xs">{order.id.slice(0, 8)}…</td>
                     <td className="px-4 py-3"><span className={`px-2 py-1 rounded-full text-xs font-semibold ${rl.color}`}>{rl.label}</span></td>
+                    <td className="px-4 py-3 align-top min-w-[200px] max-w-[280px]">
+                      <FinanceReleaseChips variant="compact" state={finState} />
+                      {finState.finance_hold && finBlockers.length > 0 && (
+                        <p className="mt-1.5 text-[10px] leading-snug text-destructive font-medium">
+                          {finBlockers.map((b) => b.message).join(" · ")}
+                        </p>
+                      )}
+                    </td>
                     <td className="px-4 py-3 text-right text-ui-cell text-muted-foreground">{format(order.advance_required ?? 0)}</td>
                     <td className="px-4 py-3 text-right text-ui-cell text-green-600">{format(order.advance_paid ?? 0)}</td>
                     <td className="px-4 py-3 text-right text-ui-cell text-foreground">{format(order.sales_order_value ?? 0)}</td>
@@ -653,6 +700,18 @@ const AdminAccountsRelease = () => {
             </DialogDescription>
           </DialogHeader>
 
+          {gatePassOrder && gateFinState && (
+            <div className="rounded-lg border border-border bg-muted/30 p-3 space-y-2">
+              <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">Finance release</p>
+              <FinanceReleaseChips variant="compact" state={gateFinState} />
+              {gateFinState.finance_hold && gateFinBlockers.length > 0 && (
+                <p className="text-[10px] leading-snug text-destructive">
+                  {gateFinBlockers.map((b) => b.message).join(" · ")}
+                </p>
+              )}
+            </div>
+          )}
+
           <div className="space-y-4 pt-2">
             {/* Logistics Inputs */}
             <div className="space-y-3">
@@ -740,6 +799,19 @@ const AdminAccountsRelease = () => {
               Order {docUploadOrder?.id.slice(0, 8)}… — {docUploadOrder?.company?.business_name ?? "Unknown"}
             </DialogDescription>
           </DialogHeader>
+
+          {docUploadOrder && docFinState && (
+            <div className="rounded-lg border border-border bg-muted/30 p-3 space-y-2">
+              <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">Finance release</p>
+              <FinanceReleaseChips variant="compact" state={docFinState} />
+              {docFinState.finance_hold && docFinBlockers.length > 0 && (
+                <p className="text-[10px] leading-snug text-destructive">
+                  {docFinBlockers.map((b) => b.message).join(" · ")}
+                </p>
+              )}
+            </div>
+          )}
+
           <div className="space-y-4 pt-2">
             {/* Tax Invoice Upload */}
             <div className="border border-border rounded-lg p-3 space-y-2">
