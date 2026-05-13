@@ -11,6 +11,7 @@ import StagnancyBadge from "@/components/StagnancyBadge";
 import { mapToJobDept, isOrderFullyReady } from "@/utils/departmentClassifier";
 import { isQueryTimeoutError, withTimeout } from "@/lib/query-timeout";
 import { resolveOrderItemFlow } from "@/lib/triad-order-items";
+import { getPackedReadyBlockers, type PackedReadyGateInput, type PackedReadyGateOrder } from "@/utils/packedReadyGate";
 
 interface StockItem {
   id: string;
@@ -223,11 +224,37 @@ export default function StockCheckEngine() {
       .select("production_status")
       .eq("order_id", order.id);
 
-    const allDone = isOrderFullyReady((freshItems as any[]) || []);
+    const allDone = isOrderFullyReady(((freshItems as { production_status: string | null }[]) || []));
 
     if (allDone) {
-      await supabase.from("orders").update({ status: "packed_ready" }).eq("id", order.id);
-      toast.success("✅ All 3 flows complete → Ready for Shipping");
+      const [{ data: orow }, { data: fullItems }, { data: reqs }] = await Promise.all([
+        supabase
+          .from("orders")
+          .select("status, payment_status, advance_paid, advance_required, sales_order_value")
+          .eq("id", order.id)
+          .maybeSingle(),
+        supabase.from("order_items").select("quantity, actual_packed_qty, production_status").eq("order_id", order.id),
+        supabase
+          .from("store_requisitions")
+          .select("status, store_requisition_items(requested_qty, fulfilled_qty)")
+          .eq("order_id", order.id),
+      ]);
+      const or = orow as PackedReadyGateOrder | null;
+      if (!or) {
+        toast.error("Could not load order for packed_ready gate.");
+      } else {
+        const gate = getPackedReadyBlockers({
+          order: or,
+          items: (fullItems as { quantity: number; actual_packed_qty: number | null; production_status: string | null }[]) || [],
+          requisitions: (reqs ?? []) as PackedReadyGateInput["requisitions"],
+        });
+        if (gate.length > 0) {
+          toast.error(gate.map((b) => b.message).join("; "));
+        } else {
+          await supabase.from("orders").update({ status: "packed_ready" }).eq("id", order.id);
+          toast.success("✅ All 3 flows complete → Ready for Shipping");
+        }
+      }
     } else {
       toast.success("✅ Available items fulfilled. Waiting on remaining flows.");
     }

@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "sonner";
@@ -9,6 +9,8 @@ import { Button } from "@/components/ui/button";
 import { generateProFormaInvoice } from "@/utils/invoiceGenerator";
 import { notifyOrderConfirmed, notifyOrderDelivered } from "@/utils/notifyEvent";
 import { formatSalesOrderLabel } from "@/utils/orderSoLabel";
+import { getPackedReadyBlockers, type PackedReadyGateInput } from "@/utils/packedReadyGate";
+import { PackedReadyEligibilityCard } from "@/components/admin/PackedReadyEligibility";
 const PACKS_PER_CARTON = 9;
 
 const STATUSES = [
@@ -64,6 +66,7 @@ interface OrderItem {
   id: string;
   quantity: number;
   actual_packed_qty: number | null;
+  production_status?: string | null;
   product_id: string | null;
   pack_size?: string | null;
   carton_type?: string | null;
@@ -76,6 +79,9 @@ interface OrderCard {
   order_number?: string | null;
   status: string;
   sales_order_value: number | null;
+  payment_status: string | null;
+  advance_paid: number | null;
+  advance_required: number | null;
   company_id: string | null;
   document_stage: string | null;
   payment_cleared: boolean | null;
@@ -117,6 +123,7 @@ const AdminOrders = () => {
       .select(
         `
         id, order_number, status, sales_order_value, company_id,
+        payment_status, advance_paid, advance_required,
         document_stage, payment_cleared, eway_bill_number, gate_pass_number,
         company:companies(business_name, gst_number)
       `,
@@ -195,7 +202,7 @@ const AdminOrders = () => {
     setReqLoading(true);
     const { data } = await supabase
       .from("store_requisitions")
-      .select("id, target_store, status, store_requisition_items(id, product_id, requested_qty)")
+      .select("id, target_store, status, store_requisition_items(id, product_id, requested_qty, fulfilled_qty)")
       .eq("order_id", orderId);
     setRequisitions(data ?? []);
     setReqLoading(false);
@@ -270,7 +277,7 @@ const AdminOrders = () => {
 
     const { data, error } = await supabase
       .from("order_items")
-      .select(`id, quantity, actual_packed_qty, product_id, pack_size, carton_type, products (*)`)
+      .select(`id, quantity, actual_packed_qty, production_status, product_id, pack_size, carton_type, products (*)`)
       .eq("order_id", order.id);
 
     if (error) console.error(error);
@@ -296,6 +303,31 @@ const AdminOrders = () => {
     setTimeout(() => setDrawerItems([]), 300);
   };
 
+  const packedReadyGateInput: PackedReadyGateInput | null = useMemo(() => {
+    if (!selectedOrder || drawerLoading) return null;
+    const items = drawerItems.map((i) => ({
+      quantity: i.quantity,
+      actual_packed_qty: packingQtys[i.id] ?? i.actual_packed_qty ?? i.quantity,
+      production_status: i.production_status ?? null,
+    }));
+    return {
+      order: {
+        status: selectedOrder.status,
+        payment_status: selectedOrder.payment_status ?? null,
+        advance_paid: selectedOrder.advance_paid ?? null,
+        advance_required: selectedOrder.advance_required ?? null,
+        sales_order_value: selectedOrder.sales_order_value ?? null,
+      },
+      items,
+      requisitions: requisitions ?? [],
+    };
+  }, [selectedOrder, drawerLoading, drawerItems, packingQtys, requisitions]);
+
+  const packedReadyBlockers = useMemo(() => {
+    if (!packedReadyGateInput) return [];
+    return getPackedReadyBlockers(packedReadyGateInput);
+  }, [packedReadyGateInput]);
+
   const handlePhotoCapture = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file || !selectedOrder) return;
@@ -319,6 +351,28 @@ const AdminOrders = () => {
   // Save packing list & mark packed_ready
   const handleSavePackingList = async () => {
     if (!selectedOrder || !capturedPhotoUrl) return;
+
+    const gate: PackedReadyGateInput = {
+      order: {
+        status: selectedOrder.status,
+        payment_status: selectedOrder.payment_status ?? null,
+        advance_paid: selectedOrder.advance_paid ?? null,
+        advance_required: selectedOrder.advance_required ?? null,
+        sales_order_value: selectedOrder.sales_order_value ?? null,
+      },
+      items: drawerItems.map((i) => ({
+        quantity: i.quantity,
+        actual_packed_qty: packingQtys[i.id] ?? i.actual_packed_qty ?? i.quantity,
+        production_status: i.production_status ?? null,
+      })),
+      requisitions: requisitions ?? [],
+    };
+    const blockers = getPackedReadyBlockers(gate);
+    if (blockers.length > 0) {
+      toast.error(blockers.map((b) => b.message).join("; "));
+      return;
+    }
+
     setPackingSaving(true);
 
     try {
@@ -722,6 +776,7 @@ const AdminOrders = () => {
                     <h3 className="text-xs font-bold text-primary uppercase tracking-wider flex items-center gap-2">
                       <ClipboardList size={14} /> Confirm Packing List
                     </h3>
+                    <PackedReadyEligibilityCard blockers={packedReadyBlockers} />
                     <p className="text-xs text-muted-foreground">
                       Verify actual packed quantities before marking ready.
                     </p>
@@ -796,7 +851,11 @@ const AdminOrders = () => {
 
                     <Button
                       onClick={handleSavePackingList}
-                      disabled={packingSaving || !capturedPhotoUrl}
+                      disabled={
+                        packingSaving ||
+                        !capturedPhotoUrl ||
+                        packedReadyBlockers.length > 0
+                      }
                       className="w-full"
                     >
                       {packingSaving ? <Loader2 size={14} className="animate-spin mr-2" /> : <Package size={14} className="mr-2" />}

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Loader2, ArrowRight, Truck, PackageCheck, AlertTriangle, CheckCircle2, TrendingDown, TrendingUp, Minus } from "lucide-react";
@@ -7,12 +7,21 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useLanguage } from "@/hooks/useLanguage";
 import { notifyOrderDispatched } from "@/utils/notifyEvent";
+import { getPackedReadyBlockers } from "@/utils/packedReadyGate";
 
 const PACKS_PER_CARTON = 9;
+
+type StoreReqRow = {
+  order_id: string;
+  status: string | null;
+  store_requisition_items?: { requested_qty: number; fulfilled_qty: number | null }[];
+};
 
 interface OrderItem {
   id: string; quantity: number; pack_size: string | null;
   carton_type: string | null; product_id: string | null;
+  actual_packed_qty?: number | null;
+  production_status?: string | null;
   product?: { name: string; price_per_kg: number | null; primary_pack_weight_kg: number; base_price: number | null } | null;
 }
 
@@ -50,17 +59,61 @@ const AdminPackingDispatch = () => {
   const [driverName, setDriverName] = useState("");
   const [driverPhone, setDriverPhone] = useState("");
   const [dispatchProofFile, setDispatchProofFile] = useState<File | null>(null);
+  const [requisitionsByOrder, setRequisitionsByOrder] = useState<Record<string, StoreReqRow[]>>({});
 
   const fetchOrders = async () => {
     setLoading(true);
     const { data } = await supabase
       .from("orders")
-      .select("id, status, sales_order_value, payment_status, advance_paid, advance_required, company_id, company:companies(business_name), order_items(id, quantity, pack_size, carton_type, product_id)")
+      .select("id, status, sales_order_value, payment_status, advance_paid, advance_required, company_id, company:companies(business_name), order_items(id, quantity, actual_packed_qty, production_status, pack_size, carton_type, product_id)")
       .in("status", ["packed_ready", "cleared_for_dispatch"])
       .order("created_at", { ascending: true });
-    setOrders((data as unknown as DispatchOrder[]) ?? []);
+    const rows = (data as unknown as DispatchOrder[]) ?? [];
+    setOrders(rows);
+    const ids = rows.map((r) => r.id);
+    if (ids.length === 0) {
+      setRequisitionsByOrder({});
+    } else {
+      const { data: reqs } = await supabase
+        .from("store_requisitions")
+        .select("order_id, status, store_requisition_items(requested_qty, fulfilled_qty)")
+        .in("order_id", ids);
+      const map: Record<string, StoreReqRow[]> = {};
+      for (const r of (reqs as StoreReqRow[]) || []) {
+        const oid = r.order_id;
+        if (!map[oid]) map[oid] = [];
+        map[oid].push(r);
+      }
+      setRequisitionsByOrder(map);
+    }
     setLoading(false);
   };
+
+  const packedReadyChecksByOrder = useMemo(() => {
+    const m: Record<string, ReturnType<typeof getPackedReadyBlockers>> = {};
+    for (const o of orders) {
+      const items = (o.order_items || []).map((it) => ({
+        quantity: it.quantity,
+        actual_packed_qty: it.actual_packed_qty ?? null,
+        production_status: it.production_status ?? null,
+      }));
+      m[o.id] = getPackedReadyBlockers(
+        {
+          order: {
+            status: o.status,
+            payment_status: o.payment_status,
+            advance_paid: o.advance_paid,
+            advance_required: o.advance_required,
+            sales_order_value: o.sales_order_value,
+          },
+          items,
+          requisitions: requisitionsByOrder[o.id] || [],
+        },
+        { mode: "snapshot" },
+      );
+    }
+    return m;
+  }, [orders, requisitionsByOrder]);
 
   useEffect(() => { fetchOrders(); }, []);
 
@@ -305,6 +358,7 @@ const AdminPackingDispatch = () => {
                 <th className="text-left px-4 py-3 text-ui-label text-muted-foreground">{t("Order ID")}</th>
                 <th className="text-left px-4 py-3 text-ui-label text-muted-foreground">{t("Status")}</th>
                 <th className="text-left px-4 py-3 text-ui-label text-muted-foreground">{t("Value")}</th>
+                <th className="text-left px-4 py-3 text-ui-label text-muted-foreground">Packed_ready gate</th>
                 <th className="text-right px-4 py-3 text-ui-label text-muted-foreground">{t("Actions")}</th>
               </tr>
             </thead>
@@ -321,6 +375,18 @@ const AdminPackingDispatch = () => {
                       </span>
                     </td>
                     <td className="px-4 py-3 text-ui-cell text-foreground">₹{(order.sales_order_value ?? 0).toLocaleString("en-IN")}</td>
+                    <td className="px-4 py-3 text-ui-cell text-xs">
+                      {packedReadyChecksByOrder[order.id]?.length === 0 ? (
+                        <span className="font-semibold text-emerald-600" title="Eligible for packed_ready">Eligible</span>
+                      ) : (
+                        <span
+                          className="font-semibold text-amber-700"
+                          title={(packedReadyChecksByOrder[order.id] || []).map((b) => b.message).join("\n")}
+                        >
+                          Blocked ({packedReadyChecksByOrder[order.id]?.length ?? 0})
+                        </span>
+                      )}
+                    </td>
                     <td className="px-4 py-3 text-right space-x-2">
                       {order.status === "packed_ready" && !blocked && (
                         <button onClick={() => handleAdvanceToPacking(order)} disabled={updating === order.id}

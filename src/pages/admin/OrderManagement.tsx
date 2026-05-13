@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import StagnancyBadge from "@/components/StagnancyBadge";
 import { shouldIgnoreOrderRegression } from "@/utils/orderStatus";
 import { formatSalesOrderLabel } from "@/utils/orderSoLabel";
+import { getPackedReadyBlockers, type PackedReadyBlocker } from "@/utils/packedReadyGate";
 
 const STATUS_FLOW = [
   { status: "submitted", label: "Order Placed", action: "Confirm Order", next: "confirmed", color: "bg-amber-100 text-amber-800 border-amber-200" },
@@ -60,6 +61,9 @@ interface OrderRow {
   status: string;
   created_at: string | null;
   sales_order_value: number | null;
+  payment_status: string | null;
+  advance_paid: number | null;
+  advance_required: number | null;
   company_id: string | null;
   company: { business_name: string } | null;
 }
@@ -70,6 +74,12 @@ interface OrderItem {
   pack_size: string | null;
   product: { name: string } | null;
 }
+
+type PackingReqRow = {
+  order_id: string;
+  status: string | null;
+  store_requisition_items?: { requested_qty: number; fulfilled_qty: number | null }[];
+};
 
 const OrderManagement = () => {
   const [searchParams] = useSearchParams();
@@ -82,11 +92,12 @@ const OrderManagement = () => {
   const [orderItems, setOrderItems] = useState<OrderItem[]>([]);
   const [itemsLoading, setItemsLoading] = useState(false);
   const [traceOrderId, setTraceOrderId] = useState<string | null>(null);
+  const [packingBlockersByOrder, setPackingBlockersByOrder] = useState<Record<string, PackedReadyBlocker[] | undefined>>({});
 
   const fetchOrders = useCallback(async () => {
     const { data, error } = await supabase
       .from("orders")
-      .select("id, order_number, status, created_at, sales_order_value, company_id, company:companies(business_name)")
+      .select("id, order_number, status, created_at, sales_order_value, payment_status, advance_paid, advance_required, company_id, company:companies(business_name)")
       .neq("status", "draft")
       .order("created_at", { ascending: false });
 
@@ -109,6 +120,61 @@ const OrderManagement = () => {
     return () => { void supabase.removeChannel(ch); };
   }, [fetchOrders]);
 
+  useEffect(() => {
+    const packing = orders.filter((o) => o.status === "packing");
+    if (packing.length === 0) {
+      setPackingBlockersByOrder({});
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      const ids = packing.map((o) => o.id);
+      const [itemsRes, reqsRes] = await Promise.all([
+        supabase
+          .from("order_items")
+          .select("order_id, quantity, actual_packed_qty, production_status")
+          .in("order_id", ids),
+        supabase
+          .from("store_requisitions")
+          .select("order_id, status, store_requisition_items(requested_qty, fulfilled_qty)")
+          .in("order_id", ids),
+      ]);
+      if (cancelled) return;
+      const itemsByOrder = new Map<string, { quantity: number; actual_packed_qty: number | null; production_status: string | null }[]>();
+      for (const row of (itemsRes.data as { order_id: string; quantity: number; actual_packed_qty: number | null; production_status: string | null }[]) || []) {
+        if (!itemsByOrder.has(row.order_id)) itemsByOrder.set(row.order_id, []);
+        itemsByOrder.get(row.order_id)!.push({
+          quantity: row.quantity,
+          actual_packed_qty: row.actual_packed_qty,
+          production_status: row.production_status,
+        });
+      }
+      const reqsByOrder = new Map<string, PackingReqRow[]>();
+      for (const r of (reqsRes.data as PackingReqRow[]) || []) {
+        if (!reqsByOrder.has(r.order_id)) reqsByOrder.set(r.order_id, []);
+        reqsByOrder.get(r.order_id)!.push(r);
+      }
+      const next: Record<string, PackedReadyBlocker[]> = {};
+      for (const o of packing) {
+        next[o.id] = getPackedReadyBlockers({
+          order: {
+            status: o.status,
+            payment_status: o.payment_status,
+            advance_paid: o.advance_paid,
+            advance_required: o.advance_required,
+            sales_order_value: o.sales_order_value,
+          },
+          items: itemsByOrder.get(o.id) || [],
+          requisitions: reqsByOrder.get(o.id) || [],
+        });
+      }
+      setPackingBlockersByOrder(next);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [orders]);
+
   const displayOrders = useMemo(() => {
     if (pipelineView === "production") {
       return orders.filter((o) => PIPELINE_VIEW_PRODUCTION_STATUSES.has(o.status));
@@ -126,6 +192,32 @@ const OrderManagement = () => {
       toast.error("Locked order status cannot move backward.");
       setActionLoading(null);
       return;
+    }
+
+    if (nextStatus === "packed_ready") {
+      const [{ data: oi }, { data: reqs }] = await Promise.all([
+        supabase.from("order_items").select("quantity, actual_packed_qty, production_status").eq("order_id", orderId),
+        supabase
+          .from("store_requisitions")
+          .select("status, store_requisition_items(requested_qty, fulfilled_qty)")
+          .eq("order_id", orderId),
+      ]);
+      const gateBlockers = getPackedReadyBlockers({
+        order: {
+          status: currentOrder?.status ?? "",
+          payment_status: currentOrder?.payment_status ?? null,
+          advance_paid: currentOrder?.advance_paid ?? null,
+          advance_required: currentOrder?.advance_required ?? null,
+          sales_order_value: currentOrder?.sales_order_value ?? null,
+        },
+        items: (oi as { quantity: number; actual_packed_qty: number | null; production_status: string | null }[]) || [],
+        requisitions: (reqs as { status: string | null; store_requisition_items?: { requested_qty: number; fulfilled_qty: number | null }[] }[]) || [],
+      });
+      if (gateBlockers.length > 0) {
+        toast.error(gateBlockers.map((b) => b.message).join("; "));
+        setActionLoading(null);
+        return;
+      }
     }
 
     // ── CREDIT TIERING BRANCH ──
@@ -259,20 +351,25 @@ const OrderManagement = () => {
               <th className="text-left px-4 py-3 font-medium text-muted-foreground">Customer</th>
               <th className="text-right px-4 py-3 font-medium text-muted-foreground">Value</th>
               <th className="text-center px-4 py-3 font-medium text-muted-foreground">Status</th>
+              <th className="text-center px-4 py-3 font-medium text-muted-foreground">Packed ready gate</th>
               <th className="text-center px-4 py-3 font-medium text-muted-foreground">Action</th>
               <th className="text-center px-4 py-3 font-medium text-muted-foreground">Details</th>
             </tr>
           </thead>
           <tbody>
             {orders.length === 0 && (
-              <tr><td colSpan={6} className="text-center py-12 text-muted-foreground">No orders found</td></tr>
+              <tr><td colSpan={7} className="text-center py-12 text-muted-foreground">No orders found</td></tr>
             )}
             {orders.length > 0 && displayOrders.length === 0 && (
-              <tr><td colSpan={6} className="text-center py-12 text-muted-foreground">No orders in this view</td></tr>
+              <tr><td colSpan={7} className="text-center py-12 text-muted-foreground">No orders in this view</td></tr>
             )}
             {displayOrders.map((order) => {
               const info = getStatusInfo(order.status);
               const companyName = (order.company as any)?.business_name ?? "—";
+              const packingGate = packingBlockersByOrder[order.id];
+              const packingGateBlocked =
+                order.status === "packing" &&
+                (packingGate === undefined || packingGate.length > 0);
               return (
                 <tr key={order.id} className="border-b border-border last:border-0 hover:bg-muted/30 transition-colors">
                   <td className="px-4 py-3 font-mono text-xs text-foreground">
@@ -290,12 +387,30 @@ const OrderManagement = () => {
                       {info.label}
                     </span>
                   </td>
+                  <td className="px-4 py-3 text-center text-xs">
+                    {order.status !== "packing" ? (
+                      <span className="text-muted-foreground">—</span>
+                    ) : packingGate === undefined ? (
+                      <Loader2 size={12} className="inline animate-spin text-muted-foreground" />
+                    ) : packingGate.length === 0 ? (
+                      <span className="font-medium text-emerald-600" title="Eligible for packed_ready">
+                        Eligible
+                      </span>
+                    ) : (
+                      <span
+                        className="font-medium text-destructive cursor-help"
+                        title={packingGate.map((b) => b.message).join("\n")}
+                      >
+                        Blocked ({packingGate.length})
+                      </span>
+                    )}
+                  </td>
                   <td className="px-4 py-3 text-center">
                     {info.action && info.next ? (
                       <Button
                         size="sm"
                         variant="default"
-                        disabled={actionLoading === order.id}
+                        disabled={actionLoading === order.id || (info.next === "packed_ready" && packingGateBlocked)}
                         onClick={(e) => { e.stopPropagation(); handleAction(order.id, info.next!); }}
                         className="text-xs gap-1"
                       >
