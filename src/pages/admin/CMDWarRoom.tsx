@@ -9,6 +9,7 @@ import WarRoomOrderCard from "@/components/warroom/WarRoomOrderCard";
 import RawIntelligenceTab from "@/components/warroom/RawIntelligenceTab";
 import SuggestedOrdersTab from "@/components/warroom/SuggestedOrdersTab";
 import AliasDrawer from "@/components/warroom/AliasDrawer";
+import { FinanceBoardCard } from "@/components/FinanceBoardCard";
 
 interface OrderItem {
   id?: string;
@@ -456,6 +457,10 @@ const CMDWarRoom = () => {
       )}
       <div className="hidden md:block">
         <ShadowClientSection companies={shadowCompanies} onRefresh={() => { fetchShadowCompanies(); fetchOrders(); }} />
+      </div>
+
+      <div className="grid sm:grid-cols-2 md:grid-cols-3 gap-3 mb-6">
+        <FinanceBoardCard />
       </div>
 
       <Tabs defaultValue="battlefield" className="w-full">

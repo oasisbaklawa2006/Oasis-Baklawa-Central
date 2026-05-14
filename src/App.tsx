@@ -50,6 +50,7 @@ import AdminPackingDispatch from "./pages/admin/AdminPackingDispatch.tsx";
 import AdminAccountsRelease from "./pages/admin/AdminAccountsRelease.tsx";
 import AdminExceptions from "./pages/admin/AdminExceptions.tsx";
 import AdminFinance from "./pages/admin/AdminFinance.tsx";
+import FinanceReleaseBoard from "./pages/admin/FinanceReleaseBoard.tsx";
 import AdminUsers from "./pages/admin/AdminUsers.tsx";
 import AdminMOQ from "./pages/admin/AdminMOQ.tsx";
 import AdminCurrency from "./pages/admin/AdminCurrency.tsx";
@@ -276,6 +277,7 @@ const App = () => (
                     <Route path="exceptions" element={<AdminExceptions />} />
                     <Route path="dispatch" element={<AdminPackingDispatch />} />
                     <Route path="finance" element={<AdminFinance />} />
+                    <Route path="finance-board" element={<FinanceReleaseBoard />} />
                     <Route path="users" element={<AdminUsers />} />
                     <Route path="moq" element={<AdminMOQ />} />
                     <Route path="currency" element={<AdminCurrency />} />
