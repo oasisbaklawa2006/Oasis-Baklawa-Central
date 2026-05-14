@@ -185,7 +185,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const isActive = publicUserById.data?.is_active ?? null;
 
       // ⚡ Admin Fast-Track: unblock route guards immediately, skip priceTier fetch
-      if (resolvedRole === "ADMIN" || resolvedRole === "OWNER") {
+      if (resolvedRole === "SUPER_ADMIN" || resolvedRole === "ADMIN" || resolvedRole === "OWNER") {
         console.log(`[useAuth] Fast-tracking Admin: ${activeUser.id}`);
         const fastCache: AuthCache = {
           userId: activeUser.id,
