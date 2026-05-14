@@ -1852,6 +1852,8 @@ export type Database = {
           eway_bill_number: string | null
           eway_bill_url: string | null
           final_invoice_url: string | null
+          finance_verified_at: string | null
+          finance_verified_by: string | null
           gate_pass_number: string | null
           id: string
           is_duplicate: boolean
@@ -1893,6 +1895,8 @@ export type Database = {
           eway_bill_number?: string | null
           eway_bill_url?: string | null
           final_invoice_url?: string | null
+          finance_verified_at?: string | null
+          finance_verified_by?: string | null
           gate_pass_number?: string | null
           id?: string
           is_duplicate?: boolean
@@ -1934,6 +1938,8 @@ export type Database = {
           eway_bill_number?: string | null
           eway_bill_url?: string | null
           final_invoice_url?: string | null
+          finance_verified_at?: string | null
+          finance_verified_by?: string | null
           gate_pass_number?: string | null
           id?: string
           is_duplicate?: boolean

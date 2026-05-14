@@ -19,10 +19,14 @@ function norm(s: string | null | undefined): string {
   return (s || "").trim().toLowerCase();
 }
 
-/** Clears advance hold without requiring recorded advance ≥ required (short-term credit, verified paths). */
+/**
+ * Advance / finance path cleared for operations without requiring advance_paid ≥ advance_required.
+ * Includes full settlement (`paid`) — e.g. PI wallet auto-deduct can set paid without bumping advance_paid.
+ */
 export function isAdvanceVerificationPathCleared(order: OrderTraceInputs): boolean {
   const ps = norm(order.payment_status);
   return (
+    ps === "paid" ||
     ps === "short_term_credit" ||
     ps === "verified_advance" ||
     ps === "advance_paid" ||
