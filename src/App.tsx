@@ -105,6 +105,8 @@ const ADMIN_STAFF_ROLES = [
   "DISPATCH_HEAD", "ASSEMBLY_MANAGER", "PACKING_SUPERVISOR",
   "STORE_READY_GOODS", "STORE_3RD_PARTY", "GATE_SECURITY", "RGS_ADMIN",
   "PROD_ARABIC_SWEETS", "PROD_CHOCOLATE", "PROD_DRAGEES", "PROD_FUSION", "PROD_BAKERY", "PROD_NUTS",
+  "TV_DISPLAY", "TV_ASSEMBLY", "TV_READY",
+  "CATALOGUE_CONTRIBUTOR",
 ];
 
 const ALL_BUYER_ROLES = [
@@ -231,7 +233,7 @@ const App = () => (
                   <Route path="/intro" element={<CompanyIntro />} />
                   <Route path="/track" element={<PublicOrderTracking />} />
                   <Route path="/operations-controller" element={<ProtectedRoute><RoleProtectedRoute allowedRoles={[...ADMIN_STAFF_ROLES]}><OperationsController /></RoleProtectedRoute></ProtectedRoute>} />
-                  <Route path="/security-gate" element={<ProtectedRoute><RoleProtectedRoute allowedRoles={["GATE_SECURITY", "SUPER_ADMIN", "ADMIN"]}><AdminSecurityGate /></RoleProtectedRoute></ProtectedRoute>} />
+                  <Route path="/security-gate" element={<ProtectedRoute><RoleProtectedRoute allowedRoles={["GATE_SECURITY", "SECURITY_CONTROL", "SUPER_ADMIN", "ADMIN"]}><AdminSecurityGate /></RoleProtectedRoute></ProtectedRoute>} />
                   <Route path="/" element={<RootGate />} />
                   <Route path="/home" element={<StorefrontGate><Index /></StorefrontGate>} />
                   <Route path="/welcome" element={<ProtectedRoute><WelcomeGate /></ProtectedRoute>} />
