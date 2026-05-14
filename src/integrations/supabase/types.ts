@@ -1678,7 +1678,13 @@ export type Database = {
           order_id: string
           payment_date: string | null
           payment_type: string
+          proof_storage_path: string | null
+          proof_url: string | null
           reference_no: string | null
+          rejection_reason: string | null
+          status: string | null
+          verified_at: string | null
+          verified_by: string | null
         }
         Insert: {
           amount?: number
@@ -1689,7 +1695,13 @@ export type Database = {
           order_id: string
           payment_date?: string | null
           payment_type: string
+          proof_storage_path?: string | null
+          proof_url?: string | null
           reference_no?: string | null
+          rejection_reason?: string | null
+          status?: string | null
+          verified_at?: string | null
+          verified_by?: string | null
         }
         Update: {
           amount?: number
@@ -1700,7 +1712,13 @@ export type Database = {
           order_id?: string
           payment_date?: string | null
           payment_type?: string
+          proof_storage_path?: string | null
+          proof_url?: string | null
           reference_no?: string | null
+          rejection_reason?: string | null
+          status?: string | null
+          verified_at?: string | null
+          verified_by?: string | null
         }
         Relationships: [
           {

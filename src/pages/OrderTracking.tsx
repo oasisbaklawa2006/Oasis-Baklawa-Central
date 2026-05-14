@@ -135,6 +135,7 @@ const OrderTracking = () => {
   }
 
   const currentStep = getStepIndex(order.status);
+  const statusLower = String(order.status ?? "").toLowerCase();
   const isInSupportWindow = currentStep >= 8;
 
   return (
@@ -193,7 +194,11 @@ const OrderTracking = () => {
                         isCompleted ? "text-foreground" : "text-muted-foreground"
                       }`}
                     >
-                      {step.label}
+                      {step.key === "in_production"
+                        ? statusLower === "in_production"
+                          ? "In Production"
+                          : "Manufacturing"
+                        : step.label}
                     </p>
                     {isCurrent && (
                       <motion.span
