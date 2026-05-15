@@ -26,7 +26,10 @@ test.describe('Golden Pipeline — End-to-End', () => {
     await page.click('button:has-text("Proceed to Checkout")');
     await page.locator('[data-testid="payment-modal"]').waitFor({ state: 'visible' });
     await page.click('button[data-testid="submit-order-btn"]');
-    await page.waitForURL(`${PREVIEW_URL}/orders**`);
+    await page.waitForURL(
+      (url) =>
+        url.pathname === '/orders' || url.pathname.startsWith('/orders/'),
+    );
   });
 
   test('4. Buyer uploads receipt', async ({ page }) => {
