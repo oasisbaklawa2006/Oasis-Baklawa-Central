@@ -345,6 +345,21 @@ const FinanceReleaseBoard = () => {
           {new Date(o.created_at).toLocaleDateString("en-IN")}
         </p>
       )}
+
+      {/* Receipt Status - FIN-001 */}
+      {o.payment_receipt_url ? (
+        <a
+          href={o.payment_receipt_url}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="mt-2 inline-flex items-center gap-1 text-xs font-bold text-primary hover:underline"
+        >
+          📄 View Receipt
+        </a>
+      ) : (
+        <p className="mt-2 text-xs font-semibold text-amber-600">⚠️ No receipt uploaded yet</p>
+      )}
+
       <BadgeRow payment_status={o.payment_status} status={o.status} />
       {action}
     </div>
