@@ -65,8 +65,7 @@ const AdminLayout = () => {
     {
       title: "Command",
       items: [
-        { to: "/admin", icon: LayoutDashboard, label: "Dashboard", end: true, moduleKey: "dashboard" },
-        { to: "/admin/heartbeat", icon: Activity, label: "CMD Heartbeat", end: false, moduleKey: "cmd_war_room" },
+        { to: "/admin", icon: LayoutDashboard, label: "Executive Dashboard", end: true, moduleKey: "dashboard" },
         { to: "/admin/cmd-war-room", icon: Monitor, label: "War Room", end: false, moduleKey: "cmd_war_room" },
       ],
     },
@@ -81,11 +80,8 @@ const AdminLayout = () => {
         { to: "/admin/accounts-release", icon: Landmark, label: t("Accounts & Release"), moduleKey: "accounts" },
         { to: "/admin/exceptions", icon: AlertCircle, label: t("Exceptions"), moduleKey: "exceptions" },
         { to: "/admin/assembly-tasks", icon: PackageCheck, label: "Assembly", moduleKey: "production" },
-        { to: "/admin/assembly-tv", icon: Monitor, label: "Assembly TV", moduleKey: "production" },
         { to: "/admin/ready-goods", icon: Package, label: "Ready Goods", moduleKey: "inventory" },
-        { to: "/admin/rgs-tv", icon: Monitor, label: "RGS TV", moduleKey: "inventory" },
         { to: "/admin/dispatch-mgmt", icon: Truck, label: "Dispatch", moduleKey: "packing" },
-        { to: "/admin/dispatch-tv", icon: Monitor, label: "Dispatch TV", moduleKey: "packing" },
         { to: "/security-gate", icon: Shield, label: "Security Gate", moduleKey: "packing" },
       ],
     },
@@ -113,6 +109,7 @@ const AdminLayout = () => {
         { to: "/admin/logistics", icon: Truck, label: t("Logistics"), moduleKey: "settings" },
         { to: "/admin/notifications", icon: Bell, label: t("Notifications"), moduleKey: "settings" },
         { to: "/admin/announcements", icon: Megaphone, label: t("Announcements"), moduleKey: "settings" },
+        { to: "/admin/display-management", icon: Monitor, label: t("Display Management"), moduleKey: "settings" },
       ],
     },
   ];

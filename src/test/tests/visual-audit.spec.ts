@@ -10,12 +10,10 @@ test('UI/UX Visual Audit and Video Capture', async ({ page }) => {
 
   // 2. Perform Login (Update these selectors based on your actual inputs)
   // Uncomment and adjust these if your pages are locked behind auth!
-  /*
-  await page.fill('input[type="email"]', 'dinesh@oasisbaklawa.com');
-  await page.fill('input[type="password"]', 'your_test_password');
-  await page.click('button:has-text("Login")');
-  await page.waitForURL('**' + '/admin*');
-  */
+  // await page.fill('input[type="email"]', 'dinesh@oasisbaklawa.com');
+  // await page.fill('input[type="password"]', 'your_test_password');
+  // await page.click('button:has-text("Login")');
+  // await page.waitForURL('**' + '/admin*');
 
   // 3. Visit Dashboard
   await page.goto(`${baseUrl}/admin`);

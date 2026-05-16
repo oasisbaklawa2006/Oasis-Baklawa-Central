@@ -15,7 +15,6 @@ jobs:
           res=$(curl -s "https://api.oasisbaklawa.com/functions/v1/validate-user?identifier=admin@oasisbaklawa.com")
           echo $res
           echo $res | grep '"user_found":true'
-
       - name: Test API (fake user)
         run: |
           res=$(curl -s "https://api.oasisbaklawa.com/functions/v1/validate-user?identifier=test@example.com")

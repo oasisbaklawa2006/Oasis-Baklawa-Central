@@ -1,3 +1,4 @@
+import { lazy, Suspense } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Route, Routes } from "react-router-dom";
 import { Toaster as Sonner } from "@/components/ui/sonner";
@@ -9,85 +10,89 @@ import { CurrencyProvider } from "./contexts/CurrencyContext.tsx";
 
 import { Navigate } from "react-router-dom";
 import ProtectedRoute from "@/components/ProtectedRoute";
-import Splash from "./pages/Splash.tsx";
-import CompanyIntro from "./pages/CompanyIntro.tsx";
-import Catalogue from "./pages/Catalogue.tsx";
-import Orders from "./pages/Orders.tsx";
-import Cart from "./pages/Cart.tsx";
-import Dashboard from "./pages/Dashboard.tsx";
-import ProductDetail from "./pages/ProductDetail.tsx";
-import Account from "./pages/Account.tsx";
-import Favorites from "./pages/Favorites.tsx";
-import Documents from "./pages/Documents.tsx";
+
+// Eager — small, used on initial paint / auth flow
 import Login from "./pages/Login.tsx";
-import Register from "./pages/Register.tsx";
+import Splash from "./pages/Splash.tsx";
 import NotFound from "./pages/NotFound.tsx";
-import Onboarding from "./pages/Onboarding.tsx";
-import BuyerPortal from "./pages/BuyerPortal.tsx";
-import Index from "./pages/Index.tsx";
-import ApprovalPending from "./pages/ApprovalPending.tsx";
-import WelcomeGate from "./pages/WelcomeGate.tsx";
-import OrderTracking from "./pages/OrderTracking.tsx";
-import PublicOrderTracking from "./pages/PublicOrderTracking.tsx";
-import ResetPassword from "./pages/ResetPassword.tsx";
-import FAQ from "./pages/FAQ.tsx";
-import Terms from "./pages/Terms.tsx";
-import PublicLanding from "./pages/PublicLanding.tsx";
-import Privacy from "./pages/Privacy.tsx";
-import PublicTerms from "./pages/PublicTerms.tsx";
-import Shipping from "./pages/Shipping.tsx";
 import ErrorBoundary from "./components/ErrorBoundary.tsx";
 import AuthErrorListener from "./components/AuthErrorListener.tsx";
-import AdminLayout from "./components/AdminLayout.tsx";
-import AdminDashboard from "./pages/admin/AdminDashboard.tsx";
-import AdminClients from "./pages/admin/AdminClients.tsx";
-import AdminProducts from "./pages/admin/AdminProducts.tsx";
-import AdminPricing from "./pages/admin/AdminPricing.tsx";
-import AdminOrders from "./pages/admin/AdminOrders.tsx";
-import AdminProduction from "./pages/admin/AdminProduction.tsx";
-import AdminOperations from "./pages/admin/AdminOperations.tsx";
-import AdminPackingDispatch from "./pages/admin/AdminPackingDispatch.tsx";
-import AdminAccountsRelease from "./pages/admin/AdminAccountsRelease.tsx";
-import AdminExceptions from "./pages/admin/AdminExceptions.tsx";
-import AdminFinance from "./pages/admin/AdminFinance.tsx";
-import FinanceReleaseBoard from "./pages/admin/FinanceReleaseBoard.tsx";
-import AdminUsers from "./pages/admin/AdminUsers.tsx";
-import AdminMOQ from "./pages/admin/AdminMOQ.tsx";
-import AdminCurrency from "./pages/admin/AdminCurrency.tsx";
-import AdminSupport from "./pages/admin/AdminSupport.tsx";
-import AdminSettings from "./pages/admin/AdminSettings.tsx";
-import AdminAudit from "./pages/admin/AdminAudit.tsx";
-import AdminDepartment from "./pages/admin/AdminDepartment.tsx";
-import OperationsController from "./pages/admin/OperationsController.tsx";
-import AdminSecurityGate from "./pages/admin/AdminSecurityGate.tsx";
-import AdminInventory from "./pages/admin/AdminInventory.tsx";
-import AdminLogistics from "./pages/admin/AdminLogistics.tsx";
-import ManageUsers from "./pages/ManageUsers.tsx";
-import ManageAddresses from "./pages/ManageAddresses.tsx";
-import ManageLogistics from "./pages/ManageLogistics.tsx";
-import SalesDashboard from "./pages/sales/SalesDashboard.tsx";
-import SalesPerformanceHub from "./pages/admin/SalesPerformanceHub.tsx";
-import AdminNotifications from "./pages/admin/AdminNotifications.tsx";
-import CMDHeartbeat from "./pages/admin/CMDHeartbeat.tsx";
-import CMDWarRoom from "./pages/admin/CMDWarRoom.tsx";
-import AdminMerchandising from "./pages/admin/AdminMerchandising.tsx";
-import OrderManagement from "./pages/admin/OrderManagement.tsx";
-import CentralOrderPool from "./pages/admin/CentralOrderPool.tsx";
-import FactoryTVModule from "./components/FactoryTVModule.tsx";
-import AssemblyManagement from "./pages/admin/AssemblyManagement.tsx";
-import AssemblyTV from "./pages/admin/AssemblyTV.tsx";
-import ReadyGoodsStore from "./pages/admin/ReadyGoodsStore.tsx";
-import ReadyGoodsTV from "./pages/admin/ReadyGoodsTV.tsx";
-import DispatchManagement from "./pages/admin/DispatchManagement.tsx";
-import DispatchTV from "./pages/admin/DispatchTV.tsx";
-import TargetVsActual from "./pages/admin/TargetVsActual.tsx";
-import ThirdPartyStore from "./pages/admin/ThirdPartyStore.tsx";
-import VerificationWarRoom from "./pages/admin/VerificationWarRoom.tsx";
-import AdminAnnouncements from "./pages/admin/AdminAnnouncements.tsx";
 import RoleProtectedRoute from "@/components/RoleProtectedRoute";
 import PremiumAnnouncementOverlay from "@/components/PremiumAnnouncementOverlay";
 import { AuthProvider, useAuth } from "@/hooks/useAuth";
 import { getRoleDestination, isStaffRole, isStorefrontRole, normalizeRole } from "@/lib/auth-routing";
+
+// Lazy — split out of the main bundle
+const CompanyIntro = lazy(() => import("./pages/CompanyIntro.tsx"));
+const Catalogue = lazy(() => import("./pages/Catalogue.tsx"));
+const QuickOrder = lazy(() => import("./pages/QuickOrder.tsx"));
+const Orders = lazy(() => import("./pages/Orders.tsx"));
+const Cart = lazy(() => import("./pages/Cart.tsx"));
+const Dashboard = lazy(() => import("./pages/Dashboard.tsx"));
+const ProductDetail = lazy(() => import("./pages/ProductDetail.tsx"));
+const Account = lazy(() => import("./pages/Account.tsx"));
+const Favorites = lazy(() => import("./pages/Favorites.tsx"));
+const Documents = lazy(() => import("./pages/Documents.tsx"));
+const Register = lazy(() => import("./pages/Register.tsx"));
+const Onboarding = lazy(() => import("./pages/Onboarding.tsx"));
+const BuyerPortal = lazy(() => import("./pages/BuyerPortal.tsx"));
+const Index = lazy(() => import("./pages/Index.tsx"));
+const ApprovalPending = lazy(() => import("./pages/ApprovalPending.tsx"));
+const WelcomeGate = lazy(() => import("./pages/WelcomeGate.tsx"));
+const OrderTracking = lazy(() => import("./pages/OrderTracking.tsx"));
+const PublicOrderTracking = lazy(() => import("./pages/PublicOrderTracking.tsx"));
+const ResetPassword = lazy(() => import("./pages/ResetPassword.tsx"));
+const FAQ = lazy(() => import("./pages/FAQ.tsx"));
+const Privacy = lazy(() => import("./pages/Privacy.tsx"));
+const PublicTerms = lazy(() => import("./pages/PublicTerms.tsx"));
+const Shipping = lazy(() => import("./pages/Shipping.tsx"));
+
+const AdminLayout = lazy(() => import("./components/AdminLayout.tsx"));
+const AdminDashboard = lazy(() => import("./pages/admin/AdminDashboard.tsx"));
+const AdminClients = lazy(() => import("./pages/admin/AdminClients.tsx"));
+const AdminProducts = lazy(() => import("./pages/admin/AdminProducts.tsx"));
+const AdminPricing = lazy(() => import("./pages/admin/AdminPricing.tsx"));
+const AdminOrders = lazy(() => import("./pages/admin/AdminOrders.tsx"));
+const AdminProduction = lazy(() => import("./pages/admin/AdminProduction.tsx"));
+const AdminOperations = lazy(() => import("./pages/admin/AdminOperations.tsx"));
+const AdminPackingDispatch = lazy(() => import("./pages/admin/AdminPackingDispatch.tsx"));
+const AdminAccountsRelease = lazy(() => import("./pages/admin/AdminAccountsRelease.tsx"));
+const AdminExceptions = lazy(() => import("./pages/admin/AdminExceptions.tsx"));
+const AdminFinance = lazy(() => import("./pages/admin/AdminFinance.tsx"));
+const AdminUsers = lazy(() => import("./pages/admin/AdminUsers.tsx"));
+const AdminMOQ = lazy(() => import("./pages/admin/AdminMOQ.tsx"));
+const AdminCurrency = lazy(() => import("./pages/admin/AdminCurrency.tsx"));
+const AdminSupport = lazy(() => import("./pages/admin/AdminSupport.tsx"));
+const AdminSettings = lazy(() => import("./pages/admin/AdminSettings.tsx"));
+const AdminAudit = lazy(() => import("./pages/admin/AdminAudit.tsx"));
+const AdminDepartment = lazy(() => import("./pages/admin/AdminDepartment.tsx"));
+const OperationsController = lazy(() => import("./pages/admin/OperationsController.tsx"));
+const AdminSecurityGate = lazy(() => import("./pages/admin/AdminSecurityGate.tsx"));
+const AdminInventory = lazy(() => import("./pages/admin/AdminInventory.tsx"));
+const AdminLogistics = lazy(() => import("./pages/admin/AdminLogistics.tsx"));
+const ManageUsers = lazy(() => import("./pages/ManageUsers.tsx"));
+const ManageAddresses = lazy(() => import("./pages/ManageAddresses.tsx"));
+const ManageLogistics = lazy(() => import("./pages/ManageLogistics.tsx"));
+const SalesDashboard = lazy(() => import("./pages/sales/SalesDashboard.tsx"));
+const SalesPerformanceHub = lazy(() => import("./pages/admin/SalesPerformanceHub.tsx"));
+const AdminNotifications = lazy(() => import("./pages/admin/AdminNotifications.tsx"));
+const CMDWarRoom = lazy(() => import("./pages/admin/CMDWarRoom.tsx"));
+const AdminMerchandising = lazy(() => import("./pages/admin/AdminMerchandising.tsx"));
+const OrderManagement = lazy(() => import("./pages/admin/OrderManagement.tsx"));
+const CentralOrderPool = lazy(() => import("./pages/admin/CentralOrderPool.tsx"));
+const FactoryTVModule = lazy(() => import("./components/FactoryTVModule.tsx"));
+const AssemblyManagement = lazy(() => import("./pages/admin/AssemblyManagement.tsx"));
+const AssemblyTV = lazy(() => import("./pages/admin/AssemblyTV.tsx"));
+const ReadyGoodsStore = lazy(() => import("./pages/admin/ReadyGoodsStore.tsx"));
+const ReadyGoodsTV = lazy(() => import("./pages/admin/ReadyGoodsTV.tsx"));
+const DispatchManagement = lazy(() => import("./pages/admin/DispatchManagement.tsx"));
+const DispatchTV = lazy(() => import("./pages/admin/DispatchTV.tsx"));
+const DisplayManagement = lazy(() => import("./pages/admin/DisplayManagement.tsx"));
+const TargetVsActual = lazy(() => import("./pages/admin/TargetVsActual.tsx"));
+const ThirdPartyStore = lazy(() => import("./pages/admin/ThirdPartyStore.tsx"));
+const VerificationWarRoom = lazy(() => import("./pages/admin/VerificationWarRoom.tsx"));
+const AdminAnnouncements = lazy(() => import("./pages/admin/AdminAnnouncements.tsx"));
+const FinanceReleaseBoard = lazy(() => import("./pages/admin/FinanceReleaseBoard.tsx"));
 
 const ADMIN_ONLY_ROLES = ["SUPER_ADMIN", "ADMIN"];
 
@@ -101,6 +106,8 @@ const ADMIN_STAFF_ROLES = [
   "DISPATCH_HEAD", "ASSEMBLY_MANAGER", "PACKING_SUPERVISOR",
   "STORE_READY_GOODS", "STORE_3RD_PARTY", "GATE_SECURITY", "RGS_ADMIN",
   "PROD_ARABIC_SWEETS", "PROD_CHOCOLATE", "PROD_DRAGEES", "PROD_FUSION", "PROD_BAKERY", "PROD_NUTS",
+  "TV_DISPLAY", "TV_ASSEMBLY", "TV_READY",
+  "CATALOGUE_CONTRIBUTOR",
 ];
 
 const SALES_DASHBOARD_ROLES = [...ADMIN_ONLY_ROLES, "SALES_EXECUTIVE"];
@@ -223,16 +230,18 @@ const App = () => (
               <CurrencyProvider>
                 <AuthErrorListener />
                 <PremiumAnnouncementOverlay />
+                <Suspense fallback={<AuthSpinner />}>
                 <Routes>
                   <Route path="/splash" element={<Splash />} />
                   <Route path="/intro" element={<CompanyIntro />} />
                   <Route path="/track" element={<PublicOrderTracking />} />
                   <Route path="/operations-controller" element={<ProtectedRoute><RoleProtectedRoute allowedRoles={[...ADMIN_STAFF_ROLES]}><OperationsController /></RoleProtectedRoute></ProtectedRoute>} />
-                  <Route path="/security-gate" element={<ProtectedRoute><RoleProtectedRoute allowedRoles={["GATE_SECURITY", "SUPER_ADMIN", "ADMIN"]}><AdminSecurityGate /></RoleProtectedRoute></ProtectedRoute>} />
+                  <Route path="/security-gate" element={<ProtectedRoute><RoleProtectedRoute allowedRoles={["GATE_SECURITY", "SECURITY_CONTROL", "SUPER_ADMIN", "ADMIN"]}><AdminSecurityGate /></RoleProtectedRoute></ProtectedRoute>} />
                   <Route path="/" element={<RootGate />} />
                   <Route path="/home" element={<StorefrontGate><Index /></StorefrontGate>} />
                   <Route path="/welcome" element={<ProtectedRoute><WelcomeGate /></ProtectedRoute>} />
                   <Route path="/catalogue" element={<StorefrontGate><Catalogue /></StorefrontGate>} />
+                  <Route path="/quick-order" element={<StorefrontGate><QuickOrder /></StorefrontGate>} />
                   <Route path="/product/:id" element={<StorefrontGate><ProductDetail /></StorefrontGate>} />
                   <Route path="/login" element={<Login />} />
                   <Route path="/register" element={<Register />} />
@@ -289,7 +298,8 @@ const App = () => (
                     <Route path="logistics" element={<AdminLogistics />} />
                     <Route path="sales-hub" element={<SalesPerformanceHub />} />
                     <Route path="notifications" element={<AdminNotifications />} />
-                    <Route path="heartbeat" element={<CMDHeartbeat />} />
+                    <Route path="heartbeat" element={<AdminDashboard />} />
+                    <Route path="display-management" element={<DisplayManagement />} />
                     <Route path="merchandising" element={<AdminMerchandising />} />
                     <Route path="order-management" element={<OrderManagement />} />
                     <Route path="central-pool" element={<CentralOrderPool />} />
@@ -323,6 +333,7 @@ const App = () => (
                   <Route path="/tv/nuts" element={<RoleProtectedRoute allowedRoles={["HOD_NUTS", "PROD_NUTS", "SUPER_ADMIN", "ADMIN"]}><FactoryTVModule category="Seasoned Nuts" departmentFilter="Nuts Roasting" title="Nuts & Dry Fruits Line" /></RoleProtectedRoute>} />
                   <Route path="*" element={<NotFound />} />
                 </Routes>
+                </Suspense>
               </CurrencyProvider>
             </LanguageProvider>
           </AuthProvider>

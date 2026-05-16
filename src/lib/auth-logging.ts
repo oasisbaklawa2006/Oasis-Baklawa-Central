@@ -75,12 +75,29 @@ function getCurrentRoute() {
   return `${window.location.pathname}${window.location.search}${window.location.hash}`;
 }
 
+function isAuthDebugEnabled() {
+  return import.meta.env.DEV || import.meta.env.VITE_AUTH_DEBUG === "true";
+}
+
+function maskIdentifier(identifier?: string | null) {
+  if (!identifier) return null;
+  if (identifier.includes("@")) {
+    const [name, domain] = identifier.split("@");
+    return `${name.slice(0, 2)}***@${domain}`;
+  }
+  const digits = identifier.replace(/\D/g, "");
+  if (digits.length >= 6) return `***${digits.slice(-4)}`;
+  return "***";
+}
+
 export function logAuthEvent(event: AuthLogEvent, context: AuthLogContext) {
+  if (!isAuthDebugEnabled()) return;
+
   const payload = {
     event,
     attemptId: context.attemptId,
     method: context.method,
-    identifier: context.identifier ?? null,
+    identifier: maskIdentifier(context.identifier),
     currentRoute: context.currentRoute ?? getCurrentRoute(),
     timestamp: new Date().toISOString(),
     result: context.result ?? "info",

@@ -1,38 +1,11 @@
 import { useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
-import {
-  Loader2, Package, Leaf, ChefHat, Scissors, Box, Truck, CheckCircle2,
-  MapPin, ShieldCheck,
-} from "lucide-react";
+import { Loader2, Package } from "lucide-react";
 import { motion } from "framer-motion";
+import OrderTimeline from "@/components/OrderTimeline";
 
-const ARTISAN_STEPS = [
-  { key: "submitted", label: "Order Logged", icon: Package, description: "Your order has been received by our team." },
-  { key: "confirmed", label: "Order Confirmed", icon: CheckCircle2, description: "Our team has verified your order details." },
-  { key: "in_production", label: "Ingredients Sourced", icon: Leaf, description: "Premium ingredients are being prepared." },
-  { key: "assembly", label: "Hand-Crafting", icon: ChefHat, description: "Our master artisans are crafting your order." },
-  { key: "packing", label: "Artisan Packing", icon: Scissors, description: "Each piece is being carefully packed." },
-  { key: "packed_ready", label: "Quality Checked", icon: ShieldCheck, description: "Final quality inspection complete." },
-  { key: "dispatched", label: "Dispatched", icon: Box, description: "Your order is on its way!" },
-  { key: "in_transit", label: "In Transit", icon: Truck, description: "En route to your location." },
-  { key: "delivered", label: "Delivered", icon: MapPin, description: "Enjoy your Oasis Baklawa!" },
-];
-
-function getStepIndex(status: string): number {
-  const map: Record<string, number> = {
-    submitted: 0, pending: 0, draft: 0,
-    confirmed: 1, approved: 1,
-    in_production: 2, manufacturing: 2, processing: 2,
-    assembly: 3,
-    packing: 4, packed_ready: 5,
-    invoice_generated: 5,
-    dispatched: 6, cleared_for_dispatch: 6,
-    in_transit: 7,
-    delivered: 8, closed: 8, support_window: 8,
-  };
-  return map[status?.toLowerCase()] ?? 0;
-}
+// Timeline + status mapping owned by OrderTimeline component.
 
 interface TrackingOrder {
   order_ref: string;
@@ -119,7 +92,7 @@ const PublicOrderTracking = () => {
     );
   }
 
-  const currentStep = getStepIndex(order.status);
+  
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-amber-50 via-orange-50 to-amber-100">
@@ -163,58 +136,7 @@ const PublicOrderTracking = () => {
           className="bg-white rounded-2xl shadow-lg p-5 border border-amber-200"
         >
           <h2 className="text-base font-bold text-amber-900 mb-5">Your Order Journey</h2>
-          <div className="relative">
-            {ARTISAN_STEPS.map((step, i) => {
-              const isCompleted = i <= currentStep;
-              const isCurrent = i === currentStep;
-              const StepIcon = step.icon;
-
-              return (
-                <div key={step.key} className="flex items-start gap-4 relative">
-                  {i < ARTISAN_STEPS.length - 1 && (
-                    <div
-                      className={`absolute left-[19px] top-[40px] w-0.5 h-[calc(100%-8px)] transition-colors ${
-                        i < currentStep ? "bg-amber-500" : "bg-amber-200"
-                      }`}
-                    />
-                  )}
-                  <motion.div
-                    initial={isCurrent ? { scale: 0.8 } : {}}
-                    animate={isCurrent ? { scale: [0.8, 1.1, 1] } : {}}
-                    transition={{ duration: 0.5 }}
-                    className={`relative z-10 w-[40px] h-[40px] rounded-full flex items-center justify-center shrink-0 transition-colors ${
-                      isCompleted
-                        ? "bg-amber-500 text-white shadow-md"
-                        : "bg-amber-100 text-amber-300"
-                    } ${isCurrent ? "ring-4 ring-amber-200" : ""}`}
-                  >
-                    <StepIcon size={18} />
-                  </motion.div>
-                  <div className={`pb-7 ${isCurrent ? "pt-0" : ""}`}>
-                    <p
-                      className={`text-sm font-bold ${
-                        isCompleted ? "text-amber-900" : "text-amber-400"
-                      }`}
-                    >
-                      {step.label}
-                    </p>
-                    {(isCurrent || isCompleted) && (
-                      <p className="text-xs text-amber-600 mt-0.5">{step.description}</p>
-                    )}
-                    {isCurrent && (
-                      <motion.div
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        className="mt-1 inline-block text-[10px] bg-amber-500 text-white px-2 py-0.5 rounded-full font-bold uppercase tracking-wider"
-                      >
-                        Current
-                      </motion.div>
-                    )}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
+          <OrderTimeline status={order.status} variant="amber" />
         </motion.div>
 
         {/* Items */}
