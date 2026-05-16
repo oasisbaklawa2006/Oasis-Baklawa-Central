@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "sonner";
@@ -7,7 +7,12 @@ import TopNavBar from "@/components/TopNavBar";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { generateProFormaInvoice } from "@/utils/invoiceGenerator";
-import { notifyOrderConfirmed, notifyOrderDispatched, notifyOrderDelivered } from "@/utils/notifyEvent";
+import { notifyOrderConfirmed, notifyOrderDelivered } from "@/utils/notifyEvent";
+import { formatSalesOrderLabel } from "@/utils/orderSoLabel";
+import { getPackedReadyBlockers, type PackedReadyGateInput } from "@/utils/packedReadyGate";
+import { PackedReadyEligibilityCard } from "@/components/admin/PackedReadyEligibility";
+import { deriveFinanceReleaseState, getFinanceReleaseBlockers } from "@/utils/financeReleaseState";
+import { FinanceReleaseChips } from "@/components/admin/FinanceReleaseChips";
 const PACKS_PER_CARTON = 9;
 
 const STATUSES = [
@@ -63,6 +68,7 @@ interface OrderItem {
   id: string;
   quantity: number;
   actual_packed_qty: number | null;
+  production_status?: string | null;
   product_id: string | null;
   pack_size?: string | null;
   carton_type?: string | null;
@@ -72,8 +78,12 @@ interface OrderItem {
 
 interface OrderCard {
   id: string;
+  order_number?: string | null;
   status: string;
   sales_order_value: number | null;
+  payment_status: string | null;
+  advance_paid: number | null;
+  advance_required: number | null;
   company_id: string | null;
   document_stage: string | null;
   payment_cleared: boolean | null;
@@ -114,7 +124,8 @@ const AdminOrders = () => {
       .from("orders")
       .select(
         `
-        id, status, sales_order_value, company_id,
+        id, order_number, status, sales_order_value, company_id,
+        payment_status, advance_paid, advance_required,
         document_stage, payment_cleared, eway_bill_number, gate_pass_number,
         company:companies(business_name, gst_number)
       `,
@@ -148,6 +159,10 @@ const AdminOrders = () => {
   const handleAdvance = async (order: OrderCard) => {
     const next = nextStatus(order.status);
     if (!next) return;
+    if (next === "dispatched") {
+      toast.error("Dispatch is recorded via Packing & Dispatch or Gate Pass with proof — pipeline advance disabled here.");
+      return;
+    }
     setUpdating(order.id);
 
     const { error } = await supabase.from("orders").update({ status: next }).eq("id", order.id);
@@ -160,7 +175,6 @@ const AdminOrders = () => {
       // Milestone notifications (key events only)
       const ref = order.id.slice(0, 8).toUpperCase();
       if (next === "approved") notifyOrderConfirmed(order.id, ref).catch(() => {});
-      else if (next === "dispatched") notifyOrderDispatched(order.id, ref).catch(() => {});
       else if (next === "delivered") notifyOrderDelivered(order.id, ref).catch(() => {});
 
       // Auto-split when advancing to in_production — lazy fetch items first
@@ -190,7 +204,7 @@ const AdminOrders = () => {
     setReqLoading(true);
     const { data } = await supabase
       .from("store_requisitions")
-      .select("id, target_store, status, store_requisition_items(id, product_id, requested_qty)")
+      .select("id, target_store, status, store_requisition_items(id, product_id, requested_qty, fulfilled_qty)")
       .eq("order_id", orderId);
     setRequisitions(data ?? []);
     setReqLoading(false);
@@ -265,7 +279,7 @@ const AdminOrders = () => {
 
     const { data, error } = await supabase
       .from("order_items")
-      .select(`id, quantity, actual_packed_qty, product_id, pack_size, carton_type, products (*)`)
+      .select(`id, quantity, actual_packed_qty, production_status, product_id, pack_size, carton_type, products (*)`)
       .eq("order_id", order.id);
 
     if (error) console.error(error);
@@ -291,6 +305,31 @@ const AdminOrders = () => {
     setTimeout(() => setDrawerItems([]), 300);
   };
 
+  const packedReadyGateInput: PackedReadyGateInput | null = useMemo(() => {
+    if (!selectedOrder || drawerLoading) return null;
+    const items = drawerItems.map((i) => ({
+      quantity: i.quantity,
+      actual_packed_qty: packingQtys[i.id] ?? i.actual_packed_qty ?? i.quantity,
+      production_status: i.production_status ?? null,
+    }));
+    return {
+      order: {
+        status: selectedOrder.status,
+        payment_status: selectedOrder.payment_status ?? null,
+        advance_paid: selectedOrder.advance_paid ?? null,
+        advance_required: selectedOrder.advance_required ?? null,
+        sales_order_value: selectedOrder.sales_order_value ?? null,
+      },
+      items,
+      requisitions: requisitions ?? [],
+    };
+  }, [selectedOrder, drawerLoading, drawerItems, packingQtys, requisitions]);
+
+  const packedReadyBlockers = useMemo(() => {
+    if (!packedReadyGateInput) return [];
+    return getPackedReadyBlockers(packedReadyGateInput);
+  }, [packedReadyGateInput]);
+
   const handlePhotoCapture = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file || !selectedOrder) return;
@@ -314,6 +353,28 @@ const AdminOrders = () => {
   // Save packing list & mark packed_ready
   const handleSavePackingList = async () => {
     if (!selectedOrder || !capturedPhotoUrl) return;
+
+    const gate: PackedReadyGateInput = {
+      order: {
+        status: selectedOrder.status,
+        payment_status: selectedOrder.payment_status ?? null,
+        advance_paid: selectedOrder.advance_paid ?? null,
+        advance_required: selectedOrder.advance_required ?? null,
+        sales_order_value: selectedOrder.sales_order_value ?? null,
+      },
+      items: drawerItems.map((i) => ({
+        quantity: i.quantity,
+        actual_packed_qty: packingQtys[i.id] ?? i.actual_packed_qty ?? i.quantity,
+        production_status: i.production_status ?? null,
+      })),
+      requisitions: requisitions ?? [],
+    };
+    const blockers = getPackedReadyBlockers(gate);
+    if (blockers.length > 0) {
+      toast.error(blockers.map((b) => b.message).join("; "));
+      return;
+    }
+
     setPackingSaving(true);
 
     try {
@@ -516,13 +577,26 @@ const AdminOrders = () => {
                             ₹{(order.sales_order_value ?? 0).toLocaleString("en-IN")}
                           </p>
 
+                          <div className="mb-2">
+                            <FinanceReleaseChips
+                              variant="compact"
+                              state={deriveFinanceReleaseState({
+                                status: order.status,
+                                payment_status: order.payment_status,
+                                advance_paid: order.advance_paid,
+                                advance_required: order.advance_required,
+                                sales_order_value: order.sales_order_value,
+                              })}
+                            />
+                          </div>
+
                           <div className="flex gap-3 text-xs font-semibold text-muted-foreground bg-muted/30 p-2 rounded-lg mb-3">
                             <span>📦 {packs} Packs</span>
                             <span>📦 {cartons > 0 ? cartons : Math.ceil(packs / PACKS_PER_CARTON)} Ctns</span>
                             {packs === 0 && <span className="text-amber-600">No items</span>}
                           </div>
 
-                          {next && (
+                          {next && next !== "dispatched" && (
                             <button
                               onClick={(e) => {
                                 e.stopPropagation();
@@ -555,7 +629,7 @@ const AdminOrders = () => {
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               onClick={closeDrawer}
-              className="fixed inset-0 bg-black/40 backdrop-blur-sm z-40"
+              className="fixed inset-0 bg-black/40 backdrop-blur-sm z-[180]"
             />
 
             <motion.div
@@ -563,14 +637,17 @@ const AdminOrders = () => {
               animate={{ x: 0 }}
               exit={{ x: "100%" }}
               transition={{ type: "spring", damping: 25, stiffness: 200 }}
-              className="fixed top-0 right-0 bottom-0 w-full max-w-md bg-background shadow-2xl z-50 border-l border-border flex flex-col"
+              className="fixed top-0 right-0 bottom-0 w-full max-w-md bg-background shadow-2xl z-[190] border-l border-border flex flex-col"
             >
               <div className="flex items-center justify-between p-6 border-b border-border bg-muted/10">
                 <div>
                   <h2 className="text-lg font-display tracking-wide text-foreground">
                     {selectedOrder.company?.business_name || "Order Details"}
                   </h2>
-                  <p className="text-xs font-mono text-muted-foreground mt-1 uppercase">#{selectedOrder.id}</p>
+                  <p className="mt-1 font-mono text-xs font-semibold text-foreground">
+                    {formatSalesOrderLabel(selectedOrder)}
+                  </p>
+                  <p className="mt-0.5 break-all font-mono text-[10px] text-muted-foreground">{selectedOrder.id}</p>
                 </div>
                 <button
                   onClick={closeDrawer}
@@ -604,6 +681,31 @@ const AdminOrders = () => {
                       ₹{(selectedOrder.sales_order_value ?? 0).toLocaleString("en-IN")}
                     </p>
                   </div>
+                </div>
+
+                <div className="rounded-xl border border-border bg-muted/20 p-4 space-y-2">
+                  <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Finance release</p>
+                  <FinanceReleaseChips
+                    variant="admin"
+                    state={deriveFinanceReleaseState({
+                      status: selectedOrder.status,
+                      payment_status: selectedOrder.payment_status,
+                      advance_paid: selectedOrder.advance_paid,
+                      advance_required: selectedOrder.advance_required,
+                      sales_order_value: selectedOrder.sales_order_value,
+                    })}
+                  />
+                  <p className="text-[11px] text-muted-foreground leading-snug">
+                    {getFinanceReleaseBlockers({
+                      status: selectedOrder.status,
+                      payment_status: selectedOrder.payment_status,
+                      advance_paid: selectedOrder.advance_paid,
+                      advance_required: selectedOrder.advance_required,
+                      sales_order_value: selectedOrder.sales_order_value,
+                    })
+                      .map((b) => b.message)
+                      .join(" · ") || "No finance blockers on this snapshot."}
+                  </p>
                 </div>
 
                 {/* Order Items */}
@@ -701,7 +803,7 @@ const AdminOrders = () => {
                           );
                         })}
                         <p className="text-[10px] text-muted-foreground italic">
-                          SO-{selectedOrder.id.slice(0, 8).toUpperCase()} routed successfully.
+                          {formatSalesOrderLabel(selectedOrder)} routed successfully.
                         </p>
                       </div>
                     )}
@@ -714,6 +816,7 @@ const AdminOrders = () => {
                     <h3 className="text-xs font-bold text-primary uppercase tracking-wider flex items-center gap-2">
                       <ClipboardList size={14} /> Confirm Packing List
                     </h3>
+                    <PackedReadyEligibilityCard blockers={packedReadyBlockers} />
                     <p className="text-xs text-muted-foreground">
                       Verify actual packed quantities before marking ready.
                     </p>
@@ -788,7 +891,11 @@ const AdminOrders = () => {
 
                     <Button
                       onClick={handleSavePackingList}
-                      disabled={packingSaving || !capturedPhotoUrl}
+                      disabled={
+                        packingSaving ||
+                        !capturedPhotoUrl ||
+                        packedReadyBlockers.length > 0
+                      }
                       className="w-full"
                     >
                       {packingSaving ? <Loader2 size={14} className="animate-spin mr-2" /> : <Package size={14} className="mr-2" />}

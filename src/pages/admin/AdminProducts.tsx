@@ -936,7 +936,7 @@ const AdminProducts = () => {
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm"
+              className="fixed inset-0 z-[180] bg-black/50 backdrop-blur-sm"
               onClick={closePanel}
             />
             <motion.div
@@ -944,7 +944,7 @@ const AdminProducts = () => {
               animate={{ x: 0 }}
               exit={{ x: "100%" }}
               transition={{ type: "spring", damping: 30, stiffness: 300 }}
-              className="fixed top-0 right-0 z-50 h-full w-full max-w-2xl bg-background border-l border-border shadow-2xl flex flex-col"
+              className="fixed top-0 right-0 z-[190] h-full w-full max-w-2xl bg-background border-l border-border shadow-2xl flex flex-col"
             >
               <div className="flex items-center justify-between p-6 border-b border-border bg-card">
                 <h2 className="text-xl font-black text-foreground flex items-center gap-2">
@@ -1868,14 +1868,14 @@ const AdminProducts = () => {
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm"
+              className="fixed inset-0 z-[180] bg-black/50 backdrop-blur-sm"
               onClick={() => setTagModalProduct(null)}
             />
             <motion.div
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
-              className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-50 w-full max-w-md bg-card border border-border rounded-2xl shadow-2xl p-6 space-y-5"
+              className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-[190] w-full max-w-md bg-card border border-border rounded-2xl shadow-2xl p-6 space-y-5"
             >
               <div className="flex items-center justify-between">
                 <h3 className="text-lg font-bold text-foreground flex items-center gap-2">

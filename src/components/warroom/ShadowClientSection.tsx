@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import type { Database } from "@/integrations/supabase/types";
 import { MessageSquare, Phone, Building2, Edit2, CheckCircle, Package, Search, ArrowRight, AlertTriangle, Trash2, UserCog, Ban, Sparkles } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
@@ -301,7 +302,7 @@ export default function ShadowClientSection({ companies, onRefresh }: Props) {
         setSaving(false); return;
       }
 
-      // === CLIENT + CREATE: activate shadow → SO with VERIFIED items only ===
+      // === CLIENT + CREATE: draft SO only — governance approval required before activation ===
       // Build sku_items from APPROVED lines only.
       const skuItems = approvedLines.map((l) => {
         const productName = products.find((p) => p.id === l.product_id)?.name ?? l.ai_product_name;
@@ -314,15 +315,17 @@ export default function ShadowClientSection({ companies, onRefresh }: Props) {
       });
 
       const portalUrl = "https://b2b.oasisbaklawa.com/login";
-      const waMessage = `Salaam! Your order has been confirmed. Login here with your number to track: ${portalUrl}`;
+      const waMessage = `Salaam! Your order has been received and is being processed. Login here to track: ${portalUrl}`;
 
+      // activate_company is intentionally false — the company must go through the formal
+      // approval queue in Client Governance before gaining active status and portal access.
       const { data, error } = await supabase.functions.invoke("admin-create-draft", {
         body: {
           company_id: editingCompany.id,
-          sku_items: skuItems,            // ← verified, edited, approved
+          sku_items: skuItems,
           sku_names: [],
           webhook_ids: webhookIds,
-          activate_company: true,
+          activate_company: false,
           company_update: {
             business_name: form.business_name,
             gst_number: form.gst_number || null,
@@ -335,11 +338,42 @@ export default function ShadowClientSection({ companies, onRefresh }: Props) {
       });
 
       if (error || !data?.ok) {
-        toast.error("Activation failed: " + (data?.error || error?.message || "Unknown error"));
+        toast.error("Draft SO failed: " + (data?.error || error?.message || "Unknown error"));
         setSaving(false); return;
       }
 
-      toast.success(`${form.business_name} activated! Draft SO #${data.order_id.slice(0, 8).toUpperCase()} with ${skuItems.length} verified line(s).`);
+      // Update the company profile fields and mark as pending_approval so it
+      // leaves the shadow queue and enters the Client Governance approval queue.
+      const companyPatch: Database["public"]["Tables"]["companies"]["Update"] = {
+        business_name: form.business_name,
+        gst_number: form.gst_number || null,
+        fssai_number: form.fssai_number || null,
+        registered_address: form.registered_address || null,
+        phone: formattedPhone || null,
+        status: "pending_approval",
+      };
+      const { error: companyErr } = await supabase.from("companies").update(companyPatch).eq("id", editingCompany.id);
+
+      if (companyErr) console.error("[ShadowClientSection] company update failed:", companyErr.message);
+
+      // Create a b2b_applications row so this client appears in the formal approval
+      // queue in Client Governance. Admin must assign a slab and approve before the
+      // client gains portal access.
+      const newApplication: Database["public"]["Tables"]["b2b_applications"]["Insert"] = {
+        business_name: form.business_name,
+        gst_number: form.gst_number || null,
+        contact_phone: formattedPhone || null,
+        registered_address: form.registered_address || null,
+        status: "pending",
+        admin_notes: "War Room WhatsApp triage — pending governance approval",
+      };
+      const { error: appErr } = await supabase.from("b2b_applications").insert(newApplication);
+
+      if (appErr) console.error("[ShadowClientSection] b2b_applications insert failed:", appErr.message);
+
+      toast.success(
+        `Draft SO #${data.order_id.slice(0, 8).toUpperCase()} created with ${skuItems.length} verified line(s). ${form.business_name} is now queued for governance approval in Client Governance.`,
+      );
       setSaving(false); setEditingCompany(null); onRefresh();
     } catch (e: any) {
       toast.error("Operation failed: " + (e?.message || "Unknown error"));
@@ -368,7 +402,7 @@ export default function ShadowClientSection({ companies, onRefresh }: Props) {
       ? `🗑 Archive as Spam${historyMessages.length > 0 ? ` (discard ${historyMessages.length})` : ""}`
       : actionType === "link"
         ? `🔗 Link & Attach${historyMessages.length > 0 ? ` ${historyMessages.length} msg(s)` : ""}`
-        : `✅ Activate & Create SO (${approvedLines.length} verified)`;
+        : `📋 Create Draft SO + Queue for Approval (${approvedLines.length} verified)`;
 
   return (
     <>

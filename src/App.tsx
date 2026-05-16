@@ -92,6 +92,7 @@ const TargetVsActual = lazy(() => import("./pages/admin/TargetVsActual.tsx"));
 const ThirdPartyStore = lazy(() => import("./pages/admin/ThirdPartyStore.tsx"));
 const VerificationWarRoom = lazy(() => import("./pages/admin/VerificationWarRoom.tsx"));
 const AdminAnnouncements = lazy(() => import("./pages/admin/AdminAnnouncements.tsx"));
+const FinanceReleaseBoard = lazy(() => import("./pages/admin/FinanceReleaseBoard.tsx"));
 
 const ADMIN_ONLY_ROLES = ["SUPER_ADMIN", "ADMIN"];
 
@@ -101,13 +102,15 @@ const ADMIN_STAFF_ROLES = [
   "OPERATIONS_MANAGER", "PRODUCTION_MANAGER",
   "HOD_ARABIC", "HOD_FUSION", "HOD_CHOCOLATE", "HOD_BAKERY", "HOD_NUTS", "HOD_ASSEMBLY", "HOD_DRAGEES",
   "STORE_INCHARGE", "DISPATCH_MANAGER", "DISPATCH_INCHARGE", "SECURITY_CONTROL",
-  "SUPPORT_EXECUTIVE", "SALES_EXECUTIVE",
+  "SUPPORT_EXECUTIVE",
   "DISPATCH_HEAD", "ASSEMBLY_MANAGER", "PACKING_SUPERVISOR",
   "STORE_READY_GOODS", "STORE_3RD_PARTY", "GATE_SECURITY", "RGS_ADMIN",
   "PROD_ARABIC_SWEETS", "PROD_CHOCOLATE", "PROD_DRAGEES", "PROD_FUSION", "PROD_BAKERY", "PROD_NUTS",
   "TV_DISPLAY", "TV_ASSEMBLY", "TV_READY",
   "CATALOGUE_CONTRIBUTOR",
 ];
+
+const SALES_DASHBOARD_ROLES = [...ADMIN_ONLY_ROLES, "SALES_EXECUTIVE"];
 
 const ALL_BUYER_ROLES = [
   "B2B_BUYER", "SPECIAL_BUYER", "HORECA_BUYER", "WHOLESALE_BUYER", "BULK_BUYER",
@@ -283,6 +286,7 @@ const App = () => (
                     <Route path="exceptions" element={<AdminExceptions />} />
                     <Route path="dispatch" element={<AdminPackingDispatch />} />
                     <Route path="finance" element={<AdminFinance />} />
+                    <Route path="finance-board" element={<FinanceReleaseBoard />} />
                     <Route path="users" element={<AdminUsers />} />
                     <Route path="moq" element={<AdminMOQ />} />
                     <Route path="currency" element={<AdminCurrency />} />
@@ -315,7 +319,7 @@ const App = () => (
                     path="/sales/dashboard"
                     element={
                       <ProtectedRoute>
-                        <RoleProtectedRoute allowedRoles={[...ADMIN_STAFF_ROLES]}>
+                        <RoleProtectedRoute allowedRoles={SALES_DASHBOARD_ROLES}>
                           <SalesDashboard />
                         </RoleProtectedRoute>
                       </ProtectedRoute>

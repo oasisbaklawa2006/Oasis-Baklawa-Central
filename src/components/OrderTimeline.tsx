@@ -58,6 +58,7 @@ interface Props {
 
 const OrderTimeline = ({ status, currentLabel, compact = false, variant = "default", tracking }: Props) => {
   const current = getStepIndex(status);
+  const statusLower = String(status ?? "").toLowerCase();
   const amber = variant === "amber";
 
   const palette = amber
@@ -91,6 +92,12 @@ const OrderTimeline = ({ status, currentLabel, compact = false, variant = "defau
         const isDone = i <= current;
         const isCurrent = i === current;
         const Icon = step.icon;
+        const stepTitle =
+          step.key === "in_production"
+            ? statusLower === "in_production"
+              ? "In Production"
+              : "Manufacturing"
+            : step.label;
         return (
           <li key={step.key} className="flex items-start gap-3 sm:gap-4 relative">
             {i < ORDER_TIMELINE_STEPS.length - 1 && (
@@ -113,7 +120,7 @@ const OrderTimeline = ({ status, currentLabel, compact = false, variant = "defau
             </motion.div>
             <div className={`pb-5 min-w-0 flex-1 ${isCurrent ? "pt-0" : "pt-1"}`}>
               <p className={`text-sm font-semibold ${isDone ? palette.labelDone : palette.labelPending}`}>
-                {step.label}
+                {stepTitle}
               </p>
               {(isCurrent || isDone) && step.description && !compact && (
                 <p className={`text-[11px] mt-0.5 ${palette.descColor}`}>{step.description}</p>

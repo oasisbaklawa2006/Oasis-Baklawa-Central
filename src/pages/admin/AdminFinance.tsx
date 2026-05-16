@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import {
@@ -22,12 +22,21 @@ import {
   IndianRupee,
   Wallet,
   BookOpen,
+  Download,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useAuth } from "@/hooks/useAuth";
 import { queueNotification } from "@/utils/notificationOutbox";
 import { classifyFlow } from "@/utils/departmentClassifier";
 import { LedgerDisputesPanel } from "@/components/admin/LedgerDisputesPanel";
+import { exportTallyBridgeV1ToCsv, isOrderReadyForTallyExportV1 } from "@/utils/tallyExportV1";
+import {
+  deriveFinanceReleaseState,
+  getAdvanceVerificationGuardMessages,
+  getFinanceReleaseBlockers,
+  getShortTermCreditReleaseGuardMessages,
+} from "@/utils/financeReleaseState";
+import { FinanceReleaseChips } from "@/components/admin/FinanceReleaseChips";
 
 interface FinanceOrder {
   id: string;
@@ -35,9 +44,11 @@ interface FinanceOrder {
   payment_status: string | null;
   sales_order_value: number | null;
   advance_paid: number | null;
+  advance_required: number | null;
   created_at: string;
   company_id: string | null;
   payment_receipt_url: string | null;
+  final_invoice_url?: string | null;
   company?: { business_name: string } | null;
 }
 
@@ -164,11 +175,17 @@ const AdminFinance = () => {
   const [payoutAmounts, setPayoutAmounts] = useState<Record<string, string>>({});
   const [payoutRefs, setPayoutRefs] = useState<Record<string, string>>({});
 
+  // Tally Bridge v1 (single-order CSV, per-dispatch legs)
+  const [tallyExportOrderId, setTallyExportOrderId] = useState("");
+  const [tallyExportDispatchId, setTallyExportDispatchId] = useState("");
+  const [tallyDispatchOptions, setTallyDispatchOptions] = useState<{ id: string; label: string }[]>([]);
+  const [tallyExporting, setTallyExporting] = useState(false);
+
   const fetchOrders = async () => {
     const { data, error } = await supabase
       .from("orders")
       .select(
-        "id, status, payment_status, sales_order_value, advance_paid, created_at, company_id, payment_receipt_url, company:companies(business_name)",
+        "id, status, payment_status, sales_order_value, advance_paid, advance_required, created_at, company_id, payment_receipt_url, final_invoice_url, company:companies(business_name)",
       )
       .order("created_at", { ascending: false });
 
@@ -449,6 +466,33 @@ const AdminFinance = () => {
     fetchAll();
   }, []);
 
+  useEffect(() => {
+    if (!tallyExportOrderId) {
+      setTallyDispatchOptions([]);
+      setTallyExportDispatchId("");
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      const { data } = await supabase
+        .from("dispatches")
+        .select("id, dispatch_date, dispatch_number, is_partial")
+        .eq("order_id", tallyExportOrderId)
+        .order("dispatch_date", { ascending: true, nullsFirst: false });
+      if (cancelled) return;
+      setTallyDispatchOptions(
+        (data || []).map((d) => ({
+          id: d.id,
+          label: `${d.dispatch_number || d.id.slice(0, 8)}${d.dispatch_date ? ` · ${d.dispatch_date}` : ""}${d.is_partial ? " (partial)" : ""}`,
+        })),
+      );
+      setTallyExportDispatchId("");
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [tallyExportOrderId]);
+
   const handleValidatePayment = async (orderId: string) => {
     setActing(orderId);
     try {
@@ -457,6 +501,18 @@ const AdminFinance = () => {
       if (!target || (target.sales_order_value ?? 0) <= 0) {
         toast.error("⛔ Cannot release order with ₹0 value. Check order items.");
         console.error(`[Finance] ABORT: Tried to validate order ${orderId} with ₹0 value.`);
+        setActing(null);
+        return;
+      }
+      const releaseGuards = getAdvanceVerificationGuardMessages({
+        status: target.status,
+        payment_status: target.payment_status,
+        advance_paid: target.advance_paid,
+        advance_required: target.advance_required,
+        sales_order_value: target.sales_order_value,
+      });
+      if (releaseGuards.length > 0) {
+        toast.error(releaseGuards.join(" "));
         setActing(null);
         return;
       }
@@ -486,13 +542,26 @@ const AdminFinance = () => {
       // IMMUTABLE VALUE PROTECTION: Fetch the LIVE database value — never trust local state
       const { data: liveOrder, error: liveErr } = await supabase
         .from("orders")
-        .select("sales_order_value, company_id, status")
+        .select("sales_order_value, company_id, status, payment_status, advance_paid, advance_required")
         .eq("id", financialEntry.orderId)
         .single();
 
       if (liveErr || !liveOrder) {
         toast.error("⛔ Could not fetch live order data. Aborting.");
         console.error("[Finance] ABORT: Failed to fetch live order", liveErr);
+        setSavingEntry(false);
+        return;
+      }
+
+      const liveGuards = getAdvanceVerificationGuardMessages({
+        status: liveOrder.status,
+        payment_status: liveOrder.payment_status,
+        advance_paid: liveOrder.advance_paid,
+        advance_required: liveOrder.advance_required,
+        sales_order_value: liveOrder.sales_order_value,
+      });
+      if (liveGuards.length > 0) {
+        toast.error(liveGuards.join(" "));
         setSavingEntry(false);
         return;
       }
@@ -627,6 +696,18 @@ const AdminFinance = () => {
     if (isNaN(days) || days <= 0) { toast.error("Invalid deadline."); return; }
     setSavingShortTerm(true);
     try {
+      const creditGuards = getShortTermCreditReleaseGuardMessages({
+        status: shortTermTarget.status,
+        payment_status: shortTermTarget.payment_status,
+        advance_paid: shortTermTarget.advance_paid,
+        advance_required: shortTermTarget.advance_required,
+        sales_order_value: shortTermTarget.sales_order_value,
+      });
+      if (creditGuards.length > 0) {
+        toast.error(creditGuards.join(" "));
+        setSavingShortTerm(false);
+        return;
+      }
       // GUARD: Never release a ₹0 order
       if ((shortTermTarget.sales_order_value ?? 0) <= 0) {
         toast.error("⛔ Cannot release order with ₹0 value.");
@@ -850,6 +931,43 @@ const AdminFinance = () => {
   const zeroValueOrders = orders.filter((o) => (o.sales_order_value || 0) <= 0 && o.status !== "draft");
   const validationQueue = valuedOrders.filter((o) => o.status === "submitted" || o.payment_status === "awaiting_receipt" || o.payment_status === "unpaid");
   const invoicingQueue = valuedOrders.filter((o) => o.status === "in_production" || o.status === "packed_ready");
+  const tallyEligibleOrders = useMemo(
+    () =>
+      orders
+        .filter((o) => (o.sales_order_value || 0) > 0)
+        .filter((o) => isOrderReadyForTallyExportV1(o.status)),
+    [orders],
+  );
+
+  const handleTallyBridgeExport = async () => {
+    if (!tallyExportOrderId) {
+      toast.error("Select an order to export.");
+      return;
+    }
+    setTallyExporting(true);
+    try {
+      const tallyResult = await exportTallyBridgeV1ToCsv(supabase, tallyExportOrderId, {
+        dispatchId: tallyExportDispatchId || undefined,
+      });
+      if ("error" in tallyResult) {
+        toast.error(tallyResult.error);
+        return;
+      }
+      for (const w of tallyResult.warnings) {
+        toast.warning(w, { duration: 8000 });
+      }
+      const blob = new Blob(["\uFEFF", tallyResult.csv], { type: "text/csv;charset=utf-8;" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = tallyResult.filename;
+      a.click();
+      URL.revokeObjectURL(url);
+      toast.success("Tally Bridge v1 CSV downloaded.");
+    } finally {
+      setTallyExporting(false);
+    }
+  };
 
   const totalValueToday = orders.reduce((sum, o) => sum + (o.sales_order_value || 0), 0);
 
@@ -973,6 +1091,29 @@ const AdminFinance = () => {
                       <span className="bg-amber-50 text-amber-700 px-2 py-1 rounded text-[10px] font-bold uppercase flex items-center gap-1">
                         <AlertTriangle size={12} /> Advance Receipt
                       </span>
+                    </div>
+                    <div className="mb-3 space-y-1.5">
+                      <FinanceReleaseChips
+                        variant="admin"
+                        state={deriveFinanceReleaseState({
+                          status: order.status,
+                          payment_status: order.payment_status,
+                          advance_paid: order.advance_paid,
+                          advance_required: order.advance_required,
+                          sales_order_value: order.sales_order_value,
+                        })}
+                      />
+                      <p className="text-[10px] leading-snug text-slate-600">
+                        {(getFinanceReleaseBlockers({
+                          status: order.status,
+                          payment_status: order.payment_status,
+                          advance_paid: order.advance_paid,
+                          advance_required: order.advance_required,
+                          sales_order_value: order.sales_order_value,
+                        })
+                          .map((b) => b.message)
+                          .join(" · ") || "No finance blockers — awaiting finance action or customer receipt.")}
+                      </p>
                     </div>
                     {order.payment_receipt_url && (
                       <button
@@ -1122,6 +1263,18 @@ const AdminFinance = () => {
                       <span className="bg-blue-50 text-blue-600 px-2 py-1 rounded text-[10px] font-bold uppercase flex items-center gap-1">
                         <Package size={12} /> Packed by Ops
                       </span>
+                    </div>
+                    <div className="mb-3">
+                      <FinanceReleaseChips
+                        variant="admin"
+                        state={deriveFinanceReleaseState({
+                          status: order.status,
+                          payment_status: order.payment_status,
+                          advance_paid: order.advance_paid,
+                          advance_required: order.advance_required,
+                          sales_order_value: order.sales_order_value,
+                        })}
+                      />
                     </div>
                     <div className="space-y-2">
                       <button
@@ -1347,19 +1500,87 @@ const AdminFinance = () => {
           )}
 
           {/* QUEUE 7: BI-MONTHLY LEDGER & DISPUTES */}
-          {activeQueue === "ledger" && <LedgerDisputesPanel />}
+          {activeQueue === "ledger" && (
+            <div className="space-y-6">
+              <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
+                <h3 className="font-display text-lg font-bold text-slate-900 flex items-center gap-2 mb-1">
+                  <Receipt size={18} className="text-[#B8860B]" />
+                  Tally Bridge v1
+                </h3>
+                <p className="text-sm text-slate-500 mb-4">
+                  Single-order CSV export: one row per packing line per dispatch leg (packed quantities only). Order must be at least dispatched.
+                </p>
+                {tallyEligibleOrders.length === 0 ? (
+                  <p className="text-sm text-slate-500 font-medium">No dispatched / delivered orders with value in the current list.</p>
+                ) : (
+                  <div className="flex flex-col md:flex-row md:flex-wrap gap-3 md:items-end">
+                    <div className="flex-1 min-w-[200px]">
+                      <label className="block text-[11px] font-bold text-slate-500 uppercase mb-1.5">Order</label>
+                      <select
+                        value={tallyExportOrderId}
+                        onChange={(e) => setTallyExportOrderId(e.target.value)}
+                        className="w-full bg-white border border-slate-200 rounded-xl p-3 text-sm font-bold outline-none focus:border-[#B8860B]"
+                      >
+                        <option value="">Select order…</option>
+                        {tallyEligibleOrders.map((o) => (
+                          <option key={o.id} value={o.id}>
+                            {o.company?.business_name || "Unknown"} · {o.id.slice(0, 8)}… · {o.status} · {formatPrice(o.sales_order_value || 0)}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="flex-1 min-w-[180px]">
+                      <label className="block text-[11px] font-bold text-slate-500 uppercase mb-1.5">Dispatch leg</label>
+                      <select
+                        value={tallyExportDispatchId}
+                        onChange={(e) => setTallyExportDispatchId(e.target.value)}
+                        disabled={!tallyExportOrderId || tallyDispatchOptions.length === 0}
+                        className="w-full bg-white border border-slate-200 rounded-xl p-3 text-sm font-bold outline-none focus:border-[#B8860B] disabled:opacity-50"
+                      >
+                        <option value="">All legs in one file</option>
+                        {tallyDispatchOptions.map((d) => (
+                          <option key={d.id} value={d.id}>
+                            {d.label}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => void handleTallyBridgeExport()}
+                      disabled={tallyExporting || !tallyExportOrderId}
+                      className="py-3 px-5 rounded-xl bg-slate-900 text-white text-sm font-bold hover:bg-slate-800 flex items-center justify-center gap-2 disabled:opacity-50"
+                    >
+                      {tallyExporting ? <Loader2 size={18} className="animate-spin" /> : <Download size={18} />}
+                      Download CSV
+                    </button>
+                  </div>
+                )}
+                {tallyExportOrderId &&
+                  !orders.find((o) => o.id === tallyExportOrderId)?.final_invoice_url && (
+                    <div className="mt-4 flex gap-2 items-start rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-950">
+                      <AlertTriangle size={18} className="shrink-0 mt-0.5 text-amber-600" />
+                      <p>
+                        <span className="font-bold">No final invoice URL on this order.</span> Export is still allowed — reconcile line totals with your signed tax invoice before posting to Tally.
+                      </p>
+                    </div>
+                  )}
+              </div>
+              <LedgerDisputesPanel />
+            </div>
+          )}
         </div>
       </div>
 
       {/* SCRUTINY MODAL */}
       <AnimatePresence>
         {scrutinyTarget && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm overflow-y-auto">
+          <div className="fixed inset-0 z-[180] flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
             <motion.div
               initial={{ opacity: 0, scale: 0.95, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95 }}
-              className="bg-white rounded-3xl w-full max-w-lg shadow-2xl my-8"
+              className="bg-white rounded-3xl w-full max-w-lg shadow-2xl max-h-[90vh] overflow-y-auto z-[190]"
             >
               <div className="flex justify-between items-center p-6 border-b border-slate-100">
                 <div>
@@ -1458,12 +1679,12 @@ const AdminFinance = () => {
       {/* FINANCE INVOICING MODAL */}
       <AnimatePresence>
         {docOrder && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm overflow-y-auto">
+          <div className="fixed inset-0 z-[180] flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
             <motion.div
               initial={{ opacity: 0, scale: 0.95, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95 }}
-              className="bg-white rounded-3xl w-full max-w-2xl shadow-2xl my-8"
+              className="bg-white rounded-3xl w-full max-w-2xl shadow-2xl max-h-[90vh] overflow-y-auto z-[190]"
             >
               <div className="flex justify-between items-center p-6 border-b border-slate-100">
                 <div>
@@ -1664,12 +1885,12 @@ const AdminFinance = () => {
       {/* FINANCIAL ENTRY MODAL */}
       <AnimatePresence>
         {financialEntry && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm overflow-y-auto">
+          <div className="fixed inset-0 z-[180] flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
             <motion.div
               initial={{ opacity: 0, scale: 0.95, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95 }}
-              className="bg-white rounded-3xl w-full max-w-lg shadow-2xl my-8"
+              className="bg-white rounded-3xl w-full max-w-lg shadow-2xl max-h-[90vh] overflow-y-auto z-[190]"
             >
               <div className="flex justify-between items-center p-6 border-b border-slate-100">
                 <div>
@@ -1733,12 +1954,12 @@ const AdminFinance = () => {
       {/* SHORT-TERM CREDIT MODAL */}
       <AnimatePresence>
         {shortTermTarget && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm overflow-y-auto">
+          <div className="fixed inset-0 z-[180] flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
             <motion.div
               initial={{ opacity: 0, scale: 0.95, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95 }}
-              className="bg-white rounded-3xl w-full max-w-md shadow-2xl my-8"
+              className="bg-white rounded-3xl w-full max-w-md shadow-2xl max-h-[90vh] overflow-y-auto z-[190]"
             >
               <div className="flex justify-between items-center p-6 border-b border-slate-100">
                 <div>

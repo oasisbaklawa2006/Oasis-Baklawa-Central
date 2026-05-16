@@ -8,7 +8,9 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import ShadowClientSection from "@/components/warroom/ShadowClientSection";
 import WarRoomOrderCard from "@/components/warroom/WarRoomOrderCard";
 import RawIntelligenceTab from "@/components/warroom/RawIntelligenceTab";
+import SuggestedOrdersTab from "@/components/warroom/SuggestedOrdersTab";
 import AliasDrawer from "@/components/warroom/AliasDrawer";
+import { FinanceBoardCard } from "@/components/FinanceBoardCard";
 
 interface OrderItem {
   id?: string;
@@ -391,7 +393,7 @@ const CMDWarRoom = () => {
   }, [orders, todayOnly]);
 
   return (
-    <div className="p-3 sm:p-4 space-y-4 min-h-screen bg-background max-w-full overflow-x-hidden">
+    <div className="p-3 sm:p-4 space-y-4 bg-background max-w-full overflow-x-hidden">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h1 className="text-base sm:text-xl font-bold text-foreground tracking-tight">
           ⚔️ CMD War Room <span className="hidden sm:inline">— Live Order Battlefield v3</span>
@@ -459,6 +461,10 @@ const CMDWarRoom = () => {
         <ShadowClientSection companies={shadowCompanies} onRefresh={() => { fetchShadowCompanies(); fetchOrders(); }} />
       </div>
 
+      <div className="grid sm:grid-cols-2 md:grid-cols-3 gap-3 mb-6">
+        <FinanceBoardCard />
+      </div>
+
       <Tabs defaultValue="battlefield" className="w-full">
         <TabsList className="w-full">
           <TabsTrigger value="battlefield" className="flex-1">Live Battlefield</TabsTrigger>
@@ -466,6 +472,7 @@ const CMDWarRoom = () => {
           <TabsTrigger value="rejected" className="flex-1">
             Rejected{rejectedOrders.length > 0 && <span className="ml-1 text-[10px] opacity-70">({rejectedOrders.length})</span>}
           </TabsTrigger>
+          <TabsTrigger value="suggested" className="flex-1">Suggested Orders</TabsTrigger>
         </TabsList>
 
         <TabsContent value="battlefield">
@@ -580,6 +587,10 @@ const CMDWarRoom = () => {
               ))}
             </div>
           )}
+        </TabsContent>
+
+        <TabsContent value="suggested">
+          <SuggestedOrdersTab activeCompanies={activeCompanies} />
         </TabsContent>
       </Tabs>
 

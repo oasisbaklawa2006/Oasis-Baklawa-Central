@@ -896,7 +896,9 @@ export type Database = {
           driver_name: string | null
           driver_phone: string | null
           id: string
+          is_partial: boolean
           order_id: string | null
+          proof_storage_path: string | null
           status: string | null
           tracking_number: string | null
           transporter_name: string | null
@@ -908,7 +910,9 @@ export type Database = {
           driver_name?: string | null
           driver_phone?: string | null
           id?: string
+          is_partial?: boolean
           order_id?: string | null
+          proof_storage_path?: string | null
           status?: string | null
           tracking_number?: string | null
           transporter_name?: string | null
@@ -920,7 +924,9 @@ export type Database = {
           driver_name?: string | null
           driver_phone?: string | null
           id?: string
+          is_partial?: boolean
           order_id?: string | null
+          proof_storage_path?: string | null
           status?: string | null
           tracking_number?: string | null
           transporter_name?: string | null
@@ -1672,7 +1678,13 @@ export type Database = {
           order_id: string
           payment_date: string | null
           payment_type: string
+          proof_storage_path: string | null
+          proof_url: string | null
           reference_no: string | null
+          rejection_reason: string | null
+          status: string | null
+          verified_at: string | null
+          verified_by: string | null
         }
         Insert: {
           amount?: number
@@ -1683,7 +1695,13 @@ export type Database = {
           order_id: string
           payment_date?: string | null
           payment_type: string
+          proof_storage_path?: string | null
+          proof_url?: string | null
           reference_no?: string | null
+          rejection_reason?: string | null
+          status?: string | null
+          verified_at?: string | null
+          verified_by?: string | null
         }
         Update: {
           amount?: number
@@ -1694,7 +1712,13 @@ export type Database = {
           order_id?: string
           payment_date?: string | null
           payment_type?: string
+          proof_storage_path?: string | null
+          proof_url?: string | null
           reference_no?: string | null
+          rejection_reason?: string | null
+          status?: string | null
+          verified_at?: string | null
+          verified_by?: string | null
         }
         Relationships: [
           {
@@ -1846,6 +1870,8 @@ export type Database = {
           eway_bill_number: string | null
           eway_bill_url: string | null
           final_invoice_url: string | null
+          finance_verified_at: string | null
+          finance_verified_by: string | null
           gate_pass_number: string | null
           id: string
           is_duplicate: boolean
@@ -1853,6 +1879,7 @@ export type Database = {
           is_starter_pack: boolean
           is_waste: boolean
           needs_clarification: boolean
+          order_number: string
           parser_confidence: number | null
           payment_cleared: boolean | null
           payment_receipt_url: string | null
@@ -1886,6 +1913,8 @@ export type Database = {
           eway_bill_number?: string | null
           eway_bill_url?: string | null
           final_invoice_url?: string | null
+          finance_verified_at?: string | null
+          finance_verified_by?: string | null
           gate_pass_number?: string | null
           id?: string
           is_duplicate?: boolean
@@ -1893,6 +1922,7 @@ export type Database = {
           is_starter_pack?: boolean
           is_waste?: boolean
           needs_clarification?: boolean
+          order_number?: string
           parser_confidence?: number | null
           payment_cleared?: boolean | null
           payment_receipt_url?: string | null
@@ -1926,6 +1956,8 @@ export type Database = {
           eway_bill_number?: string | null
           eway_bill_url?: string | null
           final_invoice_url?: string | null
+          finance_verified_at?: string | null
+          finance_verified_by?: string | null
           gate_pass_number?: string | null
           id?: string
           is_duplicate?: boolean
@@ -1933,6 +1965,7 @@ export type Database = {
           is_starter_pack?: boolean
           is_waste?: boolean
           needs_clarification?: boolean
+          order_number?: string
           parser_confidence?: number | null
           payment_cleared?: boolean | null
           payment_receipt_url?: string | null

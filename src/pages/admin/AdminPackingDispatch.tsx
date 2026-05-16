@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Loader2, ArrowRight, Truck, PackageCheck, AlertTriangle, CheckCircle2, TrendingDown, TrendingUp, Minus } from "lucide-react";
@@ -6,12 +6,28 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useLanguage } from "@/hooks/useLanguage";
+import { notifyOrderDispatched } from "@/utils/notifyEvent";
+import { getPackedReadyBlockers } from "@/utils/packedReadyGate";
+import {
+  canReleaseOrderToDispatch,
+  deriveFinanceReleaseState,
+  getFinanceReleaseBlockers,
+} from "@/utils/financeReleaseState";
+import { FinanceReleaseChips } from "@/components/admin/FinanceReleaseChips";
 
 const PACKS_PER_CARTON = 9;
+
+type StoreReqRow = {
+  order_id: string;
+  status: string | null;
+  store_requisition_items?: { requested_qty: number; fulfilled_qty: number | null }[];
+};
 
 interface OrderItem {
   id: string; quantity: number; pack_size: string | null;
   carton_type: string | null; product_id: string | null;
+  actual_packed_qty?: number | null;
+  production_status?: string | null;
   product?: { name: string; price_per_kg: number | null; primary_pack_weight_kg: number; base_price: number | null } | null;
 }
 
@@ -48,29 +64,76 @@ const AdminPackingDispatch = () => {
   const [trackingNumber, setTrackingNumber] = useState("");
   const [driverName, setDriverName] = useState("");
   const [driverPhone, setDriverPhone] = useState("");
+  const [dispatchProofFile, setDispatchProofFile] = useState<File | null>(null);
+  const [requisitionsByOrder, setRequisitionsByOrder] = useState<Record<string, StoreReqRow[]>>({});
 
   const fetchOrders = async () => {
     setLoading(true);
     const { data } = await supabase
       .from("orders")
-      .select("id, status, sales_order_value, payment_status, advance_paid, advance_required, company_id, company:companies(business_name), order_items(id, quantity, pack_size, carton_type, product_id)")
+      .select("id, status, sales_order_value, payment_status, advance_paid, advance_required, company_id, company:companies(business_name), order_items(id, quantity, actual_packed_qty, production_status, pack_size, carton_type, product_id)")
       .in("status", ["packed_ready", "cleared_for_dispatch"])
       .order("created_at", { ascending: true });
-    setOrders((data as unknown as DispatchOrder[]) ?? []);
+    const rows = (data as unknown as DispatchOrder[]) ?? [];
+    setOrders(rows);
+    const ids = rows.map((r) => r.id);
+    if (ids.length === 0) {
+      setRequisitionsByOrder({});
+    } else {
+      const { data: reqs } = await supabase
+        .from("store_requisitions")
+        .select("order_id, status, store_requisition_items(requested_qty, fulfilled_qty)")
+        .in("order_id", ids);
+      const map: Record<string, StoreReqRow[]> = {};
+      for (const r of (reqs as StoreReqRow[]) || []) {
+        const oid = r.order_id;
+        if (!map[oid]) map[oid] = [];
+        map[oid].push(r);
+      }
+      setRequisitionsByOrder(map);
+    }
     setLoading(false);
   };
 
+  const packedReadyChecksByOrder = useMemo(() => {
+    const m: Record<string, ReturnType<typeof getPackedReadyBlockers>> = {};
+    for (const o of orders) {
+      const items = (o.order_items || []).map((it) => ({
+        quantity: it.quantity,
+        actual_packed_qty: it.actual_packed_qty ?? null,
+        production_status: it.production_status ?? null,
+      }));
+      m[o.id] = getPackedReadyBlockers(
+        {
+          order: {
+            status: o.status,
+            payment_status: o.payment_status,
+            advance_paid: o.advance_paid,
+            advance_required: o.advance_required,
+            sales_order_value: o.sales_order_value,
+          },
+          items,
+          requisitions: requisitionsByOrder[o.id] || [],
+        },
+        { mode: "snapshot" },
+      );
+    }
+    return m;
+  }, [orders, requisitionsByOrder]);
+
   useEffect(() => { fetchOrders(); }, []);
 
-  const isFinanceBlocked = (o: DispatchOrder) => {
-    const advReq = o.advance_required ?? 0;
-    const advPaid = o.advance_paid ?? 0;
-    return advReq > 0 && advPaid < advReq;
-  };
+  const isDispatchFinanceBlocked = (o: DispatchOrder) => !canReleaseOrderToDispatch({
+    status: o.status,
+    payment_status: o.payment_status,
+    advance_paid: o.advance_paid,
+    advance_required: o.advance_required,
+    sales_order_value: o.sales_order_value,
+  });
 
   const packingOrders = orders.filter(o => o.status === "packed_ready");
-  const dispatchReady = orders.filter(o => o.status === "cleared_for_dispatch" && !isFinanceBlocked(o));
-  const blockedOrders = orders.filter(o => isFinanceBlocked(o));
+  const dispatchReady = orders.filter(o => o.status === "cleared_for_dispatch" && !isDispatchFinanceBlocked(o));
+  const blockedOrders = orders.filter(o => isDispatchFinanceBlocked(o));
   const displayed = tab === "packing" ? packingOrders : tab === "dispatch_ready" ? dispatchReady : blockedOrders;
 
   const handleAdvanceToPacking = async (order: DispatchOrder) => {
@@ -83,8 +146,20 @@ const AdminPackingDispatch = () => {
   };
 
   const openDispatchModal = async (order: DispatchOrder) => {
+    const traceInput = {
+      status: order.status,
+      payment_status: order.payment_status,
+      advance_paid: order.advance_paid,
+      advance_required: order.advance_required,
+      sales_order_value: order.sales_order_value,
+    };
+    if (!canReleaseOrderToDispatch(traceInput)) {
+      toast.error(getFinanceReleaseBlockers(traceInput).map((b) => b.message).join("; "));
+      return;
+    }
     setSelectedOrder(order);
     setTransporterName(""); setTrackingNumber(""); setDriverName(""); setDriverPhone("");
+    setDispatchProofFile(null);
     setPartialDispatch(false); setShowSuccess(false); setModalLoading(true);
 
     const { data } = await supabase.from("order_items")
@@ -148,16 +223,43 @@ const AdminPackingDispatch = () => {
 
   const handleSubmitDispatch = async () => {
     if (!selectedOrder) return;
-    if (!transporterName.trim()) { toast.error("Transporter name is required"); return; }
+    const traceInput = {
+      status: selectedOrder.status,
+      payment_status: selectedOrder.payment_status,
+      advance_paid: selectedOrder.advance_paid,
+      advance_required: selectedOrder.advance_required,
+      sales_order_value: selectedOrder.sales_order_value,
+    };
+    if (!canReleaseOrderToDispatch(traceInput)) {
+      toast.error(getFinanceReleaseBlockers(traceInput).map((b) => b.message).join("; "));
+      return;
+    }
+    const tp = transporterName.trim();
+    const lr = trackingNumber.trim();
+    if (!tp) { toast.error("Transporter name is required"); return; }
+    if (!lr) { toast.error("LR / Bilty / AWB number is required"); return; }
+    if (!dispatchProofFile) { toast.error("Dispatch proof file is required"); return; }
     setSubmitting(true);
 
     try {
-      // 1. Create dispatch record
+      const ext = dispatchProofFile.name.split(".").pop() || "bin";
+      const proofPath = `dispatch-proof/${selectedOrder.id}/${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`;
+      const { error: upErr } = await supabase.storage.from("receipts").upload(proofPath, dispatchProofFile);
+      if (upErr) {
+        console.error(upErr);
+        toast.error("Proof upload failed");
+        setSubmitting(false);
+        return;
+      }
+
+      // 1. Create dispatch record (partial legs are flagged; full closure drives order status + security gate)
       const { data: dispatch, error: dispErr } = await supabase.from("dispatches").insert({
         order_id: selectedOrder.id, company_id: selectedOrder.company_id,
-        transporter_name: transporterName, tracking_number: trackingNumber,
-        driver_name: driverName, driver_phone: driverPhone,
+        transporter_name: tp, tracking_number: lr,
+        driver_name: driverName.trim() || null, driver_phone: driverPhone.trim() || null,
         status: "dispatched", dispatch_date: new Date().toISOString().split("T")[0],
+        proof_storage_path: proofPath,
+        is_partial: partialDispatch,
       }).select().single();
 
       if (dispErr || !dispatch) { toast.error("Failed to create dispatch"); setSubmitting(false); return; }
@@ -176,15 +278,20 @@ const AdminPackingDispatch = () => {
         }).eq("id", item.id);
       }
 
-      // 4. Update order status and recalculated value
+      // 4. Full shipment only: close order + notify (after proof persisted on dispatches)
       if (!partialDispatch) {
         await supabase.from("orders").update({
           status: "dispatched",
           sales_order_value: finalInvoiceTotal,
+          tracking_number: lr,
         }).eq("id", selectedOrder.id);
         await supabase.from("order_status_history").insert({
           order_id: selectedOrder.id, old_status: "cleared_for_dispatch", new_status: "dispatched",
         });
+        notifyOrderDispatched(selectedOrder.id, selectedOrder.id.slice(0, 8).toUpperCase(), {
+          transporter: tp,
+          lr,
+        }).catch(() => {});
       }
 
       // 5. Wallet reconciliation if variance exists
@@ -281,12 +388,21 @@ const AdminPackingDispatch = () => {
                 <th className="text-left px-4 py-3 text-ui-label text-muted-foreground">{t("Order ID")}</th>
                 <th className="text-left px-4 py-3 text-ui-label text-muted-foreground">{t("Status")}</th>
                 <th className="text-left px-4 py-3 text-ui-label text-muted-foreground">{t("Value")}</th>
+                <th className="text-left px-4 py-3 text-ui-label text-muted-foreground">Finance release</th>
+                <th className="text-left px-4 py-3 text-ui-label text-muted-foreground">Packed_ready gate</th>
                 <th className="text-right px-4 py-3 text-ui-label text-muted-foreground">{t("Actions")}</th>
               </tr>
             </thead>
             <tbody>
               {displayed.map(order => {
-                const blocked = isFinanceBlocked(order);
+                const blocked = isDispatchFinanceBlocked(order);
+                const finState = deriveFinanceReleaseState({
+                  status: order.status,
+                  payment_status: order.payment_status,
+                  advance_paid: order.advance_paid,
+                  advance_required: order.advance_required,
+                  sales_order_value: order.sales_order_value,
+                });
                 return (
                   <tr key={order.id} className="border-t border-border">
                     <td className="px-4 py-3 text-ui-cell text-foreground">{order.company?.business_name ?? "—"}</td>
@@ -297,6 +413,21 @@ const AdminPackingDispatch = () => {
                       </span>
                     </td>
                     <td className="px-4 py-3 text-ui-cell text-foreground">₹{(order.sales_order_value ?? 0).toLocaleString("en-IN")}</td>
+                    <td className="px-4 py-3 align-top">
+                      <FinanceReleaseChips variant="compact" state={finState} />
+                    </td>
+                    <td className="px-4 py-3 text-ui-cell text-xs">
+                      {packedReadyChecksByOrder[order.id]?.length === 0 ? (
+                        <span className="font-semibold text-emerald-600" title="Eligible for packed_ready">Eligible</span>
+                      ) : (
+                        <span
+                          className="font-semibold text-amber-700"
+                          title={(packedReadyChecksByOrder[order.id] || []).map((b) => b.message).join("\n")}
+                        >
+                          Blocked ({packedReadyChecksByOrder[order.id]?.length ?? 0})
+                        </span>
+                      )}
+                    </td>
                     <td className="px-4 py-3 text-right space-x-2">
                       {order.status === "packed_ready" && !blocked && (
                         <button onClick={() => handleAdvanceToPacking(order)} disabled={updating === order.id}
@@ -310,7 +441,19 @@ const AdminPackingDispatch = () => {
                           <Truck size={12} /> {t("Create Dispatch")}
                         </button>
                       )}
-                      {blocked && <span className="text-fine text-destructive">Advance pending</span>}
+                      {blocked && (
+                        <span className="text-fine text-destructive max-w-[140px] inline-block text-left">
+                          {getFinanceReleaseBlockers({
+                            status: order.status,
+                            payment_status: order.payment_status,
+                            advance_paid: order.advance_paid,
+                            advance_required: order.advance_required,
+                            sales_order_value: order.sales_order_value,
+                          })
+                            .map((b) => b.message)
+                            .join(" ") || "Finance hold"}
+                        </span>
+                      )}
                     </td>
                   </tr>
                 );
@@ -351,9 +494,19 @@ const AdminPackingDispatch = () => {
                   </div>
                   <div className="grid grid-cols-2 gap-3">
                     <div className="space-y-1.5"><Label className="text-ui-label text-muted-foreground">{t("Transporter Name")} *</Label><Input value={transporterName} onChange={e => setTransporterName(e.target.value)} className="rounded-xl" /></div>
-                    <div className="space-y-1.5"><Label className="text-ui-label text-muted-foreground">LR / Bilty</Label><Input value={trackingNumber} onChange={e => setTrackingNumber(e.target.value)} className="rounded-xl" /></div>
+                    <div className="space-y-1.5"><Label className="text-ui-label text-muted-foreground">LR / Bilty / AWB *</Label><Input value={trackingNumber} onChange={e => setTrackingNumber(e.target.value)} className="rounded-xl" /></div>
                     <div className="space-y-1.5"><Label className="text-ui-label text-muted-foreground">{t("Driver Name")}</Label><Input value={driverName} onChange={e => setDriverName(e.target.value)} className="rounded-xl" /></div>
                     <div className="space-y-1.5"><Label className="text-ui-label text-muted-foreground">{t("Driver Phone")}</Label><Input value={driverPhone} onChange={e => setDriverPhone(e.target.value)} className="rounded-xl" /></div>
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-ui-label text-muted-foreground">Dispatch proof (PDF / image) *</Label>
+                    <Input
+                      type="file"
+                      accept=".pdf,.jpg,.jpeg,.png,.webp"
+                      className="rounded-xl cursor-pointer"
+                      onChange={(e) => setDispatchProofFile(e.target.files?.[0] ?? null)}
+                    />
+                    {dispatchProofFile && <p className="text-fine text-muted-foreground">{dispatchProofFile.name}</p>}
                   </div>
 
                   {/* Weight Variance Packing List */}

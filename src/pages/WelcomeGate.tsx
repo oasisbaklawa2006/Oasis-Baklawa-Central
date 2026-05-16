@@ -21,7 +21,7 @@ const WelcomeGate = () => {
   const normalizedRole = normalizeRole(role);
   const isStaff = normalizedRole ? isStaffRole(normalizedRole) : false;
 
-  // OAuth recovery — if Google returns server_error, bail to /login with guidance
+  // OAuth callback recovery — bail to /login with guidance when the provider returns an error
   useEffect(() => {
     const search = new URLSearchParams(window.location.search);
     const hash = new URLSearchParams(
@@ -30,7 +30,7 @@ const WelcomeGate = () => {
     const err = search.get("error") || hash.get("error");
     const errCode = search.get("error_code") || hash.get("error_code");
     if (err === "server_error" || errCode === "server_error" || err === "access_denied") {
-      toast.error("Google Auth is pending branding approval. Please use WhatsApp/SMS for the demo.", {
+      toast.error("We couldn’t complete sign-in. Please use mobile verification or email, or contact support@oasisbaklawa.com.", {
         duration: 8000,
       });
       navigate("/login", { replace: true });

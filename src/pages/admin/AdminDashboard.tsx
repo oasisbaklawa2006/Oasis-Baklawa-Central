@@ -22,10 +22,33 @@ interface AuditEntry { id: string; action_type: string | null; module_name: stri
 interface MetricItem { l: string; v: number; actionable?: boolean; }
 
 const ALL_STATUSES = [
-  "submitted", "in_production", "packed_ready",
-  "awaiting_final_payment", "cleared_for_dispatch",
-  "dispatched", "delivered", "cancelled",
+  "submitted",
+  "confirmed",
+  "manufacturing",
+  "in_production",
+  "assembled",
+  "packing",
+  "packed_ready",
+  "awaiting_final_payment",
+  "cleared_for_dispatch",
+  "dispatched",
+  "delivered",
+  "cancelled",
 ];
+
+/** Dashboard aggregates intentionally mirror OrderManagement ?view=production and ?view=packing buckets. */
+function dashboardProductionCount(pc: Record<string, number>): number {
+  return (
+    (pc.confirmed ?? 0) +
+    (pc.manufacturing ?? 0) +
+    (pc.in_production ?? 0) +
+    (pc.assembled ?? 0)
+  );
+}
+
+function dashboardPackedCount(pc: Record<string, number>): number {
+  return (pc.packing ?? 0) + (pc.packed_ready ?? 0);
+}
 
 /* ── Animated counter ── */
 const AnimatedNumber = ({ value, prefix = "", suffix = "" }: { value: number; prefix?: string; suffix?: string }) => {
@@ -112,7 +135,7 @@ const FlowStage = ({ label, count, isBottleneck, isLast, onClick }: {
 
 /* ── Drill-down Overlay ── */
 const DrillOverlay = ({ title, items, onClose }: { title: string; items: { label: string; value: string | number }[]; onClose: () => void }) => (
-  <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 animate-fade-in" onClick={onClose}>
+  <div className="fixed inset-0 z-[190] flex items-center justify-center bg-black/40 animate-fade-in" onClick={onClose}>
     <div className="bg-card rounded-2xl shadow-2xl w-full max-w-md mx-4 p-6 animate-scale-in" onClick={e => e.stopPropagation()}>
       <div className="flex items-center justify-between mb-4">
         <h3 className="font-display text-lg text-foreground">{title}</h3>
@@ -237,8 +260,9 @@ const AdminDashboard = () => {
     if ((supportOpen.count ?? 0) > 0) a.push({ label: "Support Escalations", count: supportOpen.count ?? 0, route: "/admin/exceptions", severity: "medium" });
     if ((slaBreached.count ?? 0) > 0) a.push({ label: "SLA Breached", count: slaBreached.count ?? 0, route: "/admin/support", severity: "high" });
     if (lowStockCount > 0) a.push({ label: "Low Stock", count: lowStockCount, route: "/admin/inventory", severity: "high" });
-    if (pc.packed_ready > 0 && pc.packed_ready > 3 * (pc.dispatched || 1)) {
-      a.push({ label: "Dispatch Bottleneck", count: pc.packed_ready, route: "/admin/packing-dispatch", severity: "medium" });
+    const packedAggregate = dashboardPackedCount(pc);
+    if (packedAggregate > 0 && packedAggregate > 3 * (pc.dispatched || 1)) {
+      a.push({ label: "Dispatch Bottleneck", count: packedAggregate, route: "/admin/packing-dispatch", severity: "medium" });
     }
     setAlerts(a);
     setRecentActions((auditLogs.data as AuditEntry[]) ?? []);
@@ -289,6 +313,9 @@ const AdminDashboard = () => {
 
   const fmtNum = (n: number) => n > 99999 ? `₹${(n / 100000).toFixed(1)}L` : n.toLocaleString("en-IN");
 
+  const productionCount = dashboardProductionCount(pipeline);
+  const packedCount = dashboardPackedCount(pipeline);
+
   /* Drill-down data */
   const drillData: Record<string, { title: string; items: { label: string; value: string | number }[] }> = {
     financeHold: {
@@ -303,7 +330,7 @@ const AdminDashboard = () => {
     dispatchReady: {
       title: "Dispatch Ready — Details",
       items: [
-        { label: "Packed & Ready", value: pipeline.packed_ready ?? 0 },
+        { label: "Packing queue", value: packedCount },
         { label: "Cleared for Dispatch", value: pipeline.cleared_for_dispatch ?? 0 },
         { label: "Finance Blocked", value: Number(counts.financeHold) || 0 },
       ],
@@ -318,15 +345,15 @@ const AdminDashboard = () => {
   };
 
   const flowStages = [
-    { label: "Submitted", key: "submitted", route: "/admin/order-management" },
-    { label: "Production", key: "in_production", route: "/admin/order-management?view=production" },
-    { label: "Packed", key: "packed_ready", route: "/admin/order-management?view=packing" },
-    { label: "Payment", key: "awaiting_final_payment", route: "/admin/accounts-release" },
-    { label: "Cleared", key: "cleared_for_dispatch", route: "/admin/order-management?view=packing" },
-    { label: "Dispatched", key: "dispatched", route: "/admin/order-management" },
+    { label: "Submitted", count: pipeline.submitted ?? 0, route: "/admin/order-management" },
+    { label: "Production", count: productionCount, route: "/admin/order-management?view=production" },
+    { label: "Packed", count: packedCount, route: "/admin/order-management?view=packing" },
+    { label: "Payment", count: pipeline.awaiting_final_payment ?? 0, route: "/admin/accounts-release" },
+    { label: "Cleared", count: pipeline.cleared_for_dispatch ?? 0, route: "/admin/order-management?view=packing" },
+    { label: "Dispatched", count: pipeline.dispatched ?? 0, route: "/admin/order-management" },
   ];
 
-  const totalPipeline = flowStages.reduce((s, st) => s + (pipeline[st.key] ?? 0), 0);
+  const totalPipeline = flowStages.reduce((s, st) => s + st.count, 0);
   const avgFlow = totalPipeline / Math.max(flowStages.length, 1);
 
   const governanceTiles = [
@@ -396,7 +423,7 @@ const AdminDashboard = () => {
           <CircularGauge value={Number(counts.totalOrders) || 0} max={Math.max(Number(counts.totalOrders) || 1, 50)} label="Revenue Pipeline" color="hsl(var(--primary))" icon={TrendingUp} onClick={() => navigate("/admin/order-management")} />
           <CircularGauge value={Number(counts.totalDue) > 0 ? Math.round(Number(counts.totalDue) / 1000) : 0} max={500} label="Exposure (₹K)" color="#dc2626" icon={AlertTriangle} onClick={() => setDrillTarget("financeHold")} />
           <CircularGauge value={totalPipeline} max={Math.max(totalPipeline, 20)} label="Ops Load" color="hsl(var(--secondary))" icon={Gauge} onClick={() => navigate("/admin/order-management")} />
-          <CircularGauge value={pipeline.cleared_for_dispatch ?? 0} max={Math.max(pipeline.packed_ready ?? 1, 1)} label="Dispatch Efficiency" color="#0ea5e9" icon={Truck} onClick={() => setDrillTarget("dispatchReady")} />
+          <CircularGauge value={pipeline.cleared_for_dispatch ?? 0} max={Math.max(packedCount, 1)} label="Dispatch Efficiency" color="#0ea5e9" icon={Truck} onClick={() => setDrillTarget("dispatchReady")} />
           <CircularGauge value={Number(counts.slaBreached) || 0} max={Math.max(Number(counts.supportOpen) || 1, 5)} label="System Health" color={Number(counts.slaBreached) > 0 ? "#dc2626" : "#10b981"} icon={Activity} onClick={() => navigate("/admin/support")} />
           <CircularGauge value={Number(counts.totalPhysicalStock) || 0} max={Math.max(Number(counts.totalPhysicalStock) || 1, 100)} label="Stock Health" color="#8b5cf6" icon={Heart} onClick={() => setDrillTarget("lowStock")} />
         </div>
@@ -410,8 +437,8 @@ const AdminDashboard = () => {
         </div>
         <div className="flex items-stretch gap-1">
           {flowStages.map((st, i) => (
-            <FlowStage key={st.key} label={st.label} count={pipeline[st.key] ?? 0}
-              isBottleneck={(pipeline[st.key] ?? 0) > avgFlow * 2 && (pipeline[st.key] ?? 0) > 2}
+            <FlowStage key={st.label} label={st.label} count={st.count}
+              isBottleneck={st.count > avgFlow * 2 && st.count > 2}
               isLast={i === flowStages.length - 1}
               onClick={() => navigate(st.route)} />
           ))}
@@ -423,13 +450,13 @@ const AdminDashboard = () => {
         <h2 className="text-xs font-ui font-semibold text-muted-foreground uppercase tracking-wider mb-3">Operations Grid</h2>
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
           <ClusterCard title="Production & Assembly" icon={Factory} color="hsl(var(--secondary))" route="/admin/order-management?view=production" metrics={[
-            { l: "In Production", v: pipeline.in_production ?? 0 },
+            { l: "Production queue", v: productionCount },
             { l: "Packed Ready", v: pipeline.packed_ready ?? 0 },
             { l: "Total Stock", v: Number(counts.totalPhysicalStock) || 0 },
             { l: "Low Stock ⚠", v: Number(counts.lowStockCount) || 0, actionable: true },
           ]} />
           <ClusterCard title="Packing & Dispatch" icon={PackageCheck} color="#0ea5e9" route="/admin/order-management?view=packing" metrics={[
-            { l: "Packed Ready", v: pipeline.packed_ready ?? 0 },
+            { l: "Packing queue", v: packedCount },
             { l: "Cleared", v: pipeline.cleared_for_dispatch ?? 0 },
             { l: "Finance Blocked", v: Number(counts.financeHold) || 0, actionable: true },
             { l: "Dispatched", v: pipeline.dispatched ?? 0 },

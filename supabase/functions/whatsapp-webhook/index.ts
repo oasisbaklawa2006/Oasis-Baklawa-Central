@@ -1,5 +1,8 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
+import { createClient, type SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
+
+/** Service-role client from `createClient` — schema-generic, matches runtime usage in this edge function. */
+type SupabaseAdminClient = SupabaseClient;
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -7,8 +10,22 @@ const corsHeaders = {
   "Access-Control-Allow-Methods": "POST, GET, OPTIONS",
 };
 
-const PORTAL_URL = "https://id-preview--a2649760-8f34-4dcf-aaf4-ff101ea06ef6.lovable.app";
+const PORTAL_URL = Deno.env.get("B2B_PORTAL_URL") || "https://b2b.oasisbaklawa.com";
 const CTA_FOOTER = `\n\nPlease login to your B2B Portal to track your 10-point artisan journey:\n${PORTAL_URL}`;
+
+/** Items below this confidence trigger clarification hold (no PI until resolved). */
+const CLARIFICATION_LOW_CONF = 0.6;
+/** All parsed line items must meet this to clear hold via a short follow-up re-parse. */
+const HOLD_RELEASE_CONF = 0.85;
+const HELD_ORDER_MAX_AGE_MS = 72 * 60 * 60 * 1000;
+const FOLLOWUP_PARSE_MAX_CHARS = 280;
+const CONFIRM_FOLLOWUP_MAX_CHARS = 80;
+
+/** Substrings that indicate order-ish commerce intent when paired with classifier output (see handler). */
+const ORDER_INTENT_KEYWORDS = [
+  "need", "order", "send", "want", "box", "boxes", "carton", "cartons",
+  "kg", "pcs", "pieces", "rate", "price", "quote",
+];
 
 // ── PHONE HELPERS ──
 function normalizePhone(raw: string): string {
@@ -206,6 +223,95 @@ function parseQuantity(text: string): number {
   return 1;
 }
 
+// ── RULE-BASED INTENT CLASSIFICATION ──
+// Pure function — no DB calls, no AI, no side effects.
+// Evaluated in priority order: later checks only run if earlier ones do not match.
+// Returns one of the canonical intent strings used as message_intent in debug_webhooks.
+function classifyMessageIntent(
+  messageBody: string,
+  messageType: string,
+  mediaMime: string
+): string {
+  const t = (messageBody || "").toLowerCase().trim();
+  const mt = (messageType || "").toLowerCase();
+  const mm = (mediaMime || "").toLowerCase();
+
+  // ── Tier 1: media type signals (highest priority) ──
+  if ((mt === "document" || mm.includes("pdf")) && t.length < 500) {
+    return "PURCHASE_ORDER_DOCUMENT";
+  }
+
+  // ── Tier 2: explicit keyword sets ──
+
+  // Internal / admin pings — narrow: bare "test"/"testing" in prose must NOT match (e.g. lab test, send test samples).
+  const trimmed = (messageBody || "").trim();
+  if (
+    /\b(ignore this|internal message|internal note|admin note)\b/i.test(t) ||
+    /^(test|testing)[\s.!?]*$/i.test(trimmed)
+  ) {
+    return "INTERNAL_NOTE";
+  }
+
+  // Cancellation — check before modification to avoid "cancel changes" mis-classifying
+  if (/\b(cancel|cancellation|don't send|do not send|hold order|stop order|ruk jao|band karo|mat bhejo)\b/i.test(t)) {
+    return "ORDER_CANCELLATION";
+  }
+
+  // Order modification
+  if (/\b(change|modify|update order|replace|add more|reduce|increase|edit order|correction in order|order correction|update the order)\b/i.test(t)) {
+    return "ORDER_MODIFICATION";
+  }
+
+  // Complaint
+  if (/\b(complaint|complain|damaged|broken|wrong item|wrong quantity|missing item|not received|short delivery|quality issue|mouldy|stale|expired|rotten|not as ordered|bad quality|defective|contaminated)\b/i.test(t)) {
+    return "COMPLAINT";
+  }
+
+  // Payment proof
+  if (
+    /\b(paid|payment done|transferred|neft|rtgs|upi|gpay|phone ?pe|paytm|bank transfer|transaction id|utr|reference no|attached payment|bhej diya|payment kar diya|amount sent)\b/i.test(t) ||
+    (mt === "image" && /\b(payment|paid|transfer|receipt|transaction)\b/i.test(t))
+  ) {
+    return "PAYMENT_PROOF";
+  }
+
+  // KYC / identity documents
+  if (/\b(gst certificate|fssai|pan card|aadhaar|aadhar|kyc|registration certificate|trade license|drug license)\b/i.test(t)) {
+    return "CLIENT_KYC_DOCUMENT";
+  }
+
+  // SO / invoice reference
+  if (/\b(order number|sales order|so number|invoice|inv no|tcf|my previous order|same as before|repeat (?:my )?order|reference|last (?:time |week )?order|previous order)\b/i.test(t)) {
+    return "SO_REFERENCE";
+  }
+
+  // Dispatch follow-up
+  if (/\b(dispatch|dispatched|tracking|when (?:will|is|does) (?:my )?(?:order|delivery)|kab aayega|delivery status|where is my order|lr number|transporter|awb|docket|out for delivery|truck|vehicle)\b/i.test(t)) {
+    return "DISPATCH_FOLLOWUP";
+  }
+
+  // Packaging material inquiry — checked before ORDER to prevent spurious SOs.
+  // Suppress only when there is no quantity/order pattern (e.g. "send empty box 10 pcs" stays eligible for ORDER downstream).
+  const packagingContext =
+    /\b(acrylic (?:box|jar|tray)|empty (?:box|jar|tray|carton)|packing material|packaging material|cavity tray|tart shell|shell|box only|just (?:box|jar|tray)|carton only)\b/i.test(t);
+  if (packagingContext) {
+    const looksLikePackagingQtyOrder =
+      /\d+\s*(?:pcs|pieces|nos\.?|units?|boxes|cartons?)/i.test(t) ||
+      /\b(?:empty\s+)?(?:box|jar|tray|carton|cavity\s+tray|acrylic\s+(?:jar|box|tray))\s+\d+/i.test(t);
+    if (!looksLikePackagingQtyOrder) {
+      return "PACKAGING_MATERIAL_REQUEST";
+    }
+  }
+
+  // General inquiry — price / catalogue / policy
+  if (/\b(price list|rate list|catalogue|catalog|what do you have|product list|minimum order|moq|delivery time|terms and conditions|return policy|rate (?:hai|kya|batao)|kya hai|kya milta)\b/i.test(t)) {
+    return "GENERAL_INQUIRY";
+  }
+
+  // Falls through to ORDER if orderKeywords are present (checked at call site)
+  return "OTHER";
+}
+
 // ── SEND WHATSAPP REPLY ──
 async function sendReply(phone: string, message: string, supabaseAdmin: any, companyId?: string | null) {
   const apiKey = Deno.env.get("CLICK2API_API_KEY");
@@ -283,11 +389,246 @@ function generateTextPI(orderId: string, companyName: string, items: { name: str
   lines.push(``);
   lines.push(`Track your order: ${PORTAL_URL}/track?token=${orderId}`);
   lines.push(``);
-  lines.push(`Status: Pre-Approved | Advance Unpaid`);
+  lines.push(`Status: Pre-Approved | Advance Pending`);
   lines.push(``);
-  lines.push(`— Team Oasis Baklawa`);
+  lines.push(`— Oasis Operations`);
 
   return lines.join("\n");
+}
+
+type ParsedOrderItem = { productId: string; productName: string; quantity: number; confidence: number };
+
+async function findHeldClarificationOrder(
+  supabaseAdmin: SupabaseAdminClient,
+  companyId: string,
+): Promise<{ id: string } | null> {
+  const cutoff = new Date(Date.now() - HELD_ORDER_MAX_AGE_MS).toISOString();
+  const { data } = await supabaseAdmin
+    .from("orders")
+    .select("id")
+    .eq("company_id", companyId)
+    .eq("needs_clarification", true)
+    .eq("status", "awaiting_clarification")
+    .or("is_waste.is.null,is_waste.eq.false")
+    .gte("created_at", cutoff)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  return data?.id ? { id: data.id } : null;
+}
+
+/** Strict: no digits (avoid qty corrections), short, confirmation-only phrasing. */
+function isConfirmOnlyFollowup(text: string): boolean {
+  const t = text.trim().toLowerCase().replace(/[.!?,]+$/g, "").replace(/\s+/g, " ");
+  if (!t || t.length > CONFIRM_FOLLOWUP_MAX_CHARS) return false;
+  if (/\d/.test(t)) return false;
+  const allowed = new Set([
+    "yes", "yep", "yeah", "ok", "okay",
+    "confirmed", "confirm", "proceed", "correct",
+    "go ahead", "thats fine", "that's fine", "fine",
+    "noted", "approved", "alright", "all right",
+  ]);
+  if (allowed.has(t)) return true;
+  const words = t.split(/\s+/);
+  return words.length === 1 && allowed.has(words[0]);
+}
+
+async function sendPiNotificationsAndCrm(args: {
+  supabaseAdmin: SupabaseAdminClient;
+  draftOrderId: string;
+  companyName: string;
+  phone91: string;
+  companyId: string;
+  accountManagerId: string | null;
+  messageBody: string;
+  piItems: { name: string; qty: number }[];
+  totalWithGst: number;
+  isShadowClient: boolean;
+  crmOutcome: string;
+  crmNotesSuffix: string;
+}): Promise<boolean> {
+  const {
+    supabaseAdmin, draftOrderId, companyName, phone91, companyId, accountManagerId,
+    messageBody, piItems, totalWithGst, isShadowClient, crmOutcome, crmNotesSuffix,
+  } = args;
+
+  let piSent = false;
+  if (piItems.length > 0) {
+    const piText = generateTextPI(draftOrderId, companyName, piItems, totalWithGst);
+    await sendReply(phone91, piText, supabaseAdmin, companyId);
+    piSent = true;
+    console.log(`PI sent to ${phone91} for order ${draftOrderId}`);
+  } else {
+    const ackMsg = [
+      `Oasis Operations has created your draft sales order.`,
+      ``,
+      `Reference: SO #${draftOrderId.split("-")[0].toUpperCase()}`,
+      ``,
+      `Our team will share the next update shortly.`,
+      ``,
+      `— Oasis Operations`,
+    ].join("\n");
+    await sendReply(phone91, ackMsg, supabaseAdmin, companyId);
+  }
+
+  if (accountManagerId) {
+    await supabaseAdmin.from("notifications").insert({
+      user_id: accountManagerId,
+      type: "whatsapp_order",
+      message: `New WhatsApp Draft Order from ${companyName}${piItems.length > 0 ? ` - ${piItems.map((i) => `${i.name} x ${i.qty}`).join(", ")}` : ""}. Review now.`,
+      is_read: false,
+    });
+  }
+
+  const { data: admins } = await supabaseAdmin
+    .from("users").select("id")
+    .in("role", ["admin", "super_admin", "ADMIN", "SUPER_ADMIN"])
+    .limit(5);
+  for (const admin of admins || []) {
+    if (admin.id === accountManagerId) continue;
+    await supabaseAdmin.from("notifications").insert({
+      user_id: admin.id,
+      type: "whatsapp_order",
+      message: `WhatsApp Draft from ${companyName}: "${messageBody.substring(0, 100)}"`,
+      is_read: false,
+    });
+  }
+
+  await supabaseAdmin.from("client_interactions").insert({
+    company_id: companyId,
+    executive_id: accountManagerId,
+    interaction_type: "whatsapp",
+    notes: `[SYSTEM_AI] ${crmNotesSuffix} ${isShadowClient ? "Shadow client." : ""} ${piSent ? "PI sent via WhatsApp." : ""}`,
+    outcome: crmOutcome,
+  });
+
+  return piSent;
+}
+
+async function resolveHeldOrderConfirm(args: {
+  supabaseAdmin: SupabaseAdminClient;
+  heldOrderId: string;
+  companyName: string;
+  phone91: string;
+  companyId: string;
+  accountManagerId: string | null;
+  messageBody: string;
+  products: { id: string; name: string; sku?: string | null; base_price?: number | null; price_b2b?: number | null; price_per_kg?: number | null; wholesale_price?: number | null; price_wholesale?: number | null }[];
+  isShadowClient: boolean;
+}): Promise<boolean> {
+  const { supabaseAdmin, heldOrderId, companyName, phone91, companyId, accountManagerId, messageBody, products, isShadowClient } = args;
+
+  const { data: rows } = await supabaseAdmin
+    .from("order_items")
+    .select("product_id, quantity")
+    .eq("order_id", heldOrderId);
+  if (!rows || rows.length === 0) return false;
+
+  let estimatedTotal = 0;
+  const piItems: { name: string; qty: number }[] = [];
+  for (const row of rows) {
+    const prod = products.find((p) => p.id === row.product_id);
+    const name = prod?.name || "Item";
+    const qty = Number(row.quantity) || 0;
+    piItems.push({ name, qty });
+    if (prod) {
+      const price = prod.price_b2b || prod.base_price || prod.price_per_kg || prod.wholesale_price || prod.price_wholesale || 0;
+      estimatedTotal += price * qty;
+    }
+  }
+
+  const minConf = 1;
+  const totalWithGst = Math.round(estimatedTotal * 1.18);
+  const advanceRequired = Math.max(Math.round((totalWithGst * 0.2) / 1000) * 1000, 1000);
+
+  await supabaseAdmin.from("orders").update({
+    needs_clarification: false,
+    status: "draft",
+    parser_confidence: minConf,
+    sales_order_value: totalWithGst,
+    advance_required: advanceRequired,
+  }).eq("id", heldOrderId);
+
+  await sendPiNotificationsAndCrm({
+    supabaseAdmin,
+    draftOrderId: heldOrderId,
+    companyName,
+    phone91,
+    companyId,
+    accountManagerId,
+    messageBody,
+    piItems,
+    totalWithGst,
+    isShadowClient,
+    crmOutcome: "clarification_resolved",
+    crmNotesSuffix: `Clarification hold cleared (customer confirm). Order ${heldOrderId.slice(0, 8)}. Items: ${piItems.map((i) => `${i.name} x ${i.qty}`).join(", ")}.`,
+  });
+
+  return true;
+}
+
+async function resolveHeldOrderHighConfParse(args: {
+  supabaseAdmin: SupabaseAdminClient;
+  heldOrderId: string;
+  companyName: string;
+  phone91: string;
+  companyId: string;
+  accountManagerId: string | null;
+  messageBody: string;
+  orderItems: ParsedOrderItem[];
+  products: { id: string; name: string; sku?: string | null; base_price?: number | null; price_b2b?: number | null; price_per_kg?: number | null; wholesale_price?: number | null; price_wholesale?: number | null }[];
+  isShadowClient: boolean;
+}): Promise<boolean> {
+  const { supabaseAdmin, heldOrderId, companyName, phone91, companyId, accountManagerId, messageBody, orderItems, products, isShadowClient } = args;
+
+  await supabaseAdmin.from("order_items").delete().eq("order_id", heldOrderId);
+
+  let estimatedTotal = 0;
+  const piItems: { name: string; qty: number }[] = [];
+  const minConf = Math.min(...orderItems.map((i) => i.confidence));
+
+  for (const item of orderItems) {
+    await supabaseAdmin.from("order_items").insert({
+      order_id: heldOrderId,
+      product_id: item.productId,
+      quantity: item.quantity,
+      notes: `WhatsApp AI (confidence: ${(item.confidence * 100).toFixed(0)}%): "${messageBody.substring(0, 200)}"`,
+    });
+    const prod = products.find((p) => p.id === item.productId);
+    if (prod) {
+      const price = prod.price_b2b || prod.base_price || prod.price_per_kg || prod.wholesale_price || prod.price_wholesale || 0;
+      estimatedTotal += price * item.quantity;
+    }
+    piItems.push({ name: item.productName, qty: item.quantity });
+  }
+
+  const totalWithGst = Math.round(estimatedTotal * 1.18);
+  const advanceRequired = Math.max(Math.round((totalWithGst * 0.2) / 1000) * 1000, 1000);
+
+  await supabaseAdmin.from("orders").update({
+    needs_clarification: false,
+    status: "draft",
+    parser_confidence: minConf,
+    sales_order_value: totalWithGst,
+    advance_required: advanceRequired,
+  }).eq("id", heldOrderId);
+
+  await sendPiNotificationsAndCrm({
+    supabaseAdmin,
+    draftOrderId: heldOrderId,
+    companyName,
+    phone91,
+    companyId,
+    accountManagerId,
+    messageBody,
+    piItems,
+    totalWithGst,
+    isShadowClient,
+    crmOutcome: "clarification_resolved",
+    crmNotesSuffix: `Clarification hold cleared (high-confidence follow-up parse). Order ${heldOrderId.slice(0, 8)}. Items: ${piItems.map((i) => `${i.name} x ${i.qty}`).join(", ")}.`,
+  });
+
+  return true;
 }
 
 // ── PDF / DOCUMENT PARSING ──
@@ -529,6 +870,53 @@ serve(async (req) => {
       }
     }
 
+    // ── INTENT CLASSIFICATION ──
+    // Pure rule-based; no DB/AI calls. Written to debug_webhooks as message_intent.
+    const messageIntentRaw = classifyMessageIntent(
+      messageBody || "",
+      messageType || "",
+      mediaMime || ""
+    );
+
+    let messageIntent = messageIntentRaw;
+    let hasOrderIntent = false;
+    if (messageIntentRaw !== "INTERNAL_NOTE") {
+      const msgLowerForOrder = (messageBody || "").toLowerCase();
+      hasOrderIntent =
+        messageIntentRaw !== "PACKAGING_MATERIAL_REQUEST" &&
+        ORDER_INTENT_KEYWORDS.some((kw) => msgLowerForOrder.includes(kw));
+      if (messageIntentRaw === "OTHER" && hasOrderIntent) {
+        messageIntent = "ORDER";
+      }
+    }
+
+    console.log(`[INTENT] ${messageIntent} | phone=${phone91} | type=${messageType}`);
+
+    // Persist intent on the webhook row (best-effort — failure does not block processing).
+    if ((webhookRow as any)?.id) {
+      void supabaseAdmin
+        .from("debug_webhooks")
+        .update({ message_intent: messageIntent })
+        .eq("id", (webhookRow as any).id)
+        .then(
+          () => { /* no-op */ },
+          (e: unknown) => console.error("intent write failed:", e),
+        );
+    }
+
+    // INTERNAL_NOTE: mark processed immediately and skip further handling.
+    if (messageIntentRaw === "INTERNAL_NOTE") {
+      if ((webhookRow as any)?.id) {
+        await supabaseAdmin
+          .from("debug_webhooks")
+          .update({ processed: true, discard_reason: "internal_note" })
+          .eq("id", (webhookRow as any).id);
+      }
+      return new Response(JSON.stringify({ ok: true, intent: "INTERNAL_NOTE", skipped: true }), {
+        status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     // ── LEDGER DISPUTE KEYWORD DETECTION ──
     // If a credit-client replies "request correction" / "ledger dispute" / "disputed",
     // open a dispute against their most recent sent ledger.
@@ -585,7 +973,7 @@ serve(async (req) => {
                   type: "text",
                   text: {
                     body:
-                      `Thank you for flagging this. Our Finance team has been notified and will review your account together with you shortly.\n\n— Team Oasis Baklawa`,
+                      `Oasis Operations has received your account discrepancy request.\n\nOur Finance team has been notified and will review your ledger with you shortly.\n\n— Oasis Operations`,
                   },
                 }),
               }).catch(() => {});
@@ -626,10 +1014,12 @@ serve(async (req) => {
     let accountManagerId: string | null = null;
     let isShadowClient = false;
 
+    const senderIsStaffProxy = sender.type === "staff" && !!sender.userId;
     const senderIsSalesExec = sender.type === "staff" && sender.isSalesExec && sender.userId;
+    let companyResolutionLocked = false;
 
     // ── STAFF SENDER RE-WIRE ──
-    if (senderIsSalesExec && messageBody) {
+    if (senderIsStaffProxy && messageBody) {
       const clientPatterns = [
         /(?:order\s+for|client|customer|party|for\s+M\/s\.?|for)\s+[:\-]?\s*([A-Z][A-Za-z\s&'.]+)/i,
         /([A-Z][A-Za-z\s&'.]{3,})\s+(?:ka|ke|ki|order|wants?|need)/i,
@@ -651,6 +1041,7 @@ serve(async (req) => {
           companyId = clientMatch[0].id;
           companyName = clientMatch[0].business_name;
           accountManagerId = sender.userId!;
+          companyResolutionLocked = true;
           if (!clientMatch[0].account_manager_id) {
             await supabaseAdmin.from("companies")
               .update({ account_manager_id: sender.userId })
@@ -662,23 +1053,25 @@ serve(async (req) => {
     }
 
     // Strategy 1: Match via b2b_applications
-    const { data: apps } = await supabaseAdmin
-      .from("b2b_applications")
-      .select("id, business_name, user_id, contact_phone, mobile_number")
-      .or(`contact_phone.ilike.%${last10},mobile_number.ilike.%${last10}`)
-      .eq("status", "approved")
-      .limit(1);
-
-    if (apps && apps.length > 0) {
-      companyName = apps[0].business_name;
-      const { data: companies } = await supabaseAdmin
-        .from("companies")
-        .select("id, account_manager_id")
-        .eq("business_name", apps[0].business_name)
+    if (!companyResolutionLocked) {
+      const { data: apps } = await supabaseAdmin
+        .from("b2b_applications")
+        .select("id, business_name, user_id, contact_phone, mobile_number")
+        .or(`contact_phone.ilike.%${last10},mobile_number.ilike.%${last10}`)
+        .eq("status", "approved")
         .limit(1);
-      if (companies && companies.length > 0) {
-        companyId = companies[0].id;
-        accountManagerId = companies[0].account_manager_id;
+
+      if (apps && apps.length > 0) {
+        companyName = apps[0].business_name;
+        const { data: companies } = await supabaseAdmin
+          .from("companies")
+          .select("id, account_manager_id")
+          .eq("business_name", apps[0].business_name)
+          .limit(1);
+        if (companies && companies.length > 0) {
+          companyId = companies[0].id;
+          accountManagerId = companies[0].account_manager_id;
+        }
       }
     }
 
@@ -767,6 +1160,7 @@ serve(async (req) => {
               companyName = realCompany.business_name;
               accountManagerId = realCompany.account_manager_id;
               isShadowClient = false;
+              if (senderIsStaffProxy) companyResolutionLocked = true;
             }
           }
         }
@@ -776,14 +1170,9 @@ serve(async (req) => {
     }
 
     // Strategy 4: SHADOW CLIENT CREATION
-    const orderKeywords = [
-      "need", "order", "send", "want", "box", "boxes", "carton", "cartons",
-      "kg", "pcs", "pieces", "rate", "price", "quote",
-    ];
-    const msgLower = (messageBody || "").toLowerCase();
-    const hasOrderIntent = orderKeywords.some((kw) => msgLower.includes(kw));
+    // hasOrderIntent: computed after classify + ORDER coercion (same keywords as ORDER_INTENT_KEYWORDS).
 
-    if (!companyId && senderPhone) {
+    if (!companyId && senderPhone && !senderIsStaffProxy) {
       const shadowName = profileName ? `${profileName} (WhatsApp)` : `WhatsApp Lead ${phone91}`;
 
       const { data: newCompany, error: compErr } = await supabaseAdmin
@@ -816,6 +1205,9 @@ serve(async (req) => {
           });
         }
       }
+    }
+    if (!companyId && senderIsStaffProxy) {
+      console.log(`Proxy staff sender unresolved: ${sender.name || sender.userId} phone=${phone91} (shadow creation skipped)`);
     }
 
     // If sender is a sales exec, assign them as account manager
@@ -923,196 +1315,346 @@ serve(async (req) => {
       const aliases = aliasRows || [];
 
       console.log(`Products loaded: ${products.length}, Aliases loaded: ${aliases.length}`);
-      const aiResult = await aiParseOrder(messageBody, products, aliases);
-      let orderItems: { productId: string; productName: string; quantity: number; confidence: number }[] = aiResult.items;
 
-      if (orderItems.length === 0) {
-        const matched = aliasMatchProduct(messageBody, products, aliases);
-        const qty = parseQuantity(messageBody);
-        console.log(`Rule-based match: ${matched ? matched.name : "NONE"}, qty: ${qty}`);
-        if (matched) {
-          orderItems = [{ productId: matched.id, productName: matched.name, quantity: qty, confidence: 0.7 }];
-        }
-      }
+      let skipNewOrderPipeline = false;
 
-      // Merge document-parsed items if available
-      if (documentParseResult && documentParseResult.items.length > 0) {
-        for (const docItem of documentParseResult.items) {
-          const matched = aliasMatchProduct(docItem.name, products, aliases);
-          if (matched && !orderItems.find((oi) => oi.productId === matched.id)) {
-            orderItems.push({
-              productId: matched.id,
-              productName: matched.name,
-              quantity: docItem.qty,
-              confidence: 0.8,
-            });
-          }
-        }
-      }
+      // ── Conservative clarification follow-up: must run before opening a second WhatsApp draft ──
+      const heldEarly = await findHeldClarificationOrder(supabaseAdmin, companyId);
+      if (heldEarly?.id) {
+        const trimmed = messageBody.trim();
+        let resolvedHere = false;
 
-      console.log(`Order items resolved: ${orderItems.length}`);
-
-      // ── PART 3: AUTO-FILL SHADOW DATA ──
-      if (isShadowClient && companyId) {
-        const bizInfo = aiResult.businessInfo;
-        if (bizInfo) {
-          const updates: Record<string, any> = {};
-          if (bizInfo.name) updates.business_name = bizInfo.name;
-          if (bizInfo.gst && /\d{2}[A-Z]{5}\d{4}[A-Z]{1}\d{1}[A-Z]{1}\d{1}/.test(bizInfo.gst)) {
-            updates.gst_number = bizInfo.gst;
-          }
-          if (bizInfo.address) updates.website = bizInfo.address;
-          if (Object.keys(updates).length > 0) {
-            await supabaseAdmin.from("companies").update(updates).eq("id", companyId);
-            console.log(`Shadow data auto-filled: ${JSON.stringify(updates)}`);
-          }
-        }
-        if (profileName && !aiResult.businessInfo?.name) {
-          await supabaseAdmin.from("companies")
-            .update({ business_name: `${profileName} (WhatsApp)` })
-            .eq("id", companyId)
-            .eq("business_name", `WhatsApp Lead ${phone91}`);
-        }
-      }
-
-      // ══════════════════════════════════════════
-      // CLARIFICATION LOOP — Low confidence items
-      // ══════════════════════════════════════════
-      const lowConfidenceItems = orderItems.filter((i) => i.confidence < 0.6);
-      const highConfidenceItems = orderItems.filter((i) => i.confidence >= 0.6);
-
-      if (lowConfidenceItems.length > 0) {
-        const clarificationLines = lowConfidenceItems.map(
-          (i) => `- "${i.productName}" x ${i.quantity}`
-        );
-        const clarifyMsg = [
-          `Greetings from Oasis Baklawa.`,
-          ``,
-          `Thank you for your order. We noticed a request for the following items and would like to confirm the specific variant or quantity:`,
-          ``,
-          ...clarificationLines,
-          ``,
-          `Please reply with corrections or simply confirm "Confirmed" to proceed.`,
-        ].join("\n");
-
-        await sendReply(phone91, clarifyMsg, supabaseAdmin, companyId);
-        console.log(`Clarification sent for ${lowConfidenceItems.length} low-confidence items`);
-      }
-
-      // ── CREATE DRAFT ORDER ──
-      if (orderItems.length > 0 || hasOrderIntent) {
-        console.log(`Creating draft order for ${companyId}, items: ${orderItems.length}`);
-        const { data: draftOrder, error: orderErr } = await supabaseAdmin
-          .from("orders")
-          .insert({
-            company_id: companyId,
-            status: "draft",
-            dispatch_urgency: "standard",
-            payment_status: "awaiting_advance",
-          })
-          .select("id")
-          .single();
-
-        console.log(`Draft result: ${JSON.stringify(draftOrder)}, err: ${orderErr?.message || "none"}`);
-        if (!orderErr && draftOrder) {
-          draftOrderId = draftOrder.id;
-
-          let estimatedTotal = 0;
-          const piItems: { name: string; qty: number }[] = [];
-
-          for (const item of orderItems) {
-            await supabaseAdmin.from("order_items").insert({
-              order_id: draftOrder.id,
-              product_id: item.productId,
-              quantity: item.quantity,
-              notes: `WhatsApp AI (confidence: ${(item.confidence * 100).toFixed(0)}%): "${messageBody.substring(0, 200)}"`,
-            });
-
-            const prod = products.find((p) => p.id === item.productId);
-            if (prod) {
-              const price = prod.price_b2b || prod.base_price || prod.price_per_kg || prod.wholesale_price || prod.price_wholesale || 0;
-              estimatedTotal += price * item.quantity;
-            }
-            piItems.push({ name: item.productName, qty: item.quantity });
-          }
-
-          if (orderItems.length === 0) {
-            await supabaseAdmin.from("debug_webhooks").insert({
-              direction: "inbound",
-              raw_payload: { message: messageBody, sender: senderPhone, company: companyName },
-              phone_number: phone91,
-              error_message: `No SKU Match: ${messageBody.substring(0, 500)}`,
-              processed: false,
-            });
-          }
-
-          const totalWithGst = Math.round(estimatedTotal * 1.18);
-          const advanceRequired = Math.max(Math.round((totalWithGst * 0.2) / 1000) * 1000, 1000);
-
-          await supabaseAdmin.from("orders").update({
-            sales_order_value: totalWithGst,
-            advance_required: advanceRequired,
-          }).eq("id", draftOrder.id);
-
-          // ── FINANCE: Auto SO/PI + WhatsApp delivery ──
-          if (piItems.length > 0) {
-            const piText = generateTextPI(draftOrder.id, companyName, piItems, totalWithGst);
-            await sendReply(phone91, piText, supabaseAdmin, companyId);
-            piSent = true;
-            console.log(`PI sent to ${phone91} for order ${draftOrder.id}`);
-          } else {
-            const itemsList = piItems.map((i) => `${i.name} x ${i.qty}`).join(", ");
-            const ackMsg = [
-              `Greetings from Oasis Baklawa.`,
-              ``,
-              `We have received your order request and our team will review it shortly.`,
-              ``,
-              `Your order reference: SO #${draftOrder.id.split("-")[0].toUpperCase()}`,
-            ].join("\n");
-            await sendReply(phone91, ackMsg, supabaseAdmin, companyId);
-          }
-
-          // Notify Sales Executive
-          if (accountManagerId) {
-            await supabaseAdmin.from("notifications").insert({
-              user_id: accountManagerId,
-              type: "whatsapp_order",
-              message: `New WhatsApp Draft Order from ${companyName}${piItems.length > 0 ? ` - ${piItems.map((i) => `${i.name} x ${i.qty}`).join(", ")}` : ""}. Review now.`,
-              is_read: false,
-            });
-          }
-
-          // Notify admins
-          const { data: admins } = await supabaseAdmin
-            .from("users").select("id")
-            .in("role", ["admin", "super_admin", "ADMIN", "SUPER_ADMIN"])
-            .limit(5);
-          for (const admin of admins || []) {
-            if (admin.id === accountManagerId) continue;
-            await supabaseAdmin.from("notifications").insert({
-              user_id: admin.id,
-              type: "whatsapp_order",
-              message: `WhatsApp Draft from ${companyName}: "${messageBody.substring(0, 100)}"`,
-              is_read: false,
-            });
-          }
-
-          // Log to CRM timeline
-          await supabaseAdmin.from("client_interactions").insert({
-            company_id: companyId,
-            executive_id: accountManagerId,
-            interaction_type: "whatsapp",
-            notes: `[SYSTEM_AI] Draft order ${draftOrder.id.slice(0, 8)} auto-created. ${piItems.length > 0 ? `Items: ${piItems.map((i) => `${i.name} x ${i.qty}`).join(", ")}.` : "No SKU match - manual review."} ${isShadowClient ? "Shadow client." : ""} ${piSent ? "PI sent via WhatsApp." : ""}`,
-            outcome: "draft_order_created",
+        if (isConfirmOnlyFollowup(trimmed)) {
+          resolvedHere = await resolveHeldOrderConfirm({
+            supabaseAdmin,
+            heldOrderId: heldEarly.id,
+            companyName,
+            phone91,
+            companyId,
+            accountManagerId,
+            messageBody,
+            products,
+            isShadowClient,
           });
+        } else if (trimmed.length > 0 && trimmed.length <= FOLLOWUP_PARSE_MAX_CHARS) {
+          const fuAi = await aiParseOrder(trimmed, products, aliases);
+          let fuItems: ParsedOrderItem[] = fuAi.items;
+          if (fuItems.length === 0) {
+            const matched = aliasMatchProduct(trimmed, products, aliases);
+            const qty = parseQuantity(trimmed);
+            if (matched) {
+              fuItems = [{ productId: matched.id, productName: matched.name, quantity: qty, confidence: 0.7 }];
+            }
+          }
+          if (fuItems.length > 0 && fuItems.every((i) => i.confidence >= HOLD_RELEASE_CONF)) {
+            resolvedHere = await resolveHeldOrderHighConfParse({
+              supabaseAdmin,
+              heldOrderId: heldEarly.id,
+              companyName,
+              phone91,
+              companyId,
+              accountManagerId,
+              messageBody: trimmed,
+              orderItems: fuItems,
+              products,
+              isShadowClient,
+            });
+          }
+        }
+
+        if (resolvedHere) {
+          draftOrderId = heldEarly.id;
+          piSent = true;
+          skipNewOrderPipeline = true;
+        } else {
+          const neutralHold = [
+            `Oasis Operations is still clarifying your pending order (ref ${heldEarly.id.slice(0, 8).toUpperCase()}).`,
+            ``,
+            `Please reply to our earlier WhatsApp message with the requested details, or send a brief confirmation if the information is already correct.`,
+            ``,
+            `— Oasis Operations`,
+          ].join("\n");
+          await sendReply(phone91, neutralHold, supabaseAdmin, companyId);
+          skipNewOrderPipeline = true;
+        }
+      }
+
+      if (!skipNewOrderPipeline) {
+        const aiResult = await aiParseOrder(messageBody, products, aliases);
+        let orderItems: ParsedOrderItem[] = aiResult.items;
+
+        if (orderItems.length === 0) {
+          const matched = aliasMatchProduct(messageBody, products, aliases);
+          const qty = parseQuantity(messageBody);
+          console.log(`Rule-based match: ${matched ? matched.name : "NONE"}, qty: ${qty}`);
+          if (matched) {
+            orderItems = [{ productId: matched.id, productName: matched.name, quantity: qty, confidence: 0.7 }];
+          }
+        }
+
+        if (documentParseResult && documentParseResult.items.length > 0) {
+          for (const docItem of documentParseResult.items) {
+            const matched = aliasMatchProduct(docItem.name, products, aliases);
+            if (matched && !orderItems.find((oi) => oi.productId === matched.id)) {
+              orderItems.push({
+                productId: matched.id,
+                productName: matched.name,
+                quantity: docItem.qty,
+                confidence: 0.8,
+              });
+            }
+          }
+        }
+
+        console.log(`Order items resolved: ${orderItems.length}`);
+
+        if (isShadowClient && companyId) {
+          const bizInfo = aiResult.businessInfo;
+          if (bizInfo) {
+            const updates: Record<string, any> = {};
+            if (bizInfo.name) updates.business_name = bizInfo.name;
+            if (bizInfo.gst && /\d{2}[A-Z]{5}\d{4}[A-Z]{1}\d{1}[A-Z]{1}\d{1}/.test(bizInfo.gst)) {
+              updates.gst_number = bizInfo.gst;
+            }
+            if (bizInfo.address) updates.website = bizInfo.address;
+            if (Object.keys(updates).length > 0) {
+              await supabaseAdmin.from("companies").update(updates).eq("id", companyId);
+              console.log(`Shadow data auto-filled: ${JSON.stringify(updates)}`);
+            }
+          }
+          if (profileName && !aiResult.businessInfo?.name) {
+            await supabaseAdmin.from("companies")
+              .update({ business_name: `${profileName} (WhatsApp)` })
+              .eq("id", companyId)
+              .eq("business_name", `WhatsApp Lead ${phone91}`);
+          }
+        }
+
+        const lowConfidenceItems = orderItems.filter((i) => i.confidence < CLARIFICATION_LOW_CONF);
+
+        if (lowConfidenceItems.length > 0 && orderItems.length > 0) {
+          const clarificationLines = lowConfidenceItems.map(
+            (i) => `- "${i.productName}" x ${i.quantity}`,
+          );
+          const clarifyMsg = [
+            `Oasis Operations has logged your order request and requires one clarification before sharing pricing:`,
+            ``,
+            `Please confirm the specific variant or quantity for:`,
+            ``,
+            ...clarificationLines,
+            ``,
+            `Please reply with corrections, or send a brief confirmation if the above is correct.`,
+            ``,
+            `— Oasis Operations`,
+          ].join("\n");
+
+          await sendReply(phone91, clarifyMsg, supabaseAdmin, companyId);
+          console.log(`Clarification hold: outbound clarification only (${lowConfidenceItems.length} low-confidence lines)`);
+
+          const minParserConf = Math.min(...orderItems.map((i) => i.confidence));
+          let heldTargetId: string | null = null;
+          const existingHeld = await findHeldClarificationOrder(supabaseAdmin, companyId);
+
+          if (existingHeld?.id) {
+            heldTargetId = existingHeld.id;
+            await supabaseAdmin.from("order_items").delete().eq("order_id", heldTargetId);
+            await supabaseAdmin.from("orders").update({
+              needs_clarification: true,
+              status: "awaiting_clarification",
+              parser_confidence: minParserConf,
+              dispatch_urgency: "standard",
+              payment_status: "awaiting_advance",
+            }).eq("id", heldTargetId);
+          } else {
+            const { data: ins, error: insErr } = await supabaseAdmin
+              .from("orders")
+              .insert({
+                company_id: companyId,
+                status: "awaiting_clarification",
+                needs_clarification: true,
+                parser_confidence: minParserConf,
+                dispatch_urgency: "standard",
+                payment_status: "awaiting_advance",
+              })
+              .select("id")
+              .single();
+            if (!insErr && ins?.id) heldTargetId = ins.id;
+          }
+
+          if (heldTargetId) {
+            draftOrderId = heldTargetId;
+            let estimatedTotal = 0;
+            const piItems: { name: string; qty: number }[] = [];
+
+            for (const item of orderItems) {
+              await supabaseAdmin.from("order_items").insert({
+                order_id: heldTargetId,
+                product_id: item.productId,
+                quantity: item.quantity,
+                notes: `WhatsApp AI (confidence: ${(item.confidence * 100).toFixed(0)}%): "${messageBody.substring(0, 200)}"`,
+              });
+              const prod = products.find((p) => p.id === item.productId);
+              if (prod) {
+                const price = prod.price_b2b || prod.base_price || prod.price_per_kg || prod.wholesale_price || prod.price_wholesale || 0;
+                estimatedTotal += price * item.quantity;
+              }
+              piItems.push({ name: item.productName, qty: item.quantity });
+            }
+
+            const totalWithGst = Math.round(estimatedTotal * 1.18);
+            const advanceRequired = Math.max(Math.round((totalWithGst * 0.2) / 1000) * 1000, 1000);
+            await supabaseAdmin.from("orders").update({
+              sales_order_value: totalWithGst,
+              advance_required: advanceRequired,
+            }).eq("id", heldTargetId);
+
+            if (accountManagerId) {
+              await supabaseAdmin.from("notifications").insert({
+                user_id: accountManagerId,
+                type: "whatsapp_order",
+                message: `WhatsApp order awaiting clarification from ${companyName}${piItems.length > 0 ? ` — ${piItems.map((i) => `${i.name} x ${i.qty}`).join(", ")}` : ""}. No PI sent yet.`,
+                is_read: false,
+              });
+            }
+
+            const { data: adminsHold } = await supabaseAdmin
+              .from("users").select("id")
+              .in("role", ["admin", "super_admin", "ADMIN", "SUPER_ADMIN"])
+              .limit(5);
+            for (const admin of adminsHold || []) {
+              if (admin.id === accountManagerId) continue;
+              await supabaseAdmin.from("notifications").insert({
+                user_id: admin.id,
+                type: "whatsapp_order",
+                message: `Clarification hold: ${companyName} — "${messageBody.substring(0, 100)}"`,
+                is_read: false,
+              });
+            }
+
+            await supabaseAdmin.from("client_interactions").insert({
+              company_id: companyId,
+              executive_id: accountManagerId,
+              interaction_type: "whatsapp",
+              notes: `[SYSTEM_AI] Clarification hold ${heldTargetId.slice(0, 8)}. ${piItems.length > 0 ? `Items: ${piItems.map((i) => `${i.name} x ${i.qty}`).join(", ")}.` : ""} ${isShadowClient ? "Shadow client." : ""} Parser min conf ${(minParserConf * 100).toFixed(0)}%. No PI sent.`,
+              outcome: existingHeld?.id ? "clarification_hold_updated" : "clarification_hold",
+            });
+          }
+        } else if (orderItems.length > 0 || hasOrderIntent) {
+          console.log(`Creating draft order for ${companyId}, items: ${orderItems.length}`);
+          const { data: draftOrder, error: orderErr } = await supabaseAdmin
+            .from("orders")
+            .insert({
+              company_id: companyId,
+              status: "draft",
+              dispatch_urgency: "standard",
+              payment_status: "awaiting_advance",
+            })
+            .select("id")
+            .single();
+
+          console.log(`Draft result: ${JSON.stringify(draftOrder)}, err: ${orderErr?.message || "none"}`);
+          if (!orderErr && draftOrder) {
+            draftOrderId = draftOrder.id;
+
+            let estimatedTotal = 0;
+            const piItems: { name: string; qty: number }[] = [];
+
+            for (const item of orderItems) {
+              await supabaseAdmin.from("order_items").insert({
+                order_id: draftOrder.id,
+                product_id: item.productId,
+                quantity: item.quantity,
+                notes: `WhatsApp AI (confidence: ${(item.confidence * 100).toFixed(0)}%): "${messageBody.substring(0, 200)}"`,
+              });
+
+              const prod = products.find((p) => p.id === item.productId);
+              if (prod) {
+                const price = prod.price_b2b || prod.base_price || prod.price_per_kg || prod.wholesale_price || prod.price_wholesale || 0;
+                estimatedTotal += price * item.quantity;
+              }
+              piItems.push({ name: item.productName, qty: item.quantity });
+            }
+
+            if (orderItems.length === 0) {
+              await supabaseAdmin.from("debug_webhooks").insert({
+                direction: "inbound",
+                raw_payload: { message: messageBody, sender: senderPhone, company: companyName },
+                phone_number: phone91,
+                error_message: `No SKU Match: ${messageBody.substring(0, 500)}`,
+                processed: false,
+              });
+            }
+
+            const totalWithGst = Math.round(estimatedTotal * 1.18);
+            const advanceRequired = Math.max(Math.round((totalWithGst * 0.2) / 1000) * 1000, 1000);
+
+            await supabaseAdmin.from("orders").update({
+              sales_order_value: totalWithGst,
+              advance_required: advanceRequired,
+              parser_confidence: orderItems.length > 0 ? Math.min(...orderItems.map((i) => i.confidence)) : null,
+            }).eq("id", draftOrder.id);
+
+            piSent = await sendPiNotificationsAndCrm({
+              supabaseAdmin,
+              draftOrderId: draftOrder.id,
+              companyName,
+              phone91,
+              companyId,
+              accountManagerId,
+              messageBody,
+              piItems,
+              totalWithGst,
+              isShadowClient,
+              crmOutcome: "draft_order_created",
+              crmNotesSuffix: `Draft order ${draftOrder.id.slice(0, 8)} auto-created. ${piItems.length > 0 ? `Items: ${piItems.map((i) => `${i.name} x ${i.qty}`).join(", ")}.` : "No SKU match - manual review."}`,
+            });
+          }
         }
       }
     } else if (messageBody && companyId && !hasOrderIntent) {
-      const ackMsg = [
-        `Greetings from Oasis Baklawa.`,
-        ``,
-        `Thank you for reaching out${profileName ? ", " + profileName : ""}. Our team will get back to you shortly.`,
-      ].join("\n");
+      // Intent-aware acknowledgement in corporate tone.
+      let ackMsg: string;
+      if (messageIntent === "PAYMENT_PROOF") {
+        ackMsg = [
+          `Oasis Operations has received your payment proof.`,
+          ``,
+          `Our Finance team will verify and update your account within one working day.`,
+          ``,
+          `— Oasis Operations`,
+        ].join("\n");
+      } else if (messageIntent === "COMPLAINT") {
+        ackMsg = [
+          `Oasis Operations has received your complaint.`,
+          ``,
+          `Our team has been notified and will review and respond within 24 hours.`,
+          ``,
+          `— Oasis Operations`,
+        ].join("\n");
+      } else if (messageIntent === "DISPATCH_FOLLOWUP") {
+        ackMsg = [
+          `Oasis Operations has received your dispatch follow-up request.`,
+          ``,
+          `Our Logistics team will share the latest shipment status shortly.`,
+          ``,
+          `— Oasis Operations`,
+        ].join("\n");
+      } else if (messageIntent === "PACKAGING_MATERIAL_REQUEST") {
+        ackMsg = [
+          `Oasis Operations has received your packaging material request.`,
+          ``,
+          `Our team will review availability and respond shortly.`,
+          ``,
+          `— Oasis Operations`,
+        ].join("\n");
+      } else {
+        ackMsg = [
+          `Oasis Operations has received your message.`,
+          ``,
+          `Our team will review and respond shortly.`,
+          ``,
+          `— Oasis Operations`,
+        ].join("\n");
+      }
       await sendReply(phone91, ackMsg, supabaseAdmin, companyId);
     }
 
@@ -1138,6 +1680,7 @@ serve(async (req) => {
         company: companyName,
         company_id: companyId,
         sender_type: sender.type,
+        message_intent: messageIntent,
         order_intent: hasOrderIntent,
         draft_order_id: draftOrderId,
         pi_sent: piSent,
@@ -1166,3 +1709,4 @@ serve(async (req) => {
     });
   }
 });
+

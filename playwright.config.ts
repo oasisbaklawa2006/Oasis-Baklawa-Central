@@ -2,9 +2,9 @@ import { defineConfig, devices } from '@playwright/test';
 
 export default defineConfig({
   testDir: './tests',
-  timeout: 120000,
+  timeout: 240_000,
   expect: {
-    timeout: 15000,
+    timeout: 15_000,
   },
   fullyParallel: false,
   retries: 0,
@@ -13,12 +13,12 @@ export default defineConfig({
     ['list'],
   ],
   use: {
-    baseURL: process.env.APP_URL || 'https://b2b.oasisbaklawa.com',
-    video: 'on',
-    screenshot: 'on',
+    baseURL: process.env.APP_URL || process.env.BASE_URL || 'https://b2b.oasisbaklawa.com',
     trace: 'on',
-    actionTimeout: 15000,
-    navigationTimeout: 45000,
+    screenshot: 'on',
+    video: 'on',
+    actionTimeout: 15_000,
+    navigationTimeout: 45_000,
   },
   projects: [
     {

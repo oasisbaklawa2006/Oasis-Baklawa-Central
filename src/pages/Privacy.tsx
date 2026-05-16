@@ -23,7 +23,7 @@ const Privacy = () => (
         <section>
           <h2 className="text-lg font-semibold text-foreground mb-3">1. Purpose of Data Collection</h2>
           <p>
-            We collect basic profile information (name and email) provided by Google or Apple Sign-In solely for the purpose of authenticating your account and granting access to the Oasis Baklawa Central B2B portal. We do not use this information for marketing or advertising.
+            We collect account and profile information needed to authenticate you and operate the Oasis Baklawa Central B2B portal—primarily through email and password sign-in, mobile one-time codes (SMS, WhatsApp, or voice where supported), and details you provide in your partner application. We do not use this information for marketing or advertising.
           </p>
         </section>
 
@@ -37,8 +37,9 @@ const Privacy = () => (
         <section>
           <h2 className="text-lg font-semibold text-foreground mb-3">3. Information We Collect</h2>
           <ul className="list-disc pl-6 space-y-2">
-            <li>Name and email address (via Google/Apple authentication)</li>
-            <li>Business profile details you provide during onboarding</li>
+            <li>Email address and password (processed by our authentication provider)</li>
+            <li>Phone number when you use mobile one-time code sign-in</li>
+            <li>Name and business profile details you provide during onboarding</li>
             <li>Order history and transactional records associated with your account</li>
           </ul>
         </section>

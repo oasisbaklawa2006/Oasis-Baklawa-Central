@@ -111,6 +111,25 @@ serve(async (req) => {
     }
 
     let resolvedCompanyId: string | null = company_id ?? null;
+    let senderStaffUserId: string | null = null;
+    if (phone) {
+      const digits = phone.replace(/\D/g, "");
+      const last10 = digits.slice(-10);
+      const { data: byPrimary } = await supabaseAdmin
+        .from("users")
+        .select("id")
+        .or(`phone.ilike.%${last10},mobile_number.ilike.%${last10}`)
+        .limit(1);
+      if (byPrimary?.[0]?.id) senderStaffUserId = byPrimary[0].id;
+      if (!senderStaffUserId) {
+        const { data: bySecondary } = await supabaseAdmin
+          .from("users")
+          .select("id")
+          .contains("secondary_phones", [`+${digits}`])
+          .limit(1);
+        if (bySecondary?.[0]?.id) senderStaffUserId = bySecondary[0].id;
+      }
+    }
 
     // --- STEP 1: Context-based company resolution (NOT from sender phone) ---
     if (!resolvedCompanyId && candidate_company_name) {
@@ -124,6 +143,12 @@ serve(async (req) => {
 
     // Fallback: shadow client by phone
     if (!resolvedCompanyId && phone) {
+      if (senderStaffUserId) {
+        return new Response(
+          JSON.stringify({ error: "Proxy employee order requires explicit client resolution (company_id or candidate_company_name)." }),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+        );
+      }
       const digits = phone.replace(/\D/g, "");
       const last10 = digits.slice(-10);
       const { data: companies } = await supabaseAdmin
@@ -160,7 +185,7 @@ serve(async (req) => {
     }
 
     // --- STEP 1b: Three-Step Sender Identification → Sales Exec ---
-    let salesExecId: string | null = null;
+    let salesExecId: string | null = senderStaffUserId;
     if (phone) {
       const digits = phone.replace(/\D/g, "");
       const last10 = digits.slice(-10);

@@ -44,6 +44,15 @@ const getDocStageStyle = (stage: string | null) => {
   }
 };
 
+/** Safe for toast / console.error (never log raw tokens). */
+function formatUploadDiag(prefix: string, err: unknown): string {
+  const raw =
+    err && typeof err === "object" && "message" in err && typeof (err as { message: unknown }).message === "string"
+      ? (err as { message: string }).message
+      : String(err ?? "unknown_error");
+  return `${prefix}${raw.replace(/Bearer\s+\S+/gi, "[token]").slice(0, 400)}`;
+}
+
 type TimeFilter = "30days" | "6months" | "2026" | "all";
 
 const Orders = () => {
@@ -78,7 +87,7 @@ const Orders = () => {
       const { data, error } = await supabase
         .from("orders")
         .select(
-          "id, status, payment_status, payment_receipt_url, created_at, actual_despatch_date, sales_order_value, document_stage, payment_cleared, eway_bill_number, proforma_invoice_url, final_invoice_url, eway_bill_url, company:companies(business_name, gst_number), order_items(*, product:products(name, image_url, pack_size, carton_type, wholesale_price, mrp, price_per_kg, price_b2b, base_price, avg_weight_per_pack, net_weight_grams, gst_percentage, hsn_code, uom, category, sub_category, moq, packs_per_master_carton, pcs_per_master_carton))",
+          "id, status, payment_status, payment_receipt_url, created_at, actual_despatch_date, sales_order_value, document_stage, payment_cleared, eway_bill_number, proforma_invoice_url, final_invoice_url, eway_bill_url, company_id, advance_paid, advance_required, company:companies(business_name, gst_number), order_items(*, product:products(name, image_url, pack_size, carton_type, wholesale_price, mrp, price_per_kg, price_b2b, base_price, avg_weight_per_pack, net_weight_grams, gst_percentage, hsn_code, uom, category, sub_category, moq, packs_per_master_carton, pcs_per_master_carton))",
         )
         .eq("company_id", resolvedCompanyId)
         .in("status", ["submitted", "pending", "processing", "dispatched", "delivered", "cancelled"])
@@ -119,25 +128,86 @@ const Orders = () => {
       toast.error("Please enter a reference number and attach a file.");
       return;
     }
+    if (!user?.id) {
+      toast.error("Your session expired. Sign in again to upload.");
+      return;
+    }
     setIsUploadingReceipt(true);
+    const oid = receiptModal.orderId;
+    const fileExt = receiptFile.name.split(".").pop();
+    const fileName = `${oid}-${Date.now()}.${fileExt}`;
+    let uploadedToStorage = false;
+
     try {
-      const fileExt = receiptFile.name.split(".").pop();
-      const fileName = `${receiptModal.orderId}-${Date.now()}.${fileExt}`;
-      const { error: uploadError } = await supabase.storage.from("receipts").upload(fileName, receiptFile);
-      if (uploadError) throw uploadError;
-      const { data: { publicUrl } } = supabase.storage.from("receipts").getPublicUrl(fileName);
+      const { error: uploadError } = await supabase.storage.from("receipts").upload(fileName, receiptFile, {
+        upsert: false,
+      });
+      if (uploadError) {
+        const diag = formatUploadDiag("Storage upload: ", uploadError);
+        console.error("[Orders]", diag);
+        toast.error("Could not upload file to receipts storage. Try again or use a smaller image/PDF.");
+        return;
+      }
+      uploadedToStorage = true;
+
+      const {
+        data: { publicUrl },
+      } = supabase.storage.from("receipts").getPublicUrl(fileName);
+
       const { error: updateError } = await supabase
         .from("orders")
         .update({ payment_receipt_url: publicUrl, payment_status: "under_review" })
-        .eq("id", receiptModal.orderId);
-      if (updateError) throw updateError;
+        .eq("id", oid);
+      if (updateError) {
+        const diag = formatUploadDiag("Orders update after receipt upload: ", updateError);
+        console.error("[Orders]", diag);
+        toast.error("Receipt file saved but the order could not be updated (permissions/network). Contact support.");
+        await supabase.storage.from("receipts").remove([fileName]).catch(() => {});
+        return;
+      }
+
+      const matchedOrder = orders.find((o) => o.id === oid);
+      const payCompanyId = matchedOrder?.company_id ?? companyId ?? null;
+      const payAmountRaw = matchedOrder?.advance_paid ?? matchedOrder?.advance_required ?? 0;
+      const payAmount =
+        typeof payAmountRaw === "number" ? payAmountRaw : Number(payAmountRaw) || 0;
+
+      const { error: paymentInsertError } = await supabase.from("order_payments").insert({
+        order_id: oid,
+        company_id: payCompanyId,
+        payment_type: "advance",
+        amount: payAmount,
+        payment_date: new Date().toISOString(),
+        reference_no: receiptRef.trim(),
+        proof_url: publicUrl,
+        proof_storage_path: fileName,
+        created_by: user.id,
+        status: "under_review",
+      });
+      if (paymentInsertError) {
+        const diag = formatUploadDiag("order_payments insert after receipt: ", paymentInsertError);
+        console.error("[Orders]", diag);
+        toast.error("Receipt attached but payment ledger row failed — reverting status; try again shortly.");
+        await supabase
+          .from("orders")
+          .update({ payment_receipt_url: null, payment_status: "awaiting_receipt" })
+          .eq("id", oid);
+        await supabase.storage.from("receipts").remove([fileName]).catch(() => {});
+        return;
+      }
+
       toast.success("Payment receipt uploaded! Verification in progress.");
       setReceiptModal({ isOpen: false, orderId: null });
       setReceiptFile(null);
       setReceiptRef("");
       fetchOrders();
-    } catch (error: any) {
-      toast.error(error.message || "Failed to upload receipt.");
+    } catch (error: unknown) {
+      const diag = formatUploadDiag("Receipt upload unexpected: ", error);
+      console.error("[Orders]", diag);
+      toast.error("Receipt upload failed. Please try again.");
+      if (uploadedToStorage) {
+        await supabase.storage.from("receipts").remove([fileName]).catch(() => {});
+      }
     } finally {
       setIsUploadingReceipt(false);
     }

@@ -89,7 +89,7 @@ const AdminHelpSidebar = () => {
         whileHover={{ scale: 1.08 }}
         whileTap={{ scale: 0.95 }}
         onClick={() => setOpen(true)}
-        className="fixed bottom-6 right-6 z-50 w-12 h-12 rounded-full flex items-center justify-center shadow-lg transition-colors"
+        className="fixed bottom-6 right-6 z-[160] w-12 h-12 rounded-full flex items-center justify-center shadow-lg transition-colors"
         style={{
           background: "linear-gradient(135deg, #C4A052, #D4B56A)",
           color: "#0a0a0a",
@@ -107,7 +107,7 @@ const AdminHelpSidebar = () => {
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              className="fixed inset-0 z-[60] bg-black/40 backdrop-blur-sm"
+              className="fixed inset-0 z-[170] bg-black/40 backdrop-blur-sm"
               onClick={() => setOpen(false)}
             />
             <motion.div
@@ -115,7 +115,7 @@ const AdminHelpSidebar = () => {
               animate={{ x: 0 }}
               exit={{ x: "100%" }}
               transition={{ type: "spring", damping: 28, stiffness: 300 }}
-              className="fixed right-0 top-0 bottom-0 z-[70] w-full max-w-sm overflow-y-auto"
+              className="fixed right-0 top-0 bottom-0 z-[180] w-full max-w-sm overflow-y-auto"
               style={{ backgroundColor: "#111111", borderLeft: "1px solid rgba(196,160,82,0.15)" }}
             >
               {/* Header */}

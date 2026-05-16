@@ -241,6 +241,7 @@ serve(async (req) => {
     const { data: companies } = await supabaseAdmin
       .from("companies")
       .select("id, business_name")
+      .neq("status", "shadow")
       .order("business_name");
 
     for (const sender of eligibleSenders) {
@@ -270,12 +271,65 @@ serve(async (req) => {
       const ai = await callVisionAI(textContent, imageUrls);
 
       // 3. Match to company
-      const matchedCompanyId = ai.business_name
+      let matchedCompanyId = ai.business_name
         ? fuzzyMatchCompany(ai.business_name, (companies || []) as any)
         : null;
 
       let shadowClientId: string | null = null;
       if (!matchedCompanyId) {
+        // Reconcile to the canonical shadow company model (`companies.status='shadow'`)
+        // when Banyan cannot AI-match a company.
+        const last10 = sender; // `whatsapp_buffer.sender_phone` is normalized to last-10 digits.
+        const phone91 = to91(sender);
+        const shadowGstNumber = `WA:${phone91}`;
+
+        const profileNameCandidate = ai.business_name || senderName || null;
+        const shadowBusinessName = profileNameCandidate
+          ? `${profileNameCandidate} (WhatsApp)`
+          : `WhatsApp Lead ${phone91}`;
+
+        // Find-before-insert to avoid duplicate shadow companies for the same sender.
+        const { data: existingShadow } = await supabaseAdmin
+          .from("companies")
+          .select("id")
+          .eq("status", "shadow")
+          .eq("gst_number", shadowGstNumber)
+          .maybeSingle();
+
+        if (existingShadow?.id) {
+          matchedCompanyId = existingShadow.id as string;
+        } else {
+          // Fallback: handle historical records where `gst_number` / `phone` format
+          // may differ, but still contains the sender's last-10 digits.
+          const { data: partialShadow } = await supabaseAdmin
+            .from("companies")
+            .select("id")
+            .eq("status", "shadow")
+            .or(`gst_number.ilike.%${last10}%,phone.ilike.%${last10}%`)
+            .limit(1);
+
+          matchedCompanyId = (partialShadow?.[0]?.id as string | undefined) || matchedCompanyId;
+
+          if (!matchedCompanyId) {
+            const { data: newCompany, error: compErr } = await supabaseAdmin
+              .from("companies")
+              .insert({
+                business_name: shadowBusinessName,
+                status: "shadow",
+                gst_number: shadowGstNumber,
+                price_tier: "B2B",
+              })
+              .select("id")
+              .single();
+
+            if (!compErr && newCompany?.id) {
+              matchedCompanyId = newCompany.id as string;
+            } else if (compErr) {
+              console.error("[banyan-central-parser] shadow company create failed:", compErr.message);
+            }
+          }
+        }
+
         // upsert shadow client by phone
         const { data: existing } = await supabaseAdmin
           .from("shadow_clients")

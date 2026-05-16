@@ -13,6 +13,7 @@ interface RawMessage {
   created_at: string;
   error_message: string | null;
   processed: boolean | null;
+  message_intent: string | null;
 }
 
 interface AliasMatch {
@@ -32,6 +33,7 @@ export default function RawIntelligenceTab() {
   // Alias drawer state — opens with optional pre-filled token from an UNRECOGNIZED SKU.
   const [aliasDrawerOpen, setAliasDrawerOpen] = useState(false);
   const [pendingAliasToken, setPendingAliasToken] = useState<string | null>(null);
+  const [intentFilter, setIntentFilter] = useState<string>("");
 
   // Pull aliases from BOTH sources: (1) product_aliases lookup table,
   // (2) products.aliases[] array column. The merged list is fed to the parser
@@ -82,13 +84,15 @@ export default function RawIntelligenceTab() {
     setLoading(true);
     const { data } = await supabase
       .from("debug_webhooks")
-      .select("id, phone_number, raw_payload, created_at, error_message, processed")
+      .select("id, phone_number, raw_payload, created_at, error_message, processed, message_intent")
       .eq("direction", "inbound")
       .order("created_at", { ascending: false })
       .limit(80);
 
     // Hard metadata filter — hide wamid-only acks, OAuthExceptions, and empty payloads.
-    const filtered = ((data as RawMessage[]) ?? []).filter((m) => {
+    // `message_intent` may exist at runtime; generated `debug_webhooks` Row omits it until types are regenerated.
+    const rows = (data ?? []) as unknown as RawMessage[];
+    const filtered = rows.filter((m) => {
       const str = JSON.stringify(m.raw_payload || "");
       const hasMessage = !!m.raw_payload?.entry?.[0]?.changes?.[0]?.value?.messages?.[0];
       if (!hasMessage) return false;                          // status pings, no actual content
@@ -134,7 +138,7 @@ export default function RawIntelligenceTab() {
       if (!companyId) {
         const { data: created, error: insErr } = await supabase
           .from("companies")
-          .insert({ business_name: trimmed, status: "active" } as any)
+          .insert({ business_name: trimmed, status: "shadow" } as any)
           .select("id")
           .single();
         if (insErr || !created) {
@@ -263,7 +267,12 @@ export default function RawIntelligenceTab() {
       });
 
       if (error || !data?.ok) {
-        toast.error(data?.error || "Failed to create draft order");
+        const endpointError = data?.error || error?.message || "Failed to create draft order";
+        if (String(endpointError).includes("Proxy employee order requires explicit client resolution")) {
+          toast.error("Client resolution required for proxy/staff order. Include the client business name before creating Draft SO.");
+        } else {
+          toast.error(endpointError);
+        }
         setCreatingDraft(null);
         return;
       }
@@ -289,16 +298,65 @@ export default function RawIntelligenceTab() {
     }
   };
 
-  const failed = messages.filter((m) => !m.processed || m.error_message);
+  const ALL_INTENTS = [
+    "ORDER", "ORDER_MODIFICATION", "ORDER_CANCELLATION", "COMPLAINT",
+    "PAYMENT_PROOF", "PURCHASE_ORDER_DOCUMENT", "CLIENT_KYC_DOCUMENT",
+    "SO_REFERENCE", "DISPATCH_FOLLOWUP", "PACKAGING_MATERIAL_REQUEST",
+    "GENERAL_INQUIRY", "INTERNAL_NOTE", "OTHER",
+  ];
+
+  const INTENT_COLORS: Record<string, string> = {
+    ORDER:                       "bg-emerald-500/15 text-emerald-700",
+    ORDER_MODIFICATION:          "bg-sky-500/15 text-sky-700",
+    ORDER_CANCELLATION:          "bg-red-500/15 text-red-700",
+    COMPLAINT:                   "bg-red-600/20 text-red-800",
+    PAYMENT_PROOF:               "bg-violet-500/15 text-violet-700",
+    PURCHASE_ORDER_DOCUMENT:     "bg-amber-500/15 text-amber-700",
+    CLIENT_KYC_DOCUMENT:         "bg-amber-400/15 text-amber-600",
+    SO_REFERENCE:                "bg-sky-400/15 text-sky-600",
+    DISPATCH_FOLLOWUP:           "bg-teal-500/15 text-teal-700",
+    PACKAGING_MATERIAL_REQUEST:  "bg-orange-400/15 text-orange-700",
+    GENERAL_INQUIRY:             "bg-muted text-muted-foreground",
+    INTERNAL_NOTE:               "bg-muted text-muted-foreground",
+    OTHER:                       "bg-muted text-muted-foreground",
+  };
+
+  const intentLabel = (intent: string | null): string =>
+    intent ? intent.replace(/_/g, " ") : "—";
+
+  const unprocessedMessages = messages.filter((m) => !m.processed || m.error_message);
+  const failed = intentFilter
+    ? unprocessedMessages.filter((m) => (m.message_intent ?? "OTHER") === intentFilter)
+    : unprocessedMessages;
   const processed = messages.filter((m) => m.processed && !m.error_message);
 
   return (
     <div className="space-y-3">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="text-xs text-muted-foreground">
-          {failed.length} inbound message{failed.length !== 1 ? "s" : ""} need attention.
+          {failed.length} inbound message{failed.length !== 1 ? "s" : ""} need attention
+          {intentFilter ? ` · filtered: ${intentLabel(intentFilter)}` : ""}.
         </p>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          {/* Intent filter */}
+          <select
+            value={intentFilter}
+            onChange={(e) => setIntentFilter(e.target.value)}
+            className="h-7 rounded-md border border-border bg-card px-2 text-xs focus:ring-1 focus:ring-primary focus:outline-none cursor-pointer"
+          >
+            <option value="">All intents</option>
+            {ALL_INTENTS.map((i) => (
+              <option key={i} value={i}>{intentLabel(i)}</option>
+            ))}
+          </select>
+          {intentFilter && (
+            <button
+              onClick={() => setIntentFilter("")}
+              className="h-7 px-2 text-xs text-muted-foreground hover:text-foreground border border-border rounded-md transition-colors"
+            >
+              Clear
+            </button>
+          )}
           <button
             onClick={() => openAliasDrawer(null)}
             className="flex items-center gap-1 text-xs text-primary hover:opacity-80 px-2 py-1 rounded border border-primary/30"
@@ -349,7 +407,12 @@ export default function RawIntelligenceTab() {
                   )}
                 </div>
               </div>
-              <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
+              <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground flex-wrap justify-end">
+                {msg.message_intent && (
+                  <span className={`px-1.5 py-0.5 rounded font-bold uppercase tracking-wide text-[9px] ${INTENT_COLORS[msg.message_intent] ?? INTENT_COLORS.OTHER}`}>
+                    {intentLabel(msg.message_intent)}
+                  </span>
+                )}
                 {msgTypeIcon(msgType)}
                 <span>{relativeTimeIST(msg.created_at)}</span>
               </div>
