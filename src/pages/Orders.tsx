@@ -87,7 +87,7 @@ const Orders = () => {
       const { data, error } = await supabase
         .from("orders")
         .select(
-          "id, status, payment_status, payment_receipt_url, created_at, actual_despatch_date, sales_order_value, document_stage, payment_cleared, eway_bill_number, proforma_invoice_url, final_invoice_url, eway_bill_url, company_id, advance_paid, advance_required, company:companies(business_name, gst_number), order_items(*, product:products(name, image_url, pack_size, carton_type, wholesale_price, mrp, price_per_kg, price_b2b, base_price, avg_weight_per_pack, net_weight_grams, gst_percentage, hsn_code, uom, category, sub_category, moq, packs_per_master_carton, pcs_per_master_carton))",
+          "id, status, payment_status, payment_receipt_url, payment_rejection_reason, created_at, actual_despatch_date, sales_order_value, document_stage, payment_cleared, eway_bill_number, proforma_invoice_url, final_invoice_url, eway_bill_url, company_id, advance_paid, advance_required, company:companies(business_name, gst_number), order_items(*, product:products(name, image_url, pack_size, carton_type, wholesale_price, mrp, price_per_kg, price_b2b, base_price, avg_weight_per_pack, net_weight_grams, gst_percentage, hsn_code, uom, category, sub_category, moq, packs_per_master_carton, pcs_per_master_carton))",
         )
         .eq("company_id", resolvedCompanyId)
         .in("status", ["submitted", "pending", "processing", "dispatched", "delivered", "cancelled"])
@@ -156,7 +156,7 @@ const Orders = () => {
 
       const { error: updateError } = await supabase
         .from("orders")
-        .update({ payment_receipt_url: publicUrl, payment_status: "under_review" })
+        .update({ payment_receipt_url: publicUrl, payment_status: "under_review", payment_rejection_reason: null })
         .eq("id", oid);
       if (updateError) {
         const diag = formatUploadDiag("Orders update after receipt upload: ", updateError);
@@ -342,7 +342,8 @@ const Orders = () => {
                       <div className="flex flex-wrap gap-2 mt-1">
                         {needsReceipt ? (
                           <span className="bg-amber-100 text-amber-800 px-2.5 py-1 rounded-md text-[10px] font-bold uppercase flex items-center gap-1">
-                            <AlertCircle size={12} /> Upload Receipt Required
+                            <AlertCircle size={12} />{" "}
+                            {order.payment_rejection_reason ? "Payment rejected — upload receipt" : "Upload Receipt Required"}
                           </span>
                         ) : isVerifying ? (
                           <span className="bg-blue-50 text-blue-700 px-2.5 py-1 rounded-md text-[10px] font-bold uppercase flex items-center gap-1">
@@ -370,6 +371,18 @@ const Orders = () => {
                           {getDocStageLabel(order.document_stage)}
                         </span>
                       </div>
+
+                      {needsReceipt && order.payment_rejection_reason ? (
+                        <div className="mt-3 rounded-xl border border-destructive/25 bg-destructive/5 px-3 py-2.5 text-sm">
+                          <p className="text-xs font-bold uppercase text-destructive tracking-wide">
+                            Finance rejected this payment proof
+                          </p>
+                          <p className="text-foreground mt-1.5 whitespace-pre-wrap break-words">{order.payment_rejection_reason}</p>
+                          <p className="text-xs text-muted-foreground mt-2 font-semibold">
+                            Upload a corrected receipt using &quot;Upload Receipt&quot; below.
+                          </p>
+                        </div>
+                      ) : null}
                     </div>
                   </div>
 

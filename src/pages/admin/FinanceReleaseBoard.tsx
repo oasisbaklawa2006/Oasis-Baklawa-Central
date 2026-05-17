@@ -46,6 +46,7 @@ interface BoardOrder {
   advance_paid: number | null;
   created_at: string | null;
   payment_receipt_url: string | null;
+  payment_rejection_reason: string | null;
   tracking_number: string | null;
   actual_despatch_date: string | null;
   company?: { business_name: string } | null;
@@ -93,7 +94,7 @@ const FinanceReleaseBoard = () => {
     setLoading(true);
 
     const baseSelect =
-      "id, status, payment_status, sales_order_value, advance_required, advance_paid, created_at, payment_receipt_url, tracking_number, actual_despatch_date, company:companies(business_name)";
+      "id, status, payment_status, sales_order_value, advance_required, advance_paid, created_at, payment_receipt_url, payment_rejection_reason, tracking_number, actual_despatch_date, company:companies(business_name)";
 
     const [aq, rq, pq, dq] = await Promise.all([
       supabase
@@ -204,11 +205,13 @@ const FinanceReleaseBoard = () => {
               payment_status: "verified_advance",
               finance_verified_by: user.id,
               finance_verified_at: isoNow(),
+              payment_rejection_reason: null,
             }
           : {
               payment_status: "on_credit",
               finance_verified_by: user.id,
               finance_verified_at: isoNow(),
+              payment_rejection_reason: null,
             };
       const { error } = await supabase.from("orders").update(patch).eq("id", reviewOrder.id);
       if (error) throw error;
@@ -236,6 +239,7 @@ const FinanceReleaseBoard = () => {
         .from("orders")
         .update({
           payment_status: "awaiting_receipt",
+          payment_rejection_reason: trimmed,
         })
         .eq("id", reviewOrder.id);
 
