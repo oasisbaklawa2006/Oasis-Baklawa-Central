@@ -1,6 +1,7 @@
 import { test, expect, type Page } from '@playwright/test';
 
-const PREVIEW_URL = process.env.TEST_PREVIEW_URL || 'http://localhost:3000';
+/** QA preview (override with `http://localhost:3000` for local app). */
+const PREVIEW_URL = process.env.TEST_PREVIEW_URL || 'https://cursor-central-vercel.vercel.app';
 
 async function login(page: Page, email: string, password: string) {
   await page.goto(`${PREVIEW_URL}/login`, { waitUntil: 'domcontentloaded', timeout: 60000 });
@@ -209,12 +210,12 @@ async function assertBlockedFromFinanceBoard(page: Page) {
 test.describe('Golden Pipeline — End-to-End', () => {
   test.describe.configure({ mode: 'serial' });
 
-  const BUYER_EMAIL = process.env.TEST_BUYER_EMAIL || 'buyer@test.oasis.local';
-  const BUYER_PASSWORD = process.env.TEST_BUYER_PASSWORD || 'testpass123';
-  const FINANCE_EMAIL = process.env.TEST_FINANCE_EMAIL || 'finance@test.oasis.local';
-  const FINANCE_PASSWORD = process.env.TEST_FINANCE_PASSWORD || 'testpass123';
-  const SALES_EMAIL = process.env.TEST_SALES_EMAIL || 'sales@test.oasis.local';
-  const SALES_PASSWORD = process.env.TEST_SALES_PASSWORD || 'testpass123';
+  const BUYER_EMAIL = process.env.TEST_BUYER_EMAIL || 'dinesh_mutreja@yahoo.co.in';
+  const BUYER_PASSWORD = process.env.TEST_BUYER_PASSWORD || 'asdfgh';
+  const FINANCE_EMAIL = process.env.TEST_FINANCE_EMAIL || 'finance@oasisbaklawa.com';
+  const FINANCE_PASSWORD = process.env.TEST_FINANCE_PASSWORD || 'finance_head';
+  const SALES_EMAIL = process.env.TEST_SALES_EMAIL || 'sales@oasisbaklawa.com';
+  const SALES_PASSWORD = process.env.TEST_SALES_PASSWORD || 'sales_executive';
 
   /** First UUID segment (8 hex chars), matching Orders list and Finance `SO #` prefix. */
   let goldenOrderPrefix: string | null = null;
