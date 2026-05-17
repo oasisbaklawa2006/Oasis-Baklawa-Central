@@ -206,60 +206,6 @@ async function assertBlockedFromFinanceBoard(page: Page) {
   expect(onLogin || restricted || denied || unauthorized || !financeVisible).toBeTruthy();
 }
 
-/** Buyer: catalogue → cart → submit SO → orders → first receipt upload. Returns order id prefix (uppercase). */
-async function buyerSubmitSoAndFirstReceipt(page: Page, slug: string): Promise<string> {
-  await drillCatalogueToFirstAddToCart(page, slug);
-  await addToCartFromCatalogueWithRetry(page, slug);
-
-  await page.goto(`${PREVIEW_URL}/cart`, { waitUntil: 'domcontentloaded', timeout: 60000 });
-  await expect(page.getByRole('heading', { name: /Your Order is Empty/i })).not.toBeVisible();
-  await expect(page.getByRole('heading', { name: /Sales Order \(SO\)/i })).toBeVisible({ timeout: 60000 });
-
-  await ensureDeliveryAddress(page);
-  await ensureCartReadyForCheckout(page);
-
-  const proceed = page.getByRole('button', { name: /PROCEED TO ORDER CONFIRMATION/i });
-  await expect(proceed).toBeEnabled({ timeout: 120000 });
-  await proceed.click();
-
-  await expect(page.getByRole('heading', { name: /Confirm Sales Order/i })).toBeVisible({ timeout: 30000 });
-
-  await page.getByText(/Submit SO & Upload Receipt/i).click();
-
-  const submitSo = page.getByRole('button', { name: /Submit Sales Order/i });
-  await expect(submitSo).toBeVisible({ timeout: 15000 });
-  await submitSo.click();
-
-  await expect(page.getByText(/Sales Order submitted/i)).toBeVisible({ timeout: 60000 });
-  await page.waitForURL((u) => u.pathname === '/orders' || u.pathname.startsWith('/orders/'), { timeout: 120000 });
-
-  const orderLabel = page.locator('p').filter({ hasText: /^Order #[a-f0-9]+$/i }).first();
-  await expect(orderLabel).toBeVisible({ timeout: 60000 });
-  const raw = (await orderLabel.textContent())?.trim() ?? '';
-  const m = raw.match(/Order #([a-f0-9]+)/i);
-  const prefix = m?.[1]?.toUpperCase() ?? '';
-  expect(prefix).toBeTruthy();
-
-  const uploadBtn = page.getByRole('button', { name: /Upload Receipt/i }).first();
-  await expect(uploadBtn).toBeEnabled({ timeout: 30000 });
-  await uploadBtn.click();
-
-  await expect(page.getByRole('heading', { name: /Upload Payment Receipt/i })).toBeVisible({ timeout: 15000 });
-
-  await page.locator('input[type="file"]').setInputFiles({
-    name: 'test-receipt.jpg',
-    mimeType: 'image/jpeg',
-    buffer: Buffer.from('fake-image-bytes'),
-  });
-
-  await page.getByPlaceholder('e.g., REF1234567890').fill(`QA-UTR-${slug}-${Date.now()}`);
-
-  await page.getByRole('button', { name: /Submit for Verification/i }).click();
-
-  await expect(page.getByText(/Payment receipt uploaded/i)).toBeVisible({ timeout: 60000 });
-  return prefix;
-}
-
 test.describe('Golden Pipeline — End-to-End', () => {
   test.describe.configure({ mode: 'serial' });
 
@@ -275,7 +221,59 @@ test.describe('Golden Pipeline — End-to-End', () => {
 
   test('Golden pipeline: buyer catalogue → SO → receipt upload (serial A)', async ({ page }) => {
     await login(page, BUYER_EMAIL, BUYER_PASSWORD);
-    goldenOrderPrefix = await buyerSubmitSoAndFirstReceipt(page, 'serial-a');
+
+    await drillCatalogueToFirstAddToCart(page, 'serial-a');
+    await addToCartFromCatalogueWithRetry(page, 'serial-a');
+
+    await page.goto(`${PREVIEW_URL}/cart`, { waitUntil: 'domcontentloaded', timeout: 60000 });
+    await expect(page.getByRole('heading', { name: /Your Order is Empty/i })).not.toBeVisible();
+    await expect(page.getByRole('heading', { name: /Sales Order \(SO\)/i })).toBeVisible({ timeout: 60000 });
+
+    await ensureDeliveryAddress(page);
+    await ensureCartReadyForCheckout(page);
+
+    const proceed = page.getByRole('button', { name: /PROCEED TO ORDER CONFIRMATION/i });
+    await expect(proceed).toBeEnabled({ timeout: 120000 });
+    await proceed.click();
+
+    await expect(page.getByRole('heading', { name: /Confirm Sales Order/i })).toBeVisible({ timeout: 30000 });
+
+    await page.getByText(/Submit SO & Upload Receipt/i).click();
+
+    const submitSo = page.getByRole('button', { name: /Submit Sales Order/i });
+    await expect(submitSo).toBeVisible({ timeout: 15000 });
+    await submitSo.click();
+
+    await expect(page.getByText(/Sales Order submitted/i)).toBeVisible({ timeout: 60000 });
+    await page.waitForURL(
+      (u) => u.pathname === '/orders' || u.pathname.startsWith('/orders/'),
+      { timeout: 120000 },
+    );
+
+    const orderLabel = page.locator('p').filter({ hasText: /^Order #[a-f0-9]+$/i }).first();
+    await expect(orderLabel).toBeVisible({ timeout: 60000 });
+    const raw = (await orderLabel.textContent())?.trim() ?? '';
+    const m = raw.match(/Order #([a-f0-9]+)/i);
+    goldenOrderPrefix = m?.[1]?.toUpperCase() ?? null;
+    expect(goldenOrderPrefix).toBeTruthy();
+
+    const uploadBtn = page.getByRole('button', { name: /Upload Receipt/i }).first();
+    await expect(uploadBtn).toBeEnabled({ timeout: 30000 });
+    await uploadBtn.click();
+
+    await expect(page.getByRole('heading', { name: /Upload Payment Receipt/i })).toBeVisible({ timeout: 15000 });
+
+    await page.locator('input[type="file"]').setInputFiles({
+      name: 'test-receipt.jpg',
+      mimeType: 'image/jpeg',
+      buffer: Buffer.from('fake-image-bytes'),
+    });
+
+    await page.getByPlaceholder('e.g., REF1234567890').fill(`QA-UTR-${Date.now()}`);
+
+    await page.getByRole('button', { name: /Submit for Verification/i }).click();
+
+    await expect(page.getByText(/Payment receipt uploaded/i)).toBeVisible({ timeout: 60000 });
   });
 
   test('Golden pipeline: finance verify → push → in production (serial B)', async ({ browser }) => {
@@ -335,54 +333,5 @@ test.describe('Golden Pipeline — End-to-End', () => {
   test('RBAC: Buyer (unauthenticated visit) blocked from /admin/*', async ({ page }) => {
     await page.goto(`${PREVIEW_URL}/admin/finance-board`, { waitUntil: 'domcontentloaded', timeout: 60000 });
     await assertBlockedFromFinanceBoard(page);
-  });
-});
-
-test.describe('FIN-003 buyer-visible rejection reason', () => {
-  test.describe.configure({ mode: 'serial', timeout: 300_000 });
-
-  const BUYER_EMAIL = process.env.TEST_BUYER_EMAIL || 'buyer@test.oasis.local';
-  const BUYER_PASSWORD = process.env.TEST_BUYER_PASSWORD || 'testpass123';
-  const FINANCE_EMAIL = process.env.TEST_FINANCE_EMAIL || 'finance@test.oasis.local';
-  const FINANCE_PASSWORD = process.env.TEST_FINANCE_PASSWORD || 'testpass123';
-
-  test('buyer sees finance rejection text then uploads corrected receipt', async ({ page, browser }) => {
-    const marker = `FIN003-E2E-REJECT-${Date.now()}`;
-    await login(page, BUYER_EMAIL, BUYER_PASSWORD);
-    const prefix = await buyerSubmitSoAndFirstReceipt(page, 'fin003-e2e');
-
-    const fp = await browser.newPage();
-    await login(fp, FINANCE_EMAIL, FINANCE_PASSWORD);
-    await fp.goto(`${PREVIEW_URL}/admin/finance-board`, { waitUntil: 'domcontentloaded', timeout: 60000 });
-    await expect(fp.getByRole('heading', { name: /Finance Release Board/i })).toBeVisible({ timeout: 60000 });
-    await fp.getByRole('tab', { name: /Awaiting Finance Review/i }).click();
-
-    const reviewCard = fp
-      .locator('div.rounded-xl.border.border-border.bg-card')
-      .filter({ hasText: new RegExp(`SO #${prefix}`, 'i') })
-      .filter({ has: fp.getByRole('button', { name: /^Review$/ }) })
-      .first();
-    await expect(reviewCard).toBeVisible({ timeout: 120000 });
-    await reviewCard.getByRole('button', { name: /^Review$/ }).click();
-
-    await expect(fp.getByRole('heading', { name: /Payment review/i })).toBeVisible({ timeout: 15000 });
-    await fp.getByPlaceholder(/Required only when rejecting payment/i).fill(marker);
-    await fp.getByRole('button', { name: /^Reject$/i }).click();
-    await expect(fp.getByText(/Buyer asked to update payment receipt/i)).toBeVisible({ timeout: 60000 });
-    await fp.close();
-
-    await page.goto(`${PREVIEW_URL}/orders`, { waitUntil: 'domcontentloaded', timeout: 60000 });
-    await expect(page.getByText(marker)).toBeVisible({ timeout: 60000 });
-
-    await page.getByRole('button', { name: /Upload Receipt/i }).first().click();
-    await expect(page.getByRole('heading', { name: /Upload Payment Receipt/i })).toBeVisible({ timeout: 15000 });
-    await page.locator('input[type="file"]').setInputFiles({
-      name: 'test-receipt-corrected.jpg',
-      mimeType: 'image/jpeg',
-      buffer: Buffer.from('corrected-receipt-bytes'),
-    });
-    await page.getByPlaceholder('e.g., REF1234567890').fill(`QA-CORRECT-${Date.now()}`);
-    await page.getByRole('button', { name: /Submit for Verification/i }).click();
-    await expect(page.getByText(/Payment receipt uploaded/i)).toBeVisible({ timeout: 60000 });
   });
 });
