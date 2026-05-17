@@ -1883,6 +1883,7 @@ export type Database = {
           parser_confidence: number | null
           payment_cleared: boolean | null
           payment_receipt_url: string | null
+          payment_rejection_reason: string | null
           payment_status: string | null
           port_of_discharge: string | null
           proforma_invoice_url: string | null
@@ -1926,6 +1927,7 @@ export type Database = {
           parser_confidence?: number | null
           payment_cleared?: boolean | null
           payment_receipt_url?: string | null
+          payment_rejection_reason?: string | null
           payment_status?: string | null
           port_of_discharge?: string | null
           proforma_invoice_url?: string | null
@@ -1969,6 +1971,7 @@ export type Database = {
           parser_confidence?: number | null
           payment_cleared?: boolean | null
           payment_receipt_url?: string | null
+          payment_rejection_reason?: string | null
           payment_status?: string | null
           port_of_discharge?: string | null
           proforma_invoice_url?: string | null
