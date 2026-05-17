@@ -81,6 +81,7 @@ const FinanceReleaseBoard = () => {
   const [rejectReason, setRejectReason] = useState("");
   const [actingId, setActingId] = useState<string | null>(null);
   const [latestUtrByOrderId, setLatestUtrByOrderId] = useState<Record<string, string>>({});
+  const [showRejectForm, setShowRejectForm] = useState(false);
 
   const canAccess = FINANCE_BOARD_ROLES.has(normalizedRole);
 
@@ -251,6 +252,7 @@ const FinanceReleaseBoard = () => {
 
       toast.success("Buyer asked to update payment receipt.");
       setReviewOrder(null);
+      setShowRejectForm(false);
       await loadBoard();
     } catch (e) {
       console.error("[FinanceReleaseBoard]", e);
