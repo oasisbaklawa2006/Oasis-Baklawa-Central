@@ -353,6 +353,13 @@ const FinanceReleaseBoard = () => {
           target="_blank"
           rel="noopener noreferrer"
           className="mt-2 inline-flex items-center gap-1 text-xs font-bold text-primary hover:underline"
+          onClick={(e) => {
+            setTimeout(() => {
+              if (window.document.body.textContent.includes("404") || window.document.body.textContent.includes("error")) {
+                alert("Receipt file not accessible. It may have been deleted or failed to upload.");
+              }
+            }, 2000);
+          }}
         >
           📄 View Receipt
         </a>
