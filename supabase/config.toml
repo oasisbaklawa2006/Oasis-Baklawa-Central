@@ -32,3 +32,9 @@ verify_jwt = false
 
 [functions.validate-user]
 verify_jwt = false
+
+[functions.send-whatsapp]
+verify_jwt = false
+
+[functions.send-whatsapp-automation]
+verify_jwt = false
