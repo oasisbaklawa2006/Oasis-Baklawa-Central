@@ -163,6 +163,37 @@ const AdminOrders = () => {
       toast.error("Dispatch is recorded via Packing & Dispatch or Gate Pass with proof — pipeline advance disabled here.");
       return;
     }
+
+    if (next === "packed_ready") {
+      const [{ data: oi }, { data: reqs }] = await Promise.all([
+        supabase.from("order_items").select("quantity, actual_packed_qty, production_status").eq("order_id", order.id),
+        supabase
+          .from("store_requisitions")
+          .select("status, store_requisition_items(requested_qty, fulfilled_qty)")
+          .eq("order_id", order.id),
+      ]);
+      const gateBlockers = getPackedReadyBlockers({
+        order: {
+          status: order.status,
+          payment_status: order.payment_status ?? null,
+          advance_paid: order.advance_paid ?? null,
+          advance_required: order.advance_required ?? null,
+          sales_order_value: order.sales_order_value ?? null,
+        },
+        items:
+          (oi as { quantity: number; actual_packed_qty: number | null; production_status: string | null }[]) || [],
+        requisitions:
+          (reqs as {
+            status: string | null;
+            store_requisition_items?: { requested_qty: number; fulfilled_qty: number | null }[];
+          }[]) || [],
+      });
+      if (gateBlockers.length > 0) {
+        toast.error(gateBlockers.map((b) => b.message).join("; "));
+        return;
+      }
+    }
+
     setUpdating(order.id);
 
     const { error } = await supabase.from("orders").update({ status: next }).eq("id", order.id);
