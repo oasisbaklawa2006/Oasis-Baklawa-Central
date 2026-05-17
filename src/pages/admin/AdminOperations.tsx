@@ -1,10 +1,25 @@
 import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { Loader2, Settings2, Calendar, LayoutGrid, CheckCircle2, PackageSearch, Zap, Wand2 } from "lucide-react";
+import {
+  Loader2,
+  Settings2,
+  Calendar,
+  LayoutGrid,
+  CheckCircle2,
+  PackageSearch,
+  Zap,
+  Wand2,
+  RefreshCw,
+} from "lucide-react";
 import TopNavBar from "@/components/TopNavBar";
 
 const DEPARTMENTS = ["Baklawa", "Chocolate", "Laddu", "Bakery", "Hampers", "Packaging Store"];
+
+/** Aligns with FinanceReleaseBoard “Ready” tab — cleared payment, not yet in production. */
+const FINANCE_READY_PAYMENT = ["verified_advance", "on_credit", "paid", "advance_paid"] as const;
+const FINANCE_READY_ORDER_STATUS = ["submitted", "approved"] as const;
 
 interface OpsOrderItem {
   id: string;
@@ -15,6 +30,9 @@ interface OpsOrderItem {
   department: string | null;
   production_status: string | null;
   task_type?: string | null;
+  actual_packed_qty: number | null;
+  weight_kg: number | null;
+  notes: string | null;
   products?: { name: string } | null;
   product?: { name: string } | null;
 }
@@ -23,7 +41,9 @@ interface OpsOrder {
   id: string;
   status: string;
   created_at: string;
-  dispatch_date?: string | null;
+  requested_dispatch_date?: string | null;
+  estimated_despatch_date?: string | null;
+  admin_promised_date?: string | null;
   company_id?: string | null;
   company?: { business_name: string } | null;
   order_items?: OpsOrderItem[];
@@ -40,6 +60,10 @@ const AdminOperations = () => {
 
   const [orders, setOrders] = useState<OpsOrder[]>([]);
   const [loading, setLoading] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  /** Orders finance has cleared but status is still submitted/approved (upstream of this queue). */
+  const [financeReadyCount, setFinanceReadyCount] = useState<number | null>(null);
+  const [packedReadyCount, setPackedReadyCount] = useState<number | null>(null);
   const [splittingOrder, setSplittingOrder] = useState<string | null>(null);
 
   const [inventory, setInventory] = useState<InventoryItem[]>([]);
@@ -55,28 +79,44 @@ const AdminOperations = () => {
   const [taskQty, setTaskQty] = useState<number | "">("");
   const [taskDept, setTaskDept] = useState("");
 
-  const fetchOpsData = async () => {
-    setLoading(true);
-    const { data: orderData, error } = await supabase
-      .from("orders")
-      .select(
-        `
-        id, status, created_at, dispatch_date, company_id,
+  const fetchOpsData = async (opts?: { silent?: boolean }) => {
+    const silent = opts?.silent ?? false;
+    if (silent) setIsRefreshing(true);
+    else setLoading(true);
+
+    const [orderRes, readyCountRes, packedCountRes] = await Promise.all([
+      supabase
+        .from("orders")
+        .select(
+          `
+        id, status, created_at, requested_dispatch_date, estimated_despatch_date, admin_promised_date, company_id,
         company:companies(business_name),
         order_items (
           id, product_id, quantity, pack_size, carton_type, department, production_status, task_type,
+          actual_packed_qty, weight_kg, notes,
           products ( name )
         )
       `,
-      )
-      .eq("status", "in_production")
-      .order("created_at", { ascending: true });
+        )
+        .eq("status", "in_production")
+        .order("created_at", { ascending: true }),
+      supabase
+        .from("orders")
+        .select("id", { count: "exact", head: true })
+        .in("status", [...FINANCE_READY_ORDER_STATUS])
+        .in("payment_status", [...FINANCE_READY_PAYMENT]),
+      supabase.from("orders").select("id", { count: "exact", head: true }).eq("status", "packed_ready"),
+    ]);
 
+    const { data: orderData, error } = orderRes;
     if (error) {
       toast.error("Failed to load routing data.");
     } else {
-      setOrders((orderData as any[]) || []);
+      setOrders((orderData as OpsOrder[]) || []);
     }
+
+    setFinanceReadyCount(readyCountRes.error ? null : readyCountRes.count ?? 0);
+    setPackedReadyCount(packedCountRes.error ? null : packedCountRes.count ?? 0);
 
     const { data: productData } = await (supabase as any)
       .from("products")
@@ -90,11 +130,13 @@ const AdminOperations = () => {
       }));
       setInventory(formattedInventory);
     }
-    setLoading(false);
+
+    if (silent) setIsRefreshing(false);
+    else setLoading(false);
   };
 
   useEffect(() => {
-    fetchOpsData();
+    void fetchOpsData();
   }, []);
 
   const handleSmartSplit = async (order: OpsOrder) => {
@@ -147,7 +189,7 @@ const AdminOperations = () => {
 
       if (itemsOptimized > 0) {
         toast.success(`Smart Split complete! Pulled from Ready Goods.`, { icon: "✨" });
-        await fetchOpsData();
+        await fetchOpsData({ silent: true });
       } else {
         toast.info("No items could be fulfilled from current stock.");
       }
@@ -166,7 +208,7 @@ const AdminOperations = () => {
     if (error) toast.error("Failed to assign department");
     else {
       toast.success(`Item routed to ${department}`);
-      fetchOpsData();
+      void fetchOpsData({ silent: true });
     }
   };
 
@@ -213,7 +255,7 @@ const AdminOperations = () => {
       setAdjustingProduct(null);
       setAdjustAmount("");
       setAdjustNotes("");
-      fetchOpsData();
+      void fetchOpsData({ silent: true });
     } catch (error) {
       toast.error("Failed to update inventory.");
     }
@@ -248,7 +290,7 @@ const AdminOperations = () => {
       setTaskProduct("");
       setTaskQty("");
       setTaskDept("");
-      fetchOpsData();
+      void fetchOpsData({ silent: true });
     } catch (error) {
       toast.error("Failed to beam task.");
     }
@@ -256,8 +298,22 @@ const AdminOperations = () => {
   };
 
   const getProductName = (item: OpsOrderItem) => item.products?.name || item.product?.name || "Unknown Item";
+  const dispatchHint = (order: OpsOrder) =>
+    order.requested_dispatch_date || order.estimated_despatch_date || order.admin_promised_date || order.created_at;
+
   const formatDate = (dateString: string) =>
     new Intl.DateTimeFormat("en-IN", { day: "numeric", month: "short", year: "numeric" }).format(new Date(dateString));
+
+  const formatProdStatus = (s: string | null) => {
+    if (!s) return null;
+    return s.replace(/_/g, " ");
+  };
+
+  const truncate = (s: string | null, max: number) => {
+    if (!s?.trim()) return null;
+    const t = s.trim();
+    return t.length <= max ? t : `${t.slice(0, max)}…`;
+  };
 
   if (loading) {
     return (
@@ -281,7 +337,17 @@ const AdminOperations = () => {
             <p className="text-sm text-muted-foreground mt-1">Route materials and manage physical inventory.</p>
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center gap-3">
+            <button
+              type="button"
+              onClick={() => void fetchOpsData({ silent: true })}
+              disabled={isRefreshing}
+              className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold border border-border bg-background hover:bg-muted/60 transition-colors disabled:opacity-60"
+              title="Refresh routing and inventory"
+            >
+              <RefreshCw size={16} className={isRefreshing ? "animate-spin" : ""} />
+              Refresh
+            </button>
             <button
               onClick={() => setIsTaskModalOpen(true)}
               className="flex items-center gap-2 px-5 py-2.5 bg-slate-900 hover:bg-black text-white rounded-xl text-sm font-bold shadow-sm transition-transform active:scale-95"
@@ -308,10 +374,38 @@ const AdminOperations = () => {
         {/* ROUTING TAB */}
         {activeTab === "routing" &&
           (orders.length === 0 ? (
-            <div className="text-center py-16 space-y-3">
+            <div className="text-center py-16 space-y-4 rounded-xl border border-dashed border-border bg-muted/20 px-6">
               <LayoutGrid size={40} className="mx-auto text-muted-foreground/40" />
               <p className="text-lg font-semibold text-foreground">No active operations</p>
-              <p className="text-sm text-muted-foreground">There are currently no orders in the production queue.</p>
+              <p className="text-sm text-muted-foreground max-w-md mx-auto">
+                There are currently no orders in <span className="font-medium text-foreground">in production</span>. When
+                finance releases cleared orders, they appear here for department routing.
+              </p>
+              {(financeReadyCount !== null || packedReadyCount !== null) && (
+                <div className="flex flex-wrap justify-center gap-3 text-sm pt-2">
+                  {financeReadyCount !== null && (
+                    <span className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-card px-3 py-1.5 text-foreground">
+                      <span className="text-muted-foreground">Finance-ready (not in prod)</span>
+                      <span className="font-bold tabular-nums">{financeReadyCount}</span>
+                    </span>
+                  )}
+                  {packedReadyCount !== null && (
+                    <span className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-card px-3 py-1.5 text-foreground">
+                      <span className="text-muted-foreground">Packed / dispatch queue</span>
+                      <span className="font-bold tabular-nums">{packedReadyCount}</span>
+                    </span>
+                  )}
+                </div>
+              )}
+              <p className="text-sm">
+                <Link
+                  to="/admin/finance-board"
+                  className="font-semibold text-primary underline-offset-4 hover:underline"
+                >
+                  Open finance release board
+                </Link>{" "}
+                to verify receipts or release orders into production.
+              </p>
             </div>
           ) : (
             <div className="space-y-6">
@@ -341,6 +435,11 @@ const AdminOperations = () => {
                         <p className="text-lg font-bold text-foreground">
                           {isInternalTask ? "AUTO-GENERATED" : `#${order.id.split("-")[0].toUpperCase()}`}
                         </p>
+                        {!isInternalTask && totalItems > 0 && (
+                          <p className="text-xs text-muted-foreground mt-0.5">
+                            {totalItems} line{totalItems === 1 ? "" : "s"} · {assignedItems} routed
+                          </p>
+                        )}
                       </div>
                       <div className="flex items-center gap-3">
                         {canBeOptimized && (
@@ -359,7 +458,7 @@ const AdminOperations = () => {
                         )}
                         {!isInternalTask && (
                           <span className="flex items-center gap-1 text-xs text-muted-foreground">
-                            <Calendar size={12} /> Dispatch: {formatDate(order.dispatch_date || order.created_at)}
+                            <Calendar size={12} /> Dispatch: {formatDate(dispatchHint(order))}
                           </span>
                         )}
                         {isFullyRouted && (
@@ -386,13 +485,36 @@ const AdminOperations = () => {
                                 </span>
                               )}
                             </p>
-                            <div className="flex flex-wrap gap-3 text-xs text-muted-foreground mt-1">
+                            <div className="flex flex-wrap items-center gap-2 mt-1.5">
+                              {item.production_status &&
+                                item.production_status !== "completed" &&
+                                formatProdStatus(item.production_status) && (
+                                  <span className="text-[10px] uppercase tracking-wide font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 border border-slate-200">
+                                    {formatProdStatus(item.production_status)}
+                                  </span>
+                                )}
+                            </div>
+                            <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-muted-foreground mt-1">
                               <span>Qty: {item.quantity}</span>
                               <span>Pack: {item.pack_size || "Standard"}</span>
                               <span>Carton: {item.carton_type || "Standard"}</span>
+                              {item.weight_kg != null && item.weight_kg > 0 && (
+                                <span>Weight: {item.weight_kg} kg</span>
+                              )}
+                              {item.actual_packed_qty != null && item.actual_packed_qty > 0 && (
+                                <span>Packed qty: {item.actual_packed_qty}</span>
+                              )}
                             </div>
+                            {truncate(item.notes, 72) && (
+                              <p className="text-xs text-muted-foreground/90 mt-1.5 italic border-l-2 border-border pl-2">
+                                {truncate(item.notes, 72)}
+                              </p>
+                            )}
                           </div>
-                          <div className="flex items-center gap-2">
+                          <div className="flex flex-col sm:items-end gap-1.5 w-full sm:w-auto">
+                            <span className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground hidden sm:block">
+                              Route to dept
+                            </span>
                             {item.production_status === "completed" ? (
                               <span className="flex items-center justify-center w-full sm:w-48 gap-1 px-3 py-2 text-xs font-semibold text-emerald-600 bg-emerald-50 rounded-lg border border-emerald-100">
                                 <CheckCircle2 size={14} />{" "}
