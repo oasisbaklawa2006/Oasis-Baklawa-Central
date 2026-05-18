@@ -47,3 +47,9 @@ verify_jwt = false
 
 [functions.whatsapp-identify-sender]
 verify_jwt = false
+
+[functions.whatsapp-classify-intent]
+verify_jwt = false
+
+[functions.whatsapp-route-packet]
+verify_jwt = false
