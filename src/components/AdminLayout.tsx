@@ -1,7 +1,7 @@
 import { NavLink, Outlet } from "react-router-dom";
 import {
   LayoutDashboard, UserCheck, ClipboardList, Truck, DollarSign, LogOut, Menu, X, Loader2,
-  Headphones, Users, Package, BarChart3, Scale, Globe, Settings, Shield,
+  Headphones, Users, Package, BarChart3, Scale, Globe, Settings, Shield, MessageCircle,
   Factory, PackageCheck, Landmark, AlertCircle, Languages, Bell, Sparkles, Monitor, Activity, Megaphone
 } from "lucide-react";
 import { useState } from "react";
@@ -106,6 +106,7 @@ const AdminLayout = () => {
         { to: "/admin/audit", icon: Shield, label: t("Audit Trail"), moduleKey: "audit" },
         { to: "/admin/inventory", icon: PackageCheck, label: t("Factory Stock"), moduleKey: "inventory" },
         { to: "/admin/support", icon: Headphones, label: t("Support"), moduleKey: "support" },
+        { to: "/admin/operator-inbox", icon: MessageCircle, label: "WhatsApp Inbox", moduleKey: "support" },
         { to: "/admin/logistics", icon: Truck, label: t("Logistics"), moduleKey: "settings" },
         { to: "/admin/notifications", icon: Bell, label: t("Notifications"), moduleKey: "settings" },
         { to: "/admin/announcements", icon: Megaphone, label: t("Announcements"), moduleKey: "settings" },

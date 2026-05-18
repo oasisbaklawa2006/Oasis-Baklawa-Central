@@ -92,6 +92,7 @@ const TargetVsActual = lazy(() => import("./pages/admin/TargetVsActual.tsx"));
 const ThirdPartyStore = lazy(() => import("./pages/admin/ThirdPartyStore.tsx"));
 const VerificationWarRoom = lazy(() => import("./pages/admin/VerificationWarRoom.tsx"));
 const AdminAnnouncements = lazy(() => import("./pages/admin/AdminAnnouncements.tsx"));
+const OperatorInboxPage = lazy(() => import("./pages/admin/OperatorInboxPage.tsx"));
 const FinanceReleaseBoard = lazy(() => import("./pages/admin/FinanceReleaseBoard.tsx"));
 
 const ADMIN_ONLY_ROLES = ["SUPER_ADMIN", "ADMIN"];
@@ -291,6 +292,7 @@ const App = () => (
                     <Route path="moq" element={<AdminMOQ />} />
                     <Route path="currency" element={<AdminCurrency />} />
                     <Route path="support" element={<AdminSupport />} />
+                    <Route path="operator-inbox" element={<OperatorInboxPage />} />
                     <Route path="settings" element={<AdminSettings />} />
                     <Route path="audit" element={<AdminAudit />} />
                     <Route path="department" element={<AdminDepartment />} />
