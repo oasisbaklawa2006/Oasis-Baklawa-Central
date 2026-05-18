@@ -8,7 +8,7 @@ import { createClient } from "npm:@supabase/supabase-js@2.45.0";
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers":
-    "authorization, x-client-info, apikey, content-type",
+    "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
@@ -122,19 +122,25 @@ async function persistStitchedPackets(
       .filter(Boolean);
     if (ids.length === 0) continue;
 
-    const stitched = packet.messages
+    const stitchedText = packet.messages
       .map((m) => String(m.content ?? "").trim())
       .filter(Boolean)
       .join("\n");
+
+    const stitchedContent = {
+      summary: `${packet.messages.length} messages stitched`,
+      text: stitchedText,
+    };
 
     const { data: row, error: insertErr } = await supabaseAdmin
       .from("whatsapp_message_packets")
       .insert({
         contact_id: packet.contact_id,
-        stitched_content: stitched,
+        stitched_content: stitchedContent,
         fragment_count: packet.messages.length,
         first_message_at: packet.first_message_at,
         last_message_at: packet.last_message_at,
+        status: "open",
       })
       .select("id")
       .single();
@@ -150,20 +156,27 @@ async function persistStitchedPackets(
       );
     }
 
-    const { error: updateErr } = await supabaseAdmin
-      .from("whatsapp_messages")
-      .update({ packet_id: row.id, is_raw: false })
-      .in("id", ids);
+    const stitchedAt = new Date().toISOString();
+    for (let i = 0; i < ids.length; i++) {
+      const { error: updateErr } = await supabaseAdmin
+        .from("whatsapp_messages")
+        .update({
+          packet_id: row.id,
+          packet_sequence: i + 1,
+          is_raw: false,
+          stitched_at: stitchedAt,
+        })
+        .eq("id", ids[i]);
 
-    if (updateErr) {
-      console.error(
-        "[whatsapp-message-stitcher] fragment update failed:",
-        updateErr.message,
-      );
-      throw new Error(updateErr.message);
+      if (updateErr) {
+        console.error(
+          "[whatsapp-message-stitcher] fragment update failed:",
+          updateErr.message,
+        );
+        throw new Error(updateErr.message);
+      }
+      linked += 1;
     }
-
-    linked += ids.length;
   }
 
   return linked;
@@ -205,6 +218,9 @@ serve(async (req) => {
 
     return new Response(
       JSON.stringify({
+        success: true,
+        packetsCreated: packets.length,
+        messagesProcessed: unstitched.length,
         ok: true,
         config: cfg,
         raw_rows_scanned: unstitched.length,
@@ -219,9 +235,12 @@ serve(async (req) => {
   } catch (e) {
     const message = e instanceof Error ? e.message : "Unknown error";
     console.error("[whatsapp-message-stitcher]", message);
-    return new Response(JSON.stringify({ ok: false, error: message }), {
-      status: 500,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+    return new Response(
+      JSON.stringify({ success: false, ok: false, error: message }),
+      {
+        status: 500,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      },
+    );
   }
 });
