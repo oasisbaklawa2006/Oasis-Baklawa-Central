@@ -12,6 +12,9 @@ verify_jwt = false
 [functions.whatsapp-webhook]
 verify_jwt = false
 
+[functions.whatsapp-message-stitcher]
+verify_jwt = false
+
 [functions.banyan-central-parser]
 verify_jwt = false
 

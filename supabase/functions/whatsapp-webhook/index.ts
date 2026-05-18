@@ -707,10 +707,11 @@ function extractPayloadFields(payload: any) {
       senderPhone: msg?.from || contact?.wa_id || "",
       messageBody: msg?.text?.body || msg?.caption || "",
       messageType: msg?.type || "text",
-      mediaUrl: msg?.image?.url || msg?.document?.url || msg?.video?.url || null,
+      mediaUrl: msg?.image?.url || msg?.image?.link || msg?.document?.url || msg?.document?.link || msg?.video?.url || null,
       mediaMime: msg?.image?.mime_type || msg?.document?.mime_type || "image/jpeg",
       messageId: msg?.id || null,
       profileName: contact?.profile?.name || null,
+      timestampSec: msg?.timestamp ?? null,
     };
   }
 
@@ -735,6 +736,7 @@ function extractPayloadFields(payload: any) {
       mediaMime: media?.mime_type || media?.mimeType || "image/jpeg",
       messageId: m91._id || m91.id || m91.message_id || message.id || null,
       profileName: m91.sender_name || m91.name || m91.contact?.profile?.name || null,
+      timestampSec: m91.timestamp ?? message.timestamp ?? null,
     };
   }
 
@@ -749,7 +751,57 @@ function extractPayloadFields(payload: any) {
       payload?.image?.mime_type || payload?.document?.mime_type || "image/jpeg",
     messageId: payload?.messageId || payload?.id || payload?.message_id || null,
     profileName: payload?.pushName || payload?.profileName || payload?.contact?.name || payload?.sender_name || null,
+    timestampSec: payload?.timestamp ?? payload?.data?.timestamp ?? null,
   };
+}
+
+async function findOrCreateWhatsappContact(
+  supabaseAdmin: SupabaseAdminClient,
+  phoneDigits: string,
+  waContactId?: string | null,
+): Promise<string | null> {
+  if (!phoneDigits) return null;
+  try {
+    const existing = await supabaseAdmin
+      .from("whatsapp_contacts")
+      .select("id")
+      .eq("phone_number", phoneDigits)
+      .maybeSingle();
+    if (existing.data?.id) return existing.data.id;
+
+    const created = await supabaseAdmin
+      .from("whatsapp_contacts")
+      .insert({
+        phone_number: phoneDigits,
+        wa_contact_id: waContactId || phoneDigits,
+      })
+      .select("id")
+      .single();
+    if (created.error) {
+      console.warn("[whatsapp-webhook] whatsapp_contacts insert:", created.error.message);
+      return null;
+    }
+    return created.data?.id ?? null;
+  } catch (e) {
+    console.warn("[whatsapp-webhook] findOrCreateWhatsappContact:", e);
+    return null;
+  }
+}
+
+function triggerMessageStitcherNonBlocking(): void {
+  const baseUrl = Deno.env.get("SUPABASE_URL")?.replace(/\/$/, "");
+  const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+  if (!baseUrl || !serviceKey) return;
+  void fetch(`${baseUrl}/functions/v1/whatsapp-message-stitcher`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "Authorization": `Bearer ${serviceKey}`,
+    },
+    body: JSON.stringify({ trigger: "webhook" }),
+  }).catch((err) =>
+    console.warn(`[whatsapp-webhook] Stitcher call failed (non-blocking): ${err}`)
+  );
 }
 
 // ══════════════════════════════════════════════════
@@ -788,7 +840,7 @@ serve(async (req) => {
     const payload = await req.json();
     console.log("Incoming WhatsApp webhook:", JSON.stringify(payload).substring(0, 1000));
 
-    const { senderPhone, messageBody, messageType, mediaUrl, mediaMime, messageId, profileName } =
+    const { senderPhone, messageBody, messageType, mediaUrl, mediaMime, messageId, profileName, timestampSec } =
       extractPayloadFields(payload);
 
     const last10 = normalizePhone(senderPhone);
@@ -994,6 +1046,50 @@ serve(async (req) => {
       return new Response(JSON.stringify({ ok: true, skipped: "outgoing/status" }), {
         status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
+    }
+
+    // ── TOOL 0: Inbound row for message stitcher (whatsapp_messages) ──
+    try {
+      if (phone91 && (messageBody || mediaUrl)) {
+        const contactId = await findOrCreateWhatsappContact(supabaseAdmin, phone91, phone91);
+        if (contactId) {
+          const tsSec =
+            timestampSec != null && timestampSec !== ""
+              ? Number(timestampSec)
+              : NaN;
+          const message_timestamp =
+            Number.isFinite(tsSec) && tsSec > 0
+              ? new Date(tsSec * 1000)
+              : new Date();
+
+          const { error: insertError } = await supabaseAdmin
+            .from("whatsapp_messages")
+            .insert({
+              contact_id: contactId,
+              order_id: null,
+              direction: "inbound",
+              message_type: messageType || "text",
+              content: messageBody || "",
+              media_url: mediaUrl || null,
+              provider: "whatsapp",
+              provider_message_id: messageId,
+              status: "received",
+              message_timestamp,
+              is_raw: true,
+              packet_id: null,
+            })
+            .select("id")
+            .single();
+
+          if (!insertError) {
+            triggerMessageStitcherNonBlocking();
+          } else {
+            console.warn("[whatsapp-webhook] whatsapp_messages insert failed:", insertError);
+          }
+        }
+      }
+    } catch (wmErr) {
+      console.warn("[whatsapp-webhook] whatsapp_messages / stitcher block failed:", wmErr);
     }
 
     if (!senderPhone && !mediaUrl) {
