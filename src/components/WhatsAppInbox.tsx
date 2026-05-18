@@ -1,7 +1,7 @@
 // src/components/WhatsAppInbox.tsx
 // TOOL 1: Raw WhatsApp Inbox — Display stitched packets as conversations
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { formatDistanceToNow } from "date-fns";
@@ -46,14 +46,46 @@ function packetPreviewSummary(packet: Packet): string {
 
 const REALTIME_CHANNEL = "whatsapp-inbox-packets";
 
+/** Suggestion-only payloads from Edge Functions (read-only UI). */
+interface IntentSuggestion {
+  intent_type: string;
+  confidence: number;
+  keywords: string[];
+  metadata: Record<string, unknown>;
+}
+
+interface RouteSuggestion {
+  assigned_to_team: string;
+  priority: string;
+  action: string;
+  reason: string;
+  metadata: Record<string, unknown>;
+}
+
 export function WhatsAppInbox() {
   const { user } = useAuth();
   const [packets, setPackets] = useState<Packet[]>([]);
   const [selectedPacket, setSelectedPacket] = useState<Packet | null>(null);
+  const selectedPacketIdRef = useRef<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [replyText, setReplyText] = useState("");
   const [replySending, setReplySending] = useState(false);
+  const [classifyLoading, setClassifyLoading] = useState(false);
+  const [routeLoading, setRouteLoading] = useState(false);
+  const [intentResult, setIntentResult] = useState<IntentSuggestion | null>(null);
+  const [routeResult, setRouteResult] = useState<RouteSuggestion | null>(null);
+  const [suggestionsError, setSuggestionsError] = useState<string | null>(null);
+
+  useEffect(() => {
+    selectedPacketIdRef.current = selectedPacket?.id ?? null;
+  }, [selectedPacket?.id]);
+
+  useEffect(() => {
+    setIntentResult(null);
+    setRouteResult(null);
+    setSuggestionsError(null);
+  }, [selectedPacket?.id]);
 
   const loadPackets = useCallback(async (opts?: { silent?: boolean }) => {
     try {
@@ -162,6 +194,74 @@ export function WhatsAppInbox() {
       setReplySending(false);
     }
   }, [replyText, selectedPacket, user?.id, loadPackets]);
+
+  const handleClassifyIntent = useCallback(async () => {
+    if (!selectedPacket) return;
+    const packetId = selectedPacket.id;
+    const contactId = selectedPacket.contact_id;
+    setClassifyLoading(true);
+    setSuggestionsError(null);
+    try {
+      const { data, error: invokeError } = await supabase.functions.invoke("whatsapp-classify-intent", {
+        body: { packet_id: packetId, contact_id: contactId },
+      });
+      if (selectedPacketIdRef.current !== packetId) return;
+      if (invokeError) {
+        if (selectedPacketIdRef.current !== packetId) return;
+        setSuggestionsError(invokeError.message);
+        return;
+      }
+      const body = data as { success?: boolean; intent?: IntentSuggestion; error?: string } | null;
+      if (!body?.success || !body.intent) {
+        if (selectedPacketIdRef.current !== packetId) return;
+        setSuggestionsError(body?.error ?? "Classification failed");
+        return;
+      }
+      if (selectedPacketIdRef.current !== packetId) return;
+      setIntentResult(body.intent);
+    } catch (err) {
+      if (selectedPacketIdRef.current !== packetId) return;
+      setSuggestionsError(err instanceof Error ? err.message : "Classification failed");
+    } finally {
+      setClassifyLoading(false);
+    }
+  }, [selectedPacket]);
+
+  const handleSuggestRoute = useCallback(async () => {
+    if (!selectedPacket) return;
+    const packetId = selectedPacket.id;
+    const contactId = selectedPacket.contact_id;
+    setRouteLoading(true);
+    setSuggestionsError(null);
+    try {
+      const { data, error: invokeError } = await supabase.functions.invoke("whatsapp-route-packet", {
+        body: {
+          packet_id: packetId,
+          contact_id: contactId,
+          intent: intentResult ?? undefined,
+        },
+      });
+      if (selectedPacketIdRef.current !== packetId) return;
+      if (invokeError) {
+        if (selectedPacketIdRef.current !== packetId) return;
+        setSuggestionsError(invokeError.message);
+        return;
+      }
+      const body = data as { success?: boolean; decision?: RouteSuggestion; error?: string } | null;
+      if (!body?.success || !body.decision) {
+        if (selectedPacketIdRef.current !== packetId) return;
+        setSuggestionsError(body?.error ?? "Routing suggestion failed");
+        return;
+      }
+      if (selectedPacketIdRef.current !== packetId) return;
+      setRouteResult(body.decision);
+    } catch (err) {
+      if (selectedPacketIdRef.current !== packetId) return;
+      setSuggestionsError(err instanceof Error ? err.message : "Routing suggestion failed");
+    } finally {
+      setRouteLoading(false);
+    }
+  }, [selectedPacket, intentResult]);
 
   useEffect(() => {
     void loadPackets();
@@ -273,6 +373,73 @@ export function WhatsAppInbox() {
             <p className="mt-1 text-xs text-gray-500">
               {selectedPacket.fragment_count} messages • Packet: {selectedPacket.status}
             </p>
+          </div>
+
+          <div className="border-b border-gray-200 bg-white px-4 py-3">
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={() => void handleClassifyIntent()}
+                disabled={classifyLoading || routeLoading}
+                className="rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-800 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {classifyLoading ? "Classifying…" : "Classify Intent"}
+              </button>
+              <button
+                type="button"
+                onClick={() => void handleSuggestRoute()}
+                disabled={classifyLoading || routeLoading}
+                className="rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-800 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {routeLoading ? "Suggesting…" : "Suggest Route"}
+              </button>
+            </div>
+            {suggestionsError && (
+              <p className="mt-2 text-sm text-red-600" role="alert">
+                {suggestionsError}
+              </p>
+            )}
+            {intentResult && (
+              <div className="mt-3 rounded-md border border-gray-200 bg-gray-50 p-3 text-sm text-gray-800">
+                <p className="font-semibold text-gray-900">Intent (suggestion)</p>
+                <p className="mt-1">
+                  <span className="text-gray-500">Type:</span> {intentResult.intent_type}
+                </p>
+                <p>
+                  <span className="text-gray-500">Confidence:</span> {intentResult.confidence}
+                </p>
+                {intentResult.keywords?.length > 0 && (
+                  <p>
+                    <span className="text-gray-500">Keywords:</span> {intentResult.keywords.join(", ")}
+                  </p>
+                )}
+                <p className="mt-1 text-xs text-gray-600">
+                  <span className="text-gray-500">Metadata:</span>{" "}
+                  {JSON.stringify(intentResult.metadata ?? {})}
+                </p>
+              </div>
+            )}
+            {routeResult && (
+              <div className="mt-3 rounded-md border border-gray-200 bg-gray-50 p-3 text-sm text-gray-800">
+                <p className="font-semibold text-gray-900">Route (suggestion)</p>
+                <p className="mt-1">
+                  <span className="text-gray-500">Team:</span> {routeResult.assigned_to_team}
+                </p>
+                <p>
+                  <span className="text-gray-500">Priority:</span> {routeResult.priority}
+                </p>
+                <p>
+                  <span className="text-gray-500">Action:</span> {routeResult.action}
+                </p>
+                <p>
+                  <span className="text-gray-500">Reason:</span> {routeResult.reason}
+                </p>
+                <p className="mt-1 text-xs text-gray-600">
+                  <span className="text-gray-500">Metadata:</span>{" "}
+                  {JSON.stringify(routeResult.metadata ?? {})}
+                </p>
+              </div>
+            )}
           </div>
 
           <div className="flex-1 space-y-4 overflow-y-auto p-4">
