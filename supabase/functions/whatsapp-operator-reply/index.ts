@@ -1,18 +1,16 @@
 // supabase/functions/whatsapp-operator-reply/index.ts
 // TOOL 1 Phase 2: Operator reply handler
-// Sends operator-written message to customer via WhatsApp (delegates to send-whatsapp).
+// Sends operator-written message to customer via WhatsApp
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { createClient, type SupabaseClient } from "npm:@supabase/supabase-js@2.45.0";
+import { createClient } from "npm:@supabase/supabase-js@2.45.0";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers":
-    "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
+    "authorization, x-client-info, apikey, content-type",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
-
-type AdminClient = SupabaseClient;
 
 interface ReplyPayload {
   packet_id: string;
@@ -22,28 +20,11 @@ interface ReplyPayload {
   operator_id?: string;
 }
 
-interface SendWhatsAppSuccess {
-  success: true;
-  provider?: string;
-  messageId?: string;
-}
-
-interface SendWhatsAppFailure {
-  success?: false;
-  error?: string;
-  provider?: string;
-  status?: number;
-}
-
 async function sendOperatorReply(
-  supabaseAdmin: AdminClient,
+  supabaseAdmin: ReturnType<typeof createClient>,
   payload: ReplyPayload,
 ): Promise<{ success: boolean; message_id?: string; error?: string }> {
   try {
-    if (payload.operator_id) {
-      console.log("[whatsapp-operator-reply] operator_id:", payload.operator_id);
-    }
-
     const { data: messageData, error: messageError } = await supabaseAdmin
       .from("whatsapp_messages")
       .insert({
@@ -52,11 +33,10 @@ async function sendOperatorReply(
         direction: "outbound",
         message_type: "text",
         content: payload.message,
-        provider: "operator_reply",
+        provider: "whatsapp",
         provider_message_id: null,
         status: "pending",
         message_timestamp: new Date().toISOString(),
-        is_raw: false,
       })
       .select("id")
       .single();
@@ -68,16 +48,15 @@ async function sendOperatorReply(
     }
 
     const messageId = messageData.id as string;
-    const supabaseUrl = Deno.env.get("SUPABASE_URL")!.replace(/\/$/, "");
-    const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const baseUrl = Deno.env.get("SUPABASE_URL")!.replace(/\/$/, "");
 
     const sendWhatsAppResponse = await fetch(
-      `${supabaseUrl}/functions/v1/send-whatsapp`,
+      `${baseUrl}/functions/v1/send-whatsapp`,
       {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${serviceKey}`,
+          Authorization: `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
         },
         body: JSON.stringify({
           to: payload.phone_number,
@@ -88,31 +67,23 @@ async function sendOperatorReply(
       },
     );
 
-    let sendResult: SendWhatsAppSuccess | SendWhatsAppFailure = {};
+    let sendResult: { success?: boolean; messageId?: string; error?: string } = {};
     try {
-      sendResult = (await sendWhatsAppResponse.json()) as
-        | SendWhatsAppSuccess
-        | SendWhatsAppFailure;
+      sendResult = await sendWhatsAppResponse.json();
     } catch {
-      sendResult = { error: "Invalid JSON from send-whatsapp" };
+      sendResult = {};
     }
 
-    const ok =
-      sendWhatsAppResponse.ok &&
-      (sendResult as SendWhatsAppSuccess).success === true;
+    const sendOk =
+      sendWhatsAppResponse.ok && sendResult.success === true;
 
-    if (ok) {
-      const sr = sendResult as SendWhatsAppSuccess;
-      const extId = sr.messageId != null ? String(sr.messageId) : null;
-      const provider = sr.provider ?? "click2api";
-
+    if (sendOk) {
       await supabaseAdmin
         .from("whatsapp_messages")
         .update({
-          status: "delivered",
-          provider_message_id: extId,
-          provider,
-          failure_reason: null,
+          status: "sent",
+          provider_message_id:
+            sendResult.messageId != null ? String(sendResult.messageId) : null,
         })
         .eq("id", messageId);
 
@@ -122,21 +93,21 @@ async function sendOperatorReply(
       };
     }
 
-    const err =
-      (sendResult as SendWhatsAppFailure).error ||
-      `send-whatsapp failed (HTTP ${sendWhatsAppResponse.status})`;
+    const failReason =
+      sendResult.error ||
+      `Failed to send via WhatsApp (HTTP ${sendWhatsAppResponse.status})`;
 
     await supabaseAdmin
       .from("whatsapp_messages")
       .update({
         status: "failed",
-        failure_reason: err,
+        failure_reason: failReason,
       })
       .eq("id", messageId);
 
     return {
       success: false,
-      error: err,
+      error: failReason,
     };
   } catch (error) {
     console.error("[whatsapp-operator-reply] Error:", error);
@@ -160,7 +131,7 @@ serve(async (req) => {
   }
 
   try {
-    const payload = (await req.json()) as ReplyPayload;
+    const payload: ReplyPayload = await req.json();
 
     if (
       !payload.packet_id ||
