@@ -44,3 +44,6 @@ verify_jwt = false
 
 [functions.whatsapp-operator-reply]
 verify_jwt = false
+
+[functions.whatsapp-identify-sender]
+verify_jwt = false
