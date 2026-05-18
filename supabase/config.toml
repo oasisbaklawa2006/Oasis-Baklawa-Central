@@ -41,3 +41,6 @@ verify_jwt = false
 
 [functions.send-whatsapp-automation]
 verify_jwt = false
+
+[functions.whatsapp-operator-reply]
+verify_jwt = false

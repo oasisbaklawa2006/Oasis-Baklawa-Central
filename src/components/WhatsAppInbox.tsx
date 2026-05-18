@@ -3,6 +3,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/useAuth";
 import { formatDistanceToNow } from "date-fns";
 import { ChevronRight, MessageCircle, Clock } from "lucide-react";
 import { removeDuplicateRealtimeChannel } from "@/utils/realtime";
@@ -46,14 +47,17 @@ function packetPreviewSummary(packet: Packet): string {
 const REALTIME_CHANNEL = "whatsapp-inbox-packets";
 
 export function WhatsAppInbox() {
+  const { user } = useAuth();
   const [packets, setPackets] = useState<Packet[]>([]);
   const [selectedPacket, setSelectedPacket] = useState<Packet | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [replyText, setReplyText] = useState("");
+  const [replySending, setReplySending] = useState(false);
 
-  const loadPackets = useCallback(async () => {
+  const loadPackets = useCallback(async (opts?: { silent?: boolean }) => {
     try {
-      setLoading(true);
+      if (!opts?.silent) setLoading(true);
 
       const { data: packetsData, error: packetsError } = await supabase
         // whatsapp_* tables not in generated Database types yet
@@ -104,14 +108,60 @@ export function WhatsAppInbox() {
       );
 
       setPackets(enrichedPackets);
+      setSelectedPacket((prev) => {
+        if (!prev) return null;
+        return enrichedPackets.find((p) => p.id === prev.id) ?? prev;
+      });
       setError(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load inbox");
       console.error("Inbox error:", err);
     } finally {
-      setLoading(false);
+      if (!opts?.silent) setLoading(false);
     }
   }, []);
+
+  const handleSendReply = useCallback(async () => {
+    const trimmed = replyText.trim();
+    if (!trimmed || !selectedPacket) return;
+
+    const digits = String(selectedPacket.phone_number ?? "").replace(/\D/g, "");
+    if (digits.length < 10) {
+      alert("Missing or invalid phone number for this contact.");
+      return;
+    }
+
+    setReplySending(true);
+    try {
+      const { data, error: invokeError } = await supabase.functions.invoke("whatsapp-operator-reply", {
+        body: {
+          packet_id: selectedPacket.id,
+          contact_id: selectedPacket.contact_id,
+          phone_number: selectedPacket.phone_number,
+          message: trimmed,
+          operator_id: user?.id,
+        },
+      });
+
+      if (invokeError) {
+        alert(`Failed to send: ${invokeError.message}`);
+        return;
+      }
+
+      const result = data as { success?: boolean; error?: string } | null;
+      if (result?.success) {
+        setReplyText("");
+        await loadPackets({ silent: true });
+      } else {
+        alert(`Failed to send: ${result?.error ?? "Unknown error"}`);
+      }
+    } catch (err) {
+      console.error("Reply error:", err);
+      alert("Failed to send reply");
+    } finally {
+      setReplySending(false);
+    }
+  }, [replyText, selectedPacket, user?.id, loadPackets]);
 
   useEffect(() => {
     void loadPackets();
@@ -255,14 +305,25 @@ export function WhatsAppInbox() {
             <div className="flex gap-2">
               <input
                 type="text"
+                value={replyText}
+                onChange={(e) => setReplyText(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && !replySending) {
+                    e.preventDefault();
+                    void handleSendReply();
+                  }
+                }}
                 placeholder="Type a reply..."
-                className="flex-1 rounded-full border border-gray-300 px-4 py-2 focus:border-green-500 focus:outline-none"
+                disabled={replySending}
+                className="flex-1 rounded-full border border-gray-300 bg-white px-4 py-2 focus:border-green-500 focus:outline-none disabled:bg-gray-100"
               />
               <button
                 type="button"
-                className="rounded-full bg-green-500 px-6 py-2 font-medium text-white transition hover:bg-green-600"
+                onClick={() => void handleSendReply()}
+                disabled={replySending || !replyText.trim()}
+                className="rounded-full bg-green-500 px-6 py-2 font-medium text-white transition hover:bg-green-600 disabled:bg-gray-300"
               >
-                Send
+                {replySending ? "Sending..." : "Send"}
               </button>
             </div>
           </div>
