@@ -6,8 +6,17 @@ const E2E_ENV_HELP =
   "TEST_BUYER_EMAIL, TEST_BUYER_PASSWORD, TEST_FINANCE_EMAIL, TEST_FINANCE_PASSWORD (no defaults). " +
   "To hit a non-allowlisted host, set ALLOW_UNSAFE_E2E_URL=true (discouraged).";
 
-/** Resolved base URL; assigned once by {@link resolvePreviewUrl}. */
-export let PREVIEW_URL = "";
+let cachedPreviewUrl: string | undefined;
+
+/**
+ * Lazily resolves and caches `TEST_PREVIEW_URL` (required on first call).
+ * Validates protocol and hostname allowlist; does not run at module import time.
+ */
+export function getPreviewUrl(): string {
+  if (cachedPreviewUrl !== undefined) return cachedPreviewUrl;
+  cachedPreviewUrl = resolvePreviewUrl();
+  return cachedPreviewUrl;
+}
 
 function assertSafePreviewHost(hostname: string): void {
   if (process.env.ALLOW_UNSAFE_E2E_URL === "true") {
@@ -41,8 +50,6 @@ function resolvePreviewUrl(): string {
   assertSafePreviewHost(url.hostname);
   return raw.replace(/\/$/, "");
 }
-
-PREVIEW_URL = resolvePreviewUrl();
 
 /** Non-empty env or clear error (for mutation / role-gated tests). */
 export function requireEnv(name: string): string {
@@ -79,7 +86,7 @@ export function requireFinanceMutationCredentials(): FinanceMutationCredentials 
 }
 
 export async function login(page: Page, email: string, password: string) {
-  await page.goto(`${PREVIEW_URL}/login`, { waitUntil: "domcontentloaded", timeout: 60000 });
+  await page.goto(`${getPreviewUrl()}/login`, { waitUntil: "domcontentloaded", timeout: 60000 });
 
   await expect(page.getByRole("heading", { name: /Welcome Back/i })).toBeVisible({ timeout: 30000 });
   await expect(page.getByText(/Sign in to your B2B account/i)).toBeVisible({ timeout: 30000 });
@@ -144,7 +151,7 @@ async function dumpCatalogueDebug(page: Page, testSlug: string) {
 }
 
 export async function drillCatalogueToFirstAddToCart(page: Page, testSlug: string) {
-  await page.goto(`${PREVIEW_URL}/catalogue`, { waitUntil: "domcontentloaded", timeout: 60000 });
+  await page.goto(`${getPreviewUrl()}/catalogue`, { waitUntil: "domcontentloaded", timeout: 60000 });
 
   await expect(page.getByRole("heading", { name: /Shop by Category/i })).toBeVisible({ timeout: 120000 });
 
@@ -251,7 +258,7 @@ export async function addToCartFromCatalogueWithRetry(page: Page, testSlug: stri
   console.log("[e2e add failure] console:", diag.consoleLines.join("\n") || "(none)");
   console.log("[e2e add failure] network:", diag.networkLines.join("\n") || "(none)");
   await page.screenshot({ path: `test-results/catalogue-add-failed-${testSlug}.png`, fullPage: true }).catch(() => {});
-  await page.goto(`${PREVIEW_URL}/cart`, { waitUntil: "domcontentloaded", timeout: 60000 }).catch(() => {});
+  await page.goto(`${getPreviewUrl()}/cart`, { waitUntil: "domcontentloaded", timeout: 60000 }).catch(() => {});
   throw new Error("Add to Cart did not succeed");
 }
 
@@ -269,7 +276,7 @@ export async function buyerCreateSubmittedOrderWithReceiptUpload(
   await drillCatalogueToFirstAddToCart(page, slug);
   await addToCartFromCatalogueWithRetry(page, slug);
 
-  await page.goto(`${PREVIEW_URL}/cart`, { waitUntil: "domcontentloaded", timeout: 60000 });
+  await page.goto(`${getPreviewUrl()}/cart`, { waitUntil: "domcontentloaded", timeout: 60000 });
   await expect(page.getByRole("heading", { name: /Your Order is Empty/i })).not.toBeVisible();
   await expect(page.getByRole("heading", { name: /Sales Order \(SO\)/i })).toBeVisible({ timeout: 60000 });
 

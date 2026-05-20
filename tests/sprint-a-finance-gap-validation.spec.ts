@@ -1,6 +1,6 @@
 import { test, expect, type Page } from '@playwright/test';
 import {
-  PREVIEW_URL,
+  getPreviewUrl,
   login,
   buyerCreateSubmittedOrderWithReceiptUpload,
   requireFinanceMutationCredentials,
@@ -21,7 +21,7 @@ type AuditInsertSnapshot = {
 
 /**
  * Sprint A gap checks: FIN-003 reject, FIN-004 credit+push, operations routing visibility.
- * Env: TEST_PREVIEW_URL (required via e2e-helpers), ALLOW_FINANCE_E2E_MUTATIONS=true,
+ * Env: TEST_PREVIEW_URL (required on first getPreviewUrl() / helper navigation), ALLOW_FINANCE_E2E_MUTATIONS=true,
  * TEST_BUYER_EMAIL, TEST_BUYER_PASSWORD, TEST_FINANCE_EMAIL, TEST_FINANCE_PASSWORD;
  * TEST_OPERATIONS_EMAIL + TEST_OPERATIONS_PASSWORD for operations test.
  */
@@ -104,7 +104,8 @@ test.describe('Sprint A — FIN-003 / FIN-004 / Operations gap validation', () =
     const auditPosts = wireAuditInsertCapture(fp);
 
     await login(fp, financeEmail, financePassword);
-    await fp.goto(`${PREVIEW_URL}/admin/finance-board`, { waitUntil: 'domcontentloaded', timeout: 60000 });
+    const preview = getPreviewUrl();
+    await fp.goto(`${preview}/admin/finance-board`, { waitUntil: 'domcontentloaded', timeout: 60000 });
     await expect(fp.getByRole('heading', { name: /Finance Release Board/i })).toBeVisible({ timeout: 60000 });
 
     await fp.getByRole('tab', { name: /Awaiting Finance Review/i }).click();
@@ -131,7 +132,7 @@ test.describe('Sprint A — FIN-003 / FIN-004 / Operations gap validation', () =
 
     await fp.close();
 
-    await page.goto(`${PREVIEW_URL}/orders`, { waitUntil: 'domcontentloaded', timeout: 60000 });
+    await page.goto(`${getPreviewUrl()}/orders`, { waitUntil: 'domcontentloaded', timeout: 60000 });
     await expect(page.getByText(/Upload Receipt Required/i).first()).toBeVisible({ timeout: 60000 });
 
     const buyerHtml = await page.content();
@@ -158,7 +159,8 @@ test.describe('Sprint A — FIN-003 / FIN-004 / Operations gap validation', () =
     const orderPatches = wireOrdersPatchCapture(fp);
 
     await login(fp, financeEmail, financePassword);
-    await fp.goto(`${PREVIEW_URL}/admin/finance-board`, { waitUntil: 'domcontentloaded', timeout: 60000 });
+    const previewFin004 = getPreviewUrl();
+    await fp.goto(`${previewFin004}/admin/finance-board`, { waitUntil: 'domcontentloaded', timeout: 60000 });
     await expect(fp.getByRole('heading', { name: /Finance Release Board/i })).toBeVisible({ timeout: 60000 });
 
     await fp.getByRole('tab', { name: /Awaiting Finance Review/i }).click();
@@ -218,7 +220,8 @@ test.describe('Sprint A — FIN-003 / FIN-004 / Operations gap validation', () =
 
     const op = await browser.newPage();
     await login(op, OPS_EMAIL, OPS_PASSWORD);
-    await op.goto(`${PREVIEW_URL}/admin/operations`, { waitUntil: 'domcontentloaded', timeout: 60000 });
+    const previewOps = getPreviewUrl();
+    await op.goto(`${previewOps}/admin/operations`, { waitUntil: 'domcontentloaded', timeout: 60000 });
 
     await expect(op.getByRole('heading', { name: /Factory Control/i })).toBeVisible({ timeout: 60000 });
 

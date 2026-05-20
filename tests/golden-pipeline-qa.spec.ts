@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test';
 import {
-  PREVIEW_URL,
+  getPreviewUrl,
   login,
   buyerCreateSubmittedOrderWithReceiptUpload,
   assertBlockedFromFinanceBoard,
@@ -40,7 +40,8 @@ test.describe('Golden Pipeline — End-to-End', () => {
 
     const fp = await browser.newPage();
     await login(fp, financeEmail, financePassword);
-    await fp.goto(`${PREVIEW_URL}/admin/finance-board`, { waitUntil: 'domcontentloaded', timeout: 60000 });
+    const preview = getPreviewUrl();
+    await fp.goto(`${preview}/admin/finance-board`, { waitUntil: 'domcontentloaded', timeout: 60000 });
 
     await expect(fp.getByRole('heading', { name: /Finance Release Board/i })).toBeVisible({ timeout: 60000 });
 
@@ -90,13 +91,15 @@ test.describe('Golden Pipeline — End-to-End', () => {
 
     const sp = await browser.newPage();
     await login(sp, salesEmail, salesPassword);
-    await sp.goto(`${PREVIEW_URL}/admin/finance-board`, { waitUntil: 'domcontentloaded', timeout: 60000 });
+    const previewSales = getPreviewUrl();
+    await sp.goto(`${previewSales}/admin/finance-board`, { waitUntil: 'domcontentloaded', timeout: 60000 });
     await assertBlockedFromFinanceBoard(sp);
     await sp.close();
   });
 
   test('RBAC: Buyer (unauthenticated visit) blocked from /admin/*', async ({ page }) => {
-    await page.goto(`${PREVIEW_URL}/admin/finance-board`, { waitUntil: 'domcontentloaded', timeout: 60000 });
+    const preview = getPreviewUrl();
+    await page.goto(`${preview}/admin/finance-board`, { waitUntil: 'domcontentloaded', timeout: 60000 });
     await assertBlockedFromFinanceBoard(page);
   });
 });
