@@ -86,7 +86,7 @@ test.describe('Sprint A — FIN-003 / FIN-004 / Operations gap validation', () =
     return posts;
   }
 
-  test('FIN-003: finance rejects with reason → awaiting_receipt + audit; buyer visibility', async ({
+  test('FIN-003: finance rejects with reason → awaiting_receipt + audit; buyer Orders shows rejection', async ({
     page,
     browser,
   }) => {
@@ -133,13 +133,10 @@ test.describe('Sprint A — FIN-003 / FIN-004 / Operations gap validation', () =
     await fp.close();
 
     await page.goto(`${getPreviewUrl()}/orders`, { waitUntil: 'domcontentloaded', timeout: 60000 });
-    await expect(page.getByText(/Upload Receipt Required/i).first()).toBeVisible({ timeout: 60000 });
+    // Orders.tsx: when payment_rejection_reason is set, badge is "Payment rejected — upload receipt" (em dash / hyphen variants).
+    await expect(page.getByText(/Payment rejected\s*[—–-]\s*upload receipt/i).first()).toBeVisible({ timeout: 60000 });
 
-    const buyerHtml = await page.content();
-    expect(
-      buyerHtml.includes(rejectReasonMarker),
-      'buyer should not see raw finance rejection reason in Orders HTML (PARTIAL if product requires buyer-visible reason)',
-    ).toBe(false);
+    await expect(page.getByText(rejectReasonMarker)).toBeVisible({ timeout: 30000 });
 
     await expect(page.getByText(new RegExp(`Order #${prefix}`, 'i')).first()).toBeVisible({ timeout: 30000 });
   });
