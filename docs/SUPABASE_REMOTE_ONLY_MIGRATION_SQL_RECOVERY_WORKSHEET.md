@@ -54,15 +54,44 @@ Initial worksheet state: all **`unknown`** unless noted; use **notes** to flag *
 
 ### 2. `20260514185811` — `add_finance_audit_columns_to_orders`
 
+#### Recovery assessment (synthesized)
+
+| Item | Conclusion |
+|------|------------|
+| **Status** | **candidate** — not `verified` until dashboard/CI SQL or production introspection confirms exact applied body (especially **`COMMENT ON COLUMN`**). |
+| **Best candidate source (single file)** | **`supabase/migrations/20260515120000_orders_finance_audit.sql`** (current `main`). For a **body-only** slice matching the first git introduction (no column comments), use **`git show af99c86:supabase/migrations/20260515120000_orders_finance_audit.sql`**. |
+| **Most likely original intent** (remote name `add_finance_audit_columns_to_orders`) | `ALTER TABLE public.orders` adding **`finance_verified_by`** (`uuid`, FK `auth.users`) and **`finance_verified_at`** (`timestamptz`); **add indexes** (`idx_orders_finance_verified_by`, `idx_orders_payment_status_finance`); **`COMMENT ON COLUMN`** on remote apply **maybe / maybe not** — **still unverified** (comments appear in git only from **`b4c3f55`** onward). |
+| **Strong evidence** | **Timing:** remote `20260514185811` at **2026-05-14 18:58:11 UTC** immediately precedes **`af99c86`** (~**2026-05-14 19:38 UTC**) introducing the same DDL under **`20260515120000_*`**. **Same feature scope** (golden pipeline finance verification on `orders`). **Same finance audit objects** (`finance_verified_by` / `finance_verified_at` + indexes). **`af99c86`** is the first commit in `git log` touching this SQL path after the remote timestamp. |
+
 | # | Field | Value |
 |---|--------|--------|
 | 1 | **version** | `20260514185811` |
 | 2 | **remote name** | `add_finance_audit_columns_to_orders` |
-| 3 | **likely affected** | `public.orders` (audit / finance verification columns, indexes, comments); possibly `auth.users` FK references. |
-| 4 | **local related files** | `supabase/migrations/20260515120000_orders_finance_audit.sql` (finance verification columns on `orders` — **different version**; treat as **candidate** for diff only, not rename). |
-| 5 | **required evidence source** | Original migration SQL from apply pipeline; OR introspection of `orders` column set + defaults vs repo; OR CI for `add_finance_audit_columns_to_orders`. |
-| 6 | **recovery status** | unknown |
-| 7 | **notes** | Remote timestamp **earlier** than local `20260515120000_*`; remote may be strict superset/subset—**content comparison mandatory**. |
+| 3 | **likely affected** | `public.orders` (`finance_verified_by`, `finance_verified_at` per app/types + local migrations); indexes `idx_orders_finance_verified_by`, `idx_orders_payment_status_finance`; FK to `auth.users(id)`; optional `COMMENT ON COLUMN` if included in remote apply. |
+| 4 | **local related files** | `supabase/migrations/20260515120000_orders_finance_audit.sql` (**different version prefix**). App: `src/pages/admin/FinanceReleaseBoard.tsx`; types: `src/integrations/supabase/types.ts` (and `database.types.ts`). |
+| 5 | **required evidence source** | **Still required for `verified`:** Supabase dashboard / CI run logs for the apply that recorded `20260514185811`, **or** production introspection (`information_schema.columns`, `pg_indexes`, `pg_constraint`, `pg_description` on `public.orders`) compared to candidates below. |
+| 6 | **recovery status** | **candidate** *(git contains plausible SQL under a different migration version; not proven identical to remote apply)* |
+| 7 | **notes** | Remote **2026-05-14 18:58:11 UTC** precedes first git introduction of the same DDL under `20260515120000_*` in **`af99c86`** (**~2026-05-14 19:38 UTC**), consistent with **remote-first apply** then repo commit under a **new** version. **`git log --all` never contains `20260514185811_*.sql`; pickaxe for version / remote name finds no `*.sql` outside docs.** |
+
+#### Candidate SQL sources map (`20260514185811`)
+
+| Priority | Source | How to retrieve | Contents vs remote name |
+|----------|--------|-----------------|-------------------------|
+| **A (primary body)** | Commit **`af99c86`** — `feat: finance release golden pipeline v1` | `git show af99c86:supabase/migrations/20260515120000_orders_finance_audit.sql` | `ALTER TABLE public.orders` adds `finance_verified_by`, `finance_verified_at`; two `CREATE INDEX IF NOT EXISTS`; **no** `COMMENT ON COLUMN`. Strongest **semantic** match for “add finance audit columns”. |
+| **B (comments + format)** | Commit **`b4c3f55`** — `feat: add Golden Pipeline finance audit + receipt storage migrations` | `git show b4c3f55:supabase/migrations/20260515120000_orders_finance_audit.sql` | Same as (A) plus **`COMMENT ON COLUMN`** for both columns and wrapped `ALTER` / index DDL. Prefer if production **`pg_description`** shows these comments from the May 14 apply. |
+| **C (current `main`)** | `supabase/migrations/20260515120000_orders_finance_audit.sql` | `git show HEAD:supabase/migrations/20260515120000_orders_finance_audit.sql` | Terminal state matches **(B)**. |
+| **D (integration branch)** | `origin/cursor/integration-admin-stability-finance-golden-pipeline` | `git show origin/cursor/integration-admin-stability-finance-golden-pipeline:supabase/migrations/20260515120000_orders_finance_audit.sql` | Same **filename**; history includes `af99c86` / `b4c3f55` — **no** separate `20260514185811_*.sql` in that branch. |
+
+**Searched — no in-repo artifact for version `20260514185811`**
+
+| Area | Result |
+|------|--------|
+| **`rg` / `git log -S`** `20260514185811`, `add_finance_audit_columns_to_orders` on `*.sql`, `supabase/*` | Only **documentation** references (drift docs + this worksheet); **no** migration file ever used this version string. |
+| **`git log -S 'finance_verified_by'`** / **`-S 'finance_verified_at'`** on `supabase/migrations/*.sql` | Commits **`b4c3f55`**, **`af99c86`** (orders finance audit file only). |
+| **`.github/workflows/`** | **No** `supabase` / `migration` / `db push` steps; **no** in-repo CI log capture for this migration name or version. |
+| **`gh pr list --search`** (`finance audit`, `migration`) | **No rows** returned in this environment — use GitHub UI / known PR URLs for run logs if needed. |
+
+**Path to `verified`:** Compare production `orders` DDL + column comments to **(A)** then **(B)**; if comments were never applied remotely, recovered SQL for `20260514185811` should align with **(A)** only.
 
 ---
 
@@ -220,11 +249,154 @@ Initial worksheet state: all **`unknown`** unless noted; use **notes** to flag *
 
 ---
 
+## FINANCE BUNDLE RECONCILIATION
+
+**Scope:** Six remote-only versions (May 14–17, 2026 cluster) that align with **golden-pipeline / finance / buyer receipt** work in git under **different** local migration timestamps (`20260515120000`, `20260515194500`, `20260516200000`).
+
+**Important:** Rows below are **bundle mapping hypotheses** for reconciliation planning. **`exact equivalent`** is used only where **no** stronger claim is made here—all finance rows are **partial**, **expanded**, or **unknown** per evidence available **without** production DDL diff. Do **not** treat this table as proof that remote SQL equals local file bodies.
+
+| Remote version | Remote name (API) | Nearest current local migration(s) | Equivalent type | Key schema objects (inferred) | Confidence | Remaining unknowns |
+|----------------|-------------------|-------------------------------------|-------------------|------------------------------|--------------|---------------------|
+| `20260514185811` | `add_finance_audit_columns_to_orders` | `supabase/migrations/20260515120000_orders_finance_audit.sql` (see §2 synthesized assessment; body slice: `git show af99c86:…`) | **partial equivalent** | `public.orders.finance_verified_by`, `finance_verified_at`; indexes `idx_orders_finance_verified_by`, `idx_orders_payment_status_finance` | **Medium** (git timing + same objects + `af99c86` immediately after remote timestamp) | Whether remote included **`COMMENT ON COLUMN`**; whether any extra `ALTER` ran only on remote. |
+| `20260514185829` | `add_payment_proof_audit_columns_to_order_payments` | `supabase/migrations/20260515194500_buyer_payment_receipt_and_storage.sql` (**PART A** column/index block only as semantic anchor) | **partial equivalent** | `public.order_payments` proof/verification columns (`proof_url`, `proof_storage_path`, `verified_by`, `verified_at`, `status`, `rejection_reason`) + related indexes | **Medium** (remote name matches PART A intent; local file is larger) | Whether remote May 14 apply included **only** columns or also **some** RLS/storage steps now folded into PART B–E locally. |
+| `20260514185852` | `add_finance_exec_rls_policies` | `20260515194500_*` (RLS sections **only** as *possible* thematic overlap); **also** distant neighbors: `20260406201149_*` (generic `orders` UPDATE policies), other historical `orders` policy migrations | **unknown** | Finance-executive-facing RLS (name implies exec scope); not uniquely mirrored by a single local filename | **Low** | No local migration shares remote **name**; `20260515194500_*` policies are **buyer**-centric (`buyer_*`, receipt upload) per file—**do not** equate to “finance exec” without `pg_policies` diff. |
+| `20260515073922` | `orders_finance_audit` | Same as `85811`: `20260515120000_orders_finance_audit.sql` | **unknown** | `public.orders` finance verification columns/indexes (same object family as `85811`) | **Low–medium** | **Two** remote rows (`85811` + `73922`) vs **one** local file—could be **duplicate remote record**, **split apply**, or **second DDL pass**; requires remote apply logs or DDL diff to classify further. |
+| `20260515073940` | `buyer_payment_receipt_and_storage` | `supabase/migrations/20260515194500_buyer_payment_receipt_and_storage.sql` | **expanded equivalent** (local **superset** of likely remote intent) | `order_payments` extensions; `storage.buckets` / `storage.objects` policies; `orders` buyer receipt update policy | **Medium** | Which **subsets** of the local file ran on remote-only apply vs were added later in git; bucket `public` flag history. |
+| `20260517072741` | `orders_payment_rejection_reason` | `supabase/migrations/20260516200000_orders_payment_rejection_reason.sql` | **partial equivalent** | `public.orders.payment_rejection_reason` (+ `COMMENT ON COLUMN` in local file) | **Medium** (same column intent; local version timestamp differs) | Local file is minimal—confirm no extra indexes/constraints on remote. |
+
+**Bundle read:** Finance remote-only rows are **most consistent** with **historical timestamp drift / re-versioning**: remote-first applies logged under May **14–15** timestamps, then the same work appears in git as **`20260515120000` / `20260515194500` / `20260516200000`** (see `af99c86`, `b4c3f55`, `e91dae1` ancestry in git log). **`85852`** and **`73922`** remain the **weakest** links and need catalog evidence.
+
+---
+
+## WHATSAPP BUNDLE RECONCILIATION
+
+**Scope:** Six remote-only versions (May 17–18, 2026) naming WhatsApp backbone, provider, automations, stitching, raw/packets, and tool audit tables.
+
+**Important:** Local repo has **early** WhatsApp artifacts (`whatsapp_config`, `whatsapp_buffer`) under **April** `202604*` migrations and a **later** **`20260518220000`** “C2A” reconciliation file that **`CREATE TABLE IF NOT EXISTS`** audit tables and references **`whatsapp_message_packets`**. That proves **dependency** expectations in git, **not** that remote-only bodies were copied into any local file.
+
+| Remote version | Remote name (API) | Nearest current local migration(s) | Equivalent type | Key schema objects (inferred) | Confidence | Remaining unknowns |
+|----------------|-------------------|-------------------------------------|-------------------|------------------------------|--------------|---------------------|
+| `20260517151438` | `20260517_whatsapp_messaging_backbone` | `supabase/migrations/20260410113938_7d53424f-2a03-4f2b-a811-bcbd1b4652c1.sql` (`whatsapp_config`); `supabase/migrations/20260417113513_ee89e417-a4bb-4cdc-9dd6-4ad6f30ff57a.sql` (`whatsapp_buffer`) — **temporal / domain neighbors only** | **unknown** | Unknown “backbone” tables/columns until introspection | **Low** | Whether May 17 remote replaces/extends April tables vs introduces **new** core tables. |
+| `20260517152907` | `20260517_whatsapp_provider_abstraction` | Same April neighbors as above; no filename/name match | **unknown** | Provider tables/views/RPCs (TBD) | **Low** | No pickaxe hit in repo for this remote **name** in `*.sql`. |
+| `20260517203808` | `20260518_whatsapp_automations_table` | No clear local file by name; search `whatsapp_automation` in repo yields no dedicated migration | **unknown** | Likely `whatsapp_automations` or similar | **Low** | Confirm existence via `pg_tables` / Supabase Table Editor. |
+| `20260518074624` | `20260518_whatsapp_message_stitching_layer` | None with matching version; `20260518220000_*` references stitching-related **dependencies** only indirectly (via `whatsapp_message_packets` FK context) | **unknown** | Stitching layer columns/tables (TBD) | **Low** | Whether stitching is **only** columns vs new tables/views. |
+| `20260518075520` | `20260518_whatsapp_raw_messages_and_packets` | `20260518220000_c2a_whatsapp_audit_tables_reconciliation.sql` (**dependency** on `public.whatsapp_message_packets` only—file does **not** create packets table body here) | **partial equivalent** (dependency / ordering evidence only) | `whatsapp_message_packets`, `whatsapp_raw_messages` (names from remote **name**; exact DDL unknown) | **Low–medium** | C2A file **assumes** packets exist—likely created by **this** missing migration or an **untracked** path; requires `pg_dump` / catalog. |
+| `20260518210953` | `whatsapp_tool5_tool6_audit_tables` | `supabase/migrations/20260518220000_c2a_whatsapp_audit_tables_reconciliation.sql` | **partial equivalent** | `whatsapp_override_log`, `whatsapp_suggestions_log`; RLS using `user_role_map` + `roles.role_key` | **Medium** (semantic overlap + **apply order**: remote `…210953` **before** `20260518220000` per version ordering) | Whether remote `…210953` DDL is **identical** to C2A sections or a **subset/superset** (different columns, extra audit tables). |
+
+**Bundle read:** WhatsApp cluster is **split**: (a) **unknown / missing-in-repo** core DDL for backbone/provider/automations/stitching/raw+packets vs (b) **partial** overlap with **`20260518220000`** for **audit** tables and **packet FK** assumptions. This pattern fits **“production received migrations not yet represented as matching local files”** at least as strongly as pure timestamp drift.
+
+---
+
+## LEGACY UNKNOWN — `20260423214633`
+
+| Field | Detail |
+|-------|--------|
+| **Remote version** | `20260423214633` |
+| **Remote metadata name** | *(empty in migration API — see per-version §1)* |
+| **Neighboring local migrations (same day, version order)** | **Before:** `supabase/migrations/20260423214346_f30d294b-923a-44da-9852-e4850ee33488.sql` — creates `public.auth_logs` + RLS. **After:** `supabase/migrations/20260423214837_bd2aae20-be63-418f-a62b-43366980cac7.sql` — adds `auth_logs.event_name`. |
+| **Timeline positioning** | Remote timestamp **`20260423214633`** sits **between** `…214346` and `…214837` on **2026-04-23** (~21:43 → **21:46:33** → ~21:48 UTC). Suggests a **third** change in the same session as auth logging work—**not** proven to touch `auth_logs` only. |
+| **Git history note** | `docs/ops/supabase-migration-reconciliation.md` documents that **no** git path has been found for this version under `supabase/migrations/`. |
+| **Equivalent type** | **unknown** (insufficient evidence to map to a local file) |
+| **Recovery status** | **unknown** (per §1 worksheet row) |
+
+---
+
+## Synthesis — missing features vs. timestamp drift?
+
+**Short answer:** **Both patterns appear**, split by bundle.
+
+| Bundle | Most likely interpretation (evidence basis) |
+|--------|-----------------------------------------------|
+| **Finance (six rows)** | **Primarily historical timestamp drift / remote-first apply** of work that later landed in git as **`20260515120000`**, **`20260515194500`**, **`20260516200000`**, supported by **commit timing** (`af99c86` after `85811`), **shared schema objects** (`finance_verified_*`, `order_payments` proof columns, `payment_rejection_reason`), and **migration naming** alignment for several remote `name` fields. **Exception / weak link:** `85852` and the **`85811` + `73922` pair** need catalog or logs—could hide **extra** policies or a **duplicate** remote row. |
+| **WhatsApp (six rows)** | **Stronger case for “missing local SQL for production objects”** (or partial capture): remote **names** imply **new** tables/layers (`messaging_backbone`, `provider_abstraction`, `automations`, `stitching`, `raw_messages_and_packets`, tool audit) while git’s closest **`20260518220000`** file is a **later**, **idempotent reconciliation** that **references** `whatsapp_message_packets` rather than substituting the missing upstream DDL. Early **`202604*`** files are **weak** neighbors (domain match, **not** name/timing proof). |
+| **`20260423214633`** | **Unknown**—could be a **small missing delta** between two known migrations or an **unrelated** hotfix; **no** descriptive remote `name` and **no** local file. |
+
+**Do not** conclude “everything is only drift” or “everything is missing features” globally—**per-version verification** still gates any future file authoring.
+
+---
+
+## Risk assessment (bundle-level)
+
+| Case | Description | When it applies |
+|------|-------------|-----------------|
+| **Safest** | Finance bundle maps to **already-reviewed** local SQL with **idempotent** `IF NOT EXISTS` patterns; recovered remote-only files (when written) are **no-ops** on production because objects already match. | After **production introspection** matches git bodies for `orders` / `order_payments` / `storage` policies; WhatsApp audit tables match `20260518220000` where intended. |
+| **Medium** | **Partial overlap**: recovered SQL replays **subset** of DDL; some objects differ (column defaults, comments, policy names, `ENABLE ROW LEVEL SECURITY` ordering). Needs careful diff and possibly adjusted idempotent guards. | Typical when remote apply used **older** SQL than current `main` file (`b4c3f55` comments, expanded `15194500` parts). |
+| **Dangerous** | **False equivalence**: assumed “same feature” leads to **`ALTER` / `CREATE POLICY`** that **conflicts** with true production state (duplicate constraints, policy redefinition, destructive `DROP`). Highest risk for **WhatsApp backbone/packets** where local git **does not** contain obvious equivalents. | If placeholders are used, or files are **renamed** without content proof, or **`migration repair`** is run before DDL truth is established (`docs/SUPABASE_REMOTE_ONLY_MIGRATION_RECOVERY_PLAN.md` warnings). |
+
+---
+
+## RECONCILIATION DECISION MATRIX
+
+**Purpose:** One view of all **thirteen** remote-only versions for **planning** reconciliation—not a statement that production matches any local file.
+
+**Confidence %:** Subjective **hypothesis strength** (evidence from git timing, naming, bundle mapping, and dependency hints). **Not** statistical certainty.
+
+| Remote version | Remote name (API) | Current best local equivalent(s) | Reconciliation class | Operational risk if unreconciled | Recommended next action | Blocker level for future migration safety | Conf. % |
+|----------------|-------------------|----------------------------------|----------------------|----------------------------------|---------------------------|-------------------------------------------|---------|
+| `20260423214633` | *(empty)* | **None.** Neighbors only: `20260423214346_*`, `20260423214837_*` | **unknown** | **medium** *(unknown DDL may hide RLS/column drift on auth-adjacent objects)* | **compare production introspection** | **blocking** | **12%** |
+| `20260514185811` | `add_finance_audit_columns_to_orders` | `20260515120000_orders_finance_audit.sql` (+ `git show af99c86:…` body slice) | **probable re-versioned migration** | **medium** | **verify against git history**; **compare production introspection** | **caution** | **52%** |
+| `20260514185829` | `add_payment_proof_audit_columns_to_order_payments` | `20260515194500_buyer_payment_receipt_and_storage.sql` (PART A semantics) | **partial overlap**; **probable re-versioned migration** | **medium** | **compare production introspection** | **caution** | **48%** |
+| `20260514185852` | `add_finance_exec_rls_policies` | `20260515194500_*` (RLS overlap **hypothesis**); `20260406201149_*` (distant `orders` UPDATE policies) | **unknown**; **partial overlap** (weak) | **high** *(mis-modeled finance RLS could break releases or widen access)* | **compare production introspection**; **verify against git history** | **blocking** | **22%** |
+| `20260515073922` | `orders_finance_audit` | `20260515120000_orders_finance_audit.sql` | **historical drift** (duplicate remote row **hypothesis**); **partial overlap** | **medium** | **compare production introspection** | **caution** | **28%** |
+| `20260515073940` | `buyer_payment_receipt_and_storage` | `20260515194500_buyer_payment_receipt_and_storage.sql` | **probable re-versioned migration**; **partial overlap** (local **superset** likely) | **medium** | **compare production introspection** | **caution** | **44%** |
+| `20260517072741` | `orders_payment_rejection_reason` | `20260516200000_orders_payment_rejection_reason.sql` | **probable re-versioned migration** | **medium** *(low **schema** risk if column-only; medium **process** risk if history wrong)* | **compare production introspection**; **verify against git history** | **caution** | **50%** |
+| `20260517151438` | `20260517_whatsapp_messaging_backbone` | `20260410113938_*` (`whatsapp_config`); `20260417113513_*` (`whatsapp_buffer`) — **neighbors, not equivalents** | **likely missing local SQL** | **high** | **compare production introspection**; **recover exact SQL** | **blocking** | **18%** |
+| `20260517152907` | `20260517_whatsapp_provider_abstraction` | Same April neighbors as row above (**not** proven equivalents) | **likely missing local SQL** | **high** | **compare production introspection**; **recover exact SQL** | **blocking** | **16%** |
+| `20260517203808` | `20260518_whatsapp_automations_table` | **None** identified in repo migrations by name | **likely missing local SQL** | **high** | **compare production introspection**; **recover exact SQL** | **blocking** | **15%** |
+| `20260518074624` | `20260518_whatsapp_message_stitching_layer` | **None** clear; `20260518220000_*` hints dependencies only | **likely missing local SQL** | **high** | **compare production introspection**; **recover exact SQL** | **blocking** | **20%** |
+| `20260518075520` | `20260518_whatsapp_raw_messages_and_packets` | `20260518220000_*` (FK / existence assumptions for `whatsapp_message_packets` **only**) | **partial overlap**; **likely missing local SQL** (core DDL) | **high** | **compare production introspection**; **recover exact SQL** | **blocking** | **25%** |
+| `20260518210953` | `whatsapp_tool5_tool6_audit_tables` | `20260518220000_c2a_whatsapp_audit_tables_reconciliation.sql` | **partial overlap** | **medium**–**high** *(medium if audit DDL matches; high if mismatch causes duplicate objects)* | **compare production introspection**; **verify against git history** | **caution** | **38%** |
+
+---
+
+## EXECUTIVE SYNTHESIS
+
+**Is the database probably missing functionality?**  
+**Hypothesis—not certainty:** Production **may** include **WhatsApp-related** tables, policies, and relationships that are **not fully represented** in the repo’s migration files under matching version numbers—especially for **`messaging_backbone`**, **`provider_abstraction`**, **`automations`**, **`stitching`**, and **`raw_messages_and_packets`**. The **finance** side is **more plausibly** “already applied under different local timestamps” than “missing major features,” **except** where **`85852`** / the **`85811` + `73922`** pair could hide **extra** policies or **duplicate** history rows.
+
+**Or is this mainly migration-history divergence?**  
+**Hypothesis:** A **large fraction** of the **finance cluster** is consistent with **migration-history divergence** (remote-first applies, then git commits with **new** version prefixes). That explanation is **weaker** for the **WhatsApp cluster** and **weakest** for **`20260423214633`** (no name, no file, unknown object scope).
+
+**Which bundle is the real danger?**  
+**Hypothesis:** The **WhatsApp bundle** (six May 17–18 rows) carries the **highest operational danger** for future applies: local git **does not** clearly contain the DDL implied by remote **names**, and **`20260518220000`** alone **cannot** be assumed to subsume those six applies. **`85852`** and **`20260423214633`** are the **next-tier** danger points inside finance/legacy.
+
+**Which bundle is likely administrative drift only?**  
+**Hypothesis:** The **core finance column/index** work mapped to **`20260515120000`**, **`20260515194500`**, and **`20260516200000`** is the **best candidate** for “**administrative drift only**” **after** introspection confirms no extra remote-only objects—but **not** before verification.
+
+---
+
+## SAFE NEXT PHASE
+
+**Production-safe reconciliation path (documentation / process only):**
+
+1. **Read-only catalog pass** on production (or a **clone**): tables, columns, constraints, indexes, RLS policies, and `storage` policies for objects implied by the thirteen remote **names** and by neighbor bundles. Prefer the SQL packs in `docs/SUPABASE_REMOTE_ONLY_INTROSPECTION_SQL_PACK.md` / introspection plan—**no** DDL from this step.
+2. **Line-by-line diff** of findings vs **candidate** local files named in the **Finance** and **WhatsApp** bundle sections and in §2 (`20260514185811` assessment). Record gaps in this worksheet or a linked runbook.
+3. **Only after** (1)–(2): draft **`supabase/migrations/<version>_*.sql`** files with **honest, idempotent** SQL (still **out of scope** for this document update) and run a **normal PR review**—**not** `migration repair` as a first move.
+
+**What must happen before any future `repair` / `db push` / `db pull`:**
+
+- **No `repair`** until it is known whether each remote-only row is **duplicate**, **erroneous**, or **legitimately missing a file**—per `docs/SUPABASE_REMOTE_ONLY_MIGRATION_RECOVERY_PLAN.md`.
+- **No `db push`** until `migration list` (or equivalent) can be shown **aligned** for the versions you intend to ship, or until an **explicit, signed** alternate strategy exists.
+- **No `db pull`** as a shortcut while **two-way drift** persists (`docs/SUPABASE_DB_PULL_ANALYSIS_RESULT.md`).
+
+**Evidence still missing (non-exhaustive):**
+
+- **Exact SQL** (or logged statements) for **all thirteen** versions from apply pipelines.
+- **Production introspection** proving whether **`COMMENT ON COLUMN`**, **extra indexes**, and **finance-exec-specific policies** from **`85852`** exist and match any local file.
+- **WhatsApp** full DDL for **`whatsapp_message_packets`**, **`whatsapp_raw_messages`**, automations/stitching objects—**not** inferable from git alone.
+- **Resolution** of whether **`73922`** duplicates **`85811`** on the remote history table.
+
+---
+
 ## Worksheet change log
 
 | Date | Change |
 |------|--------|
 | *(initial)* | Created with thirteen verified version/name pairs; statuses default `unknown`. |
+| *(update)* | **`20260514185811`:** Git history / branch / CI repo search + candidate SQL map (`af99c86` / `b4c3f55` / `HEAD` / integration branch); status → **candidate**. |
+| *(update)* | **`20260514185811`:** Synthesized recovery assessment — best single-file candidate `20260515120000_orders_finance_audit.sql`; intent + evidence (timing, scope, objects, `af99c86`); comments on remote **unverified**. |
+| *(update)* | **Bundle reconciliation:** Finance bundle, WhatsApp bundle, Legacy `20260423214633`, synthesis (drift vs missing features), and risk assessment (safest / medium / dangerous) sections added. |
+| *(update)* | **Decision matrix + executive synthesis + safe next phase** appended (conservative hypotheses; confidence % labeled subjective). |
 
 ---
 
