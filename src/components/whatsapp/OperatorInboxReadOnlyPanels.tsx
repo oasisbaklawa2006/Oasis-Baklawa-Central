@@ -1,3 +1,4 @@
+import { useId } from "react";
 import { Info, Lock } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -17,17 +18,20 @@ function DisabledGovernanceAction({ label }: { label: string }) {
   return (
     <Tooltip>
       <TooltipTrigger asChild>
-        <span className="inline-flex">
-          <button
-            type="button"
-            disabled
-            className={cn(
-              "inline-flex cursor-not-allowed items-center gap-1 rounded-md border border-dashed border-gray-300 bg-gray-50 px-2.5 py-1.5 text-xs font-medium text-gray-400",
-            )}
-          >
-            <Lock className="h-3 w-3 shrink-0" aria-hidden />
-            {label}
-          </button>
+        <span
+          role="button"
+          tabIndex={0}
+          aria-disabled="true"
+          className={cn(
+            "inline-flex cursor-not-allowed items-center gap-1 rounded-md border border-dashed border-gray-300 bg-gray-50 px-2.5 py-1.5 text-xs font-medium text-gray-400 outline-none focus-visible:ring-2 focus-visible:ring-amber-400 focus-visible:ring-offset-1",
+          )}
+          onClick={(e) => e.preventDefault()}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" || e.key === " ") e.preventDefault();
+          }}
+        >
+          <Lock className="h-3 w-3 shrink-0" aria-hidden />
+          {label}
         </span>
       </TooltipTrigger>
       <TooltipContent className="max-w-xs text-left leading-snug" side="bottom">
@@ -93,16 +97,18 @@ export function OperatorInboxPacketBadges({
 }
 
 export function OperatorInboxLocalDraftPreview({ messages }: { messages: Message[] }) {
+  const reactId = useId();
+  const headingId = `${reactId}-draft-preview-heading`;
   const hints = extractDraftOrderHints(messages);
   return (
-    <section className="rounded-lg border border-dashed border-gray-200 bg-gray-50/80 p-3" aria-labelledby="draft-preview-heading">
-      <h4 id="draft-preview-heading" className="text-xs font-semibold uppercase tracking-wide text-gray-600">
+    <section className="rounded-lg border border-dashed border-gray-200 bg-gray-50/80 p-3" aria-labelledby={headingId}>
+      <h4 id={headingId} className="text-xs font-semibold uppercase tracking-wide text-gray-600">
         Draft order hints (local parse)
       </h4>
       <p className="mt-1 text-[11px] text-gray-500">In-browser only. Does not create or update orders.</p>
       <ul className="mt-2 space-y-1 text-xs text-gray-800">
-        {hints.map((h) => (
-          <li key={h} className="flex gap-1">
+        {hints.map((h, i) => (
+          <li key={`${i}-${h}`} className="flex gap-1">
             <span className="text-gray-400" aria-hidden>
               •
             </span>
@@ -115,16 +121,18 @@ export function OperatorInboxLocalDraftPreview({ messages }: { messages: Message
 }
 
 export function OperatorInboxLocalAiPreviewPanel({ messages }: { messages: Message[] }) {
+  const reactId = useId();
+  const headingId = `${reactId}-local-ai-heading`;
   const { headline, bullets } = localOnlyAiSuggestionPreview(messages);
   return (
-    <section className="rounded-lg border border-dashed border-indigo-200 bg-indigo-50/50 p-3" aria-labelledby="local-ai-heading">
-      <h4 id="local-ai-heading" className="text-xs font-semibold uppercase tracking-wide text-indigo-900">
+    <section className="rounded-lg border border-dashed border-indigo-200 bg-indigo-50/50 p-3" aria-labelledby={headingId}>
+      <h4 id={headingId} className="text-xs font-semibold uppercase tracking-wide text-indigo-900">
         AI-style preview (local keywords)
       </h4>
       <p className="mt-1 text-sm font-medium text-indigo-950">{headline}</p>
       <ul className="mt-2 space-y-1 text-xs text-indigo-900/90">
-        {bullets.map((b) => (
-          <li key={b} className="flex gap-1">
+        {bullets.map((b, i) => (
+          <li key={`${i}-${b}`} className="flex gap-1">
             <span className="text-indigo-400" aria-hidden>
               •
             </span>

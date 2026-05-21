@@ -530,7 +530,7 @@ export function WhatsAppInbox() {
               <div className="min-h-0 flex-1 space-y-6 overflow-y-auto p-4">
                 {selectedPacket.messages && selectedPacket.messages.length > 0 ? (
                   groupMessagesByDay(selectedPacket.messages).map((group) => (
-                    <div key={group.dayLabel}>
+                    <div key={group.dayKey}>
                       <p className="mb-3 text-center text-[11px] font-semibold uppercase tracking-wider text-gray-400">
                         {group.dayLabel}
                       </p>

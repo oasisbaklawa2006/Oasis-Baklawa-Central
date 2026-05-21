@@ -5,7 +5,7 @@
 
 import type { Message } from "./operatorInboxTypes";
 
-export type DayGroupedMessages = { dayLabel: string; messages: Message[] };
+export type DayGroupedMessages = { dayKey: string; dayLabel: string; messages: Message[] };
 
 /** Group messages by local calendar day for thread UI. */
 export function groupMessagesByDay(messages: Message[], locale = "en-IN"): DayGroupedMessages[] {
@@ -30,7 +30,11 @@ export function groupMessagesByDay(messages: Message[], locale = "en-IN"): DayGr
     byKey.get(key)!.items.push(msg);
   }
 
-  return Array.from(byKey.values()).map((v) => ({ dayLabel: v.label, messages: v.items }));
+  return Array.from(byKey.entries()).map(([dayKey, v]) => ({
+    dayKey,
+    dayLabel: v.label,
+    messages: v.items,
+  }));
 }
 
 /** Local-only draft / order hints from visible message text (inbound preferred). */
