@@ -53,7 +53,7 @@ export function extractDraftOrderHints(messages: Message[], maxHints = 10): stri
     if (hints.size >= maxHints) return [...hints];
   }
 
-  const gstMatches = text.matchAll(/\b\d{2}[A-Z]{5}\d{4}[A-Z][A-Z0-9]Z[A-Z0-9]\b/g);
+  const gstMatches = text.matchAll(/\b\d{2}[A-Z]{5}\d{4}[A-Z][A-Z0-9]Z[A-Z0-9]\b/gi);
   for (const m of gstMatches) {
     hints.add(`GSTIN-like: ${m[0]}`);
     if (hints.size >= maxHints) return [...hints];
