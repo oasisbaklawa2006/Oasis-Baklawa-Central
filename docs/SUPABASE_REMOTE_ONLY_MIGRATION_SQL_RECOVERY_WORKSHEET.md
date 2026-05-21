@@ -340,12 +340,12 @@ Initial worksheet state: all **`unknown`** unless noted; use **notes** to flag *
 | `20260515073922` | `orders_finance_audit` | `20260515120000_orders_finance_audit.sql` | **historical drift** *(Phase A: same physical objects as `85811`; **duplicate** remote history row **likely**)* | **low**–**medium** | **recover exact SQL** / document duplicate | **caution** | **86%** *↑ Phase A* |
 | `20260515073940` | `buyer_payment_receipt_and_storage` | `20260515194500_buyer_payment_receipt_and_storage.sql` | **probable re-versioned migration**; **partial mismatch** *(Phase A: PART A + policies match; **`storage.buckets.public`** mismatch)* | **medium** | **compare production introspection** (resolve bucket flag); **recover exact SQL** | **caution** | **70%** *↑ Phase A* |
 | `20260517072741` | `orders_payment_rejection_reason` | `20260516200000_orders_payment_rejection_reason.sql` | **probable re-versioned migration** *(Phase A: column + comment **exact** match)* | **low**–**medium** | **recover exact SQL** (history) | **caution** | **92%** *↑ Phase A* |
-| `20260517151438` | `20260517_whatsapp_messaging_backbone` | `20260410113938_*` (`whatsapp_config`); `20260417113513_*` (`whatsapp_buffer`) — **neighbors, not equivalents** | **likely missing local SQL** | **high** | **compare production introspection**; **recover exact SQL** | **blocking** | **18%** |
-| `20260517152907` | `20260517_whatsapp_provider_abstraction` | Same April neighbors as row above (**not** proven equivalents) | **likely missing local SQL** | **high** | **compare production introspection**; **recover exact SQL** | **blocking** | **16%** |
-| `20260517203808` | `20260518_whatsapp_automations_table` | **None** identified in repo migrations by name | **likely missing local SQL** | **high** | **compare production introspection**; **recover exact SQL** | **blocking** | **15%** |
-| `20260518074624` | `20260518_whatsapp_message_stitching_layer` | **None** clear; `20260518220000_*` hints dependencies only | **likely missing local SQL** | **high** | **compare production introspection**; **recover exact SQL** | **blocking** | **20%** |
-| `20260518075520` | `20260518_whatsapp_raw_messages_and_packets` | `20260518220000_*` (FK / existence assumptions for `whatsapp_message_packets` **only**) | **partial overlap**; **likely missing local SQL** (core DDL) | **high** | **compare production introspection**; **recover exact SQL** | **blocking** | **25%** |
-| `20260518210953` | `whatsapp_tool5_tool6_audit_tables` | `20260518220000_c2a_whatsapp_audit_tables_reconciliation.sql` | **partial overlap** | **medium**–**high** *(medium if audit DDL matches; high if mismatch causes duplicate objects)* | **compare production introspection**; **verify against git history** | **caution** | **38%** |
+| `20260517151438` | `20260517_whatsapp_messaging_backbone` | `20260410113938_*` (`whatsapp_config`); `20260417113513_*` (`whatsapp_buffer`); **Phase A:** full core graph **present** on prod | **likely missing local SQL** *(history)*; **probable drift** *(schema)* — see **§Phase A WhatsApp** | **medium**–**high** *(lower **schema** risk after Phase A; **history** risk unchanged)* | **recover exact SQL**; document drift | **blocking** | **72%** *↑ Phase A WhatsApp* |
+| `20260517152907` | `20260517_whatsapp_provider_abstraction` | Same neighbors + prod `whatsapp_automations.provider` etc. **Phase A:** objects **present** | **likely missing local SQL** *(history)*; **probable drift** *(schema)* | **medium**–**high** | **recover exact SQL** | **blocking** | **68%** *↑ Phase A WhatsApp* |
+| `20260517203808` | `20260518_whatsapp_automations_table` | **None** by name in repo; **Phase A:** `public.whatsapp_automations` **exists** with PK/FKs/indexes | **likely missing local SQL** *(history)*; **probable drift** *(schema)* | **medium**–**high** | **recover exact SQL** | **blocking** | **74%** *↑ Phase A WhatsApp* |
+| `20260518074624` | `20260518_whatsapp_message_stitching_layer` | **Phase A:** `whatsapp_stitched_packets` **exists** (parallel stitch store); stitcher Edge uses `whatsapp_message_packets` | **likely missing local SQL** *(history)*; **probable drift** *(schema)* | **medium** | **recover exact SQL** | **blocking** | **70%** *↑ Phase A WhatsApp* |
+| `20260518075520` | `20260518_whatsapp_raw_messages_and_packets` | **Phase A:** `whatsapp_messages` + `whatsapp_message_packets` **present**; Edge stitcher columns verified | **likely missing local SQL** *(history)*; **probable drift** *(schema)* | **medium** | **recover exact SQL** | **blocking** | **76%** *↑ Phase A WhatsApp* |
+| `20260518210953` | `whatsapp_tool5_tool6_audit_tables` | `20260518220000_c2a_whatsapp_audit_tables_reconciliation.sql` | **partial overlap** *(Phase A: **high** overlap; missing `priority` CHECK + table comments; policy role binding differs in catalog view)* | **medium** | **compare production introspection** (complete C2A diff); **recover exact SQL** | **caution** | **78%** *↑ Phase A WhatsApp* |
 
 ---
 
@@ -483,6 +483,114 @@ Initial worksheet state: all **`unknown`** unless noted; use **notes** to flag *
 
 ---
 
+## Phase A (read-only) — WhatsApp bundle introspection
+
+**When:** Worksheet update *(Phase A, WhatsApp six remote-only versions)*.  
+**Method:** Read-only **`SELECT`** on linked production **`tcxvcatsqqertcnycuop`** (Supabase MCP `execute_sql`). **No** DDL/DML, **no** CLI `repair` / `db push` / `db pull`.  
+**Compared against:** `docs/SUPABASE_WHATSAPP_SCHEMA_INTROSPECTION_RESULTS.md`, `supabase/migrations/20260410113938_7d53424f-2a03-4f2b-a811-bcbd1b4652c1.sql`, `supabase/migrations/20260417113513_ee89e417-a4bb-4cdc-9dd6-4ad6f30ff57a.sql`, `supabase/migrations/20260411112153_df91b082-600a-4f92-8ff9-877e56bc7e02.sql` (storage bucket), `supabase/migrations/20260518220000_c2a_whatsapp_audit_tables_reconciliation.sql`, and Edge assumptions in `supabase/functions/whatsapp-message-stitcher/index.ts` + `supabase/functions/whatsapp-operator-reply/index.ts`.
+
+### W.0 Per-remote verdict (six WhatsApp remote-only versions)
+
+| Remote version | Remote name | Verdict *(schema vs “likely local / committed intent”)* | **Drift-only?** *(schema sense)* | Confidence |
+|----------------|-------------|-------------------------------------------------------------|-------------------------------------|------------|
+| `20260517151438` | `20260517_whatsapp_messaging_backbone` | **Probable equivalence / drift-first:** all **nine** `public.whatsapp_*` base tables **exist** (`whatsapp_automations`, `whatsapp_buffer`, `whatsapp_config`, `whatsapp_contacts`, `whatsapp_message_packets`, `whatsapp_messages`, `whatsapp_stitched_packets`, `whatsapp_override_log`, `whatsapp_suggestions_log`). Tracked migrations cover **config + buffer** only partially; **no** single repo file proves this remote version string. | **Likely yes** for “backbone **objects exist**”; **No** for “**history file** exists” | **High** *(existence)* / **Medium** *(line-by-line SQL unknown)* |
+| `20260517152907` | `20260517_whatsapp_provider_abstraction` | **Probable drift:** `whatsapp_automations` includes **`provider`** (and related columns per prior manual doc); FKs to `whatsapp_contacts`, `orders` **present** on prod. | **Likely yes** *(schema)* | **Medium–high** |
+| `20260517203808` | `20260518_whatsapp_automations_table` | **Probable drift:** `public.whatsapp_automations` **exists** with PK, FKs, and indexes `idx_whatsapp_automations_order`, `_status`, `_trigger`. | **Likely yes** *(schema)* | **High** *(table-level)* |
+| `20260518074624` | `20260518_whatsapp_message_stitching_layer` | **Probable drift:** `public.whatsapp_stitched_packets` **exists** (RLS on); indexes include `idx_whatsapp_packets_contact`, `_contact_sequence`, `_created`, `_status`. **No** FK to `whatsapp_message_packets` (parallel model — see **W.3**). | **Likely yes** *(schema)* | **Medium–high** |
+| `20260518075520` | `20260518_whatsapp_raw_messages_and_packets` | **Probable drift:** `whatsapp_messages` + `whatsapp_message_packets` **present** with stitcher-relevant columns (`stitched_content` on packets; `packet_id`, `is_raw`, `stitched_at`, `message_timestamp`, … on messages — verified subset). FK `fk_whatsapp_messages_packet_id` → `whatsapp_message_packets`. | **Likely yes** *(schema)* | **High** |
+| `20260518210953` | `whatsapp_tool5_tool6_audit_tables` | **Partial match vs `20260518220000_*`:** audit tables + indexes + FKs + **policy expression bodies** align with C2A file; **gaps** below (**W.4**). | **Mostly yes** for **objects**; **No** for **full C2A file parity** | **Medium–high** |
+
+---
+
+### W.1 Object inventory *(production `pg_catalog` / `information_schema`)*
+
+| Table | RLS enabled *(prod)* | Notes |
+|-------|------------------------|--------|
+| `whatsapp_automations` | yes | PK + FKs to `whatsapp_contacts`, `orders`; 3 btree indexes on `order_id`, `status`, `trigger_type`. |
+| `whatsapp_buffer` | yes | Matches tracked migration shape + indexes (`idx_whatsapp_buffer_sender`, `_status`); policies: service_role ALL, staff SELECT/INSERT. |
+| `whatsapp_config` | yes | Tracked migration; admin + authenticated SELECT policies. |
+| `whatsapp_contacts` | yes | Unique on `phone_number`; phone index. |
+| `whatsapp_message_packets` | yes | PK; FK `contact_id` → contacts; self-FK `manual_merge_parent_id`; **CHECK** on `status` (`open`/`closed`). Policies `whatsapp_packets_{view,insert,update,no_delete}` on prod (names from `pg_policies`). |
+| `whatsapp_messages` | yes | FKs to `contacts`, `orders`, `message_packets`; direction/status CHECKs; indexes incl. `packet_id`, `is_raw`, `contact_id`. Policy `whatsapp_messages_finance_ops` (SELECT). |
+| `whatsapp_stitched_packets` | yes | PK; FK `contact_id` → contacts; self-FK `manual_merge_parent_id`; status CHECK; policies mirror packet-style `whatsapp_packets_*` names. |
+| `whatsapp_override_log` | yes | FKs to `whatsapp_message_packets` CASCADE + `users` RESTRICT; 3 btree indexes match C2A names. |
+| `whatsapp_suggestions_log` | yes | FK to `message_packets` CASCADE; 3 btree indexes match C2A names. |
+
+**Triggers:** **None** returned for `public` + `whatsapp%` from `information_schema.triggers` *(empty set this run)*.  
+**Public functions named `%whatsapp%`:** **None** in `pg_proc` for `public`/`auth` *(empty set this run; does not exclude generic triggers/functions outside name pattern)*.
+
+---
+
+### W.2 Storage *(WhatsApp-related only)*
+
+| Bucket | `public` flag *(prod)* | Tracked intent |
+|--------|-------------------------|----------------|
+| `whatsapp_attachments` | **false** | `20260411112153_*` creates private bucket + policies. |
+| `receipts` | **true** | Finance path (Phase A finance); not WhatsApp-specific—listed for cross-reference only. |
+
+---
+
+### W.3 `whatsapp_stitched_packets` vs `whatsapp_message_packets` *(relation)*
+
+| Question | Finding |
+|----------|---------|
+| **FK between tables?** | **No** `FOREIGN KEY` from `whatsapp_stitched_packets` → `whatsapp_message_packets` (or reverse) in `pg_constraint` extract. |
+| **How they relate operationally** | **`whatsapp_message_packets`** holds `stitched_content` jsonb and is what **`whatsapp-message-stitcher`** inserts/updates against (`whatsapp_messages.packet_id` links here). **`whatsapp_stitched_packets`** is a **parallel** table (columns include `message_ids` jsonb, `message_count`, `packet_sequence`, manual merge/split audit fields) with overlapping **naming** (`idx_whatsapp_packets_*`) but **separate** physical rows. |
+| **Edge code** | Stitcher **does not reference** `whatsapp_stitched_packets` in repo body reviewed; operator-reply uses **`whatsapp_messages`** only. |
+
+**Conclusion:** Treat as **dual persistence paths** / **legacy or alternate stitch store** until product/docs explain; **not** a simple parent/child FK pair.
+
+---
+
+### W.4 C2A audit tables vs `supabase/migrations/20260518220000_c2a_whatsapp_audit_tables_reconciliation.sql`
+
+| Check | Production | `20260518220000` migration | Match? |
+|-------|------------|---------------------------|--------|
+| Tables exist | `whatsapp_override_log`, `whatsapp_suggestions_log` | `CREATE TABLE IF NOT EXISTS` both | **Yes** |
+| Column sets | Override: `id…created_at` all **not null** where migration requires NOT NULL on key fields; `created_at` **`timestamp without time zone`** on both audit tables | Migration uses `timestamp without time zone` for `created_at` | **Yes** |
+| FK `override.packet_id` → `whatsapp_message_packets` | **Present** `whatsapp_override_log_packet_id_fkey` CASCADE | Same | **Yes** |
+| FK `override.operator_id` → `users` | **Present** RESTRICT | Same | **Yes** |
+| FK `suggestions.packet_id` → `whatsapp_message_packets` | **Present** CASCADE | Same | **Yes** |
+| Indexes (`idx_whatsapp_override_log_*`, `idx_whatsapp_suggestions_*`) | All six names **present** with btree defs matching migration | `CREATE INDEX IF NOT EXISTS` | **Yes** |
+| RLS policies `override_log_view`, `override_log_insert`, `suggestions_log_view` | **Present**; `pg_get_expr` shows **`EXISTS (user_role_map ⋈ roles)`** with `role_key` arrays **matching** migration (`operations/finance/director` for SELECT; `operations/director` for INSERT on override) | Same SQL intent | **Yes** *(expression body)* |
+| Policy roles *(catalog)* | `pg_policies` lists **`{public}`** for these policies; `pg_policy.polroles` empty → default **PUBLIC** target | Migration uses **`TO authenticated`** | **Catalog vs file wording mismatch** — **needs** governance review; **may** be behaviorally similar because `auth.uid()` is null for anon (EXISTS fails) **but** not identical to `TO authenticated`. |
+| **`whatsapp_override_log_priority_check`** | **`has_priority_check = false`** | Migration adds CHECK `lower(priority)` ∈ `{high,normal,low}` when absent | **No** — applying C2A would **attempt** to add (or NOTICE on violation) |
+| **`COMMENT ON TABLE`** for both audit tables | **`obj_description` = null** | Migration sets table comments | **No** |
+| `suggestions_log.confidence` type | **`numeric(3,2)`** | Migration: **`numeric`** (no precision) | **Minor** — probable equivalence |
+
+**C2A production-equivalence summary:** **High** confidence that **core DDL + RLS expression logic** in `20260518220000_*` describes production **closely**. **Not exact file-parity:** missing **`priority` CHECK**, missing **table comments**, and **policy role target** presentation differs from migration text.
+
+---
+
+### W.5 Edge function assumptions vs production *(read-only cross-check)*
+
+| Assumption | Production evidence |
+|------------|----------------------|
+| `whatsapp-message-stitcher` reads/updates `whatsapp_messages` with `is_raw`, `packet_id` null filter, `direction` | Columns **`is_raw`**, **`packet_id`**, **`direction`**, **`message_timestamp`**, **`contact_id`**, **`content`**, **`created_at`** all **exist** on `whatsapp_messages`. |
+| Inserts into `whatsapp_message_packets` with `stitched_content`, `fragment_count`, timestamps, `status` | Columns **`stitched_content`**, **`fragment_count`**, **`first_message_at`**, **`last_message_at`**, **`status`** **exist** on `whatsapp_message_packets`. |
+| `whatsapp-operator-reply` writes `whatsapp_messages` | Table **exists** with expected core columns (reply path not fully enumerated this run). |
+
+---
+
+### W.6 Unresolved / follow-ups *(no repair or apply proposed here)*
+
+1. **Remote-only SQL files** for all six WhatsApp versions — **still missing** in git; Phase A **does not** replace recovery.  
+2. **`whatsapp_override_log_priority_check`** absent on prod — decide whether **idempotent apply** of `20260518220000` is desired **later** under Phase D gates, or document intentional omission.  
+3. **Policy `TO public` vs `TO authenticated`** on audit tables — confirm with security review (Supabase/Postgres catalog vs migration text).  
+4. **Purpose and writer** of `whatsapp_stitched_packets` vs `whatsapp_message_packets` — product + code audit (stitcher ignores stitched table).  
+5. **Exhaustive** policy list beyond sampled names for `whatsapp_message_packets` / `whatsapp_messages` / `whatsapp_stitched_packets` — not diffed line-by-line to any single migration file this run.  
+6. **`whatsapp_message_packets` / `whatsapp_stitched_packets` policies** appear as **`{public}`** in `pg_policies` for `whatsapp_packets_*` — broader than Sprint C2 **least-privilege** targets; needs dedicated C2B review even if schema exists.
+
+---
+
+### W.7 Does Phase A WhatsApp unblock **C2B / C2C**?
+
+**Schema / “missing tables” angle:** Phase A **weakens** the hypothesis that production is **missing** the WhatsApp **core + audit** tables implied by remote names — objects **are** present and largely align with docs + C2A migration intent.
+
+**Process / governance angle:** **`docs/SUPABASE_RECONCILIATION_EXECUTION_STRATEGY.md`** and drift worksheets still treat **`db push` / `repair`** and **new production migrations** as **gated** until migration **history** is reconciled. **C2B (RLS/auth hardening)** and **C2C (governed write paths)** should therefore still be treated as **blocked or high-caution** until org explicitly accepts residual **history skew** risk or completes later phases—**Phase A read-only does not, by itself, lift that gate.**
+
+---
+
 ## Worksheet change log
 
 | Date | Change |
@@ -493,6 +601,7 @@ Initial worksheet state: all **`unknown`** unless noted; use **notes** to flag *
 | *(update)* | **Bundle reconciliation:** Finance bundle, WhatsApp bundle, Legacy `20260423214633`, synthesis (drift vs missing features), and risk assessment (safest / medium / dangerous) sections added. |
 | *(update)* | **Decision matrix + executive synthesis + safe next phase** appended (conservative hypotheses; confidence % labeled subjective). |
 | *(update)* | **Phase A (read-only, finance subset):** Production introspection vs `20260515120000_*`, `20260515194500_*`, `20260516200000_*` for remote `85811`, `85829`, `73922`, `73940`, `72741`; **exact** match except `storage.buckets.public` on `receipts`; matrix + §2 + SAFE NEXT PHASE evidence note updated. |
+| *(update)* | **Phase A (read-only, WhatsApp bundle):** Production catalog for six remote-only rows + C2A parity check; stitched vs message_packets; Edge column spot-check; matrix WhatsApp rows + **§W** section. |
 
 ---
 
