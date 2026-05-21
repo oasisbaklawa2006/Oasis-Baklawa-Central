@@ -69,8 +69,8 @@ Initial worksheet state: all **`unknown`** unless noted; use **notes** to flag *
 | 2 | **remote name** | `add_finance_audit_columns_to_orders` |
 | 3 | **likely affected** | `public.orders` (`finance_verified_by`, `finance_verified_at` per app/types + local migrations); indexes `idx_orders_finance_verified_by`, `idx_orders_payment_status_finance`; FK to `auth.users(id)`; optional `COMMENT ON COLUMN` if included in remote apply. |
 | 4 | **local related files** | `supabase/migrations/20260515120000_orders_finance_audit.sql` (**different version prefix**). App: `src/pages/admin/FinanceReleaseBoard.tsx`; types: `src/integrations/supabase/types.ts` (and `database.types.ts`). |
-| 5 | **required evidence source** | **Still required for `verified`:** Supabase dashboard / CI run logs for the apply that recorded `20260514185811`, **or** production introspection (`information_schema.columns`, `pg_indexes`, `pg_constraint`, `pg_description` on `public.orders`) compared to candidates below. |
-| 6 | **recovery status** | **candidate** *(git contains plausible SQL under a different migration version; not proven identical to remote apply)* |
+| 5 | **required evidence source** | **History / provenance** still useful (logged SQL for remote version rows); **schema** side for this version satisfied by **Phase A** introspection (see **§Phase A**). |
+| 6 | **recovery status** | **verified (Phase A — production catalog)** for **schema objects** covered by `20260515120000_orders_finance_audit.sql`; **migration history file** for remote version `20260514185811` still absent in git. |
 | 7 | **notes** | Remote **2026-05-14 18:58:11 UTC** precedes first git introduction of the same DDL under `20260515120000_*` in **`af99c86`** (**~2026-05-14 19:38 UTC**), consistent with **remote-first apply** then repo commit under a **new** version. **`git log --all` never contains `20260514185811_*.sql`; pickaxe for version / remote name finds no `*.sql` outside docs.** |
 
 #### Candidate SQL sources map (`20260514185811`)
@@ -334,12 +334,12 @@ Initial worksheet state: all **`unknown`** unless noted; use **notes** to flag *
 | Remote version | Remote name (API) | Current best local equivalent(s) | Reconciliation class | Operational risk if unreconciled | Recommended next action | Blocker level for future migration safety | Conf. % |
 |----------------|-------------------|----------------------------------|----------------------|----------------------------------|---------------------------|-------------------------------------------|---------|
 | `20260423214633` | *(empty)* | **None.** Neighbors only: `20260423214346_*`, `20260423214837_*` | **unknown** | **medium** *(unknown DDL may hide RLS/column drift on auth-adjacent objects)* | **compare production introspection** | **blocking** | **12%** |
-| `20260514185811` | `add_finance_audit_columns_to_orders` | `20260515120000_orders_finance_audit.sql` (+ `git show af99c86:…` body slice) | **probable re-versioned migration** | **medium** | **verify against git history**; **compare production introspection** | **caution** | **52%** |
-| `20260514185829` | `add_payment_proof_audit_columns_to_order_payments` | `20260515194500_buyer_payment_receipt_and_storage.sql` (PART A semantics) | **partial overlap**; **probable re-versioned migration** | **medium** | **compare production introspection** | **caution** | **48%** |
+| `20260514185811` | `add_finance_audit_columns_to_orders` | `20260515120000_orders_finance_audit.sql` (+ `git show af99c86:…` body slice) | **probable re-versioned migration** *(Phase A: prod DDL **matches** this file — see §Phase A)* | **low**–**medium** *(schema low; **history** still skewed)* | **recover exact SQL** (for history file) **after** Phase C sign-off | **caution** | **90%** *↑ Phase A* |
+| `20260514185829` | `add_payment_proof_audit_columns_to_order_payments` | `20260515194500_buyer_payment_receipt_and_storage.sql` (PART A semantics) | **probable re-versioned migration** *(Phase A: PART A **exact** match)* | **low**–**medium** | **compare production introspection** (PART B–E for `73940`) | **caution** | **88%** *↑ Phase A* |
 | `20260514185852` | `add_finance_exec_rls_policies` | `20260515194500_*` (RLS overlap **hypothesis**); `20260406201149_*` (distant `orders` UPDATE policies) | **unknown**; **partial overlap** (weak) | **high** *(mis-modeled finance RLS could break releases or widen access)* | **compare production introspection**; **verify against git history** | **blocking** | **22%** |
-| `20260515073922` | `orders_finance_audit` | `20260515120000_orders_finance_audit.sql` | **historical drift** (duplicate remote row **hypothesis**); **partial overlap** | **medium** | **compare production introspection** | **caution** | **28%** |
-| `20260515073940` | `buyer_payment_receipt_and_storage` | `20260515194500_buyer_payment_receipt_and_storage.sql` | **probable re-versioned migration**; **partial overlap** (local **superset** likely) | **medium** | **compare production introspection** | **caution** | **44%** |
-| `20260517072741` | `orders_payment_rejection_reason` | `20260516200000_orders_payment_rejection_reason.sql` | **probable re-versioned migration** | **medium** *(low **schema** risk if column-only; medium **process** risk if history wrong)* | **compare production introspection**; **verify against git history** | **caution** | **50%** |
+| `20260515073922` | `orders_finance_audit` | `20260515120000_orders_finance_audit.sql` | **historical drift** *(Phase A: same physical objects as `85811`; **duplicate** remote history row **likely**)* | **low**–**medium** | **recover exact SQL** / document duplicate | **caution** | **86%** *↑ Phase A* |
+| `20260515073940` | `buyer_payment_receipt_and_storage` | `20260515194500_buyer_payment_receipt_and_storage.sql` | **probable re-versioned migration**; **partial mismatch** *(Phase A: PART A + policies match; **`storage.buckets.public`** mismatch)* | **medium** | **compare production introspection** (resolve bucket flag); **recover exact SQL** | **caution** | **70%** *↑ Phase A* |
+| `20260517072741` | `orders_payment_rejection_reason` | `20260516200000_orders_payment_rejection_reason.sql` | **probable re-versioned migration** *(Phase A: column + comment **exact** match)* | **low**–**medium** | **recover exact SQL** (history) | **caution** | **92%** *↑ Phase A* |
 | `20260517151438` | `20260517_whatsapp_messaging_backbone` | `20260410113938_*` (`whatsapp_config`); `20260417113513_*` (`whatsapp_buffer`) — **neighbors, not equivalents** | **likely missing local SQL** | **high** | **compare production introspection**; **recover exact SQL** | **blocking** | **18%** |
 | `20260517152907` | `20260517_whatsapp_provider_abstraction` | Same April neighbors as row above (**not** proven equivalents) | **likely missing local SQL** | **high** | **compare production introspection**; **recover exact SQL** | **blocking** | **16%** |
 | `20260517203808` | `20260518_whatsapp_automations_table` | **None** identified in repo migrations by name | **likely missing local SQL** | **high** | **compare production introspection**; **recover exact SQL** | **blocking** | **15%** |
@@ -361,7 +361,7 @@ Initial worksheet state: all **`unknown`** unless noted; use **notes** to flag *
 **Hypothesis:** The **WhatsApp bundle** (six May 17–18 rows) carries the **highest operational danger** for future applies: local git **does not** clearly contain the DDL implied by remote **names**, and **`20260518220000`** alone **cannot** be assumed to subsume those six applies. **`85852`** and **`20260423214633`** are the **next-tier** danger points inside finance/legacy.
 
 **Which bundle is likely administrative drift only?**  
-**Hypothesis:** The **core finance column/index** work mapped to **`20260515120000`**, **`20260515194500`**, and **`20260516200000`** is the **best candidate** for “**administrative drift only**” **after** introspection confirms no extra remote-only objects—but **not** before verification.
+**Hypothesis:** The **core finance column/index** work mapped to **`20260515120000`**, **`20260515194500`**, and **`20260516200000`** is the **best candidate** for “**administrative drift only**” **after** introspection confirms no extra remote-only objects—but **not** before verification. **Phase A (finance five)** now **supports** this hypothesis for **`85811` / `85829` / `73922` / `72741`**, with **`73940`** **qualified** by the **`receipts.public`** mismatch (see **§Phase A**).
 
 ---
 
@@ -384,7 +384,102 @@ Initial worksheet state: all **`unknown`** unless noted; use **notes** to flag *
 - **Exact SQL** (or logged statements) for **all thirteen** versions from apply pipelines.
 - **Production introspection** proving whether **`COMMENT ON COLUMN`**, **extra indexes**, and **finance-exec-specific policies** from **`85852`** exist and match any local file.
 - **WhatsApp** full DDL for **`whatsapp_message_packets`**, **`whatsapp_raw_messages`**, automations/stitching objects—**not** inferable from git alone.
-- **Resolution** of whether **`73922`** duplicates **`85811`** on the remote history table.
+- **Resolution** of whether **`73922`** duplicates **`85811`** on the remote history table — **Phase A (schema):** same physical `orders` objects as `85811`; duplicate-row story **strengthened** (still not a direct `schema_migrations` query in this pass).
+
+---
+
+## Phase A (read-only) — Production introspection vs local finance migrations
+
+**When:** Recorded in worksheet update *(Phase A, finance subset only)*.  
+**Method:** Read-only **`SELECT`** against linked production project **`tcxvcatsqqertcnycuop`** (Supabase MCP `execute_sql`). **No** DDL, **no** CLI `repair` / `db push` / `db pull`.  
+**Scope this run:** Five remote-only finance versions listed below. **WhatsApp bundle** not queried in this pass.
+
+### Per-remote verdict summary
+
+| Remote version | Remote name | Local file compared | Overall verdict vs production | **Safe to treat as drift-only?** (schema sense) | Confidence *(post–Phase A)* |
+|----------------|--------------|---------------------|--------------------------------|--------------------------------------------------|-----------------------------|
+| `20260514185811` | `add_finance_audit_columns_to_orders` | `20260515120000_orders_finance_audit.sql` | **Exact equivalence** for columns, FK, indexes, column comments | **Yes** — objects match file; **history** still needs a file row for this version | **High** |
+| `20260514185829` | `add_payment_proof_audit_columns_to_order_payments` | `20260515194500_*` **PART A only** | **Exact equivalence** for PART A columns, FK, defaults, indexes, column comments | **Yes** for **column/index/FK** scope of this remote name | **High** |
+| `20260515073922` | `orders_finance_audit` | `20260515120000_orders_finance_audit.sql` | **Exact equivalence** to same `public.orders` objects as `85811` (no second DDL layer observed) | **Yes** — supports **duplicate migration-history row** hypothesis alongside `85811` | **High** |
+| `20260515073940` | `buyer_payment_receipt_and_storage` | `20260515194500_*` **full file** | **Probable equivalence** with **one partial mismatch** (storage bucket visibility — see below) | **Cautious yes** for RLS + `order_payments`; **No** until `receipts` **`public`** flag reconciled with intended security model | **Medium–high** |
+| `20260517072741` | `orders_payment_rejection_reason` | `20260516200000_orders_payment_rejection_reason.sql` | **Exact equivalence** for column + `COMMENT ON COLUMN` | **Yes** | **High** |
+
+**Equivalence labels used:** **exact** = catalog match to migration text for listed objects; **probable** = match with known minor/config delta; **partial mismatch** = documented delta.
+
+---
+
+### A.1 `public.orders` vs `20260515120000_orders_finance_audit.sql` *(remote `85811` + `73922`)*
+
+| Object | Expected (local file) | Production (introspection) | Match? |
+|--------|------------------------|----------------------------|--------|
+| Column `finance_verified_by` | `uuid`, nullable, FK `auth.users(id) ON DELETE SET NULL` | `uuid`, nullable; FK `orders_finance_verified_by_fkey` → `auth.users(id) ON DELETE SET NULL` | **Yes** |
+| Column `finance_verified_at` | `timestamptz`, nullable | `timestamptz`, nullable | **Yes** |
+| Comment `finance_verified_by` | UUID of finance executive… | Same text | **Yes** |
+| Comment `finance_verified_at` | Timestamp when finance cleared… | Same text | **Yes** |
+| Index `idx_orders_finance_verified_by` | `btree (finance_verified_by)` | `CREATE INDEX … ON public.orders USING btree (finance_verified_by)` | **Yes** |
+| Index `idx_orders_payment_status_finance` | `btree (payment_status, finance_verified_at DESC)` | Same column order + `DESC` on `finance_verified_at` | **Yes** |
+| RLS enabled | *(not set in this migration)* | `orders.relrowsecurity = true` | *(extra prod state; not a mismatch with file)* |
+
+**Conclusion:** **`85811`** and **`73922`** both align with **one** physical DDL story identical to **`20260515120000_orders_finance_audit.sql`**. **`73922`** is **not** evidenced as a separate second schema layer—treat as **history-only** duplicate **hypothesis** (still not proven without `schema_migrations` row provenance).
+
+---
+
+### A.2 `public.order_payments` PART A vs `20260515194500_*` *(remote `85829`)*
+
+| Object | Expected (local PART A) | Production | Match? |
+|--------|-------------------------|------------|--------|
+| `proof_url` | `text`, nullable | `text`, nullable; comment matches | **Yes** |
+| `proof_storage_path` | `text`, nullable | same | **Yes** |
+| `verified_by` | `uuid`, FK `auth.users` | `uuid`; FK `order_payments_verified_by_fkey` | **Yes** |
+| `verified_at` | `timestamptz` | same | **Yes** |
+| `status` | `text` default `'uploaded'` | default `'uploaded'::text`; comment matches | **Yes** |
+| `rejection_reason` | `text` | same; comment matches | **Yes** |
+| Indexes `idx_order_payments_status`, `idx_order_payments_order_status`, `idx_order_payments_verified_by` | per file | All three present with matching definitions | **Yes** |
+| RLS | *(PART D separate)* | `order_payments.relrowsecurity = true` | *(consistent with later parts of same local file)* |
+
+---
+
+### A.3 `public.orders` payment rejection vs `20260516200000_*` *(remote `72741`)*
+
+| Object | Expected | Production | Match? |
+|--------|----------|------------|--------|
+| `payment_rejection_reason` | `text`, nullable + comment | `text`, nullable; comment text matches file | **Yes** |
+
+---
+
+### A.4 Buyer receipt path vs `20260515194500_*` PART B–E *(remote `73940`)*
+
+| Object | Expected (local file) | Production | Match? |
+|--------|------------------------|------------|--------|
+| Bucket `receipts` row | `INSERT … (id, name, public)` then `UPDATE … SET public = false` | `storage.buckets`: `id=receipts`, `name=receipts`, **`public = true`** | **No** — **partial mismatch** |
+| Policy `buyer_update_submitted_order_receipt` on `public.orders` | `USING` / `WITH CHECK` company + status `submitted`/`under_review` | Present for `authenticated`; expressions semantically match (qualified `users` vs `public.users` in migration — equivalent) | **Yes** |
+| Policies `buyer_insert_own_order_payments`, `buyer_read_own_order_payments` | per file | Both present; expressions semantically match | **Yes** |
+| Storage policies `authenticated_upload_receipts`, `public_read_receipts`, `authenticated_delete_receipts` | expressions per file | All three exist; `USING` / `WITH CHECK` text matches migration intent (`bucket_id = 'receipts'`, JWT sub check, owner delete) | **Yes** |
+
+**Unresolved mismatch:** **`storage.buckets.public = true`** for **`receipts`** vs local migration intent **`public = false`**. Possible explanations: (1) remote apply for `73940` did not include the `UPDATE`, (2) later manual/dashboard change, (3) different migration ordering. **Does not** by itself prove missing columns—**does** affect **public read** semantics vs file.
+
+---
+
+### A.5 Unresolved after this Phase A slice
+
+- **`20260514185852`** `add_finance_exec_rls_policies` — **not** introspected in this pass (separate from the five focus versions).
+- **Extra** `orders` / `order_payments` policies beyond the three named buyer policies — **not** exhaustively diffed against “finance exec” expectations.
+- **WhatsApp** remote-only six — **deferred** (no queries this run).
+- **`schema_migrations` row provenance** — not re-queried here; physical DDL match **does not** replace **history file** recovery for `db push` alignment.
+
+---
+
+### A.6 “Safe to treat as drift-only?” — per-version (schema-only wording)
+
+| Version | Assessment |
+|---------|--------------|
+| `20260514185811` | **Yes** for **schema**: production matches `20260515120000_*`. **No** for **migration-list hygiene** until a matching file version or approved repair path exists. |
+| `20260514185829` | **Yes** for **PART A** scope. |
+| `20260515073922` | **Yes** as **duplicate history** of same `orders` DDL **hypothesis** (strengthened). |
+| `20260515073940` | **Not fully** — resolve **`receipts`** bucket **`public`** flag vs security intent first. |
+| `20260517072741` | **Yes** for **schema** vs `20260516200000_*`. |
+
+**Stop point:** No `repair`, `db push`, or apply actions proposed here—**record-only** Phase A update.
 
 ---
 
@@ -397,6 +492,7 @@ Initial worksheet state: all **`unknown`** unless noted; use **notes** to flag *
 | *(update)* | **`20260514185811`:** Synthesized recovery assessment — best single-file candidate `20260515120000_orders_finance_audit.sql`; intent + evidence (timing, scope, objects, `af99c86`); comments on remote **unverified**. |
 | *(update)* | **Bundle reconciliation:** Finance bundle, WhatsApp bundle, Legacy `20260423214633`, synthesis (drift vs missing features), and risk assessment (safest / medium / dangerous) sections added. |
 | *(update)* | **Decision matrix + executive synthesis + safe next phase** appended (conservative hypotheses; confidence % labeled subjective). |
+| *(update)* | **Phase A (read-only, finance subset):** Production introspection vs `20260515120000_*`, `20260515194500_*`, `20260516200000_*` for remote `85811`, `85829`, `73922`, `73940`, `72741`; **exact** match except `storage.buckets.public` on `receipts`; matrix + §2 + SAFE NEXT PHASE evidence note updated. |
 
 ---
 
