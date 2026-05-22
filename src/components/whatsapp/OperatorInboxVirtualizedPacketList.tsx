@@ -8,6 +8,7 @@ const ESTIMATE_ROW_COMPACT = 92;
 
 export type OperatorInboxVirtualizedPacketListHandle = {
   scrollToIndex: (index: number) => void;
+  remeasureAll: () => void;
 };
 
 type OperatorInboxVirtualizedPacketListProps = {
@@ -47,6 +48,9 @@ export const OperatorInboxVirtualizedPacketList = forwardRef<
       scrollToIndex: (index: number) => {
         if (index < 0 || index >= orderedPackets.length) return;
         virtualizer.scrollToIndex(index, { align: "auto" });
+      },
+      remeasureAll: () => {
+        virtualizer.measure();
       },
     }),
     [virtualizer, orderedPackets.length],

@@ -4,11 +4,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent, type MouseEvent } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
-import { ArrowLeft, MessageCircle } from "lucide-react";
+import { ArrowLeft, Download, MessageCircle } from "lucide-react";
 import { removeDuplicateRealtimeChannel } from "@/utils/realtime";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { cn } from "@/lib/utils";
@@ -38,6 +39,19 @@ import {
   normalizePersistedBulkFilters,
   saveOperatorInboxUiState,
 } from "@/components/whatsapp/operatorInboxUiPersistence";
+import { buildVisiblePacketsCsv, downloadOperatorInboxCsv } from "@/components/whatsapp/operatorInboxCsvExport";
+import {
+  addSavedView,
+  loadSavedViews,
+  removeSavedView,
+  type OperatorInboxSavedView,
+  type OperatorInboxSavedViewSnapshot,
+} from "@/components/whatsapp/operatorInboxSavedViews";
+import {
+  loadPacketNotesMap,
+  persistPacketNotesMap,
+  type OperatorInboxPacketNotesMap,
+} from "@/components/whatsapp/operatorInboxLocalNotes";
 import { OperatorInboxLoadingShell } from "@/components/whatsapp/OperatorInboxSkeletons";
 import {
   OperatorInboxVirtualizedPacketList,
@@ -61,6 +75,32 @@ import { useOperatorInboxObservability } from "@/components/whatsapp/useOperator
 const REALTIME_CHANNEL = "whatsapp-inbox-packets";
 const PACKET_FETCH_LIMIT = 1000;
 const REALTIME_RELOAD_DEBOUNCE_MS = 480;
+
+function isTypingSurfaceForEsc(el: HTMLElement | null): boolean {
+  if (!el) return false;
+  const tag = el.tagName;
+  return tag === "INPUT" || tag === "TEXTAREA" || el.isContentEditable;
+}
+
+/** Global `/` and `j`/`k` should not steal keys from toolbar controls or form fields. */
+function shouldIgnoreGlobalInboxShortcuts(el: HTMLElement | null): boolean {
+  if (!el) return false;
+  if (el.closest("[data-operator-inbox-interactive]")) return true;
+  const tag = el.tagName;
+  if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || tag === "BUTTON" || tag === "A") return true;
+  if (el.isContentEditable) return true;
+  const role = el.getAttribute("role");
+  if (
+    role === "button" ||
+    role === "checkbox" ||
+    role === "tab" ||
+    role === "switch" ||
+    role === "menuitem"
+  ) {
+    return true;
+  }
+  return false;
+}
 
 /** Suggestion-only payloads from Edge Functions (read-only UI). */
 interface IntentSuggestion {
@@ -103,8 +143,17 @@ export function WhatsAppInbox() {
   const [compactMode, setCompactMode] = useState(false);
   const [showObservabilityStrip, setShowObservabilityStrip] = useState(true);
   const [showAiPreviewPanel, setShowAiPreviewPanel] = useState(true);
-  /** Collapsible read-only insights column (Esc when focus is inside). */
+  /** Collapsible read-only insights column (Esc when open; respects user collapse). */
   const [insightsAsideExpanded, setInsightsAsideExpanded] = useState(true);
+  /** When true, do not auto-expand insights on packet change until user clicks Show. */
+  const [insightsAsideUserCollapsed, setInsightsAsideUserCollapsed] = useState(false);
+  const [savedViews, setSavedViews] = useState<OperatorInboxSavedView[]>([]);
+  const [savedViewNameDraft, setSavedViewNameDraft] = useState("");
+  const [packetNotes, setPacketNotes] = useState<OperatorInboxPacketNotesMap>(() => {
+    if (typeof window === "undefined") return {};
+    return loadPacketNotesMap();
+  });
+  const [selectionAnnouncement, setSelectionAnnouncement] = useState("");
   const [obsRefreshKey, setObsRefreshKey] = useState(0);
   const observability = useOperatorInboxObservability(obsRefreshKey);
   const packetListVirtualRef = useRef<OperatorInboxVirtualizedPacketListHandle>(null);
@@ -115,6 +164,29 @@ export function WhatsAppInbox() {
   const filterQueryRef = useRef(filterQuery);
   filterQueryRef.current = filterQuery;
   const realtimeDebounceRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    setSavedViews(loadSavedViews());
+  }, []);
+
+  useEffect(() => {
+    const t = window.setTimeout(() => {
+      persistPacketNotesMap(packetNotes);
+    }, 480);
+    return () => window.clearTimeout(t);
+  }, [packetNotes]);
+
+  useEffect(() => {
+    if (!selectedPacket) {
+      setSelectionAnnouncement("No conversation selected.");
+      return;
+    }
+    const name = selectedPacket.customer_name ?? "Unknown contact";
+    const phone = selectedPacket.phone_number ?? "";
+    setSelectionAnnouncement(
+      `Selected conversation ${name}${phone ? `, ${phone}` : ""}. Packet id ${selectedPacket.id}.`,
+    );
+  }, [selectedPacket]);
 
   useEffect(() => {
     const saved = loadOperatorInboxUiState();
@@ -487,16 +559,9 @@ export function WhatsAppInbox() {
     const onKey = (e: globalThis.KeyboardEvent) => {
       if (e.defaultPrevented) return;
       const t = e.target as HTMLElement | null;
-      const inField = Boolean(
-        t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable),
-      );
 
       if (e.key === "Escape") {
-        if (inField) {
-          if (filterInputRef.current === t && filterQueryRef.current.trim()) {
-            e.preventDefault();
-            setFilterQuery("");
-          }
+        if (isTypingSurfaceForEsc(t) && t !== filterInputRef.current) {
           return;
         }
         if (filterQueryRef.current.trim()) {
@@ -504,14 +569,15 @@ export function WhatsAppInbox() {
           setFilterQuery("");
           return;
         }
-        if (t?.closest?.("[data-operator-inbox-local-insights]")) {
+        if (insightsAsideExpanded) {
           e.preventDefault();
           setInsightsAsideExpanded(false);
+          setInsightsAsideUserCollapsed(true);
         }
         return;
       }
 
-      if (inField) return;
+      if (shouldIgnoreGlobalInboxShortcuts(t)) return;
 
       if (e.key === "/" && !e.ctrlKey && !e.metaKey && !e.altKey) {
         e.preventDefault();
@@ -530,7 +596,7 @@ export function WhatsAppInbox() {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [moveSelectionBy]);
+  }, [moveSelectionBy, insightsAsideExpanded]);
 
   /** Keep detail pane aligned with the filtered list (drop selection if the thread is hidden by filters). */
   useEffect(() => {
@@ -584,9 +650,83 @@ export function WhatsAppInbox() {
     [bulkFilters],
   );
 
+  const buildCurrentSavedViewSnapshot = useCallback((): OperatorInboxSavedViewSnapshot => {
+    return {
+      filterQuery,
+      unansweredOnly,
+      pinnedIds: [...pinnedIds],
+      bulkFilters: {
+        healthAnyOf: [...bulkFilters.healthAnyOf],
+        ageAnyOf: [...bulkFilters.ageAnyOf],
+        intentToneAnyOf: [...bulkFilters.intentToneAnyOf],
+      },
+      compactMode,
+      showObservabilityStrip,
+      showAiPreviewPanel,
+    };
+  }, [
+    filterQuery,
+    unansweredOnly,
+    pinnedIds,
+    bulkFilters,
+    compactMode,
+    showObservabilityStrip,
+    showAiPreviewPanel,
+  ]);
+
+  const handleSaveCurrentView = useCallback(() => {
+    const trimmed = savedViewNameDraft.trim();
+    if (!trimmed) return;
+    const snap = buildCurrentSavedViewSnapshot();
+    setSavedViews((prev) => addSavedView(prev, trimmed, snap));
+    setSavedViewNameDraft("");
+  }, [savedViewNameDraft, buildCurrentSavedViewSnapshot]);
+
+  const handleApplySavedView = useCallback((view: OperatorInboxSavedView) => {
+    const s = view.snapshot;
+    setFilterQuery(s.filterQuery);
+    setUnansweredOnly(s.unansweredOnly);
+    setPinnedIds([...s.pinnedIds]);
+    setBulkFilters(normalizePersistedBulkFilters(s.bulkFilters));
+    setCompactMode(s.compactMode);
+    setShowObservabilityStrip(s.showObservabilityStrip);
+    setShowAiPreviewPanel(s.showAiPreviewPanel);
+  }, []);
+
+  const handleDeleteSavedView = useCallback((id: string) => {
+    setSavedViews((prev) => removeSavedView(prev, id));
+  }, []);
+
+  const handleExportVisibleCsv = useCallback(() => {
+    const csv = buildVisiblePacketsCsv(orderedPackets);
+    const stamp = new Date().toISOString().replace(/[:.]/g, "-");
+    downloadOperatorInboxCsv(`operator-inbox-visible-packets-${stamp}.csv`, csv);
+  }, [orderedPackets]);
+
+  const handlePacketNoteChange = useCallback((packetId: string, text: string) => {
+    setPacketNotes((prev) => ({
+      ...prev,
+      [packetId]: { text, updatedAt: new Date().toISOString() },
+    }));
+  }, []);
+
+  const handleClearPacketNote = useCallback((packetId: string) => {
+    setPacketNotes((prev) => {
+      const next = { ...prev };
+      delete next[packetId];
+      return next;
+    });
+  }, []);
+
   useEffect(() => {
-    setInsightsAsideExpanded(true);
-  }, [selectedPacket?.id]);
+    if (!insightsAsideUserCollapsed) {
+      setInsightsAsideExpanded(true);
+    }
+  }, [selectedPacket?.id, insightsAsideUserCollapsed]);
+
+  useEffect(() => {
+    packetListVirtualRef.current?.remeasureAll();
+  }, [compactMode]);
 
   if (loading) {
     return <OperatorInboxLoadingShell />;
@@ -603,6 +743,9 @@ export function WhatsAppInbox() {
       <div className="sr-only" aria-live="polite">
         {orderedPackets.length} packets match the current filters out of {packets.length} loaded.
       </div>
+      <div className="sr-only" aria-live="polite" aria-atomic="true">
+        {selectionAnnouncement}
+      </div>
       {showObservabilityStrip ? (
         <OperatorInboxObservabilityPanel
           snapshot={observability.snapshot}
@@ -618,19 +761,55 @@ export function WhatsAppInbox() {
             isNarrow && "max-h-[min(42vh,24rem)] shrink-0 border-b border-gray-200 lg:max-h-none lg:shrink lg:border-b-0",
           )}
         >
-          <div className="sticky top-0 z-10 border-b border-gray-200 bg-white p-4">
-            <h2 className="text-xl font-bold text-gray-900" id="operator-inbox-heading">
-              WhatsApp Inbox
-            </h2>
+          <div
+            className="sticky top-0 z-10 border-b border-gray-200 bg-white p-4"
+            id="operator-inbox-filter-panel"
+            data-operator-inbox-interactive
+          >
+            <div className="flex flex-wrap items-start justify-between gap-2">
+              <h2 className="text-xl font-bold text-gray-900" id="operator-inbox-heading">
+                WhatsApp Inbox
+              </h2>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="shrink-0 focus-visible:ring-2 focus-visible:ring-green-600 focus-visible:ring-offset-2"
+                onClick={handleExportVisibleCsv}
+                disabled={orderedPackets.length === 0}
+                aria-label="Download currently visible packet list as CSV"
+              >
+                <Download className="mr-1.5 h-4 w-4" aria-hidden />
+                Export CSV
+              </Button>
+            </div>
             <p className="text-sm text-gray-500" aria-describedby="operator-inbox-heading">
               {orderedPackets.length} shown · {packets.length} loaded (open)
               {pinnedIds.length > 0 ? ` · ${pinnedIds.length} pinned` : ""}
             </p>
             <p className="mt-1 text-[11px] text-gray-500">
-              <kbd className="rounded border bg-gray-100 px-1">/</kbd> search · <kbd className="rounded border bg-gray-100 px-1">Esc</kbd> clear search
-              or collapse insights · <kbd className="rounded border bg-gray-100 px-1">j</kbd> /{" "}
-              <kbd className="rounded border bg-gray-100 px-1">k</kbd> move selection · arrows when list is focused.
+              Shortcuts: <kbd className="rounded border bg-gray-100 px-1">/</kbd>, <kbd className="rounded border bg-gray-100 px-1">Esc</kbd>,{" "}
+              <kbd className="rounded border bg-gray-100 px-1">j</kbd>/<kbd className="rounded border bg-gray-100 px-1">k</kbd>, arrows on list.
+              See help panel below.
             </p>
+            <details className="mt-2 rounded-md border border-gray-200 bg-gray-50/90 p-2 text-[11px] text-gray-700">
+              <summary className="cursor-pointer font-medium text-gray-800 outline-none focus-visible:ring-2 focus-visible:ring-green-600 focus-visible:ring-offset-2">
+                Keyboard and export help
+              </summary>
+              <ul className="mt-2 list-inside list-disc space-y-1 pl-1 text-gray-600">
+                <li>
+                  <kbd className="rounded border bg-white px-1">/</kbd> moves focus to packet search (when not typing in a field).
+                </li>
+                <li>
+                  <kbd className="rounded border bg-white px-1">Esc</kbd> clears a non-empty search first; if search is empty and insights are open, it collapses insights. Does not fire while focus is in a reply or note field.
+                </li>
+                <li>
+                  <kbd className="rounded border bg-white px-1">j</kbd> and <kbd className="rounded border bg-white px-1">k</kbd> move the selected packet up and down the visible list.
+                </li>
+                <li>Arrow keys, Home, and End navigate when the packet list has keyboard focus.</li>
+                <li>Export CSV downloads only the rows currently visible after filters, using data already loaded in this browser.</li>
+              </ul>
+            </details>
             <div className="mt-3 space-y-3">
               <Input
                 ref={filterInputRef}
@@ -689,6 +868,78 @@ export function WhatsAppInbox() {
                 </div>
               </div>
 
+              <div className="space-y-2 rounded-md border border-indigo-100 bg-indigo-50/50 p-2">
+                <p className="text-[10px] font-semibold uppercase tracking-wide text-indigo-800">
+                  Saved views (this browser only)
+                </p>
+                <p className="text-[10px] text-indigo-900/80">
+                  Saves search, unanswered toggle, pins, bulk filters, and display toggles. Nothing is written to the
+                  server.
+                </p>
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
+                  <div className="min-w-0 flex-1">
+                    <label htmlFor="operator-inbox-save-view-name" className="sr-only">
+                      Name for saved view
+                    </label>
+                    <Input
+                      id="operator-inbox-save-view-name"
+                      value={savedViewNameDraft}
+                      onChange={(e) => setSavedViewNameDraft(e.target.value)}
+                      placeholder="e.g. Unanswered + stale"
+                      className="h-9 text-sm"
+                      autoComplete="off"
+                    />
+                  </div>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="secondary"
+                    className="shrink-0 focus-visible:ring-2 focus-visible:ring-indigo-600 focus-visible:ring-offset-2"
+                    onClick={handleSaveCurrentView}
+                    disabled={!savedViewNameDraft.trim()}
+                    aria-label="Save current inbox filters as a named view"
+                  >
+                    Save current
+                  </Button>
+                </div>
+                {savedViews.length > 0 ? (
+                  <ul className="max-h-40 space-y-1.5 overflow-y-auto border-t border-indigo-100 pt-2">
+                    {savedViews.map((v) => (
+                      <li
+                        key={v.id}
+                        className="flex items-center gap-1 rounded bg-white/80 px-2 py-1 text-xs text-indigo-950"
+                      >
+                        <span className="min-w-0 flex-1 truncate font-medium" title={v.name}>
+                          {v.name}
+                        </span>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          className="h-7 shrink-0 px-2 text-[10px] focus-visible:ring-2 focus-visible:ring-indigo-600 focus-visible:ring-offset-1"
+                          onClick={() => handleApplySavedView(v)}
+                          aria-label={`Apply saved view ${v.name}`}
+                        >
+                          Apply
+                        </Button>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="ghost"
+                          className="h-7 shrink-0 px-2 text-[10px] text-red-700 focus-visible:ring-2 focus-visible:ring-red-600 focus-visible:ring-offset-1"
+                          onClick={() => handleDeleteSavedView(v.id)}
+                          aria-label={`Delete saved view ${v.name}`}
+                        >
+                          Delete
+                        </Button>
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="text-[10px] text-indigo-800/80">No saved views yet.</p>
+                )}
+              </div>
+
               <div className="space-y-2 rounded-md border border-gray-100 bg-gray-50/80 p-2">
                 <p className="text-[10px] font-semibold uppercase tracking-wide text-gray-500">Bulk filters (local)</p>
                 <div className="space-y-1.5">
@@ -710,7 +961,12 @@ export function WhatsAppInbox() {
                         ["operator_issue", "Fail"],
                       ] as const
                     ).map(([val, label]) => (
-                      <ToggleGroupItem key={val} value={val} className="h-7 px-2 text-[10px]">
+                      <ToggleGroupItem
+                        key={val}
+                        value={val}
+                        className="h-7 px-2 text-[10px]"
+                        aria-label={`${label} packet health filter`}
+                      >
                         {label}
                       </ToggleGroupItem>
                     ))}
@@ -735,6 +991,7 @@ export function WhatsAppInbox() {
                           value={val}
                           className="h-7 px-2 text-[10px]"
                           title={`${m.title}: ${m.range} since last activity`}
+                          aria-label={`${m.title} age filter, ${m.range} since last activity`}
                         >
                           {m.title}
                         </ToggleGroupItem>
@@ -763,7 +1020,12 @@ export function WhatsAppInbox() {
                         ["amber", "Urg"],
                       ] as const
                     ).map(([val, label]) => (
-                      <ToggleGroupItem key={val} value={val} className="h-7 px-2 text-[10px]">
+                      <ToggleGroupItem
+                        key={val}
+                        value={val}
+                        className="h-7 px-2 text-[10px]"
+                        aria-label={`${label} local intent tone filter`}
+                      >
                         {label}
                       </ToggleGroupItem>
                     ))}
@@ -891,6 +1153,7 @@ export function WhatsAppInbox() {
               role="listbox"
               aria-label="Open WhatsApp packets"
               aria-multiselectable={false}
+              aria-activedescendant={selectedPacket ? `packet-row-${selectedPacket.id}` : undefined}
               onKeyDown={onPacketListKeyDown}
               className="min-h-0 flex-1 overflow-y-auto outline-none focus-visible:ring-2 focus-visible:ring-green-600 focus-visible:ring-offset-2"
             >
@@ -1139,13 +1402,15 @@ export function WhatsAppInbox() {
                       }}
                       placeholder="Type a reply..."
                       disabled={replySending}
-                      className="flex-1 rounded-full border border-gray-300 bg-white px-4 py-2 focus:border-green-500 focus:outline-none disabled:bg-gray-100"
+                      aria-label="Operator reply message draft"
+                      className="flex-1 rounded-full border border-gray-300 bg-white px-4 py-2 focus:border-green-500 focus:outline-none focus-visible:ring-2 focus-visible:ring-green-600 focus-visible:ring-offset-2 disabled:bg-gray-100"
                     />
                     <button
                       type="button"
                       onClick={() => void handleSendReply()}
                       disabled={replySending || !replyText.trim()}
-                      className="rounded-full bg-green-500 px-6 py-2 font-medium text-white transition hover:bg-green-600 disabled:bg-gray-300"
+                      aria-label="Send WhatsApp reply"
+                      className="rounded-full bg-green-500 px-6 py-2 font-medium text-white transition hover:bg-green-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-700 focus-visible:ring-offset-2 disabled:bg-gray-300"
                     >
                       {replySending ? "Sending..." : "Send"}
                     </button>
@@ -1160,7 +1425,10 @@ export function WhatsAppInbox() {
                     variant="outline"
                     size="sm"
                     className="h-9 w-full text-xs font-medium text-slate-800"
-                    onClick={() => setInsightsAsideExpanded(true)}
+                    onClick={() => {
+                      setInsightsAsideUserCollapsed(false);
+                      setInsightsAsideExpanded(true);
+                    }}
                   >
                     Show read-only insights
                   </Button>
@@ -1178,13 +1446,48 @@ export function WhatsAppInbox() {
                       variant="ghost"
                       size="sm"
                       className="h-8 shrink-0 px-2 text-[10px] text-slate-600"
-                      onClick={() => setInsightsAsideExpanded(false)}
+                      onClick={() => {
+                        setInsightsAsideExpanded(false);
+                        setInsightsAsideUserCollapsed(true);
+                      }}
                     >
                       Hide
                     </Button>
                   </div>
                   <div className="space-y-4">
                     <OperatorInboxFailedMessagesReadOnlyPanel messages={selectedPacket.messages ?? []} />
+                    <section
+                      className="rounded-lg border border-amber-200 bg-amber-50/50 p-3"
+                      aria-labelledby="operator-inbox-local-note-heading"
+                    >
+                      <h4
+                        id="operator-inbox-local-note-heading"
+                        className="text-xs font-semibold uppercase tracking-wide text-amber-950"
+                      >
+                        Local packet note
+                      </h4>
+                      <p className="mt-1 text-[11px] font-medium leading-snug text-amber-950">
+                        Local note only — not sent or saved to server.
+                      </p>
+                      <Textarea
+                        value={packetNotes[selectedPacket.id]?.text ?? ""}
+                        onChange={(e) => handlePacketNoteChange(selectedPacket.id, e.target.value)}
+                        placeholder="Private reminder for this packet…"
+                        className="mt-2 min-h-[72px] text-xs"
+                        aria-label={`Local private note for packet ${selectedPacket.id}`}
+                      />
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="mt-2 h-8 text-xs focus-visible:ring-2 focus-visible:ring-amber-600 focus-visible:ring-offset-2"
+                        onClick={() => handleClearPacketNote(selectedPacket.id)}
+                        disabled={!(packetNotes[selectedPacket.id]?.text ?? "").trim()}
+                        aria-label="Clear local note for this packet"
+                      >
+                        Clear local note
+                      </Button>
+                    </section>
                     <OperatorInboxCustomerActivitySummary messages={selectedPacket.messages ?? []} />
                     <OperatorInboxLocalExplanationCards
                       messages={selectedPacket.messages ?? []}
