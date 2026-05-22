@@ -100,6 +100,8 @@ export function WhatsAppInbox() {
   const [obsRefreshKey, setObsRefreshKey] = useState(0);
   const observability = useOperatorInboxObservability(obsRefreshKey);
   const analyticsSupplement = useOperatorInboxAnalyticsSupplement(obsRefreshKey);
+  /** Non-fatal batched message load issues (e.g. a PostgREST page failed). */
+  const [messagesBatchWarnings, setMessagesBatchWarnings] = useState<string[]>([]);
   const listScrollRef = useRef<HTMLDivElement | null>(null);
   const filterInputRef = useRef<HTMLInputElement | null>(null);
   const realtimeDebounceRef = useRef<number | null>(null);
@@ -158,6 +160,7 @@ export function WhatsAppInbox() {
   const loadPackets = useCallback(async (opts?: { silent?: boolean }) => {
     const silent = Boolean(opts?.silent);
     try {
+      setMessagesBatchWarnings([]);
       if (silent) {
         setIsRefreshing(true);
         setRefreshError(null);
@@ -193,7 +196,10 @@ export function WhatsAppInbox() {
 
       const rows = (packetsData ?? []) as unknown as OperatorInboxPacket[];
       const ids = rows.map((r) => r.id);
-      const messagesByPacket = await fetchMessagesForPacketIdsBatch(ids);
+      const { byPacket: messagesByPacket, errors: batchMessageErrors } = await fetchMessagesForPacketIdsBatch(ids);
+      if (batchMessageErrors.length > 0) {
+        setMessagesBatchWarnings(batchMessageErrors);
+      }
 
       const enrichedPackets = rows.map((packet) => {
         const contact = packet.whatsapp_contacts;
@@ -648,6 +654,17 @@ export function WhatsAppInbox() {
               >
                 Retry
               </button>
+            </div>
+          ) : null}
+
+          {!error && messagesBatchWarnings.length > 0 ? (
+            <div className="border-b border-amber-200 bg-amber-50 px-4 py-2 text-xs text-amber-950" role="status">
+              <p className="font-medium text-amber-900">Some message history loaded partially</p>
+              <ul className="mt-1 list-inside list-disc text-amber-900/90">
+                {messagesBatchWarnings.map((w, idx) => (
+                  <li key={`${idx}-${w.slice(0, 80)}`}>{w}</li>
+                ))}
+              </ul>
             </div>
           ) : null}
 
