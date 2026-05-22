@@ -1,4 +1,4 @@
-import { useId } from "react";
+import { memo, useId } from "react";
 import { formatDistanceToNow } from "date-fns";
 import { Info, Lock } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
@@ -53,7 +53,11 @@ function DisabledGovernanceAction({ label }: { label: string }) {
 
 export function OperatorInboxGovernanceBar() {
   return (
-    <div className="flex flex-wrap items-center gap-2 border-b border-amber-100 bg-amber-50/95 px-3 py-2 backdrop-blur-sm">
+    <div
+      className="flex flex-wrap items-center gap-2 border-b border-amber-100 bg-amber-50/95 px-3 py-2 backdrop-blur-sm"
+      role="region"
+      aria-label="Governance notice: read-only actions"
+    >
       <span className="inline-flex items-center gap-1 text-xs font-medium text-amber-900">
         <Info className="h-3.5 w-3.5 shrink-0" aria-hidden />
         Read-only controls
@@ -267,7 +271,7 @@ export function OperatorInboxPacketHealthBadge({
   );
 }
 
-export function OperatorInboxObservabilityPanel({
+export const OperatorInboxObservabilityPanel = memo(function OperatorInboxObservabilityPanel({
   snapshot,
   loading,
   medianLagSecondsFromThreads,
@@ -278,6 +282,7 @@ export function OperatorInboxObservabilityPanel({
 }) {
   const reactId = useId();
   const headingId = `${reactId}-obs-heading`;
+  const detailsId = `${reactId}-obs-partial-details`;
   const fmtLag = (sec: number | null) => {
     if (sec == null) return "—";
     if (sec < 120) return `${Math.round(sec)}s`;
@@ -295,8 +300,8 @@ export function OperatorInboxObservabilityPanel({
           Observability (read-only)
         </h3>
         {loading ? (
-          <span className="text-[10px] text-slate-500" role="status">
-            Loading…
+          <span className="text-[10px] text-slate-500" role="status" aria-live="polite">
+            First load…
           </span>
         ) : null}
       </div>
@@ -339,13 +344,28 @@ export function OperatorInboxObservabilityPanel({
         </div>
       ) : null}
       {snapshot.partialErrors.length > 0 ? (
-        <p className="mt-1 text-[10px] text-amber-800" role="status">
-          Some metrics unavailable ({snapshot.partialErrors.length}). Inbox still works.
-        </p>
+        <div className="mt-1.5 rounded border border-amber-200/80 bg-amber-50/80 px-2 py-1.5 text-[10px] text-amber-950">
+          <p className="font-medium text-amber-900" role="status" aria-live="polite">
+            Some analytics queries failed ({snapshot.partialErrors.length}). The inbox list still loads; counts below
+            may be incomplete.
+          </p>
+          <details id={detailsId} className="mt-1">
+            <summary className="cursor-pointer select-none font-medium text-amber-900 underline-offset-2 outline-none hover:underline focus-visible:ring-2 focus-visible:ring-amber-600 focus-visible:ring-offset-1">
+              Show error details
+            </summary>
+            <ul className="mt-1 max-h-28 list-inside list-disc space-y-0.5 overflow-y-auto overscroll-y-contain text-amber-900/90">
+              {snapshot.partialErrors.map((err, i) => (
+                <li key={`${i}-${err.slice(0, 48)}`} className="break-words">
+                  {err}
+                </li>
+              ))}
+            </ul>
+          </details>
+        </div>
       ) : null}
     </section>
   );
-}
+});
 
 export function OperatorInboxCustomerActivitySummary({ messages }: { messages: Message[] }) {
   const reactId = useId();

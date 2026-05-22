@@ -138,8 +138,8 @@ export function useOperatorInboxObservability(refreshKey: number) {
   }, []);
 
   const runLoad = useCallback(() => {
-    setLoading(true);
     const gen = ++loadGenerationRef.current;
+    /** Do not flip loading on refreshKey bumps — avoids flashing the strip on every inbox reload. */
     void loadImpl(gen);
   }, [loadImpl]);
 
