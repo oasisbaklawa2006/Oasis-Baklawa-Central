@@ -21,6 +21,7 @@ import {
   medianResponseLagSeconds,
   operatorInboxPacketPreviewSummary,
   packetStitchedPlainText,
+  packetSlaUiMeta,
   sortMessagesChronological,
   type LocalIntentTone,
   type PacketAgeBucket,
@@ -44,6 +45,7 @@ import {
 } from "@/components/whatsapp/OperatorInboxVirtualizedPacketList";
 import {
   OperatorInboxCustomerActivitySummary,
+  OperatorInboxFailedMessagesReadOnlyPanel,
   OperatorInboxGovernanceBar,
   OperatorInboxIntentDot,
   OperatorInboxLocalAiPreviewPanel,
@@ -98,6 +100,11 @@ export function WhatsAppInbox() {
   const [bulkFilters, setBulkFilters] = useState<OperatorInboxBulkFilters>({ ...EMPTY_INBOX_BULK_FILTERS });
   const [uiHydrated, setUiHydrated] = useState(false);
   const [isNarrow, setIsNarrow] = useState(false);
+  const [compactMode, setCompactMode] = useState(false);
+  const [showObservabilityStrip, setShowObservabilityStrip] = useState(true);
+  const [showAiPreviewPanel, setShowAiPreviewPanel] = useState(true);
+  /** Collapsible read-only insights column (Esc when focus is inside). */
+  const [insightsAsideExpanded, setInsightsAsideExpanded] = useState(true);
   const [obsRefreshKey, setObsRefreshKey] = useState(0);
   const observability = useOperatorInboxObservability(obsRefreshKey);
   const packetListVirtualRef = useRef<OperatorInboxVirtualizedPacketListHandle>(null);
@@ -105,6 +112,8 @@ export function WhatsAppInbox() {
   const inboxLoadGenerationRef = useRef(0);
   const listScrollRef = useRef<HTMLDivElement | null>(null);
   const filterInputRef = useRef<HTMLInputElement | null>(null);
+  const filterQueryRef = useRef(filterQuery);
+  filterQueryRef.current = filterQuery;
   const realtimeDebounceRef = useRef<number | null>(null);
 
   useEffect(() => {
@@ -114,6 +123,9 @@ export function WhatsAppInbox() {
       if (typeof saved.unansweredOnly === "boolean") setUnansweredOnly(saved.unansweredOnly);
       if (Array.isArray(saved.pinnedIds)) setPinnedIds(saved.pinnedIds);
       setBulkFilters(normalizePersistedBulkFilters(saved.bulkFilters));
+      if (typeof saved.compactMode === "boolean") setCompactMode(saved.compactMode);
+      if (typeof saved.showObservabilityStrip === "boolean") setShowObservabilityStrip(saved.showObservabilityStrip);
+      if (typeof saved.showAiPreviewPanel === "boolean") setShowAiPreviewPanel(saved.showAiPreviewPanel);
     }
     setUiHydrated(true);
   }, []);
@@ -121,10 +133,27 @@ export function WhatsAppInbox() {
   useEffect(() => {
     if (!uiHydrated) return;
     const t = window.setTimeout(() => {
-      saveOperatorInboxUiState({ filterQuery, unansweredOnly, pinnedIds, bulkFilters });
+      saveOperatorInboxUiState({
+        filterQuery,
+        unansweredOnly,
+        pinnedIds,
+        bulkFilters,
+        compactMode,
+        showObservabilityStrip,
+        showAiPreviewPanel,
+      });
     }, 360);
     return () => window.clearTimeout(t);
-  }, [filterQuery, unansweredOnly, pinnedIds, bulkFilters, uiHydrated]);
+  }, [
+    filterQuery,
+    unansweredOnly,
+    pinnedIds,
+    bulkFilters,
+    compactMode,
+    showObservabilityStrip,
+    showAiPreviewPanel,
+    uiHydrated,
+  ]);
 
   useEffect(() => {
     const mq = window.matchMedia("(max-width: 1023px)");
@@ -132,20 +161,6 @@ export function WhatsAppInbox() {
     fn();
     mq.addEventListener("change", fn);
     return () => mq.removeEventListener("change", fn);
-  }, []);
-
-  useEffect(() => {
-    const onKey = (e: globalThis.KeyboardEvent) => {
-      if (e.defaultPrevented) return;
-      const t = e.target as HTMLElement | null;
-      if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable)) return;
-      if (e.key === "/" && !e.ctrlKey && !e.metaKey && !e.altKey) {
-        e.preventDefault();
-        filterInputRef.current?.focus();
-      }
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
   }, []);
 
   useEffect(() => {
@@ -443,6 +458,80 @@ export function WhatsAppInbox() {
     });
   }, [filteredPackets, pinnedIds]);
 
+  const selectPacketAtIndex = useCallback(
+    (index: number) => {
+      if (orderedPackets.length === 0) return;
+      const clamped = Math.max(0, Math.min(orderedPackets.length - 1, index));
+      const p = orderedPackets[clamped];
+      if (p) {
+        setSelectedPacket(p);
+        window.requestAnimationFrame(() => {
+          packetListVirtualRef.current?.scrollToIndex(clamped);
+        });
+      }
+    },
+    [orderedPackets],
+  );
+
+  const moveSelectionBy = useCallback(
+    (delta: number) => {
+      if (orderedPackets.length === 0) return;
+      const cur = selectedPacket ? orderedPackets.findIndex((x) => x.id === selectedPacket.id) : -1;
+      const base = cur < 0 ? (delta > 0 ? -1 : 0) : cur;
+      selectPacketAtIndex(base + delta);
+    },
+    [orderedPackets, selectedPacket, selectPacketAtIndex],
+  );
+
+  useEffect(() => {
+    const onKey = (e: globalThis.KeyboardEvent) => {
+      if (e.defaultPrevented) return;
+      const t = e.target as HTMLElement | null;
+      const inField = Boolean(
+        t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable),
+      );
+
+      if (e.key === "Escape") {
+        if (inField) {
+          if (filterInputRef.current === t && filterQueryRef.current.trim()) {
+            e.preventDefault();
+            setFilterQuery("");
+          }
+          return;
+        }
+        if (filterQueryRef.current.trim()) {
+          e.preventDefault();
+          setFilterQuery("");
+          return;
+        }
+        if (t?.closest?.("[data-operator-inbox-local-insights]")) {
+          e.preventDefault();
+          setInsightsAsideExpanded(false);
+        }
+        return;
+      }
+
+      if (inField) return;
+
+      if (e.key === "/" && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        e.preventDefault();
+        filterInputRef.current?.focus();
+        return;
+      }
+      if ((e.key === "j" || e.key === "J") && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        e.preventDefault();
+        moveSelectionBy(1);
+        return;
+      }
+      if ((e.key === "k" || e.key === "K") && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        e.preventDefault();
+        moveSelectionBy(-1);
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [moveSelectionBy]);
+
   /** Keep detail pane aligned with the filtered list (drop selection if the thread is hidden by filters). */
   useEffect(() => {
     if (!selectedPacket) return;
@@ -469,16 +558,10 @@ export function WhatsAppInbox() {
           e.preventDefault();
           next = orderedPackets.length - 1;
         }
-        const p = orderedPackets[next];
-        if (p) {
-          setSelectedPacket(p);
-          window.requestAnimationFrame(() => {
-            packetListVirtualRef.current?.scrollToIndex(next);
-          });
-        }
+        selectPacketAtIndex(next);
       }
     },
-    [orderedPackets, selectedPacket],
+    [orderedPackets, selectedPacket, selectPacketAtIndex],
   );
 
   const highlightInboundMessageId = useMemo(() => {
@@ -492,6 +575,18 @@ export function WhatsAppInbox() {
     if (!selectedPacket) return null;
     return inferLocalIntentFromText(packetStitchedPlainText(selectedPacket.stitched_content));
   }, [selectedPacket]);
+
+  const hasBulkFilters = useMemo(
+    () =>
+      bulkFilters.healthAnyOf.length > 0 ||
+      bulkFilters.ageAnyOf.length > 0 ||
+      bulkFilters.intentToneAnyOf.length > 0,
+    [bulkFilters],
+  );
+
+  useEffect(() => {
+    setInsightsAsideExpanded(true);
+  }, [selectedPacket?.id]);
 
   if (loading) {
     return <OperatorInboxLoadingShell />;
@@ -508,17 +603,19 @@ export function WhatsAppInbox() {
       <div className="sr-only" aria-live="polite">
         {orderedPackets.length} packets match the current filters out of {packets.length} loaded.
       </div>
-      <OperatorInboxObservabilityPanel
-        snapshot={observability.snapshot}
-        loading={observability.loading}
-        medianLagSecondsFromThreads={medianLagSecondsFromThreads}
-      />
+      {showObservabilityStrip ? (
+        <OperatorInboxObservabilityPanel
+          snapshot={observability.snapshot}
+          loading={observability.loading}
+          medianLagSecondsFromThreads={medianLagSecondsFromThreads}
+        />
+      ) : null}
       <div className={cn("flex min-h-0 flex-1", isNarrow ? "flex-col" : "flex-row")}>
         <div
           className={cn(
             "flex min-h-0 flex-col overflow-hidden border-gray-300 bg-white lg:border-r",
             "w-full max-w-none lg:max-w-md",
-            isNarrow && selectedPacket ? "hidden lg:flex" : "flex",
+            isNarrow && "max-h-[min(42vh,24rem)] shrink-0 border-b border-gray-200 lg:max-h-none lg:shrink lg:border-b-0",
           )}
         >
           <div className="sticky top-0 z-10 border-b border-gray-200 bg-white p-4">
@@ -530,8 +627,9 @@ export function WhatsAppInbox() {
               {pinnedIds.length > 0 ? ` · ${pinnedIds.length} pinned` : ""}
             </p>
             <p className="mt-1 text-[11px] text-gray-500">
-              Press <kbd className="rounded border bg-gray-100 px-1">/</kbd> to focus search. Use arrow keys when the
-              list is focused.
+              <kbd className="rounded border bg-gray-100 px-1">/</kbd> search · <kbd className="rounded border bg-gray-100 px-1">Esc</kbd> clear search
+              or collapse insights · <kbd className="rounded border bg-gray-100 px-1">j</kbd> /{" "}
+              <kbd className="rounded border bg-gray-100 px-1">k</kbd> move selection · arrows when list is focused.
             </p>
             <div className="mt-3 space-y-3">
               <Input
@@ -553,6 +651,42 @@ export function WhatsAppInbox() {
                 <label htmlFor="operator-inbox-unanswered-only" className="text-xs text-gray-600">
                   Unanswered only (last message inbound)
                 </label>
+              </div>
+
+              <div className="space-y-2 rounded-md border border-gray-100 bg-gray-50/80 p-2">
+                <p className="text-[10px] font-semibold uppercase tracking-wide text-gray-500">Display (local only)</p>
+                <div className="flex flex-col gap-2">
+                  <div className="flex items-center gap-2">
+                    <Checkbox
+                      id="operator-inbox-compact"
+                      checked={compactMode}
+                      onCheckedChange={(v) => setCompactMode(v === true)}
+                    />
+                    <label htmlFor="operator-inbox-compact" className="text-xs text-gray-600">
+                      Compact packet list
+                    </label>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Checkbox
+                      id="operator-inbox-show-obs"
+                      checked={showObservabilityStrip}
+                      onCheckedChange={(v) => setShowObservabilityStrip(v === true)}
+                    />
+                    <label htmlFor="operator-inbox-show-obs" className="text-xs text-gray-600">
+                      Show analytics / observability strip
+                    </label>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Checkbox
+                      id="operator-inbox-show-ai"
+                      checked={showAiPreviewPanel}
+                      onCheckedChange={(v) => setShowAiPreviewPanel(v === true)}
+                    />
+                    <label htmlFor="operator-inbox-show-ai" className="text-xs text-gray-600">
+                      Show local AI preview panel
+                    </label>
+                  </div>
+                </div>
               </div>
 
               <div className="space-y-2 rounded-md border border-gray-100 bg-gray-50/80 p-2">
@@ -593,18 +727,19 @@ export function WhatsAppInbox() {
                     }
                     aria-label="Filter by last activity age"
                   >
-                    {(
-                      [
-                        ["fresh", "<15m"],
-                        ["active", "<2h"],
-                        ["aging", "<24h"],
-                        ["stale", "24h+"],
-                      ] as const
-                    ).map(([val, label]) => (
-                      <ToggleGroupItem key={val} value={val} className="h-7 px-2 text-[10px]">
-                        {label}
-                      </ToggleGroupItem>
-                    ))}
+                    {(["fresh", "active", "aging", "stale"] as const).map((val) => {
+                      const m = packetSlaUiMeta(val);
+                      return (
+                        <ToggleGroupItem
+                          key={val}
+                          value={val}
+                          className="h-7 px-2 text-[10px]"
+                          title={`${m.title}: ${m.range} since last activity`}
+                        >
+                          {m.title}
+                        </ToggleGroupItem>
+                      );
+                    })}
                   </ToggleGroup>
                 </div>
                 <div className="space-y-1.5">
@@ -703,11 +838,36 @@ export function WhatsAppInbox() {
 
           {!error && packets.length > 0 && orderedPackets.length === 0 ? (
             <div className="flex flex-1 flex-col items-center justify-center gap-3 p-6 text-center text-gray-600">
-              <p className="text-sm font-semibold text-gray-800">No packets match these filters</p>
-              <p className="max-w-xs text-xs text-gray-500">
-                Try clearing search, unanswered-only, or bulk filters. Pinned packets still respect text search and
-                bulk rules.
-              </p>
+              {unansweredOnly && !filterQuery.trim() && !hasBulkFilters ? (
+                <>
+                  <p className="text-sm font-semibold text-gray-800">No unanswered packets right now</p>
+                  <p className="max-w-xs text-xs text-gray-500">
+                    Every loaded thread already has an outbound after the latest inbound, or has no inbound yet.
+                    Turn off “Unanswered only” to see all open packets.
+                  </p>
+                </>
+              ) : filterQuery.trim() && !hasBulkFilters && !unansweredOnly ? (
+                <>
+                  <p className="text-sm font-semibold text-gray-800">No search results</p>
+                  <p className="max-w-xs text-xs text-gray-500">
+                    Nothing in the loaded list matches <span className="font-medium text-gray-700">“{filterQuery}”</span>{" "}
+                    for name, phone, or preview text. Try a shorter query or clear the filter.
+                  </p>
+                </>
+              ) : filterQuery.trim() || unansweredOnly || hasBulkFilters ? (
+                <>
+                  <p className="text-sm font-semibold text-gray-800">No packets match these filters</p>
+                  <p className="max-w-xs text-xs text-gray-500">
+                    Combine search, unanswered-only, and bulk filters narrows the list. Pinned packets still obey search
+                    and bulk rules. Adjust or reset below.
+                  </p>
+                </>
+              ) : (
+                <>
+                  <p className="text-sm font-semibold text-gray-800">No packets to show</p>
+                  <p className="max-w-xs text-xs text-gray-500">Try changing filters or wait for new open packets.</p>
+                </>
+              )}
               <Button
                 type="button"
                 variant="secondary"
@@ -742,6 +902,7 @@ export function WhatsAppInbox() {
                 pinnedIds={pinnedIds}
                 onSelect={setSelectedPacket}
                 onPin={togglePin}
+                compact={compactMode}
               />
             </div>
           ) : null}
@@ -753,50 +914,57 @@ export function WhatsAppInbox() {
             role="region"
             aria-label="Selected WhatsApp packet"
           >
-            <OperatorInboxGovernanceBar />
-            <OperatorInboxRefreshingBanner isRefreshing={isRefreshing} refreshError={refreshError} />
-
-            <div className="sticky top-0 z-20 shrink-0 border-b border-gray-200 bg-green-50 p-4 shadow-sm">
-              {isNarrow ? (
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  className="mb-2 -ml-2 h-10 px-2 text-gray-800 lg:hidden"
-                  onClick={() => setSelectedPacket(null)}
-                >
-                  <ArrowLeft className="mr-1 h-4 w-4 shrink-0" aria-hidden />
-                  All packets
-                </Button>
-              ) : null}
-              <div className="flex flex-wrap items-start justify-between gap-2">
-                <div>
-                  <p className="text-xs font-medium uppercase tracking-wide text-green-900/80">Contact / sender</p>
-                  <h3 className="text-lg font-bold text-gray-900">{selectedPacket.customer_name}</h3>
+            <div className="sticky top-0 z-30 shrink-0 max-h-[min(50dvh,28rem)] overflow-y-auto border-b border-gray-200 bg-white/95 shadow-sm backdrop-blur-sm lg:max-h-none">
+              <OperatorInboxGovernanceBar />
+              <OperatorInboxRefreshingBanner isRefreshing={isRefreshing} refreshError={refreshError} />
+              <div className="border-t border-green-100 bg-green-50 p-4">
+                {isNarrow ? (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="mb-2 -ml-2 h-10 px-2 text-gray-800 lg:hidden"
+                    onClick={() => {
+                      document.getElementById("operator-inbox-heading")?.scrollIntoView({
+                        behavior: "smooth",
+                        block: "start",
+                      });
+                      window.setTimeout(() => listScrollRef.current?.focus(), 350);
+                    }}
+                  >
+                    <ArrowLeft className="mr-1 h-4 w-4 shrink-0" aria-hidden />
+                    Scroll to packet list
+                  </Button>
+                ) : null}
+                <div className="flex flex-wrap items-start justify-between gap-2">
+                  <div>
+                    <p className="text-xs font-medium uppercase tracking-wide text-green-900/80">Contact / sender</p>
+                    <h3 className="text-lg font-bold text-gray-900">{selectedPacket.customer_name}</h3>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    {selectedHeaderIntent ? (
+                      <OperatorInboxIntentDot tone={selectedHeaderIntent.tone} label={selectedHeaderIntent.label} />
+                    ) : null}
+                    <OperatorInboxPacketHealthBadge
+                      health={inferPacketHealth(selectedPacket.last_message_at, selectedPacket.messages ?? [])}
+                    />
+                  </div>
                 </div>
-                <div className="flex flex-wrap items-center gap-2">
-                  {selectedHeaderIntent ? (
-                    <OperatorInboxIntentDot tone={selectedHeaderIntent.tone} label={selectedHeaderIntent.label} />
-                  ) : null}
-                  <OperatorInboxPacketHealthBadge
-                    health={inferPacketHealth(selectedPacket.last_message_at, selectedPacket.messages ?? [])}
+                <p className="text-sm text-gray-700">WhatsApp: {selectedPacket.phone_number}</p>
+                {selectedPacket.wa_contact_id ? (
+                  <p className="text-xs text-gray-500">WA id: {selectedPacket.wa_contact_id}</p>
+                ) : null}
+                <p className="mt-2 text-xs text-gray-600">
+                  Company or profile name above comes from <code className="rounded bg-white/80 px-1">whatsapp_contacts</code>{" "}
+                  only (no order join in this view).
+                </p>
+                <div className="mt-3">
+                  <OperatorInboxPacketBadges
+                    packetStatus={selectedPacket.status}
+                    fragmentCount={selectedPacket.fragment_count}
+                    messages={selectedPacket.messages ?? []}
                   />
                 </div>
-              </div>
-              <p className="text-sm text-gray-700">WhatsApp: {selectedPacket.phone_number}</p>
-              {selectedPacket.wa_contact_id ? (
-                <p className="text-xs text-gray-500">WA id: {selectedPacket.wa_contact_id}</p>
-              ) : null}
-              <p className="mt-2 text-xs text-gray-600">
-                Company or profile name above comes from <code className="rounded bg-white/80 px-1">whatsapp_contacts</code>{" "}
-                only (no order join in this view).
-              </p>
-              <div className="mt-3">
-                <OperatorInboxPacketBadges
-                  packetStatus={selectedPacket.status}
-                  fragmentCount={selectedPacket.fragment_count}
-                  messages={selectedPacket.messages ?? []}
-                />
               </div>
             </div>
 
@@ -985,25 +1153,62 @@ export function WhatsAppInbox() {
                 </div>
               </div>
 
-              <aside className="w-full shrink-0 border-t border-gray-200 bg-slate-50/60 p-4 lg:sticky lg:top-0 lg:max-h-[min(100dvh,100%)] lg:w-80 lg:self-start lg:overflow-y-auto lg:border-l lg:border-t-0">
-                <h3 className="mb-3 text-xs font-semibold uppercase tracking-wide text-slate-600">Read-only insights</h3>
-                <div className="space-y-4">
-                  <OperatorInboxCustomerActivitySummary messages={selectedPacket.messages ?? []} />
-                  <OperatorInboxLocalExplanationCards
-                    messages={selectedPacket.messages ?? []}
-                    lastMessageAtIso={selectedPacket.last_message_at}
-                  />
-                  <OperatorInboxLocalDraftPreview messages={selectedPacket.messages ?? []} />
-                  <OperatorInboxLocalAiPreviewPanel messages={selectedPacket.messages ?? []} />
+              {!insightsAsideExpanded ? (
+                <div className="w-full shrink-0 border-t border-slate-200 bg-slate-100/90 px-3 py-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="h-9 w-full text-xs font-medium text-slate-800"
+                    onClick={() => setInsightsAsideExpanded(true)}
+                  >
+                    Show read-only insights
+                  </Button>
                 </div>
-              </aside>
+              ) : (
+                <aside
+                  data-operator-inbox-local-insights
+                  tabIndex={-1}
+                  className="w-full shrink-0 border-t border-gray-200 bg-slate-50/60 p-4 outline-none lg:sticky lg:top-0 lg:max-h-[min(100dvh,100%)] lg:w-80 lg:self-start lg:overflow-y-auto lg:border-l lg:border-t-0"
+                >
+                  <div className="mb-3 flex items-center justify-between gap-2">
+                    <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-600">Read-only insights</h3>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="h-8 shrink-0 px-2 text-[10px] text-slate-600"
+                      onClick={() => setInsightsAsideExpanded(false)}
+                    >
+                      Hide
+                    </Button>
+                  </div>
+                  <div className="space-y-4">
+                    <OperatorInboxFailedMessagesReadOnlyPanel messages={selectedPacket.messages ?? []} />
+                    <OperatorInboxCustomerActivitySummary messages={selectedPacket.messages ?? []} />
+                    <OperatorInboxLocalExplanationCards
+                      messages={selectedPacket.messages ?? []}
+                      lastMessageAtIso={selectedPacket.last_message_at}
+                    />
+                    <OperatorInboxLocalDraftPreview messages={selectedPacket.messages ?? []} />
+                    {showAiPreviewPanel ? (
+                      <OperatorInboxLocalAiPreviewPanel messages={selectedPacket.messages ?? []} />
+                    ) : (
+                      <p className="rounded-md border border-dashed border-slate-200 bg-white/60 p-2 text-[11px] text-slate-600">
+                        Local AI preview is off. Enable “Show local AI preview panel” in the list header to see keyword
+                        heuristics here.
+                      </p>
+                    )}
+                  </div>
+                </aside>
+              )}
             </div>
           </div>
         ) : (
           <div
             className={cn(
               "flex min-h-0 flex-1 flex-col items-center justify-center bg-gray-50 p-6 text-center",
-              isNarrow ? "hidden lg:flex" : "flex",
+              isNarrow && "min-h-[24vh] border-t border-gray-200 lg:min-h-0",
             )}
             role="region"
             aria-label="Packet list placeholder"

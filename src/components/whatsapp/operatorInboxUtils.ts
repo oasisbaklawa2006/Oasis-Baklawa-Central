@@ -200,6 +200,25 @@ export function packetStitchedPlainText(stitchedContent: unknown): string {
 /** Age bucket from last activity (read-only UX). */
 export type PacketAgeBucket = "fresh" | "active" | "aging" | "stale";
 
+/**
+ * SLA-style labels for idle time since last packet activity (read-only).
+ * Buckets: under 15m fresh · 15m–2h watch · 2h–24h aging · 24h+ stale.
+ */
+export function packetSlaUiMeta(age: PacketAgeBucket): { title: string; range: string } {
+  switch (age) {
+    case "fresh":
+      return { title: "Fresh", range: "<15m" };
+    case "active":
+      return { title: "Watch", range: "15m–2h" };
+    case "aging":
+      return { title: "Aging", range: "2h–24h" };
+    case "stale":
+      return { title: "Stale", range: "24h+" };
+    default:
+      return { title: "Watch", range: "15m–2h" };
+  }
+}
+
 export function packetAgeBucket(lastMessageAtIso: string, now = Date.now()): PacketAgeBucket {
   const t = new Date(lastMessageAtIso).getTime();
   if (Number.isNaN(t)) return "active";
@@ -289,6 +308,25 @@ export function inferPacketHealth(
   if (unanswered && age === "stale") return "stale_open";
   if (unanswered) return "needs_reply";
   return "healthy";
+}
+
+/** Outbound / system rows that look undelivered from already-loaded `status` only (no network). */
+export function selectFailedMessagesForReadOnlyPanel(messages: Message[]): Message[] {
+  const failed = (s: string) => {
+    const x = s.trim().toLowerCase();
+    return (
+      x === "failed" ||
+      x === "error" ||
+      x === "undelivered" ||
+      x.includes("fail") ||
+      x.includes("reject")
+    );
+  };
+  return sortMessagesChronological(messages).filter((m) => {
+    const st = m.status;
+    if (!st || typeof st !== "string") return false;
+    return failed(st);
+  });
 }
 
 export function aggregateProviderCounts(

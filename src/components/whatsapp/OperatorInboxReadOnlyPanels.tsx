@@ -13,6 +13,7 @@ import {
   localOnlyAiSuggestionPreview,
   medianResponseLagSeconds,
   operatorInboxIntentRowBorderClass,
+  selectFailedMessagesForReadOnlyPanel,
   summarizeCustomerActivity,
   uniqueMessageStatuses,
   uniqueProviders,
@@ -52,7 +53,7 @@ function DisabledGovernanceAction({ label }: { label: string }) {
 
 export function OperatorInboxGovernanceBar() {
   return (
-    <div className="flex flex-wrap items-center gap-2 border-b border-amber-100 bg-amber-50/80 px-3 py-2">
+    <div className="flex flex-wrap items-center gap-2 border-b border-amber-100 bg-amber-50/95 px-3 py-2 backdrop-blur-sm">
       <span className="inline-flex items-center gap-1 text-xs font-medium text-amber-900">
         <Info className="h-3.5 w-3.5 shrink-0" aria-hidden />
         Read-only controls
@@ -102,6 +103,46 @@ export function OperatorInboxPacketBadges({
         </Badge>
       ))}
     </div>
+  );
+}
+
+export function OperatorInboxFailedMessagesReadOnlyPanel({ messages }: { messages: Message[] }) {
+  const reactId = useId();
+  const headingId = `${reactId}-failed-msgs`;
+  const failed = selectFailedMessagesForReadOnlyPanel(messages);
+  return (
+    <section
+      className="rounded-lg border border-red-200 bg-red-50/60 p-3"
+      aria-labelledby={headingId}
+    >
+      <h4 id={headingId} className="text-xs font-semibold uppercase tracking-wide text-red-900">
+        Failed delivery (read-only)
+      </h4>
+      <p className="mt-1 text-[11px] text-red-800/90">
+        Rows below are from already-loaded messages with error-like status strings only. No resend from this view.
+      </p>
+      {failed.length === 0 ? (
+        <p className="mt-2 text-xs text-red-800/80">No failed statuses in this thread snapshot.</p>
+      ) : (
+        <ul className="mt-2 max-h-40 space-y-2 overflow-y-auto text-xs text-red-950">
+          {failed.map((m) => (
+            <li key={String(m.id)} className="rounded border border-red-100 bg-white/80 p-2">
+              <p className="font-medium">
+                {m.direction} · {m.status ?? "unknown"}
+                {m.provider ? ` · ${m.provider}` : ""}
+              </p>
+              <p className="mt-0.5 line-clamp-2 text-red-900/90">{m.content ?? "(no body)"}</p>
+              <p className="mt-1 text-[10px] text-red-700/80">
+                {m.created_at ? new Date(m.created_at).toLocaleString() : ""}
+              </p>
+            </li>
+          ))}
+        </ul>
+      )}
+      <div className="mt-3 flex flex-wrap items-center gap-2">
+        <DisabledGovernanceAction label="Retry blocked" />
+      </div>
+    </section>
   );
 }
 
