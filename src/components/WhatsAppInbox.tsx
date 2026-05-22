@@ -733,7 +733,7 @@ export function WhatsAppInbox() {
   }
 
   return (
-    <div className="flex h-[100dvh] flex-col bg-gray-100">
+    <div className="flex h-[100dvh] flex-col bg-gray-100" role="main" aria-label="WhatsApp operator inbox">
       <a
         href="#operator-inbox-packet-list"
         className="sr-only focus:not-sr-only focus:absolute focus:left-3 focus:top-3 focus:z-50 focus:rounded-md focus:bg-white focus:px-3 focus:py-2 focus:text-sm focus:shadow focus:outline-none focus:ring-2 focus:ring-green-600 focus:ring-offset-2"
@@ -794,6 +794,9 @@ export function WhatsAppInbox() {
               {orderedPackets.length} shown · {packets.length} loaded (open)
               {pinnedIds.length > 0 ? ` · ${pinnedIds.length} pinned` : ""}
             </p>
+            <p className="text-[11px] text-gray-400">
+              Same read-only inbox: <span className="font-mono text-gray-500">/admin/whatsapp</span> (URL alias).
+            </p>
             <p className="mt-1 text-[11px] text-gray-500">
               Shortcuts: <kbd className="rounded border bg-gray-100 px-1">/</kbd>, <kbd className="rounded border bg-gray-100 px-1">Esc</kbd>,{" "}
               <kbd className="rounded border bg-gray-100 px-1">j</kbd>/<kbd className="rounded border bg-gray-100 px-1">k</kbd>, arrows on list.
@@ -815,6 +818,10 @@ export function WhatsAppInbox() {
                 </li>
                 <li>Arrow keys, Home, and End navigate when the packet list has keyboard focus.</li>
                 <li>Export CSV downloads only the rows currently visible after filters, using data already loaded in this browser.</li>
+                <li>
+                  You can open this screen from <span className="font-mono">/admin/operator-inbox</span> or the alias{" "}
+                  <span className="font-mono">/admin/whatsapp</span> — same page, no extra data load.
+                </li>
               </ul>
             </details>
             <div className="mt-3 space-y-3">

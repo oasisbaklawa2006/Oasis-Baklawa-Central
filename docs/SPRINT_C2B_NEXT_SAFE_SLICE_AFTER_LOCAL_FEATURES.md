@@ -16,7 +16,7 @@
    Labels, live regions, listbox/roving tabindex, contrast, and keyboard order — still read-only.
 
 4. **Optional read-only route alias**  
-   If product wants a second URL (e.g. `/admin/whatsapp`), add a **duplicate route** to the same inbox component with **no** new loaders or server behavior — routing-only change.
+   **Done:** `/admin/whatsapp` duplicates the same lazy `OperatorInbox` page as `/admin/operator-inbox`. Further work here is copy/navigation only if desired.
 
 ## Explicitly out of scope until policy changes
 
