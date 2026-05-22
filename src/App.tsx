@@ -293,6 +293,7 @@ const App = () => (
                     <Route path="currency" element={<AdminCurrency />} />
                     <Route path="support" element={<AdminSupport />} />
                     <Route path="operator-inbox" element={<OperatorInbox />} />
+                    <Route path="whatsapp" element={<OperatorInbox />} />
                     <Route path="settings" element={<AdminSettings />} />
                     <Route path="audit" element={<AdminAudit />} />
                     <Route path="department" element={<AdminDepartment />} />

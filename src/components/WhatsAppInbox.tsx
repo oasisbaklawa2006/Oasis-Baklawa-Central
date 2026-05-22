@@ -1,7 +1,16 @@
 // src/components/WhatsAppInbox.tsx
 // TOOL 1: Raw WhatsApp Inbox — Display stitched packets as conversations
 
-import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent, type MouseEvent } from "react";
+import {
+  useCallback,
+  useDeferredValue,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type KeyboardEvent,
+  type MouseEvent,
+} from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { ArrowLeft, Download, MessageCircle } from "lucide-react";
@@ -530,6 +539,11 @@ export function WhatsAppInbox() {
     });
   }, [filteredPackets, pinnedIds]);
 
+  const deferredFilterSummary = useDeferredValue({
+    shown: orderedPackets.length,
+    loaded: packets.length,
+  });
+
   const selectPacketAtIndex = useCallback(
     (index: number) => {
       if (orderedPackets.length === 0) return;
@@ -736,12 +750,18 @@ export function WhatsAppInbox() {
     <div className="flex h-[100dvh] flex-col bg-gray-100">
       <a
         href="#operator-inbox-packet-list"
-        className="sr-only focus:not-sr-only focus:absolute focus:left-3 focus:top-3 focus:z-50 focus:rounded-md focus:bg-white focus:px-3 focus:py-2 focus:text-sm focus:shadow"
+        className="sr-only focus:not-sr-only focus:absolute focus:left-3 focus:top-3 focus:z-50 focus:rounded-md focus:bg-white focus:px-3 focus:py-2 focus:text-sm focus:shadow focus:outline-none focus:ring-2 focus:ring-green-600 focus:ring-offset-2"
       >
         Skip to packet list
       </a>
-      <div className="sr-only" aria-live="polite">
-        {orderedPackets.length} packets match the current filters out of {packets.length} loaded.
+      <a
+        href="#operator-inbox-detail-region"
+        className="sr-only focus:not-sr-only focus:absolute focus:left-3 focus:top-14 focus:z-50 focus:rounded-md focus:bg-white focus:px-3 focus:py-2 focus:text-sm focus:shadow focus:outline-none focus:ring-2 focus:ring-green-600 focus:ring-offset-2"
+      >
+        Skip to conversation detail
+      </a>
+      <div className="sr-only" aria-live="polite" aria-relevant="text">
+        {deferredFilterSummary.shown} packets match the current filters out of {deferredFilterSummary.loaded} loaded.
       </div>
       <div className="sr-only" aria-live="polite" aria-atomic="true">
         {selectionAnnouncement}
@@ -758,11 +778,12 @@ export function WhatsAppInbox() {
           className={cn(
             "flex min-h-0 flex-col overflow-hidden border-gray-300 bg-white lg:border-r",
             "w-full max-w-none lg:max-w-md",
-            isNarrow && "max-h-[min(42vh,24rem)] shrink-0 border-b border-gray-200 lg:max-h-none lg:shrink lg:border-b-0",
+            isNarrow &&
+              "max-h-[min(46vh,26rem)] shrink-0 border-b border-gray-200 lg:max-h-none lg:shrink lg:border-b-0",
           )}
         >
           <div
-            className="sticky top-0 z-10 border-b border-gray-200 bg-white p-4"
+            className="sticky top-0 z-10 border-b border-gray-200 bg-white/95 p-4 shadow-sm supports-[backdrop-filter]:backdrop-blur-sm"
             id="operator-inbox-filter-panel"
             data-operator-inbox-interactive
           >
@@ -801,7 +822,7 @@ export function WhatsAppInbox() {
                   <kbd className="rounded border bg-white px-1">/</kbd> moves focus to packet search (when not typing in a field).
                 </li>
                 <li>
-                  <kbd className="rounded border bg-white px-1">Esc</kbd> clears a non-empty search first; if search is empty and insights are open, it collapses insights. Does not fire while focus is in a reply or note field.
+                  <kbd className="rounded border bg-white px-1">Esc</kbd> clears a non-empty search first; if search is empty and insights are open, it collapses insights. Skips reply and local-note fields, but still works from the packet search box.
                 </li>
                 <li>
                   <kbd className="rounded border bg-white px-1">j</kbd> and <kbd className="rounded border bg-white px-1">k</kbd> move the selected packet up and down the visible list.
@@ -1059,7 +1080,7 @@ export function WhatsAppInbox() {
               <p className="mt-1 text-sm text-red-700">{error}</p>
               <button
                 type="button"
-                className="mt-3 rounded-md bg-red-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-red-700"
+                className="mt-3 rounded-md bg-red-600 px-3 py-1.5 text-xs font-medium text-white outline-none hover:bg-red-700 focus-visible:ring-2 focus-visible:ring-red-500 focus-visible:ring-offset-2"
                 onClick={() => void loadPackets()}
               >
                 Retry
@@ -1099,7 +1120,10 @@ export function WhatsAppInbox() {
           ) : null}
 
           {!error && packets.length > 0 && orderedPackets.length === 0 ? (
-            <div className="flex flex-1 flex-col items-center justify-center gap-3 p-6 text-center text-gray-600">
+            <div
+              className="flex flex-1 flex-col items-center justify-center gap-3 p-6 text-center text-gray-600"
+              role="status"
+            >
               {unansweredOnly && !filterQuery.trim() && !hasBulkFilters ? (
                 <>
                   <p className="text-sm font-semibold text-gray-800">No unanswered packets right now</p>
@@ -1155,7 +1179,8 @@ export function WhatsAppInbox() {
               aria-multiselectable={false}
               aria-activedescendant={selectedPacket ? `packet-row-${selectedPacket.id}` : undefined}
               onKeyDown={onPacketListKeyDown}
-              className="min-h-0 flex-1 overflow-y-auto outline-none focus-visible:ring-2 focus-visible:ring-green-600 focus-visible:ring-offset-2"
+              className="min-h-0 flex-1 overflow-y-auto overscroll-y-contain pb-[max(0.5rem,env(safe-area-inset-bottom))] pt-1 outline-none focus-visible:ring-2 focus-visible:ring-green-600 focus-visible:ring-offset-2"
+              aria-controls="operator-inbox-detail-region"
             >
               <OperatorInboxVirtualizedPacketList
                 ref={packetListVirtualRef}
@@ -1173,11 +1198,13 @@ export function WhatsAppInbox() {
 
         {selectedPacket ? (
           <div
-            className="flex min-h-0 min-w-0 flex-1 flex-col bg-white"
+            id="operator-inbox-detail-region"
+            className="flex min-h-0 min-w-0 flex-1 flex-col bg-white lg:min-h-0"
             role="region"
             aria-label="Selected WhatsApp packet"
+            tabIndex={-1}
           >
-            <div className="sticky top-0 z-30 shrink-0 max-h-[min(50dvh,28rem)] overflow-y-auto border-b border-gray-200 bg-white/95 shadow-sm backdrop-blur-sm lg:max-h-none">
+            <div className="sticky top-0 z-30 shrink-0 max-h-[min(42dvh,22rem)] overflow-y-auto overscroll-y-contain border-b border-gray-200 bg-white/95 shadow-sm backdrop-blur-sm supports-[backdrop-filter]:backdrop-blur-sm lg:max-h-none">
               <OperatorInboxGovernanceBar />
               <OperatorInboxRefreshingBanner isRefreshing={isRefreshing} refreshError={refreshError} />
               <div className="border-t border-green-100 bg-green-50 p-4">
@@ -1242,7 +1269,9 @@ export function WhatsAppInbox() {
                       type="button"
                       onClick={() => void handleClassifyIntent()}
                       disabled={classifyLoading || routeLoading}
-                      className="rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-800 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
+                      aria-busy={classifyLoading}
+                      aria-label={classifyLoading ? "Classifying intent, please wait" : "Classify intent with Edge suggestion"}
+                      className="rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-800 outline-none hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50 focus-visible:ring-2 focus-visible:ring-green-600 focus-visible:ring-offset-2"
                     >
                       {classifyLoading ? "Classifying…" : "Classify Intent"}
                     </button>
@@ -1250,7 +1279,9 @@ export function WhatsAppInbox() {
                       type="button"
                       onClick={() => void handleSuggestRoute()}
                       disabled={classifyLoading || routeLoading}
-                      className="rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-800 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
+                      aria-busy={routeLoading}
+                      aria-label={routeLoading ? "Suggesting route, please wait" : "Suggest routing with Edge function"}
+                      className="rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-800 outline-none hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50 focus-visible:ring-2 focus-visible:ring-green-600 focus-visible:ring-offset-2"
                     >
                       {routeLoading ? "Suggesting…" : "Suggest Route"}
                     </button>
@@ -1303,7 +1334,7 @@ export function WhatsAppInbox() {
                   ) : null}
                 </div>
 
-                <div className="min-h-0 flex-1 space-y-6 overflow-y-auto p-4">
+                <div className="min-h-0 flex-1 space-y-6 overflow-y-auto overscroll-y-contain scroll-pt-2 scroll-pb-3 p-4">
                   {selectedPacket.messages && selectedPacket.messages.length > 0 ? (
                     groupMessagesByDayWithGapMarkers(selectedPacket.messages).map((group) => (
                       <div key={group.dayKey}>
@@ -1384,7 +1415,9 @@ export function WhatsAppInbox() {
                       </div>
                     ))
                   ) : (
-                    <p className="text-center text-gray-500">No messages in this packet</p>
+                    <p className="text-center text-gray-500" role="status">
+                      No messages in this packet
+                    </p>
                   )}
                 </div>
 
@@ -1437,7 +1470,7 @@ export function WhatsAppInbox() {
                 <aside
                   data-operator-inbox-local-insights
                   tabIndex={-1}
-                  className="w-full shrink-0 border-t border-gray-200 bg-slate-50/60 p-4 outline-none lg:sticky lg:top-0 lg:max-h-[min(100dvh,100%)] lg:w-80 lg:self-start lg:overflow-y-auto lg:border-l lg:border-t-0"
+                  className="w-full shrink-0 border-t border-gray-200 bg-slate-50/60 p-4 outline-none lg:sticky lg:top-0 lg:max-h-[min(100dvh,100%)] lg:w-80 lg:self-start lg:overflow-y-auto lg:overscroll-y-contain lg:border-l lg:border-t-0"
                 >
                   <div className="mb-3 flex items-center justify-between gap-2">
                     <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-600">Read-only insights</h3>
@@ -1509,15 +1542,22 @@ export function WhatsAppInbox() {
           </div>
         ) : (
           <div
+            id="operator-inbox-detail-region"
             className={cn(
               "flex min-h-0 flex-1 flex-col items-center justify-center bg-gray-50 p-6 text-center",
-              isNarrow && "min-h-[24vh] border-t border-gray-200 lg:min-h-0",
+              isNarrow && "min-h-[28vh] border-t border-gray-200 lg:min-h-0",
             )}
-            role="region"
-            aria-label="Packet list placeholder"
+            role="status"
+            aria-live="polite"
+            aria-label="No conversation selected"
+            tabIndex={-1}
           >
             <MessageCircle className="mb-3 h-10 w-10 text-gray-300" aria-hidden />
-            <p className="text-gray-600">Select a conversation to open the operator dashboard</p>
+            <p className="text-gray-600">
+              Select a conversation from the list to open the operator dashboard, or use{" "}
+              <kbd className="rounded border bg-white px-1">j</kbd> / <kbd className="rounded border bg-white px-1">k</kbd>{" "}
+              when the list has focus.
+            </p>
             {packets.length === 0 && !error ? (
               <p className="mt-2 max-w-sm text-sm text-gray-500">There are no open packets right now.</p>
             ) : null}
