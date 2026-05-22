@@ -1,32 +1,47 @@
 import { useVirtualizer } from "@tanstack/react-virtual";
-import type { RefObject } from "react";
-import type { MouseEvent } from "react";
+import { forwardRef, useImperativeHandle, type MouseEvent, type RefObject } from "react";
 import type { OperatorInboxPacket } from "./operatorInboxTypes";
 import { OperatorInboxPacketRow } from "./OperatorInboxPacketRow";
 
 const ESTIMATE_ROW = 140;
 
-export function OperatorInboxVirtualizedPacketList({
-  scrollRef,
-  orderedPackets,
-  selectedPacketId,
-  pinnedIds,
-  onSelect,
-  onPin,
-}: {
+export type OperatorInboxVirtualizedPacketListHandle = {
+  scrollToIndex: (index: number) => void;
+};
+
+type OperatorInboxVirtualizedPacketListProps = {
   scrollRef: RefObject<HTMLDivElement | null>;
   orderedPackets: OperatorInboxPacket[];
   selectedPacketId: string | null;
   pinnedIds: string[];
   onSelect: (p: OperatorInboxPacket) => void;
   onPin: (id: string, e: MouseEvent) => void;
-}) {
+};
+
+export const OperatorInboxVirtualizedPacketList = forwardRef<
+  OperatorInboxVirtualizedPacketListHandle,
+  OperatorInboxVirtualizedPacketListProps
+>(function OperatorInboxVirtualizedPacketList(
+  { scrollRef, orderedPackets, selectedPacketId, pinnedIds, onSelect, onPin },
+  ref,
+) {
   const virtualizer = useVirtualizer({
     count: orderedPackets.length,
     getScrollElement: () => scrollRef.current,
     estimateSize: () => ESTIMATE_ROW,
     overscan: 10,
   });
+
+  useImperativeHandle(
+    ref,
+    () => ({
+      scrollToIndex: (index: number) => {
+        if (index < 0 || index >= orderedPackets.length) return;
+        virtualizer.scrollToIndex(index, { align: "auto" });
+      },
+    }),
+    [virtualizer, orderedPackets.length],
+  );
 
   const items = virtualizer.getVirtualItems();
 
@@ -63,4 +78,4 @@ export function OperatorInboxVirtualizedPacketList({
       })}
     </div>
   );
-}
+});

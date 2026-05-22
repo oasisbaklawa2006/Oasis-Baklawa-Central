@@ -38,7 +38,10 @@ import {
   saveOperatorInboxUiState,
 } from "@/components/whatsapp/operatorInboxUiPersistence";
 import { OperatorInboxLoadingShell } from "@/components/whatsapp/OperatorInboxSkeletons";
-import { OperatorInboxVirtualizedPacketList } from "@/components/whatsapp/OperatorInboxVirtualizedPacketList";
+import {
+  OperatorInboxVirtualizedPacketList,
+  type OperatorInboxVirtualizedPacketListHandle,
+} from "@/components/whatsapp/OperatorInboxVirtualizedPacketList";
 import {
   OperatorInboxCustomerActivitySummary,
   OperatorInboxGovernanceBar,
@@ -97,6 +100,8 @@ export function WhatsAppInbox() {
   const [isNarrow, setIsNarrow] = useState(false);
   const [obsRefreshKey, setObsRefreshKey] = useState(0);
   const observability = useOperatorInboxObservability(obsRefreshKey);
+  const packetListVirtualRef = useRef<OperatorInboxVirtualizedPacketListHandle>(null);
+  const [messagesBatchWarnings, setMessagesBatchWarnings] = useState<string[]>([]);
   const listScrollRef = useRef<HTMLDivElement | null>(null);
   const filterInputRef = useRef<HTMLInputElement | null>(null);
   const realtimeDebounceRef = useRef<number | null>(null);
@@ -155,6 +160,7 @@ export function WhatsAppInbox() {
   const loadPackets = useCallback(async (opts?: { silent?: boolean }) => {
     const silent = Boolean(opts?.silent);
     try {
+      setMessagesBatchWarnings([]);
       if (silent) {
         setIsRefreshing(true);
         setRefreshError(null);
@@ -190,7 +196,10 @@ export function WhatsAppInbox() {
 
       const rows = (packetsData ?? []) as unknown as OperatorInboxPacket[];
       const ids = rows.map((r) => r.id);
-      const messagesByPacket = await fetchMessagesForPacketIdsBatch(ids);
+      const { byPacket: messagesByPacket, errors: batchMessageErrors } = await fetchMessagesForPacketIdsBatch(ids);
+      if (batchMessageErrors.length > 0) {
+        setMessagesBatchWarnings(batchMessageErrors);
+      }
 
       const enrichedPackets = rows.map((packet) => {
         const contact = packet.whatsapp_contacts;
@@ -440,7 +449,7 @@ export function WhatsAppInbox() {
         if (p) {
           setSelectedPacket(p);
           window.requestAnimationFrame(() => {
-            document.getElementById(`packet-row-${p.id}`)?.scrollIntoView({ block: "nearest" });
+            packetListVirtualRef.current?.scrollToIndex(next);
           });
         }
       }
@@ -641,6 +650,17 @@ export function WhatsAppInbox() {
             </div>
           ) : null}
 
+          {!error && messagesBatchWarnings.length > 0 ? (
+            <div className="border-b border-amber-200 bg-amber-50 px-4 py-2 text-xs text-amber-950" role="status">
+              <p className="font-medium text-amber-900">Some message history loaded partially</p>
+              <ul className="mt-1 list-inside list-disc text-amber-900/90">
+                {messagesBatchWarnings.map((w, idx) => (
+                  <li key={`${idx}-${w.slice(0, 80)}`}>{w}</li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
+
           {!error && packets.length === 0 ? (
             <div
               className="flex flex-1 flex-col items-center justify-center gap-3 p-8 text-center text-gray-500"
@@ -695,6 +715,7 @@ export function WhatsAppInbox() {
               className="min-h-0 flex-1 overflow-y-auto outline-none focus-visible:ring-2 focus-visible:ring-green-600 focus-visible:ring-offset-2"
             >
               <OperatorInboxVirtualizedPacketList
+                ref={packetListVirtualRef}
                 scrollRef={listScrollRef}
                 orderedPackets={orderedPackets}
                 selectedPacketId={selectedPacket?.id ?? null}

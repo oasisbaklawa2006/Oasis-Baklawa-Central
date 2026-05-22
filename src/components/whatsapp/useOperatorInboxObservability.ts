@@ -1,7 +1,7 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { startOfDay } from "date-fns";
 import { supabase } from "@/integrations/supabase/client";
-import { aggregateProviderCounts } from "./operatorInboxUtils";
+import { aggregateProviderCounts, stitchedContentLooksClassified } from "./operatorInboxUtils";
 
 export interface OperatorInboxObservabilitySnapshot {
   messagesVolumeToday: number | null;
@@ -32,6 +32,8 @@ const emptySnapshot: OperatorInboxObservabilitySnapshot = {
 export function useOperatorInboxObservability(refreshKey: number) {
   const [snapshot, setSnapshot] = useState<OperatorInboxObservabilitySnapshot>(emptySnapshot);
   const [loading, setLoading] = useState(true);
+  /** After first successful observability fetch, `refreshKey`-driven reloads skip the loading spinner (no UI flicker). */
+  const observabilityHasLoadedOnceRef = useRef(false);
 
   const load = useCallback(async () => {
     const partialErrors: string[] = [];
@@ -82,7 +84,7 @@ export function useOperatorInboxObservability(refreshKey: number) {
         .select("id", { count: "exact", head: true })
         .eq("direction", "outbound")
         .eq("provider", "operator_reply")
-        .eq("status", "failed");
+        .in("status", ["failed", "error"]);
       return { count: r.count, error: r.error as Error | null };
     });
 
@@ -101,11 +103,7 @@ export function useOperatorInboxObservability(refreshKey: number) {
         const rows = (sampleRows ?? []) as { stitched_content?: unknown }[];
         let classified = 0;
         for (const row of rows) {
-          const sc = row.stitched_content;
-          if (sc && typeof sc === "object" && !Array.isArray(sc)) {
-            const o = sc as Record<string, unknown>;
-            if (o.intent_type || o.intent || o.classification || o.classified_intent) classified += 1;
-          }
+          if (stitchedContentLooksClassified(row.stitched_content)) classified += 1;
         }
         next.classifiedPacketsSample = classified;
         next.unclassifiedPacketsSample = rows.length - classified;
@@ -139,8 +137,12 @@ export function useOperatorInboxObservability(refreshKey: number) {
   }, []);
 
   useEffect(() => {
-    setLoading(true);
-    void load();
+    if (!observabilityHasLoadedOnceRef.current) {
+      setLoading(true);
+    }
+    void load().finally(() => {
+      observabilityHasLoadedOnceRef.current = true;
+    });
   }, [load, refreshKey]);
 
   return { snapshot, loading, reload: load };
