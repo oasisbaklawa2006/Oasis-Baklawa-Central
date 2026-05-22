@@ -10,6 +10,8 @@ export interface Message {
   /** Present when selected in PostgREST (optional for backward compat). */
   status?: string | null;
   provider?: string | null;
+  /** Present on rows when selected (e.g. operator failures). */
+  failure_reason?: string | null;
   /** Present when loading messages via batched `.in('packet_id', …)` selects. */
   packet_id?: string | null;
 }

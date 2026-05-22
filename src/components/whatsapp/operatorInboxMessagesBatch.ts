@@ -21,7 +21,7 @@ export async function fetchMessagesForPacketIdsBatch(packetIds: string[]): Promi
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       .from("whatsapp_messages" as any)
       .select(
-        "id, content, message_type, direction, created_at, packet_sequence, status, provider, packet_id",
+        "id, content, message_type, direction, created_at, packet_sequence, status, provider, packet_id, failure_reason",
       )
       .in("packet_id", chunk);
 

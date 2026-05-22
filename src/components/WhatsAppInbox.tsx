@@ -52,6 +52,8 @@ import {
   OperatorInboxRefreshingBanner,
 } from "@/components/whatsapp/OperatorInboxReadOnlyPanels";
 import { useOperatorInboxObservability } from "@/components/whatsapp/useOperatorInboxObservability";
+import { OperatorInboxAnalyticsLayer } from "@/components/whatsapp/OperatorInboxAnalyticsLayer";
+import { useOperatorInboxAnalyticsSupplement } from "@/components/whatsapp/useOperatorInboxAnalyticsSupplement";
 
 const REALTIME_CHANNEL = "whatsapp-inbox-packets";
 const PACKET_FETCH_LIMIT = 1000;
@@ -97,6 +99,7 @@ export function WhatsAppInbox() {
   const [isNarrow, setIsNarrow] = useState(false);
   const [obsRefreshKey, setObsRefreshKey] = useState(0);
   const observability = useOperatorInboxObservability(obsRefreshKey);
+  const analyticsSupplement = useOperatorInboxAnalyticsSupplement(obsRefreshKey);
   const listScrollRef = useRef<HTMLDivElement | null>(null);
   const filterInputRef = useRef<HTMLInputElement | null>(null);
   const realtimeDebounceRef = useRef<number | null>(null);
@@ -483,6 +486,13 @@ export function WhatsAppInbox() {
         snapshot={observability.snapshot}
         loading={observability.loading}
         medianLagSecondsFromThreads={medianLagSecondsFromThreads}
+      />
+      <OperatorInboxAnalyticsLayer
+        packets={packets}
+        isRealtimeSyncing={isRefreshing}
+        observabilitySnapshot={observability.snapshot}
+        supplementSnapshot={analyticsSupplement.snapshot}
+        supplementLoading={analyticsSupplement.loading}
       />
       <div className={cn("flex min-h-0 flex-1", isNarrow ? "flex-col" : "flex-row")}>
         <div
