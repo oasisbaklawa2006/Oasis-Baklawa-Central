@@ -8,6 +8,12 @@ export interface OperatorInboxPersistedUiState {
   unansweredOnly: boolean;
   pinnedIds: string[];
   bulkFilters: OperatorInboxBulkFilters;
+  /** Denser packet rows (local only). */
+  compactMode?: boolean;
+  /** Analytics / observability strip at top of inbox. */
+  showObservabilityStrip?: boolean;
+  /** Local keyword “AI-style” preview block in the insights column. */
+  showAiPreviewPanel?: boolean;
 }
 
 export function loadOperatorInboxUiState(): Partial<OperatorInboxPersistedUiState> | null {

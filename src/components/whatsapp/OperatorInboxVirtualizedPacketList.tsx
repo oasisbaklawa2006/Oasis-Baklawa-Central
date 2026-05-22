@@ -4,6 +4,7 @@ import type { OperatorInboxPacket } from "./operatorInboxTypes";
 import { OperatorInboxPacketRow } from "./OperatorInboxPacketRow";
 
 const ESTIMATE_ROW = 140;
+const ESTIMATE_ROW_COMPACT = 92;
 
 export type OperatorInboxVirtualizedPacketListHandle = {
   scrollToIndex: (index: number) => void;
@@ -16,19 +17,27 @@ type OperatorInboxVirtualizedPacketListProps = {
   pinnedIds: string[];
   onSelect: (p: OperatorInboxPacket) => void;
   onPin: (id: string, e: MouseEvent) => void;
+  compact?: boolean;
 };
 
 export const OperatorInboxVirtualizedPacketList = forwardRef<
   OperatorInboxVirtualizedPacketListHandle,
   OperatorInboxVirtualizedPacketListProps
 >(function OperatorInboxVirtualizedPacketList(
-  { scrollRef, orderedPackets, selectedPacketId, pinnedIds, onSelect, onPin },
+  { scrollRef, orderedPackets, selectedPacketId, pinnedIds, onSelect, onPin, compact = false },
   ref,
 ) {
   const virtualizer = useVirtualizer({
     count: orderedPackets.length,
     getScrollElement: () => scrollRef.current,
-    estimateSize: () => ESTIMATE_ROW,
+    estimateSize: (i) => {
+      const p = orderedPackets[i];
+      if (!p) return compact ? ESTIMATE_ROW_COMPACT : ESTIMATE_ROW;
+      const frags = p.fragment_count ?? 0;
+      const extra = Math.min(4, Math.ceil(frags / 8));
+      const base = compact ? ESTIMATE_ROW_COMPACT : ESTIMATE_ROW;
+      return base + extra * (compact ? 8 : 12);
+    },
     overscan: 10,
   });
 
@@ -72,6 +81,7 @@ export const OperatorInboxVirtualizedPacketList = forwardRef<
               onSelect={onSelect}
               onPin={onPin}
               rowId={`packet-row-${packet.id}`}
+              compact={compact}
             />
           </div>
         );
