@@ -1,16 +1,7 @@
 // src/components/WhatsAppInbox.tsx
 // TOOL 1: Raw WhatsApp Inbox — Display stitched packets as conversations
 
-import {
-  useCallback,
-  useDeferredValue,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-  type KeyboardEvent,
-  type MouseEvent,
-} from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent, type MouseEvent } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { ArrowLeft, Download, MessageCircle } from "lucide-react";
@@ -539,11 +530,6 @@ export function WhatsAppInbox() {
     });
   }, [filteredPackets, pinnedIds]);
 
-  const deferredFilterSummary = useDeferredValue({
-    shown: orderedPackets.length,
-    loaded: packets.length,
-  });
-
   const selectPacketAtIndex = useCallback(
     (index: number) => {
       if (orderedPackets.length === 0) return;
@@ -761,7 +747,7 @@ export function WhatsAppInbox() {
         Skip to conversation detail
       </a>
       <div className="sr-only" aria-live="polite" aria-relevant="text">
-        {deferredFilterSummary.shown} packets match the current filters out of {deferredFilterSummary.loaded} loaded.
+        {orderedPackets.length} packets match the current filters out of {packets.length} loaded.
       </div>
       <div className="sr-only" aria-live="polite" aria-atomic="true">
         {selectionAnnouncement}
