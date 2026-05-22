@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { startOfDay } from "date-fns";
 import { supabase } from "@/integrations/supabase/client";
-import { aggregateProviderCounts, stitchedContentLooksClassified } from "./operatorInboxUtils";
+import { aggregateProviderCounts } from "./operatorInboxUtils";
 
 export interface OperatorInboxObservabilitySnapshot {
   messagesVolumeToday: number | null;
@@ -28,14 +28,14 @@ const emptySnapshot: OperatorInboxObservabilitySnapshot = {
 /**
  * Read-only Supabase aggregates for operator observability (no writes).
  * Individual query failures are captured in partialErrors so the inbox still loads.
+ * A monotonic generation id ensures only the latest async load commits to React state.
  */
 export function useOperatorInboxObservability(refreshKey: number) {
   const [snapshot, setSnapshot] = useState<OperatorInboxObservabilitySnapshot>(emptySnapshot);
   const [loading, setLoading] = useState(true);
-  /** After first successful observability fetch, `refreshKey`-driven reloads skip the loading spinner (no UI flicker). */
-  const observabilityHasLoadedOnceRef = useRef(false);
+  const loadGenerationRef = useRef(0);
 
-  const load = useCallback(async () => {
+  const loadImpl = useCallback(async (gen: number) => {
     const partialErrors: string[] = [];
     const dayStart = startOfDay(new Date()).toISOString();
 
@@ -84,7 +84,7 @@ export function useOperatorInboxObservability(refreshKey: number) {
         .select("id", { count: "exact", head: true })
         .eq("direction", "outbound")
         .eq("provider", "operator_reply")
-        .in("status", ["failed", "error"]);
+        .eq("status", "failed");
       return { count: r.count, error: r.error as Error | null };
     });
 
@@ -103,7 +103,11 @@ export function useOperatorInboxObservability(refreshKey: number) {
         const rows = (sampleRows ?? []) as { stitched_content?: unknown }[];
         let classified = 0;
         for (const row of rows) {
-          if (stitchedContentLooksClassified(row.stitched_content)) classified += 1;
+          const sc = row.stitched_content;
+          if (sc && typeof sc === "object" && !Array.isArray(sc)) {
+            const o = sc as Record<string, unknown>;
+            if (o.intent_type || o.intent || o.classification || o.classified_intent) classified += 1;
+          }
         }
         next.classifiedPacketsSample = classified;
         next.unclassifiedPacketsSample = rows.length - classified;
@@ -132,18 +136,20 @@ export function useOperatorInboxObservability(refreshKey: number) {
     }
 
     next.partialErrors = partialErrors;
+    if (gen !== loadGenerationRef.current) return;
     setSnapshot(next);
     setLoading(false);
   }, []);
 
-  useEffect(() => {
-    if (!observabilityHasLoadedOnceRef.current) {
-      setLoading(true);
-    }
-    void load().finally(() => {
-      observabilityHasLoadedOnceRef.current = true;
-    });
-  }, [load, refreshKey]);
+  const runLoad = useCallback(() => {
+    setLoading(true);
+    const gen = ++loadGenerationRef.current;
+    void loadImpl(gen);
+  }, [loadImpl]);
 
-  return { snapshot, loading, reload: load };
+  useEffect(() => {
+    runLoad();
+  }, [runLoad, refreshKey]);
+
+  return { snapshot, loading, reload: runLoad };
 }

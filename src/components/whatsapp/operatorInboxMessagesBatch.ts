@@ -1,4 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
+import { compareMessagesChronological } from "./operatorInboxUtils";
 import type { Message } from "./operatorInboxTypes";
 
 const PACKET_ID_CHUNK = 55;
@@ -61,12 +62,7 @@ export async function fetchMessagesForPacketIdsBatch(
   }
 
   for (const arr of byPacket.values()) {
-    arr.sort((a, b) => {
-      const ta = a.created_at ? new Date(a.created_at).getTime() : 0;
-      const tb = b.created_at ? new Date(b.created_at).getTime() : 0;
-      if (ta !== tb) return ta - tb;
-      return (a.packet_sequence ?? 0) - (b.packet_sequence ?? 0);
-    });
+    arr.sort(compareMessagesChronological);
   }
 
   return { byPacket, errors };

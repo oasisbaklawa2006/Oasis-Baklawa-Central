@@ -22,6 +22,7 @@ import {
   messagePairsWithGapMarkers,
   operatorInboxPacketPreviewSummary,
   packetStitchedPlainText,
+  sortMessagesChronological,
   type LocalIntentTone,
   type PacketAgeBucket,
   type PacketHealth,
@@ -102,6 +103,7 @@ export function WhatsAppInbox() {
   const observability = useOperatorInboxObservability(obsRefreshKey);
   const packetListVirtualRef = useRef<OperatorInboxVirtualizedPacketListHandle>(null);
   const [messagesBatchWarnings, setMessagesBatchWarnings] = useState<string[]>([]);
+  const inboxLoadGenerationRef = useRef(0);
   const listScrollRef = useRef<HTMLDivElement | null>(null);
   const filterInputRef = useRef<HTMLInputElement | null>(null);
   const realtimeDebounceRef = useRef<number | null>(null);
@@ -159,6 +161,7 @@ export function WhatsAppInbox() {
 
   const loadPackets = useCallback(async (opts?: { silent?: boolean }) => {
     const silent = Boolean(opts?.silent);
+    const gen = ++inboxLoadGenerationRef.current;
     try {
       setMessagesBatchWarnings([]);
       if (silent) {
@@ -213,15 +216,29 @@ export function WhatsAppInbox() {
         };
       });
 
+      if (gen !== inboxLoadGenerationRef.current) return;
+
+      if (batchMessageErrors.length > 0) {
+        setMessagesBatchWarnings(batchMessageErrors);
+      }
+
       setPackets(enrichedPackets);
-      setSelectedPacket((prev) => {
-        if (!prev) return null;
-        return enrichedPackets.find((p) => p.id === prev.id) ?? prev;
-      });
+
+      const prevId = selectedPacketIdRef.current;
+      let nextSelected: OperatorInboxPacket | null = null;
+      if (prevId) {
+        nextSelected = enrichedPackets.find((p) => p.id === prevId) ?? null;
+        if (!nextSelected && enrichedPackets.length > 0) {
+          nextSelected = enrichedPackets[0] ?? null;
+        }
+      }
+      setSelectedPacket(nextSelected);
+
       setError(null);
       setRefreshError(null);
       setObsRefreshKey((k) => k + 1);
     } catch (err) {
+      if (gen !== inboxLoadGenerationRef.current) return;
       const msg = err instanceof Error ? err.message : "Failed to load inbox";
       if (silent) {
         setRefreshError(msg);
@@ -230,6 +247,7 @@ export function WhatsAppInbox() {
         console.error("Inbox error:", err);
       }
     } finally {
+      if (gen !== inboxLoadGenerationRef.current) return;
       if (silent) {
         setIsRefreshing(false);
       } else {
@@ -460,11 +478,7 @@ export function WhatsAppInbox() {
   const highlightInboundMessageId = useMemo(() => {
     const m = selectedPacket?.messages ?? [];
     if (!isLastMessageInboundUnanswered(m)) return null;
-    const sorted = [...m].sort((a, b) => {
-      const ta = a.created_at ? new Date(a.created_at).getTime() : 0;
-      const tb = b.created_at ? new Date(b.created_at).getTime() : 0;
-      return ta - tb;
-    });
+    const sorted = sortMessagesChronological(m);
     return sorted[sorted.length - 1]?.id ?? null;
   }, [selectedPacket?.messages]);
 

@@ -7,13 +7,27 @@ import type { Message } from "./operatorInboxTypes";
 
 export type DayGroupedMessages = { dayKey: string; dayLabel: string; messages: Message[] };
 
+/**
+ * Deterministic chronological order for thread semantics:
+ * created_at ascending, then packet_sequence ascending, then id ascending.
+ */
+export function compareMessagesChronological(a: Message, b: Message): number {
+  const ta = a.created_at ? new Date(a.created_at).getTime() : 0;
+  const tb = b.created_at ? new Date(b.created_at).getTime() : 0;
+  if (ta !== tb) return ta - tb;
+  const sa = a.packet_sequence ?? 0;
+  const sb = b.packet_sequence ?? 0;
+  if (sa !== sb) return sa - sb;
+  return String(a.id).localeCompare(String(b.id));
+}
+
+export function sortMessagesChronological(messages: Message[]): Message[] {
+  return [...messages].sort(compareMessagesChronological);
+}
+
 /** Group messages by local calendar day for thread UI. */
 export function groupMessagesByDay(messages: Message[], locale = "en-IN"): DayGroupedMessages[] {
-  const sorted = [...messages].sort((a, b) => {
-    const ta = a.created_at ? new Date(a.created_at).getTime() : 0;
-    const tb = b.created_at ? new Date(b.created_at).getTime() : 0;
-    return ta - tb;
-  });
+  const sorted = sortMessagesChronological(messages);
 
   const byKey = new Map<string, { label: string; items: Message[] }>();
   for (const msg of sorted) {
@@ -197,22 +211,14 @@ export function packetAgeBucket(lastMessageAtIso: string, now = Date.now()): Pac
 }
 
 export function isLastMessageInboundUnanswered(messages: Message[]): boolean {
-  const sorted = [...messages].sort((a, b) => {
-    const ta = a.created_at ? new Date(a.created_at).getTime() : 0;
-    const tb = b.created_at ? new Date(b.created_at).getTime() : 0;
-    return ta - tb;
-  });
+  const sorted = sortMessagesChronological(messages);
   const last = sorted[sorted.length - 1];
   return Boolean(last && last.direction === "inbound");
 }
 
 /** Median seconds from each inbound to the next outbound in the thread (read-only estimate). */
 export function medianResponseLagSeconds(messages: Message[]): number | null {
-  const sorted = [...messages].sort((a, b) => {
-    const ta = a.created_at ? new Date(a.created_at).getTime() : 0;
-    const tb = b.created_at ? new Date(b.created_at).getTime() : 0;
-    return ta - tb;
-  });
+  const sorted = sortMessagesChronological(messages);
   const lags: number[] = [];
   for (let i = 0; i < sorted.length - 1; i++) {
     const cur = sorted[i];
@@ -303,11 +309,7 @@ export function messagePairsWithGapMarkers(
   messages: Message[],
   gapMinutes = 240,
 ): { before: Message | null; message: Message; showGap: boolean }[] {
-  const sorted = [...messages].sort((a, b) => {
-    const ta = a.created_at ? new Date(a.created_at).getTime() : 0;
-    const tb = b.created_at ? new Date(b.created_at).getTime() : 0;
-    return ta - tb;
-  });
+  const sorted = sortMessagesChronological(messages);
   return sorted.map((message, idx) => {
     const prev = idx > 0 ? sorted[idx - 1]! : null;
     let showGap = false;
