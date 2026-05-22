@@ -321,6 +321,42 @@ export function messagePairsWithGapMarkers(
   });
 }
 
+/** Calendar-day groups where gap markers were computed on the full thread (cross-midnight gaps included). */
+export type DayGroupedGapMarkedMessages = {
+  dayKey: string;
+  dayLabel: string;
+  items: { message: Message; showGap: boolean }[];
+};
+
+/**
+ * Like grouping by day for the thread UI, but gap markers use the full chronological message list
+ * so idle periods spanning calendar days still show a "Long gap" divider.
+ */
+export function groupMessagesByDayWithGapMarkers(
+  messages: Message[],
+  gapMinutes = 240,
+  locale = "en-IN",
+): DayGroupedGapMarkedMessages[] {
+  const pairs = messagePairsWithGapMarkers(messages, gapMinutes);
+  const byKey = new Map<string, { label: string; items: { message: Message; showGap: boolean }[] }>();
+  for (const { message, showGap } of pairs) {
+    const d = message.created_at ? new Date(message.created_at) : null;
+    const key = d ? `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}` : "unknown";
+    const dayLabel = d
+      ? d.toLocaleDateString(locale, { weekday: "short", month: "short", day: "numeric" })
+      : "Unknown date";
+    if (!byKey.has(key)) {
+      byKey.set(key, { label: dayLabel, items: [] });
+    }
+    byKey.get(key)!.items.push({ message, showGap });
+  }
+  return [...byKey.entries()].map(([dayKey, v]) => ({
+    dayKey,
+    dayLabel: v.label,
+    items: v.items,
+  }));
+}
+
 /** One-line preview for packet list / search (read-only). */
 export function operatorInboxPacketPreviewSummary(packet: {
   stitched_content: unknown;

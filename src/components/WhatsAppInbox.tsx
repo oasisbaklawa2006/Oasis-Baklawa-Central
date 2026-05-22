@@ -14,12 +14,11 @@ import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { cn } from "@/lib/utils";
 import type { OperatorInboxPacket } from "@/components/whatsapp/operatorInboxTypes";
 import {
-  groupMessagesByDay,
+  groupMessagesByDayWithGapMarkers,
   inferLocalIntentFromText,
   inferPacketHealth,
   isLastMessageInboundUnanswered,
   medianResponseLagSeconds,
-  messagePairsWithGapMarkers,
   operatorInboxPacketPreviewSummary,
   packetStitchedPlainText,
   sortMessagesChronological,
@@ -443,6 +442,13 @@ export function WhatsAppInbox() {
       return new Date(b.last_message_at).getTime() - new Date(a.last_message_at).getTime();
     });
   }, [filteredPackets, pinnedIds]);
+
+  /** Keep detail pane aligned with the filtered list (drop selection if the thread is hidden by filters). */
+  useEffect(() => {
+    if (!selectedPacket) return;
+    if (orderedPackets.some((p) => p.id === selectedPacket.id)) return;
+    setSelectedPacket(orderedPackets[0] ?? null);
+  }, [orderedPackets, selectedPacket]);
 
   const onPacketListKeyDown = useCallback(
     (e: KeyboardEvent<HTMLDivElement>) => {
@@ -868,13 +874,13 @@ export function WhatsAppInbox() {
 
                 <div className="min-h-0 flex-1 space-y-6 overflow-y-auto p-4">
                   {selectedPacket.messages && selectedPacket.messages.length > 0 ? (
-                    groupMessagesByDay(selectedPacket.messages).map((group) => (
+                    groupMessagesByDayWithGapMarkers(selectedPacket.messages).map((group) => (
                       <div key={group.dayKey}>
                         <p className="mb-3 text-center text-[11px] font-semibold uppercase tracking-wider text-gray-400">
                           {group.dayLabel}
                         </p>
                         <div className="space-y-3">
-                          {messagePairsWithGapMarkers(group.messages).map(({ message: msg, showGap }) => (
+                          {group.items.map(({ message: msg, showGap }) => (
                             <div key={msg.id}>
                               {showGap ? (
                                 <div className="flex justify-center py-2" role="separator">

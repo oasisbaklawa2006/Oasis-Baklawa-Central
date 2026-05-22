@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { startOfDay } from "date-fns";
 import { supabase } from "@/integrations/supabase/client";
-import { aggregateProviderCounts } from "./operatorInboxUtils";
+import { aggregateProviderCounts, stitchedContentLooksClassified } from "./operatorInboxUtils";
 
 export interface OperatorInboxObservabilitySnapshot {
   messagesVolumeToday: number | null;
@@ -103,11 +103,7 @@ export function useOperatorInboxObservability(refreshKey: number) {
         const rows = (sampleRows ?? []) as { stitched_content?: unknown }[];
         let classified = 0;
         for (const row of rows) {
-          const sc = row.stitched_content;
-          if (sc && typeof sc === "object" && !Array.isArray(sc)) {
-            const o = sc as Record<string, unknown>;
-            if (o.intent_type || o.intent || o.classification || o.classified_intent) classified += 1;
-          }
+          if (stitchedContentLooksClassified(row.stitched_content)) classified += 1;
         }
         next.classifiedPacketsSample = classified;
         next.unclassifiedPacketsSample = rows.length - classified;
