@@ -310,22 +310,15 @@ export function inferPacketHealth(
   return "healthy";
 }
 
-/** Outbound / system rows that look undelivered from already-loaded `status` only (no network). */
+/** Operator-reply send failures only — matches `inferPacketHealth` → `operator_issue` criteria (read-only panel). */
 export function selectFailedMessagesForReadOnlyPanel(messages: Message[]): Message[] {
-  const failed = (s: string) => {
-    const x = s.trim().toLowerCase();
-    return (
-      x === "failed" ||
-      x === "error" ||
-      x === "undelivered" ||
-      x.includes("fail") ||
-      x.includes("reject")
-    );
-  };
   return sortMessagesChronological(messages).filter((m) => {
+    if (m.direction !== "outbound") return false;
+    if (m.provider !== "operator_reply") return false;
     const st = m.status;
-    if (!st || typeof st !== "string") return false;
-    return failed(st);
+    if (typeof st !== "string") return false;
+    const x = st.trim().toLowerCase();
+    return x === "failed" || x === "error";
   });
 }
 

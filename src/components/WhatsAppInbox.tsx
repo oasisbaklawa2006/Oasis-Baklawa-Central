@@ -76,6 +76,32 @@ const REALTIME_CHANNEL = "whatsapp-inbox-packets";
 const PACKET_FETCH_LIMIT = 1000;
 const REALTIME_RELOAD_DEBOUNCE_MS = 480;
 
+function isTypingSurfaceForEsc(el: HTMLElement | null): boolean {
+  if (!el) return false;
+  const tag = el.tagName;
+  return tag === "INPUT" || tag === "TEXTAREA" || el.isContentEditable;
+}
+
+/** Global `/` and `j`/`k` should not steal keys from toolbar controls or form fields. */
+function shouldIgnoreGlobalInboxShortcuts(el: HTMLElement | null): boolean {
+  if (!el) return false;
+  if (el.closest("[data-operator-inbox-interactive]")) return true;
+  const tag = el.tagName;
+  if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || tag === "BUTTON" || tag === "A") return true;
+  if (el.isContentEditable) return true;
+  const role = el.getAttribute("role");
+  if (
+    role === "button" ||
+    role === "checkbox" ||
+    role === "tab" ||
+    role === "switch" ||
+    role === "menuitem"
+  ) {
+    return true;
+  }
+  return false;
+}
+
 /** Suggestion-only payloads from Edge Functions (read-only UI). */
 interface IntentSuggestion {
   intent_type: string;
@@ -117,8 +143,10 @@ export function WhatsAppInbox() {
   const [compactMode, setCompactMode] = useState(false);
   const [showObservabilityStrip, setShowObservabilityStrip] = useState(true);
   const [showAiPreviewPanel, setShowAiPreviewPanel] = useState(true);
-  /** Collapsible read-only insights column (Esc when focus is inside). */
+  /** Collapsible read-only insights column (Esc when open; respects user collapse). */
   const [insightsAsideExpanded, setInsightsAsideExpanded] = useState(true);
+  /** When true, do not auto-expand insights on packet change until user clicks Show. */
+  const [insightsAsideUserCollapsed, setInsightsAsideUserCollapsed] = useState(false);
   const [savedViews, setSavedViews] = useState<OperatorInboxSavedView[]>([]);
   const [savedViewNameDraft, setSavedViewNameDraft] = useState("");
   const [packetNotes, setPacketNotes] = useState<OperatorInboxPacketNotesMap>(() => {
@@ -531,16 +559,9 @@ export function WhatsAppInbox() {
     const onKey = (e: globalThis.KeyboardEvent) => {
       if (e.defaultPrevented) return;
       const t = e.target as HTMLElement | null;
-      const inField = Boolean(
-        t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable),
-      );
 
       if (e.key === "Escape") {
-        if (inField) {
-          if (filterInputRef.current === t && filterQueryRef.current.trim()) {
-            e.preventDefault();
-            setFilterQuery("");
-          }
+        if (isTypingSurfaceForEsc(t) && t !== filterInputRef.current) {
           return;
         }
         if (filterQueryRef.current.trim()) {
@@ -548,14 +569,15 @@ export function WhatsAppInbox() {
           setFilterQuery("");
           return;
         }
-        if (t?.closest?.("[data-operator-inbox-local-insights]")) {
+        if (insightsAsideExpanded) {
           e.preventDefault();
           setInsightsAsideExpanded(false);
+          setInsightsAsideUserCollapsed(true);
         }
         return;
       }
 
-      if (inField) return;
+      if (shouldIgnoreGlobalInboxShortcuts(t)) return;
 
       if (e.key === "/" && !e.ctrlKey && !e.metaKey && !e.altKey) {
         e.preventDefault();
@@ -574,7 +596,7 @@ export function WhatsAppInbox() {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [moveSelectionBy]);
+  }, [moveSelectionBy, insightsAsideExpanded]);
 
   /** Keep detail pane aligned with the filtered list (drop selection if the thread is hidden by filters). */
   useEffect(() => {
@@ -697,8 +719,14 @@ export function WhatsAppInbox() {
   }, []);
 
   useEffect(() => {
-    setInsightsAsideExpanded(true);
-  }, [selectedPacket?.id]);
+    if (!insightsAsideUserCollapsed) {
+      setInsightsAsideExpanded(true);
+    }
+  }, [selectedPacket?.id, insightsAsideUserCollapsed]);
+
+  useEffect(() => {
+    packetListVirtualRef.current?.remeasureAll();
+  }, [compactMode]);
 
   if (loading) {
     return <OperatorInboxLoadingShell />;
@@ -733,7 +761,11 @@ export function WhatsAppInbox() {
             isNarrow && "max-h-[min(42vh,24rem)] shrink-0 border-b border-gray-200 lg:max-h-none lg:shrink lg:border-b-0",
           )}
         >
-          <div className="sticky top-0 z-10 border-b border-gray-200 bg-white p-4" id="operator-inbox-filter-panel">
+          <div
+            className="sticky top-0 z-10 border-b border-gray-200 bg-white p-4"
+            id="operator-inbox-filter-panel"
+            data-operator-inbox-interactive
+          >
             <div className="flex flex-wrap items-start justify-between gap-2">
               <h2 className="text-xl font-bold text-gray-900" id="operator-inbox-heading">
                 WhatsApp Inbox
@@ -769,7 +801,7 @@ export function WhatsAppInbox() {
                   <kbd className="rounded border bg-white px-1">/</kbd> moves focus to packet search (when not typing in a field).
                 </li>
                 <li>
-                  <kbd className="rounded border bg-white px-1">Esc</kbd> clears a non-empty search, or collapses read-only insights when focus is inside that panel.
+                  <kbd className="rounded border bg-white px-1">Esc</kbd> clears a non-empty search first; if search is empty and insights are open, it collapses insights. Does not fire while focus is in a reply or note field.
                 </li>
                 <li>
                   <kbd className="rounded border bg-white px-1">j</kbd> and <kbd className="rounded border bg-white px-1">k</kbd> move the selected packet up and down the visible list.
@@ -1393,7 +1425,10 @@ export function WhatsAppInbox() {
                     variant="outline"
                     size="sm"
                     className="h-9 w-full text-xs font-medium text-slate-800"
-                    onClick={() => setInsightsAsideExpanded(true)}
+                    onClick={() => {
+                      setInsightsAsideUserCollapsed(false);
+                      setInsightsAsideExpanded(true);
+                    }}
                   >
                     Show read-only insights
                   </Button>
@@ -1411,7 +1446,10 @@ export function WhatsAppInbox() {
                       variant="ghost"
                       size="sm"
                       className="h-8 shrink-0 px-2 text-[10px] text-slate-600"
-                      onClick={() => setInsightsAsideExpanded(false)}
+                      onClick={() => {
+                        setInsightsAsideExpanded(false);
+                        setInsightsAsideUserCollapsed(true);
+                      }}
                     >
                       Hide
                     </Button>

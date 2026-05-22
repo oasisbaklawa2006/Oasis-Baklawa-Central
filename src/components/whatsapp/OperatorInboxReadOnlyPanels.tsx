@@ -119,10 +119,11 @@ export function OperatorInboxFailedMessagesReadOnlyPanel({ messages }: { message
         Failed delivery (read-only)
       </h4>
       <p className="mt-1 text-[11px] text-red-800/90">
-        Rows below are from already-loaded messages with error-like status strings only. No resend from this view.
+        Outbound <span className="font-mono">operator_reply</span> rows with status <span className="font-medium">failed</span> or{" "}
+        <span className="font-medium">error</span> only (same rule as packet health “Send fail”). No resend from this view.
       </p>
       {failed.length === 0 ? (
-        <p className="mt-2 text-xs text-red-800/80">No failed statuses in this thread snapshot.</p>
+        <p className="mt-2 text-xs text-red-800/80">No matching failed operator sends in this thread snapshot.</p>
       ) : (
         <ul className="mt-2 max-h-40 space-y-2 overflow-y-auto text-xs text-red-950">
           {failed.map((m) => (
