@@ -1,17 +1,18 @@
 // src/components/WhatsAppInbox.tsx
 // TOOL 1: Raw WhatsApp Inbox — Display stitched packets as conversations
 
-import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent, type MouseEvent } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
-import { formatDistanceToNow } from "date-fns";
-import { ChevronRight, MessageCircle, Clock, Pin } from "lucide-react";
+import { ArrowLeft, MessageCircle } from "lucide-react";
 import { removeDuplicateRealtimeChannel } from "@/utils/realtime";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { cn } from "@/lib/utils";
-import type { Message } from "@/components/whatsapp/operatorInboxTypes";
+import type { OperatorInboxPacket } from "@/components/whatsapp/operatorInboxTypes";
 import {
   groupMessagesByDay,
   inferLocalIntentFromText,
@@ -19,10 +20,25 @@ import {
   isLastMessageInboundUnanswered,
   medianResponseLagSeconds,
   messagePairsWithGapMarkers,
-  operatorInboxIntentRowBorderClass,
-  packetAgeBucket,
+  operatorInboxPacketPreviewSummary,
   packetStitchedPlainText,
+  type LocalIntentTone,
+  type PacketAgeBucket,
+  type PacketHealth,
 } from "@/components/whatsapp/operatorInboxUtils";
+import {
+  EMPTY_INBOX_BULK_FILTERS,
+  packetMatchesBulkFilters,
+  type OperatorInboxBulkFilters,
+} from "@/components/whatsapp/operatorInboxBulkFilter";
+import { fetchMessagesForPacketIdsBatch } from "@/components/whatsapp/operatorInboxMessagesBatch";
+import {
+  loadOperatorInboxUiState,
+  normalizePersistedBulkFilters,
+  saveOperatorInboxUiState,
+} from "@/components/whatsapp/operatorInboxUiPersistence";
+import { OperatorInboxLoadingShell } from "@/components/whatsapp/OperatorInboxSkeletons";
+import { OperatorInboxVirtualizedPacketList } from "@/components/whatsapp/OperatorInboxVirtualizedPacketList";
 import {
   OperatorInboxCustomerActivitySummary,
   OperatorInboxGovernanceBar,
@@ -37,36 +53,9 @@ import {
 } from "@/components/whatsapp/OperatorInboxReadOnlyPanels";
 import { useOperatorInboxObservability } from "@/components/whatsapp/useOperatorInboxObservability";
 
-interface Packet {
-  id: string;
-  contact_id: string;
-  fragment_count: number;
-  status: string;
-  first_message_at: string;
-  last_message_at: string;
-  stitched_content: unknown;
-  messages?: Message[];
-  customer_name?: string;
-  phone_number?: string;
-  wa_contact_id?: string | null;
-  whatsapp_contacts?: {
-    phone_number: string | null;
-    customer_name: string | null;
-    wa_contact_id?: string | null;
-  } | null;
-}
-
-function packetPreviewSummary(packet: Packet): string {
-  const sc = packet.stitched_content;
-  if (sc && typeof sc === "object" && !Array.isArray(sc) && "summary" in sc) {
-    const s = (sc as { summary?: unknown }).summary;
-    if (typeof s === "string" && s.trim()) return s;
-  }
-  if (typeof sc === "string" && sc.trim()) return sc.trim().slice(0, 80);
-  return `${packet.fragment_count} messages`;
-}
-
 const REALTIME_CHANNEL = "whatsapp-inbox-packets";
+const PACKET_FETCH_LIMIT = 1000;
+const REALTIME_RELOAD_DEBOUNCE_MS = 480;
 
 /** Suggestion-only payloads from Edge Functions (read-only UI). */
 interface IntentSuggestion {
@@ -84,45 +73,10 @@ interface RouteSuggestion {
   metadata: Record<string, unknown>;
 }
 
-function sidebarAgeLabel(age: ReturnType<typeof packetAgeBucket>): string {
-  switch (age) {
-    case "fresh":
-      return "<15m";
-    case "active":
-      return "<2h";
-    case "aging":
-      return "<24h";
-    default:
-      return "24h+";
-  }
-}
-
-function SidebarPacketMeta({ packet }: { packet: Packet }) {
-  const msgs = packet.messages ?? [];
-  const inbound = msgs.filter((m) => m.direction === "inbound").length;
-  const outbound = msgs.filter((m) => m.direction === "outbound").length;
-  const age = packetAgeBucket(packet.last_message_at);
-  const health = inferPacketHealth(packet.last_message_at, msgs);
-  return (
-    <div className="mt-1 flex flex-wrap items-center gap-1">
-      <Badge variant="outline" className="px-1.5 py-0 text-[10px] font-normal">
-        {packet.status}
-      </Badge>
-      <Badge variant="outline" className="px-1.5 py-0 text-[10px] font-normal">
-        in {inbound} · out {outbound}
-      </Badge>
-      <Badge variant="outline" className="border-teal-200 bg-teal-50 px-1.5 py-0 text-[10px] font-normal text-teal-900">
-        age {sidebarAgeLabel(age)}
-      </Badge>
-      <OperatorInboxPacketHealthBadge health={health} />
-    </div>
-  );
-}
-
 export function WhatsAppInbox() {
   const { user } = useAuth();
-  const [packets, setPackets] = useState<Packet[]>([]);
-  const [selectedPacket, setSelectedPacket] = useState<Packet | null>(null);
+  const [packets, setPackets] = useState<OperatorInboxPacket[]>([]);
+  const [selectedPacket, setSelectedPacket] = useState<OperatorInboxPacket | null>(null);
   const selectedPacketIdRef = useRef<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -138,8 +92,55 @@ export function WhatsAppInbox() {
   const [filterQuery, setFilterQuery] = useState("");
   const [unansweredOnly, setUnansweredOnly] = useState(false);
   const [pinnedIds, setPinnedIds] = useState<string[]>([]);
+  const [bulkFilters, setBulkFilters] = useState<OperatorInboxBulkFilters>({ ...EMPTY_INBOX_BULK_FILTERS });
+  const [uiHydrated, setUiHydrated] = useState(false);
+  const [isNarrow, setIsNarrow] = useState(false);
   const [obsRefreshKey, setObsRefreshKey] = useState(0);
   const observability = useOperatorInboxObservability(obsRefreshKey);
+  const listScrollRef = useRef<HTMLDivElement | null>(null);
+  const filterInputRef = useRef<HTMLInputElement | null>(null);
+  const realtimeDebounceRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    const saved = loadOperatorInboxUiState();
+    if (saved) {
+      if (typeof saved.filterQuery === "string") setFilterQuery(saved.filterQuery);
+      if (typeof saved.unansweredOnly === "boolean") setUnansweredOnly(saved.unansweredOnly);
+      if (Array.isArray(saved.pinnedIds)) setPinnedIds(saved.pinnedIds);
+      setBulkFilters(normalizePersistedBulkFilters(saved.bulkFilters));
+    }
+    setUiHydrated(true);
+  }, []);
+
+  useEffect(() => {
+    if (!uiHydrated) return;
+    const t = window.setTimeout(() => {
+      saveOperatorInboxUiState({ filterQuery, unansweredOnly, pinnedIds, bulkFilters });
+    }, 360);
+    return () => window.clearTimeout(t);
+  }, [filterQuery, unansweredOnly, pinnedIds, bulkFilters, uiHydrated]);
+
+  useEffect(() => {
+    const mq = window.matchMedia("(max-width: 1023px)");
+    const fn = () => setIsNarrow(mq.matches);
+    fn();
+    mq.addEventListener("change", fn);
+    return () => mq.removeEventListener("change", fn);
+  }, []);
+
+  useEffect(() => {
+    const onKey = (e: globalThis.KeyboardEvent) => {
+      if (e.defaultPrevented) return;
+      const t = e.target as HTMLElement | null;
+      if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable)) return;
+      if (e.key === "/" && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        e.preventDefault();
+        filterInputRef.current?.focus();
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
 
   useEffect(() => {
     selectedPacketIdRef.current = selectedPacket?.id ?? null;
@@ -183,35 +184,25 @@ export function WhatsAppInbox() {
         )
         .eq("status", "open")
         .order("last_message_at", { ascending: false })
-        .limit(50);
+        .limit(PACKET_FETCH_LIMIT);
 
       if (packetsError) throw packetsError;
 
-      const rows = (packetsData ?? []) as unknown as Packet[];
+      const rows = (packetsData ?? []) as unknown as OperatorInboxPacket[];
+      const ids = rows.map((r) => r.id);
+      const messagesByPacket = await fetchMessagesForPacketIdsBatch(ids);
 
-      const enrichedPackets = await Promise.all(
-        rows.map(async (packet) => {
-          const { data: messages, error: messagesError } = await supabase
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            .from("whatsapp_messages" as any)
-            .select(
-              "id, content, message_type, direction, created_at, packet_sequence, status, provider",
-            )
-            .eq("packet_id", packet.id)
-            .order("packet_sequence", { ascending: true });
-
-          if (messagesError) console.warn("Failed to load messages:", messagesError);
-
-          const contact = packet.whatsapp_contacts;
-          return {
-            ...packet,
-            messages: (messages ?? []) as unknown as Message[],
-            customer_name: contact?.customer_name ?? "Unknown",
-            phone_number: contact?.phone_number ?? "---",
-            wa_contact_id: contact?.wa_contact_id ?? null,
-          };
-        }),
-      );
+      const enrichedPackets = rows.map((packet) => {
+        const contact = packet.whatsapp_contacts;
+        const messages = messagesByPacket.get(packet.id) ?? [];
+        return {
+          ...packet,
+          messages,
+          customer_name: contact?.customer_name ?? "Unknown",
+          phone_number: contact?.phone_number ?? "---",
+          wa_contact_id: contact?.wa_contact_id ?? null,
+        };
+      });
 
       setPackets(enrichedPackets);
       setSelectedPacket((prev) => {
@@ -352,6 +343,14 @@ export function WhatsAppInbox() {
     void loadPackets();
   }, [loadPackets]);
 
+  const scheduleRealtimeReload = useCallback(() => {
+    if (realtimeDebounceRef.current) window.clearTimeout(realtimeDebounceRef.current);
+    realtimeDebounceRef.current = window.setTimeout(() => {
+      realtimeDebounceRef.current = null;
+      void loadPackets({ silent: true });
+    }, REALTIME_RELOAD_DEBOUNCE_MS);
+  }, [loadPackets]);
+
   useEffect(() => {
     removeDuplicateRealtimeChannel(REALTIME_CHANNEL);
 
@@ -365,15 +364,16 @@ export function WhatsAppInbox() {
           table: "whatsapp_message_packets",
         },
         () => {
-          void loadPackets({ silent: true });
+          scheduleRealtimeReload();
         },
       )
       .subscribe();
 
     return () => {
+      if (realtimeDebounceRef.current) window.clearTimeout(realtimeDebounceRef.current);
       void supabase.removeChannel(channel);
     };
-  }, [loadPackets]);
+  }, [loadPackets, scheduleRealtimeReload]);
 
   const togglePin = useCallback((id: string, e: MouseEvent) => {
     e.stopPropagation();
@@ -395,16 +395,17 @@ export function WhatsAppInbox() {
   const filteredPackets = useMemo(() => {
     const q = filterQuery.trim().toLowerCase();
     return packets.filter((p) => {
+      if (!packetMatchesBulkFilters(p, bulkFilters)) return false;
       if (unansweredOnly && !isLastMessageInboundUnanswered(p.messages ?? [])) return false;
       if (!q) return true;
-      const preview = packetPreviewSummary(p).toLowerCase();
+      const preview = operatorInboxPacketPreviewSummary(p).toLowerCase();
       return (
         (p.customer_name ?? "").toLowerCase().includes(q) ||
         (p.phone_number ?? "").toLowerCase().includes(q) ||
         preview.includes(q)
       );
     });
-  }, [packets, filterQuery, unansweredOnly]);
+  }, [packets, filterQuery, unansweredOnly, bulkFilters]);
 
   const orderedPackets = useMemo(() => {
     const pinSet = new Set(pinnedIds);
@@ -415,6 +416,37 @@ export function WhatsAppInbox() {
       return new Date(b.last_message_at).getTime() - new Date(a.last_message_at).getTime();
     });
   }, [filteredPackets, pinnedIds]);
+
+  const onPacketListKeyDown = useCallback(
+    (e: KeyboardEvent<HTMLDivElement>) => {
+      if (orderedPackets.length === 0) return;
+      if (e.key === "ArrowDown" || e.key === "ArrowUp" || e.key === "Home" || e.key === "End") {
+        const cur = selectedPacket ? orderedPackets.findIndex((x) => x.id === selectedPacket.id) : -1;
+        let next = cur < 0 ? 0 : cur;
+        if (e.key === "ArrowDown") {
+          e.preventDefault();
+          next = cur < 0 ? 0 : Math.min(orderedPackets.length - 1, cur + 1);
+        } else if (e.key === "ArrowUp") {
+          e.preventDefault();
+          next = cur <= 0 ? 0 : cur - 1;
+        } else if (e.key === "Home") {
+          e.preventDefault();
+          next = 0;
+        } else if (e.key === "End") {
+          e.preventDefault();
+          next = orderedPackets.length - 1;
+        }
+        const p = orderedPackets[next];
+        if (p) {
+          setSelectedPacket(p);
+          window.requestAnimationFrame(() => {
+            document.getElementById(`packet-row-${p.id}`)?.scrollIntoView({ block: "nearest" });
+          });
+        }
+      }
+    },
+    [orderedPackets, selectedPacket],
+  );
 
   const highlightInboundMessageId = useMemo(() => {
     const m = selectedPacket?.messages ?? [];
@@ -433,44 +465,55 @@ export function WhatsAppInbox() {
   }, [selectedPacket]);
 
   if (loading) {
-    return (
-      <div
-        className="flex h-screen items-center justify-center"
-        aria-busy="true"
-        aria-live="polite"
-        aria-label="Loading WhatsApp inbox"
-      >
-        <div className="text-center">
-          <MessageCircle className="mx-auto mb-4 h-12 w-12 animate-spin text-green-500" />
-          <p className="text-gray-600">Loading conversations…</p>
-        </div>
-      </div>
-    );
+    return <OperatorInboxLoadingShell />;
   }
 
   return (
-    <div className="flex h-screen flex-col bg-gray-100">
+    <div className="flex h-[100dvh] flex-col bg-gray-100">
+      <a
+        href="#operator-inbox-packet-list"
+        className="sr-only focus:not-sr-only focus:absolute focus:left-3 focus:top-3 focus:z-50 focus:rounded-md focus:bg-white focus:px-3 focus:py-2 focus:text-sm focus:shadow"
+      >
+        Skip to packet list
+      </a>
+      <div className="sr-only" aria-live="polite">
+        {orderedPackets.length} packets match the current filters out of {packets.length} loaded.
+      </div>
       <OperatorInboxObservabilityPanel
         snapshot={observability.snapshot}
         loading={observability.loading}
         medianLagSecondsFromThreads={medianLagSecondsFromThreads}
       />
-      <div className="flex min-h-0 flex-1">
-        <div className="flex w-full max-w-md flex-col overflow-hidden border-r border-gray-300 bg-white">
+      <div className={cn("flex min-h-0 flex-1", isNarrow ? "flex-col" : "flex-row")}>
+        <div
+          className={cn(
+            "flex min-h-0 flex-col overflow-hidden border-gray-300 bg-white lg:border-r",
+            "w-full max-w-none lg:max-w-md",
+            isNarrow && selectedPacket ? "hidden lg:flex" : "flex",
+          )}
+        >
           <div className="sticky top-0 z-10 border-b border-gray-200 bg-white p-4">
-            <h2 className="text-xl font-bold text-gray-900">WhatsApp Inbox</h2>
-            <p className="text-sm text-gray-500">
-              {orderedPackets.length} shown · {packets.length} open
+            <h2 className="text-xl font-bold text-gray-900" id="operator-inbox-heading">
+              WhatsApp Inbox
+            </h2>
+            <p className="text-sm text-gray-500" aria-describedby="operator-inbox-heading">
+              {orderedPackets.length} shown · {packets.length} loaded (open)
               {pinnedIds.length > 0 ? ` · ${pinnedIds.length} pinned` : ""}
             </p>
-            <div className="mt-3 space-y-2">
+            <p className="mt-1 text-[11px] text-gray-500">
+              Press <kbd className="rounded border bg-gray-100 px-1">/</kbd> to focus search. Use arrow keys when the
+              list is focused.
+            </p>
+            <div className="mt-3 space-y-3">
               <Input
+                ref={filterInputRef}
                 type="search"
                 placeholder="Search name, phone, preview…"
                 value={filterQuery}
                 onChange={(e) => setFilterQuery(e.target.value)}
                 className="h-9 text-sm"
-                aria-label="Filter packets"
+                aria-label="Filter packets by name, phone, or preview text"
+                autoComplete="off"
               />
               <div className="flex items-center gap-2">
                 <Checkbox
@@ -482,6 +525,100 @@ export function WhatsAppInbox() {
                   Unanswered only (last message inbound)
                 </label>
               </div>
+
+              <div className="space-y-2 rounded-md border border-gray-100 bg-gray-50/80 p-2">
+                <p className="text-[10px] font-semibold uppercase tracking-wide text-gray-500">Bulk filters (local)</p>
+                <div className="space-y-1.5">
+                  <p className="text-[10px] text-gray-500">Health</p>
+                  <ToggleGroup
+                    type="multiple"
+                    className="flex flex-wrap justify-start gap-1"
+                    value={bulkFilters.healthAnyOf}
+                    onValueChange={(v) =>
+                      setBulkFilters((prev) => ({ ...prev, healthAnyOf: v as PacketHealth[] }))
+                    }
+                    aria-label="Filter by packet health"
+                  >
+                    {(
+                      [
+                        ["healthy", "OK"],
+                        ["needs_reply", "Reply"],
+                        ["stale_open", "Stale"],
+                        ["operator_issue", "Fail"],
+                      ] as const
+                    ).map(([val, label]) => (
+                      <ToggleGroupItem key={val} value={val} className="h-7 px-2 text-[10px]">
+                        {label}
+                      </ToggleGroupItem>
+                    ))}
+                  </ToggleGroup>
+                </div>
+                <div className="space-y-1.5">
+                  <p className="text-[10px] text-gray-500">Age</p>
+                  <ToggleGroup
+                    type="multiple"
+                    className="flex flex-wrap justify-start gap-1"
+                    value={bulkFilters.ageAnyOf}
+                    onValueChange={(v) =>
+                      setBulkFilters((prev) => ({ ...prev, ageAnyOf: v as PacketAgeBucket[] }))
+                    }
+                    aria-label="Filter by last activity age"
+                  >
+                    {(
+                      [
+                        ["fresh", "<15m"],
+                        ["active", "<2h"],
+                        ["aging", "<24h"],
+                        ["stale", "24h+"],
+                      ] as const
+                    ).map(([val, label]) => (
+                      <ToggleGroupItem key={val} value={val} className="h-7 px-2 text-[10px]">
+                        {label}
+                      </ToggleGroupItem>
+                    ))}
+                  </ToggleGroup>
+                </div>
+                <div className="space-y-1.5">
+                  <p className="text-[10px] text-gray-500">Intent (keywords)</p>
+                  <ToggleGroup
+                    type="multiple"
+                    className="flex flex-wrap justify-start gap-1"
+                    value={bulkFilters.intentToneAnyOf}
+                    onValueChange={(v) =>
+                      setBulkFilters((prev) => ({ ...prev, intentToneAnyOf: v as LocalIntentTone[] }))
+                    }
+                    aria-label="Filter by local intent tone"
+                  >
+                    {(
+                      [
+                        ["slate", "Gen"],
+                        ["blue", "Log"],
+                        ["violet", "Bill"],
+                        ["emerald", "Price"],
+                        ["rose", "Sup"],
+                        ["amber", "Urg"],
+                      ] as const
+                    ).map(([val, label]) => (
+                      <ToggleGroupItem key={val} value={val} className="h-7 px-2 text-[10px]">
+                        {label}
+                      </ToggleGroupItem>
+                    ))}
+                  </ToggleGroup>
+                </div>
+                {(bulkFilters.healthAnyOf.length > 0 ||
+                  bulkFilters.ageAnyOf.length > 0 ||
+                  bulkFilters.intentToneAnyOf.length > 0) && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="h-7 px-2 text-[10px] text-gray-600"
+                    onClick={() => setBulkFilters({ ...EMPTY_INBOX_BULK_FILTERS })}
+                  >
+                    Clear bulk filters
+                  </Button>
+                )}
+              </div>
             </div>
             {isRefreshing ? (
               <p className="mt-1 text-xs text-green-700" role="status">
@@ -491,7 +628,7 @@ export function WhatsAppInbox() {
           </div>
 
           {error ? (
-            <div className="border-b border-red-200 bg-red-50 p-4">
+            <div className="border-b border-red-200 bg-red-50 p-4" role="alert">
               <p className="text-sm font-medium text-red-800">Could not load inbox</p>
               <p className="mt-1 text-sm text-red-700">{error}</p>
               <button
@@ -505,104 +642,92 @@ export function WhatsAppInbox() {
           ) : null}
 
           {!error && packets.length === 0 ? (
-            <div className="flex flex-1 flex-col items-center justify-center p-8 text-center text-gray-500">
-              <MessageCircle className="mb-4 h-12 w-12 opacity-50" aria-hidden />
-              <p className="font-medium text-gray-700">No open conversations</p>
-              <p className="mt-2 max-w-xs text-sm">When new stitched packets arrive, they will appear here.</p>
+            <div
+              className="flex flex-1 flex-col items-center justify-center gap-3 p-8 text-center text-gray-500"
+              role="status"
+            >
+              <MessageCircle className="h-14 w-14 opacity-40" aria-hidden />
+              <div>
+                <p className="text-base font-semibold text-gray-800">Inbox is clear</p>
+                <p className="mt-2 max-w-sm text-sm leading-relaxed">
+                  There are no open stitched packets right now. When customers message and the stitcher groups their
+                  fragments, threads will appear here automatically.
+                </p>
+              </div>
+              <p className="max-w-sm text-xs text-gray-500">
+                If you expected traffic, confirm realtime is connected (no errors above) and that packets are still
+                marked <span className="font-medium">open</span> in the database.
+              </p>
             </div>
           ) : null}
 
           {!error && packets.length > 0 && orderedPackets.length === 0 ? (
-            <div className="flex flex-1 flex-col items-center justify-center p-6 text-center text-gray-500">
-              <p className="text-sm font-medium text-gray-700">No packets match your filters</p>
-              <button
+            <div className="flex flex-1 flex-col items-center justify-center gap-3 p-6 text-center text-gray-600">
+              <p className="text-sm font-semibold text-gray-800">No packets match these filters</p>
+              <p className="max-w-xs text-xs text-gray-500">
+                Try clearing search, unanswered-only, or bulk filters. Pinned packets still respect text search and
+                bulk rules.
+              </p>
+              <Button
                 type="button"
-                className="mt-3 text-xs font-medium text-green-700 underline"
+                variant="secondary"
+                size="sm"
                 onClick={() => {
                   setFilterQuery("");
                   setUnansweredOnly(false);
+                  setBulkFilters({ ...EMPTY_INBOX_BULK_FILTERS });
                 }}
               >
-                Clear filters
-              </button>
+                Reset all filters
+              </Button>
             </div>
           ) : null}
 
           {!error && packets.length > 0 && orderedPackets.length > 0 ? (
-            <div className="flex-1 overflow-y-auto">
-              {orderedPackets.map((packet) => {
-                const stitchedText = packetStitchedPlainText(packet.stitched_content);
-                const intent = inferLocalIntentFromText(stitchedText);
-                const selected = selectedPacket?.id === packet.id;
-                return (
-                  <div
-                    key={packet.id}
-                    role="button"
-                    tabIndex={0}
-                    onClick={() => setSelectedPacket(packet)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter" || e.key === " ") {
-                        e.preventDefault();
-                        setSelectedPacket(packet);
-                      }
-                    }}
-                    className={cn(
-                      "cursor-pointer border-b border-gray-200 p-4 transition",
-                      selected ? "border-l-4 border-l-green-500 bg-green-50" : cn("border-l-4", operatorInboxIntentRowBorderClass(intent.tone), "hover:bg-gray-50"),
-                    )}
-                  >
-                    <div className="mb-2 flex items-start justify-between gap-2">
-                      <div className="min-w-0 flex-1">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <p className="truncate font-semibold text-gray-900">{packet.customer_name}</p>
-                          <OperatorInboxIntentDot tone={intent.tone} label={intent.label} />
-                        </div>
-                        <p className="truncate text-xs text-gray-500">{packet.phone_number}</p>
-                        <SidebarPacketMeta packet={packet} />
-                      </div>
-                      <div className="flex shrink-0 items-center gap-1">
-                        <button
-                          type="button"
-                          className={cn(
-                            "rounded p-1.5 text-gray-500 hover:bg-gray-200 hover:text-gray-900",
-                            pinnedIds.includes(packet.id) && "text-amber-700",
-                          )}
-                          title={pinnedIds.includes(packet.id) ? "Unpin" : "Pin (local)"}
-                          aria-pressed={pinnedIds.includes(packet.id)}
-                          onClick={(e) => togglePin(packet.id, e)}
-                        >
-                          <Pin className={cn("h-4 w-4", pinnedIds.includes(packet.id) && "fill-amber-200")} aria-hidden />
-                        </button>
-                        <ChevronRight className="h-5 w-5 text-gray-400" aria-hidden />
-                      </div>
-                    </div>
-
-                    <p className="mb-2 line-clamp-2 text-sm text-gray-600">{packetPreviewSummary(packet)}</p>
-
-                    <div className="flex items-center justify-between">
-                      <span className="inline-block rounded bg-green-100 px-2 py-1 text-xs font-medium text-green-800">
-                        {packet.fragment_count} fragments
-                      </span>
-                      <span className="flex items-center text-xs text-gray-500">
-                        <Clock className="mr-1 h-3 w-3" aria-hidden />
-                        {formatDistanceToNow(new Date(packet.last_message_at), {
-                          addSuffix: true,
-                        })}
-                      </span>
-                    </div>
-                  </div>
-                );
-              })}
+            <div
+              id="operator-inbox-packet-list"
+              ref={listScrollRef}
+              tabIndex={0}
+              role="listbox"
+              aria-label="Open WhatsApp packets"
+              aria-multiselectable={false}
+              onKeyDown={onPacketListKeyDown}
+              className="min-h-0 flex-1 overflow-y-auto outline-none focus-visible:ring-2 focus-visible:ring-green-600 focus-visible:ring-offset-2"
+            >
+              <OperatorInboxVirtualizedPacketList
+                scrollRef={listScrollRef}
+                orderedPackets={orderedPackets}
+                selectedPacketId={selectedPacket?.id ?? null}
+                pinnedIds={pinnedIds}
+                onSelect={setSelectedPacket}
+                onPin={togglePin}
+              />
             </div>
           ) : null}
         </div>
 
         {selectedPacket ? (
-          <div className="flex min-h-0 min-w-0 flex-1 flex-col bg-white">
+          <div
+            className="flex min-h-0 min-w-0 flex-1 flex-col bg-white"
+            role="region"
+            aria-label="Selected WhatsApp packet"
+          >
             <OperatorInboxGovernanceBar />
             <OperatorInboxRefreshingBanner isRefreshing={isRefreshing} refreshError={refreshError} />
 
             <div className="sticky top-0 z-20 shrink-0 border-b border-gray-200 bg-green-50 p-4 shadow-sm">
+              {isNarrow ? (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="mb-2 -ml-2 h-10 px-2 text-gray-800 lg:hidden"
+                  onClick={() => setSelectedPacket(null)}
+                >
+                  <ArrowLeft className="mr-1 h-4 w-4 shrink-0" aria-hidden />
+                  All packets
+                </Button>
+              ) : null}
               <div className="flex flex-wrap items-start justify-between gap-2">
                 <div>
                   <p className="text-xs font-medium uppercase tracking-wide text-green-900/80">Contact / sender</p>
@@ -834,7 +959,14 @@ export function WhatsAppInbox() {
             </div>
           </div>
         ) : (
-          <div className="flex min-h-0 flex-1 flex-col items-center justify-center bg-gray-50 p-6 text-center">
+          <div
+            className={cn(
+              "flex min-h-0 flex-1 flex-col items-center justify-center bg-gray-50 p-6 text-center",
+              isNarrow ? "hidden lg:flex" : "flex",
+            )}
+            role="region"
+            aria-label="Packet list placeholder"
+          >
             <MessageCircle className="mb-3 h-10 w-10 text-gray-300" aria-hidden />
             <p className="text-gray-600">Select a conversation to open the operator dashboard</p>
             {packets.length === 0 && !error ? (

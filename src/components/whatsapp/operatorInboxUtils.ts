@@ -318,3 +318,17 @@ export function messagePairsWithGapMarkers(
     return { before: prev, message, showGap };
   });
 }
+
+/** One-line preview for packet list / search (read-only). */
+export function operatorInboxPacketPreviewSummary(packet: {
+  stitched_content: unknown;
+  fragment_count: number;
+}): string {
+  const sc = packet.stitched_content;
+  if (sc && typeof sc === "object" && !Array.isArray(sc) && "summary" in sc) {
+    const s = (sc as { summary?: unknown }).summary;
+    if (typeof s === "string" && s.trim()) return s;
+  }
+  if (typeof sc === "string" && sc.trim()) return sc.trim().slice(0, 80);
+  return `${packet.fragment_count} messages`;
+}
