@@ -1,6 +1,6 @@
 # C2C — Stage 1 named owner intake form
 
-**Purpose:** Capture **named** individuals bound to **governance roles** for Stage 1 evidence and approvals. **Do not** pre-fill real names in this template PR — program leadership fills via secure process. **Does not** authorize runtime work. **Stage 1 remains NO-GO** until evidence and signoffs exist.
+**Purpose:** Capture **named** individuals bound to **governance roles** for Stage 1 evidence and approvals. Replace blanks with **real** Name / Contact / dates / acknowledgements **only** when your organization has assigned people (HR / security approved). **This repository change set does not insert personal data** — complete locally or in a follow-up commit after approval. **Does not** authorize runtime work. **Stage 1 remains NO-GO** until evidence and signoffs exist.
 
 **Related:** `C2C_STAGE1_OWNER_ASSIGNMENT_INSTRUCTIONS.md`, `C2C_STAGE1_AUTHORITATIVE_OWNER_STATUS_MATRIX.md`, `C2C_STAGE1_STATUS_TRANSITION_LOG.md`, `C2C_ROLE_SEPARATION_MATRIX.md`.
 
@@ -9,6 +9,8 @@
 ## How to use
 
 Duplicate the **block** under each heading for each appointee. Store **PII-minimized** copies where policy requires; link immutable ticket IDs in the status log when names are confirmed.
+
+**Automation note:** If a field is **unknown**, leave the placeholder blank. Do **not** invent people, emails, or signatures.
 
 ---
 
