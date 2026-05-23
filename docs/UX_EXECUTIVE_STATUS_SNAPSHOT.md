@@ -1,103 +1,118 @@
-# Oasis Central — Executive UX status snapshot
+# Oasis Central — Executive UX status snapshot (MOVE 10)
 
-**As-of:** Generated with the UX audit closure sprint (see `docs/UX_AUDIT_PLAYWRIGHT_REPORT.md` timestamp after last `npm run test:ux-audit:report`).  
-**Audience:** Product, design, engineering leads — **non-binding** engineering estimates; this is a **maturity and risk** snapshot.
-
----
-
-## Current maturity
-
-| Area | Maturity (1–5) | Notes |
-|------|----------------|-------|
-| Automated crawl + screenshots | **4** | Four viewports, full route list, raw JSON, merge report |
-| Stale-metrics safety | **5** | Navigation failures no longer attach prior-page DOM metrics |
-| Human triage process | **2** | Boards seeded; owners and statuses need population |
-| Visual consistency enforcement | **2** | Standard documented; adoption is manual |
-| Accessibility | **2** | Heuristics only; axe/keyboard pass not wired |
+**As-of:** Aligns with latest committed `docs/UX_AUDIT_PLAYWRIGHT_REPORT.md` + triage board **2026-05** closure sprint.
 
 ---
 
-## Biggest UX risks
+## Top 10 UX blockers (prioritized)
 
-1. **Wide finance / operations tables** on mobile — horizontal cognitive load even when technically “contained.”  
-2. **Concurrent sticky regions** (nav + table toolbar + FAB) — collision risk on short viewports.  
-3. **Icon-only controls** without labels — flagged by audit heuristics; real-world screen reader risk.  
-4. **Failure-state ambiguity** — users cannot tell **empty** vs **error** without careful copy (see failure library).
-
----
-
-## Biggest operational UX blockers
-
-- **Finance verification** under time pressure with dense tabular data on **iPhone SE** class devices.  
-- **Operator / WhatsApp** throughput when metadata competes with composer on small screens.  
-- **Dispatch packing** flows that depend on **precision taps** while wearing gloves / using tablets in portrait.
+1. **Finance board mobile density** — verify PASS/WARN; revenue-critical.  
+2. **Operator / WhatsApp composer vs metadata** — wrong-send risk.  
+3. **Dispatch on portrait phone** — operational mis-tap risk.  
+4. **Quick order grid** — SKU error risk on SE.  
+5. **Approvals queue on narrow width** — decision latency.  
+6. **Cart sticky checkout vs keyboard** — checkout drop-off.  
+7. **Reports charts on mobile** — exec misread.  
+8. **Legal pages tap targets** (`/terms`, `/privacy`, `/shipping`) — automation MEDIUM.  
+9. **Unnamed buttons** (`/intro`, `/register`) — accessibility debt.  
+10. **Modal / sticky interaction debt (unverified)** — policy until disproven by video review.
 
 ---
 
-## Strongest UX areas
+## Operational UX maturity
 
-- **Marketing / catalogue** surfaces: strong imagery and relatively simple vertical scroll.  
-- **Auth shell** patterns: consistent entry via `/login` with predictable redirects (per audit crawl behavior).  
-- **Tooling maturity:** reproducible audit pipeline is now a **shared language** for UX regressions.
+| Dimension | Score (1–5) | Notes |
+|-----------|-------------|-------|
+| Workflow documentation | **4** | `UX_OPERATIONAL_WORKFLOW_REVIEW.md` now concrete |
+| Failure-state clarity | **3** | Library expanded; product copy not yet wired |
+| Role-specific optimization | **2** | Finance/inbox/dispatch still “verify” |
 
 ---
 
-## Mobile readiness
+## Mobile operational readiness
 
-- **Good:** Most routes render without navigation failure on emulated devices.  
-- **Watch:** Tap-target clustering on legal/static pages (`/terms`, `/privacy`, `/shipping`) per recent heuristic deductions.  
-- **Next:** Fill `docs/UX_MOBILE_FIRST_AUDIT_MATRIX.md` with `OK` / `Risk` from human spot checks.
+| Area | Status |
+|------|--------|
+| Automated crawl | **Strong** |
+| Heuristic signal | **Sparse** (few auto flags — legal + intro/register) |
+| Human verification | **Required** for finance/inbox/dispatch |
+
+**Summary:** **Operational mobile readiness = “verify before declare PASS”** for core admin surfaces.
 
 ---
 
 ## Accessibility maturity
 
-- **Heuristic:** missing `alt`, unnamed `button` counts in raw JSON.  
-- **Gap:** No automated axe in CI; no structured screen reader script.
+| Area | Status |
+|------|--------|
+| Heuristic audit | **Live** |
+| axe / CI | **Not wired** |
+| Priority checklist | **Published** (`UX_ACCESSIBILITY_ACTION_PLAN.md`) |
+
+**Score:** **2.5 / 5** until axe baseline exists.
 
 ---
 
-## Audit maturity
+## Workflow friction score (qualitative)
 
-- **Repeatable commands:** `npm run test:ux-audit`, `npm run test:ux-audit:report`.  
-- **Artifacts:** gitignored binaries + versioned markdown report.  
-- **Gap:** Per-page short videos and optional pixel-diff not implemented (see video plan).
-
----
-
-## Operational workflow maturity
-
-- **Documented** workflows in `docs/UX_OPERATIONAL_WORKFLOW_REVIEW.md` — content is **skeleton** until staffed.  
-- **Gap:** No role-based “sign-off checklist” wired to releases yet.
+| Score | Meaning |
+|-------|---------|
+| **6 / 10** | Usable for expert operators on desktop; mobile admin still high-friction without mitigations |
 
 ---
 
-## Visual consistency maturity
+## Regression risk
 
-- **Standard** defined in `docs/UX_VISUAL_CONSISTENCY_STANDARD.md`.  
-- **Gap:** No lint or Storybook enforcement; relies on PR discipline.
+| Risk | Level |
+|------|-------|
+| Silent mobile layout break | **High** if policy ignored |
+| Table overflow regression | **Medium** |
+| Accessibility regression | **Medium** |
+
+**Mitigation:** `UX_REGRESSION_POLICY.md` mandatory artifacts.
 
 ---
 
-## Next safest UX sprint (recommended)
+## Strongest UX modules
 
-1. Populate **triage board** with top 10 items from latest `UX_AUDIT_PLAYWRIGHT_REPORT.md` + finance/inbox manual pass.  
-2. Implement **per-page video** spec for **login + finance-board** only (short CI opt-in).  
-3. Add **axe-core** smoke on `/login` + `/admin/finance-board` (accessibility-only scope).
+- **Buyer catalogue / marketing** vertical flows — simpler mental model.  
+- **Auth entry** — consistent `/login` shell in crawl.  
+- **Audit tooling** — reproducible evidence.
+
+---
+
+## Weakest UX modules
+
+- **Finance + inbox** combined density + speed expectation.  
+- **Dispatch** on smallest phones.  
+- **Reports** on mobile.
+
+---
+
+## Next safest implementation sprint
+
+1. **Layout-only:** legal pages tap padding; intro/register `aria-label`.  
+2. **Finance board:** mobile read/act split prototype (UI-only branch).  
+3. **axe** smoke on four routes (tooling only).
 
 ---
 
 ## What must not regress
 
-- **No horizontal page-level scroll** on iPhone 14 Pro for primary admin dashboards introduced as “fixed.”  
-- **No reduction** of tap target size on primary actions in mobile flows.  
-- **Navigation failure correctness** — never reintroduce stale DOM metrics for failed `goto` (`tests/ux-audit.spec.ts`).  
-- **Git hygiene** — do not commit raw `audit-artifacts/` screenshots/videos by default.
+- Stale-metrics safety in `tests/ux-audit.spec.ts`.  
+- Gitignored heavy artifacts policy.  
+- No page-level horizontal scroll **fixes** that re-break tables inside modals.
+
+---
+
+## Oasis Central — operationally production-usable today?
+
+**Desktop-first expert operators:** **Yes, with training** — core admin routes render; automated crawl shows **no** critical/heuristic blockers beyond listed MEDIUM items.  
+**Mobile-first operational use (finance/dispatch/inbox on phone):** **Conditional** — treat as **pilot / verify** until human video review clears **WARNING** rows in `UX_MOBILE_FIRST_AUDIT_MATRIX.md`.
 
 ---
 
 ## Links
 
-- Triage: `docs/UX_TRIAGE_MASTER_BOARD.md`  
-- Regression policy: `docs/UX_REGRESSION_POLICY.md`  
-- Reference library: `docs/UX_REFERENCE_LIBRARY/README.md`
+- Roadmap: `docs/UX_IMPLEMENTATION_PRIORITY_ROADMAP.md`  
+- Triage: `docs/UX_TRIAGE_MASTER_BOARD.md`

@@ -1,115 +1,170 @@
-# Oasis Central — UX failure state library
+# Oasis Central — UX failure state library (MOVE 5)
 
-**Purpose:** Define **expected** vs **current** behavior for non-happy paths so QA and design can align before pixels change.  
-**Evidence:** Add screenshot paths from `audit-artifacts/screenshots/` when a state is reproduced (keep heavy files out of git per `docs/UX_REFERENCE_LIBRARY/README.md`).
-
----
-
-## Library format (per category)
-
-| Screenshot placeholder | Expected behavior | Current behavior | Severity | Operational impact |
-|------------------------|-------------------|------------------|----------|----------------------|
-| _(path or “pending”)_ | | | Low / Med / High / Crit | |
+**Purpose:** Define **expected**, **dangerous**, and **safest interaction** patterns for operational edge states. Pair with screenshots in `audit-artifacts/screenshots/` when reproducing.
 
 ---
 
-## Loading states
+## Finance
 
-| Screenshot placeholder | Expected behavior | Current behavior | Severity | Operational impact |
-|------------------------|-------------------|------------------|----------|----------------------|
-| TBD | Skeleton or spinner with context label; no layout shift into primary actions | _To be filled after audit + walkthrough_ | TBD | Users may duplicate actions or abandon slow screens |
+### Missing receipt
 
----
+| Field | Detail |
+|-------|--------|
+| **Expected UX** | Inline “awaiting receipt” with upload CTA; order stays in finance-readable lane |
+| **Dangerous UX** | Silent empty cell; same color as “verified” |
+| **Operational consequence** | Premature release or duplicate chase |
+| **Safest pattern** | Amber status chip + single primary “Upload receipt” + audit trail link |
 
-## Empty states
+### Failed verification
 
-| Screenshot placeholder | Expected behavior | Current behavior | Severity | Operational impact |
-|------------------------|-------------------|------------------|----------|----------------------|
-| TBD | Clear headline, next step CTA, optional learn-more | _TBD_ | TBD | Wrong mental model of system health |
+| Field | Detail |
+|-------|--------|
+| **Expected UX** | Reason capture; reversible state; buyer-visible message template |
+| **Dangerous UX** | Toast-only error; no persisted reason |
+| **Operational consequence** | Disputes; rework loops |
+| **Safest pattern** | Modal with required reason + preview of buyer copy |
 
----
+### Stale invoice
 
-## Permission denied
+| Field | Detail |
+|-------|--------|
+| **Expected UX** | “Stale — refresh” banner; diff since load |
+| **Dangerous UX** | Optimistic UI with no version guard |
+| **Operational consequence** | Double payment / wrong SO state |
+| **Safest pattern** | Read-only until refresh; merge conflict modal |
 
-| Screenshot placeholder | Expected behavior | Current behavior | Severity | Operational impact |
-|------------------------|-------------------|------------------|----------|----------------------|
-| TBD | Explain role gap; link to request access or home | _TBD_ | TBD | Support load; perceived “broken app” |
+### Pending payment
 
----
-
-## Failed uploads
-
-| Screenshot placeholder | Expected behavior | Current behavior | Severity | Operational impact |
-|------------------------|-------------------|------------------|----------|----------------------|
-| TBD | Inline error, retry, preserve form state | _TBD_ | TBD | Lost documents; finance/order delays |
-
----
-
-## Disconnected state
-
-| Screenshot placeholder | Expected behavior | Current behavior | Severity | Operational impact |
-|------------------------|-------------------|------------------|----------|----------------------|
-| TBD | Offline banner; queue actions where safe | _TBD_ | TBD | Duplicate submissions; data distrust |
-
----
-
-## Retry states
-
-| Screenshot placeholder | Expected behavior | Current behavior | Severity | Operational impact |
-|------------------------|-------------------|------------------|----------|----------------------|
-| TBD | Exponential backoff UI; non-blocking toast | _TBD_ | TBD | Operator thrash under flaky networks |
+| Field | Detail |
+|-------|--------|
+| **Expected UX** | Clear “on credit / pending” semantics; next action for finance vs buyer |
+| **Dangerous UX** | Ambiguous “processing” spinner forever |
+| **Operational consequence** | Wrong dispatch trigger |
+| **Safest pattern** | Dual labels (internal vs customer) + SLA chip |
 
 ---
 
-## No data
+## Dispatch
 
-| Screenshot placeholder | Expected behavior | Current behavior | Severity | Operational impact |
-|------------------------|-------------------|------------------|----------|----------------------|
-| TBD | Differentiate “zero rows” vs “error loading” | _TBD_ | TBD | False escalations to engineering |
+### Partial dispatch
+
+| Field | Detail |
+|-------|--------|
+| **Expected UX** | Line-level partial with remaining qty surfaced |
+| **Dangerous UX** | Whole-order success toast when partial |
+| **Operational consequence** | Inventory drift |
+| **Safest pattern** | Summary modal listing lines before confirm |
+
+### Missing barcode
+
+| Field | Detail |
+|-------|--------|
+| **Expected UX** | Scan retry + manual override behind role gate |
+| **Dangerous UX** | Infinite spinner on scanner |
+| **Operational consequence** | Line stoppage |
+| **Safest pattern** | Offline-friendly retry + escalate button |
+
+### Missing DPL
+
+| Field | Detail |
+|-------|--------|
+| **Expected UX** | Block dispatch with explicit missing-field list |
+| **Dangerous UX** | Allow pack with hidden missing field |
+| **Operational consequence** | Carrier rejects; customer delay |
+| **Safest pattern** | Checklist drawer; cannot primary-submit until complete |
+
+### Packing mismatch
+
+| Field | Detail |
+|-------|--------|
+| **Expected UX** | Diff view (ordered vs scanned) |
+| **Dangerous UX** | Overwrite without diff |
+| **Operational consequence** | Wrong SKU shipped |
+| **Safest pattern** | Two-column diff + photo capture optional |
 
 ---
 
-## Long-text overflow
+## WhatsApp
 
-| Screenshot placeholder | Expected behavior | Current behavior | Severity | Operational impact |
-|------------------------|-------------------|------------------|----------|----------------------|
-| TBD | Clamp with expand; preserve table readability | _TBD_ | TBD | Mis-read SO notes / customer names |
+### Failed classify
+
+| Field | Detail |
+|-------|--------|
+| **Expected UX** | “Unclassified” bucket + quick tags |
+| **Dangerous UX** | Auto-route to wrong queue silently |
+| **Operational consequence** | Lost SLA |
+| **Safest pattern** | Human confirm for low-confidence |
+
+### Routing unavailable
+
+| Field | Detail |
+|-------|--------|
+| **Expected UX** | Degraded read-only + banner |
+| **Dangerous UX** | Empty inbox with no explanation |
+| **Operational consequence** | Operators assume “no messages” |
+| **Safest pattern** | Banner + retry + support link |
+
+### Disconnected inbox
+
+| Field | Detail |
+|-------|--------|
+| **Expected UX** | Offline queue indicator; unsent drafts saved |
+| **Dangerous UX** | Send appears succeeded when queued failed |
+| **Operational consequence** | Customer never answered |
+| **Safest pattern** | Explicit send states + resend |
+
+### Stale packet
+
+| Field | Detail |
+|-------|--------|
+| **Expected UX** | Timestamp + refresh; merge on conflict |
+| **Dangerous UX** | Stale thread head after background sync |
+| **Operational consequence** | Wrong reply context |
+| **Safest pattern** | Pull-to-refresh + “new messages” bar |
 
 ---
 
-## Failed receipts
+## Orders
 
-| Screenshot placeholder | Expected behavior | Current behavior | Severity | Operational impact |
-|------------------------|-------------------|------------------|----------|----------------------|
-| TBD | Clear finance state + buyer messaging | _TBD_ | TBD | Revenue recognition risk |
+### Empty cart
 
----
+| Field | Detail |
+|-------|--------|
+| **Expected UX** | Friendly empty + CTA to catalogue |
+| **Dangerous UX** | Blank white screen |
+| **Operational consequence** | Drop-off |
+| **Safest pattern** | Illustration + “Browse catalogue” |
 
-## Stale records
+### MOQ violation
 
-| Screenshot placeholder | Expected behavior | Current behavior | Severity | Operational impact |
-|------------------------|-------------------|------------------|----------|----------------------|
-| TBD | Timestamp + refresh; conflict modal on edit | _TBD_ | TBD | Wrong dispatch decisions |
+| Field | Detail |
+|-------|--------|
+| **Expected UX** | Inline line error + how much to add |
+| **Dangerous UX** | Submit blocked with generic error |
+| **Operational consequence** | Support tickets |
+| **Safest pattern** | Per-line MOQ math + quick add qty |
 
----
+### Unavailable stock
 
-## Mobile keyboard overlap
+| Field | Detail |
+|-------|--------|
+| **Expected UX** | Substitute suggestions or remove line CTA |
+| **Dangerous UX** | Checkout succeeds then post-submit failure |
+| **Operational consequence** | Ops firefight |
+| **Safest pattern** | Pre-submit inventory guard |
 
-| Screenshot placeholder | Expected behavior | Current behavior | Severity | Operational impact |
-|------------------------|-------------------|------------------|----------|----------------------|
-| TBD | Scroll focused field into view; avoid fixed CTAs covering inputs | _TBD_ | TBD | Cannot complete forms on phone |
+### Expired session
 
----
-
-## Drawer / modal clipping
-
-| Screenshot placeholder | Expected behavior | Current behavior | Severity | Operational impact |
-|------------------------|-------------------|------------------|----------|----------------------|
-| TBD | Scrollable body; max height 100dvh; focus trap | _TBD_ | TBD | Blocked confirmations |
+| Field | Detail |
+|-------|--------|
+| **Expected UX** | Preserve cart draft post re-login |
+| **Dangerous UX** | Hard redirect losing cart |
+| **Operational consequence** | Revenue loss |
+| **Safest pattern** | Re-auth modal + restore draft |
 
 ---
 
 ## Cross-links
 
-- Mobile matrix: `docs/UX_MOBILE_FIRST_AUDIT_MATRIX.md`
-- Operational flows: `docs/UX_OPERATIONAL_WORKFLOW_REVIEW.md`
+- Triage: `docs/UX_TRIAGE_MASTER_BOARD.md`  
+- Operational review: `docs/UX_OPERATIONAL_WORKFLOW_REVIEW.md`

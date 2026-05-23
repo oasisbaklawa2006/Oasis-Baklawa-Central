@@ -1,92 +1,70 @@
-# Oasis Central — UX regression policy
+# Oasis Central — UX regression policy (MOVE 8)
 
-**Purpose:** Turn the Playwright UX crawl into an **operational visual QA and regression prevention** habit without bloating git with binaries.
-
----
-
-## When audits must run
-
-| Trigger | Minimum scope |
-|---------|----------------|
-| Weekly (scheduled) | Full `npm run test:ux-audit` against production-like URL + `npm run test:ux-audit:report` |
-| Before release tag | Full audit on target deploy URL |
-| Large UI PR (admin shell, tables, inbox, finance) | Same viewport matrix; spot-check affected routes via manual list in PR |
-| Hotfix touching layout / z-index / forms | At least **iphone-14-pro** + **desktop** projects for touched routes |
+**Goal:** **No silent mobile regressions** — any merge that can affect layout, forms, tables, or navigation on phones must leave an **evidence trail**.
 
 ---
 
-## PR requirements
+## Mandatory before merge (author checklist)
 
-1. **Describe visual change** — area, breakpoints, before/after intent.  
-2. **Link evidence** — optional: 1–3 **compressed** screenshots in PR body (not committed unless explicitly approved).  
-3. **Accessibility** — if interactive controls change, state focus/keyboard behavior in PR text.  
-4. **No-merge if** — see below.
+Authors **must** attach or link (CI artifact, PR comment, or ticket):
 
----
+| Artifact | Requirement |
+|----------|-------------|
+| **Mobile screenshots** | At least **iphone-14-pro** (390×844) for **each** touched route |
+| **Desktop screenshots** | **1440×900** (or project default) for same routes when layout differs |
+| **Failure-state screenshots** | If PR touches uploads, auth, payments, dispatch — one **error** + one **empty** path |
+| **Interaction recording** | Short `.webm` or Loom **optional** for complex flows; **mandatory** if PR touches modal focus or sticky bars |
+| **Accessibility smoke** | Tab through touched flow OR note “a11y unchanged” with reason |
+| **Finance-board audit** | Required if any file under finance board / finance release paths changes |
+| **Operator inbox audit** | Required if operator inbox / WhatsApp UI paths change |
 
-## Screenshot comparison policy
-
-- **Default:** Do not commit raw Playwright PNG/WebM to the repo (see `.gitignore`).  
-- **Optional CI later:** Pixel-diff or snapshot tests must use **small, named fixtures** and live outside default audit artifact folders.  
-- **PR review:** Prefer Cursor preview of local `audit-artifacts/screenshots/` paths pasted in comments.
-
----
-
-## Mobile audit requirement
-
-Any PR that changes **navigation**, **global layout**, **tables**, **modals**, or **forms** must include either:
-
-- Automated audit notes for **iphone-14-pro** in PR description, or  
-- Explicit reason why mobile is out of scope (rare).
+**No silent mobile regressions:** If mobile screenshot set is missing, **UX owner may block merge** per release policy even if CI is green.
 
 ---
 
-## No-merge conditions (UX gate)
+## PR size gates
 
-**Hard stops for merge (until addressed or waived by UX owner):**
-
-- New **horizontal page-level overflow** on iPhone 14 Pro for a primary route.  
-- **Primary action** not reachable without scroll past unrelated content on mobile.  
-- **Modal lock** (cannot dismiss / cannot scroll to primary button).  
-- **Tap targets < 44px** on a primary action introduced by the PR.  
-- **Regression** in `docs/UX_AUDIT_PLAYWRIGHT_REPORT.md` showing new **HTTP 5xx** on document load for a touched route.
-
-**Soft stops (should be ticketed before next release if not fixed in PR):**
-
-- New unnamed icon-only buttons in high-traffic flows.  
-- Empty states without next-step CTA.
+| Change type | Minimum evidence |
+|-------------|------------------|
+| Global layout / shell | Mobile + desktop + 30s video |
+| Table / data grid | Horizontal scroll containment proof |
+| Form / wizard | Keyboard open screenshot on iOS-sized viewport |
+| Copy-only | Screenshots optional |
 
 ---
 
-## Accessibility checks
+## When full Playwright UX crawl must run
 
-- Heuristic audit already flags missing `alt` and unnamed `button` (see raw JSON).  
-- **Stretch:** add axe-core job later; until then, manual keyboard pass on touched flows.
+- Weekly schedule (see ops calendar).  
+- Before **release tag**.  
+- After any PR labeled `area:admin-shell` or `area:finance-ui`.
 
----
-
-## Operational-flow checks
-
-- For PRs touching order/finance/dispatch/inbox: author links to the relevant section in `docs/UX_OPERATIONAL_WORKFLOW_REVIEW.md` and states what was manually verified.
+Commands: `npm run test:ux-audit` → `npm run test:ux-audit:report`.
 
 ---
 
-## Failure-state checks
+## No-merge conditions (recap + additions)
 
-- If PR changes uploads, auth, or realtime surfaces: author confirms behavior against `docs/UX_FAILURE_STATE_LIBRARY.md` categories touched.
+**Hard stop:**
+
+- New **page-level** horizontal scroll on `iphone-14-pro` for primary route.  
+- Primary CTA **hidden** behind unrelated scroll on mobile.  
+- Modal cannot dismiss / cannot reach primary button.  
+- New **icon-only** destructive control on mobile without `aria-label`.
+
+**Soft stop (ticket before release):**
+
+- Increased unnamed `button` count on touched page (see raw JSON heuristic).
 
 ---
 
-## Mandatory screenshots / videos
+## Accessibility gate
 
-- **Weekly audit:** full crawl produces screenshots + per-viewport journey video (see `tests/ux-audit.spec.ts`).  
-- **Release:** attach **HTML report** zip or link from CI artifact storage (not git).  
-- **Optional per-page videos:** roadmap in `docs/UX_PER_PAGE_VIDEO_CAPTURE_PLAN.md`.
+- Follow `docs/UX_ACCESSIBILITY_ACTION_PLAN.md` checklist for priority surfaces.
 
 ---
 
-## Related documents
+## Links
 
-- Master triage: `docs/UX_TRIAGE_MASTER_BOARD.md`  
-- Executive snapshot: `docs/UX_EXECUTIVE_STATUS_SNAPSHOT.md`  
-- Reference library: `docs/UX_REFERENCE_LIBRARY/README.md`
+- Video standards: `docs/UX_PER_PAGE_VIDEO_CAPTURE_PLAN.md`  
+- Triage: `docs/UX_TRIAGE_MASTER_BOARD.md`

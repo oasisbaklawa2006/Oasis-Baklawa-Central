@@ -1,120 +1,80 @@
-# Oasis Central — Per-page video capture plan
+# Oasis Central — Per-page video capture plan (MOVE 9)
 
-**Purpose:** Complement the **single full-journey** `.webm` per viewport (today) with **short, named recordings** for critical flows — easier review in PRs and training.  
-**Storage:** `audit-artifacts/videos/` (gitignored); promote only compressed clips if ever committed by exception.
-
----
-
-## Planned recordings
-
-### login-flow.webm
-
-| Field | Detail |
-|-------|--------|
-| **Purpose** | Validate auth shell, errors, redirect, keyboard on mobile |
-| **Critical interactions** | Email/password focus, submit, failed login, success redirect |
-| **Expected duration** | 45–90s |
-| **Mandatory checkpoints** | Error copy readable; no keyboard overlap; tap targets ≥44px on submit |
+**Mission:** Evidence pack for **regression**, **training**, and **design review** — short clips, not hour-long dumps.
 
 ---
 
-### finance-board.webm
+## Required interactions (every clip)
 
-| Field | Detail |
-|-------|--------|
-| **Purpose** | Finance verification readability and horizontal scroll containment |
-| **Critical interactions** | Open row, verify/reject path (non-mutating recording if possible), scroll wide table inside pane |
-| **Expected duration** | 2–4 min |
-| **Mandatory checkpoints** | Sticky context visible; destructive actions behind confirm |
+Each recording must intentionally show:
 
----
-
-### operator-inbox.webm
-
-| Field | Detail |
-|-------|--------|
-| **Purpose** | Inbox density, thread scroll, composer safety |
-| **Critical interactions** | Select thread, scroll long body, focus composer, attach (if applicable) |
-| **Expected duration** | 2–4 min |
-| **Mandatory checkpoints** | Send not obscured; no double FAB collision |
+1. **Scrolling** — full vertical pass of primary content + any inner scroll region.  
+2. **Filtering / searching** — at least one filter change or search query where applicable.  
+3. **Modal open / close** — including **Escape** and **click-outside** if supported.  
+4. **Keyboard usage** — Tab through primary controls **or** on-screen keyboard open for forms.  
+5. **Approvals** — approve/deny path **read-only** demo if mutations disallowed.  
+6. **Upload flow** — pick file + cancel + error toast (mock env if needed).  
+7. **Sticky action behavior** — scroll until sticky header/footer engages; verify no overlap.  
+8. **Mobile interactions** — rotate optional; include **pull** gesture only if app supports.
 
 ---
 
-### dispatch-flow.webm
+## Recording standards
 
-| Field | Detail |
-|-------|--------|
-| **Purpose** | Floor-friendly layout for packing/dispatch |
-| **Critical interactions** | Lane change, label print path (read-only demo), search |
-| **Expected duration** | 2–3 min |
-| **Mandatory checkpoints** | Large hit targets; table scroll isolated |
-
----
-
-### order-lifecycle.webm
-
-| Field | Detail |
-|-------|--------|
-| **Purpose** | Buyer order detail vs admin order view consistency |
-| **Critical interactions** | Timeline expand, receipt area, status chips |
-| **Expected duration** | 2–4 min |
-| **Mandatory checkpoints** | Long text clamps; mobile card stacking |
+| Rule | Detail |
+|------|--------|
+| Resolution | Match Playwright project viewport |
+| Frame rate | 30fps sufficient |
+| Length | **≤ 4 min** per clip (prefer 60–120s) |
+| Audio | Off unless narrating |
+| Cursor | Visible; move deliberately |
+| Anonymize | No real customer PII; use staging |
 
 ---
 
-### approvals.webm
+## Naming standards
 
-| Field | Detail |
-|-------|--------|
-| **Purpose** | Approvals list + detail on small screens |
-| **Critical interactions** | Approve/deny affordances, reason capture |
-| **Expected duration** | 1–3 min |
-| **Mandatory checkpoints** | Confirmation modals complete on SE viewport |
+`audit-artifacts/videos/<route-slug>--<viewport>.webm`
+
+Examples: `finance-board--iphone-14-pro.webm`, `operator-inbox--ipad.webm`
 
 ---
 
-### mobile-cart.webm
+## Success checkpoints (global)
 
-| Field | Detail |
-|-------|--------|
-| **Purpose** | Cart math readability, sticky checkout |
-| **Critical interactions** | Qty stepper, remove line, navigate to checkout |
-| **Expected duration** | 1–2 min |
-| **Mandatory checkpoints** | Sticky summary not covering inputs |
+- [ ] No **page-level** horizontal scroll during clip unless demonstrating bug.  
+- [ ] Primary CTA visible within **two** viewport heights on mobile.  
+- [ ] Modal focus trap **obvious** (tab loops inside).  
+- [ ] Sticky regions never cover active input.
 
 ---
 
-### quick-order.webm
+## Clip catalog (expanded)
 
-| Field | Detail |
-|-------|--------|
-| **Purpose** | Dense SKU entry UX on mobile |
-| **Critical interactions** | Row add, search, submit |
-| **Expected duration** | 2–3 min |
-| **Mandatory checkpoints** | Row height usable; no horizontal page scroll |
-
----
-
-### reports.webm
-
-| Field | Detail |
-|-------|--------|
-| **Purpose** | Charts + tables on tablet/desktop |
-| **Critical interactions** | Filter change, scroll chart card, export (if any) |
-| **Expected duration** | 2–3 min |
-| **Mandatory checkpoints** | Chart legends legible; table overflow contained |
+| File | Purpose | Critical interactions | Duration target | Checkpoints |
+|------|---------|----------------------|-----------------|-------------|
+| `login-flow--iphone-14-pro.webm` | Auth trust | focus, error, success | 60–90s | keyboard overlap |
+| `finance-board--iphone-14-pro.webm` | Finance readability | filter, row, modal | 2–4 min | sticky, table scroll |
+| `operator-inbox--iphone-14-pro.webm` | Throughput | thread switch, compose | 2–4 min | send bar, metadata |
+| `dispatch-flow--ipad.webm` | Floor | scan, pack | 2–3 min | large taps |
+| `order-lifecycle--iphone-14-pro.webm` | Clarity | timeline | 2–4 min | accordions |
+| `approvals--iphone-se.webm` | Stress width | approve/deny | 2–3 min | SE viewport |
+| `mobile-cart--iphone-14-pro.webm` | Checkout | qty, sticky total | 1–2 min | footer overlap |
+| `quick-order--iphone-14-pro.webm` | Density | search, row | 2–3 min | nested scroll |
+| `reports--desktop.webm` | Exec | filter, chart | 2–3 min | chart readability |
 
 ---
 
-## Implementation roadmap (engineering)
+## Review cadence
 
-1. Add **optional** Playwright project or env flag `UX_PER_PAGE_VIDEO=1` that runs a **small** spec file with `test.describe` per clip (avoid multi-hour CI by default).  
-2. Output files named exactly as above into `audit-artifacts/videos/`.  
-3. CI uploads artifacts; never commit raw `.webm` without compression + approval.
+| Cadence | Owner | Output |
+|---------|-------|--------|
+| Weekly | Design + Eng | 3 clips reviewed; issues → `UX_TRIAGE_MASTER_BOARD.md` |
+| Per release | PM | Archive links in release notes |
 
 ---
 
-## Related
+## Links
 
-- Policy: `docs/UX_REGRESSION_POLICY.md`  
-- Operational flows: `docs/UX_OPERATIONAL_WORKFLOW_REVIEW.md`
+- Regression policy: `docs/UX_REGRESSION_POLICY.md`  
+- Operational review: `docs/UX_OPERATIONAL_WORKFLOW_REVIEW.md`

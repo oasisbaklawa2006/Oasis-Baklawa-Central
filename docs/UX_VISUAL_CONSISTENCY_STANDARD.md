@@ -1,141 +1,148 @@
-# Oasis Central — Visual consistency standard
+# Oasis Central — Visual consistency standard (MOVE 7)
 
-**Purpose:** A **single north star** for spacing, elevation, type, and interaction so admin and buyer surfaces feel like one premium product. This is a **design contract** for UX work; implementation should follow existing Tailwind/shadcn tokens where possible.
-
-**Aesthetic pillars**
-
-- **Luxury minimal** — generous whitespace, restrained color, one hero action per view where practical.  
-- **Operational clarity** — dense data is allowed **only** inside tables with clear hierarchy and sticky context.  
-- **Metro / Lumia inspiration** — flat planes, crisp typography, bold section headers, subtle motion.  
-- **Bateel-style premium** — deep neutrals, gold accents used sparingly for “celebration” states, packaging-quality imagery on marketing surfaces.
+**North star:** **Luxury operational UI** — calm, legible under stress, Metro/Lumia structure (flat planes, crisp type), **Bateel-style** premium restraint (gold accents rare), **minimal density** with **controlled** information density in tables.
 
 ---
 
-## Spacing scale
+## Exact spacing scale (4px base)
 
-| Token use | Rem | Usage |
-|-----------|-----|--------|
-| `2`–`3` | 8–12px | Inline icon gaps, chip padding |
-| `4` | 16px | Default component padding |
-| `6` | 24px | Card interior comfortable |
-| `8` | 32px | Section separation |
-| `12+` | 48px+ | Page gutters (mobile tighter than desktop) |
+| Token | px | rem | Use |
+|-------|----|-----|-----|
+| `0.5` | 2 | 0.125rem | Hairline adjustments only |
+| `1` | 4 | 0.25rem | Icon-text gap |
+| `2` | 8 | 0.5rem | Tight inline groups |
+| `3` | 12 | 0.75rem | Chip padding |
+| `4` | 16 | 1rem | **Default** component padding |
+| `5` | 20 | 1.25rem | Comfortable field spacing |
+| `6` | 24 | 1.5rem | Card interior |
+| `8` | 32 | 2rem | Section gap |
+| `10` | 40 | 2.5rem | Major section |
+| `12` | 48 | 3rem | Page vertical rhythm |
+| `16` | 64 | 4rem | Hero / marketing only |
 
-**Rule:** Prefer **8px grid**; avoid arbitrary `7px`/`13px` unless fixing optical alignment.
-
----
-
-## Card shadows
-
-- **Resting:** `shadow-sm` or flat with hairline border (`border`) — default admin cards.  
-- **Raised / interactive:** `shadow-md` on hover only for clickable cards.  
-- **Modal / drawer:** `shadow-lg` on overlay surface only.  
-- **No double-shadow** (card inside card both elevated).
+**Mobile page gutter:** `px-4` (16px) minimum; `max-w-*` containers keep **16px** side inset on phones.
 
 ---
 
-## Radius
+## Exact radius scale
 
-- **Cards / inputs:** `rounded-md` (default) or `rounded-lg` for marketing.  
-- **Pills / chips:** `rounded-full`.  
-- **Tables:** square corners on inner cells; rounded container only.
-
----
-
-## Typography hierarchy
-
-| Level | Role | Guidance |
-|-------|------|----------|
-| H1 | Page title | One per route; sentence case |
-| H2 | Section | Clear scan pattern |
-| H3 | Subsection / card title | Truncate with tooltip if long |
-| Body | Primary reading | 16px min on mobile for forms |
-| Caption | Meta / timestamps | Muted color; never sole carrier of critical state |
+| Token | rem | px (16 root) | Use |
+|-------|-----|--------------|-----|
+| `rounded-sm` | 0.125rem | 2px | Tags (rare) |
+| `rounded-md` | 0.375rem | 6px | **Default** inputs, buttons, inner cards |
+| `rounded-lg` | 0.5rem | 8px | Outer cards, modals |
+| `rounded-xl` | 0.75rem | 12px | Featured cards |
+| `rounded-2xl` | 1rem | 16px | Marketing panels only |
+| `rounded-full` | — | — | Avatars, pills |
 
 ---
 
-## Button hierarchy
+## Exact shadow scale
 
-1. **Primary** — one primary per viewport region (e.g. sticky footer bar).  
-2. **Secondary** — outline or ghost for alternate safe actions.  
-3. **Tertiary** — text link style for low-risk navigation.  
-4. **Destructive** — always paired with confirmation; never only icon on mobile.
+| Token | CSS gist | Use |
+|-------|----------|-----|
+| `shadow-none` + `border` | hairline | **Default admin** surfaces |
+| `shadow-sm` | subtle lift | Hoverable **card** (optional) |
+| `shadow-md` | medium | **Dropdown / popover** |
+| `shadow-lg` | large | **Modal / drawer** shell only |
+| `shadow-xl` | extra | **Avoid** in admin (too glossy) |
 
----
-
-## Icon sizes
-
-- **Inline with text:** 16–18px (`h-4 w-4` / `h-5 w-5`).  
-- **Touch-leading controls:** min **44×44px** hit area (padding counts).  
-- **Empty / marketing:** up to 48px; not mixed in dense tables without alignment grid.
+**Rule:** One elevation winner per viewport region (no stacked `shadow-lg`).
 
 ---
 
-## Modal widths
+## Button variants (hierarchy)
 
-- **Mobile:** full-bleed sheet or bottom sheet preferred over centered micro-modal.  
-- **Desktop:** `max-w-lg` for forms; `max-w-3xl` for wide tables with horizontal scroll inside modal body only.
-
----
-
-## Table density
-
-- **Comfortable default** for finance/ops: row height ≥ **40px**, zebra optional.  
-- **Compact** only on secondary analytics; must expose toggle or user preference later.  
-- **Horizontal scroll** contained to table element — never whole-page sideways scroll.
+| Variant | When | Notes |
+|---------|------|------|
+| `default` | Single primary action in region | Max one per sticky footer |
+| `secondary` / `outline` | Alternate safe path | |
+| `ghost` | Tertiary navigation | |
+| `destructive` | Irreversible | Always with confirm; never icon-only on mobile |
+| `link` | Inline text actions | |
 
 ---
 
-## Sticky header rules
+## Table row density
 
-- Sticky **page** header: max one primary bar; include wayfinding (title or breadcrumb).  
-- Sticky **table** header: only when table body scrolls; z-index below modals.  
-- Avoid stacked stickies (double height) on mobile.
+| Mode | Min row height | Padding |
+|------|----------------|---------|
+| **Comfortable (default)** | 40px | `py-2.5` + `px-3` |
+| **Compact (opt-in)** | 32px | `py-1.5` + `px-2` — only with user toggle |
 
----
-
-## Color semantics
-
-| Semantic | Use |
-|----------|-----|
-| Primary | Brand actions, links |
-| Muted | Secondary labels |
-| Destructive | Irreversible / reject |
-| Warning | Attention without stop |
-| Success | Completed / verified |
-| Info | Neutral system messages |
+**Horizontal scroll:** **only** inside `<table>` wrapper, never `body`.
 
 ---
 
-## Danger / warning / success styles
+## Mobile padding
 
-- Always pair **color + icon + text** for accessibility.  
-- Do not rely on red/green alone for finance states.
-
----
-
-## Focus ring standard
-
-- Visible `:focus-visible` ring on all interactive elements (keyboard).  
-- Ring color contrasts on both light/dark shells.
+| Context | Rule |
+|---------|------|
+| Page | `px-4` min |
+| Sticky footer | `pb-[calc(env(safe-area-inset-bottom)+12px)]` |
+| FAB | Clear **72px** vertical clearance from nav |
 
 ---
 
-## Mobile spacing
+## Sticky behavior
 
-- **16px** minimum horizontal page gutter on phones.  
-- **Safe area** insets respected (`env(safe-area-inset-*)`) on sticky footers.
-
----
-
-## Drawer behavior
-
-- Enter/exit motion < **250ms**; no blocking animation on open.  
-- Focus trap while open; restore focus to trigger on close.  
-- Scroll **inside** drawer body, not the page behind.
+1. **Max one** primary sticky bar (app chrome OR in-page toolbar, not both full-width without height budget).  
+2. z-index: `modal` > `popover` > `sticky-header` > `content`.  
+3. Sticky must not cover focused inputs — scroll-into-view on focus.
 
 ---
 
-## Implementation note
+## Card hierarchy
 
-Document targets here; **map to Tailwind classes and shadcn variants** when opening UI PRs. Deviations require a one-line rationale in the PR description.
+| Level | Style |
+|-------|-------|
+| L1 Page | flat / bordered |
+| L2 Section | `rounded-lg` + `border` |
+| L3 Nested | `rounded-md` + muted bg — **no** second heavy shadow |
+
+---
+
+## Typography scale (Tailwind-aligned)
+
+| Role | Classes (indicative) | Notes |
+|------|----------------------|-------|
+| Display | `text-3xl md:text-4xl font-semibold tracking-tight` | Marketing only |
+| H1 | `text-2xl font-semibold` | One per screen |
+| H2 | `text-xl font-semibold` | |
+| H3 | `text-lg font-medium` | Card titles |
+| Body | `text-sm md:text-base` | Admin dense; **16px min** on buyer forms |
+| Caption | `text-xs text-muted-foreground` | Never sole state indicator |
+
+---
+
+## Icon spacing
+
+- Inline: **8px** gap (`gap-2`) between icon and label.  
+- Touch row: icon box **40–44px** with padding to hit **44px** total.
+
+---
+
+## Danger / success / warning semantics
+
+| Semantic | Pair |
+|----------|------|
+| Danger | `destructive` + icon + text |
+| Warning | amber chip + icon + text |
+| Success | green chip + icon + text |
+| Info | neutral + icon |
+
+**Never** color-only for finance state.
+
+---
+
+## Enforcement
+
+- PRs cite this doc section when changing spacing/shadows.  
+- Deviations need **one-line** rationale + screenshot in PR.
+
+---
+
+## Links
+
+- Regression: `docs/UX_REGRESSION_POLICY.md`  
+- Roadmap: `docs/UX_IMPLEMENTATION_PRIORITY_ROADMAP.md`

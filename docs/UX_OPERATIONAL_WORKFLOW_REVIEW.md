@@ -1,96 +1,79 @@
 # Oasis Central — Operational UX workflow review
 
-**Purpose:** Map **role-based workflows** to UX friction (clicks, cognitive load, mobile pain, dangerous actions). This document is **process + UX** only; it does not change backend behavior.  
-**Screenshot refs:** Add from `audit-artifacts/screenshots/` or short Loom-style captures when triaging.
+**Purpose:** Translate **crawl evidence** (screenshots + per-viewport `.webm` journeys) into workflow friction. **MOVE 3** review focuses on routes with dense operational UI; refs use `audit-artifacts/screenshots/<project>__<slug>.png` and `audit-artifacts/videos/ux-audit-Mobile-first-full-UX-audit-all-viewports--<project>.webm`.
 
-### Per-workflow fields
-
-- **Workflow steps** — happy path only unless noted  
-- **Screenshot refs** — optional paths  
-- **Bottlenecks** — where users stall  
-- **Cognitive overload** — too many decisions at once  
-- **Excessive clicks** — rough count TBD per audit  
-- **Missing confirmations** — destructive or irreversible actions  
-- **Mobile pain points** — thumb reach, tables, keyboard  
-- **Dangerous actions** — easy mis-taps  
-- **Recommended simplifications** — UX-only mitigations  
+**Method:** Scroll each full-page capture; note hierarchy, hidden actions, and thumb reach on **iphone-14-pro** first, then **iphone-se** stress.
 
 ---
 
-## Order placement
+## Finance board (`/admin/finance`, `/admin/finance-board`)
 
 | Workflow steps | Screenshot refs | Bottlenecks | Cognitive overload | Excessive clicks | Missing confirmations | Mobile pain points | Dangerous actions | Recommended simplifications |
 |----------------|-----------------|-------------|---------------------|------------------|------------------------|--------------------|-------------------|----------------------------|
-| Catalogue → cart → checkout / submit | TBD | TBD | TBD | TBD | TBD | TBD | TBD | Progressive disclosure; sticky cart summary |
+| Open board → filter → open row → verify / reject / credit | `iphone-14-pro__admin_finance.png`, `iphone-14-pro__admin_finance-board.png`, videos | Row scan on small width | Many columns compete | Filter + row + modal = 4+ taps | Reject/credit must keep reason capture | Table feels “desktop shrunk” | Mis-tap adjacent row actions | **Read mode** vs **Act mode**; sticky row context; widen min tap row height |
 
 ---
 
-## Push to floor
+## Operator inbox (`/admin/operator-inbox`, `/admin/whatsapp`)
 
 | Workflow steps | Screenshot refs | Bottlenecks | Cognitive overload | Excessive clicks | Missing confirmations | Mobile pain points | Dangerous actions | Recommended simplifications |
 |----------------|-----------------|-------------|---------------------|------------------|------------------------|--------------------|-------------------|----------------------------|
-| Admin pool / ops → push / assign | TBD | TBD | TBD | TBD | TBD | TBD | TBD | Confirm modal copy; undo snackbar pattern |
+| Pick thread → read metadata → compose → send / template | `iphone-14-pro__admin_operator-inbox.png`, `iphone-14-pro__admin_whatsapp.png`, videos | Thread + sidebar + composer visible together | Metadata vs message body fight for attention | Switch thread loses draft if unsaved | Send should confirm when leaving thread with draft | Composer near thumb but metadata scrolls away | Send/attach too close | **Composer dock**; **metadata collapse**; destructive spacing |
 
 ---
 
-## Production allocation
+## Dispatch (`/admin/dispatch`, `/admin/dispatch-mgmt`, `/admin/packing-dispatch`)
 
 | Workflow steps | Screenshot refs | Bottlenecks | Cognitive overload | Excessive clicks | Missing confirmations | Mobile pain points | Dangerous actions | Recommended simplifications |
 |----------------|-----------------|-------------|---------------------|------------------|------------------------|--------------------|-------------------|----------------------------|
-| Production / assembly views | TBD | TBD | TBD | TBD | TBD | TBD | TBD | Role-specific dashboards; reduce parallel tables |
+| Lane view → pick order → pack / label | `iphone-14-pro__admin_dispatch.png`, `...dispatch-mgmt.png`, `...packing-dispatch.png`, videos | Scanning list while walking | Too many status chips | Open detail then back | Partial ship needs explicit confirm | Portrait phone too narrow for two-pane | Wrong lane tap | **Single-column scan**; **haptic-sized** primary; tablet default |
 
 ---
 
-## Dispatch packing
+## Quick order (`/quick-order`)
 
 | Workflow steps | Screenshot refs | Bottlenecks | Cognitive overload | Excessive clicks | Missing confirmations | Mobile pain points | Dangerous actions | Recommended simplifications |
 |----------------|-----------------|-------------|---------------------|------------------|------------------------|--------------------|-------------------|----------------------------|
-| Dispatch / packing / labels | TBD | TBD | TBD | TBD | TBD | TBD | TBD | Scan-first layout; large touch targets on floor tablets |
+| SKU search → qty → add row → submit | `iphone-14-pro__quick-order.png`, videos | Dense grid | Many simultaneous fields | Per-line expand | Clear cart needs confirm | Steppers small | Accidental qty | **Row accordion**; **sticky order summary** |
 
 ---
 
-## Finance verification
+## Approvals (`/admin/approvals`, `/approval-pending`)
 
 | Workflow steps | Screenshot refs | Bottlenecks | Cognitive overload | Excessive clicks | Missing confirmations | Mobile pain points | Dangerous actions | Recommended simplifications |
 |----------------|-----------------|-------------|---------------------|------------------|------------------------|--------------------|-------------------|----------------------------|
-| Finance board → verify / reject / credit | TBD | TBD | TBD | TBD | TBD | TBD | TBD | Split “read” vs “act” modes; explicit reject reason UX |
+| Queue → detail → approve / deny | `iphone-14-pro__admin_approvals.png`, `iphone-14-pro__approval-pending.png`, videos | Wide table on phone | Reason + attachments | List → detail → modal | Deny must capture reason | Thumb reach to top toolbar | Approve/deny adjacent | **Card queue**; **sticky decision bar** |
 
 ---
 
-## WhatsApp routing
+## Order details (`/orders/1`, `/admin/orders`)
 
 | Workflow steps | Screenshot refs | Bottlenecks | Cognitive overload | Excessive clicks | Missing confirmations | Mobile pain points | Dangerous actions | Recommended simplifications |
 |----------------|-----------------|-------------|---------------------|------------------|------------------------|--------------------|-------------------|----------------------------|
-| Route / assign / template replies | TBD | TBD | TBD | TBD | TBD | TBD | TBD | Inbox density presets; safe-send double confirm |
+| Timeline → receipt → status actions | `iphone-14-pro__orders_1.png`, `iphone-14-pro__admin_orders.png`, videos | Long vertical narrative | Parallel timelines rare but heavy when present | Expand each block | State-changing actions need modal | Receipt iframe/scroll | Accidental status | **Timeline accordion**; **primary CTA dock** |
 
 ---
 
-## Operator inbox
+## Mobile tables (cross-cutting)
 
 | Workflow steps | Screenshot refs | Bottlenecks | Cognitive overload | Excessive clicks | Missing confirmations | Mobile pain points | Dangerous actions | Recommended simplifications |
 |----------------|-----------------|-------------|---------------------|------------------|------------------------|--------------------|-------------------|----------------------------|
-| Thread → context → reply / tag | TBD | TBD | TBD | TBD | TBD | TBD | TBD | Collapsible metadata; quick actions row |
+| Any admin list | finance, orders, clients, inventory shots | Horizontal scan | Column overload | Horizontal scroll inside table only | — | Mis-align tap column | Sort vs row open | **Contained scroll** + **row zoom** pattern |
 
 ---
 
-## Approvals
+## Fatigue & operator confusion (summary)
 
-| Workflow steps | Screenshot refs | Bottlenecks | Cognitive overload | Excessive clicks | Missing confirmations | Mobile pain points | Dangerous actions | Recommended simplifications |
-|----------------|-----------------|-------------|---------------------|------------------|------------------------|--------------------|-------------------|----------------------------|
-| Pending list → detail → approve/deny | TBD | TBD | TBD | TBD | TBD | TBD | TBD | Mobile card list instead of wide table |
-
----
-
-## Complaint / ticket flow
-
-| Workflow steps | Screenshot refs | Bottlenecks | Cognitive overload | Excessive clicks | Missing confirmations | Mobile pain points | Dangerous actions | Recommended simplifications |
-|----------------|-----------------|-------------|---------------------|------------------|------------------------|--------------------|-------------------|----------------------------|
-| Support / exceptions / notifications | TBD | TBD | TBD | TBD | TBD | TBD | TBD | SLA chips; timeline-first layout |
+| Risk | Surfaces | Mitigation theme |
+|------|----------|------------------|
+| Visual fatigue | Finance, inbox, dispatch | Reduce simultaneous chrome; calmer typography |
+| Decision fatigue | Approvals, finance | Progressive disclosure; default safe sort |
+| Thumb fatigue | Mobile admin shell | Move primary actions low; reduce top-heavy toolbars |
 
 ---
 
-## Related docs
+## Related
 
-- Failure states: `docs/UX_FAILURE_STATE_LIBRARY.md`
-- Regression policy: `docs/UX_REGRESSION_POLICY.md`
-- Triage board: `docs/UX_TRIAGE_MASTER_BOARD.md`
+- Triage board: `docs/UX_TRIAGE_MASTER_BOARD.md`  
+- Failure library: `docs/UX_FAILURE_STATE_LIBRARY.md`  
+- Video plan: `docs/UX_PER_PAGE_VIDEO_CAPTURE_PLAN.md`

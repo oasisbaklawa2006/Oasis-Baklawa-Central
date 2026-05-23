@@ -1,161 +1,173 @@
-# Oasis Central — Mobile-first audit matrix
+# Oasis Central — Mobile-first audit matrix (MOVE 4)
 
-**Purpose:** Track **evidence-backed** mobile readiness per high-traffic surface. Fill **Status** after each audit cycle (`npm run test:ux-audit`) and manual pass.  
-**Viewports:** iPhone 14 Pro (390×844), iPhone SE (375×667), iPad (768×1024), Desktop (1440×900) — see `playwright.ux-audit.config.ts`.
+**Legend:** **PASS** = no automated flags on latest crawl for that viewport; **WARNING** = automated flag **or** policy watchlist; **FAIL** = confirmed broken in human QA (none auto).  
+**Heuristic source:** `audit-artifacts/raw/raw-<project>.json` (May 2026 crawl).
 
-**Status legend:** `—` not run | `OK` | `Risk` | `Fail` | `N/A`
+### Criteria per cell block
 
-### Matrix columns
-
-| Page (route hint) | Viewport | Overflow | Tap targets | Readability | Sticky controls | Keyboard overlap | Scroll behavior | Action visibility | Thumb reach | Status |
-|-------------------|----------|----------|-------------|-------------|-----------------|------------------|-----------------|-------------------|---------------|--------|
-
----
-
-## Dashboard
-
-**Routes:** `/dashboard`, `/home` (role-dependent)
-
-| Page (route hint) | Viewport | Overflow | Tap targets | Readability | Sticky controls | Keyboard overlap | Scroll behavior | Action visibility | Thumb reach | Status |
-|-------------------|----------|----------|-------------|-------------|-----------------|------------------|-----------------|-------------------|---------------|--------|
-| dashboard | iPhone 14 Pro | — | — | — | — | — | — | — | — | — |
-| dashboard | iPhone SE | — | — | — | — | — | — | — | — | — |
-| dashboard | iPad | — | — | — | — | — | — | — | — | — |
-| dashboard | Desktop | — | — | — | — | — | — | — | — | — |
+| Check | Meaning |
+|-------|---------|
+| Horizontal overflow | `layout.horizontalOverflow` |
+| Fixed footer overlap | Manual (video) |
+| Keyboard overlap | Manual |
+| Sticky collisions | Manual |
+| Unreadable density | Manual + tap count proxy |
+| Touch targets | tap &lt;44px sample count |
+| Scroll traps | Manual |
+| Nested scrolls | Manual |
+| Modal usability | Manual |
 
 ---
 
-## Finance board
+## Highest-risk operational mobile surfaces (policy flag)
 
-**Routes:** `/admin/finance`, `/admin/finance-board`
-
-| Page (route hint) | Viewport | Overflow | Tap targets | Readability | Sticky controls | Keyboard overlap | Scroll behavior | Action visibility | Thumb reach | Status |
-|-------------------|----------|----------|-------------|-------------|-----------------|------------------|-----------------|-------------------|---------------|--------|
-| finance board | iPhone 14 Pro | — | — | — | — | — | — | — | — | — |
-| finance board | iPhone SE | — | — | — | — | — | — | — | — | — |
-| finance board | iPad | — | — | — | — | — | — | — | — | — |
-| finance board | Desktop | — | — | — | — | — | — | — | — | — |
+> **Finance board**, **operator inbox**, **dispatch**, **reports** — default **WARNING** until human PASS recorded.
 
 ---
 
-## Operator inbox
+## Dashboard (`/dashboard`, `/home`)
 
-**Routes:** `/admin/operator-inbox`, `/admin/whatsapp`
-
-| Page (route hint) | Viewport | Overflow | Tap targets | Readability | Sticky controls | Keyboard overlap | Scroll behavior | Action visibility | Thumb reach | Status |
-|-------------------|----------|----------|-------------|-------------|-----------------|------------------|-----------------|-------------------|---------------|--------|
-| operator inbox | iPhone 14 Pro | — | — | — | — | — | — | — | — | — |
-| operator inbox | iPhone SE | — | — | — | — | — | — | — | — | — |
-| operator inbox | iPad | — | — | — | — | — | — | — | — | — |
-| operator inbox | Desktop | — | — | — | — | — | — | — | — | — |
+| Viewport | Overall | Horizontal overflow | Footer overlap | Keyboard overlap | Sticky collisions | Density | Touch targets | Scroll traps | Nested scrolls | Modals |
+|----------|---------|--------------------|---------------|------------------|-------------------|---------|---------------|---------------|-----------------|--------|
+| iPhone 14 Pro | WARNING | PASS | VERIFY | VERIFY | VERIFY | VERIFY | PASS | VERIFY | VERIFY | VERIFY |
+| iPhone SE | WARNING | PASS | VERIFY | VERIFY | VERIFY | VERIFY | PASS | VERIFY | VERIFY | VERIFY |
+| iPad | PASS | PASS | VERIFY | VERIFY | VERIFY | PASS | PASS | VERIFY | VERIFY | VERIFY |
+| Desktop | PASS | PASS | N/A | N/A | VERIFY | PASS | N/A | VERIFY | VERIFY | VERIFY |
 
 ---
 
-## Dispatch
+## Finance board (`/admin/finance`, `/admin/finance-board`)
 
-**Routes:** `/admin/dispatch`, `/admin/dispatch-mgmt`, `/admin/packing-dispatch`
-
-| Page (route hint) | Viewport | Overflow | Tap targets | Readability | Sticky controls | Keyboard overlap | Scroll behavior | Action visibility | Thumb reach | Status |
-|-------------------|----------|----------|-------------|-------------|-----------------|------------------|-----------------|-------------------|---------------|--------|
-| dispatch | iPhone 14 Pro | — | — | — | — | — | — | — | — | — |
-| dispatch | iPhone SE | — | — | — | — | — | — | — | — | — |
-| dispatch | iPad | — | — | — | — | — | — | — | — | — |
-| dispatch | Desktop | — | — | — | — | — | — | — | — | — |
+| Viewport | Overall | Horizontal overflow | Footer overlap | Keyboard overlap | Sticky collisions | Density | Touch targets | Scroll traps | Nested scrolls | Modals |
+|----------|---------|--------------------|---------------|------------------|-------------------|---------|---------------|---------------|-----------------|--------|
+| iPhone 14 Pro | **WARNING** | PASS (auto) | VERIFY | VERIFY | VERIFY | **WARNING** | PASS (auto) | VERIFY | VERIFY | VERIFY |
+| iPhone SE | **WARNING** | PASS (auto) | VERIFY | VERIFY | VERIFY | **WARNING** | PASS (auto) | VERIFY | VERIFY | VERIFY |
+| iPad | **WARNING** | PASS (auto) | VERIFY | VERIFY | VERIFY | WARNING | PASS | VERIFY | VERIFY | VERIFY |
+| Desktop | **WARNING** | PASS (auto) | N/A | N/A | VERIFY | WARNING | N/A | VERIFY | VERIFY | VERIFY |
 
 ---
 
-## Order detail
+## Operator inbox (`/admin/operator-inbox`, `/admin/whatsapp`)
 
-**Routes:** `/orders/1` (sample), `/admin/orders`
-
-| Page (route hint) | Viewport | Overflow | Tap targets | Readability | Sticky controls | Keyboard overlap | Scroll behavior | Action visibility | Thumb reach | Status |
-|-------------------|----------|----------|-------------|-------------|-----------------|------------------|-----------------|-------------------|---------------|--------|
-| order detail | iPhone 14 Pro | — | — | — | — | — | — | — | — | — |
-| order detail | iPhone SE | — | — | — | — | — | — | — | — | — |
-| order detail | iPad | — | — | — | — | — | — | — | — | — |
-| order detail | Desktop | — | — | — | — | — | — | — | — | — |
+| Viewport | Overall | Horizontal overflow | Footer overlap | Keyboard overlap | Sticky collisions | Density | Touch targets | Scroll traps | Nested scrolls | Modals |
+|----------|---------|--------------------|---------------|------------------|-------------------|---------|---------------|---------------|-----------------|--------|
+| iPhone 14 Pro | **WARNING** | PASS | VERIFY | **WARNING** | **WARNING** | **WARNING** | PASS | VERIFY | VERIFY | VERIFY |
+| iPhone SE | **WARNING** | PASS | VERIFY | **WARNING** | **WARNING** | **WARNING** | PASS | VERIFY | VERIFY | VERIFY |
+| iPad | **WARNING** | PASS | VERIFY | VERIFY | WARNING | WARNING | PASS | VERIFY | VERIFY | VERIFY |
+| Desktop | PASS | PASS | N/A | N/A | VERIFY | PASS | N/A | VERIFY | VERIFY | VERIFY |
 
 ---
 
-## Product catalogue
+## Dispatch (`/admin/dispatch`, `/admin/dispatch-mgmt`)
 
-**Routes:** `/catalogue`, `/product/1`
-
-| Page (route hint) | Viewport | Overflow | Tap targets | Readability | Sticky controls | Keyboard overlap | Scroll behavior | Action visibility | Thumb reach | Status |
-|-------------------|----------|----------|-------------|-------------|-----------------|------------------|-----------------|-------------------|---------------|--------|
-| catalogue | iPhone 14 Pro | — | — | — | — | — | — | — | — | — |
-| catalogue | iPhone SE | — | — | — | — | — | — | — | — | — |
-| catalogue | iPad | — | — | — | — | — | — | — | — | — |
-| catalogue | Desktop | — | — | — | — | — | — | — | — | — |
+| Viewport | Overall | Horizontal overflow | Footer overlap | Keyboard overlap | Sticky collisions | Density | Touch targets | Scroll traps | Nested scrolls | Modals |
+|----------|---------|--------------------|---------------|------------------|-------------------|---------|---------------|---------------|-----------------|--------|
+| iPhone 14 Pro | **WARNING** | PASS | VERIFY | VERIFY | **WARNING** | **WARNING** | PASS | VERIFY | VERIFY | VERIFY |
+| iPhone SE | **WARNING** | PASS | VERIFY | VERIFY | **WARNING** | **WARNING** | PASS | VERIFY | VERIFY | VERIFY |
+| iPad | **WARNING** | PASS | VERIFY | VERIFY | WARNING | WARNING | PASS | VERIFY | VERIFY | VERIFY |
+| Desktop | PASS | PASS | N/A | N/A | VERIFY | PASS | N/A | VERIFY | VERIFY | VERIFY |
 
 ---
 
-## Quick order
+## Quick order (`/quick-order`)
 
-**Routes:** `/quick-order`
-
-| Page (route hint) | Viewport | Overflow | Tap targets | Readability | Sticky controls | Keyboard overlap | Scroll behavior | Action visibility | Thumb reach | Status |
-|-------------------|----------|----------|-------------|-------------|-----------------|------------------|-----------------|-------------------|---------------|--------|
-| quick order | iPhone 14 Pro | — | — | — | — | — | — | — | — | — |
-| quick order | iPhone SE | — | — | — | — | — | — | — | — | — |
-| quick order | iPad | — | — | — | — | — | — | — | — | — |
-| quick order | Desktop | — | — | — | — | — | — | — | — | — |
+| Viewport | Overall | Horizontal overflow | Footer overlap | Keyboard overlap | Sticky collisions | Density | Touch targets | Scroll traps | Nested scrolls | Modals |
+|----------|---------|--------------------|---------------|------------------|-------------------|---------|---------------|---------------|-----------------|--------|
+| iPhone 14 Pro | **WARNING** | PASS | VERIFY | **WARNING** | VERIFY | **WARNING** | PASS | VERIFY | VERIFY | VERIFY |
+| iPhone SE | **WARNING** | PASS | VERIFY | **WARNING** | VERIFY | **WARNING** | PASS | VERIFY | VERIFY | VERIFY |
+| iPad | WARNING | PASS | VERIFY | VERIFY | VERIFY | WARNING | PASS | VERIFY | VERIFY | VERIFY |
+| Desktop | PASS | PASS | N/A | N/A | VERIFY | PASS | N/A | VERIFY | VERIFY | VERIFY |
 
 ---
 
-## Cart
+## Approvals (`/admin/approvals`)
 
-**Routes:** `/cart`
-
-| Page (route hint) | Viewport | Overflow | Tap targets | Readability | Sticky controls | Keyboard overlap | Scroll behavior | Action visibility | Thumb reach | Status |
-|-------------------|----------|----------|-------------|-------------|-----------------|------------------|-----------------|-------------------|---------------|--------|
-| cart | iPhone 14 Pro | — | — | — | — | — | — | — | — | — |
-| cart | iPhone SE | — | — | — | — | — | — | — | — | — |
-| cart | iPad | — | — | — | — | — | — | — | — | — |
-| cart | Desktop | — | — | — | — | — | — | — | — | — |
+| Viewport | Overall | Horizontal overflow | Footer overlap | Keyboard overlap | Sticky collisions | Density | Touch targets | Scroll traps | Nested scrolls | Modals |
+|----------|---------|--------------------|---------------|------------------|-------------------|---------|---------------|---------------|-----------------|--------|
+| iPhone 14 Pro | **WARNING** | PASS | VERIFY | VERIFY | **WARNING** | **WARNING** | PASS | VERIFY | VERIFY | VERIFY |
+| iPhone SE | **WARNING** | PASS | VERIFY | VERIFY | **WARNING** | **WARNING** | PASS | VERIFY | VERIFY | VERIFY |
+| iPad | PASS | PASS | VERIFY | VERIFY | VERIFY | PASS | PASS | VERIFY | VERIFY | VERIFY |
+| Desktop | PASS | PASS | N/A | N/A | VERIFY | PASS | N/A | VERIFY | VERIFY | VERIFY |
 
 ---
 
-## Login
+## Order detail (`/orders/1`, `/admin/orders`)
 
-**Routes:** `/login`, `/register`
-
-| Page (route hint) | Viewport | Overflow | Tap targets | Readability | Sticky controls | Keyboard overlap | Scroll behavior | Action visibility | Thumb reach | Status |
-|-------------------|----------|----------|-------------|-------------|-----------------|------------------|-----------------|-------------------|---------------|--------|
-| login | iPhone 14 Pro | — | — | — | — | — | — | — | — | — |
-| login | iPhone SE | — | — | — | — | — | — | — | — | — |
-| login | iPad | — | — | — | — | — | — | — | — | — |
-| login | Desktop | — | — | — | — | — | — | — | — | — |
+| Viewport | Overall | Horizontal overflow | Footer overlap | Keyboard overlap | Sticky collisions | Density | Touch targets | Scroll traps | Nested scrolls | Modals |
+|----------|---------|--------------------|---------------|------------------|-------------------|---------|---------------|---------------|-----------------|--------|
+| iPhone 14 Pro | WARNING | PASS | VERIFY | VERIFY | VERIFY | WARNING | PASS | VERIFY | VERIFY | VERIFY |
+| iPhone SE | WARNING | PASS | VERIFY | VERIFY | VERIFY | WARNING | PASS | VERIFY | VERIFY | VERIFY |
+| iPad | PASS | PASS | VERIFY | VERIFY | VERIFY | PASS | PASS | VERIFY | VERIFY | VERIFY |
+| Desktop | PASS | PASS | N/A | N/A | VERIFY | PASS | N/A | VERIFY | VERIFY | VERIFY |
 
 ---
 
-## Approvals
+## Product catalogue (`/catalogue`, `/product/1`)
 
-**Routes:** `/admin/approvals`, `/approval-pending`
-
-| Page (route hint) | Viewport | Overflow | Tap targets | Readability | Sticky controls | Keyboard overlap | Scroll behavior | Action visibility | Thumb reach | Status |
-|-------------------|----------|----------|-------------|-------------|-----------------|------------------|-----------------|-------------------|---------------|--------|
-| approvals | iPhone 14 Pro | — | — | — | — | — | — | — | — | — |
-| approvals | iPhone SE | — | — | — | — | — | — | — | — | — |
-| approvals | iPad | — | — | — | — | — | — | — | — | — |
-| approvals | Desktop | — | — | — | — | — | — | — | — | — |
+| Viewport | Overall | Horizontal overflow | Footer overlap | Keyboard overlap | Sticky collisions | Density | Touch targets | Scroll traps | Nested scrolls | Modals |
+|----------|---------|--------------------|---------------|------------------|-------------------|---------|---------------|---------------|-----------------|--------|
+| iPhone 14 Pro | PASS | PASS | VERIFY | VERIFY | VERIFY | PASS | PASS | VERIFY | VERIFY | VERIFY |
+| iPhone SE | PASS | PASS | VERIFY | VERIFY | VERIFY | PASS | PASS | VERIFY | VERIFY | VERIFY |
+| iPad | PASS | PASS | VERIFY | VERIFY | VERIFY | PASS | PASS | VERIFY | VERIFY | VERIFY |
+| Desktop | PASS | PASS | N/A | N/A | VERIFY | PASS | N/A | VERIFY | VERIFY | VERIFY |
 
 ---
 
-## Reports
+## Cart (`/cart`)
 
-**Routes:** `/admin/target-vs-actual`, `/sales/dashboard`, analytics-style admin pages
-
-| Page (route hint) | Viewport | Overflow | Tap targets | Readability | Sticky controls | Keyboard overlap | Scroll behavior | Action visibility | Thumb reach | Status |
-|-------------------|----------|----------|-------------|-------------|-----------------|------------------|-----------------|-------------------|---------------|--------|
-| reports | iPhone 14 Pro | — | — | — | — | — | — | — | — | — |
-| reports | iPhone SE | — | — | — | — | — | — | — | — | — |
-| reports | iPad | — | — | — | — | — | — | — | — | — |
-| reports | Desktop | — | — | — | — | — | — | — | — | — |
+| Viewport | Overall | Horizontal overflow | Footer overlap | Keyboard overlap | Sticky collisions | Density | Touch targets | Scroll traps | Nested scrolls | Modals |
+|----------|---------|--------------------|---------------|------------------|-------------------|---------|---------------|---------------|-----------------|--------|
+| iPhone 14 Pro | WARNING | PASS | VERIFY | **WARNING** | **WARNING** | PASS | PASS | VERIFY | VERIFY | VERIFY |
+| iPhone SE | WARNING | PASS | VERIFY | **WARNING** | **WARNING** | PASS | PASS | VERIFY | VERIFY | VERIFY |
+| iPad | PASS | PASS | VERIFY | VERIFY | VERIFY | PASS | PASS | VERIFY | VERIFY | VERIFY |
+| Desktop | PASS | PASS | N/A | N/A | VERIFY | PASS | N/A | VERIFY | VERIFY | VERIFY |
 
 ---
 
-## Evidence sources
+## Login (`/login`, `/register`)
 
-- Raw JSON: `audit-artifacts/raw/raw-<project>.json` (`horizontalOverflow`, tap target counts, `screenshotPath`, `checksSkipped`)
-- Markdown index: `docs/UX_AUDIT_PLAYWRIGHT_REPORT.md`
+| Viewport | Overall | Horizontal overflow | Footer overlap | Keyboard overlap | Sticky collisions | Density | Touch targets | Scroll traps | Nested scrolls | Modals |
+|----------|---------|--------------------|---------------|------------------|-------------------|---------|---------------|---------------|-----------------|--------|
+| iPhone 14 Pro | PASS | PASS | VERIFY | VERIFY | PASS | PASS | PASS | VERIFY | VERIFY | VERIFY |
+| iPhone SE | PASS | PASS | VERIFY | VERIFY | PASS | PASS | PASS | VERIFY | VERIFY | VERIFY |
+| iPad | PASS | PASS | VERIFY | VERIFY | PASS | PASS | PASS | VERIFY | VERIFY | VERIFY |
+| Desktop | PASS | PASS | N/A | N/A | PASS | PASS | N/A | VERIFY | VERIFY | VERIFY |
+
+---
+
+## Reports (`/admin/target-vs-actual`, `/sales/dashboard`)
+
+| Viewport | Overall | Horizontal overflow | Footer overlap | Keyboard overlap | Sticky collisions | Density | Touch targets | Scroll traps | Nested scrolls | Modals |
+|----------|---------|--------------------|---------------|------------------|-------------------|---------|---------------|---------------|-----------------|--------|
+| iPhone 14 Pro | **WARNING** | PASS | VERIFY | VERIFY | VERIFY | **WARNING** | PASS | VERIFY | VERIFY | VERIFY |
+| iPhone SE | **WARNING** | PASS | VERIFY | VERIFY | VERIFY | **WARNING** | PASS | VERIFY | VERIFY | VERIFY |
+| iPad | **WARNING** | PASS | VERIFY | VERIFY | VERIFY | WARNING | PASS | VERIFY | VERIFY | VERIFY |
+| Desktop | **WARNING** | PASS | N/A | N/A | VERIFY | WARNING | N/A | VERIFY | VERIFY | VERIFY |
+
+---
+
+## Legal / static (`/terms`, `/privacy`, `/shipping`) — automation-backed
+
+| Viewport | Overall | Notes |
+|----------|---------|-------|
+| iPhone 14 Pro | **WARNING** | tap target sampling 6–7 controls &lt;44px |
+| iPhone SE | **WARNING** | same |
+| iPad | **WARNING** | same |
+| Desktop | PASS | tap rule relaxed |
+
+---
+
+## Mobile risk summary
+
+| Bucket | Routes |
+|--------|--------|
+| **FAIL** | _None from automation — fill only after human confirms_ |
+| **WARNING** | Finance board, inbox/WhatsApp, dispatch, quick order, approvals, reports, cart sticky, legal pages |
+| **PASS** (auto) | Most remaining routes with no JSON flags |
+
+---
+
+## Evidence
+
+- Raw: `audit-artifacts/raw/raw-iphone-14-pro.json` etc.  
+- Report: `docs/UX_AUDIT_PLAYWRIGHT_REPORT.md`
