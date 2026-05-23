@@ -65,6 +65,14 @@ The following exist as **docs** (process maturity), not as proven runtime behavi
 
 ---
 
+## Named owner & first evidence intake
+
+- `C2C_STAGE1_NAMED_OWNER_INTAKE_FORM.md`  
+- `C2C_STAGE1_OWNER_ASSIGNMENT_INSTRUCTIONS.md`  
+- `C2C_STAGE1_FIRST_EVIDENCE_ARTIFACT_INTAKE.md`  
+
+---
+
 ## Cross-links
 
 - `C2C_STAGE1_CONTROL_DASHBOARD.md`  
