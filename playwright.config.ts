@@ -2,6 +2,8 @@ import { defineConfig, devices } from '@playwright/test';
 
 export default defineConfig({
   testDir: './tests',
+  /** Cursor Central UX crawl uses `playwright.ux-audit.config.ts` (four viewports + Vercel URL). */
+  testIgnore: '**/ux-audit.spec.ts',
   timeout: 240_000,
   expect: {
     timeout: 15_000,
