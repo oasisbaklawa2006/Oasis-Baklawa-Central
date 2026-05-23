@@ -6,6 +6,8 @@ Each section: **Evidence required** · **Blocker severity** · **Must-pass? (Y/N
 
 **Severity:** **P0** = hard stop · **P1** = stop unless written waiver + extra controls · **P2** = should fix, not a hard stop alone
 
+**Packet alignment:** Attachable rows in `C2C_STAGE1_EVIDENCE_PACKET_INDEX.md` and `C2C_EVIDENCE_GAP_TRACKER.md` must stay consistent with this checklist — including **audit** (§7), **observability + alert firing** (§6), and **queue isolation / queue-disabled** proof (§4). Stage 1 remains **NO-GO** until evidence is attached (not template-only).
+
 ---
 
 ## 1. JWT readiness
@@ -140,6 +142,8 @@ Each section: **Evidence required** · **Blocker severity** · **Must-pass? (Y/N
 
 ## Cross-links
 
+- `C2C_STAGE1_EVIDENCE_PACKET_INDEX.md`
+- `C2C_EVIDENCE_GAP_TRACKER.md`
 - `C2C_FIRST_STAGING_DRYRUN_PILOT.md`
 - `C2C_STAGING_ISOLATION_CHARTER.md`
 - `C2C_DRYRUN_OBSERVABILITY_SPEC.md`
