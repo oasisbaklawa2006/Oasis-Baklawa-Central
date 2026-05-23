@@ -2,6 +2,10 @@
 
 **Purpose:** Track **gaps** between governance maturity (docs) and **attachable evidence** required for GO. Update as artifacts land.
 
+## Current Stage 1 state
+
+**Current Stage 1 state: NO-GO — no real evidence attached yet.**
+
 ---
 
 | Gap | Severity | Current status | Required evidence | Owner placeholder | Target artifact | Blocks staging? | Blocks production? | Notes |
