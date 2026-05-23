@@ -17,10 +17,10 @@
 | Idempotency proof | **P0** | **MISSING** | Dedupe store + double-submit | Tech lead | `idempotency-tests.log` | **YES** | **YES** | |
 | Duplicate-send proof | **P0** | **MISSING** | Logical send count = 1 under load | Tech lead | `duplicate-send-soak.csv` | **YES** | **YES** | |
 | Rollback proof | **P0** | **MISSING** | Dated drill log ≤ SLO | Ops | `rollback-drill.log` | **YES** | **YES** | |
-| Audit proof | **P1** | **MISSING** | Ordered audit ids + failure injection | Audit owner | `audit-chain.json` | **YES** (if audit-gated) | **YES** (finance scope) | |
+| Audit proof | **P0** | **MISSING** | Ordered audit ids + failure injection; aligns `C2C_PRE_PILOT_GO_NO_GO_CHECKLIST.md` §7 | **TBD** | `audit-chain.json` | **YES** | **YES** | Must-pass P0 per pre-pilot checklist |
 | Observability proof | **P0** | **MISSING** | Live dashboard + metric defs | Ops | `dashboards.md` | **YES** | **YES** | |
-| Alert proof | **P1** | **MISSING** | Page receipt on injected fault | Ops | `alert-test-042.txt` | **YES** | **YES** | |
-| Queue-disabled proof | **P1** | **TEMPLATE** | Snapshot `state=disabled` + worker off | Ops | `queue-snapshot.json` | **YES** (if queues in scope) | **N** | Dry-run may stay queueless |
+| Alert proof | **P0** | **MISSING** | Page receipt on injected fault; aligns checklist §6 alerts | **TBD** | `alert-test-042.txt` | **YES** | **YES** | Must-pass P0 with observability |
+| Queue-disabled proof | **P0** | **MISSING** | Snapshot `state=disabled` + worker off; aligns checklist §4 queue isolation | **TBD** | `queue-snapshot.json` | **YES** | **YES** | Staging must prove disabled or staging-only queues |
 | Production-freeze proof | **P0** | **DOC OK** | Link to manifest commit | Doc owner | `FREEZE.md@sha` | **N** | **N** | Docs exist; runtime still frozen |
 | Approval chain proof | **P0** | **MISSING** | Signed PDF / ticket links | Approvers | `approvals.pdf` | **YES** | **YES** | No self-approval |
 
@@ -35,6 +35,8 @@
 
 ## Cross-links
 
+- `C2C_STAGE1_EVIDENCE_PACKET_INDEX.md`  
+- `C2C_PRE_PILOT_GO_NO_GO_CHECKLIST.md`  
 - `C2C_EVIDENCE_BUNDLE_RECORD_STAGE1_DRYRUN.md`  
 - `C2C_STAGE1_DRYRUN_GO_NO_GO_RECORD.md`  
 - `C2C_ACTION_OWNER_REGISTER.md`
