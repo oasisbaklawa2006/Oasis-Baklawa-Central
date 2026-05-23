@@ -12,6 +12,12 @@
 - `C2C_STAGE1_DECISION_SNAPSHOT.md`  
 - `C2C_STAGE1_FAST_ACTION_BOARD.md`  
 
+## Named owner & first evidence intake
+
+- `C2C_STAGE1_NAMED_OWNER_INTAKE_FORM.md`  
+- `C2C_STAGE1_OWNER_ASSIGNMENT_INSTRUCTIONS.md`  
+- `C2C_STAGE1_FIRST_EVIDENCE_ARTIFACT_INTAKE.md`  
+
 ---
 
 ## Owner / status matrix (P0 packets)
