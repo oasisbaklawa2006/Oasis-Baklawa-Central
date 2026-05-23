@@ -292,5 +292,24 @@ test('Mobile-first full UX audit (all viewports)', async ({ page }, testInfo) =>
     pages: results,
   };
   fs.writeFileSync(path.join(RAW, `raw-${project}.json`), JSON.stringify(out, null, 2), 'utf8');
+
+  try {
+    const outDir = testInfo.outputDir;
+    if (outDir && fs.existsSync(outDir)) {
+      for (const f of fs.readdirSync(outDir)) {
+        if (f.endsWith('.webm')) {
+          const dest = path.join(
+            VIDEOS,
+            `ux-audit-Mobile-first-full-UX-audit-all-viewports--${project}.webm`,
+          );
+          fs.copyFileSync(path.join(outDir, f), dest);
+          break;
+        }
+      }
+    }
+  } catch {
+    /* ignore missing video */
+  }
+
   expect(results.length).toBeGreaterThan(0);
 });
