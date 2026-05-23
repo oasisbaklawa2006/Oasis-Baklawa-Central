@@ -1,13 +1,13 @@
 # UX audit — Playwright (mobile-first)
 
 **Target:** https://cursor-central-vercel.vercel.app  
-**Generated:** 2026-05-23T11:14:17.642Z  
+**Generated:** 2026-05-23T17:14:42.970Z  
 **Tooling:** @playwright/test, Chromium emulation (see `playwright.ux-audit.config.ts`; default `playwright.config.ts` is for CI smoke tests).  
 **Artifacts:** screenshots under `audit-artifacts/screenshots/`; **videos** (one full journey per viewport): `audit-artifacts/videos/*.webm`; raw JSON under `audit-artifacts/raw/`.
 
 ## Executive summary
 
-Automated crawl across discovered internal routes plus the static route manifest from `src/App.tsx`, repeated for **four** viewports (iPhone 14 Pro 390×844, iPhone SE 375×667, iPad 768×1024, desktop 1440×900). Each page captured a **full-page screenshot**, console warnings/errors, and failed XHR/document responses (4xx/5xx). Heuristics flagged horizontal overflow, undersized tap targets (mobile), missing image `alt`, unnamed buttons, and wide tables. Auth-protected pages typically redirect to login — screenshots still document that behavior.
+Automated crawl across discovered internal routes plus the static route manifest from `src/App.tsx`, repeated for **four** viewports (iPhone 14 Pro 390×844, iPhone SE 375×667, iPad 768×1024, desktop 1440×900). Each successfully loaded page captured a **full-page screenshot** (path in raw JSON as `screenshotPath`; omitted when navigation failed before commit). Console warnings/errors and failed XHR/document responses (4xx/5xx) are recorded for loaded pages. Heuristics (overflow, tap targets, `alt`, unnamed buttons, tables) are **skipped** when `checksSkipped` is true so stale DOM from a prior route is never attributed. Auth-protected pages typically redirect to login — screenshots still document that behavior.
 
 ## Overall score (heuristic)
 

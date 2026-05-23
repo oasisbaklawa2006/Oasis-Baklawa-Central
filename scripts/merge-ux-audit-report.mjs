@@ -31,6 +31,7 @@ function scoreFrom(dataByProject) {
   for (const [proj, data] of Object.entries(dataByProject)) {
     if (!data?.pages) continue;
     for (const p of data.pages) {
+      const skipped = p.checksSkipped === true;
       if (p.failedRequests?.some((r) => r.status >= 500)) {
         score -= 0.35;
         critical.push(`${proj}: ${p.route} — HTTP 5xx`);
@@ -42,29 +43,29 @@ function scoreFrom(dataByProject) {
         score -= Math.min(0.15, 0.02 * p.consoleErrors.length);
         if (p.consoleErrors.length >= 3) high.push(`${proj}: ${p.route} — ${p.consoleErrors.length} console errors`);
       }
-      if (p.layout?.horizontalOverflow) {
+      if (!skipped && p.layout?.horizontalOverflow) {
         score -= 0.12;
         high.push(`${proj}: ${p.route} — horizontal overflow`);
       }
-      if (p.tapTargets?.smallInteractiveCount > 5 && proj !== 'desktop') {
+      if (!skipped && p.tapTargets?.smallInteractiveCount > 5 && proj !== 'desktop') {
         score -= 0.06;
         medium.push(`${proj}: ${p.route} — ${p.tapTargets.smallInteractiveCount} tap targets < 44px`);
       }
-      if (p.a11y?.imagesMissingAlt > 5) {
+      if (!skipped && p.a11y?.imagesMissingAlt > 5) {
         score -= 0.05;
         medium.push(`${proj}: ${p.route} — ${p.a11y.imagesMissingAlt} images missing alt`);
       }
-      if (p.a11y?.buttonsMissingName > 3) {
+      if (!skipped && p.a11y?.buttonsMissingName > 3) {
         score -= 0.06;
         high.push(`${proj}: ${p.route} — unnamed visible buttons (${p.a11y.buttonsMissingName})`);
       }
-      if (p.tables?.anyWideOverflow) {
+      if (!skipped && p.tables?.anyWideOverflow) {
         score -= 0.08;
         high.push(`${proj}: ${p.route} — table wider than viewport`);
       }
       if (!p.ok) {
         score -= 0.2;
-        critical.push(`${proj}: ${p.route} — navigation error: ${p.error || 'unknown'}`);
+        critical.push(`${proj}: ${p.route} — navigation error: ${p.navigationError || p.error || 'unknown'}`);
       }
     }
   }
@@ -96,7 +97,7 @@ md += `**Artifacts:** screenshots under \`audit-artifacts/screenshots/\`; **vide
 
 md += `## Executive summary\n\n`;
 md += `Automated crawl across discovered internal routes plus the static route manifest from \`src/App.tsx\`, repeated for **four** viewports (iPhone 14 Pro 390×844, iPhone SE 375×667, iPad 768×1024, desktop 1440×900). `;
-md += `Each page captured a **full-page screenshot**, console warnings/errors, and failed XHR/document responses (4xx/5xx). Heuristics flagged horizontal overflow, undersized tap targets (mobile), missing image \`alt\`, unnamed buttons, and wide tables. `;
+md += `Each successfully loaded page captured a **full-page screenshot** (path in raw JSON as \`screenshotPath\`; omitted when navigation failed before commit). Console warnings/errors and failed XHR/document responses (4xx/5xx) are recorded for loaded pages. Heuristics (overflow, tap targets, \`alt\`, unnamed buttons, tables) are **skipped** when \`checksSkipped\` is true so stale DOM from a prior route is never attributed. `;
 md += `Auth-protected pages typically redirect to login — screenshots still document that behavior.\n\n`;
 
 md += `## Overall score (heuristic)\n\n**${score} / 10** — automated deduction for console noise, failed requests, overflow, and accessibility heuristics; not a substitute for human design QA.\n\n`;
@@ -125,10 +126,17 @@ md += `Aggregated in \`audit-artifacts/raw/raw-<project>.json\` per page under \
 
 md += `## Video walkthrough (full app journey)\n\n`;
 md += `| Viewport | File |\n|----------|------|\n`;
+let videoRows = 0;
 for (const proj of projects) {
   const vn = `ux-audit-Mobile-first-full-UX-audit-all-viewports--${proj}.webm`;
   const p = path.join(ART, 'videos', vn);
-  if (fs.existsSync(p)) md += `| ${proj} | \`audit-artifacts/videos/${vn}\` (${(fs.statSync(p).size / 1e6).toFixed(1)} MB) |\n`;
+  if (fs.existsSync(p)) {
+    md += `| ${proj} | \`audit-artifacts/videos/${vn}\` (${(fs.statSync(p).size / 1e6).toFixed(1)} MB) |\n`;
+    videoRows++;
+  }
+}
+if (videoRows === 0) {
+  md += `| _(none)_ | Run \`npm run test:ux-audit\` locally to produce \`audit-artifacts/videos/*.webm\`; files are gitignored. |\n`;
 }
 md += `\n`;
 md += `| Viewport | Route | Screenshot file |\n|----------|-------|-----------------|\n`;
@@ -138,7 +146,20 @@ for (const proj of projects) {
   if (!d?.pages) continue;
   for (const p of d.pages) {
     const slug = p.route.replace(/^\//, '').replace(/\//g, '_') || 'root';
-    md += `| ${proj} | \`${p.route}\` | \`audit-artifacts/screenshots/${proj}__${slug}.png\` |\n`;
+    const legacyPath = `audit-artifacts/screenshots/${proj}__${slug}.png`;
+    let shotCell;
+    if (p.screenshotPath) {
+      const abs = path.join(ROOT, p.screenshotPath);
+      if (fs.existsSync(abs)) shotCell = `\`${p.screenshotPath}\``;
+      else shotCell = `\`${p.screenshotPath}\` _(missing on disk)_`;
+    } else if (p.checksSkipped === true) {
+      shotCell = '_(none — `checksSkipped`; navigation failed; see `navigationError` in raw JSON)_';
+    } else {
+      const absLegacy = path.join(ROOT, legacyPath);
+      if (fs.existsSync(absLegacy)) shotCell = `\`${legacyPath}\``;
+      else shotCell = `\`${legacyPath}\` _(not on disk — re-run audit for \`screenshotPath\`)_`;
+    }
+    md += `| ${proj} | \`${p.route}\` | ${shotCell} |\n`;
   }
 }
 

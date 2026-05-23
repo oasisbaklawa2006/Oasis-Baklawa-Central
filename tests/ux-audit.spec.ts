@@ -99,6 +99,13 @@ type PageAudit = {
   route: string;
   finalUrl: string;
   ok: boolean;
+  /** When true, layout/a11y/tap/tables were not run (e.g. page.goto threw); do not interpret those fields. */
+  checksSkipped: boolean;
+  skipReason: string | null;
+  /** Human-readable navigation failure; mirrors `error` for tooling compatibility. */
+  navigationError: string | null;
+  /** Relative path under repo root if captured; null if skipped or failed to save. */
+  screenshotPath: string | null;
   consoleErrors: string[];
   consoleWarnings: string[];
   failedRequests: { url: string; status: number }[];
@@ -113,6 +120,7 @@ type PageAudit = {
   };
   tapTargets: { smallInteractiveCount: number; samples: { w: number; h: number; label: string }[] };
   tables: { count: number; anyWideOverflow: boolean };
+  /** @deprecated use navigationError — kept so older consumers still see a message */
   error?: string;
 };
 
@@ -128,6 +136,15 @@ async function discoverMoreRoutes(page: Page, max: number): Promise<string[]> {
     .catch(() => [] as string[]);
   return hrefs.slice(0, max);
 }
+
+const EMPTY_LAYOUT = {
+  horizontalOverflow: false,
+  bodyScrollHeight: 0,
+  viewportH: 0,
+};
+const EMPTY_A11Y = { imagesMissingAlt: 0, buttonsMissingName: 0 };
+const EMPTY_TAP = { smallInteractiveCount: 0, samples: [] as { w: number; h: number; label: string }[] };
+const EMPTY_TABLES = { count: 0, anyWideOverflow: false };
 
 async function auditOnePage(page: Page, route: string, projectName: string): Promise<PageAudit> {
   const consoleErrors: string[] = [];
@@ -153,18 +170,57 @@ async function auditOnePage(page: Page, route: string, projectName: string): Pro
   let finalUrl = '';
   let ok = true;
   let errMsg: string | undefined;
+  let navigationCommitted = false;
+
   try {
     const resp = await page.goto(route, { waitUntil: 'domcontentloaded', timeout: 55_000 });
     finalUrl = page.url();
-    if (resp && resp.status() >= 500) ok = false;
+    navigationCommitted = true;
+    if (resp && resp.status() >= 500) {
+      ok = false;
+      errMsg = `Document response HTTP ${resp.status()}`;
+    }
     await page.waitForTimeout(1200);
   } catch (e) {
     ok = false;
     errMsg = e instanceof Error ? e.message : String(e);
     finalUrl = page.url();
+    navigationCommitted = false;
   } finally {
     page.off('console', onConsole);
     page.off('response', onResponse);
+  }
+
+  const safe = slugify(route);
+  const shotPath = path.join(SHOTS, `${projectName}__${safe}.png`);
+  const shotViewportPath = shotPath.replace('.png', '-viewport.png');
+
+  if (!navigationCommitted) {
+    try {
+      if (fs.existsSync(shotPath)) fs.unlinkSync(shotPath);
+      if (fs.existsSync(shotViewportPath)) fs.unlinkSync(shotViewportPath);
+    } catch {
+      /* ignore */
+    }
+
+    const navigationError = errMsg ?? 'page.goto failed before DOM committed for this route';
+    return {
+      route,
+      finalUrl,
+      ok: false,
+      checksSkipped: true,
+      skipReason: 'navigation_failed',
+      navigationError,
+      screenshotPath: null,
+      consoleErrors: [],
+      consoleWarnings: [],
+      failedRequests: [],
+      layout: { ...EMPTY_LAYOUT },
+      a11y: { ...EMPTY_A11Y },
+      tapTargets: { ...EMPTY_TAP },
+      tables: { ...EMPTY_TABLES },
+      error: navigationError,
+    };
   }
 
   const layout = await page.evaluate(() => {
@@ -223,18 +279,27 @@ async function auditOnePage(page: Page, route: string, projectName: string): Pro
     return { count: document.querySelectorAll('table').length, anyWideOverflow: anyWide };
   });
 
-  const safe = slugify(route);
-  const shotPath = path.join(SHOTS, `${projectName}__${safe}.png`);
+  let screenshotPath: string | null = null;
   try {
     await page.screenshot({ path: shotPath, fullPage: true, timeout: 45_000 });
+    screenshotPath = path.relative(process.cwd(), shotPath).split(path.sep).join('/');
   } catch {
-    await page.screenshot({ path: shotPath.replace('.png', '-viewport.png'), fullPage: false }).catch(() => {});
+    try {
+      await page.screenshot({ path: shotViewportPath, fullPage: false, timeout: 20_000 });
+      screenshotPath = path.relative(process.cwd(), shotViewportPath).split(path.sep).join('/');
+    } catch {
+      screenshotPath = null;
+    }
   }
 
   return {
     route,
     finalUrl,
     ok,
+    checksSkipped: false,
+    skipReason: null,
+    navigationError: errMsg ?? null,
+    screenshotPath,
     consoleErrors,
     consoleWarnings,
     failedRequests,
