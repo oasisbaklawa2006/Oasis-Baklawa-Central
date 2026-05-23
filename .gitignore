@@ -27,6 +27,14 @@ dist-ssr
 playwright-report/
 test-results/
 
+# UX audit run output (large binaries; keep report in docs/)
+audit-artifacts/screenshots/
+audit-artifacts/videos/
+audit-artifacts/playwright-output/
+audit-artifacts/html-report/
+audit-artifacts/raw/
+audit-artifacts/playwright-report.json
+
 # Supabase CLI local link artifacts (do not commit)
 supabase/.temp/
 
