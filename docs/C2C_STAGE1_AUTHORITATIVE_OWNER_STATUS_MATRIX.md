@@ -46,3 +46,5 @@
 **Stage 1 remains NO-GO until every row is COMPLETE and approved.**
 
 `COMPLETE` here means: **status** = evidence accepted per `C2C_STAGE1_OWNER_ASSIGNMENT_RULES.md`, **current evidence path** filled with an immutable link, and **approval reference** recorded in `C2C_STAGE1_STATUS_TRANSITION_LOG.md` where required. Until then, all rows above remain **MISSING** for attachable evidence. **Role assignment alone does not satisfy any row.**
+
+**Named delegate column:** When `C2C_STAGE1_NAMED_OWNER_INTAKE_FORM.md` is completed, record **named** delegates via ticket link or roster URL in the status log; optional narrow updates to this matrix may append names **without** changing **MISSING** / blocker columns until evidence is accepted.
