@@ -6,6 +6,14 @@
 
 **Current Stage 1 state: NO-GO — no real evidence attached yet.**
 
+## Stage 1 control documents
+
+- `C2C_STAGE1_CONTROL_DASHBOARD.md`  
+- `C2C_STAGE1_EVIDENCE_COLLECTION_RUNBOOK.md`  
+- `C2C_STAGE1_APPROVER_REVIEW_PACK.md`  
+- `C2C_STAGE1_DECISION_SNAPSHOT.md`  
+- `C2C_STAGE1_FAST_ACTION_BOARD.md`  
+
 ---
 
 | Gap | Severity | Current status | Required evidence | Owner placeholder | Target artifact | Blocks staging? | Blocks production? | Notes |
