@@ -1,75 +1,30 @@
 # C2C — Stage 1 owner assignment worksheet
 
-**Purpose:** Assign **named** owners and backups for evidence production. **Worksheet only** — does not grant authority or change runtime.
+**Purpose:** Map each **governance domain** to **role-level** primary and backup owners, approval and escalation paths, and evidence duties. **Role titles only** — no personal names. **Worksheet only** — does not grant authority or change runtime.
+
+**Related:** `C2C_STAGE1_AUTHORITATIVE_OWNER_STATUS_MATRIX.md`, `C2C_STAGE1_OWNER_ASSIGNMENT_RULES.md`, `C2C_ROLE_SEPARATION_MATRIX.md`, `C2C_GOVERNANCE_ESCALATION_LADDER.md`, `C2C_GOVERNANCE_APPROVAL_MODEL.md`.
+
+**Owner assignment does not imply implementation authorization.**
 
 ---
 
-## 1. Governance owner
+## Worksheet (governance domains)
 
-| Role | Named owner | Backup owner | Required evidence | Due date | Status | Blocker if missing |
-|------|-------------|--------------|-------------------|----------|--------|--------------------|
-| Governance / program | `________________` | `________________` | Signed tabletop + gap tracker updates | `YYYY-MM-DD` | **UNFILLED** | No accountable signoff path |
-
----
-
-## 2. Engineering owner
-
-| Role | Named owner | Backup owner | Required evidence | Due date | Status | Blocker if missing |
-|------|-------------|--------------|-------------------|----------|--------|--------------------|
-| Stage 1 implementation readiness | `________________` | `________________` | Idempotency, duplicate-send, no-send traces | `YYYY-MM-DD` | **UNFILLED** | Cannot prove safe dry-run path |
-
----
-
-## 3. Security / JWT owner
-
-| Role | Named owner | Backup owner | Required evidence | Due date | Status | Blocker if missing |
-|------|-------------|--------------|-------------------|----------|--------|--------------------|
-| Auth / replay / operator | `________________` | `________________` | JWT matrix, replay logs, operator negative tests | `YYYY-MM-DD` | **UNFILLED** | Automatic NO-GO per workflow |
+| Governance domain | Primary role owner | Backup role owner | Approval authority (role) | Escalation authority (role) | Evidence responsibility |
+|-------------------|-------------------|-------------------|----------------------------|----------------------------|---------------------------|
+| Program governance & binder | **Governance Lead** | **Release Authority** | Governance Lead (process) + Release Authority (release gate) | **Governance Lead** → **Release Authority** | Tabletop minutes, gap tracker updates, GO binder assembly |
+| Security, JWT, replay, operator identity | **Security Lead** | **Identity / JWT Reviewer** | **Security Lead** (veto + staging security signoff) | **Security Lead** → **Governance Lead** | JWT matrix, replay logs, operator negative tests |
+| Platform & implementation evidence | **Platform Lead** | **Release Authority** | **Release Authority** (release artefact acceptance) | **Platform Lead** → **Release Authority** | Idempotency, duplicate-send, no-send traces |
+| Staging operations & isolation | **Staging Operations Lead** | **Platform Lead** | **Staging Operations Lead** + **Security Lead** (isolation) | **Staging Operations Lead** → **Rollback Authority** | Isolation fingerprints, queue posture, no-production-write posture |
+| Observability & alerts | **Observability Lead** | **Staging Operations Lead** | **Observability Lead** + **Rollback Authority** (incident correlation) | **Observability Lead** → **Staging Operations Lead** | Dashboards, metric defs, alert receipts |
+| Rollback & kill switch | **Rollback Authority** | **Staging Operations Lead** | **Rollback Authority** + **Security Lead** | **Rollback Authority** → **Governance Lead** | Dated drill logs, kill-switch attestations |
+| Audit chain | **Audit Lead** | **Finance Authority Reviewer** | **Finance Authority Reviewer** (where finance scope) | **Audit Lead** → **Finance Authority Reviewer** | Audit exports, ordered chain evidence |
+| Dispatch-facing dry-run scope (if applicable) | **Dispatch Authority Reviewer** | **Governance Lead** | **Dispatch Authority Reviewer** | **Dispatch Authority Reviewer** → **Governance Lead** | Dispatch coupling review notes (no runtime change) |
+| Finance-adjacent controls | **Finance Authority Reviewer** | **Audit Lead** | **Finance Authority Reviewer** | **Finance Authority Reviewer** → **Governance Lead** | SoD attestations for audit/finance overlap |
+| Emergency freeze & stop-the-line | **Security Lead** / **Rollback Authority** / **Governance Lead** (any per policy) | **Release Authority** | **Governance Lead** records stop | Per `C2C_GOVERNANCE_ESCALATION_LADDER.md` | Freeze incident ids, written stop records |
 
 ---
 
-## 4. Staging environment owner
+## Status
 
-| Role | Named owner | Backup owner | Required evidence | Due date | Status | Blocker if missing |
-|------|-------------|--------------|-------------------|----------|--------|--------------------|
-| Isolation / config | `________________` | `________________` | Isolation proof packet | `YYYY-MM-DD` | **UNFILLED** | Staging execution blocked |
-
----
-
-## 5. Observability owner
-
-| Role | Named owner | Backup owner | Required evidence | Due date | Status | Blocker if missing |
-|------|-------------|--------------|-------------------|----------|--------|--------------------|
-| Metrics / dashboards / alerts | `________________` | `________________` | Observability + alert proof packets | `YYYY-MM-DD` | **UNFILLED** | Ops veto risk |
-
----
-
-## 6. Rollback owner
-
-| Role | Named owner | Backup owner | Required evidence | Due date | Status | Blocker if missing |
-|------|-------------|--------------|-------------------|----------|--------|--------------------|
-| Kill switch / rollback | `________________` | `________________` | Rollback + kill-switch proof packets | `YYYY-MM-DD` | **UNFILLED** | Automatic NO-GO |
-
----
-
-## 7. Audit owner
-
-| Role | Named owner | Backup owner | Required evidence | Due date | Status | Blocker if missing |
-|------|-------------|--------------|-------------------|----------|--------|--------------------|
-| Audit chain | `________________` | `________________` | Audit proof packet | `YYYY-MM-DD` | **UNFILLED** | Finance / compliance gate |
-
----
-
-## 8. Approval owner
-
-| Role | Named owner | Backup owner | Required evidence | Due date | Status | Blocker if missing |
-|------|-------------|--------------|-------------------|----------|--------|--------------------|
-| Final GO binder | `________________` | `________________` | Signed approvals PDF / tickets | `YYYY-MM-DD` | **UNFILLED** | NO-GO remains |
-
----
-
-## 9. Emergency freeze owner
-
-| Role | Named owner | Backup owner | Required evidence | Due date | Status | Blocker if missing |
-|------|-------------|--------------|-------------------|----------|--------|--------------------|
-| Stop-the-line authority | `________________` | `________________` | Written re-freeze runbook acknowledgment | `YYYY-MM-DD` | **UNFILLED** | Unclear incident command |
+All evidence rows remain **MISSING** until artifacts attach per `C2C_STAGE1_AUTHORITATIVE_OWNER_STATUS_MATRIX.md`. **Stage 1 remains NO-GO.**
