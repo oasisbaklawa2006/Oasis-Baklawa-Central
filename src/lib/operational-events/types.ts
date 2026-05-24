@@ -40,7 +40,9 @@ export type OperationalEntityType =
   | "approval"
   | "store"
   | "reservation"
-  | "product";
+  | "product"
+  | "carton"
+  | "movement";
 
 export interface OperationalEntityRef {
   entityType: OperationalEntityType;
@@ -54,6 +56,10 @@ export type OperationalEventSource =
   | "derived_store_coordination"
   | "derived_inventory_visibility"
   | "derived_retail_launch"
+  | "derived_inventory_os"
+  | "derived_barcode_scan"
+  | "derived_execution_engine"
+  | "derived_governance"
   | "notification_outbox"
   | "manual"
   | "future_event_store";
@@ -115,6 +121,33 @@ export const InventoryOperationalEventKind = {
   LOW_STOCK_WARNING: "inventory.low_stock_warning",
   READY_GOODS_PENDING: "inventory.ready_goods_pending",
   MANUAL_VERIFICATION_REQUIRED: "inventory.manual_verification_required",
+  OS_LEDGER_PRINCIPLES: "inventory.os_ledger_principles",
+  VARIANCE_DETECTED: "inventory.variance_detected",
+  RESERVATION_PENDING: "inventory.reservation_pending",
+  MOVEMENT_PROJECTED: "inventory.movement_projected",
+} as const;
+
+/** Barcode scan lifecycle — projections only (no device I/O). */
+export const BarcodeOperationalEventKind = {
+  SCAN_DUPLICATE: "barcode.scan_duplicate",
+  SCAN_OUT_OF_ORDER: "barcode.scan_out_of_order",
+  SCAN_MISSING: "barcode.scan_missing",
+  DISPATCH_MISMATCH: "barcode.dispatch_mismatch",
+  SCAN_ANOMALY: "barcode.scan_anomaly",
+} as const;
+
+/** Execution dependency engine — no auto execution. */
+export const ExecutionOperationalEventKind = {
+  DISPATCH_BLOCKED: "execution.dispatch_blocked",
+  BOTTLENECK_DETECTED: "execution.bottleneck_detected",
+  DEPENDENCY_UNSATISFIED: "execution.dependency_unsatisfied",
+} as const;
+
+/** Governance / approvals — policy projection only. */
+export const GovernanceOperationalEventKind = {
+  OVERRIDE_REQUIRED: "governance.override_required",
+  ESCALATION_PENDING: "governance.escalation_pending",
+  PROTECTED_TRANSITION: "governance.protected_transition",
 } as const;
 
 export interface OperationalEventRecord {

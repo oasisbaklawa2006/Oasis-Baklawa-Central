@@ -3,7 +3,7 @@ import {
   LayoutDashboard, UserCheck, ClipboardList, Truck, DollarSign, LogOut, Menu, X, Loader2,
   Headphones, Users, Package, BarChart3, Scale, Globe, Settings, Shield, MessageCircle,
   Factory, PackageCheck, Landmark, AlertCircle, Languages, Bell, Sparkles, Monitor, Activity, Megaphone, Store,
-  ScanLine, CalendarDays,
+  ScanLine, CalendarDays, Warehouse, Box, ListOrdered, AlertOctagon, ScanBarcode,
 } from "lucide-react";
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
@@ -20,10 +20,10 @@ import { useAdminRealtimeToasts } from "@/hooks/useAdminRealtimeToasts";
 
 const ROLE_MODULE_ACCESS: Record<string, string[]> = {
   SUPER_ADMIN: ["*"],
-  ADMIN: ["dashboard", "orders", "clients", "products", "pricing", "finance", "users", "moq", "currency", "support", "settings", "audit", "inventory", "packing", "production", "accounts", "exceptions"],
-  FINANCE_HEAD: ["dashboard", "finance", "accounts", "orders", "audit"],
-  FINANCE_EXEC: ["dashboard", "finance", "accounts", "orders"],
-  OPERATIONS_MANAGER: ["dashboard", "orders", "production", "packing", "dispatch", "inventory"],
+  ADMIN: ["dashboard", "cmd_war_room", "orders", "clients", "products", "pricing", "finance", "users", "moq", "currency", "support", "settings", "audit", "inventory", "packing", "production", "accounts", "exceptions"],
+  FINANCE_HEAD: ["dashboard", "cmd_war_room", "finance", "accounts", "orders", "audit"],
+  FINANCE_EXEC: ["dashboard", "cmd_war_room", "finance", "accounts", "orders"],
+  OPERATIONS_MANAGER: ["dashboard", "cmd_war_room", "orders", "production", "packing", "dispatch", "inventory"],
   PRODUCTION_MANAGER: ["dashboard", "orders", "production"],
   HOD_ARABIC: ["dashboard", "production", "orders"],
   HOD_FUSION: ["dashboard", "production", "orders"],
@@ -32,18 +32,18 @@ const ROLE_MODULE_ACCESS: Record<string, string[]> = {
   HOD_NUTS: ["dashboard", "production", "orders"],
   HOD_ASSEMBLY: ["dashboard", "production", "orders"],
   HOD_DRAGEES: ["dashboard", "production", "orders"],
-  STORE_INCHARGE: ["dashboard", "inventory", "orders", "production"],
-  DISPATCH_MANAGER: ["dashboard", "packing", "dispatch", "orders", "inventory"],
-  DISPATCH_INCHARGE: ["dashboard", "packing", "dispatch", "orders"],
+  STORE_INCHARGE: ["dashboard", "cmd_war_room", "inventory", "orders", "production"],
+  DISPATCH_MANAGER: ["dashboard", "cmd_war_room", "packing", "dispatch", "orders", "inventory"],
+  DISPATCH_INCHARGE: ["dashboard", "cmd_war_room", "packing", "dispatch", "orders"],
   SECURITY_CONTROL: ["dashboard", "packing"],
   SALES_EXECUTIVE: [],
   SUPPORT_EXECUTIVE: ["dashboard", "support", "exceptions", "orders"],
   // Legacy compat
-  DISPATCH_HEAD: ["dashboard", "packing", "dispatch", "orders", "inventory"],
+  DISPATCH_HEAD: ["dashboard", "cmd_war_room", "packing", "dispatch", "orders", "inventory"],
   ASSEMBLY_MANAGER: ["dashboard", "production", "orders"],
   PACKING_SUPERVISOR: ["dashboard", "packing", "dispatch"],
-  STORE_READY_GOODS: ["dashboard", "inventory", "orders", "production"],
-  RGS_ADMIN: ["dashboard", "inventory", "orders", "production"],
+  STORE_READY_GOODS: ["dashboard", "cmd_war_room", "inventory", "orders", "production"],
+  RGS_ADMIN: ["dashboard", "cmd_war_room", "inventory", "orders", "production"],
   CUSTOMER_USER: [],
 };
 
@@ -73,6 +73,11 @@ const AdminLayout = () => {
     {
       title: t("Operations"),
       items: [
+        { to: "/admin/inventory-command-center", icon: Warehouse, label: "Inventory command center", end: false, moduleKey: "inventory" },
+        { to: "/admin/carton-explorer", icon: Box, label: "Carton explorer", end: false, moduleKey: "inventory" },
+        { to: "/admin/reservation-board", icon: ListOrdered, label: "Reservation board", end: false, moduleKey: "inventory" },
+        { to: "/admin/inventory-risk-board", icon: AlertOctagon, label: "Inventory risk board", end: false, moduleKey: "inventory" },
+        { to: "/admin/scan-timeline", icon: ScanBarcode, label: "Scan timeline", end: false, moduleKey: "inventory" },
         // Central Pool fully removed from sidebar — War Room is the only active track.
         // Route remains accessible via direct URL for read-only DB log auditing.
         { to: "/admin/order-management", icon: ClipboardList, label: t("Order Pipeline"), moduleKey: "orders" },

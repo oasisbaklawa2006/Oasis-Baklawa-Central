@@ -15,6 +15,11 @@ import { CmdOperationalCommPulse } from "@/components/admin/CmdOperationalCommPu
 import { packetAgeBucket } from "@/components/whatsapp/operatorInboxUtils";
 import type { OrderTraceInputs } from "@/utils/orderTrace";
 import { deriveFinanceReleaseState } from "@/utils/financeReleaseState";
+import { DEFAULT_DISPATCH_GRAPH } from "@/lib/execution-engine/executionDependencies";
+import { evaluateLaneStates, type ExecutionSatisfaction } from "@/lib/execution-engine/executionBlocking";
+import { summarizeExecutionRisk } from "@/lib/execution-engine/executionRiskEngine";
+import { deriveExecutionEscalations } from "@/lib/execution-engine/executionEscalations";
+import { deriveInventoryVarianceEscalations } from "@/lib/inventory-operating-system/inventoryRiskDerive";
 
 interface OrderItem {
   id?: string;
@@ -455,6 +460,31 @@ const CMDWarRoom = () => {
     return { all: base.length, review, clear: base.length - review };
   }, [orders, todayOnly]);
 
+  const cmdExecutionIntel = useMemo(() => {
+    const satisfaction: ExecutionSatisfaction = {
+      financeVerified: warCommSignals.financePressure === 0,
+      productionReady: true,
+      packingComplete: true,
+      barcodeReady: true,
+      dispatchLabelReady: true,
+    };
+    const states = evaluateLaneStates(DEFAULT_DISPATCH_GRAPH, satisfaction);
+    const risk = summarizeExecutionRisk(states);
+    const escalations = deriveExecutionEscalations(states);
+    const inventorySignals = deriveInventoryVarianceEscalations({
+      shelfTruthUnknown: true,
+      openReservationSignals: 0,
+      reconciliationBacklogHint: counts.review > 20,
+    });
+    return {
+      executionBlocked: risk.blockedLanes,
+      executionPending: risk.pendingLanes,
+      executionBottleneck: risk.bottleneckLane,
+      executionEscalationTopics: escalations.length,
+      inventoryRiskRows: inventorySignals.length,
+    };
+  }, [warCommSignals.financePressure, counts.review]);
+
   return (
     <div className="p-3 sm:p-4 space-y-4 bg-background max-w-full overflow-x-hidden">
       <CmdOperationalCommPulse
@@ -465,6 +495,15 @@ const CMDWarRoom = () => {
         loadError={waPulseError}
         factoryInventoryRowCount={factoryInvPulse.error ? null : factoryInvPulse.count}
         factoryInventoryError={factoryInvPulse.error}
+        executionBlockedLanes={cmdExecutionIntel.executionBlocked}
+        executionPendingLanes={cmdExecutionIntel.executionPending}
+        executionBottleneckLane={cmdExecutionIntel.executionBottleneck}
+        executionEscalationTopics={cmdExecutionIntel.executionEscalationTopics}
+        inventoryRiskAttentionRows={cmdExecutionIntel.inventoryRiskRows}
+        manualVerificationLoad={counts.review}
+        governanceHoldOrders={warCommSignals.financePressure}
+        scanAnomalyCount={null}
+        reservationRiskSignals={null}
       />
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h1 className="text-base sm:text-xl font-bold text-foreground tracking-tight">

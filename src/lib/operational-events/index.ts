@@ -6,3 +6,7 @@ export * from "./readOnlyOperationalSignals";
 export * from "./storeFeed";
 export * from "./inventoryFeed";
 export * from "./retailLaunchFeed";
+export * from "./inventoryOperationalFeed";
+export * from "./barcodeOperationalFeed";
+export * from "./executionOperationalFeed";
+export * from "./governanceOperationalFeed";
