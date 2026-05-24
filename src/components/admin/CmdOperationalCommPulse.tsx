@@ -11,6 +11,25 @@ export interface CmdOperationalCommPulseProps {
   /** Read-only `factory_inventory` row count (exact count query); null when pending or failed. */
   factoryInventoryRowCount?: number | null;
   factoryInventoryError?: string | null;
+  /**
+   * Aggregate execution dependency projection. Finance lane follows War Room finance-wait count;
+   * other lanes are treated as satisfied in this strip until dedicated readiness feeds are wired — avoids fake blockers.
+   */
+  executionBlockedLanes?: number;
+  executionPendingLanes?: number;
+  executionBottleneckLane?: string | null;
+  /** Count of derived escalation strings from the same lane evaluation (not a persisted ticket count). */
+  executionEscalationTopics?: number;
+  /** Rows from inventory OS variance derivation (projection); shelf truth flagged unknown until outlet feed lands. */
+  inventoryRiskAttentionRows?: number;
+  /** War Room triage-style count (same window as review heuristic below). */
+  manualVerificationLoad?: number;
+  /** Orders on finance hold in the War Room bounded list — governance / finance pressure proxy. */
+  governanceHoldOrders?: number;
+  /** Null until a bounded scan window is connected; never invent scan rows. */
+  scanAnomalyCount?: number | null;
+  /** Null until reservation signal feed is connected. */
+  reservationRiskSignals?: number | null;
 }
 
 /**
@@ -24,9 +43,20 @@ export function CmdOperationalCommPulse({
   loadError,
   factoryInventoryRowCount = null,
   factoryInventoryError = null,
+  executionBlockedLanes = 0,
+  executionPendingLanes = 0,
+  executionBottleneckLane = null,
+  executionEscalationTopics = 0,
+  inventoryRiskAttentionRows = 0,
+  manualVerificationLoad = 0,
+  governanceHoldOrders = 0,
+  scanAnomalyCount = null,
+  reservationRiskSignals = null,
 }: CmdOperationalCommPulseProps) {
   const fmtWa = (n: number | null) =>
     n === null ? <span className="text-muted-foreground">—</span> : n;
+  const fmtPending = (n: number | null) =>
+    n === null ? <span className="text-muted-foreground">pending</span> : n;
 
   return (
     <section
@@ -86,6 +116,79 @@ export function CmdOperationalCommPulse({
             Dispatch panic
           </div>
           <p className="mt-1 font-mono text-lg font-semibold tabular-nums text-orange-800">{dispatchPanicOrders}</p>
+        </div>
+      </div>
+      <div
+        className="mt-3 rounded-md border border-border/80 bg-background/50 px-2 py-2"
+        title="Execution dependency graph evaluated with finance lane driven by War Room finance-wait count; other lanes neutral (satisfied) until dedicated readiness signals exist — avoids silent fake bottlenecks."
+      >
+        <div className="flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+          <AlertTriangle className="h-3.5 w-3.5 text-rose-700 dark:text-rose-300" aria-hidden />
+          Execution & inventory risk (projection)
+        </div>
+        <p className="mt-1 text-[10px] leading-snug text-muted-foreground">
+          Read-only lane math plus inventory OS variance hints. Not a persisted escalation queue. Bottleneck label is the first blocked lane in graph order.
+        </p>
+        <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-4">
+          <div className="rounded-md border border-border bg-background/80 px-2 py-2">
+            <div className="text-[9px] font-medium uppercase tracking-wide text-muted-foreground">Blocked lanes</div>
+            <p className="mt-1 font-mono text-lg font-semibold tabular-nums text-rose-800 dark:text-rose-100">{executionBlockedLanes}</p>
+          </div>
+          <div className="rounded-md border border-border bg-background/80 px-2 py-2">
+            <div className="text-[9px] font-medium uppercase tracking-wide text-muted-foreground">Pending lanes</div>
+            <p className="mt-1 font-mono text-lg font-semibold tabular-nums">{executionPendingLanes}</p>
+          </div>
+          <div className="rounded-md border border-border bg-background/80 px-2 py-2">
+            <div className="text-[9px] font-medium uppercase tracking-wide text-muted-foreground">Escalation topics</div>
+            <p className="mt-1 font-mono text-lg font-semibold tabular-nums">{executionEscalationTopics}</p>
+          </div>
+          <div className="rounded-md border border-border bg-background/80 px-2 py-2">
+            <div className="text-[9px] font-medium uppercase tracking-wide text-muted-foreground">Bottleneck lane</div>
+            <p className="mt-1 text-[11px] font-medium leading-snug break-all">{executionBottleneckLane ?? "—"}</p>
+          </div>
+          <div className="rounded-md border border-border bg-background/80 px-2 py-2">
+            <div className="text-[9px] font-medium uppercase tracking-wide text-muted-foreground">Inventory risk rows</div>
+            <p className="mt-1 font-mono text-lg font-semibold tabular-nums">{inventoryRiskAttentionRows}</p>
+          </div>
+          <div className="rounded-md border border-border bg-background/80 px-2 py-2">
+            <div className="text-[9px] font-medium uppercase tracking-wide text-muted-foreground">Governance holds</div>
+            <p className="mt-1 font-mono text-lg font-semibold tabular-nums">{governanceHoldOrders}</p>
+            <p className="mt-0.5 text-[9px] text-muted-foreground">Finance-wait orders (same window)</p>
+          </div>
+          <div className="rounded-md border border-border bg-background/80 px-2 py-2">
+            <div className="text-[9px] font-medium uppercase tracking-wide text-muted-foreground">Manual verification load</div>
+            <p className="mt-1 font-mono text-lg font-semibold tabular-nums">{manualVerificationLoad}</p>
+            <p className="mt-0.5 text-[9px] text-muted-foreground">Triage-style review count</p>
+          </div>
+          <div className="rounded-md border border-border bg-background/80 px-2 py-2">
+            <div className="text-[9px] font-medium uppercase tracking-wide text-muted-foreground">Scan anomalies</div>
+            <p className="mt-1 font-mono text-lg font-semibold tabular-nums">{fmtPending(scanAnomalyCount)}</p>
+          </div>
+          <div className="rounded-md border border-border bg-background/80 px-2 py-2 sm:col-span-2">
+            <div className="text-[9px] font-medium uppercase tracking-wide text-muted-foreground">Reservation risk signals</div>
+            <p className="mt-1 font-mono text-lg font-semibold tabular-nums">{fmtPending(reservationRiskSignals)}</p>
+            <p className="mt-0.5 text-[9px] text-muted-foreground">Awaiting persisted reservation read model</p>
+          </div>
+        </div>
+        <div className="mt-2 flex flex-wrap gap-2">
+          <Link
+            to="/admin/inventory-command-center"
+            className="inline-flex min-h-9 items-center rounded-md border border-border px-3 text-xs font-medium text-foreground outline-none transition hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+          >
+            Inventory command center
+          </Link>
+          <Link
+            to="/admin/inventory-risk-board"
+            className="inline-flex min-h-9 items-center rounded-md border border-border px-3 text-xs font-medium text-foreground outline-none transition hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+          >
+            Risk & variance board
+          </Link>
+          <Link
+            to="/admin/scan-timeline"
+            className="inline-flex min-h-9 items-center rounded-md border border-border px-3 text-xs font-medium text-foreground outline-none transition hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+          >
+            Scan timeline
+          </Link>
         </div>
       </div>
       <div
