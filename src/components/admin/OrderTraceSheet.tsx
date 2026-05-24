@@ -107,6 +107,10 @@ export default function OrderTraceSheet({ orderId, open, onOpenChange }: OrderTr
     (async () => {
       setLoading(true);
       setError(null);
+      setOrder(null);
+      setItems([]);
+      setReqs([]);
+      setJobs([]);
       try {
         const [orderRes, itemsRes, reqsRes, jobsRes] = await Promise.all([
           supabase
@@ -246,6 +250,9 @@ export default function OrderTraceSheet({ orderId, open, onOpenChange }: OrderTr
     };
   }, [order, items, reqs, jobs]);
 
+  const headerIdentityOrder =
+    order && order.id === orderId ? order : ({ id: orderId } as Pick<TraceOrderRow, "id" | "order_number">);
+
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent className="w-full overflow-y-auto sm:max-w-lg">
@@ -260,10 +267,10 @@ export default function OrderTraceSheet({ orderId, open, onOpenChange }: OrderTr
           {orderId && (
             <div className="space-y-1 rounded-md border border-border bg-muted/40 px-3 py-2">
               <p className="font-mono text-sm font-semibold text-foreground">
-                {order ? formatSalesOrderLabel(order) : formatSalesOrderLabel({ id: orderId })}
+                {formatSalesOrderLabel(headerIdentityOrder)}
               </p>
-              <p className="break-all font-mono text-[11px] text-muted-foreground" title={order?.id ?? orderId}>
-                UUID · {order?.id ?? orderId}
+              <p className="break-all font-mono text-[11px] text-muted-foreground" title={headerIdentityOrder.id}>
+                UUID · {headerIdentityOrder.id}
               </p>
             </div>
           )}
