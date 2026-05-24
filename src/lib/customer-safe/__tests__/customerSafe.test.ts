@@ -9,6 +9,25 @@ describe("customer-safe projections", () => {
     expect(isSuppressedInternalLabel("Order received")).toBe(false);
   });
 
+  it("rejects operational visibility class for customer_safe", () => {
+    const filtered = filterCustomerSafeTimelineInputs([
+      {
+        id: "op",
+        at: "2026-01-01T00:00:00Z",
+        title: "Neutral production update",
+        visibilityClass: "operational",
+      },
+      {
+        id: "ok",
+        at: "2026-01-01T00:00:00Z",
+        title: "Order placed",
+        visibilityClass: "public_curated",
+      },
+    ]);
+    expect(filtered).toHaveLength(1);
+    expect(filtered[0].id).toBe("ok");
+  });
+
   it("filters governance and escalation events from timeline", () => {
     const filtered = filterCustomerSafeTimelineInputs([
       {

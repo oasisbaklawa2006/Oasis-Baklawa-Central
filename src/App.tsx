@@ -18,6 +18,7 @@ import NotFound from "./pages/NotFound.tsx";
 import ErrorBoundary from "./components/ErrorBoundary.tsx";
 import AuthErrorListener from "./components/AuthErrorListener.tsx";
 import RoleProtectedRoute from "@/components/RoleProtectedRoute";
+import AdminModuleRoute from "@/components/AdminModuleRoute";
 import PremiumAnnouncementOverlay from "@/components/PremiumAnnouncementOverlay";
 import { AuthProvider, useAuth } from "@/hooks/useAuth";
 import { getRoleDestination, isStaffRole, isStorefrontRole, normalizeRole } from "@/lib/auth-routing";
@@ -328,8 +329,22 @@ const App = () => (
                     <Route path="store-coordination" element={<StoreCoordination />} />
                     <Route path="label-command-center" element={<LabelCommandCenter />} />
                     <Route path="customer-timeline-preview" element={<CustomerTimelinePreview />} />
-                    <Route path="live-work-queues" element={<LiveWorkQueues />} />
-                    <Route path="entity-graph-explorer" element={<EntityGraphExplorer />} />
+                    <Route
+                      path="live-work-queues"
+                      element={
+                        <AdminModuleRoute moduleKey="cmd_war_room">
+                          <LiveWorkQueues />
+                        </AdminModuleRoute>
+                      }
+                    />
+                    <Route
+                      path="entity-graph-explorer"
+                      element={
+                        <AdminModuleRoute moduleKey="cmd_war_room">
+                          <EntityGraphExplorer />
+                        </AdminModuleRoute>
+                      }
+                    />
                     <Route path="rgs-tv" element={<ReadyGoodsTV />} />
                     <Route path="dispatch-mgmt" element={<DispatchManagement />} />
                     <Route path="dispatch-tv" element={<DispatchTV />} />
