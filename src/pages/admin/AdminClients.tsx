@@ -135,6 +135,7 @@ const AdminClients = () => {
   const [editCreditLimit, setEditCreditLimit] = useState<number>(0);
   const [editDiscount, setEditDiscount] = useState<number>(0);
   const [isUpdatingCompany, setIsUpdatingCompany] = useState(false);
+  const [listError, setListError] = useState<string | null>(null);
 
   useEffect(() => {
     supabase
@@ -185,6 +186,7 @@ const AdminClients = () => {
 
   const fetchApps = async (status: string) => {
     setLoading(true);
+    setListError(null);
     try {
       if (status === "directory") {
         const { data, error } = await supabase.from("companies").select("*").order("created_at", { ascending: false });
@@ -201,7 +203,9 @@ const AdminClients = () => {
       }
     } catch (err: any) {
       console.error("Failed to fetch applications:", err);
-      toast.error("Failed to load records. Please refresh.");
+      const msg = err?.message || "Failed to load records.";
+      setListError(msg);
+      toast.error("Failed to load records. Please try again.");
     } finally {
       setLoading(false);
     }
@@ -458,7 +462,10 @@ const AdminClients = () => {
           <h1 className="text-display-h2 text-foreground flex items-center gap-3">
             <Users className="text-[#B8860B]" size={32} /> Client Governance
           </h1>
-          <p className="text-sm text-muted-foreground mt-1">Review applications and manage active B2B directories.</p>
+          <p className="text-sm text-muted-foreground mt-1">
+            Review applications and manage active B2B directories.{" "}
+            <span className="text-muted-foreground/80">Route alias: /admin/approvals uses this screen.</span>
+          </p>
         </motion.div>
 
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
@@ -516,8 +523,18 @@ const AdminClients = () => {
             {STATUS_TABS.map((s) => (
               <TabsContent key={s} value={s} className="mt-0">
                 {loading ? (
-                  <div className="flex justify-center py-16">
-                    <Loader2 size={22} className="animate-spin text-[#B8860B]" />
+                  <div className="space-y-3 p-6" aria-busy="true">
+                    <div className="h-10 w-full animate-pulse rounded-lg bg-muted" />
+                    <div className="h-10 w-full animate-pulse rounded-lg bg-muted" />
+                    <div className="h-10 w-[66%] animate-pulse rounded-lg bg-muted" />
+                  </div>
+                ) : listError ? (
+                  <div className="space-y-4 p-8 text-center" role="alert">
+                    <p className="text-sm font-semibold text-destructive">Could not load this tab</p>
+                    <p className="break-words text-xs text-muted-foreground">{listError}</p>
+                    <Button type="button" variant="outline" className="min-h-11 touch-manipulation" onClick={() => void fetchApps(s)}>
+                      Retry
+                    </Button>
                   </div>
                 ) : s === "directory" ? (
                   /* DIRECTORY TAB */
@@ -590,13 +607,40 @@ const AdminClients = () => {
                   </div>
                 ) : apps.length === 0 ? (
                   /* EMPTY PIPELINE */
-                  <div className="py-16 text-center">
-                    <Users size={32} className="mx-auto text-muted-foreground/40 mb-2" />
+                  <div className="space-y-4 py-16 text-center" role="status">
+                    <Users size={32} className="mx-auto text-muted-foreground/40 mb-2" aria-hidden />
                     <p className="text-sm text-muted-foreground">No {s} applications</p>
+                    <Button type="button" variant="outline" size="sm" className="min-h-11 touch-manipulation" onClick={() => void fetchApps(s)}>
+                      Refresh
+                    </Button>
                   </div>
                 ) : (
-                  /* APPLICATION PIPELINE TABLE */
-                  <div className="overflow-x-auto">
+                  <>
+                  <div className="space-y-3 border-b border-border p-4 md:hidden">
+                    {apps.map((a) => (
+                      <button
+                        key={a.id}
+                        type="button"
+                        onClick={() => {
+                          setSelectedApp(a);
+                          setSheetOpen(true);
+                        }}
+                        className="w-full rounded-xl border border-border bg-card p-4 text-left shadow-sm transition-colors hover:bg-muted/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                      >
+                        <p className="break-words font-semibold text-foreground">{a.business_name}</p>
+                        <p className="mt-1 text-xs text-muted-foreground">
+                          {a.city}, {a.state}
+                        </p>
+                        <div className="mt-3 flex items-center justify-between gap-2">
+                          <Badge variant="outline" className={`text-[11px] font-semibold capitalize ${statusBadgeClass(a.status)}`}>
+                            {a.status}
+                          </Badge>
+                          <span className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">Open details</span>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                  <div className="hidden overflow-x-auto md:block">
                     <Table>
                       <TableHeader>
                         <TableRow className="bg-muted/30">
@@ -652,6 +696,7 @@ const AdminClients = () => {
                       </TableBody>
                     </Table>
                   </div>
+                  </>
                 )}
               </TabsContent>
             ))}
@@ -664,10 +709,10 @@ const AdminClients = () => {
           className="sm:max-w-lg border-l border-border bg-background p-0"
         >
           {selectedApp && (
-            <div className="flex flex-col h-full max-h-screen overflow-y-auto pb-8">
-              <div className="px-6 pt-6 pb-4 border-b border-border bg-muted/20">
+            <div className="flex h-full max-h-[100dvh] flex-col overflow-hidden">
+              <div className="shrink-0 border-b border-border bg-muted/20 px-6 pb-4 pt-6">
                 <SheetHeader className="space-y-1">
-                  <SheetTitle className="text-lg font-display text-foreground">{selectedApp.business_name}</SheetTitle>
+                  <SheetTitle className="break-words text-lg font-display text-foreground">{selectedApp.business_name}</SheetTitle>
                   <SheetDescription className="text-xs text-muted-foreground">
                     {selectedApp.trade_name ? `Trade: ${selectedApp.trade_name} · ` : ""}
                     {selectedApp.business_type || "Business"}
@@ -680,11 +725,9 @@ const AdminClients = () => {
                   {selectedApp.status}
                 </Badge>
               </div>
-              <div className="flex-1 px-6 py-5 space-y-5 overflow-y-auto">
+              <div className="min-h-0 flex-1 space-y-5 overflow-y-auto overscroll-y-contain px-6 py-5">
                 <div>
-                  <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">
-                    Contact Details
-                  </h4>
+                  <h4 className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Contact Details</h4>
                   <div className="space-y-2.5">
                     <DetailRow icon={Building2} label="Contact Person" value={selectedApp.contact_person} />
                     <DetailRow icon={Mail} label="Email" value={selectedApp.contact_email} />
@@ -693,9 +736,7 @@ const AdminClients = () => {
                 </div>
                 <Separator />
                 <div>
-                  <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">
-                    Business Information
-                  </h4>
+                  <h4 className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Business Information</h4>
                   <div className="space-y-2.5">
                     <DetailRow icon={FileText} label="GSTIN" value={selectedApp.gst_number} />
                     <DetailRow
@@ -719,14 +760,15 @@ const AdminClients = () => {
                 )}
               </div>
               {selectedApp.status === "pending" && (
-                <div className="border-t border-border px-6 py-5 bg-muted/10 space-y-4">
+                <div className="max-h-[min(52vh,26rem)] shrink-0 space-y-4 overflow-y-auto overscroll-y-contain border-t border-border bg-muted/20 px-6 py-4">
+                  <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Decision panel</p>
                   {/* Pricing Slab — mandatory */}
                   <div>
-                    <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1">
+                    <label className="flex items-center gap-1 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                       Pricing Slab <span className="text-destructive">*</span>
                     </label>
                     {pricingSlabs.length === 0 ? (
-                      <p className="mt-1.5 text-xs text-destructive font-medium">No active slabs found. Add slabs in Pricing settings before approving.</p>
+                      <p className="mt-1.5 text-xs font-medium text-destructive">No active slabs found. Add slabs in Pricing settings before approving.</p>
                     ) : (
                       <Select
                         value={priceTier[selectedApp.id] || ""}
@@ -749,11 +791,8 @@ const AdminClients = () => {
                     )}
                   </div>
 
-                  {/* Account Manager — optional */}
                   <div>
-                    <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                      Account Manager
-                    </label>
+                    <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Account Manager</label>
                     <Select
                       value={accountManager[selectedApp.id] || ""}
                       onValueChange={(v) => setAccountManager({ ...accountManager, [selectedApp.id]: v })}
@@ -771,68 +810,85 @@ const AdminClients = () => {
                     </Select>
                   </div>
 
-                  {/* Admin Notes */}
                   <div>
-                    <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                      Admin Notes
-                    </label>
+                    <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Admin Notes</label>
                     <textarea
                       rows={2}
                       value={notes[selectedApp.id] || ""}
                       onChange={(e) => setNotes({ ...notes, [selectedApp.id]: e.target.value })}
                       placeholder="Internal notes (optional)…"
-                      className="mt-1.5 w-full rounded-lg border border-border bg-card px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground resize-none focus:outline-none focus:ring-1 focus:ring-ring"
+                      className="mt-1.5 w-full rounded-lg border border-border bg-card px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground resize-none focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                     />
                   </div>
 
-                  {/* Primary actions */}
-                  <div className="flex gap-3 pt-1">
-                    <Button
-                      onClick={() => handleApprove(selectedApp)}
-                      disabled={actionLoading === selectedApp.id || !priceTier[selectedApp.id]}
-                      title={!priceTier[selectedApp.id] ? "Select a pricing slab to enable approval" : undefined}
-                      className="flex-1 bg-primary hover:bg-primary/90 text-primary-foreground font-semibold rounded-lg disabled:opacity-40"
-                    >
-                      {actionLoading === selectedApp.id ? (
-                        <Loader2 size={14} className="animate-spin mr-1.5" />
-                      ) : (
-                        <CheckCircle2 size={14} className="mr-1.5" />
-                      )}
-                      Approve & Activate
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      onClick={() => handleReject(selectedApp)}
-                      disabled={actionLoading === selectedApp.id}
-                      className="text-destructive hover:bg-destructive/10 font-semibold rounded-lg"
-                    >
-                      <XCircle size={14} className="mr-1.5" /> Reject
-                    </Button>
+                  <div className="rounded-lg border border-border bg-card/80 p-3">
+                    <label htmlFor={`reject-reason-${selectedApp.id}`} className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                      Rejection reason (optional, saved if you reject)
+                    </label>
+                    <textarea
+                      id={`reject-reason-${selectedApp.id}`}
+                      rows={2}
+                      value={rejectionReason[selectedApp.id] || ""}
+                      onChange={(e) => setRejectionReason({ ...rejectionReason, [selectedApp.id]: e.target.value })}
+                      placeholder="Visible to auditors if this application is rejected…"
+                      className="mt-2 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground resize-none focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                    />
                   </div>
 
-                  {/* Request Info section */}
-                  <div className="border-t border-border pt-4 space-y-2">
-                    <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
-                      <AlertCircle size={11} /> Request More Information
+                  <div className="space-y-2 border-t border-border pt-3">
+                    <p className="text-[10px] font-semibold uppercase tracking-wide text-destructive">Irreversible for this applicant</p>
+                    <div className="flex flex-col gap-2 sm:flex-row sm:items-stretch">
+                      <Button
+                        type="button"
+                        onClick={() => void handleApprove(selectedApp)}
+                        disabled={actionLoading === selectedApp.id || !priceTier[selectedApp.id]}
+                        title={!priceTier[selectedApp.id] ? "Select a pricing slab to enable approval" : undefined}
+                        className="min-h-12 flex-1 touch-manipulation bg-primary font-semibold text-primary-foreground hover:bg-primary/90 disabled:opacity-40"
+                        aria-label="Approve and activate B2B account"
+                      >
+                        {actionLoading === selectedApp.id ? (
+                          <Loader2 size={14} className="mr-1.5 animate-spin" aria-hidden />
+                        ) : (
+                          <CheckCircle2 size={14} className="mr-1.5" aria-hidden />
+                        )}
+                        Approve & Activate
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() => void handleReject(selectedApp)}
+                        disabled={actionLoading === selectedApp.id}
+                        className="min-h-12 touch-manipulation border-destructive/50 font-semibold text-destructive hover:bg-destructive/10 sm:min-w-[7rem]"
+                        aria-label="Reject application"
+                      >
+                        <XCircle size={14} className="mr-1.5" aria-hidden /> Reject
+                      </Button>
+                    </div>
+                  </div>
+
+                  <div className="space-y-2 border-t border-border pt-4">
+                    <label className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                      <AlertCircle size={11} aria-hidden /> Request More Information
                     </label>
                     <textarea
                       rows={2}
                       value={requestInfoNote[selectedApp.id] || ""}
                       onChange={(e) => setRequestInfoNote({ ...requestInfoNote, [selectedApp.id]: e.target.value })}
                       placeholder="Describe what documents or info is needed…"
-                      className="w-full rounded-lg border border-border bg-card px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground resize-none focus:outline-none focus:ring-1 focus:ring-ring"
+                      className="w-full rounded-lg border border-border bg-card px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground resize-none focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                     />
                     <Button
+                      type="button"
                       variant="outline"
                       size="sm"
-                      onClick={() => handleRequestInfo(selectedApp)}
+                      className="min-h-11 w-full touch-manipulation text-xs font-semibold border-border sm:w-auto"
+                      onClick={() => void handleRequestInfo(selectedApp)}
                       disabled={requestingInfo === selectedApp.id || !requestInfoNote[selectedApp.id]?.trim()}
-                      className="text-xs font-semibold border-border"
                     >
                       {requestingInfo === selectedApp.id ? (
-                        <Loader2 size={12} className="animate-spin mr-1.5" />
+                        <Loader2 size={12} className="mr-1.5 animate-spin" aria-hidden />
                       ) : (
-                        <Send size={12} className="mr-1.5" />
+                        <Send size={12} className="mr-1.5" aria-hidden />
                       )}
                       Log Request (keeps pending)
                     </Button>
