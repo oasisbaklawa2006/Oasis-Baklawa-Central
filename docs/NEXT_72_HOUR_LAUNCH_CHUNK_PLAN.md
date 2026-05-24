@@ -12,14 +12,14 @@ Purpose: map remaining launch work into **module-by-module closures** so each ch
 - operational event spine
 - WhatsApp communication projection
 - order trace stitched timeline
-- CMD communication pulse (+ read-only **factory_inventory** row count strip — not shelf stock)
-- **Retail store coordination** (B1 route + B2 visibility + **read-only factory_inventory snapshot** + B5 store + inventory operational projections)
+- CMD communication pulse (+ read-only **factory_inventory** row count + **retail/label pilot pending strip** — no fake counts)
+- **Retail store coordination** (B1 + B2 + inventory snapshot + **local reservation/factory drafts** + **retail launch timelines** + merged operational projections)
 
 ---
 
 ## Retail / store coordination — next required
 
-**Done (partial):** B1 shell, B2 outlet / reservation / factory **UI + honest placeholders**, B5 **projection feeds** + merged timeline + unit tests, **read-only `factory_inventory` visibility** (factory-row level; not shelf truth).
+**Done (partial):** B1 shell, B2 outlet cards + **read-only `factory_inventory`**, **local reservation + factory follow-up drafts** (no DB writes), **retail launch operational feed** + multi-lane timelines, B5 merged projections + unit tests.
 
 **Still required for “real” coordination:**
 
@@ -27,6 +27,8 @@ Purpose: map remaining launch work into **module-by-module closures** so each ch
 - Reservation **persistence** and conflict rules (operator-gated writes, separate approval)
 - Factory follow-up **persistence** and linkage to production jobs / WhatsApp hints (read-first)
 - Optional: dedicated **retail** timeline filter chip (currently uses existing `OperationalTimeline` categories only)
+
+See also: `docs/LAUNCH_BLOCKERS_MASTER.md`, `docs/OPERATIONAL_MODULE_COMPLETION_MATRIX.md`, `docs/BARCODE_LABEL_FOUNDATION_STATUS.md`, `docs/CUSTOMER_TIMELINE_FOUNDATION_STATUS.md`.
 
 ---
 
