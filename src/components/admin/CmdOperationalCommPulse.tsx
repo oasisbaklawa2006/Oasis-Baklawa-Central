@@ -1,5 +1,7 @@
 import { Link } from "react-router-dom";
-import { IndianRupee, MessageCircle, Store, Tag, Truck, Warehouse, ScanLine, AlertTriangle } from "lucide-react";
+import { IndianRupee, MessageCircle, Store, Tag, Truck, Warehouse, ScanLine, AlertTriangle, ListOrdered, Network } from "lucide-react";
+import type { WorkQueueId } from "@/lib/work-queues/queueTypes";
+import { WORK_QUEUE_LABELS } from "@/lib/work-queues/queueTypes";
 
 export interface CmdOperationalCommPulseProps {
   /** Null until a successful fetch, or after a failed fetch (never coerce failure to 0). */
@@ -34,6 +36,17 @@ export interface CmdOperationalCommPulseProps {
   scanAnomalyCount?: number | null;
   /** Null until reservation signal feed is connected. */
   reservationRiskSignals?: number | null;
+  /** Unified dependency graph root blocker label (projection). */
+  unifiedRootBlocker?: string | null;
+  unifiedBlockerContext?: string | null;
+  /** Finance blocking downstream dispatch chain (projection). */
+  financeToDispatchDependencyRisk?: boolean;
+  /** Sum of customer-impact queue pressures when connected; null otherwise. */
+  customerRiskQueuePressure?: number | null;
+  /** Hottest queue by explicit pressure input; null when no queue connected. */
+  escalationHotspotQueue?: WorkQueueId | null;
+  reservationVerificationLoad?: number | null;
+  scanExceptionPressure?: number | null;
 }
 
 /**
@@ -58,6 +71,13 @@ export function CmdOperationalCommPulse({
   governanceHoldOrders = 0,
   scanAnomalyCount = null,
   reservationRiskSignals = null,
+  unifiedRootBlocker = null,
+  unifiedBlockerContext = null,
+  financeToDispatchDependencyRisk = false,
+  customerRiskQueuePressure = null,
+  escalationHotspotQueue = null,
+  reservationVerificationLoad = null,
+  scanExceptionPressure = null,
 }: CmdOperationalCommPulseProps) {
   const fmtWa = (n: number | null) =>
     n === null ? <span className="text-muted-foreground">—</span> : n;
@@ -203,6 +223,64 @@ export function CmdOperationalCommPulse({
             className="inline-flex min-h-9 items-center rounded-md border border-border px-3 text-xs font-medium text-foreground outline-none transition hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
           >
             Scan timeline
+          </Link>
+        </div>
+      </div>
+      <div
+        className="mt-3 rounded-md border border-border/80 bg-background/50 px-2 py-2"
+        title="Live work queue foundation — projection from War Room signals where connected; pending otherwise."
+      >
+        <div className="flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+          <ListOrdered className="h-3.5 w-3.5" aria-hidden />
+          Queue pressure (projection)
+        </div>
+        <p className="mt-1 text-[10px] leading-snug text-muted-foreground">
+          Unified blocker lane and queue hotspots. Not a persisted queue — counts from explicit War Room inputs only.
+        </p>
+        <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-4">
+          <div className="rounded-md border border-border bg-background/80 px-2 py-2 col-span-2 sm:col-span-4">
+            <div className="text-[9px] font-medium uppercase tracking-wide text-muted-foreground">Unified root blocker</div>
+            <p className="mt-1 text-[11px] font-medium">{unifiedRootBlocker ?? "—"}</p>
+            {unifiedBlockerContext ? (
+              <p className="mt-1 text-[10px] text-muted-foreground">{unifiedBlockerContext}</p>
+            ) : null}
+          </div>
+          <div className="rounded-md border border-border bg-background/80 px-2 py-2">
+            <div className="text-[9px] font-medium uppercase tracking-wide text-muted-foreground">Finance→dispatch risk</div>
+            <p className="mt-1 font-mono text-sm font-semibold">{financeToDispatchDependencyRisk ? "yes" : "no"}</p>
+          </div>
+          <div className="rounded-md border border-border bg-background/80 px-2 py-2">
+            <div className="text-[9px] font-medium uppercase tracking-wide text-muted-foreground">Customer-risk queue</div>
+            <p className="mt-1 font-mono text-lg font-semibold tabular-nums">{fmtPending(customerRiskQueuePressure)}</p>
+          </div>
+          <div className="rounded-md border border-border bg-background/80 px-2 py-2">
+            <div className="text-[9px] font-medium uppercase tracking-wide text-muted-foreground">Escalation hotspot</div>
+            <p className="mt-1 text-[10px] font-medium leading-snug">
+              {escalationHotspotQueue ? WORK_QUEUE_LABELS[escalationHotspotQueue] : "—"}
+            </p>
+          </div>
+          <div className="rounded-md border border-border bg-background/80 px-2 py-2">
+            <div className="text-[9px] font-medium uppercase tracking-wide text-muted-foreground">Reservation verification</div>
+            <p className="mt-1 font-mono text-lg font-semibold tabular-nums">{fmtPending(reservationVerificationLoad)}</p>
+          </div>
+          <div className="rounded-md border border-border bg-background/80 px-2 py-2">
+            <div className="text-[9px] font-medium uppercase tracking-wide text-muted-foreground">Scan exception pressure</div>
+            <p className="mt-1 font-mono text-lg font-semibold tabular-nums">{fmtPending(scanExceptionPressure)}</p>
+          </div>
+        </div>
+        <div className="mt-2 flex flex-wrap gap-2">
+          <Link
+            to="/admin/live-work-queues"
+            className="inline-flex min-h-9 items-center rounded-md border border-border px-3 text-xs font-medium text-foreground outline-none transition hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+          >
+            Live work queues
+          </Link>
+          <Link
+            to="/admin/entity-graph-explorer"
+            className="inline-flex min-h-9 items-center rounded-md border border-border px-3 text-xs font-medium text-foreground outline-none transition hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+          >
+            <Network className="mr-1 inline h-3.5 w-3.5" aria-hidden />
+            Entity graph
           </Link>
         </div>
       </div>
