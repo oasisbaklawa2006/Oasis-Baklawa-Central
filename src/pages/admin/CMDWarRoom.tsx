@@ -218,7 +218,8 @@ const CMDWarRoom = () => {
         .from("whatsapp_message_packets" as any)
         .select("id, last_message_at")
         .eq("status", "open")
-        .order("last_message_at", { ascending: false, nullsFirst: false })
+        // Match operator inbox (`WhatsAppInbox.tsx`): descending `last_message_at` with default null ordering only.
+        .order("last_message_at", { ascending: false })
         .limit(1000);
       if (error) throw error;
       const rows = (data ?? []) as unknown as { id: string; last_message_at: string }[];

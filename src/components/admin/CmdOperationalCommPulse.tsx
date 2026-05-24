@@ -32,8 +32,9 @@ export function CmdOperationalCommPulse({
         Operational communication pulse
       </h2>
       <p className="mt-1 text-[11px] leading-snug text-muted-foreground">
-        Read-only visibility. WhatsApp counts use open packets + idle buckets; order counts use the same War Room order
-        list.
+        Read-only visibility. WhatsApp open/stale are counted on the <span className="font-medium text-foreground/80">latest 1000</span> open
+        packets, ordered like the operator inbox (bounded sample — not a global total if more rows exist). Finance wait
+        and dispatch panic use the same War Room order window as the list below.
       </p>
       {loadError ? (
         <p className="mt-2 text-[11px] text-destructive" role="status">
@@ -41,28 +42,40 @@ export function CmdOperationalCommPulse({
         </p>
       ) : null}
       <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
-        <div className="rounded-md border border-border bg-background/80 px-2 py-2">
+        <div
+          className="rounded-md border border-border bg-background/80 px-2 py-2"
+          title="Open packets in the latest 1000-row inbox-ordered window. If more than 1000 open packets exist globally, this is a lower bound."
+        >
           <div className="flex items-center gap-1 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
             <MessageCircle className="h-3.5 w-3.5" aria-hidden />
-            WA open
+            WA open (latest 1000)
           </div>
           <p className="mt-1 font-mono text-lg font-semibold tabular-nums">{fmtWa(openWhatsappPackets)}</p>
         </div>
-        <div className="rounded-md border border-border bg-background/80 px-2 py-2">
+        <div
+          className="rounded-md border border-border bg-background/80 px-2 py-2"
+          title="Stale idle bucket count within the same latest-1000 open-packet window as WA open (inbox ordering)."
+        >
           <div className="flex items-center gap-1 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
             <MessageCircle className="h-3.5 w-3.5 text-amber-600" aria-hidden />
-            WA stale
+            WA stale (same window)
           </div>
           <p className="mt-1 font-mono text-lg font-semibold tabular-nums text-amber-800">{fmtWa(staleWhatsappPackets)}</p>
         </div>
-        <div className="rounded-md border border-border bg-background/80 px-2 py-2">
+        <div
+          className="rounded-md border border-border bg-background/80 px-2 py-2"
+          title="Orders in the War Room active list (~200 newest non-terminal rows) where finance_hold is true — not a full-ledger total."
+        >
           <div className="flex items-center gap-1 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
             <IndianRupee className="h-3.5 w-3.5" aria-hidden />
             Finance wait
           </div>
           <p className="mt-1 font-mono text-lg font-semibold tabular-nums">{financePressureOrders}</p>
         </div>
-        <div className="rounded-md border border-border bg-background/80 px-2 py-2">
+        <div
+          className="rounded-md border border-border bg-background/80 px-2 py-2"
+          title="Orders in the War Room active list with dispatch_urgency = panic — same bounded window as finance wait."
+        >
           <div className="flex items-center gap-1 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
             <Truck className="h-3.5 w-3.5 text-orange-600" aria-hidden />
             Dispatch panic
