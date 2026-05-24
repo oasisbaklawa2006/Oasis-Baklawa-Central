@@ -97,6 +97,8 @@ const FinanceReleaseBoard = lazy(() => import("./pages/admin/FinanceReleaseBoard
 const StoreCoordination = lazy(() => import("./pages/admin/StoreCoordination.tsx"));
 const LabelCommandCenter = lazy(() => import("./pages/admin/LabelCommandCenter.tsx"));
 const CustomerTimelinePreview = lazy(() => import("./pages/admin/CustomerTimelinePreview.tsx"));
+const NotificationCenter = lazy(() => import("./pages/admin/NotificationCenter.tsx"));
+const MediaDocumentVault = lazy(() => import("./pages/admin/MediaDocumentVault.tsx"));
 
 const ADMIN_ONLY_ROLES = ["SUPER_ADMIN", "ADMIN"];
 
@@ -316,6 +318,8 @@ const App = () => (
                     <Route path="store-coordination" element={<StoreCoordination />} />
                     <Route path="label-command-center" element={<LabelCommandCenter />} />
                     <Route path="customer-timeline-preview" element={<CustomerTimelinePreview />} />
+                    <Route path="notification-center" element={<NotificationCenter />} />
+                    <Route path="media-vault" element={<MediaDocumentVault />} />
                     <Route path="rgs-tv" element={<ReadyGoodsTV />} />
                     <Route path="dispatch-mgmt" element={<DispatchManagement />} />
                     <Route path="dispatch-tv" element={<DispatchTV />} />

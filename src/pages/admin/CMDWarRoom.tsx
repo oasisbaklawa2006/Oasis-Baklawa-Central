@@ -15,6 +15,9 @@ import { CmdOperationalCommPulse } from "@/components/admin/CmdOperationalCommPu
 import { packetAgeBucket } from "@/components/whatsapp/operatorInboxUtils";
 import type { OrderTraceInputs } from "@/utils/orderTrace";
 import { deriveFinanceReleaseState } from "@/utils/financeReleaseState";
+import { buildNotificationOperationalFeed, countHighSeverityNotificationFeed } from "@/lib/operational-events/notificationFeed";
+import { buildMediaVaultProjectionCatalog } from "@/lib/media-vault/mediaVaultProjection";
+import { countMediaManualVerificationProjections } from "@/lib/operational-events/mediaFeed";
 
 interface OrderItem {
   id?: string;
@@ -436,6 +439,19 @@ const CMDWarRoom = () => {
     return { financePressure, dispatchPanic };
   }, [orders]);
 
+  const cmdVisibilityProjectionCounts = useMemo(() => {
+    const notifFeed = buildNotificationOperationalFeed({
+      financePressureOrders: warCommSignals.financePressure,
+      dispatchPanicOrders: warCommSignals.dispatchPanic,
+      whatsappStalePackets: waPulse === null ? null : waPulse.stale,
+    });
+    const mediaCatalog = buildMediaVaultProjectionCatalog();
+    return {
+      notificationUrgentProjectionCount: countHighSeverityNotificationFeed(notifFeed),
+      mediaManualVerifyProjectionCount: countMediaManualVerificationProjections(mediaCatalog),
+    };
+  }, [warCommSignals.financePressure, warCommSignals.dispatchPanic, waPulse]);
+
   const counts = useMemo(() => {
     const startOfToday = new Date();
     startOfToday.setHours(0, 0, 0, 0);
@@ -465,6 +481,8 @@ const CMDWarRoom = () => {
         loadError={waPulseError}
         factoryInventoryRowCount={factoryInvPulse.error ? null : factoryInvPulse.count}
         factoryInventoryError={factoryInvPulse.error}
+        notificationUrgentProjectionCount={cmdVisibilityProjectionCounts.notificationUrgentProjectionCount}
+        mediaManualVerifyProjectionCount={cmdVisibilityProjectionCounts.mediaManualVerifyProjectionCount}
       />
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h1 className="text-base sm:text-xl font-bold text-foreground tracking-tight">

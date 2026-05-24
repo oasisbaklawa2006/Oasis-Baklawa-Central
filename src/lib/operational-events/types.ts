@@ -40,7 +40,8 @@ export type OperationalEntityType =
   | "approval"
   | "store"
   | "reservation"
-  | "product";
+  | "product"
+  | "document";
 
 export interface OperationalEntityRef {
   entityType: OperationalEntityType;
@@ -54,9 +55,34 @@ export type OperationalEventSource =
   | "derived_store_coordination"
   | "derived_inventory_visibility"
   | "derived_retail_launch"
+  | "derived_notification_center"
+  | "derived_media_vault"
   | "notification_outbox"
   | "manual"
   | "future_event_store";
+
+/** Notification Center — visibility projections only (no send engine). */
+export const NotificationOperationalEventKind = {
+  VISIBILITY_ONLY: "notification.visibility_only",
+  FINANCE_PENDING: "notification.finance_pending",
+  DISPATCH_DELAYED: "notification.dispatch_delayed",
+  WHATSAPP_STALE: "notification.whatsapp_stale",
+  APPROVAL_PENDING: "notification.approval_pending",
+  FACTORY_FOLLOWUP_PENDING: "notification.factory_followup_pending",
+  RESERVATION_BACKEND_PENDING: "notification.reservation_backend_pending",
+  STOCK_VISIBILITY_UNKNOWN: "notification.stock_visibility_unknown",
+  LABEL_PRINT_PENDING: "notification.label_print_pending",
+  CUSTOMER_SUPPORT_WINDOW: "notification.customer_support_window",
+} as const;
+
+/** Media / document vault — metadata and hints only (no uploads). */
+export const MediaOperationalEventKind = {
+  DOCUMENT_VISIBLE: "media.document_visible",
+  RECEIPT_HINT: "media.receipt_hint",
+  DISPATCH_PROOF_HINT: "media.dispatch_proof_hint",
+  LABEL_PREVIEW: "media.label_preview",
+  WHATSAPP_ATTACHMENT_HINT: "media.whatsapp_attachment_hint",
+} as const;
 
 /** Order / dispatch / finance (existing trace builder). */
 export const OperationalEventKind = {

@@ -6,3 +6,5 @@ export * from "./readOnlyOperationalSignals";
 export * from "./storeFeed";
 export * from "./inventoryFeed";
 export * from "./retailLaunchFeed";
+export * from "./notificationFeed";
+export * from "./mediaFeed";

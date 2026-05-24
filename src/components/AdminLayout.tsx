@@ -2,8 +2,8 @@ import { NavLink, Outlet } from "react-router-dom";
 import {
   LayoutDashboard, UserCheck, ClipboardList, Truck, DollarSign, LogOut, Menu, X, Loader2,
   Headphones, Users, Package, BarChart3, Scale, Globe, Settings, Shield, MessageCircle,
-  Factory, PackageCheck, Landmark, AlertCircle, Languages, Bell, Sparkles, Monitor, Activity, Megaphone, Store,
-  ScanLine, CalendarDays,
+  Factory, PackageCheck, Landmark, AlertCircle, Languages, Bell, Sparkles, Monitor, Megaphone, Store,
+  ScanLine, CalendarDays, BellRing, FolderOpen,
 } from "lucide-react";
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
@@ -85,6 +85,8 @@ const AdminLayout = () => {
         { to: "/admin/store-coordination", icon: Store, label: "Store coordination", moduleKey: "orders" },
         { to: "/admin/label-command-center", icon: ScanLine, label: "Label command center", moduleKey: "orders" },
         { to: "/admin/customer-timeline-preview", icon: CalendarDays, label: "Customer timeline preview", moduleKey: "orders" },
+        { to: "/admin/notification-center", icon: BellRing, label: "Notification Center", moduleKey: "orders" },
+        { to: "/admin/media-vault", icon: FolderOpen, label: "Media vault", moduleKey: "orders" },
         { to: "/admin/dispatch-mgmt", icon: Truck, label: "Dispatch", moduleKey: "packing" },
         { to: "/security-gate", icon: Shield, label: "Security Gate", moduleKey: "packing" },
       ],

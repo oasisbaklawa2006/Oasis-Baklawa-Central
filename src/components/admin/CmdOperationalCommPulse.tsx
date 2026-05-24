@@ -1,5 +1,17 @@
 import { Link } from "react-router-dom";
-import { IndianRupee, MessageCircle, Store, Tag, Truck, Warehouse, ScanLine, AlertTriangle } from "lucide-react";
+import {
+  IndianRupee,
+  MessageCircle,
+  Store,
+  Tag,
+  Truck,
+  Warehouse,
+  ScanLine,
+  AlertTriangle,
+  BellRing,
+  FolderOpen,
+  FileWarning,
+} from "lucide-react";
 
 export interface CmdOperationalCommPulseProps {
   /** Null until a successful fetch, or after a failed fetch (never coerce failure to 0). */
@@ -11,6 +23,13 @@ export interface CmdOperationalCommPulseProps {
   /** Read-only `factory_inventory` row count (exact count query); null when pending or failed. */
   factoryInventoryRowCount?: number | null;
   factoryInventoryError?: string | null;
+  /**
+   * Count of urgent/critical rows in the visibility-only notification projection feed
+   * (bounded War Room / inbox signals — not an outbox unread count).
+   */
+  notificationUrgentProjectionCount?: number | null;
+  /** Shell catalog count of document classes requiring manual attachment verification (metadata only). */
+  mediaManualVerifyProjectionCount?: number | null;
 }
 
 /**
@@ -24,9 +43,14 @@ export function CmdOperationalCommPulse({
   loadError,
   factoryInventoryRowCount = null,
   factoryInventoryError = null,
+  notificationUrgentProjectionCount = null,
+  mediaManualVerifyProjectionCount = null,
 }: CmdOperationalCommPulseProps) {
   const fmtWa = (n: number | null) =>
     n === null ? <span className="text-muted-foreground">—</span> : n;
+
+  const fmtProjection = (n: number | null) =>
+    n === null ? <span className="text-muted-foreground">pending</span> : <span className="font-mono text-foreground">{n}</span>;
 
   return (
     <section
@@ -157,6 +181,55 @@ export function CmdOperationalCommPulse({
             className="inline-flex min-h-9 items-center rounded-md border border-border px-3 text-xs font-medium text-foreground outline-none transition hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
           >
             Customer timeline preview
+          </Link>
+        </div>
+      </div>
+      <div className="mt-3 rounded-md border border-violet-500/30 bg-violet-500/5 px-2 py-2">
+        <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Notification & media visibility</p>
+        <p className="mt-1 text-[10px] leading-snug text-muted-foreground">
+          No send engine and no upload backend — counts below are projection summaries or shell-catalog hints, not delivery or storage totals.
+        </p>
+        <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2">
+          <div className="rounded-md border border-border/70 bg-background/70 px-2 py-1.5">
+            <div className="flex items-center gap-1 text-[9px] font-medium uppercase tracking-wide text-muted-foreground">
+              <BellRing className="h-3 w-3 shrink-0" aria-hidden />
+              Notification center · visibility only
+            </div>
+            <p className="mt-1 text-[10px] leading-snug text-foreground/90">
+              High-severity projection rows (urgent/critical topics in the feed): {fmtProjection(notificationUrgentProjectionCount)}
+            </p>
+          </div>
+          <div className="rounded-md border border-border/70 bg-background/70 px-2 py-1.5">
+            <div className="flex items-center gap-1 text-[9px] font-medium uppercase tracking-wide text-muted-foreground">
+              <FolderOpen className="h-3 w-3 shrink-0" aria-hidden />
+              Media vault · metadata only
+            </div>
+            <p className="mt-1 text-[10px] leading-snug text-foreground/90">
+              Document classes flagged for manual attachment verification (catalog): {fmtProjection(mediaManualVerifyProjectionCount)}
+            </p>
+          </div>
+          <div className="rounded-md border border-border/70 bg-background/70 px-2 py-1.5 sm:col-span-2">
+            <div className="flex items-center gap-1 text-[9px] font-medium uppercase tracking-wide text-muted-foreground">
+              <FileWarning className="h-3 w-3 shrink-0" aria-hidden />
+              Open attention (existing War Room windows)
+            </div>
+            <p className="mt-1 text-[10px] leading-snug text-foreground/90">
+              Continue using finance wait, dispatch panic, and WhatsApp stale tiles above — notification center does not duplicate outbound sends.
+            </p>
+          </div>
+        </div>
+        <div className="mt-2 flex flex-wrap gap-2">
+          <Link
+            to="/admin/notification-center"
+            className="inline-flex min-h-9 items-center rounded-md border border-violet-500/40 bg-violet-500/10 px-3 text-xs font-medium text-foreground outline-none transition hover:bg-violet-500/15 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+          >
+            Notification Center
+          </Link>
+          <Link
+            to="/admin/media-vault"
+            className="inline-flex min-h-9 items-center rounded-md border border-violet-500/40 bg-violet-500/10 px-3 text-xs font-medium text-foreground outline-none transition hover:bg-violet-500/15 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+          >
+            Media vault
           </Link>
         </div>
       </div>
