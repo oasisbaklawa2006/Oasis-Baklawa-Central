@@ -1,6 +1,6 @@
 # Live work queue foundation
 
-Last updated: 2026-05-24
+Last updated: 2026-05-25
 
 ## Purpose
 
@@ -31,11 +31,30 @@ Entity refs, priority, readiness, blockers, owner role, escalation state, depend
 
 `pressureCount` is **null** when a feed is not connected — never coerced to zero.
 
-War Room wires explicit counts via `cmdQueuePressure.ts` (finance hold, dispatch panic, triage review).
+**Hardened:** `projectWorkQueues` does **not** derive pressure from `items.length`. Callers must pass `pressureByQueue` explicitly.
+
+## Live read-only feeds (`src/lib/live-feeds/`)
+
+| Adapter | Source (select-only) |
+|---------|----------------------|
+| `financeQueueFeed` | War Room orders · finance hold derivation |
+| `productionQueueFeed` | Orders in production pipeline statuses |
+| `assemblyQueueFeed` | Assembly / partial_ready / packed_ready |
+| `dispatchQueueFeed` | Dispatch pipeline + panic urgency |
+| `readyGoodsQueueFeed` | `packed_ready` orders |
+| `thirdPartyQueueFeed` | `needs_clarification` proxy |
+| `customerRiskQueueFeed` | Finance + panic + triage + support tickets |
+| `escalationQueueFeed` | Advisory escalation topics |
+| `blockerQueueFeed` | Dependency graph root blocker |
+| `cmdPressureFeed` | Aggregated pressures + unified blocker |
+
+Hook: `useOperationalLiveFeeds` (Supabase **select only** in hook — adapters stay pure).
 
 ## Admin UI
 
-`/admin/live-work-queues` — queue cards, dependency ribbon, owner lanes (read-only).
+`/admin/live-work-queues` — live feed cards, filters, read-only item drawer. **Module guard:** `cmd_war_room` via `AdminModuleRoute`.
+
+`/admin/entity-graph-explorer` — order/customer/finance/dispatch/production nodes from same feed context.
 
 ## Safety
 

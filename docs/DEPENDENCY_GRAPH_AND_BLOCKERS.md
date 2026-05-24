@@ -1,6 +1,6 @@
 # Dependency graph and blockers
 
-Last updated: 2026-05-24
+Last updated: 2026-05-25
 
 ## Purpose
 
@@ -29,4 +29,4 @@ Operational dependency lanes (finance → production → assembly → dispatch �
 
 ## CMD integration
 
-`financeBlocksProductionProjection()` feeds the unified blocker lane in CMD pulse and live work queue shell.
+`blockerQueueFeed` + `cmdPressureFeed` feed the unified blocker lane in CMD pulse and `/admin/live-work-queues` via `aggregateLiveFeeds()`.
