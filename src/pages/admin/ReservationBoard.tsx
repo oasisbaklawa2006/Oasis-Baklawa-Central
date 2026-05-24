@@ -8,11 +8,18 @@ import { OperationalTimeline } from "@/components/admin/OperationalTimeline";
 import { dedupeOperationalEventsById } from "@/lib/operational-events/normalize";
 import { buildGovernanceOperationalFeed } from "@/lib/operational-events/governanceOperationalFeed";
 
-const DEMO: ReservationLifecycleState[] = ["draft", "verification_required", "pending_approval", "approved", "released"];
+/** Design-time state reference cards only — not live reservations. */
+const STATE_REFERENCE: ReservationLifecycleState[] = [
+  "draft",
+  "verification_required",
+  "pending_approval",
+  "approved",
+  "released",
+];
 
 export default function ReservationBoard() {
   const events = useMemo(
-    () => dedupeOperationalEventsById(buildGovernanceOperationalFeed({ escalationTopics: ["Reservation approvals"] })),
+    () => dedupeOperationalEventsById(buildGovernanceOperationalFeed({ escalationTopics: [] })),
     [],
   );
 
@@ -29,7 +36,7 @@ export default function ReservationBoard() {
         States below are design references only — no persisted reservation locks. Locking requires persistence + RLS in a future PR.
       </p>
       <div className="grid gap-3 md:grid-cols-2">
-        {DEMO.map((s) => (
+        {STATE_REFERENCE.map((s) => (
           <Card key={s} className="shadow-none ring-1 ring-border/50">
             <CardHeader className="pb-2">
               <CardTitle className="text-sm font-semibold capitalize">{s.replace(/_/g, " ")}</CardTitle>

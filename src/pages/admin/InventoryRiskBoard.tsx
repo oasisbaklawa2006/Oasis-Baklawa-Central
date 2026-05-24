@@ -13,7 +13,7 @@ export default function InventoryRiskBoard() {
       dedupeOperationalEventsById(
         mergeOperationalEventFeeds([
           buildInventoryOsOperationalFeed({
-            risk: { shelfTruthUnknown: true, openReservationSignals: 3, reconciliationBacklogHint: true },
+            risk: { shelfTruthUnknown: true, openReservationSignals: 0, reconciliationBacklogHint: false },
           }),
           buildExecutionOperationalFeed({
             satisfaction: {
@@ -38,6 +38,10 @@ export default function InventoryRiskBoard() {
           Variance + execution
         </Badge>
       </header>
+      <p className="text-xs text-muted-foreground">
+        Feed uses honest flags only (e.g. shelf truth unknown). Reservation counts and reconciliation backlog hints stay off
+        until real signals are wired.
+      </p>
       <Card>
         <CardHeader>
           <CardTitle className="text-sm">Escalation projections</CardTitle>

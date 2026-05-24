@@ -5,12 +5,13 @@ import { Badge } from "@/components/ui/badge";
 import type { CartonLifecycleState } from "@/lib/inventory-operating-system/inventoryTypes";
 import { CARTON_VALID_NEXT, deriveCartonRisk } from "@/lib/inventory-operating-system/cartonLifecycle";
 
-const DEMO_STATES: CartonLifecycleState[] = ["created", "labeled", "scanned_in", "packed", "dispatched"];
+/** Design-time lifecycle reference only — not live cartons. */
+const STATE_REFERENCE: CartonLifecycleState[] = ["created", "labeled", "scanned_in", "packed", "dispatched"];
 
 export default function CartonExplorer() {
   const cards = useMemo(
     () =>
-      DEMO_STATES.map((s) => ({
+      STATE_REFERENCE.map((s) => ({
         state: s,
         risk: deriveCartonRisk(s),
         next: CARTON_VALID_NEXT[s],
@@ -27,6 +28,10 @@ export default function CartonExplorer() {
           Lifecycle design
         </Badge>
       </header>
+      <p className="text-xs text-muted-foreground">
+        Cards enumerate lifecycle states and derivation helpers only — they do not represent warehouse cartons or scanner
+        output.
+      </p>
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         {cards.map((c) => (
           <Card key={c.state} className="shadow-none ring-1 ring-border/50">
