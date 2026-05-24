@@ -14,6 +14,11 @@ import {
 import { formatSalesOrderLabel } from "@/utils/orderSoLabel";
 import { deriveFinanceReleaseState, getFinanceReleaseBlockers } from "@/utils/financeReleaseState";
 import { FinanceReleaseChips } from "@/components/admin/FinanceReleaseChips";
+import { OperationalTimeline, type OperationalTimelineFilter } from "@/components/admin/OperationalTimeline";
+import {
+  buildOrderOperationalFeedFromTrace,
+  mergeOperationalEventFeeds,
+} from "@/lib/operational-events";
 
 interface OrderTraceSheetProps {
   orderId: string | null;
@@ -24,7 +29,13 @@ interface OrderTraceSheetProps {
 type TraceOrderRow = Pick<
   OrderTraceInputs,
   "status" | "payment_status" | "advance_paid" | "advance_required" | "sales_order_value"
-> & { id: string; order_number?: string | null };
+> & {
+  id: string;
+  order_number?: string | null;
+  created_at?: string | null;
+  finance_verified_at?: string | null;
+  wamid?: string | null;
+};
 
 type TraceItemRow = {
   quantity: number;
@@ -73,6 +84,7 @@ function VisibilityChip({ label, active }: { label: string; active: boolean }) {
 }
 
 export default function OrderTraceSheet({ orderId, open, onOpenChange }: OrderTraceSheetProps) {
+  const [timelineFilter, setTimelineFilter] = useState<OperationalTimelineFilter>("all");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [order, setOrder] = useState<TraceOrderRow | null>(null);
@@ -99,7 +111,9 @@ export default function OrderTraceSheet({ orderId, open, onOpenChange }: OrderTr
         const [orderRes, itemsRes, reqsRes, jobsRes] = await Promise.all([
           supabase
             .from("orders")
-            .select("id, order_number, status, payment_status, advance_paid, advance_required, sales_order_value")
+            .select(
+              "id, order_number, status, payment_status, advance_paid, advance_required, sales_order_value, created_at, finance_verified_at, wamid",
+            )
             .eq("id", orderId)
             .maybeSingle(),
           supabase
@@ -158,6 +172,10 @@ export default function OrderTraceSheet({ orderId, open, onOpenChange }: OrderTr
     };
   }, [open, orderId]);
 
+  useEffect(() => {
+    if (open) setTimelineFilter("all");
+  }, [orderId, open]);
+
   const derived = useMemo(() => {
     if (!order) return null;
 
@@ -194,6 +212,25 @@ export default function OrderTraceSheet({ orderId, open, onOpenChange }: OrderTr
 
     const timeline = buildTimelineSteps(orderInputs, reqPending.pendingUnits, hasOpenProductionJobs, linesPackedRatio);
 
+    const operationalMergedFeed = mergeOperationalEventFeeds([
+      buildOrderOperationalFeedFromTrace({
+        orderId: order.id,
+        createdAt: order.created_at ?? null,
+        financeVerifiedAt: order.finance_verified_at ?? null,
+        orderStatus: order.status,
+        paymentStatus: order.payment_status,
+        finance,
+        dispatchBucket,
+        pendingReq: reqPending,
+        requisitionCount: reqs.length,
+        jobs: jobs.map((j) => ({ id: j.id, department: j.department, status: j.status })),
+        timelineSteps: timeline,
+        totalOrdered,
+        totalPacked,
+        linkedWamid: order.wamid ?? null,
+      }),
+    ]);
+
     return {
       finance,
       financeDetailed,
@@ -205,6 +242,7 @@ export default function OrderTraceSheet({ orderId, open, onOpenChange }: OrderTr
       totalPacked,
       responsible,
       timeline,
+      operationalMergedFeed,
     };
   }, [order, items, reqs, jobs]);
 
@@ -363,6 +401,22 @@ export default function OrderTraceSheet({ orderId, open, onOpenChange }: OrderTr
                     </ul>
                   </>
                 )}
+              </section>
+
+              <section className="space-y-2">
+                <h3 className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                  Stitched operational timeline
+                </h3>
+                <p className="text-[11px] leading-snug text-muted-foreground">
+                  Order trace + communication linkage hints. Timestamps only when sourced from order columns; no live
+                  WhatsApp transcript here.
+                </p>
+                <OperationalTimeline
+                  events={derived.operationalMergedFeed}
+                  filter={timelineFilter}
+                  onFilterChange={setTimelineFilter}
+                  ariaLabel="Order stitched operational timeline"
+                />
               </section>
 
               <section className="space-y-2">

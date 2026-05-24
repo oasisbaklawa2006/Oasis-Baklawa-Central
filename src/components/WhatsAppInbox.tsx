@@ -4,7 +4,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent, type MouseEvent } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
-import { ArrowLeft, Download, MessageCircle } from "lucide-react";
+import { ArrowLeft, Download, MessageCircle, Paperclip } from "lucide-react";
 import { removeDuplicateRealtimeChannel } from "@/utils/realtime";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -20,6 +20,7 @@ import {
   inferPacketHealth,
   isLastMessageInboundUnanswered,
   medianResponseLagSeconds,
+  messageHasAttachmentHint,
   operatorInboxPacketPreviewSummary,
   packetStitchedPlainText,
   packetSlaUiMeta,
@@ -71,6 +72,8 @@ import {
   OperatorInboxRefreshingBanner,
 } from "@/components/whatsapp/OperatorInboxReadOnlyPanels";
 import { useOperatorInboxObservability } from "@/components/whatsapp/useOperatorInboxObservability";
+import { OperatorInboxOperationalContextPanel } from "@/components/whatsapp/OperatorInboxOperationalContextPanel";
+import { buildWhatsAppOperationalFeed, normalizeWhatsAppEvents } from "@/lib/operational-events";
 
 const REALTIME_CHANNEL = "whatsapp-inbox-packets";
 const PACKET_FETCH_LIMIT = 1000;
@@ -636,6 +639,11 @@ export function WhatsAppInbox() {
     const sorted = sortMessagesChronological(m);
     return sorted[sorted.length - 1]?.id ?? null;
   }, [selectedPacket?.messages]);
+
+  const selectedOperationalEvents = useMemo(() => {
+    if (!selectedPacket) return [];
+    return normalizeWhatsAppEvents(buildWhatsAppOperationalFeed({ packet: selectedPacket }));
+  }, [selectedPacket]);
 
   const selectedHeaderIntent = useMemo(() => {
     if (!selectedPacket) return null;
@@ -1392,6 +1400,15 @@ export function WhatsAppInbox() {
                                         #{msg.packet_sequence}
                                       </Badge>
                                     ) : null}
+                                    {messageHasAttachmentHint(msg) ? (
+                                      <span
+                                        className="inline-flex h-5 items-center rounded border border-dashed border-current/40 px-1 text-[10px] opacity-90"
+                                        title="Possible attachment or media (heuristic)"
+                                      >
+                                        <Paperclip className="h-3 w-3" aria-hidden />
+                                        <span className="sr-only">Attachment hint</span>
+                                      </span>
+                                    ) : null}
                                   </div>
                                   <p className="whitespace-pre-wrap text-sm">{msg.content ?? ""}</p>
                                   <p className="mt-1 text-xs opacity-70">
@@ -1478,6 +1495,7 @@ export function WhatsAppInbox() {
                     </Button>
                   </div>
                   <div className="space-y-4">
+                    <OperatorInboxOperationalContextPanel packet={selectedPacket} events={selectedOperationalEvents} />
                     <OperatorInboxFailedMessagesReadOnlyPanel messages={selectedPacket.messages ?? []} />
                     <section
                       className="rounded-lg border border-amber-200 bg-amber-50/50 p-3"
