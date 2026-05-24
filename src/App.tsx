@@ -97,6 +97,11 @@ const FinanceReleaseBoard = lazy(() => import("./pages/admin/FinanceReleaseBoard
 const StoreCoordination = lazy(() => import("./pages/admin/StoreCoordination.tsx"));
 const LabelCommandCenter = lazy(() => import("./pages/admin/LabelCommandCenter.tsx"));
 const CustomerTimelinePreview = lazy(() => import("./pages/admin/CustomerTimelinePreview.tsx"));
+const InventoryCommandCenter = lazy(() => import("./pages/admin/InventoryCommandCenter.tsx"));
+const CartonExplorer = lazy(() => import("./pages/admin/CartonExplorer.tsx"));
+const ReservationBoard = lazy(() => import("./pages/admin/ReservationBoard.tsx"));
+const InventoryRiskBoard = lazy(() => import("./pages/admin/InventoryRiskBoard.tsx"));
+const ScanTimeline = lazy(() => import("./pages/admin/ScanTimeline.tsx"));
 
 const ADMIN_ONLY_ROLES = ["SUPER_ADMIN", "ADMIN"];
 
@@ -310,6 +315,11 @@ const App = () => (
                     <Route path="order-management" element={<OrderManagement />} />
                     <Route path="central-pool" element={<CentralOrderPool />} />
                     <Route path="cmd-war-room" element={<CMDWarRoom />} />
+                    <Route path="inventory-command-center" element={<InventoryCommandCenter />} />
+                    <Route path="carton-explorer" element={<CartonExplorer />} />
+                    <Route path="reservation-board" element={<ReservationBoard />} />
+                    <Route path="inventory-risk-board" element={<InventoryRiskBoard />} />
+                    <Route path="scan-timeline" element={<ScanTimeline />} />
                     <Route path="assembly-tasks" element={<AssemblyManagement />} />
                     <Route path="assembly-tv" element={<AssemblyTV />} />
                     <Route path="ready-goods" element={<ReadyGoodsStore />} />
