@@ -1,6 +1,6 @@
 # Launch blockers — master tracker
 
-Last updated: 2026-05-24
+Last updated: 2026-05-20
 
 This document lists **cross-cutting** operational launch risks. Module-specific gaps live in `docs/OPERATIONAL_MODULE_COMPLETION_MATRIX.md`.
 
@@ -18,6 +18,8 @@ This document lists **cross-cutting** operational launch risks. Module-specific 
 | No shelf-level inventory feed | Retail promises unsafe | Honest copy + manual verification + `factory_inventory` read-only snapshot only |
 | No reservation persistence API | Prebooking not enforceable | Local-only drafts on Store coordination; disabled backend submit |
 | No label print adapter | Physical labels manual | Label Command Center JSON payloads only |
+| No movement ledger persistence | Inventory OS is architecture-only | Feeds and admin boards stay projection-only; no silent writes in new libs |
+| No scan event store | Anomaly math exists without authoritative timeline | CMD shows **pending** for scan anomaly count until a bounded feed is wired |
 | No customer timeline data binding | Timeline is illustrative | Staff-only `CustomerOrderTimeline` preview route |
 
 ## Near-term unblockers (typical sequence)
