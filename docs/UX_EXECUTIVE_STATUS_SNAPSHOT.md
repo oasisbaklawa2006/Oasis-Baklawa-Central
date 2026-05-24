@@ -1,17 +1,17 @@
 # Oasis Central — Executive UX status snapshot (MOVE 10)
 
-**As-of:** Aligns with latest committed `docs/UX_AUDIT_PLAYWRIGHT_REPORT.md` + triage board **2026-05** closure sprint.
+**As-of:** Aligns with `docs/UX_AUDIT_PLAYWRIGHT_REPORT.md` + triage board **2026-05-24** (post rectification sprint).
 
 ---
 
 ## Top 10 UX blockers (prioritized)
 
-1. **Finance board mobile density** — verify PASS/WARN; revenue-critical.  
-2. **Operator / WhatsApp composer vs metadata** — wrong-send risk.  
-3. **Dispatch on portrait phone** — operational mis-tap risk.  
-4. **Quick order grid** — SKU error risk on SE.  
-5. **Approvals queue on narrow width** — decision latency.  
-6. **Cart sticky checkout vs keyboard** — checkout drop-off.  
+1. **Finance board mobile density** — **improved** on `/admin/finance-board` + `/admin/finance` (modals, queue strip); still verify dispatch-adjacent flows on smallest phones.  
+2. **Operator / WhatsApp composer vs metadata** — **partially mitigated** (live region, sticky stack, retry target); composer density still **verify**.  
+3. **Dispatch on portrait phone** — unchanged this sprint (out of scope for touched files); **still verify**.  
+4. **Quick order grid** — **improved** (cards &lt; md, skeleton, tap targets); sticky totals still optional.  
+5. **Approvals queue on narrow width** — **unchanged** (route still `/admin/approvals` → legacy surface); **verify**.  
+6. **Cart sticky checkout vs keyboard** — **partially mitigated** (safe-area bottom padding, larger line qty controls, wrap names); full checkout keyboard pass still **verify**.
 7. **Reports charts on mobile** — exec misread.  
 8. **Legal pages tap targets** (`/terms`, `/privacy`, `/shipping`) — automation MEDIUM.  
 9. **Unnamed buttons** (`/intro`, `/register`) — accessibility debt.  
@@ -24,8 +24,8 @@
 | Dimension | Score (1–5) | Notes |
 |-----------|-------------|-------|
 | Workflow documentation | **4** | `UX_OPERATIONAL_WORKFLOW_REVIEW.md` now concrete |
-| Failure-state clarity | **3** | Library expanded; product copy not yet wired |
-| Role-specific optimization | **2** | Finance/inbox/dispatch still “verify” |
+| Failure-state clarity | **3.5** | Library expanded; finance board + quick order now surface empty / error / skeleton states in touched surfaces |
+| Role-specific optimization | **2.5** | Finance release + finance tower + quick order improved; dispatch / approvals still verify |
 
 ---
 
@@ -35,9 +35,9 @@
 |------|--------|
 | Automated crawl | **Strong** |
 | Heuristic signal | **Sparse** (few auto flags — legal + intro/register) |
-| Human verification | **Required** for finance/inbox/dispatch |
+| Human verification | **Still required** for dispatch, approvals, and end-to-end inbox send — fewer blockers on finance / quick order |
 
-**Summary:** **Operational mobile readiness = “verify before declare PASS”** for core admin surfaces.
+**Summary:** **Core finance + quick-order mobile surfaces improved in code;** operational declaration of PASS still needs dispatch + approvals video sign-off.
 
 ---
 
@@ -49,7 +49,7 @@
 | axe / CI | **Not wired** |
 | Priority checklist | **Published** (`UX_ACCESSIBILITY_ACTION_PLAN.md`) |
 
-**Score:** **2.5 / 5** until axe baseline exists.
+**Score:** **2.75 / 5** — global `focus-visible` for links/buttons; more `aria-label` on cart / quick order; axe baseline still not wired.
 
 ---
 
@@ -57,7 +57,7 @@
 
 | Score | Meaning |
 |-------|---------|
-| **6 / 10** | Usable for expert operators on desktop; mobile admin still high-friction without mitigations |
+| **5.5 / 10** | Finance + quick order less hostile on phone; admin shell sticky classes tightened; dispatch / approvals friction unchanged |
 
 ---
 
@@ -91,9 +91,10 @@
 
 ## Next safest implementation sprint
 
-1. **Layout-only:** legal pages tap padding; intro/register `aria-label`.  
-2. **Finance board:** mobile read/act split prototype (UI-only branch).  
-3. **axe** smoke on four routes (tooling only).
+1. **Dispatch + packing** portrait hardening (layout-only).  
+2. **Approvals** surface audit — confirm route owns “approvals” UX or split page.  
+3. **axe** smoke on four routes (tooling only).  
+4. Legal / intro / register automation items (UX-MED-001–005).
 
 ---
 

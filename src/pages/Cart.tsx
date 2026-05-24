@@ -487,10 +487,15 @@ const Cart = () => {
 
   return (
     <AppShell>
-      <div className="px-5 pt-8 space-y-6 pb-32 max-w-3xl mx-auto flex flex-col justify-start min-h-screen">
+      <div className="mx-auto flex max-w-3xl flex-col justify-start space-y-6 px-5 pb-[max(8rem,calc(env(safe-area-inset-bottom)+5.5rem))] pt-8 min-h-screen">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <button onClick={() => navigate(-1)} className="p-2 -ml-2 hover:bg-muted rounded-full">
+            <button
+              type="button"
+              onClick={() => navigate(-1)}
+              className="-ml-2 flex min-h-11 min-w-11 items-center justify-center rounded-full p-2 hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+              aria-label="Go back"
+            >
               <ChevronLeft size={24} />
             </button>
             <h1 className="font-display text-2xl tracking-wide">Sales Order (SO)</h1>
@@ -577,8 +582,8 @@ const Cart = () => {
                               <Package size={20} className="text-muted-foreground" />
                             )}
                           </div>
-                          <div className="flex-1 pr-4 min-w-0">
-                            <p className="font-bold text-sm truncate">
+                          <div className="min-w-0 flex-1 pr-3">
+                            <p className="break-words text-sm font-bold leading-snug text-foreground">
                               {p?.name}
                               {isBulk && weightKg ? ` (${weightKg}kg)` : ""}
                             </p>
@@ -597,17 +602,23 @@ const Cart = () => {
                               GST @{gstRate}%: {formatPrice(lineTax)} {hsn ? `| HSN: ${hsn}` : ""}
                             </p>
                           </div>
-                          <div className="flex items-center bg-muted/50 rounded-xl p-1 border border-border">
+                          <div className="flex shrink-0 items-center rounded-xl border border-border bg-muted/50 p-1">
                             <button
+                              type="button"
                               onClick={() => handleQtyChange(item.id, -1, p)}
-                              className="w-8 h-8 rounded-lg bg-card shadow-sm font-bold"
+                              className="flex min-h-11 min-w-11 items-center justify-center rounded-lg bg-card font-bold shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                              aria-label={item.quantity <= increment ? `Remove ${p?.name} from cart` : `Decrease quantity of ${p?.name}`}
                             >
-                              {item.quantity <= increment ? <Trash2 size={12} className="text-destructive mx-auto" /> : "−"}
+                              {item.quantity <= increment ? <Trash2 size={14} className="mx-auto text-destructive" aria-hidden /> : "−"}
                             </button>
-                            <span className="font-bold text-xs w-8 text-center">{item.quantity}</span>
+                            <span className="min-w-[2.25rem] text-center font-bold text-sm tabular-nums" aria-live="polite">
+                              {item.quantity}
+                            </span>
                             <button
+                              type="button"
                               onClick={() => handleQtyChange(item.id, 1, p)}
-                              className="w-8 h-8 rounded-lg bg-primary text-primary-foreground shadow-sm font-bold"
+                              className="flex min-h-11 min-w-11 items-center justify-center rounded-lg bg-primary font-bold text-primary-foreground shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                              aria-label={`Increase quantity of ${p?.name}`}
                             >
                               +
                             </button>

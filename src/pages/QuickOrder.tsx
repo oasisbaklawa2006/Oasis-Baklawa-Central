@@ -3,7 +3,7 @@ import { useMemo, useState } from "react";
 import { useProducts } from "@/hooks/useProducts";
 import { useAuth } from "@/hooks/useAuth";
 import QuickOrderTable from "@/components/catalogue/QuickOrderTable";
-import { Search, Loader2, Zap } from "lucide-react";
+import { Search, Zap } from "lucide-react";
 
 const QuickOrder = () => {
   const { products, loading } = useProducts();
@@ -65,13 +65,7 @@ const QuickOrder = () => {
         </div>
 
         <div className="bg-card rounded-2xl border border-border p-4">
-          {loading ? (
-            <div className="flex items-center justify-center py-12">
-              <Loader2 size={20} className="animate-spin text-primary" />
-            </div>
-          ) : (
-            <QuickOrderTable products={filtered} priceTier={priceTier} />
-          )}
+          <QuickOrderTable products={filtered} priceTier={priceTier} loading={loading} />
         </div>
       </div>
     </AppShell>

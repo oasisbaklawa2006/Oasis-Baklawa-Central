@@ -277,7 +277,7 @@ const Catalogue = () => {
                   </h2>
 
                   {browseMode === "quickorder" ? (
-                    <QuickOrderTable products={filtered} priceTier={priceTier} />
+                    <QuickOrderTable products={filtered} priceTier={priceTier} loading={productsLoading} />
                   ) : (
                     <div className="grid grid-cols-2 gap-3">
                       {filtered.map((item) => (

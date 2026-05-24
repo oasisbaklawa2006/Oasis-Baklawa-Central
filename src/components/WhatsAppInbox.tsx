@@ -746,9 +746,6 @@ export function WhatsAppInbox() {
       >
         Skip to conversation detail
       </a>
-      <div className="sr-only" aria-live="polite" aria-relevant="text">
-        {orderedPackets.length} packets match the current filters out of {packets.length} loaded.
-      </div>
       <div className="sr-only" aria-live="polite" aria-atomic="true">
         {selectionAnnouncement}
       </div>
@@ -759,7 +756,7 @@ export function WhatsAppInbox() {
           medianLagSecondsFromThreads={medianLagSecondsFromThreads}
         />
       ) : null}
-      <div className={cn("flex min-h-0 flex-1", isNarrow ? "flex-col" : "flex-row")}>
+      <div className={cn("relative z-0 flex min-h-0 flex-1 isolate", isNarrow ? "flex-col" : "flex-row")}>
         <div
           className={cn(
             "flex min-h-0 flex-col overflow-hidden border-gray-300 bg-white lg:border-r",
@@ -769,7 +766,7 @@ export function WhatsAppInbox() {
           )}
         >
           <div
-            className="sticky top-0 z-10 border-b border-gray-200 bg-white/95 p-4 shadow-sm supports-[backdrop-filter]:backdrop-blur-sm"
+            className="sticky top-0 z-20 border-b border-gray-200 bg-white/95 p-4 shadow-sm supports-[backdrop-filter]:backdrop-blur-sm"
             id="operator-inbox-filter-panel"
             data-operator-inbox-interactive
           >
@@ -1073,7 +1070,7 @@ export function WhatsAppInbox() {
               <p className="mt-1 text-sm text-red-700">{error}</p>
               <button
                 type="button"
-                className="mt-3 rounded-md bg-red-600 px-3 py-1.5 text-xs font-medium text-white outline-none hover:bg-red-700 focus-visible:ring-2 focus-visible:ring-red-500 focus-visible:ring-offset-2"
+                className="mt-3 min-h-11 rounded-md bg-red-600 px-4 py-2 text-sm font-medium text-white outline-none hover:bg-red-700 focus-visible:ring-2 focus-visible:ring-red-500 focus-visible:ring-offset-2"
                 onClick={() => void loadPackets()}
               >
                 Retry
@@ -1197,7 +1194,7 @@ export function WhatsAppInbox() {
             aria-label="Selected WhatsApp packet"
             tabIndex={-1}
           >
-            <div className="sticky top-0 z-30 shrink-0 max-h-[min(42dvh,22rem)] overflow-y-auto overscroll-y-contain border-b border-gray-200 bg-white/95 shadow-sm backdrop-blur-sm supports-[backdrop-filter]:backdrop-blur-sm lg:max-h-none">
+            <div className="sticky top-0 z-20 shrink-0 max-h-[min(42dvh,22rem)] overflow-y-auto overscroll-y-contain border-b border-gray-200 bg-white/95 shadow-sm backdrop-blur-sm supports-[backdrop-filter]:backdrop-blur-sm lg:max-h-none">
               <OperatorInboxGovernanceBar />
               <OperatorInboxRefreshingBanner isRefreshing={isRefreshing} refreshError={refreshError} />
               <div className="border-t border-green-100 bg-green-50 p-4">
@@ -1463,7 +1460,7 @@ export function WhatsAppInbox() {
                 <aside
                   data-operator-inbox-local-insights
                   tabIndex={-1}
-                  className="w-full shrink-0 border-t border-gray-200 bg-slate-50/60 p-4 outline-none lg:sticky lg:top-0 lg:max-h-[min(100dvh,100%)] lg:w-80 lg:self-start lg:overflow-y-auto lg:overscroll-y-contain lg:border-l lg:border-t-0"
+                  className="w-full shrink-0 border-t border-gray-200 bg-slate-50/60 p-4 outline-none lg:sticky lg:top-0 lg:z-10 lg:max-h-[min(100dvh,100%)] lg:w-80 lg:self-start lg:overflow-y-auto lg:overscroll-y-contain lg:border-l lg:border-t-0"
                 >
                   <div className="mb-3 flex items-center justify-between gap-2">
                     <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-600">Read-only insights</h3>
@@ -1541,7 +1538,6 @@ export function WhatsAppInbox() {
               isNarrow && "min-h-[28vh] border-t border-gray-200 lg:min-h-0",
             )}
             role="status"
-            aria-live="polite"
             aria-label="No conversation selected"
             tabIndex={-1}
           >
