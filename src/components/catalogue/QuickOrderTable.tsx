@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import { useCart } from "@/hooks/useCart";
 import { useCurrency } from "@/contexts/CurrencyContext";
 import type { Product } from "@/hooks/useProducts";
@@ -24,10 +24,15 @@ function QuickOrderLine({
   product,
   priceTier,
   layout,
+  qty,
+  updateQty,
 }: {
   product: Product;
   priceTier?: string | null;
   layout: "card" | "row";
+  /** Shared quantity for this product across mobile + desktop layouts */
+  qty: number;
+  updateQty: (fn: (q: number) => number) => void;
 }) {
   const { addToCart } = useCart();
   const { formatPrice } = useCurrency();
@@ -37,18 +42,17 @@ function QuickOrderLine({
   const packPrice = calculatePackPrice(product, priceTier);
   const packDesc = getPackDescription(product);
 
-  const [qty, setQty] = useState(0);
   const [adding, setAdding] = useState(false);
 
   const lineTotal = packPrice * qty;
   const productLabel = product.name ?? "Product";
 
   const handleIncrement = () => {
-    setQty((q) => (q === 0 ? moq : q + increment));
+    updateQty((q) => (q === 0 ? moq : q + increment));
   };
 
   const handleDecrement = () => {
-    setQty((q) => {
+    updateQty((q) => {
       if (q <= 0) return 0;
       if (q <= moq) return 0;
       const next = q - increment;
@@ -61,7 +65,7 @@ function QuickOrderLine({
     setAdding(true);
     await addToCart(product.id, qty, product.pack_size ?? null, product.carton_type ?? null);
     setAdding(false);
-    setQty(0);
+    updateQty(() => 0);
   };
 
   const qtyControl = (
@@ -194,6 +198,20 @@ function QuickOrderSkeleton() {
 }
 
 const QuickOrderTable = ({ products, priceTier, loading }: QuickOrderTableProps) => {
+  const [qtyByProductId, setQtyByProductId] = useState<Record<string, number>>({});
+
+  const updateProductQty = useCallback((productId: string, fn: (q: number) => number) => {
+    setQtyByProductId((prev) => {
+      const cur = prev[productId] ?? 0;
+      const next = fn(cur);
+      if (next === 0) {
+        const { [productId]: _, ...rest } = prev;
+        return rest;
+      }
+      return { ...prev, [productId]: next };
+    });
+  }, []);
+
   if (loading) {
     return <QuickOrderSkeleton />;
   }
@@ -211,7 +229,14 @@ const QuickOrderTable = ({ products, priceTier, loading }: QuickOrderTableProps)
     <div className="w-full min-w-0 space-y-4">
       <div className="md:hidden space-y-3">
         {products.map((p) => (
-          <QuickOrderLine key={p.id} product={p} priceTier={priceTier} layout="card" />
+          <QuickOrderLine
+            key={p.id}
+            product={p}
+            priceTier={priceTier}
+            layout="card"
+            qty={qtyByProductId[p.id] ?? 0}
+            updateQty={(fn) => updateProductQty(p.id, fn)}
+          />
         ))}
       </div>
 
@@ -236,7 +261,14 @@ const QuickOrderTable = ({ products, priceTier, loading }: QuickOrderTableProps)
           </thead>
           <tbody>
             {products.map((p) => (
-              <QuickOrderLine key={p.id} product={p} priceTier={priceTier} layout="row" />
+              <QuickOrderLine
+                key={p.id}
+                product={p}
+                priceTier={priceTier}
+                layout="row"
+                qty={qtyByProductId[p.id] ?? 0}
+                updateQty={(fn) => updateProductQty(p.id, fn)}
+              />
             ))}
           </tbody>
         </table>
