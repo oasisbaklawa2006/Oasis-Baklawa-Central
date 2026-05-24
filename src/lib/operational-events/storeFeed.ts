@@ -53,6 +53,12 @@ export interface StoreCoordinationFeedInput {
    * (e.g. inventory visibility) already carries outlet-level readiness signals.
    */
   suppressPlaceholderOutletStockUnknown?: boolean;
+  /** When local reservation drafts exist elsewhere, omit generic "backend pending" reservation shell row. */
+  suppressReservationBackendPending?: boolean;
+  /** When local reservation drafts exist elsewhere, omit generic pickup feed pending placeholder. */
+  suppressPickupFeedPending?: boolean;
+  /** When local factory follow-up drafts exist elsewhere, omit generic factory integration pending row. */
+  suppressFactoryFollowupPending?: boolean;
 }
 
 function storeEntity(id: string): OperationalEventRecord["entities"] {
@@ -111,34 +117,38 @@ export function buildStoreCoordinationOperationalFeed(input: StoreCoordinationFe
   }
 
   if (input.reservations.length === 0) {
-    out.push({
-      id: "store-coord:reservations:prebooking_pending",
-      kind: RetailOperationalEventKind.PREBOOKING_PENDING,
-      category: "operational",
-      severity: "warning",
-      title: "Reservation / prebooking backend pending",
-      detail:
-        "Reservation capture is not active yet. Do not promise held stock from this screen. No stock deduction is performed here.",
-      occurredAt: null,
-      sortKey: nextSort(),
-      actor,
-      entities: reservationEntity("reservation-backend-pending"),
-      source: SOURCE,
-    });
-    out.push({
-      id: "store-coord:pickup:pending_placeholder",
-      kind: RetailOperationalEventKind.PICKUP_PENDING,
-      category: "dispatch",
-      severity: "warning",
-      title: "Pickup coordination pending feed",
-      detail:
-        "Pickup dates will appear here once reservations sync. Until then confirm verbally with the outlet.",
-      occurredAt: null,
-      sortKey: nextSort(),
-      actor,
-      entities: [],
-      source: SOURCE,
-    });
+    if (!input.suppressReservationBackendPending) {
+      out.push({
+        id: "store-coord:reservations:prebooking_pending",
+        kind: RetailOperationalEventKind.PREBOOKING_PENDING,
+        category: "operational",
+        severity: "warning",
+        title: "Reservation / prebooking backend pending",
+        detail:
+          "Reservation capture is not active yet. Do not promise held stock from this screen. No stock deduction is performed here.",
+        occurredAt: null,
+        sortKey: nextSort(),
+        actor,
+        entities: reservationEntity("reservation-backend-pending"),
+        source: SOURCE,
+      });
+    }
+    if (!input.suppressPickupFeedPending) {
+      out.push({
+        id: "store-coord:pickup:pending_placeholder",
+        kind: RetailOperationalEventKind.PICKUP_PENDING,
+        category: "dispatch",
+        severity: "warning",
+        title: "Pickup coordination pending feed",
+        detail:
+          "Pickup dates will appear here once reservations sync. Until then confirm verbally with the outlet.",
+        occurredAt: null,
+        sortKey: nextSort(),
+        actor,
+        entities: [],
+        source: SOURCE,
+      });
+    }
   } else {
     for (const r of input.reservations) {
       out.push({
@@ -171,20 +181,22 @@ export function buildStoreCoordinationOperationalFeed(input: StoreCoordinationFe
   }
 
   if (input.followups.length === 0) {
-    out.push({
-      id: "store-coord:factory:followup_pending",
-      kind: RetailOperationalEventKind.FACTORY_FOLLOWUP_NEEDED,
-      category: "operational",
-      severity: "warning",
-      title: "Factory follow-up integration pending",
-      detail:
-        "No persisted factory follow-up queue yet. Use phone, WhatsApp, or manual confirmation with production until backend wiring is complete.",
-      occurredAt: null,
-      sortKey: nextSort(),
-      actor,
-      entities: [],
-      source: SOURCE,
-    });
+    if (!input.suppressFactoryFollowupPending) {
+      out.push({
+        id: "store-coord:factory:followup_pending",
+        kind: RetailOperationalEventKind.FACTORY_FOLLOWUP_NEEDED,
+        category: "operational",
+        severity: "warning",
+        title: "Factory follow-up integration pending",
+        detail:
+          "No persisted factory follow-up queue yet. Use phone, WhatsApp, or manual confirmation with production until backend wiring is complete.",
+        occurredAt: null,
+        sortKey: nextSort(),
+        actor,
+        entities: [],
+        source: SOURCE,
+      });
+    }
   } else {
     for (const f of input.followups) {
       out.push({

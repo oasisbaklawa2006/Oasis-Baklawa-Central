@@ -87,7 +87,7 @@ export interface LocalReservationRow {
   storeName: string;
   product: string;
   qtyDisplay: string;
-  pickupDisplay: string;
+  pickupDisplay: string | null;
   notes: string;
   status: LocalReservationStatus;
 }
@@ -285,6 +285,9 @@ export default function StoreCoordination() {
 
   const suppressOutletStockUnknown = invRows.length > 0 && invError == null;
 
+  const hasLocalReservationDrafts = reservationDrafts.length > 0;
+  const hasLocalFactoryDrafts = factoryDrafts.length > 0;
+
   const timelineEvents = useMemo(() => {
     void tick;
     return normalizeStoreCoordinationEvents(
@@ -295,12 +298,22 @@ export default function StoreCoordination() {
           followups: [],
           nowMs: 0,
           suppressPlaceholderOutletStockUnknown: suppressOutletStockUnknown,
+          suppressReservationBackendPending: hasLocalReservationDrafts,
+          suppressPickupFeedPending: hasLocalReservationDrafts,
+          suppressFactoryFollowupPending: hasLocalFactoryDrafts,
         }),
         inventoryFeedEvents,
         retailLaunchEvents,
       ]),
     );
-  }, [tick, suppressOutletStockUnknown, inventoryFeedEvents, retailLaunchEvents]);
+  }, [
+    tick,
+    suppressOutletStockUnknown,
+    inventoryFeedEvents,
+    retailLaunchEvents,
+    hasLocalReservationDrafts,
+    hasLocalFactoryDrafts,
+  ]);
 
   const appendLabelPreview = useCallback((labelKind: string, context: string) => {
     setLabelPreviewLog((prev) =>
@@ -318,7 +331,7 @@ export default function StoreCoordination() {
       storeName: outlet?.name ?? "—",
       product: resForm.product.trim() || "—",
       qtyDisplay: resForm.qty.trim() || "—",
-      pickupDisplay: resForm.pickupLocal.trim() || "—",
+      pickupDisplay: resForm.pickupLocal.trim() || null,
       notes: resForm.notes.trim(),
       status: "draft_only",
     };
@@ -666,7 +679,7 @@ export default function StoreCoordination() {
                     <td className="px-3 py-2">{r.storeName}</td>
                     <td className="px-3 py-2">{r.product}</td>
                     <td className="px-3 py-2 font-mono">{r.qtyDisplay}</td>
-                    <td className="px-3 py-2 font-mono">{r.pickupDisplay}</td>
+                    <td className="px-3 py-2 font-mono">{r.pickupDisplay ?? "—"}</td>
                     <td className="px-3 py-2">
                       <Badge variant="secondary" className="text-[10px]">
                         {r.status === "draft_only"
@@ -690,7 +703,7 @@ export default function StoreCoordination() {
                               storeName: r.storeName,
                               productLabel: r.product,
                               qtyDisplay: r.qtyDisplay,
-                              pickupDisplay: r.pickupDisplay,
+                              pickupDisplay: r.pickupDisplay ?? "",
                             });
                             setPreviewTitle("Reservation label payload");
                             setPreviewJson(JSON.stringify(p, null, 2));
@@ -709,7 +722,7 @@ export default function StoreCoordination() {
                               pickupRef: r.id,
                               storeName: r.storeName,
                               customerName: r.customerName,
-                              pickupWindow: r.pickupDisplay,
+                              pickupWindow: r.pickupDisplay ?? "",
                             });
                             setPreviewTitle("Customer pickup label payload");
                             setPreviewJson(JSON.stringify(p, null, 2));
@@ -739,7 +752,7 @@ export default function StoreCoordination() {
                     {r.customerName} · {r.phone}
                   </p>
                   <p className="text-muted-foreground">
-                    {r.product} · Qty {r.qtyDisplay} · Pickup {r.pickupDisplay}
+                    {r.product} · Qty {r.qtyDisplay} · Pickup {r.pickupDisplay ?? "—"}
                   </p>
                   <Badge variant="secondary" className="text-[10px]">
                     {r.status === "draft_only" ? "Draft only" : r.status === "pending_backend" ? "Pending backend" : "Manual verification required"}
@@ -757,7 +770,7 @@ export default function StoreCoordination() {
                           storeName: r.storeName,
                           productLabel: r.product,
                           qtyDisplay: r.qtyDisplay,
-                          pickupDisplay: r.pickupDisplay,
+                          pickupDisplay: r.pickupDisplay ?? "",
                         });
                         setPreviewTitle("Reservation label payload");
                         setPreviewJson(JSON.stringify(p, null, 2));
@@ -776,7 +789,7 @@ export default function StoreCoordination() {
                           pickupRef: r.id,
                           storeName: r.storeName,
                           customerName: r.customerName,
-                          pickupWindow: r.pickupDisplay,
+                          pickupWindow: r.pickupDisplay ?? "",
                         });
                         setPreviewTitle("Customer pickup label payload");
                         setPreviewJson(JSON.stringify(p, null, 2));

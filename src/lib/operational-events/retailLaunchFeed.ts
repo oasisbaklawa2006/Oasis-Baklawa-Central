@@ -10,7 +10,8 @@ export interface RetailLaunchReservationInput {
   storeName: string;
   productLabel: string;
   qtyDisplay: string;
-  pickupDisplay: string;
+  /** Valid pickup datetime text (parseable by `Date.parse`), or null/undefined/empty when unset — never a UI placeholder. */
+  pickupDisplay: string | null | undefined;
   notes: string;
   status: "draft_only" | "pending_backend" | "manual_verification_required";
 }
@@ -51,11 +52,21 @@ function storeEntityFromName(name: string): OperationalEventRecord["entities"] {
   return [{ entityType: "store", id: `store-name:${slug}` }];
 }
 
-function pickupSignal(pickupDisplay: string, nowMs: number): "unknown" | "expected" | "overdue" {
-  const t = Date.parse(pickupDisplay);
-  if (Number.isNaN(t)) {
-    return pickupDisplay.trim() ? "expected" : "unknown";
-  }
+/** Unicode em dash — must not be treated as a real pickup datetime. */
+const EM_DASH = "\u2014";
+
+function hasValidPickupDatetime(pickupDisplay: string | null | undefined): pickupDisplay is string {
+  if (pickupDisplay == null) return false;
+  const s = pickupDisplay.trim();
+  if (s.length === 0) return false;
+  if (s === EM_DASH || s === "-") return false;
+  const t = Date.parse(s);
+  return !Number.isNaN(t);
+}
+
+function pickupSignal(pickupDisplay: string | null | undefined, nowMs: number): "unknown" | "expected" | "overdue" {
+  if (!hasValidPickupDatetime(pickupDisplay)) return "unknown";
+  const t = Date.parse(pickupDisplay.trim());
   if (t < nowMs) return "overdue";
   return "expected";
 }
@@ -71,13 +82,14 @@ export function buildRetailLaunchOperationalFeed(input: RetailLaunchFeedInput): 
   const out: OperationalEventRecord[] = [];
 
   for (const r of input.reservations) {
+    const pickupLine = `Pickup · ${r.pickupDisplay?.trim() ? r.pickupDisplay : EM_DASH}`;
     out.push({
       id: `retail-launch:res:${r.id}:draft`,
       kind: RetailLaunchOperationalEventKind.RESERVATION_DRAFT,
       category: "operational",
       severity: "info",
       title: `Reservation draft · ${r.customerName}`,
-      detail: [`Store · ${r.storeName}`, `Product · ${r.productLabel}`, `Qty (text) · ${r.qtyDisplay}`, `Pickup · ${r.pickupDisplay}`, `Phone · ${r.phone}`, r.notes ? `Notes · ${r.notes}` : null, `Status · ${r.status}`]
+      detail: [`Store · ${r.storeName}`, `Product · ${r.productLabel}`, `Qty (text) · ${r.qtyDisplay}`, pickupLine, `Phone · ${r.phone}`, r.notes ? `Notes · ${r.notes}` : null, `Status · ${r.status}`]
         .filter(Boolean)
         .join("\n"),
       occurredAt: null,
@@ -103,13 +115,14 @@ export function buildRetailLaunchOperationalFeed(input: RetailLaunchFeedInput): 
 
     const sig = pickupSignal(r.pickupDisplay, input.nowMs);
     if (sig === "overdue") {
+      const pickupField = r.pickupDisplay!.trim();
       out.push({
         id: `retail-launch:res:${r.id}:pickup_overdue`,
         kind: RetailLaunchOperationalEventKind.PICKUP_OVERDUE,
         category: "dispatch",
         severity: "urgent",
         title: `Pickup window appears overdue · ${r.customerName}`,
-        detail: `Pickup field · ${r.pickupDisplay} (operator-entered; confirm with customer).`,
+        detail: `Pickup field · ${pickupField} (operator-entered; confirm with customer).`,
         occurredAt: null,
         sortKey: next(),
         actor,
@@ -117,13 +130,14 @@ export function buildRetailLaunchOperationalFeed(input: RetailLaunchFeedInput): 
         source: SOURCE,
       });
     } else if (sig === "expected") {
+      const pickupField = r.pickupDisplay!.trim();
       out.push({
         id: `retail-launch:res:${r.id}:pickup_expected`,
         kind: RetailLaunchOperationalEventKind.PICKUP_EXPECTED,
         category: "dispatch",
         severity: "info",
         title: `Pickup expectation recorded · ${r.customerName}`,
-        detail: `Pickup field · ${r.pickupDisplay}`,
+        detail: `Pickup field · ${pickupField}`,
         occurredAt: null,
         sortKey: next(),
         actor,
