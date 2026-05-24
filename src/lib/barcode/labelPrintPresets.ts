@@ -18,7 +18,3 @@ export const TSC_TE244_99x38_PRESET: LabelPhysicalPreset = {
 };
 
 export const LABEL_PRINT_PRESETS: readonly LabelPhysicalPreset[] = [TSC_TE244_99x38_PRESET];
-
-export function getLabelPrintPresetById(id: string): LabelPhysicalPreset | null {
-  return LABEL_PRINT_PRESETS.find((p) => p.id === id) ?? null;
-}

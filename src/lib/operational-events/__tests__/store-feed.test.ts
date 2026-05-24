@@ -109,4 +109,28 @@ describe("buildStoreCoordinationOperationalFeed", () => {
     const ids = new Set(merged.map((e) => e.id));
     expect(ids.size).toBe(merged.length);
   });
+
+  it("suppresses generic reservation + pickup placeholders when local drafts are represented elsewhere", () => {
+    const events = buildStoreCoordinationOperationalFeed({
+      outlets: [{ id: "a", name: "A" }],
+      reservations: [],
+      followups: [],
+      nowMs: 0,
+      suppressReservationBackendPending: true,
+      suppressPickupFeedPending: true,
+    });
+    expect(events.find((e) => e.id === "store-coord:reservations:prebooking_pending")).toBeUndefined();
+    expect(events.find((e) => e.id === "store-coord:pickup:pending_placeholder")).toBeUndefined();
+  });
+
+  it("suppresses generic factory follow-up pending when local factory drafts exist elsewhere", () => {
+    const events = buildStoreCoordinationOperationalFeed({
+      outlets: [{ id: "a", name: "A" }],
+      reservations: [],
+      followups: [],
+      nowMs: 0,
+      suppressFactoryFollowupPending: true,
+    });
+    expect(events.find((e) => e.id === "store-coord:factory:followup_pending")).toBeUndefined();
+  });
 });
