@@ -25,6 +25,7 @@ import {
   Download,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
+import { Skeleton } from "@/components/ui/skeleton";
 import { useAuth } from "@/hooks/useAuth";
 import { queueNotification } from "@/utils/notificationOutbox";
 import { classifyFlow } from "@/utils/departmentClassifier";
@@ -973,8 +974,14 @@ const AdminFinance = () => {
 
   if (loading)
     return (
-      <div className="flex flex-col items-center justify-center min-h-[60vh]">
+      <div className="flex min-h-[60vh] flex-col items-center justify-center gap-4 px-4">
         <Loader2 size={32} className="animate-spin text-[#B8860B]" />
+        <div className="grid w-full max-w-md gap-3">
+          <Skeleton className="h-4 w-[75%]" />
+          <Skeleton className="h-4 w-full" />
+          <Skeleton className="h-4 w-[83%]" />
+        </div>
+        <p className="text-sm text-slate-500">Loading finance queues…</p>
       </div>
     );
 
@@ -995,8 +1002,8 @@ const AdminFinance = () => {
       </div>
 
       {/* QUEUE NAVIGATION */}
-      <div className="max-w-7xl mx-auto px-6 -mt-6">
-        <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-2 flex overflow-x-auto scrollbar-hide gap-2">
+        <div className="max-w-7xl mx-auto min-w-0 px-4 sm:px-6 -mt-6">
+        <div className="flex min-h-0 gap-2 overflow-x-auto overscroll-x-contain rounded-2xl border border-slate-200 bg-white p-2 scrollbar-hide pb-[max(0.5rem,env(safe-area-inset-bottom))]">
           {[
             { id: "validation", label: "Advance Receipts", count: validationQueue.length, icon: Banknote },
             { id: "approvals", label: "Credit Approvals", count: creditRequests.length, icon: ShieldCheck },
@@ -1008,8 +1015,9 @@ const AdminFinance = () => {
           ].map((tab) => (
             <button
               key={tab.id}
+              type="button"
               onClick={() => setActiveQueue(tab.id as FinanceQueue)}
-              className={`flex items-center gap-2 px-4 py-3 rounded-xl text-sm font-bold whitespace-nowrap transition-colors ${activeQueue === tab.id ? "bg-slate-900 text-white" : "text-slate-600 hover:bg-slate-100"}`}
+              className={`flex min-h-11 shrink-0 touch-manipulation items-center gap-2 rounded-xl px-4 py-3 text-sm font-bold whitespace-nowrap transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#B8860B] focus-visible:ring-offset-2 ${activeQueue === tab.id ? "bg-slate-900 text-white" : "text-slate-600 hover:bg-slate-100"}`}
             >
               <tab.icon size={16} className={activeQueue === tab.id ? "text-[#B8860B]" : "text-slate-400"} />
               {tab.label}
@@ -1580,22 +1588,25 @@ const AdminFinance = () => {
               initial={{ opacity: 0, scale: 0.95, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95 }}
-              className="bg-white rounded-3xl w-full max-w-lg shadow-2xl max-h-[90vh] overflow-y-auto z-[190]"
+              className="z-[190] flex max-h-[min(92dvh,100%)] w-full max-w-[min(100%,32rem)] flex-col overflow-hidden rounded-3xl bg-white shadow-2xl"
             >
-              <div className="flex justify-between items-center p-6 border-b border-slate-100">
+              <div className="flex shrink-0 items-center justify-between border-b border-slate-100 p-6">
                 <div>
                   <h3 className="font-display text-xl font-bold text-slate-900">Returns Scrutiny</h3>
-                  <p className="text-sm text-slate-500 mt-1">{scrutinyTarget.company_name}</p>
+                  <p className="mt-1 text-sm text-slate-500">{scrutinyTarget.company_name}</p>
                 </div>
                 <button
+                  type="button"
                   onClick={() => setScrutinyTarget(null)}
-                  className="w-10 h-10 bg-slate-100 rounded-full flex items-center justify-center text-slate-500 hover:bg-slate-200"
+                  className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-slate-100 text-slate-500 hover:bg-slate-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#B8860B] focus-visible:ring-offset-2"
+                  aria-label="Close scrutiny modal"
                 >
                   <X size={20} />
                 </button>
               </div>
 
-              <div className="p-6 space-y-5">
+              <div className="min-h-0 flex-1 overflow-y-auto overscroll-y-contain p-6">
+                <div className="space-y-5">
                 {/* Sales Exec Notes */}
                 <div className="bg-slate-50 rounded-xl border border-slate-200 p-4 space-y-1 text-sm">
                   <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Sales Executive Notes</p>
@@ -1656,11 +1667,15 @@ const AdminFinance = () => {
                   </div>
                 )}
 
-                {/* Execute Button */}
+                </div>
+              </div>
+
+              <div className="shrink-0 border-t border-slate-200 bg-slate-50 p-4">
                 <button
+                  type="button"
                   onClick={handleExecuteSettlement}
                   disabled={scrutinySaving}
-                  className="w-full py-4 bg-emerald-600 text-white font-bold rounded-xl hover:bg-emerald-700 flex justify-center items-center gap-2 shadow-xl shadow-emerald-600/20 active:scale-95 transition-all"
+                  className="flex min-h-[3rem] w-full items-center justify-center gap-2 rounded-xl bg-emerald-600 py-4 font-bold text-white shadow-xl shadow-emerald-600/20 transition-all hover:bg-emerald-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-offset-2 active:scale-[0.99] disabled:opacity-60"
                 >
                   {scrutinySaving ? (
                     <Loader2 size={18} className="animate-spin" />
@@ -1684,22 +1699,24 @@ const AdminFinance = () => {
               initial={{ opacity: 0, scale: 0.95, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95 }}
-              className="bg-white rounded-3xl w-full max-w-2xl shadow-2xl max-h-[90vh] overflow-y-auto z-[190]"
+              className="z-[190] flex max-h-[min(92dvh,100%)] w-full max-w-[min(100%,42rem)] flex-col overflow-hidden rounded-3xl bg-white shadow-2xl"
             >
-              <div className="flex justify-between items-center p-6 border-b border-slate-100">
+              <div className="flex shrink-0 items-center justify-between border-b border-slate-100 p-6">
                 <div>
                   <h3 className="font-display text-2xl font-bold text-slate-900">Process Final Invoice</h3>
-                  <p className="text-sm text-slate-500 mt-1">{docOrder.company?.business_name}</p>
+                  <p className="mt-1 text-sm text-slate-500">{docOrder.company?.business_name}</p>
                 </div>
                 <button
+                  type="button"
                   onClick={() => setDocOrder(null)}
-                  className="w-10 h-10 bg-slate-100 rounded-full flex items-center justify-center text-slate-500 hover:bg-slate-200"
+                  className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-slate-100 text-slate-500 hover:bg-slate-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#B8860B] focus-visible:ring-offset-2"
+                  aria-label="Close invoice modal"
                 >
                   <X size={20} />
                 </button>
               </div>
 
-              <div className="p-6 space-y-6">
+              <div className="min-h-0 flex-1 space-y-6 overflow-y-auto overscroll-y-contain p-6">
                 {/* DPL Reconciliation */}
                 {dplData && (
                   <div className={`rounded-2xl border-2 p-4 ${dplData.dplValue < dplData.soValue ? "border-emerald-400 bg-emerald-50" : dplData.dplValue > dplData.soValue ? "border-red-400 bg-red-50" : "border-slate-200 bg-slate-50"}`}>
@@ -1856,17 +1873,19 @@ const AdminFinance = () => {
                 </div>
               </div>
 
-              <div className="p-6 border-t border-slate-100 flex gap-3 bg-slate-50 rounded-b-3xl">
+              <div className="flex shrink-0 flex-col gap-3 border-t border-slate-100 bg-slate-50 p-4 sm:flex-row sm:rounded-b-3xl">
                 <button
+                  type="button"
                   onClick={() => setDocOrder(null)}
-                  className="px-6 py-4 bg-white border border-slate-200 text-slate-600 font-bold rounded-xl hover:bg-slate-100"
+                  className="min-h-[3rem] rounded-xl border border-slate-200 bg-white px-6 py-4 font-bold text-slate-600 hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 focus-visible:ring-offset-2 sm:px-8"
                 >
                   Cancel
                 </button>
                 <button
+                  type="button"
                   onClick={handleRequestBalance}
                   disabled={acting === docOrder.id}
-                  className="flex-1 py-4 bg-slate-900 text-white font-bold rounded-xl hover:bg-black flex justify-center items-center gap-2 shadow-xl shadow-slate-900/20 active:scale-95 transition-all"
+                  className="flex min-h-[3rem] flex-1 items-center justify-center gap-2 rounded-xl bg-slate-900 py-4 font-bold text-white shadow-xl shadow-slate-900/20 transition-all hover:bg-black focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-500 focus-visible:ring-offset-2 active:scale-[0.99] disabled:opacity-50"
                 >
                   {acting === docOrder.id ? (
                     <Loader2 size={18} className="animate-spin" />
@@ -1890,18 +1909,24 @@ const AdminFinance = () => {
               initial={{ opacity: 0, scale: 0.95, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95 }}
-              className="bg-white rounded-3xl w-full max-w-lg shadow-2xl max-h-[90vh] overflow-y-auto z-[190]"
+              className="z-[190] flex max-h-[min(92dvh,100%)] w-full max-w-[min(100%,32rem)] flex-col overflow-hidden rounded-3xl bg-white shadow-2xl"
             >
-              <div className="flex justify-between items-center p-6 border-b border-slate-100">
+              <div className="flex shrink-0 items-center justify-between border-b border-slate-100 p-6">
                 <div>
                   <h3 className="font-display text-xl font-bold text-slate-900">Financial Entry</h3>
-                  <p className="text-sm text-slate-500 mt-1">SO #{financialEntry.orderId.slice(0, 8)} — {financialEntry.companyName}</p>
+                  <p className="mt-1 text-sm text-slate-500">SO #{financialEntry.orderId.slice(0, 8)} — {financialEntry.companyName}</p>
                 </div>
-                <button onClick={() => setFinancialEntry(null)} className="w-10 h-10 bg-slate-100 rounded-full flex items-center justify-center text-slate-500 hover:bg-slate-200">
+                <button
+                  type="button"
+                  onClick={() => setFinancialEntry(null)}
+                  className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-slate-100 text-slate-500 hover:bg-slate-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#B8860B] focus-visible:ring-offset-2"
+                  aria-label="Close financial entry modal"
+                >
                   <X size={20} />
                 </button>
               </div>
-              <div className="p-6 space-y-4">
+              <div className="min-h-0 flex-1 overflow-y-auto overscroll-y-contain p-6">
+                <div className="space-y-4">
                 <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 flex justify-between">
                   <span className="text-xs font-bold text-amber-700 uppercase">SO Value</span>
                   <span className="font-black text-amber-800">{formatPrice(financialEntry.soValue)}</span>
@@ -1937,12 +1962,19 @@ const AdminFinance = () => {
                     <FileText size={14} /> View Uploaded Receipt
                   </button>
                 ) : (
-                  <div className="w-full py-2.5 border border-dashed border-slate-300 text-slate-400 rounded-xl text-xs font-bold flex justify-center items-center gap-2">
+                  <div className="flex w-full items-center justify-center gap-2 rounded-xl border border-dashed border-slate-300 py-2.5 text-xs font-bold text-slate-400">
                     <UploadCloud size={14} /> No receipt uploaded by Sales
                   </div>
                 )}
-                <button onClick={handleFinancialEntrySubmit} disabled={savingEntry}
-                  className="w-full py-4 bg-emerald-600 text-white font-bold rounded-xl hover:bg-emerald-700 flex justify-center items-center gap-2 shadow-xl shadow-emerald-600/20 active:scale-95 transition-all">
+                </div>
+              </div>
+              <div className="shrink-0 border-t border-slate-200 bg-slate-50 p-4">
+                <button
+                  type="button"
+                  onClick={handleFinancialEntrySubmit}
+                  disabled={savingEntry}
+                  className="flex min-h-[3rem] w-full items-center justify-center gap-2 rounded-xl bg-emerald-600 py-4 font-bold text-white shadow-xl shadow-emerald-600/20 transition-all hover:bg-emerald-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-offset-2 active:scale-[0.99] disabled:opacity-60"
+                >
                   {savingEntry ? <Loader2 size={18} className="animate-spin" /> : <><CheckCircle2 size={18} /> Verify & Release to Production</>}
                 </button>
               </div>
@@ -1959,18 +1991,24 @@ const AdminFinance = () => {
               initial={{ opacity: 0, scale: 0.95, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95 }}
-              className="bg-white rounded-3xl w-full max-w-md shadow-2xl max-h-[90vh] overflow-y-auto z-[190]"
+              className="z-[190] flex max-h-[min(92dvh,100%)] w-full max-w-[min(100%,28rem)] flex-col overflow-hidden rounded-3xl bg-white shadow-2xl"
             >
-              <div className="flex justify-between items-center p-6 border-b border-slate-100">
+              <div className="flex shrink-0 items-center justify-between border-b border-slate-100 p-6">
                 <div>
                   <h3 className="font-display text-xl font-bold text-slate-900">Issue Short-Term Credit</h3>
-                  <p className="text-sm text-slate-500 mt-1">{shortTermTarget.company?.business_name}</p>
+                  <p className="mt-1 text-sm text-slate-500">{shortTermTarget.company?.business_name}</p>
                 </div>
-                <button onClick={() => setShortTermTarget(null)} className="w-10 h-10 bg-slate-100 rounded-full flex items-center justify-center text-slate-500 hover:bg-slate-200">
+                <button
+                  type="button"
+                  onClick={() => setShortTermTarget(null)}
+                  className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-slate-100 text-slate-500 hover:bg-slate-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 focus-visible:ring-offset-2"
+                  aria-label="Close short-term credit modal"
+                >
                   <X size={20} />
                 </button>
               </div>
-              <div className="p-6 space-y-4">
+              <div className="min-h-0 flex-1 overflow-y-auto overscroll-y-contain p-6">
+                <div className="space-y-4">
                 <div className="bg-violet-50 border border-violet-200 rounded-xl p-3 flex justify-between">
                   <span className="text-xs font-bold text-violet-700 uppercase">Order Value</span>
                   <span className="font-black text-violet-800">{formatPrice(shortTermTarget.sales_order_value || 0)}</span>
@@ -1985,8 +2023,15 @@ const AdminFinance = () => {
                 <p className="text-xs text-slate-500 italic">
                   This will release the order to production without advance payment. A credit record will be logged.
                 </p>
-                <button onClick={handleShortTermCreditRelease} disabled={savingShortTerm}
-                  className="w-full py-4 bg-violet-600 text-white font-bold rounded-xl hover:bg-violet-700 flex justify-center items-center gap-2 shadow-xl shadow-violet-600/20 active:scale-95 transition-all">
+                </div>
+              </div>
+              <div className="shrink-0 border-t border-violet-100 bg-violet-50/80 p-4">
+                <button
+                  type="button"
+                  onClick={handleShortTermCreditRelease}
+                  disabled={savingShortTerm}
+                  className="flex min-h-[3rem] w-full items-center justify-center gap-2 rounded-xl bg-violet-600 py-4 font-bold text-white shadow-xl shadow-violet-600/20 transition-all hover:bg-violet-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 focus-visible:ring-offset-2 active:scale-[0.99] disabled:opacity-60"
+                >
                   {savingShortTerm ? <Loader2 size={18} className="animate-spin" /> : <><ShieldCheck size={18} /> Release on Credit</>}
                 </button>
               </div>
