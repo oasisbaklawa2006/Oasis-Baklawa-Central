@@ -102,6 +102,8 @@ const CartonExplorer = lazy(() => import("./pages/admin/CartonExplorer.tsx"));
 const ReservationBoard = lazy(() => import("./pages/admin/ReservationBoard.tsx"));
 const InventoryRiskBoard = lazy(() => import("./pages/admin/InventoryRiskBoard.tsx"));
 const ScanTimeline = lazy(() => import("./pages/admin/ScanTimeline.tsx"));
+const LiveWorkQueues = lazy(() => import("./pages/admin/LiveWorkQueues.tsx"));
+const EntityGraphExplorer = lazy(() => import("./pages/admin/EntityGraphExplorer.tsx"));
 
 const ADMIN_ONLY_ROLES = ["SUPER_ADMIN", "ADMIN"];
 
@@ -326,6 +328,8 @@ const App = () => (
                     <Route path="store-coordination" element={<StoreCoordination />} />
                     <Route path="label-command-center" element={<LabelCommandCenter />} />
                     <Route path="customer-timeline-preview" element={<CustomerTimelinePreview />} />
+                    <Route path="live-work-queues" element={<LiveWorkQueues />} />
+                    <Route path="entity-graph-explorer" element={<EntityGraphExplorer />} />
                     <Route path="rgs-tv" element={<ReadyGoodsTV />} />
                     <Route path="dispatch-mgmt" element={<DispatchManagement />} />
                     <Route path="dispatch-tv" element={<DispatchTV />} />

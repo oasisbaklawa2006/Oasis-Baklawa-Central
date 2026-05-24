@@ -1,6 +1,6 @@
 # Operational module completion matrix
 
-Last updated: 2026-05-20
+Last updated: 2026-05-24
 
 | Module | Current status | Pilot ready? | Blocking gap | Backend required? | Risk | Next PR |
 |--------|----------------|--------------|--------------|---------------------|------|---------|
@@ -21,6 +21,10 @@ Last updated: 2026-05-20
 | Media vault | Document graph metadata + types | No | Storage policy + uploads | Yes | Compliance | `media-vault-storage` (TBD) |
 | Notification center | Partial | No | Unified outbox | Yes | Missed alerts | future |
 | AI order intake | Not in this block | No | Guardrails | Yes | Bad orders | future |
-| CMD war room | Orders + WA + inventory head + execution strip + inventory links | Partial | Live scan + reservation counts | Yes for true coverage | False sense of coverage | `cmd-retail-signals` (TBD) |
+| CMD war room | Orders + WA + inventory head + execution strip + inventory links + **queue pressure projection** | Partial | Live scan + reservation counts + persisted queue items | Yes for true coverage | False sense of coverage | `cmd-retail-signals` (TBD) |
+| Unified entity graph | Canonical entities + relationships + ownership + escalation + explorer | Partial | Bind to live order/reservation/dispatch rows | Yes | Fragmented ops view | `entity-graph-bind` (TBD) |
+| Live work queues | Queue types + priority + dependency + admin shell + CMD pressure | Partial | Persisted queue items + claim workflow (gated) | Yes | False queue totals | `work-queue-persist` (TBD) |
+| Operational search | Contracts + aliases + grouping | Partial | Search index / DB read model | Yes | Slow operator lookup | `operational-search-index` (TBD) |
+| Customer-safe projections | Suppression rules + timeline filter + projection API | Partial | Bind to order milestones | Yes for public | Over-sharing internals | `customer-timeline-bind` (TBD) |
 
 **Pilot ready?** “Partial” means safe for **internal** rehearsal with manual verification, not unattended customer-facing promises.

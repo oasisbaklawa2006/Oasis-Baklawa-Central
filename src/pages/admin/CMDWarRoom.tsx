@@ -20,6 +20,7 @@ import { evaluateLaneStates, type ExecutionSatisfaction } from "@/lib/execution-
 import { summarizeExecutionRisk } from "@/lib/execution-engine/executionRiskEngine";
 import { deriveExecutionEscalations } from "@/lib/execution-engine/executionEscalations";
 import { deriveInventoryVarianceEscalations } from "@/lib/inventory-operating-system/inventoryRiskDerive";
+import { projectCmdQueuePressure } from "@/lib/work-queues/cmdQueuePressure";
 
 interface OrderItem {
   id?: string;
@@ -487,6 +488,18 @@ const CMDWarRoom = () => {
     };
   }, [warCommSignals.financePressure]);
 
+  const cmdQueuePressure = useMemo(
+    () =>
+      projectCmdQueuePressure({
+        financeHoldCount: warCommSignals.financePressure,
+        dispatchPanicCount: warCommSignals.dispatchPanic,
+        triageReviewCount: counts.review,
+        scanAnomalyCount: null,
+        reservationRiskCount: null,
+      }),
+    [warCommSignals.financePressure, warCommSignals.dispatchPanic, counts.review],
+  );
+
   return (
     <div className="p-3 sm:p-4 space-y-4 bg-background max-w-full overflow-x-hidden">
       <CmdOperationalCommPulse
@@ -508,6 +521,13 @@ const CMDWarRoom = () => {
         governanceHoldOrders={warCommSignals.financePressure}
         scanAnomalyCount={null}
         reservationRiskSignals={null}
+        unifiedRootBlocker={cmdQueuePressure.unifiedRootBlocker}
+        unifiedBlockerContext={cmdQueuePressure.unifiedBlockerContext}
+        financeToDispatchDependencyRisk={cmdQueuePressure.financeToDispatchRisk}
+        customerRiskQueuePressure={cmdQueuePressure.customerRiskQueuePressure}
+        escalationHotspotQueue={cmdQueuePressure.escalationHotspotQueue}
+        reservationVerificationLoad={cmdQueuePressure.reservationVerificationLoad}
+        scanExceptionPressure={cmdQueuePressure.scanExceptionPressure}
       />
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h1 className="text-base sm:text-xl font-bold text-foreground tracking-tight">

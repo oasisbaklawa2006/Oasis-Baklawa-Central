@@ -13,6 +13,7 @@ Purpose: map remaining launch work into **module-by-module closures** so each ch
 - WhatsApp communication projection
 - order trace stitched timeline
 - CMD communication pulse (+ read-only **factory_inventory** row count + **retail/label pilot pending strip** — no fake counts)
+- **Unified operational entity graph** + **live work queue foundation** (projection libs, dependency engine, search contracts, customer-safe rules, admin shells, CMD queue pressure strip)
 - **Retail store coordination** (B1 + B2 + inventory snapshot + **local reservation/factory drafts** + **retail launch timelines** + merged operational projections)
 
 ---
@@ -28,7 +29,7 @@ Purpose: map remaining launch work into **module-by-module closures** so each ch
 - Factory follow-up **persistence** and linkage to production jobs / WhatsApp hints (read-first)
 - Optional: dedicated **retail** timeline filter chip (currently uses existing `OperationalTimeline` categories only)
 
-See also: `docs/LAUNCH_BLOCKERS_MASTER.md`, `docs/OPERATIONAL_MODULE_COMPLETION_MATRIX.md`, `docs/BARCODE_LABEL_FOUNDATION_STATUS.md`, `docs/CUSTOMER_TIMELINE_FOUNDATION_STATUS.md`.
+See also: `docs/LAUNCH_BLOCKERS_MASTER.md`, `docs/OPERATIONAL_MODULE_COMPLETION_MATRIX.md`, `docs/BARCODE_LABEL_FOUNDATION_STATUS.md`, `docs/CUSTOMER_TIMELINE_FOUNDATION_STATUS.md`, `docs/UNIFIED_OPERATIONAL_ENTITY_GRAPH.md`, `docs/LIVE_WORK_QUEUE_FOUNDATION.md`.
 
 ---
 

@@ -6,6 +6,8 @@ Last updated: 2026-05-24
 
 - `src/components/customer/CustomerOrderTimeline.tsx` — curated, customer-safe steps (placed → finance → manufacturing → … → 10-day support window).
 - `src/pages/admin/CustomerTimelinePreview.tsx` — **staff-only** preview under `/admin/customer-timeline-preview`.
+- `src/lib/customer-safe/` — suppression rules, safe timeline projection, order bundle (`customerProjection.ts`).
+- `src/lib/operational-timeline/` — audience layers including `customer_safe` visibility rules.
 
 ## Rules
 
