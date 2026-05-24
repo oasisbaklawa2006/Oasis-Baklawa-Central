@@ -2,7 +2,7 @@ import { NavLink, Outlet } from "react-router-dom";
 import {
   LayoutDashboard, UserCheck, ClipboardList, Truck, DollarSign, LogOut, Menu, X, Loader2,
   Headphones, Users, Package, BarChart3, Scale, Globe, Settings, Shield, MessageCircle,
-  Factory, PackageCheck, Landmark, AlertCircle, Languages, Bell, Sparkles, Monitor, Activity, Megaphone
+  Factory, PackageCheck, Landmark, AlertCircle, Languages, Bell, Sparkles, Monitor, Activity, Megaphone, Store,
 } from "lucide-react";
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
@@ -81,6 +81,7 @@ const AdminLayout = () => {
         { to: "/admin/exceptions", icon: AlertCircle, label: t("Exceptions"), moduleKey: "exceptions" },
         { to: "/admin/assembly-tasks", icon: PackageCheck, label: "Assembly", moduleKey: "production" },
         { to: "/admin/ready-goods", icon: Package, label: "Ready Goods", moduleKey: "inventory" },
+        { to: "/admin/store-coordination", icon: Store, label: "Store coordination", moduleKey: "orders" },
         { to: "/admin/dispatch-mgmt", icon: Truck, label: "Dispatch", moduleKey: "packing" },
         { to: "/security-gate", icon: Shield, label: "Security Gate", moduleKey: "packing" },
       ],
