@@ -78,6 +78,10 @@ const CMDWarRoom = () => {
   const [triageOrderId, setTriageOrderId] = useState<string | null>(null);
   const [waPulse, setWaPulse] = useState<{ open: number; stale: number } | null>(null);
   const [waPulseError, setWaPulseError] = useState<string | null>(null);
+  const [factoryInvPulse, setFactoryInvPulse] = useState<{ count: number | null; error: string | null }>({
+    count: null,
+    error: null,
+  });
 
   // Open the alias drawer instantly (single global state, zero-lag).
   const openAliasDrawer = useCallback((token?: string) => {
@@ -235,6 +239,12 @@ const CMDWarRoom = () => {
     }
   }, []);
 
+  const fetchFactoryInventoryPulse = useCallback(async () => {
+    const { count, error } = await supabase.from("factory_inventory").select("id", { count: "exact", head: true });
+    if (error) setFactoryInvPulse({ count: null, error: error.message });
+    else setFactoryInvPulse({ count: count ?? 0, error: null });
+  }, []);
+
   /** Fetch soft-rejected orders (is_waste=true) for the Rejected tab. Lightweight — last 100. */
   const fetchRejectedOrders = useCallback(async () => {
     const { data } = await supabase
@@ -271,6 +281,7 @@ const CMDWarRoom = () => {
     fetchShadowCompanies();
     fetchActiveCompanies();
     void fetchWaPulse();
+    void fetchFactoryInventoryPulse();
 
     const ordersChannel = "warroom-orders-live";
     const companiesChannel = "warroom-companies-live";
@@ -302,7 +313,7 @@ const CMDWarRoom = () => {
       supabase.removeChannel(ch2);
       supabase.removeChannel(ch3);
     };
-  }, [fetchOrders, fetchRejectedOrders, fetchShadowCompanies, fetchActiveCompanies, fetchWaPulse]);
+  }, [fetchOrders, fetchRejectedOrders, fetchShadowCompanies, fetchActiveCompanies, fetchWaPulse, fetchFactoryInventoryPulse]);
 
   const sortedOrders = useMemo(() => {
     const startOfToday = new Date();
@@ -452,6 +463,8 @@ const CMDWarRoom = () => {
         financePressureOrders={warCommSignals.financePressure}
         dispatchPanicOrders={warCommSignals.dispatchPanic}
         loadError={waPulseError}
+        factoryInventoryRowCount={factoryInvPulse.error ? null : factoryInvPulse.count}
+        factoryInventoryError={factoryInvPulse.error}
       />
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h1 className="text-base sm:text-xl font-bold text-foreground tracking-tight">
@@ -487,7 +500,7 @@ const CMDWarRoom = () => {
             {todayOnly ? "Today" : "All"}
           </button>
           <button
-            onClick={() => { fetchOrders(); fetchShadowCompanies(); fetchActiveCompanies(); void fetchWaPulse(); }}
+            onClick={() => { fetchOrders(); fetchShadowCompanies(); fetchActiveCompanies(); void fetchWaPulse(); void fetchFactoryInventoryPulse(); }}
             className="flex items-center gap-1 sm:gap-1.5 text-[11px] sm:text-xs font-medium text-muted-foreground hover:text-foreground transition-colors px-2 sm:px-3 py-1 sm:py-1.5 rounded-md border border-border"
             aria-label="Refresh"
           >

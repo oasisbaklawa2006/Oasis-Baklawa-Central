@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom";
-import { IndianRupee, MessageCircle, Truck } from "lucide-react";
+import { IndianRupee, MessageCircle, Truck, Warehouse } from "lucide-react";
 
 export interface CmdOperationalCommPulseProps {
   /** Null until a successful fetch, or after a failed fetch (never coerce failure to 0). */
@@ -8,6 +8,9 @@ export interface CmdOperationalCommPulseProps {
   financePressureOrders: number;
   dispatchPanicOrders: number;
   loadError?: string | null;
+  /** Read-only `factory_inventory` row count (exact count query); null when pending or failed. */
+  factoryInventoryRowCount?: number | null;
+  factoryInventoryError?: string | null;
 }
 
 /**
@@ -19,6 +22,8 @@ export function CmdOperationalCommPulse({
   financePressureOrders,
   dispatchPanicOrders,
   loadError,
+  factoryInventoryRowCount = null,
+  factoryInventoryError = null,
 }: CmdOperationalCommPulseProps) {
   const fmtWa = (n: number | null) =>
     n === null ? <span className="text-muted-foreground">—</span> : n;
@@ -81,6 +86,41 @@ export function CmdOperationalCommPulse({
             Dispatch panic
           </div>
           <p className="mt-1 font-mono text-lg font-semibold tabular-nums text-orange-800">{dispatchPanicOrders}</p>
+        </div>
+      </div>
+      <div
+        className="mt-3 rounded-md border border-border/80 bg-background/60 px-2 py-2"
+        title="Head count on factory_inventory only. Not branch shelf stock; use Store coordination for outlet-level read-only grouping."
+      >
+        <div className="flex items-center gap-1 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+          <Warehouse className="h-3.5 w-3.5" aria-hidden />
+          Inventory visibility (read-only)
+        </div>
+        {factoryInventoryError ? (
+          <p className="mt-1 text-[11px] text-amber-800 dark:text-amber-100" role="status">
+            factory_inventory pulse unavailable · {factoryInventoryError}
+          </p>
+        ) : (
+          <p className="mt-1 text-[11px] leading-snug text-muted-foreground">
+            <span className="font-medium text-foreground">factory_inventory rows:</span>{" "}
+            {factoryInventoryRowCount === null ? (
+              <span className="text-muted-foreground">pending</span>
+            ) : (
+              <span className="font-mono text-foreground">{factoryInventoryRowCount}</span>
+            )}
+            {" · "}
+            <span className="font-medium text-foreground">Branch shelf / ready goods source:</span> still pending —{" "}
+            <span className="text-amber-900 dark:text-amber-100">manual verification</span> until barcode / outlet feed
+            lands.
+          </p>
+        )}
+        <div className="mt-2">
+          <Link
+            to="/admin/store-coordination"
+            className="inline-flex min-h-9 items-center rounded-md border border-border px-3 text-xs font-medium text-foreground outline-none transition hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+          >
+            Store coordination · ready goods
+          </Link>
         </div>
       </div>
       <div className="mt-3 flex flex-wrap gap-2">

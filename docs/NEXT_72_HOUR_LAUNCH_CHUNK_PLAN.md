@@ -12,18 +12,18 @@ Purpose: map remaining launch work into **module-by-module closures** so each ch
 - operational event spine
 - WhatsApp communication projection
 - order trace stitched timeline
-- CMD communication pulse
-- **Retail store coordination (B1 route + B2 visibility shells + B5 store operational projections — read-only; no live stock)**
+- CMD communication pulse (+ read-only **factory_inventory** row count strip — not shelf stock)
+- **Retail store coordination** (B1 route + B2 visibility + **read-only factory_inventory snapshot** + B5 store + inventory operational projections)
 
 ---
 
 ## Retail / store coordination — next required
 
-**Done (partial):** B1 shell, B2 outlet/reservation/factory **UI + honest placeholders**, B5 **projection feed** + timeline + unit tests.
+**Done (partial):** B1 shell, B2 outlet / reservation / factory **UI + honest placeholders**, B5 **projection feeds** + merged timeline + unit tests, **read-only `factory_inventory` visibility** (factory-row level; not shelf truth).
 
 **Still required for “real” coordination:**
 
-- Inventory / ready goods **read** source wired to cards (no fake qty)
+- **Shelf-level** inventory / ready goods read (barcode or POS-backed) wired to cards (still no fake qty)
 - Reservation **persistence** and conflict rules (operator-gated writes, separate approval)
 - Factory follow-up **persistence** and linkage to production jobs / WhatsApp hints (read-first)
 - Optional: dedicated **retail** timeline filter chip (currently uses existing `OperationalTimeline` categories only)
@@ -32,28 +32,26 @@ Purpose: map remaining launch work into **module-by-module closures** so each ch
 
 ## Remaining launch modules
 
-1. Retail/store coordination
-2. Inventory / ready goods visibility
-3. Barcode / label flow
-4. AI order intake draft flow
-5. Notification center
-6. Media/document vault
-7. Customer timeline
-8. Approval/ticket feed builders
-9. Production allocation closure
-10. Executive dashboard launch view
+1. Retail/store coordination (shelf-level stock truth — see `docs/INVENTORY_READY_GOODS_VISIBILITY_STATUS.md`)
+2. Barcode / label flow
+3. AI order intake draft flow
+4. Notification center
+5. Media/document vault
+6. Customer timeline
+7. Approval/ticket feed builders
+8. Production allocation closure
+9. Executive dashboard launch view
 
 ---
 
 ## Recommended build order
 
-1. Retail/store coordination
-2. Inventory/ready goods
-3. Barcode labels
-4. Notifications
-5. Media vault
-6. Customer timeline
-7. AI order intake
+1. Retail/store coordination (shelf-level inventory still open — see `docs/INVENTORY_READY_GOODS_VISIBILITY_STATUS.md`)
+2. Barcode / label flow (receiving truth)
+3. Notifications
+4. Media vault
+5. Customer timeline
+6. AI order intake
 
 Later passes can fold in **approval/ticket feed builders**, **production allocation closure**, and **executive dashboard launch view** once the above surfaces stabilize.
 
