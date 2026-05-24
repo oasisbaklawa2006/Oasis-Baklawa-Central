@@ -143,6 +143,16 @@ export function uniqueProviders(messages: Message[]): string[] {
   return [...s].sort();
 }
 
+const ATTACHMENT_TYPE = /image|document|video|audio|sticker|media|application|pdf|vcard/i;
+
+/** Heuristic only — does not fetch media binaries */
+export function messageHasAttachmentHint(m: Message): boolean {
+  if (ATTACHMENT_TYPE.test(m.message_type || "")) return true;
+  const c = (m.content ?? "").trim();
+  if (!c) return false;
+  return /\bhttps?:\/\//i.test(c);
+}
+
 /** Local intent bucket for sidebar / row coloring (keyword + stitched text). */
 export type LocalIntentTone = "slate" | "blue" | "amber" | "rose" | "violet" | "emerald";
 

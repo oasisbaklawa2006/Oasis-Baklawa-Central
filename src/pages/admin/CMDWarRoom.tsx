@@ -11,6 +11,8 @@ import RawIntelligenceTab from "@/components/warroom/RawIntelligenceTab";
 import SuggestedOrdersTab from "@/components/warroom/SuggestedOrdersTab";
 import AliasDrawer from "@/components/warroom/AliasDrawer";
 import { FinanceBoardCard } from "@/components/FinanceBoardCard";
+import { CmdOperationalCommPulse } from "@/components/admin/CmdOperationalCommPulse";
+import { packetAgeBucket } from "@/components/whatsapp/operatorInboxUtils";
 
 interface OrderItem {
   id?: string;
@@ -69,6 +71,8 @@ const CMDWarRoom = () => {
   const [pendingToken, setPendingToken] = useState<string | null>(null);
   const [bulkProcessing, setBulkProcessing] = useState(false);
   const [triageOrderId, setTriageOrderId] = useState<string | null>(null);
+  const [waPulse, setWaPulse] = useState<{ open: number; stale: number } | null>(null);
+  const [waPulseError, setWaPulseError] = useState<string | null>(null);
 
   // Open the alias drawer instantly (single global state, zero-lag).
   const openAliasDrawer = useCallback((token?: string) => {
@@ -199,6 +203,29 @@ const CMDWarRoom = () => {
     );
   }, []);
 
+  const fetchWaPulse = useCallback(async () => {
+    try {
+      setWaPulseError(null);
+      const { data, error } = await supabase
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        .from("whatsapp_message_packets" as any)
+        .select("id, last_message_at")
+        .eq("status", "open")
+        .limit(800);
+      if (error) throw error;
+      const rows = (data ?? []) as unknown as { id: string; last_message_at: string }[];
+      const now = Date.now();
+      let stale = 0;
+      for (const r of rows) {
+        if (r.last_message_at && packetAgeBucket(r.last_message_at, now) === "stale") stale += 1;
+      }
+      setWaPulse({ open: rows.length, stale });
+    } catch (e: unknown) {
+      setWaPulse(null);
+      setWaPulseError(e instanceof Error ? e.message : "WhatsApp pulse failed");
+    }
+  }, []);
+
   /** Fetch soft-rejected orders (is_waste=true) for the Rejected tab. Lightweight — last 100. */
   const fetchRejectedOrders = useCallback(async () => {
     const { data } = await supabase
@@ -234,6 +261,7 @@ const CMDWarRoom = () => {
     fetchRejectedOrders();
     fetchShadowCompanies();
     fetchActiveCompanies();
+    void fetchWaPulse();
 
     const ordersChannel = "warroom-orders-live";
     const companiesChannel = "warroom-companies-live";
@@ -265,7 +293,7 @@ const CMDWarRoom = () => {
       supabase.removeChannel(ch2);
       supabase.removeChannel(ch3);
     };
-  }, [fetchOrders, fetchRejectedOrders, fetchShadowCompanies, fetchActiveCompanies]);
+  }, [fetchOrders, fetchRejectedOrders, fetchShadowCompanies, fetchActiveCompanies, fetchWaPulse]);
 
   const sortedOrders = useMemo(() => {
     const startOfToday = new Date();
@@ -373,6 +401,14 @@ const CMDWarRoom = () => {
     fetchOrders();
   }, [autoPilotOrders, bulkProcessing, fetchOrders]);
 
+  const warCommSignals = useMemo(() => {
+    const financePressure = orders.filter((o) =>
+      ["awaiting_advance", "awaiting_payment", "awaiting_final_payment"].includes((o.status || "").toLowerCase()),
+    ).length;
+    const dispatchPanic = orders.filter((o) => o.dispatch_urgency === "panic").length;
+    return { financePressure, dispatchPanic };
+  }, [orders]);
+
   const counts = useMemo(() => {
     const startOfToday = new Date();
     startOfToday.setHours(0, 0, 0, 0);
@@ -394,6 +430,13 @@ const CMDWarRoom = () => {
 
   return (
     <div className="p-3 sm:p-4 space-y-4 bg-background max-w-full overflow-x-hidden">
+      <CmdOperationalCommPulse
+        openWhatsappPackets={waPulse?.open ?? 0}
+        staleWhatsappPackets={waPulse?.stale ?? 0}
+        financePressureOrders={warCommSignals.financePressure}
+        dispatchPanicOrders={warCommSignals.dispatchPanic}
+        loadError={waPulseError}
+      />
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h1 className="text-base sm:text-xl font-bold text-foreground tracking-tight">
           ⚔️ CMD War Room <span className="hidden sm:inline">— Live Order Battlefield v3</span>
@@ -428,7 +471,7 @@ const CMDWarRoom = () => {
             {todayOnly ? "Today" : "All"}
           </button>
           <button
-            onClick={() => { fetchOrders(); fetchShadowCompanies(); fetchActiveCompanies(); }}
+            onClick={() => { fetchOrders(); fetchShadowCompanies(); fetchActiveCompanies(); void fetchWaPulse(); }}
             className="flex items-center gap-1 sm:gap-1.5 text-[11px] sm:text-xs font-medium text-muted-foreground hover:text-foreground transition-colors px-2 sm:px-3 py-1 sm:py-1.5 rounded-md border border-border"
             aria-label="Refresh"
           >
