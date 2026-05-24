@@ -19,6 +19,8 @@ This document lists **cross-cutting** operational launch risks. Module-specific 
 | No reservation persistence API | Prebooking not enforceable | Local-only drafts on Store coordination; disabled backend submit |
 | No label print adapter | Physical labels manual | Label Command Center JSON payloads only |
 | No customer timeline data binding | Timeline is illustrative | Staff-only `CustomerOrderTimeline` preview route |
+| No unified notification outbox | Staff rely on manual channels | Notification Center is **projection-only** — no send engine |
+| No document vault backend | Compliance / proof chain manual | Media vault is **metadata shell** — no uploads |
 
 ## Near-term unblockers (typical sequence)
 

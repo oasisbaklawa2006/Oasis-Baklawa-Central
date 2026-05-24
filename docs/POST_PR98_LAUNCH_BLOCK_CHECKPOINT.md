@@ -56,3 +56,7 @@ Choose one for the next PR to avoid scope bleed.
 - **No reservation persistence** — Holds are not stored or enforced by this block.
 - **No automation** — No autonomous notifications or background job triggers from these surfaces.
 - **No public customer route** — Timeline preview is **`/admin/...`** only; any future public use requires auth + order ownership and curated copy only.
+
+## 7. Post-checkpoint add-on (notification + media visibility)
+
+Merged after PR #98 checkpoint: **Notification Center** (`/admin/notification-center`) and **Media / document vault** (`/admin/media-vault`) as **projection-only** shells; operational feeds `notification.*` and `media.*`; CMD pulse strip with honest projection counts. Still **no send engine**, **no uploads**, **no persistence** from these surfaces — see `docs/NOTIFICATION_CENTER_FOUNDATION_STATUS.md` and `docs/MEDIA_DOCUMENT_VAULT_FOUNDATION_STATUS.md`.

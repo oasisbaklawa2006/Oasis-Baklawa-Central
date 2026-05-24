@@ -12,8 +12,9 @@ Purpose: map remaining launch work into **module-by-module closures** so each ch
 - operational event spine
 - WhatsApp communication projection
 - order trace stitched timeline
-- CMD communication pulse (+ read-only **factory_inventory** row count + **retail/label pilot pending strip** — no fake counts)
-- **Retail store coordination** (B1 + B2 + inventory snapshot + **local reservation/factory drafts** + **retail launch timelines** + merged operational projections)
+- **Notification Center** (projection-only catalog + operational feed + `/admin/notification-center` — **no send engine**)
+- **Media / document vault** (metadata shell + operational feed + `/admin/media-vault` — **no uploads**)
+- CMD communication pulse (**+ notification/media visibility strip** with links — projection counts, not delivery/storage totals)
 
 ---
 
@@ -28,7 +29,7 @@ Purpose: map remaining launch work into **module-by-module closures** so each ch
 - Factory follow-up **persistence** and linkage to production jobs / WhatsApp hints (read-first)
 - Optional: dedicated **retail** timeline filter chip (currently uses existing `OperationalTimeline` categories only)
 
-See also: `docs/LAUNCH_BLOCKERS_MASTER.md`, `docs/OPERATIONAL_MODULE_COMPLETION_MATRIX.md`, `docs/BARCODE_LABEL_FOUNDATION_STATUS.md`, `docs/CUSTOMER_TIMELINE_FOUNDATION_STATUS.md`.
+See also: `docs/LAUNCH_BLOCKERS_MASTER.md`, `docs/OPERATIONAL_MODULE_COMPLETION_MATRIX.md`, `docs/BARCODE_LABEL_FOUNDATION_STATUS.md`, `docs/CUSTOMER_TIMELINE_FOUNDATION_STATUS.md`, `docs/NOTIFICATION_CENTER_FOUNDATION_STATUS.md`, `docs/MEDIA_DOCUMENT_VAULT_FOUNDATION_STATUS.md`.
 
 ---
 
@@ -37,8 +38,8 @@ See also: `docs/LAUNCH_BLOCKERS_MASTER.md`, `docs/OPERATIONAL_MODULE_COMPLETION_
 1. Retail/store coordination (shelf-level stock truth — see `docs/INVENTORY_READY_GOODS_VISIBILITY_STATUS.md`)
 2. Barcode / label flow
 3. AI order intake draft flow
-4. Notification center
-5. Media/document vault
+4. Notification center (**outbox + delivery** — see `docs/NOTIFICATION_CENTER_FOUNDATION_STATUS.md`; visibility shell shipped)
+5. Media/document vault (**storage + URLs** — see `docs/MEDIA_DOCUMENT_VAULT_FOUNDATION_STATUS.md`; metadata shell shipped)
 6. Customer timeline
 7. Approval/ticket feed builders
 8. Production allocation closure
@@ -50,8 +51,8 @@ See also: `docs/LAUNCH_BLOCKERS_MASTER.md`, `docs/OPERATIONAL_MODULE_COMPLETION_
 
 1. Retail/store coordination (shelf-level inventory still open — see `docs/INVENTORY_READY_GOODS_VISIBILITY_STATUS.md`)
 2. Barcode / label flow (receiving truth)
-3. Notifications
-4. Media vault
+3. Notifications (**delivery** — visibility foundation shipped)
+4. Media vault (**storage** — metadata foundation shipped)
 5. Customer timeline
 6. AI order intake
 
