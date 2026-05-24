@@ -226,23 +226,49 @@ export default function DispatchManagement() {
     toast.success("📸 Photo proof uploaded");
   };
 
-  if (loading) return <div className="flex items-center justify-center py-20"><Loader2 className="animate-spin text-primary" size={28} /></div>;
+  if (loading) {
+    return (
+      <div className="mx-auto max-w-lg space-y-3 px-2 py-8" aria-busy="true">
+        <div className="h-8 w-48 animate-pulse rounded bg-muted" />
+        <div className="h-24 rounded-xl bg-muted" />
+        <div className="h-24 rounded-xl bg-muted" />
+      </div>
+    );
+  }
 
   return (
-    <div className="space-y-4">
+    <div className="mx-auto max-w-lg min-w-0 space-y-4 px-2 pb-[max(1rem,env(safe-area-inset-bottom))] sm:px-0">
       <div className="flex items-center justify-between">
         <h1 className="text-xl font-bold text-foreground">Dispatch Handheld</h1>
         <Badge variant="outline">{orders.length} Active Orders</Badge>
       </div>
 
-      <Tabs defaultValue="dashboard" className="w-full">
-        <TabsList className="w-full">
-          <TabsTrigger value="dashboard" className="flex-1">Dashboard</TabsTrigger>
-          <TabsTrigger value="packing" className="flex-1">Scan & Pack</TabsTrigger>
+      <Tabs defaultValue="dashboard" className="w-full min-w-0">
+        <TabsList className="grid h-auto w-full min-h-11 grid-cols-2 gap-1 p-1">
+          <TabsTrigger value="dashboard" className="min-h-10 touch-manipulation">
+            Dashboard
+          </TabsTrigger>
+          <TabsTrigger value="packing" className="min-h-10 touch-manipulation">
+            Scan & Pack
+          </TabsTrigger>
         </TabsList>
 
         {/* SCREEN 1: Dashboard */}
-        <TabsContent value="dashboard">
+        <TabsContent value="dashboard" className="mt-4">
+          {orders.length === 0 ? (
+            <Card>
+              <CardContent className="space-y-3 py-12 text-center text-muted-foreground" role="status">
+                <Package className="mx-auto h-12 w-12 opacity-40" aria-hidden />
+                <p className="text-sm font-medium text-foreground">No active packing orders</p>
+                <p className="text-xs leading-relaxed">
+                  Orders in production or packing stages will appear here. If you expected work, refresh after operations updates the queue.
+                </p>
+                <Button type="button" variant="outline" className="min-h-11 touch-manipulation" onClick={() => void fetchOrders()}>
+                  Refresh
+                </Button>
+              </CardContent>
+            </Card>
+          ) : (
           <div className="grid gap-3">
             {orders.map(order => {
               const pct = getReadiness(order);
@@ -252,7 +278,7 @@ export default function DispatchManagement() {
                     <div className="flex items-start justify-between mb-2">
                       <div>
                         <p className="font-bold text-sm text-foreground">SO#{order.id.slice(0, 8).toUpperCase()}</p>
-                        <p className="text-xs text-muted-foreground">{order.company?.business_name || "N/A"}</p>
+                        <p className="text-xs break-words text-muted-foreground">{order.company?.business_name || "N/A"}</p>
                       </div>
                       <div className="flex items-center gap-2">
                         <Badge variant={pct === 100 ? "default" : "outline"} className="text-[10px]">{pct}% Ready</Badge>
@@ -260,13 +286,25 @@ export default function DispatchManagement() {
                       </div>
                     </div>
                     <Progress value={pct} className="h-2 mb-2" />
-                    <div className="flex gap-2">
-                      <Button size="sm" className="flex-1 text-xs" onClick={() => { setActiveOrderId(order.id); setCartonCount(0); setCurrentCarton([]); }}>
-                        <ScanLine size={14} className="mr-1" /> Start Packing
+                    <div className="flex flex-col gap-2 sm:flex-row">
+                      <Button
+                        size="sm"
+                        className="min-h-11 flex-1 touch-manipulation text-xs"
+                        onClick={() => { setActiveOrderId(order.id); setCartonCount(0); setCurrentCarton([]); }}
+                        aria-label={`Start packing order ${order.id.slice(0, 8)}`}
+                      >
+                        <ScanLine size={14} className="mr-1 shrink-0" aria-hidden /> Start Packing
                       </Button>
                       {pct === 100 && (
-                        <Button size="sm" variant="default" className="text-xs bg-emerald-600 hover:bg-emerald-700" onClick={() => handleFinalizeDpl(order.id)} disabled={finalizingDpl}>
-                          <FileCheck size={14} className="mr-1" /> Finalize DPL
+                        <Button
+                          size="sm"
+                          variant="default"
+                          className="min-h-11 touch-manipulation bg-emerald-600 text-xs hover:bg-emerald-700"
+                          onClick={() => void handleFinalizeDpl(order.id)}
+                          disabled={finalizingDpl}
+                          aria-label={`Finalize dispatch packing list for order ${order.id.slice(0, 8)}`}
+                        >
+                          <FileCheck size={14} className="mr-1 shrink-0" aria-hidden /> Finalize DPL
                         </Button>
                       )}
                     </div>
@@ -275,23 +313,40 @@ export default function DispatchManagement() {
               );
             })}
           </div>
+          )}
         </TabsContent>
 
         {/* SCREEN 2: Scan & Pack */}
-        <TabsContent value="packing">
+        <TabsContent value="packing" className="mt-4">
           {!activeOrderId ? (
-            <Card><CardContent className="py-12 text-center text-muted-foreground">Select an order from Dashboard first.</CardContent></Card>
+            <Card>
+              <CardContent className="space-y-3 py-12 text-center text-muted-foreground" role="status">
+                <ScanLine className="mx-auto h-10 w-10 opacity-40" aria-hidden />
+                <p className="text-sm font-medium text-foreground">Select an order first</p>
+                <p className="text-xs">Open the Dashboard tab, choose an order, then return here to scan and seal cartons.</p>
+              </CardContent>
+            </Card>
           ) : (
-            <div className="space-y-4">
+            <div className="flex max-h-[min(100dvh,48rem)] flex-col gap-0">
+              <div className="min-h-0 flex-1 space-y-4 overflow-y-auto overscroll-y-contain pb-4">
               <Card>
-                <CardContent className="p-4">
-                  <p className="font-bold text-sm text-foreground mb-1">Packing: SO#{activeOrderId.slice(0, 8).toUpperCase()}</p>
-                  <p className="text-xs text-muted-foreground mb-3">{activeOrder?.company?.business_name}</p>
+                <CardContent className="space-y-3 p-4">
+                  <p className="text-sm font-bold text-foreground">Packing: SO#{activeOrderId.slice(0, 8).toUpperCase()}</p>
+                  <p className="break-words text-xs text-muted-foreground">{activeOrder?.company?.business_name}</p>
 
-                  {/* Scan Input */}
-                  <form onSubmit={handleScan} className="flex gap-2 mb-3">
-                    <Input ref={scanRef} value={scanInput} onChange={e => setScanInput(e.target.value)} placeholder="Scan barcode / Enter SKU..." className="flex-1" autoFocus />
-                    <Button type="submit" size="sm"><ScanLine size={14} /></Button>
+                  <form onSubmit={handleScan} className="mb-3 flex gap-2">
+                    <Input
+                      ref={scanRef}
+                      value={scanInput}
+                      onChange={e => setScanInput(e.target.value)}
+                      placeholder="Scan barcode / Enter SKU..."
+                      className="min-h-11 flex-1"
+                      autoFocus
+                      aria-label="Scan or type product SKU"
+                    />
+                    <Button type="submit" size="icon" className="h-11 w-11 shrink-0 touch-manipulation" aria-label="Submit scan">
+                      <ScanLine size={18} aria-hidden />
+                    </Button>
                   </form>
 
                   {/* Matched Item */}
@@ -302,13 +357,22 @@ export default function DispatchManagement() {
                           {matchedItem.product?.image_url ? <img src={matchedItem.product.image_url} className="w-full h-full object-cover" /> : <Package size={16} className="text-muted-foreground" />}
                         </div>
                         <div>
-                          <p className="text-sm font-semibold text-foreground">{matchedItem.product?.name}</p>
+                          <p className="break-words text-sm font-semibold text-foreground">{matchedItem.product?.name}</p>
                           <p className="text-[10px] text-muted-foreground font-mono">SKU: {matchedItem.product?.sku} | Ordered: {matchedItem.quantity}</p>
                         </div>
                       </div>
-                      <div className="flex gap-2">
-                        <Input type="number" value={packQty} onChange={e => setPackQty(e.target.value)} placeholder="Packed Qty" className="w-28" />
-                        <Button size="sm" onClick={addToCarton}><Box size={14} className="mr-1" /> Add to Carton</Button>
+                      <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                        <Input
+                          type="number"
+                          value={packQty}
+                          onChange={e => setPackQty(e.target.value)}
+                          placeholder="Packed Qty"
+                          className="min-h-11 w-full sm:w-32"
+                          aria-label="Quantity to add to carton"
+                        />
+                        <Button type="button" size="sm" className="min-h-11 w-full touch-manipulation sm:w-auto" onClick={addToCarton}>
+                          <Box size={14} className="mr-1 shrink-0" aria-hidden /> Add to Carton
+                        </Button>
                       </div>
                     </div>
                   )}
@@ -327,50 +391,74 @@ export default function DispatchManagement() {
                   )}
 
                   {/* Photo Proof */}
-                  <div className="flex gap-2 mb-3">
+                  <div className="mb-3 flex flex-col gap-2 sm:flex-row">
                     <label className="flex-1">
-                      <input type="file" accept="image/*" capture="environment" className="hidden" onChange={handlePhotoUpload} />
-                      <Button variant="outline" size="sm" className="w-full text-xs" asChild><span><Camera size={14} className="mr-1" /> Photo Proof</span></Button>
+                      <input type="file" accept="image/*" capture="environment" className="sr-only" onChange={handlePhotoUpload} />
+                      <Button variant="outline" size="sm" className="min-h-11 w-full touch-manipulation text-xs" asChild>
+                        <span className="inline-flex cursor-pointer items-center justify-center gap-2">
+                          <Camera size={14} aria-hidden /> Photo Proof
+                        </span>
+                      </Button>
                     </label>
-                    {photoUrl && <Badge className="text-[10px] bg-emerald-500/20 text-emerald-700">✅ Photo Attached</Badge>}
+                    {photoUrl && <Badge className="min-h-11 items-center bg-emerald-500/20 px-3 text-[10px] text-emerald-700">Photo attached</Badge>}
                   </div>
-
-                  {/* Close Carton */}
-                  <Button className="w-full" onClick={closeCarton} disabled={acting || currentCarton.length === 0}>
-                    <Printer size={16} className="mr-2" /> Close Carton & Print Label
-                  </Button>
-
-                  {/* Finalize DPL - only when ALL items are fully packed */}
-                  {activeOrder && isAllPacked(activeOrder) && (
-                    <Button className="w-full mt-2 bg-emerald-600 hover:bg-emerald-700 text-white" onClick={() => handleFinalizeDpl(activeOrderId!)} disabled={finalizingDpl}>
-                      <FileCheck size={16} className="mr-2" /> {finalizingDpl ? "Finalizing..." : "Finalize DPL → Send to Finance"}
-                    </Button>
-                  )}
                 </CardContent>
               </Card>
 
-              {/* Order Items Summary */}
               <Card>
                 <CardContent className="p-4">
-                  <p className="text-xs font-bold text-foreground mb-2">Order Items Status</p>
-                  {activeOrder?.items.map(item => (
-                    <div key={item.id} className="flex items-center gap-2 py-1.5 border-b border-border last:border-0">
-                      <div className="w-8 h-8 rounded bg-muted flex items-center justify-center overflow-hidden">
-                        {item.product?.image_url ? <img src={item.product.image_url} className="w-full h-full object-cover" /> : <Package size={12} className="text-muted-foreground" />}
+                  <p className="mb-2 text-xs font-bold text-foreground">Order Items Status</p>
+                  {activeOrder?.items.map((item) => (
+                    <div key={item.id} className="flex items-center gap-2 border-b border-border py-1.5 last:border-0">
+                      <div className="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded bg-muted">
+                        {item.product?.image_url ? (
+                          <img src={item.product.image_url} alt="" className="h-full w-full object-cover" />
+                        ) : (
+                          <Package size={12} className="text-muted-foreground" aria-hidden />
+                        )}
                       </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-xs font-medium text-foreground truncate">{item.product?.name}</p>
-                        <p className="text-[10px] text-muted-foreground">Packed: {item.actual_packed_qty || 0}/{item.quantity}</p>
+                      <div className="min-w-0 flex-1">
+                        <p className="break-words text-xs font-medium text-foreground">{item.product?.name}</p>
+                        <p className="text-[10px] text-muted-foreground">
+                          Packed: {item.actual_packed_qty || 0}/{item.quantity}
+                        </p>
                       </div>
                       {(item.actual_packed_qty || 0) >= item.quantity ? (
-                        <CheckCircle2 size={14} className="text-emerald-500" />
+                        <CheckCircle2 size={14} className="shrink-0 text-emerald-500" aria-label="Line complete" />
                       ) : (
-                        <Badge variant="outline" className="text-[10px]">{Math.round(((item.actual_packed_qty || 0) / item.quantity) * 100)}%</Badge>
+                        <Badge variant="outline" className="shrink-0 text-[10px]">
+                          {Math.round(((item.actual_packed_qty || 0) / item.quantity) * 100)}%
+                        </Badge>
                       )}
                     </div>
                   ))}
                 </CardContent>
               </Card>
+              </div>
+
+              <div className="sticky bottom-0 z-10 mt-2 space-y-2 border-t border-border bg-background/95 px-1 py-3 backdrop-blur-sm supports-[backdrop-filter]:backdrop-blur-sm pb-[max(0.75rem,env(safe-area-inset-bottom))]">
+                <Button
+                  type="button"
+                  className="min-h-12 w-full touch-manipulation"
+                  onClick={() => void closeCarton()}
+                  disabled={acting || currentCarton.length === 0}
+                  aria-label="Close carton and print label"
+                >
+                  <Printer size={16} className="mr-2 shrink-0" aria-hidden /> Close Carton & Print Label
+                </Button>
+                {activeOrder && isAllPacked(activeOrder) && (
+                  <Button
+                    type="button"
+                    className="min-h-12 w-full touch-manipulation bg-emerald-600 text-white hover:bg-emerald-700"
+                    onClick={() => void handleFinalizeDpl(activeOrderId!)}
+                    disabled={finalizingDpl}
+                    aria-label="Finalize dispatch packing list and send to finance"
+                  >
+                    <FileCheck size={16} className="mr-2 shrink-0" aria-hidden />{" "}
+                    {finalizingDpl ? "Finalizing..." : "Finalize DPL → Send to Finance"}
+                  </Button>
+                )}
+              </div>
             </div>
           )}
         </TabsContent>

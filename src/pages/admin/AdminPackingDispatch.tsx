@@ -1,8 +1,10 @@
 import { useEffect, useState, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { Loader2, ArrowRight, Truck, PackageCheck, AlertTriangle, CheckCircle2, TrendingDown, TrendingUp, Minus } from "lucide-react";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Loader2, ArrowRight, Truck, PackageCheck, AlertTriangle, CheckCircle2, TrendingDown, TrendingUp, Minus, RefreshCw } from "lucide-react";
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useLanguage } from "@/hooks/useLanguage";
@@ -66,24 +68,38 @@ const AdminPackingDispatch = () => {
   const [driverPhone, setDriverPhone] = useState("");
   const [dispatchProofFile, setDispatchProofFile] = useState<File | null>(null);
   const [requisitionsByOrder, setRequisitionsByOrder] = useState<Record<string, StoreReqRow[]>>({});
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   const fetchOrders = async () => {
     setLoading(true);
-    const { data } = await supabase
+    setLoadError(null);
+    const { data, error } = await supabase
       .from("orders")
       .select("id, status, sales_order_value, payment_status, advance_paid, advance_required, company_id, company:companies(business_name), order_items(id, quantity, actual_packed_qty, production_status, pack_size, carton_type, product_id)")
       .in("status", ["packed_ready", "cleared_for_dispatch"])
       .order("created_at", { ascending: true });
+    if (error) {
+      console.error("[AdminPackingDispatch]", error);
+      setLoadError(error.message || "Could not load dispatch queues.");
+      setOrders([]);
+      setRequisitionsByOrder({});
+      setLoading(false);
+      return;
+    }
     const rows = (data as unknown as DispatchOrder[]) ?? [];
     setOrders(rows);
     const ids = rows.map((r) => r.id);
     if (ids.length === 0) {
       setRequisitionsByOrder({});
     } else {
-      const { data: reqs } = await supabase
+      const { data: reqs, error: reqErr } = await supabase
         .from("store_requisitions")
         .select("order_id, status, store_requisition_items(requested_qty, fulfilled_qty)")
         .in("order_id", ids);
+      if (reqErr) {
+        console.error("[AdminPackingDispatch] requisitions", reqErr);
+        toast.error("Store requisitions could not be loaded for some orders.");
+      }
       const map: Record<string, StoreReqRow[]> = {};
       for (const r of (reqs as StoreReqRow[]) || []) {
         const oid = r.order_id;
@@ -347,11 +363,44 @@ const AdminPackingDispatch = () => {
     }
   };
 
-  if (loading) return <div className="flex items-center justify-center py-20"><Loader2 size={24} className="animate-spin text-primary" /></div>;
+  if (loading) {
+    return (
+      <div className="mx-auto max-w-5xl space-y-4 px-1 py-6" aria-busy="true" aria-label="Loading packing and dispatch">
+        <Skeleton className="h-9 w-64 max-w-full" />
+        <div className="flex flex-wrap gap-2">
+          <Skeleton className="h-11 w-36 rounded-lg" />
+          <Skeleton className="h-11 w-40 rounded-lg" />
+          <Skeleton className="h-11 w-44 rounded-lg" />
+        </div>
+        <Skeleton className="h-24 w-full rounded-xl" />
+        <div className="space-y-2">
+          <Skeleton className="h-16 w-full rounded-lg" />
+          <Skeleton className="h-16 w-full rounded-lg" />
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <div className="space-y-6">
+    <div className="mx-auto max-w-5xl min-w-0 space-y-6 px-2 sm:px-0">
       <h1 className="text-display-h2 text-foreground">{t("Packing & Dispatch")}</h1>
+
+      {loadError ? (
+        <div
+          role="alert"
+          className="flex flex-col gap-3 rounded-xl border border-destructive/30 bg-destructive/5 p-4 sm:flex-row sm:items-center sm:justify-between"
+        >
+          <div className="min-w-0">
+            <p className="text-sm font-semibold text-destructive">Could not load queues</p>
+            <p className="mt-1 break-words text-sm text-muted-foreground">{loadError}</p>
+            <p className="mt-1 text-xs text-muted-foreground">Check your connection and permissions, then retry. Do not dispatch until data loads.</p>
+          </div>
+          <Button type="button" variant="outline" className="min-h-11 shrink-0 touch-manipulation gap-2" onClick={() => void fetchOrders()}>
+            <RefreshCw className="h-4 w-4" aria-hidden />
+            Retry
+          </Button>
+        </div>
+      ) : null}
 
       {/* Tabs */}
       <div className="flex flex-wrap gap-2">
@@ -360,9 +409,13 @@ const AdminPackingDispatch = () => {
           { key: "dispatch_ready" as const, label: t("Dispatch Ready"), count: dispatchReady.length, icon: Truck },
           { key: "blocked" as const, label: "Blocked by Finance", count: blockedOrders.length, icon: AlertTriangle },
         ].map(tb => (
-          <button key={tb.key} onClick={() => setTab(tb.key)}
-            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-ui-button transition-colors ${tab === tb.key ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground hover:text-foreground"}`}>
-            <tb.icon size={14} /> {tb.label} ({tb.count})
+          <button
+            key={tb.key}
+            type="button"
+            onClick={() => setTab(tb.key)}
+            className={`flex min-h-11 touch-manipulation items-center gap-2 rounded-lg px-4 py-2.5 text-ui-button transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ${tab === tb.key ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground hover:text-foreground"}`}
+          >
+            <tb.icon size={14} aria-hidden /> {tb.label} ({tb.count})
           </button>
         ))}
       </div>
@@ -378,19 +431,113 @@ const AdminPackingDispatch = () => {
 
       {/* Orders Table */}
       {displayed.length === 0 ? (
-        <p className="text-ui-label text-muted-foreground">No orders in this queue.</p>
+        <div className="rounded-xl border border-dashed border-border bg-muted/20 p-8 text-center" role="status">
+          <PackageCheck className="mx-auto mb-3 h-10 w-10 text-muted-foreground/50" aria-hidden />
+          <p className="font-medium text-foreground">No orders in this queue</p>
+          <p className="mt-2 text-sm text-muted-foreground">
+            {tab === "packing" && "Nothing is waiting for advance to dispatch-ready."}
+            {tab === "dispatch_ready" && "No finance-cleared orders ready to create a dispatch leg."}
+            {tab === "blocked" && "No finance-blocked orders in this lane."}
+          </p>
+          <Button type="button" variant="outline" className="mt-4 min-h-11 touch-manipulation" onClick={() => void fetchOrders()}>
+            Refresh list
+          </Button>
+        </div>
       ) : (
-        <div className="rounded-xl overflow-hidden border border-border bg-card" style={{ boxShadow: "0 2px 12px rgba(0,0,0,0.06)" }}>
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="bg-muted/50">
-                <th className="text-left px-4 py-3 text-ui-label text-muted-foreground">{t("Company")}</th>
-                <th className="text-left px-4 py-3 text-ui-label text-muted-foreground">{t("Order ID")}</th>
-                <th className="text-left px-4 py-3 text-ui-label text-muted-foreground">{t("Status")}</th>
-                <th className="text-left px-4 py-3 text-ui-label text-muted-foreground">{t("Value")}</th>
-                <th className="text-left px-4 py-3 text-ui-label text-muted-foreground">Finance release</th>
-                <th className="text-left px-4 py-3 text-ui-label text-muted-foreground">Packed_ready gate</th>
-                <th className="text-right px-4 py-3 text-ui-label text-muted-foreground">{t("Actions")}</th>
+        <>
+          <div className="md:hidden space-y-3">
+            {displayed.map((order) => {
+              const blocked = isDispatchFinanceBlocked(order);
+              const finState = deriveFinanceReleaseState({
+                status: order.status,
+                payment_status: order.payment_status,
+                advance_paid: order.advance_paid,
+                advance_required: order.advance_required,
+                sales_order_value: order.sales_order_value,
+              });
+              const gate = packedReadyChecksByOrder[order.id];
+              return (
+                <div key={order.id} className="rounded-xl border border-border bg-card p-4 shadow-sm">
+                  <p className="break-words font-semibold text-foreground">{order.company?.business_name ?? "—"}</p>
+                  <p className="mt-1 font-mono text-xs text-muted-foreground">SO {order.id.slice(0, 8)}…</p>
+                  <div className="mt-2 flex flex-wrap items-center gap-2">
+                    <span
+                      className={`rounded-full px-2 py-1 text-xs font-semibold ${blocked ? "bg-destructive/10 text-destructive" : "bg-primary/10 text-primary"}`}
+                    >
+                      {blocked ? "Finance Hold" : order.status.replace(/_/g, " ")}
+                    </span>
+                    <span className="text-sm font-semibold text-foreground">₹{(order.sales_order_value ?? 0).toLocaleString("en-IN")}</span>
+                  </div>
+                  <div className="mt-3 border-t border-border pt-3">
+                    <p className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">Finance release</p>
+                    <div className="mt-1">
+                      <FinanceReleaseChips variant="compact" state={finState} />
+                    </div>
+                  </div>
+                  <div className="mt-2 text-xs text-muted-foreground">
+                    Packed-ready gate:{" "}
+                    {gate?.length === 0 ? (
+                      <span className="font-semibold text-emerald-600">Eligible</span>
+                    ) : (
+                      <span className="font-semibold text-amber-700" title={(gate || []).map((b) => b.message).join("\n")}>
+                        Blocked ({gate?.length ?? 0})
+                      </span>
+                    )}
+                  </div>
+                  <div className="mt-4 flex flex-col gap-2">
+                    {order.status === "packed_ready" && !blocked && (
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        className="min-h-11 w-full touch-manipulation"
+                        disabled={updating === order.id}
+                        onClick={() => void handleAdvanceToPacking(order)}
+                        aria-label={`Advance order ${order.id.slice(0, 8)} to dispatch ready`}
+                      >
+                        {updating === order.id ? <Loader2 size={16} className="animate-spin" aria-hidden /> : <ArrowRight size={16} aria-hidden />}
+                        Move to dispatch ready
+                      </Button>
+                    )}
+                    {order.status === "cleared_for_dispatch" && !blocked && (
+                      <Button
+                        type="button"
+                        className="min-h-11 w-full touch-manipulation"
+                        onClick={() => void openDispatchModal(order)}
+                        aria-label={`Create dispatch for order ${order.id.slice(0, 8)}`}
+                      >
+                        <Truck size={16} className="mr-2" aria-hidden />
+                        {t("Create Dispatch")}
+                      </Button>
+                    )}
+                    {blocked && (
+                      <p className="break-words text-sm text-destructive" role="status">
+                        {getFinanceReleaseBlockers({
+                          status: order.status,
+                          payment_status: order.payment_status,
+                          advance_paid: order.advance_paid,
+                          advance_required: order.advance_required,
+                          sales_order_value: order.sales_order_value,
+                        })
+                          .map((b) => b.message)
+                          .join(" ") || "Finance hold"}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+          <div className="hidden overflow-x-auto rounded-xl border border-border bg-card md:block" style={{ boxShadow: "0 2px 12px rgba(0,0,0,0.06)" }}>
+          <table className="w-full min-w-[720px] text-sm">
+            <thead className="sticky top-0 z-[1] bg-muted/90 shadow-sm backdrop-blur-sm">
+              <tr>
+                <th className="px-4 py-3 text-left text-ui-label text-muted-foreground">{t("Company")}</th>
+                <th className="px-4 py-3 text-left text-ui-label text-muted-foreground">{t("Order ID")}</th>
+                <th className="px-4 py-3 text-left text-ui-label text-muted-foreground">{t("Status")}</th>
+                <th className="px-4 py-3 text-left text-ui-label text-muted-foreground">{t("Value")}</th>
+                <th className="px-4 py-3 text-left text-ui-label text-muted-foreground">Finance release</th>
+                <th className="px-4 py-3 text-left text-ui-label text-muted-foreground">Packed_ready gate</th>
+                <th className="px-4 py-3 text-right text-ui-label text-muted-foreground">{t("Actions")}</th>
               </tr>
             </thead>
             <tbody>
@@ -405,10 +552,10 @@ const AdminPackingDispatch = () => {
                 });
                 return (
                   <tr key={order.id} className="border-t border-border">
-                    <td className="px-4 py-3 text-ui-cell text-foreground">{order.company?.business_name ?? "—"}</td>
-                    <td className="px-4 py-3 text-ui-cell text-muted-foreground text-xs">{order.id.slice(0, 8)}…</td>
+                    <td className="max-w-[10rem] px-4 py-3 text-ui-cell break-words text-foreground">{order.company?.business_name ?? "—"}</td>
+                    <td className="px-4 py-3 text-ui-cell text-xs text-muted-foreground">{order.id.slice(0, 8)}…</td>
                     <td className="px-4 py-3">
-                      <span className={`px-2 py-1 rounded-full text-xs font-semibold ${blocked ? "bg-destructive/10 text-destructive" : "bg-primary/10 text-primary"}`}>
+                      <span className={`rounded-full px-2 py-1 text-xs font-semibold ${blocked ? "bg-destructive/10 text-destructive" : "bg-primary/10 text-primary"}`}>
                         {blocked ? "Finance Hold" : order.status}
                       </span>
                     </td>
@@ -428,21 +575,35 @@ const AdminPackingDispatch = () => {
                         </span>
                       )}
                     </td>
-                    <td className="px-4 py-3 text-right space-x-2">
+                    <td className="space-x-2 px-4 py-3 text-right">
                       {order.status === "packed_ready" && !blocked && (
-                        <button onClick={() => handleAdvanceToPacking(order)} disabled={updating === order.id}
-                          className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold bg-primary/10 text-primary hover:bg-primary/20 disabled:opacity-50">
-                          {updating === order.id ? <Loader2 size={12} className="animate-spin" /> : <ArrowRight size={12} />} → Ready
-                        </button>
+                        <Button
+                          type="button"
+                          variant="secondary"
+                          size="sm"
+                          className="min-h-10 touch-manipulation"
+                          onClick={() => void handleAdvanceToPacking(order)}
+                          disabled={updating === order.id}
+                          aria-label={`Advance order ${order.id.slice(0, 8)} to dispatch ready`}
+                        >
+                          {updating === order.id ? <Loader2 size={12} className="animate-spin" aria-hidden /> : <ArrowRight size={12} aria-hidden />}
+                          → Ready
+                        </Button>
                       )}
                       {order.status === "cleared_for_dispatch" && !blocked && (
-                        <button onClick={() => openDispatchModal(order)}
-                          className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold bg-primary/10 text-primary hover:bg-primary/20">
-                          <Truck size={12} /> {t("Create Dispatch")}
-                        </button>
+                        <Button
+                          type="button"
+                          size="sm"
+                          className="min-h-10 touch-manipulation"
+                          onClick={() => void openDispatchModal(order)}
+                          aria-label={`Create dispatch for order ${order.id.slice(0, 8)}`}
+                        >
+                          <Truck size={12} className="mr-1" aria-hidden />
+                          {t("Create Dispatch")}
+                        </Button>
                       )}
                       {blocked && (
-                        <span className="text-fine text-destructive max-w-[140px] inline-block text-left">
+                        <span className="inline-block max-w-[140px] text-left text-fine text-destructive">
                           {getFinanceReleaseBlockers({
                             status: order.status,
                             payment_status: order.payment_status,
@@ -461,101 +622,116 @@ const AdminPackingDispatch = () => {
             </tbody>
           </table>
         </div>
+        </>
       )}
 
-      {/* Dispatch Modal with Weight Variance Engine */}
       <Dialog open={!!selectedOrder} onOpenChange={(open) => { if (!open) { setSelectedOrder(null); setShowSuccess(false); } }}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto bg-card border-border">
+        <DialogContent className="flex max-h-[min(92dvh,100%)] w-[calc(100vw-1.25rem)] max-w-2xl flex-col gap-0 overflow-hidden border-border bg-card p-0 sm:w-full">
           {showSuccess ? (
-            <div className="text-center py-10 space-y-4">
-              <CheckCircle2 size={56} className="mx-auto text-green-500" />
+            <div className="space-y-4 px-6 py-10 text-center">
+              <CheckCircle2 size={56} className="mx-auto text-green-500" aria-hidden />
               <h2 className="text-display-h2 text-foreground">Dispatch Created</h2>
               {Math.abs(varianceAmount) > 0.01 && (
                 <p className="text-sm text-muted-foreground">
                   Wallet {varianceAmount > 0 ? "credited" : "debited"} ₹{Math.abs(varianceAmount).toLocaleString("en-IN", { minimumFractionDigits: 2 })}
                 </p>
               )}
-              <button onClick={() => { setSelectedOrder(null); setShowSuccess(false); fetchOrders(); }}
-                className="px-6 py-2.5 rounded-xl bg-primary text-primary-foreground font-ui font-semibold text-sm">Done</button>
+              <Button
+                type="button"
+                className="min-h-11 touch-manipulation"
+                onClick={() => { setSelectedOrder(null); setShowSuccess(false); void fetchOrders(); }}
+              >
+                Done
+              </Button>
             </div>
           ) : (
             <>
-              <DialogHeader><DialogTitle className="text-display-h2 text-primary">{t("Create Dispatch")} — Weight Variance</DialogTitle></DialogHeader>
+              <DialogHeader className="shrink-0 border-b border-border px-6 pb-4 pt-6 pr-14 text-left">
+                <DialogTitle className="text-display-h2 text-primary">{t("Create Dispatch")} — Weight Variance</DialogTitle>
+              </DialogHeader>
               {selectedOrder && (
-                <div className="space-y-5 mt-2">
-                  <div><p className="text-ui-h5 text-foreground">{selectedOrder.company?.business_name}</p><p className="text-fine text-muted-foreground">Order: {selectedOrder.id.slice(0, 12)}…</p></div>
+                <>
+                  <div className="min-h-0 flex-1 overflow-y-auto overscroll-y-contain px-6 py-4">
+                    <div className="space-y-5">
+                  <div>
+                    <p className="text-ui-h5 break-words text-foreground">{selectedOrder.company?.business_name}</p>
+                    <p className="text-fine text-muted-foreground">Order: {selectedOrder.id.slice(0, 12)}…</p>
+                  </div>
 
-                  {/* Transport fields */}
-                  <div className="flex items-center gap-3 p-3 rounded-xl bg-muted/50 border border-border">
-                    <label className="text-ui-label text-foreground flex items-center gap-2 cursor-pointer">
-                      <input type="checkbox" checked={partialDispatch} onChange={e => setPartialDispatch(e.target.checked)} className="rounded border-border" />
+                  <div className="rounded-xl border border-amber-200/80 bg-amber-50/50 p-3 text-sm text-amber-950">
+                    <p className="font-semibold">Operational check</p>
+                    <p className="mt-1 text-xs leading-relaxed text-amber-900/90">
+                      Partial dispatch and weight edits can change invoicing and wallet reconciliation. Confirm transport details and proof before submitting.
+                    </p>
+                  </div>
+
+                  <div className="flex items-center gap-3 rounded-xl border border-border bg-muted/50 p-3">
+                    <label className="flex cursor-pointer items-center gap-2 text-ui-label text-foreground">
+                      <input type="checkbox" checked={partialDispatch} onChange={e => setPartialDispatch(e.target.checked)} className="h-4 w-4 rounded border-border" />
                       {t("Partial Dispatch")}
                     </label>
                   </div>
-                  <div className="grid grid-cols-2 gap-3">
-                    <div className="space-y-1.5"><Label className="text-ui-label text-muted-foreground">{t("Transporter Name")} *</Label><Input value={transporterName} onChange={e => setTransporterName(e.target.value)} className="rounded-xl" /></div>
-                    <div className="space-y-1.5"><Label className="text-ui-label text-muted-foreground">LR / Bilty / AWB *</Label><Input value={trackingNumber} onChange={e => setTrackingNumber(e.target.value)} className="rounded-xl" /></div>
-                    <div className="space-y-1.5"><Label className="text-ui-label text-muted-foreground">{t("Driver Name")}</Label><Input value={driverName} onChange={e => setDriverName(e.target.value)} className="rounded-xl" /></div>
-                    <div className="space-y-1.5"><Label className="text-ui-label text-muted-foreground">{t("Driver Phone")}</Label><Input value={driverPhone} onChange={e => setDriverPhone(e.target.value)} className="rounded-xl" /></div>
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                    <div className="space-y-1.5"><Label className="text-ui-label text-muted-foreground">{t("Transporter Name")} *</Label><Input value={transporterName} onChange={e => setTransporterName(e.target.value)} className="min-h-11 rounded-xl" /></div>
+                    <div className="space-y-1.5"><Label className="text-ui-label text-muted-foreground">LR / Bilty / AWB *</Label><Input value={trackingNumber} onChange={e => setTrackingNumber(e.target.value)} className="min-h-11 rounded-xl" /></div>
+                    <div className="space-y-1.5"><Label className="text-ui-label text-muted-foreground">{t("Driver Name")}</Label><Input value={driverName} onChange={e => setDriverName(e.target.value)} className="min-h-11 rounded-xl" /></div>
+                    <div className="space-y-1.5"><Label className="text-ui-label text-muted-foreground">{t("Driver Phone")}</Label><Input value={driverPhone} onChange={e => setDriverPhone(e.target.value)} className="min-h-11 rounded-xl" /></div>
                   </div>
                   <div className="space-y-1.5">
                     <Label className="text-ui-label text-muted-foreground">Dispatch proof (PDF / image) *</Label>
                     <Input
                       type="file"
                       accept=".pdf,.jpg,.jpeg,.png,.webp"
-                      className="rounded-xl cursor-pointer"
+                      className="min-h-11 cursor-pointer rounded-xl"
                       onChange={(e) => setDispatchProofFile(e.target.files?.[0] ?? null)}
                     />
-                    {dispatchProofFile && <p className="text-fine text-muted-foreground">{dispatchProofFile.name}</p>}
+                    {dispatchProofFile && <p className="text-fine break-all text-muted-foreground">{dispatchProofFile.name}</p>}
                   </div>
 
-                  {/* Weight Variance Packing List */}
                   <div className="border-t border-border pt-4">
-                    <h3 className="text-ui-h5 text-foreground mb-3">Weight Variance Packing List</h3>
-                    {modalLoading ? <div className="flex justify-center py-6"><Loader2 size={20} className="animate-spin text-primary" /></div> : (
+                    <h3 className="text-ui-h5 mb-3 text-foreground">Weight Variance Packing List</h3>
+                    {modalLoading ? <div className="flex justify-center py-6"><Loader2 size={20} className="animate-spin text-primary" aria-hidden /></div> : (
                       <div className="space-y-3">
                         {modalItems.map((item, idx) => {
-                          const variance = item.original_line_total - item.final_line_total;
                           const weightDiff = item.final_weight_kg - item.original_weight_kg;
                           return (
-                            <div key={item.id} className="p-3 rounded-xl border border-border bg-muted/30 space-y-2">
-                              <div className="flex items-center justify-between">
-                                <div>
-                                  <p className="text-ui-h5 text-foreground">{(item.product as any)?.name ?? "Unknown"}</p>
+                            <div key={item.id} className="space-y-2 rounded-xl border border-border bg-muted/30 p-3">
+                              <div className="flex items-center justify-between gap-2">
+                                <div className="min-w-0">
+                                  <p className="text-ui-h5 break-words text-foreground">{(item.product as any)?.name ?? "Unknown"}</p>
                                   <p className="text-fine text-muted-foreground">
                                     {item.pack_size ?? "—"} · {item.carton_type ?? "—"} · ₹{item.unit_price.toFixed(2)}/kg
                                   </p>
                                 </div>
                               </div>
-                              <div className="grid grid-cols-3 gap-2">
+                              <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
                                 <div className="space-y-1">
                                   <Label className="text-fine text-muted-foreground">Qty (packs)</Label>
                                   <Input type="number" min={0} value={item.packed_qty}
                                     onChange={e => updateItemQty(idx, Number(e.target.value) || 0)}
-                                    className="text-sm text-center h-8 rounded-lg" />
+                                    className="h-11 rounded-lg text-center text-sm" />
                                 </div>
                                 <div className="space-y-1">
                                   <Label className="text-fine text-muted-foreground">Original Wt (kg)</Label>
-                                  <div className="h-8 flex items-center justify-center text-sm text-muted-foreground bg-muted rounded-lg">
+                                  <div className="flex h-11 items-center justify-center rounded-lg bg-muted text-sm text-muted-foreground">
                                     {item.original_weight_kg.toFixed(2)}
                                   </div>
                                 </div>
                                 <div className="space-y-1">
-                                  <Label className="text-fine text-primary font-semibold">Final Wt (kg) *</Label>
+                                  <Label className="text-fine font-semibold text-primary">Final Wt (kg) *</Label>
                                   <Input type="number" min={0} step={0.01} value={item.final_weight_kg}
                                     onChange={e => updateItemWeight(idx, Number(e.target.value) || 0)}
-                                    className="text-sm text-center h-8 rounded-lg border-primary/50 ring-1 ring-primary/20" />
+                                    className="h-11 rounded-lg border-primary/50 text-center text-sm ring-1 ring-primary/20" />
                                 </div>
                               </div>
-                              {/* Line variance indicator */}
-                              <div className="flex justify-between items-center text-xs pt-1">
+                              <div className="flex flex-wrap items-center justify-between gap-2 text-xs pt-1">
                                 <span className="text-muted-foreground">
                                   Wt Δ: <span className={weightDiff > 0 ? "text-destructive" : weightDiff < 0 ? "text-green-600" : "text-muted-foreground"}>
                                     {weightDiff > 0 ? "+" : ""}{weightDiff.toFixed(2)} kg
                                   </span>
                                 </span>
                                 <span className="text-muted-foreground">
-                                  Original: ₹{item.original_line_total.toFixed(2)} → Final: <span className="text-foreground font-semibold">₹{item.final_line_total.toFixed(2)}</span>
+                                  Original: ₹{item.original_line_total.toFixed(2)} → Final: <span className="font-semibold text-foreground">₹{item.final_line_total.toFixed(2)}</span>
                                 </span>
                               </div>
                             </div>
@@ -565,7 +741,6 @@ const AdminPackingDispatch = () => {
                     )}
                   </div>
 
-                  {/* Financial Summary */}
                   <div className="border-t border-border pt-4 space-y-2">
                     <div className="flex justify-between text-sm">
                       <span className="text-muted-foreground">Total Packs</span>
@@ -573,7 +748,7 @@ const AdminPackingDispatch = () => {
                     </div>
                     <div className="flex justify-between text-sm">
                       <span className="text-muted-foreground">Total Final Weight</span>
-                      <span className="text-foreground font-semibold">{totalFinalWeight.toFixed(2)} kg</span>
+                      <span className="font-semibold text-foreground">{totalFinalWeight.toFixed(2)} kg</span>
                     </div>
                     <div className="flex justify-between text-sm">
                       <span className="text-muted-foreground">Original Invoice</span>
@@ -581,18 +756,17 @@ const AdminPackingDispatch = () => {
                     </div>
                     <div className="flex justify-between text-sm">
                       <span className="text-muted-foreground">Final Invoice</span>
-                      <span className="text-foreground font-bold">₹{finalInvoiceTotal.toLocaleString("en-IN", { minimumFractionDigits: 2 })}</span>
+                      <span className="font-bold text-foreground">₹{finalInvoiceTotal.toLocaleString("en-IN", { minimumFractionDigits: 2 })}</span>
                     </div>
 
-                    {/* Variance Banner */}
                     {Math.abs(varianceAmount) > 0.01 && (
-                      <div className={`flex items-center justify-between p-3 rounded-xl border ${
+                      <div className={`flex flex-wrap items-center justify-between gap-2 rounded-xl border p-3 ${
                         varianceAmount > 0
-                          ? "bg-green-500/10 border-green-500/30 text-green-700"
-                          : "bg-destructive/10 border-destructive/30 text-destructive"
+                          ? "border-green-500/30 bg-green-500/10 text-green-800"
+                          : "border-destructive/30 bg-destructive/10 text-destructive"
                       }`}>
                         <div className="flex items-center gap-2">
-                          {varianceAmount > 0 ? <TrendingDown size={16} /> : <TrendingUp size={16} />}
+                          {varianceAmount > 0 ? <TrendingDown size={16} aria-hidden /> : <TrendingUp size={16} aria-hidden />}
                           <span className="text-sm font-semibold">
                             {varianceAmount > 0 ? "Client Refund (Short-Weight)" : "Client Charge (Over-Weight)"}
                           </span>
@@ -603,17 +777,27 @@ const AdminPackingDispatch = () => {
                       </div>
                     )}
                     {Math.abs(varianceAmount) <= 0.01 && (
-                      <div className="flex items-center gap-2 p-3 rounded-xl bg-muted/50 border border-border text-muted-foreground text-sm">
-                        <Minus size={16} /> No variance — weights match original order
+                      <div className="flex items-center gap-2 rounded-xl border border-border bg-muted/50 p-3 text-sm text-muted-foreground">
+                        <Minus size={16} aria-hidden /> No variance — weights match original order
                       </div>
                     )}
                   </div>
-
-                  <button onClick={handleSubmitDispatch} disabled={submitting}
-                    className="w-full py-3 rounded-xl font-ui font-semibold text-sm bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50">
-                    {submitting ? <Loader2 size={16} className="animate-spin mx-auto" /> : "Confirm & Dispatch"}
-                  </button>
-                </div>
+                    </div>
+                  </div>
+                  <DialogFooter className="shrink-0 flex-col gap-2 border-t border-border bg-muted/20 px-6 py-4 sm:flex-row sm:justify-end sm:gap-3 sm:space-x-0">
+                    <p className="w-full text-center text-[10px] font-semibold uppercase tracking-wide text-muted-foreground sm:text-left">
+                      Irreversible once submitted — verify proof and weights
+                    </p>
+                    <Button
+                      type="button"
+                      className="min-h-12 w-full touch-manipulation sm:w-auto sm:min-w-[12rem]"
+                      disabled={submitting}
+                      onClick={() => void handleSubmitDispatch()}
+                    >
+                      {submitting ? <Loader2 size={16} className="animate-spin" aria-hidden /> : "Confirm & Dispatch"}
+                    </Button>
+                  </DialogFooter>
+                </>
               )}
             </>
           )}

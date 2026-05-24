@@ -1,7 +1,7 @@
 # Oasis Central — Mobile-first audit matrix (MOVE 4)
 
 **Legend:** **PASS** = no automated flags on latest crawl for that viewport; **WARNING** = automated flag **or** policy watchlist; **FAIL** = confirmed broken in human QA (none auto).  
-**Heuristic source:** `audit-artifacts/raw/raw-<project>.json` (May 2026 crawl).
+**Heuristic source:** `audit-artifacts/raw/raw-<project>.json` (May 2026 crawl). **Code drift (2026-05-20):** PR **#89** merged; follow-up branch hardened **dispatch**, **approvals** (via `AdminClients`), and **legal/intro/register** tap targets — matrix cells stay **WARNING** until a fresh crawl or human PASS is recorded.
 
 ### Criteria per cell block
 
@@ -62,9 +62,9 @@
 
 | Viewport | Overall | Horizontal overflow | Footer overlap | Keyboard overlap | Sticky collisions | Density | Touch targets | Scroll traps | Nested scrolls | Modals |
 |----------|---------|--------------------|---------------|------------------|-------------------|---------|---------------|---------------|-----------------|--------|
-| iPhone 14 Pro | **WARNING** | PASS | VERIFY | VERIFY | **WARNING** | **WARNING** | PASS | VERIFY | VERIFY | VERIFY |
-| iPhone SE | **WARNING** | PASS | VERIFY | VERIFY | **WARNING** | **WARNING** | PASS | VERIFY | VERIFY | VERIFY |
-| iPad | **WARNING** | PASS | VERIFY | VERIFY | WARNING | WARNING | PASS | VERIFY | VERIFY | VERIFY |
+| iPhone 14 Pro | **WARNING** | PASS | VERIFY | VERIFY | **WARNING** (code improved) | **WARNING** (code improved) | PASS (code) | VERIFY | VERIFY | VERIFY |
+| iPhone SE | **WARNING** | PASS | VERIFY | VERIFY | **WARNING** (code improved) | **WARNING** (code improved) | PASS (code) | VERIFY | VERIFY | VERIFY |
+| iPad | **WARNING** | PASS | VERIFY | VERIFY | WARNING (code improved) | WARNING (code improved) | PASS | VERIFY | VERIFY | VERIFY |
 | Desktop | PASS | PASS | N/A | N/A | VERIFY | PASS | N/A | VERIFY | VERIFY | VERIFY |
 
 ---
@@ -84,8 +84,8 @@
 
 | Viewport | Overall | Horizontal overflow | Footer overlap | Keyboard overlap | Sticky collisions | Density | Touch targets | Scroll traps | Nested scrolls | Modals |
 |----------|---------|--------------------|---------------|------------------|-------------------|---------|---------------|---------------|-----------------|--------|
-| iPhone 14 Pro | **WARNING** | PASS | VERIFY | VERIFY | **WARNING** | **WARNING** | PASS | VERIFY | VERIFY | VERIFY |
-| iPhone SE | **WARNING** | PASS | VERIFY | VERIFY | **WARNING** | **WARNING** | PASS | VERIFY | VERIFY | VERIFY |
+| iPhone 14 Pro | **WARNING** | PASS | VERIFY | VERIFY | **WARNING** (code improved) | **WARNING** (code improved) | PASS (code) | VERIFY | VERIFY | VERIFY |
+| iPhone SE | **WARNING** | PASS | VERIFY | VERIFY | **WARNING** (code improved) | **WARNING** (code improved) | PASS (code) | VERIFY | VERIFY | VERIFY |
 | iPad | PASS | PASS | VERIFY | VERIFY | VERIFY | PASS | PASS | VERIFY | VERIFY | VERIFY |
 | Desktop | PASS | PASS | N/A | N/A | VERIFY | PASS | N/A | VERIFY | VERIFY | VERIFY |
 
@@ -150,7 +150,7 @@
 
 | Viewport | Overall | Notes |
 |----------|---------|-------|
-| iPhone 14 Pro | **WARNING** | tap target sampling 6–7 controls &lt;44px |
+| iPhone 14 Pro | **WARNING** | **Code:** 44px-class links + `focus-visible` — re-crawl to clear tap sampling |
 | iPhone SE | **WARNING** | same |
 | iPad | **WARNING** | same |
 | Desktop | PASS | tap rule relaxed |

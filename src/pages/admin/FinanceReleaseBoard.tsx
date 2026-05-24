@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { normalizeRole } from "@/lib/auth-routing";
@@ -85,6 +85,8 @@ const FinanceReleaseBoard = () => {
   const [latestUtrByOrderId, setLatestUtrByOrderId] = useState<Record<string, string>>({});
   const [loadError, setLoadError] = useState<string | null>(null);
   const [pushConfirm, setPushConfirm] = useState<BoardOrder | null>(null);
+  /** Prevents duplicate pushToFloor while the first invocation is still in flight (sync guard before actingId paints). */
+  const pushFloorInFlightRef = useRef<string | null>(null);
 
   const canAccess = FINANCE_BOARD_ROLES.has(normalizedRole);
 
@@ -273,17 +275,21 @@ const FinanceReleaseBoard = () => {
   const pushToFloor = async (order: BoardOrder) => {
     if (!isReadyPaymentStatus(order.payment_status)) return;
     if (!isReadyTabOrderStatus(order.status)) return;
+    if (pushFloorInFlightRef.current === order.id) return;
+    pushFloorInFlightRef.current = order.id;
     setActingId(order.id);
     try {
       const { error } = await supabase.from("orders").update({ status: "in_production" }).eq("id", order.id);
       if (error) throw error;
       toast.success("Released to factory floor.");
+      setPushConfirm(null);
       await loadBoard();
     } catch (e) {
       console.error("[FinanceReleaseBoard]", e);
       toast.error("Could not release order.");
     } finally {
       setActingId(null);
+      pushFloorInFlightRef.current = null;
     }
   };
 
@@ -756,9 +762,8 @@ const FinanceReleaseBoard = () => {
               className="min-h-11 w-full touch-manipulation bg-foreground text-background sm:w-auto"
               disabled={!pushConfirm || actingId === pushConfirm.id}
               onClick={() => {
-                if (!pushConfirm) return;
                 const o = pushConfirm;
-                setPushConfirm(null);
+                if (!o) return;
                 void pushToFloor(o);
               }}
             >
