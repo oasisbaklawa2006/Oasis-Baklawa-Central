@@ -11,7 +11,7 @@ Merge: [PR #101](https://github.com/oasisbaklawa2006/Oasis-Baklawa-Central/pull/
 - **Execution engine** (`src/lib/execution-engine/`): default dependency graph, lane blocking evaluation, escalations, risk summary, feed.
 - **Governance foundation** (`src/lib/governance/`): authority/approval/override/escalation/protected-transition policy text and feed.
 - **Media vault graph** (`src/lib/media-vault/`): document category graph metadata only.
-- **Operational events**: extended `types.ts`, inventory/barcode/execution/governance feeds, `index.ts` re-exports, `inventory-os-feeds.test.ts`.
+- **Controlled write activation (contracts only):** `src/lib/write-governance/` (authority matrix, preflight, audit envelope, idempotency, rollback labels), `src/config/writeFeatureFlags.ts` (all false), `writeIntentFeed` operational projections, Store coordination **write-intent preview** modals (submit disabled until flags true; still no adapter). See `docs/CONTROLLED_WRITE_ACTIVATION_FRAMEWORK.md`.
 - **Admin suite**: `/admin/inventory-command-center`, `carton-explorer`, `reservation-board`, `inventory-risk-board`, `scan-timeline` (plus routes and sidebar).
 - **CMD**: expanded `CmdOperationalCommPulse` and War Room wiring for aggregate execution/inventory signals (with explicit limits in copy).
 - **Docs**: status files, orchestration matrix, launch blocker and module matrix updates.
@@ -49,13 +49,20 @@ Merge: [PR #101](https://github.com/oasisbaklawa2006/Oasis-Baklawa-Central/pull/
 - **Autonomous execution** (no auto-dispatch, auto-approval, or auto stock adjustment from this block).
 - **Fake operational data**: illustrative scan rows were removed post-review; do not reintroduce sample scans without clear “example only” isolation.
 
-## 7. Next module — controlled write activation spec
+## 7. Next module — controlled write activation (shipped as contracts)
 
-Before any write path:
+The **write activation foundation** is now in-tree as **types, validators, audit envelope builder, idempotency derivation, feature flags (off), operational write-intent feed, and Store coordination preview modals** — still **no** stock mutation, no reservation persistence, and no C2C execution. Start here:
 
-1. Document the minimal mutation set (movement post, hold apply/release, scan append) with idempotency keys.
-2. Map each mutation to governance approvals and irreversible transitions (`protectedTransitions`, `approvalMatrix`).
-3. Add API middleware enforcement (not UI-only), RLS review, and audit export.
-4. Ship migrations in a **separate** PR with rollback notes; keep admin shells read-only until sign-off.
+- `docs/CONTROLLED_WRITE_ACTIVATION_FRAMEWORK.md`
+- `docs/WRITE_AUTHORITY_MODEL.md`
+- `docs/WRITE_PREFLIGHT_AND_AUDIT_CONTRACTS.md`
+- `docs/WRITE_FEATURE_FLAG_REGISTER.md`
+- `docs/FIRST_SAFE_PERSISTENCE_CANDIDATES.md`
+
+Before any real adapter:
+
+1. Keep feature flags false in production until program sign-off.
+2. Add migrations + RLS in a **separate** PR with rollback notes.
+3. Enforce authority at the API edge, not only in UI preflight.
 
 Playwright was not run for this checkpoint per program rules.

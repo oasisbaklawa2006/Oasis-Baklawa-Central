@@ -19,6 +19,7 @@ This document lists **cross-cutting** operational launch risks. Module-specific 
 | No reservation persistence API | Prebooking not enforceable | Local-only drafts on Store coordination; disabled backend submit |
 | No label print adapter | Physical labels manual | Label Command Center JSON payloads only |
 | No movement ledger persistence | Inventory OS is architecture-only | Feeds and admin boards stay projection-only; no silent writes in new libs |
+| Write activation without contracts | Unsafe pilot toggles | Controlled write framework (`src/lib/write-governance/`) + hard-false feature flags + Store coordination write-intent previews only |
 | No scan event store | Anomaly math exists without authoritative timeline | CMD shows **pending** for scan anomaly count until a bounded feed is wired |
 | No customer timeline data binding | Timeline is illustrative | Staff-only `CustomerOrderTimeline` preview route |
 

@@ -8,7 +8,7 @@ Last updated: 2026-05-20
 | Barcode scan lifecycle | Anomaly derivation + payloads + scan timeline shell | Partial | Scan event store + hardware | Yes | False scan confidence | `barcode-scan-store` (TBD) |
 | Execution dependency engine | Graph + lane evaluation + feeds + CMD aggregate | Partial | Per-order readiness flags | Yes | Incomplete bottleneck picture | `execution-readiness-bind` (TBD) |
 | Governance foundation | Matrices + feeds + policy copy | Partial | Approval instances + enforcement | Yes | Unauthorized overrides | `governance-approval-persist` (TBD) |
-| Retail / store coordination | Route + inventory read + local reservation/factory drafts + timelines | Partial | Shelf truth + reservation API | Yes for pilot bookings | Customer promise drift | `retail-reservation-backend` (TBD) |
+| Retail / store coordination | Route + inventory read + local drafts + timelines + **write-intent preview modals** (governance) | Partial | Shelf truth + reservation API + **flag-gated persistence adapters** | Yes for pilot bookings | Customer promise drift | `retail-reservation-backend` (TBD) |
 | Inventory visibility | `factory_inventory` snapshot + confidence | Partial | Per-outlet shelf / POS | Yes | Misread as shelf stock | `shelf-inventory-read` (TBD) |
 | Barcode / label system | Payload builders + Label Command Center shell + scan lifecycle libs | No | Print execution + symbology rules | Optional for JSON-only pilot | Wrong label format | `label-print-adapter` (TBD) |
 | Reservation / prebooking | Local drafts + projections + reservation board (shell) | No | Persisted rows + stock policy | Yes | Double-booking | merge with retail backend PR |

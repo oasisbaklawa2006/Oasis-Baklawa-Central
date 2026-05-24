@@ -13,7 +13,7 @@ Purpose: map remaining launch work into **module-by-module closures** so each ch
 - WhatsApp communication projection
 - order trace stitched timeline
 - CMD communication pulse (+ read-only **factory_inventory** row count + **retail/label pilot pending strip** — no fake counts)
-- **Retail store coordination** (B1 + B2 + inventory snapshot + **local reservation/factory drafts** + **retail launch timelines** + merged operational projections)
+- **Retail store coordination** (B1 + B2 + inventory snapshot + **local reservation/factory drafts** + **retail launch timelines** + merged operational projections + **controlled write-intent preview shells**)
 
 ---
 
