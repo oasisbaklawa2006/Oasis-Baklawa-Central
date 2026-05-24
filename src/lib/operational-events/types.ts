@@ -60,6 +60,7 @@ export type OperationalEventSource =
   | "derived_barcode_scan"
   | "derived_execution_engine"
   | "derived_governance"
+  | "derived_write_intent"
   | "notification_outbox"
   | "manual"
   | "future_event_store";
@@ -148,6 +149,14 @@ export const GovernanceOperationalEventKind = {
   OVERRIDE_REQUIRED: "governance.override_required",
   ESCALATION_PENDING: "governance.escalation_pending",
   PROTECTED_TRANSITION: "governance.protected_transition",
+} as const;
+
+/** Controlled write activation — projection-only intent signals (no adapter execution). */
+export const WriteIntentOperationalEventKind = {
+  INTENT_PREVIEWED: "write.intent_previewed",
+  PREFLIGHT_BLOCKED: "write.preflight_blocked",
+  AUDIT_ENVELOPE_READY: "write.audit_envelope_ready",
+  FEATURE_FLAG_DISABLED: "write.feature_flag_disabled",
 } as const;
 
 export interface OperationalEventRecord {

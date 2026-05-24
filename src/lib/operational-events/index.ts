@@ -10,3 +10,4 @@ export * from "./inventoryOperationalFeed";
 export * from "./barcodeOperationalFeed";
 export * from "./executionOperationalFeed";
 export * from "./governanceOperationalFeed";
+export * from "./writeIntentFeed";
