@@ -29,7 +29,21 @@ import {
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import { OperationalTimeline, type OperationalTimelineFilter } from "@/components/admin/OperationalTimeline";
+import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
+import {
+  ENABLE_FACTORY_FOLLOWUP_WRITES,
+  ENABLE_RETAIL_RESERVATION_WRITES,
+} from "@/config/writeFeatureFlags";
+import type { WriteActorRole } from "@/lib/write-governance/writeAuthorityTypes";
+import {
+  buildWriteAuditEnvelope,
+  deriveWriteIdempotencyKey,
+  featureFlagSnapshot,
+  validateFactoryFollowupWrite,
+  validateReservationDraftWrite,
+} from "@/lib/write-governance";
+import { buildWriteIntentOperationalFeed } from "@/lib/operational-events/writeIntentFeed";
 import {
   buildInventoryVisibilitySummary,
   deriveStoreStockConfidence,
@@ -78,6 +92,15 @@ function mkLocalId(prefix: string): string {
   return `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
 }
 
+function mapAuthRoleToWriteActor(role: string | null): WriteActorRole {
+  const r = (role ?? "").toUpperCase();
+  if (r.includes("FINANCE")) return "finance";
+  if (r.includes("INVENTORY")) return "inventory_controller";
+  if (r.includes("CMD")) return "cmd";
+  if (r === "SUPER_ADMIN" || r.includes("ADMIN")) return "super_admin";
+  return "store_operator";
+}
+
 export type LocalReservationStatus = "draft_only" | "pending_backend" | "manual_verification_required";
 
 export interface LocalReservationRow {
@@ -123,6 +146,7 @@ function confidenceLabel(c: StoreStockConfidence): string {
  * Store coordination — B1 shell + B2 visibility cards + B5 operational projections (read-only, no writes).
  */
 export default function StoreCoordination() {
+  const { user, role: authRole } = useAuth();
   const [tick, setTick] = useState(0);
   const refreshTimerRef = useRef<number | undefined>(undefined);
   const [timelineFilter, setTimelineFilter] = useState<OperationalTimelineFilter>("all");
@@ -156,6 +180,10 @@ export default function StoreCoordination() {
   const [labelPreviewLog, setLabelPreviewLog] = useState<{ id: string; labelKind: string; context: string }[]>([]);
   const [previewJson, setPreviewJson] = useState<string | null>(null);
   const [previewTitle, setPreviewTitle] = useState<string>("");
+  const [writeIntentSession, setWriteIntentSession] = useState<null | {
+    mode: "reservation" | "factory_followup";
+    correlationId: string;
+  }>(null);
 
   const outletNames = useMemo(() => DEFAULT_RETAIL_OUTLETS.map((o) => o.name), []);
 
@@ -288,6 +316,133 @@ export default function StoreCoordination() {
   const hasLocalReservationDrafts = reservationDrafts.length > 0;
   const hasLocalFactoryDrafts = factoryDrafts.length > 0;
 
+  const writeIntentDerived = useMemo(() => {
+    if (!writeIntentSession) return null;
+    const actorId = user?.id ?? "";
+    const actorRole = mapAuthRoleToWriteActor(authRole);
+    const flags = featureFlagSnapshot();
+    const ts = new Date().toISOString();
+    if (writeIntentSession.mode === "reservation") {
+      const kind = "retail.reservation_draft.create" as const;
+      const preflight = validateReservationDraftWrite({
+        storeId: resForm.storeId,
+        customerName: resForm.customerName,
+        phone: resForm.phone,
+        product: resForm.product,
+        qtyDisplay: resForm.qty,
+        actorId,
+        correlationId: writeIntentSession.correlationId,
+      });
+      const scopeKey = ["draft", resForm.storeId, resForm.customerName, resForm.phone, resForm.product, resForm.qty, resForm.pickupLocal, resForm.notes].join("|");
+      const idempotencyKey = deriveWriteIdempotencyKey({
+        kind,
+        scopeKey,
+        actorId,
+        correlationId: writeIntentSession.correlationId,
+      });
+      const afterPreview = {
+        storeId: resForm.storeId,
+        customerName: resForm.customerName,
+        phone: resForm.phone,
+        product: resForm.product,
+        qtyDisplay: resForm.qty,
+        pickupLocal: resForm.pickupLocal,
+        notes: resForm.notes,
+      };
+      const envelope = buildWriteAuditEnvelope({
+        actionKind: kind,
+        actorRole,
+        actorId: actorId || null,
+        entityRefs: [
+          { entityType: "store", id: resForm.storeId },
+          { entityType: "reservation", id: "local-form-preview" },
+        ],
+        beforeSnapshot: null,
+        afterSnapshotPreview: afterPreview,
+        reason: "Store coordination · controlled write-intent preview (reservation draft)",
+        clientTimestampIso: ts,
+        idempotencyKey,
+        correlationId: writeIntentSession.correlationId,
+        rollbackPlan: preflight.rollbackPath,
+        featureFlagSnapshot: flags,
+      });
+      return {
+        mode: "reservation" as const,
+        kind,
+        correlationId: writeIntentSession.correlationId,
+        preflight,
+        idempotencyKey,
+        envelope,
+        auditJson: JSON.stringify(envelope, null, 2),
+      };
+    }
+    const kind = "retail.factory_followup.create" as const;
+    const preflight = validateFactoryFollowupWrite({
+      storeId: factoryForm.storeId,
+      product: factoryForm.product,
+      qtyDisplay: factoryForm.qty,
+      neededByDisplay: factoryForm.neededByLocal,
+      department: factoryForm.department,
+      actorId,
+      correlationId: writeIntentSession.correlationId,
+    });
+    const scopeKey = [
+      "draft",
+      factoryForm.storeId,
+      factoryForm.product,
+      factoryForm.qty,
+      factoryForm.neededByLocal,
+      factoryForm.department,
+      factoryForm.urgency,
+      factoryForm.linkedOrderId,
+      factoryForm.whatsappHint,
+    ].join("|");
+    const idempotencyKey = deriveWriteIdempotencyKey({
+      kind,
+      scopeKey,
+      actorId,
+      correlationId: writeIntentSession.correlationId,
+    });
+    const afterPreview = { ...factoryForm };
+    const envelope = buildWriteAuditEnvelope({
+      actionKind: kind,
+      actorRole,
+      actorId: actorId || null,
+      entityRefs: [
+        { entityType: "store", id: factoryForm.storeId },
+        { entityType: "requisition", id: "local-form-preview" },
+      ],
+      beforeSnapshot: null,
+      afterSnapshotPreview: afterPreview,
+      reason: "Store coordination · controlled write-intent preview (factory follow-up)",
+      clientTimestampIso: ts,
+      idempotencyKey,
+      correlationId: writeIntentSession.correlationId,
+      rollbackPlan: preflight.rollbackPath,
+      featureFlagSnapshot: flags,
+    });
+    return {
+      mode: "factory_followup" as const,
+      kind,
+      correlationId: writeIntentSession.correlationId,
+      preflight,
+      idempotencyKey,
+      envelope,
+      auditJson: JSON.stringify(envelope, null, 2),
+    };
+  }, [authRole, factoryForm, resForm, user?.id, writeIntentSession]);
+
+  const writeIntentTimelineEvents = useMemo(() => {
+    if (!writeIntentDerived) return [];
+    return buildWriteIntentOperationalFeed({
+      actionKind: writeIntentDerived.kind,
+      preflight: writeIntentDerived.preflight,
+      auditEnvelopePreview: writeIntentDerived.auditJson,
+      idempotencyKeyPreview: writeIntentDerived.idempotencyKey,
+      correlationId: writeIntentDerived.correlationId,
+    });
+  }, [writeIntentDerived]);
+
   const timelineEvents = useMemo(() => {
     void tick;
     return normalizeStoreCoordinationEvents(
@@ -304,6 +459,7 @@ export default function StoreCoordination() {
         }),
         inventoryFeedEvents,
         retailLaunchEvents,
+        writeIntentTimelineEvents,
       ]),
     );
   }, [
@@ -313,6 +469,7 @@ export default function StoreCoordination() {
     retailLaunchEvents,
     hasLocalReservationDrafts,
     hasLocalFactoryDrafts,
+    writeIntentTimelineEvents,
   ]);
 
   const appendLabelPreview = useCallback((labelKind: string, context: string) => {
@@ -643,6 +800,15 @@ export default function StoreCoordination() {
               <Button type="button" variant="default" onClick={saveReservationDraftLocal}>
                 Save draft (local only)
               </Button>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() =>
+                  setWriteIntentSession({ mode: "reservation", correlationId: crypto.randomUUID() })
+                }
+              >
+                Preview write intent (governance)
+              </Button>
               <Button type="button" variant="secondary" disabled title="Backend table not enabled for writes from this screen">
                 Submit to backend (pending)
               </Button>
@@ -903,6 +1069,15 @@ export default function StoreCoordination() {
               <Button type="button" variant="default" onClick={saveFactoryDraftLocal}>
                 Save draft (local only)
               </Button>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() =>
+                  setWriteIntentSession({ mode: "factory_followup", correlationId: crypto.randomUUID() })
+                }
+              >
+                Preview write intent (governance)
+              </Button>
               <Button type="button" variant="secondary" disabled title="No backend follow-up queue yet">
                 Create follow-up — backend pending
               </Button>
@@ -1113,6 +1288,104 @@ export default function StoreCoordination() {
           <pre className="max-h-[min(360px,50vh)] overflow-auto rounded-md border border-border bg-muted/40 p-3 text-[10px] leading-snug">
             {previewJson}
           </pre>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={writeIntentSession != null}
+        onOpenChange={(open) => {
+          if (!open) setWriteIntentSession(null);
+        }}
+      >
+        <DialogContent className="max-h-[min(640px,90vh)] max-w-2xl overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>
+              {writeIntentDerived?.mode === "factory_followup"
+                ? "Factory follow-up · write intent preview"
+                : "Reservation draft · write intent preview"}
+            </DialogTitle>
+            <DialogDescription>
+              Preflight, audit envelope, and idempotency contracts only. No Supabase insert or Edge invoke from this
+              modal.
+            </DialogDescription>
+          </DialogHeader>
+          {writeIntentDerived ? (
+            <div className="space-y-3 text-[11px] leading-snug">
+              <div className="rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-amber-950 dark:text-amber-50">
+                <strong className="font-semibold">Persistence disabled in this build.</strong> All write feature flags
+                default to false; enabling a flag only removes this UI gate — adapters and RLS still require a separate
+                program.
+              </div>
+              <div className="space-y-1">
+                <p className="font-semibold text-foreground">Preflight</p>
+                <p className="text-muted-foreground">
+                  Allowed: <span className="font-mono text-foreground">{String(writeIntentDerived.preflight.allowed)}</span>{" "}
+                  · Rollback path:{" "}
+                  <span className="font-mono text-foreground">{writeIntentDerived.preflight.rollbackPath}</span>
+                </p>
+                {writeIntentDerived.preflight.blockers.length ? (
+                  <ul className="list-inside list-disc text-destructive">
+                    {writeIntentDerived.preflight.blockers.map((b) => (
+                      <li key={b}>{b}</li>
+                    ))}
+                  </ul>
+                ) : null}
+                {writeIntentDerived.preflight.warnings.length ? (
+                  <ul className="list-inside list-disc text-muted-foreground">
+                    {writeIntentDerived.preflight.warnings.map((w) => (
+                      <li key={w}>{w}</li>
+                    ))}
+                  </ul>
+                ) : null}
+              </div>
+              <div className="space-y-1">
+                <p className="font-semibold text-foreground">Idempotency key (preview)</p>
+                <pre className="whitespace-pre-wrap break-all rounded-md border border-border bg-muted/40 p-2 font-mono text-[10px]">
+                  {writeIntentDerived.idempotencyKey}
+                </pre>
+              </div>
+              <div className="space-y-1">
+                <p className="font-semibold text-foreground">Audit envelope (JSON, not persisted)</p>
+                <pre className="max-h-[220px] overflow-auto rounded-md border border-border bg-muted/40 p-2 font-mono text-[10px] leading-snug">
+                  {writeIntentDerived.auditJson}
+                </pre>
+              </div>
+              <div className="flex flex-wrap gap-2 pt-1">
+                <Button type="button" variant="secondary" onClick={() => setWriteIntentSession(null)}>
+                  Close
+                </Button>
+                {writeIntentDerived.mode === "reservation" ? (
+                  <Button
+                    type="button"
+                    variant="default"
+                    disabled={!ENABLE_RETAIL_RESERVATION_WRITES}
+                    title={
+                      ENABLE_RETAIL_RESERVATION_WRITES
+                        ? "Persistence adapter not implemented in this foundation PR."
+                        : "Enable ENABLE_RETAIL_RESERVATION_WRITES after separate approval — still no adapter here."
+                    }
+                  >
+                    Submit reservation draft (persistence)
+                  </Button>
+                ) : (
+                  <Button
+                    type="button"
+                    variant="default"
+                    disabled={!ENABLE_FACTORY_FOLLOWUP_WRITES}
+                    title={
+                      ENABLE_FACTORY_FOLLOWUP_WRITES
+                        ? "Persistence adapter not implemented in this foundation PR."
+                        : "Enable ENABLE_FACTORY_FOLLOWUP_WRITES after separate approval — still no adapter here."
+                    }
+                  >
+                    Submit factory follow-up (persistence)
+                  </Button>
+                )}
+              </div>
+            </div>
+          ) : (
+            <p className="text-sm text-muted-foreground">Preparing preview…</p>
+          )}
         </DialogContent>
       </Dialog>
 
