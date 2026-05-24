@@ -95,6 +95,7 @@ const AdminAnnouncements = lazy(() => import("./pages/admin/AdminAnnouncements.t
 const OperatorInbox = lazy(() => import("./pages/OperatorInbox.tsx"));
 const FinanceReleaseBoard = lazy(() => import("./pages/admin/FinanceReleaseBoard.tsx"));
 const StoreCoordination = lazy(() => import("./pages/admin/StoreCoordination.tsx"));
+const LabelCommandCenter = lazy(() => import("./pages/admin/LabelCommandCenter.tsx"));
 
 const ADMIN_ONLY_ROLES = ["SUPER_ADMIN", "ADMIN"];
 
@@ -312,6 +313,7 @@ const App = () => (
                     <Route path="assembly-tv" element={<AssemblyTV />} />
                     <Route path="ready-goods" element={<ReadyGoodsStore />} />
                     <Route path="store-coordination" element={<StoreCoordination />} />
+                    <Route path="label-command-center" element={<LabelCommandCenter />} />
                     <Route path="rgs-tv" element={<ReadyGoodsTV />} />
                     <Route path="dispatch-mgmt" element={<DispatchManagement />} />
                     <Route path="dispatch-tv" element={<DispatchTV />} />
