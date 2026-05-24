@@ -1,7 +1,8 @@
 # Oasis Central — UX triage master board
 
 **Evidence sources:** `docs/UX_AUDIT_PLAYWRIGHT_REPORT.md` (generated **2026-05-24**), `audit-artifacts/raw/raw-*.json`, `audit-artifacts/screenshots/`, `audit-artifacts/videos/*.webm`.  
-**Rectification sprint (2026-05-20):** layout-only hardening shipped for finance release board, Admin Finance modals/queue strip, Quick Order / catalogue matrix, operator inbox live-region noise, cart safe-area + tap targets, global `focus-visible` for native controls. Re-verify dispatch and approvals routes on device.
+**Rectification sprint (2026-05-20):** layout-only hardening shipped for finance release board, Admin Finance modals/queue strip, Quick Order / catalogue matrix, operator inbox live-region noise, cart safe-area + tap targets, global `focus-visible` for native controls. Re-verify dispatch and approvals routes on device.  
+**PR #89 (merged, 2026-05-20):** `cursor/oasis-master-ux-rectification-9030` — master UX rectification (docs + TSX/CSS scope only in diff). **Follow-up sprint (in progress / branch `cursor/ux-followup-dispatch-approvals-a11y-9030`):** dispatch + packing-dispatch + dispatch-mgmt portrait layout, approvals sheet/cards on `AdminClients` (`/admin/approvals` alias), legal/intro/register tap targets and `aria-label`s, touched failure/retry copy only — no Playwright full audit rerun this sprint.
 **MOVE 1 — Parsed audit signal:** Automated heuristics only detect **subset** of issues (overflow, wide tables, tap sampling, unnamed buttons, missing alt). Items below marked **Auto** come from JSON; **Watch** = operational priority pending human frame review (screenshot/video).
 
 ### Parsed dimensions (what automation covers vs not)
@@ -50,7 +51,7 @@
 |-------|--------------|----------|---------------|-------------------|------------------------------|----------|-------------------|---------------|--------|
 | UX-CRT-001 | `/admin/finance-board` | `all-mobile` | **Watch:** dense finance grid on narrow width — verify readability & trapped scroll | Finance errors under pressure; mis-verify | `iphone-14-pro__admin_finance-board.png` + journey `ux-audit-...-iphone-14-pro.webm` | CRITICAL | Card/stack layout for mobile; table scroll inside pane only; sticky action bar audit | A | **Partially resolved** — release board: production tab card fallback &lt; md, sticky thead desktop, load-error + retry, push-to-floor confirm, payment dialog scroll + footer grouping; `/admin/finance`: modal sticky footers, safer queue strip |
 | UX-CRT-002 | `/admin/operator-inbox` | `all-mobile` | **Watch:** composer vs metadata density | Operator throughput, wrong send | `iphone-14-pro__admin_operator-inbox.png` + video | CRITICAL | Bottom composer; collapsible context; min 44px send | A | **Partially resolved** — removed duplicate filter `aria-live`; aligned sticky z + `isolate`; larger retry control; empty detail no `aria-live` spam |
-| UX-CRT-003 | `/admin/dispatch` + `/admin/dispatch-mgmt` | `all-mobile` | **Watch:** floor use on phone portrait | Dispatch mistakes | `iphone-14-pro__admin_dispatch.png`, `...dispatch-mgmt.png` | CRITICAL | Tablet-first layout; scan-first row | A | Verify |
+| UX-CRT-003 | `/admin/dispatch` + `/admin/dispatch-mgmt` | `all-mobile` | **Watch:** floor use on phone portrait | Dispatch mistakes | `iphone-14-pro__admin_dispatch.png`, `...dispatch-mgmt.png` | CRITICAL | Tablet-first layout; scan-first row | A | **Partially resolved** — packing-dispatch: mobile cards + sticky actions, modal scroll + footer, load error + retry; dispatch-mgmt: skeleton/empty states, sticky scan/pack footer, touch-safe controls, `break-words`; human video PASS still recommended |
 
 *Automation reported **zero** critical blockers; rows above are **mandatory verification** items from operational risk policy.*
 
@@ -60,10 +61,10 @@
 
 | UX ID | Page / route | Viewport | Issue summary | Operational impact | Screenshot / video reference | Severity | Recommended fix | Sprint bucket | Status |
 |-------|--------------|----------|---------------|-------------------|------------------------------|----------|-------------------|---------------|--------|
-| UX-HIG-001 | `/admin/approvals` | `iphone-se` | **Watch:** approvals table → card parity | Approvers delay on phone | `iphone-se__admin_approvals.png` | HIGH | Mobile card list + sticky decision bar | A | Verify |
+| UX-HIG-001 | `/admin/approvals` | `iphone-se` | **Watch:** approvals table → card parity | Approvers delay on phone | `iphone-se__admin_approvals.png` | HIGH | Mobile card list + sticky decision bar | A | **Partially resolved** — same surface as client governance: `md:hidden` card queue, desktop table, sheet max-height + scroll regions, sticky decision panel, grouped Approve/Reject, rejection reason textarea readability, list error + retry |
 | UX-HIG-002 | `/quick-order` | `all-mobile` | **Watch:** dense SKU grid | Sales errors | `iphone-14-pro__quick-order.png` | HIGH | Row templates; sticky totals | A | **Partially resolved** — card layout &lt; md, desktop table, MOQ clarity, 44px qty controls, loading skeleton |
 | UX-HIG-003 | `/admin/orders` + `/orders` | `all-mobile` | **Watch:** order detail timeline + actions | CS confusion | `iphone-14-pro__admin_orders.png`, `iphone-14-pro__orders.png` | HIGH | Timeline accordion; primary CTA dock | B | Verify |
-| UX-HIG-004 | `/admin/packing-dispatch` | `ipad` | **Watch:** label / pack actions visibility | Warehouse delays | `ipad__admin_packing-dispatch.png` | HIGH | Large touch targets; single sticky footer | A | Verify |
+| UX-HIG-004 | `/admin/packing-dispatch` | `ipad` | **Watch:** label / pack actions visibility | Warehouse delays | `ipad__admin_packing-dispatch.png` | HIGH | Large touch targets; single sticky footer | A | **Partially resolved** — aligned with UX-CRT-003 packing-dispatch work; verify on physical iPad |
 | UX-HIG-005 | `/admin/target-vs-actual` | `desktop` | **Watch:** analytics density | Exec misread | `desktop__admin_target-vs-actual.png` | HIGH | Chart card grid; export clarity | B | Verify |
 
 ---
@@ -72,11 +73,11 @@
 
 | UX ID | Page / route | Viewport | Issue summary | Operational impact | Screenshot / video reference | Severity | Recommended fix | Sprint bucket | Status |
 |-------|--------------|----------|---------------|-------------------|------------------------------|----------|-------------------|---------------|--------|
-| UX-MED-001 | `/privacy` | `iphone-14-pro`, `iphone-se`, `ipad` | **Auto:** ≥6 interactive controls &lt;44px min dimension (sampled) | Legal page still must be comfortable to read/sign | `iphone-14-pro__privacy.png` (×3 viewports) | MEDIUM | Increase link hit-padding; stack footer links | A | Open |
-| UX-MED-002 | `/shipping` | `iphone-14-pro`, `iphone-se`, `ipad` | **Auto:** 7 undersized tap targets (sampled) | Post-purchase trust | `iphone-14-pro__shipping.png` | MEDIUM | Same as UX-MED-001 | A | Open |
-| UX-MED-003 | `/terms` | `iphone-14-pro`, `iphone-se`, `ipad` | **Auto:** 6 undersized tap targets | Same | `iphone-14-pro__terms.png` | MEDIUM | Same | A | Open |
-| UX-MED-004 | `/intro` | `all` | **Auto:** 3 visible `button` without text/`aria-label` | Screen reader / voice control | `iphone-14-pro__intro.png` | MEDIUM | Add `aria-label` or visible label | C | Open |
-| UX-MED-005 | `/register` | `all` | **Auto:** 2 unnamed visible buttons | Onboarding friction | `iphone-14-pro__register.png` | MEDIUM | Icon buttons labeled | C | Open |
+| UX-MED-001 | `/privacy` | `iphone-14-pro`, `iphone-se`, `ipad` | **Auto:** ≥6 interactive controls &lt;44px min dimension (sampled) | Legal page still must be comfortable to read/sign | `iphone-14-pro__privacy.png` (×3 viewports) | MEDIUM | Increase link hit-padding; stack footer links | A | **Done** (code) — `min-h-11` nav/footer/mail links, `focus-visible` rings, wrap-friendly footer; re-crawl to confirm auto |
+| UX-MED-002 | `/shipping` | `iphone-14-pro`, `iphone-se`, `ipad` | **Auto:** 7 undersized tap targets (sampled) | Post-purchase trust | `iphone-14-pro__shipping.png` | MEDIUM | Same as UX-MED-001 | A | **Done** (code) — same pattern as privacy/terms |
+| UX-MED-003 | `/terms` | `iphone-14-pro`, `iphone-se`, `ipad` | **Auto:** 6 undersized tap targets | Same | `iphone-14-pro__terms.png` | MEDIUM | Same | A | **Done** (code) — same pattern |
+| UX-MED-004 | `/intro` | `all` | **Auto:** 3 visible `button` without text/`aria-label` | Screen reader / voice control | `iphone-14-pro__intro.png` | MEDIUM | Add `aria-label` or visible label | C | **Done** (code) — slide dots `aria-label` + `role="tablist"`, prev/next labeled, `min-h-11`, focus rings |
+| UX-MED-005 | `/register` | `all` | **Auto:** 2 unnamed visible buttons | Onboarding friction | `iphone-14-pro__register.png` | MEDIUM | Icon buttons labeled | C | **Done** (code) — file pickers `aria-label`, `type="button"`, `min-h` targets, focus rings on primary/support CTAs |
 
 ---
 
@@ -84,7 +85,7 @@
 
 | UX ID | Page / route | Viewport | Issue summary | Operational impact | Screenshot / video reference | Severity | Recommended fix | Sprint bucket | Status |
 |-------|--------------|----------|---------------|-------------------|------------------------------|----------|-------------------|---------------|--------|
-| UX-LOW-001 | Global marketing pages | `all` | Micro rhythm: link row density on legal pages | Minor fatigue | same as `/terms` shots | LOW | Typography rhythm per `UX_VISUAL_CONSISTENCY_STANDARD.md` | D | Open |
+| UX-LOW-001 | Global marketing pages | `all` | Micro rhythm: link row density on legal pages | Minor fatigue | same as `/terms` shots | LOW | Typography rhythm per `UX_VISUAL_CONSISTENCY_STANDARD.md` | D | **Partially resolved** — legal footers wrap with gap; full typography pass still optional |
 
 ---
 
@@ -94,7 +95,7 @@
 |----------|-------|
 | CRITICAL (verify debt) | 3 |
 | HIGH (verify debt) | 5 |
-| MEDIUM (automation-backed) | 5 |
+| MEDIUM (automation-backed) | 5 — **addressed in code**; heuristic re-crawl TBD |
 | LOW | 1 |
 | **Total tracked** | **14** |
 
