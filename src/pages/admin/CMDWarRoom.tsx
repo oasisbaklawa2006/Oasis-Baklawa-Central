@@ -13,6 +13,8 @@ import AliasDrawer from "@/components/warroom/AliasDrawer";
 import { FinanceBoardCard } from "@/components/FinanceBoardCard";
 import { CmdOperationalCommPulse } from "@/components/admin/CmdOperationalCommPulse";
 import { packetAgeBucket } from "@/components/whatsapp/operatorInboxUtils";
+import type { OrderTraceInputs } from "@/utils/orderTrace";
+import { deriveFinanceReleaseState } from "@/utils/financeReleaseState";
 
 interface OrderItem {
   id?: string;
@@ -26,6 +28,9 @@ interface OrderItem {
 interface Order {
   id: string;
   status: string;
+  payment_status?: string | null;
+  advance_paid?: number | null;
+  advance_required?: number | null;
   created_at: string | null;
   sales_order_value: number | null;
   dispatch_urgency: string | null;
@@ -101,7 +106,9 @@ const CMDWarRoom = () => {
   const fetchOrders = useCallback(async () => {
     const { data } = await supabase
       .from("orders")
-      .select("id, status, created_at, sales_order_value, dispatch_urgency, company_id, total_weight_kg, needs_clarification, is_waste, is_duplicate, duplicate_of_order_id")
+      .select(
+        "id, status, payment_status, advance_paid, advance_required, created_at, sales_order_value, dispatch_urgency, company_id, total_weight_kg, needs_clarification, is_waste, is_duplicate, duplicate_of_order_id",
+      )
       .not("status", "in", '("closed","cancelled")')
       .eq("is_waste", false)
       .order("created_at", { ascending: false })
@@ -211,7 +218,8 @@ const CMDWarRoom = () => {
         .from("whatsapp_message_packets" as any)
         .select("id, last_message_at")
         .eq("status", "open")
-        .limit(800);
+        .order("last_message_at", { ascending: false, nullsFirst: false })
+        .limit(1000);
       if (error) throw error;
       const rows = (data ?? []) as unknown as { id: string; last_message_at: string }[];
       const now = Date.now();
@@ -402,9 +410,16 @@ const CMDWarRoom = () => {
   }, [autoPilotOrders, bulkProcessing, fetchOrders]);
 
   const warCommSignals = useMemo(() => {
-    const financePressure = orders.filter((o) =>
-      ["awaiting_advance", "awaiting_payment", "awaiting_final_payment"].includes((o.status || "").toLowerCase()),
-    ).length;
+    const financePressure = orders.filter((o) => {
+      const inputs: OrderTraceInputs = {
+        status: o.status,
+        payment_status: o.payment_status ?? null,
+        advance_paid: o.advance_paid ?? null,
+        advance_required: o.advance_required ?? null,
+        sales_order_value: o.sales_order_value ?? null,
+      };
+      return deriveFinanceReleaseState(inputs).finance_hold;
+    }).length;
     const dispatchPanic = orders.filter((o) => o.dispatch_urgency === "panic").length;
     return { financePressure, dispatchPanic };
   }, [orders]);
@@ -431,8 +446,8 @@ const CMDWarRoom = () => {
   return (
     <div className="p-3 sm:p-4 space-y-4 bg-background max-w-full overflow-x-hidden">
       <CmdOperationalCommPulse
-        openWhatsappPackets={waPulse?.open ?? 0}
-        staleWhatsappPackets={waPulse?.stale ?? 0}
+        openWhatsappPackets={waPulse === null ? null : waPulse.open}
+        staleWhatsappPackets={waPulse === null ? null : waPulse.stale}
         financePressureOrders={warCommSignals.financePressure}
         dispatchPanicOrders={warCommSignals.dispatchPanic}
         loadError={waPulseError}
