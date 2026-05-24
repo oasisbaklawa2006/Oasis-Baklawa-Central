@@ -7,7 +7,7 @@
 ## Top 10 UX blockers (prioritized)
 
 1. **Finance board mobile density** — **improved** on `/admin/finance-board` + `/admin/finance` (modals, queue strip); still verify dispatch-adjacent flows on smallest phones.  
-2. **Operator / WhatsApp composer vs metadata** — **partially mitigated** (live region, sticky stack, retry target); composer density still **verify**.  
+2. **Operator / WhatsApp composer vs metadata** — **partially mitigated (pilot)** — replying-to strip, collapsible Edge tools + metadata on narrow, larger bulk toggles/send, calmer failure copy, less `aria-live` noise; keyboard overlap / full video PASS still **verify**.  
 3. **Dispatch on portrait phone** — **partially mitigated** in code (packing-dispatch + dispatch-mgmt: cards, sticky footers, modal containment, empty/load/retry); **still verify** on floor hardware / smallest phones.  
 4. **Quick order grid** — **improved** (cards &lt; md, skeleton, tap targets); sticky totals still optional.  
 5. **Approvals queue on narrow width** — **partially mitigated** (`AdminClients` / `/admin/approvals`: mobile cards, sticky decision area, clearer reject path); **still verify** with real approver workflow.  
@@ -91,11 +91,10 @@
 
 ## Next safest implementation sprint
 
-1. **Full Playwright UX audit** at next major checkpoint (~20 commands) — not rerun this follow-up sprint by policy.  
-2. **Operator inbox** composer + metadata — density pass.  
-3. **Reports** mobile chart readability.  
-4. **axe** smoke on priority routes (tooling).  
-5. Re-run **UX audit JSON** to confirm legal/intro/register heuristics cleared.
+1. **Operator inbox / WhatsApp** — branch `cursor/ux-whatsapp-inbox-closure-9030` pilot (replying-to strip, narrow collapsibles, touch targets, calmer states) — **re-verify** on device, then **orders detail** (UX-HIG-003) or **cart** keyboard pass.  
+2. **Reports** mobile chart readability.  
+3. **axe** smoke on priority routes (tooling).  
+4. Re-run **UX audit JSON** after inbox pilot if counts shift.
 
 ---
 

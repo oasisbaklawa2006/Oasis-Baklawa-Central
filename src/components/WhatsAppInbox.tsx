@@ -642,6 +642,11 @@ export function WhatsAppInbox() {
     return inferLocalIntentFromText(packetStitchedPlainText(selectedPacket.stitched_content));
   }, [selectedPacket]);
 
+  const selectedPacketHealth = useMemo((): PacketHealth | null => {
+    if (!selectedPacket) return null;
+    return inferPacketHealth(selectedPacket.last_message_at, selectedPacket.messages ?? []);
+  }, [selectedPacket]);
+
   const hasBulkFilters = useMemo(
     () =>
       bulkFilters.healthAnyOf.length > 0 ||
@@ -728,6 +733,91 @@ export function WhatsAppInbox() {
     packetListVirtualRef.current?.remeasureAll();
   }, [compactMode]);
 
+  const edgeToolbarInner = useMemo(
+    () => (
+      <div className="space-y-2 px-4 py-3 pt-3">
+        <p className="text-xs font-medium text-gray-500">
+          Edge suggestions (on demand — not saved until governance allows persistence)
+        </p>
+        <div className="flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={() => void handleClassifyIntent()}
+            disabled={classifyLoading || routeLoading}
+            aria-busy={classifyLoading}
+            aria-label={classifyLoading ? "Classifying intent, please wait" : "Classify intent with Edge suggestion"}
+            className="min-h-11 touch-manipulation rounded-md border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-800 outline-none hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50 focus-visible:ring-2 focus-visible:ring-green-600 focus-visible:ring-offset-2"
+          >
+            {classifyLoading ? "Classifying…" : "Classify Intent"}
+          </button>
+          <button
+            type="button"
+            onClick={() => void handleSuggestRoute()}
+            disabled={classifyLoading || routeLoading}
+            aria-busy={routeLoading}
+            aria-label={routeLoading ? "Suggesting route, please wait" : "Suggest routing with Edge function"}
+            className="min-h-11 touch-manipulation rounded-md border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-800 outline-none hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50 focus-visible:ring-2 focus-visible:ring-green-600 focus-visible:ring-offset-2"
+          >
+            {routeLoading ? "Suggesting…" : "Suggest Route"}
+          </button>
+        </div>
+        {suggestionsError ? (
+          <p className="text-sm text-red-600" role="alert">
+            {suggestionsError}
+          </p>
+        ) : null}
+        {intentResult ? (
+          <div className="rounded-md border border-gray-200 bg-gray-50 p-3 text-sm text-gray-800">
+            <p className="font-semibold text-gray-900">Intent (Edge suggestion)</p>
+            <p className="mt-1">
+              <span className="text-gray-500">Type:</span> {intentResult.intent_type}
+            </p>
+            <p>
+              <span className="text-gray-500">Confidence:</span> {intentResult.confidence}
+            </p>
+            {intentResult.keywords?.length > 0 ? (
+              <p>
+                <span className="text-gray-500">Keywords:</span> {intentResult.keywords.join(", ")}
+              </p>
+            ) : null}
+            <p className="mt-1 text-xs text-gray-600">
+              <span className="text-gray-500">Metadata:</span> {JSON.stringify(intentResult.metadata ?? {})}
+            </p>
+          </div>
+        ) : null}
+        {routeResult ? (
+          <div className="rounded-md border border-gray-200 bg-gray-50 p-3 text-sm text-gray-800">
+            <p className="font-semibold text-gray-900">Route (Edge suggestion)</p>
+            <p className="mt-1">
+              <span className="text-gray-500">Team:</span> {routeResult.assigned_to_team}
+            </p>
+            <p>
+              <span className="text-gray-500">Priority:</span> {routeResult.priority}
+            </p>
+            <p>
+              <span className="text-gray-500">Action:</span> {routeResult.action}
+            </p>
+            <p>
+              <span className="text-gray-500">Reason:</span> {routeResult.reason}
+            </p>
+            <p className="mt-1 text-xs text-gray-600">
+              <span className="text-gray-500">Metadata:</span> {JSON.stringify(routeResult.metadata ?? {})}
+            </p>
+          </div>
+        ) : null}
+      </div>
+    ),
+    [
+      classifyLoading,
+      routeLoading,
+      handleClassifyIntent,
+      handleSuggestRoute,
+      suggestionsError,
+      intentResult,
+      routeResult,
+    ],
+  );
+
   if (loading) {
     return <OperatorInboxLoadingShell />;
   }
@@ -746,15 +836,18 @@ export function WhatsAppInbox() {
       >
         Skip to conversation detail
       </a>
-      <div className="sr-only" aria-live="polite" aria-atomic="true">
+      {/* Selection moves are already exposed via listbox `aria-activedescendant`; avoid noisy live-region chatter on j/k. */}
+      <div className="sr-only" aria-live="off" aria-atomic="true">
         {selectionAnnouncement}
       </div>
       {showObservabilityStrip ? (
-        <OperatorInboxObservabilityPanel
-          snapshot={observability.snapshot}
-          loading={observability.loading}
-          medianLagSecondsFromThreads={medianLagSecondsFromThreads}
-        />
+        <div className="relative z-[1] shrink-0">
+          <OperatorInboxObservabilityPanel
+            snapshot={observability.snapshot}
+            loading={observability.loading}
+            medianLagSecondsFromThreads={medianLagSecondsFromThreads}
+          />
+        </div>
       ) : null}
       <div className={cn("relative z-0 flex min-h-0 flex-1 isolate", isNarrow ? "flex-col" : "flex-row")}>
         <div
@@ -766,14 +859,17 @@ export function WhatsAppInbox() {
           )}
         >
           <div
-            className="sticky top-0 z-20 border-b border-gray-200 bg-white/95 p-4 shadow-sm supports-[backdrop-filter]:backdrop-blur-sm"
+            className="sticky top-0 z-20 border-b border-gray-200 bg-white/95 p-4 pb-3 shadow-sm supports-[backdrop-filter]:backdrop-blur-sm"
             id="operator-inbox-filter-panel"
             data-operator-inbox-interactive
           >
             <div className="flex flex-wrap items-start justify-between gap-2">
-              <h2 className="text-xl font-bold text-gray-900" id="operator-inbox-heading">
-                WhatsApp Inbox
-              </h2>
+              <div className="min-w-0">
+                <p className="text-[10px] font-semibold uppercase tracking-wide text-gray-500">Threads</p>
+                <h2 className="text-xl font-bold text-gray-900" id="operator-inbox-heading">
+                  WhatsApp Inbox
+                </h2>
+              </div>
               <Button
                 type="button"
                 variant="outline"
@@ -975,7 +1071,7 @@ export function WhatsAppInbox() {
                       <ToggleGroupItem
                         key={val}
                         value={val}
-                        className="h-7 px-2 text-[10px]"
+                        className="min-h-9 min-w-[2.5rem] px-2 py-1.5 text-[10px] touch-manipulation"
                         aria-label={`${label} packet health filter`}
                       >
                         {label}
@@ -1000,7 +1096,7 @@ export function WhatsAppInbox() {
                         <ToggleGroupItem
                           key={val}
                           value={val}
-                          className="h-7 px-2 text-[10px]"
+                          className="min-h-9 min-w-[2.5rem] px-2 py-1.5 text-[10px] touch-manipulation"
                           title={`${m.title}: ${m.range} since last activity`}
                           aria-label={`${m.title} age filter, ${m.range} since last activity`}
                         >
@@ -1034,7 +1130,7 @@ export function WhatsAppInbox() {
                       <ToggleGroupItem
                         key={val}
                         value={val}
-                        className="h-7 px-2 text-[10px]"
+                        className="min-h-9 min-w-[2.5rem] px-2 py-1.5 text-[10px] touch-manipulation"
                         aria-label={`${label} local intent tone filter`}
                       >
                         {label}
@@ -1049,7 +1145,7 @@ export function WhatsAppInbox() {
                     type="button"
                     variant="ghost"
                     size="sm"
-                    className="h-7 px-2 text-[10px] text-gray-600"
+                    className="min-h-9 px-2 text-[10px] text-gray-600 focus-visible:ring-2 focus-visible:ring-gray-500 focus-visible:ring-offset-1"
                     onClick={() => setBulkFilters({ ...EMPTY_INBOX_BULK_FILTERS })}
                   >
                     Clear bulk filters
@@ -1079,9 +1175,13 @@ export function WhatsAppInbox() {
           ) : null}
 
           {!error && messagesBatchWarnings.length > 0 ? (
-            <div className="border-b border-amber-200 bg-amber-50 px-4 py-2 text-xs text-amber-950" role="status">
-              <p className="font-medium text-amber-900">Some message history loaded partially</p>
-              <ul className="mt-1 list-inside list-disc text-amber-900/90">
+            <div className="border-b border-amber-200 bg-amber-50 px-4 py-3 text-xs text-amber-950" role="status">
+              <p className="font-medium text-amber-900">Some message history loaded only partially</p>
+              <p className="mt-1 text-[11px] leading-snug text-amber-900/90">
+                You can still open threads below. If a conversation looks short, wait for a refresh or reload — do not
+                assume the customer did not send more.
+              </p>
+              <ul className="mt-2 list-inside list-disc text-amber-900/90">
                 {messagesBatchWarnings.map((w, idx) => (
                   <li key={`${idx}-${w.slice(0, 80)}`}>{w}</li>
                 ))}
@@ -1217,20 +1317,49 @@ export function WhatsAppInbox() {
                   </Button>
                 ) : null}
                 <div className="flex flex-wrap items-start justify-between gap-2">
-                  <div>
-                    <p className="text-xs font-medium uppercase tracking-wide text-green-900/80">Contact / sender</p>
-                    <h3 className="text-lg font-bold text-gray-900">{selectedPacket.customer_name}</h3>
+                  <div className="min-w-0">
+                    <p className="text-xs font-medium uppercase tracking-wide text-green-900/80">Conversation</p>
+                    <h3 className="text-lg font-bold text-gray-900 break-words">{selectedPacket.customer_name}</h3>
+                    <p className="mt-0.5 font-mono text-[11px] text-gray-600" title={selectedPacket.id}>
+                      Packet <span className="font-semibold">{selectedPacket.id.slice(0, 8).toUpperCase()}…</span>
+                    </p>
                   </div>
                   <div className="flex flex-wrap items-center gap-2">
                     {selectedHeaderIntent ? (
                       <OperatorInboxIntentDot tone={selectedHeaderIntent.tone} label={selectedHeaderIntent.label} />
                     ) : null}
-                    <OperatorInboxPacketHealthBadge
-                      health={inferPacketHealth(selectedPacket.last_message_at, selectedPacket.messages ?? [])}
-                    />
+                    {selectedPacketHealth ? (
+                      <OperatorInboxPacketHealthBadge health={selectedPacketHealth} />
+                    ) : null}
                   </div>
                 </div>
-                <p className="text-sm text-gray-700">WhatsApp: {selectedPacket.phone_number}</p>
+                {selectedPacketHealth === "stale_open" ? (
+                  <div
+                    className="mt-3 rounded-md border border-orange-300 bg-orange-50/90 px-3 py-2 text-xs text-orange-950"
+                    role="note"
+                  >
+                    <p className="font-semibold text-orange-950">Stale / idle thread (local signal)</p>
+                    <p className="mt-1 leading-snug text-orange-950/95">
+                      This packet has been open without a matching outbound for a long window in the local model. Read
+                      the latest inbound before sending — your reply still goes to this WhatsApp number only; nothing
+                      here auto-routes or escalates.
+                    </p>
+                  </div>
+                ) : null}
+                {selectedPacketHealth === "operator_issue" ? (
+                  <div
+                    className="mt-3 rounded-md border border-red-300 bg-red-50/90 px-3 py-2 text-xs text-red-950"
+                    role="note"
+                  >
+                    <p className="font-semibold text-red-950">Outbound send failures in snapshot</p>
+                    <p className="mt-1 leading-snug text-red-950/95">
+                      At least one outbound row shows failed/error in this thread view. You can still compose a new
+                      reply below; verify delivery outside this read-only panel. The failed-message list is audit-only —
+                      it does not retry sends.
+                    </p>
+                  </div>
+                ) : null}
+                <p className="mt-2 text-sm text-gray-700">WhatsApp: {selectedPacket.phone_number}</p>
                 {selectedPacket.wa_contact_id ? (
                   <p className="text-xs text-gray-500">WA id: {selectedPacket.wa_contact_id}</p>
                 ) : null}
@@ -1238,91 +1367,43 @@ export function WhatsAppInbox() {
                   Company or profile name above comes from <code className="rounded bg-white/80 px-1">whatsapp_contacts</code>{" "}
                   only (no order join in this view).
                 </p>
-                <div className="mt-3">
-                  <OperatorInboxPacketBadges
-                    packetStatus={selectedPacket.status}
-                    fragmentCount={selectedPacket.fragment_count}
-                    messages={selectedPacket.messages ?? []}
-                  />
-                </div>
+                {isNarrow ? (
+                  <details className="mt-3 rounded-md border border-green-200/80 bg-white/70 p-2">
+                    <summary className="cursor-pointer text-xs font-semibold text-green-900 outline-none focus-visible:ring-2 focus-visible:ring-green-600 focus-visible:ring-offset-2">
+                      Thread metadata (counts &amp; statuses)
+                    </summary>
+                    <div className="mt-2">
+                      <OperatorInboxPacketBadges
+                        packetStatus={selectedPacket.status}
+                        fragmentCount={selectedPacket.fragment_count}
+                        messages={selectedPacket.messages ?? []}
+                      />
+                    </div>
+                  </details>
+                ) : (
+                  <div className="mt-3">
+                    <OperatorInboxPacketBadges
+                      packetStatus={selectedPacket.status}
+                      fragmentCount={selectedPacket.fragment_count}
+                      messages={selectedPacket.messages ?? []}
+                    />
+                  </div>
+                )}
               </div>
             </div>
 
             <div className="flex min-h-0 flex-1 flex-col lg:flex-row">
               <div className="flex min-h-0 min-w-0 flex-1 flex-col border-gray-200 lg:border-r">
-                <div className="shrink-0 border-b border-gray-200 bg-white px-4 py-3">
-                  <p className="mb-2 text-xs font-medium text-gray-500">
-                    Edge suggestions (on demand — not saved until governance allows persistence)
-                  </p>
-                  <div className="flex flex-wrap gap-2">
-                    <button
-                      type="button"
-                      onClick={() => void handleClassifyIntent()}
-                      disabled={classifyLoading || routeLoading}
-                      aria-busy={classifyLoading}
-                      aria-label={classifyLoading ? "Classifying intent, please wait" : "Classify intent with Edge suggestion"}
-                      className="rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-800 outline-none hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50 focus-visible:ring-2 focus-visible:ring-green-600 focus-visible:ring-offset-2"
-                    >
-                      {classifyLoading ? "Classifying…" : "Classify Intent"}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => void handleSuggestRoute()}
-                      disabled={classifyLoading || routeLoading}
-                      aria-busy={routeLoading}
-                      aria-label={routeLoading ? "Suggesting route, please wait" : "Suggest routing with Edge function"}
-                      className="rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-800 outline-none hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50 focus-visible:ring-2 focus-visible:ring-green-600 focus-visible:ring-offset-2"
-                    >
-                      {routeLoading ? "Suggesting…" : "Suggest Route"}
-                    </button>
-                  </div>
-                  {suggestionsError ? (
-                    <p className="mt-2 text-sm text-red-600" role="alert">
-                      {suggestionsError}
-                    </p>
-                  ) : null}
-                  {intentResult ? (
-                    <div className="mt-3 rounded-md border border-gray-200 bg-gray-50 p-3 text-sm text-gray-800">
-                      <p className="font-semibold text-gray-900">Intent (Edge suggestion)</p>
-                      <p className="mt-1">
-                        <span className="text-gray-500">Type:</span> {intentResult.intent_type}
-                      </p>
-                      <p>
-                        <span className="text-gray-500">Confidence:</span> {intentResult.confidence}
-                      </p>
-                      {intentResult.keywords?.length > 0 ? (
-                        <p>
-                          <span className="text-gray-500">Keywords:</span> {intentResult.keywords.join(", ")}
-                        </p>
-                      ) : null}
-                      <p className="mt-1 text-xs text-gray-600">
-                        <span className="text-gray-500">Metadata:</span>{" "}
-                        {JSON.stringify(intentResult.metadata ?? {})}
-                      </p>
-                    </div>
-                  ) : null}
-                  {routeResult ? (
-                    <div className="mt-3 rounded-md border border-gray-200 bg-gray-50 p-3 text-sm text-gray-800">
-                      <p className="font-semibold text-gray-900">Route (Edge suggestion)</p>
-                      <p className="mt-1">
-                        <span className="text-gray-500">Team:</span> {routeResult.assigned_to_team}
-                      </p>
-                      <p>
-                        <span className="text-gray-500">Priority:</span> {routeResult.priority}
-                      </p>
-                      <p>
-                        <span className="text-gray-500">Action:</span> {routeResult.action}
-                      </p>
-                      <p>
-                        <span className="text-gray-500">Reason:</span> {routeResult.reason}
-                      </p>
-                      <p className="mt-1 text-xs text-gray-600">
-                        <span className="text-gray-500">Metadata:</span>{" "}
-                        {JSON.stringify(routeResult.metadata ?? {})}
-                      </p>
-                    </div>
-                  ) : null}
-                </div>
+                {isNarrow ? (
+                  <details className="shrink-0 border-b border-gray-200 bg-white">
+                    <summary className="min-h-11 cursor-pointer list-none px-4 py-3 text-xs font-semibold text-gray-800 outline-none marker:content-none focus-visible:ring-2 focus-visible:ring-green-600 focus-visible:ring-offset-2 [&::-webkit-details-marker]:hidden">
+                      Edge suggestions (optional — expand)
+                    </summary>
+                    {edgeToolbarInner}
+                  </details>
+                ) : (
+                  <div className="shrink-0 border-b border-gray-200 bg-white">{edgeToolbarInner}</div>
+                )}
 
                 <div className="min-h-0 flex-1 space-y-6 overflow-y-auto overscroll-y-contain scroll-pt-2 scroll-pb-3 p-4">
                   {selectedPacket.messages && selectedPacket.messages.length > 0 ? (
@@ -1405,14 +1486,25 @@ export function WhatsAppInbox() {
                       </div>
                     ))
                   ) : (
-                    <p className="text-center text-gray-500" role="status">
-                      No messages in this packet
-                    </p>
+                    <div className="rounded-md border border-dashed border-gray-200 bg-gray-50/80 p-4 text-center" role="status">
+                      <p className="text-sm font-medium text-gray-800">No messages loaded for this packet</p>
+                      <p className="mt-2 text-xs leading-relaxed text-gray-600">
+                        The thread may still be syncing, or this packet has no stitched rows yet. Try refreshing the
+                        list from the header controls; do not assume silence means the customer did not write.
+                      </p>
+                    </div>
                   )}
                 </div>
 
-                <div className="shrink-0 border-t border-gray-200 bg-gray-50 p-4">
-                  <div className="flex gap-2">
+                <div className="sticky bottom-0 z-30 shrink-0 border-t-2 border-green-600/25 bg-gray-50 p-4 pb-[max(1rem,env(safe-area-inset-bottom))] shadow-[0_-8px_24px_rgba(0,0,0,0.06)] lg:relative lg:z-auto lg:border-t lg:border-gray-200 lg:shadow-none">
+                  <div className="mb-3 rounded-md border border-green-100 bg-white/90 px-3 py-2">
+                    <p className="text-[11px] font-semibold uppercase tracking-wide text-green-800">Replying to</p>
+                    <p className="mt-0.5 text-sm font-semibold text-gray-900 break-words">{selectedPacket.customer_name}</p>
+                    <p className="mt-0.5 font-mono text-xs text-gray-600 break-all">
+                      {selectedPacket.phone_number ?? "—"} · Packet {selectedPacket.id.slice(0, 8).toUpperCase()}…
+                    </p>
+                  </div>
+                  <div className="flex flex-col gap-2 sm:flex-row sm:items-stretch">
                     <input
                       type="text"
                       value={replyText}
@@ -1423,21 +1515,25 @@ export function WhatsAppInbox() {
                           void handleSendReply();
                         }
                       }}
-                      placeholder="Type a reply..."
+                      placeholder="Type a reply…"
                       disabled={replySending}
                       aria-label="Operator reply message draft"
-                      className="flex-1 rounded-full border border-gray-300 bg-white px-4 py-2 focus:border-green-500 focus:outline-none focus-visible:ring-2 focus-visible:ring-green-600 focus-visible:ring-offset-2 disabled:bg-gray-100"
+                      className="min-h-11 w-full flex-1 rounded-full border border-gray-300 bg-white px-4 py-2.5 text-base sm:text-sm focus:border-green-500 focus:outline-none focus-visible:ring-2 focus-visible:ring-green-600 focus-visible:ring-offset-2 disabled:bg-gray-100"
                     />
                     <button
                       type="button"
                       onClick={() => void handleSendReply()}
                       disabled={replySending || !replyText.trim()}
                       aria-label="Send WhatsApp reply"
-                      className="rounded-full bg-green-500 px-6 py-2 font-medium text-white transition hover:bg-green-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-700 focus-visible:ring-offset-2 disabled:bg-gray-300"
+                      className="min-h-11 shrink-0 touch-manipulation rounded-full bg-green-500 px-6 py-2.5 text-sm font-semibold text-white transition hover:bg-green-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-700 focus-visible:ring-offset-2 disabled:bg-gray-300 sm:self-center"
                     >
                       {replySending ? "Sending..." : "Send"}
                     </button>
                   </div>
+                  <p className="mt-2 text-[10px] leading-snug text-gray-500">
+                    Sends to the WhatsApp number above only. This bar stays fixed while you scroll messages on small
+                    screens.
+                  </p>
                 </div>
               </div>
 
@@ -1447,11 +1543,12 @@ export function WhatsAppInbox() {
                     type="button"
                     variant="outline"
                     size="sm"
-                    className="h-9 w-full text-xs font-medium text-slate-800"
+                    className="min-h-11 w-full touch-manipulation text-xs font-medium text-slate-800 focus-visible:ring-2 focus-visible:ring-slate-600 focus-visible:ring-offset-2"
                     onClick={() => {
                       setInsightsAsideUserCollapsed(false);
                       setInsightsAsideExpanded(true);
                     }}
+                    aria-label="Show read-only insights column"
                   >
                     Show read-only insights
                   </Button>
@@ -1468,11 +1565,12 @@ export function WhatsAppInbox() {
                       type="button"
                       variant="ghost"
                       size="sm"
-                      className="h-8 shrink-0 px-2 text-[10px] text-slate-600"
+                      className="min-h-9 shrink-0 px-2 text-[10px] text-slate-600 focus-visible:ring-2 focus-visible:ring-slate-500 focus-visible:ring-offset-2"
                       onClick={() => {
                         setInsightsAsideExpanded(false);
                         setInsightsAsideUserCollapsed(true);
                       }}
+                      aria-label="Hide read-only insights column"
                     >
                       Hide
                     </Button>

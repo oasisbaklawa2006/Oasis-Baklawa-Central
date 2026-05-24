@@ -50,7 +50,7 @@ Aligned with **`docs/UX_TRIAGE_MASTER_BOARD.md`** — rows that are still **VERI
 
 | Bucket | Count | Examples |
 |--------|-------|------------|
-| **CRITICAL — partial / verify** | **3** | UX-CRT-001 finance-board density & scroll; UX-CRT-002 operator inbox composer vs metadata; UX-CRT-003 dispatch floor portrait (code improved — **video sign-off** still recommended) |
+| **CRITICAL — partial / verify** | **3** | UX-CRT-001 finance-board density & scroll; UX-CRT-002 operator inbox (**May 2026 pilot:** list/detail hierarchy, sticky stack, “Replying to”, stale/fail callouts, calmer empty/partial states, a11y — **device verify** still recommended); UX-CRT-003 dispatch floor portrait (code improved — **video sign-off** still recommended) |
 | **HIGH — verify** | **2** | UX-HIG-003 order list/detail timeline + actions; UX-HIG-005 target-vs-actual density |
 | **HIGH — partial** | **3** | UX-HIG-001 approvals (layout improved — approver workflow verify); UX-HIG-002 quick-order (sticky totals optional); UX-HIG-004 packing-dispatch on **physical iPad** |
 | **MEDIUM — confirm** | **5** | UX-MED-001–005: code landed; triage still asks for **automation / spot-check confirmation** against fresh raw JSON where needed |
@@ -65,7 +65,7 @@ Aligned with **`docs/UX_TRIAGE_MASTER_BOARD.md`** — rows that are still **VERI
 Operational **policy watchlist** even when automation is quiet:
 
 1. **`/admin/finance-board`** + **`/admin/finance`** — mis-verify risk under time pressure.  
-2. **`/admin/operator-inbox`** + **`/admin/whatsapp`** — wrong-send risk; composer vs context density.  
+2. **`/admin/operator-inbox`** + **`/admin/whatsapp`** — wrong-send risk; composer vs context density. **Pilot UX closure:** clearer thread/packet identity, collapsible metadata on narrow widths, separated reply composer, read-only failed-message copy (no execution promise), reduced `aria-live` noise — **does not replace** a real-device pass under production traffic.  
 3. **`/admin/dispatch`**, **`/admin/dispatch-mgmt`**, **`/admin/packing-dispatch`** — floor mistakes on smallest phones; confirm with **device video**, not screenshots alone.  
 4. **`/cart`** — sticky checkout vs keyboard / FAB overlap (matrix still flags VERIFY cells).  
 5. **`/admin/target-vs-actual`** + **`/sales/dashboard`** — exec misread on narrow widths.  
@@ -92,7 +92,7 @@ Operational **policy watchlist** even when automation is quiet:
 
 ## 8. Recommended next sprint (safest closure order)
 
-1. **Operator inbox / WhatsApp** (UX-CRT-002) — single high-churn module; layout-only options (composer dock, collapsible metadata) without touching message pipeline logic.  
+1. **Operator inbox / WhatsApp** (UX-CRT-002) — pilot landed (layout, a11y, and copy as in section 5 item 2); **next:** physical-device and screen-reader verification under real workloads before treating the row as fully closed.  
 2. **Order detail + orders list** (UX-HIG-003) — bounded routes; timeline accordion + primary CTA dock pattern.  
 3. **Tooling:** **axe** Playwright smoke on 4–6 priority routes (docs-only prep acceptable; implementation is test wiring).  
 4. **Cart mobile** — keyboard overlap + sticky bar verification after inbox/orders if capacity remains.  

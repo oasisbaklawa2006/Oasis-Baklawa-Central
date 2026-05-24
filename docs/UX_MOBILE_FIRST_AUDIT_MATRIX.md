@@ -51,9 +51,9 @@
 
 | Viewport | Overall | Horizontal overflow | Footer overlap | Keyboard overlap | Sticky collisions | Density | Touch targets | Scroll traps | Nested scrolls | Modals |
 |----------|---------|--------------------|---------------|------------------|-------------------|---------|---------------|---------------|-----------------|--------|
-| iPhone 14 Pro | **WARNING** | PASS | VERIFY | **WARNING** | **WARNING** | **WARNING** | PASS | VERIFY | VERIFY | VERIFY |
-| iPhone SE | **WARNING** | PASS | VERIFY | **WARNING** | **WARNING** | **WARNING** | PASS | VERIFY | VERIFY | VERIFY |
-| iPad | **WARNING** | PASS | VERIFY | VERIFY | WARNING | WARNING | PASS | VERIFY | VERIFY | VERIFY |
+| iPhone 14 Pro | **WARNING** | PASS | VERIFY | **WARNING** | **WARNING** (pilot improved) | **WARNING** (pilot improved) | PASS (pilot) | VERIFY | VERIFY | VERIFY |
+| iPhone SE | **WARNING** | PASS | VERIFY | **WARNING** | **WARNING** (pilot improved) | **WARNING** (pilot improved) | PASS (pilot) | VERIFY | VERIFY | VERIFY |
+| iPad | **WARNING** | PASS | VERIFY | VERIFY | WARNING (pilot improved) | WARNING (pilot improved) | PASS | VERIFY | VERIFY | VERIFY |
 | Desktop | PASS | PASS | N/A | N/A | VERIFY | PASS | N/A | VERIFY | VERIFY | VERIFY |
 
 ---

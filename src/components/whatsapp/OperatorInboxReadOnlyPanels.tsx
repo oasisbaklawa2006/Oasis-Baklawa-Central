@@ -31,6 +31,7 @@ function DisabledGovernanceAction({ label }: { label: string }) {
         <span
           role="button"
           tabIndex={0}
+          aria-label={`${label} — disabled until governance approval`}
           aria-disabled="true"
           className={cn(
             "inline-flex cursor-not-allowed items-center gap-1 rounded-md border border-dashed border-gray-300 bg-gray-50 px-2.5 py-1.5 text-xs font-medium text-gray-400 outline-none focus-visible:ring-2 focus-visible:ring-amber-400 focus-visible:ring-offset-1",
@@ -124,7 +125,9 @@ export function OperatorInboxFailedMessagesReadOnlyPanel({ messages }: { message
       </h4>
       <p className="mt-1 text-[11px] text-red-800/90">
         Outbound <span className="font-mono">operator_reply</span> rows with status <span className="font-medium">failed</span> or{" "}
-        <span className="font-medium">error</span> only (same rule as packet health “Send fail”). No resend from this view.
+        <span className="font-medium">error</span> only (same rule as packet health “Send fail”). This panel is read-only
+        history — it does <span className="font-medium">not</span> send, retry, or change any message. Use your normal
+        outbound workflow outside this view if a resend is required.
       </p>
       {failed.length === 0 ? (
         <p className="mt-2 text-xs text-red-800/80">No matching failed operator sends in this thread snapshot.</p>
@@ -214,10 +217,14 @@ export function OperatorInboxRefreshingBanner({
         refreshError ? "border-red-200 bg-red-50 text-red-800" : "border-green-100 bg-green-50/90 text-green-900",
       )}
       role="status"
-      aria-live="polite"
+      aria-live={refreshError ? "polite" : "off"}
     >
       {refreshError ? (
-        <>Realtime refresh failed: {refreshError}</>
+        <>
+          Realtime refresh failed — the packet list may be slightly out of date. You can keep working; wait for the next
+          automatic sync or reload the page if timestamps look wrong. Technical detail:{" "}
+          <span className="font-mono text-[10px]">{refreshError}</span>
+        </>
       ) : (
         <>Updating conversations…</>
       )}
@@ -242,7 +249,7 @@ export function OperatorInboxIntentDot({
   label: string;
 }) {
   return (
-    <span className="inline-flex items-center gap-1" title={label}>
+    <span className="inline-flex items-center gap-1" title={label} aria-label={label}>
       <span className={cn("h-2 w-2 shrink-0 rounded-full", INTENT_TONE_DOT[tone])} aria-hidden />
       <span className="max-w-[5.5rem] truncate text-[10px] font-medium text-gray-600">{label}</span>
     </span>
@@ -300,7 +307,7 @@ export const OperatorInboxObservabilityPanel = memo(function OperatorInboxObserv
           Observability (read-only)
         </h3>
         {loading ? (
-          <span className="text-[10px] text-slate-500" role="status" aria-live="polite">
+          <span className="text-[10px] text-slate-500" role="status" aria-live="off">
             First load…
           </span>
         ) : null}
@@ -346,8 +353,8 @@ export const OperatorInboxObservabilityPanel = memo(function OperatorInboxObserv
       {snapshot.partialErrors.length > 0 ? (
         <div className="mt-1.5 rounded border border-amber-200/80 bg-amber-50/80 px-2 py-1.5 text-[10px] text-amber-950">
           <p className="font-medium text-amber-900" role="status" aria-live="polite">
-            Some analytics queries failed ({snapshot.partialErrors.length}). The inbox list still loads; counts below
-            may be incomplete.
+            Some analytics queries failed ({snapshot.partialErrors.length}). The thread list still loaded from the
+            server; numbers in this strip may be incomplete or outdated. This does not block sending a reply.
           </p>
           <details id={detailsId} className="mt-1">
             <summary className="cursor-pointer select-none font-medium text-amber-900 underline-offset-2 outline-none hover:underline focus-visible:ring-2 focus-visible:ring-amber-600 focus-visible:ring-offset-1">
