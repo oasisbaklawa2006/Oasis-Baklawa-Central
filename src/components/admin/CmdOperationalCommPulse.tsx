@@ -18,6 +18,10 @@ export interface CmdOperationalCommPulseProps {
   executionBlockedLanes?: number;
   executionPendingLanes?: number;
   executionBottleneckLane?: string | null;
+  /** Human-readable root cause (e.g. finance blocking downstream). */
+  executionBottleneckContext?: string | null;
+  /** First blocked lane when it differs from root cause (downstream context). */
+  executionVisibleBlockedLane?: string | null;
   /** Count of derived escalation strings from the same lane evaluation (not a persisted ticket count). */
   executionEscalationTopics?: number;
   /** Rows from inventory OS variance derivation (projection); shelf truth flagged unknown until outlet feed lands. */
@@ -46,6 +50,8 @@ export function CmdOperationalCommPulse({
   executionBlockedLanes = 0,
   executionPendingLanes = 0,
   executionBottleneckLane = null,
+  executionBottleneckContext = null,
+  executionVisibleBlockedLane = null,
   executionEscalationTopics = 0,
   inventoryRiskAttentionRows = 0,
   manualVerificationLoad = 0,
@@ -127,7 +133,8 @@ export function CmdOperationalCommPulse({
           Execution & inventory risk (projection)
         </div>
         <p className="mt-1 text-[10px] leading-snug text-muted-foreground">
-          Read-only lane math plus inventory OS variance hints. Not a persisted escalation queue. Bottleneck label is the first blocked lane in graph order.
+          Read-only lane math plus inventory OS variance hints. Not a persisted escalation queue. Bottleneck shows{" "}
+          <span className="font-medium text-foreground/90">root cause</span> (e.g. finance when it blocks downstream lanes), not only the first blocked row.
         </p>
         <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-4">
           <div className="rounded-md border border-border bg-background/80 px-2 py-2">
@@ -142,9 +149,17 @@ export function CmdOperationalCommPulse({
             <div className="text-[9px] font-medium uppercase tracking-wide text-muted-foreground">Escalation topics</div>
             <p className="mt-1 font-mono text-lg font-semibold tabular-nums">{executionEscalationTopics}</p>
           </div>
-          <div className="rounded-md border border-border bg-background/80 px-2 py-2">
-            <div className="text-[9px] font-medium uppercase tracking-wide text-muted-foreground">Bottleneck lane</div>
+          <div className="rounded-md border border-border bg-background/80 px-2 py-2 col-span-2 sm:col-span-4">
+            <div className="text-[9px] font-medium uppercase tracking-wide text-muted-foreground">Bottleneck (root cause)</div>
             <p className="mt-1 text-[11px] font-medium leading-snug break-all">{executionBottleneckLane ?? "—"}</p>
+            {executionBottleneckContext ? (
+              <p className="mt-1 text-[10px] leading-snug text-muted-foreground">{executionBottleneckContext}</p>
+            ) : null}
+            {executionVisibleBlockedLane && executionVisibleBlockedLane !== executionBottleneckLane ? (
+              <p className="mt-1 text-[9px] text-muted-foreground">
+                Downstream blocked context: <span className="font-mono text-foreground/90">{executionVisibleBlockedLane}</span>
+              </p>
+            ) : null}
           </div>
           <div className="rounded-md border border-border bg-background/80 px-2 py-2">
             <div className="text-[9px] font-medium uppercase tracking-wide text-muted-foreground">Inventory risk rows</div>

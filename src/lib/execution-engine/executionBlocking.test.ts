@@ -12,6 +12,7 @@ describe("executionBlocking", () => {
       dispatchLabelReady: true,
     });
     expect(states.find((s) => s.lane === "finance")?.state).toMatch(/pending|blocked/);
+    expect(states.find((s) => s.lane === "production")?.blockedBy).toEqual(["finance"]);
     expect(isDispatchLaneBlocked(states)).toBe(true);
   });
 
