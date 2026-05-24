@@ -30,7 +30,7 @@ Expose **honest, read-only** inventory / ready-goods signals for retail store co
 
 ## CMD pulse (optional)
 
-`CmdOperationalCommPulse` shows a **read-only head count** on `factory_inventory` plus static copy that branch shelf truth remains **pending / manual verification**. No automation.
+`CmdOperationalCommPulse` shows a **read-only head count** on `factory_inventory` plus static copy that branch shelf truth remains **pending / manual verification**. A second strip lists **retail / label pilot** lanes as **pending — not connected** (no fake counts). No automation.
 
 ## Invariants (guardrails)
 
