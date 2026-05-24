@@ -13,6 +13,20 @@ Purpose: map remaining launch work into **module-by-module closures** so each ch
 - WhatsApp communication projection
 - order trace stitched timeline
 - CMD communication pulse
+- **Retail store coordination (B1 route + B2 visibility shells + B5 store operational projections — read-only; no live stock)**
+
+---
+
+## Retail / store coordination — next required
+
+**Done (partial):** B1 shell, B2 outlet/reservation/factory **UI + honest placeholders**, B5 **projection feed** + timeline + unit tests.
+
+**Still required for “real” coordination:**
+
+- Inventory / ready goods **read** source wired to cards (no fake qty)
+- Reservation **persistence** and conflict rules (operator-gated writes, separate approval)
+- Factory follow-up **persistence** and linkage to production jobs / WhatsApp hints (read-first)
+- Optional: dedicated **retail** timeline filter chip (currently uses existing `OperationalTimeline` categories only)
 
 ---
 

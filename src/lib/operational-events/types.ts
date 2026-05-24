@@ -37,7 +37,9 @@ export type OperationalEntityType =
   | "ticket"
   | "requisition"
   | "production_job"
-  | "approval";
+  | "approval"
+  | "store"
+  | "reservation";
 
 export interface OperationalEntityRef {
   entityType: OperationalEntityType;
@@ -48,6 +50,7 @@ export type OperationalEventSource =
   | "derived_order_trace"
   | "derived_whatsapp_inbox"
   | "derived_cmd_pulse"
+  | "derived_store_coordination"
   | "notification_outbox"
   | "manual"
   | "future_event_store";
@@ -79,6 +82,17 @@ export const WhatsAppOperationalEventKind = {
   OPERATOR_ASSIGNED: "whatsapp.operator_assigned",
   CUSTOMER_WAITING: "whatsapp.customer_waiting",
   NO_RESPONSE_WARNING: "whatsapp.no_response_warning",
+} as const;
+
+/** Retail / store coordination — read-only projections (no persisted events). */
+export const RetailOperationalEventKind = {
+  STOCK_VISIBLE: "store.stock_visible",
+  STOCK_UNKNOWN: "store.stock_unknown",
+  RESERVATION_REQUESTED: "store.reservation_requested",
+  PICKUP_PENDING: "store.pickup_pending",
+  FACTORY_FOLLOWUP_NEEDED: "store.factory_followup_needed",
+  PREBOOKING_PENDING: "store.prebooking_pending",
+  DELAY_WARNING: "store.delay_warning",
 } as const;
 
 export interface OperationalEventRecord {

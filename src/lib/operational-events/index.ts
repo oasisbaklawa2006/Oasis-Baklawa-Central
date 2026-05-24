@@ -3,3 +3,4 @@ export * from "./normalize";
 export * from "./orderTraceFeed";
 export * from "./whatsappFeed";
 export * from "./readOnlyOperationalSignals";
+export * from "./storeFeed";
