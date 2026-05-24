@@ -5,3 +5,4 @@ export * from "./whatsappFeed";
 export * from "./readOnlyOperationalSignals";
 export * from "./storeFeed";
 export * from "./inventoryFeed";
+export * from "./retailLaunchFeed";

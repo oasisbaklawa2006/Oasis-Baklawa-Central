@@ -10,6 +10,23 @@ import {
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import { OperationalTimeline, type OperationalTimelineFilter } from "@/components/admin/OperationalTimeline";
 import { supabase } from "@/integrations/supabase/client";
@@ -25,10 +42,19 @@ import {
 import { buildInventoryOperationalFeed } from "@/lib/operational-events/inventoryFeed";
 import { mergeOperationalEventFeeds } from "@/lib/operational-events/normalize";
 import {
+  buildRetailLaunchOperationalFeed,
+  filterRetailLaunchTimelineEvents,
+} from "@/lib/operational-events/retailLaunchFeed";
+import {
   buildStoreCoordinationOperationalFeed,
   DEFAULT_RETAIL_OUTLETS,
   normalizeStoreCoordinationEvents,
 } from "@/lib/operational-events/storeFeed";
+import {
+  buildCustomerPickupLabelPayload,
+  buildFactoryFollowupLabelPayload,
+  buildReservationLabelPayload,
+} from "@/lib/barcode/barcodePayloads";
 
 function StatusChip({ tone, children }: { tone: "info" | "warning" | "urgent" | "critical"; children: React.ReactNode }) {
   const map = {
@@ -48,29 +74,36 @@ const INTEGRATION_MSG = "Retail integration pending — read-only projections wi
 
 const UNLINKED_OUTLET_LABEL = "Factory snapshot · outlet not linked";
 
-const RESERVATION_QUEUE_DISPLAY = [
-  {
-    customer: "—",
-    store: "Outlet (TBD)",
-    product: "—",
-    qty: "—",
-    pickupDate: "—",
-    status: "Backend pending",
-    notes: "Local capture not enabled yet",
-  },
-];
+function mkLocalId(prefix: string): string {
+  return `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
+}
 
-const FACTORY_FOLLOWUP_DISPLAY = [
-  {
-    store: "Outlet (TBD)",
-    product: "—",
-    neededBy: "—",
-    urgency: "Unknown",
-    department: "—",
-    status: "Integration pending",
-    lastFollowup: "—",
-  },
-];
+export type LocalReservationStatus = "draft_only" | "pending_backend" | "manual_verification_required";
+
+export interface LocalReservationRow {
+  id: string;
+  customerName: string;
+  phone: string;
+  storeName: string;
+  product: string;
+  qtyDisplay: string;
+  pickupDisplay: string;
+  notes: string;
+  status: LocalReservationStatus;
+}
+
+export interface LocalFactoryFollowupRow {
+  id: string;
+  storeName: string;
+  product: string;
+  qtyDisplay: string;
+  neededByDisplay: string;
+  department: string;
+  urgency: string;
+  linkedOrderId: string | null;
+  whatsappHint: string | null;
+  status: "pending_backend";
+}
 
 function confidenceChipTone(c: StoreStockConfidence): "info" | "warning" | "urgent" | "critical" {
   if (c === "verified_numeric") return "info";
@@ -96,6 +129,33 @@ export default function StoreCoordination() {
   const [invRows, setInvRows] = useState<ReadyGoodsVisibilityRow[]>([]);
   const [invError, setInvError] = useState<string | null>(null);
   const [invLoading, setInvLoading] = useState(true);
+
+  const [reservationDrafts, setReservationDrafts] = useState<LocalReservationRow[]>([]);
+  const [resForm, setResForm] = useState({
+    customerName: "",
+    phone: "",
+    storeId: DEFAULT_RETAIL_OUTLETS[0]?.id ?? "",
+    product: "",
+    qty: "",
+    pickupLocal: "",
+    notes: "",
+  });
+
+  const [factoryDrafts, setFactoryDrafts] = useState<LocalFactoryFollowupRow[]>([]);
+  const [factoryForm, setFactoryForm] = useState({
+    storeId: DEFAULT_RETAIL_OUTLETS[0]?.id ?? "",
+    product: "",
+    qty: "",
+    neededByLocal: "",
+    department: "",
+    urgency: "normal",
+    linkedOrderId: "",
+    whatsappHint: "",
+  });
+
+  const [labelPreviewLog, setLabelPreviewLog] = useState<{ id: string; labelKind: string; context: string }[]>([]);
+  const [previewJson, setPreviewJson] = useState<string | null>(null);
+  const [previewTitle, setPreviewTitle] = useState<string>("");
 
   const outletNames = useMemo(() => DEFAULT_RETAIL_OUTLETS.map((o) => o.name), []);
 
@@ -183,6 +243,46 @@ export default function StoreCoordination() {
     [invError, invRows, outletIdToSummary],
   );
 
+  const retailLaunchEvents = useMemo(
+    () =>
+      buildRetailLaunchOperationalFeed({
+        reservations: reservationDrafts.map((r) => ({
+          id: r.id,
+          customerName: r.customerName,
+          phone: r.phone,
+          storeName: r.storeName,
+          productLabel: r.product,
+          qtyDisplay: r.qtyDisplay,
+          pickupDisplay: r.pickupDisplay,
+          notes: r.notes,
+          status: r.status,
+        })),
+        factoryFollowups: factoryDrafts.map((f) => ({
+          id: f.id,
+          storeName: f.storeName,
+          productLabel: f.product,
+          qtyDisplay: f.qtyDisplay,
+          neededByDisplay: f.neededByDisplay,
+          department: f.department,
+          urgency: f.urgency,
+          linkedOrderId: f.linkedOrderId,
+          whatsappHint: f.whatsappHint,
+          status: f.status,
+        })),
+        labelPreviews: labelPreviewLog,
+        nowMs: Date.now(),
+      }),
+    [reservationDrafts, factoryDrafts, labelPreviewLog, tick],
+  );
+
+  const reservationTimelineEvents = useMemo(
+    () => filterRetailLaunchTimelineEvents(retailLaunchEvents, "reservation"),
+    [retailLaunchEvents],
+  );
+  const pickupTimelineEvents = useMemo(() => filterRetailLaunchTimelineEvents(retailLaunchEvents, "pickup"), [retailLaunchEvents]);
+  const factoryTimelineEvents = useMemo(() => filterRetailLaunchTimelineEvents(retailLaunchEvents, "factory"), [retailLaunchEvents]);
+  const labelTimelineEvents = useMemo(() => filterRetailLaunchTimelineEvents(retailLaunchEvents, "label"), [retailLaunchEvents]);
+
   const suppressOutletStockUnknown = invRows.length > 0 && invError == null;
 
   const timelineEvents = useMemo(() => {
@@ -197,9 +297,50 @@ export default function StoreCoordination() {
           suppressPlaceholderOutletStockUnknown: suppressOutletStockUnknown,
         }),
         inventoryFeedEvents,
+        retailLaunchEvents,
       ]),
     );
-  }, [tick, suppressOutletStockUnknown, inventoryFeedEvents]);
+  }, [tick, suppressOutletStockUnknown, inventoryFeedEvents, retailLaunchEvents]);
+
+  const appendLabelPreview = useCallback((labelKind: string, context: string) => {
+    setLabelPreviewLog((prev) =>
+      [{ id: mkLocalId("lbl"), labelKind, context }, ...prev].slice(0, 40),
+    );
+    setTick((t) => t + 1);
+  }, []);
+
+  const saveReservationDraftLocal = useCallback(() => {
+    const outlet = DEFAULT_RETAIL_OUTLETS.find((o) => o.id === resForm.storeId);
+    const row: LocalReservationRow = {
+      id: mkLocalId("res"),
+      customerName: resForm.customerName.trim() || "—",
+      phone: resForm.phone.trim() || "—",
+      storeName: outlet?.name ?? "—",
+      product: resForm.product.trim() || "—",
+      qtyDisplay: resForm.qty.trim() || "—",
+      pickupDisplay: resForm.pickupLocal.trim() || "—",
+      notes: resForm.notes.trim(),
+      status: "draft_only",
+    };
+    setReservationDrafts((d) => [row, ...d]);
+  }, [resForm]);
+
+  const saveFactoryDraftLocal = useCallback(() => {
+    const outlet = DEFAULT_RETAIL_OUTLETS.find((o) => o.id === factoryForm.storeId);
+    const row: LocalFactoryFollowupRow = {
+      id: mkLocalId("ff"),
+      storeName: outlet?.name ?? "—",
+      product: factoryForm.product.trim() || "—",
+      qtyDisplay: factoryForm.qty.trim() || "—",
+      neededByDisplay: factoryForm.neededByLocal.trim() || "—",
+      department: factoryForm.department.trim() || "—",
+      urgency: factoryForm.urgency,
+      linkedOrderId: factoryForm.linkedOrderId.trim() || null,
+      whatsappHint: factoryForm.whatsappHint.trim() || null,
+      status: "pending_backend",
+    };
+    setFactoryDrafts((d) => [row, ...d]);
+  }, [factoryForm]);
 
   const refresh = useCallback(() => {
     void fetchFactoryInventorySnapshot();
@@ -402,123 +543,467 @@ export default function StoreCoordination() {
         </div>
       </section>
 
-      {/* B2 — Reservation shell */}
+      {/* B2 — Reservation control shell (local drafts only — no DB write) */}
       <section className="space-y-3" aria-labelledby="res-queue-heading">
         <h2 id="res-queue-heading" className="text-sm font-bold uppercase tracking-wide text-foreground">
-          Reservation / prebooking queue
+          Reservation / prebooking control
         </h2>
         <div className="rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-[11px] leading-snug text-destructive" role="alert">
-          <strong className="font-semibold">Reservation capture is not active yet.</strong> Do not promise held stock
-          from this screen. No stock deduction is performed here.
+          <strong className="font-semibold">Reservation is not guaranteed until stock is manually verified.</strong> No
+          stock deduction. Backend persistence is not wired — drafts stay on this device only.
         </div>
+        <Card className="border-border/80 shadow-none">
+          <CardHeader className="py-3">
+            <CardTitle className="text-sm">New reservation (draft)</CardTitle>
+            <CardDescription className="text-[11px]">Capture intent locally; submit to server stays disabled.</CardDescription>
+          </CardHeader>
+          <CardContent className="grid gap-3 sm:grid-cols-2">
+            <div className="space-y-1.5">
+              <Label htmlFor="res-customer">Customer name</Label>
+              <Input
+                id="res-customer"
+                value={resForm.customerName}
+                onChange={(e) => setResForm((f) => ({ ...f, customerName: e.target.value }))}
+                autoComplete="name"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="res-phone">Phone</Label>
+              <Input
+                id="res-phone"
+                value={resForm.phone}
+                onChange={(e) => setResForm((f) => ({ ...f, phone: e.target.value }))}
+                inputMode="tel"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Store</Label>
+              <Select value={resForm.storeId} onValueChange={(v) => setResForm((f) => ({ ...f, storeId: v }))}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {DEFAULT_RETAIL_OUTLETS.map((o) => (
+                    <SelectItem key={o.id} value={o.id}>
+                      {o.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="res-product">Product / packing</Label>
+              <Input
+                id="res-product"
+                value={resForm.product}
+                onChange={(e) => setResForm((f) => ({ ...f, product: e.target.value }))}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="res-qty">Qty (display text)</Label>
+              <Input
+                id="res-qty"
+                value={resForm.qty}
+                onChange={(e) => setResForm((f) => ({ ...f, qty: e.target.value }))}
+                placeholder="e.g. 2 trays"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="res-pickup">Pickup date / time</Label>
+              <Input
+                id="res-pickup"
+                type="datetime-local"
+                value={resForm.pickupLocal}
+                onChange={(e) => setResForm((f) => ({ ...f, pickupLocal: e.target.value }))}
+              />
+            </div>
+            <div className="space-y-1.5 sm:col-span-2">
+              <Label htmlFor="res-notes">Notes</Label>
+              <Textarea
+                id="res-notes"
+                rows={2}
+                value={resForm.notes}
+                onChange={(e) => setResForm((f) => ({ ...f, notes: e.target.value }))}
+              />
+            </div>
+            <div className="flex flex-wrap gap-2 sm:col-span-2">
+              <Button type="button" variant="default" onClick={saveReservationDraftLocal}>
+                Save draft (local only)
+              </Button>
+              <Button type="button" variant="secondary" disabled title="Backend table not enabled for writes from this screen">
+                Submit to backend (pending)
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
         <div className="hidden overflow-x-auto rounded-md border border-border md:block">
-          <table className="w-full min-w-[640px] text-left text-xs">
+          <table className="w-full min-w-[880px] text-left text-xs">
             <thead className="border-b border-border bg-muted/40 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
               <tr>
                 <th className="px-3 py-2">Customer</th>
+                <th className="px-3 py-2">Phone</th>
                 <th className="px-3 py-2">Store</th>
-                <th className="px-3 py-2">Product / packing</th>
+                <th className="px-3 py-2">Product</th>
                 <th className="px-3 py-2">Qty</th>
-                <th className="px-3 py-2">Pickup date</th>
+                <th className="px-3 py-2">Pickup</th>
                 <th className="px-3 py-2">Status</th>
+                <th className="px-3 py-2">Labels</th>
                 <th className="px-3 py-2">Notes</th>
               </tr>
             </thead>
             <tbody>
-              {RESERVATION_QUEUE_DISPLAY.map((r, i) => (
-                <tr key={i} className="border-b border-border/70 last:border-0">
-                  <td className="px-3 py-2 font-mono text-foreground">{r.customer}</td>
-                  <td className="px-3 py-2">{r.store}</td>
-                  <td className="px-3 py-2">{r.product}</td>
-                  <td className="px-3 py-2 font-mono">{r.qty}</td>
-                  <td className="px-3 py-2 font-mono">{r.pickupDate}</td>
-                  <td className="px-3 py-2">
-                    <Badge variant="secondary" className="text-[10px]">
-                      {r.status}
-                    </Badge>
+              {reservationDrafts.length === 0 ? (
+                <tr>
+                  <td colSpan={9} className="px-3 py-4 text-center text-muted-foreground">
+                    No local drafts yet.
                   </td>
-                  <td className="px-3 py-2 text-muted-foreground">{r.notes}</td>
                 </tr>
-              ))}
+              ) : (
+                reservationDrafts.map((r) => (
+                  <tr key={r.id} className="border-b border-border/70 last:border-0">
+                    <td className="px-3 py-2 font-medium text-foreground">{r.customerName}</td>
+                    <td className="px-3 py-2 font-mono">{r.phone}</td>
+                    <td className="px-3 py-2">{r.storeName}</td>
+                    <td className="px-3 py-2">{r.product}</td>
+                    <td className="px-3 py-2 font-mono">{r.qtyDisplay}</td>
+                    <td className="px-3 py-2 font-mono">{r.pickupDisplay}</td>
+                    <td className="px-3 py-2">
+                      <Badge variant="secondary" className="text-[10px]">
+                        {r.status === "draft_only"
+                          ? "Draft only"
+                          : r.status === "pending_backend"
+                            ? "Pending backend"
+                            : "Manual verification required"}
+                      </Badge>
+                    </td>
+                    <td className="px-3 py-2">
+                      <div className="flex flex-wrap gap-1">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          className="h-7 text-[10px]"
+                          onClick={() => {
+                            const p = buildReservationLabelPayload({
+                              reservationId: r.id,
+                              customerName: r.customerName,
+                              storeName: r.storeName,
+                              productLabel: r.product,
+                              qtyDisplay: r.qtyDisplay,
+                              pickupDisplay: r.pickupDisplay,
+                            });
+                            setPreviewTitle("Reservation label payload");
+                            setPreviewJson(JSON.stringify(p, null, 2));
+                            appendLabelPreview("reservation", r.id);
+                          }}
+                        >
+                          Reservation label
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          className="h-7 text-[10px]"
+                          onClick={() => {
+                            const p = buildCustomerPickupLabelPayload({
+                              pickupRef: r.id,
+                              storeName: r.storeName,
+                              customerName: r.customerName,
+                              pickupWindow: r.pickupDisplay,
+                            });
+                            setPreviewTitle("Customer pickup label payload");
+                            setPreviewJson(JSON.stringify(p, null, 2));
+                            appendLabelPreview("customer_pickup", r.id);
+                          }}
+                        >
+                          Pickup label
+                        </Button>
+                      </div>
+                    </td>
+                    <td className="max-w-[200px] px-3 py-2 text-muted-foreground">{r.notes || "—"}</td>
+                  </tr>
+                ))
+              )}
             </tbody>
           </table>
         </div>
         <div className="space-y-2 md:hidden">
-          {RESERVATION_QUEUE_DISPLAY.map((r, i) => (
-            <Card key={i} className="rounded-md border-border/80 shadow-none">
-              <CardContent className="space-y-1.5 p-3 text-xs">
-                <p className="font-semibold text-foreground">{r.store}</p>
-                <p className="text-muted-foreground">
-                  Customer · {r.customer} · Pickup · {r.pickupDate}
-                </p>
-                <p className="text-muted-foreground">
-                  {r.product} · Qty {r.qty}
-                </p>
-                <Badge variant="secondary" className="text-[10px]">
-                  {r.status}
-                </Badge>
-                <p className="text-[11px] text-muted-foreground">{r.notes}</p>
-              </CardContent>
-            </Card>
-          ))}
+          {reservationDrafts.length === 0 ? (
+            <p className="text-center text-xs text-muted-foreground">No local drafts yet.</p>
+          ) : (
+            reservationDrafts.map((r) => (
+              <Card key={r.id} className="rounded-md border-border/80 shadow-none">
+                <CardContent className="space-y-2 p-3 text-xs">
+                  <p className="font-semibold text-foreground">{r.storeName}</p>
+                  <p className="text-muted-foreground">
+                    {r.customerName} · {r.phone}
+                  </p>
+                  <p className="text-muted-foreground">
+                    {r.product} · Qty {r.qtyDisplay} · Pickup {r.pickupDisplay}
+                  </p>
+                  <Badge variant="secondary" className="text-[10px]">
+                    {r.status === "draft_only" ? "Draft only" : r.status === "pending_backend" ? "Pending backend" : "Manual verification required"}
+                  </Badge>
+                  <div className="flex flex-wrap gap-1 pt-1">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="h-8 text-[10px]"
+                      onClick={() => {
+                        const p = buildReservationLabelPayload({
+                          reservationId: r.id,
+                          customerName: r.customerName,
+                          storeName: r.storeName,
+                          productLabel: r.product,
+                          qtyDisplay: r.qtyDisplay,
+                          pickupDisplay: r.pickupDisplay,
+                        });
+                        setPreviewTitle("Reservation label payload");
+                        setPreviewJson(JSON.stringify(p, null, 2));
+                        appendLabelPreview("reservation", r.id);
+                      }}
+                    >
+                      Reservation label
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="h-8 text-[10px]"
+                      onClick={() => {
+                        const p = buildCustomerPickupLabelPayload({
+                          pickupRef: r.id,
+                          storeName: r.storeName,
+                          customerName: r.customerName,
+                          pickupWindow: r.pickupDisplay,
+                        });
+                        setPreviewTitle("Customer pickup label payload");
+                        setPreviewJson(JSON.stringify(p, null, 2));
+                        appendLabelPreview("customer_pickup", r.id);
+                      }}
+                    >
+                      Pickup label
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            ))
+          )}
         </div>
       </section>
 
-      {/* B2 — Factory follow-up shell */}
+      {/* B2 — Factory follow-up workflow shell (local drafts — no writes) */}
       <section className="space-y-3" aria-labelledby="factory-queue-heading">
         <h2 id="factory-queue-heading" className="text-sm font-bold uppercase tracking-wide text-foreground">
-          Factory follow-up queue
+          Factory follow-up workflow
         </h2>
         <p className="text-[11px] text-muted-foreground">
-          Integration pending — use phone, WhatsApp, or manual confirmation with production until rows sync here.
+          Draft rows stay local until a backend queue exists. Actions below are intentionally disabled or preview-only.
         </p>
+        <Card className="border-border/80 shadow-none">
+          <CardHeader className="py-3">
+            <CardTitle className="text-sm">New factory follow-up (draft)</CardTitle>
+          </CardHeader>
+          <CardContent className="grid gap-3 sm:grid-cols-2">
+            <div className="space-y-1.5">
+              <Label>Store</Label>
+              <Select value={factoryForm.storeId} onValueChange={(v) => setFactoryForm((f) => ({ ...f, storeId: v }))}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {DEFAULT_RETAIL_OUTLETS.map((o) => (
+                    <SelectItem key={o.id} value={o.id}>
+                      {o.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="ff-product">Product</Label>
+              <Input
+                id="ff-product"
+                value={factoryForm.product}
+                onChange={(e) => setFactoryForm((f) => ({ ...f, product: e.target.value }))}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="ff-qty">Qty (display text)</Label>
+              <Input
+                id="ff-qty"
+                value={factoryForm.qty}
+                onChange={(e) => setFactoryForm((f) => ({ ...f, qty: e.target.value }))}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="ff-needed">Needed by</Label>
+              <Input
+                id="ff-needed"
+                type="date"
+                value={factoryForm.neededByLocal}
+                onChange={(e) => setFactoryForm((f) => ({ ...f, neededByLocal: e.target.value }))}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="ff-dept">Department</Label>
+              <Input
+                id="ff-dept"
+                value={factoryForm.department}
+                onChange={(e) => setFactoryForm((f) => ({ ...f, department: e.target.value }))}
+                placeholder="e.g. Assembly"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Urgency</Label>
+              <Select value={factoryForm.urgency} onValueChange={(v) => setFactoryForm((f) => ({ ...f, urgency: v }))}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="low">Low</SelectItem>
+                  <SelectItem value="normal">Normal</SelectItem>
+                  <SelectItem value="high">High</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="ff-order">Linked order (optional)</Label>
+              <Input
+                id="ff-order"
+                value={factoryForm.linkedOrderId}
+                onChange={(e) => setFactoryForm((f) => ({ ...f, linkedOrderId: e.target.value }))}
+                placeholder="Order id if known"
+              />
+            </div>
+            <div className="space-y-1.5 sm:col-span-2">
+              <Label htmlFor="ff-wa">WhatsApp hint (optional)</Label>
+              <Input
+                id="ff-wa"
+                value={factoryForm.whatsappHint}
+                onChange={(e) => setFactoryForm((f) => ({ ...f, whatsappHint: e.target.value }))}
+                placeholder="Thread ref or phone — not sent automatically"
+              />
+            </div>
+            <div className="flex flex-wrap gap-2 sm:col-span-2">
+              <Button type="button" variant="default" onClick={saveFactoryDraftLocal}>
+                Save draft (local only)
+              </Button>
+              <Button type="button" variant="secondary" disabled title="No backend follow-up queue yet">
+                Create follow-up — backend pending
+              </Button>
+              <Button type="button" variant="secondary" disabled title="No outbound automation from this screen">
+                Notify factory — disabled
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
         <div className="hidden overflow-x-auto rounded-md border border-border md:block">
-          <table className="w-full min-w-[720px] text-left text-xs">
+          <table className="w-full min-w-[960px] text-left text-xs">
             <thead className="border-b border-border bg-muted/40 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
               <tr>
                 <th className="px-3 py-2">Store</th>
                 <th className="px-3 py-2">Product</th>
+                <th className="px-3 py-2">Qty</th>
                 <th className="px-3 py-2">Needed by</th>
+                <th className="px-3 py-2">Dept</th>
                 <th className="px-3 py-2">Urgency</th>
-                <th className="px-3 py-2">Factory department</th>
+                <th className="px-3 py-2">Order</th>
+                <th className="px-3 py-2">WA hint</th>
                 <th className="px-3 py-2">Status</th>
-                <th className="px-3 py-2">Last follow-up</th>
+                <th className="px-3 py-2">Label</th>
               </tr>
             </thead>
             <tbody>
-              {FACTORY_FOLLOWUP_DISPLAY.map((r, i) => (
-                <tr key={i} className="border-b border-border/70 last:border-0">
-                  <td className="px-3 py-2">{r.store}</td>
-                  <td className="px-3 py-2">{r.product}</td>
-                  <td className="px-3 py-2 font-mono">{r.neededBy}</td>
-                  <td className="px-3 py-2">{r.urgency}</td>
-                  <td className="px-3 py-2">{r.department}</td>
-                  <td className="px-3 py-2">
-                    <Badge variant="outline" className="text-[10px]">
-                      {r.status}
-                    </Badge>
+              {factoryDrafts.length === 0 ? (
+                <tr>
+                  <td colSpan={10} className="px-3 py-4 text-center text-muted-foreground">
+                    No local follow-up drafts yet.
                   </td>
-                  <td className="px-3 py-2 font-mono text-muted-foreground">{r.lastFollowup}</td>
                 </tr>
-              ))}
+              ) : (
+                factoryDrafts.map((r) => (
+                  <tr key={r.id} className="border-b border-border/70 last:border-0">
+                    <td className="px-3 py-2">{r.storeName}</td>
+                    <td className="px-3 py-2">{r.product}</td>
+                    <td className="px-3 py-2 font-mono">{r.qtyDisplay}</td>
+                    <td className="px-3 py-2 font-mono">{r.neededByDisplay}</td>
+                    <td className="px-3 py-2">{r.department}</td>
+                    <td className="px-3 py-2">{r.urgency}</td>
+                    <td className="px-3 py-2 font-mono text-muted-foreground">{r.linkedOrderId ?? "—"}</td>
+                    <td className="max-w-[140px] truncate px-3 py-2 text-muted-foreground">{r.whatsappHint ?? "—"}</td>
+                    <td className="px-3 py-2">
+                      <Badge variant="outline" className="text-[10px]">
+                        Pending backend
+                      </Badge>
+                    </td>
+                    <td className="px-3 py-2">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="h-7 text-[10px]"
+                        onClick={() => {
+                          const p = buildFactoryFollowupLabelPayload({
+                            followupId: r.id,
+                            department: r.department,
+                            urgency: r.urgency,
+                            neededByDisplay: r.neededByDisplay,
+                            productLabel: r.product,
+                            storeName: r.storeName,
+                          });
+                          setPreviewTitle("Factory follow-up label payload");
+                          setPreviewJson(JSON.stringify(p, null, 2));
+                          appendLabelPreview("factory_followup_internal", r.id);
+                        }}
+                      >
+                        Preview label
+                      </Button>
+                    </td>
+                  </tr>
+                ))
+              )}
             </tbody>
           </table>
         </div>
         <div className="space-y-2 md:hidden">
-          {FACTORY_FOLLOWUP_DISPLAY.map((r, i) => (
-            <Card key={i} className="rounded-md border-border/80 shadow-none">
-              <CardContent className="space-y-1 p-3 text-xs">
-                <p className="font-semibold text-foreground">{r.store}</p>
-                <p className="text-muted-foreground">{r.product}</p>
-                <p className="text-muted-foreground">
-                  Needed by {r.neededBy} · {r.department} · {r.urgency}
-                </p>
-                <Badge variant="outline" className="text-[10px]">
-                  {r.status}
-                </Badge>
-              </CardContent>
-            </Card>
-          ))}
+          {factoryDrafts.length === 0 ? (
+            <p className="text-center text-xs text-muted-foreground">No local follow-up drafts yet.</p>
+          ) : (
+            factoryDrafts.map((r) => (
+              <Card key={r.id} className="rounded-md border-border/80 shadow-none">
+                <CardContent className="space-y-2 p-3 text-xs">
+                  <p className="font-semibold text-foreground">{r.storeName}</p>
+                  <p className="text-muted-foreground">{r.product}</p>
+                  <p className="text-muted-foreground">
+                    Qty {r.qtyDisplay} · By {r.neededByDisplay} · {r.department} · {r.urgency}
+                  </p>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="h-8 text-[10px]"
+                    onClick={() => {
+                      const p = buildFactoryFollowupLabelPayload({
+                        followupId: r.id,
+                        department: r.department,
+                        urgency: r.urgency,
+                        neededByDisplay: r.neededByDisplay,
+                        productLabel: r.product,
+                        storeName: r.storeName,
+                      });
+                      setPreviewTitle("Factory follow-up label payload");
+                      setPreviewJson(JSON.stringify(p, null, 2));
+                      appendLabelPreview("factory_followup_internal", r.id);
+                    }}
+                  >
+                    Preview label
+                  </Button>
+                </CardContent>
+              </Card>
+            ))
+          )}
         </div>
       </section>
 
@@ -541,22 +1026,82 @@ export default function StoreCoordination() {
         ))}
       </section>
 
-      {/* B5 + B7 — Timeline */}
-      <section className="space-y-2" aria-labelledby="store-timeline-heading">
+      {/* B5 + B7 — Operational timelines (overview + retail launch lanes) */}
+      <section className="space-y-4" aria-labelledby="store-timeline-heading">
         <h2 id="store-timeline-heading" className="text-sm font-bold uppercase tracking-wide text-foreground">
-          Store coordination timeline
+          Operational timelines
         </h2>
         <p className="text-[11px] leading-snug text-muted-foreground">
-          These are <span className="font-medium text-foreground">readiness / projection events</span>, not live stock
-          movements. occurredAt is intentionally empty for placeholder snapshots.
+          Overview merges store coordination, inventory visibility, and retail launch projections. Sub-lanes show only
+          retail / label events. occurredAt stays empty for snapshot projections — no fabricated event timestamps.
         </p>
-        <OperationalTimeline
-          events={timelineEvents}
-          filter={timelineFilter}
-          onFilterChange={setTimelineFilter}
-          ariaLabel="Store coordination operational timeline"
-        />
+        <div className="space-y-2">
+          <h3 className="text-[11px] font-bold uppercase tracking-wide text-muted-foreground">Overview</h3>
+          <OperationalTimeline
+            events={timelineEvents}
+            filter={timelineFilter}
+            onFilterChange={setTimelineFilter}
+            ariaLabel="Store coordination overview timeline"
+          />
+        </div>
+        <div className="grid gap-4 lg:grid-cols-2">
+          <div className="space-y-2">
+            <h3 className="text-[11px] font-bold uppercase tracking-wide text-muted-foreground">Reservation timeline</h3>
+            <OperationalTimeline
+              events={reservationTimelineEvents}
+              showFilters={false}
+              defaultFilter="all"
+              ariaLabel="Reservation projection timeline"
+            />
+          </div>
+          <div className="space-y-2">
+            <h3 className="text-[11px] font-bold uppercase tracking-wide text-muted-foreground">Pickup timeline</h3>
+            <OperationalTimeline
+              events={pickupTimelineEvents}
+              showFilters={false}
+              defaultFilter="all"
+              ariaLabel="Pickup projection timeline"
+            />
+          </div>
+          <div className="space-y-2">
+            <h3 className="text-[11px] font-bold uppercase tracking-wide text-muted-foreground">
+              Factory follow-up timeline
+            </h3>
+            <OperationalTimeline
+              events={factoryTimelineEvents}
+              showFilters={false}
+              defaultFilter="all"
+              ariaLabel="Factory follow-up projection timeline"
+            />
+          </div>
+          <div className="space-y-2">
+            <h3 className="text-[11px] font-bold uppercase tracking-wide text-muted-foreground">Label preview timeline</h3>
+            <OperationalTimeline
+              events={labelTimelineEvents}
+              showFilters={false}
+              defaultFilter="all"
+              ariaLabel="Label preview projection timeline"
+            />
+          </div>
+        </div>
       </section>
+
+      <Dialog
+        open={previewJson != null}
+        onOpenChange={(open) => {
+          if (!open) setPreviewJson(null);
+        }}
+      >
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>{previewTitle}</DialogTitle>
+            <DialogDescription>Payload preview only — no print job and no database write.</DialogDescription>
+          </DialogHeader>
+          <pre className="max-h-[min(360px,50vh)] overflow-auto rounded-md border border-border bg-muted/40 p-3 text-[10px] leading-snug">
+            {previewJson}
+          </pre>
+        </DialogContent>
+      </Dialog>
 
       <div
         className={cn(

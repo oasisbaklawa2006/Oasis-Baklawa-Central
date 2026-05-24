@@ -53,6 +53,7 @@ export type OperationalEventSource =
   | "derived_cmd_pulse"
   | "derived_store_coordination"
   | "derived_inventory_visibility"
+  | "derived_retail_launch"
   | "notification_outbox"
   | "manual"
   | "future_event_store";
@@ -95,6 +96,16 @@ export const RetailOperationalEventKind = {
   FACTORY_FOLLOWUP_NEEDED: "store.factory_followup_needed",
   PREBOOKING_PENDING: "store.prebooking_pending",
   DELAY_WARNING: "store.delay_warning",
+} as const;
+
+/** Retail launch / pilot block — projections only (no persistence). */
+export const RetailLaunchOperationalEventKind = {
+  PICKUP_EXPECTED: "retail.pickup_expected",
+  PICKUP_OVERDUE: "retail.pickup_overdue",
+  RESERVATION_DRAFT: "retail.reservation_draft",
+  MANUAL_STOCK_CHECK_REQUIRED: "retail.manual_stock_check_required",
+  LABEL_PREVIEW_GENERATED: "label.preview_generated",
+  FACTORY_FOLLOWUP_DRAFT: "factory.followup_draft",
 } as const;
 
 /** Inventory / ready goods — read-only visibility projections (no stock mutations). */
