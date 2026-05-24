@@ -1,6 +1,7 @@
 # Oasis Central — UX triage master board
 
-**Evidence sources:** `docs/UX_AUDIT_PLAYWRIGHT_REPORT.md` (generated **2026-05-23**), `audit-artifacts/raw/raw-*.json`, `audit-artifacts/screenshots/`, `audit-artifacts/videos/*.webm`.  
+**Evidence sources:** `docs/UX_AUDIT_PLAYWRIGHT_REPORT.md` (generated **2026-05-24**), `audit-artifacts/raw/raw-*.json`, `audit-artifacts/screenshots/`, `audit-artifacts/videos/*.webm`.  
+**Rectification sprint (2026-05-20):** layout-only hardening shipped for finance release board, Admin Finance modals/queue strip, Quick Order / catalogue matrix, operator inbox live-region noise, cart safe-area + tap targets, global `focus-visible` for native controls. Re-verify dispatch and approvals routes on device.
 **MOVE 1 — Parsed audit signal:** Automated heuristics only detect **subset** of issues (overflow, wide tables, tap sampling, unnamed buttons, missing alt). Items below marked **Auto** come from JSON; **Watch** = operational priority pending human frame review (screenshot/video).
 
 ### Parsed dimensions (what automation covers vs not)
@@ -47,8 +48,8 @@
 
 | UX ID | Page / route | Viewport | Issue summary | Operational impact | Screenshot / video reference | Severity | Recommended fix | Sprint bucket | Status |
 |-------|--------------|----------|---------------|-------------------|------------------------------|----------|-------------------|---------------|--------|
-| UX-CRT-001 | `/admin/finance-board` | `all-mobile` | **Watch:** dense finance grid on narrow width — verify readability & trapped scroll | Finance errors under pressure; mis-verify | `iphone-14-pro__admin_finance-board.png` + journey `ux-audit-...-iphone-14-pro.webm` | CRITICAL | Card/stack layout for mobile; table scroll inside pane only; sticky action bar audit | A | Verify |
-| UX-CRT-002 | `/admin/operator-inbox` | `all-mobile` | **Watch:** composer vs metadata density | Operator throughput, wrong send | `iphone-14-pro__admin_operator-inbox.png` + video | CRITICAL | Bottom composer; collapsible context; min 44px send | A | Verify |
+| UX-CRT-001 | `/admin/finance-board` | `all-mobile` | **Watch:** dense finance grid on narrow width — verify readability & trapped scroll | Finance errors under pressure; mis-verify | `iphone-14-pro__admin_finance-board.png` + journey `ux-audit-...-iphone-14-pro.webm` | CRITICAL | Card/stack layout for mobile; table scroll inside pane only; sticky action bar audit | A | **Partially resolved** — release board: production tab card fallback &lt; md, sticky thead desktop, load-error + retry, push-to-floor confirm, payment dialog scroll + footer grouping; `/admin/finance`: modal sticky footers, safer queue strip |
+| UX-CRT-002 | `/admin/operator-inbox` | `all-mobile` | **Watch:** composer vs metadata density | Operator throughput, wrong send | `iphone-14-pro__admin_operator-inbox.png` + video | CRITICAL | Bottom composer; collapsible context; min 44px send | A | **Partially resolved** — removed duplicate filter `aria-live`; aligned sticky z + `isolate`; larger retry control; empty detail no `aria-live` spam |
 | UX-CRT-003 | `/admin/dispatch` + `/admin/dispatch-mgmt` | `all-mobile` | **Watch:** floor use on phone portrait | Dispatch mistakes | `iphone-14-pro__admin_dispatch.png`, `...dispatch-mgmt.png` | CRITICAL | Tablet-first layout; scan-first row | A | Verify |
 
 *Automation reported **zero** critical blockers; rows above are **mandatory verification** items from operational risk policy.*
@@ -60,7 +61,7 @@
 | UX ID | Page / route | Viewport | Issue summary | Operational impact | Screenshot / video reference | Severity | Recommended fix | Sprint bucket | Status |
 |-------|--------------|----------|---------------|-------------------|------------------------------|----------|-------------------|---------------|--------|
 | UX-HIG-001 | `/admin/approvals` | `iphone-se` | **Watch:** approvals table → card parity | Approvers delay on phone | `iphone-se__admin_approvals.png` | HIGH | Mobile card list + sticky decision bar | A | Verify |
-| UX-HIG-002 | `/quick-order` | `all-mobile` | **Watch:** dense SKU grid | Sales errors | `iphone-14-pro__quick-order.png` | HIGH | Row templates; sticky totals | A | Verify |
+| UX-HIG-002 | `/quick-order` | `all-mobile` | **Watch:** dense SKU grid | Sales errors | `iphone-14-pro__quick-order.png` | HIGH | Row templates; sticky totals | A | **Partially resolved** — card layout &lt; md, desktop table, MOQ clarity, 44px qty controls, loading skeleton |
 | UX-HIG-003 | `/admin/orders` + `/orders` | `all-mobile` | **Watch:** order detail timeline + actions | CS confusion | `iphone-14-pro__admin_orders.png`, `iphone-14-pro__orders.png` | HIGH | Timeline accordion; primary CTA dock | B | Verify |
 | UX-HIG-004 | `/admin/packing-dispatch` | `ipad` | **Watch:** label / pack actions visibility | Warehouse delays | `ipad__admin_packing-dispatch.png` | HIGH | Large touch targets; single sticky footer | A | Verify |
 | UX-HIG-005 | `/admin/target-vs-actual` | `desktop` | **Watch:** analytics density | Exec misread | `desktop__admin_target-vs-actual.png` | HIGH | Chart card grid; export clarity | B | Verify |

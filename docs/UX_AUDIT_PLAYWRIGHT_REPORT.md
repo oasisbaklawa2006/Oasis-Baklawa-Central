@@ -1,7 +1,7 @@
 # UX audit — Playwright (mobile-first)
 
 **Target:** https://cursor-central-vercel.vercel.app  
-**Generated:** 2026-05-23T23:36:53.629Z  
+**Generated:** 2026-05-24T00:13:32.650Z  
 **Tooling:** @playwright/test, Chromium emulation (see `playwright.ux-audit.config.ts`; default `playwright.config.ts` is for CI smoke tests).  
 **Artifacts:** screenshots under `audit-artifacts/screenshots/`; **videos** (one full journey per viewport): `audit-artifacts/videos/*.webm`; raw JSON under `audit-artifacts/raw/`.
 
@@ -11,7 +11,7 @@ Automated crawl across discovered internal routes plus the static route manifest
 
 ## Overall score (heuristic)
 
-**9.4 / 10** — automated deduction for console noise, failed requests, overflow, and accessibility heuristics; not a substitute for human design QA.
+**9.5 / 10** — automated deduction for console noise, failed requests, overflow, and accessibility heuristics; not a substitute for human design QA.
 
 ## Critical blockers
 
