@@ -381,7 +381,12 @@ const Register = () => {
                 <div className="space-y-1.5">
                   <label className="text-ui-label text-foreground">GST Certificate</label>
                   <input ref={gstInputRef} type="file" accept=".jpg,.jpeg,.png,.pdf" className="hidden" onChange={(e) => setGstFile(e.target.files?.[0] ?? null)} />
-                  <button onClick={() => gstInputRef.current?.click()} className="w-full py-5 rounded-xl border-2 border-dashed border-border hover:border-primary/50 transition-colors flex flex-col items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => gstInputRef.current?.click()}
+                    aria-label="Choose GST certificate file (PDF or image)"
+                    className="w-full min-h-[5.5rem] py-5 rounded-xl border-2 border-dashed border-border hover:border-primary/50 transition-colors flex flex-col items-center justify-center gap-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                  >
                     {gstFile ? (
                       <><FileText size={18} className="text-primary" /><span className="text-fine text-primary font-medium truncate max-w-full px-2">{gstFile.name}</span></>
                     ) : (
@@ -392,7 +397,12 @@ const Register = () => {
                 <div className="space-y-1.5">
                   <label className="text-ui-label text-foreground">Business Proof</label>
                   <input ref={proofInputRef} type="file" accept=".jpg,.jpeg,.png,.pdf" className="hidden" onChange={(e) => setProofFile(e.target.files?.[0] ?? null)} />
-                  <button onClick={() => proofInputRef.current?.click()} className="w-full py-5 rounded-xl border-2 border-dashed border-border hover:border-primary/50 transition-colors flex flex-col items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => proofInputRef.current?.click()}
+                    aria-label="Choose business proof file (PDF or image)"
+                    className="w-full min-h-[5.5rem] py-5 rounded-xl border-2 border-dashed border-border hover:border-primary/50 transition-colors flex flex-col items-center justify-center gap-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                  >
                     {proofFile ? (
                       <><Image size={18} className="text-primary" /><span className="text-fine text-primary font-medium truncate max-w-full px-2">{proofFile.name}</span></>
                     ) : (
@@ -424,9 +434,10 @@ const Register = () => {
               </div>
 
               <button
+                type="button"
                 onClick={handleSubmit}
                 disabled={loading}
-                className="w-full py-3.5 rounded-xl bg-primary text-primary-foreground text-ui-button hover:bg-primary/90 transition-colors shadow-sm disabled:opacity-60 flex items-center justify-center gap-2"
+                className="w-full min-h-11 py-3.5 rounded-xl bg-primary text-primary-foreground text-ui-button hover:bg-primary/90 transition-colors shadow-sm disabled:opacity-60 flex items-center justify-center gap-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
               >
                 {loading && <Loader2 size={18} className="animate-spin" />}
                 {loading ? "Submitting…" : "Submit Trade Application"}
@@ -476,7 +487,8 @@ const Register = () => {
                       toast.info("📞 Call us at: +91 99997 92959");
                     }
                   }}
-                  className="flex-1 py-3.5 rounded-xl bg-primary text-primary-foreground font-ui font-bold text-sm flex items-center justify-center gap-2 transition-all hover:bg-primary/90 hover:shadow-md"
+                  className="flex-1 min-h-11 py-3.5 rounded-xl bg-primary text-primary-foreground font-ui font-bold text-sm flex items-center justify-center gap-2 transition-all hover:bg-primary/90 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                  aria-label="Call Oasis Baklawa support at +91 99997 92959"
                 >
                   📞 Call Us
                 </a>
@@ -484,17 +496,19 @@ const Register = () => {
                   href="https://wa.me/919891162212"
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="flex-1 py-3.5 rounded-xl bg-[hsl(142,70%,40%)] text-white font-ui font-bold text-sm flex items-center justify-center gap-2 transition-all hover:bg-[hsl(142,70%,35%)] hover:shadow-md"
+                  className="flex-1 min-h-11 py-3.5 rounded-xl bg-[hsl(142,70%,40%)] text-white font-ui font-bold text-sm flex items-center justify-center gap-2 transition-all hover:bg-[hsl(142,70%,35%)] hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                  aria-label="Open WhatsApp chat with Oasis Baklawa support (opens in new tab)"
                 >
                   💬 WhatsApp Support
                 </a>
               </div>
 
               <button
+                type="button"
                 onClick={() => navigate("/login")}
-                className="flex items-center gap-2 mx-auto text-primary text-body-p2 font-semibold hover:underline mt-2 transition-colors"
+                className="min-h-11 px-3 py-2 flex items-center gap-2 mx-auto text-primary text-body-p2 font-semibold hover:underline mt-2 transition-colors rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
               >
-                <ArrowLeft size={14} />
+                <ArrowLeft size={14} aria-hidden />
                 Back to Login
               </button>
             </motion.div>
@@ -505,7 +519,13 @@ const Register = () => {
           <div className="text-center">
             <p className="text-body-p2 text-muted-foreground">
               Already have an account?{" "}
-              <button onClick={() => navigate("/login")} className="text-primary font-semibold hover:underline">Login</button>
+              <button
+                type="button"
+                onClick={() => navigate("/login")}
+                className="min-h-11 px-2 py-2 text-primary font-semibold hover:underline rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+              >
+                Login
+              </button>
             </p>
           </div>
         )}

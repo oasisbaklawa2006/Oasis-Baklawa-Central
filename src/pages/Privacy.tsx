@@ -1,13 +1,27 @@
 import { Link } from "react-router-dom";
 
+const navLinkClass =
+  "inline-flex min-h-11 items-center justify-center rounded-md px-3 py-2 text-sm text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background";
+
+const footerLinkClass =
+  "inline-flex min-h-11 min-w-[5.5rem] items-center justify-center rounded-md px-4 text-sm text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background";
+
+const mailLinkClass =
+  "inline-flex min-h-11 items-center rounded px-1 py-2 text-primary underline underline-offset-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background";
+
 const Privacy = () => (
   <div className="min-h-screen bg-background">
     <header className="border-b border-border">
-      <div className="max-w-3xl mx-auto px-6 py-5 flex items-center justify-between">
-        <Link to="/" className="font-display text-lg font-bold text-foreground">
+      <div className="max-w-3xl mx-auto px-6 py-5 flex flex-wrap items-center justify-between gap-3">
+        <Link
+          to="/"
+          className="font-display text-lg font-bold text-foreground inline-flex min-h-11 items-center rounded-md px-1 py-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+        >
           Oasis Baklawa Central
         </Link>
-        <Link to="/" className="text-sm text-muted-foreground hover:text-foreground">← Home</Link>
+        <Link to="/" className={navLinkClass} aria-label="Back to home">
+          ← Home
+        </Link>
       </div>
     </header>
 
@@ -48,7 +62,7 @@ const Privacy = () => (
           <h2 className="text-lg font-semibold text-foreground mb-3">4. User Rights & Account Deletion</h2>
           <p>
             You may request deletion of your account and all associated personal data at any time by emailing{" "}
-            <a href="mailto:oasisbaklawa2006@gmail.com" className="text-primary underline">
+            <a href="mailto:oasisbaklawa2006@gmail.com" className={mailLinkClass}>
               oasisbaklawa2006@gmail.com
             </a>
             . Requests are processed within 30 days.
@@ -59,7 +73,7 @@ const Privacy = () => (
           <h2 className="text-lg font-semibold text-foreground mb-3">5. Contact</h2>
           <p>
             For privacy-related questions, contact us at{" "}
-            <a href="mailto:oasisbaklawa2006@gmail.com" className="text-primary underline">
+            <a href="mailto:oasisbaklawa2006@gmail.com" className={mailLinkClass}>
               oasisbaklawa2006@gmail.com
             </a>
             .
@@ -69,10 +83,16 @@ const Privacy = () => (
     </main>
 
     <footer className="border-t border-border mt-12">
-      <div className="max-w-3xl mx-auto px-6 py-6 flex items-center justify-center gap-6 text-sm">
-        <Link to="/privacy" className="text-muted-foreground hover:text-foreground">Privacy</Link>
-        <Link to="/terms" className="text-muted-foreground hover:text-foreground">Terms</Link>
-        <Link to="/shipping" className="text-muted-foreground hover:text-foreground">Shipping</Link>
+      <div className="max-w-3xl mx-auto px-6 py-6 flex flex-wrap items-center justify-center gap-2 sm:gap-4">
+        <Link to="/privacy" className={footerLinkClass} aria-current="page">
+          Privacy
+        </Link>
+        <Link to="/terms" className={footerLinkClass}>
+          Terms
+        </Link>
+        <Link to="/shipping" className={footerLinkClass}>
+          Shipping
+        </Link>
       </div>
     </footer>
   </div>

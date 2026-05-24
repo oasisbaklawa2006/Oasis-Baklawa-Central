@@ -95,28 +95,37 @@ const CompanyIntro = () => {
           </motion.div>
         </AnimatePresence>
 
-        {/* Dots */}
-        <div className="flex items-center gap-2 mt-8">
-          {SLIDES.map((_, i) => (
+        {/* Dots — 44px touch targets with visible progress pill inside */}
+        <div className="flex flex-wrap items-center gap-1 mt-8" role="tablist" aria-label="Intro slides">
+          {SLIDES.map((slide, i) => (
             <button
-              key={i}
+              key={slide.title}
+              type="button"
+              role="tab"
+              aria-selected={i === current}
+              aria-label={`Go to slide ${i + 1}: ${slide.title}`}
               onClick={() => setCurrent(i)}
-              className="transition-all duration-500"
-              style={{
-                width: i === current ? 28 : 8,
-                height: 4,
-                borderRadius: 2,
-                backgroundColor: i === current ? "#C4A052" : "rgba(255,255,255,0.25)",
-              }}
-            />
+              className="min-h-11 min-w-11 inline-flex items-center justify-center rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#C4A052] focus-visible:ring-offset-2 focus-visible:ring-offset-[#0a0a0a]"
+            >
+              <span
+                className="block transition-all duration-500"
+                style={{
+                  width: i === current ? 28 : 8,
+                  height: 4,
+                  borderRadius: 2,
+                  backgroundColor: i === current ? "#C4A052" : "rgba(255,255,255,0.25)",
+                }}
+              />
+            </button>
           ))}
         </div>
 
         {/* Actions */}
-        <div className="flex items-center justify-between mt-8">
+        <div className="flex flex-wrap items-center justify-between gap-4 mt-8">
           <button
+            type="button"
             onClick={() => navigate("/login", { replace: true })}
-            className="text-xs tracking-[0.15em] uppercase font-ui font-medium transition-colors hover:opacity-80"
+            className="min-h-11 px-3 py-2 -mx-1 rounded-md text-xs tracking-[0.15em] uppercase font-ui font-medium transition-colors hover:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#C4A052] focus-visible:ring-offset-2 focus-visible:ring-offset-[#0a0a0a]"
             style={{ color: "rgba(255,255,255,0.5)" }}
           >
             Skip to Login
@@ -125,25 +134,29 @@ const CompanyIntro = () => {
           <div className="flex items-center gap-3">
             {current > 0 && (
               <motion.button
+                type="button"
                 initial={{ opacity: 0, scale: 0.8 }}
                 animate={{ opacity: 1, scale: 1 }}
                 onClick={goPrev}
-                className="w-10 h-10 rounded-full border flex items-center justify-center transition-colors"
+                aria-label="Previous intro slide"
+                className="min-h-11 min-w-11 rounded-full border flex items-center justify-center transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#C4A052] focus-visible:ring-offset-2 focus-visible:ring-offset-[#0a0a0a]"
                 style={{ borderColor: "rgba(196,160,82,0.4)", color: "#C4A052" }}
               >
-                <ChevronLeft size={18} />
+                <ChevronLeft size={18} aria-hidden />
               </motion.button>
             )}
             <button
+              type="button"
               onClick={goNext}
-              className="h-10 px-6 rounded-full flex items-center gap-2 text-xs tracking-[0.15em] uppercase font-ui font-semibold transition-all"
+              aria-label={isLast ? "Get started and go to login" : "Next intro slide"}
+              className="min-h-11 px-6 rounded-full flex items-center gap-2 text-xs tracking-[0.15em] uppercase font-ui font-semibold transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#C4A052] focus-visible:ring-offset-2 focus-visible:ring-offset-[#0a0a0a]"
               style={{
                 background: "linear-gradient(135deg, #C4A052, #D4B56A)",
                 color: "#0a0a0a",
               }}
             >
-              {isLast ? "Get Started" : "Next"}
-              <ChevronRight size={14} />
+              <span>{isLast ? "Get Started" : "Next"}</span>
+              <ChevronRight size={14} aria-hidden />
             </button>
           </div>
         </div>
