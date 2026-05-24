@@ -39,7 +39,8 @@ export type OperationalEntityType =
   | "production_job"
   | "approval"
   | "store"
-  | "reservation";
+  | "reservation"
+  | "product";
 
 export interface OperationalEntityRef {
   entityType: OperationalEntityType;
@@ -51,6 +52,7 @@ export type OperationalEventSource =
   | "derived_whatsapp_inbox"
   | "derived_cmd_pulse"
   | "derived_store_coordination"
+  | "derived_inventory_visibility"
   | "notification_outbox"
   | "manual"
   | "future_event_store";
@@ -93,6 +95,15 @@ export const RetailOperationalEventKind = {
   FACTORY_FOLLOWUP_NEEDED: "store.factory_followup_needed",
   PREBOOKING_PENDING: "store.prebooking_pending",
   DELAY_WARNING: "store.delay_warning",
+} as const;
+
+/** Inventory / ready goods — read-only visibility projections (no stock mutations). */
+export const InventoryOperationalEventKind = {
+  VISIBILITY_AVAILABLE: "inventory.visibility_available",
+  VISIBILITY_UNKNOWN: "inventory.visibility_unknown",
+  LOW_STOCK_WARNING: "inventory.low_stock_warning",
+  READY_GOODS_PENDING: "inventory.ready_goods_pending",
+  MANUAL_VERIFICATION_REQUIRED: "inventory.manual_verification_required",
 } as const;
 
 export interface OperationalEventRecord {

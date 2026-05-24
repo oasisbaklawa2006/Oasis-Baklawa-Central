@@ -48,6 +48,11 @@ export interface StoreCoordinationFeedInput {
   followups: StoreCoordinationFollowupRow[];
   /** Reserved for future deterministic ordering; never written to occurredAt. */
   nowMs: number;
+  /**
+   * When true, omit per-outlet `store.stock_unknown` placeholders because another feed
+   * (e.g. inventory visibility) already carries outlet-level readiness signals.
+   */
+  suppressPlaceholderOutletStockUnknown?: boolean;
 }
 
 function storeEntity(id: string): OperationalEventRecord["entities"] {
@@ -76,8 +81,9 @@ export function buildStoreCoordinationOperationalFeed(input: StoreCoordinationFe
     category: "operational",
     severity: "info",
     title: "Stock visibility channel (shell)",
-    detail:
-      "UI route is live; live stock, ready goods, and store inventory feeds are not connected. Do not treat counts on this page as authoritative.",
+    detail: input.suppressPlaceholderOutletStockUnknown
+      ? "A read-only factory_inventory snapshot may appear on this page. Quantities are factory-row level (not branch shelf stock). Manual verification still required before customer promises."
+      : "UI route is live; live stock, ready goods, and store inventory feeds are not connected. Do not treat counts on this page as authoritative.",
     occurredAt: null,
     sortKey: nextSort(),
     actor,
@@ -85,21 +91,23 @@ export function buildStoreCoordinationOperationalFeed(input: StoreCoordinationFe
     source: SOURCE,
   });
 
-  for (const o of outlets) {
-    out.push({
-      id: `store-coord:outlet:${o.id}:stock_unknown`,
-      kind: RetailOperationalEventKind.STOCK_UNKNOWN,
-      category: "operational",
-      severity: "warning",
-      title: `Stock confidence · ${o.name}`,
-      detail:
-        "Live stock integration pending · ready goods source pending · store inventory feed pending. Manual verification required before promising availability.",
-      occurredAt: null,
-      sortKey: nextSort(),
-      actor,
-      entities: storeEntity(o.id),
-      source: SOURCE,
-    });
+  if (!input.suppressPlaceholderOutletStockUnknown) {
+    for (const o of outlets) {
+      out.push({
+        id: `store-coord:outlet:${o.id}:stock_unknown`,
+        kind: RetailOperationalEventKind.STOCK_UNKNOWN,
+        category: "operational",
+        severity: "warning",
+        title: `Stock confidence · ${o.name}`,
+        detail:
+          "Live stock integration pending · ready goods source pending · store inventory feed pending. Manual verification required before promising availability.",
+        occurredAt: null,
+        sortKey: nextSort(),
+        actor,
+        entities: storeEntity(o.id),
+        source: SOURCE,
+      });
+    }
   }
 
   if (input.reservations.length === 0) {

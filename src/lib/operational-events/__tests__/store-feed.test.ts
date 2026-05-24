@@ -65,6 +65,17 @@ describe("buildStoreCoordinationOperationalFeed", () => {
     }
   });
 
+  it("omits per-outlet stock_unknown placeholders when suppressPlaceholderOutletStockUnknown is true", () => {
+    const events = buildStoreCoordinationOperationalFeed({
+      outlets: [{ id: "outlet-test", name: "Test Store" }],
+      reservations: [],
+      followups: [],
+      nowMs: 0,
+      suppressPlaceholderOutletStockUnknown: true,
+    });
+    expect(events.filter((e) => e.kind === "store.stock_unknown")).toHaveLength(0);
+  });
+
   it("emits deterministic ids for a concrete reservation row", () => {
     const events = buildStoreCoordinationOperationalFeed({
       outlets: [{ id: "o1", name: "Outlet" }],
