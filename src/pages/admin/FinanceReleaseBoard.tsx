@@ -3,7 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { normalizeRole } from "@/lib/auth-routing";
 import { toast } from "sonner";
-import { Loader2, ShieldAlert, Receipt, Hammer, Truck, Package } from "lucide-react";
+import { Loader2, ShieldAlert, Receipt, Hammer, Truck, Package, RefreshCw } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -16,6 +16,7 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog";
 import { Separator } from "@/components/ui/separator";
+import { Skeleton } from "@/components/ui/skeleton";
 
 /** Matches spec roles in DB form: finance_exec → FINANCE_EXEC, cmd → OWNER, director tier → FINANCE_HEAD. */
 const FINANCE_BOARD_ROLES = new Set([
@@ -82,7 +83,8 @@ const FinanceReleaseBoard = () => {
   const [rejectReason, setRejectReason] = useState("");
   const [actingId, setActingId] = useState<string | null>(null);
   const [latestUtrByOrderId, setLatestUtrByOrderId] = useState<Record<string, string>>({});
-  const [showRejectForm, setShowRejectForm] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [pushConfirm, setPushConfirm] = useState<BoardOrder | null>(null);
 
   const canAccess = FINANCE_BOARD_ROLES.has(normalizedRole);
 
@@ -135,6 +137,9 @@ const FinanceReleaseBoard = () => {
     logErr("ready", rq.error);
     logErr("in_production", pq.error);
     logErr("dispatch", dq.error);
+
+    const firstBoardErr = aq.error || rq.error || pq.error || dq.error;
+    setLoadError(firstBoardErr ? firstBoardErr.message || "Could not refresh board data." : null);
 
     setAwaiting((aq.data as BoardOrder[]) ?? []);
     setReady((rq.data as BoardOrder[]) ?? []);
@@ -256,7 +261,6 @@ const FinanceReleaseBoard = () => {
 
       toast.success("Buyer asked to update payment receipt.");
       setReviewOrder(null);
-      setShowRejectForm(false);
       await loadBoard();
     } catch (e) {
       console.error("[FinanceReleaseBoard]", e);
@@ -297,11 +301,21 @@ const FinanceReleaseBoard = () => {
 
   if (loading && awaiting.length === 0 && ready.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-[50vh]">
-        <Loader2 size={32} className="animate-spin text-primary" />
-        <p className="mt-4 text-muted-foreground text-sm font-semibold uppercase tracking-wide">
-          Loading Finance Board…
-        </p>
+      <div className="mx-auto max-w-6xl space-y-6 px-4 py-8" aria-busy="true" aria-label="Loading finance board">
+        <div className="space-y-2">
+          <Skeleton className="h-9 w-64 max-w-full" />
+          <Skeleton className="h-4 w-full max-w-md" />
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <Skeleton className="h-10 w-40 rounded-md" />
+          <Skeleton className="h-10 w-44 rounded-md" />
+          <Skeleton className="h-10 w-36 rounded-md" />
+        </div>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Skeleton className="h-40 rounded-xl" />
+          <Skeleton className="h-40 rounded-xl" />
+        </div>
+        <p className="text-center text-sm text-muted-foreground">Loading finance board…</p>
       </div>
     );
   }
@@ -379,13 +393,40 @@ const FinanceReleaseBoard = () => {
   );
 
   return (
-    <div className="space-y-6 max-w-6xl mx-auto">
+    <div className="mx-auto max-w-6xl space-y-6 px-3 sm:px-4">
       <div>
-        <h1 className="font-display text-2xl md:text-3xl font-bold text-foreground">Finance Release Board</h1>
-        <p className="text-sm text-muted-foreground mt-1">
+        <h1 className="font-display text-2xl font-bold text-foreground md:text-3xl">Finance Release Board</h1>
+        <p className="mt-1 text-sm text-muted-foreground">
           Golden pipeline gateway — receipts, approvals, and floor release.
         </p>
       </div>
+
+      {loadError ? (
+        <div
+          role="alert"
+          className="flex flex-col gap-3 rounded-xl border border-destructive/30 bg-destructive/5 p-4 sm:flex-row sm:items-center sm:justify-between"
+        >
+          <div className="min-w-0">
+            <p className="text-sm font-semibold text-destructive">Some board data could not be loaded</p>
+            <p className="mt-1 break-words text-sm text-muted-foreground">{loadError}</p>
+            <p className="mt-1 text-xs text-muted-foreground">You can retry; sections that succeeded may still show below.</p>
+          </div>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="shrink-0 touch-manipulation gap-2 border-destructive/40"
+            onClick={() => void loadBoard()}
+          >
+            <RefreshCw className="h-4 w-4" aria-hidden />
+            Retry
+          </Button>
+        </div>
+      ) : null}
+
+      {loading ? (
+        <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Refreshing…</p>
+      ) : null}
 
       <Tabs defaultValue="awaiting" className="w-full">
         <TabsList className="flex flex-wrap h-auto gap-1 bg-muted p-1">
@@ -404,9 +445,18 @@ const FinanceReleaseBoard = () => {
         </TabsList>
 
         <TabsContent value="awaiting" className="mt-6">
-          <div className="grid sm:grid-cols-2 gap-4">
+          <div className="grid gap-4 sm:grid-cols-2">
             {awaiting.length === 0 ? (
-              <p className="text-muted-foreground text-sm">Nothing awaiting finance.</p>
+              <div
+                className="rounded-xl border border-dashed border-border bg-muted/20 p-8 text-center sm:col-span-2"
+                role="status"
+              >
+                <Receipt className="mx-auto mb-3 h-10 w-10 text-muted-foreground/60" aria-hidden />
+                <p className="font-medium text-foreground">Nothing awaiting finance review</p>
+                <p className="mt-2 text-sm text-muted-foreground">
+                  When buyers submit receipts or payments move to review, orders appear here automatically.
+                </p>
+              </div>
             ) : (
               awaiting.map((o) => (
                 <OrderCardInner
@@ -414,9 +464,10 @@ const FinanceReleaseBoard = () => {
                   o={o}
                   action={
                     <Button
-                      className="mt-3 w-full"
+                      className="mt-3 w-full min-h-11 touch-manipulation"
                       variant="outline"
                       onClick={() => setReviewOrder(o)}
+                      aria-label={`Review payment for order ${o.id.slice(0, 8).toUpperCase()}`}
                     >
                       Review
                     </Button>
@@ -428,9 +479,18 @@ const FinanceReleaseBoard = () => {
         </TabsContent>
 
         <TabsContent value="ready" className="mt-6">
-          <div className="grid sm:grid-cols-2 gap-4">
+          <div className="grid gap-4 sm:grid-cols-2">
             {ready.length === 0 ? (
-              <p className="text-muted-foreground text-sm">No verified / credit-backed orders queued.</p>
+              <div
+                className="rounded-xl border border-dashed border-border bg-muted/20 p-8 text-center sm:col-span-2"
+                role="status"
+              >
+                <Package className="mx-auto mb-3 h-10 w-10 text-muted-foreground/60" aria-hidden />
+                <p className="font-medium text-foreground">No orders queued for floor release</p>
+                <p className="mt-2 text-sm text-muted-foreground">
+                  Verified or credit-backed orders in submitted / approved status will show here for release.
+                </p>
+              </div>
             ) : (
               ready.map((o) => {
                 const payOk = isReadyPaymentStatus(o.payment_status);
@@ -441,9 +501,10 @@ const FinanceReleaseBoard = () => {
                     o={o}
                     action={
                       <Button
-                        className="mt-3 w-full bg-foreground text-background"
+                        className="mt-3 w-full min-h-11 touch-manipulation bg-foreground text-background"
                         disabled={btnDisabled}
-                        onClick={() => pushToFloor(o)}
+                        onClick={() => setPushConfirm(o)}
+                        aria-label={`Release order ${o.id.slice(0, 8).toUpperCase()} to factory floor`}
                       >
                         {actingId === o.id ? (
                           <Loader2 size={16} className="animate-spin" />
@@ -461,7 +522,11 @@ const FinanceReleaseBoard = () => {
 
         <TabsContent value="production" className="mt-6 space-y-4">
           {inProduction.length === 0 ? (
-            <p className="text-muted-foreground text-sm">No orders in production.</p>
+            <div className="rounded-xl border border-dashed border-border bg-muted/20 p-8 text-center" role="status">
+              <Hammer className="mx-auto mb-3 h-10 w-10 text-muted-foreground/60" aria-hidden />
+              <p className="font-medium text-foreground">No orders in production</p>
+              <p className="mt-2 text-sm text-muted-foreground">Released orders appear here with line packing status.</p>
+            </div>
           ) : (
             inProduction.map((o) => (
               <div key={o.id} className="rounded-xl border border-border bg-card overflow-hidden shadow-sm">
@@ -474,9 +539,43 @@ const FinanceReleaseBoard = () => {
                   </div>
                   <Badge variant="outline">in production</Badge>
                 </div>
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
-                    <thead>
+                <div className="md:hidden space-y-2 border-t border-border p-3">
+                  {(itemsByOrderId[o.id] ?? []).length === 0 ? (
+                    <p className="text-sm text-muted-foreground">No line items loaded.</p>
+                  ) : (
+                    (itemsByOrderId[o.id] ?? []).map((item) => (
+                      <div
+                        key={item.id}
+                        className="rounded-lg border border-border/80 bg-muted/10 p-3 text-sm shadow-sm"
+                      >
+                        <p className="font-semibold leading-snug text-foreground break-words">
+                          {item.product?.name ?? "—"}
+                        </p>
+                        <div className="mt-2 grid grid-cols-3 gap-2 text-[11px] text-muted-foreground">
+                          <div>
+                            <p className="font-medium uppercase tracking-wide">Qty</p>
+                            <p className="font-number text-base font-semibold text-foreground">{item.quantity}</p>
+                          </div>
+                          <div>
+                            <p className="font-medium uppercase tracking-wide">Packed</p>
+                            <p className="font-number text-base font-semibold text-foreground">
+                              {item.actual_packed_qty ?? "—"}
+                            </p>
+                          </div>
+                          <div>
+                            <p className="font-medium uppercase tracking-wide">Status</p>
+                            <p className="capitalize text-foreground">
+                              {(item.production_status ?? "—").replace(/_/g, " ")}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+                <div className="hidden md:block overflow-x-auto overscroll-x-contain">
+                  <table className="w-full min-w-[520px] text-sm">
+                    <thead className="sticky top-0 z-[1] bg-muted/90 shadow-sm backdrop-blur-sm">
                       <tr className="bg-muted/60 text-[10px] uppercase text-muted-foreground text-left">
                         <th className="px-3 py-2">Product</th>
                         <th className="px-3 py-2">Qty</th>
@@ -487,7 +586,7 @@ const FinanceReleaseBoard = () => {
                     <tbody>
                       {(itemsByOrderId[o.id] ?? []).map((item) => (
                         <tr key={item.id} className="border-t border-border">
-                          <td className="px-3 py-2 font-medium">{item.product?.name ?? "—"}</td>
+                          <td className="px-3 py-2 font-medium break-words">{item.product?.name ?? "—"}</td>
                           <td className="px-3 py-2">{item.quantity}</td>
                           <td className="px-3 py-2">{item.actual_packed_qty ?? "—"}</td>
                           <td className="px-3 py-2 capitalize">
@@ -504,9 +603,16 @@ const FinanceReleaseBoard = () => {
         </TabsContent>
 
         <TabsContent value="dispatch" className="mt-6">
-          <div className="grid sm:grid-cols-2 gap-4">
+          <div className="grid gap-4 sm:grid-cols-2">
             {dispatchReady.length === 0 ? (
-              <p className="text-muted-foreground text-sm">No dispatched / partial shipments in this lane.</p>
+              <div
+                className="rounded-xl border border-dashed border-border bg-muted/20 p-8 text-center sm:col-span-2"
+                role="status"
+              >
+                <Truck className="mx-auto mb-3 h-10 w-10 text-muted-foreground/60" aria-hidden />
+                <p className="font-medium text-foreground">No shipments in this lane</p>
+                <p className="mt-2 text-sm text-muted-foreground">Dispatched and partially fulfilled orders surface here.</p>
+              </div>
             ) : (
               dispatchReady.map((o) => (
                 <div key={o.id} className="rounded-xl border border-border bg-card p-4">
@@ -535,8 +641,8 @@ const FinanceReleaseBoard = () => {
       </Tabs>
 
       <Dialog open={!!reviewOrder} onOpenChange={(open) => !open && setReviewOrder(null)}>
-        <DialogContent className="max-w-lg">
-          <DialogHeader>
+        <DialogContent className="flex max-h-[min(92dvh,100%)] w-[calc(100vw-1.25rem)] max-w-lg flex-col gap-0 overflow-hidden p-0 sm:w-full">
+          <DialogHeader className="shrink-0 space-y-1.5 border-b border-border px-6 pb-4 pt-6 pr-14 text-left">
             <DialogTitle>
               Payment review #{reviewOrder?.id.slice(0, 8).toUpperCase()}
             </DialogTitle>
@@ -545,7 +651,7 @@ const FinanceReleaseBoard = () => {
             </DialogDescription>
           </DialogHeader>
           {reviewOrder && (
-            <div className="space-y-4">
+            <div className="min-h-0 flex-1 space-y-4 overflow-y-auto overscroll-y-contain px-6 py-4">
               <div>
                 <p className="text-[11px] font-bold text-muted-foreground uppercase">Latest UTR (order_payments)</p>
                 <p className="text-sm font-mono mt-1">{latestUtrByOrderId[reviewOrder.id] ?? "Loading…"}</p>
@@ -579,39 +685,85 @@ const FinanceReleaseBoard = () => {
                   onChange={(e) => setRejectReason(e.target.value)}
                   rows={3}
                   placeholder="Required only when rejecting payment…"
-                  className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm resize-none focus:outline-none focus:ring-1 focus:ring-ring"
+                  className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm resize-none focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                 />
               </div>
             </div>
           )}
-          <DialogFooter className="flex-wrap gap-2 sm:justify-between">
-            <Button
-              variant="outline"
-              className="text-destructive border-destructive/40 hover:bg-destructive/10"
-              disabled={!reviewOrder || actingId === reviewOrder.id}
-              onClick={() => void runReject()}
-            >
+          <DialogFooter className="shrink-0 flex-col gap-3 border-t border-border bg-muted/30 px-6 py-4 sm:flex-row sm:flex-wrap sm:items-stretch sm:justify-between sm:gap-3 sm:space-x-0">
+            <div className="flex w-full flex-col gap-2 sm:w-auto">
+              <p className="text-[10px] font-semibold uppercase tracking-wide text-destructive">Irreversible buyer action</p>
+              <Button
+                variant="outline"
+                className="min-h-11 w-full touch-manipulation border-destructive/50 text-destructive hover:bg-destructive/10 sm:w-auto"
+                disabled={!reviewOrder || actingId === reviewOrder.id}
+                onClick={() => void runReject()}
+                aria-label="Reject payment and send buyer back for receipt"
+              >
               {actingId && reviewOrder && actingId === reviewOrder.id ? (
                 <Loader2 size={16} className="animate-spin" />
               ) : (
                 "Reject"
               )}
-            </Button>
-            <div className="flex gap-2">
+              </Button>
+            </div>
+            <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
               <Button
                 variant="secondary"
+                className="min-h-11 w-full touch-manipulation sm:w-auto"
                 disabled={!reviewOrder || actingId === reviewOrder?.id}
                 onClick={() => void runVerifyAction("credit")}
               >
                 Approve Credit
               </Button>
               <Button
+                className="min-h-11 w-full touch-manipulation sm:w-auto"
                 disabled={!reviewOrder || actingId === reviewOrder?.id}
                 onClick={() => void runVerifyAction("verify")}
               >
                 Verify
               </Button>
             </div>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={!!pushConfirm}
+        onOpenChange={(open) => {
+          if (!open) setPushConfirm(null);
+        }}
+      >
+        <DialogContent className="flex max-h-[min(88dvh,100%)] w-[calc(100vw-1.25rem)] max-w-md flex-col gap-0 overflow-hidden p-0 sm:w-full">
+          <DialogHeader className="shrink-0 border-b border-border px-6 pb-4 pt-6 pr-14 text-left">
+            <DialogTitle>Release to factory floor?</DialogTitle>
+            <DialogDescription>
+              {pushConfirm ? (
+                <>
+                  Order <span className="font-mono font-semibold text-foreground">#{pushConfirm.id.slice(0, 8).toUpperCase()}</span>{" "}
+                  for <span className="font-medium text-foreground">{pushConfirm.company?.business_name ?? "—"}</span> will move to{" "}
+                  <strong>in production</strong>. Confirm packing and finance checks are complete.
+                </>
+              ) : null}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="shrink-0 flex-col gap-2 border-t border-border bg-muted/30 px-6 py-4 sm:flex-row sm:justify-end sm:gap-2 sm:space-x-0">
+            <Button type="button" variant="outline" className="min-h-11 w-full touch-manipulation sm:w-auto" onClick={() => setPushConfirm(null)}>
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              className="min-h-11 w-full touch-manipulation bg-foreground text-background sm:w-auto"
+              disabled={!pushConfirm || actingId === pushConfirm.id}
+              onClick={() => {
+                if (!pushConfirm) return;
+                const o = pushConfirm;
+                setPushConfirm(null);
+                void pushToFloor(o);
+              }}
+            >
+              {pushConfirm && actingId === pushConfirm.id ? <Loader2 size={16} className="animate-spin" /> : "Confirm release"}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
