@@ -69,6 +69,14 @@
     letter-spacing: 0.015em;
   }
 
+  /* Consistent keyboard focus for native controls (shadcn primitives set their own). */
+  a:focus-visible,
+  button:focus-visible:not(:disabled),
+  summary:focus-visible,
+  [role="button"]:focus-visible {
+    @apply outline-none ring-2 ring-ring ring-offset-2 ring-offset-background;
+  }
+
   h1, h2 {
     font-family: var(--font-display);
     font-weight: 400;
