@@ -474,16 +474,18 @@ const CMDWarRoom = () => {
     const inventorySignals = deriveInventoryVarianceEscalations({
       shelfTruthUnknown: true,
       openReservationSignals: 0,
-      reconciliationBacklogHint: counts.review > 20,
+      reconciliationBacklogHint: false,
     });
     return {
       executionBlocked: risk.blockedLanes,
       executionPending: risk.pendingLanes,
       executionBottleneck: risk.bottleneckLane,
+      executionBottleneckContext: risk.dependencyContext,
+      executionVisibleBlocked: risk.visibleBlockedLane,
       executionEscalationTopics: escalations.length,
       inventoryRiskRows: inventorySignals.length,
     };
-  }, [warCommSignals.financePressure, counts.review]);
+  }, [warCommSignals.financePressure]);
 
   return (
     <div className="p-3 sm:p-4 space-y-4 bg-background max-w-full overflow-x-hidden">
@@ -498,6 +500,8 @@ const CMDWarRoom = () => {
         executionBlockedLanes={cmdExecutionIntel.executionBlocked}
         executionPendingLanes={cmdExecutionIntel.executionPending}
         executionBottleneckLane={cmdExecutionIntel.executionBottleneck}
+        executionBottleneckContext={cmdExecutionIntel.executionBottleneckContext}
+        executionVisibleBlockedLane={cmdExecutionIntel.executionVisibleBlocked}
         executionEscalationTopics={cmdExecutionIntel.executionEscalationTopics}
         inventoryRiskAttentionRows={cmdExecutionIntel.inventoryRiskRows}
         manualVerificationLoad={counts.review}

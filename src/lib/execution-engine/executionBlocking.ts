@@ -38,7 +38,7 @@ export function evaluateLaneStates(graph: ExecutionDependency[], s: ExecutionSat
       state = "pending";
       reason = `${node.lane} not satisfied`;
     }
-    return { lane: node.lane, state, reason };
+    return { lane: node.lane, state, reason, blockedBy };
   });
 }
 

@@ -63,7 +63,7 @@ export function buildExecutionOperationalFeed(input: ExecutionOperationalFeedInp
       category: "escalation",
       severity: risk.blockedLanes > 1 ? "urgent" : "warning",
       title: "Operational bottleneck (readiness)",
-      detail: `Blocked lanes · ${risk.blockedLanes} · Pending lanes · ${risk.pendingLanes} · First bottleneck · ${risk.bottleneckLane ?? "n/a"}`,
+      detail: `Blocked lanes · ${risk.blockedLanes} · Pending lanes · ${risk.pendingLanes} · Root cause · ${risk.rootCauseLane ?? "n/a"}${risk.dependencyContext ? ` · ${risk.dependencyContext}` : ""}`,
       occurredAt: null,
       sortKey: next(),
       actor,
