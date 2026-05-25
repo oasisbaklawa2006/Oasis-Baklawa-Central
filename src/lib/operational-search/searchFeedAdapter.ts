@@ -24,7 +24,7 @@ export const SEARCH_FEED_INDEX_CONTRACT: SearchFeedIndexField[] = [
   { kind: "department", field: "entity_ownership.primaryOwner", description: "Owner role / department proxy", availableNow: true },
   { kind: "whatsapp_packet", field: "whatsapp_message_packets", description: "Operator packet id", availableNow: false },
   { kind: "barcode", field: "operational_scan_records", description: "Barcode scan store", availableNow: true },
-  { kind: "reservation", field: "reservations", description: "Reservation persistence", availableNow: false },
+  { kind: "reservation", field: "inventory_reservations", description: "Governed inventory reservations", availableNow: true },
   { kind: "shipment", field: "shipments", description: "Shipment manifest", availableNow: false },
 ];
 

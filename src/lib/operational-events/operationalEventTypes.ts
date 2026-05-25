@@ -19,6 +19,15 @@ export const OPERATIONAL_STORE_EVENT_TYPES = [
   "gate_scan_rejected",
   "department_handoff_verified",
   "department_handoff_failed",
+  "reservation_created",
+  "reservation_reserved",
+  "reservation_partially_reserved",
+  "reservation_blocked",
+  "reservation_released",
+  "reservation_expired",
+  "reservation_fulfilled",
+  "reservation_cancelled",
+  "reservation_conflict_detected",
 ] as const;
 
 export type OperationalStoreEventType = (typeof OPERATIONAL_STORE_EVENT_TYPES)[number];

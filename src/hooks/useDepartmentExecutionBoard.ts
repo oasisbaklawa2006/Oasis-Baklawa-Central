@@ -26,6 +26,7 @@ import type { OperationalStoreEventRecord } from "@/lib/operational-events/opera
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { mapScanRow, type ScanRow } from "@/lib/barcode-execution/barcodeExecutionTypes";
+import type { InventoryReservationRecord } from "@/lib/inventory-reservations/reservationTypes";
 import {
   EXECUTION_POLL_INTERVAL_MS,
   EXECUTION_STALE_THRESHOLD_MS,
@@ -47,6 +48,7 @@ export function useDepartmentExecutionBoard(boardId: DepartmentBoardId) {
   const [items, setItems] = useState<MappedQueueItem[]>([]);
   const [scans, setScans] = useState<OperationalScanRecord[]>([]);
   const [events, setEvents] = useState<OperationalStoreEventRecord[]>([]);
+  const [reservations, setReservations] = useState<InventoryReservationRecord[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [pinnedVersion, setPinnedVersion] = useState<number | null>(null);
   const [lastLoadedAt, setLastLoadedAt] = useState<string | null>(null);
@@ -85,8 +87,8 @@ export function useDepartmentExecutionBoard(boardId: DepartmentBoardId) {
 
   const lanes: ExecutionBoardLanes = useMemo(() => {
     const nowIso = new Date().toISOString();
-    return projectExecutionBoardLanes(items, config, nowIso, scans);
-  }, [items, config, scans]);
+    return projectExecutionBoardLanes(items, config, nowIso, scans, reservations);
+  }, [items, config, scans, reservations]);
 
   const selectedItem = items.find((i) => i.id === selectedId) ?? null;
 
@@ -131,6 +133,41 @@ export function useDepartmentExecutionBoard(boardId: DepartmentBoardId) {
         .order("created_at", { ascending: false })
         .limit(250);
       if (eventErr && !eventErr.message.includes("does not exist")) throw new Error(eventErr.message);
+      const { data: resData, error: resErr } = await operationalDb
+        .from("inventory_reservations")
+        .select("*")
+        .order("updated_at", { ascending: false })
+        .limit(200);
+      if (resErr && !resErr.message.includes("does not exist") && !resErr.message.includes("inventory_reservations")) {
+        throw new Error(resErr.message);
+      }
+      setReservations(
+        ((resData ?? []) as Record<string, unknown>[]).map((row) => ({
+          id: row.id as string,
+          reservationNumber: row.reservation_number as string,
+          orderId: row.order_id as string,
+          queueItemId: (row.queue_item_id as string) ?? null,
+          customerId: (row.customer_id as string) ?? null,
+          productId: row.product_id as string,
+          sku: row.sku as string,
+          requestedQty: Number(row.requested_qty),
+          reservedQty: Number(row.reserved_qty),
+          fulfilledQty: Number(row.fulfilled_qty),
+          releasedQty: Number(row.released_qty),
+          reservationStatus: row.reservation_status as InventoryReservationRecord["reservationStatus"],
+          reservationPriority: row.reservation_priority as InventoryReservationRecord["reservationPriority"],
+          sourceDepartment: (row.source_department as string) ?? null,
+          reservedBy: (row.reserved_by as string) ?? null,
+          approvedBy: (row.approved_by as string) ?? null,
+          expiresAt: (row.expires_at as string) ?? null,
+          notes: (row.notes as string) ?? null,
+          correlationId: row.correlation_id as string,
+          version: row.version as number,
+          createdAt: row.created_at as string,
+          updatedAt: row.updated_at as string,
+        })),
+      );
+
       setEvents(
         ((eventData ?? []) as Record<string, unknown>[]).map((row) => ({
           id: row.id as string,
