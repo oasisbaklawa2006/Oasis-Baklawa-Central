@@ -1,5 +1,7 @@
 # Oasis Central — Execution Operating System (Phase 3)
 
+**Process:** All future phases follow [`EXECUTION_OS_ONE_PHASE_COMMAND_FRAMEWORK.md`](./EXECUTION_OS_ONE_PHASE_COMMAND_FRAMEWORK.md) (one command = implementation + hardening + tests + docs + staging + review readiness).
+
 **Status:** Phase 3A/3D foundation implemented on branch `cursor/execution-os-phase3a3d-foundation-6c20` (migration + repositories + authority guard). UI wiring remains future PRs.  
 **Base branch:** `main` after PR #105 merge (`cursor/connect-read-only-operational-graph-queues-6c20` until merged).  
 **Mission:** Transform read-only operational nervous system → controlled execution OS without losing governance, finance control, traceability, or customer-safe separation.
