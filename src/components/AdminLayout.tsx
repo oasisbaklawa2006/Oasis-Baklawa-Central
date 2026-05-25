@@ -3,7 +3,7 @@ import {
   LayoutDashboard, UserCheck, ClipboardList, Truck, DollarSign, LogOut, Menu, X, Loader2,
   Headphones, Users, Package, BarChart3, Scale, Globe, Settings, Shield, MessageCircle,
   Factory, PackageCheck, Landmark, AlertCircle, Languages, Bell, Sparkles, Monitor, Activity, Megaphone, Store,
-  ScanLine, CalendarDays, Warehouse, Box, ListOrdered, AlertOctagon, ScanBarcode, Network, Gauge, LayoutGrid, Search,
+  ScanLine, CalendarDays, Warehouse, Box, ListOrdered, AlertOctagon, ScanBarcode, Network, Gauge, LayoutGrid, Search, PackageMinus,
 } from "lucide-react";
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
@@ -86,6 +86,7 @@ const AdminLayout = () => {
         { to: "/admin/inventory-command-center", icon: Warehouse, label: "Inventory command center", end: false, moduleKey: "inventory" },
         { to: "/admin/carton-explorer", icon: Box, label: "Carton explorer", end: false, moduleKey: "inventory" },
         { to: "/admin/reservation-board", icon: ListOrdered, label: "Reservation board", end: false, moduleKey: "inventory" },
+        { to: "/admin/stock-finalization", icon: PackageMinus, label: "Stock finalization", end: false, moduleKey: "inventory" },
         { to: "/admin/inventory-risk-board", icon: AlertOctagon, label: "Inventory risk board", end: false, moduleKey: "inventory" },
         { to: "/admin/scan-timeline", icon: ScanBarcode, label: "Scan timeline", end: false, moduleKey: "inventory" },
         // Central Pool fully removed from sidebar — War Room is the only active track.

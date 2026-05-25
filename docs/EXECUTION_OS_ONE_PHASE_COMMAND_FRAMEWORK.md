@@ -238,6 +238,7 @@ Single commit acceptable for small phases; grouped commits preferred for review.
 | 4D | Dispatch completion governance (attestation) | Yes | Completion board — no order.status write |
 | 4E | Governed dispatch finalization + status mutation | Yes | Finalize via repository only |
 | 4F | Legacy dispatch decommission | No | Banners + block bypass; link to 4E |
+| 4G | Physical stock finalization after dispatch_finalized | Yes | Stock finalization board — governed consumption only |
 
 ---
 
