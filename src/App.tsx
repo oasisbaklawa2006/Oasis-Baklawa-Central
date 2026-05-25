@@ -105,6 +105,7 @@ const InventoryRiskBoard = lazy(() => import("./pages/admin/InventoryRiskBoard.t
 const ScanTimeline = lazy(() => import("./pages/admin/ScanTimeline.tsx"));
 const LiveWorkQueues = lazy(() => import("./pages/admin/LiveWorkQueues.tsx"));
 const EntityGraphExplorer = lazy(() => import("./pages/admin/EntityGraphExplorer.tsx"));
+const QueueExecutionPreview = lazy(() => import("./pages/admin/QueueExecutionPreview.tsx"));
 
 const ADMIN_ONLY_ROLES = ["SUPER_ADMIN", "ADMIN"];
 
@@ -342,6 +343,14 @@ const App = () => (
                       element={
                         <AdminModuleRoute moduleKey="cmd_war_room">
                           <EntityGraphExplorer />
+                        </AdminModuleRoute>
+                      }
+                    />
+                    <Route
+                      path="queue-execution-preview"
+                      element={
+                        <AdminModuleRoute moduleKey="cmd_war_room">
+                          <QueueExecutionPreview />
                         </AdminModuleRoute>
                       }
                     />
