@@ -16,6 +16,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { OperationalReadOnlyBanner } from "@/components/admin/OperationalReadOnlyBanner";
+import { ExecutionInternalOnlyBanner } from "@/components/execution/ExecutionInternalOnlyBanner";
 import { useExecutionCommandCenter } from "@/hooks/useExecutionCommandCenter";
 
 function SeverityBadge({ value }: { value: string }) {
@@ -79,6 +80,7 @@ export default function ExecutionCommandCenter() {
       </header>
 
       <OperationalReadOnlyBanner warnings={feeds?.allWarnings} />
+      <ExecutionInternalOnlyBanner />
       {error ? <p className="text-xs text-destructive">{error}</p> : null}
 
       {p ? (
