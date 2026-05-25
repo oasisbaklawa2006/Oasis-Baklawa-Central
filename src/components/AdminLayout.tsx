@@ -3,7 +3,7 @@ import {
   LayoutDashboard, UserCheck, ClipboardList, Truck, DollarSign, LogOut, Menu, X, Loader2,
   Headphones, Users, Package, BarChart3, Scale, Globe, Settings, Shield, MessageCircle,
   Factory, PackageCheck, Landmark, AlertCircle, Languages, Bell, Sparkles, Monitor, Activity, Megaphone, Store,
-  ScanLine, CalendarDays, Warehouse, Box, ListOrdered, AlertOctagon, ScanBarcode, Network,
+  ScanLine, CalendarDays, Warehouse, Box, ListOrdered, AlertOctagon, ScanBarcode, Network, Gauge,
 } from "lucide-react";
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
@@ -68,6 +68,7 @@ const AdminLayout = () => {
       items: [
         { to: "/admin", icon: LayoutDashboard, label: "Executive Dashboard", end: true, moduleKey: "dashboard" },
         { to: "/admin/cmd-war-room", icon: Monitor, label: "War Room", end: false, moduleKey: "cmd_war_room" },
+        { to: "/admin/execution-command-center", icon: Gauge, label: "Execution CMD", end: false, moduleKey: "cmd_war_room" },
         { to: "/admin/live-work-queues", icon: ListOrdered, label: "Live work queues", end: false, moduleKey: "cmd_war_room" },
         { to: "/admin/entity-graph-explorer", icon: Network, label: "Entity graph explorer", end: false, moduleKey: "cmd_war_room" },
       ],
