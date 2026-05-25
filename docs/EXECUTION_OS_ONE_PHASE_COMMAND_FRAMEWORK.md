@@ -232,6 +232,10 @@ Single commit acceptable for small phases; grouped commits preferred for review.
 | 3F | Department boards | Uses queues | Per-charter |
 | 3G | Authority matrix expansion | — | — |
 | 3H | Customer timeline from events | Events only | Public bind later |
+| 4A | Inventory reservation engine | Yes | Read-only badges first |
+| 4B | Dispatch readiness + gate eligibility | Yes | Readiness board only |
+| 4C | Finance governance + commercial release | Yes | Finance board only |
+| 4D | Dispatch completion governance (attestation) | Yes | Completion board — no order.status write |
 
 ---
 
