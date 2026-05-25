@@ -99,7 +99,7 @@ const AdminLayout = () => {
         { to: "/admin/ready-goods", icon: Package, label: "Ready Goods", moduleKey: "inventory" },
         { to: "/admin/store-coordination", icon: Store, label: "Store coordination", moduleKey: "orders" },
         { to: "/admin/label-command-center", icon: ScanLine, label: "Label command center", moduleKey: "orders" },
-        { to: "/admin/customer-timeline-preview", icon: CalendarDays, label: "Customer timeline preview", moduleKey: "orders" },
+        { to: "/admin/customer-timeline-preview", icon: CalendarDays, label: "Customer timeline preview", moduleKey: "cmd_war_room" },
         { to: "/admin/dispatch-mgmt", icon: Truck, label: "Dispatch", moduleKey: "packing" },
         { to: "/security-gate", icon: Shield, label: "Security Gate", moduleKey: "packing" },
       ],

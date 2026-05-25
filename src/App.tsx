@@ -340,7 +340,14 @@ const App = () => (
                     <Route path="ready-goods" element={<ReadyGoodsStore />} />
                     <Route path="store-coordination" element={<StoreCoordination />} />
                     <Route path="label-command-center" element={<LabelCommandCenter />} />
-                    <Route path="customer-timeline-preview" element={<CustomerTimelinePreview />} />
+                    <Route
+                      path="customer-timeline-preview"
+                      element={
+                        <AdminModuleRoute moduleKey="cmd_war_room">
+                          <CustomerTimelinePreview />
+                        </AdminModuleRoute>
+                      }
+                    />
                     <Route
                       path="live-work-queues"
                       element={
