@@ -1,6 +1,10 @@
 import { createInMemoryOperationalEventRepository } from "@/lib/operational-events/inMemoryOperationalEventRepository";
-import { createInMemoryReservationStore } from "./inMemoryReservationStore";
+import {
+  createInMemoryReservationStore,
+  type InMemoryReservationStore,
+} from "./inMemoryReservationStore";
 import { createReservationRepository, type ReservationRepository } from "./reservationRepository";
+import type { InventoryReservationStore } from "./reservationStoreContract";
 import type {
   CreateReservationInput,
   InventoryAvailabilitySnapshot,
@@ -9,14 +13,31 @@ import type {
   ReservationVersionedInput,
 } from "./reservationTypes";
 
+/**
+ * Availability snapshots must be caller-provided until Stock OS phase.
+ * Do not read stock_items / inventory_stock silently — physical_stock,
+ * blocked, damaged, expired, and quarantine sources are pending integration.
+ */
+export const RESERVATION_AVAILABILITY_SOURCES_PENDING = [
+  "physical_stock",
+  "blocked_inventory",
+  "damaged_inventory",
+  "expired_inventory",
+  "quarantine_inventory",
+] as const;
+
 export interface ReservationServiceBundle {
   repository: ReservationRepository;
-  /** Test-only accessors */
-  _store: ReturnType<typeof createInMemoryReservationStore>;
+  _store: InventoryReservationStore;
   _events: ReturnType<typeof createInMemoryOperationalEventRepository>;
 }
 
-export function createInMemoryReservationServiceBundle(): ReservationServiceBundle {
+/** In-memory bundle exposes test-only store introspection helpers. */
+export type InMemoryReservationServiceBundle = ReservationServiceBundle & {
+  _store: InMemoryReservationStore;
+};
+
+export function createInMemoryReservationServiceBundle(): InMemoryReservationServiceBundle {
   const store = createInMemoryReservationStore();
   const events = createInMemoryOperationalEventRepository();
   const repository = createReservationRepository({ store, events });

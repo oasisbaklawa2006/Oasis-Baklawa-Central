@@ -6,7 +6,7 @@ import { buildAllocationRows } from "./reservationAllocationEngine";
 import { movementTypeForTransition, statusToEventType } from "./reservationEventBridge";
 import { assertReservationTransition, statusAfterReserve } from "./reservationLifecycle";
 import { defaultExpiryForPriority } from "./reservationPriority";
-import type { InMemoryReservationStore } from "./inMemoryReservationStore";
+import type { InventoryReservationStore } from "./reservationStoreContract";
 import type {
   CreateReservationInput,
   InventoryAvailabilitySnapshot,
@@ -35,7 +35,7 @@ function mapStaleError(err: unknown): never {
 }
 
 export interface ReservationRepositoryDeps {
-  store: InMemoryReservationStore;
+  store: InventoryReservationStore;
   events: OperationalEventRepository;
 }
 
@@ -45,12 +45,7 @@ export function createReservationRepository(deps: ReservationRepositoryDeps) {
   async function appendMovement(
     partial: Omit<InventoryMovementRecord, "id" | "createdAt">,
   ): Promise<InventoryMovementRecord> {
-    const row: InventoryMovementRecord = {
-      id: crypto.randomUUID(),
-      createdAt: new Date().toISOString(),
-      ...partial,
-    };
-    return store.appendMovement(row);
+    return store.insertInventoryMovement(partial);
   }
 
   async function appendReservationEvent(
@@ -107,7 +102,7 @@ export function createReservationRepository(deps: ReservationRepositoryDeps) {
         createdAt: now,
         updatedAt: now,
       };
-      await store.insertReservation(row);
+      await store.createReservationRow(row);
 
       const movement = await appendMovement({
         movementType: "reservation_created",
@@ -147,7 +142,7 @@ export function createReservationRepository(deps: ReservationRepositoryDeps) {
       ctx: ReservationWriteContext,
       availability: InventoryAvailabilitySnapshot,
     ): Promise<ReservationWriteResult> {
-      const existing = await store.getReservation(input.reservationId);
+      const existing = await store.getReservationById(input.reservationId);
       if (!existing) throw new Error("Reservation not found");
       const action =
         input.reserveQty < existing.requestedQty
@@ -159,7 +154,7 @@ export function createReservationRepository(deps: ReservationRepositoryDeps) {
       });
       if (!auth.allowed) throw new RE("authority_denied", auth.reason);
 
-      const current = await store.getReservation(input.reservationId);
+      const current = await store.getReservationById(input.reservationId);
       if (!current) throw new Error("Reservation not found");
       if (current.expiresAt && current.expiresAt < new Date().toISOString()) {
         throw new RE("expired_allocation", "Reservation expired");
@@ -174,7 +169,7 @@ export function createReservationRepository(deps: ReservationRepositoryDeps) {
 
       let updated: InventoryReservationRecord;
       try {
-        updated = await store.updateReservation(input.reservationId, input.expectedVersion, {
+        updated = await store.updateReservationWithVersion(input.reservationId, input.expectedVersion, {
           reservedQty: nextReserved,
           reservationStatus: nextStatus,
           reservedBy: ctx.actorUserId,
@@ -192,7 +187,7 @@ export function createReservationRepository(deps: ReservationRepositoryDeps) {
           id: crypto.randomUUID(),
           allocatedAt: new Date().toISOString(),
         }));
-        await store.insertAllocations(allocRows);
+        await store.insertAllocationRows(allocRows);
       }
 
       const movement = await appendMovement({
@@ -266,11 +261,11 @@ export function createReservationRepository(deps: ReservationRepositoryDeps) {
       });
       if (!auth.allowed) throw new RE("authority_denied", auth.reason);
 
-      const current = await store.getReservation(input.reservationId);
+      const current = await store.getReservationById(input.reservationId);
       if (!current) throw new Error("Reservation not found");
       let updated: InventoryReservationRecord;
       try {
-        updated = await store.updateReservation(input.reservationId, input.expectedVersion, {
+        updated = await store.updateReservationWithVersion(input.reservationId, input.expectedVersion, {
           reservationStatus: "fulfilled",
           fulfilledQty: current.reservedQty,
         });
@@ -325,11 +320,11 @@ export function createReservationRepository(deps: ReservationRepositoryDeps) {
     },
 
     async getReservation(id: string) {
-      return store.getReservation(id);
+      return store.getReservationById(id);
     },
 
     async listMovements(reservationId: string) {
-      return store.listMovementsForReservation(reservationId);
+      return store.listMovementsByReservation(reservationId);
     },
   };
 
@@ -340,14 +335,14 @@ export function createReservationRepository(deps: ReservationRepositoryDeps) {
     _action: string,
     reason: string,
   ): Promise<ReservationWriteResult> {
-    const current = await store.getReservation(input.reservationId);
+    const current = await store.getReservationById(input.reservationId);
     if (!current) throw new Error("Reservation not found");
     assertReservationTransition(current.reservationStatus, to);
 
     const releaseQty = roundQty(current.reservedQty - current.releasedQty);
     let updated: InventoryReservationRecord;
     try {
-      updated = await store.updateReservation(input.reservationId, input.expectedVersion, {
+      updated = await store.updateReservationWithVersion(input.reservationId, input.expectedVersion, {
         reservationStatus: to,
         releasedQty: to === "released" || to === "cancelled" ? roundQty(current.releasedQty + releaseQty) : current.releasedQty,
         reservedQty: to === "released" || to === "cancelled" ? roundQty(current.reservedQty - releaseQty) : current.reservedQty,

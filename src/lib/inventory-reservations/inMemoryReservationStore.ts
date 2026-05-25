@@ -3,30 +3,39 @@ import type {
   InventoryReservationRecord,
   ReservationAllocationRecord,
 } from "./reservationTypes";
+import type { InventoryReservationStore } from "./reservationStoreContract";
+import { validateAllocationInsert, validateInventoryMovementInsert } from "./supabaseInventoryReservationStore";
 
 function reservationKey(id: string): string {
   return id;
 }
 
-export function createInMemoryReservationStore() {
+/** In-memory store for unit tests and explicit test-mode fallback only. */
+export function createInMemoryReservationStore(): InventoryReservationStore & {
+  _allReservations(): InventoryReservationRecord[];
+  _allMovements(): InventoryMovementRecord[];
+} {
   const reservations = new Map<string, InventoryReservationRecord>();
   const allocations = new Map<string, ReservationAllocationRecord[]>();
   const movements: InventoryMovementRecord[] = [];
 
-  return {
-    async getReservation(id: string) {
+  const store: InventoryReservationStore & {
+    _allReservations(): InventoryReservationRecord[];
+    _allMovements(): InventoryMovementRecord[];
+  } = {
+    async getReservationById(id) {
       return reservations.get(reservationKey(id)) ?? null;
     },
 
-    async listReservationsByOrder(orderId: string) {
+    async listReservationsByOrder(orderId) {
       return [...reservations.values()].filter((r) => r.orderId === orderId);
     },
 
-    async listReservationsBySku(sku: string) {
+    async listReservationsBySku(sku) {
       return [...reservations.values()].filter((r) => r.sku === sku);
     },
 
-    async listOpenReservationsForSku(sku: string) {
+    async listOpenReservations(sku) {
       return [...reservations.values()].filter(
         (r) =>
           r.sku === sku &&
@@ -34,17 +43,13 @@ export function createInMemoryReservationStore() {
       );
     },
 
-    async insertReservation(row: InventoryReservationRecord) {
+    async createReservationRow(row) {
       reservations.set(reservationKey(row.id), row);
       allocations.set(row.id, []);
       return row;
     },
 
-    async updateReservation(
-      id: string,
-      expectedVersion: number,
-      patch: Partial<InventoryReservationRecord>,
-    ) {
+    async updateReservationWithVersion(id, expectedVersion, patch) {
       const current = reservations.get(reservationKey(id));
       if (!current) throw new Error("Reservation not found");
       if (current.version !== expectedVersion) {
@@ -60,24 +65,47 @@ export function createInMemoryReservationStore() {
       return next;
     },
 
-    async insertAllocations(rows: ReservationAllocationRecord[]) {
-      const rid = rows[0]?.reservationId;
-      if (!rid) return rows;
-      const list = allocations.get(rid) ?? [];
-      allocations.set(rid, [...list, ...rows]);
-      return rows;
-    },
-
-    async getAllocations(reservationId: string) {
-      return allocations.get(reservationId) ?? [];
-    },
-
-    async appendMovement(row: InventoryMovementRecord) {
-      movements.push(row);
+    async insertAllocationRow(row) {
+      validateAllocationInsert(row);
+      const list = allocations.get(row.reservationId) ?? [];
+      allocations.set(row.reservationId, [...list, row]);
       return row;
     },
 
-    async listMovementsForReservation(reservationId: string) {
+    async insertAllocationRows(rows) {
+      const out: ReservationAllocationRecord[] = [];
+      for (const row of rows) {
+        out.push(await store.insertAllocationRow(row));
+      }
+      return out;
+    },
+
+    async listAllocationsByReservation(reservationId) {
+      return allocations.get(reservationId) ?? [];
+    },
+
+    async insertInventoryMovement(row) {
+      validateInventoryMovementInsert(row);
+      const record: InventoryMovementRecord = {
+        id: row.id ?? crypto.randomUUID(),
+        createdAt: new Date().toISOString(),
+        movementType: row.movementType,
+        reservationId: row.reservationId,
+        productId: row.productId,
+        sku: row.sku,
+        quantity: row.quantity,
+        sourceLocation: row.sourceLocation,
+        destinationLocation: row.destinationLocation,
+        actorId: row.actorId,
+        reasonCode: row.reasonCode,
+        correlationId: row.correlationId,
+        metadata: row.metadata ?? {},
+      };
+      movements.push(record);
+      return record;
+    },
+
+    async listMovementsByReservation(reservationId) {
       return movements.filter((m) => m.reservationId === reservationId);
     },
 
@@ -89,6 +117,8 @@ export function createInMemoryReservationStore() {
       return [...movements];
     },
   };
+
+  return store;
 }
 
 export type InMemoryReservationStore = ReturnType<typeof createInMemoryReservationStore>;
