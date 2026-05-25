@@ -120,6 +120,7 @@ const ThirdPartyExecutionBoard = lazy(() => import("./pages/admin/execution/Thir
 const RetailExecutionBoard = lazy(() => import("./pages/admin/execution/RetailExecutionBoard.tsx"));
 const ComplaintsExecutionBoard = lazy(() => import("./pages/admin/execution/ComplaintsExecutionBoard.tsx"));
 const DispatchReadinessBoard = lazy(() => import("./pages/admin/DispatchReadinessBoard.tsx"));
+const DispatchCompletionBoard = lazy(() => import("./pages/admin/DispatchCompletionBoard.tsx"));
 
 const ADMIN_ONLY_ROLES = ["SUPER_ADMIN", "ADMIN"];
 
@@ -474,6 +475,7 @@ const App = () => (
                     />
                     <Route path="rgs-tv" element={<ReadyGoodsTV />} />
                     <Route path="dispatch-readiness" element={<DispatchReadinessBoard />} />
+                    <Route path="dispatch-completion" element={<DispatchCompletionBoard />} />
                     <Route path="dispatch-mgmt" element={<DispatchManagement />} />
                     <Route path="dispatch-tv" element={<DispatchTV />} />
                     <Route path="target-vs-actual" element={<TargetVsActual />} />
