@@ -95,6 +95,7 @@ const VerificationWarRoom = lazy(() => import("./pages/admin/VerificationWarRoom
 const AdminAnnouncements = lazy(() => import("./pages/admin/AdminAnnouncements.tsx"));
 const OperatorInbox = lazy(() => import("./pages/OperatorInbox.tsx"));
 const FinanceReleaseBoard = lazy(() => import("./pages/admin/FinanceReleaseBoard.tsx"));
+const FinanceGovernanceBoard = lazy(() => import("./pages/admin/FinanceGovernanceBoard.tsx"));
 const StoreCoordination = lazy(() => import("./pages/admin/StoreCoordination.tsx"));
 const LabelCommandCenter = lazy(() => import("./pages/admin/LabelCommandCenter.tsx"));
 const CustomerTimelinePreview = lazy(() => import("./pages/admin/CustomerTimelinePreview.tsx"));
@@ -313,6 +314,7 @@ const App = () => (
                     <Route path="dispatch" element={<AdminPackingDispatch />} />
                     <Route path="finance" element={<AdminFinance />} />
                     <Route path="finance-board" element={<FinanceReleaseBoard />} />
+                    <Route path="finance-governance" element={<FinanceGovernanceBoard />} />
                     <Route path="users" element={<AdminUsers />} />
                     <Route path="moq" element={<AdminMOQ />} />
                     <Route path="currency" element={<AdminCurrency />} />

@@ -113,6 +113,7 @@ const AdminLayout = () => {
         { to: "/admin/products", icon: Package, label: t("Products"), moduleKey: "products" },
         { to: "/admin/merchandising", icon: Sparkles, label: t("Merchandising"), moduleKey: "products" },
         { to: "/admin/pricing", icon: BarChart3, label: t("Pricing"), moduleKey: "pricing" },
+        { to: "/admin/finance-governance", icon: Landmark, label: "Finance governance", moduleKey: "finance" },
         { to: "/admin/finance", icon: DollarSign, label: t("Finance"), moduleKey: "finance" },
         { to: "/admin/users", icon: Users, label: t("Users"), moduleKey: "users" },
         { to: "/sales/dashboard", icon: BarChart3, label: t("Sales Console"), moduleKey: "clients" },
