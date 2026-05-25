@@ -1,7 +1,8 @@
 import type { OperationalSearchKind } from "./searchEntityContracts";
 
 /**
- * Future search index contract — no persistence or indexing job in this PR.
+ * Search index field contract — persisted via operational_search_index (Phase 3I).
+ * Indexing jobs remain manual/backfill contract only; no scheduled automation.
  */
 export interface SearchFeedIndexField {
   kind: OperationalSearchKind | "product_sku" | "queue" | "blocker" | "department";
@@ -22,7 +23,7 @@ export const SEARCH_FEED_INDEX_CONTRACT: SearchFeedIndexField[] = [
   { kind: "blocker", field: "dependency_graph.root_blocker", description: "Root blocker lane label", availableNow: true },
   { kind: "department", field: "entity_ownership.primaryOwner", description: "Owner role / department proxy", availableNow: true },
   { kind: "whatsapp_packet", field: "whatsapp_message_packets", description: "Operator packet id", availableNow: false },
-  { kind: "barcode", field: "scan_events", description: "Barcode scan store", availableNow: false },
+  { kind: "barcode", field: "operational_scan_records", description: "Barcode scan store", availableNow: true },
   { kind: "reservation", field: "reservations", description: "Reservation persistence", availableNow: false },
   { kind: "shipment", field: "shipments", description: "Shipment manifest", availableNow: false },
 ];
@@ -40,7 +41,8 @@ export function describeSearchFeedAdapter(): SearchFeedAdapterPlan {
     pendingKinds,
     notes: [
       "No external search service in this slice.",
-      "No indexing job — operational-search remains contract + in-memory lookup.",
+      "Persistent operational_search_index table — upsert via search index repository only.",
+      "No scheduled indexing job or production backfill in this phase.",
       "Email search only when a safe column exists on an already-readable row.",
     ],
   };
