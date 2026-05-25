@@ -59,6 +59,10 @@ const { repository, events } = createSupabasePersistentQueueBundle(supabase);
 
 Tests use `createInMemoryPersistentQueueBundle()` — no network.
 
+## Staging validation
+
+See `docs/EXECUTION_OS_PHASE3A3D_STAGING_VALIDATION.md` before applying migration in staging.
+
 ## Next PR
 
 - Department execution boards (read + action UI)

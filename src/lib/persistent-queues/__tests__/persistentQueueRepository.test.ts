@@ -155,6 +155,25 @@ describe("persistentQueueRepository", () => {
     expect(a.item.id).toBe(b.item.id);
   });
 
+  it("cancel requires non-empty reason", async () => {
+    const { item } = await bundle.repository.createQueueItem(
+      {
+        queueType: "production_queue",
+        entityType: "order",
+        entityId: "00000000-0000-4000-8000-000000000007",
+        title: "Cancel reason",
+        priorityBand: "routine",
+      },
+      { ...ACTOR, actorRole: "SUPER_ADMIN" },
+    );
+    await expect(
+      bundle.repository.cancelQueueItem(item.id, item.version, "  ", {
+        ...ACTOR,
+        actorRole: "SUPER_ADMIN",
+      }),
+    ).rejects.toThrow(/non-empty reason/i);
+  });
+
   it("cancel requires super admin when ADMIN", async () => {
     const { item } = await bundle.repository.createQueueItem(
       {

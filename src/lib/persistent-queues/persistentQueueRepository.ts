@@ -95,6 +95,12 @@ function assertTransition(result: QueueTransitionResult | QueueTransitionError):
   return result;
 }
 
+function requireTransitionReason(reason: string, action: string): void {
+  if (!reason?.trim()) {
+    throw new Error(`${action} requires a non-empty reason`);
+  }
+}
+
 function authorityCtx(
   correlation: QueueWriteCorrelation,
   queueType?: WorkQueueId,
@@ -293,6 +299,7 @@ export function createPersistentQueueRepository(
       reason: string,
       correlation: QueueWriteCorrelation,
     ): Promise<QueueWriteResult> {
+      requireTransitionReason(reason, "queue:fail");
       return this.transitionQueueItem(
         {
           queueItemId,
@@ -311,6 +318,7 @@ export function createPersistentQueueRepository(
       reason: string,
       correlation: QueueWriteCorrelation,
     ): Promise<QueueWriteResult> {
+      requireTransitionReason(reason, "queue:cancel");
       return this.transitionQueueItem(
         {
           queueItemId,
