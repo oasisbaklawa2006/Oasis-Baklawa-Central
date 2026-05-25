@@ -103,6 +103,7 @@ const AdminLayout = () => {
         { to: "/admin/operational-search", icon: Search, label: "Operational search", moduleKey: "cmd_war_room" },
         { to: "/admin/dispatch-readiness", icon: ClipboardList, label: "Dispatch readiness", moduleKey: "dispatch" },
         { to: "/admin/dispatch-completion", icon: Truck, label: "Dispatch completion", moduleKey: "dispatch" },
+        { to: "/admin/dispatch-finalization", icon: Truck, label: "Dispatch finalization", moduleKey: "dispatch" },
         { to: "/admin/dispatch-mgmt", icon: Truck, label: "Dispatch", moduleKey: "packing" },
         { to: "/security-gate", icon: Shield, label: "Security Gate", moduleKey: "packing" },
       ],
