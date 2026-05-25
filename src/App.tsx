@@ -110,6 +110,13 @@ const BarcodeExecutionPreview = lazy(() => import("./pages/admin/BarcodeExecutio
 const ExecutionCommandCenter = lazy(() => import("./pages/admin/ExecutionCommandCenter.tsx"));
 const ExecutionRiskBoard = lazy(() => import("./pages/admin/ExecutionRiskBoard.tsx"));
 const ExecutionBottlenecks = lazy(() => import("./pages/admin/ExecutionBottlenecks.tsx"));
+const ProductionExecutionBoard = lazy(() => import("./pages/admin/execution/ProductionExecutionBoard.tsx"));
+const AssemblyExecutionBoard = lazy(() => import("./pages/admin/execution/AssemblyExecutionBoard.tsx"));
+const ReadyGoodsExecutionBoard = lazy(() => import("./pages/admin/execution/ReadyGoodsExecutionBoard.tsx"));
+const DispatchExecutionBoard = lazy(() => import("./pages/admin/execution/DispatchExecutionBoard.tsx"));
+const ThirdPartyExecutionBoard = lazy(() => import("./pages/admin/execution/ThirdPartyExecutionBoard.tsx"));
+const RetailExecutionBoard = lazy(() => import("./pages/admin/execution/RetailExecutionBoard.tsx"));
+const ComplaintsExecutionBoard = lazy(() => import("./pages/admin/execution/ComplaintsExecutionBoard.tsx"));
 
 const ADMIN_ONLY_ROLES = ["SUPER_ADMIN", "ADMIN"];
 
@@ -387,6 +394,62 @@ const App = () => (
                       element={
                         <AdminModuleRoute moduleKey="cmd_war_room">
                           <ExecutionBottlenecks />
+                        </AdminModuleRoute>
+                      }
+                    />
+                    <Route
+                      path="execution/production"
+                      element={
+                        <AdminModuleRoute moduleKey="production">
+                          <ProductionExecutionBoard />
+                        </AdminModuleRoute>
+                      }
+                    />
+                    <Route
+                      path="execution/assembly"
+                      element={
+                        <AdminModuleRoute moduleKey="production">
+                          <AssemblyExecutionBoard />
+                        </AdminModuleRoute>
+                      }
+                    />
+                    <Route
+                      path="execution/ready-goods"
+                      element={
+                        <AdminModuleRoute moduleKey="inventory">
+                          <ReadyGoodsExecutionBoard />
+                        </AdminModuleRoute>
+                      }
+                    />
+                    <Route
+                      path="execution/dispatch"
+                      element={
+                        <AdminModuleRoute moduleKey="dispatch">
+                          <DispatchExecutionBoard />
+                        </AdminModuleRoute>
+                      }
+                    />
+                    <Route
+                      path="execution/third-party"
+                      element={
+                        <AdminModuleRoute moduleKey="orders">
+                          <ThirdPartyExecutionBoard />
+                        </AdminModuleRoute>
+                      }
+                    />
+                    <Route
+                      path="execution/retail"
+                      element={
+                        <AdminModuleRoute moduleKey="inventory">
+                          <RetailExecutionBoard />
+                        </AdminModuleRoute>
+                      }
+                    />
+                    <Route
+                      path="execution/complaints"
+                      element={
+                        <AdminModuleRoute moduleKey="support">
+                          <ComplaintsExecutionBoard />
                         </AdminModuleRoute>
                       }
                     />
