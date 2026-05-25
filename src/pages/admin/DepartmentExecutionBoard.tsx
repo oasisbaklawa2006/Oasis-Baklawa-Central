@@ -1,18 +1,41 @@
-import { Link } from "react-router-dom";
-import { RefreshCw, LayoutGrid } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { OperationalReadOnlyBanner } from "@/components/admin/OperationalReadOnlyBanner";
+import { useLocation } from "react-router-dom";
+import { ExecutionBoardMobileView } from "@/components/execution/ExecutionBoardMobileView";
+import { ExecutionBoardTVView } from "@/components/execution/ExecutionBoardTVView";
+import { ExecutionEmptyState } from "@/components/execution/ExecutionEmptyState";
+import { ExecutionErrorState } from "@/components/execution/ExecutionErrorState";
 import { ExecutionQueueBoard } from "@/components/execution/ExecutionQueueBoard";
 import { ExecutionQueueDrawer } from "@/components/execution/ExecutionQueueDrawer";
+import { ExecutionResponsiveShell } from "@/components/execution/ExecutionResponsiveShell";
+import { ExecutionSkeletonState } from "@/components/execution/ExecutionSkeletonState";
 import { useDepartmentExecutionBoard } from "@/hooks/useDepartmentExecutionBoard";
+import { useExecutionDisplayMode } from "@/hooks/useExecutionDisplayMode";
 import type { DepartmentBoardId } from "@/lib/execution-boards/departmentBoardConfig";
 import { assessQueueSla } from "@/lib/execution-intelligence/slaBreachDetection";
 
 export default function DepartmentExecutionBoard({ boardId }: { boardId: DepartmentBoardId }) {
+  const { mode, isTv, isMobile } = useExecutionDisplayMode();
+  const location = useLocation();
+  const tvHref = `${location.pathname}?display=tv`;
+
   const api = useDepartmentExecutionBoard(boardId);
-  const { config, loading, error, lanes, selectedId, setSelectedId, selectedItem, drawerEvents, drawerScans, canWrite, refresh } =
-    api;
+  const {
+    config,
+    loading,
+    error,
+    lanes,
+    selectedId,
+    setSelectedId,
+    selectedItem,
+    drawerEvents,
+    drawerScans,
+    canWrite,
+    refresh,
+    lastLoadedAt,
+    isStale,
+    versionConflict,
+    lastScanResult,
+    actionsDisabled,
+  } = api;
 
   const slaSeverity = selectedItem
     ? assessQueueSla(
@@ -38,53 +61,61 @@ export default function DepartmentExecutionBoard({ boardId }: { boardId: Departm
       ).severity
     : "fresh";
 
+  const totalCards =
+    lanes.queue.length +
+    lanes.blocked.length +
+    lanes.escalated.length +
+    lanes.aging.length +
+    lanes.unowned.length;
+
   return (
-    <div className="flex h-full min-h-0 flex-col gap-4 p-4">
-      <header className="flex flex-wrap items-center justify-between gap-2 border-b border-border pb-3">
-        <div className="flex items-center gap-2">
-          <LayoutGrid className="h-6 w-6 text-primary" aria-hidden />
-          <h1 className="text-lg font-bold tracking-tight">{config.title}</h1>
-          <Badge variant="outline" className="text-[10px] uppercase">
-            Execution board
-          </Badge>
-          {!canWrite ? (
-            <Badge variant="secondary" className="text-[10px]">
-              Read-only role
-            </Badge>
-          ) : null}
-        </div>
-        <div className="flex gap-2">
-          <Button type="button" variant="outline" size="sm" asChild>
-            <Link to="/admin/execution-command-center">Command center</Link>
-          </Button>
-          <Button type="button" variant="outline" size="sm" onClick={() => refresh()} disabled={loading}>
-            <RefreshCw className={`mr-1 h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`} aria-hidden />
-            Refresh
-          </Button>
-        </div>
-      </header>
+    <ExecutionResponsiveShell
+      title={config.title}
+      mode={mode}
+      canWrite={canWrite}
+      loading={loading}
+      error={error}
+      lastLoadedAt={lastLoadedAt}
+      isStale={isStale}
+      versionConflict={versionConflict}
+      lanes={lanes}
+      onRefresh={refresh}
+      tvHref={tvHref}
+    >
+      {loading && totalCards === 0 ? <ExecutionSkeletonState /> : null}
+      {!loading && error && totalCards === 0 ? (
+        <ExecutionErrorState message={error} onRetry={refresh} />
+      ) : null}
+      {!loading && !error && totalCards === 0 ? (
+        <ExecutionEmptyState
+          title="No queue items"
+          description="Open work will appear here when operational queues are populated."
+        />
+      ) : null}
 
-      <OperationalReadOnlyBanner
-        warnings={
-          canWrite
-            ? ["Actions use OperationalExecutionService only — all writes emit operational_events."]
-            : ["Your role cannot execute queue mutations on this board."]
-        }
-      />
-      {error ? <p className="text-xs text-destructive">{error}</p> : null}
+      {isTv ? (
+        <ExecutionBoardTVView lanes={lanes} lastLoadedAt={lastLoadedAt} />
+      ) : isMobile ? (
+        <ExecutionBoardMobileView lanes={lanes} selectedId={selectedId} onSelect={setSelectedId} />
+      ) : (
+        <ExecutionQueueBoard lanes={lanes} selectedId={selectedId} onSelect={setSelectedId} />
+      )}
 
-      <ExecutionQueueBoard lanes={lanes} selectedId={selectedId} onSelect={setSelectedId} />
-
-      <ExecutionQueueDrawer
-        open={Boolean(selectedItem)}
-        onOpenChange={(o) => !o && setSelectedId(null)}
-        item={selectedItem}
-        config={config}
-        events={drawerEvents}
-        scans={drawerScans}
-        api={api}
-        slaSeverity={slaSeverity}
-      />
-    </div>
+      {!isTv ? (
+        <ExecutionQueueDrawer
+          open={Boolean(selectedItem)}
+          onOpenChange={(o) => !o && setSelectedId(null)}
+          item={selectedItem}
+          config={config}
+          events={drawerEvents}
+          scans={drawerScans}
+          api={api}
+          slaSeverity={slaSeverity}
+          mobile={isMobile}
+          actionsDisabled={actionsDisabled || !canWrite}
+          lastScanResult={lastScanResult}
+        />
+      ) : null}
+    </ExecutionResponsiveShell>
   );
 }

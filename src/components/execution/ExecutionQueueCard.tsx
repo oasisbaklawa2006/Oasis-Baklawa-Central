@@ -8,15 +8,17 @@ export function ExecutionQueueCard({
   model,
   selected,
   onSelect,
+  largeTouch,
 }: {
   model: ExecutionBoardCardModel;
   selected: boolean;
   onSelect: () => void;
+  largeTouch?: boolean;
 }) {
   const { item } = model;
   return (
     <Card
-      className={`cursor-pointer border-2 transition-colors ${selected ? "border-primary" : "border-border/80"}`}
+      className={`cursor-pointer border-2 transition-colors ${selected ? "border-primary" : "border-border/80"} ${largeTouch ? "min-h-[88px]" : ""}`}
       onClick={onSelect}
       role="button"
       tabIndex={0}
