@@ -37,6 +37,7 @@ export interface ReasonedQueueExecutionInput extends QueueExecutionActionInput {
 export interface OperationalNoteInput {
   queueItemId: string;
   note: string;
+  metadata?: Record<string, unknown>;
 }
 
 export interface QueueExecutionActionResult {
@@ -51,6 +52,12 @@ export interface OperationalNoteResult {
 export interface ListOpenQueueItemsFilter {
   queueType?: WorkQueueId;
   limit?: number;
+}
+
+export interface ListDepartmentQueueItemsFilter {
+  queueTypes: WorkQueueId[];
+  limit?: number;
+  includeCompletedToday?: boolean;
 }
 
 export function toQueueWriteCorrelation(

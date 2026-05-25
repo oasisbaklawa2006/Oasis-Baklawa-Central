@@ -335,6 +335,7 @@ export function createPersistentQueueRepository(
       queueItemId: string,
       note: string,
       correlation: QueueWriteCorrelation,
+      extraMetadata?: Record<string, unknown>,
     ): Promise<{ eventId: string }> {
       const row = await store.getRow(queueItemId);
       if (!row) throw new Error("Queue item not found");
@@ -342,7 +343,7 @@ export function createPersistentQueueRepository(
       requireExecutionAuthority("queue:note", authorityCtx(correlation, item.queueType));
       const eventId = await appendQueueEvent(events, correlation, "operational_note_added", item, "Operational note", {
         message: note,
-        metadata: { note },
+        metadata: { note, ...extraMetadata },
       });
       return { eventId };
     },

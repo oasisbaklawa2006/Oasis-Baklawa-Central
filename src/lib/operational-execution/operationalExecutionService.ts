@@ -181,6 +181,7 @@ export function createOperationalExecutionService(repository: PersistentQueueWri
           input.queueItemId,
           input.note,
           correlationFor(ctx, "note", input.queueItemId, 0),
+          input.metadata,
         ),
       );
     },
