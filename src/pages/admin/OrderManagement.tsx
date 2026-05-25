@@ -24,7 +24,7 @@ const STATUS_FLOW = [
   { status: "packing", label: "Packing", action: "Mark Packed", next: "packed_ready", color: "bg-purple-100 text-purple-800 border-purple-200" },
   { status: "packed_ready", label: "Packed Ready", action: "Request Payment", next: "awaiting_final_payment", color: "bg-emerald-100 text-emerald-800 border-emerald-200" },
   { status: "awaiting_final_payment", label: "Awaiting Payment", action: "Clear for Dispatch", next: "cleared_for_dispatch", color: "bg-orange-100 text-orange-800 border-orange-200" },
-  { status: "cleared_for_dispatch", label: "Cleared", action: "Mark Dispatched", next: "dispatched", color: "bg-teal-100 text-teal-800 border-teal-200" },
+  { status: "cleared_for_dispatch", label: "Cleared", action: "Governed Finalize", next: "dispatched", color: "bg-teal-100 text-teal-800 border-teal-200" },
   { status: "dispatched", label: "Dispatched", action: "Confirm Delivery", next: "delivered", color: "bg-cyan-100 text-cyan-800 border-cyan-200" },
   { status: "delivered", label: "Delivered", action: null, next: null, color: "bg-green-100 text-green-800 border-green-200" },
   { status: "cancelled", label: "Cancelled", action: null, next: null, color: "bg-red-100 text-red-800 border-red-200" },
@@ -190,6 +190,13 @@ const OrderManagement = () => {
   const handleAction = async (orderId: string, nextStatus: string) => {
     setActionLoading(orderId);
     const currentOrder = orders.find(o => o.id === orderId);
+    if (nextStatus === "dispatched") {
+      toast.error(
+        "Mark Dispatched is disabled here. Use governed dispatch finalization after readiness, finance, and completion attestation.",
+      );
+      setActionLoading(null);
+      return;
+    }
     if (shouldIgnoreOrderRegression(currentOrder?.status, nextStatus)) {
       toast.error("Locked order status cannot move backward.");
       setActionLoading(null);

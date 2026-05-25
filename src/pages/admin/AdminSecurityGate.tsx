@@ -1,7 +1,8 @@
 import { useState, useEffect, useRef, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { ShieldCheck, ShieldAlert, ScanLine, Box, Clock, Shield, Truck, Search, CheckCircle, Loader2 } from "lucide-react";
-import { sendDispatchAlert, sendSalesExecDispatchNotification } from "@/utils/whatsapp";
+import { LegacyDispatchGovernanceBanner } from "@/components/admin/LegacyDispatchGovernanceBanner";
+import { DISPATCH_FINALIZATION_ROUTE } from "@/lib/dispatch-finalization/legacyDispatchGuard";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -263,72 +264,16 @@ const AdminSecurityGate = () => {
                 return;
               }
 
-              await supabase.from("orders").update({
-                status: "dispatched",
-                actual_despatch_date: new Date().toISOString().split("T")[0],
-              }).eq("id", carton.order_id);
-              await supabase.from("order_status_history").insert({
-                order_id: carton.order_id, old_status: "cleared_for_dispatch", new_status: "dispatched",
-              });
-
-              // ═══ WHATSAPP DISPATCH ALERTS ═══
-              try {
-                const companyId = carton.orders?.company?.id || "";
-                const orderVal = Number(carton.orders?.sales_order_value) || 0;
-
-                // Get client phone from b2b_applications
-                if (companyName && companyName !== "Unknown Company") {
-                  const { data: appData } = await supabase
-                    .from("b2b_applications")
-                    .select("contact_phone, mobile_number")
-                    .eq("business_name", companyName)
-                    .eq("status", "approved")
-                    .limit(1);
-                  const clientPhone = appData?.[0]?.mobile_number || appData?.[0]?.contact_phone || "";
-                  
-                  if (clientPhone) {
-                    sendDispatchAlert({
-                      phone: clientPhone,
-                      companyId: carton.orders?.company?.id || "",
-                      companyName,
-                      orderId: carton.order_id!,
-                      trackingNumber: carton.orders?.tracking_number || undefined,
-                      invoiceUrl: carton.orders?.final_invoice_url || undefined,
-                    });
-                  }
-                }
-
-                // Notify Sales Executive
-                const { data: companyData } = await supabase
-                  .from("companies")
-                  .select("account_manager_id")
-                  .eq("business_name", companyName)
-                  .limit(1);
-                const managerId = companyData?.[0]?.account_manager_id;
-                if (managerId) {
-                  const { data: execData } = await supabase
-                    .from("users")
-                    .select("phone")
-                    .eq("id", managerId)
-                    .single();
-                  if (execData?.phone) {
-                    sendSalesExecDispatchNotification({
-                      execPhone: execData.phone,
-                      companyName,
-                      orderId: carton.order_id!,
-                      orderValue: orderVal,
-                    });
-                  }
-                }
-              } catch (waErr) {
-                console.error("WhatsApp dispatch alert failed (non-blocking):", waErr);
-              }
+              toast.info(
+                "Carton released. Order status unchanged — finalize via governed dispatch finalization.",
+                { description: DISPATCH_FINALIZATION_ROUTE },
+              );
             }
           }
 
           setScreenState("success");
-          setLastMessage(`✅ RELEASE AUTHORIZED: ${companyName} (Carton ${carton.box_number}/${carton.total_boxes})`);
-          addToHistory(barcode, companyName, "success", "3-Point Check PASSED. Authorized and dispatched.");
+          setLastMessage(`✅ RELEASE AUTHORIZED: ${companyName} (Carton ${carton.box_number}/${carton.total_boxes}) — order open until governed finalize`);
+          addToHistory(barcode, companyName, "success", "3-Point Check PASSED. Carton released; order status via Phase 4E only.");
           playAudio("success");
         } else {
           // FAIL — RED BLOCK SCREEN
@@ -396,6 +341,9 @@ const AdminSecurityGate = () => {
 
   return (
     <div className="min-h-screen bg-slate-950 flex flex-col">
+      <div className="border-b border-slate-800 bg-slate-900 p-3">
+        <LegacyDispatchGovernanceBanner pageLabel="Security Gate" className="border-slate-700 bg-slate-800/80 text-slate-100" />
+      </div>
       {/* TAB BAR */}
       <div className="flex border-b border-slate-800">
         <button

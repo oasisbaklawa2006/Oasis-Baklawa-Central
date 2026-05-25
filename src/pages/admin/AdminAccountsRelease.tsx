@@ -7,7 +7,10 @@ import { useLanguage } from "@/hooks/useLanguage";
 import { useCurrency } from "@/hooks/useCurrency";
 import { queueNotification } from "@/utils/notificationOutbox";
 import { sendWhatsAppMessage } from "@/utils/whatsapp";
-import { notifyOrderDispatched } from "@/utils/notifyEvent";
+import {
+  DISPATCH_FINALIZATION_ROUTE,
+  blockLegacyDispatchStatusMutation,
+} from "@/lib/dispatch-finalization/legacyDispatchGuard";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -295,15 +298,16 @@ const AdminAccountsRelease = () => {
         });
       }
 
-      // Update order status
-      await supabase.from("orders").update({ status: "dispatched", tracking_number: lr }).eq("id", orderId);
-      await supabase.from("order_status_history").insert({
-        order_id: orderId,
-        old_status: gatePassOrder.status,
-        new_status: "dispatched",
+      const legacyBlock = blockLegacyDispatchStatusMutation("AdminAccountsRelease.issueGatePass");
+      toast.error(legacyBlock.message, {
+        description: "Gate pass recorded; use governed dispatch finalization to close the order.",
+        action: {
+          label: "Open finalization",
+          onClick: () => {
+            window.location.assign(DISPATCH_FINALIZATION_ROUTE);
+          },
+        },
       });
-      // Fire dispatch notification (buyer + sales exec + admin)
-      notifyOrderDispatched(orderId, orderId.slice(0, 8).toUpperCase(), { transporter: tp, lr }).catch(() => {});
       await supabase.from("audit_logs").insert({
         action_type: "finance_issue_gate_pass",
         module_name: "Finance",
