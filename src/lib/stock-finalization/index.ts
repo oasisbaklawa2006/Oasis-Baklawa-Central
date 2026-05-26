@@ -14,6 +14,12 @@ export { reconcileReservationsForConsumption } from "./stockReservationReconcili
 export { suppressStockEventFromCustomer } from "./stockFinalizationEvents";
 export { createStockFinalizationService } from "./stockFinalizationService";
 export {
+  createStockFinalizationBundle,
+  type StockFinalizationBundle,
+  type StockFinalizationPersistenceMode,
+} from "./createStockFinalizationBundle";
+export { validateConsumptionItemsAgainstReconciliation } from "./stockConsumptionValidation";
+export {
   createInMemoryStockBalanceRepository,
   createInMemoryStockMovementRepository,
   createInMemoryStockLineageRepository,

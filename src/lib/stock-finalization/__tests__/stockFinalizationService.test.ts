@@ -256,6 +256,28 @@ describe("stockFinalizationService", () => {
     ).rejects.toThrow(StockFinalizationError);
   });
 
+  it("requires existing balance row (no silent bootstrap)", async () => {
+    const { svc } = service();
+    const emptyBalances = createInMemoryStockBalanceRepository([]);
+    const svcNoBal = createStockFinalizationService({
+      balances: emptyBalances,
+      movements: createInMemoryStockMovementRepository(),
+      lineage: createInMemoryStockLineageRepository(),
+      events: createInMemoryStockFinalizationEventSink(),
+    });
+    await expect(svcNoBal.finalizeConsumption(finalizedInput, finalizeParams, ctx)).rejects.toMatchObject({
+      code: "balance_not_found",
+    });
+    expect(await svcNoBal.listLineage(orderId)).toHaveLength(0);
+  });
+
+  it("requires finalizeReason", async () => {
+    const { svc } = service();
+    await expect(
+      svc.finalizeConsumption(finalizedInput, finalizeParams, { ...ctx, finalizeReason: "  " }),
+    ).rejects.toMatchObject({ code: "reason_required" });
+  });
+
   it("denies finance role", async () => {
     const { svc } = service();
     await expect(

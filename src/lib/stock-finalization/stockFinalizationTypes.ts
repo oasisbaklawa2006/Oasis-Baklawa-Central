@@ -207,6 +207,7 @@ export class StockFinalizationError extends Error {
       | "reason_required"
       | "stale_version"
       | "negative_stock"
+      | "balance_not_found"
       | "already_finalized"
       | "reconciliation_blocked",
     message: string,

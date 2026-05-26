@@ -124,6 +124,19 @@ Grep staging bundle (see PR grep table):
 
 ---
 
+## 12. Pre-production hardening gates
+
+| Gate | Pass criteria |
+|------|----------------|
+| Variance blocks finalize | `reconciliation_status = variance` → no balance/movement writes |
+| No silent balance bootstrap | Missing `inventory_stock_balances` row → `balance_not_found` |
+| Consume qty matches reconciliation | Mismatch → `validation_failed` before writes |
+| `finalizeReason` required | Empty reason → `reason_required` |
+| UI persistence gate | Without Supabase tables, **Finalize** disabled unless `VITE_STOCK_FINALIZATION_DEMO=true` |
+| Sample data | Board sample UUIDs are preview-only; production uses live dispatch + reservation reads |
+
+---
+
 ## Sign-off
 
 | Check | Owner | Date |
@@ -131,3 +144,4 @@ Grep staging bundle (see PR grep table):
 | Staging migration applied | | |
 | End-to-end finalize + reversal | | |
 | Bugbot / grep clean | | |
+| Pre-production hardening §12 | | |

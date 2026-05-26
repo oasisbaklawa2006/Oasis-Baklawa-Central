@@ -1,4 +1,5 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { supabase } from "@/integrations/supabase/client";
 import { Link } from "react-router-dom";
 import { PackageMinus, ShieldCheck, AlertTriangle, ClipboardList } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -8,11 +9,13 @@ import { useAuth } from "@/hooks/useAuth";
 import {
   FORBIDDEN_STOCK_UI_PATTERNS,
   projectStockFinalization,
+  createStockFinalizationBundle,
   createStockFinalizationService,
   createInMemoryStockBalanceRepository,
   createInMemoryStockMovementRepository,
   createInMemoryStockLineageRepository,
   createInMemoryStockFinalizationEventSink,
+  type StockFinalizationBundle,
   type StockFinalizationInput,
 } from "@/lib/stock-finalization";
 import type { StockReservationRecord } from "@/lib/stock-finalization/stockReservationTypes";
@@ -85,43 +88,78 @@ function stockEventsToOperational(
   }));
 }
 
+function createDemoStockService() {
+  return createStockFinalizationService({
+    balances: createInMemoryStockBalanceRepository([
+      {
+        id: "bal-demo",
+        productId: SAMPLE_RESERVATION.productId,
+        sku: SAMPLE_RESERVATION.sku,
+        locationCode: "WH-MAIN",
+        availableQty: 50,
+        reservedQty: 12,
+        damagedQty: 0,
+        expiredQty: 0,
+        quarantineQty: 0,
+        version: 1,
+        updatedAt: new Date().toISOString(),
+      },
+    ]),
+    movements: createInMemoryStockMovementRepository(),
+    lineage: createInMemoryStockLineageRepository(),
+    events: createInMemoryStockFinalizationEventSink(),
+  });
+}
+
 export default function StockFinalizationBoard() {
-  const { user } = useAuth();
+  const { user, role } = useAuth();
   const [busy, setBusy] = useState(false);
   const [selected, setSelected] = useState<"finalized" | "pending">("finalized");
   const [message, setMessage] = useState<string | null>(null);
   const [events, setEvents] = useState<OperationalEventRecord[]>([]);
   const [lineageCount, setLineageCount] = useState(0);
+  const [bundle, setBundle] = useState<StockFinalizationBundle | null>(null);
 
   const input = selected === "finalized" ? SAMPLE_FINALIZED : SAMPLE_PENDING;
   const projection = useMemo(() => projectStockFinalization(input), [input]);
 
-  const service = useMemo(
-    () =>
-      createStockFinalizationService({
-        balances: createInMemoryStockBalanceRepository([
-          {
-            id: "bal-demo",
-            productId: SAMPLE_RESERVATION.productId,
-            sku: SAMPLE_RESERVATION.sku,
-            locationCode: "WH-MAIN",
-            availableQty: 50,
-            reservedQty: 12,
-            damagedQty: 0,
-            expiredQty: 0,
-            quarantineQty: 0,
-            version: 1,
-            updatedAt: new Date().toISOString(),
-          },
-        ]),
-        movements: createInMemoryStockMovementRepository(),
-        lineage: createInMemoryStockLineageRepository(),
-        events: createInMemoryStockFinalizationEventSink(),
-      }),
-    [],
-  );
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      if (import.meta.env.VITE_STOCK_FINALIZATION_DEMO === "true") {
+        const demo = await createStockFinalizationBundle(undefined, { forceInMemory: true });
+        if (!cancelled) {
+          setBundle({
+            ...demo,
+            service: createDemoStockService(),
+            canExecuteWrites: true,
+          });
+        }
+        return;
+      }
+      const loaded = await createStockFinalizationBundle(supabase);
+      if (!cancelled) setBundle(loaded);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const canExecuteWrites = bundle?.canExecuteWrites ?? false;
+  const persistenceLabel =
+    bundle?.persistenceMode === "supabase"
+      ? "Supabase persistence"
+      : bundle?.persistenceMode === "demo"
+        ? "Demo in-memory (non-production)"
+        : "Persistence unavailable";
 
   async function handleFinalize() {
+    if (!canExecuteWrites || !bundle) {
+      setMessage(
+        "Physical stock writes are disabled until Phase 4G migrations are applied and Supabase persistence is available (or VITE_STOCK_FINALIZATION_DEMO=true for controlled demo only).",
+      );
+      return;
+    }
     if (!projection.canFinalizeConsumption) {
       setMessage("Blocked: dispatch must be finalized with scan evidence and consumable reservations.");
       return;
@@ -132,10 +170,10 @@ export default function StockFinalizationBoard() {
       const ctx = {
         correlationId: `ui-4g-${Date.now()}`,
         actorUserId: user?.id ?? "00000000-0000-4000-8000-000000000099",
-        actorRole: "INVENTORY_MANAGER",
+        actorRole: role ?? "UNKNOWN",
         finalizeReason: "Governed UI finalize (staging)",
       };
-      await service.finalizeConsumption(
+      await bundle.service.finalizeConsumption(
         input,
         {
           orderId: input.orderId,
@@ -155,9 +193,9 @@ export default function StockFinalizationBoard() {
         },
         ctx,
       );
-      const evts = await service.listEvents(input.orderId);
+      const evts = await bundle.service.listEvents(input.orderId);
       setEvents(stockEventsToOperational(evts));
-      const lineage = await service.listLineage(input.orderId);
+      const lineage = await bundle.service.listLineage(input.orderId);
       setLineageCount(lineage.length);
       setMessage("Consumption finalized — physical deduction recorded in governed ledger.");
     } catch (e) {
@@ -183,12 +221,18 @@ export default function StockFinalizationBoard() {
       </div>
 
       <Card className="border-amber-200/60 bg-amber-50/30 dark:bg-amber-950/20">
-        <CardContent className="pt-4 text-sm">
-          Stock mutations require dispatch finalization, reservation reconciliation, and scan evidence.
-          No payment, invoice, or customer notification on this board.
-          <Link to="/admin/dispatch-finalization" className="ml-1 underline">
-            Dispatch finalization
-          </Link>
+        <CardContent className="pt-4 text-sm space-y-1">
+          <p>
+            <strong>{persistenceLabel}.</strong> Sample order data is for projection preview only — not live
+            production orders unless wired to Supabase.
+          </p>
+          <p>
+            Stock mutations require dispatch finalization, reservation reconciliation, and scan evidence.
+            No payment, invoice, or customer notification on this board.
+            <Link to="/admin/dispatch-finalization" className="ml-1 underline">
+              Dispatch finalization
+            </Link>
+          </p>
         </CardContent>
       </Card>
 
@@ -260,7 +304,7 @@ export default function StockFinalizationBoard() {
 
       <div className="flex flex-wrap gap-2">
         <Button
-          disabled={busy || !projection.canFinalizeConsumption}
+          disabled={busy || !projection.canFinalizeConsumption || !canExecuteWrites}
           onClick={() => void handleFinalize()}
         >
           Finalize consumption

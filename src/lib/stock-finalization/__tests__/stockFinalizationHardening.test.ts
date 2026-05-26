@@ -26,6 +26,14 @@ describe("stock finalization hardening", () => {
     expect(store).toContain(".update(");
     const service = readSrc("lib/stock-finalization/stockFinalizationService.ts");
     expect(service).not.toContain(".from(");
+    expect(service).not.toContain("upsertBalanceInitial");
+  });
+
+  it("board gates writes via createStockFinalizationBundle", () => {
+    const board = readSrc("pages/admin/StockFinalizationBoard.tsx");
+    expect(board).toContain("createStockFinalizationBundle");
+    expect(board).toContain("canExecuteWrites");
+    expect(board).toContain("VITE_STOCK_FINALIZATION_DEMO");
   });
 
   it("dashboard forbids silent patterns", () => {

@@ -164,6 +164,22 @@ export function createSupabaseStockMovementRepository(client: SupabaseClient): S
   };
 }
 
+export async function probeStockFinalizationTables(client: SupabaseClient): Promise<boolean> {
+  const { error: balErr } = await client.from("inventory_stock_balances").select("id").limit(1);
+  if (balErr) {
+    const msg = balErr.message.toLowerCase();
+    if (msg.includes("does not exist") || msg.includes("42p01")) return false;
+    throw new Error(balErr.message);
+  }
+  const { error: linErr } = await client.from("stock_consumption_lineage").select("id").limit(1);
+  if (linErr) {
+    const msg = linErr.message.toLowerCase();
+    if (msg.includes("does not exist") || msg.includes("42p01")) return false;
+    throw new Error(linErr.message);
+  }
+  return true;
+}
+
 export function createSupabaseStockLineageRepository(client: SupabaseClient): StockLineageRepository {
   return {
     async insertLineage(row) {

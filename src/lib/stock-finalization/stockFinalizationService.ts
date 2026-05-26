@@ -9,6 +9,7 @@ import {
 import { reconcileReservationsForConsumption } from "./stockReservationReconciliation";
 import { requireReversalReason, buildReversalCompensatingMetadata } from "./stockReversal";
 import { detectStockVariance } from "./stockVarianceDetection";
+import { validateConsumptionItemsAgainstReconciliation } from "./stockConsumptionValidation";
 import type {
   FinalizeConsumptionParams,
   StockBalanceRepository,
@@ -33,6 +34,8 @@ export interface StockFinalizationServiceDeps {
   lineage: StockLineageRepository;
   events: StockFinalizationEventSink;
 }
+
+export type StockFinalizationService = ReturnType<typeof createStockFinalizationService>;
 
 export function createStockFinalizationService(deps: StockFinalizationServiceDeps) {
   const { balances, movements, lineage, events } = deps;
@@ -100,21 +103,29 @@ export function createStockFinalizationService(deps: StockFinalizationServiceDep
         );
       }
 
+      if (!ctx.finalizeReason?.trim()) {
+        throw new StockFinalizationError(
+          "reason_required",
+          "Finalize consumption requires typed finalizeReason",
+        );
+      }
+
+      validateConsumptionItemsAgainstReconciliation(params.items, reconciliation);
+
       const balanceMap = new Map<string, import("./stockFinalizationTypes").StockBalanceRecord>();
       for (const item of params.items) {
-        let bal = await balances.getBalance(item.productId, item.sku, item.locationCode);
+        const bal = await balances.getBalance(item.productId, item.sku, item.locationCode);
         if (!bal) {
-          bal = await balances.upsertBalanceInitial({
-            productId: item.productId,
-            sku: item.sku,
-            locationCode: item.locationCode,
-            availableQty: item.consumeQty,
-            reservedQty: item.consumeQty,
-            damagedQty: 0,
-            expiredQty: 0,
-            quarantineQty: 0,
-            version: 1,
-          });
+          throw new StockFinalizationError(
+            "balance_not_found",
+            `No inventory_stock_balances row for ${item.sku} at ${item.locationCode}`,
+          );
+        }
+        if (bal.version !== item.expectedBalanceVersion) {
+          throw new StockFinalizationError(
+            "stale_version",
+            `Balance version mismatch for ${item.sku} before consumption`,
+          );
         }
         balanceMap.set(`${item.productId}:${item.sku}:${item.locationCode}`, bal);
       }
