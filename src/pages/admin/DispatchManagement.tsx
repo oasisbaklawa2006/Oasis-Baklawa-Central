@@ -10,6 +10,8 @@ import { Input } from "@/components/ui/input";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Progress } from "@/components/ui/progress";
 import StagnancyBadge from "@/components/StagnancyBadge";
+import { DispatchReadinessBadge } from "@/components/admin/DispatchReadinessBadge";
+import type { DispatchReadinessInput } from "@/lib/dispatch-readiness";
 
 interface DispatchOrder {
   id: string;
@@ -78,6 +80,26 @@ export default function DispatchManagement() {
 
   const isAllPacked = (order: DispatchOrder) => {
     return order.items.length > 0 && order.items.every(i => (i.actual_packed_qty || 0) >= i.quantity);
+  };
+
+  const buildReadinessInput = (order: DispatchOrder): DispatchReadinessInput => {
+    const packed = isAllPacked(order);
+    const pct = getReadiness(order);
+    return {
+      orderId: order.id,
+      queue: { queueItemId: null, isActive: true, isCompleted: false, hasVersionConflict: false },
+      scan: {
+        hasUnresolvedMismatch: false,
+        hasRejectedGateScan: false,
+        gateScanVerified: false,
+        cartonBarcodeVerified: pct >= 100,
+      },
+      reservationStatus: "none",
+      financeSignal: "unknown",
+      packingEvidenceVerified: packed && !!photoUrl && activeOrderId === order.id,
+      documentPlaceholderPresent: false,
+      openExceptionTypes: [],
+    };
   };
 
   const [finalizingDpl, setFinalizingDpl] = useState(false);
@@ -286,6 +308,7 @@ export default function DispatchManagement() {
                       </div>
                     </div>
                     <Progress value={pct} className="h-2 mb-2" />
+                    <DispatchReadinessBadge input={buildReadinessInput(order)} className="mb-2" />
                     <div className="flex flex-col gap-2 sm:flex-row">
                       <Button
                         size="sm"
