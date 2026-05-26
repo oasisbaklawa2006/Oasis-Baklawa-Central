@@ -3,7 +3,7 @@
 **Purpose:** Stabilization checklist for merging PRs **#105 → #121** without scope expansion.  
 **Governance anchor:** [EXECUTION_OS_PHASE4_STACK_GOVERNANCE.md](./EXECUTION_OS_PHASE4_STACK_GOVERNANCE.md)  
 **Framework:** [EXECUTION_OS_ONE_PHASE_COMMAND_FRAMEWORK.md](./EXECUTION_OS_ONE_PHASE_COMMAND_FRAMEWORK.md)  
-**Last verified branch:** `cursor/phase-4g-stock-finalization-c4ef` @ `4ece7f8` (local CI run 2026-05-26)
+**Last verified branch:** `cursor/phase-4g-stock-finalization-c4ef` @ `a14197d` (local CI run 2026-05-26)
 
 ---
 
@@ -41,7 +41,7 @@ commercially_released → completion_attested → dispatch_finalized / orders.st
 
 ### Integration branch note
 
-`cursor/phase-4g-stock-finalization-c4ef` currently carries **28 commits** spanning **4B–4G** (migrations + libs + docs). It is suitable for **integration testing**, not a substitute for merging #105–#117 individually to `main`.
+`cursor/phase-4g-stock-finalization-c4ef` currently carries **29 commits** spanning **4B–4G** (migrations + libs + docs). It is suitable for **integration testing**, not a substitute for merging #105–#117 individually to `main`.
 
 ---
 
@@ -94,11 +94,11 @@ Apply on staging in this order (after dependencies merged):
 
 ## 4. Test / build verification
 
-| Command | Result (4G branch @ 4ece7f8) |
+| Command | Result (4G branch @ a14197d) |
 |---------|------------------------------|
 | `npm run typecheck` | **Pass** |
 | `npm run build` | **Pass** |
-| Scoped tests (see below) | **104 / 104 pass** |
+| Scoped tests (see below) | **100 / 100 pass** |
 
 ### Scoped tests run
 
@@ -163,7 +163,7 @@ npm run test -- --run \
 | B6 | **Ops** | `AdminAccountsRelease` may still queue `order_dispatched` notifications | Out of 4F scope; track under notifications phase |
 | B7 | **Low** | Multi-item stock finalize without DB transaction | Partial write risk; document; future transactional phase |
 
-**Patches applied in this stabilization command:** None (docs-only readiness report).
+**Patches applied in this stabilization command:** None (verification-only; readiness doc hash/test counts refreshed).
 
 ---
 
