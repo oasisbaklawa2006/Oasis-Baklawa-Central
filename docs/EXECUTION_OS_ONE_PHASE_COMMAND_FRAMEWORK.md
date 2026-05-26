@@ -4,6 +4,7 @@
 
 **Applies to:** All Execution OS phases after PR #104 (entity graph / work queues foundation).
 
+**Full stack merge (#105–#121):** See [EXECUTION_OS_STACK_STAGING_READINESS.md](./EXECUTION_OS_STACK_STAGING_READINESS.md) for merge status, migration order, CI verification, grep exceptions, and staging blockers.
 ---
 
 ## Phase header (fill per command)
