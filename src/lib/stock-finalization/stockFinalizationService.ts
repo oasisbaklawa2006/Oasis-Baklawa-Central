@@ -112,6 +112,21 @@ export function createStockFinalizationService(deps: StockFinalizationServiceDep
 
       validateConsumptionItemsAgainstReconciliation(params.items, reconciliation);
 
+      const existingLineage = await lineage.listByOrder(params.orderId);
+      const lineageFinalizedIds = new Set(
+        existingLineage
+          .filter((row) => row.lineageType === "consumption_finalized")
+          .map((row) => row.reservationId),
+      );
+      for (const item of params.items) {
+        if (lineageFinalizedIds.has(item.reservationId)) {
+          throw new StockFinalizationError(
+            "already_finalized",
+            `Reservation ${item.reservationId} already has consumption_finalized lineage`,
+          );
+        }
+      }
+
       const balanceMap = new Map<string, import("./stockFinalizationTypes").StockBalanceRecord>();
       for (const item of params.items) {
         const bal = await balances.getBalance(item.productId, item.sku, item.locationCode);
@@ -236,11 +251,16 @@ export function createStockFinalizationService(deps: StockFinalizationServiceDep
       }
 
       for (const line of lineages) {
+        const reservation = input.reservations.find((r) => r.id === line.reservationId);
+        const restoreReserved = reservation
+          ? Math.min(reservation.reservedQty, line.consumedQty)
+          : line.consumedQty;
         const result = await balances.applyReversalWithLock({
           productId: line.productId,
           sku: line.sku,
           locationCode: line.locationCode,
           restoreQty: line.consumedQty,
+          restoreReservedQty: restoreReserved,
           expectedVersion: line.balanceVersion,
         });
         if (!result.updated) {

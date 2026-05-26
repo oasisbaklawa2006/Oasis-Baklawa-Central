@@ -303,4 +303,77 @@ describe("stockFinalizationService", () => {
       ),
     ).rejects.toThrow(StockFinalizationError);
   });
+
+  it("rejects duplicate finalize when consumption_finalized lineage exists", async () => {
+    const { svc } = service();
+    const params = {
+      orderId,
+      scanReference: "PACK-SCAN-601",
+      gateReference: "GATE-601",
+      dispatchLineageId: "drl-601",
+      items: [
+        {
+          reservationId,
+          productId,
+          sku: "BAK-601",
+          locationCode: "WH-MAIN",
+          consumeQty: 5,
+          expectedBalanceVersion: 1,
+        },
+      ],
+    };
+    await svc.finalizeConsumption(finalizedInput, params, ctx);
+    await expect(svc.finalizeConsumption(finalizedInput, params, ctx)).rejects.toMatchObject({
+      code: "already_finalized",
+    });
+  });
+
+  it("reversal restores reserved_qty released at finalize", async () => {
+    const { svc, balances } = service();
+    const params = {
+      orderId,
+      scanReference: "PACK-SCAN-601",
+      gateReference: "GATE-601",
+      dispatchLineageId: "drl-601",
+      items: [
+        {
+          reservationId,
+          productId,
+          sku: "BAK-601",
+          locationCode: "WH-MAIN",
+          consumeQty: 5,
+          expectedBalanceVersion: 1,
+        },
+      ],
+    };
+    await svc.finalizeConsumption(finalizedInput, params, ctx);
+    const afterFinalize = await balances.getBalance(productId, "BAK-601", "WH-MAIN");
+    expect(afterFinalize?.availableQty).toBe(15);
+    expect(afterFinalize?.reservedQty).toBe(0);
+
+    const lineageRows = await svc.listLineage(orderId);
+    const line = lineageRows.find((l) => l.lineageType === "consumption_finalized");
+    expect(line).toBeDefined();
+
+    await svc.reverseConsumption(
+      finalizedInput,
+      orderId,
+      [
+        {
+          reservationId,
+          productId,
+          sku: "BAK-601",
+          locationCode: "WH-MAIN",
+          consumedQty: 5,
+          movementId: line!.movementId,
+          balanceVersion: afterFinalize!.version,
+        },
+      ],
+      { ...ctx, reversalReason: "Correct dispatch correction" },
+    );
+
+    const afterReversal = await balances.getBalance(productId, "BAK-601", "WH-MAIN");
+    expect(afterReversal?.availableQty).toBe(20);
+    expect(afterReversal?.reservedQty).toBe(5);
+  });
 });

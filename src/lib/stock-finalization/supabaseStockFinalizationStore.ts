@@ -103,10 +103,12 @@ export function createSupabaseStockBalanceRepository(client: SupabaseClient): St
       if (!current || current.version !== params.expectedVersion) {
         return { updated: false, balance: current };
       }
+      const restoreReserved = params.restoreReservedQty ?? params.restoreQty;
       const { data, error } = await client
         .from("inventory_stock_balances")
         .update({
           available_qty: current.availableQty + params.restoreQty,
+          reserved_qty: current.reservedQty + restoreReserved,
           version: current.version + 1,
           updated_at: new Date().toISOString(),
         })

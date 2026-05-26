@@ -161,6 +161,8 @@ export interface StockBalanceRepository {
     sku: string;
     locationCode: string;
     restoreQty: number;
+    /** Reserved qty released during finalize; restored on reversal. Defaults to restoreQty. */
+    restoreReservedQty?: number;
     expectedVersion: number;
   }): Promise<{ updated: boolean; balance: StockBalanceRecord | null }>;
 }

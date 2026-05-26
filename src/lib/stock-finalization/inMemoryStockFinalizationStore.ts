@@ -57,9 +57,11 @@ export function createInMemoryStockBalanceRepository(
       if (!row || row.version !== params.expectedVersion) {
         return { updated: false, balance: row ?? null };
       }
+      const restoreReserved = params.restoreReservedQty ?? params.restoreQty;
       const updated: StockBalanceRecord = {
         ...row,
         availableQty: row.availableQty + params.restoreQty,
+        reservedQty: row.reservedQty + restoreReserved,
         version: row.version + 1,
         updatedAt: new Date().toISOString(),
       };
