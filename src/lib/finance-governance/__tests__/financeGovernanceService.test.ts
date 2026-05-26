@@ -1,0 +1,60 @@
+import { describe, expect, it } from "vitest";
+import {
+  createFinanceGovernanceService,
+  createInMemoryFinanceEventSink,
+} from "../financeGovernanceService";
+import { createInMemoryFinanceEvidenceStore } from "../inMemoryFinanceEvidenceStore";
+import { FinanceGovernanceError } from "../financeGovernanceTypes";
+import type { FinanceGovernanceInput } from "../financeGovernanceTypes";
+
+const ctx = {
+  correlationId: "c1",
+  actorUserId: "00000000-0000-4000-8000-000000000099",
+  actorRole: "FINANCE_HEAD",
+};
+
+const ready: FinanceGovernanceInput = {
+  orderId: "00000000-0000-4000-8000-000000000201",
+  orderValue: 120_000,
+  advanceRequired: 40_000,
+  advanceVerified: true,
+  creditApproved: true,
+  openHoldTypes: [],
+  reservationReady: true,
+  dispatchReadinessGateEligible: true,
+  complaintSeverity: "none",
+  staleFinanceReview: false,
+  manualOverrideCount: 0,
+  rejectionCount: 0,
+  escalationCount: 0,
+};
+
+function svc() {
+  return createFinanceGovernanceService({
+    evidence: createInMemoryFinanceEvidenceStore(),
+    events: createInMemoryFinanceEventSink(),
+  });
+}
+
+describe("financeGovernanceService", () => {
+  it("commercial release records event without payment capture", async () => {
+    const s = svc();
+    const { projection, eventId } = await s.commercialRelease(ready, ctx);
+    expect(projection.releaseStatus).toBe("commercially_released");
+    expect(eventId).toBeTruthy();
+    const evts = await s.listEvents(ready.orderId);
+    expect(evts.some((e) => e.eventType === "finance_commercially_released")).toBe(true);
+  });
+
+  it("rejects release without typed rejection reason", async () => {
+    const s = svc();
+    await expect(s.rejectRelease(ready, ctx)).rejects.toThrow(FinanceGovernanceError);
+  });
+
+  it("denies dispatch manager finance actions", async () => {
+    const s = svc();
+    await expect(
+      s.startReview(ready, { ...ctx, actorRole: "DISPATCH_MANAGER" }),
+    ).rejects.toThrow(FinanceGovernanceError);
+  });
+});

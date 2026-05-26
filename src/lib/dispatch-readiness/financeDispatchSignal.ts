@@ -1,7 +1,10 @@
 /**
- * Read-only finance dispatch signal placeholder for Phase 4B.
- * Does NOT approve finance, mutate payment_status, generate invoices, or release orders.
+ * Dispatch finance signal — derived from Phase 4C finance governance when input provided.
+ * Does NOT capture payment, generate invoices, or complete dispatch.
  */
+
+import { deriveDispatchFinanceSignalFromGovernance } from "@/lib/finance-governance/dispatchFinanceSignalBridge";
+import type { FinanceGovernanceInput } from "@/lib/finance-governance/financeGovernanceTypes";
 
 export const FINANCE_DISPATCH_SIGNALS = [
   "unknown",
@@ -23,16 +26,25 @@ export function isFinanceSignalBlocking(signal: FinanceDispatchSignal): boolean 
 export function financeSignalLabel(signal: FinanceDispatchSignal): string {
   switch (signal) {
     case "unknown":
-      return "Finance signal unknown (placeholder)";
+      return "Finance signal unknown";
     case "pending_review":
       return "Finance signal pending review";
     case "ready":
-      return "Finance signal ready (read-only)";
+      return "Finance signal ready (commercial governance)";
     case "blocked":
       return "Finance signal blocked";
     default:
       return signal;
   }
+}
+
+/** Prefer governance-derived signal when FinanceGovernanceInput is available. */
+export function resolveDispatchFinanceSignal(
+  governanceInput: FinanceGovernanceInput | null | undefined,
+  fallback: FinanceDispatchSignal = "unknown",
+): FinanceDispatchSignal {
+  if (!governanceInput) return fallback;
+  return deriveDispatchFinanceSignalFromGovernance(governanceInput);
 }
 
 /** Observe-only — no writes to finance tables. */
