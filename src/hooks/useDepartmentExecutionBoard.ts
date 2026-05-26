@@ -26,10 +26,15 @@ import type { OperationalStoreEventRecord } from "@/lib/operational-events/opera
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { mapScanRow, type ScanRow } from "@/lib/barcode-execution/barcodeExecutionTypes";
+import {
+  EXECUTION_POLL_INTERVAL_MS,
+  EXECUTION_STALE_THRESHOLD_MS,
+  EXECUTION_UX_LABELS,
+} from "@/lib/execution-ux/executionUxConstants";
 
 const operationalDb = supabase as unknown as SupabaseClient;
 
-const POLL_MS = 45_000;
+const POLL_MS = EXECUTION_POLL_INTERVAL_MS;
 
 export function useDepartmentExecutionBoard(boardId: DepartmentBoardId) {
   const config = getDepartmentBoard(boardId);
@@ -43,8 +48,30 @@ export function useDepartmentExecutionBoard(boardId: DepartmentBoardId) {
   const [scans, setScans] = useState<OperationalScanRecord[]>([]);
   const [events, setEvents] = useState<OperationalStoreEventRecord[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [pinnedVersion, setPinnedVersion] = useState<number | null>(null);
+  const [lastLoadedAt, setLastLoadedAt] = useState<string | null>(null);
+  const [versionConflict, setVersionConflict] = useState(false);
+  const [lastScanResult, setLastScanResult] = useState<{
+    correlationId: string;
+    eventId?: string;
+    verificationStatus?: string;
+    mismatchReason?: string | null;
+  } | null>(null);
 
   const canWrite = canExecuteOnBoard(role, config.queueTypes);
+
+  const isStale =
+    lastLoadedAt !== null && Date.now() - new Date(lastLoadedAt).getTime() > EXECUTION_STALE_THRESHOLD_MS;
+
+  const setSelectedIdPinned = useCallback(
+    (id: string | null) => {
+      setSelectedId(id);
+      const item = id ? items.find((i) => i.id === id) : null;
+      setPinnedVersion(item?.version ?? null);
+      setVersionConflict(false);
+    },
+    [items],
+  );
 
   const executionContext = useMemo((): OperationalExecutionContext | null => {
     if (!user?.id || !role) return null;
@@ -62,6 +89,12 @@ export function useDepartmentExecutionBoard(boardId: DepartmentBoardId) {
   }, [items, config, scans]);
 
   const selectedItem = items.find((i) => i.id === selectedId) ?? null;
+
+  useEffect(() => {
+    if (selectedItem && pinnedVersion !== null && selectedItem.version !== pinnedVersion) {
+      setVersionConflict(true);
+    }
+  }, [selectedItem, pinnedVersion]);
 
   const drawerEvents = useMemo(() => {
     if (!selectedItem) return [];
@@ -122,6 +155,7 @@ export function useDepartmentExecutionBoard(boardId: DepartmentBoardId) {
           createdAt: row.created_at as string,
         })),
       );
+      setLastLoadedAt(new Date().toISOString());
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to load board");
     } finally {
@@ -146,15 +180,31 @@ export function useDepartmentExecutionBoard(boardId: DepartmentBoardId) {
         setError("You do not have authority to execute actions on this board");
         return null;
       }
+      if (isStale || versionConflict) {
+        setError(
+          versionConflict ? EXECUTION_UX_LABELS.versionConflict : EXECUTION_UX_LABELS.staleData,
+        );
+        return null;
+      }
       setError(null);
       try {
         const result = await fn(bundle.execution, {
           ...executionContext,
           correlationId: crypto.randomUUID(),
         });
+        if (result && typeof result === "object" && "item" in result) {
+          const written = (result as { item: { version: number } }).item;
+          setPinnedVersion(written.version);
+        }
+        setVersionConflict(false);
         await refresh();
         return result;
       } catch (e) {
+        if (e instanceof OperationalExecutionError && e.code === "stale_version") {
+          setVersionConflict(true);
+          setError(EXECUTION_UX_LABELS.versionConflict);
+          return null;
+        }
         const msg =
           e instanceof OperationalExecutionError
             ? `[${e.code}] ${e.message}`
@@ -165,7 +215,7 @@ export function useDepartmentExecutionBoard(boardId: DepartmentBoardId) {
         return null;
       }
     },
-    [bundle.execution, canWrite, executionContext, refresh],
+    [bundle.execution, canWrite, executionContext, refresh, isStale, versionConflict, items, selectedId],
   );
 
   const runScan = useCallback(
@@ -211,6 +261,12 @@ export function useDepartmentExecutionBoard(boardId: DepartmentBoardId) {
           result = await scanBundle.execution.verifyOrderBarcode(base, ctx);
         }
         await refresh();
+        setLastScanResult({
+          correlationId: ctx.correlationId,
+          eventId: result.eventId,
+          verificationStatus: result.verificationStatus,
+          mismatchReason: result.mismatchReason,
+        });
         return result;
       } catch (e) {
         setError(e instanceof Error ? e.message : "Scan failed");
@@ -253,7 +309,7 @@ export function useDepartmentExecutionBoard(boardId: DepartmentBoardId) {
     scans,
     events,
     selectedId,
-    setSelectedId,
+    setSelectedId: setSelectedIdPinned,
     selectedItem,
     drawerEvents,
     drawerScans,
@@ -263,5 +319,10 @@ export function useDepartmentExecutionBoard(boardId: DepartmentBoardId) {
     runScan,
     attachPhoto,
     execution: bundle.execution,
+    lastLoadedAt,
+    isStale,
+    versionConflict,
+    lastScanResult,
+    actionsDisabled: isStale || versionConflict,
   };
 }

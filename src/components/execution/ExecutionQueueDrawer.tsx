@@ -30,6 +30,9 @@ export function ExecutionQueueDrawer({
   scans,
   api,
   slaSeverity,
+  mobile,
+  actionsDisabled,
+  lastScanResult,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -39,12 +42,22 @@ export function ExecutionQueueDrawer({
   scans: OperationalScanRecord[];
   api: BoardApi;
   slaSeverity: string;
+  mobile?: boolean;
+  actionsDisabled?: boolean;
+  lastScanResult?: {
+    correlationId?: string;
+    eventId?: string;
+    verificationStatus?: string;
+    mismatchReason?: string | null;
+  } | null;
 }) {
   const photos = extractPhotosFromEvents(events);
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent className="w-full overflow-y-auto sm:max-w-lg">
+      <SheetContent
+        className={`flex w-full flex-col overflow-y-auto ${mobile ? "h-[100dvh] max-w-full sm:max-w-full" : "sm:max-w-lg"}`}
+      >
         <SheetHeader>
           <SheetTitle>{item?.title ?? "Queue item"}</SheetTitle>
           <SheetDescription className="flex flex-wrap gap-2">
@@ -87,7 +100,13 @@ export function ExecutionQueueDrawer({
               disabled={!api.canWrite}
               onAttach={(ref, cap) => void api.attachPhoto(item, ref, cap)}
             />
-            <ExecutionActionBar item={item} config={config} api={api} />
+            <ExecutionActionBar
+              item={item}
+              config={config}
+              api={api}
+              disabled={actionsDisabled ?? !api.canWrite}
+              lastScanResult={lastScanResult}
+            />
           </div>
         ) : null}
       </SheetContent>

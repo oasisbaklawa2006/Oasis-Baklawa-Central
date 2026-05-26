@@ -14,6 +14,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { OperationalReadOnlyBanner } from "@/components/admin/OperationalReadOnlyBanner";
+import { ExecutionInternalOnlyBanner } from "@/components/execution/ExecutionInternalOnlyBanner";
 import { useOperationalGlobalSearch } from "@/hooks/useOperationalGlobalSearch";
 import type { SearchIndexEntityType, SearchIndexSensitivity } from "@/lib/operational-search/searchIndexTypes";
 import { buildSearchBackfillDryRunPlan } from "@/lib/operational-search/searchBackfillPlan";
@@ -62,6 +63,7 @@ export default function OperationalGlobalSearch() {
           ...dryRun.validationWarnings.slice(0, 1),
         ]}
       />
+      <ExecutionInternalOnlyBanner />
 
       <Card>
         <CardHeader>
