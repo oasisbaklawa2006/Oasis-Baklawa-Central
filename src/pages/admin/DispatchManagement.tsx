@@ -11,6 +11,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Progress } from "@/components/ui/progress";
 import StagnancyBadge from "@/components/StagnancyBadge";
 import { DispatchReadinessBadge } from "@/components/admin/DispatchReadinessBadge";
+import { LegacyDispatchGovernanceBanner } from "@/components/admin/LegacyDispatchGovernanceBanner";
 import type { DispatchReadinessInput } from "@/lib/dispatch-readiness";
 
 interface DispatchOrder {
@@ -264,6 +265,8 @@ export default function DispatchManagement() {
         <h1 className="text-xl font-bold text-foreground">Dispatch Handheld</h1>
         <Badge variant="outline">{orders.length} Active Orders</Badge>
       </div>
+
+      <LegacyDispatchGovernanceBanner pageLabel="Dispatch Handheld" />
 
       <Tabs defaultValue="dashboard" className="w-full min-w-0">
         <TabsList className="grid h-auto w-full min-h-11 grid-cols-2 gap-1 p-1">

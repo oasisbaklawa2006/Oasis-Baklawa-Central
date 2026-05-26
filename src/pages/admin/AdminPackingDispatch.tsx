@@ -1,4 +1,5 @@
 import { useEffect, useState, useMemo } from "react";
+import { Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Loader2, ArrowRight, Truck, PackageCheck, AlertTriangle, CheckCircle2, TrendingDown, TrendingUp, Minus, RefreshCw } from "lucide-react";
@@ -8,7 +9,11 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useLanguage } from "@/hooks/useLanguage";
-import { notifyOrderDispatched } from "@/utils/notifyEvent";
+import { LegacyDispatchGovernanceBanner } from "@/components/admin/LegacyDispatchGovernanceBanner";
+import {
+  DISPATCH_FINALIZATION_ROUTE,
+  blockLegacyDispatchStatusMutation,
+} from "@/lib/dispatch-finalization/legacyDispatchGuard";
 import { getPackedReadyBlockers } from "@/utils/packedReadyGate";
 import {
   canReleaseOrderToDispatch,
@@ -61,7 +66,7 @@ const AdminPackingDispatch = () => {
   const [modalLoading, setModalLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
-  const [partialDispatch, setPartialDispatch] = useState(false);
+  const [partialDispatch, setPartialDispatch] = useState(true);
   const [transporterName, setTransporterName] = useState("");
   const [trackingNumber, setTrackingNumber] = useState("");
   const [driverName, setDriverName] = useState("");
@@ -255,6 +260,21 @@ const AdminPackingDispatch = () => {
     if (!tp) { toast.error("Transporter name is required"); return; }
     if (!lr) { toast.error("LR / Bilty / AWB number is required"); return; }
     if (!dispatchProofFile) { toast.error("Dispatch proof file is required"); return; }
+
+    if (!partialDispatch) {
+      const block = blockLegacyDispatchStatusMutation("AdminPackingDispatch.handleSubmitDispatch");
+      toast.error(block.message, {
+        description: "Use governed dispatch finalization for full order closure.",
+        action: {
+          label: "Open finalization",
+          onClick: () => {
+            window.location.assign(DISPATCH_FINALIZATION_ROUTE);
+          },
+        },
+      });
+      return;
+    }
+
     setSubmitting(true);
 
     try {
@@ -294,23 +314,9 @@ const AdminPackingDispatch = () => {
         }).eq("id", item.id);
       }
 
-      // 4. Full shipment only: close order + notify (after proof persisted on dispatches)
-      if (!partialDispatch) {
-        await supabase.from("orders").update({
-          status: "dispatched",
-          sales_order_value: finalInvoiceTotal,
-          tracking_number: lr,
-        }).eq("id", selectedOrder.id);
-        await supabase.from("order_status_history").insert({
-          order_id: selectedOrder.id, old_status: "cleared_for_dispatch", new_status: "dispatched",
-        });
-        notifyOrderDispatched(selectedOrder.id, selectedOrder.id.slice(0, 8).toUpperCase(), {
-          transporter: tp,
-          lr,
-        }).catch(() => {});
-      }
+      // Partial leg only — orders.status → dispatched is governed via Phase 4E (never here).
 
-      // 5. Wallet reconciliation if variance exists
+      // 4. Wallet reconciliation if variance exists
       if (Math.abs(varianceAmount) > 0.01 && selectedOrder.company_id) {
         // Get current wallet balance
         const { data: company } = await supabase
@@ -384,6 +390,8 @@ const AdminPackingDispatch = () => {
   return (
     <div className="mx-auto max-w-5xl min-w-0 space-y-6 px-2 sm:px-0">
       <h1 className="text-display-h2 text-foreground">{t("Packing & Dispatch")}</h1>
+
+      <LegacyDispatchGovernanceBanner pageLabel="Packing & Dispatch" />
 
       {loadError ? (
         <div
@@ -661,14 +669,24 @@ const AdminPackingDispatch = () => {
                   <div className="rounded-xl border border-amber-200/80 bg-amber-50/50 p-3 text-sm text-amber-950">
                     <p className="font-semibold">Operational check</p>
                     <p className="mt-1 text-xs leading-relaxed text-amber-900/90">
-                      Partial dispatch and weight edits can change invoicing and wallet reconciliation. Confirm transport details and proof before submitting.
+                      This dialog records <strong>partial dispatch legs</strong> only. Full order closure (
+                      <code className="text-[10px]">orders.status → dispatched</code>) requires{" "}
+                      <Link to={DISPATCH_FINALIZATION_ROUTE} className="font-semibold text-primary underline">
+                        governed dispatch finalization
+                      </Link>
+                      .
                     </p>
                   </div>
 
                   <div className="flex items-center gap-3 rounded-xl border border-border bg-muted/50 p-3">
                     <label className="flex cursor-pointer items-center gap-2 text-ui-label text-foreground">
-                      <input type="checkbox" checked={partialDispatch} onChange={e => setPartialDispatch(e.target.checked)} className="h-4 w-4 rounded border-border" />
-                      {t("Partial Dispatch")}
+                      <input
+                        type="checkbox"
+                        checked={partialDispatch}
+                        onChange={(e) => setPartialDispatch(e.target.checked)}
+                        className="h-4 w-4 rounded border-border"
+                      />
+                      Partial dispatch leg (required — full closure is governed elsewhere)
                     </label>
                   </div>
                   <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -786,15 +804,27 @@ const AdminPackingDispatch = () => {
                   </div>
                   <DialogFooter className="shrink-0 flex-col gap-2 border-t border-border bg-muted/20 px-6 py-4 sm:flex-row sm:justify-end sm:gap-3 sm:space-x-0">
                     <p className="w-full text-center text-[10px] font-semibold uppercase tracking-wide text-muted-foreground sm:text-left">
-                      Irreversible once submitted — verify proof and weights
+                      Partial leg only — verify proof and weights
                     </p>
                     <Button
                       type="button"
+                      variant="outline"
+                      className="min-h-12 w-full touch-manipulation sm:w-auto"
+                      asChild
+                    >
+                      <Link to={DISPATCH_FINALIZATION_ROUTE}>Governed finalization</Link>
+                    </Button>
+                    <Button
+                      type="button"
                       className="min-h-12 w-full touch-manipulation sm:w-auto sm:min-w-[12rem]"
-                      disabled={submitting}
+                      disabled={submitting || !partialDispatch}
                       onClick={() => void handleSubmitDispatch()}
                     >
-                      {submitting ? <Loader2 size={16} className="animate-spin" aria-hidden /> : "Confirm & Dispatch"}
+                      {submitting ? (
+                        <Loader2 size={16} className="animate-spin" aria-hidden />
+                      ) : (
+                        "Record partial leg"
+                      )}
                     </Button>
                   </DialogFooter>
                 </>

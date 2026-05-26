@@ -12,3 +12,4 @@ export * from "./inMemoryDispatchFinalizationStore";
 export * from "./supabaseDispatchFinalizationStore";
 export * from "./dispatchFinalizationService";
 export * from "./createDispatchFinalizationBundle";
+export * from "./legacyDispatchGuard";
