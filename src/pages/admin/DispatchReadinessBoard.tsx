@@ -195,6 +195,12 @@ export default function DispatchReadinessBoard() {
         <Link to="/admin/dispatch-mgmt" className="text-xs text-primary underline-offset-2 hover:underline">
           Dispatch operations
         </Link>
+        <Link
+          to="/admin/dispatch-completion"
+          className="text-xs text-primary underline-offset-2 hover:underline"
+        >
+          Completion governance (4D)
+        </Link>
       </header>
 
       <Card className="border-amber-500/30 bg-amber-500/5">
