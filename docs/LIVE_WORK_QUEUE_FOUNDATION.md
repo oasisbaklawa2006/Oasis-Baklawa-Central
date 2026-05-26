@@ -56,6 +56,12 @@ Hook: `useOperationalLiveFeeds` (Supabase **select only** in hook — adapters s
 
 `/admin/entity-graph-explorer` — order/customer/finance/dispatch/production nodes from same feed context.
 
+## Persistent foundation (Phase 3A/3D)
+
+- Migration: `20260525230000_execution_os_phase3a3d_foundation.sql`
+- Write path: `createPersistentQueueRepository` + `createSupabaseOperationalEventRepository`
+- See `docs/EXECUTION_OS_PHASE3A3D_PERSISTENCE_FOUNDATION.md`
+
 ## Safety
 
-No queue claim, reassignment, auto-escalation, or notification sends.
+No queue claim UI, reassignment UI, auto-escalation, or notification sends in admin shells (repository API exists for gated future PRs).

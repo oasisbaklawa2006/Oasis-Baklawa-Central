@@ -21,7 +21,8 @@ This document lists **cross-cutting** operational launch risks. Module-specific 
 | No movement ledger persistence | Inventory OS is architecture-only | Feeds and admin boards stay projection-only; no silent writes in new libs |
 | No scan event store | Anomaly math exists without authoritative timeline | CMD shows **pending** for scan anomaly count until a bounded feed is wired |
 | No customer timeline data binding | Timeline is illustrative | Staff-only `CustomerOrderTimeline` preview route |
-| No persisted work queue / entity graph store | Queues and graph are projection-only | `src/lib/entity-graph`, `src/lib/work-queues`, admin shells; CMD queue pressure from War Room counts only |
+| Work queue persistence not wired to UI | Schema + repos landed in Phase 3A/3D PR; admin still read-only | `operational_queue_items`, `operational_events`, `persistent-queues` — no board write buttons yet |
+| Entity graph still projection-only | Explorer read-only | `entity-graph` + live feeds |
 | No unified operational search index | Search is contract-only over in-memory hits | `searchFeedAdapter.ts` documents future index; no indexing job |
 | Live feeds are bounded War Room window | Queue/graph show latest ~200 orders only | Documented in UI; not global backlog totals |
 | Scan / reservation queue pressure | Still null until scan store + reservation API | CMD + live queues show **pending** |
