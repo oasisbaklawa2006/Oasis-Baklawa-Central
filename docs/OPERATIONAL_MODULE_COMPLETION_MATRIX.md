@@ -1,6 +1,6 @@
 # Operational module completion matrix
 
-Last updated: 2026-05-24
+Last updated: 2026-05-25
 
 | Module | Current status | Pilot ready? | Blocking gap | Backend required? | Risk | Next PR |
 |--------|----------------|--------------|--------------|---------------------|------|---------|
@@ -22,8 +22,8 @@ Last updated: 2026-05-24
 | Notification center | Partial | No | Unified outbox | Yes | Missed alerts | future |
 | AI order intake | Not in this block | No | Guardrails | Yes | Bad orders | future |
 | CMD war room | Orders + WA + inventory head + execution strip + inventory links + **queue pressure projection** | Partial | Live scan + reservation counts + persisted queue items | Yes for true coverage | False sense of coverage | `cmd-retail-signals` (TBD) |
-| Unified entity graph | Canonical entities + relationships + ownership + escalation + explorer | Partial | Bind to live order/reservation/dispatch rows | Yes | Fragmented ops view | `entity-graph-bind` (TBD) |
-| Live work queues | Queue types + priority + dependency + admin shell + CMD pressure | Partial | Persisted queue items + claim workflow (gated) | Yes | False queue totals | `work-queue-persist` (TBD) |
+| Unified entity graph | Canonical graph + **live order-derived explorer** + module guard | Partial | Full entity persistence + cross-module bind | Yes | Incomplete graph | `entity-graph-bind` (TBD) |
+| Live work queues | Queue types + **live read-only feeds** + filters + drawers + CMD pressure | Partial | Persisted queue items + claim workflow (gated) | Yes | Bounded window misread as global | `work-queue-persist` (TBD) |
 | Operational search | Contracts + aliases + grouping | Partial | Search index / DB read model | Yes | Slow operator lookup | `operational-search-index` (TBD) |
 | Customer-safe projections | Suppression rules + timeline filter + projection API | Partial | Bind to order milestones | Yes for public | Over-sharing internals | `customer-timeline-bind` (TBD) |
 

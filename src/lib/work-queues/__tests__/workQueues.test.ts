@@ -50,6 +50,20 @@ describe("work queues", () => {
     expect(finance?.pressureCount).toBeNull();
   });
 
+  it("never derives pressureCount from item count without explicit pressureByQueue", () => {
+    const snapshots = projectWorkQueues({
+      itemsByQueue: {
+        finance_review_queue: [
+          { id: "a", queueId: "finance_review_queue", title: "A", entityId: "o1" },
+          { id: "b", queueId: "finance_review_queue", title: "B", entityId: "o2" },
+        ],
+      },
+    });
+    const finance = snapshots.find((s) => s.queueId === "finance_review_queue");
+    expect(finance?.items).toHaveLength(2);
+    expect(finance?.pressureCount).toBeNull();
+  });
+
   it("interprets readiness semantics", () => {
     const item = buildQueueItem({
       id: "x",

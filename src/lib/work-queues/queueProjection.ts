@@ -79,7 +79,8 @@ export function projectWorkQueues(input: WorkQueueProjectionInput = {}): WorkQue
   return WORK_QUEUE_IDS.map((queueId) => {
     const rawItems = input.itemsByQueue?.[queueId] ?? [];
     const items = sortQueueItems(rawItems.map(buildQueueItem));
-    const pressure = input.pressureByQueue?.[queueId] ?? (items.length > 0 ? items.length : null);
+    const explicitPressure = input.pressureByQueue?.[queueId];
+    const pressure = explicitPressure === undefined ? null : explicitPressure;
     return {
       queueId,
       label: WORK_QUEUE_LABELS[queueId],

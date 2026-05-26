@@ -20,7 +20,8 @@ import { evaluateLaneStates, type ExecutionSatisfaction } from "@/lib/execution-
 import { summarizeExecutionRisk } from "@/lib/execution-engine/executionRiskEngine";
 import { deriveExecutionEscalations } from "@/lib/execution-engine/executionEscalations";
 import { deriveInventoryVarianceEscalations } from "@/lib/inventory-operating-system/inventoryRiskDerive";
-import { projectCmdQueuePressure } from "@/lib/work-queues/cmdQueuePressure";
+import { aggregateLiveFeeds } from "@/lib/live-feeds/aggregateLiveFeeds";
+import { mapOrdersToFeedContext } from "@/lib/live-feeds/mapOrdersToFeedContext";
 
 interface OrderItem {
   id?: string;
@@ -488,17 +489,20 @@ const CMDWarRoom = () => {
     };
   }, [warCommSignals.financePressure]);
 
-  const cmdQueuePressure = useMemo(
+  const operationalLiveFeeds = useMemo(
     () =>
-      projectCmdQueuePressure({
-        financeHoldCount: warCommSignals.financePressure,
-        dispatchPanicCount: warCommSignals.dispatchPanic,
-        triageReviewCount: counts.review,
-        scanAnomalyCount: null,
-        reservationRiskCount: null,
-      }),
-    [warCommSignals.financePressure, warCommSignals.dispatchPanic, counts.review],
+      aggregateLiveFeeds(
+        mapOrdersToFeedContext(orders, {
+          factoryInventoryCount: factoryInvPulse.error ? null : factoryInvPulse.count,
+          factoryInventoryError: factoryInvPulse.error,
+          scanAnomalyCount: null,
+          reservationRiskCount: null,
+        }),
+      ),
+    [orders, factoryInvPulse.count, factoryInvPulse.error],
   );
+
+  const cmdQueuePressure = operationalLiveFeeds.cmdPressure;
 
   return (
     <div className="p-3 sm:p-4 space-y-4 bg-background max-w-full overflow-x-hidden">
@@ -528,6 +532,8 @@ const CMDWarRoom = () => {
         escalationHotspotQueue={cmdQueuePressure.escalationHotspotQueue}
         reservationVerificationLoad={cmdQueuePressure.reservationVerificationLoad}
         scanExceptionPressure={cmdQueuePressure.scanExceptionPressure}
+        feedFreshnessWarnings={cmdQueuePressure.freshnessWarnings}
+        feedFreshness={cmdQueuePressure.feedFreshness}
       />
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h1 className="text-base sm:text-xl font-bold text-foreground tracking-tight">

@@ -47,6 +47,8 @@ export interface CmdOperationalCommPulseProps {
   escalationHotspotQueue?: WorkQueueId | null;
   reservationVerificationLoad?: number | null;
   scanExceptionPressure?: number | null;
+  feedFreshnessWarnings?: string[];
+  feedFreshness?: "live" | "partial" | "unavailable";
 }
 
 /**
@@ -78,6 +80,8 @@ export function CmdOperationalCommPulse({
   escalationHotspotQueue = null,
   reservationVerificationLoad = null,
   scanExceptionPressure = null,
+  feedFreshnessWarnings = [],
+  feedFreshness = "live",
 }: CmdOperationalCommPulseProps) {
   const fmtWa = (n: number | null) =>
     n === null ? <span className="text-muted-foreground">—</span> : n;
@@ -235,8 +239,16 @@ export function CmdOperationalCommPulse({
           Queue pressure (projection)
         </div>
         <p className="mt-1 text-[10px] leading-snug text-muted-foreground">
-          Unified blocker lane and queue hotspots. Not a persisted queue — counts from explicit War Room inputs only.
+          Unified blocker lane and queue hotspots via shared live-feed adapters. Feed freshness:{" "}
+          <span className="font-medium text-foreground/90">{feedFreshness}</span>
         </p>
+        {feedFreshnessWarnings.length > 0 ? (
+          <ul className="mt-1 list-inside list-disc text-[10px] text-amber-800 dark:text-amber-200">
+            {feedFreshnessWarnings.slice(0, 4).map((w) => (
+              <li key={w}>{w}</li>
+            ))}
+          </ul>
+        ) : null}
         <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-4">
           <div className="rounded-md border border-border bg-background/80 px-2 py-2 col-span-2 sm:col-span-4">
             <div className="text-[9px] font-medium uppercase tracking-wide text-muted-foreground">Unified root blocker</div>

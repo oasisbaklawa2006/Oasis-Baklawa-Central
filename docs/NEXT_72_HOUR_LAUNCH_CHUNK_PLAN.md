@@ -14,6 +14,7 @@ Purpose: map remaining launch work into **module-by-module closures** so each ch
 - order trace stitched timeline
 - CMD communication pulse (+ read-only **factory_inventory** row count + **retail/label pilot pending strip** — no fake counts)
 - **Unified operational entity graph** + **live work queue foundation** (projection libs, dependency engine, search contracts, customer-safe rules, admin shells, CMD queue pressure strip)
+- **Read-only live feeds connected** — `src/lib/live-feeds/`, live work queues UI, entity graph explorer, CMD pulse via shared adapters (still no writes/automation)
 - **Retail store coordination** (B1 + B2 + inventory snapshot + **local reservation/factory drafts** + **retail launch timelines** + merged operational projections)
 
 ---

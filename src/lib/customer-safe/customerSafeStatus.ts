@@ -25,10 +25,15 @@ export const CUSTOMER_SAFE_STATUS_CATALOG: CustomerSafeStatus[] = [
   { code: "support_window", label: "Support window", description: "Post-delivery support is available.", active: false, completed: false },
 ];
 
+/** Explicit whitelist — only these visibility classes may reach customer_safe (no operational/internal). */
+export const CUSTOMER_SAFE_WHITELISTED_VISIBILITY = new Set(["public_curated"]);
+
 const SUPPRESSED_INTERNAL_LABELS = [
   "finance hold",
+  "finance",
   "governance",
   "panic",
+  "urgent",
   "escalation",
   "dispute",
   "waste",
@@ -36,6 +41,19 @@ const SUPPRESSED_INTERNAL_LABELS = [
   "shadow",
   "cmd",
   "blocked lane",
+  "blocker",
+  "owner",
+  "department",
+  "hod",
+  "manager",
+  "incharge",
+  "accountability",
+  "hold",
+  "verification pending",
+  "internal",
+  "staff",
+  "war room",
+  "triage",
 ];
 
 export function isSuppressedInternalLabel(text: string): boolean {

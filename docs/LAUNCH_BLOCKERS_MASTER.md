@@ -1,6 +1,6 @@
 # Launch blockers — master tracker
 
-Last updated: 2026-05-24
+Last updated: 2026-05-25
 
 This document lists **cross-cutting** operational launch risks. Module-specific gaps live in `docs/OPERATIONAL_MODULE_COMPLETION_MATRIX.md`.
 
@@ -22,7 +22,9 @@ This document lists **cross-cutting** operational launch risks. Module-specific 
 | No scan event store | Anomaly math exists without authoritative timeline | CMD shows **pending** for scan anomaly count until a bounded feed is wired |
 | No customer timeline data binding | Timeline is illustrative | Staff-only `CustomerOrderTimeline` preview route |
 | No persisted work queue / entity graph store | Queues and graph are projection-only | `src/lib/entity-graph`, `src/lib/work-queues`, admin shells; CMD queue pressure from War Room counts only |
-| No unified operational search index | Search is contract-only over in-memory hits | `src/lib/operational-search` + entity graph explorer |
+| No unified operational search index | Search is contract-only over in-memory hits | `searchFeedAdapter.ts` documents future index; no indexing job |
+| Live feeds are bounded War Room window | Queue/graph show latest ~200 orders only | Documented in UI; not global backlog totals |
+| Scan / reservation queue pressure | Still null until scan store + reservation API | CMD + live queues show **pending** |
 
 ## Near-term unblockers (typical sequence)
 

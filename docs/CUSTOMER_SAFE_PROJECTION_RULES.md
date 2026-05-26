@@ -1,6 +1,6 @@
 # Customer-safe projection rules
 
-Last updated: 2026-05-24
+Last updated: 2026-05-25
 
 ## Purpose
 
@@ -24,8 +24,15 @@ Uses `operational-timeline` visibility rules with `customer_safe` audience — o
 ## Components
 
 - `customerSafeStatus.ts` — status catalog + suppression helpers
-- `customerSafeTimeline.ts` — filtered timeline steps
+- `customerSafeTimeline.ts` — **public_curated only** (operational/internal classes rejected)
 - `customerProjection.ts` — order-level safe bundle
+- `customerTimelineProjection.ts` — curated 10-step customer journey (Order Placed → support window)
+
+## Hardened rules (2026-05-25)
+
+- Only `public_curated` visibility passes customer_safe filter (whitelist).
+- Operational, finance_internal, governance_internal, escalation_internal are dropped.
+- Expanded suppressed vocabulary (owner, department, staff, hod, manager, …).
 
 ## Public exposure
 
