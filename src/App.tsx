@@ -98,6 +98,7 @@ const FinanceReleaseBoard = lazy(() => import("./pages/admin/FinanceReleaseBoard
 const StoreCoordination = lazy(() => import("./pages/admin/StoreCoordination.tsx"));
 const LabelCommandCenter = lazy(() => import("./pages/admin/LabelCommandCenter.tsx"));
 const CustomerTimelinePreview = lazy(() => import("./pages/admin/CustomerTimelinePreview.tsx"));
+const OperationalGlobalSearch = lazy(() => import("./pages/admin/OperationalGlobalSearch.tsx"));
 const InventoryCommandCenter = lazy(() => import("./pages/admin/InventoryCommandCenter.tsx"));
 const CartonExplorer = lazy(() => import("./pages/admin/CartonExplorer.tsx"));
 const ReservationBoard = lazy(() => import("./pages/admin/ReservationBoard.tsx"));
@@ -345,6 +346,14 @@ const App = () => (
                       element={
                         <AdminModuleRoute moduleKey="cmd_war_room">
                           <CustomerTimelinePreview />
+                        </AdminModuleRoute>
+                      }
+                    />
+                    <Route
+                      path="operational-search"
+                      element={
+                        <AdminModuleRoute moduleKey="cmd_war_room">
+                          <OperationalGlobalSearch />
                         </AdminModuleRoute>
                       }
                     />
