@@ -1,7 +1,10 @@
 import type { QueueItemRow } from "./queueRowMapper";
 import type { QueueStoreAdapter } from "./persistentQueueRepository";
 
-export function createInMemoryQueueStore(): QueueStoreAdapter & { _reset: () => void } {
+export function createInMemoryQueueStore(): QueueStoreAdapter & {
+  _reset: () => void;
+  listRows(): Promise<QueueItemRow[]>;
+} {
   const items = new Map<string, QueueItemRow>();
   const assignments: { id: string; queue_item_id: string }[] = [];
 
@@ -62,6 +65,10 @@ export function createInMemoryQueueStore(): QueueStoreAdapter & { _reset: () => 
       const id = crypto.randomUUID();
       assignments.push({ id, queue_item_id: row.queue_item_id });
       return { id };
+    },
+
+    async listRows() {
+      return [...items.values()];
     },
 
     _reset() {
