@@ -202,6 +202,12 @@ export default function DispatchCompletionBoard() {
         <Link to="/admin/finance-governance" className="text-xs text-primary underline-offset-2 hover:underline">
           Finance governance (4C)
         </Link>
+        <Link
+          to="/admin/dispatch-finalization"
+          className="text-xs text-primary underline-offset-2 hover:underline"
+        >
+          Finalization (4E)
+        </Link>
       </header>
 
       <Card className="border-amber-500/30 bg-amber-500/5">

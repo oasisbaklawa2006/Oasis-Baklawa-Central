@@ -236,6 +236,7 @@ Single commit acceptable for small phases; grouped commits preferred for review.
 | 4B | Dispatch readiness + gate eligibility | Yes | Readiness board only |
 | 4C | Finance governance + commercial release | Yes | Finance board only |
 | 4D | Dispatch completion governance (attestation) | Yes | Completion board — no order.status write |
+| 4E | Governed dispatch finalization + status mutation | Yes | Finalize via repository only |
 
 ---
 
