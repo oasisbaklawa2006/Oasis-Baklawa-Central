@@ -33,6 +33,7 @@ export function projectStockFinalization(input: StockFinalizationInput): StockFi
     canFinalizeConsumption:
       eligibility.eligible &&
       reconciliation.reconciliationStatus !== "blocked" &&
+      reconciliation.reconciliationStatus !== "variance" &&
       reconciliation.lineItems.length > 0,
     evaluatedAt: new Date().toISOString(),
   };

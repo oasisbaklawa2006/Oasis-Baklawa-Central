@@ -30,4 +30,13 @@ describe("stockReservationReconciliation", () => {
     ]);
     expect(result.blockers.length).toBeGreaterThan(0);
   });
+
+  it("marks variance when unresolved reservation qty remains", () => {
+    const result = reconcileReservationsForConsumption([
+      res({ id: "r1", requestedQty: 10, reservedQty: 5 }),
+    ]);
+    expect(result.reconciliationStatus).toBe("variance");
+    expect(result.varianceQty).toBe(5);
+    expect(result.blockers).toContain("reservation_reconciliation_variance");
+  });
 });

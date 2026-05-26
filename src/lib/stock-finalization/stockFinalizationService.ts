@@ -86,6 +86,13 @@ export function createStockFinalizationService(deps: StockFinalizationServiceDep
         input.reservations,
         input.alreadyFinalizedReservationIds ?? [],
       );
+      if (reconciliation.reconciliationStatus === "variance") {
+        throw new StockFinalizationError(
+          "reconciliation_blocked",
+          `Reservation reconciliation variance (${reconciliation.varianceQty} unresolved qty); resolve before finalizing consumption`,
+        );
+      }
+
       if (reconciliation.blockers.length > 0) {
         throw new StockFinalizationError(
           "reconciliation_blocked",

@@ -72,6 +72,8 @@
 
 **Pass:** `blockers` for pending; `consumed_qty` sums only consumable lines; no silent qty patch.
 
+**Pass (variance hard-block):** Unresolved reservation qty → `reconciliation_status = variance` → finalize rejected with `reconciliation_blocked`; no balance/movement/lineage writes.
+
 ---
 
 ## 7. Reversal compensating event

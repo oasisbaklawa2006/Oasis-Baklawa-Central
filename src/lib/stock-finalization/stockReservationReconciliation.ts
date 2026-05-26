@@ -42,6 +42,7 @@ export function reconcileReservationsForConsumption(
     if (unresolved > 0.0001) {
       unresolvedReservationQty += unresolved;
       warnings.push(`reservation_${r.id}_unresolved_qty_${unresolved}`);
+      blockers.push(`reservation_${r.id}_unresolved_qty_${unresolved}`);
     }
 
     if (r.releasedQty > 0 && consumableQty === 0) {
@@ -67,8 +68,12 @@ export function reconcileReservationsForConsumption(
   const varianceQty = Math.max(0, unresolvedReservationQty);
 
   let reconciliationStatus: ReconciliationStatus = "aligned";
-  if (blockers.length > 0) reconciliationStatus = "blocked";
-  else if (varianceQty > 0) reconciliationStatus = "variance";
+  if (varianceQty > 0.0001) {
+    reconciliationStatus = "variance";
+    if (!blockers.includes("reservation_reconciliation_variance")) {
+      blockers.push("reservation_reconciliation_variance");
+    }
+  } else if (blockers.length > 0) reconciliationStatus = "blocked";
   else if (lineItems.length === 0) reconciliationStatus = "blocked";
   else if (warnings.length > 0) reconciliationStatus = "partial";
 

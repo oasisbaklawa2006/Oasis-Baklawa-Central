@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { projectStockFinalization } from "../stockFinalizationProjection";
 import { createStockFinalizationService } from "../stockFinalizationService";
 import {
   createInMemoryStockBalanceRepository,
@@ -45,32 +46,109 @@ const ctx = {
   finalizeReason: "Post-dispatch consumption",
 };
 
-function service() {
-  return createStockFinalizationService({
-    balances: createInMemoryStockBalanceRepository([
-      {
-        id: "bal-1",
-        productId,
-        sku: "BAK-601",
-        locationCode: "WH-MAIN",
-        availableQty: 20,
-        reservedQty: 5,
-        damagedQty: 0,
-        expiredQty: 0,
-        quarantineQty: 0,
-        version: 1,
-        updatedAt: new Date().toISOString(),
-      },
-    ]),
-    movements: createInMemoryStockMovementRepository(),
-    lineage: createInMemoryStockLineageRepository(),
-    events: createInMemoryStockFinalizationEventSink(),
-  });
+function service(initialBalanceVersion = 1) {
+  const balances = createInMemoryStockBalanceRepository([
+    {
+      id: "bal-1",
+      productId,
+      sku: "BAK-601",
+      locationCode: "WH-MAIN",
+      availableQty: 20,
+      reservedQty: 5,
+      damagedQty: 0,
+      expiredQty: 0,
+      quarantineQty: 0,
+      version: initialBalanceVersion,
+      updatedAt: new Date().toISOString(),
+    },
+  ]);
+  return {
+    svc: createStockFinalizationService({
+      balances,
+      movements: createInMemoryStockMovementRepository(),
+      lineage: createInMemoryStockLineageRepository(),
+      events: createInMemoryStockFinalizationEventSink(),
+    }),
+    balances,
+  };
 }
 
+const varianceReservation: StockReservationRecord = {
+  ...reservation,
+  requestedQty: 10,
+  reservedQty: 5,
+};
+
+const varianceInput: StockFinalizationInput = {
+  ...finalizedInput,
+  reservations: [varianceReservation],
+};
+
+const finalizeParams = {
+  orderId,
+  scanReference: "PACK-SCAN-601",
+  gateReference: "GATE-601",
+  dispatchLineageId: "drl-601",
+  items: [
+    {
+      reservationId,
+      productId,
+      sku: "BAK-601",
+      locationCode: "WH-MAIN",
+      consumeQty: 5,
+      expectedBalanceVersion: 1,
+    },
+  ],
+};
+
 describe("stockFinalizationService", () => {
+  it("blocks finalize when reconciliation_status is variance without writes", async () => {
+    const { svc, balances } = service();
+    await expect(svc.finalizeConsumption(varianceInput, finalizeParams, ctx)).rejects.toMatchObject({
+      code: "reconciliation_blocked",
+    });
+
+    const bal = await balances.getBalance(productId, "BAK-601", "WH-MAIN");
+    expect(bal?.version).toBe(1);
+    expect(bal?.availableQty).toBe(20);
+
+    const lineage = await svc.listLineage(orderId);
+    expect(lineage).toHaveLength(0);
+
+    const movements = await svc.listMovements(orderId);
+    expect(movements).toHaveLength(0);
+
+    const evts = await svc.listEvents(orderId);
+    expect(evts.some((e) => e.eventType === "stock_consumption_finalized")).toBe(false);
+  });
+
+  it("allows finalize when reconciliation_status is aligned", async () => {
+    const { svc } = service();
+    const projection = projectStockFinalization(finalizedInput);
+    expect(projection.reconciliationStatus).toBe("aligned");
+    expect(projection.canFinalizeConsumption).toBe(true);
+
+    const result = await svc.finalizeConsumption(finalizedInput, finalizeParams, ctx);
+    expect(result.finalizedReservationIds).toContain(reservationId);
+  });
+
+  it("records variance without stock mutation via recordVariance", async () => {
+    const { svc, balances } = service();
+    await svc.recordVariance(orderId, 5, {
+      ...ctx,
+      varianceReason: "Unresolved reservation qty on order 601",
+    });
+
+    const bal = await balances.getBalance(productId, "BAK-601", "WH-MAIN");
+    expect(bal?.version).toBe(1);
+
+    const evts = await svc.listEvents(orderId);
+    expect(evts.some((e) => e.eventType === "stock_variance_recorded")).toBe(true);
+    expect(evts.some((e) => e.eventType === "stock_consumption_finalized")).toBe(false);
+  });
+
   it("denies finalize before dispatch_finalized", async () => {
-    const svc = service();
+    const { svc } = service();
     await expect(
       svc.finalizeConsumption(
         { ...finalizedInput, dispatchReleaseStatus: "dispatch_release_ready", orderStatus: "packed_ready" },
@@ -96,7 +174,7 @@ describe("stockFinalizationService", () => {
   });
 
   it("finalizes consumption with ledger and lineage", async () => {
-    const svc = service();
+    const { svc } = service();
     const result = await svc.finalizeConsumption(
       finalizedInput,
       {
@@ -126,7 +204,7 @@ describe("stockFinalizationService", () => {
   });
 
   it("rejects stale balance version", async () => {
-    const svc = service();
+    const { svc } = service();
     await expect(
       svc.finalizeConsumption(
         finalizedInput,
@@ -152,7 +230,7 @@ describe("stockFinalizationService", () => {
   });
 
   it("reversal requires typed reason", async () => {
-    const svc = service();
+    const { svc } = service();
     await svc.finalizeConsumption(
       finalizedInput,
       {
@@ -179,7 +257,7 @@ describe("stockFinalizationService", () => {
   });
 
   it("denies finance role", async () => {
-    const svc = service();
+    const { svc } = service();
     await expect(
       svc.finalizeConsumption(
         finalizedInput,
