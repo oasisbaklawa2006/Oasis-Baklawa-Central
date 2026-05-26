@@ -1,6 +1,7 @@
 import type { ExecutionBoardCardModel } from "@/lib/execution-boards/executionBoardProjection";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ExecutionRiskBadge } from "./ExecutionRiskBadge";
+import { ExecutionReservationBadge } from "./ExecutionReservationBadge";
 import { ExecutionScanStatus } from "./ExecutionScanStatus";
 import { ExecutionSlaBadge } from "./ExecutionSlaBadge";
 
@@ -37,6 +38,7 @@ export function ExecutionQueueCard({
         ) : null}
         <ExecutionScanStatus status={model.latestScanStatus} issue={model.scanIssue} />
         <ExecutionRiskBadge internal={model.customerRiskInternal} />
+        <ExecutionReservationBadge indicator={model.reservationIndicator} />
       </CardContent>
     </Card>
   );

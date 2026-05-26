@@ -4,6 +4,11 @@ import type { MappedQueueItem } from "@/lib/persistent-queues/queueRowMapper";
 import type { OperationalScanRecord } from "@/lib/barcode-execution/barcodeExecutionTypes";
 import type { OperationalStoreEventRecord } from "@/lib/operational-events/operationalEventTypes";
 import type { DepartmentBoardConfig } from "./departmentBoardConfig";
+import {
+  projectBoardReservationIndicator,
+  type BoardReservationIndicator,
+} from "@/lib/inventory-reservations/reservationProjection";
+import type { InventoryReservationRecord } from "@/lib/inventory-reservations/reservationTypes";
 
 export type ExecutionBoardLane =
   | "queue"
@@ -22,6 +27,7 @@ export interface ExecutionBoardCardModel {
   latestScanStatus: string | null;
   scanIssue: boolean;
   dependencyRisk: boolean;
+  reservationIndicator: BoardReservationIndicator;
 }
 
 export interface ExecutionBoardLanes {
@@ -65,7 +71,13 @@ export function projectExecutionBoardLanes(
   config: DepartmentBoardConfig,
   nowIso: string,
   scans: OperationalScanRecord[],
+  reservations: InventoryReservationRecord[] = [],
 ): ExecutionBoardLanes {
+  const showReservation =
+    config.id === "ready-goods" ||
+    config.id === "dispatch" ||
+    config.id === "retail" ||
+    config.id === "production";
   const scoped = items.filter((i) => config.queueTypes.includes(i.queueType));
   const thirdPartyOnly =
     config.id === "third-party"
@@ -97,6 +109,9 @@ export function projectExecutionBoardLanes(
       latestScanStatus: latest?.verificationStatus ?? null,
       scanIssue,
       dependencyRisk: Boolean(item.blockerCode) || item.state === "blocked",
+      reservationIndicator: showReservation
+        ? projectBoardReservationIndicator(item.orderId, reservations, nowIso)
+        : "none",
     };
   });
 
