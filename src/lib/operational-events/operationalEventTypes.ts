@@ -11,6 +11,14 @@ export const OPERATIONAL_STORE_EVENT_TYPES = [
   "queue_failed",
   "queue_cancelled",
   "operational_note_added",
+  "scan_recorded",
+  "scan_verified",
+  "scan_mismatch",
+  "scan_duplicate",
+  "gate_scan_verified",
+  "gate_scan_rejected",
+  "department_handoff_verified",
+  "department_handoff_failed",
 ] as const;
 
 export type OperationalStoreEventType = (typeof OPERATIONAL_STORE_EVENT_TYPES)[number];
