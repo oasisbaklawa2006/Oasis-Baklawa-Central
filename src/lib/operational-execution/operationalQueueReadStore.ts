@@ -2,11 +2,12 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { isOpenQueueState } from "@/lib/persistent-queues/queueLifecycle";
 import { mapQueueRow, type MappedQueueItem, type QueueItemRow } from "@/lib/persistent-queues/queueRowMapper";
 import type { WorkQueueId } from "@/lib/work-queues/queueTypes";
-import type { ListOpenQueueItemsFilter } from "./operationalExecutionTypes";
+import type { ListDepartmentQueueItemsFilter, ListOpenQueueItemsFilter } from "./operationalExecutionTypes";
 
 export interface OperationalQueueReadStore {
   getQueueItem(id: string): Promise<MappedQueueItem | null>;
   listOpenQueueItems(filter?: ListOpenQueueItemsFilter): Promise<MappedQueueItem[]>;
+  listDepartmentQueueItems(filter: ListDepartmentQueueItemsFilter): Promise<MappedQueueItem[]>;
 }
 
 function filterOpenRows(rows: QueueItemRow[], filter?: ListOpenQueueItemsFilter): MappedQueueItem[] {
@@ -46,6 +47,42 @@ export function createSupabaseOperationalQueueReadStore(client: SupabaseClient):
       if (error) throw new Error(error.message);
       return filterOpenRows((data ?? []) as QueueItemRow[], { ...filter, limit });
     },
+
+    async listDepartmentQueueItems(filter) {
+      const limit = filter.limit ?? 200;
+      const openQuery = client
+        .from("operational_queue_items")
+        .select("*")
+        .in("queue_type", filter.queueTypes)
+        .order("updated_at", { ascending: false })
+        .limit(limit);
+      const { data: openData, error: openErr } = await openQuery;
+      if (openErr) throw new Error(openErr.message);
+      let rows = (openData ?? []) as QueueItemRow[];
+      if (filter.includeCompletedToday) {
+        const dayStart = new Date();
+        dayStart.setHours(0, 0, 0, 0);
+        const { data: doneData, error: doneErr } = await client
+          .from("operational_queue_items")
+          .select("*")
+          .in("queue_type", filter.queueTypes)
+          .eq("state", "completed")
+          .gte("completed_at", dayStart.toISOString())
+          .order("completed_at", { ascending: false })
+          .limit(50);
+        if (!doneErr && doneData) {
+          const ids = new Set(rows.map((r) => r.id));
+          for (const r of doneData as QueueItemRow[]) {
+            if (!ids.has(r.id)) rows.push(r);
+          }
+        }
+      }
+      const mapped = rows.map(mapQueueRow);
+      const open = mapped.filter((i) => isOpenQueueState(i.state));
+      const doneToday = mapped.filter((i) => i.state === "completed");
+      const merged = [...open, ...doneToday.filter((d) => !open.some((o) => o.id === d.id))];
+      return merged.slice(0, limit);
+    },
   };
 }
 
@@ -61,6 +98,18 @@ export function createInMemoryOperationalQueueReadStore(
     async listOpenQueueItems(filter) {
       const rows = await store.listRows();
       return filterOpenRows(rows, filter);
+    },
+
+    async listDepartmentQueueItems(filter) {
+      const rows = await store.listRows();
+      const mapped = rows
+        .map(mapQueueRow)
+        .filter((i) => filter.queueTypes.includes(i.queueType));
+      const open = mapped.filter((i) => isOpenQueueState(i.state));
+      const done = filter.includeCompletedToday
+        ? mapped.filter((i) => i.state === "completed")
+        : [];
+      return [...open, ...done.filter((d) => !open.some((o) => o.id === d.id))].slice(0, filter.limit ?? 200);
     },
   };
 }
