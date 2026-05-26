@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom";
-import { IndianRupee, MessageCircle, Store, Tag, Truck, Warehouse, ScanLine, AlertTriangle, ListOrdered, Network } from "lucide-react";
+import { IndianRupee, MessageCircle, Store, Tag, Truck, Warehouse, ScanLine, AlertTriangle, ListOrdered, Network, Gauge } from "lucide-react";
 import type { WorkQueueId } from "@/lib/work-queues/queueTypes";
 import { WORK_QUEUE_LABELS } from "@/lib/work-queues/queueTypes";
 
@@ -281,6 +281,13 @@ export function CmdOperationalCommPulse({
           </div>
         </div>
         <div className="mt-2 flex flex-wrap gap-2">
+          <Link
+            to="/admin/execution-command-center"
+            className="inline-flex min-h-9 items-center rounded-md border border-primary/40 bg-primary/5 px-3 text-xs font-medium text-foreground outline-none transition hover:bg-primary/10 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+          >
+            <Gauge className="mr-1 inline h-3.5 w-3.5" aria-hidden />
+            Execution CMD
+          </Link>
           <Link
             to="/admin/live-work-queues"
             className="inline-flex min-h-9 items-center rounded-md border border-border px-3 text-xs font-medium text-foreground outline-none transition hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"

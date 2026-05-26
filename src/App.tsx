@@ -107,6 +107,9 @@ const LiveWorkQueues = lazy(() => import("./pages/admin/LiveWorkQueues.tsx"));
 const EntityGraphExplorer = lazy(() => import("./pages/admin/EntityGraphExplorer.tsx"));
 const QueueExecutionPreview = lazy(() => import("./pages/admin/QueueExecutionPreview.tsx"));
 const BarcodeExecutionPreview = lazy(() => import("./pages/admin/BarcodeExecutionPreview.tsx"));
+const ExecutionCommandCenter = lazy(() => import("./pages/admin/ExecutionCommandCenter.tsx"));
+const ExecutionRiskBoard = lazy(() => import("./pages/admin/ExecutionRiskBoard.tsx"));
+const ExecutionBottlenecks = lazy(() => import("./pages/admin/ExecutionBottlenecks.tsx"));
 
 const ADMIN_ONLY_ROLES = ["SUPER_ADMIN", "ADMIN"];
 
@@ -360,6 +363,30 @@ const App = () => (
                       element={
                         <AdminModuleRoute moduleKey="cmd_war_room">
                           <BarcodeExecutionPreview />
+                        </AdminModuleRoute>
+                      }
+                    />
+                    <Route
+                      path="execution-command-center"
+                      element={
+                        <AdminModuleRoute moduleKey="cmd_war_room">
+                          <ExecutionCommandCenter />
+                        </AdminModuleRoute>
+                      }
+                    />
+                    <Route
+                      path="execution-risk"
+                      element={
+                        <AdminModuleRoute moduleKey="cmd_war_room">
+                          <ExecutionRiskBoard />
+                        </AdminModuleRoute>
+                      }
+                    />
+                    <Route
+                      path="execution-bottlenecks"
+                      element={
+                        <AdminModuleRoute moduleKey="cmd_war_room">
+                          <ExecutionBottlenecks />
                         </AdminModuleRoute>
                       }
                     />
