@@ -6,37 +6,79 @@ import {
   probeFinanceEvidenceTable,
 } from "./supabaseFinanceEvidenceStore";
 
+export type FinanceGovernancePersistenceMode = "supabase" | "demo" | "unavailable";
+
+export interface FinanceGovernanceBundle {
+  service: ReturnType<typeof createFinanceGovernanceService>;
+  persistenceMode: FinanceGovernancePersistenceMode;
+  canExecuteWrites: boolean;
+}
+
+function isTestMode(): boolean {
+  return (
+    typeof import.meta !== "undefined" &&
+    (import.meta.env?.MODE === "test" || import.meta.env?.VITEST === "true")
+  );
+}
+
 export async function createFinanceGovernanceBundle(
   client?: SupabaseClient,
   options?: { forceInMemory?: boolean },
-) {
+): Promise<FinanceGovernanceBundle> {
   const events = createInMemoryFinanceEventSink();
 
-  if (options?.forceInMemory || !client) {
+  if (options?.forceInMemory) {
     return {
       service: createFinanceGovernanceService({
         evidence: createInMemoryFinanceEvidenceStore(),
         events,
       }),
+      persistenceMode: "demo",
+      canExecuteWrites: isTestMode(),
     };
   }
 
-  const ok = await probeFinanceEvidenceTable(client).catch(() => false);
-  if (!ok) {
-    const testMode =
-      typeof import.meta !== "undefined" &&
-      (import.meta.env?.MODE === "test" || import.meta.env?.VITEST === "true");
-    if (testMode) {
+  if (!client) {
+    if (isTestMode()) {
       return {
         service: createFinanceGovernanceService({
           evidence: createInMemoryFinanceEvidenceStore(),
           events,
         }),
+        persistenceMode: "demo",
+        canExecuteWrites: true,
       };
     }
-    throw new Error(
-      "finance_review_evidence missing — apply 20260526130000_execution_os_phase4c_finance_governance.sql",
-    );
+    return {
+      service: createFinanceGovernanceService({
+        evidence: createInMemoryFinanceEvidenceStore(),
+        events,
+      }),
+      persistenceMode: "unavailable",
+      canExecuteWrites: false,
+    };
+  }
+
+  const ok = await probeFinanceEvidenceTable(client).catch(() => false);
+  if (!ok) {
+    if (isTestMode()) {
+      return {
+        service: createFinanceGovernanceService({
+          evidence: createInMemoryFinanceEvidenceStore(),
+          events,
+        }),
+        persistenceMode: "demo",
+        canExecuteWrites: true,
+      };
+    }
+    return {
+      service: createFinanceGovernanceService({
+        evidence: createInMemoryFinanceEvidenceStore(),
+        events,
+      }),
+      persistenceMode: "unavailable",
+      canExecuteWrites: false,
+    };
   }
 
   return {
@@ -44,5 +86,7 @@ export async function createFinanceGovernanceBundle(
       evidence: createSupabaseFinanceEvidenceStore(client),
       events,
     }),
+    persistenceMode: "supabase",
+    canExecuteWrites: true,
   };
 }

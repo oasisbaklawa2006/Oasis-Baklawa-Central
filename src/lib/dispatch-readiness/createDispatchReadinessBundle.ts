@@ -10,8 +10,12 @@ import {
   probeDispatchEvidenceTable,
 } from "./supabaseDispatchEvidenceStore";
 
+export type DispatchReadinessPersistenceMode = "supabase" | "demo" | "unavailable";
+
 export interface DispatchReadinessBundle {
   service: DispatchReadinessService;
+  persistenceMode: DispatchReadinessPersistenceMode;
+  canExecuteWrites: boolean;
 }
 
 function isTestMode(): boolean {
@@ -27,12 +31,25 @@ export async function createDispatchReadinessBundle(
 ): Promise<DispatchReadinessBundle> {
   const events = createInMemoryDispatchEventSink();
 
-  if (options?.forceInMemory || !client) {
+  if (options?.forceInMemory) {
     return {
       service: createDispatchReadinessService({
         evidence: createInMemoryDispatchEvidenceStore(),
         events,
       }),
+      persistenceMode: "demo",
+      canExecuteWrites: isTestMode(),
+    };
+  }
+
+  if (!client) {
+    return {
+      service: createDispatchReadinessService({
+        evidence: createInMemoryDispatchEvidenceStore(),
+        events,
+      }),
+      persistenceMode: "unavailable",
+      canExecuteWrites: false,
     };
   }
 
@@ -44,11 +61,18 @@ export async function createDispatchReadinessBundle(
           evidence: createInMemoryDispatchEvidenceStore(),
           events,
         }),
+        persistenceMode: "demo",
+        canExecuteWrites: true,
       };
     }
-    throw new Error(
-      "dispatch_readiness_evidence table missing — apply migration 20260526120000_execution_os_phase4b_dispatch_readiness.sql",
-    );
+    return {
+      service: createDispatchReadinessService({
+        evidence: createInMemoryDispatchEvidenceStore(),
+        events,
+      }),
+      persistenceMode: "unavailable",
+      canExecuteWrites: false,
+    };
   }
 
   return {
@@ -56,5 +80,7 @@ export async function createDispatchReadinessBundle(
       evidence: createSupabaseDispatchEvidenceStore(client),
       events,
     }),
+    persistenceMode: "supabase",
+    canExecuteWrites: true,
   };
 }

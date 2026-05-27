@@ -18,9 +18,16 @@ import {
   type StockFinalizationBundle,
   type StockFinalizationInput,
 } from "@/lib/stock-finalization";
-import type { StockReservationRecord } from "@/lib/stock-finalization/stockReservationTypes";
 import { OperationalTimeline } from "@/components/admin/OperationalTimeline";
+import { GovernanceBoardLiveNotice } from "@/components/admin/GovernanceBoardLiveNotice";
 import type { OperationalEventRecord } from "@/lib/operational-events/types";
+import {
+  loadStockFinalizationRows,
+  PREVIEW_STOCK_FINALIZED,
+  PREVIEW_STOCK_PENDING,
+  useGovernanceBoardState,
+} from "@/lib/execution-read-models";
+import { PREVIEW_STOCK_RESERVATION } from "@/lib/execution-read-models/governanceBoardSamples";
 
 export const FORBIDDEN_STOCK_UI_LABELS = [
   "Silent Deduct",
@@ -31,37 +38,10 @@ export const FORBIDDEN_STOCK_UI_LABELS = [
   "Generate Invoice",
 ] as const;
 
-const SAMPLE_RESERVATION: StockReservationRecord = {
-  id: "00000000-0000-4000-8000-000000000801",
-  reservationNumber: "RSV-4G-001",
-  orderId: "00000000-0000-4000-8000-000000000601",
-  productId: "00000000-0000-4000-8000-000000000701",
-  sku: "BAK-4G-DEMO",
-  requestedQty: 12,
-  reservedQty: 12,
-  fulfilledQty: 0,
-  releasedQty: 0,
-  reservationStatus: "reserved",
-};
-
-const SAMPLE_FINALIZED: StockFinalizationInput = {
-  orderId: "00000000-0000-4000-8000-000000000601",
-  orderStatus: "dispatched",
-  dispatchReleaseStatus: "dispatch_finalized",
-  reservations: [SAMPLE_RESERVATION],
-  scanReference: "PACK-SCAN-4G-001",
-  gateReference: "GATE-4G-001",
-  dispatchLineageId: "drl-4g-001",
-  locationCode: "WH-MAIN",
-};
-
-const SAMPLE_PENDING: StockFinalizationInput = {
-  ...SAMPLE_FINALIZED,
-  orderId: "00000000-0000-4000-8000-000000000602",
-  orderStatus: "cleared_for_dispatch",
-  dispatchReleaseStatus: "dispatch_release_ready",
-  scanReference: null,
-};
+const PREVIEW_ROWS = [
+  { input: PREVIEW_STOCK_FINALIZED, missingSignals: [] as string[] },
+  { input: PREVIEW_STOCK_PENDING, missingSignals: [] as string[] },
+];
 
 function stockEventsToOperational(
   records: {
@@ -93,8 +73,8 @@ function createDemoStockService() {
     balances: createInMemoryStockBalanceRepository([
       {
         id: "bal-demo",
-        productId: SAMPLE_RESERVATION.productId,
-        sku: SAMPLE_RESERVATION.sku,
+        productId: PREVIEW_STOCK_RESERVATION.productId,
+        sku: PREVIEW_STOCK_RESERVATION.sku,
         locationCode: "WH-MAIN",
         availableQty: 50,
         reservedQty: 12,
@@ -120,8 +100,29 @@ export default function StockFinalizationBoard() {
   const [lineageCount, setLineageCount] = useState(0);
   const [bundle, setBundle] = useState<StockFinalizationBundle | null>(null);
 
-  const input = selected === "finalized" ? SAMPLE_FINALIZED : SAMPLE_PENDING;
-  const projection = useMemo(() => projectStockFinalization(input), [input]);
+  const boardState = useGovernanceBoardState(
+    supabase,
+    loadStockFinalizationRows,
+    PREVIEW_ROWS,
+    ["orders", "inventory_reservations", "inventory_stock_balances", "stock_consumption_lineage"],
+  );
+
+  const input = useMemo((): StockFinalizationInput | null => {
+    if (boardState.liveRows.length > 0) {
+      return boardState.liveRows[0].input;
+    }
+    if (boardState.showPreviewCards) {
+      return selected === "finalized" ? PREVIEW_STOCK_FINALIZED : PREVIEW_STOCK_PENDING;
+    }
+    return null;
+  }, [boardState.liveRows, boardState.showPreviewCards, selected]);
+
+  const projection = useMemo(
+    () => (input ? projectStockFinalization(input) : null),
+    [input],
+  );
+
+  const primaryReservation = input?.reservations[0] ?? PREVIEW_STOCK_RESERVATION;
 
   useEffect(() => {
     let cancelled = false;
@@ -153,7 +154,10 @@ export default function StockFinalizationBoard() {
         ? "Demo in-memory (non-production)"
         : "Persistence unavailable";
 
+  const showPreviewToggle = boardState.showPreviewCards && boardState.liveRows.length === 0;
+
   async function handleFinalize() {
+    if (!input || !projection) return;
     if (!canExecuteWrites || !bundle) {
       setMessage(
         "Physical stock writes are disabled until Phase 4G migrations are applied and Supabase persistence is available (or VITE_STOCK_FINALIZATION_DEMO=true for controlled demo only).",
@@ -164,6 +168,11 @@ export default function StockFinalizationBoard() {
       setMessage("Blocked: dispatch must be finalized with scan evidence and consumable reservations.");
       return;
     }
+    const reservation = input.reservations[0];
+    if (!reservation || !input.scanReference) {
+      setMessage("Blocked: missing reservation or scan reference.");
+      return;
+    }
     setBusy(true);
     setMessage(null);
     try {
@@ -171,22 +180,22 @@ export default function StockFinalizationBoard() {
         correlationId: `ui-4g-${Date.now()}`,
         actorUserId: user?.id ?? "00000000-0000-4000-8000-000000000099",
         actorRole: role ?? "UNKNOWN",
-        finalizeReason: "Governed UI finalize (staging)",
+        finalizeReason: "Governed UI finalize",
       };
       await bundle.service.finalizeConsumption(
         input,
         {
           orderId: input.orderId,
-          scanReference: input.scanReference!,
+          scanReference: input.scanReference,
           gateReference: input.gateReference,
           dispatchLineageId: input.dispatchLineageId,
           items: [
             {
-              reservationId: SAMPLE_RESERVATION.id,
-              productId: SAMPLE_RESERVATION.productId,
-              sku: SAMPLE_RESERVATION.sku,
+              reservationId: reservation.id,
+              productId: reservation.productId,
+              sku: reservation.sku,
               locationCode: input.locationCode,
-              consumeQty: 12,
+              consumeQty: reservation.reservedQty,
               expectedBalanceVersion: 1,
             },
           ],
@@ -220,11 +229,19 @@ export default function StockFinalizationBoard() {
         </Badge>
       </div>
 
+      <GovernanceBoardLiveNotice
+        meta={boardState.meta}
+        loading={boardState.loading}
+        loadError={boardState.loadError}
+        showEmptyLiveMessage={boardState.showEmptyLiveMessage}
+        showPreviewCards={boardState.showPreviewCards}
+      />
+
       <Card className="border-amber-200/60 bg-amber-50/30 dark:bg-amber-950/20">
         <CardContent className="pt-4 text-sm space-y-1">
           <p>
-            <strong>{persistenceLabel}.</strong> Sample order data is for projection preview only — not live
-            production orders unless wired to Supabase.
+            <strong>{persistenceLabel}.</strong> Live rows load from Supabase when tables exist; preview cards require{" "}
+            <code className="text-xs">VITE_EXECUTION_PREVIEW_FALLBACK=true</code>.
           </p>
           <p>
             Stock mutations require dispatch finalization, reservation reconciliation, and scan evidence.
@@ -236,83 +253,89 @@ export default function StockFinalizationBoard() {
         </CardContent>
       </Card>
 
-      <div className="flex gap-2">
-        <Button
-          variant={selected === "finalized" ? "default" : "outline"}
-          size="sm"
-          onClick={() => setSelected("finalized")}
-        >
-          Dispatch finalized (ready)
-        </Button>
-        <Button
-          variant={selected === "pending" ? "default" : "outline"}
-          size="sm"
-          onClick={() => setSelected("pending")}
-        >
-          Pre-finalization (blocked)
-        </Button>
-      </div>
+      {showPreviewToggle && (
+        <div className="flex gap-2">
+          <Button
+            variant={selected === "finalized" ? "default" : "outline"}
+            size="sm"
+            onClick={() => setSelected("finalized")}
+          >
+            Dispatch finalized (ready)
+          </Button>
+          <Button
+            variant={selected === "pending" ? "default" : "outline"}
+            size="sm"
+            onClick={() => setSelected("pending")}
+          >
+            Pre-finalization (blocked)
+          </Button>
+        </div>
+      )}
 
-      <div className="grid gap-4 md:grid-cols-2">
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-base">
-              <ClipboardList className="h-4 w-4" />
-              Reconciliation
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-2 text-sm">
-            <div className="flex justify-between">
-              <span>Status</span>
-              <Badge>{projection.finalizationStatus}</Badge>
-            </div>
-            <div className="flex justify-between">
-              <span>Reconciliation</span>
-              <span>{projection.reconciliationStatus}</span>
-            </div>
-            <div className="flex justify-between">
-              <span>Consumable qty</span>
-              <span>{projection.consumedQty}</span>
-            </div>
-            {projection.blockingReasons.length > 0 && (
-              <div className="text-destructive flex gap-2">
-                <AlertTriangle className="h-4 w-4 shrink-0" />
-                <span>{projection.blockingReasons.join(", ")}</span>
-              </div>
-            )}
-            {projection.warnings.length > 0 && (
-              <p className="text-muted-foreground">Warnings: {projection.warnings.join(", ")}</p>
-            )}
-          </CardContent>
-        </Card>
+      {input && projection && (
+        <>
+          <div className="grid gap-4 md:grid-cols-2">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-base">
+                  <ClipboardList className="h-4 w-4" />
+                  Reconciliation — …{input.orderId.slice(-4)}
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-2 text-sm">
+                <div className="flex justify-between">
+                  <span>Status</span>
+                  <Badge>{projection.finalizationStatus}</Badge>
+                </div>
+                <div className="flex justify-between">
+                  <span>Reconciliation</span>
+                  <span>{projection.reconciliationStatus}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Consumable qty</span>
+                  <span>{projection.consumedQty}</span>
+                </div>
+                {projection.blockingReasons.length > 0 && (
+                  <div className="text-destructive flex gap-2">
+                    <AlertTriangle className="h-4 w-4 shrink-0" />
+                    <span>{projection.blockingReasons.join(", ")}</span>
+                  </div>
+                )}
+                {projection.warnings.length > 0 && (
+                  <p className="text-muted-foreground">Warnings: {projection.warnings.join(", ")}</p>
+                )}
+              </CardContent>
+            </Card>
 
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-base">
-              <PackageMinus className="h-4 w-4" />
-              Balance preview
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="text-sm space-y-1">
-            <p>SKU: {SAMPLE_RESERVATION.sku}</p>
-            <p>Location: {input.locationCode}</p>
-            <p>Reserved: {SAMPLE_RESERVATION.reservedQty}</p>
-            <p className="text-muted-foreground">Optimistic lock on finalize (version)</p>
-          </CardContent>
-        </Card>
-      </div>
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-base">
+                  <PackageMinus className="h-4 w-4" />
+                  Balance preview
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="text-sm space-y-1">
+                <p>SKU: {primaryReservation.sku}</p>
+                <p>Location: {input.locationCode}</p>
+                <p>Reserved: {primaryReservation.reservedQty}</p>
+                <p className="text-muted-foreground">Optimistic lock on finalize (version)</p>
+              </CardContent>
+            </Card>
+          </div>
 
-      <div className="flex flex-wrap gap-2">
-        <Button
-          disabled={busy || !projection.canFinalizeConsumption || !canExecuteWrites}
-          onClick={() => void handleFinalize()}
-        >
-          Finalize consumption
-        </Button>
-        <Button variant="outline" disabled title="Requires typed reversalReason via inventory manager">
-          Request reversal
-        </Button>
-      </div>
+          <div className="flex flex-wrap gap-2">
+            <Button
+              disabled={busy || !projection.canFinalizeConsumption || !canExecuteWrites}
+              onClick={() => void handleFinalize()}
+            >
+              Finalize consumption
+            </Button>
+            <Button variant="outline" disabled title="Requires typed reversalReason via inventory manager">
+              Request reversal
+            </Button>
+          </div>
+        </>
+      )}
 
       {message && <p className="text-sm">{message}</p>}
 

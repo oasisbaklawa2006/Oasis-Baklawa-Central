@@ -4,15 +4,22 @@ import {
   createInMemoryDispatchFinalizationEventSink,
   type DispatchFinalizationService,
 } from "./dispatchFinalizationService";
-import { createInMemoryDispatchLineageStore, createInMemoryOrderDispatchStatusRepository } from "./inMemoryDispatchFinalizationStore";
+import {
+  createInMemoryDispatchLineageStore,
+  createInMemoryOrderDispatchStatusRepository,
+} from "./inMemoryDispatchFinalizationStore";
 import {
   createSupabaseDispatchLineageStore,
   createSupabaseOrderDispatchStatusRepository,
   probeDispatchReleaseLineageTable,
 } from "./supabaseDispatchFinalizationStore";
 
+export type DispatchFinalizationPersistenceMode = "supabase" | "demo" | "unavailable";
+
 export interface DispatchFinalizationBundle {
   service: DispatchFinalizationService;
+  persistenceMode: DispatchFinalizationPersistenceMode;
+  canExecuteWrites: boolean;
 }
 
 function isTestMode(): boolean {
@@ -28,13 +35,27 @@ export async function createDispatchFinalizationBundle(
 ): Promise<DispatchFinalizationBundle> {
   const events = createInMemoryDispatchFinalizationEventSink();
 
-  if (options?.forceInMemory || !client) {
+  if (options?.forceInMemory) {
     return {
       service: createDispatchFinalizationService({
         lineage: createInMemoryDispatchLineageStore(),
         orders: createInMemoryOrderDispatchStatusRepository(),
         events,
       }),
+      persistenceMode: "demo",
+      canExecuteWrites: isTestMode(),
+    };
+  }
+
+  if (!client) {
+    return {
+      service: createDispatchFinalizationService({
+        lineage: createInMemoryDispatchLineageStore(),
+        orders: createInMemoryOrderDispatchStatusRepository(),
+        events,
+      }),
+      persistenceMode: "unavailable",
+      canExecuteWrites: false,
     };
   }
 
@@ -47,11 +68,19 @@ export async function createDispatchFinalizationBundle(
           orders: createInMemoryOrderDispatchStatusRepository(),
           events,
         }),
+        persistenceMode: "demo",
+        canExecuteWrites: true,
       };
     }
-    throw new Error(
-      "dispatch_release_lineage missing — apply 20260526150000_execution_os_phase4e_dispatch_finalization.sql",
-    );
+    return {
+      service: createDispatchFinalizationService({
+        lineage: createInMemoryDispatchLineageStore(),
+        orders: createInMemoryOrderDispatchStatusRepository(),
+        events,
+      }),
+      persistenceMode: "unavailable",
+      canExecuteWrites: false,
+    };
   }
 
   return {
@@ -60,5 +89,7 @@ export async function createDispatchFinalizationBundle(
       orders: createSupabaseOrderDispatchStatusRepository(client),
       events,
     }),
+    persistenceMode: "supabase",
+    canExecuteWrites: true,
   };
 }

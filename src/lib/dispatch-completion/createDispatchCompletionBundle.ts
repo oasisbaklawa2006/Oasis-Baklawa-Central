@@ -10,8 +10,12 @@ import {
   probeDispatchCompletionEvidenceTable,
 } from "./supabaseDispatchCompletionEvidenceStore";
 
+export type DispatchCompletionPersistenceMode = "supabase" | "demo" | "unavailable";
+
 export interface DispatchCompletionBundle {
   service: DispatchCompletionService;
+  persistenceMode: DispatchCompletionPersistenceMode;
+  canExecuteWrites: boolean;
 }
 
 function isTestMode(): boolean {
@@ -27,12 +31,25 @@ export async function createDispatchCompletionBundle(
 ): Promise<DispatchCompletionBundle> {
   const events = createInMemoryDispatchCompletionEventSink();
 
-  if (options?.forceInMemory || !client) {
+  if (options?.forceInMemory) {
     return {
       service: createDispatchCompletionService({
         evidence: createInMemoryDispatchCompletionEvidenceStore(),
         events,
       }),
+      persistenceMode: "demo",
+      canExecuteWrites: isTestMode(),
+    };
+  }
+
+  if (!client) {
+    return {
+      service: createDispatchCompletionService({
+        evidence: createInMemoryDispatchCompletionEvidenceStore(),
+        events,
+      }),
+      persistenceMode: "unavailable",
+      canExecuteWrites: false,
     };
   }
 
@@ -44,11 +61,18 @@ export async function createDispatchCompletionBundle(
           evidence: createInMemoryDispatchCompletionEvidenceStore(),
           events,
         }),
+        persistenceMode: "demo",
+        canExecuteWrites: true,
       };
     }
-    throw new Error(
-      "dispatch_completion_evidence table missing — apply migration 20260526140000_execution_os_phase4d_dispatch_completion.sql",
-    );
+    return {
+      service: createDispatchCompletionService({
+        evidence: createInMemoryDispatchCompletionEvidenceStore(),
+        events,
+      }),
+      persistenceMode: "unavailable",
+      canExecuteWrites: false,
+    };
   }
 
   return {
@@ -56,5 +80,7 @@ export async function createDispatchCompletionBundle(
       evidence: createSupabaseDispatchCompletionEvidenceStore(client),
       events,
     }),
+    persistenceMode: "supabase",
+    canExecuteWrites: true,
   };
 }
