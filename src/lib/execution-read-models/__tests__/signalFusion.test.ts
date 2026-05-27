@@ -187,6 +187,10 @@ describe("preview fallback", () => {
     expect(resolveBoardProjectionSource(0, true)).toBe("empty");
     expect(isPreviewFallbackEnabled()).toBe(false);
   });
+
+  it("tables unavailable resolves to unavailable not preview", () => {
+    expect(resolveBoardProjectionSource(0, false)).toBe("unavailable");
+  });
 });
 
 describe("blocked finance blocks readiness and finalization", () => {

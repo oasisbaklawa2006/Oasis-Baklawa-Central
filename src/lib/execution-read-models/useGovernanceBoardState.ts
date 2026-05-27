@@ -67,8 +67,10 @@ export function useGovernanceBoardState<TInput, TRow extends { input: TInput }>(
     };
   }, [liveResult, projectionSource, previewTables, loadError]);
 
-  const showPreviewCards = liveRows.length === 0 && isPreviewFallbackEnabled() && !loading;
-  const showEmptyLiveMessage = liveRows.length === 0 && !isPreviewFallbackEnabled() && !loading && !loadError;
+  const showPreviewCards =
+    liveRows.length === 0 && isPreviewFallbackEnabled() && !loading && !loadError;
+  const showEmptyLiveMessage =
+    liveRows.length === 0 && !isPreviewFallbackEnabled() && !loading && !loadError;
 
   return {
     liveRows,
