@@ -28,5 +28,7 @@ export function downgradeIfStale<T extends string>(
 ): T {
   if (!meta.stale) return signal;
   if (signal === readyValue) return pendingValue;
-  return blockedValue;
+  if (signal === pendingValue) return pendingValue;
+  if (signal === blockedValue) return blockedValue;
+  return pendingValue;
 }

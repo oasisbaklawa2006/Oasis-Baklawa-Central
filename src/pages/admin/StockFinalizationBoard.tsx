@@ -234,6 +234,7 @@ export default function StockFinalizationBoard() {
         loading={boardState.loading}
         loadError={boardState.loadError}
         showEmptyLiveMessage={boardState.showEmptyLiveMessage}
+        showUnavailableMessage={boardState.showUnavailableMessage}
         showPreviewCards={boardState.showPreviewCards}
       />
 

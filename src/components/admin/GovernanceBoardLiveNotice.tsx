@@ -6,12 +6,14 @@ export function GovernanceBoardLiveNotice({
   loadError,
   showEmptyLiveMessage,
   showPreviewCards,
+  showUnavailableMessage,
 }: {
   meta: ReadModelMetadata;
   loading: boolean;
   loadError: string | null;
   showEmptyLiveMessage: boolean;
   showPreviewCards: boolean;
+  showUnavailableMessage: boolean;
 }) {
   if (loading) {
     return <p className="text-sm text-muted-foreground">Loading live governance signals…</p>;
@@ -20,6 +22,14 @@ export function GovernanceBoardLiveNotice({
     return (
       <p className="rounded-md border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">
         Live read unavailable: {loadError}
+      </p>
+    );
+  }
+  if (showUnavailableMessage) {
+    return (
+      <p className="rounded-md border border-amber-600/40 bg-amber-500/10 p-3 text-sm text-amber-900 dark:text-amber-100">
+        Live governance tables are unavailable (missing tables or access denied). No sample cards are shown.
+        {meta.missingSignals.length > 0 ? ` · ${meta.missingSignals.slice(0, 3).join(", ")}` : ""}
       </p>
     );
   }

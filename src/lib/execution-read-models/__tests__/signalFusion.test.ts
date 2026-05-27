@@ -7,7 +7,9 @@ import { deriveFinalizationInputFromSlices } from "../adapters/finalizationSigna
 import { completionAttestedIsNotDispatched } from "../adapters/completionSignalAdapter";
 import { isStockFinalizationCandidate } from "../adapters/stockSignalAdapter";
 import { deriveStockInputFromSlices } from "../adapters/stockSignalAdapter";
+import { deriveGovernanceBoardNoticeFlags } from "../boardNoticeFlags";
 import { isPreviewFallbackEnabled, resolveBoardProjectionSource } from "../previewFallback";
+import { GOVERNANCE_SIGNAL_STALE_MS } from "../signalStale";
 import { emptyReadModelResult } from "../types";
 import { projectDispatchReadiness } from "@/lib/dispatch-readiness";
 import { reconcileReservationsForConsumption } from "@/lib/stock-finalization/stockReservationReconciliation";
@@ -47,6 +49,23 @@ describe("financeSignalAdapter", () => {
     );
     expect(fusion.financeSignal).not.toBe("ready");
     expect(["unknown", "pending_review", "blocked"]).toContain(fusion.financeSignal);
+  });
+
+  it("stale pending_review remains pending_review without hold or rejection", () => {
+    const staleAt = new Date(Date.now() - GOVERNANCE_SIGNAL_STALE_MS - 60_000).toISOString();
+    const fusion = deriveFinanceSignalFromSlices(
+      {
+        orderId: "o1",
+        orderValue: 100,
+        advanceRequired: 0,
+        advanceVerified: true,
+        paymentStatus: null,
+        updatedAt: staleAt,
+      },
+      [{ reviewStatus: "pending", reviewType: "commercial_release", createdAt: staleAt }],
+    );
+    expect(fusion.financeSignal).toBe("pending_review");
+    expect(fusion.financeSignal).not.toBe("blocked");
   });
 
   it("rejected finance evidence blocks signal", () => {
@@ -147,6 +166,47 @@ describe("stock adapter", () => {
     expect(fusion.reconciliationVariance).toBe(true);
   });
 
+  it("missing scan and gate references stay null and block finalization", () => {
+    const fusion = deriveStockInputFromSlices({
+      orderId: "o1",
+      orderStatus: "dispatched",
+      dispatchReleaseStatus: "dispatch_finalized",
+      reservations: [
+        {
+          id: "r1",
+          reservationNumber: "RSV-1",
+          orderId: "o1",
+          productId: "p1",
+          sku: "SKU",
+          requestedQty: 5,
+          reservedQty: 5,
+          fulfilledQty: 0,
+          releasedQty: 0,
+          reservationStatus: "reserved",
+        },
+      ],
+      scanReference: null,
+      gateReference: null,
+      dispatchLineageId: null,
+      locationCode: "WH",
+      balances: [
+        {
+          productId: "p1",
+          sku: "SKU",
+          locationCode: "WH",
+          availableQty: 10,
+          reservedQty: 5,
+          version: 1,
+        },
+      ],
+      lineage: [],
+    });
+    expect(fusion.input.scanReference).toBeNull();
+    expect(fusion.input.gateReference).toBeNull();
+    expect(fusion.missingSignals).toContain("scan_reference_missing");
+    expect(fusion.missingSignals).toContain("gate_reference_missing");
+  });
+
   it("missing balance surfaces balance_not_found", () => {
     const fusion = deriveStockInputFromSlices({
       orderId: "o1",
@@ -240,5 +300,30 @@ describe("empty and unavailable read state", () => {
     expect(result.rows).toHaveLength(0);
     expect(result.meta.projectionSource).toBe("unavailable");
     expect(result.meta.missingSignals).toContain("table_missing");
+  });
+});
+
+describe("governance board notice flags (Bugbot #2)", () => {
+  it("unavailable read model shows unavailable-state not empty-live", () => {
+    const flags = deriveGovernanceBoardNoticeFlags({
+      liveRowCount: 0,
+      loading: false,
+      loadError: null,
+      readModelSource: "unavailable",
+    });
+    expect(flags.showUnavailableMessage).toBe(true);
+    expect(flags.showEmptyLiveMessage).toBe(false);
+    expect(flags.showPreviewCards).toBe(false);
+  });
+});
+
+describe("stock read model query (Bugbot #3)", () => {
+  it("governanceReadQueries must not inject fake live-scan or live-gate placeholders", () => {
+    const src = readFileSync(
+      join(process.cwd(), "src/lib/execution-read-models/queries/governanceReadQueries.ts"),
+      "utf8",
+    );
+    expect(src).not.toContain("live-scan");
+    expect(src).not.toContain("live-gate");
   });
 });

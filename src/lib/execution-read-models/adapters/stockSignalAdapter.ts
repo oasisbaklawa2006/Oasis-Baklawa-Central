@@ -72,6 +72,9 @@ export function deriveStockInputFromSlices(params: {
   if (!params.scanReference?.trim()) {
     missingSignals.push("scan_reference_missing");
   }
+  if (!params.gateReference?.trim()) {
+    missingSignals.push("gate_reference_missing");
+  }
 
   const input: StockFinalizationInput = {
     orderId: params.orderId,

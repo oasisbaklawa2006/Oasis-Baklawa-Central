@@ -380,14 +380,69 @@ export async function loadDispatchFinalizationRows(
   };
 }
 
+function resolveStockEvidenceFromLineageAndScans(
+  orderLineage: {
+    id: string;
+    gate_reference: string | null;
+    next_status: string;
+    release_type: string;
+  }[],
+  orderScans: { scan_type: string; verification_status: string; barcode_value: string }[],
+): {
+  dispatchReleaseStatus: DispatchReleaseStatus;
+  dispatchLineageId: string | null;
+  scanReference: string | null;
+  gateReference: string | null;
+} {
+  const dispatched = orderLineage.some((l) => l.next_status === "dispatched");
+  const dispatchReleaseStatus: DispatchReleaseStatus = dispatched
+    ? "dispatch_finalized"
+    : "dispatch_release_ready";
+
+  const finalizeRow =
+    orderLineage.find((l) => l.next_status === "dispatched") ??
+    orderLineage.find((l) => l.release_type === "dispatch_finalize") ??
+    orderLineage[0];
+
+  const gateFromLineage = orderLineage.find((l) => l.gate_reference?.trim())?.gate_reference ?? null;
+  const gateReference = gateFromLineage ?? finalizeRow?.gate_reference ?? null;
+
+  const verifiedScan = orderScans.find(
+    (s) =>
+      (s.scan_type === "carton" || s.scan_type === "packing" || s.scan_type === "dispatch_gate") &&
+      s.verification_status === "verified" &&
+      s.barcode_value?.trim(),
+  );
+  const scanReference = verifiedScan?.barcode_value?.trim() ?? null;
+
+  return {
+    dispatchReleaseStatus,
+    dispatchLineageId: finalizeRow?.id ?? null,
+    scanReference,
+    gateReference: gateReference?.trim() ? gateReference : null,
+  };
+}
+
 export async function loadStockFinalizationRows(
   client: SupabaseClient,
   limit = 8,
 ): Promise<ExecutionReadModelResult<GovernanceBoardRow<StockFinalizationInput>>> {
-  const tables = ["orders", "inventory_reservations", "inventory_stock_balances", "stock_consumption_lineage"];
+  const tables = [
+    "orders",
+    "inventory_reservations",
+    "inventory_stock_balances",
+    "stock_consumption_lineage",
+    "dispatch_release_lineage",
+    "operational_scan_records",
+  ];
   const stockOk = await probeTable(client, "inventory_stock_balances");
   if (!stockOk) {
     return emptyReadModelResult("unavailable", tables, ["inventory_stock_balances_table"]);
+  }
+
+  const lineageOk = await probeTable(client, "dispatch_release_lineage");
+  if (!lineageOk) {
+    return emptyReadModelResult("unavailable", tables, ["dispatch_release_lineage_table"]);
   }
 
   const { data: orders, error } = await client
@@ -404,20 +459,33 @@ export async function loadStockFinalizationRows(
     return { rows: [], meta: buildReadModelMeta({ projectionSource: "empty", derivedFromTables: tables }) };
   }
 
-  const [{ data: reservations }, { data: balances }, { data: lineage }] = await Promise.all([
-    client
-      .from("inventory_reservations")
-      .select("id, reservation_number, order_id, product_id, sku, requested_qty, reserved_qty, fulfilled_qty, released_qty, reservation_status")
-      .in("order_id", orderIds),
-    client
-      .from("inventory_stock_balances")
-      .select("product_id, sku, location_code, available_qty, reserved_qty, version"),
-    client
-      .from("stock_consumption_lineage")
-      .select("order_id, reservation_id, lineage_type, created_at")
-      .in("order_id", orderIds)
-      .order("created_at", { ascending: false }),
-  ]);
+  const [{ data: reservations }, { data: balances }, { data: lineage }, { data: dispatchLineage }, { data: scans }] =
+    await Promise.all([
+      client
+        .from("inventory_reservations")
+        .select(
+          "id, reservation_number, order_id, product_id, sku, requested_qty, reserved_qty, fulfilled_qty, released_qty, reservation_status",
+        )
+        .in("order_id", orderIds),
+      client
+        .from("inventory_stock_balances")
+        .select("product_id, sku, location_code, available_qty, reserved_qty, version"),
+      client
+        .from("stock_consumption_lineage")
+        .select("order_id, reservation_id, lineage_type, created_at")
+        .in("order_id", orderIds)
+        .order("created_at", { ascending: false }),
+      client
+        .from("dispatch_release_lineage")
+        .select("id, order_id, release_type, next_status, gate_reference, created_at")
+        .in("order_id", orderIds)
+        .order("created_at", { ascending: false }),
+      client
+        .from("operational_scan_records")
+        .select("order_id, scan_type, verification_status, barcode_value, created_at")
+        .in("order_id", orderIds)
+        .order("created_at", { ascending: false }),
+    ]);
 
   const rows: GovernanceBoardRow<StockFinalizationInput>[] = [];
   const allMissing = new Set<string>();
@@ -439,15 +507,35 @@ export async function loadStockFinalizationRows(
         reservationStatus: r.reservation_status as StockReservationRecord["reservationStatus"],
       }));
 
+    const orderLineage = (dispatchLineage ?? [])
+      .filter((l) => l.order_id === oid)
+      .map((l) => ({
+        id: l.id as string,
+        gate_reference: l.gate_reference as string | null,
+        next_status: l.next_status as string,
+        release_type: l.release_type as string,
+      }));
+    const orderScans = (scans ?? [])
+      .filter((s) => s.order_id === oid)
+      .map((s) => ({
+        scan_type: s.scan_type as string,
+        verification_status: s.verification_status as string,
+        barcode_value: s.barcode_value as string,
+      }));
+    const evidence = resolveStockEvidenceFromLineageAndScans(orderLineage, orderScans);
+    const locationCode =
+      (balances ?? []).find((b) => orderReservations.some((r) => r.sku === b.sku))?.location_code ??
+      "WH-MAIN";
+
     const fusion = deriveStockInputFromSlices({
       orderId: oid,
       orderStatus: o.status as string,
-      dispatchReleaseStatus: "dispatch_finalized" as DispatchReleaseStatus,
+      dispatchReleaseStatus: evidence.dispatchReleaseStatus,
       reservations: orderReservations,
-      scanReference: "live-scan",
-      gateReference: "live-gate",
-      dispatchLineageId: null,
-      locationCode: "WH-MAIN",
+      scanReference: evidence.scanReference,
+      gateReference: evidence.gateReference,
+      dispatchLineageId: evidence.dispatchLineageId,
+      locationCode: locationCode as string,
       balances: (balances ?? []).map((b) => ({
         productId: b.product_id as string,
         sku: b.sku as string,

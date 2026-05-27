@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { ExecutionReadModelResult, ProjectionSource, ReadModelMetadata } from "./types";
-import { isPreviewFallbackEnabled, resolveBoardProjectionSource } from "./previewFallback";
+import { deriveGovernanceBoardNoticeFlags } from "./boardNoticeFlags";
+import { resolveBoardProjectionSource } from "./previewFallback";
 
 export interface GovernanceBoardState<T> {
   liveRows: T[];
@@ -11,6 +12,7 @@ export interface GovernanceBoardState<T> {
   loadError: string | null;
   showEmptyLiveMessage: boolean;
   showPreviewCards: boolean;
+  showUnavailableMessage: boolean;
 }
 
 export function useGovernanceBoardState<TInput, TRow extends { input: TInput }>(
@@ -67,10 +69,13 @@ export function useGovernanceBoardState<TInput, TRow extends { input: TInput }>(
     };
   }, [liveResult, projectionSource, previewTables, loadError]);
 
-  const showPreviewCards =
-    liveRows.length === 0 && isPreviewFallbackEnabled() && !loading && !loadError;
-  const showEmptyLiveMessage =
-    liveRows.length === 0 && !isPreviewFallbackEnabled() && !loading && !loadError;
+  const readModelSource = liveResult?.meta.projectionSource;
+  const noticeFlags = deriveGovernanceBoardNoticeFlags({
+    liveRowCount: liveRows.length,
+    loading,
+    loadError,
+    readModelSource,
+  });
 
   return {
     liveRows,
@@ -78,7 +83,8 @@ export function useGovernanceBoardState<TInput, TRow extends { input: TInput }>(
     projectionSource,
     loading,
     loadError,
-    showEmptyLiveMessage,
-    showPreviewCards,
+    showEmptyLiveMessage: noticeFlags.showEmptyLiveMessage,
+    showPreviewCards: noticeFlags.showPreviewCards,
+    showUnavailableMessage: noticeFlags.showUnavailableMessage,
   };
 }
