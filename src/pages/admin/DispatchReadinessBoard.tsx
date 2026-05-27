@@ -1,10 +1,11 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { Truck, ShieldCheck, AlertTriangle, ClipboardCheck } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/useAuth";
+import { supabase } from "@/integrations/supabase/client";
 import {
   DISPATCH_EXCEPTION_LABELS,
   FORBIDDEN_DISPATCH_ACTIONS,
@@ -13,13 +14,15 @@ import {
   type DispatchReadinessProjection,
 } from "@/lib/dispatch-readiness";
 import { financeSignalLabel } from "@/lib/dispatch-readiness/financeDispatchSignal";
-import {
-  createInMemoryDispatchEvidenceStore,
-  createDispatchReadinessService,
-  createInMemoryDispatchEventSink,
-} from "@/lib/dispatch-readiness";
+import { createDispatchReadinessBundle, type DispatchReadinessBundle } from "@/lib/dispatch-readiness/createDispatchReadinessBundle";
 import { OperationalTimeline } from "@/components/admin/OperationalTimeline";
+import { GovernanceBoardLiveNotice } from "@/components/admin/GovernanceBoardLiveNotice";
 import type { OperationalEventRecord } from "@/lib/operational-events/types";
+import {
+  loadDispatchReadinessRows,
+  PREVIEW_READINESS_INPUTS,
+  useGovernanceBoardState,
+} from "@/lib/execution-read-models";
 
 /** Labels that must never appear as actions in Phase 4B UI. */
 export const FORBIDDEN_DISPATCH_UI_LABELS = [
@@ -31,38 +34,10 @@ export const FORBIDDEN_DISPATCH_UI_LABELS = [
   "Final Release",
 ] as const;
 
-const SAMPLE_ORDERS: DispatchReadinessInput[] = [
-  {
-    orderId: "00000000-0000-4000-8000-000000000101",
-    queue: { queueItemId: "q-1", isActive: true, isCompleted: false, hasVersionConflict: false },
-    scan: {
-      hasUnresolvedMismatch: false,
-      hasRejectedGateScan: false,
-      gateScanVerified: true,
-      cartonBarcodeVerified: true,
-    },
-    reservationStatus: "reserved",
-    financeSignal: "ready",
-    packingEvidenceVerified: true,
-    documentPlaceholderPresent: true,
-    openExceptionTypes: [],
-  },
-  {
-    orderId: "00000000-0000-4000-8000-000000000102",
-    queue: { queueItemId: "q-2", isActive: true, isCompleted: false, hasVersionConflict: false },
-    scan: {
-      hasUnresolvedMismatch: true,
-      hasRejectedGateScan: false,
-      gateScanVerified: false,
-      cartonBarcodeVerified: false,
-    },
-    reservationStatus: "pending",
-    financeSignal: "blocked",
-    packingEvidenceVerified: false,
-    documentPlaceholderPresent: false,
-    openExceptionTypes: ["dispatch_barcode_mismatch"],
-  },
-];
+const PREVIEW_ROWS = PREVIEW_READINESS_INPUTS.map((input) => ({
+  input,
+  missingSignals: [] as string[],
+}));
 
 function dispatchEventsToOperational(
   records: { id: string; title: string; message: string; occurredAt: string; eventType: string; orderId: string }[],
@@ -87,11 +62,13 @@ function ReadinessCard({
   projection,
   onReview,
   reviewing,
+  canWrite,
 }: {
   input: DispatchReadinessInput;
   projection: DispatchReadinessProjection;
   onReview: () => void;
   reviewing: boolean;
+  canWrite: boolean;
 }) {
   return (
     <Card className="shadow-none ring-1 ring-border/50">
@@ -134,7 +111,7 @@ function ReadinessCard({
           type="button"
           size="sm"
           variant="secondary"
-          disabled={reviewing || projection.readinessStatus === "not_ready"}
+          disabled={reviewing || !canWrite || projection.readinessStatus === "not_ready"}
           onClick={onReview}
         >
           Ready for Review (event only)
@@ -147,38 +124,58 @@ function ReadinessCard({
 export default function DispatchReadinessBoard() {
   const { user, role } = useAuth();
   const [reviewingId, setReviewingId] = useState<string | null>(null);
-  const [timelineOrderId, setTimelineOrderId] = useState<string | null>(null);
-
-  const service = useMemo(
-    () =>
-      createDispatchReadinessService({
-        evidence: createInMemoryDispatchEvidenceStore(),
-        events: createInMemoryDispatchEventSink(),
-      }),
-    [],
-  );
-
-  const projections = useMemo(
-    () => SAMPLE_ORDERS.map((o) => ({ input: o, projection: projectDispatchReadiness(o) })),
-    [],
-  );
-
+  const [bundle, setBundle] = useState<DispatchReadinessBundle | null>(null);
   const [events, setEvents] = useState<OperationalEventRecord[]>([]);
 
+  const boardState = useGovernanceBoardState(
+    supabase,
+    loadDispatchReadinessRows,
+    PREVIEW_ROWS,
+    ["orders", "dispatch_readiness_evidence", "operational_scan_records"],
+  );
+
+  useEffect(() => {
+    let cancelled = false;
+    void createDispatchReadinessBundle(supabase)
+      .then((b) => {
+        if (!cancelled) setBundle(b);
+      })
+      .catch(() => {
+        if (!cancelled) setBundle(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const cardSources = useMemo(() => {
+    if (boardState.liveRows.length > 0) {
+      return boardState.liveRows.map((row) => ({
+        input: row.input,
+        projection: projectDispatchReadiness(row.input),
+      }));
+    }
+    if (boardState.showPreviewCards) {
+      return PREVIEW_READINESS_INPUTS.map((input) => ({
+        input,
+        projection: projectDispatchReadiness(input),
+      }));
+    }
+    return [];
+  }, [boardState.liveRows, boardState.showPreviewCards]);
+
   const handleReview = async (input: DispatchReadinessInput) => {
-    if (!user?.id || !role) return;
+    if (!user?.id || !role || !bundle?.canExecuteWrites) return;
     setReviewingId(input.orderId);
     try {
-      const listed = await service.reviewReadiness(input, {
-        correlationId: `review-local-${Date.now()}`,
+      await bundle.service.reviewReadiness(input, {
+        correlationId: `review-${Date.now()}`,
         actorUserId: user.id,
         actorRole: role,
-        overrideReason: role === "SUPER_ADMIN" ? "Staging readiness review" : null,
+        overrideReason: role === "SUPER_ADMIN" ? "Governed readiness review" : null,
       });
-      setTimelineOrderId(input.orderId);
-      const evts = await service.listEvents(input.orderId);
+      const evts = await bundle.service.listEvents(input.orderId);
       setEvents(dispatchEventsToOperational(evts));
-      void listed.projection;
     } finally {
       setReviewingId(null);
     }
@@ -192,6 +189,11 @@ export default function DispatchReadinessBoard() {
         <Badge variant="outline" className="text-[10px] uppercase">
           Gate eligibility only
         </Badge>
+        {bundle && (
+          <Badge variant="outline" className="text-[10px]">
+            {bundle.persistenceMode}
+          </Badge>
+        )}
         <Link to="/admin/dispatch-mgmt" className="text-xs text-primary underline-offset-2 hover:underline">
           Dispatch operations
         </Link>
@@ -202,6 +204,14 @@ export default function DispatchReadinessBoard() {
           Completion governance (4D)
         </Link>
       </header>
+
+      <GovernanceBoardLiveNotice
+        meta={boardState.meta}
+        loading={boardState.loading}
+        loadError={boardState.loadError}
+        showEmptyLiveMessage={boardState.showEmptyLiveMessage}
+        showPreviewCards={boardState.showPreviewCards}
+      />
 
       <Card className="border-amber-500/30 bg-amber-500/5">
         <CardContent className="flex gap-2 pt-4 text-sm">
@@ -214,12 +224,13 @@ export default function DispatchReadinessBoard() {
       </Card>
 
       <section className="grid gap-4 md:grid-cols-2">
-        {projections.map(({ input, projection }) => (
+        {cardSources.map(({ input, projection }) => (
           <ReadinessCard
             key={input.orderId}
             input={input}
             projection={projection}
             reviewing={reviewingId === input.orderId}
+            canWrite={bundle?.canExecuteWrites ?? false}
             onReview={() => void handleReview(input)}
           />
         ))}

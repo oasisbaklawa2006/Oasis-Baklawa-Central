@@ -1,24 +1,27 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Landmark, ShieldAlert } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/useAuth";
+import { supabase } from "@/integrations/supabase/client";
 import {
   FORBIDDEN_FINANCE_ACTIONS,
   projectFinanceRelease,
   type FinanceGovernanceInput,
 } from "@/lib/finance-governance";
-import { financeSignalLabel, resolveDispatchFinanceSignal } from "@/lib/dispatch-readiness/financeDispatchSignal";
-import {
-  createFinanceGovernanceService,
-  createInMemoryFinanceEvidenceStore,
-  createInMemoryFinanceEventSink,
-} from "@/lib/finance-governance";
+import { createFinanceGovernanceBundle, type FinanceGovernanceBundle } from "@/lib/finance-governance/createFinanceGovernanceBundle";
+import { financeSignalLabel } from "@/lib/dispatch-readiness/financeDispatchSignal";
 import { financeEventsToOperational } from "@/lib/finance-governance/financeOperationalBridge";
 import { OperationalTimeline } from "@/components/admin/OperationalTimeline";
+import { GovernanceBoardLiveNotice } from "@/components/admin/GovernanceBoardLiveNotice";
 import type { OperationalEventRecord } from "@/lib/operational-events/types";
 import { FINANCE_HOLD_LABELS } from "@/lib/finance-governance/financeHoldRules";
+import {
+  loadFinanceGovernanceRows,
+  PREVIEW_FINANCE_INPUTS,
+  useGovernanceBoardState,
+} from "@/lib/execution-read-models";
 
 export const FORBIDDEN_FINANCE_UI_LABELS = [
   "Capture Payment",
@@ -29,66 +32,65 @@ export const FORBIDDEN_FINANCE_UI_LABELS = [
   "Deduct Stock",
 ] as const;
 
-const SAMPLE: FinanceGovernanceInput[] = [
-  {
-    orderId: "00000000-0000-4000-8000-000000000201",
-    orderValue: 120_000,
-    advanceRequired: 40_000,
-    advanceVerified: true,
-    creditApproved: true,
-    openHoldTypes: [],
-    reservationReady: true,
-    dispatchReadinessGateEligible: true,
-    complaintSeverity: "none",
-    staleFinanceReview: false,
-    manualOverrideCount: 0,
-    rejectionCount: 0,
-    escalationCount: 0,
-  },
-  {
-    orderId: "00000000-0000-4000-8000-000000000202",
-    orderValue: 600_000,
-    advanceRequired: 200_000,
-    advanceVerified: false,
-    creditApproved: false,
-    openHoldTypes: ["advance_unverified"],
-    reservationReady: false,
-    dispatchReadinessGateEligible: false,
-    complaintSeverity: "medium",
-    staleFinanceReview: true,
-    manualOverrideCount: 1,
-    rejectionCount: 1,
-    escalationCount: 2,
-  },
-];
+const PREVIEW_ROWS = PREVIEW_FINANCE_INPUTS.map((input) => ({
+  input,
+  missingSignals: [] as string[],
+}));
 
 export default function FinanceGovernanceBoard() {
   const { user, role } = useAuth();
   const [events, setEvents] = useState<OperationalEventRecord[]>([]);
   const [acting, setActing] = useState<string | null>(null);
+  const [bundle, setBundle] = useState<FinanceGovernanceBundle | null>(null);
 
-  const service = useMemo(
-    () =>
-      createFinanceGovernanceService({
-        evidence: createInMemoryFinanceEvidenceStore(),
-        events: createInMemoryFinanceEventSink(),
-      }),
-    [],
+  const boardState = useGovernanceBoardState(
+    supabase,
+    loadFinanceGovernanceRows,
+    PREVIEW_ROWS,
+    ["orders", "finance_review_evidence"],
   );
 
-  const cards = useMemo(() => SAMPLE.map((input) => ({ input, projection: projectFinanceRelease(input) })), []);
+  useEffect(() => {
+    let cancelled = false;
+    void createFinanceGovernanceBundle(supabase)
+      .then((b) => {
+        if (!cancelled) setBundle(b);
+      })
+      .catch(() => {
+        if (!cancelled) setBundle(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const cardSources = useMemo(() => {
+    if (boardState.liveRows.length > 0) {
+      return boardState.liveRows.map((row) => ({
+        input: row.input,
+        projection: projectFinanceRelease(row.input),
+      }));
+    }
+    if (boardState.showPreviewCards) {
+      return PREVIEW_FINANCE_INPUTS.map((input) => ({
+        input,
+        projection: projectFinanceRelease(input),
+      }));
+    }
+    return [];
+  }, [boardState.liveRows, boardState.showPreviewCards]);
 
   const runReview = async (input: FinanceGovernanceInput) => {
-    if (!user?.id || !role) return;
+    if (!user?.id || !role || !bundle?.canExecuteWrites) return;
     setActing(input.orderId);
     try {
-      await service.startReview(input, {
+      await bundle.service.startReview(input, {
         correlationId: `fin-${Date.now()}`,
         actorUserId: user.id,
         actorRole: role,
         overrideReason: role === "SUPER_ADMIN" ? "CMD finance review" : null,
       });
-      const evts = await service.listEvents(input.orderId);
+      const evts = await bundle.service.listEvents(input.orderId);
       setEvents(financeEventsToOperational(evts));
     } finally {
       setActing(null);
@@ -103,7 +105,20 @@ export default function FinanceGovernanceBoard() {
         <Badge variant="outline" className="text-[10px] uppercase">
           Commercial release only
         </Badge>
+        {bundle && (
+          <Badge variant="outline" className="text-[10px]">
+            {bundle.persistenceMode}
+          </Badge>
+        )}
       </header>
+
+      <GovernanceBoardLiveNotice
+        meta={boardState.meta}
+        loading={boardState.loading}
+        loadError={boardState.loadError}
+        showEmptyLiveMessage={boardState.showEmptyLiveMessage}
+        showPreviewCards={boardState.showPreviewCards}
+      />
 
       <Card className="border-amber-500/30 bg-amber-500/5">
         <CardContent className="flex gap-2 pt-4 text-sm">
@@ -116,7 +131,7 @@ export default function FinanceGovernanceBoard() {
       </Card>
 
       <div className="grid gap-4 md:grid-cols-2">
-        {cards.map(({ input, projection }) => (
+        {cardSources.map(({ input, projection }) => (
           <Card key={input.orderId} className="ring-1 ring-border/50">
             <CardHeader className="pb-2">
               <CardTitle className="text-sm">Order {input.orderId.slice(-4)}</CardTitle>
@@ -142,13 +157,10 @@ export default function FinanceGovernanceBoard() {
                   {FINANCE_HOLD_LABELS[h]}
                 </Badge>
               ))}
-              <p className="text-[10px] text-muted-foreground">
-                Resolved signal: {resolveDispatchFinanceSignal(input, "unknown")}
-              </p>
               <Button
                 size="sm"
                 variant="secondary"
-                disabled={!!acting}
+                disabled={!!acting || !bundle?.canExecuteWrites}
                 onClick={() => void runReview(input)}
               >
                 Start finance review

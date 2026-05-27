@@ -1,10 +1,11 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { Truck, ShieldCheck, AlertTriangle } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/useAuth";
+import { supabase } from "@/integrations/supabase/client";
 import {
   FORBIDDEN_COMPLETION_ACTIONS,
   projectDispatchCompletion,
@@ -13,12 +14,17 @@ import {
 } from "@/lib/dispatch-completion";
 import { financeSignalLabel } from "@/lib/dispatch-readiness/financeDispatchSignal";
 import {
-  createDispatchCompletionService,
-  createInMemoryDispatchCompletionEvidenceStore,
-  createInMemoryDispatchCompletionEventSink,
-} from "@/lib/dispatch-completion";
+  createDispatchCompletionBundle,
+  type DispatchCompletionBundle,
+} from "@/lib/dispatch-completion/createDispatchCompletionBundle";
 import { OperationalTimeline } from "@/components/admin/OperationalTimeline";
+import { GovernanceBoardLiveNotice } from "@/components/admin/GovernanceBoardLiveNotice";
 import type { OperationalEventRecord } from "@/lib/operational-events/types";
+import {
+  loadDispatchCompletionRows,
+  PREVIEW_COMPLETION_INPUTS,
+  useGovernanceBoardState,
+} from "@/lib/execution-read-models";
 
 export const FORBIDDEN_COMPLETION_UI_LABELS = [
   "Mark Dispatched",
@@ -30,32 +36,10 @@ export const FORBIDDEN_COMPLETION_UI_LABELS = [
   "Deduct Stock",
 ] as const;
 
-const SAMPLE: DispatchCompletionInput[] = [
-  {
-    orderId: "00000000-0000-4000-8000-000000000301",
-    queueItemId: "q-d1",
-    readinessStatus: "gate_eligible",
-    financeSignal: "ready",
-    financeReleaseStatus: "commercially_released",
-    reservationReady: true,
-    orderAlreadyDispatched: false,
-    securityGatePassed: true,
-    courierManifestAttached: true,
-    openCompletionHolds: [],
-  },
-  {
-    orderId: "00000000-0000-4000-8000-000000000302",
-    queueItemId: "q-d2",
-    readinessStatus: "partially_ready",
-    financeSignal: "blocked",
-    financeReleaseStatus: "finance_hold",
-    reservationReady: false,
-    orderAlreadyDispatched: false,
-    securityGatePassed: false,
-    courierManifestAttached: false,
-    openCompletionHolds: ["supervisor_review_required"],
-  },
-];
+const PREVIEW_ROWS = PREVIEW_COMPLETION_INPUTS.map((input) => ({
+  input,
+  missingSignals: [] as string[],
+}));
 
 function completionEventsToOperational(
   records: {
@@ -88,12 +72,14 @@ function CompletionCard({
   onReview,
   onAttest,
   busy,
+  canWrite,
 }: {
   input: DispatchCompletionInput;
   projection: DispatchCompletionProjection;
   onReview: () => void;
   onAttest: () => void;
   busy: boolean;
+  canWrite: boolean;
 }) {
   return (
     <Card className="shadow-none ring-1 ring-border/50">
@@ -118,13 +104,13 @@ function CompletionCard({
           <span>Release: {input.financeReleaseStatus}</span>
         </div>
         <div className="flex flex-wrap gap-2">
-          <Button type="button" size="sm" variant="secondary" disabled={busy} onClick={onReview}>
+          <Button type="button" size="sm" variant="secondary" disabled={busy || !canWrite} onClick={onReview}>
             Review completion (evidence)
           </Button>
           <Button
             type="button"
             size="sm"
-            disabled={busy || projection.completionStatus !== "completion_eligible"}
+            disabled={busy || !canWrite || projection.completionStatus !== "completion_eligible"}
             onClick={onAttest}
           >
             Attest completion (governed)
@@ -140,37 +126,65 @@ export default function DispatchCompletionBoard() {
   const [busyId, setBusyId] = useState<string | null>(null);
   const [timelineOrderId, setTimelineOrderId] = useState<string | null>(null);
   const [events, setEvents] = useState<OperationalEventRecord[]>([]);
+  const [bundle, setBundle] = useState<DispatchCompletionBundle | null>(null);
 
-  const service = useMemo(
-    () =>
-      createDispatchCompletionService({
-        evidence: createInMemoryDispatchCompletionEvidenceStore(),
-        events: createInMemoryDispatchCompletionEventSink(),
-      }),
-    [],
+  const boardState = useGovernanceBoardState(
+    supabase,
+    loadDispatchCompletionRows,
+    PREVIEW_ROWS,
+    ["orders", "dispatch_completion_evidence", "operational_scan_records"],
   );
 
-  const cards = useMemo(() => SAMPLE.map((input) => ({ input, projection: projectDispatchCompletion(input) })), []);
+  useEffect(() => {
+    let cancelled = false;
+    void createDispatchCompletionBundle(supabase)
+      .then((b) => {
+        if (!cancelled) setBundle(b);
+      })
+      .catch(() => {
+        if (!cancelled) setBundle(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const cardSources = useMemo(() => {
+    if (boardState.liveRows.length > 0) {
+      return boardState.liveRows.map((row) => ({
+        input: row.input,
+        projection: projectDispatchCompletion(row.input),
+      }));
+    }
+    if (boardState.showPreviewCards) {
+      return PREVIEW_COMPLETION_INPUTS.map((input) => ({
+        input,
+        projection: projectDispatchCompletion(input),
+      }));
+    }
+    return [];
+  }, [boardState.liveRows, boardState.showPreviewCards]);
 
   const writeCtx = (orderId: string) => ({
-    correlationId: `completion-local-${orderId}-${Date.now()}`,
+    correlationId: `completion-${orderId}-${Date.now()}`,
     actorUserId: user?.id ?? "",
     actorRole: role ?? "DISPATCH_MANAGER",
-    overrideReason: role === "SUPER_ADMIN" ? "Staging completion governance" : null,
-    attestationReason: "Governed staging attestation — append-only evidence",
+    overrideReason: role === "SUPER_ADMIN" ? "Governed completion review" : null,
+    attestationReason: "Governed attestation — append-only evidence",
   });
 
   const refreshEvents = async (orderId: string) => {
+    if (!bundle?.canExecuteWrites) return;
     setTimelineOrderId(orderId);
-    const evts = await service.listEvents(orderId);
+    const evts = await bundle.service.listEvents(orderId);
     setEvents(completionEventsToOperational(evts));
   };
 
   const handleReview = async (input: DispatchCompletionInput) => {
-    if (!user?.id || !role) return;
+    if (!user?.id || !role || !bundle?.canExecuteWrites) return;
     setBusyId(input.orderId);
     try {
-      await service.reviewCompletion(input, writeCtx(input.orderId));
+      await bundle.service.reviewCompletion(input, writeCtx(input.orderId));
       await refreshEvents(input.orderId);
     } finally {
       setBusyId(null);
@@ -178,10 +192,10 @@ export default function DispatchCompletionBoard() {
   };
 
   const handleAttest = async (input: DispatchCompletionInput) => {
-    if (!user?.id || !role) return;
+    if (!user?.id || !role || !bundle?.canExecuteWrites) return;
     setBusyId(input.orderId);
     try {
-      await service.attestCompletion(input, writeCtx(input.orderId));
+      await bundle.service.attestCompletion(input, writeCtx(input.orderId));
       await refreshEvents(input.orderId);
     } finally {
       setBusyId(null);
@@ -196,6 +210,11 @@ export default function DispatchCompletionBoard() {
         <Badge variant="outline" className="text-[10px] uppercase">
           Phase 4D — attestation only
         </Badge>
+        {bundle && (
+          <Badge variant="outline" className="text-[10px]">
+            {bundle.persistenceMode}
+          </Badge>
+        )}
         <Link to="/admin/dispatch-readiness" className="text-xs text-primary underline-offset-2 hover:underline">
           Dispatch readiness (4B)
         </Link>
@@ -210,6 +229,14 @@ export default function DispatchCompletionBoard() {
         </Link>
       </header>
 
+      <GovernanceBoardLiveNotice
+        meta={boardState.meta}
+        loading={boardState.loading}
+        loadError={boardState.loadError}
+        showEmptyLiveMessage={boardState.showEmptyLiveMessage}
+        showPreviewCards={boardState.showPreviewCards}
+      />
+
       <Card className="border-amber-500/30 bg-amber-500/5">
         <CardContent className="flex gap-2 pt-4 text-sm">
           <ShieldCheck className="h-5 w-5 shrink-0 text-amber-600" aria-hidden />
@@ -222,12 +249,13 @@ export default function DispatchCompletionBoard() {
       </Card>
 
       <section className="grid gap-4 md:grid-cols-2">
-        {cards.map(({ input, projection }) => (
+        {cardSources.map(({ input, projection }) => (
           <CompletionCard
             key={input.orderId}
             input={input}
             projection={projection}
             busy={busyId === input.orderId}
+            canWrite={bundle?.canExecuteWrites ?? false}
             onReview={() => void handleReview(input)}
             onAttest={() => void handleAttest(input)}
           />

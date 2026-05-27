@@ -1,10 +1,11 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { Truck, ShieldCheck, AlertTriangle, PackageCheck } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/useAuth";
+import { supabase } from "@/integrations/supabase/client";
 import {
   FORBIDDEN_FINALIZATION_UI_PATTERNS,
   projectDispatchRelease,
@@ -12,16 +13,18 @@ import {
   type DispatchReleaseProjection,
 } from "@/lib/dispatch-finalization";
 import {
-  createDispatchFinalizationService,
-  createInMemoryDispatchFinalizationEventSink,
-} from "@/lib/dispatch-finalization/dispatchFinalizationService";
-import {
-  createInMemoryDispatchLineageStore,
-  createInMemoryOrderDispatchStatusRepository,
-} from "@/lib/dispatch-finalization/inMemoryDispatchFinalizationStore";
+  createDispatchFinalizationBundle,
+  type DispatchFinalizationBundle,
+} from "@/lib/dispatch-finalization/createDispatchFinalizationBundle";
 import { OperationalTimeline } from "@/components/admin/OperationalTimeline";
+import { GovernanceBoardLiveNotice } from "@/components/admin/GovernanceBoardLiveNotice";
 import type { OperationalEventRecord } from "@/lib/operational-events/types";
 import { lineageReleaseTypeLabel } from "@/lib/dispatch-finalization/dispatchLineage";
+import {
+  loadDispatchFinalizationRows,
+  PREVIEW_FINALIZATION_INPUTS,
+  useGovernanceBoardState,
+} from "@/lib/execution-read-models";
 
 export const FORBIDDEN_FINALIZATION_UI_LABELS = [
   "Capture Payment",
@@ -32,35 +35,10 @@ export const FORBIDDEN_FINALIZATION_UI_LABELS = [
   "Force Release",
 ] as const;
 
-const SAMPLE_READY: DispatchFinalizationInput = {
-  orderId: "00000000-0000-4000-8000-000000000501",
-  currentOrderStatus: "cleared_for_dispatch",
-  readinessStatus: "gate_eligible",
-  financeSignal: "ready",
-  financeReleaseStatus: "commercially_released",
-  completionStatus: "completion_attested",
-  reservationReady: true,
-  transporterHandoffFinalized: true,
-  gateReference: "gate-scan-501",
-  completionReference: "attest-501",
-  transporterReference: "Delhivery / AWB-501",
-  openReleaseBlockers: [],
-};
-
-const SAMPLE_BLOCKED: DispatchFinalizationInput = {
-  orderId: "00000000-0000-4000-8000-000000000502",
-  currentOrderStatus: "packed_ready",
-  readinessStatus: "partially_ready",
-  financeSignal: "blocked",
-  financeReleaseStatus: "finance_hold",
-  completionStatus: "prerequisites_pending",
-  reservationReady: false,
-  transporterHandoffFinalized: false,
-  gateReference: null,
-  completionReference: null,
-  transporterReference: null,
-  openReleaseBlockers: ["awaiting_supervisor"],
-};
+const PREVIEW_ROWS = PREVIEW_FINALIZATION_INPUTS.map((input) => ({
+  input,
+  missingSignals: [] as string[],
+}));
 
 function finalizationEventsToOperational(
   records: {
@@ -77,7 +55,7 @@ function finalizationEventsToOperational(
     id: e.id,
     kind: e.eventType,
     category: "dispatch" as const,
-    severity: e.visibility === "customer_safe" ? ("info" as const) : ("info" as const),
+    severity: "info" as const,
     title: e.title,
     detail: e.message,
     occurredAt: e.occurredAt,
@@ -96,6 +74,7 @@ function ReleaseCard({
   onReversal,
   busy,
   customerPreview,
+  canWrite,
 }: {
   input: DispatchFinalizationInput;
   projection: DispatchReleaseProjection;
@@ -104,6 +83,7 @@ function ReleaseCard({
   onReversal: () => void;
   busy: boolean;
   customerPreview: { label: string }[];
+  canWrite: boolean;
 }) {
   const lane = projection.canFinalize ? "eligible" : projection.releaseStatus === "dispatch_release_blocked" ? "blocked" : "pending";
 
@@ -135,14 +115,14 @@ function ReleaseCard({
           </div>
         )}
         <div className="flex flex-wrap gap-2">
-          <Button type="button" size="sm" disabled={busy || !projection.canFinalize} onClick={onFinalize}>
+          <Button type="button" size="sm" disabled={busy || !canWrite || !projection.canFinalize} onClick={onFinalize}>
             Finalize dispatch (governed)
           </Button>
           <Button
             type="button"
             size="sm"
             variant="secondary"
-            disabled={busy || !projection.canPublishCustomerRelease}
+            disabled={busy || !canWrite || !projection.canPublishCustomerRelease}
             onClick={onPublish}
           >
             Publish customer release
@@ -151,7 +131,7 @@ function ReleaseCard({
             type="button"
             size="sm"
             variant="outline"
-            disabled={busy || projection.releaseStatus !== "dispatch_finalized"}
+            disabled={busy || !canWrite || projection.releaseStatus !== "dispatch_finalized"}
             onClick={onReversal}
           >
             Request reversal
@@ -168,30 +148,42 @@ export default function DispatchFinalizationBoard() {
   const [timelineOrderId, setTimelineOrderId] = useState<string | null>(null);
   const [events, setEvents] = useState<OperationalEventRecord[]>([]);
   const [lineageLabels, setLineageLabels] = useState<string[]>([]);
+  const [bundle, setBundle] = useState<DispatchFinalizationBundle | null>(null);
   const [liveStatusByOrder, setLiveStatusByOrder] = useState<Record<string, string>>({});
 
-  const ordersRepo = useMemo(
-    () =>
-      createInMemoryOrderDispatchStatusRepository({
-        [SAMPLE_READY.orderId]: { status: "cleared_for_dispatch" },
-        [SAMPLE_BLOCKED.orderId]: { status: "packed_ready" },
-      }),
-    [],
+  const boardState = useGovernanceBoardState(
+    supabase,
+    loadDispatchFinalizationRows,
+    PREVIEW_ROWS,
+    ["orders", "dispatch_release_lineage"],
   );
 
-  const service = useMemo(
-    () =>
-      createDispatchFinalizationService({
-        lineage: createInMemoryDispatchLineageStore(),
-        orders: ordersRepo,
-        events: createInMemoryDispatchFinalizationEventSink(),
-      }),
-    [ordersRepo],
-  );
+  useEffect(() => {
+    let cancelled = false;
+    void createDispatchFinalizationBundle(supabase)
+      .then((b) => {
+        if (!cancelled) setBundle(b);
+      })
+      .catch(() => {
+        if (!cancelled) setBundle(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
-  const cards = useMemo(
-    () =>
-      [SAMPLE_READY, SAMPLE_BLOCKED].map((input) => {
+  const service = bundle?.service;
+
+  const cards = useMemo(() => {
+    const inputs: DispatchFinalizationInput[] =
+      boardState.liveRows.length > 0
+        ? boardState.liveRows.map((r) => r.input)
+        : boardState.showPreviewCards
+          ? PREVIEW_FINALIZATION_INPUTS
+          : [];
+
+    if (!service) {
+      return inputs.map((input) => {
         const merged: DispatchFinalizationInput = {
           ...input,
           currentOrderStatus: liveStatusByOrder[input.orderId] ?? input.currentOrderStatus,
@@ -199,22 +191,35 @@ export default function DispatchFinalizationBoard() {
         return {
           input: merged,
           projection: projectDispatchRelease(merged),
-          preview: service.previewCustomerPublication(merged.orderId, merged.transporterReference ?? undefined),
+          preview: [] as { label: string }[],
         };
-      }),
-    [service, liveStatusByOrder],
-  );
+      });
+    }
+
+    return inputs.map((input) => {
+      const merged: DispatchFinalizationInput = {
+        ...input,
+        currentOrderStatus: liveStatusByOrder[input.orderId] ?? input.currentOrderStatus,
+      };
+      return {
+        input: merged,
+        projection: projectDispatchRelease(merged),
+        preview: service.previewCustomerPublication(merged.orderId, merged.transporterReference ?? undefined),
+      };
+    });
+  }, [boardState.liveRows, boardState.showPreviewCards, service, liveStatusByOrder]);
 
   const writeCtx = (orderId: string, extra?: { reversalReason?: string }) => ({
     correlationId: `fin-${orderId}-${Date.now()}`,
     actorUserId: user?.id ?? "",
     actorRole: role ?? "DISPATCH_HEAD",
-    finalizeReason: "Staging governed finalize — Phase 4E",
-    overrideReason: role === "SUPER_ADMIN" ? "Staging finalization override" : null,
+    finalizeReason: "Governed finalize",
+    overrideReason: role === "SUPER_ADMIN" ? "Governed finalization override" : null,
     ...extra,
   });
 
   const refresh = async (orderId: string) => {
+    if (!service || !bundle?.canExecuteWrites) return;
     setTimelineOrderId(orderId);
     const evts = await service.listEvents(orderId);
     setEvents(finalizationEventsToOperational(evts));
@@ -223,11 +228,11 @@ export default function DispatchFinalizationBoard() {
   };
 
   const handleFinalize = async (input: DispatchFinalizationInput) => {
-    if (!user?.id) return;
+    if (!user?.id || !service || !bundle?.canExecuteWrites) return;
     setBusyId(input.orderId);
     try {
       const result = await service.finalizeDispatch(input, writeCtx(input.orderId), {
-        trackingNumber: "LR-STAGING-4E",
+        trackingNumber: "LR-GOVERNED",
         courierName: input.transporterReference?.split("/")[0]?.trim(),
       });
       setLiveStatusByOrder((prev) => ({ ...prev, [input.orderId]: result.statusUpdate.nextStatus }));
@@ -238,7 +243,7 @@ export default function DispatchFinalizationBoard() {
   };
 
   const handlePublish = async (input: DispatchFinalizationInput) => {
-    if (!user?.id) return;
+    if (!user?.id || !service || !bundle?.canExecuteWrites) return;
     setBusyId(input.orderId);
     try {
       await service.publishCustomerRelease(input.orderId, writeCtx(input.orderId), input.transporterReference ?? undefined);
@@ -249,16 +254,16 @@ export default function DispatchFinalizationBoard() {
   };
 
   const handleReversal = async (input: DispatchFinalizationInput) => {
-    if (!user?.id) return;
+    if (!user?.id || !service || !bundle?.canExecuteWrites) return;
     setBusyId(input.orderId);
     try {
       await service.requestDispatchReversal(input.orderId, {
         ...writeCtx(input.orderId),
-        reversalReason: "Staging reversal drill",
+        reversalReason: "Governed reversal",
       });
       await service.completeDispatchReversal(input.orderId, {
         ...writeCtx(input.orderId),
-        reversalReason: "Staging reversal drill",
+        reversalReason: "Governed reversal",
       });
       await refresh(input.orderId);
     } finally {
@@ -274,6 +279,11 @@ export default function DispatchFinalizationBoard() {
         <Badge variant="outline" className="text-[10px] uppercase">
           Phase 4E — governed status mutation
         </Badge>
+        {bundle && (
+          <Badge variant="outline" className="text-[10px]">
+            {bundle.persistenceMode}
+          </Badge>
+        )}
         <Link to="/admin/dispatch-completion" className="text-xs text-primary underline-offset-2 hover:underline">
           Completion (4D)
         </Link>
@@ -281,6 +291,14 @@ export default function DispatchFinalizationBoard() {
           Readiness (4B)
         </Link>
       </header>
+
+      <GovernanceBoardLiveNotice
+        meta={boardState.meta}
+        loading={boardState.loading}
+        loadError={boardState.loadError}
+        showEmptyLiveMessage={boardState.showEmptyLiveMessage}
+        showPreviewCards={boardState.showPreviewCards}
+      />
 
       <Card className="border-emerald-500/30 bg-emerald-500/5">
         <CardContent className="flex gap-2 pt-4 text-sm">
@@ -299,6 +317,7 @@ export default function DispatchFinalizationBoard() {
             input={input}
             projection={projection}
             busy={busyId === input.orderId}
+            canWrite={bundle?.canExecuteWrites ?? false}
             customerPreview={preview}
             onFinalize={() => void handleFinalize(input)}
             onPublish={() => void handlePublish(input)}
