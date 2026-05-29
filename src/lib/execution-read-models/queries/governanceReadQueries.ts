@@ -31,7 +31,7 @@ const DISPATCH_PIPELINE_STATUSES = [
 ] as const;
 
 const ORDER_SELECT =
-  "id, status, sales_order_value, advance_required, advance_paid, payment_status, updated_at, dispatch_date";
+  "id, status, sales_order_value, advance_required, advance_paid, payment_status, created_at";
 
 export interface GovernanceBoardRow<TInput> {
   input: TInput;
@@ -82,7 +82,7 @@ export async function loadFinanceGovernanceRows(
     .select(ORDER_SELECT)
     .in("status", [...DISPATCH_PIPELINE_STATUSES])
     .eq("is_waste", false)
-    .order("updated_at", { ascending: false })
+    .order("created_at", { ascending: false })
     .limit(limit);
 
   if (error) {
@@ -126,7 +126,7 @@ export async function loadFinanceGovernanceRows(
         advanceRequired: Number(o.advance_required ?? 0),
         advanceVerified: Number(o.advance_paid ?? 0) >= Number(o.advance_required ?? 0),
         paymentStatus: (o.payment_status as string) ?? null,
-        updatedAt: (o.updated_at as string) ?? null,
+        updatedAt: (o.created_at as string) ?? null,
       },
       (evidenceByOrder.get(o.id as string) ?? []).map((e) => ({
         reviewStatus: e.review_status,
@@ -168,7 +168,7 @@ export async function loadDispatchReadinessRows(
     .select(ORDER_SELECT)
     .in("status", ["cleared_for_dispatch", "packed_ready", "ready_for_dispatch", "awaiting_final_payment"])
     .eq("is_waste", false)
-    .order("updated_at", { ascending: false })
+    .order("created_at", { ascending: false })
     .limit(limit);
 
   if (error) return emptyReadModelResult("unavailable", tables, [error.message]);
@@ -248,7 +248,7 @@ export async function loadDispatchCompletionRows(
     .select(ORDER_SELECT)
     .in("status", ["cleared_for_dispatch", "packed_ready"])
     .eq("is_waste", false)
-    .order("updated_at", { ascending: false })
+    .order("created_at", { ascending: false })
     .limit(limit);
 
   if (error) return emptyReadModelResult("unavailable", tables, [error.message]);
@@ -325,7 +325,7 @@ export async function loadDispatchFinalizationRows(
     .select(ORDER_SELECT)
     .in("status", ["cleared_for_dispatch", "packed_ready", "dispatched"])
     .eq("is_waste", false)
-    .order("updated_at", { ascending: false })
+    .order("created_at", { ascending: false })
     .limit(limit);
 
   if (error) return emptyReadModelResult("unavailable", tables, [error.message]);
@@ -450,7 +450,7 @@ export async function loadStockFinalizationRows(
     .select(ORDER_SELECT)
     .eq("status", "dispatched")
     .eq("is_waste", false)
-    .order("updated_at", { ascending: false })
+    .order("created_at", { ascending: false })
     .limit(limit);
 
   if (error) return emptyReadModelResult("unavailable", tables, [error.message]);

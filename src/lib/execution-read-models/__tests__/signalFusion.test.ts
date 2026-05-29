@@ -326,4 +326,15 @@ describe("stock read model query (Bugbot #3)", () => {
     expect(src).not.toContain("live-scan");
     expect(src).not.toContain("live-gate");
   });
+
+  it("governanceReadQueries orders by created_at (orders.updated_at not in schema)", () => {
+    const src = readFileSync(
+      join(process.cwd(), "src/lib/execution-read-models/queries/governanceReadQueries.ts"),
+      "utf8",
+    );
+    expect(src).not.toMatch(/order\(\s*["']updated_at["']/);
+    expect(src).not.toContain("updated_at, dispatch_date");
+    expect(src).toContain("created_at");
+    expect(src).toMatch(/ORDER_SELECT[\s\S]*created_at/);
+  });
 });
