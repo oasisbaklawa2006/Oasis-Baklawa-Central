@@ -1,0 +1,46 @@
+# Phase 21 — Migration list PRE (production tcxvcatsqqertcnycuop)
+
+**Generated:** 2026-05-30  
+**Method:** Read-only comparison — repo `supabase/migrations/` vs `supabase_migrations.schema_migrations` on production (MCP `execute_sql`).  
+**Note:** `npx supabase migration list --linked` **not run** — CLI returned `Access token not provided`. Re-run on operator machine after `supabase login`.
+
+## Summary
+
+| Check | Result |
+|-------|--------|
+| Remote versions on production | 101 |
+| Local migration files in repo | 120 |
+| **Local-only (pending push)** | **19** |
+| **Remote-only (no repo file)** | **0** |
+| Execution OS pending (`20260525230000`–`20260526160000`) | **9** |
+
+## Pending local-only versions (exact order for db push)
+
+20260503201343
+20260503215926
+20260504035656
+20260508155100
+20260510120000
+20260515120000
+20260515120001
+20260515194500
+20260516200000
+20260518220000
+20260525230000
+20260526010000
+20260526020000
+20260526030000
+20260526120000
+20260526130000
+20260526140000
+20260526150000
+20260526160000
+
+## Workspace SHA at audit time
+
+```
+95416247772ce444de6b69acfe34721d71383fc7
+```
+
+**Production deploy SHA (expected at push):** `189177dfd70407ac02b042cd11a7a5f24f846e44`  
+**Diff:** `supabase/` and `src/` identical between HEAD and `189177df` (docs-only commits on current branch).
