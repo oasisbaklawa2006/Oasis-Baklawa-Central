@@ -15,3 +15,7 @@ export * from "./reservationDbMappers";
 export * from "./reservationConcurrency";
 export * from "./supabaseInventoryReservationStore";
 export * from "./supabaseReservationRepository";
+export * from "./buildAvailabilitySnapshot";
+export * from "./reservationBoardQueries";
+export * from "./reservationStagingPrerequisites";
+export * from "./createGovernedReservation";
