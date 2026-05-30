@@ -19,6 +19,7 @@ import { GovernancePrerequisiteList } from "@/components/admin/GovernancePrerequ
 import { createAndReserveInventoryForOrder } from "@/lib/inventory-reservations/createGovernedReservation";
 import {
   loadDispatchedOrdersForReservationBoard,
+  loadOrderLinesForReservationBoard,
   loadReservationBoardOrderContext,
   RESERVATION_BOARD_DEFAULT_LOCATION,
   type ReservationLineCandidate,
@@ -32,6 +33,10 @@ import { createSupabaseReservationService } from "@/lib/inventory-reservations/s
 import { probeInventoryReservationTables } from "@/lib/inventory-reservations/supabaseInventoryReservationStore";
 import { reservationStatusLabel } from "@/lib/inventory-reservations/reservationProjection";
 import { ReservationError } from "@/lib/inventory-reservations/reservationTypes";
+
+function lineKey(line: ReservationLineCandidate): string {
+  return `${line.productId}:${line.sku}`;
+}
 
 export function ReservationGovernancePanel() {
   const { user, role } = useAuth();
@@ -50,6 +55,7 @@ export function ReservationGovernancePanel() {
   const [context, setContext] = useState<Awaited<ReturnType<typeof loadReservationBoardOrderContext>> | null>(
     null,
   );
+  const [bootstrapLines, setBootstrapLines] = useState<ReservationLineCandidate[]>([]);
 
   const writeCtx = useCallback(
     () => ({
@@ -85,9 +91,50 @@ export function ReservationGovernancePanel() {
   }, [reloadOrders]);
 
   const orderLines = useMemo(() => {
-    if (!context?.lines.length) return [];
-    return context.lines;
-  }, [context?.lines]);
+    if (context?.lines.length) return context.lines;
+    return bootstrapLines;
+  }, [context?.lines, bootstrapLines]);
+
+  const parsedReserveQty = Number(reserveQty);
+  const effectiveReserveQty =
+    Number.isFinite(parsedReserveQty) && parsedReserveQty > 0
+      ? parsedReserveQty
+      : (selectedLine?.quantity ?? 0);
+
+  useEffect(() => {
+    if (!selectedLine) {
+      setReserveQty("");
+      return;
+    }
+    setReserveQty(String(selectedLine.quantity));
+  }, [selectedLine?.productId, selectedLine?.sku]);
+
+  useEffect(() => {
+    if (!selectedOrderId) {
+      setSelectedLine(null);
+      return;
+    }
+    let cancelled = false;
+    void loadOrderLinesForReservationBoard(supabase, selectedOrderId)
+      .then((lines) => {
+        if (cancelled) return;
+        setBootstrapLines(lines);
+        if (lines.length === 0) {
+          setSelectedLine(null);
+          return;
+        }
+        setSelectedLine((prev) => {
+          if (prev && lines.some((l) => lineKey(l) === lineKey(prev))) return prev;
+          return lines[0];
+        });
+      })
+      .catch((e) => {
+        if (!cancelled) setMessage(e instanceof Error ? e.message : "Failed to load order lines");
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedOrderId]);
 
   useEffect(() => {
     if (!selectedOrderId || !selectedLine) {
@@ -96,16 +143,21 @@ export function ReservationGovernancePanel() {
     }
     let cancelled = false;
     setContextLoading(true);
-    void loadReservationBoardOrderContext(supabase, selectedOrderId, selectedLine, locationCode)
+    void loadReservationBoardOrderContext(
+      supabase,
+      selectedOrderId,
+      selectedLine,
+      locationCode,
+      effectiveReserveQty,
+    )
       .then((ctx) => {
-        if (!cancelled) {
-          setContext(ctx);
-          setReserveQty(String(selectedLine.quantity));
-          if (!seedAvailableQty) setSeedAvailableQty(String(Math.max(selectedLine.quantity * 2, 50)));
-        }
+        if (!cancelled) setContext(ctx);
       })
       .catch((e) => {
-        if (!cancelled) setMessage(e instanceof Error ? e.message : "Failed to load order context");
+        if (!cancelled) {
+          setContext(null);
+          setMessage(e instanceof Error ? e.message : "Failed to load order context");
+        }
       })
       .finally(() => {
         if (!cancelled) setContextLoading(false);
@@ -113,39 +165,36 @@ export function ReservationGovernancePanel() {
     return () => {
       cancelled = true;
     };
-  }, [selectedOrderId, selectedLine, locationCode]);
+  }, [selectedOrderId, selectedLine, locationCode, effectiveReserveQty]);
 
-  useEffect(() => {
-    if (!selectedOrderId) return;
-    void (async () => {
-      const { data } = await supabase
-        .from("order_items")
-        .select("quantity, product_id, product:products(id, name, sku)")
-        .eq("order_id", selectedOrderId);
-      const lines: ReservationLineCandidate[] = (data ?? [])
-        .map((row) => {
-          const product = row.product as { id?: string; name?: string; sku?: string } | null;
-          const sku = product?.sku?.trim();
-          const productId = (row.product_id as string) || product?.id;
-          if (!productId || !sku) return null;
-          return {
-            productId,
-            sku,
-            productName: product?.name?.trim() || sku,
-            quantity: Math.max(1, Number(row.quantity) || 1),
-          };
-        })
-        .filter((x): x is ReservationLineCandidate => x !== null);
-      if (lines.length > 0) {
-        setSelectedLine((prev) => prev ?? lines[0]);
-      }
-    })();
-  }, [selectedOrderId]);
+  const handleOrderChange = (orderId: string) => {
+    setSelectedOrderId(orderId);
+    setSelectedLine(null);
+    setContext(null);
+    setBootstrapLines([]);
+    setSeedAvailableQty("");
+  };
+
+  const handleLineChange = (key: string) => {
+    const line = orderLines.find((l) => lineKey(l) === key);
+    setSelectedLine(line ?? null);
+    setSeedAvailableQty("");
+  };
 
   const canWrite = tablesOk === true && Boolean(user?.id);
+  const canCreateReserve =
+    canWrite &&
+    Boolean(selectedLine) &&
+    Boolean(context) &&
+    !contextLoading &&
+    busy === null &&
+    (context?.reservationBlockers.length ?? 0) === 0;
 
   const handleCreateAndReserve = async () => {
-    if (!selectedOrderId || !selectedLine || !context) return;
+    if (!selectedOrderId || !selectedLine || !context) {
+      setMessage("Order context is not loaded — wait for availability or fix errors above.");
+      return;
+    }
     const qty = Number(reserveQty);
     if (!Number.isFinite(qty) || qty <= 0) {
       setMessage("Quantity must be a positive number.");
@@ -157,6 +206,7 @@ export function ReservationGovernancePanel() {
     }
     setBusy("reserve");
     setMessage(null);
+    let successMessage: string | null = null;
     try {
       const result = await createAndReserveInventoryForOrder(
         supabase,
@@ -169,26 +219,35 @@ export function ReservationGovernancePanel() {
         },
         writeCtx(),
       );
-      setMessage(
+      successMessage =
         `Reserved ${result.reservationNumber} · status ${result.reservationStatus} · qty ${result.reservedQty}. ` +
-          `Movements: ${result.movementIds.length}. Continue on Stock finalization.`,
-      );
-      const refreshed = await loadReservationBoardOrderContext(
-        supabase,
-        selectedOrderId,
-        selectedLine,
-        locationCode,
-      );
-      setContext(refreshed);
-      await reloadOrders();
+        `Movements: ${result.movementIds.length}. Continue on Stock finalization.`;
     } catch (e) {
       if (e instanceof ReservationError) {
         setMessage(`Reservation blocked (${e.code}): ${e.message}`);
       } else {
         setMessage(e instanceof Error ? e.message : "Reservation failed");
       }
+      return;
     } finally {
       setBusy(null);
+    }
+
+    setMessage(successMessage);
+    try {
+      const refreshed = await loadReservationBoardOrderContext(
+        supabase,
+        selectedOrderId,
+        selectedLine,
+        locationCode,
+        qty,
+      );
+      setContext(refreshed);
+      await reloadOrders();
+    } catch (e) {
+      setMessage(
+        `${successMessage} Refresh failed: ${e instanceof Error ? e.message : "could not reload context"}.`,
+      );
     }
   };
 
@@ -209,6 +268,7 @@ export function ReservationGovernancePanel() {
           selectedOrderId,
           selectedLine,
           locationCode,
+          effectiveReserveQty,
         );
         setContext(refreshed);
       }
@@ -245,6 +305,7 @@ export function ReservationGovernancePanel() {
         selectedOrderId,
         selectedLine,
         locationCode,
+        effectiveReserveQty,
       );
       setContext(refreshed);
     } catch (e) {
@@ -257,6 +318,7 @@ export function ReservationGovernancePanel() {
   const handleRefreshReservations = async () => {
     if (!selectedOrderId) return;
     setBusy("refresh");
+    setMessage(null);
     try {
       const svc = await createSupabaseReservationService(supabase).getService();
       const rows = await svc.listByOrder(selectedOrderId);
@@ -266,9 +328,12 @@ export function ReservationGovernancePanel() {
           selectedOrderId,
           selectedLine,
           locationCode,
+          effectiveReserveQty,
         );
         setContext({ ...refreshed, reservations: rows });
       }
+    } catch (e) {
+      setMessage(e instanceof Error ? e.message : "Failed to refresh reservations");
     } finally {
       setBusy(null);
     }
@@ -301,7 +366,11 @@ export function ReservationGovernancePanel() {
           <div className="grid gap-3 md:grid-cols-2">
             <div className="space-y-2">
               <Label className="text-xs">Dispatched order</Label>
-              <Select value={selectedOrderId} onValueChange={setSelectedOrderId} disabled={loading || !canWrite}>
+              <Select
+                value={selectedOrderId}
+                onValueChange={handleOrderChange}
+                disabled={loading || !canWrite}
+              >
                 <SelectTrigger>
                   <SelectValue placeholder={loading ? "Loading…" : "Select order"} />
                 </SelectTrigger>
@@ -317,11 +386,8 @@ export function ReservationGovernancePanel() {
             <div className="space-y-2">
               <Label className="text-xs">Line / SKU</Label>
               <Select
-                value={selectedLine ? `${selectedLine.productId}:${selectedLine.sku}` : ""}
-                onValueChange={(v) => {
-                  const line = orderLines.find((l) => `${l.productId}:${l.sku}` === v);
-                  setSelectedLine(line ?? null);
-                }}
+                value={selectedLine ? lineKey(selectedLine) : ""}
+                onValueChange={handleLineChange}
                 disabled={!selectedOrderId || orderLines.length === 0}
               >
                 <SelectTrigger>
@@ -329,7 +395,7 @@ export function ReservationGovernancePanel() {
                 </SelectTrigger>
                 <SelectContent>
                   {orderLines.map((l) => (
-                    <SelectItem key={`${l.productId}:${l.sku}`} value={`${l.productId}:${l.sku}`}>
+                    <SelectItem key={lineKey(l)} value={lineKey(l)}>
                       {l.sku} · {l.productName} · qty {l.quantity}
                     </SelectItem>
                   ))}
@@ -356,7 +422,7 @@ export function ReservationGovernancePanel() {
             <div className="space-y-2 flex items-end">
               <Button
                 className="w-full"
-                disabled={!canWrite || !selectedLine || busy !== null || contextLoading}
+                disabled={!canCreateReserve}
                 onClick={() => void handleCreateAndReserve()}
               >
                 {busy === "reserve" ? <Loader2 className="h-4 w-4 animate-spin" /> : "Create & reserve"}

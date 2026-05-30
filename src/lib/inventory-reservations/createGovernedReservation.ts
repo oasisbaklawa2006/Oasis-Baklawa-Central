@@ -91,6 +91,27 @@ export async function createAndReserveInventoryForOrder(
       movementIds,
     };
   } catch (e) {
+    const reason =
+      e instanceof ReservationError
+        ? `${e.code}: ${e.message}`
+        : e instanceof Error
+          ? e.message
+          : "reserve failed";
+    try {
+      const latest = await service.getReservation(created.reservation.id);
+      if (latest && latest.reservationStatus === "pending") {
+        await service.cancelReservation(
+          {
+            reservationId: latest.id,
+            expectedVersion: latest.version,
+            reason: `Compensating cancel after reserve failure (${reason})`,
+          },
+          ctx,
+        );
+      }
+    } catch {
+      // Preserve original failure; orphan pending rows require manual ops review.
+    }
     if (e instanceof ReservationError) throw e;
     throw e;
   }

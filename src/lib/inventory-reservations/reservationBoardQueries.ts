@@ -50,6 +50,50 @@ export function orderGovernanceLabel(orderId: string, orderNumber: string | null
   return `Order ${orderId.slice(-4)}`;
 }
 
+/** Map order_items join rows to line candidates (shared by board context + line bootstrap). */
+export function mapOrderItemsToLineCandidates(
+  rows: readonly {
+    quantity: unknown;
+    product_id: unknown;
+    product: { id?: string; name?: string; sku?: string } | { id?: string; name?: string; sku?: string }[] | null;
+  }[],
+): ReservationLineCandidate[] {
+  return rows
+    .map((row) => {
+      const raw = row.product;
+      const product = Array.isArray(raw) ? raw[0] : raw;
+      const sku = product?.sku?.trim();
+      const productId = (row.product_id as string) || product?.id;
+      if (!productId || !sku) return null;
+      return {
+        productId,
+        sku,
+        productName: product?.name?.trim() || sku,
+        quantity: Math.max(1, Number(row.quantity) || 1),
+      };
+    })
+    .filter((x): x is ReservationLineCandidate => x !== null);
+}
+
+export async function loadOrderLinesForReservationBoard(
+  client: SupabaseClient,
+  orderId: string,
+): Promise<ReservationLineCandidate[]> {
+  const { data, error } = await client
+    .from("order_items")
+    .select("quantity, product_id, product:products(id, name, sku)")
+    .eq("order_id", orderId);
+  if (error) throw new Error(error.message);
+  return mapOrderItemsToLineCandidates(data ?? []);
+}
+
+function collectSupabaseErrors(
+  results: { error: { message: string } | null }[],
+): void {
+  const messages = results.map((r) => r.error?.message).filter((m): m is string => Boolean(m));
+  if (messages.length > 0) throw new Error(messages.join("; "));
+}
+
 export async function loadDispatchedOrdersForReservationBoard(
   client: SupabaseClient,
   limit = 12,
@@ -96,6 +140,7 @@ export async function loadReservationBoardOrderContext(
   orderId: string,
   line: ReservationLineCandidate,
   locationCode = DEFAULT_LOCATION,
+  requestedQty?: number,
 ): Promise<ReservationBoardOrderContext> {
   const [orderRes, itemsRes, reservationsRes, balanceRes, scansRes] = await Promise.all([
     client.from("orders").select("id, order_number, status").eq("id", orderId).maybeSingle(),
@@ -115,11 +160,13 @@ export async function loadReservationBoardOrderContext(
       .from("operational_scan_records")
       .select("barcode_value, scan_type, verification_status")
       .eq("order_id", orderId)
+      .eq("verification_status", "verified")
+      .in("scan_type", ["carton", "packing", "dispatch_gate"])
       .order("created_at", { ascending: false })
-      .limit(10),
+      .limit(1),
   ]);
 
-  if (orderRes.error) throw new Error(orderRes.error.message);
+  collectSupabaseErrors([orderRes, itemsRes, reservationsRes, balanceRes, scansRes]);
   if (!orderRes.data) throw new Error("Order not found");
 
   const order: ReservationOrderRow = {
@@ -129,20 +176,7 @@ export async function loadReservationBoardOrderContext(
     label: orderGovernanceLabel(orderRes.data.id as string, (orderRes.data.order_number as string | null) ?? null),
   };
 
-  const lines: ReservationLineCandidate[] = (itemsRes.data ?? [])
-    .map((row) => {
-      const product = row.product as { id?: string; name?: string; sku?: string } | null;
-      const sku = product?.sku?.trim();
-      const productId = (row.product_id as string) || product?.id;
-      if (!productId || !sku) return null;
-      return {
-        productId,
-        sku,
-        productName: product?.name?.trim() || sku,
-        quantity: Math.max(1, Number(row.quantity) || 1),
-      };
-    })
-    .filter((x): x is ReservationLineCandidate => x !== null);
+  const lines = mapOrderItemsToLineCandidates(itemsRes.data ?? []);
 
   const reservations = ((reservationsRes.data ?? []) as InventoryReservationRow[]).map(mapReservationRow);
 
@@ -167,24 +201,17 @@ export async function loadReservationBoardOrderContext(
   });
   const availabilitySummary = summarizeAvailability(availability);
 
-  const scans = (scansRes.data ?? []) as {
-    barcode_value: string | null;
-    scan_type: string;
-    verification_status: string;
-  }[];
-  const verifiedScan = scans.find(
-    (s) =>
-      (s.scan_type === "carton" || s.scan_type === "packing" || s.scan_type === "dispatch_gate") &&
-      s.verification_status === "verified" &&
-      s.barcode_value?.trim(),
-  );
-  const scanReference = verifiedScan?.barcode_value?.trim() ?? null;
+  const scanReference =
+    ((scansRes.data?.[0] as { barcode_value?: string | null } | undefined)?.barcode_value ?? "")
+      .trim() || null;
 
+  const reserveQty = requestedQty ?? line.quantity;
   const reservationBlockers = buildReservationCreateBlockers({
     order,
     line,
     reservations,
     availabilitySummary,
+    requestedQty: reserveQty,
   });
 
   const stockFinalizationHints = buildStockFinalizationHints({
@@ -216,20 +243,30 @@ export function buildReservationCreateBlockers(params: {
   line: ReservationLineCandidate;
   reservations: InventoryReservationRecord[];
   availabilitySummary: ReturnType<typeof summarizeAvailability>;
+  requestedQty?: number;
 }): string[] {
   const reasons: string[] = [];
+  const qty = params.requestedQty ?? params.line.quantity;
+  if (!Number.isFinite(qty) || qty <= 0) {
+    reasons.push("Reserve quantity must be a positive number.");
+  }
+  if (qty > params.line.quantity + 0.0001) {
+    reasons.push(
+      `Reserve quantity ${qty} exceeds order line quantity ${params.line.quantity} for ${params.line.sku}.`,
+    );
+  }
   if (params.order.status !== "dispatched") {
     reasons.push(`Order must be dispatched (current: ${params.order.status}).`);
   }
   const activeForSku = params.reservations.filter(
     (r) => r.sku === params.line.sku && isReservationOpen(r.reservationStatus),
   );
-  if (activeForSku.some((r) => r.reservationStatus === "reserved" || r.reservationStatus === "partially_reserved")) {
-    reasons.push(`Active reservation already exists for SKU ${params.line.sku} on this order.`);
+  if (activeForSku.length > 0) {
+    reasons.push(`Open reservation already exists for SKU ${params.line.sku} on this order.`);
   }
-  if (params.availabilitySummary.availableQty < params.line.quantity - 0.0001) {
+  if (params.availabilitySummary.availableQty < qty - 0.0001) {
     reasons.push(
-      `Insufficient availability for ${params.line.sku}: need ${params.line.quantity}, available ${params.availabilitySummary.availableQty}.`,
+      `Insufficient availability for ${params.line.sku}: need ${qty}, available ${params.availabilitySummary.availableQty}.`,
     );
   }
   return reasons;
