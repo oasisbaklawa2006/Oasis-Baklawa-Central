@@ -85,6 +85,17 @@ describe("governance golden chain fusion", () => {
     expect(rows.some((r) => r.evidenceType === "manual_readiness_review")).toBe(true);
   });
 
+  it("finance review start persists credit_review evidence", async () => {
+    const evidence = createInMemoryFinanceEvidenceStore();
+    const svc = createFinanceGovernanceService({
+      evidence,
+      events: createInMemoryFinanceEventSink(),
+    });
+    await svc.startReview(financeReady, financeCtx);
+    const rows = await evidence.listByOrder(financeReady.orderId);
+    expect(rows.some((r) => r.reviewType === "credit_review" && r.reviewStatus === "pending")).toBe(true);
+  });
+
   it("commercial release persists finance_review_evidence", async () => {
     const evidence = createInMemoryFinanceEvidenceStore();
     const svc = createFinanceGovernanceService({

@@ -68,4 +68,16 @@ describe("financeGovernanceService", () => {
       s.startReview(ready, { ...ctx, actorRole: "DISPATCH_MANAGER" }),
     ).rejects.toThrow(FinanceGovernanceError);
   });
+
+  it("start review persists finance_review_evidence credit_review pending", async () => {
+    const evidence = createInMemoryFinanceEvidenceStore();
+    const s = createFinanceGovernanceService({
+      evidence,
+      events: createInMemoryFinanceEventSink(),
+    });
+    const { evidenceId } = await s.startReview(ready, ctx);
+    expect(evidenceId).toBeTruthy();
+    const rows = await evidence.listByOrder(ready.orderId);
+    expect(rows.some((r) => r.reviewType === "credit_review" && r.reviewStatus === "pending")).toBe(true);
+  });
 });

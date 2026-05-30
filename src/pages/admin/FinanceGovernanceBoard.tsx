@@ -10,18 +10,23 @@ import {
   projectFinanceRelease,
   type FinanceGovernanceInput,
 } from "@/lib/finance-governance";
-import { canCommerciallyRelease } from "@/lib/finance-governance/financeApprovalWorkflow";
+import { validateCommercialReleaseAttempt } from "@/lib/finance-governance/financeApprovalWorkflow";
 import { createFinanceGovernanceBundle, type FinanceGovernanceBundle } from "@/lib/finance-governance/createFinanceGovernanceBundle";
 import { financeSignalLabel } from "@/lib/dispatch-readiness/financeDispatchSignal";
 import { financeEventsToOperational } from "@/lib/finance-governance/financeOperationalBridge";
 import { OperationalTimeline } from "@/components/admin/OperationalTimeline";
 import { GovernanceBoardLiveNotice } from "@/components/admin/GovernanceBoardLiveNotice";
+import {
+  GovernanceActionDisabledHint,
+  GovernanceMissingSignals,
+} from "@/components/admin/GovernanceBoardPrerequisites";
 import type { OperationalEventRecord } from "@/lib/operational-events/types";
 import { FINANCE_HOLD_LABELS } from "@/lib/finance-governance/financeHoldRules";
 import {
   loadFinanceGovernanceRows,
   PREVIEW_FINANCE_INPUTS,
   useGovernanceBoardState,
+  type GovernanceEvidenceFlags,
 } from "@/lib/execution-read-models";
 
 export const FORBIDDEN_FINANCE_UI_LABELS = [
@@ -36,6 +41,7 @@ export const FORBIDDEN_FINANCE_UI_LABELS = [
 const PREVIEW_ROWS = PREVIEW_FINANCE_INPUTS.map((input) => ({
   input,
   missingSignals: [] as string[],
+  evidenceFlags: undefined as GovernanceEvidenceFlags | undefined,
 }));
 
 export default function FinanceGovernanceBoard() {
@@ -70,12 +76,16 @@ export default function FinanceGovernanceBoard() {
       return boardState.liveRows.map((row) => ({
         input: row.input,
         projection: projectFinanceRelease(row.input),
+        missingSignals: row.missingSignals,
+        evidenceFlags: row.evidenceFlags,
       }));
     }
     if (boardState.showPreviewCards) {
       return PREVIEW_FINANCE_INPUTS.map((input) => ({
         input,
         projection: projectFinanceRelease(input),
+        missingSignals: [] as string[],
+        evidenceFlags: undefined as GovernanceEvidenceFlags | undefined,
       }));
     }
     return [];
@@ -96,6 +106,7 @@ export default function FinanceGovernanceBoard() {
       await bundle.service.startReview(input, writeCtx(input.orderId));
       const evts = await bundle.service.listEvents(input.orderId);
       setEvents(financeEventsToOperational(evts));
+      boardState.reload();
     } finally {
       setActing(null);
     }
@@ -142,64 +153,104 @@ export default function FinanceGovernanceBoard() {
         <CardContent className="flex gap-2 pt-4 text-sm">
           <ShieldAlert className="h-5 w-5 shrink-0 text-amber-600" aria-hidden />
           <p>
-            <strong>commercially_released</strong> allows operational progression signals only — not invoiced,
-            not payment captured, not dispatched.
+            <strong>Step 1 — Start finance review</strong> appends <code className="text-[11px]">credit_review</code>{" "}
+            evidence (pending). <strong>Step 2 — Record commercial release</strong> appends{" "}
+            <code className="text-[11px]">commercial_release</code> when eligibility is satisfied. Neither step captures
+            payment, generates invoices, or dispatches.
           </p>
         </CardContent>
       </Card>
 
       <div className="grid gap-4 md:grid-cols-2">
-        {cardSources.map(({ input, projection }) => (
-          <Card key={input.orderId} className="ring-1 ring-border/50">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm">Order {input.orderId.slice(-4)}</CardTitle>
-              <div className="flex flex-wrap gap-1">
-                <Badge>{projection.releaseStatus.replace(/_/g, " ")}</Badge>
-                <Badge variant="outline">Risk: {projection.commercialRiskLevel}</Badge>
-                <Badge variant="secondary">
-                  Dispatch signal: {financeSignalLabel(projection.dispatchFinanceSignal)}
-                </Badge>
-              </div>
-            </CardHeader>
-            <CardContent className="space-y-2 text-sm">
-              <p className="text-muted-foreground">{projection.releaseRecommendation}</p>
-              {projection.blockingReasons.length > 0 && (
-                <ul className="list-inside list-disc text-xs">
-                  {projection.blockingReasons.map((b) => (
-                    <li key={b}>{b}</li>
-                  ))}
-                </ul>
-              )}
-              {input.openHoldTypes.map((h) => (
-                <Badge key={h} variant="destructive" className="text-[10px]">
-                  {FINANCE_HOLD_LABELS[h]}
-                </Badge>
-              ))}
-              <div className="flex flex-wrap gap-2">
-                <Button
-                  size="sm"
-                  variant="secondary"
-                  disabled={!!acting || !bundle?.canExecuteWrites}
-                  onClick={() => void runReview(input)}
-                >
-                  Start finance review
-                </Button>
-                <Button
-                  size="sm"
-                  disabled={
-                    !!acting ||
-                    !bundle?.canExecuteWrites ||
-                    projection.releaseStatus === "commercially_released" ||
-                    !canCommerciallyRelease(input)
-                  }
-                  onClick={() => void runCommercialRelease(input)}
-                >
-                  Record commercial release
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-        ))}
+        {cardSources.map(({ input, projection, missingSignals, evidenceFlags }) => {
+          const ctx = writeCtx(input.orderId);
+          const commercialCheck = validateCommercialReleaseAttempt(input, ctx);
+          const hasCommercialRelease = evidenceFlags?.hasCommercialReleaseEvidence ?? false;
+          const hasCreditReview = evidenceFlags?.hasCreditReviewEvidence ?? false;
+          const canRecordCommercial =
+            bundle?.canExecuteWrites &&
+            !acting &&
+            !hasCommercialRelease &&
+            commercialCheck.allowed;
+          const commercialDisabledReasons: string[] = [];
+          if (hasCommercialRelease) {
+            commercialDisabledReasons.push("commercial_release evidence already on file");
+          } else if (!commercialCheck.allowed) {
+            commercialDisabledReasons.push(commercialCheck.reason);
+          }
+          if (projection.blockingReasons.length > 0) {
+            commercialDisabledReasons.push(...projection.blockingReasons);
+          }
+
+          return (
+            <Card key={input.orderId} className="ring-1 ring-border/50">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm">Order {input.orderId.slice(-4)}</CardTitle>
+                <div className="flex flex-wrap gap-1">
+                  <Badge>{projection.releaseStatus.replace(/_/g, " ")}</Badge>
+                  <Badge variant="outline">Risk: {projection.commercialRiskLevel}</Badge>
+                  <Badge variant="secondary">
+                    Dispatch signal: {financeSignalLabel(projection.dispatchFinanceSignal)}
+                  </Badge>
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-3 text-sm">
+                <p className="text-muted-foreground">{projection.releaseRecommendation}</p>
+                <GovernanceMissingSignals signals={missingSignals} />
+                {projection.blockingReasons.length > 0 && (
+                  <ul className="list-inside list-disc text-xs">
+                    {projection.blockingReasons.map((b) => (
+                      <li key={b}>{b}</li>
+                    ))}
+                  </ul>
+                )}
+                {input.openHoldTypes.map((h) => (
+                  <Badge key={h} variant="destructive" className="text-[10px]">
+                    {FINANCE_HOLD_LABELS[h]}
+                  </Badge>
+                ))}
+
+                <div className="space-y-2 rounded-md border border-border/60 p-2">
+                  <p className="text-xs font-medium">1. Finance review (finance_review_evidence)</p>
+                  <p className="text-xs text-muted-foreground">
+                    Writes <code className="text-[11px]">credit_review</code> / pending. Does not release commercially.
+                  </p>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      disabled={!!acting || !bundle?.canExecuteWrites || hasCreditReview}
+                      onClick={() => void runReview(input)}
+                    >
+                      {hasCreditReview ? "Review started (on file)" : "Start finance review"}
+                    </Button>
+                    {hasCreditReview && (
+                      <Badge variant="outline" className="text-[10px]">
+                        credit_review persisted
+                      </Badge>
+                    )}
+                  </div>
+                </div>
+
+                <div className="space-y-2 rounded-md border border-border/60 p-2">
+                  <p className="text-xs font-medium">2. Commercial release (finance_review_evidence)</p>
+                  <p className="text-xs text-muted-foreground">
+                    Separate governed action — records <code className="text-[11px]">commercial_release</code> when
+                    projection is commercially_released.
+                  </p>
+                  <Button size="sm" disabled={!canRecordCommercial} onClick={() => void runCommercialRelease(input)}>
+                    {hasCommercialRelease ? "Commercial release recorded" : "Record commercial release"}
+                  </Button>
+                  <GovernanceActionDisabledHint
+                    enabled={Boolean(canRecordCommercial)}
+                    enabledLabel="Eligible to record commercial release evidence"
+                    disabledReasons={commercialDisabledReasons}
+                  />
+                </div>
+              </CardContent>
+            </Card>
+          );
+        })}
       </div>
 
       <Card>

@@ -31,7 +31,7 @@ const POSITIVE_REVIEW = new Set(["verified", "released"]);
 export function deriveFinanceSignalFromSlices(
   order: FinanceOrderSlice,
   evidence: FinanceEvidenceSlice[],
-  options?: { dispatchReadinessGateEligible?: boolean },
+  options?: { dispatchReadinessGateEligible?: boolean; reservationReady?: boolean },
 ): FinanceSignalFusion {
   const missingSignals: string[] = [];
   const latestEvidenceAt = evidence[0]?.createdAt ?? order.updatedAt;
@@ -86,7 +86,7 @@ export function deriveFinanceSignalFromSlices(
     advanceVerified: order.advanceVerified,
     creditApproved: true,
     openHoldTypes,
-    reservationReady: true,
+    reservationReady: options?.reservationReady ?? true,
     dispatchReadinessGateEligible: options?.dispatchReadinessGateEligible ?? false,
     complaintSeverity: "none",
     staleFinanceReview: signalMeta.stale,

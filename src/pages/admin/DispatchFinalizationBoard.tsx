@@ -21,6 +21,12 @@ import { GovernanceBoardLiveNotice } from "@/components/admin/GovernanceBoardLiv
 import type { OperationalEventRecord } from "@/lib/operational-events/types";
 import { lineageReleaseTypeLabel } from "@/lib/dispatch-finalization/dispatchLineage";
 import {
+  GovernanceActionDisabledHint,
+  GovernanceMissingSignals,
+  GovernanceReferencePanel,
+  GovernancePrerequisiteChecklist,
+} from "@/components/admin/GovernanceBoardPrerequisites";
+import {
   loadDispatchFinalizationRows,
   PREVIEW_FINALIZATION_INPUTS,
   useGovernanceBoardState,
@@ -69,6 +75,7 @@ function finalizationEventsToOperational(
 function ReleaseCard({
   input,
   projection,
+  missingSignals,
   onFinalize,
   onPublish,
   onReversal,
@@ -78,6 +85,7 @@ function ReleaseCard({
 }: {
   input: DispatchFinalizationInput;
   projection: DispatchReleaseProjection;
+  missingSignals: string[];
   onFinalize: () => void;
   onPublish: () => void;
   onReversal: () => void;
@@ -86,6 +94,9 @@ function ReleaseCard({
   canWrite: boolean;
 }) {
   const lane = projection.canFinalize ? "eligible" : projection.releaseStatus === "dispatch_release_blocked" ? "blocked" : "pending";
+  const finalizeDisabledReasons = projection.canFinalize
+    ? []
+    : [...projection.blockingReasons, ...missingSignals.map((s) => `Missing signal: ${s}`)];
 
   return (
     <Card className={lane === "eligible" ? "ring-1 ring-primary/30" : "ring-1 ring-border/50"}>
@@ -97,6 +108,35 @@ function ReleaseCard({
       </CardHeader>
       <CardContent className="space-y-3 text-sm">
         <p className="text-muted-foreground">{projection.releaseRecommendation}</p>
+
+        <GovernanceReferencePanel
+          gateReference={input.gateReference}
+          completionReference={input.completionReference}
+          transporterReference={input.transporterReference}
+        />
+
+        <GovernancePrerequisiteChecklist
+          items={[
+            { label: "4B gate_eligible", satisfied: input.readinessStatus === "gate_eligible", detail: input.readinessStatus },
+            {
+              label: "4C commercially_released",
+              satisfied: input.financeReleaseStatus === "commercially_released",
+              detail: input.financeReleaseStatus,
+            },
+            {
+              label: "4D completion_attested",
+              satisfied: input.completionStatus === "completion_attested",
+              detail: input.completionStatus,
+            },
+            { label: "Reservation ready", satisfied: input.reservationReady },
+            { label: "Transporter handoff", satisfied: input.transporterHandoffFinalized },
+            { label: "Gate reference present", satisfied: Boolean(input.gateReference?.trim()) },
+            { label: "Completion reference present", satisfied: Boolean(input.completionReference?.trim()) },
+          ]}
+        />
+
+        <GovernanceMissingSignals signals={missingSignals} />
+
         {projection.blockingReasons.length > 0 && (
           <ul className="list-inside list-disc text-xs text-destructive">
             {projection.blockingReasons.map((r) => (
@@ -114,6 +154,12 @@ function ReleaseCard({
             ))}
           </div>
         )}
+        <GovernanceActionDisabledHint
+          enabled={projection.canFinalize && canWrite && !busy}
+          enabledLabel="Finalize dispatch is available — governed orders.status → dispatched"
+          disabledReasons={finalizeDisabledReasons}
+        />
+
         <div className="flex flex-wrap gap-2">
           <Button type="button" size="sm" disabled={busy || !canWrite || !projection.canFinalize} onClick={onFinalize}>
             Finalize dispatch (governed)
@@ -175,35 +221,37 @@ export default function DispatchFinalizationBoard() {
   const service = bundle?.service;
 
   const cards = useMemo(() => {
-    const inputs: DispatchFinalizationInput[] =
+    const rows =
       boardState.liveRows.length > 0
-        ? boardState.liveRows.map((r) => r.input)
+        ? boardState.liveRows
         : boardState.showPreviewCards
-          ? PREVIEW_FINALIZATION_INPUTS
+          ? PREVIEW_FINALIZATION_INPUTS.map((input) => ({ input, missingSignals: [] as string[] }))
           : [];
 
     if (!service) {
-      return inputs.map((input) => {
+      return rows.map((row) => {
         const merged: DispatchFinalizationInput = {
-          ...input,
-          currentOrderStatus: liveStatusByOrder[input.orderId] ?? input.currentOrderStatus,
+          ...row.input,
+          currentOrderStatus: liveStatusByOrder[row.input.orderId] ?? row.input.currentOrderStatus,
         };
         return {
           input: merged,
           projection: projectDispatchRelease(merged),
+          missingSignals: row.missingSignals,
           preview: [] as { label: string }[],
         };
       });
     }
 
-    return inputs.map((input) => {
+    return rows.map((row) => {
       const merged: DispatchFinalizationInput = {
-        ...input,
-        currentOrderStatus: liveStatusByOrder[input.orderId] ?? input.currentOrderStatus,
+        ...row.input,
+        currentOrderStatus: liveStatusByOrder[row.input.orderId] ?? row.input.currentOrderStatus,
       };
       return {
         input: merged,
         projection: projectDispatchRelease(merged),
+        missingSignals: row.missingSignals,
         preview: service.previewCustomerPublication(merged.orderId, merged.transporterReference ?? undefined),
       };
     });
@@ -321,11 +369,12 @@ export default function DispatchFinalizationBoard() {
       </Card>
 
       <section className="grid gap-4 md:grid-cols-2">
-        {cards.map(({ input, projection, preview }) => (
+        {cards.map(({ input, projection, preview, missingSignals }) => (
           <ReleaseCard
             key={input.orderId}
             input={input}
             projection={projection}
+            missingSignals={missingSignals}
             busy={busyId === input.orderId}
             canWrite={bundle?.canExecuteWrites ?? false}
             customerPreview={preview}

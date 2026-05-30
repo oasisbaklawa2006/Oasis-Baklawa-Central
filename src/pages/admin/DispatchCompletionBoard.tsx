@@ -21,6 +21,11 @@ import { OperationalTimeline } from "@/components/admin/OperationalTimeline";
 import { GovernanceBoardLiveNotice } from "@/components/admin/GovernanceBoardLiveNotice";
 import type { OperationalEventRecord } from "@/lib/operational-events/types";
 import {
+  GovernanceBlockingReasons,
+  GovernanceMissingSignals,
+  GovernancePrerequisiteChecklist,
+} from "@/components/admin/GovernanceBoardPrerequisites";
+import {
   loadDispatchCompletionRows,
   PREVIEW_COMPLETION_INPUTS,
   useGovernanceBoardState,
@@ -69,6 +74,7 @@ function completionEventsToOperational(
 function CompletionCard({
   input,
   projection,
+  missingSignals,
   onReview,
   onAttest,
   busy,
@@ -76,6 +82,7 @@ function CompletionCard({
 }: {
   input: DispatchCompletionInput;
   projection: DispatchCompletionProjection;
+  missingSignals: string[];
   onReview: () => void;
   onAttest: () => void;
   busy: boolean;
@@ -91,6 +98,47 @@ function CompletionCard({
       </CardHeader>
       <CardContent className="space-y-3 text-sm">
         <p className="text-muted-foreground">{projection.completionRecommendation}</p>
+
+        <div>
+          <p className="text-xs font-medium uppercase text-muted-foreground mb-1">Completion review prerequisites</p>
+          <GovernancePrerequisiteChecklist
+            items={[
+              {
+                label: "Phase 4B gate_eligible",
+                satisfied: input.readinessStatus === "gate_eligible",
+                detail: input.readinessStatus,
+              },
+              {
+                label: "Finance dispatch signal ready",
+                satisfied: input.financeSignal === "ready",
+                detail: financeSignalLabel(input.financeSignal),
+              },
+              {
+                label: "Commercial / conditional finance release",
+                satisfied:
+                  input.financeReleaseStatus === "commercially_released" ||
+                  input.financeReleaseStatus === "finance_conditionally_ready",
+                detail: input.financeReleaseStatus,
+              },
+              {
+                label: "Inventory reservation ready",
+                satisfied: input.reservationReady,
+              },
+              {
+                label: "Security gate (completion_review verified)",
+                satisfied: input.securityGatePassed,
+              },
+              {
+                label: "Courier manifest / handoff evidence",
+                satisfied: input.courierManifestAttached,
+              },
+            ]}
+          />
+        </div>
+
+        <GovernanceMissingSignals signals={missingSignals} title="Missing fusion signals" />
+        <GovernanceBlockingReasons reasons={projection.blockingReasons} title="Completion blockers" />
+
         {projection.warnings.length > 0 && (
           <ul className="list-inside list-disc text-xs text-amber-700 dark:text-amber-400">
             {projection.warnings.map((w) => (
@@ -154,12 +202,14 @@ export default function DispatchCompletionBoard() {
       return boardState.liveRows.map((row) => ({
         input: row.input,
         projection: projectDispatchCompletion(row.input),
+        missingSignals: row.missingSignals,
       }));
     }
     if (boardState.showPreviewCards) {
       return PREVIEW_COMPLETION_INPUTS.map((input) => ({
         input,
         projection: projectDispatchCompletion(input),
+        missingSignals: [] as string[],
       }));
     }
     return [];
@@ -252,11 +302,12 @@ export default function DispatchCompletionBoard() {
       </Card>
 
       <section className="grid gap-4 md:grid-cols-2">
-        {cardSources.map(({ input, projection }) => (
+        {cardSources.map(({ input, projection, missingSignals }) => (
           <CompletionCard
             key={input.orderId}
             input={input}
             projection={projection}
+            missingSignals={missingSignals}
             busy={busyId === input.orderId}
             canWrite={bundle?.canExecuteWrites ?? false}
             onReview={() => void handleReview(input)}

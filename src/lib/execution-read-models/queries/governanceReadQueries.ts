@@ -29,6 +29,7 @@ import type { DispatchReadinessStatus } from "@/lib/dispatch-readiness/dispatchR
 import type { DispatchCompletionStatus } from "@/lib/dispatch-completion/dispatchCompletionTypes";
 import type { DispatchReleaseStatus } from "@/lib/dispatch-finalization/dispatchFinalizationTypes";
 import type { ReservationReadinessStatus } from "@/lib/dispatch-readiness/dispatchReadinessTypes";
+import { deriveReservationReadinessForOrder } from "../reservationReadinessFusion";
 
 const DISPATCH_PIPELINE_STATUSES = [
   "cleared_for_dispatch",
@@ -43,12 +44,43 @@ const DISPATCH_PIPELINE_STATUSES = [
 const ORDER_SELECT =
   "id, status, sales_order_value, advance_required, advance_paid, payment_status, created_at";
 
+export interface GovernanceEvidenceFlags {
+  hasCommercialReleaseEvidence?: boolean;
+  hasCreditReviewEvidence?: boolean;
+}
+
 export interface GovernanceBoardRow<TInput> {
   input: TInput;
   missingSignals: string[];
   /** Populated when finance fusion ran for this order */
   financeSignal?: import("@/lib/dispatch-readiness/financeDispatchSignal").FinanceDispatchSignal;
   financeSignalMeta?: DerivedSignalMeta;
+  evidenceFlags?: GovernanceEvidenceFlags;
+}
+
+const POSITIVE_FINANCE_REVIEW = new Set(["verified", "released"]);
+
+async function loadReservationStatusesByOrder(
+  client: SupabaseClient,
+  orderIds: string[],
+): Promise<Map<string, string[]>> {
+  const map = new Map<string, string[]>();
+  if (orderIds.length === 0) return map;
+  const ok = await probeTable(client, "inventory_reservations");
+  if (!ok) return map;
+
+  const { data } = await client
+    .from("inventory_reservations")
+    .select("order_id, reservation_status")
+    .in("order_id", orderIds);
+
+  for (const row of data ?? []) {
+    const oid = row.order_id as string;
+    const list = map.get(oid) ?? [];
+    list.push(row.reservation_status as string);
+    map.set(oid, list);
+  }
+  return map;
 }
 
 async function probeTable(client: SupabaseClient, table: string): Promise<boolean> {
@@ -108,6 +140,7 @@ export async function loadFinanceGovernanceRows(
   }
 
   const readinessEvidenceOk = await probeTable(client, "dispatch_readiness_evidence");
+  const reservationStatusesByOrder = await loadReservationStatusesByOrder(client, orderIds);
 
   const [{ data: evidence }, { data: readinessEvidence }] = await Promise.all([
     client
@@ -153,11 +186,15 @@ export async function loadFinanceGovernanceRows(
 
   for (const o of orders ?? []) {
     const oid = o.id as string;
+    const orderEvidence = evidenceByOrder.get(oid) ?? [];
     const readinessSlices = (readinessByOrder.get(oid) ?? []).map((e) => ({
       evidenceType: e.evidence_type,
       evidenceStatus: e.evidence_status,
       createdAt: e.created_at,
     }));
+    const { reservationReady } = deriveReservationReadinessForOrder(
+      reservationStatusesByOrder.get(oid) ?? [],
+    );
     const fusion = deriveFinanceSignalFromSlices(
       {
         orderId: oid,
@@ -167,12 +204,15 @@ export async function loadFinanceGovernanceRows(
         paymentStatus: (o.payment_status as string) ?? null,
         updatedAt: (o.created_at as string) ?? null,
       },
-      (evidenceByOrder.get(oid) ?? []).map((e) => ({
+      orderEvidence.map((e) => ({
         reviewStatus: e.review_status,
         reviewType: e.review_type,
         createdAt: e.created_at,
       })),
-      { dispatchReadinessGateEligible: isGateEligibleFromReadinessEvidence(readinessSlices) },
+      {
+        dispatchReadinessGateEligible: isGateEligibleFromReadinessEvidence(readinessSlices),
+        reservationReady,
+      },
     );
     fusion.missingSignals.forEach((m) => allMissing.add(m));
     rows.push({
@@ -180,6 +220,14 @@ export async function loadFinanceGovernanceRows(
       missingSignals: fusion.missingSignals,
       financeSignal: fusion.financeSignal,
       financeSignalMeta: fusion.signalMeta,
+      evidenceFlags: {
+        hasCommercialReleaseEvidence: orderEvidence.some(
+          (e) =>
+            e.review_type === "commercial_release" &&
+            POSITIVE_FINANCE_REVIEW.has(e.review_status),
+        ),
+        hasCreditReviewEvidence: orderEvidence.some((e) => e.review_type === "credit_review"),
+      },
     });
   }
 
@@ -233,6 +281,7 @@ export async function loadDispatchReadinessRows(
 
   const financeRows = await loadFinanceGovernanceRows(client, limit);
   const financeByOrder = new Map(financeRows.rows.map((r) => [r.input.orderId, r]));
+  const reservationStatusesByOrder = await loadReservationStatusesByOrder(client, orderIds);
 
   const rows: GovernanceBoardRow<DispatchReadinessInput>[] = [];
   const allMissing = new Set<string>();
@@ -248,10 +297,13 @@ export async function loadDispatchReadinessRows(
     const finRow = financeByOrder.get(oid);
     const financeSignal = finRow?.financeSignal ?? "unknown";
     const financeMeta = finRow?.financeSignalMeta ?? deriveSignalMeta(null);
+    const { reservationStatus } = deriveReservationReadinessForOrder(
+      reservationStatusesByOrder.get(oid) ?? [],
+    );
 
     const fusion = deriveReadinessInputFromSlices({
       orderId: oid,
-      reservationStatus: "reserved" as ReservationReadinessStatus,
+      reservationStatus,
       financeSignal,
       financeMeta,
       scan: scanSliceFromRecords(orderScans),
@@ -327,6 +379,7 @@ export async function loadDispatchCompletionRows(
   ]);
 
   const financeByOrder = new Map(financeRows.rows.map((r) => [r.input.orderId, r]));
+  const reservationStatusesByOrder = await loadReservationStatusesByOrder(client, orderIds);
   const rows: GovernanceBoardRow<DispatchCompletionInput>[] = [];
   const allMissing = new Set<string>();
 
@@ -352,6 +405,9 @@ export async function loadDispatchCompletionRows(
       ? deriveFinanceReleaseStatusFromInput(financeInput)
       : ("pending_finance_review" as FinanceReleaseStatus);
     const readinessStatus = deriveReadinessStatusFromEvidence(readinessSlices);
+    const { reservationReady } = deriveReservationReadinessForOrder(
+      reservationStatusesByOrder.get(oid) ?? [],
+    );
 
     const fusion = deriveCompletionInputFromSlices({
       orderId: oid,
@@ -359,7 +415,7 @@ export async function loadDispatchCompletionRows(
       readinessStatus,
       financeSignal: financeSignalForFinalization(financeSignal),
       financeReleaseStatus,
-      reservationReady: true,
+      reservationReady,
       scanRejected: scan.hasRejectedGateScan,
       scanMismatch: scan.hasUnresolvedMismatch,
       evidence: (evidence ?? [])
@@ -468,6 +524,7 @@ export async function loadDispatchFinalizationRows(
   ]);
 
   const financeByOrder = new Map(financeRows.rows.map((r) => [r.input.orderId, r]));
+  const reservationStatusesByOrder = await loadReservationStatusesByOrder(client, orderIds);
   const rows: GovernanceBoardRow<DispatchFinalizationInput>[] = [];
   const allMissing = new Set<string>();
 
@@ -506,6 +563,9 @@ export async function loadDispatchFinalizationRows(
       : ("pending_finance_review" as FinanceReleaseStatus);
     const readinessStatus = deriveReadinessStatusFromEvidence(readinessSlices);
     const completionStatus = deriveCompletionStatusFromEvidence(completionSlices, o.status as string);
+    const { reservationReady } = deriveReservationReadinessForOrder(
+      reservationStatusesByOrder.get(oid) ?? [],
+    );
 
     const lineageGate =
       orderLineage.find((l) => (l.gate_reference as string | null)?.trim())?.gate_reference ?? null;
@@ -528,7 +588,7 @@ export async function loadDispatchFinalizationRows(
       financeSignal,
       financeReleaseStatus,
       completionStatus,
-      reservationReady: true,
+      reservationReady,
       transporterReference,
       gateReference,
       completionReference,
