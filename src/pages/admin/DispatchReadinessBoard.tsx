@@ -114,7 +114,7 @@ function ReadinessCard({
           disabled={reviewing || !canWrite || projection.readinessStatus === "not_ready"}
           onClick={onReview}
         >
-          Ready for Review (event only)
+          Record readiness review (evidence)
         </Button>
       </CardContent>
     </Card>
@@ -176,6 +176,7 @@ export default function DispatchReadinessBoard() {
       });
       const evts = await bundle.service.listEvents(input.orderId);
       setEvents(dispatchEventsToOperational(evts));
+      boardState.reload();
     } finally {
       setReviewingId(null);
     }
@@ -218,8 +219,9 @@ export default function DispatchReadinessBoard() {
         <CardContent className="flex gap-2 pt-4 text-sm">
           <ShieldCheck className="h-5 w-5 shrink-0 text-amber-600" aria-hidden />
           <p>
-            <strong>gate_eligible</strong> is not dispatched. This board records readiness review events only —
-            no mark dispatched, invoice, e-way, or stock deduction.
+            <strong>gate_eligible</strong> is not dispatched. This board appends{" "}
+            <code className="text-[11px]">dispatch_readiness_evidence</code> only — no mark dispatched, invoice,
+            e-way, or stock deduction.
           </p>
         </CardContent>
       </Card>

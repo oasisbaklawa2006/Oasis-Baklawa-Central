@@ -13,6 +13,8 @@ export interface GovernanceBoardState<T> {
   showEmptyLiveMessage: boolean;
   showPreviewCards: boolean;
   showUnavailableMessage: boolean;
+  /** Re-run the SELECT-only read model loader (e.g. after governed evidence write). */
+  reload: () => void;
 }
 
 export function useGovernanceBoardState<TInput, TRow extends { input: TInput }>(
@@ -24,6 +26,7 @@ export function useGovernanceBoardState<TInput, TRow extends { input: TInput }>(
   const [liveResult, setLiveResult] = useState<ExecutionReadModelResult<TRow> | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [reloadNonce, setReloadNonce] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
@@ -51,7 +54,7 @@ export function useGovernanceBoardState<TInput, TRow extends { input: TInput }>(
     return () => {
       cancelled = true;
     };
-  }, [client, loader]);
+  }, [client, loader, reloadNonce]);
 
   const liveRows = liveResult?.rows ?? [];
   const tablesAvailable = liveResult?.meta.projectionSource !== "unavailable";
@@ -86,5 +89,6 @@ export function useGovernanceBoardState<TInput, TRow extends { input: TInput }>(
     showEmptyLiveMessage: noticeFlags.showEmptyLiveMessage,
     showPreviewCards: noticeFlags.showPreviewCards,
     showUnavailableMessage: noticeFlags.showUnavailableMessage,
+    reload: () => setReloadNonce((n) => n + 1),
   };
 }

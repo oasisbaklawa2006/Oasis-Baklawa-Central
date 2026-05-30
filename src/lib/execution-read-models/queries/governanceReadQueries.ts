@@ -7,6 +7,16 @@ import { deriveReadinessInputFromSlices } from "../adapters/readinessSignalAdapt
 import { deriveCompletionInputFromSlices } from "../adapters/completionSignalAdapter";
 import { deriveFinalizationInputFromSlices } from "../adapters/finalizationSignalAdapter";
 import { deriveStockInputFromSlices } from "../adapters/stockSignalAdapter";
+import {
+  deriveCompletionStatusFromEvidence,
+  deriveFinanceReleaseStatusFromInput,
+  deriveReadinessStatusFromEvidence,
+  financeSignalForFinalization,
+  isGateEligibleFromReadinessEvidence,
+  resolveCompletionReferenceFromEvidence,
+  resolveGateReferenceFromSlices,
+  resolveTransporterReference,
+} from "../adapters/governanceEvidenceFusion";
 import type { FinanceGovernanceInput } from "@/lib/finance-governance/financeGovernanceTypes";
 import type { DispatchReadinessInput } from "@/lib/dispatch-readiness/dispatchReadinessTypes";
 import type { DispatchCompletionInput } from "@/lib/dispatch-completion/dispatchCompletionTypes";
@@ -97,11 +107,34 @@ export async function loadFinanceGovernanceRows(
     };
   }
 
-  const { data: evidence } = await client
-    .from("finance_review_evidence")
-    .select("order_id, review_status, review_type, created_at")
-    .in("order_id", orderIds)
-    .order("created_at", { ascending: false });
+  const readinessEvidenceOk = await probeTable(client, "dispatch_readiness_evidence");
+
+  const [{ data: evidence }, { data: readinessEvidence }] = await Promise.all([
+    client
+      .from("finance_review_evidence")
+      .select("order_id, review_status, review_type, created_at")
+      .in("order_id", orderIds)
+      .order("created_at", { ascending: false }),
+    readinessEvidenceOk
+      ? client
+          .from("dispatch_readiness_evidence")
+          .select("order_id, evidence_type, evidence_status, created_at")
+          .in("order_id", orderIds)
+          .order("created_at", { ascending: false })
+      : Promise.resolve({ data: [] as { order_id: string; evidence_type: string; evidence_status: string; created_at: string }[] }),
+  ]);
+
+  const readinessByOrder = new Map<string, { evidence_type: string; evidence_status: string; created_at: string }[]>();
+  for (const row of readinessEvidence ?? []) {
+    const oid = row.order_id as string;
+    const list = readinessByOrder.get(oid) ?? [];
+    list.push({
+      evidence_type: row.evidence_type as string,
+      evidence_status: row.evidence_status as string,
+      created_at: row.created_at as string,
+    });
+    readinessByOrder.set(oid, list);
+  }
 
   const evidenceByOrder = new Map<string, { review_status: string; review_type: string; created_at: string }[]>();
   for (const row of evidence ?? []) {
@@ -119,20 +152,27 @@ export async function loadFinanceGovernanceRows(
   const allMissing = new Set<string>();
 
   for (const o of orders ?? []) {
+    const oid = o.id as string;
+    const readinessSlices = (readinessByOrder.get(oid) ?? []).map((e) => ({
+      evidenceType: e.evidence_type,
+      evidenceStatus: e.evidence_status,
+      createdAt: e.created_at,
+    }));
     const fusion = deriveFinanceSignalFromSlices(
       {
-        orderId: o.id as string,
+        orderId: oid,
         orderValue: Number(o.sales_order_value ?? 0),
         advanceRequired: Number(o.advance_required ?? 0),
         advanceVerified: Number(o.advance_paid ?? 0) >= Number(o.advance_required ?? 0),
         paymentStatus: (o.payment_status as string) ?? null,
         updatedAt: (o.created_at as string) ?? null,
       },
-      (evidenceByOrder.get(o.id as string) ?? []).map((e) => ({
+      (evidenceByOrder.get(oid) ?? []).map((e) => ({
         reviewStatus: e.review_status,
         reviewType: e.review_type,
         createdAt: e.created_at,
       })),
+      { dispatchReadinessGateEligible: isGateEligibleFromReadinessEvidence(readinessSlices) },
     );
     fusion.missingSignals.forEach((m) => allMissing.add(m));
     rows.push({
@@ -239,7 +279,13 @@ export async function loadDispatchCompletionRows(
   client: SupabaseClient,
   limit = 12,
 ): Promise<ExecutionReadModelResult<GovernanceBoardRow<DispatchCompletionInput>>> {
-  const tables = ["orders", "dispatch_completion_evidence", "operational_scan_records"];
+  const tables = [
+    "orders",
+    "dispatch_completion_evidence",
+    "dispatch_readiness_evidence",
+    "finance_review_evidence",
+    "operational_scan_records",
+  ];
   const ok = await probeTable(client, "dispatch_completion_evidence");
   if (!ok) return emptyReadModelResult("unavailable", tables, ["dispatch_completion_evidence_table"]);
 
@@ -257,10 +303,12 @@ export async function loadDispatchCompletionRows(
     return { rows: [], meta: buildReadModelMeta({ projectionSource: "empty", derivedFromTables: tables }) };
   }
 
-  const [{ data: evidence }, { data: scans }] = await Promise.all([
+  const readinessOk = await probeTable(client, "dispatch_readiness_evidence");
+
+  const [{ data: evidence }, { data: scans }, { data: readinessEvidence }, financeRows] = await Promise.all([
     client
       .from("dispatch_completion_evidence")
-      .select("order_id, evidence_type, evidence_status, created_at")
+      .select("order_id, evidence_type, evidence_status, evidence_ref, created_at")
       .in("order_id", orderIds)
       .order("created_at", { ascending: false }),
     client
@@ -268,8 +316,17 @@ export async function loadDispatchCompletionRows(
       .select("order_id, verification_status, scan_type, created_at")
       .in("order_id", orderIds)
       .order("created_at", { ascending: false }),
+    readinessOk
+      ? client
+          .from("dispatch_readiness_evidence")
+          .select("order_id, evidence_type, evidence_status, created_at")
+          .in("order_id", orderIds)
+          .order("created_at", { ascending: false })
+      : Promise.resolve({ data: [] as { order_id: string; evidence_type: string; evidence_status: string; created_at: string }[] }),
+    loadFinanceGovernanceRows(client, limit),
   ]);
 
+  const financeByOrder = new Map(financeRows.rows.map((r) => [r.input.orderId, r]));
   const rows: GovernanceBoardRow<DispatchCompletionInput>[] = [];
   const allMissing = new Set<string>();
 
@@ -281,12 +338,27 @@ export async function loadDispatchCompletionRows(
       created_at: string;
     }[];
     const scan = scanSliceFromRecords(orderScans);
+    const readinessSlices = (readinessEvidence ?? [])
+      .filter((e) => e.order_id === oid)
+      .map((e) => ({
+        evidenceType: e.evidence_type as string,
+        evidenceStatus: e.evidence_status as string,
+        createdAt: e.created_at as string,
+      }));
+    const finRow = financeByOrder.get(oid);
+    const financeInput = finRow?.input;
+    const financeSignal = finRow?.financeSignal ?? "unknown";
+    const financeReleaseStatus = financeInput
+      ? deriveFinanceReleaseStatusFromInput(financeInput)
+      : ("pending_finance_review" as FinanceReleaseStatus);
+    const readinessStatus = deriveReadinessStatusFromEvidence(readinessSlices);
+
     const fusion = deriveCompletionInputFromSlices({
       orderId: oid,
       orderStatus: o.status as string,
-      readinessStatus: "gate_eligible" as DispatchReadinessStatus,
-      financeSignal: "pending_review",
-      financeReleaseStatus: "pending_finance_review" as FinanceReleaseStatus,
+      readinessStatus,
+      financeSignal: financeSignalForFinalization(financeSignal),
+      financeReleaseStatus,
       reservationReady: true,
       scanRejected: scan.hasRejectedGateScan,
       scanMismatch: scan.hasUnresolvedMismatch,
@@ -299,6 +371,7 @@ export async function loadDispatchCompletionRows(
         })),
     });
     fusion.missingSignals.forEach((m) => allMissing.add(m));
+    finRow?.missingSignals.forEach((m) => allMissing.add(m));
     rows.push({ input: fusion.input, missingSignals: fusion.missingSignals });
   }
 
@@ -316,7 +389,14 @@ export async function loadDispatchFinalizationRows(
   client: SupabaseClient,
   limit = 12,
 ): Promise<ExecutionReadModelResult<GovernanceBoardRow<DispatchFinalizationInput>>> {
-  const tables = ["orders", "dispatch_release_lineage"];
+  const tables = [
+    "orders",
+    "dispatch_release_lineage",
+    "dispatch_readiness_evidence",
+    "dispatch_completion_evidence",
+    "finance_review_evidence",
+    "operational_scan_records",
+  ];
   const ok = await probeTable(client, "dispatch_release_lineage");
   if (!ok) return emptyReadModelResult("unavailable", tables, ["dispatch_release_lineage_table"]);
 
@@ -334,39 +414,134 @@ export async function loadDispatchFinalizationRows(
     return { rows: [], meta: buildReadModelMeta({ projectionSource: "empty", derivedFromTables: tables }) };
   }
 
-  const { data: lineage } = await client
-    .from("dispatch_release_lineage")
-    .select("order_id, release_type, next_status, created_at, transporter_reference")
-    .in("order_id", orderIds)
-    .order("created_at", { ascending: false });
+  const readinessOk = await probeTable(client, "dispatch_readiness_evidence");
+  const completionOk = await probeTable(client, "dispatch_completion_evidence");
 
+  const [
+    { data: lineage },
+    { data: readinessEvidence },
+    { data: completionEvidence },
+    { data: scans },
+    financeRows,
+  ] = await Promise.all([
+    client
+      .from("dispatch_release_lineage")
+      .select("order_id, release_type, next_status, created_at, transporter_reference, gate_reference, completion_reference")
+      .in("order_id", orderIds)
+      .order("created_at", { ascending: false }),
+    readinessOk
+      ? client
+          .from("dispatch_readiness_evidence")
+          .select("order_id, evidence_type, evidence_status, evidence_ref, created_at")
+          .in("order_id", orderIds)
+          .order("created_at", { ascending: false })
+      : Promise.resolve({
+          data: [] as {
+            order_id: string;
+            evidence_type: string;
+            evidence_status: string;
+            evidence_ref: string | null;
+            created_at: string;
+          }[],
+        }),
+    completionOk
+      ? client
+          .from("dispatch_completion_evidence")
+          .select("order_id, evidence_type, evidence_status, evidence_ref, created_at")
+          .in("order_id", orderIds)
+          .order("created_at", { ascending: false })
+      : Promise.resolve({
+          data: [] as {
+            order_id: string;
+            evidence_type: string;
+            evidence_status: string;
+            evidence_ref: string | null;
+            created_at: string;
+          }[],
+        }),
+    client
+      .from("operational_scan_records")
+      .select("order_id, verification_status, scan_type, barcode_value, created_at")
+      .in("order_id", orderIds)
+      .order("created_at", { ascending: false }),
+    loadFinanceGovernanceRows(client, limit),
+  ]);
+
+  const financeByOrder = new Map(financeRows.rows.map((r) => [r.input.orderId, r]));
   const rows: GovernanceBoardRow<DispatchFinalizationInput>[] = [];
   const allMissing = new Set<string>();
 
   for (const o of orders ?? []) {
     const oid = o.id as string;
     const orderLineage = (lineage ?? []).filter((l) => l.order_id === oid);
-    const finalized = orderLineage.some((l) => l.next_status === "dispatched");
+    const readinessSlices = (readinessEvidence ?? [])
+      .filter((e) => e.order_id === oid)
+      .map((e) => ({
+        evidenceType: e.evidence_type as string,
+        evidenceStatus: e.evidence_status as string,
+        evidenceRef: e.evidence_ref as string | null,
+        createdAt: e.created_at as string,
+      }));
+    const completionSlices = (completionEvidence ?? [])
+      .filter((e) => e.order_id === oid)
+      .map((e) => ({
+        evidenceType: e.evidence_type as string,
+        evidenceStatus: e.evidence_status as string,
+        evidenceRef: e.evidence_ref as string | null,
+        createdAt: e.created_at as string,
+      }));
+    const orderScans = (scans ?? [])
+      .filter((s) => s.order_id === oid)
+      .map((s) => ({
+        scanType: s.scan_type as string,
+        verificationStatus: s.verification_status as string,
+        barcodeValue: (s.barcode_value as string) ?? null,
+      }));
+
+    const finRow = financeByOrder.get(oid);
+    const financeInput = finRow?.input;
+    const financeSignal = financeSignalForFinalization(finRow?.financeSignal ?? "unknown");
+    const financeReleaseStatus = financeInput
+      ? deriveFinanceReleaseStatusFromInput(financeInput)
+      : ("pending_finance_review" as FinanceReleaseStatus);
+    const readinessStatus = deriveReadinessStatusFromEvidence(readinessSlices);
+    const completionStatus = deriveCompletionStatusFromEvidence(completionSlices, o.status as string);
+
+    const lineageGate =
+      orderLineage.find((l) => (l.gate_reference as string | null)?.trim())?.gate_reference ?? null;
+    const lineageCompletion =
+      orderLineage.find((l) => (l.completion_reference as string | null)?.trim())?.completion_reference ?? null;
+    const gateReference =
+      (lineageGate as string | null) ?? resolveGateReferenceFromSlices(readinessSlices, orderScans);
+    const completionReference =
+      (lineageCompletion as string | null) ?? resolveCompletionReferenceFromEvidence(completionSlices);
+    const transporterReference = resolveTransporterReference(
+      (orderLineage[0]?.transporter_reference as string) ?? null,
+      gateReference,
+      completionReference,
+    );
+
     const fusion = deriveFinalizationInputFromSlices({
       orderId: oid,
       currentOrderStatus: o.status as string,
-      readinessStatus: "gate_eligible" as DispatchReadinessStatus,
-      financeSignal: "pending_review",
-      financeReleaseStatus: "commercially_released" as FinanceReleaseStatus,
-      completionStatus: (finalized ? "completion_attested" : "prerequisites_pending") as DispatchCompletionStatus,
+      readinessStatus,
+      financeSignal,
+      financeReleaseStatus,
+      completionStatus,
       reservationReady: true,
-      transporterReference: (orderLineage[0]?.transporter_reference as string) ?? null,
-      gateReference: null,
-      completionReference: null,
+      transporterReference,
+      gateReference,
+      completionReference,
       lineage: orderLineage.map((l) => ({
         releaseType: l.release_type as string,
         nextStatus: l.next_status as string,
         createdAt: l.created_at as string,
       })),
-      financeBlocked: false,
-      scanBlocked: false,
+      financeBlocked: financeSignal === "blocked",
+      scanBlocked: orderScans.some((s) => s.verificationStatus === "rejected" || s.verificationStatus === "mismatch"),
     });
     fusion.missingSignals.forEach((m) => allMissing.add(m));
+    finRow?.missingSignals.forEach((m) => allMissing.add(m));
     rows.push({ input: fusion.input, missingSignals: fusion.missingSignals });
   }
 

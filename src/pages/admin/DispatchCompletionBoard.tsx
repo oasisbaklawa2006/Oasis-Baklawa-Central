@@ -186,6 +186,7 @@ export default function DispatchCompletionBoard() {
     try {
       await bundle.service.reviewCompletion(input, writeCtx(input.orderId));
       await refreshEvents(input.orderId);
+      boardState.reload();
     } finally {
       setBusyId(null);
     }
@@ -197,6 +198,7 @@ export default function DispatchCompletionBoard() {
     try {
       await bundle.service.attestCompletion(input, writeCtx(input.orderId));
       await refreshEvents(input.orderId);
+      boardState.reload();
     } finally {
       setBusyId(null);
     }

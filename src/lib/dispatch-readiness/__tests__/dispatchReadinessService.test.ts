@@ -46,6 +46,20 @@ describe("dispatchReadinessService", () => {
     expect(evts.some((e) => e.eventType === "dispatch_gate_eligible")).toBe(true);
   });
 
+  it("reviewReadiness appends dispatch_readiness_evidence", async () => {
+    const evidence = createInMemoryDispatchEvidenceStore();
+    const svc = createDispatchReadinessService({
+      evidence,
+      events: createInMemoryDispatchEventSink(),
+    });
+    const { evidenceId } = await svc.reviewReadiness(readyInput, ctx);
+    expect(evidenceId).toBeTruthy();
+    const rows = await svc.listEvidence(readyInput.orderId);
+    expect(rows.some((r) => r.evidenceType === "manual_readiness_review" && r.evidenceStatus === "verified")).toBe(
+      true,
+    );
+  });
+
   it("rejects forbidden mark_dispatched via authority path", async () => {
     const svc = service();
     await expect(
