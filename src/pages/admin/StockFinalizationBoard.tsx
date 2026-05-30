@@ -5,7 +5,10 @@ import { PackageMinus, ShieldCheck, AlertTriangle, ClipboardList } from "lucide-
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { useAuth } from "@/hooks/useAuth";
+import { requiresStockOverrideReason } from "@/lib/stock-authority/stockAuthorityGuard";
 import {
   FORBIDDEN_STOCK_UI_PATTERNS,
   projectStockFinalization,
@@ -18,6 +21,7 @@ import {
   type StockFinalizationBundle,
   type StockFinalizationInput,
 } from "@/lib/stock-finalization";
+import { createSupabaseStockBalanceRepository } from "@/lib/stock-finalization/supabaseStockFinalizationStore";
 import { OperationalTimeline } from "@/components/admin/OperationalTimeline";
 import { GovernanceBoardLiveNotice } from "@/components/admin/GovernanceBoardLiveNotice";
 import { GovernancePrerequisiteList } from "@/components/admin/GovernancePrerequisiteList";
@@ -97,6 +101,7 @@ export default function StockFinalizationBoard() {
   const [busy, setBusy] = useState(false);
   const [selected, setSelected] = useState<"finalized" | "pending">("finalized");
   const [message, setMessage] = useState<string | null>(null);
+  const [overrideReason, setOverrideReason] = useState("");
   const [events, setEvents] = useState<OperationalEventRecord[]>([]);
   const [lineageCount, setLineageCount] = useState(0);
   const [bundle, setBundle] = useState<StockFinalizationBundle | null>(null);
@@ -150,6 +155,9 @@ export default function StockFinalizationBoard() {
   }, []);
 
   const canExecuteWrites = bundle?.canExecuteWrites ?? false;
+  const requiresOverrideReason = requiresStockOverrideReason(role);
+
+  const overrideReasonReady = !requiresOverrideReason || overrideReason.trim().length > 0;
 
   const finalizeBlockers = useMemo(() => {
     if (!projection || !input) return [];
@@ -166,8 +174,11 @@ export default function StockFinalizationBoard() {
     if (input.reservations.length === 0) {
       reasons.push("No inventory_reservations linked to this order.");
     }
+    if (requiresOverrideReason && !overrideReason.trim()) {
+      reasons.push("SUPER_ADMIN override reason required — type overrideReason before finalizing consumption.");
+    }
     return [...new Set(reasons)];
-  }, [projection, input, missingSignals, canExecuteWrites]);
+  }, [projection, input, missingSignals, canExecuteWrites, requiresOverrideReason, overrideReason]);
 
   const persistenceLabel =
     bundle?.persistenceMode === "supabase"
@@ -195,14 +206,32 @@ export default function StockFinalizationBoard() {
       setMessage("Blocked: missing reservation or scan reference.");
       return;
     }
+    if (requiresOverrideReason && !overrideReason.trim()) {
+      setMessage("SUPER_ADMIN requires typed overrideReason for stock actions.");
+      return;
+    }
     setBusy(true);
     setMessage(null);
     try {
+      let expectedBalanceVersion = 1;
+      if (bundle.persistenceMode === "supabase") {
+        const balances = createSupabaseStockBalanceRepository(supabase);
+        const balanceRow = await balances.getBalance(
+          reservation.productId,
+          reservation.sku,
+          input.locationCode,
+        );
+        if (balanceRow) {
+          expectedBalanceVersion = balanceRow.version;
+        }
+      }
+
       const ctx = {
         correlationId: `ui-4g-${Date.now()}`,
         actorUserId: user?.id ?? "00000000-0000-4000-8000-000000000099",
         actorRole: role ?? "UNKNOWN",
         finalizeReason: "Governed UI finalize",
+        overrideReason: requiresOverrideReason ? overrideReason.trim() : null,
       };
       await bundle.service.finalizeConsumption(
         input,
@@ -218,7 +247,7 @@ export default function StockFinalizationBoard() {
               sku: reservation.sku,
               locationCode: input.locationCode,
               consumeQty: reservation.reservedQty,
-              expectedBalanceVersion: 1,
+              expectedBalanceVersion,
             },
           ],
         },
@@ -379,6 +408,24 @@ export default function StockFinalizationBoard() {
             </CardContent>
           </Card>
 
+          {requiresOverrideReason && (
+            <div className="space-y-2 max-w-xl">
+              <Label htmlFor="stock-override-reason">
+                Override reason <span className="text-destructive">*</span>
+              </Label>
+              <Input
+                id="stock-override-reason"
+                value={overrideReason}
+                onChange={(e) => setOverrideReason(e.target.value)}
+                placeholder="Typed SUPER_ADMIN override (required for stock actions)"
+                autoComplete="off"
+              />
+              <p className="text-muted-foreground text-[10px]">
+                Separate from finalizeReason — required by stock authority guard for SUPER_ADMIN.
+              </p>
+            </div>
+          )}
+
           <div className="flex flex-wrap gap-2">
             {!projection.canFinalizeConsumption && finalizeBlockers.length > 0 && (
               <p className="w-full text-[10px] text-destructive">
@@ -386,8 +433,18 @@ export default function StockFinalizationBoard() {
                 reconcile.
               </p>
             )}
+            {requiresOverrideReason && !overrideReasonReady && (
+              <p className="w-full text-[10px] text-destructive">
+                Enter override reason before finalizing consumption.
+              </p>
+            )}
             <Button
-              disabled={busy || !projection.canFinalizeConsumption || !canExecuteWrites}
+              disabled={
+                busy ||
+                !projection.canFinalizeConsumption ||
+                !canExecuteWrites ||
+                !overrideReasonReady
+              }
               onClick={() => void handleFinalize()}
             >
               Finalize consumption

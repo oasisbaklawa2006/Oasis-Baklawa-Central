@@ -132,6 +132,56 @@ describe("stockFinalizationService", () => {
     expect(result.finalizedReservationIds).toContain(reservationId);
   });
 
+  it("denies SUPER_ADMIN finalize without overrideReason", async () => {
+    const { svc } = service();
+    await expect(
+      svc.finalizeConsumption(finalizedInput, finalizeParams, {
+        ...ctx,
+        actorRole: "SUPER_ADMIN",
+      }),
+    ).rejects.toMatchObject({
+      code: "authority_denied",
+    });
+  });
+
+  it("allows SUPER_ADMIN finalize with typed overrideReason", async () => {
+    const { svc } = service();
+    const result = await svc.finalizeConsumption(finalizedInput, finalizeParams, {
+      ...ctx,
+      actorRole: "SUPER_ADMIN",
+      overrideReason: "Governed SUPER_ADMIN override",
+    });
+    expect(result.finalizedReservationIds).toContain(reservationId);
+  });
+
+  it("consumes when balance reserved_qty is zero but reservation row holds qty", async () => {
+    const balances = createInMemoryStockBalanceRepository([
+      {
+        id: "bal-unsynced",
+        productId,
+        sku: "BAK-601",
+        locationCode: "WH-MAIN",
+        availableQty: 50,
+        reservedQty: 0,
+        damagedQty: 0,
+        expiredQty: 0,
+        quarantineQty: 0,
+        version: 1,
+        updatedAt: new Date().toISOString(),
+      },
+    ]);
+    const svc = createStockFinalizationService({
+      balances,
+      movements: createInMemoryStockMovementRepository(),
+      lineage: createInMemoryStockLineageRepository(),
+      events: createInMemoryStockFinalizationEventSink(),
+    });
+    await svc.finalizeConsumption(finalizedInput, finalizeParams, ctx);
+    const bal = await balances.getBalance(productId, "BAK-601", "WH-MAIN");
+    expect(bal?.availableQty).toBe(45);
+    expect(bal?.reservedQty).toBe(0);
+  });
+
   it("records variance without stock mutation via recordVariance", async () => {
     const { svc, balances } = service();
     await svc.recordVariance(orderId, 5, {
