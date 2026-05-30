@@ -18,6 +18,8 @@ import {
 } from "@/lib/dispatch-finalization/createDispatchFinalizationBundle";
 import { OperationalTimeline } from "@/components/admin/OperationalTimeline";
 import { GovernanceBoardLiveNotice } from "@/components/admin/GovernanceBoardLiveNotice";
+import { GovernanceHandoffReferences } from "@/components/admin/GovernanceHandoffReferences";
+import { GovernancePrerequisiteList } from "@/components/admin/GovernancePrerequisiteList";
 import type { OperationalEventRecord } from "@/lib/operational-events/types";
 import { lineageReleaseTypeLabel } from "@/lib/dispatch-finalization/dispatchLineage";
 import {
@@ -66,9 +68,32 @@ function finalizationEventsToOperational(
   }));
 }
 
+function finalizeDisabledExplanation(
+  projection: DispatchReleaseProjection,
+  input: DispatchFinalizationInput,
+  canWrite: boolean,
+): string[] {
+  if (projection.canFinalize) return [];
+  const reasons = [...projection.blockingReasons];
+  if (!canWrite) {
+    reasons.push("Governed writes unavailable — check Supabase bundle / role.");
+  }
+  if (!input.transporterReference?.trim() && !input.gateReference?.trim()) {
+    reasons.push("transporterReference missing — add gate scan or handoff on 4B/4D before finalize.");
+  }
+  if (!input.gateReference?.trim()) {
+    reasons.push("gateReference missing — security gate or readiness gate_scan evidence.");
+  }
+  if (!input.completionReference?.trim()) {
+    reasons.push("completionReference missing — completion attestation on 4D.");
+  }
+  return [...new Set(reasons)];
+}
+
 function ReleaseCard({
   input,
   projection,
+  missingSignals,
   onFinalize,
   onPublish,
   onReversal,
@@ -78,6 +103,7 @@ function ReleaseCard({
 }: {
   input: DispatchFinalizationInput;
   projection: DispatchReleaseProjection;
+  missingSignals: string[];
   onFinalize: () => void;
   onPublish: () => void;
   onReversal: () => void;
@@ -86,6 +112,7 @@ function ReleaseCard({
   canWrite: boolean;
 }) {
   const lane = projection.canFinalize ? "eligible" : projection.releaseStatus === "dispatch_release_blocked" ? "blocked" : "pending";
+  const finalizeBlockers = finalizeDisabledExplanation(projection, input, canWrite);
 
   return (
     <Card className={lane === "eligible" ? "ring-1 ring-primary/30" : "ring-1 ring-border/50"}>
@@ -97,12 +124,19 @@ function ReleaseCard({
       </CardHeader>
       <CardContent className="space-y-3 text-sm">
         <p className="text-muted-foreground">{projection.releaseRecommendation}</p>
-        {projection.blockingReasons.length > 0 && (
-          <ul className="list-inside list-disc text-xs text-destructive">
-            {projection.blockingReasons.map((r) => (
-              <li key={r}>{r}</li>
-            ))}
-          </ul>
+        <GovernanceHandoffReferences
+          gateReference={input.gateReference}
+          completionReference={input.completionReference}
+          transporterReference={input.transporterReference}
+          currentOrderStatus={input.currentOrderStatus}
+        />
+        <GovernancePrerequisiteList
+          title="Finalize blockers"
+          items={finalizeBlockers}
+          variant={finalizeBlockers.length > 0 ? "destructive" : "default"}
+        />
+        {missingSignals.length > 0 && (
+          <GovernancePrerequisiteList title="Missing live signals" items={missingSignals} variant="destructive" />
         )}
         {customerPreview.length > 0 && (
           <div className="rounded-md border border-border/60 bg-muted/30 p-2 text-xs">
@@ -113,6 +147,11 @@ function ReleaseCard({
               </span>
             ))}
           </div>
+        )}
+        {!projection.canFinalize && finalizeBlockers.length > 0 && (
+          <p className="text-[10px] text-destructive">
+            Finalize dispatch disabled until all blockers clear and release status is dispatch_release_ready.
+          </p>
         )}
         <div className="flex flex-wrap gap-2">
           <Button type="button" size="sm" disabled={busy || !canWrite || !projection.canFinalize} onClick={onFinalize}>
@@ -175,34 +214,36 @@ export default function DispatchFinalizationBoard() {
   const service = bundle?.service;
 
   const cards = useMemo(() => {
-    const inputs: DispatchFinalizationInput[] =
+    const rowSources =
       boardState.liveRows.length > 0
-        ? boardState.liveRows.map((r) => r.input)
+        ? boardState.liveRows
         : boardState.showPreviewCards
-          ? PREVIEW_FINALIZATION_INPUTS
+          ? PREVIEW_ROWS
           : [];
 
     if (!service) {
-      return inputs.map((input) => {
+      return rowSources.map((row) => {
         const merged: DispatchFinalizationInput = {
-          ...input,
-          currentOrderStatus: liveStatusByOrder[input.orderId] ?? input.currentOrderStatus,
+          ...row.input,
+          currentOrderStatus: liveStatusByOrder[row.input.orderId] ?? row.input.currentOrderStatus,
         };
         return {
           input: merged,
+          missingSignals: row.missingSignals,
           projection: projectDispatchRelease(merged),
           preview: [] as { label: string }[],
         };
       });
     }
 
-    return inputs.map((input) => {
+    return rowSources.map((row) => {
       const merged: DispatchFinalizationInput = {
-        ...input,
-        currentOrderStatus: liveStatusByOrder[input.orderId] ?? input.currentOrderStatus,
+        ...row.input,
+        currentOrderStatus: liveStatusByOrder[row.input.orderId] ?? row.input.currentOrderStatus,
       };
       return {
         input: merged,
+        missingSignals: row.missingSignals,
         projection: projectDispatchRelease(merged),
         preview: service.previewCustomerPublication(merged.orderId, merged.transporterReference ?? undefined),
       };
@@ -321,11 +362,12 @@ export default function DispatchFinalizationBoard() {
       </Card>
 
       <section className="grid gap-4 md:grid-cols-2">
-        {cards.map(({ input, projection, preview }) => (
+        {cards.map(({ input, projection, preview, missingSignals }) => (
           <ReleaseCard
             key={input.orderId}
             input={input}
             projection={projection}
+            missingSignals={missingSignals}
             busy={busyId === input.orderId}
             canWrite={bundle?.canExecuteWrites ?? false}
             customerPreview={preview}

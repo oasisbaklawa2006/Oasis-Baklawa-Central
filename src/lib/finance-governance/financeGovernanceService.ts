@@ -63,9 +63,29 @@ export function createFinanceGovernanceService(deps: FinanceGovernanceServiceDep
     async startReview(
       input: FinanceGovernanceInput,
       ctx: FinanceGovernanceWriteContext,
-    ): Promise<{ projection: ReturnType<typeof projectFinanceRelease>; eventId: string }> {
+    ): Promise<{ projection: ReturnType<typeof projectFinanceRelease>; eventId: string; evidenceId: string }> {
       guard("finance:review", ctx);
       const projection = projectFinanceRelease(input);
+      const record = await evidence.insertEvidence({
+        orderId: input.orderId,
+        reviewType: "credit_review",
+        reviewStatus: "pending",
+        evidenceType: "credit_review",
+        evidenceRef: projection.releaseStatus,
+        utrRef: null,
+        amount: input.orderValue,
+        currency: "INR",
+        actorId: ctx.actorUserId,
+        actorRole: ctx.actorRole,
+        actorDepartment: ctx.actorDepartment ?? null,
+        overrideReason: ctx.overrideReason ?? null,
+        correlationId: ctx.correlationId,
+        metadata: {
+          risk: projection.commercialRiskLevel,
+          dispatchReadinessGateEligible: input.dispatchReadinessGateEligible,
+          recommendation: projection.releaseRecommendation,
+        },
+      });
       const evt = await events.append(
         buildFinanceOperationalEvent(
           "finance_review_started",
@@ -75,7 +95,7 @@ export function createFinanceGovernanceService(deps: FinanceGovernanceServiceDep
           projection.releaseRecommendation,
         ),
       );
-      return { projection, eventId: evt.id };
+      return { projection, eventId: evt.id, evidenceId: record.id };
     },
 
     async verifyAdvance(

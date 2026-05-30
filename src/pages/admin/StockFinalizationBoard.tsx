@@ -20,6 +20,7 @@ import {
 } from "@/lib/stock-finalization";
 import { OperationalTimeline } from "@/components/admin/OperationalTimeline";
 import { GovernanceBoardLiveNotice } from "@/components/admin/GovernanceBoardLiveNotice";
+import { GovernancePrerequisiteList } from "@/components/admin/GovernancePrerequisiteList";
 import type { OperationalEventRecord } from "@/lib/operational-events/types";
 import {
   loadStockFinalizationRows,
@@ -107,15 +108,17 @@ export default function StockFinalizationBoard() {
     ["orders", "inventory_reservations", "inventory_stock_balances", "stock_consumption_lineage"],
   );
 
-  const input = useMemo((): StockFinalizationInput | null => {
-    if (boardState.liveRows.length > 0) {
-      return boardState.liveRows[0].input;
-    }
+  const activeRow = useMemo(() => {
+    if (boardState.liveRows.length > 0) return boardState.liveRows[0];
     if (boardState.showPreviewCards) {
-      return selected === "finalized" ? PREVIEW_STOCK_FINALIZED : PREVIEW_STOCK_PENDING;
+      const previewInput = selected === "finalized" ? PREVIEW_STOCK_FINALIZED : PREVIEW_STOCK_PENDING;
+      return { input: previewInput, missingSignals: [] as string[] };
     }
     return null;
   }, [boardState.liveRows, boardState.showPreviewCards, selected]);
+
+  const input = activeRow?.input ?? null;
+  const missingSignals = activeRow?.missingSignals ?? [];
 
   const projection = useMemo(
     () => (input ? projectStockFinalization(input) : null),
@@ -147,6 +150,25 @@ export default function StockFinalizationBoard() {
   }, []);
 
   const canExecuteWrites = bundle?.canExecuteWrites ?? false;
+
+  const finalizeBlockers = useMemo(() => {
+    if (!projection || !input) return [];
+    const reasons = [...projection.blockingReasons, ...missingSignals];
+    if (!canExecuteWrites) {
+      reasons.push("Physical stock writes unavailable — Phase 4G persistence or demo flag required.");
+    }
+    if (!input.dispatchLineageId) {
+      reasons.push("dispatchLineageId missing — finalize dispatch on 4E first (dispatch_release_lineage).");
+    }
+    if (!input.scanReference?.trim()) {
+      reasons.push("scanReference missing — verified carton/packing/gate scan on operational_scan_records.");
+    }
+    if (input.reservations.length === 0) {
+      reasons.push("No inventory_reservations linked to this order.");
+    }
+    return [...new Set(reasons)];
+  }, [projection, input, missingSignals, canExecuteWrites]);
+
   const persistenceLabel =
     bundle?.persistenceMode === "supabase"
       ? "Supabase persistence"
@@ -283,7 +305,7 @@ export default function StockFinalizationBoard() {
                   Reconciliation — …{input.orderId.slice(-4)}
                 </CardTitle>
               </CardHeader>
-              <CardContent className="space-y-2 text-sm">
+              <CardContent className="space-y-3 text-sm">
                 <div className="flex justify-between">
                   <span>Status</span>
                   <Badge>{projection.finalizationStatus}</Badge>
@@ -296,12 +318,11 @@ export default function StockFinalizationBoard() {
                   <span>Consumable qty</span>
                   <span>{projection.consumedQty}</span>
                 </div>
-                {projection.blockingReasons.length > 0 && (
-                  <div className="text-destructive flex gap-2">
-                    <AlertTriangle className="h-4 w-4 shrink-0" />
-                    <span>{projection.blockingReasons.join(", ")}</span>
-                  </div>
-                )}
+                <GovernancePrerequisiteList
+                  title="Missing prerequisites"
+                  items={finalizeBlockers}
+                  variant={finalizeBlockers.length > 0 ? "destructive" : "default"}
+                />
                 {projection.warnings.length > 0 && (
                   <p className="text-muted-foreground">Warnings: {projection.warnings.join(", ")}</p>
                 )}
@@ -312,19 +333,59 @@ export default function StockFinalizationBoard() {
               <CardHeader>
                 <CardTitle className="flex items-center gap-2 text-base">
                   <PackageMinus className="h-4 w-4" />
-                  Balance preview
+                  Dispatch lineage & handoff
                 </CardTitle>
               </CardHeader>
-              <CardContent className="text-sm space-y-1">
-                <p>SKU: {primaryReservation.sku}</p>
-                <p>Location: {input.locationCode}</p>
-                <p>Reserved: {primaryReservation.reservedQty}</p>
-                <p className="text-muted-foreground">Optimistic lock on finalize (version)</p>
+              <CardContent className="text-sm space-y-1 font-mono text-[11px]">
+                <p>
+                  dispatchLineageId:{" "}
+                  {input.dispatchLineageId?.trim() ? input.dispatchLineageId : "— missing (4E finalize) —"}
+                </p>
+                <p>gateReference: {input.gateReference?.trim() ? input.gateReference : "— missing —"}</p>
+                <p>scanReference: {input.scanReference?.trim() ? input.scanReference : "— missing —"}</p>
+                <p>orderStatus: {input.orderStatus}</p>
+                <p>dispatchRelease: {input.dispatchReleaseStatus.replace(/_/g, " ")}</p>
               </CardContent>
             </Card>
           </div>
 
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">Reservation linkage</CardTitle>
+            </CardHeader>
+            <CardContent className="text-sm">
+              {input.reservations.length === 0 ? (
+                <p className="text-destructive flex items-center gap-2 text-xs">
+                  <AlertTriangle className="h-4 w-4 shrink-0" />
+                  No inventory_reservations for this order.
+                </p>
+              ) : (
+                <ul className="space-y-2 text-xs">
+                  {input.reservations.map((r) => (
+                    <li key={r.id} className="rounded border border-border/50 p-2">
+                      <p className="font-medium">{r.reservationNumber}</p>
+                      <p className="font-mono text-muted-foreground">id: {r.id}</p>
+                      <p>
+                        SKU {r.sku} · reserved {r.reservedQty} · status {r.reservationStatus}
+                      </p>
+                      <p>Location: {input.locationCode}</p>
+                    </li>
+                  ))}
+                </ul>
+              )}
+              <p className="mt-2 text-muted-foreground text-[10px]">
+                Primary SKU preview: {primaryReservation.sku} · reserved {primaryReservation.reservedQty}
+              </p>
+            </CardContent>
+          </Card>
+
           <div className="flex flex-wrap gap-2">
+            {!projection.canFinalizeConsumption && finalizeBlockers.length > 0 && (
+              <p className="w-full text-[10px] text-destructive">
+                Finalize consumption disabled until dispatch is finalized, scan evidence exists, and reservations
+                reconcile.
+              </p>
+            )}
             <Button
               disabled={busy || !projection.canFinalizeConsumption || !canExecuteWrites}
               onClick={() => void handleFinalize()}

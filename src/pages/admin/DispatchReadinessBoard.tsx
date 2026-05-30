@@ -12,11 +12,14 @@ import {
   projectDispatchReadiness,
   type DispatchReadinessInput,
   type DispatchReadinessProjection,
+  type DispatchReadinessWriteContext,
 } from "@/lib/dispatch-readiness";
 import { financeSignalLabel } from "@/lib/dispatch-readiness/financeDispatchSignal";
 import { createDispatchReadinessBundle, type DispatchReadinessBundle } from "@/lib/dispatch-readiness/createDispatchReadinessBundle";
 import { OperationalTimeline } from "@/components/admin/OperationalTimeline";
 import { GovernanceBoardLiveNotice } from "@/components/admin/GovernanceBoardLiveNotice";
+import { DispatchReadinessEvidencePanel } from "@/components/admin/DispatchReadinessEvidencePanel";
+import { GovernancePrerequisiteList } from "@/components/admin/GovernancePrerequisiteList";
 import type { OperationalEventRecord } from "@/lib/operational-events/types";
 import {
   loadDispatchReadinessRows,
@@ -60,15 +63,23 @@ function dispatchEventsToOperational(
 function ReadinessCard({
   input,
   projection,
+  missingSignals,
   onReview,
   reviewing,
   canWrite,
+  bundle,
+  writeCtx,
+  onEvidenceRecorded,
 }: {
   input: DispatchReadinessInput;
   projection: DispatchReadinessProjection;
+  missingSignals: string[];
   onReview: () => void;
   reviewing: boolean;
   canWrite: boolean;
+  bundle: DispatchReadinessBundle | null;
+  writeCtx: () => DispatchReadinessWriteContext;
+  onEvidenceRecorded: () => void;
 }) {
   return (
     <Card className="shadow-none ring-1 ring-border/50">
@@ -83,20 +94,15 @@ function ReadinessCard({
       </CardHeader>
       <CardContent className="space-y-3 text-sm">
         <p className="text-muted-foreground">{projection.safeStaffRecommendation}</p>
-        <div>
-          <p className="text-xs font-medium uppercase text-muted-foreground">Missing requirements</p>
-          <ul className="mt-1 list-inside list-disc text-xs">
-            {projection.missingRequirements.length === 0 ? (
-              <li className="text-muted-foreground">None</li>
-            ) : (
-              projection.missingRequirements.map((m) => <li key={m}>{m}</li>)
-            )}
-          </ul>
-        </div>
+        <GovernancePrerequisiteList title="Missing requirements" items={projection.missingRequirements} />
+        {missingSignals.length > 0 && (
+          <GovernancePrerequisiteList title="Missing live signals" items={missingSignals} variant="destructive" />
+        )}
         <div className="flex flex-wrap gap-2 text-xs">
           <span>Reservation: {input.reservationStatus}</span>
           <span>Finance: {financeSignalLabel(input.financeSignal)}</span>
           <span>Gate scan: {input.scan.gateScanVerified ? "verified" : "pending"}</span>
+          <span>Carton: {input.scan.cartonBarcodeVerified ? "verified" : "pending"}</span>
         </div>
         {projection.openExceptions.length > 0 && (
           <div className="flex flex-wrap gap-1">
@@ -107,6 +113,15 @@ function ReadinessCard({
             ))}
           </div>
         )}
+
+        <DispatchReadinessEvidencePanel
+          orderId={input.orderId}
+          bundle={bundle}
+          writeCtx={writeCtx}
+          dimensionResults={projection.dimensionResults}
+          onRecorded={onEvidenceRecorded}
+        />
+
         <Button
           type="button"
           size="sm"
@@ -116,6 +131,11 @@ function ReadinessCard({
         >
           Record readiness review (evidence)
         </Button>
+        {projection.readinessStatus !== "gate_eligible" && projection.readinessStatus !== "ready_for_review" && (
+          <p className="text-[10px] text-muted-foreground">
+            Review records pending evidence until dimensions pass; verified review unlocks finance gate eligibility.
+          </p>
+        )}
       </CardContent>
     </Card>
   );
@@ -152,28 +172,32 @@ export default function DispatchReadinessBoard() {
     if (boardState.liveRows.length > 0) {
       return boardState.liveRows.map((row) => ({
         input: row.input,
+        missingSignals: row.missingSignals,
         projection: projectDispatchReadiness(row.input),
       }));
     }
     if (boardState.showPreviewCards) {
       return PREVIEW_READINESS_INPUTS.map((input) => ({
         input,
+        missingSignals: [] as string[],
         projection: projectDispatchReadiness(input),
       }));
     }
     return [];
   }, [boardState.liveRows, boardState.showPreviewCards]);
 
+  const writeCtx = (orderId: string): DispatchReadinessWriteContext => ({
+    correlationId: `review-${orderId}-${Date.now()}`,
+    actorUserId: user?.id ?? "",
+    actorRole: role ?? "DISPATCH_MANAGER",
+    overrideReason: role === "SUPER_ADMIN" ? "Governed readiness review" : null,
+  });
+
   const handleReview = async (input: DispatchReadinessInput) => {
     if (!user?.id || !role || !bundle?.canExecuteWrites) return;
     setReviewingId(input.orderId);
     try {
-      await bundle.service.reviewReadiness(input, {
-        correlationId: `review-${Date.now()}`,
-        actorUserId: user.id,
-        actorRole: role,
-        overrideReason: role === "SUPER_ADMIN" ? "Governed readiness review" : null,
-      });
+      await bundle.service.reviewReadiness(input, writeCtx(input.orderId));
       const evts = await bundle.service.listEvents(input.orderId);
       setEvents(dispatchEventsToOperational(evts));
       boardState.reload();
@@ -219,21 +243,25 @@ export default function DispatchReadinessBoard() {
         <CardContent className="flex gap-2 pt-4 text-sm">
           <ShieldCheck className="h-5 w-5 shrink-0 text-amber-600" aria-hidden />
           <p>
-            <strong>gate_eligible</strong> is not dispatched. This board appends{" "}
-            <code className="text-[11px]">dispatch_readiness_evidence</code> only — no mark dispatched, invoice,
-            e-way, or stock deduction.
+            <strong>gate_eligible</strong> is not dispatched. Record packing photo, document placeholder, and gate
+            scan evidence below, then run readiness review. Writes{" "}
+            <code className="text-[11px]">dispatch_readiness_evidence</code> only.
           </p>
         </CardContent>
       </Card>
 
       <section className="grid gap-4 md:grid-cols-2">
-        {cardSources.map(({ input, projection }) => (
+        {cardSources.map(({ input, projection, missingSignals }) => (
           <ReadinessCard
             key={input.orderId}
             input={input}
             projection={projection}
+            missingSignals={missingSignals}
             reviewing={reviewingId === input.orderId}
             canWrite={bundle?.canExecuteWrites ?? false}
+            bundle={bundle}
+            writeCtx={() => writeCtx(input.orderId)}
+            onEvidenceRecorded={() => boardState.reload()}
             onReview={() => void handleReview(input)}
           />
         ))}
