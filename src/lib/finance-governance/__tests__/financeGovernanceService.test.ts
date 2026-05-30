@@ -46,6 +46,17 @@ describe("financeGovernanceService", () => {
     expect(evts.some((e) => e.eventType === "finance_commercially_released")).toBe(true);
   });
 
+  it("commercial release appends finance_review_evidence", async () => {
+    const evidence = createInMemoryFinanceEvidenceStore();
+    const s = createFinanceGovernanceService({
+      evidence,
+      events: createInMemoryFinanceEventSink(),
+    });
+    await s.commercialRelease(ready, ctx);
+    const rows = await s.listEvidence(ready.orderId);
+    expect(rows.some((r) => r.reviewType === "commercial_release")).toBe(true);
+  });
+
   it("rejects release without typed rejection reason", async () => {
     const s = svc();
     await expect(s.rejectRelease(ready, ctx)).rejects.toThrow(FinanceGovernanceError);

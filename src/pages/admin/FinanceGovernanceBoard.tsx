@@ -10,6 +10,7 @@ import {
   projectFinanceRelease,
   type FinanceGovernanceInput,
 } from "@/lib/finance-governance";
+import { canCommerciallyRelease } from "@/lib/finance-governance/financeApprovalWorkflow";
 import { createFinanceGovernanceBundle, type FinanceGovernanceBundle } from "@/lib/finance-governance/createFinanceGovernanceBundle";
 import { financeSignalLabel } from "@/lib/dispatch-readiness/financeDispatchSignal";
 import { financeEventsToOperational } from "@/lib/finance-governance/financeOperationalBridge";
@@ -80,18 +81,34 @@ export default function FinanceGovernanceBoard() {
     return [];
   }, [boardState.liveRows, boardState.showPreviewCards]);
 
+  const writeCtx = (orderId: string) => ({
+    correlationId: `fin-${orderId}-${Date.now()}`,
+    actorUserId: user?.id ?? "",
+    actorRole: role ?? "FINANCE_HEAD",
+    overrideReason: role === "SUPER_ADMIN" ? "CMD finance governance" : null,
+    rejectionReason: null,
+  });
+
   const runReview = async (input: FinanceGovernanceInput) => {
     if (!user?.id || !role || !bundle?.canExecuteWrites) return;
     setActing(input.orderId);
     try {
-      await bundle.service.startReview(input, {
-        correlationId: `fin-${Date.now()}`,
-        actorUserId: user.id,
-        actorRole: role,
-        overrideReason: role === "SUPER_ADMIN" ? "CMD finance review" : null,
-      });
+      await bundle.service.startReview(input, writeCtx(input.orderId));
       const evts = await bundle.service.listEvents(input.orderId);
       setEvents(financeEventsToOperational(evts));
+    } finally {
+      setActing(null);
+    }
+  };
+
+  const runCommercialRelease = async (input: FinanceGovernanceInput) => {
+    if (!user?.id || !role || !bundle?.canExecuteWrites) return;
+    setActing(input.orderId);
+    try {
+      await bundle.service.commercialRelease(input, writeCtx(input.orderId));
+      const evts = await bundle.service.listEvents(input.orderId);
+      setEvents(financeEventsToOperational(evts));
+      boardState.reload();
     } finally {
       setActing(null);
     }
@@ -158,14 +175,28 @@ export default function FinanceGovernanceBoard() {
                   {FINANCE_HOLD_LABELS[h]}
                 </Badge>
               ))}
-              <Button
-                size="sm"
-                variant="secondary"
-                disabled={!!acting || !bundle?.canExecuteWrites}
-                onClick={() => void runReview(input)}
-              >
-                Start finance review
-              </Button>
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  disabled={!!acting || !bundle?.canExecuteWrites}
+                  onClick={() => void runReview(input)}
+                >
+                  Start finance review
+                </Button>
+                <Button
+                  size="sm"
+                  disabled={
+                    !!acting ||
+                    !bundle?.canExecuteWrites ||
+                    projection.releaseStatus === "commercially_released" ||
+                    !canCommerciallyRelease(input)
+                  }
+                  onClick={() => void runCommercialRelease(input)}
+                >
+                  Record commercial release
+                </Button>
+              </div>
             </CardContent>
           </Card>
         ))}

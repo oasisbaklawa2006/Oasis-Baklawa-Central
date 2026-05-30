@@ -231,12 +231,21 @@ export default function DispatchFinalizationBoard() {
     if (!user?.id || !service || !bundle?.canExecuteWrites) return;
     setBusyId(input.orderId);
     try {
-      const result = await service.finalizeDispatch(input, writeCtx(input.orderId), {
+      const finalizedInput: DispatchFinalizationInput = {
+        ...input,
+        gateReference: input.gateReference?.trim() || input.transporterReference?.trim() || null,
+        completionReference: input.completionReference?.trim() || input.gateReference?.trim() || null,
+        transporterReference:
+          input.transporterReference?.trim() ||
+          (input.gateReference?.trim() ? `HANDOFF-${input.gateReference.trim()}` : null),
+      };
+      const result = await service.finalizeDispatch(finalizedInput, writeCtx(input.orderId), {
         trackingNumber: "LR-GOVERNED",
-        courierName: input.transporterReference?.split("/")[0]?.trim(),
+        courierName: finalizedInput.transporterReference?.split("/")[0]?.trim(),
       });
       setLiveStatusByOrder((prev) => ({ ...prev, [input.orderId]: result.statusUpdate.nextStatus }));
       await refresh(input.orderId);
+      boardState.reload();
     } finally {
       setBusyId(null);
     }

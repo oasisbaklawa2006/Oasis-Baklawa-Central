@@ -115,11 +115,37 @@ export function createDispatchReadinessService(deps: DispatchReadinessServiceDep
     async reviewReadiness(
       input: DispatchReadinessInput,
       ctx: DispatchReadinessWriteContext,
-    ): Promise<{ projection: DispatchReadinessProjection; eventId: string }> {
+    ): Promise<{ projection: DispatchReadinessProjection; eventId: string; evidenceId: string }> {
       const auth = assertDispatchAuthority("dispatch:readiness_review", ctx);
       if (!auth.allowed) throw new DispatchReadinessError("authority_denied", auth.reason);
 
       const projection = projectDispatchReadiness(input);
+      const reviewMessage = readinessReviewMessage(projection);
+      const evidenceStatus =
+        projection.readinessStatus === "gate_eligible" || projection.readinessStatus === "ready_for_review"
+          ? "verified"
+          : "pending";
+
+      const record = await evidence.insertEvidence({
+        orderId: input.orderId,
+        queueItemId: input.queue.queueItemId,
+        evidenceType: "manual_readiness_review",
+        evidenceStatus,
+        evidenceRef: reviewMessage,
+        photoRef: null,
+        documentRef: null,
+        barcodeRef: input.scan.cartonBarcodeVerified ? "carton-verified" : null,
+        actorId: ctx.actorUserId,
+        actorRole: ctx.actorRole,
+        actorDepartment: ctx.actorDepartment ?? null,
+        correlationId: ctx.correlationId,
+        metadata: {
+          readinessStatus: projection.readinessStatus,
+          gateEligibility: projection.gateEligibility,
+          governedOnly: true,
+        },
+      });
+
       const eventType = eventTypeForReadinessReview(projection);
       const evt = await events.append(
         buildDispatchOperationalEvent(
@@ -127,10 +153,10 @@ export function createDispatchReadinessService(deps: DispatchReadinessServiceDep
           input.orderId,
           ctx,
           "Dispatch readiness reviewed",
-          readinessReviewMessage(projection),
+          reviewMessage,
         ),
       );
-      return { projection, eventId: evt.id };
+      return { projection, eventId: evt.id, evidenceId: record.id };
     },
 
     async gateCheck(
