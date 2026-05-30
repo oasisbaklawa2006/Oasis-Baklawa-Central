@@ -19,6 +19,7 @@ import {
 } from "@/lib/dispatch-completion/createDispatchCompletionBundle";
 import { OperationalTimeline } from "@/components/admin/OperationalTimeline";
 import { GovernanceBoardLiveNotice } from "@/components/admin/GovernanceBoardLiveNotice";
+import { GovernancePrerequisiteList } from "@/components/admin/GovernancePrerequisiteList";
 import type { OperationalEventRecord } from "@/lib/operational-events/types";
 import {
   loadDispatchCompletionRows,
@@ -69,6 +70,7 @@ function completionEventsToOperational(
 function CompletionCard({
   input,
   projection,
+  missingSignals,
   onReview,
   onAttest,
   busy,
@@ -76,11 +78,27 @@ function CompletionCard({
 }: {
   input: DispatchCompletionInput;
   projection: DispatchCompletionProjection;
+  missingSignals: string[];
   onReview: () => void;
   onAttest: () => void;
   busy: boolean;
   canWrite: boolean;
 }) {
+  const prereqChecks = [
+    { label: "Readiness gate_eligible", ok: input.readinessStatus === "gate_eligible" },
+    { label: "Finance signal ready", ok: input.financeSignal === "ready" },
+    {
+      label: "Finance commercially released",
+      ok:
+        input.financeReleaseStatus === "commercially_released" ||
+        input.financeReleaseStatus === "finance_conditionally_ready",
+    },
+    { label: "Reservation ready", ok: input.reservationReady },
+    { label: "Security gate passed", ok: input.securityGatePassed },
+    { label: "Courier manifest on file", ok: input.courierManifestAttached },
+    { label: "Order not yet dispatched", ok: !input.orderAlreadyDispatched },
+  ];
+
   return (
     <Card className="shadow-none ring-1 ring-border/50">
       <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-2 pb-2">
@@ -91,6 +109,24 @@ function CompletionCard({
       </CardHeader>
       <CardContent className="space-y-3 text-sm">
         <p className="text-muted-foreground">{projection.completionRecommendation}</p>
+        <GovernancePrerequisiteList
+          title="Completion blockers"
+          items={projection.blockingReasons}
+          variant={projection.blockingReasons.length > 0 ? "destructive" : "default"}
+        />
+        {missingSignals.length > 0 && (
+          <GovernancePrerequisiteList title="Missing live signals" items={missingSignals} variant="destructive" />
+        )}
+        <div className="rounded-md border border-border/60 bg-muted/30 p-2 text-xs">
+          <p className="mb-2 font-medium">Prerequisite checklist</p>
+          <ul className="space-y-1">
+            {prereqChecks.map(({ label, ok }) => (
+              <li key={label} className={ok ? "text-muted-foreground" : "text-destructive"}>
+                {ok ? "✓" : "✗"} {label}
+              </li>
+            ))}
+          </ul>
+        </div>
         {projection.warnings.length > 0 && (
           <ul className="list-inside list-disc text-xs text-amber-700 dark:text-amber-400">
             {projection.warnings.map((w) => (
@@ -104,8 +140,8 @@ function CompletionCard({
           <span>Release: {input.financeReleaseStatus}</span>
         </div>
         <div className="flex flex-wrap gap-2">
-          <Button type="button" size="sm" variant="secondary" disabled={busy || !canWrite} onClick={onReview}>
-            Review completion (evidence)
+          <Button type="button" size="sm" variant="outline" disabled={busy || !canWrite} onClick={onReview}>
+            Step 1 — Review completion (evidence)
           </Button>
           <Button
             type="button"
@@ -113,9 +149,14 @@ function CompletionCard({
             disabled={busy || !canWrite || projection.completionStatus !== "completion_eligible"}
             onClick={onAttest}
           >
-            Attest completion (governed)
+            Step 2 — Attest completion (governed)
           </Button>
         </div>
+        {projection.completionStatus !== "completion_eligible" && (
+          <p className="text-[10px] text-muted-foreground">
+            Complete Step 1 and upstream 4B/4C boards first. Attestation does not set orders.status to dispatched.
+          </p>
+        )}
       </CardContent>
     </Card>
   );
@@ -153,12 +194,14 @@ export default function DispatchCompletionBoard() {
     if (boardState.liveRows.length > 0) {
       return boardState.liveRows.map((row) => ({
         input: row.input,
+        missingSignals: row.missingSignals,
         projection: projectDispatchCompletion(row.input),
       }));
     }
     if (boardState.showPreviewCards) {
       return PREVIEW_COMPLETION_INPUTS.map((input) => ({
         input,
+        missingSignals: [] as string[],
         projection: projectDispatchCompletion(input),
       }));
     }
@@ -246,17 +289,17 @@ export default function DispatchCompletionBoard() {
           <p>
             <strong>completion_attested</strong> records append-only governance evidence. It does{" "}
             <strong>not</strong> set <code>orders.status</code> to dispatched, deduct stock, or generate invoices.
-            Downstream mutation requires a separate authority PR.
           </p>
         </CardContent>
       </Card>
 
       <section className="grid gap-4 md:grid-cols-2">
-        {cardSources.map(({ input, projection }) => (
+        {cardSources.map(({ input, projection, missingSignals }) => (
           <CompletionCard
             key={input.orderId}
             input={input}
             projection={projection}
+            missingSignals={missingSignals}
             busy={busyId === input.orderId}
             canWrite={bundle?.canExecuteWrites ?? false}
             onReview={() => void handleReview(input)}
