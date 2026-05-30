@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { compensateOpenReservationAfterFailure } from "../createGovernedReservation";
 import {
   createInMemoryReservationServiceBundle,
   createReservationService,
@@ -13,7 +14,7 @@ const ctx = {
   actorRole: "SUPER_ADMIN",
 };
 
-describe("reserve failure compensation", () => {
+describe("compensateOpenReservationAfterFailure", () => {
   it("cancels pending reservation when reserve fails", async () => {
     const bundle = createInMemoryReservationServiceBundle();
     const svc = createReservationService(bundle);
@@ -32,8 +33,8 @@ describe("reserve failure compensation", () => {
       balance: { availableQty: 1, reservedQty: 0 },
       openReservedQty: 0,
     });
-    await expect(
-      svc.reserveInventory(
+    const reserveErr = await svc
+      .reserveInventory(
         {
           reservationId: created.reservation.id,
           expectedVersion: created.reservation.version,
@@ -41,19 +42,52 @@ describe("reserve failure compensation", () => {
         },
         ctx,
         snapshot,
-      ),
-    ).rejects.toBeInstanceOf(ReservationError);
+      )
+      .then(() => null)
+      .catch((e) => e);
 
-    await svc.cancelReservation(
-      {
-        reservationId: created.reservation.id,
-        expectedVersion: created.reservation.version,
-        reason: "test cleanup",
-      },
+    expect(reserveErr).toBeInstanceOf(ReservationError);
+
+    await compensateOpenReservationAfterFailure(
+      svc,
+      created.reservation,
       ctx,
+      reserveErr instanceof Error ? reserveErr.message : "reserve failed",
     );
+
     const row = await svc.getReservation(created.reservation.id);
     expect(row?.reservationStatus).toBe("cancelled");
     expect(isReservationOpen(row!.reservationStatus)).toBe(false);
+  });
+
+  it("still cancels using create response when getReservation throws", async () => {
+    const bundle = createInMemoryReservationServiceBundle();
+    const svc = createReservationService(bundle);
+    const created = await svc.createReservation(
+      {
+        orderId: "d6c79498-cde9-4394-b4d0-7b56d5371e85",
+        productId: "p1",
+        sku: "SKU-B",
+        requestedQty: 2,
+      },
+      ctx,
+    );
+
+    const failingGet = {
+      ...svc,
+      getReservation: async () => {
+        throw new Error("read unavailable");
+      },
+    };
+
+    await compensateOpenReservationAfterFailure(
+      failingGet,
+      created.reservation,
+      ctx,
+      "lookup failed",
+    );
+
+    const row = await svc.getReservation(created.reservation.id);
+    expect(row?.reservationStatus).toBe("cancelled");
   });
 });

@@ -3,8 +3,10 @@ import { buildAvailabilitySnapshotFromBalance } from "./buildAvailabilitySnapsho
 import { sumOpenReservedQtyForSku } from "./reservationBoardQueries";
 import { createSupabaseReservationService } from "./supabaseReservationRepository";
 import type { ReservationWriteContext } from "./reservationTypes";
+import type { InventoryReservationRecord } from "./reservationTypes";
 import { isReservationOpen } from "./reservationLifecycle";
 import { ReservationError } from "./reservationTypes";
+import type { ReservationService } from "./reservationService";
 
 export interface CreateAndReserveInput {
   orderId: string;
@@ -22,6 +24,52 @@ export interface CreateAndReserveResult {
   reservationStatus: string;
   reservedQty: number;
   movementIds: string[];
+}
+
+type CreatedReservationRef = Pick<InventoryReservationRecord, "id" | "version">;
+
+/**
+ * Best-effort cancel when create succeeded but a later step failed before reserve completed.
+ * Uses latest row when readable; falls back to the create response id/version.
+ */
+export async function compensateOpenReservationAfterFailure(
+  service: ReservationService,
+  created: CreatedReservationRef,
+  ctx: ReservationWriteContext,
+  failureMessage: string,
+): Promise<void> {
+  let cancelTarget: CreatedReservationRef & { reservationStatus?: InventoryReservationRecord["reservationStatus"] } =
+    {
+      id: created.id,
+      version: created.version,
+      reservationStatus: "pending",
+    };
+
+  try {
+    const latest = await service.getReservation(created.id);
+    if (latest) {
+      cancelTarget = latest;
+    }
+  } catch {
+    /* Use create response — getReservation failure must not block compensation. */
+  }
+
+  if (cancelTarget.reservationStatus && !isReservationOpen(cancelTarget.reservationStatus)) {
+    return;
+  }
+
+  try {
+    await service.cancelReservation(
+      {
+        reservationId: cancelTarget.id,
+        expectedVersion: cancelTarget.version,
+        reason: `Automatic cancel after failure: ${failureMessage}`,
+      },
+      ctx,
+    );
+  } catch {
+    /* Best-effort — primary error remains authoritative. */
+  }
 }
 
 /**
@@ -50,27 +98,38 @@ export async function createAndReserveInventoryForOrder(
 
   const movementIds = [created.movementId];
 
-  const { data: balanceRow, error: balErr } = await client
-    .from("inventory_stock_balances")
-    .select("available_qty, reserved_qty")
-    .eq("product_id", input.productId)
-    .eq("sku", input.sku)
-    .eq("location_code", input.locationCode)
-    .maybeSingle();
-  if (balErr) throw new Error(balErr.message);
+  const failAndCompensate = async (primaryError: unknown): Promise<never> => {
+    const message = primaryError instanceof Error ? primaryError.message : String(primaryError);
+    await compensateOpenReservationAfterFailure(service, created.reservation, ctx, message);
+    throw primaryError;
+  };
 
-  const openReservedQty = await sumOpenReservedQtyForSku(client, input.productId, input.sku, input.orderId);
-  const snapshot = buildAvailabilitySnapshotFromBalance({
-    productId: input.productId,
-    sku: input.sku,
-    balance: balanceRow
-      ? {
-          availableQty: Number(balanceRow.available_qty),
-          reservedQty: Number(balanceRow.reserved_qty),
-        }
-      : null,
-    openReservedQty,
-  });
+  let snapshot;
+  try {
+    const { data: balanceRow, error: balErr } = await client
+      .from("inventory_stock_balances")
+      .select("available_qty, reserved_qty")
+      .eq("product_id", input.productId)
+      .eq("sku", input.sku)
+      .eq("location_code", input.locationCode)
+      .maybeSingle();
+    if (balErr) throw new Error(balErr.message);
+
+    const openReservedQty = await sumOpenReservedQtyForSku(client, input.productId, input.sku, input.orderId);
+    snapshot = buildAvailabilitySnapshotFromBalance({
+      productId: input.productId,
+      sku: input.sku,
+      balance: balanceRow
+        ? {
+            availableQty: Number(balanceRow.available_qty),
+            reservedQty: Number(balanceRow.reserved_qty),
+          }
+        : null,
+      openReservedQty,
+    });
+  } catch (lookupError) {
+    return failAndCompensate(lookupError);
+  }
 
   try {
     const reserved = await service.reserveInventory(
@@ -91,23 +150,7 @@ export async function createAndReserveInventoryForOrder(
       reservedQty: reserved.reservation.reservedQty,
       movementIds,
     };
-  } catch (e) {
-    const latest = await service.getReservation(created.reservation.id);
-    if (latest && isReservationOpen(latest.reservationStatus)) {
-      try {
-        await service.cancelReservation(
-          {
-            reservationId: latest.id,
-            expectedVersion: latest.version,
-            reason: `Automatic cancel after reserve failure: ${e instanceof Error ? e.message : String(e)}`,
-          },
-          ctx,
-        );
-      } catch {
-        /* Best-effort compensation — original error is authoritative. */
-      }
-    }
-    if (e instanceof ReservationError) throw e;
-    throw e;
+  } catch (reserveError) {
+    return failAndCompensate(reserveError);
   }
 }

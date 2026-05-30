@@ -22,6 +22,8 @@ import {
   loadDispatchedOrdersForReservationBoard,
   loadOrderLinesForReservation,
   loadReservationBoardOrderContext,
+  reservationContextKey,
+  reservationContextMatchesSelection,
   reservationLineKey,
   RESERVATION_BOARD_DEFAULT_LOCATION,
   type ReservationLineCandidate,
@@ -93,6 +95,12 @@ export function ReservationGovernancePanel() {
     setSelectedLine(null);
     setOrderLines([]);
     setContext(null);
+    setContextLoading(false);
+  }, []);
+
+  const clearReservationContext = useCallback(() => {
+    setContext(null);
+    setContextLoading(false);
   }, []);
 
   useEffect(() => {
@@ -128,19 +136,25 @@ export function ReservationGovernancePanel() {
   useEffect(() => {
     if (!selectedOrderId || !selectedLine) {
       setContext(null);
+      setContextLoading(false);
       return;
     }
+    const loadKey = reservationContextKey(selectedOrderId, selectedLine, locationCode);
     let cancelled = false;
+    setContext(null);
     setContextLoading(true);
     void loadReservationBoardOrderContext(supabase, selectedOrderId, selectedLine, locationCode)
       .then((ctx) => {
-        if (!cancelled) setContext(ctx);
+        if (cancelled) return;
+        const currentKey = reservationContextKey(selectedOrderId, selectedLine, locationCode);
+        if (currentKey !== loadKey) return;
+        setContext(ctx);
       })
       .catch((e) => {
         if (!cancelled) setMessage(e instanceof Error ? e.message : "Failed to load order context");
       })
       .finally(() => {
-        if (!cancelled) setContextLoading(false);
+        setContextLoading(false);
       });
     return () => {
       cancelled = true;
@@ -164,8 +178,24 @@ export function ReservationGovernancePanel() {
 
   const canWrite = tablesOk === true && Boolean(user?.id);
 
+  const contextMatchesSelection = reservationContextMatchesSelection(
+    context,
+    selectedOrderId,
+    selectedLine,
+    locationCode,
+  );
+
+  const canCreateAndReserve =
+    canWrite &&
+    Boolean(selectedLine) &&
+    contextMatchesSelection &&
+    Boolean(context) &&
+    !contextLoading &&
+    busy === null &&
+    reservationBlockers.length === 0;
+
   const handleCreateAndReserve = async () => {
-    if (!selectedOrderId || !selectedLine || !context) return;
+    if (!selectedOrderId || !selectedLine || !context || !contextMatchesSelection) return;
     const qty = Number(reserveQty);
     if (!Number.isFinite(qty) || qty <= 0) {
       setMessage("Quantity must be a positive number.");
@@ -355,6 +385,7 @@ export function ReservationGovernancePanel() {
                 onValueChange={(v) => {
                   const line = orderLines.find((l) => reservationLineKey(l) === v);
                   setSelectedLine(line ?? null);
+                  clearReservationContext();
                 }}
                 disabled={!selectedOrderId || orderLines.length === 0}
               >
@@ -375,7 +406,13 @@ export function ReservationGovernancePanel() {
           <div className="grid gap-3 md:grid-cols-3">
             <div className="space-y-2">
               <Label className="text-xs">Source location</Label>
-              <Input value={locationCode} onChange={(e) => setLocationCode(e.target.value)} />
+              <Input
+                value={locationCode}
+                onChange={(e) => {
+                  setLocationCode(e.target.value);
+                  clearReservationContext();
+                }}
+              />
             </div>
             <div className="space-y-2">
               <Label className="text-xs">Reserve quantity</Label>
@@ -390,7 +427,7 @@ export function ReservationGovernancePanel() {
             <div className="space-y-2 flex items-end">
               <Button
                 className="w-full"
-                disabled={!canWrite || !selectedLine || !context || busy !== null || contextLoading}
+                disabled={!canCreateAndReserve}
                 onClick={() => void handleCreateAndReserve()}
               >
                 {busy === "reserve" ? <Loader2 className="h-4 w-4 animate-spin" /> : "Create & reserve"}
@@ -404,7 +441,13 @@ export function ReservationGovernancePanel() {
             </p>
           )}
 
-          {context && (
+          {!contextLoading && selectedLine && context && !contextMatchesSelection && (
+            <p className="text-destructive text-xs">
+              Availability context is stale — wait for reload after order, line, or location change.
+            </p>
+          )}
+
+          {context && contextMatchesSelection && (
             <>
               <div className="rounded-md border border-border/60 bg-muted/20 p-3 space-y-2 text-xs font-mono">
                 <p>orderId: {context.order.id}</p>
