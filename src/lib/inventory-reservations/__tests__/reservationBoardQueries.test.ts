@@ -3,6 +3,8 @@ import {
   buildReservationCreateBlockers,
   buildStockFinalizationHints,
   orderGovernanceLabel,
+  reservationContextKey,
+  reservationContextMatchesSelection,
 } from "../reservationBoardQueries";
 import { summarizeAvailability } from "../buildAvailabilitySnapshot";
 import { buildAvailabilitySnapshotFromBalance } from "../buildAvailabilitySnapshot";
@@ -51,6 +53,29 @@ describe("reservationBoardQueries helpers", () => {
     });
     expect(blockers.some((b) => b.includes("need 5"))).toBe(true);
     expect(blockers.some((b) => b.includes("need 10"))).toBe(false);
+  });
+
+  it("matches context only for current order, line, and location", () => {
+    const line = { productId: "p", sku: "S", productName: "X", quantity: 1 };
+    const context = {
+      order: { id: "o", orderNumber: null, status: "dispatched", label: "Order o" },
+      activeLine: line,
+      lines: [line],
+      reservations: [],
+      balance: null,
+      locationCode: "WH-MAIN",
+      availability: null,
+      availabilitySummary: null,
+      hasVerifiedScan: false,
+      scanReference: null,
+      reservationBlockers: [],
+      stockFinalizationHints: [],
+    };
+    expect(reservationContextKey("o", line, "WH-MAIN")).toBe("o:p:S:WH-MAIN");
+    expect(reservationContextMatchesSelection(context, "o", line, "WH-MAIN")).toBe(true);
+    expect(reservationContextMatchesSelection(context, "other", line, "WH-MAIN")).toBe(false);
+    expect(reservationContextMatchesSelection(context, "o", { ...line, sku: "OTHER" }, "WH-MAIN")).toBe(false);
+    expect(reservationContextMatchesSelection(context, "o", line, "WH-B")).toBe(false);
   });
 
   it("lists 4G prerequisite hints", () => {

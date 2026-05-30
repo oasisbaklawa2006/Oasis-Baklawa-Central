@@ -35,6 +35,12 @@ function normalizeRole(role: string): StockAuthorityRole {
   return "UNKNOWN";
 }
 
+/** SUPER_ADMIN stock mutations require a typed overrideReason (see assertStockAuthority). */
+export function requiresStockOverrideReason(actorRole: string | null | undefined): boolean {
+  if (!actorRole?.trim()) return false;
+  return normalizeRole(actorRole) === "SUPER_ADMIN";
+}
+
 export function isForbiddenStockAction(action: string): action is StockForbiddenAction {
   return (
     action === "stock:silent_deduct" ||

@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { assertStockAuthority, isForbiddenStockAction } from "../stockAuthorityGuard";
+import {
+  assertStockAuthority,
+  isForbiddenStockAction,
+  requiresStockOverrideReason,
+} from "../stockAuthorityGuard";
 
 describe("stockAuthorityGuard", () => {
   it("denies forbidden silent deduct", () => {
@@ -38,5 +42,22 @@ describe("stockAuthorityGuard", () => {
 
   it("denies unknown action", () => {
     expect(assertStockAuthority("stock:wildcard", { actorRole: "ADMIN" }).allowed).toBe(false);
+  });
+
+  it("requires overrideReason for SUPER_ADMIN finalize", () => {
+    expect(requiresStockOverrideReason("SUPER_ADMIN")).toBe(true);
+    expect(requiresStockOverrideReason("INVENTORY_MANAGER")).toBe(false);
+    expect(
+      assertStockAuthority("stock:finalize_consumption", {
+        actorRole: "SUPER_ADMIN",
+        overrideReason: null,
+      }).allowed,
+    ).toBe(false);
+    expect(
+      assertStockAuthority("stock:finalize_consumption", {
+        actorRole: "SUPER_ADMIN",
+        overrideReason: "Governed staging test",
+      }).allowed,
+    ).toBe(true);
   });
 });

@@ -164,14 +164,19 @@ export function createStockFinalizationService(deps: StockFinalizationServiceDep
 
       for (const item of params.items) {
         const reservation = input.reservations.find((r) => r.id === item.reservationId);
-        const releaseReserved = reservation?.reservedQty ?? item.consumeQty;
+        const bal = balanceMap.get(`${item.productId}:${item.sku}:${item.locationCode}`);
+        const releaseReserved = Math.min(
+          reservation?.reservedQty ?? item.consumeQty,
+          item.consumeQty,
+          bal?.reservedQty ?? 0,
+        );
 
         const result = await balances.applyConsumptionWithLock({
           productId: item.productId,
           sku: item.sku,
           locationCode: item.locationCode,
           consumeQty: item.consumeQty,
-          releaseReservedQty: Math.min(releaseReserved, item.consumeQty),
+          releaseReservedQty: releaseReserved,
           expectedVersion: item.expectedBalanceVersion,
         });
 

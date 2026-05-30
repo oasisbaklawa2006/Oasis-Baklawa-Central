@@ -33,6 +33,8 @@ export interface ReservationBalanceView {
 
 export interface ReservationBoardOrderContext {
   order: ReservationOrderRow;
+  /** Line used to load availability, balance, and blockers for this context. */
+  activeLine: ReservationLineCandidate;
   lines: ReservationLineCandidate[];
   reservations: InventoryReservationRecord[];
   balance: ReservationBalanceView | null;
@@ -119,6 +121,30 @@ export async function loadOrderLinesForReservation(
 
 export function reservationLineKey(line: Pick<ReservationLineCandidate, "productId" | "sku">): string {
   return `${line.productId}:${line.sku}`;
+}
+
+export function reservationContextKey(
+  orderId: string,
+  line: Pick<ReservationLineCandidate, "productId" | "sku">,
+  locationCode: string,
+): string {
+  return `${orderId}:${line.productId}:${line.sku}:${locationCode}`;
+}
+
+/** True when loaded board context matches the current order, line SKU, and location. */
+export function reservationContextMatchesSelection(
+  context: ReservationBoardOrderContext | null,
+  orderId: string,
+  line: ReservationLineCandidate | null,
+  locationCode: string,
+): boolean {
+  if (!context || !line || !orderId) return false;
+  return (
+    context.order.id === orderId &&
+    context.locationCode === locationCode &&
+    context.activeLine.productId === line.productId &&
+    context.activeLine.sku === line.sku
+  );
 }
 
 export async function sumOpenReservedQtyForSku(
@@ -240,6 +266,7 @@ export async function loadReservationBoardOrderContext(
 
   return {
     order,
+    activeLine: line,
     lines: lines.length > 0 ? lines : [line],
     reservations,
     balance,
