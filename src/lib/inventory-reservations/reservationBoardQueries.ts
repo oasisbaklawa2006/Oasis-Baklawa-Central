@@ -70,6 +70,57 @@ export async function loadDispatchedOrdersForReservationBoard(
   }));
 }
 
+function throwQueryError(label: string, error: { message: string } | null): void {
+  if (error) throw new Error(`${label}: ${error.message}`);
+}
+
+type OrderItemRow = {
+  quantity: unknown;
+  product_id: unknown;
+  product: { id?: string; name?: string; sku?: string } | { id?: string; name?: string; sku?: string }[] | null;
+};
+
+function normalizeProductJoin(
+  product: OrderItemRow["product"],
+): { id?: string; name?: string; sku?: string } | null {
+  if (!product) return null;
+  if (Array.isArray(product)) return product[0] ?? null;
+  return product;
+}
+
+export function mapOrderItemsToLineCandidates(rows: OrderItemRow[]): ReservationLineCandidate[] {
+  return rows
+    .map((row) => {
+      const product = normalizeProductJoin(row.product);
+      const sku = product?.sku?.trim();
+      const productId = (row.product_id as string) || product?.id;
+      if (!productId || !sku) return null;
+      return {
+        productId,
+        sku,
+        productName: product?.name?.trim() || sku,
+        quantity: Math.max(1, Number(row.quantity) || 1),
+      };
+    })
+    .filter((x): x is ReservationLineCandidate => x !== null);
+}
+
+export async function loadOrderLinesForReservation(
+  client: SupabaseClient,
+  orderId: string,
+): Promise<ReservationLineCandidate[]> {
+  const { data, error } = await client
+    .from("order_items")
+    .select("quantity, product_id, product:products(id, name, sku)")
+    .eq("order_id", orderId);
+  throwQueryError("order_items", error);
+  return mapOrderItemsToLineCandidates(data ?? []);
+}
+
+export function reservationLineKey(line: Pick<ReservationLineCandidate, "productId" | "sku">): string {
+  return `${line.productId}:${line.sku}`;
+}
+
 export async function sumOpenReservedQtyForSku(
   client: SupabaseClient,
   productId: string,
@@ -119,8 +170,12 @@ export async function loadReservationBoardOrderContext(
       .limit(10),
   ]);
 
-  if (orderRes.error) throw new Error(orderRes.error.message);
+  throwQueryError("orders", orderRes.error);
   if (!orderRes.data) throw new Error("Order not found");
+  throwQueryError("order_items", itemsRes.error);
+  throwQueryError("inventory_reservations", reservationsRes.error);
+  throwQueryError("inventory_stock_balances", balanceRes.error);
+  throwQueryError("operational_scan_records", scansRes.error);
 
   const order: ReservationOrderRow = {
     id: orderRes.data.id as string,
@@ -129,20 +184,7 @@ export async function loadReservationBoardOrderContext(
     label: orderGovernanceLabel(orderRes.data.id as string, (orderRes.data.order_number as string | null) ?? null),
   };
 
-  const lines: ReservationLineCandidate[] = (itemsRes.data ?? [])
-    .map((row) => {
-      const product = row.product as { id?: string; name?: string; sku?: string } | null;
-      const sku = product?.sku?.trim();
-      const productId = (row.product_id as string) || product?.id;
-      if (!productId || !sku) return null;
-      return {
-        productId,
-        sku,
-        productName: product?.name?.trim() || sku,
-        quantity: Math.max(1, Number(row.quantity) || 1),
-      };
-    })
-    .filter((x): x is ReservationLineCandidate => x !== null);
+  const lines = mapOrderItemsToLineCandidates(itemsRes.data ?? []);
 
   const reservations = ((reservationsRes.data ?? []) as InventoryReservationRow[]).map(mapReservationRow);
 
@@ -216,20 +258,31 @@ export function buildReservationCreateBlockers(params: {
   line: ReservationLineCandidate;
   reservations: InventoryReservationRecord[];
   availabilitySummary: ReturnType<typeof summarizeAvailability>;
+  reserveQty?: number;
 }): string[] {
   const reasons: string[] = [];
+  const qty = params.reserveQty ?? params.line.quantity;
   if (params.order.status !== "dispatched") {
     reasons.push(`Order must be dispatched (current: ${params.order.status}).`);
+  }
+  if (!Number.isFinite(qty) || qty <= 0) {
+    reasons.push("Reserve quantity must be a positive number.");
+  }
+  if (qty > params.line.quantity + 0.0001) {
+    reasons.push(
+      `Reserve quantity ${qty} exceeds order line quantity ${params.line.quantity} for SKU ${params.line.sku}.`,
+    );
   }
   const activeForSku = params.reservations.filter(
     (r) => r.sku === params.line.sku && isReservationOpen(r.reservationStatus),
   );
-  if (activeForSku.some((r) => r.reservationStatus === "reserved" || r.reservationStatus === "partially_reserved")) {
-    reasons.push(`Active reservation already exists for SKU ${params.line.sku} on this order.`);
+  if (activeForSku.length > 0) {
+    const statuses = [...new Set(activeForSku.map((r) => r.reservationStatus))].join(", ");
+    reasons.push(`Open reservation already exists for SKU ${params.line.sku} (${statuses}).`);
   }
-  if (params.availabilitySummary.availableQty < params.line.quantity - 0.0001) {
+  if (params.availabilitySummary.availableQty < qty - 0.0001) {
     reasons.push(
-      `Insufficient availability for ${params.line.sku}: need ${params.line.quantity}, available ${params.availabilitySummary.availableQty}.`,
+      `Insufficient availability for ${params.line.sku}: need ${qty}, available ${params.availabilitySummary.availableQty}.`,
     );
   }
   return reasons;

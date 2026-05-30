@@ -27,8 +27,30 @@ describe("reservationBoardQueries helpers", () => {
       line: { productId: "p", sku: "S", productName: "X", quantity: 5 },
       reservations: [],
       availabilitySummary: summary,
+      reserveQty: 3,
     });
     expect(blockers.some((b) => b.includes("dispatched"))).toBe(true);
+    expect(blockers.some((b) => b.includes("need 3"))).toBe(false);
+  });
+
+  it("uses reserveQty for availability check", () => {
+    const summary = summarizeAvailability(
+      buildAvailabilitySnapshotFromBalance({
+        productId: "p",
+        sku: "S",
+        balance: { availableQty: 4, reservedQty: 0 },
+        openReservedQty: 0,
+      }),
+    );
+    const blockers = buildReservationCreateBlockers({
+      order: { id: "o", orderNumber: null, status: "dispatched", label: "Order o" },
+      line: { productId: "p", sku: "S", productName: "X", quantity: 10 },
+      reservations: [],
+      availabilitySummary: summary,
+      reserveQty: 5,
+    });
+    expect(blockers.some((b) => b.includes("need 5"))).toBe(true);
+    expect(blockers.some((b) => b.includes("need 10"))).toBe(false);
   });
 
   it("lists 4G prerequisite hints", () => {

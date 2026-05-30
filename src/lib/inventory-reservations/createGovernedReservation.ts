@@ -3,6 +3,7 @@ import { buildAvailabilitySnapshotFromBalance } from "./buildAvailabilitySnapsho
 import { sumOpenReservedQtyForSku } from "./reservationBoardQueries";
 import { createSupabaseReservationService } from "./supabaseReservationRepository";
 import type { ReservationWriteContext } from "./reservationTypes";
+import { isReservationOpen } from "./reservationLifecycle";
 import { ReservationError } from "./reservationTypes";
 
 export interface CreateAndReserveInput {
@@ -91,6 +92,21 @@ export async function createAndReserveInventoryForOrder(
       movementIds,
     };
   } catch (e) {
+    const latest = await service.getReservation(created.reservation.id);
+    if (latest && isReservationOpen(latest.reservationStatus)) {
+      try {
+        await service.cancelReservation(
+          {
+            reservationId: latest.id,
+            expectedVersion: latest.version,
+            reason: `Automatic cancel after reserve failure: ${e instanceof Error ? e.message : String(e)}`,
+          },
+          ctx,
+        );
+      } catch {
+        /* Best-effort compensation — original error is authoritative. */
+      }
+    }
     if (e instanceof ReservationError) throw e;
     throw e;
   }
