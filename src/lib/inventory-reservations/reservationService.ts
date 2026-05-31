@@ -66,6 +66,10 @@ export function createReservationService(bundle: ReservationServiceBundle) {
       repository.expireReservation(input, ctx),
     fulfillReservation: (input: ReservationVersionedInput, ctx: ReservationWriteContext) =>
       repository.fulfillReservation(input, ctx),
+    fulfillAfterStockConsumption: (
+      input: ReservationVersionedInput & { consumedQty: number },
+      ctx: ReservationWriteContext,
+    ) => repository.fulfillAfterStockConsumption(input, ctx),
     cancelReservation: (input: ReservationVersionedInput, ctx: ReservationWriteContext) =>
       repository.cancelReservation(input, ctx),
     attachReservationNote: async (

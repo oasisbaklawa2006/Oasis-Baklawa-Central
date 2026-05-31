@@ -7,6 +7,7 @@ import { deriveReadinessInputFromSlices } from "../adapters/readinessSignalAdapt
 import { deriveCompletionInputFromSlices } from "../adapters/completionSignalAdapter";
 import { deriveFinalizationInputFromSlices } from "../adapters/finalizationSignalAdapter";
 import { deriveStockInputFromSlices } from "../adapters/stockSignalAdapter";
+import { shouldShowOrderAsStockFinalizationCandidate } from "@/lib/golden-chain-operator/goldenChainStockFilters";
 import {
   deriveCompletionStatusFromEvidence,
   deriveFinanceReleaseStatusFromInput,
@@ -56,7 +57,7 @@ async function probeTable(client: SupabaseClient, table: string): Promise<boolea
   return !error;
 }
 
-function scanSliceFromRecords(
+export function scanSliceFromRecords(
   records: { verification_status: string; scan_type: string; created_at: string }[],
 ): {
   hasUnresolvedMismatch: boolean;
@@ -576,7 +577,7 @@ function resolveStockEvidenceFromLineageAndScans(
 
   const finalizeRow =
     orderLineage.find((l) => l.next_status === "dispatched") ??
-    orderLineage.find((l) => l.release_type === "dispatch_finalize") ??
+    orderLineage.find((l) => l.release_type === "finalize") ??
     orderLineage[0];
 
   const gateFromLineage = orderLineage.find((l) => l.gate_reference?.trim())?.gate_reference ?? null;
@@ -701,6 +702,24 @@ export async function loadStockFinalizationRows(
     const locationCode =
       (balances ?? []).find((b) => orderReservations.some((r) => r.sku === b.sku))?.location_code ??
       "WH-MAIN";
+
+    const consumptionLineageSlices = (lineage ?? [])
+      .filter((l) => l.order_id === oid)
+      .map((l) => ({
+        reservationId: l.reservation_id as string,
+        lineageType: l.lineage_type as string,
+      }));
+
+    if (
+      !shouldShowOrderAsStockFinalizationCandidate({
+        orderStatus: o.status as string,
+        dispatchFinalized: evidence.dispatchReleaseStatus === "dispatch_finalized",
+        lineage: consumptionLineageSlices,
+        reservations: orderReservations,
+      })
+    ) {
+      continue;
+    }
 
     const fusion = deriveStockInputFromSlices({
       orderId: oid,

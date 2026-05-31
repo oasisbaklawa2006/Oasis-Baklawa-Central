@@ -111,8 +111,12 @@ function ReleaseCard({
   customerPreview: { label: string }[];
   canWrite: boolean;
 }) {
+  const alreadyFinalized = input.openReleaseBlockers.includes("dispatch_already_finalized");
   const lane = projection.canFinalize ? "eligible" : projection.releaseStatus === "dispatch_release_blocked" ? "blocked" : "pending";
-  const finalizeBlockers = finalizeDisabledExplanation(projection, input, canWrite);
+  const finalizeBlockers = [
+    ...finalizeDisabledExplanation(projection, input, canWrite),
+    ...(alreadyFinalized ? ["Already finalized — dispatch_release_lineage release_type=finalize exists"] : []),
+  ];
 
   return (
     <Card className={lane === "eligible" ? "ring-1 ring-primary/30" : "ring-1 ring-border/50"}>
@@ -154,8 +158,13 @@ function ReleaseCard({
           </p>
         )}
         <div className="flex flex-wrap gap-2">
-          <Button type="button" size="sm" disabled={busy || !canWrite || !projection.canFinalize} onClick={onFinalize}>
-            Finalize dispatch (governed)
+          <Button
+            type="button"
+            size="sm"
+            disabled={busy || !canWrite || !projection.canFinalize || alreadyFinalized}
+            onClick={onFinalize}
+          >
+            {alreadyFinalized ? "Already finalized" : "Finalize dispatch (governed)"}
           </Button>
           <Button
             type="button"
