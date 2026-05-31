@@ -15,6 +15,8 @@ import {
   createSupabaseStockMovementRepository,
   probeStockFinalizationTables,
 } from "./supabaseStockFinalizationStore";
+import { createSupabaseReservationService } from "@/lib/inventory-reservations/supabaseReservationRepository";
+import type { ReservationService } from "@/lib/inventory-reservations/reservationService";
 
 export type StockFinalizationPersistenceMode = "supabase" | "demo" | "unavailable";
 
@@ -83,12 +85,43 @@ export async function createStockFinalizationBundle(
     };
   }
 
+  let reservationService: ReservationService | undefined;
+  try {
+    reservationService = await createSupabaseReservationService(client);
+  } catch {
+    reservationService = undefined;
+  }
+
   return {
     service: createStockFinalizationService({
       balances: createSupabaseStockBalanceRepository(client),
       movements: createSupabaseStockMovementRepository(client),
       lineage: createSupabaseStockLineageRepository(client),
       events,
+      reservations: reservationService
+        ? {
+            fulfillAfterStockConsumption: async (input, ctx) => {
+              const row = await reservationService!.getReservation(input.reservationId);
+              if (!row) {
+                throw new Error(`Reservation ${input.reservationId} not found for post–4G fulfill`);
+              }
+              await reservationService!.fulfillAfterStockConsumption(
+                {
+                  reservationId: input.reservationId,
+                  expectedVersion: row.version,
+                  consumedQty: input.consumedQty,
+                  reasonCode: input.reasonCode,
+                },
+                {
+                  correlationId: ctx.correlationId,
+                  actorUserId: ctx.actorUserId,
+                  actorRole: ctx.actorRole,
+                  actorDepartment: "stock_finalization",
+                },
+              );
+            },
+          }
+        : undefined,
     }),
     persistenceMode: "supabase",
     canExecuteWrites: true,

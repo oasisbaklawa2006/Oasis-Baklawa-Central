@@ -58,6 +58,9 @@ export function buildReleaseBlockingReasons(input: DispatchFinalizationInput): s
   if (!input.completionReference?.trim()) {
     reasons.push("Completion attestation reference missing");
   }
+  if (input.openReleaseBlockers.includes("dispatch_already_finalized")) {
+    reasons.push("Dispatch already finalized — dispatch_release_lineage release_type=finalize exists");
+  }
 
   return reasons;
 }

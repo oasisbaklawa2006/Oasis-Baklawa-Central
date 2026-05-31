@@ -100,6 +100,8 @@ export default function StockFinalizationBoard() {
   const { user, role } = useAuth();
   const [busy, setBusy] = useState(false);
   const [selected, setSelected] = useState<"finalized" | "pending">("finalized");
+  const [orderSearch, setOrderSearch] = useState("");
+  const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [overrideReason, setOverrideReason] = useState("");
   const [events, setEvents] = useState<OperationalEventRecord[]>([]);
@@ -113,14 +115,29 @@ export default function StockFinalizationBoard() {
     ["orders", "inventory_reservations", "inventory_stock_balances", "stock_consumption_lineage"],
   );
 
+  const candidateRows = useMemo(() => {
+    const q = orderSearch.replace(/%/g, "").trim().toLowerCase();
+    const rows = boardState.liveRows;
+    if (!q) return rows;
+    return rows.filter((row) => {
+      const tail = row.input.orderId.slice(-4).toLowerCase();
+      return tail.includes(q) || row.input.orderId.toLowerCase().includes(q);
+    });
+  }, [boardState.liveRows, orderSearch]);
+
   const activeRow = useMemo(() => {
-    if (boardState.liveRows.length > 0) return boardState.liveRows[0];
+    if (candidateRows.length > 0) {
+      const picked =
+        (selectedOrderId && candidateRows.find((r) => r.input.orderId === selectedOrderId)) ??
+        candidateRows[0];
+      return picked;
+    }
     if (boardState.showPreviewCards) {
       const previewInput = selected === "finalized" ? PREVIEW_STOCK_FINALIZED : PREVIEW_STOCK_PENDING;
       return { input: previewInput, missingSignals: [] as string[] };
     }
     return null;
-  }, [boardState.liveRows, boardState.showPreviewCards, selected]);
+  }, [candidateRows, boardState.showPreviewCards, selected, selectedOrderId]);
 
   const input = activeRow?.input ?? null;
   const missingSignals = activeRow?.missingSignals ?? [];
@@ -304,6 +321,36 @@ export default function StockFinalizationBoard() {
           </p>
         </CardContent>
       </Card>
+
+      {boardState.liveRows.length > 0 && (
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm">Order selector</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            <Input
+              placeholder="Filter by order id fragment"
+              value={orderSearch}
+              onChange={(e) => setOrderSearch(e.target.value)}
+              className="font-mono text-sm"
+            />
+            <div className="max-h-40 space-y-1 overflow-y-auto rounded border border-border p-1">
+              {candidateRows.map((row) => (
+                <button
+                  key={row.input.orderId}
+                  type="button"
+                  className={`block w-full rounded px-2 py-1.5 text-left font-mono text-xs hover:bg-muted ${
+                    activeRow?.input.orderId === row.input.orderId ? "bg-muted ring-1 ring-primary/30" : ""
+                  }`}
+                  onClick={() => setSelectedOrderId(row.input.orderId)}
+                >
+                  Order …{row.input.orderId.slice(-4)} · {row.input.reservations.length} reservation(s)
+                </button>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {showPreviewToggle && (
         <div className="flex gap-2">

@@ -302,6 +302,61 @@ export function createReservationRepository(deps: ReservationRepositoryDeps) {
       return { reservation: updated, movementId: movement.id, eventId };
     },
 
+    /** Post–Phase 4G: align reservation row with consumed stock (reserved_qty cleared). */
+    async fulfillAfterStockConsumption(
+      input: ReservationVersionedInput & { consumedQty: number },
+      ctx: ReservationWriteContext,
+    ): Promise<ReservationWriteResult> {
+      const auth = assertInventoryReservationAuthority("reservation:fulfill", {
+        actorRole: ctx.actorRole,
+        actorUserId: ctx.actorUserId,
+      });
+      if (!auth.allowed) throw new RE("authority_denied", auth.reason);
+
+      const current = await store.getReservationById(input.reservationId);
+      if (!current) throw new Error("Reservation not found");
+      assertReservationTransition(current.reservationStatus, "fulfilled");
+
+      const consumedQty = roundQty(input.consumedQty);
+      let updated: InventoryReservationRecord;
+      try {
+        updated = await store.updateReservationWithVersion(input.reservationId, input.expectedVersion, {
+          reservationStatus: "fulfilled",
+          reservedQty: 0,
+          fulfilledQty: consumedQty,
+        });
+      } catch (e) {
+        mapStaleError(e);
+      }
+
+      const movement = await appendMovement({
+        movementType: "reservation_fulfilled",
+        reservationId: updated.id,
+        productId: updated.productId,
+        sku: updated.sku,
+        quantity: consumedQty,
+        sourceLocation: "reservation_hold",
+        destinationLocation: "fulfillment_lane",
+        actorId: ctx.actorUserId,
+        reasonCode: input.reasonCode ?? "stock_consumption_finalized",
+        correlationId: ctx.correlationId,
+        metadata: { postStockFinalization: true, governed: true },
+      });
+
+      const eventId = await appendReservationEvent(
+        {
+          eventType: "reservation_fulfilled" as AppendOperationalEventInput["eventType"],
+          entityType: "inventory_reservation",
+          entityId: updated.id,
+          orderId: updated.orderId,
+          title: `Reservation ${updated.reservationNumber} fulfilled after stock consumption`,
+          correlationId: ctx.correlationId,
+        },
+        ctx,
+      );
+      return { reservation: updated, movementId: movement.id, eventId };
+    },
+
     async cancelReservation(
       input: ReservationVersionedInput,
       ctx: ReservationWriteContext,

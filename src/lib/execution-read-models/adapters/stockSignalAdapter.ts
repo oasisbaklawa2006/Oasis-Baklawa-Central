@@ -2,6 +2,7 @@ import type { StockFinalizationInput } from "@/lib/stock-finalization/stockFinal
 import type { StockReservationRecord } from "@/lib/stock-finalization/stockReservationTypes";
 import type { DispatchReleaseStatus } from "@/lib/dispatch-finalization/dispatchFinalizationTypes";
 import { reconcileReservationsForConsumption } from "@/lib/stock-finalization/stockReservationReconciliation";
+import { filterActiveReservationsForStock } from "@/lib/golden-chain-operator/goldenChainStockFilters";
 import { deriveSignalMeta } from "../signalStale";
 import type { DerivedSignalMeta } from "../types";
 
@@ -48,11 +49,12 @@ export function deriveStockInputFromSlices(params: {
     .filter((l) => l.lineageType === "consumption_finalized")
     .map((l) => l.reservationId);
 
-  const reconciliation = reconcileReservationsForConsumption(params.reservations, finalizedIds);
+  const activeReservations = filterActiveReservationsForStock(params.reservations);
+  const reconciliation = reconcileReservationsForConsumption(activeReservations, finalizedIds);
   const reconciliationVariance = reconciliation.reconciliationStatus === "variance";
 
   let balanceMissing = false;
-  for (const r of params.reservations) {
+  for (const r of activeReservations) {
     const bal = params.balances.find((b) => b.sku === r.sku && b.locationCode === params.locationCode);
     if (!bal) {
       balanceMissing = true;
@@ -80,7 +82,7 @@ export function deriveStockInputFromSlices(params: {
     orderId: params.orderId,
     orderStatus: params.orderStatus,
     dispatchReleaseStatus: params.dispatchReleaseStatus,
-    reservations: params.reservations,
+    reservations: activeReservations,
     scanReference: params.scanReference,
     gateReference: params.gateReference,
     dispatchLineageId: params.dispatchLineageId,

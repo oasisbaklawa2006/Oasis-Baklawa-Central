@@ -28,17 +28,25 @@ export interface StockFinalizationEventSink {
   listByOrder(orderId: string): Promise<StockFinalizationOperationalEventRecord[]>;
 }
 
+export interface StockReservationPostFinalizePort {
+  fulfillAfterStockConsumption(
+    input: { reservationId: string; consumedQty: number; reasonCode?: string },
+    ctx: Pick<StockFinalizationWriteContext, "correlationId" | "actorUserId" | "actorRole">,
+  ): Promise<void>;
+}
+
 export interface StockFinalizationServiceDeps {
   balances: StockBalanceRepository;
   movements: StockMovementRepository;
   lineage: StockLineageRepository;
   events: StockFinalizationEventSink;
+  reservations?: StockReservationPostFinalizePort;
 }
 
 export type StockFinalizationService = ReturnType<typeof createStockFinalizationService>;
 
 export function createStockFinalizationService(deps: StockFinalizationServiceDeps) {
-  const { balances, movements, lineage, events } = deps;
+  const { balances, movements, lineage, events, reservations } = deps;
 
   function guard(action: string, ctx: StockFinalizationWriteContext) {
     if (isForbiddenStockAction(action)) {
@@ -225,6 +233,21 @@ export function createStockFinalizationService(deps: StockFinalizationServiceDep
         });
 
         finalized.push(item.reservationId);
+
+        if (reservations) {
+          await reservations.fulfillAfterStockConsumption(
+            {
+              reservationId: item.reservationId,
+              consumedQty: item.consumeQty,
+              reasonCode: ctx.finalizeReason ?? "stock_consumption_finalized",
+            },
+            {
+              correlationId: ctx.correlationId,
+              actorUserId: ctx.actorUserId,
+              actorRole: ctx.actorRole,
+            },
+          );
+        }
       }
 
       await events.append(
