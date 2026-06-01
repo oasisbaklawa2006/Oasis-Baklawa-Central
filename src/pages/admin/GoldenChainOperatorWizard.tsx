@@ -358,7 +358,10 @@ export default function GoldenChainOperatorWizard() {
             if (balanceRow) expectedBalanceVersion = balanceRow.version;
           }
           await stockBundle.service.finalizeConsumption(
-            state.stockInput,
+            {
+              ...state.stockInput,
+              reservations: state.reservations,
+            },
             {
               orderId: state.orderId,
               scanReference: scanRef,

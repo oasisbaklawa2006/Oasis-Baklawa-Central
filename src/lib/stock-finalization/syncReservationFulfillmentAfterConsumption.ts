@@ -17,9 +17,14 @@ export async function syncReservationFulfillmentFromLineage(
 
   for (const row of consumptionRows) {
     const reservation = reservations.find((r) => r.id === row.reservationId);
-    if (!reservation || isReservationFullyFulfilledOnRow(reservation)) continue;
+    if (reservation && isReservationFullyFulfilledOnRow(reservation)) continue;
 
-    const consumedQty = row.consumedQty > 0 ? row.consumedQty : reservation.reservedQty || reservation.requestedQty;
+    const consumedQty =
+      row.consumedQty > 0
+        ? row.consumedQty
+        : reservation
+          ? reservation.reservedQty || reservation.requestedQty
+          : 0;
     if (consumedQty <= 0) continue;
 
     await port.fulfillAfterStockConsumption(

@@ -46,7 +46,10 @@ const ctx = {
   finalizeReason: "Post-dispatch consumption",
 };
 
-function service(initialBalanceVersion = 1) {
+function service(
+  initialBalanceVersion = 1,
+  overrides: Partial<Parameters<typeof createStockFinalizationService>[0]> = {},
+) {
   const balances = createInMemoryStockBalanceRepository([
     {
       id: "bal-1",
@@ -68,6 +71,7 @@ function service(initialBalanceVersion = 1) {
       movements: createInMemoryStockMovementRepository(),
       lineage: createInMemoryStockLineageRepository(),
       events: createInMemoryStockFinalizationEventSink(),
+      ...overrides,
     }),
     balances,
   };
@@ -384,6 +388,59 @@ describe("stockFinalizationService", () => {
 
     const lineageRows = await svc.listLineage(orderId);
     expect(lineageRows.filter((l) => l.lineageType === "consumption_finalized")).toHaveLength(1);
+  });
+
+  it("idempotent repair syncs reservation when consumption lineage already exists", async () => {
+    const fulfillCalls: number[] = [];
+    const lineage = createInMemoryStockLineageRepository();
+    const { svc } = service(1, {
+      lineage,
+      reservations: {
+        fulfillAfterStockConsumption: async (input) => {
+          fulfillCalls.push(input.consumedQty);
+        },
+      },
+    });
+    await lineage.insertLineage({
+      orderId,
+      reservationId,
+      productId,
+      sku: "BAK-601",
+      locationCode: "WH-MAIN",
+      consumedQty: 5,
+      movementId: "mov-existing",
+      lineageType: "consumption_finalized",
+      scanReference: "PACK-SCAN-601",
+      gateReference: "GATE-601",
+      dispatchLineageId: "drl-601",
+      actorId: ctx.actorUserId,
+      actorRole: ctx.actorRole,
+      reasonCode: "existing",
+      correlationId: "corr-existing",
+      metadata: {},
+    });
+    const params = {
+      orderId,
+      scanReference: "PACK-SCAN-601",
+      gateReference: "GATE-601",
+      dispatchLineageId: "drl-601",
+      items: [
+        {
+          reservationId,
+          productId,
+          sku: "BAK-601",
+          locationCode: "WH-MAIN",
+          consumeQty: 5,
+          expectedBalanceVersion: 1,
+        },
+      ],
+    };
+    await svc.finalizeConsumption(
+      { ...finalizedInput, alreadyFinalizedReservationIds: [reservationId] },
+      params,
+      { ...ctx, reservationWriteChannel: "golden_chain_operator" },
+    );
+    expect(fulfillCalls).toEqual([5]);
   });
 
   it("reversal restores reserved_qty released at finalize", async () => {
