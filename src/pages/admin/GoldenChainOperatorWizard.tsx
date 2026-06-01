@@ -312,18 +312,51 @@ export default function GoldenChainOperatorWizard() {
             transporterReference:
               state.finalizationInput.transporterReference?.trim() || refs.transporterRef,
           };
+          const advanceAfterFinalize = () => {
+            dispatchFinalizeSucceeded = true;
+            setState(
+              normalizeGoldenChainStateAfterDispatchFinalize({
+                ...state,
+                orderStatus: "dispatched",
+                dispatchAlreadyFinalized: true,
+                dispatchLineage: [
+                  {
+                    releaseType: "finalize",
+                    nextStatus: "dispatched",
+                    createdAt: new Date().toISOString(),
+                  },
+                  ...state.dispatchLineage,
+                ],
+                finalizationInput: {
+                  ...state.finalizationInput,
+                  currentOrderStatus: "dispatched",
+                },
+              }),
+            );
+          };
           try {
             await finalizationBundle.service.finalizeDispatch(input, {
               ...ctxBase,
               actorRole: role ?? "DISPATCH_HEAD",
               finalizeReason: refs.stockFinalizeReason,
             });
-            dispatchFinalizeSucceeded = true;
+            advanceAfterFinalize();
           } catch (e) {
             if (e instanceof DispatchFinalizationError && e.code === "already_finalized") {
-              dispatchFinalizeSucceeded = true;
+              advanceAfterFinalize();
             } else {
-              throw e;
+              const refreshed = await loadGoldenChainOrderState(supabase, state.orderId);
+              if (
+                refreshed &&
+                (refreshed.dispatchAlreadyFinalized ||
+                  ["dispatched", "in_transit", "delivered"].includes(
+                    refreshed.orderStatus.trim().toLowerCase(),
+                  ))
+              ) {
+                advanceAfterFinalize();
+              } else {
+                throw e;
+              }
             }
           }
           break;
