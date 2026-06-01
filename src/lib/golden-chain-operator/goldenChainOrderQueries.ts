@@ -371,7 +371,9 @@ export async function loadGoldenChainOrderState(
   const financeCommerciallyReleased =
     (financeEvidence ?? []).some(
       (e) => e.review_type === "commercial_release" && e.review_status === "released",
-    ) || projectFinanceRelease(financeInputForChain).releaseStatus === "commercially_released";
+    ) ||
+    (financeFusion.financeSignal === "ready" &&
+      projectFinanceRelease(financeInputForChain).releaseStatus === "commercially_released");
 
   const derivationInput: GoldenChainDerivationInput = {
     readinessInput: readinessFusion.input,
