@@ -24,6 +24,7 @@ import { createSupabaseStockBalanceRepository } from "@/lib/stock-finalization/s
 import { dispatchFinalizeGuardMessage } from "@/lib/golden-chain-operator/goldenChainDuplicateGuards";
 import {
   loadGoldenChainOrderState,
+  prepareDispatchEvidenceForOrder,
   searchGoldenChainOrders,
   type GoldenChainOrderState,
   type GoldenChainOrderSummary,
@@ -34,12 +35,13 @@ import { cn } from "@/lib/utils";
 import { requiresStockOverrideReason } from "@/lib/stock-authority/stockAuthorityGuard";
 
 const PROGRESS_STEPS = [
-  { key: "4b_readiness", label: "Dispatch check" },
-  { key: "4c_finance", label: "Finance approval" },
-  { key: "4d_completion", label: "Completion" },
-  { key: "4e_dispatch_finalization", label: "Finalize dispatch" },
-  { key: "4f_reservation", label: "Reserve stock" },
-  { key: "4g_stock", label: "Deduct stock" },
+  { key: "prepare_dispatch_evidence", label: "Prepare evidence" },
+  { key: "finance_release", label: "Finance" },
+  { key: "readiness_review", label: "Readiness" },
+  { key: "completion_attestation", label: "Completion" },
+  { key: "dispatch_finalization", label: "Finalize" },
+  { key: "reservation", label: "Reserve" },
+  { key: "stock_finalization", label: "Stock" },
   { key: "complete", label: "Done" },
 ] as const;
 
@@ -141,14 +143,19 @@ export default function GoldenChainOperatorWizard() {
   const primaryDisabled = useMemo(() => {
     if (busy || !state || loadingOrder) return true;
     if (state.cta === "Already complete" || state.stage === "complete") return true;
-    if (state.stage === "4e_dispatch_finalization" && state.dispatchAlreadyFinalized) return true;
-    if (state.stage === "4b_readiness" && !readinessBundle?.canExecuteWrites) return true;
-    if (state.stage === "4c_finance" && !financeBundle?.canExecuteWrites) return true;
-    if (state.stage === "4d_completion" && !completionBundle?.canExecuteWrites) return true;
-    if (state.stage === "4e_dispatch_finalization" && !finalizationBundle?.canExecuteWrites) return true;
-    if (state.stage === "4g_stock" && !stockBundle?.canExecuteWrites) return true;
+    if (state.stage === "dispatch_finalization" && state.dispatchAlreadyFinalized) return true;
     if (
-      state.stage === "4g_stock" &&
+      (state.stage === "prepare_dispatch_evidence" || state.stage === "readiness_review") &&
+      !readinessBundle?.canExecuteWrites
+    ) {
+      return true;
+    }
+    if (state.stage === "finance_release" && !financeBundle?.canExecuteWrites) return true;
+    if (state.stage === "completion_attestation" && !completionBundle?.canExecuteWrites) return true;
+    if (state.stage === "dispatch_finalization" && !finalizationBundle?.canExecuteWrites) return true;
+    if (state.stage === "stock_finalization" && !stockBundle?.canExecuteWrites) return true;
+    if (
+      state.stage === "stock_finalization" &&
       requiresStockOverrideReason(role) &&
       !overrideReason.trim()
     ) {
@@ -179,67 +186,61 @@ export default function GoldenChainOperatorWizard() {
 
     try {
       switch (state.stage) {
-        case "4b_readiness": {
-          if (!readinessBundle?.service) throw new Error("Dispatch check service is unavailable. Try again or call IT.");
-          const evidenceBase = {
+        case "prepare_dispatch_evidence": {
+          if (!readinessBundle) throw new Error("Dispatch check service is unavailable. Try again or call IT.");
+          const prep = await prepareDispatchEvidenceForOrder(supabase, {
             orderId: state.orderId,
-            queueItemId: null,
-            evidenceStatus: "verified" as const,
-            actorId: null,
-            actorRole: null,
-            actorDepartment: null,
-            correlationId: ctxBase.correlationId,
-            metadata: { source: "golden_chain_operator_wizard", governedOnly: true },
-          };
-          await readinessBundle.service.addEvidence(
-            {
-              ...evidenceBase,
-              evidenceType: "packing_photo",
-              evidenceRef: refs.packingPhotoRef,
-              photoRef: refs.packingPhotoRef,
-              documentRef: null,
-              barcodeRef: null,
-            },
-            ctxBase,
-          );
-          await readinessBundle.service.addEvidence(
-            {
-              ...evidenceBase,
-              evidenceType: "document_placeholder",
-              evidenceRef: refs.documentPlaceholderRef,
-              photoRef: null,
-              documentRef: refs.documentPlaceholderRef,
-              barcodeRef: null,
-            },
-            ctxBase,
-          );
-          await readinessBundle.service.addEvidence(
-            {
-              ...evidenceBase,
-              evidenceType: "gate_scan",
-              evidenceRef: refs.gateScanRef,
-              photoRef: null,
-              documentRef: null,
-              barcodeRef: refs.gateScanRef,
-            },
-            ctxBase,
-          );
-          const readinessState = await loadGoldenChainOrderState(supabase, state.orderId);
-          if (!readinessState) {
-            throw new Error("Order state could not be refreshed after dispatch check evidence.");
+            evidenceSlices: state.readinessEvidenceSlices,
+            scan: state.scanSlice,
+            refs,
+            readinessBundle,
+            ctx: ctxBase,
+          });
+          const allSkipped =
+            prep.added.length === 0 && prep.scanRecorded.length === 0 && prep.skipped.length > 0;
+          if (allSkipped) {
+            toast.info("Already recorded — all dispatch evidence and scans are present.");
+          } else if (prep.skipped.length > 0) {
+            toast.info(
+              `Recorded: ${[...prep.added, ...prep.scanRecorded].join(", ") || "none"}. Already had: ${prep.skipped.join(", ")}.`,
+            );
           }
-          await readinessBundle.service.reviewReadiness(readinessState.readinessInput, ctxBase);
           break;
         }
-        case "4c_finance": {
+        case "finance_release": {
           if (!financeBundle?.service) throw new Error("Finance approval service is unavailable.");
-          await financeBundle.service.commercialRelease(state.financeInput, {
+          const financeInput = {
+            ...state.financeInput,
+            reservationReady: true,
+            dispatchReadinessGateEligible:
+              state.dispatchEvidencePrepared || state.readinessInput.packingEvidenceVerified,
+          };
+          await financeBundle.service.commercialRelease(financeInput, {
             ...ctxBase,
             actorRole: role ?? "FINANCE_HEAD",
           });
           break;
         }
-        case "4d_completion": {
+        case "readiness_review": {
+          if (!readinessBundle?.service) throw new Error("Dispatch check service is unavailable.");
+          const readinessState = await loadGoldenChainOrderState(supabase, state.orderId);
+          if (!readinessState) {
+            throw new Error("Order state could not be refreshed before readiness review.");
+          }
+          const reviewInput = {
+            ...readinessState.readinessInput,
+            readinessPolicy: "pre_dispatch" as const,
+          };
+          const { projection } = await readinessBundle.service.reviewReadiness(reviewInput, ctxBase);
+          if (projection.readinessStatus !== "gate_eligible") {
+            throw new Error(
+              projection.blockingReasons[0] ??
+                "Readiness review did not reach gate eligible — resolve blockers and try again.",
+            );
+          }
+          break;
+        }
+        case "completion_attestation": {
           if (!completionBundle?.service) throw new Error("Completion confirmation service is unavailable.");
           await completionBundle.service.attestCompletion(state.completionInput, {
             ...ctxBase,
@@ -247,7 +248,7 @@ export default function GoldenChainOperatorWizard() {
           });
           break;
         }
-        case "4e_dispatch_finalization": {
+        case "dispatch_finalization": {
           if (state.dispatchAlreadyFinalized) {
             toast.info(finalizeGuardMsg ?? "Dispatch was already finalized.");
             break;
@@ -268,7 +269,7 @@ export default function GoldenChainOperatorWizard() {
           });
           break;
         }
-        case "4f_reservation": {
+        case "reservation": {
           const lines =
             state.orderLines.length > 0
               ? state.orderLines
@@ -296,7 +297,7 @@ export default function GoldenChainOperatorWizard() {
           }
           break;
         }
-        case "4g_stock": {
+        case "stock_finalization": {
           if (!stockBundle?.service || !state.stockInput) {
             throw new Error("Stock deduction service is unavailable.");
           }
@@ -364,12 +365,15 @@ export default function GoldenChainOperatorWizard() {
           break;
       }
 
-      toast.success(`${prevCta} completed. Refreshing order…`);
       await reloadOrder(state.orderId);
       await reloadList();
       const next = await loadGoldenChainOrderState(supabase, state.orderId);
-      if (next.cta !== prevCta) {
-        toast.info(`Next: ${next.cta}`);
+      if (next.stage !== state.stage || next.cta !== prevCta) {
+        toast.success(`${prevCta} completed. Next: ${next.cta}`);
+      } else if (state.stage === "prepare_dispatch_evidence") {
+        toast.warning("Evidence recorded but prerequisites still missing — check blockers below.");
+      } else {
+        toast.error("Step did not advance — resolve blockers and try again.");
       }
     } catch (e) {
       const msg = e instanceof Error ? e.message : "Action failed";
@@ -523,13 +527,13 @@ export default function GoldenChainOperatorWizard() {
             </Card>
           )}
 
-          {finalizeGuardMsg && state.stage === "4e_dispatch_finalization" && (
+          {finalizeGuardMsg && state.stage === "dispatch_finalization" && (
             <p className="rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm text-amber-900 dark:text-amber-100">
               {finalizeGuardMsg}
             </p>
           )}
 
-          {state.stage === "4g_stock" && requiresStockOverrideReason(role) && (
+          {state.stage === "stock_finalization" && requiresStockOverrideReason(role) && (
             <div className="space-y-2">
               <Label htmlFor="override-reason" className="text-sm">
                 Override reason (required for stock deduction)
@@ -560,7 +564,7 @@ export default function GoldenChainOperatorWizard() {
                 state.cta
               )}
             </Button>
-            {state.stage === "4e_dispatch_finalization" && state.dispatchAlreadyFinalized && (
+            {state.stage === "dispatch_finalization" && state.dispatchAlreadyFinalized && (
               <p className="mt-2 text-center text-xs text-muted-foreground">
                 Dispatch already finalized — select another step after refresh.
               </p>

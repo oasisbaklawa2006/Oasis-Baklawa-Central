@@ -5,3 +5,5 @@ export * from "./goldenChainEvidenceRefs";
 export * from "./goldenChainDuplicateGuards";
 export * from "./goldenChainStockFilters";
 export * from "./goldenChainOrderQueries";
+export * from "./goldenChainPrerequisites";
+export * from "./goldenChainPrepareDispatchEvidence";

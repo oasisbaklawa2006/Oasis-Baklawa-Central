@@ -152,11 +152,12 @@ export function evaluateExceptionClear(input: DispatchReadinessInput): Dimension
 }
 
 export function evaluateAllDimensions(input: DispatchReadinessInput): DimensionRuleResult[] {
+  const skipReservation = input.readinessPolicy === "pre_dispatch";
   return [
     evaluateQueueReady(input),
     evaluatePackingEvidence(input),
     evaluateBarcodeVerified(input),
-    evaluateReservationReady(input),
+    ...(skipReservation ? [] : [evaluateReservationReady(input)]),
     evaluateFinanceSignal(input),
     evaluateGateScan(input),
     evaluateDocumentPlaceholder(input),

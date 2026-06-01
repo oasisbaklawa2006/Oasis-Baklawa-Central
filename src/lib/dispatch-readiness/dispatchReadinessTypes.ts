@@ -88,6 +88,12 @@ export interface DispatchScanSnapshot {
   cartonBarcodeVerified: boolean;
 }
 
+/**
+ * `pre_dispatch` — golden-chain wizard before dispatch finalize: reservation dimension
+ * is not evaluated (reservation is created after dispatch finalization).
+ */
+export type DispatchReadinessPolicy = "full" | "pre_dispatch";
+
 export interface DispatchReadinessInput {
   orderId: string;
   queue: DispatchQueueSnapshot;
@@ -98,6 +104,7 @@ export interface DispatchReadinessInput {
   packingEvidenceVerified: boolean;
   documentPlaceholderPresent: boolean;
   openExceptionTypes: DispatchExceptionType[];
+  readinessPolicy?: DispatchReadinessPolicy;
 }
 
 export interface DispatchReadinessProjection {

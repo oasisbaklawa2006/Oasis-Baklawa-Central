@@ -211,12 +211,13 @@ test.describe("PHASE 24C", () => {
     await selectWizardOrder(page, phase24cMetrics.orderSo);
 
     const steps: { stage: string; role: "dispatch" | "finance"; expect: RegExp }[] = [
-      { stage: "4b", role: "dispatch", expect: /Complete readiness/i },
-      { stage: "4c", role: "finance", expect: /Complete finance release/i },
-      { stage: "4d", role: "dispatch", expect: /Complete completion attestation/i },
+      { stage: "prepare", role: "dispatch", expect: /Prepare dispatch evidence/i },
+      { stage: "finance", role: "finance", expect: /Complete finance release/i },
+      { stage: "readiness", role: "dispatch", expect: /Complete readiness review/i },
+      { stage: "4d", role: "dispatch", expect: /Attest completion/i },
       { stage: "4e", role: "dispatch", expect: /Finalize dispatch/i },
-      { stage: "4f", role: "dispatch", expect: /Create reservation/i },
-      { stage: "4g", role: "dispatch", expect: /Finalize stock consumption/i },
+      { stage: "4f", role: "dispatch", expect: /Reserve stock/i },
+      { stage: "4g", role: "dispatch", expect: /Finalize stock/i },
     ];
 
     let role: "dispatch" | "finance" = "dispatch";

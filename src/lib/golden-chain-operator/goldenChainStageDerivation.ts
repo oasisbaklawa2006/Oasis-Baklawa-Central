@@ -10,12 +10,25 @@ import type { FinanceGovernanceInput } from "@/lib/finance-governance/financeGov
 import type { StockFinalizationInput } from "@/lib/stock-finalization/stockFinalizationTypes";
 import type { StockReservationRecord } from "@/lib/stock-finalization/stockReservationTypes";
 import type { FinalizationLineageSlice } from "@/lib/execution-read-models/adapters/finalizationSignalAdapter";
+import type {
+  ReadinessEvidenceSlice,
+  ReadinessScanSlice,
+} from "@/lib/execution-read-models/adapters/readinessSignalAdapter";
 import { hasGovernedDispatchFinalizeLineage } from "./goldenChainDuplicateGuards";
+import {
+  isDispatchEvidencePrepared,
+  missingDispatchEvidenceLabels,
+} from "./goldenChainPrerequisites";
 import {
   filterActiveReservationsForStock,
   orderHasStockConsumptionFinalized,
 } from "./goldenChainStockFilters";
 import type { GoldenChainCtaLabel, GoldenChainStage } from "./goldenChainTypes";
+
+export interface FinanceEvidenceSlice {
+  reviewType: string;
+  reviewStatus: string;
+}
 
 export interface GoldenChainDerivationInput {
   readinessInput: DispatchReadinessInput;
@@ -26,6 +39,10 @@ export interface GoldenChainDerivationInput {
   reservations: StockReservationRecord[];
   dispatchLineage: FinalizationLineageSlice[];
   consumptionFinalizedReservationIds: string[];
+  readinessEvidenceSlices: ReadinessEvidenceSlice[];
+  scanSlice: ReadinessScanSlice;
+  dispatchEvidencePrepared: boolean;
+  financeCommerciallyReleased: boolean;
 }
 
 export interface GoldenChainDerivationResult {
@@ -37,12 +54,13 @@ export interface GoldenChainDerivationResult {
 }
 
 const STAGE_LABELS: Record<GoldenChainStage, string> = {
-  "4b_readiness": "Dispatch check",
-  "4c_finance": "Finance approval",
-  "4d_completion": "Completion confirmation",
-  "4e_dispatch_finalization": "Dispatch finalize",
-  "4f_reservation": "Reserve stock",
-  "4g_stock": "Deduct stock",
+  prepare_dispatch_evidence: "Prepare evidence",
+  finance_release: "Finance approval",
+  readiness_review: "Readiness review",
+  completion_attestation: "Completion",
+  dispatch_finalization: "Finalize dispatch",
+  reservation: "Reserve stock",
+  stock_finalization: "Deduct stock",
   complete: "Done",
 };
 
@@ -59,8 +77,14 @@ function hasActiveGovernedReservation(reservations: StockReservationRecord[]): b
   );
 }
 
+function readinessInputForReview(input: DispatchReadinessInput): DispatchReadinessInput {
+  return {
+    ...input,
+    readinessPolicy: input.readinessPolicy ?? "pre_dispatch",
+  };
+}
+
 export function deriveGoldenChainStage(input: GoldenChainDerivationInput): GoldenChainDerivationResult {
-  const readiness = projectDispatchReadiness(input.readinessInput);
   const finance = projectFinanceRelease(input.financeInput);
   const completion = projectDispatchCompletion(input.completionInput);
   const finalization = projectDispatchRelease(input.finalizationInput);
@@ -76,14 +100,40 @@ export function deriveGoldenChainStage(input: GoldenChainDerivationInput): Golde
 
   const rawBlockers: string[] = [];
 
-  if (readiness.readinessStatus !== "gate_eligible") {
-    rawBlockers.push(...readiness.blockingReasons, ...readiness.missingRequirements);
-    return stageResult("4b_readiness", "Complete readiness", rawBlockers, dispatchAlreadyFinalized, stockConsumptionComplete);
+  if (!input.dispatchEvidencePrepared) {
+    rawBlockers.push(
+      ...missingDispatchEvidenceLabels(input.readinessEvidenceSlices, input.scanSlice),
+    );
+    return stageResult(
+      "prepare_dispatch_evidence",
+      "Prepare dispatch evidence",
+      rawBlockers,
+      dispatchAlreadyFinalized,
+      stockConsumptionComplete,
+    );
   }
 
-  if (finance.releaseStatus !== "commercially_released") {
+  if (!input.financeCommerciallyReleased) {
     rawBlockers.push(...finance.blockingReasons);
-    return stageResult("4c_finance", "Complete finance release", rawBlockers, dispatchAlreadyFinalized, stockConsumptionComplete);
+    return stageResult(
+      "finance_release",
+      "Complete finance release",
+      rawBlockers,
+      dispatchAlreadyFinalized,
+      stockConsumptionComplete,
+    );
+  }
+
+  const readiness = projectDispatchReadiness(readinessInputForReview(input.readinessInput));
+  if (readiness.readinessStatus !== "gate_eligible") {
+    rawBlockers.push(...readiness.blockingReasons, ...readiness.missingRequirements);
+    return stageResult(
+      "readiness_review",
+      "Complete readiness review",
+      rawBlockers,
+      dispatchAlreadyFinalized,
+      stockConsumptionComplete,
+    );
   }
 
   const orderDispatchedEarly =
@@ -97,7 +147,13 @@ export function deriveGoldenChainStage(input: GoldenChainDerivationInput): Golde
 
   if (!completionSatisfied) {
     rawBlockers.push(...completion.blockingReasons);
-    return stageResult("4d_completion", "Complete completion attestation", rawBlockers, dispatchAlreadyFinalized, stockConsumptionComplete);
+    return stageResult(
+      "completion_attestation",
+      "Attest completion",
+      rawBlockers,
+      dispatchAlreadyFinalized,
+      stockConsumptionComplete,
+    );
   }
 
   const orderDispatched =
@@ -112,29 +168,57 @@ export function deriveGoldenChainStage(input: GoldenChainDerivationInput): Golde
     }
     const cta: GoldenChainCtaLabel = dispatchAlreadyFinalized
       ? "Already complete"
-      : finalization.canFinalize
-        ? "Finalize dispatch"
-        : "Finalize dispatch";
-    return stageResult("4e_dispatch_finalization", cta, rawBlockers, dispatchAlreadyFinalized, stockConsumptionComplete);
+      : "Finalize dispatch";
+    return stageResult(
+      "dispatch_finalization",
+      cta,
+      rawBlockers,
+      dispatchAlreadyFinalized,
+      stockConsumptionComplete,
+    );
   }
 
   if (!hasActiveGovernedReservation(input.reservations)) {
     rawBlockers.push("no_active_reservation");
-    return stageResult("4f_reservation", "Create reservation", rawBlockers, dispatchAlreadyFinalized, stockConsumptionComplete);
+    return stageResult(
+      "reservation",
+      "Reserve stock",
+      rawBlockers,
+      dispatchAlreadyFinalized,
+      stockConsumptionComplete,
+    );
   }
 
   if (!stockConsumptionComplete && input.stockInput) {
     const stock = projectStockFinalization(input.stockInput);
     if (!stock.canFinalizeConsumption) {
       rawBlockers.push(...stock.blockingReasons);
-      return stageResult("4g_stock", "Finalize stock consumption", rawBlockers, dispatchAlreadyFinalized, false);
+      return stageResult(
+        "stock_finalization",
+        "Finalize stock",
+        rawBlockers,
+        dispatchAlreadyFinalized,
+        false,
+      );
     }
-    return stageResult("4g_stock", "Finalize stock consumption", rawBlockers, dispatchAlreadyFinalized, false);
+    return stageResult(
+      "stock_finalization",
+      "Finalize stock",
+      rawBlockers,
+      dispatchAlreadyFinalized,
+      false,
+    );
   }
 
   if (!stockConsumptionComplete) {
     rawBlockers.push("stock_consumption_pending");
-    return stageResult("4g_stock", "Finalize stock consumption", rawBlockers, dispatchAlreadyFinalized, false);
+    return stageResult(
+      "stock_finalization",
+      "Finalize stock",
+      rawBlockers,
+      dispatchAlreadyFinalized,
+      false,
+    );
   }
 
   return stageResult("complete", "Already complete", [], dispatchAlreadyFinalized, true);
@@ -148,7 +232,7 @@ function stageResult(
   stockConsumptionComplete: boolean,
 ): GoldenChainDerivationResult {
   let resolvedCta = cta;
-  if (stage === "4e_dispatch_finalization" && dispatchAlreadyFinalized) {
+  if (stage === "dispatch_finalization" && dispatchAlreadyFinalized) {
     resolvedCta = "Already complete";
   }
   return {
@@ -158,4 +242,12 @@ function stageResult(
     dispatchAlreadyFinalized,
     stockConsumptionComplete,
   };
+}
+
+/** @deprecated use isDispatchEvidencePrepared on slices — kept for tests importing derivation helpers */
+export function computeDispatchEvidencePrepared(
+  evidenceSlices: ReadinessEvidenceSlice[],
+  scan: ReadinessScanSlice,
+): boolean {
+  return isDispatchEvidencePrepared(evidenceSlices, scan);
 }

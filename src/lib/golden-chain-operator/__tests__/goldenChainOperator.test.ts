@@ -25,6 +25,20 @@ import type { StockReservationRecord } from "@/lib/stock-finalization/stockReser
 
 const orderId = "b12e0115-1203-47d8-991d-e419812b0001";
 
+const verifiedEvidence = [
+  { evidenceType: "packing_photo", evidenceStatus: "verified", createdAt: "2026-01-01T00:00:00Z" },
+  { evidenceType: "document_placeholder", evidenceStatus: "verified", createdAt: "2026-01-01T00:00:00Z" },
+  { evidenceType: "gate_scan", evidenceStatus: "verified", createdAt: "2026-01-01T00:00:00Z" },
+];
+
+const verifiedScan = {
+  hasUnresolvedMismatch: false,
+  hasRejectedGateScan: false,
+  gateScanVerified: true,
+  cartonBarcodeVerified: true,
+  latestAt: "2026-01-01T00:00:00Z",
+};
+
 const readyInput: DispatchReadinessInput = {
   orderId,
   queue: { queueItemId: null, isActive: true, isCompleted: false, hasVersionConflict: false },
@@ -34,11 +48,12 @@ const readyInput: DispatchReadinessInput = {
     gateScanVerified: true,
     cartonBarcodeVerified: true,
   },
-  reservationStatus: "reserved",
+  reservationStatus: "none",
   financeSignal: "ready",
   packingEvidenceVerified: true,
   documentPlaceholderPresent: true,
   openExceptionTypes: [],
+  readinessPolicy: "pre_dispatch",
 };
 
 const financeReady: FinanceGovernanceInput = {
@@ -95,6 +110,10 @@ function baseDerivation(overrides: Partial<GoldenChainDerivationInput> = {}): Go
     reservations: [],
     dispatchLineage: [],
     consumptionFinalizedReservationIds: [],
+    readinessEvidenceSlices: verifiedEvidence,
+    scanSlice: verifiedScan,
+    dispatchEvidencePrepared: true,
+    financeCommerciallyReleased: true,
     ...overrides,
   };
 }
@@ -113,31 +132,42 @@ const reservation: StockReservationRecord = {
 };
 
 describe("golden chain operator", () => {
-  it("derives 4B when readiness not gate eligible", () => {
-    const notReady: DispatchReadinessInput = {
-      ...readyInput,
-      packingEvidenceVerified: false,
-      documentPlaceholderPresent: false,
-    };
-    const result = deriveGoldenChainStage(baseDerivation({ readinessInput: notReady }));
-    expect(result.stage).toBe("4b_readiness");
-    expect(result.cta).toBe("Complete readiness");
+  it("derives prepare_dispatch_evidence when prerequisites missing", () => {
+    const result = deriveGoldenChainStage(
+      baseDerivation({
+        dispatchEvidencePrepared: false,
+        readinessEvidenceSlices: [],
+        scanSlice: {
+          hasUnresolvedMismatch: false,
+          hasRejectedGateScan: false,
+          gateScanVerified: false,
+          cartonBarcodeVerified: false,
+          latestAt: null,
+        },
+      }),
+    );
+    expect(result.stage).toBe("prepare_dispatch_evidence");
+    expect(result.cta).toBe("Prepare dispatch evidence");
   });
 
-  it("derives next-action sequence through 4C and 4D", () => {
+  it("derives finance_release before readiness_review", () => {
     const financePending: FinanceGovernanceInput = {
       ...financeReady,
       creditApproved: false,
       openHoldTypes: ["credit_limit_exceeded"],
     };
-    expect(deriveGoldenChainStage(baseDerivation({ financeInput: financePending })).stage).toBe("4c_finance");
+    expect(
+      deriveGoldenChainStage(
+        baseDerivation({ financeInput: financePending, financeCommerciallyReleased: false }),
+      ).stage,
+    ).toBe("finance_release");
 
     const completionPending: DispatchCompletionInput = {
       ...completionReady,
       securityGatePassed: false,
     };
     expect(deriveGoldenChainStage(baseDerivation({ completionInput: completionPending })).stage).toBe(
-      "4d_completion",
+      "completion_attestation",
     );
   });
 
@@ -192,7 +222,7 @@ describe("golden chain operator", () => {
     ).toBe(false);
   });
 
-  it("advances to 4G after dispatch and reservation", () => {
+  it("advances to stock_finalization after dispatch and reservation", () => {
     const dispatched: DispatchFinalizationInput = {
       ...finalizationReady,
       currentOrderStatus: "dispatched",
@@ -216,8 +246,8 @@ describe("golden chain operator", () => {
         },
       }),
     );
-    expect(result.stage).toBe("4g_stock");
-    expect(result.cta).toBe("Finalize stock consumption");
+    expect(result.stage).toBe("stock_finalization");
+    expect(result.cta).toBe("Finalize stock");
   });
 
   it("marks complete when stock consumption finalized", () => {

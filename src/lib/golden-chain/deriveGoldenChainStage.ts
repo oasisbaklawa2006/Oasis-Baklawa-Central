@@ -1,5 +1,5 @@
 /**
- * Staff-facing golden chain stage derivation (Phase 24A).
+ * Staff-facing golden chain stage derivation (Phase 24A / 24D).
  * Wraps governed projections in `golden-chain-operator` without bypassing services.
  */
 import {
@@ -11,12 +11,13 @@ import { hasGovernedDispatchFinalizeLineage } from "@/lib/golden-chain-operator/
 import type { GoldenChainCtaLabel, GoldenChainStage } from "@/lib/golden-chain-operator/goldenChainTypes";
 
 export const GOLDEN_CHAIN_STAFF_STAGES = [
-  "needs_readiness",
-  "needs_finance_release",
-  "needs_completion_attestation",
-  "needs_dispatch_finalization",
-  "needs_reservation",
-  "needs_stock_finalization",
+  "prepare_dispatch_evidence",
+  "finance_release",
+  "readiness_review",
+  "completion_attestation",
+  "dispatch_finalization",
+  "reservation",
+  "stock_finalization",
   "complete",
   "blocked",
   "already_finalized",
@@ -33,22 +34,24 @@ export type GoldenChainRequiredRole =
   | "none";
 
 const INTERNAL_TO_STAFF: Record<GoldenChainStage, GoldenChainStaffStage> = {
-  "4b_readiness": "needs_readiness",
-  "4c_finance": "needs_finance_release",
-  "4d_completion": "needs_completion_attestation",
-  "4e_dispatch_finalization": "needs_dispatch_finalization",
-  "4f_reservation": "needs_reservation",
-  "4g_stock": "needs_stock_finalization",
+  prepare_dispatch_evidence: "prepare_dispatch_evidence",
+  finance_release: "finance_release",
+  readiness_review: "readiness_review",
+  completion_attestation: "completion_attestation",
+  dispatch_finalization: "dispatch_finalization",
+  reservation: "reservation",
+  stock_finalization: "stock_finalization",
   complete: "complete",
 };
 
 const STAFF_LABELS: Record<GoldenChainStaffStage, string> = {
-  needs_readiness: "Dispatch check",
-  needs_finance_release: "Finance approval",
-  needs_completion_attestation: "Completion confirmation",
-  needs_dispatch_finalization: "Dispatch finalize",
-  needs_reservation: "Reserve stock",
-  needs_stock_finalization: "Deduct stock",
+  prepare_dispatch_evidence: "Prepare evidence",
+  finance_release: "Finance approval",
+  readiness_review: "Readiness review",
+  completion_attestation: "Completion",
+  dispatch_finalization: "Dispatch finalize",
+  reservation: "Reserve stock",
+  stock_finalization: "Deduct stock",
   complete: "Done",
   blocked: "Blocked",
   already_finalized: "Dispatch already finalized",
@@ -56,12 +59,13 @@ const STAFF_LABELS: Record<GoldenChainStaffStage, string> = {
 };
 
 const ROLE_BY_STAFF: Record<GoldenChainStaffStage, GoldenChainRequiredRole> = {
-  needs_readiness: "dispatch",
-  needs_finance_release: "finance",
-  needs_completion_attestation: "dispatch",
-  needs_dispatch_finalization: "dispatch",
-  needs_reservation: "inventory",
-  needs_stock_finalization: "inventory",
+  prepare_dispatch_evidence: "dispatch",
+  finance_release: "finance",
+  readiness_review: "dispatch",
+  completion_attestation: "dispatch",
+  dispatch_finalization: "dispatch",
+  reservation: "inventory",
+  stock_finalization: "inventory",
   complete: "none",
   blocked: "supervisor",
   already_finalized: "none",
@@ -69,12 +73,13 @@ const ROLE_BY_STAFF: Record<GoldenChainStaffStage, GoldenChainRequiredRole> = {
 };
 
 const LAST_SUCCESS: Partial<Record<GoldenChainStaffStage, GoldenChainStaffStage>> = {
-  needs_finance_release: "needs_readiness",
-  needs_completion_attestation: "needs_finance_release",
-  needs_dispatch_finalization: "needs_completion_attestation",
-  needs_reservation: "needs_dispatch_finalization",
-  needs_stock_finalization: "needs_reservation",
-  complete: "needs_stock_finalization",
+  finance_release: "prepare_dispatch_evidence",
+  readiness_review: "finance_release",
+  completion_attestation: "readiness_review",
+  dispatch_finalization: "completion_attestation",
+  reservation: "dispatch_finalization",
+  stock_finalization: "reservation",
+  complete: "stock_finalization",
 };
 
 export interface GoldenChainStaffDerivation {
@@ -117,7 +122,7 @@ export function deriveGoldenChainStaffStage(
     currentStage = "inconsistent_state";
     warnings.push("Order status and dispatch records do not match. Ask a supervisor before continuing.");
   } else if (
-    internal.stage === "4e_dispatch_finalization" &&
+    internal.stage === "dispatch_finalization" &&
     dispatchAlreadyFinalized
   ) {
     currentStage = "already_finalized";

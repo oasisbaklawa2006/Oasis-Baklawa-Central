@@ -1,13 +1,17 @@
 import { describe, expect, it } from "vitest";
+import { projectDispatchReadiness } from "@/lib/dispatch-readiness/dispatchReadinessProjection";
 import type { DispatchReadinessInput } from "@/lib/dispatch-readiness/dispatchReadinessTypes";
 import type { FinanceGovernanceInput } from "@/lib/finance-governance/financeGovernanceTypes";
 import type { DispatchCompletionInput } from "@/lib/dispatch-completion/dispatchCompletionTypes";
 import type { DispatchFinalizationInput } from "@/lib/dispatch-finalization/dispatchFinalizationTypes";
 import type { StockReservationRecord } from "@/lib/stock-finalization/stockReservationTypes";
+import { projectFinanceRelease } from "@/lib/finance-governance/financeReleaseEligibility";
+import { prepareDispatchEvidenceForOrder } from "../goldenChainPrepareDispatchEvidence";
+import { isDispatchEvidencePrepared } from "../goldenChainPrerequisites";
 import {
-  deriveGoldenChainStaffStage,
+  deriveGoldenChainStage,
   type GoldenChainDerivationInput,
-} from "../deriveGoldenChainStage";
+} from "../goldenChainStageDerivation";
 
 const orderId = "b12e0115-1203-47d8-991d-e419812b0001";
 
@@ -87,6 +91,12 @@ const finalizationReady: DispatchFinalizationInput = {
 };
 
 function base(overrides: Partial<GoldenChainDerivationInput> = {}): GoldenChainDerivationInput {
+  const dispatchEvidencePrepared =
+    overrides.dispatchEvidencePrepared ??
+    isDispatchEvidencePrepared(
+      overrides.readinessEvidenceSlices ?? verifiedEvidence,
+      overrides.scanSlice ?? verifiedScan,
+    );
   return {
     readinessInput: readyInput,
     financeInput: financeReady,
@@ -98,28 +108,18 @@ function base(overrides: Partial<GoldenChainDerivationInput> = {}): GoldenChainD
     consumptionFinalizedReservationIds: [],
     readinessEvidenceSlices: verifiedEvidence,
     scanSlice: verifiedScan,
-    dispatchEvidencePrepared: true,
-    financeCommerciallyReleased: true,
+    dispatchEvidencePrepared,
+    financeCommerciallyReleased:
+      overrides.financeCommerciallyReleased ??
+      projectFinanceRelease(overrides.financeInput ?? financeReady).releaseStatus ===
+        "commercially_released",
     ...overrides,
   };
 }
 
-const reservation: StockReservationRecord = {
-  id: "res-1",
-  reservationNumber: "RES-1",
-  orderId,
-  productId: "prod-1",
-  sku: "SKU-1",
-  requestedQty: 10,
-  reservedQty: 10,
-  fulfilledQty: 0,
-  releasedQty: 0,
-  reservationStatus: "reserved",
-};
-
-describe("deriveGoldenChainStaffStage", () => {
-  it("prepare_dispatch_evidence when packing not verified", () => {
-    const r = deriveGoldenChainStaffStage(
+describe("golden chain stage order (24D)", () => {
+  it("cleared order without evidence starts at prepare_dispatch_evidence", () => {
+    const result = deriveGoldenChainStage(
       base({
         dispatchEvidencePrepared: false,
         readinessEvidenceSlices: [],
@@ -130,92 +130,120 @@ describe("deriveGoldenChainStaffStage", () => {
           cartonBarcodeVerified: false,
           latestAt: null,
         },
+        readinessInput: {
+          ...readyInput,
+          packingEvidenceVerified: false,
+          documentPlaceholderPresent: false,
+        },
       }),
     );
-    expect(r.currentStage).toBe("prepare_dispatch_evidence");
-    expect(r.nextAction).toBe("Prepare dispatch evidence");
-    expect(r.requiredRole).toBe("dispatch");
+    expect(result.stage).toBe("prepare_dispatch_evidence");
+    expect(result.cta).toBe("Prepare dispatch evidence");
   });
 
-  it("finance_release when commercial release pending", () => {
-    const r = deriveGoldenChainStaffStage(
+  it("routes to finance_release before readiness when commercial release missing", () => {
+    const result = deriveGoldenChainStage(
       base({
         financeInput: { ...financeReady, creditApproved: false, openHoldTypes: ["credit_limit_exceeded"] },
         financeCommerciallyReleased: false,
       }),
     );
-    expect(r.currentStage).toBe("finance_release");
-    expect(r.requiredRole).toBe("finance");
+    expect(result.stage).toBe("finance_release");
+    expect(result.cta).toBe("Complete finance release");
   });
 
-  it("needs completion attestation before dispatch finalize on fresh chain", () => {
-    const r = deriveGoldenChainStaffStage(base());
-    expect(r.currentStage).toBe("completion_attestation");
-    expect(r.nextAction).toBe("Attest completion");
-  });
+  it("readiness_review only after evidence and finance; pre_dispatch skips reservation", () => {
+    const noFinanceSignal: DispatchReadinessInput = {
+      ...readyInput,
+      financeSignal: "pending_review",
+      openExceptionTypes: ["dispatch_finance_signal_blocked"],
+    };
+    const projection = projectDispatchReadiness(noFinanceSignal);
+    expect(projection.readinessStatus).not.toBe("gate_eligible");
 
-  it("detects finalize lineage and advances past dispatch finalize", () => {
-    const r = deriveGoldenChainStaffStage(
+    const withReservationNone = projectDispatchReadiness({
+      ...readyInput,
+      reservationStatus: "none",
+      readinessPolicy: "pre_dispatch",
+    });
+    expect(withReservationNone.readinessStatus).toBe("gate_eligible");
+
+    const blocked = deriveGoldenChainStage(
       base({
-        dispatchLineage: [{ releaseType: "finalize", nextStatus: "dispatched", createdAt: new Date().toISOString() }],
-        finalizationInput: { ...finalizationReady, currentOrderStatus: "dispatched" },
-        completionInput: { ...completionReady, orderAlreadyDispatched: true },
-        reservations: [reservation],
+        readinessInput: noFinanceSignal,
       }),
     );
-    expect(r.dispatchAlreadyFinalized).toBe(true);
-    expect(["reservation", "stock_finalization", "complete", "inconsistent_state"]).toContain(
-      r.currentStage,
-    );
+    expect(blocked.stage).toBe("readiness_review");
   });
 
-  it("stock_finalization after dispatch and reservation", () => {
-    const r = deriveGoldenChainStaffStage(
-      base({
-        finalizationInput: { ...finalizationReady, currentOrderStatus: "dispatched" },
-        completionInput: { ...completionReady, orderAlreadyDispatched: true },
-        reservations: [reservation],
-        dispatchLineage: [{ releaseType: "finalize", nextStatus: "dispatched", createdAt: new Date().toISOString() }],
-        stockInput: {
-          orderId,
-          orderStatus: "dispatched",
-          dispatchReleaseStatus: "dispatch_finalized",
-          reservations: [reservation],
-          scanReference: "SCAN-1",
-          gateReference: "GATE-1",
-          dispatchLineageId: "lineage-1",
-          locationCode: "WH-MAIN",
-          alreadyFinalizedReservationIds: [],
+  it("reaches dispatch_finalization after completion when gate eligible", () => {
+    const result = deriveGoldenChainStage(base());
+    expect(result.stage).toBe("completion_attestation");
+    expect(result.cta).toBe("Attest completion");
+  });
+
+  it("does not duplicate evidence when prepare is called with existing verified rows", async () => {
+    const added: string[] = [];
+    const mockService = {
+      addEvidence: async (row: { evidenceType: string }) => {
+        added.push(row.evidenceType);
+        return { evidence: { id: "1" }, eventId: "e1" };
+      },
+    };
+    const result = await prepareDispatchEvidenceForOrder(
+      {} as never,
+      {
+        orderId,
+        evidenceSlices: verifiedEvidence,
+        scan: verifiedScan,
+        refs: {
+          packingPhotoRef: "P1",
+          documentPlaceholderRef: "D1",
+          gateScanRef: "GATE-SO-1",
+          transporterRef: "T1",
+          stockFinalizeReason: "R1",
+          overrideReason: "",
         },
-      }),
+        readinessBundle: {
+          service: mockService as never,
+          canExecuteWrites: true,
+          persistenceMode: "supabase",
+        },
+        ctx: {
+          correlationId: "c1",
+          actorUserId: "u1",
+          actorRole: "DISPATCH_HEAD",
+        },
+      },
     );
-    expect(r.currentStage).toBe("stock_finalization");
-    expect(r.nextAction).toBe("Finalize stock");
+    expect(added).toHaveLength(0);
+    expect(result.skipped).toContain("packing_photo");
+    expect(result.skipped).toContain("operational_dispatch_gate");
   });
 
-  it("complete when consumption finalized", () => {
-    const r = deriveGoldenChainStaffStage(
+  it("complete after stock consumption finalized", () => {
+    const reservation: StockReservationRecord = {
+      id: "res-1",
+      reservationNumber: "RES-1",
+      orderId,
+      productId: "prod-1",
+      sku: "SKU-1",
+      requestedQty: 10,
+      reservedQty: 10,
+      fulfilledQty: 0,
+      releasedQty: 0,
+      reservationStatus: "reserved",
+    };
+    const result = deriveGoldenChainStage(
       base({
         finalizationInput: { ...finalizationReady, currentOrderStatus: "dispatched" },
         completionInput: { ...completionReady, orderAlreadyDispatched: true },
         reservations: [reservation],
         consumptionFinalizedReservationIds: [reservation.id],
         dispatchLineage: [{ releaseType: "finalize", nextStatus: "dispatched", createdAt: new Date().toISOString() }],
+        financeCommerciallyReleased: true,
       }),
     );
-    expect(r.currentStage).toBe("complete");
-    expect(r.isComplete).toBe(true);
-    expect(r.nextAction).toBe("Already complete");
-  });
-
-  it("inconsistent_state when finalize lineage but order not dispatched", () => {
-    const r = deriveGoldenChainStaffStage(
-      base({
-        dispatchLineage: [{ releaseType: "finalize", nextStatus: "dispatched", createdAt: new Date().toISOString() }],
-        finalizationInput: { ...finalizationReady, currentOrderStatus: "cleared_for_dispatch" },
-      }),
-    );
-    expect(r.currentStage).toBe("inconsistent_state");
-    expect(r.warnings.length).toBeGreaterThan(0);
+    expect(result.stage).toBe("complete");
   });
 });

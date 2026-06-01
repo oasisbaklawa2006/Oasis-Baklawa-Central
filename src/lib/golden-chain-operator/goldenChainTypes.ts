@@ -5,26 +5,32 @@ import type { FinanceGovernanceInput } from "@/lib/finance-governance/financeGov
 import type { StockFinalizationInput } from "@/lib/stock-finalization/stockFinalizationTypes";
 import type { StockReservationRecord } from "@/lib/stock-finalization/stockReservationTypes";
 import type { FinalizationLineageSlice } from "@/lib/execution-read-models/adapters/finalizationSignalAdapter";
+import type {
+  ReadinessEvidenceSlice,
+  ReadinessScanSlice,
+} from "@/lib/execution-read-models/adapters/readinessSignalAdapter";
 
 export const GOLDEN_CHAIN_STAGES = [
-  "4b_readiness",
-  "4c_finance",
-  "4d_completion",
-  "4e_dispatch_finalization",
-  "4f_reservation",
-  "4g_stock",
+  "prepare_dispatch_evidence",
+  "finance_release",
+  "readiness_review",
+  "completion_attestation",
+  "dispatch_finalization",
+  "reservation",
+  "stock_finalization",
   "complete",
 ] as const;
 
 export type GoldenChainStage = (typeof GOLDEN_CHAIN_STAGES)[number];
 
 export const GOLDEN_CHAIN_CTA_LABELS = [
-  "Complete readiness",
+  "Prepare dispatch evidence",
   "Complete finance release",
-  "Complete completion attestation",
+  "Complete readiness review",
+  "Attest completion",
   "Finalize dispatch",
-  "Create reservation",
-  "Finalize stock consumption",
+  "Reserve stock",
+  "Finalize stock",
   "Already complete",
 ] as const;
 
@@ -80,6 +86,9 @@ export interface GoldenChainOrderState {
   reservations: StockReservationRecord[];
   dispatchLineage: FinalizationLineageSlice[];
   consumptionFinalizedReservationIds: string[];
+  readinessEvidenceSlices: ReadinessEvidenceSlice[];
+  scanSlice: ReadinessScanSlice;
+  dispatchEvidencePrepared: boolean;
   stage: GoldenChainStage;
   cta: GoldenChainCtaLabel;
   blockers: GoldenChainBlocker[];
