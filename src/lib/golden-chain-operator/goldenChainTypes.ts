@@ -28,6 +28,7 @@ export const GOLDEN_CHAIN_CTA_LABELS = [
   "Complete finance release",
   "Complete readiness review",
   "Attest completion",
+  "Completion already attested",
   "Finalize dispatch",
   "Reserve stock",
   "Finalize stock",

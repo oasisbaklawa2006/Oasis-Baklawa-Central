@@ -1,5 +1,15 @@
 import { isFinanceSignalReady } from "@/lib/dispatch-readiness/financeDispatchSignal";
-import type { DispatchFinalizationInput, DispatchReleaseStatus } from "./dispatchFinalizationTypes";
+import type {
+  DispatchFinalizationInput,
+  DispatchFinalizationPolicy,
+  DispatchReleaseStatus,
+} from "./dispatchFinalizationTypes";
+
+export function isPreDispatchWizardFinalizationPolicy(
+  policy: DispatchFinalizationPolicy | undefined,
+): boolean {
+  return policy === "pre_dispatch_wizard";
+}
 
 export function deriveDispatchReleaseStatus(input: DispatchFinalizationInput): DispatchReleaseStatus {
   const current = input.currentOrderStatus.trim().toLowerCase();
@@ -15,7 +25,8 @@ export function deriveDispatchReleaseStatus(input: DispatchFinalizationInput): D
   const financeOk = isFinanceSignalReady(input.financeSignal);
   const commercialOk = input.financeReleaseStatus === "commercially_released";
   const completionOk = input.completionStatus === "completion_attested";
-  const reservationOk = input.reservationReady;
+  const wizard = isPreDispatchWizardFinalizationPolicy(input.finalizationPolicy);
+  const reservationOk = wizard ? true : input.reservationReady;
   const transportOk = input.transporterHandoffFinalized;
   const gateRefOk = Boolean(input.gateReference?.trim());
   const completionRefOk = Boolean(input.completionReference?.trim());
@@ -46,7 +57,7 @@ export function buildReleaseBlockingReasons(input: DispatchFinalizationInput): s
   if (input.completionStatus !== "completion_attested") {
     reasons.push(`Phase 4D: requires completion_attested (got ${input.completionStatus})`);
   }
-  if (!input.reservationReady) {
+  if (!isPreDispatchWizardFinalizationPolicy(input.finalizationPolicy) && !input.reservationReady) {
     reasons.push("Phase 4A: reservation not ready");
   }
   if (!input.transporterHandoffFinalized) {

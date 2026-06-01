@@ -1,20 +1,28 @@
 import { isFinanceSignalBlocking, isFinanceSignalReady } from "@/lib/dispatch-readiness/financeDispatchSignal";
 import type {
   DispatchCompletionInput,
+  DispatchCompletionPolicy,
   DispatchCompletionStatus,
 } from "./dispatchCompletionTypes";
+
+export function isPreDispatchWizardCompletionPolicy(
+  policy: DispatchCompletionPolicy | undefined,
+): boolean {
+  return policy === "pre_dispatch_wizard";
+}
 
 export function deriveDispatchCompletionStatus(input: DispatchCompletionInput): DispatchCompletionStatus {
   if (input.orderAlreadyDispatched) return "already_dispatched";
 
   if (input.openCompletionHolds.length > 0) return "completion_blocked";
 
+  const wizard = isPreDispatchWizardCompletionPolicy(input.completionPolicy);
   const gateOk = input.readinessStatus === "gate_eligible";
   const financeOk = isFinanceSignalReady(input.financeSignal);
   const releaseOk =
     input.financeReleaseStatus === "commercially_released" ||
     input.financeReleaseStatus === "finance_conditionally_ready";
-  const reservationOk = input.reservationReady;
+  const reservationOk = wizard ? true : input.reservationReady;
   const securityOk = input.securityGatePassed;
   const manifestOk = input.courierManifestAttached;
 
@@ -41,7 +49,7 @@ export function buildCompletionBlockingReasons(input: DispatchCompletionInput): 
   if (isFinanceSignalBlocking(input.financeSignal)) {
     reasons.push("Finance dispatch signal blocked");
   }
-  if (!input.reservationReady) {
+  if (!isPreDispatchWizardCompletionPolicy(input.completionPolicy) && !input.reservationReady) {
     reasons.push("Inventory reservation not ready");
   }
   if (

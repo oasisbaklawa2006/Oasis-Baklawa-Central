@@ -33,4 +33,14 @@ describe("dispatchReleaseEligibility", () => {
       deriveDispatchReleaseStatus({ ...base, openReleaseBlockers: ["manual_hold"] }),
     ).toBe("dispatch_release_blocked");
   });
-});
+
+  it("allows release_ready without reservation under pre_dispatch_wizard policy", () => {
+    expect(
+      deriveDispatchReleaseStatus({
+        ...base,
+        reservationReady: false,
+        finalizationPolicy: "pre_dispatch_wizard",
+      }),
+    ).toBe("dispatch_release_ready");
+  });
+})();

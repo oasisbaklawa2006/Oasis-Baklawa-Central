@@ -19,6 +19,11 @@ const verifiedEvidence = [
   { evidenceType: "packing_photo", evidenceStatus: "verified", createdAt: "2026-01-01T00:00:00Z" },
   { evidenceType: "document_placeholder", evidenceStatus: "verified", createdAt: "2026-01-01T00:00:00Z" },
   { evidenceType: "gate_scan", evidenceStatus: "verified", createdAt: "2026-01-01T00:00:00Z" },
+  {
+    evidenceType: "manual_readiness_review",
+    evidenceStatus: "verified",
+    createdAt: "2026-01-01T00:00:00Z",
+  },
 ];
 
 const verifiedScan = {
@@ -68,11 +73,12 @@ const completionReady: DispatchCompletionInput = {
   readinessStatus: "gate_eligible",
   financeSignal: "ready",
   financeReleaseStatus: "commercially_released",
-  reservationReady: true,
+  reservationReady: false,
   orderAlreadyDispatched: false,
   securityGatePassed: true,
   courierManifestAttached: true,
   openCompletionHolds: [],
+  completionPolicy: "pre_dispatch_wizard",
 };
 
 const finalizationReady: DispatchFinalizationInput = {
@@ -113,6 +119,7 @@ function base(overrides: Partial<GoldenChainDerivationInput> = {}): GoldenChainD
       overrides.financeCommerciallyReleased ??
       projectFinanceRelease(overrides.financeInput ?? financeReady).releaseStatus ===
         "commercially_released",
+    completionAttested: overrides.completionAttested ?? false,
     ...overrides,
   };
 }
@@ -176,10 +183,36 @@ describe("golden chain stage order (24D)", () => {
     expect(blocked.stage).toBe("readiness_review");
   });
 
-  it("reaches dispatch_finalization after completion when gate eligible", () => {
+  it("requires readiness review when gate_scan alone (no manual_readiness_review)", () => {
+    const gateOnly = verifiedEvidence.filter((e) => e.evidenceType !== "manual_readiness_review");
+    const result = deriveGoldenChainStage(
+      base({
+        readinessEvidenceSlices: gateOnly,
+      }),
+    );
+    expect(result.stage).toBe("readiness_review");
+    expect(result.cta).toBe("Complete readiness review");
+  });
+
+  it("reaches completion attestation after finance when manual review on file", () => {
     const result = deriveGoldenChainStage(base());
     expect(result.stage).toBe("completion_attestation");
     expect(result.cta).toBe("Attest completion");
+  });
+
+  it("advances past completion when attestation evidence exists", () => {
+    const result = deriveGoldenChainStage(
+      base({
+        completionAttested: true,
+        completionInput: {
+          ...completionReady,
+          courierManifestAttached: true,
+          securityGatePassed: true,
+        },
+      }),
+    );
+    expect(result.stage).toBe("dispatch_finalization");
+    expect(result.cta).toBe("Finalize dispatch");
   });
 
   it("does not duplicate evidence when prepare is called with existing verified rows", async () => {
