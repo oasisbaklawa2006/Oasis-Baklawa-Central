@@ -87,7 +87,7 @@ export async function createStockFinalizationBundle(
 
   let reservationService: ReservationService | undefined;
   try {
-    reservationService = await createSupabaseReservationService(client);
+    reservationService = await createSupabaseReservationService(client).getService();
   } catch {
     reservationService = undefined;
   }

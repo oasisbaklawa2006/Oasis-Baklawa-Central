@@ -1,13 +1,15 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { Loader2, Search, ShieldCheck, Workflow } from "lucide-react";
+import { CheckCircle2, ChevronDown, ChevronUp, Loader2, Search, ShieldCheck, Workflow } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { GovernancePrerequisiteList } from "@/components/admin/GovernancePrerequisiteList";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { toast } from "sonner";
 import { createDispatchReadinessBundle, type DispatchReadinessBundle } from "@/lib/dispatch-readiness/createDispatchReadinessBundle";
 import { createFinanceGovernanceBundle, type FinanceGovernanceBundle } from "@/lib/finance-governance/createFinanceGovernanceBundle";
 import { createDispatchCompletionBundle, type DispatchCompletionBundle } from "@/lib/dispatch-completion/createDispatchCompletionBundle";
@@ -26,8 +28,25 @@ import {
   type GoldenChainOrderState,
   type GoldenChainOrderSummary,
 } from "@/lib/golden-chain-operator";
-import { governanceStageLabel } from "@/lib/golden-chain-operator/goldenChainStageDerivation";
+import { GOLDEN_CHAIN_STAGES } from "@/lib/golden-chain-operator/goldenChainTypes";
 import { formatSalesOrderLabel } from "@/utils/orderSoLabel";
+import { cn } from "@/lib/utils";
+import { requiresStockOverrideReason } from "@/lib/stock-authority/stockAuthorityGuard";
+
+const PROGRESS_STEPS = [
+  { key: "4b_readiness", label: "Dispatch check" },
+  { key: "4c_finance", label: "Finance approval" },
+  { key: "4d_completion", label: "Completion" },
+  { key: "4e_dispatch_finalization", label: "Finalize dispatch" },
+  { key: "4f_reservation", label: "Reserve stock" },
+  { key: "4g_stock", label: "Deduct stock" },
+  { key: "complete", label: "Done" },
+] as const;
+
+function stageIndex(stage: string): number {
+  const i = GOLDEN_CHAIN_STAGES.indexOf(stage as (typeof GOLDEN_CHAIN_STAGES)[number]);
+  return i >= 0 ? i : 0;
+}
 
 export default function GoldenChainOperatorWizard() {
   const { user, role } = useAuth();
@@ -38,7 +57,8 @@ export default function GoldenChainOperatorWizard() {
   const [loadingList, setLoadingList] = useState(false);
   const [loadingOrder, setLoadingOrder] = useState(false);
   const [busy, setBusy] = useState(false);
-  const [message, setMessage] = useState<string | null>(null);
+  const [showAudit, setShowAudit] = useState(false);
+  const [overrideReason, setOverrideReason] = useState("");
 
   const [readinessBundle, setReadinessBundle] = useState<DispatchReadinessBundle | null>(null);
   const [financeBundle, setFinanceBundle] = useState<FinanceGovernanceBundle | null>(null);
@@ -59,8 +79,8 @@ export default function GoldenChainOperatorWizard() {
       setReadinessBundle(r);
       setFinanceBundle(f);
       setCompletionBundle(c);
-      setFinalizationBundle(fin);
       setStockBundle(s);
+      setFinalizationBundle(fin);
     });
     return () => {
       cancelled = true;
@@ -73,7 +93,7 @@ export default function GoldenChainOperatorWizard() {
       const rows = await searchGoldenChainOrders(supabase, search);
       setSummaries(rows);
     } catch (e) {
-      setMessage(e instanceof Error ? e.message : "Search failed");
+      toast.error(e instanceof Error ? e.message : "Could not search orders");
       setSummaries([]);
     } finally {
       setLoadingList(false);
@@ -86,7 +106,7 @@ export default function GoldenChainOperatorWizard() {
       const next = await loadGoldenChainOrderState(supabase, orderId);
       setState(next);
     } catch (e) {
-      setMessage(e instanceof Error ? e.message : "Failed to load order");
+      toast.error(e instanceof Error ? e.message : "Could not load order");
       setState(null);
     } finally {
       setLoadingOrder(false);
@@ -108,47 +128,73 @@ export default function GoldenChainOperatorWizard() {
     actorUserId: user?.id ?? "",
     actorRole: role ?? "DISPATCH_MANAGER",
     actorDepartment: "golden_chain_operator",
-    overrideReason: state?.evidenceRefs.overrideReason ?? null,
-    attestationReason: state?.evidenceRefs.overrideReason,
-    finalizeReason: "Golden chain operator wizard",
+    overrideReason: overrideReason.trim() || null,
+    attestationReason: overrideReason.trim() || "Operator confirmed dispatch check",
+    finalizeReason: state?.evidenceRefs.stockFinalizeReason ?? "Golden chain operator",
     rejectionReason: null,
   });
 
-  const finalizeDisabled = useMemo(() => {
-    if (!state) return true;
-    if (state.stage === "4e_dispatch_finalization" && state.dispatchAlreadyFinalized) return true;
-    if (state.cta === "Already complete") return true;
-    return false;
-  }, [state]);
+  const finalizeGuardMsg = state?.dispatchAlreadyFinalized
+    ? dispatchFinalizeGuardMessage(state.dispatchLineage)
+    : null;
 
-  const primaryDisabled =
-    busy ||
-    !state ||
-    finalizeDisabled ||
-    state.cta === "Already complete" ||
-    (state.stage === "4b_readiness" && !readinessBundle?.canExecuteWrites) ||
-    (state.stage === "4c_finance" && !financeBundle?.canExecuteWrites) ||
-    (state.stage === "4d_completion" && !completionBundle?.canExecuteWrites) ||
-    (state.stage === "4e_dispatch_finalization" && !finalizationBundle?.canExecuteWrites) ||
-    (state.stage === "4g_stock" && !stockBundle?.canExecuteWrites);
+  const primaryDisabled = useMemo(() => {
+    if (busy || !state || loadingOrder) return true;
+    if (state.cta === "Already complete" || state.stage === "complete") return true;
+    if (state.stage === "4e_dispatch_finalization" && state.dispatchAlreadyFinalized) return true;
+    if (state.stage === "4b_readiness" && !readinessBundle?.canExecuteWrites) return true;
+    if (state.stage === "4c_finance" && !financeBundle?.canExecuteWrites) return true;
+    if (state.stage === "4d_completion" && !completionBundle?.canExecuteWrites) return true;
+    if (state.stage === "4e_dispatch_finalization" && !finalizationBundle?.canExecuteWrites) return true;
+    if (state.stage === "4g_stock" && !stockBundle?.canExecuteWrites) return true;
+    if (
+      state.stage === "4g_stock" &&
+      requiresStockOverrideReason(role) &&
+      !overrideReason.trim()
+    ) {
+      return true;
+    }
+    return false;
+  }, [
+    busy,
+    state,
+    loadingOrder,
+    readinessBundle,
+    financeBundle,
+    completionBundle,
+    finalizationBundle,
+    stockBundle,
+    role,
+    overrideReason,
+  ]);
+
+  const progressIdx = state ? stageIndex(state.stage) : -1;
 
   async function runPrimaryAction() {
     if (!state || primaryDisabled) return;
     setBusy(true);
-    setMessage(null);
     const refs = state.evidenceRefs;
     const ctxBase = writeCtx(state.stage);
+    const prevCta = state.cta;
 
     try {
       switch (state.stage) {
         case "4b_readiness": {
-          if (!readinessBundle?.service) throw new Error("Readiness service unavailable");
+          if (!readinessBundle?.service) throw new Error("Dispatch check service is unavailable. Try again or call IT.");
+          const evidenceBase = {
+            orderId: state.orderId,
+            queueItemId: null,
+            evidenceStatus: "verified" as const,
+            actorId: null,
+            actorRole: null,
+            actorDepartment: null,
+            correlationId: ctxBase.correlationId,
+            metadata: { source: "golden_chain_operator_wizard", governedOnly: true },
+          };
           await readinessBundle.service.addEvidence(
             {
-              orderId: state.orderId,
-              queueItemId: null,
+              ...evidenceBase,
               evidenceType: "packing_photo",
-              evidenceStatus: "verified",
               evidenceRef: refs.packingPhotoRef,
               photoRef: refs.packingPhotoRef,
               documentRef: null,
@@ -158,10 +204,8 @@ export default function GoldenChainOperatorWizard() {
           );
           await readinessBundle.service.addEvidence(
             {
-              orderId: state.orderId,
-              queueItemId: null,
+              ...evidenceBase,
               evidenceType: "document_placeholder",
-              evidenceStatus: "verified",
               evidenceRef: refs.documentPlaceholderRef,
               photoRef: null,
               documentRef: refs.documentPlaceholderRef,
@@ -171,10 +215,8 @@ export default function GoldenChainOperatorWizard() {
           );
           await readinessBundle.service.addEvidence(
             {
-              orderId: state.orderId,
-              queueItemId: null,
+              ...evidenceBase,
               evidenceType: "gate_scan",
-              evidenceStatus: "verified",
               evidenceRef: refs.gateScanRef,
               photoRef: null,
               documentRef: null,
@@ -186,7 +228,7 @@ export default function GoldenChainOperatorWizard() {
           break;
         }
         case "4c_finance": {
-          if (!financeBundle?.service) throw new Error("Finance service unavailable");
+          if (!financeBundle?.service) throw new Error("Finance approval service is unavailable.");
           await financeBundle.service.commercialRelease(state.financeInput, {
             ...ctxBase,
             actorRole: role ?? "FINANCE_HEAD",
@@ -194,19 +236,19 @@ export default function GoldenChainOperatorWizard() {
           break;
         }
         case "4d_completion": {
-          if (!completionBundle?.service) throw new Error("Completion service unavailable");
+          if (!completionBundle?.service) throw new Error("Completion confirmation service is unavailable.");
           await completionBundle.service.attestCompletion(state.completionInput, {
             ...ctxBase,
-            attestationReason: refs.overrideReason,
+            attestationReason: ctxBase.attestationReason,
           });
           break;
         }
         case "4e_dispatch_finalization": {
           if (state.dispatchAlreadyFinalized) {
-            setMessage(dispatchFinalizeGuardMessage(state.dispatchLineage) ?? "Already finalized");
+            toast.info(finalizeGuardMsg ?? "Dispatch was already finalized.");
             break;
           }
-          if (!finalizationBundle?.service) throw new Error("Finalization service unavailable");
+          if (!finalizationBundle?.service) throw new Error("Dispatch finalize service is unavailable.");
           const input = {
             ...state.finalizationInput,
             gateReference: state.finalizationInput.gateReference?.trim() || refs.gateScanRef,
@@ -218,38 +260,54 @@ export default function GoldenChainOperatorWizard() {
           await finalizationBundle.service.finalizeDispatch(input, {
             ...ctxBase,
             actorRole: role ?? "DISPATCH_HEAD",
-            finalizeReason: refs.overrideReason,
+            finalizeReason: refs.stockFinalizeReason,
           });
           break;
         }
         case "4f_reservation": {
-          const lines = await loadOrderLinesForReservation(supabase, state.orderId);
+          const lines =
+            state.orderLines.length > 0
+              ? state.orderLines
+              : await loadOrderLinesForReservation(supabase, state.orderId);
           const line = lines[0];
-          if (!line) throw new Error("No order lines available for reservation");
-          await createAndReserveInventoryForOrder(
-            supabase,
-            {
-              orderId: state.orderId,
-              productId: line.productId,
-              sku: line.sku,
-              quantity: line.quantity,
-              locationCode: "WH-MAIN",
-              sourceDepartment: "golden_chain_operator",
-            },
-            {
-              correlationId: ctxBase.correlationId,
-              actorUserId: ctxBase.actorUserId,
-              actorRole: ctxBase.actorRole,
-              actorDepartment: "golden_chain_operator",
-            },
-          );
+          if (!line) throw new Error("No product lines on this order — cannot reserve stock.");
+          for (const item of lines) {
+            await createAndReserveInventoryForOrder(
+              supabase,
+              {
+                orderId: state.orderId,
+                productId: item.productId,
+                sku: item.sku,
+                quantity: item.quantity,
+                locationCode: "WH-MAIN",
+                sourceDepartment: "golden_chain_operator",
+              },
+              {
+                correlationId: `${ctxBase.correlationId}-${item.sku}`,
+                actorUserId: ctxBase.actorUserId,
+                actorRole: ctxBase.actorRole,
+                actorDepartment: "golden_chain_operator",
+              },
+            );
+          }
           break;
         }
         case "4g_stock": {
-          if (!stockBundle?.service || !state.stockInput) throw new Error("Stock service unavailable");
-          const reservation = state.stockInput.reservations[0];
-          if (!reservation || !state.stockInput.scanReference) {
-            throw new Error("Missing reservation or scan reference");
+          if (!stockBundle?.service || !state.stockInput) {
+            throw new Error("Stock deduction service is unavailable.");
+          }
+          const activeReservations = state.stockInput.reservations.filter(
+            (r) => r.reservedQty > 0 && r.fulfilledQty < r.requestedQty,
+          );
+          const reservation = activeReservations[0] ?? state.stockInput.reservations[0];
+          if (!reservation) {
+            throw new Error("No stock reservation found. Complete “Reserve stock” first.");
+          }
+          const scanRef = state.stockInput.scanReference?.trim() || refs.gateScanRef;
+          if (!scanRef) {
+            throw new Error(
+              "Gate scan is missing. Scan carton at Security Gate or ask dispatch supervisor.",
+            );
           }
           let expectedBalanceVersion = 1;
           if (stockBundle.persistenceMode === "supabase") {
@@ -265,26 +323,35 @@ export default function GoldenChainOperatorWizard() {
             state.stockInput,
             {
               orderId: state.orderId,
-              scanReference: state.stockInput.scanReference,
-              gateReference: state.stockInput.gateReference,
+              scanReference: scanRef,
+              gateReference: state.stockInput.gateReference ?? refs.gateScanRef,
               dispatchLineageId: state.stockInput.dispatchLineageId,
-              items: [
-                {
-                  reservationId: reservation.id,
-                  productId: reservation.productId,
-                  sku: reservation.sku,
-                  locationCode: state.stockInput.locationCode,
-                  consumeQty: reservation.reservedQty || reservation.fulfilledQty,
-                  expectedBalanceVersion,
-                },
-              ],
+              items: activeReservations.length
+                ? activeReservations.map((r) => ({
+                    reservationId: r.id,
+                    productId: r.productId,
+                    sku: r.sku,
+                    locationCode: state.stockInput!.locationCode,
+                    consumeQty: r.reservedQty || r.requestedQty,
+                    expectedBalanceVersion,
+                  }))
+                : [
+                    {
+                      reservationId: reservation.id,
+                      productId: reservation.productId,
+                      sku: reservation.sku,
+                      locationCode: state.stockInput.locationCode,
+                      consumeQty: reservation.reservedQty || reservation.requestedQty,
+                      expectedBalanceVersion,
+                    },
+                  ],
             },
             {
               correlationId: ctxBase.correlationId,
               actorUserId: ctxBase.actorUserId,
               actorRole: ctxBase.actorRole,
-              finalizeReason: refs.overrideReason,
-              overrideReason: role === "SUPER_ADMIN" ? refs.overrideReason : null,
+              finalizeReason: refs.stockFinalizeReason,
+              overrideReason: role === "SUPER_ADMIN" ? overrideReason.trim() : null,
             },
           );
           break;
@@ -292,74 +359,76 @@ export default function GoldenChainOperatorWizard() {
         default:
           break;
       }
-      setMessage(`Success: ${state.cta}`);
+
+      toast.success(`${prevCta} completed. Refreshing order…`);
       await reloadOrder(state.orderId);
       await reloadList();
+      const next = await loadGoldenChainOrderState(supabase, state.orderId);
+      if (next.cta !== prevCta) {
+        toast.info(`Next: ${next.cta}`);
+      }
     } catch (e) {
-      setMessage(e instanceof Error ? e.message : "Action failed");
+      const msg = e instanceof Error ? e.message : "Action failed";
+      toast.error(msg);
     } finally {
       setBusy(false);
     }
   }
 
-  const finalizeGuardMsg = state?.dispatchAlreadyFinalized
-    ? dispatchFinalizeGuardMessage(state.dispatchLineage)
-    : null;
-
   return (
-    <div className="mx-auto max-w-4xl space-y-6 p-4 pb-24">
-      <header className="flex flex-wrap items-center gap-2 border-b border-border pb-4">
-        <Workflow className="h-7 w-7 text-primary" aria-hidden />
-        <h1 className="text-xl font-bold tracking-tight">Golden chain operator</h1>
-        <Badge variant="outline" className="text-[10px] uppercase">
-          Phase 24 — single next action
-        </Badge>
+    <div className="mx-auto flex max-w-4xl flex-col gap-4 p-4 pb-32">
+      <header className="space-y-1 border-b border-border pb-4">
+        <div className="flex flex-wrap items-center gap-2">
+          <Workflow className="h-7 w-7 text-primary shrink-0" aria-hidden />
+          <h1 className="text-xl font-bold tracking-tight">Golden Chain Operator</h1>
+        </div>
+        <p className="text-sm text-muted-foreground">
+          Select one order, then complete the single next step shown. No payment or customer messages from this screen.
+        </p>
       </header>
-
-      <Card className="border-primary/20 bg-primary/5">
-        <CardContent className="pt-4 text-sm">
-          <p className="flex items-start gap-2">
-            <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
-            One governed step at a time across 4B→4G. No payment, invoice, or customer notification on this surface.
-          </p>
-        </CardContent>
-      </Card>
 
       <Card>
         <CardHeader className="pb-2">
-          <CardTitle className="text-sm">Order selector</CardTitle>
+          <CardTitle className="text-sm">Find order</CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
           <div className="flex gap-2">
             <Input
-              placeholder="Search SO number or order id (min 2 chars)"
+              placeholder="SO-2026-000115 or last digits of order id"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="font-mono text-sm"
+              className="text-base"
+              aria-label="Search orders"
             />
-            <Button type="button" size="icon" variant="outline" onClick={() => void reloadList()} disabled={loadingList}>
+            <Button
+              type="button"
+              size="icon"
+              variant="outline"
+              className="h-10 w-10 shrink-0"
+              onClick={() => void reloadList()}
+              disabled={loadingList}
+              aria-label="Search"
+            >
               {loadingList ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
             </Button>
           </div>
-          <div className="max-h-52 space-y-1 overflow-y-auto rounded border border-border p-1">
+          <div className="max-h-48 space-y-1 overflow-y-auto rounded-md border border-border p-1">
             {summaries.length === 0 && !loadingList && (
-              <p className="p-2 text-xs text-muted-foreground">No matching pipeline orders.</p>
+              <p className="p-2 text-xs text-muted-foreground">No matching orders. Try an SO number.</p>
             )}
             {summaries.map((row) => (
               <button
                 key={row.orderId}
                 type="button"
-                className={`flex w-full flex-col gap-0.5 rounded px-2 py-2 text-left text-xs hover:bg-muted ${
-                  selectedId === row.orderId ? "bg-muted ring-1 ring-primary/40" : ""
-                }`}
+                className={cn(
+                  "flex w-full flex-col gap-0.5 rounded-md px-3 py-2.5 text-left text-sm hover:bg-muted min-h-[44px]",
+                  selectedId === row.orderId && "bg-muted ring-1 ring-primary/40",
+                )}
                 onClick={() => setSelectedId(row.orderId)}
               >
-                <span className="font-mono font-medium">
-                  {row.orderNumber ?? `…${row.orderId.slice(-4)}`}
-                </span>
-                <span className="text-muted-foreground">
-                  {row.orderStatus} · pay {row.paymentStatus ?? "—"} · {row.governanceStageLabel} ·{" "}
-                  {row.nextAction}
+                <span className="font-medium">{row.orderNumber ?? `Order …${row.orderId.slice(-4)}`}</span>
+                <span className="text-xs text-muted-foreground">
+                  {row.orderStatus} · {row.governanceStageLabel} · {row.nextAction}
                 </span>
               </button>
             ))}
@@ -370,99 +439,165 @@ export default function GoldenChainOperatorWizard() {
       {loadingOrder && (
         <p className="flex items-center gap-2 text-sm text-muted-foreground">
           <Loader2 className="h-4 w-4 animate-spin" />
-          Loading order chain…
+          Loading order…
         </p>
       )}
 
       {state && !loadingOrder && (
         <>
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-base">
-                {formatSalesOrderLabel({ id: state.orderId, order_number: state.orderNumber })}
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="grid gap-2 text-sm md:grid-cols-2">
-              <p>
-                <span className="text-muted-foreground">Status · </span>
-                {state.orderStatus}
+          <Card className="sticky top-0 z-10 shadow-sm ring-1 ring-border/60">
+            <CardContent className="space-y-3 pt-4">
+              <div className="flex flex-wrap items-start justify-between gap-2">
+                <div>
+                  <p className="text-lg font-semibold leading-tight">
+                    {formatSalesOrderLabel({ id: state.orderId, order_number: state.orderNumber })}
+                  </p>
+                  {state.companyName && (
+                    <p className="text-sm text-muted-foreground">{state.companyName}</p>
+                  )}
+                </div>
+                <Badge variant={state.stage === "complete" ? "default" : "secondary"}>
+                  {state.staffStageLabel}
+                </Badge>
+              </div>
+              <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
+                <span>Status: {state.orderStatus}</span>
+                <span>Payment: {state.paymentStatus ?? "—"}</span>
+              </div>
+              <p className="text-sm">
+                <span className="font-medium text-foreground">Waiting on: </span>
+                {state.whoMustActNext}
               </p>
-              <p>
-                <span className="text-muted-foreground">Payment · </span>
-                {state.paymentStatus ?? "—"}
-              </p>
-              <p>
-                <span className="text-muted-foreground">Governance stage · </span>
-                {governanceStageLabel(state.stage)}
-              </p>
-              <p>
-                <span className="text-muted-foreground">Next action · </span>
-                {state.cta}
-              </p>
+              <div className="flex gap-1 overflow-x-auto pb-1">
+                {PROGRESS_STEPS.map((step, i) => {
+                  const done = progressIdx > i || state.stage === "complete";
+                  const current = state.stage === step.key;
+                  return (
+                    <div
+                      key={step.key}
+                      className={cn(
+                        "flex shrink-0 items-center gap-1 rounded-full px-2 py-1 text-[10px] font-medium",
+                        done && "bg-primary/15 text-primary",
+                        current && !done && "bg-amber-100 text-amber-900 dark:bg-amber-950 dark:text-amber-100",
+                        !done && !current && "bg-muted text-muted-foreground",
+                      )}
+                    >
+                      {done ? <CheckCircle2 className="h-3 w-3" /> : null}
+                      {step.label}
+                    </div>
+                  );
+                })}
+              </div>
             </CardContent>
           </Card>
 
-          <GovernancePrerequisiteList
-            title="Blockers"
-            items={state.blockers.map((b) => `${b.message} → ${b.action} (${b.route})`)}
-            variant={state.blockers.length > 0 ? "destructive" : "default"}
-          />
-
-          {finalizeGuardMsg && (
-            <p className="text-sm text-amber-700 dark:text-amber-400">{finalizeGuardMsg}</p>
+          {state.orderLines.length > 0 && (
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm">Product lines</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-1 text-sm">
+                {state.orderLines.map((line) => (
+                  <p key={`${line.productId}-${line.sku}`}>
+                    {line.productName ?? line.sku} · {line.sku} × {line.quantity}
+                  </p>
+                ))}
+              </CardContent>
+            </Card>
           )}
 
-          <div className="flex flex-wrap gap-2">
-            <Button type="button" disabled={primaryDisabled} onClick={() => void runPrimaryAction()}>
-              {busy ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-              {state.cta}
+          {state.blockers.length > 0 && (
+            <Card className="border-destructive/40 bg-destructive/5">
+              <CardContent className="space-y-2 pt-4">
+                <p className="text-sm font-medium text-destructive">What is blocking progress</p>
+                <ul className="list-disc space-y-1 pl-5 text-sm">
+                  {state.blockers.map((b, i) => (
+                    <li key={`${b.message}-${i}`}>{b.message}</li>
+                  ))}
+                </ul>
+              </CardContent>
+            </Card>
+          )}
+
+          {finalizeGuardMsg && state.stage === "4e_dispatch_finalization" && (
+            <p className="rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm text-amber-900 dark:text-amber-100">
+              {finalizeGuardMsg}
+            </p>
+          )}
+
+          {state.stage === "4g_stock" && requiresStockOverrideReason(role) && (
+            <div className="space-y-2">
+              <Label htmlFor="override-reason" className="text-sm">
+                Override reason (required for stock deduction)
+              </Label>
+              <Textarea
+                id="override-reason"
+                value={overrideReason}
+                onChange={(e) => setOverrideReason(e.target.value)}
+                placeholder="Explain why a manual stock override is needed"
+                className="min-h-[72px] text-base"
+              />
+            </div>
+          )}
+
+          <div className="fixed bottom-0 left-0 right-0 z-20 border-t border-border bg-background/95 p-4 backdrop-blur lg:static lg:border-0 lg:bg-transparent lg:p-0">
+            <Button
+              type="button"
+              className="h-12 w-full text-base font-semibold"
+              disabled={primaryDisabled}
+              onClick={() => void runPrimaryAction()}
+            >
+              {busy ? (
+                <>
+                  <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                  Working…
+                </>
+              ) : (
+                state.cta
+              )}
             </Button>
             {state.stage === "4e_dispatch_finalization" && state.dispatchAlreadyFinalized && (
-              <Badge variant="secondary">Already finalized</Badge>
+              <p className="mt-2 text-center text-xs text-muted-foreground">
+                Dispatch already finalized — select another step after refresh.
+              </p>
             )}
           </div>
 
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-xs font-medium text-muted-foreground">Auto evidence references</CardTitle>
-            </CardHeader>
-            <CardContent className="font-mono text-[11px] space-y-1">
-              <p>packing: {state.evidenceRefs.packingPhotoRef}</p>
-              <p>document: {state.evidenceRefs.documentPlaceholderRef}</p>
-              <p>gate: {state.evidenceRefs.gateScanRef}</p>
-              <p>transporter: {state.evidenceRefs.transporterRef}</p>
-            </CardContent>
-          </Card>
+          <button
+            type="button"
+            className="flex w-full items-center justify-between text-xs text-muted-foreground"
+            onClick={() => setShowAudit((v) => !v)}
+          >
+            Audit details
+            {showAudit ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+          </button>
+          {showAudit && (
+            <Card>
+              <CardContent className="space-y-1 pt-4 font-mono text-[11px] text-muted-foreground">
+                <p>packing: {state.evidenceRefs.packingPhotoRef}</p>
+                <p>document: {state.evidenceRefs.documentPlaceholderRef}</p>
+                <p>gate: {state.evidenceRefs.gateScanRef}</p>
+                <p>handoff: {state.evidenceRefs.transporterRef}</p>
+                <p>stock reason: {state.evidenceRefs.stockFinalizeReason}</p>
+                <p className="pt-2">
+                  Supervisors:{" "}
+                  <Link to="/admin/dispatch-readiness" className="underline">
+                    advanced boards
+                  </Link>
+                </p>
+              </CardContent>
+            </Card>
+          )}
         </>
       )}
 
-      {message && <p className="text-sm">{message}</p>}
+      {!state && !loadingOrder && selectedId && (
+        <p className="text-sm text-muted-foreground">Could not load the selected order.</p>
+      )}
 
       <p className="text-xs text-muted-foreground">
-        Detailed boards:{" "}
-        <Link to="/admin/dispatch-readiness" className="underline">
-          4B
-        </Link>
-        {" · "}
-        <Link to="/admin/finance-governance" className="underline">
-          4C
-        </Link>
-        {" · "}
-        <Link to="/admin/dispatch-completion" className="underline">
-          4D
-        </Link>
-        {" · "}
-        <Link to="/admin/dispatch-finalization" className="underline">
-          4E
-        </Link>
-        {" · "}
-        <Link to="/admin/reservation-board" className="underline">
-          4F
-        </Link>
-        {" · "}
-        <Link to="/admin/stock-finalization" className="underline">
-          4G
-        </Link>
+        <ShieldCheck className="mr-1 inline h-3 w-3" />
+        Advanced audit boards remain available to supervisors under Operations (dispatch readiness, finance governance, etc.).
       </p>
     </div>
   );

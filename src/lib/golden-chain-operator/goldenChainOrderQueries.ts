@@ -17,13 +17,15 @@ import { scanSliceFromRecords } from "@/lib/execution-read-models/queries/govern
 import type { FinanceReleaseStatus } from "@/lib/finance-governance/financeGovernanceTypes";
 import type { ReservationReadinessStatus } from "@/lib/dispatch-readiness/dispatchReadinessTypes";
 import type { StockReservationRecord } from "@/lib/stock-finalization/stockReservationTypes";
+import { deriveGoldenChainStaffStage } from "@/lib/golden-chain/deriveGoldenChainStage";
 import { buildGoldenChainEvidenceRefs } from "./goldenChainEvidenceRefs";
-import { blockersForStage } from "./goldenChainBlockers";
+import { blockersForStage, whoMustActForStage } from "./goldenChainBlockers";
 import {
   deriveGoldenChainStage,
   governanceStageLabel,
   type GoldenChainDerivationInput,
 } from "./goldenChainStageDerivation";
+import { loadOrderLinesForReservation } from "@/lib/inventory-reservations/reservationBoardQueries";
 import { filterActiveReservationsForStock } from "./goldenChainStockFilters";
 import type { GoldenChainOrderState, GoldenChainOrderSummary } from "./goldenChainTypes";
 
@@ -39,7 +41,7 @@ const PIPELINE_STATUSES = [
 ] as const;
 
 const ORDER_SELECT =
-  "id, order_number, status, sales_order_value, advance_required, advance_paid, payment_status, created_at";
+  "id, order_number, status, sales_order_value, advance_required, advance_paid, payment_status, created_at, company_id, company:companies(business_name)";
 
 function mapReservations(
   rows: {
@@ -207,7 +209,7 @@ export async function loadGoldenChainOrderState(
   const activeReservations = filterActiveReservationsForStock(reservationRows);
   const reservationStatus: ReservationReadinessStatus = activeReservations.some((r) => r.reservedQty > 0)
     ? "reserved"
-    : "not_reserved";
+    : "none";
 
   const readinessFusion = deriveReadinessInputFromSlices({
     orderId,
@@ -346,13 +348,40 @@ export async function loadGoldenChainOrderState(
   };
 
   const derived = deriveGoldenChainStage(derivationInput);
-  const evidenceRefs = buildGoldenChainEvidenceRefs(orderId, order.order_number as string | null);
+  const staff = deriveGoldenChainStaffStage(derivationInput);
+  const gateBarcode = orderScans.find(
+    (s) => s.scan_type === "dispatch_gate" && s.verification_status === "verified",
+  )?.barcode_value;
+  const cartonBarcode = orderScans.find(
+    (s) => s.scan_type === "carton" && s.verification_status === "verified",
+  )?.barcode_value;
+  const evidenceRefs = buildGoldenChainEvidenceRefs(orderId, order.order_number as string | null, {
+    gateBarcode,
+    cartonBarcode,
+  });
+
+  const orderLines = await loadOrderLinesForReservation(client, orderId).then((lines) =>
+    lines.map((l) => ({
+      productId: l.productId,
+      sku: l.sku,
+      productName: l.productName,
+      quantity: l.quantity,
+    })),
+  );
+
+  const companyName =
+    (order as { company?: { business_name?: string } | null }).company?.business_name ?? null;
 
   return {
     orderId,
     orderNumber: (order.order_number as string | null) ?? null,
     orderStatus: order.status as string,
     paymentStatus: (order.payment_status as string | null) ?? null,
+    companyName,
+    orderLines,
+    staffStageLabel: staff.staffStageLabel,
+    requiredRole: staff.requiredRole,
+    whoMustActNext: whoMustActForStage(derived.stage),
     readinessInput: readinessFusion.input,
     financeInput: financeFusion.input,
     completionInput: completionFusion.input,
@@ -363,7 +392,10 @@ export async function loadGoldenChainOrderState(
     consumptionFinalizedReservationIds,
     stage: derived.stage,
     cta: derived.cta,
-    blockers: blockersForStage(derived.stage, derived.rawBlockers),
+    blockers: blockersForStage(
+      derived.stage,
+      [...derived.rawBlockers, ...staff.warnings],
+    ),
     evidenceRefs,
     dispatchAlreadyFinalized: derived.dispatchAlreadyFinalized,
     stockConsumptionComplete: derived.stockConsumptionComplete,

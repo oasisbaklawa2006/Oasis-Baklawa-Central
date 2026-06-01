@@ -37,13 +37,13 @@ export interface GoldenChainDerivationResult {
 }
 
 const STAGE_LABELS: Record<GoldenChainStage, string> = {
-  "4b_readiness": "4B · Readiness",
-  "4c_finance": "4C · Finance release",
-  "4d_completion": "4D · Completion attestation",
-  "4e_dispatch_finalization": "4E · Dispatch finalization",
-  "4f_reservation": "4F · Reservation",
-  "4g_stock": "4G · Stock consumption",
-  complete: "Complete",
+  "4b_readiness": "Dispatch check",
+  "4c_finance": "Finance approval",
+  "4d_completion": "Completion confirmation",
+  "4e_dispatch_finalization": "Dispatch finalize",
+  "4f_reservation": "Reserve stock",
+  "4g_stock": "Deduct stock",
+  complete: "Done",
 };
 
 export function governanceStageLabel(stage: GoldenChainStage): string {

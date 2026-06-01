@@ -42,7 +42,15 @@ export interface GoldenChainEvidenceRefs {
   documentPlaceholderRef: string;
   gateScanRef: string;
   transporterRef: string;
+  stockFinalizeReason: string;
   overrideReason: string;
+}
+
+export interface GoldenChainOrderLine {
+  productId: string;
+  sku: string;
+  productName: string | null;
+  quantity: number;
 }
 
 export interface GoldenChainOrderSummary {
@@ -59,6 +67,11 @@ export interface GoldenChainOrderState {
   orderNumber: string | null;
   orderStatus: string;
   paymentStatus: string | null;
+  companyName: string | null;
+  orderLines: GoldenChainOrderLine[];
+  staffStageLabel: string;
+  requiredRole: "dispatch" | "finance" | "inventory" | "supervisor" | "none";
+  whoMustActNext: string;
   readinessInput: DispatchReadinessInput;
   financeInput: FinanceGovernanceInput;
   completionInput: DispatchCompletionInput;

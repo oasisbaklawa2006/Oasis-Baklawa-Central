@@ -42,12 +42,12 @@ describe("fulfillAfterStockConsumption", () => {
       {
         productId: "prod-1",
         sku: "SKU-A",
-        physicalAvailableQty: 100,
-        blockedQty: 0,
-        damagedQty: 0,
-        expiredQty: 0,
-        quarantineQty: 0,
-        openReservedQty: 0,
+        physicalStock: 100,
+        reservedOpen: 0,
+        blockedInventory: 0,
+        damagedInventory: 0,
+        expiredInventory: 0,
+        quarantineInventory: 0,
       },
     );
 

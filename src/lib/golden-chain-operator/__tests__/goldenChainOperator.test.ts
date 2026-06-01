@@ -128,7 +128,7 @@ describe("golden chain operator", () => {
     const financePending: FinanceGovernanceInput = {
       ...financeReady,
       creditApproved: false,
-      openHoldTypes: ["credit_hold"],
+      openHoldTypes: ["credit_limit_exceeded"],
     };
     expect(deriveGoldenChainStage(baseDerivation({ financeInput: financePending })).stage).toBe("4c_finance");
 
@@ -144,7 +144,7 @@ describe("golden chain operator", () => {
   it("blocks duplicate dispatch finalization when lineage has finalize", () => {
     const lineage = [{ releaseType: "finalize", nextStatus: "dispatched", createdAt: new Date().toISOString() }];
     expect(hasGovernedDispatchFinalizeLineage(lineage)).toBe(true);
-    expect(dispatchFinalizeGuardMessage(lineage)).toMatch(/Already finalized/);
+    expect(dispatchFinalizeGuardMessage(lineage)).toMatch(/Dispatch was already finalized/);
 
     const fusion = deriveFinalizationInputFromSlices({
       orderId,
@@ -232,13 +232,15 @@ describe("golden chain operator", () => {
     );
     expect(result.stage).toBe("complete");
     expect(result.cta).toBe("Already complete");
-    expect(governanceStageLabel("complete")).toBe("Complete");
+    expect(governanceStageLabel("complete")).toBe("Done");
   });
 
   it("auto-generates evidence references from order id", () => {
     const refs = buildGoldenChainEvidenceRefs(orderId, "SO-2026-000142");
-    expect(refs.packingPhotoRef).toContain("SO-2026-000142");
-    expect(refs.gateScanRef).toMatch(/^GATE-SCAN-/);
-    expect(refs.transporterRef).toMatch(/^TRANSPORTER-/);
+    expect(refs.packingPhotoRef).toBe("PACKING-SO-2026-000142");
+    expect(refs.documentPlaceholderRef).toBe("DOC-SLOT-SO-2026-000142");
+    expect(refs.gateScanRef).toBe("GATE-SO-2026-000142");
+    expect(refs.transporterRef).toBe("HANDOFF-SO-2026-000142");
+    expect(refs.stockFinalizeReason).toBe("AUTO-4G-SO-2026-000142");
   });
 });

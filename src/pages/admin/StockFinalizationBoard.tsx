@@ -125,12 +125,23 @@ export default function StockFinalizationBoard() {
     });
   }, [boardState.liveRows, orderSearch]);
 
+  useEffect(() => {
+    if (candidateRows.length === 0) {
+      setSelectedOrderId(null);
+      return;
+    }
+    if (
+      selectedOrderId &&
+      !candidateRows.some((r) => r.input.orderId === selectedOrderId)
+    ) {
+      setSelectedOrderId(null);
+    }
+  }, [candidateRows, selectedOrderId]);
+
   const activeRow = useMemo(() => {
-    if (candidateRows.length > 0) {
-      const picked =
-        (selectedOrderId && candidateRows.find((r) => r.input.orderId === selectedOrderId)) ??
-        candidateRows[0];
-      return picked;
+    if (candidateRows.length > 0 && selectedOrderId) {
+      const picked = candidateRows.find((r) => r.input.orderId === selectedOrderId);
+      if (picked) return picked;
     }
     if (boardState.showPreviewCards) {
       const previewInput = selected === "finalized" ? PREVIEW_STOCK_FINALIZED : PREVIEW_STOCK_PENDING;
@@ -274,9 +285,16 @@ export default function StockFinalizationBoard() {
       setEvents(stockEventsToOperational(evts));
       const lineage = await bundle.service.listLineage(input.orderId);
       setLineageCount(lineage.length);
-      setMessage("Consumption finalized — physical deduction recorded in governed ledger.");
+      setMessage("Stock deducted successfully. Reservation updated.");
+      setSelectedOrderId(null);
+      boardState.reload();
     } catch (e) {
-      setMessage(e instanceof Error ? e.message : "Finalization failed");
+      const msg = e instanceof Error ? e.message : "Finalization failed";
+      setMessage(
+        msg.includes("already")
+          ? "This order cannot be finalized because stock has already been consumed."
+          : msg,
+      );
     } finally {
       setBusy(false);
     }
@@ -335,6 +353,11 @@ export default function StockFinalizationBoard() {
               className="font-mono text-sm"
             />
             <div className="max-h-40 space-y-1 overflow-y-auto rounded border border-border p-1">
+              {candidateRows.length === 0 && (
+                <p className="p-2 text-xs text-muted-foreground">
+                  No orders pending stock deduction (finalized orders are hidden).
+                </p>
+              )}
               {candidateRows.map((row) => (
                 <button
                   key={row.input.orderId}
@@ -369,6 +392,10 @@ export default function StockFinalizationBoard() {
             Pre-finalization (blocked)
           </Button>
         </div>
+      )}
+
+      {candidateRows.length > 0 && !selectedOrderId && (
+        <p className="text-sm text-muted-foreground">Select an order above to deduct stock.</p>
       )}
 
       {input && projection && (

@@ -1,24 +1,38 @@
 import type { GoldenChainBlocker, GoldenChainStage } from "./goldenChainTypes";
 
 const STAGE_ROUTES: Record<GoldenChainStage, string> = {
-  "4b_readiness": "/admin/dispatch-readiness",
-  "4c_finance": "/admin/finance-governance",
-  "4d_completion": "/admin/dispatch-completion",
-  "4e_dispatch_finalization": "/admin/dispatch-finalization",
-  "4f_reservation": "/admin/reservation-board",
-  "4g_stock": "/admin/stock-finalization",
+  "4b_readiness": "/admin/golden-chain-operator",
+  "4c_finance": "/admin/golden-chain-operator",
+  "4d_completion": "/admin/golden-chain-operator",
+  "4e_dispatch_finalization": "/admin/golden-chain-operator",
+  "4f_reservation": "/admin/golden-chain-operator",
+  "4g_stock": "/admin/golden-chain-operator",
   complete: "/admin/golden-chain-operator",
 };
 
 const STAGE_ACTIONS: Record<GoldenChainStage, string> = {
-  "4b_readiness": "Complete readiness evidence and gate review",
-  "4c_finance": "Run commercial finance release",
-  "4d_completion": "Attest dispatch completion",
-  "4e_dispatch_finalization": "Finalize governed dispatch (orders.status → dispatched)",
-  "4f_reservation": "Create governed inventory reservation",
-  "4g_stock": "Finalize stock consumption after dispatch",
-  complete: "No action required — golden chain complete for this order",
+  "4b_readiness": "Complete dispatch check (packing proof and gate scan)",
+  "4c_finance": "Complete finance approval",
+  "4d_completion": "Confirm dispatch completion",
+  "4e_dispatch_finalization": "Finalize dispatch in the system",
+  "4f_reservation": "Reserve stock for this order",
+  "4g_stock": "Deduct stock after dispatch",
+  complete: "No action required — this order is done",
 };
+
+const WHO_MUST_ACT: Record<GoldenChainStage, string> = {
+  "4b_readiness": "Dispatch / packing team",
+  "4c_finance": "Finance team",
+  "4d_completion": "Dispatch supervisor",
+  "4e_dispatch_finalization": "Dispatch manager",
+  "4f_reservation": "Store / inventory team",
+  "4g_stock": "Store / inventory team",
+  complete: "No one — order complete",
+};
+
+export function whoMustActForStage(stage: GoldenChainStage): string {
+  return WHO_MUST_ACT[stage];
+}
 
 export function blockersForStage(stage: GoldenChainStage, rawReasons: string[]): GoldenChainBlocker[] {
   const route = STAGE_ROUTES[stage];
@@ -46,43 +60,65 @@ export function blockersForStage(stage: GoldenChainStage, rawReasons: string[]):
 function humanizeStage(stage: GoldenChainStage): string {
   switch (stage) {
     case "4b_readiness":
-      return "Dispatch readiness (4B) is not gate-eligible yet.";
+      return "Packing proof or gate scan is still missing.";
     case "4c_finance":
-      return "Finance commercial release (4C) is still pending.";
+      return "Finance approval is still pending for this order.";
     case "4d_completion":
-      return "Dispatch completion attestation (4D) is required.";
+      return "Dispatch completion still needs confirmation.";
     case "4e_dispatch_finalization":
-      return "Dispatch finalization (4E) has not been completed.";
+      return "Dispatch has not been finalized in the system yet.";
     case "4f_reservation":
-      return "A governed inventory reservation (4F) is required before stock finalization.";
+      return "Stock must be reserved before it can be deducted.";
     case "4g_stock":
-      return "Physical stock consumption (4G) is still pending.";
+      return "Stock still needs to be deducted for this dispatch.";
     default:
-      return "Governance step pending.";
+      return "This order cannot move forward yet.";
   }
 }
 
 function humanizeTechnicalBlocker(code: string, stage: GoldenChainStage): string {
   const map: Record<string, string> = {
-    finance_signal_blocked: "Finance dispatch signal is blocked — resolve on Finance governance board.",
-    finance_blocked_for_finalization: "Finance must be commercially released before dispatch finalization.",
-    completion_not_attested: "Completion attestation missing — complete on Dispatch completion board.",
-    scan_gate_blocked: "Gate scan rejected or mismatched — resolve scan evidence first.",
-    already_dispatched: "Order is already dispatched.",
-    dispatch_not_finalized: "Dispatch must be finalized before stock consumption.",
-    scan_reference_missing: "Verified packing or gate scan reference is required.",
-    gate_reference_missing: "Gate reference missing from readiness or lineage.",
-    order_status_not_dispatched: "Order status must be dispatched for stock finalization.",
-    no_reservations: "No inventory reservation linked to this order.",
-    no_consumable_reservation_qty: "No consumable reserved quantity on this order.",
-    reservation_reconciliation_variance: "Reservation quantities do not reconcile — fix on Reservation board.",
+    finance_signal_blocked: "Finance has blocked dispatch. Resolve payment or credit holds first.",
+    finance_blocked_for_finalization: "Finance must approve this order before dispatch can be finalized.",
+    completion_not_attested: "Dispatch completion confirmation is missing.",
+    scan_gate_blocked: "Gate scan was rejected. Scan the carton again at Security Gate.",
+    already_dispatched: "This order is already marked dispatched.",
+    dispatch_not_finalized: "Dispatch must be finalized before stock can be deducted.",
+    scan_reference_missing:
+      "Gate scan is missing. Scan carton at Security Gate or ask dispatch supervisor.",
+    gate_reference_missing: "Gate scan is missing. Scan carton at Security Gate or ask dispatch supervisor.",
+    order_status_not_dispatched: "Dispatch must be finalized before stock can be deducted.",
+    no_reservations: "Stock is not reserved yet. Use “Reserve stock” on this screen.",
+    no_active_reservation: "Stock is not reserved yet. Use “Reserve stock” on this screen.",
+    no_consumable_reservation_qty: "No stock quantity is held for this order.",
+    reservation_reconciliation_variance:
+      "Reserved quantities do not match the order. Ask inventory supervisor.",
+    dispatch_finalize_lineage_exists:
+      "Dispatch was already finalized. Continue to reserve or deduct stock if needed.",
+    dispatch_already_finalized: "Dispatch was already finalized. This action was completed.",
+    stock_consumption_pending: "Stock still needs to be deducted for this dispatch.",
+    already_finalized:
+      "This order cannot be finalized because stock has already been consumed.",
   };
+  const normalized = code.toLowerCase().replace(/\s+/g, "_");
   if (map[code]) return map[code];
-  if (code.startsWith("Phase 4")) return code;
+  if (map[normalized]) return map[normalized];
+  if (code.includes("dispatchLineageId")) {
+    return "Dispatch must be finalized before stock can be deducted.";
+  }
+  if (code.includes("scanReference") || code.includes("scan_reference")) {
+    return "Gate scan is missing. Scan carton at Security Gate or ask dispatch supervisor.";
+  }
+  if (code === "no_active_reservation") {
+    return "Reservation already exists or stock is not held — continue with the next step shown above.";
+  }
+  if (code.startsWith("Phase 4")) {
+    return humanizeStage(stage);
+  }
   if (code.startsWith("reservation_")) {
     return stage === "4f_reservation"
-      ? "Reservation prerequisite not met — create or fix reservation."
-      : "Reservation reconciliation issue — review reservation quantities.";
+      ? "Cannot reserve stock yet — check finance and dispatch steps first."
+      : "Reservation issue — ask inventory supervisor.";
   }
   return code.replace(/_/g, " ");
 }

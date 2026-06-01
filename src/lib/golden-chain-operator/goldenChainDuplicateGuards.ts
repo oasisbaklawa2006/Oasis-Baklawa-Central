@@ -9,5 +9,5 @@ export function dispatchFinalizeGuardMessage(lineage: FinalizationLineageSlice[]
   if (!hasGovernedDispatchFinalizeLineage(lineage)) return null;
   const row = lineage.find((l) => l.releaseType === "finalize");
   const when = row?.createdAt ? new Date(row.createdAt).toLocaleString() : "earlier";
-  return `Already finalized (${when}) — dispatch_release_lineage release_type=finalize exists.`;
+  return `Dispatch was already finalized at ${when}. Continue to reserve or deduct stock if those steps are still open.`;
 }

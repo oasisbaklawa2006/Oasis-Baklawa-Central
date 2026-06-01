@@ -318,12 +318,16 @@ export function createReservationRepository(deps: ReservationRepositoryDeps) {
       assertReservationTransition(current.reservationStatus, "fulfilled");
 
       const consumedQty = roundQty(input.consumedQty);
+      const nextFulfilled = roundQty(current.fulfilledQty + consumedQty);
+      const nextReserved = Math.max(roundQty(current.reservedQty - consumedQty), 0);
+      const fullyFulfilled =
+        nextFulfilled >= current.requestedQty && current.requestedQty > 0;
       let updated: InventoryReservationRecord;
       try {
         updated = await store.updateReservationWithVersion(input.reservationId, input.expectedVersion, {
-          reservationStatus: "fulfilled",
-          reservedQty: 0,
-          fulfilledQty: consumedQty,
+          reservationStatus: fullyFulfilled ? "fulfilled" : current.reservationStatus,
+          reservedQty: nextReserved,
+          fulfilledQty: nextFulfilled,
         });
       } catch (e) {
         mapStaleError(e);
