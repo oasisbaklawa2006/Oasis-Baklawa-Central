@@ -213,10 +213,19 @@ describe("golden chain operator", () => {
 
     expect(
       orderHasStockConsumptionFinalized(
-        [{ reservationId: reservation.id, lineageType: "consumption_finalized" }],
-        [reservation],
+        [{ reservationId: fulfilledRow.id, lineageType: "consumption_finalized" }],
+        [fulfilledRow],
       ),
     ).toBe(true);
+
+    expect(
+      shouldShowOrderAsStockFinalizationCandidate({
+        orderStatus: "dispatched",
+        dispatchFinalized: true,
+        lineage: [{ reservationId: fulfilledRow.id, lineageType: "consumption_finalized" }],
+        reservations: [fulfilledRow],
+      }),
+    ).toBe(false);
 
     expect(
       shouldShowOrderAsStockFinalizationCandidate({
@@ -225,7 +234,7 @@ describe("golden chain operator", () => {
         lineage: [{ reservationId: reservation.id, lineageType: "consumption_finalized" }],
         reservations: [reservation],
       }),
-    ).toBe(false);
+    ).toBe(true);
   });
 
   it("advances to stock_finalization after dispatch and reservation", () => {
@@ -258,12 +267,18 @@ describe("golden chain operator", () => {
   });
 
   it("marks complete when stock consumption finalized", () => {
+    const consumedReservation: StockReservationRecord = {
+      ...reservation,
+      fulfilledQty: reservation.requestedQty,
+      reservedQty: 0,
+      reservationStatus: "fulfilled",
+    };
     const result = deriveGoldenChainStage(
       baseDerivation({
         finalizationInput: { ...finalizationReady, currentOrderStatus: "dispatched" },
         completionInput: { ...completionReady, orderAlreadyDispatched: true },
         completionAttested: true,
-        reservations: [reservation],
+        reservations: [consumedReservation],
         consumptionFinalizedReservationIds: [reservation.id],
         dispatchLineage: [{ releaseType: "finalize", nextStatus: "dispatched", createdAt: new Date().toISOString() }],
       }),
