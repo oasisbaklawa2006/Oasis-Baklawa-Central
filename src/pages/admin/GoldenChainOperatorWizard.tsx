@@ -299,6 +299,27 @@ export default function GoldenChainOperatorWizard() {
             actorRole: role ?? "DISPATCH_HEAD",
             finalizeReason: refs.stockFinalizeReason,
           });
+          setState((prev) =>
+            prev
+              ? normalizeGoldenChainStateAfterDispatchFinalize({
+                  ...prev,
+                  orderStatus: "dispatched",
+                  dispatchAlreadyFinalized: true,
+                  dispatchLineage: [
+                    {
+                      releaseType: "finalize",
+                      nextStatus: "dispatched",
+                      createdAt: new Date().toISOString(),
+                    },
+                    ...prev.dispatchLineage,
+                  ],
+                  finalizationInput: {
+                    ...prev.finalizationInput,
+                    currentOrderStatus: "dispatched",
+                  },
+                })
+              : prev,
+          );
           break;
         }
         case "reservation": {

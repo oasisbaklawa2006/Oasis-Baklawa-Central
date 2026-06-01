@@ -123,8 +123,11 @@ async function runWizardChain(page: Page, orderSo: string, metrics: Phase24kOrde
     await expect(cta).toBeEnabled({ timeout: 120_000 });
     await cta.click();
     click(metrics);
-    const waitMs = step.key === "finalize" ? 18_000 : 12_000;
-    await page.waitForTimeout(waitMs);
+    if (step.key === "finalize") {
+      await expect(stickyCta(page)).toHaveText(/Reserve stock/i, { timeout: 45_000 });
+    } else {
+      await page.waitForTimeout(12_000);
+    }
 
     const ctaAfter = ((await stickyCta(page).textContent()) ?? "").trim();
     if (/Already complete/i.test(ctaAfter)) {
