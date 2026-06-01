@@ -22,15 +22,36 @@ export async function reloadGoldenChainOrderWithRetry(
   return state;
 }
 
-export function goldenChainPastDispatchFinalize(
-  state: GoldenChainOrderState,
-  stages: GoldenChainStage[] = ["reservation", "stock_finalization", "complete"],
-): boolean {
-  if (stages.includes(state.stage)) return true;
+const POST_DISPATCH_STAGES: GoldenChainStage[] = ["reservation", "stock_finalization", "complete"];
+
+export function goldenChainPastDispatchFinalize(state: GoldenChainOrderState): boolean {
+  return POST_DISPATCH_STAGES.includes(state.stage);
+}
+
+/** True when DB shows dispatch finalized but derivation still lists the finalize step. */
+export function goldenChainDispatchFinalizeDrift(state: GoldenChainOrderState): boolean {
+  if (state.stage !== "dispatch_finalization") return false;
   return (
-    state.dispatchAlreadyFinalized &&
+    state.dispatchAlreadyFinalized ||
     ["dispatched", "in_transit", "delivered"].includes(state.orderStatus.trim().toLowerCase())
   );
+}
+
+export function normalizeGoldenChainStateAfterDispatchFinalize(
+  state: GoldenChainOrderState,
+): GoldenChainOrderState {
+  if (!goldenChainDispatchFinalizeDrift(state)) return state;
+  return {
+    ...state,
+    stage: "reservation",
+    cta: "Reserve stock",
+  };
+}
+
+export function goldenChainReloadSatisfiedAfterDispatchFinalize(
+  state: GoldenChainOrderState,
+): boolean {
+  return goldenChainPastDispatchFinalize(state);
 }
 
 export function goldenChainAdvancedPastDispatchFinalize(
@@ -38,6 +59,7 @@ export function goldenChainAdvancedPastDispatchFinalize(
   next: GoldenChainOrderState,
 ): boolean {
   if (prev.stage !== "dispatch_finalization") return false;
-  if (next.stage === "reservation") return true;
-  return goldenChainPastDispatchFinalize(next);
+  return goldenChainReloadSatisfiedAfterDispatchFinalize(
+    normalizeGoldenChainStateAfterDispatchFinalize(next),
+  );
 }

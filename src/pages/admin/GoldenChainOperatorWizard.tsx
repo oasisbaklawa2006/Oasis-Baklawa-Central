@@ -25,8 +25,10 @@ import { dispatchFinalizeGuardMessage } from "@/lib/golden-chain-operator/golden
 import {
   goldenChainAdvancedPastDispatchFinalize,
   loadGoldenChainOrderState,
+  normalizeGoldenChainStateAfterDispatchFinalize,
   prepareDispatchEvidenceForOrder,
   reloadGoldenChainOrderWithRetry,
+  goldenChainReloadSatisfiedAfterDispatchFinalize,
   searchGoldenChainOrders,
   type GoldenChainOrderState,
   type GoldenChainOrderSummary,
@@ -408,13 +410,19 @@ export default function GoldenChainOperatorWizard() {
 
       await reloadList();
       const needsFinalizeReload = state.stage === "dispatch_finalization";
-      const next = needsFinalizeReload
+      const reloaded = needsFinalizeReload
         ? await reloadGoldenChainOrderWithRetry(
             supabase,
             state.orderId,
-            (loaded) => goldenChainAdvancedPastDispatchFinalize(state, loaded),
+            (loaded) =>
+              goldenChainReloadSatisfiedAfterDispatchFinalize(
+                normalizeGoldenChainStateAfterDispatchFinalize(loaded),
+              ),
           )
         : await loadGoldenChainOrderState(supabase, state.orderId);
+      const next = needsFinalizeReload
+        ? normalizeGoldenChainStateAfterDispatchFinalize(reloaded)
+        : reloaded;
       setState(next);
 
       const stageAdvanced = next.stage !== state.stage;
