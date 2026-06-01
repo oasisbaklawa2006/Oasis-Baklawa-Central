@@ -17,6 +17,7 @@ import {
   createDispatchFinalizationBundle,
   type DispatchFinalizationBundle,
 } from "@/lib/dispatch-finalization/createDispatchFinalizationBundle";
+import { DispatchFinalizationError } from "@/lib/dispatch-finalization/dispatchFinalizationTypes";
 import { createStockFinalizationBundle, type StockFinalizationBundle } from "@/lib/stock-finalization/createStockFinalizationBundle";
 import { createAndReserveInventoryForOrder } from "@/lib/inventory-reservations/createGovernedReservation";
 import { loadOrderLinesForReservation } from "@/lib/inventory-reservations/reservationBoardQueries";
@@ -201,6 +202,8 @@ export default function GoldenChainOperatorWizard() {
     const refs = state.evidenceRefs;
     const ctxBase = writeCtx(state.stage);
     const prevCta = state.cta;
+    const stageBeforeAction = state.stage;
+    let dispatchFinalizeSucceeded = false;
 
     try {
       switch (state.stage) {
@@ -294,32 +297,20 @@ export default function GoldenChainOperatorWizard() {
             transporterReference:
               state.finalizationInput.transporterReference?.trim() || refs.transporterRef,
           };
-          await finalizationBundle.service.finalizeDispatch(input, {
-            ...ctxBase,
-            actorRole: role ?? "DISPATCH_HEAD",
-            finalizeReason: refs.stockFinalizeReason,
-          });
-          setState((prev) =>
-            prev
-              ? normalizeGoldenChainStateAfterDispatchFinalize({
-                  ...prev,
-                  orderStatus: "dispatched",
-                  dispatchAlreadyFinalized: true,
-                  dispatchLineage: [
-                    {
-                      releaseType: "finalize",
-                      nextStatus: "dispatched",
-                      createdAt: new Date().toISOString(),
-                    },
-                    ...prev.dispatchLineage,
-                  ],
-                  finalizationInput: {
-                    ...prev.finalizationInput,
-                    currentOrderStatus: "dispatched",
-                  },
-                })
-              : prev,
-          );
+          try {
+            await finalizationBundle.service.finalizeDispatch(input, {
+              ...ctxBase,
+              actorRole: role ?? "DISPATCH_HEAD",
+              finalizeReason: refs.stockFinalizeReason,
+            });
+            dispatchFinalizeSucceeded = true;
+          } catch (e) {
+            if (e instanceof DispatchFinalizationError && e.code === "already_finalized") {
+              dispatchFinalizeSucceeded = true;
+            } else {
+              throw e;
+            }
+          }
           break;
         }
         case "reservation": {
@@ -429,10 +420,10 @@ export default function GoldenChainOperatorWizard() {
           break;
       }
 
-      await reloadList();
-      const needsFinalizeReload = state.stage === "dispatch_finalization";
-      const reloaded = needsFinalizeReload
-        ? await reloadGoldenChainOrderWithRetry(
+      if (dispatchFinalizeSucceeded) {
+        let next: GoldenChainOrderState;
+        try {
+          const reloaded = await reloadGoldenChainOrderWithRetry(
             supabase,
             state.orderId,
             (loaded) =>
@@ -440,34 +431,41 @@ export default function GoldenChainOperatorWizard() {
                 normalizeGoldenChainStateAfterDispatchFinalize(loaded),
               ),
             { maxAttempts: 20, delayMs: 500 },
-          )
-        : await loadGoldenChainOrderState(supabase, state.orderId);
-      let next = needsFinalizeReload
-        ? normalizeGoldenChainStateAfterDispatchFinalize(reloaded)
-        : reloaded;
-      if (state.stage === "dispatch_finalization" && next.stage === "dispatch_finalization") {
-        next = normalizeGoldenChainStateAfterDispatchFinalize({
-          ...next,
-          orderStatus: "dispatched",
-          dispatchAlreadyFinalized: true,
-        });
+          );
+          next = normalizeGoldenChainStateAfterDispatchFinalize(reloaded);
+        } catch {
+          next = normalizeGoldenChainStateAfterDispatchFinalize({
+            ...state,
+            orderStatus: "dispatched",
+            dispatchAlreadyFinalized: true,
+          });
+        }
+        if (next.stage === "dispatch_finalization") {
+          next = normalizeGoldenChainStateAfterDispatchFinalize({
+            ...next,
+            orderStatus: "dispatched",
+            dispatchAlreadyFinalized: true,
+          });
+        }
+        setState(next);
+        await reloadList();
+        toast.success("Dispatch finalized. Continue to reserve stock.");
+        return;
       }
+
+      await reloadList();
+      const next = await loadGoldenChainOrderState(supabase, state.orderId);
       setState(next);
 
-      const stageAdvanced = next.stage !== state.stage;
+      const stageAdvanced = next.stage !== stageBeforeAction;
       const ctaAdvanced = next.cta !== prevCta;
-      const finalizeAdvanced = goldenChainAdvancedPastDispatchFinalize(state, next);
       const stockFinalized =
-        state.stage === "stock_finalization" &&
+        stageBeforeAction === "stock_finalization" &&
         (next.stage === "complete" || next.stockConsumptionComplete);
-      if (finalizeAdvanced) {
-        toast.success("Dispatch finalized. Continue to reserve stock.");
-      } else if (stageAdvanced || ctaAdvanced || stockFinalized) {
+      if (stageAdvanced || ctaAdvanced || stockFinalized) {
         toast.success(`${prevCta} completed. Next: ${next.cta}`);
-      } else if (state.stage === "prepare_dispatch_evidence") {
+      } else if (stageBeforeAction === "prepare_dispatch_evidence") {
         toast.warning("Evidence recorded but prerequisites still missing — check blockers below.");
-      } else if (state.stage === "dispatch_finalization" && next.dispatchAlreadyFinalized) {
-        toast.success("Dispatch finalized. Continue to reserve stock.");
       } else {
         toast.error("Step did not advance — resolve blockers and try again.");
       }

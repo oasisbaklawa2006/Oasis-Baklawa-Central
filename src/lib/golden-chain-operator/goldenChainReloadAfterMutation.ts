@@ -51,7 +51,7 @@ export function normalizeGoldenChainStateAfterDispatchFinalize(
 export function goldenChainReloadSatisfiedAfterDispatchFinalize(
   state: GoldenChainOrderState,
 ): boolean {
-  return goldenChainPastDispatchFinalize(state);
+  return goldenChainPastDispatchFinalize(normalizeGoldenChainStateAfterDispatchFinalize(state));
 }
 
 export function goldenChainAdvancedPastDispatchFinalize(

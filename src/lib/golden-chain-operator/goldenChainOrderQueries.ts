@@ -34,6 +34,7 @@ import {
   governanceStageLabel,
   type GoldenChainDerivationInput,
 } from "./goldenChainStageDerivation";
+import { normalizeGoldenChainStateAfterDispatchFinalize } from "./goldenChainReloadAfterMutation";
 import { loadOrderLinesForReservation } from "@/lib/inventory-reservations/reservationBoardQueries";
 import { filterActiveReservationsForStock } from "./goldenChainStockFilters";
 import type { GoldenChainOrderState, GoldenChainOrderSummary } from "./goldenChainTypes";
@@ -441,7 +442,7 @@ export async function loadGoldenChainOrderState(
   const companyName =
     (order as { company?: { business_name?: string } | null }).company?.business_name ?? null;
 
-  return {
+  const loaded: GoldenChainOrderState = {
     orderId,
     orderNumber: (order.order_number as string | null) ?? null,
     orderStatus: order.status as string,
@@ -472,4 +473,6 @@ export async function loadGoldenChainOrderState(
     dispatchAlreadyFinalized: derived.dispatchAlreadyFinalized,
     stockConsumptionComplete: derived.stockConsumptionComplete,
   };
+
+  return normalizeGoldenChainStateAfterDispatchFinalize(loaded);
 }
