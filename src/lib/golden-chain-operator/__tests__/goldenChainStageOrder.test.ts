@@ -262,6 +262,33 @@ describe("golden chain stage order (24D)", () => {
       productId: "prod-1",
       sku: "SKU-1",
       requestedQty: 10,
+      reservedQty: 0,
+      fulfilledQty: 10,
+      releasedQty: 0,
+      reservationStatus: "fulfilled",
+    };
+    const result = deriveGoldenChainStage(
+      base({
+        finalizationInput: { ...finalizationReady, currentOrderStatus: "dispatched" },
+        completionInput: { ...completionReady, orderAlreadyDispatched: true },
+        completionAttested: true,
+        reservations: [reservation],
+        consumptionFinalizedReservationIds: [reservation.id],
+        dispatchLineage: [{ releaseType: "finalize", nextStatus: "dispatched", createdAt: new Date().toISOString() }],
+        financeCommerciallyReleased: true,
+      }),
+    );
+    expect(result.stage).toBe("complete");
+  });
+
+  it("stock_finalization when consumption lineage exists but reservation row drifted", () => {
+    const reservation: StockReservationRecord = {
+      id: "res-1",
+      reservationNumber: "RES-1",
+      orderId,
+      productId: "prod-1",
+      sku: "SKU-1",
+      requestedQty: 10,
       reservedQty: 10,
       fulfilledQty: 0,
       releasedQty: 0,
@@ -271,12 +298,25 @@ describe("golden chain stage order (24D)", () => {
       base({
         finalizationInput: { ...finalizationReady, currentOrderStatus: "dispatched" },
         completionInput: { ...completionReady, orderAlreadyDispatched: true },
+        completionAttested: true,
         reservations: [reservation],
         consumptionFinalizedReservationIds: [reservation.id],
         dispatchLineage: [{ releaseType: "finalize", nextStatus: "dispatched", createdAt: new Date().toISOString() }],
         financeCommerciallyReleased: true,
+        stockInput: {
+          orderId,
+          orderStatus: "dispatched",
+          dispatchReleaseStatus: "dispatch_finalized",
+          reservations: [reservation],
+          scanReference: "SCAN-1",
+          gateReference: "GATE-1",
+          dispatchLineageId: "lineage-1",
+          locationCode: "WH-MAIN",
+          alreadyFinalizedReservationIds: [reservation.id],
+        },
       }),
     );
-    expect(result.stage).toBe("complete");
+    expect(result.stage).toBe("stock_finalization");
+    expect(result.cta).toBe("Finalize stock");
   });
 });

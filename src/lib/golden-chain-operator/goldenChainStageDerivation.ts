@@ -188,6 +188,10 @@ export function deriveGoldenChainStage(input: GoldenChainDerivationInput): Golde
     );
   }
 
+  if (stockConsumptionComplete) {
+    return stageResult("complete", "Already complete", [], dispatchAlreadyFinalized, true);
+  }
+
   if (!hasActiveGovernedReservation(input.reservations)) {
     rawBlockers.push("no_active_reservation");
     return stageResult(

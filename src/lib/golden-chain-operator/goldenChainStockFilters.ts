@@ -36,16 +36,25 @@ export function orderHasStockConsumptionFinalized(
   lineage: StockLineageConsumptionSlice[],
   reservations: StockReservationRecord[],
 ): boolean {
+  const consumptionRows = lineage.filter((l) => l.lineageType === "consumption_finalized");
+  if (consumptionRows.length === 0) return false;
+
+  const consumptionReservationIds = new Set(consumptionRows.map((l) => l.reservationId));
+  const governedReservations = reservations.filter(
+    (r) => r.requestedQty > 0 && consumptionReservationIds.has(r.id),
+  );
+  if (governedReservations.length === 0) return false;
+
+  const reservationsAligned = governedReservations.every((r) =>
+    isReservationFullyFulfilledOnRow(r),
+  );
+  if (!reservationsAligned) return false;
+
   const active = filterActiveReservationsForStock(reservations);
   if (active.length === 0) {
-    const hadReservations = reservations.some((r) => r.requestedQty > 0);
-    const anyConsumption = lineage.some((l) => l.lineageType === "consumption_finalized");
-    return hadReservations && anyConsumption;
+    return true;
   }
-  const finalizedIds = new Set(
-    lineage.filter((l) => l.lineageType === "consumption_finalized").map((l) => l.reservationId),
-  );
-  return active.every((r) => finalizedIds.has(r.id));
+  return active.every((r) => consumptionReservationIds.has(r.id));
 }
 
 export function shouldShowOrderAsStockFinalizationCandidate(params: {
