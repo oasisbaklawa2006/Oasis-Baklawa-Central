@@ -224,7 +224,11 @@ export default function GoldenChainOperatorWizard() {
             },
             ctxBase,
           );
-          await readinessBundle.service.reviewReadiness(state.readinessInput, ctxBase);
+          const readinessState = await loadGoldenChainOrderState(supabase, state.orderId);
+          if (!readinessState) {
+            throw new Error("Order state could not be refreshed after dispatch check evidence.");
+          }
+          await readinessBundle.service.reviewReadiness(readinessState.readinessInput, ctxBase);
           break;
         }
         case "4c_finance": {

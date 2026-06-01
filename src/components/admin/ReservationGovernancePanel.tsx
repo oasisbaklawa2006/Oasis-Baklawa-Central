@@ -251,6 +251,33 @@ export function ReservationGovernancePanel() {
     }
   };
 
+  const handleSeedGateScan = async () => {
+    if (!selectedOrderId) return;
+    setBusy("gate-scan");
+    setMessage(null);
+    try {
+      await recordVerifiedScanForStockFinalization(
+        supabase,
+        { orderId: selectedOrderId, barcodeValue: scanBarcode, scanType: "dispatch_gate" },
+        writeCtx(),
+      );
+      setMessage("Verified gate scan recorded for dispatch readiness / 4G.");
+      if (selectedLine) {
+        const refreshed = await loadReservationBoardOrderContext(
+          supabase,
+          selectedOrderId,
+          selectedLine,
+          locationCode,
+        );
+        setContext(refreshed);
+      }
+    } catch (e) {
+      setMessage(e instanceof Error ? e.message : "Gate scan record failed");
+    } finally {
+      setBusy(null);
+    }
+  };
+
   const handleSeedScan = async () => {
     if (!selectedOrderId) return;
     setBusy("scan");
@@ -258,7 +285,7 @@ export function ReservationGovernancePanel() {
     try {
       await recordVerifiedScanForStockFinalization(
         supabase,
-        { orderId: selectedOrderId, barcodeValue: scanBarcode },
+        { orderId: selectedOrderId, barcodeValue: scanBarcode, scanType: "carton" },
         writeCtx(),
       );
       setMessage("Verified carton scan recorded for 4G scanReference.");
@@ -535,14 +562,24 @@ export function ReservationGovernancePanel() {
                 value={scanBarcode}
                 onChange={(e) => setScanBarcode(e.target.value)}
               />
-              <Button
-                variant="secondary"
-                size="sm"
-                disabled={!canWrite || !selectedOrderId || !scanBarcode.trim() || busy !== null}
-                onClick={() => void handleSeedScan()}
-              >
-                {busy === "scan" ? <Loader2 className="h-3 w-3 animate-spin" /> : "Record verified scan"}
-              </Button>
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  disabled={!canWrite || !selectedOrderId || !scanBarcode.trim() || busy !== null}
+                  onClick={() => void handleSeedScan()}
+                >
+                  {busy === "scan" ? <Loader2 className="h-3 w-3 animate-spin" /> : "Record carton scan"}
+                </Button>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  disabled={!canWrite || !selectedOrderId || !scanBarcode.trim() || busy !== null}
+                  onClick={() => void handleSeedGateScan()}
+                >
+                  {busy === "gate-scan" ? <Loader2 className="h-3 w-3 animate-spin" /> : "Record gate scan"}
+                </Button>
+              </div>
             </div>
             <div className="space-y-2">
               <Label className="text-xs flex items-center gap-1">
