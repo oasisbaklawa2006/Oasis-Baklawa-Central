@@ -43,4 +43,4 @@ describe("dispatchReleaseEligibility", () => {
       }),
     ).toBe("dispatch_release_ready");
   });
-})();
+});
