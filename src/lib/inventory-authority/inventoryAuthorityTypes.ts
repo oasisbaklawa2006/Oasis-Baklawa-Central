@@ -8,11 +8,15 @@ export type InventoryReservationAction =
   | "reservation:cancel"
   | "reservation:override";
 
+/** `golden_chain_operator` — governed wizard path after dispatch finalize (24D/24I). */
+export type InventoryReservationWriteChannel = "reservation_board" | "golden_chain_operator";
+
 export interface InventoryAuthorityContext {
   actorRole: string;
   actorUserId: string;
   actorDepartment?: string | null;
   overrideReason?: string | null;
+  writeChannel?: InventoryReservationWriteChannel;
 }
 
 export interface InventoryAuthorityDecision {

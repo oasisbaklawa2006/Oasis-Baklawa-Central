@@ -73,6 +73,7 @@ export function createReservationRepository(deps: ReservationRepositoryDeps) {
         actorRole: ctx.actorRole,
         actorUserId: ctx.actorUserId,
         actorDepartment: ctx.actorDepartment,
+        writeChannel: ctx.writeChannel,
       });
       if (!auth.allowed) throw new RE("authority_denied", auth.reason);
 
@@ -151,6 +152,8 @@ export function createReservationRepository(deps: ReservationRepositoryDeps) {
       const auth = assertInventoryReservationAuthority(action, {
         actorRole: ctx.actorRole,
         actorUserId: ctx.actorUserId,
+        actorDepartment: ctx.actorDepartment,
+        writeChannel: ctx.writeChannel,
       });
       if (!auth.allowed) throw new RE("authority_denied", auth.reason);
 

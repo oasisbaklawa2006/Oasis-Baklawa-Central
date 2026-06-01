@@ -22,7 +22,11 @@ export function assertInventoryReservationAuthority(
   if (action === "reservation:override" && !ctx.overrideReason?.trim()) {
     return { allowed: false, reason: "Override requires typed reason" };
   }
-  const allowed = roleCanPerformReservationAction(ctx.actorRole, action as InventoryReservationAction);
+  const allowed = roleCanPerformReservationAction(
+    ctx.actorRole,
+    action as InventoryReservationAction,
+    ctx.writeChannel ?? "reservation_board",
+  );
   return allowed
     ? { allowed: true, reason: "ok" }
     : { allowed: false, reason: `Role ${ctx.actorRole} denied for ${action}` };

@@ -2,6 +2,7 @@
  * Phase 4G — Governed physical stock finalization after dispatch_finalized.
  */
 
+import type { InventoryReservationWriteChannel } from "@/lib/inventory-authority/inventoryAuthorityTypes";
 import type { StockReservationRecord } from "./stockReservationTypes";
 import type { DispatchReleaseStatus } from "@/lib/dispatch-finalization/dispatchFinalizationTypes";
 
@@ -112,6 +113,8 @@ export interface StockFinalizationWriteContext {
   reversalReason?: string | null;
   overrideReason?: string | null;
   varianceReason?: string | null;
+  /** Passed through to reservation fulfill after consumption (Golden Chain wizard). */
+  reservationWriteChannel?: InventoryReservationWriteChannel;
 }
 
 export interface FinalizeConsumptionLineItem {

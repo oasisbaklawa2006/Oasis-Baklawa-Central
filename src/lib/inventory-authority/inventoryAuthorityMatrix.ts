@@ -1,7 +1,17 @@
-import type { InventoryReservationAction } from "./inventoryAuthorityTypes";
+import type {
+  InventoryReservationAction,
+  InventoryReservationWriteChannel,
+} from "./inventoryAuthorityTypes";
 
 const FINANCE_ROLES = new Set(["FINANCE_HEAD", "FINANCE_EXEC"]);
 const DISPATCH_ROLES = new Set(["DISPATCH_MANAGER", "DISPATCH_INCHARGE", "DISPATCH_HEAD"]);
+
+/** Dispatch roles allowed to reserve via Golden Chain wizard only (not reservation board). */
+const GOLDEN_CHAIN_DISPATCH_RESERVE = new Set([
+  "DISPATCH_HEAD",
+  "DISPATCH_MANAGER",
+  "DISPATCH_INCHARGE",
+]);
 
 const INVENTORY_FULL = new Set([
   "INVENTORY_MANAGER",
@@ -43,13 +53,32 @@ export function isForbiddenReservationSideEffect(action: string): boolean {
   return forbidden.some((f) => action.includes(f));
 }
 
-export function roleCanPerformReservationAction(
+function goldenChainDispatchCanReserve(
   role: string,
   action: InventoryReservationAction,
 ): boolean {
   const r = role.trim().toUpperCase();
+  if (!GOLDEN_CHAIN_DISPATCH_RESERVE.has(r)) return false;
+  return (
+    action === "reservation:create" ||
+    action === "reservation:reserve" ||
+    action === "reservation:partial_reserve" ||
+    action === "reservation:cancel" ||
+    action === "reservation:fulfill"
+  );
+}
+
+export function roleCanPerformReservationAction(
+  role: string,
+  action: InventoryReservationAction,
+  writeChannel: InventoryReservationWriteChannel = "reservation_board",
+): boolean {
+  const r = role.trim().toUpperCase();
   if (r === "SUPER_ADMIN") return true;
   if (FINANCE_ROLES.has(r)) return false;
+  if (writeChannel === "golden_chain_operator" && goldenChainDispatchCanReserve(r, action)) {
+    return true;
+  }
   if (action === "reservation:override") return r === "SUPER_ADMIN";
   if (action === "reservation:fulfill") return DISPATCH_ROLES.has(r) ? false : INVENTORY_FULL.has(r) || OPS_RESERVE_RELEASE.has(r);
   if (action === "reservation:expire") return INVENTORY_FULL.has(r) || r === "OPERATIONS_MANAGER";
@@ -64,4 +93,12 @@ export function roleCanPerformReservationAction(
     return OPS_RESERVE_RELEASE.has(r);
   }
   return false;
+}
+
+export function canReserveStockInGoldenChainWizard(actorRole: string | null | undefined): boolean {
+  if (!actorRole?.trim()) return false;
+  return (
+    roleCanPerformReservationAction(actorRole, "reservation:create", "golden_chain_operator") &&
+    roleCanPerformReservationAction(actorRole, "reservation:reserve", "golden_chain_operator")
+  );
 }

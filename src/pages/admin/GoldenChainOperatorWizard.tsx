@@ -33,6 +33,13 @@ import { GOLDEN_CHAIN_STAGES } from "@/lib/golden-chain-operator/goldenChainType
 import { formatSalesOrderLabel } from "@/utils/orderSoLabel";
 import { cn } from "@/lib/utils";
 import { requiresStockOverrideReason } from "@/lib/stock-authority/stockAuthorityGuard";
+import { ReservationError } from "@/lib/inventory-reservations/reservationTypes";
+import {
+  GOLDEN_CHAIN_RESERVATION_DENIED_MESSAGE,
+  goldenChainReservationWriteContext,
+  goldenChainUserCanReserveStock,
+  orderHasActiveReservedStock,
+} from "@/lib/golden-chain-operator/goldenChainReservationAccess";
 
 const PROGRESS_STEPS = [
   { key: "prepare_dispatch_evidence", label: "Prepare evidence" },
@@ -160,6 +167,7 @@ export default function GoldenChainOperatorWizard() {
     if (state.stage === "completion_attestation" && !completionBundle?.canExecuteWrites) return true;
     if (state.stage === "dispatch_finalization" && !finalizationBundle?.canExecuteWrites) return true;
     if (state.stage === "stock_finalization" && !stockBundle?.canExecuteWrites) return true;
+    if (state.stage === "reservation" && !goldenChainUserCanReserveStock(role)) return true;
     if (
       state.stage === "stock_finalization" &&
       requiresStockOverrideReason(role) &&
@@ -288,6 +296,13 @@ export default function GoldenChainOperatorWizard() {
           break;
         }
         case "reservation": {
+          if (!goldenChainUserCanReserveStock(role)) {
+            throw new Error(GOLDEN_CHAIN_RESERVATION_DENIED_MESSAGE);
+          }
+          if (orderHasActiveReservedStock(state.reservations)) {
+            toast.info("Stock already reserved for this order.");
+            break;
+          }
           const lines =
             state.orderLines.length > 0
               ? state.orderLines
@@ -305,12 +320,12 @@ export default function GoldenChainOperatorWizard() {
                 locationCode: "WH-MAIN",
                 sourceDepartment: "golden_chain_operator",
               },
-              {
+              goldenChainReservationWriteContext({
                 correlationId: `${ctxBase.correlationId}-${item.sku}`,
                 actorUserId: ctxBase.actorUserId,
                 actorRole: ctxBase.actorRole,
                 actorDepartment: "golden_chain_operator",
-              },
+              }),
             );
           }
           break;
@@ -375,6 +390,7 @@ export default function GoldenChainOperatorWizard() {
               actorRole: ctxBase.actorRole,
               finalizeReason: refs.stockFinalizeReason,
               overrideReason: role === "SUPER_ADMIN" ? overrideReason.trim() : null,
+              reservationWriteChannel: "golden_chain_operator",
             },
           );
           break;
@@ -386,15 +402,26 @@ export default function GoldenChainOperatorWizard() {
       await reloadOrder(state.orderId);
       await reloadList();
       const next = await loadGoldenChainOrderState(supabase, state.orderId);
-      if (next.stage !== state.stage || next.cta !== prevCta) {
+      const stageAdvanced = next.stage !== state.stage;
+      const ctaAdvanced = next.cta !== prevCta;
+      const finalizeToReservation =
+        state.stage === "dispatch_finalization" && next.stage === "reservation";
+      if (stageAdvanced || ctaAdvanced || finalizeToReservation) {
         toast.success(`${prevCta} completed. Next: ${next.cta}`);
       } else if (state.stage === "prepare_dispatch_evidence") {
         toast.warning("Evidence recorded but prerequisites still missing — check blockers below.");
+      } else if (state.stage === "dispatch_finalization" && next.dispatchAlreadyFinalized) {
+        toast.success("Dispatch was already finalized. Continue with Reserve stock.");
       } else {
         toast.error("Step did not advance — resolve blockers and try again.");
       }
     } catch (e) {
-      const msg = e instanceof Error ? e.message : "Action failed";
+      const msg =
+        e instanceof ReservationError && e.code === "authority_denied"
+          ? GOLDEN_CHAIN_RESERVATION_DENIED_MESSAGE
+          : e instanceof Error
+            ? e.message
+            : "Action failed";
       toast.error(msg);
     } finally {
       setBusy(false);
@@ -548,6 +575,12 @@ export default function GoldenChainOperatorWizard() {
           {finalizeGuardMsg && state.stage === "dispatch_finalization" && (
             <p className="rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm text-amber-900 dark:text-amber-100">
               {finalizeGuardMsg}
+            </p>
+          )}
+
+          {state.stage === "reservation" && !goldenChainUserCanReserveStock(role) && (
+            <p className="rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm text-amber-900 dark:text-amber-100">
+              {GOLDEN_CHAIN_RESERVATION_DENIED_MESSAGE}
             </p>
           )}
 

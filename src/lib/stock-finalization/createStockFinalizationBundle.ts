@@ -117,6 +117,7 @@ export async function createStockFinalizationBundle(
                   actorUserId: ctx.actorUserId,
                   actorRole: ctx.actorRole,
                   actorDepartment: "stock_finalization",
+                  writeChannel: ctx.reservationWriteChannel ?? "reservation_board",
                 },
               );
             },

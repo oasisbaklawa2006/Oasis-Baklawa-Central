@@ -1,5 +1,7 @@
 /** Phase 4A — governed inventory reservation domain types. */
 
+import type { InventoryReservationWriteChannel } from "@/lib/inventory-authority/inventoryAuthorityTypes";
+
 export const RESERVATION_STATUSES = [
   "pending",
   "reserved",
@@ -99,6 +101,7 @@ export interface ReservationWriteContext {
   actorRole: string;
   actorDepartment?: string | null;
   idempotencyKey?: string | null;
+  writeChannel?: InventoryReservationWriteChannel;
 }
 
 export interface CreateReservationInput {
