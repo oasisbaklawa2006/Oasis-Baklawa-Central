@@ -1,0 +1,132 @@
+From d13b860b7fc8bc09863574feb02551f79771ce37 Mon Sep 17 00:00:00 2001
+From: Claude Technical Owner <technical-owner@oasis-baklawa.dev>
+Date: Mon, 1 Jun 2026 16:04:58 +0000
+Subject: [PATCH] chore(security): harden environment hygiene
+
+- Remove .env from Git tracking (file preserved locally)
+- Add .env* patterns to .gitignore
+- Update .env.example with proper placeholders and comments
+- Add docs/ENVIRONMENT_SETUP.md with setup instructions, Supabase refs, and security rules
+
+Only tracked key was VITE_SUPABASE_PUBLISHABLE_KEY (anon key).
+No service_role key was ever committed. No rotation required.
+---
+ .env                      |  3 ---
+ .env.example              | 15 +++++++++--
+ .gitignore                |  8 ++++++
+ docs/ENVIRONMENT_SETUP.md | 54 +++++++++++++++++++++++++++++++++++++++
+ 4 files changed, 75 insertions(+), 5 deletions(-)
+ delete mode 100644 .env
+ create mode 100644 docs/ENVIRONMENT_SETUP.md
+
+diff --git a/.env b/.env
+deleted file mode 100644
+index dc90173..0000000
+--- a/.env
++++ /dev/null
+@@ -1,3 +0,0 @@
+-VITE_SUPABASE_PROJECT_ID="wgajrxyoararisiwjzox"
+-VITE_SUPABASE_PUBLISHABLE_KEY="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndnYWpyeHlvYXJhcmlzaXdqem94Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzgwMjMxODMsImV4cCI6MjA5MzU5OTE4M30.Lmjv1kXgpLKOleW3zOglCbA8PgtoEMInb9aN8Dfv2FQ"
+-VITE_SUPABASE_URL="https://wgajrxyoararisiwjzox.supabase.co"
+diff --git a/.env.example b/.env.example
+index 2311475..f83e1b6 100644
+--- a/.env.example
++++ b/.env.example
+@@ -1,2 +1,13 @@
+-VITE_SUPABASE_URL=
+-VITE_SUPABASE_PUBLISHABLE_KEY=
++# Oasis AI Studio — Environment Variables
++# Copy this file to .env and fill in values from Supabase Dashboard > Settings > API
++# NEVER commit .env to Git
++
++# Supabase Project URL (from Settings > API > Project URL)
++VITE_SUPABASE_URL=https://YOUR_PROJECT_REF.supabase.co
++
++# Supabase Anon/Publishable Key (from Settings > API > anon public)
++# This is safe for frontend — it is NOT the service_role key
++VITE_SUPABASE_PUBLISHABLE_KEY=eyJ...your_anon_key_here
++
++# Optional: Project ref for reference only
++# VITE_SUPABASE_PROJECT_ID=your_project_ref
+diff --git a/.gitignore b/.gitignore
+index a547bf3..6a715ae 100644
+--- a/.gitignore
++++ b/.gitignore
+@@ -12,6 +12,14 @@ dist
+ dist-ssr
+ *.local
+ 
++# Environment variables - never commit
++.env
++.env.local
++.env.*.local
++.env.production
++.env.development
++.env.staging
++
+ # Editor directories and files
+ .vscode/*
+ !.vscode/extensions.json
+diff --git a/docs/ENVIRONMENT_SETUP.md b/docs/ENVIRONMENT_SETUP.md
+new file mode 100644
+index 0000000..155522d
+--- /dev/null
++++ b/docs/ENVIRONMENT_SETUP.md
+@@ -0,0 +1,54 @@
++# Environment Setup
++
++## Quick Start
++
++```bash
++cp .env.example .env
++# Fill in values from Supabase Dashboard > Settings > API
++```
++
++## Required Variables
++
++| Variable | Source | Notes |
++|----------|--------|-------|
++| `VITE_SUPABASE_URL` | Supabase > Settings > API > Project URL | e.g. `https://xxxxx.supabase.co` |
++| `VITE_SUPABASE_PUBLISHABLE_KEY` | Supabase > Settings > API > anon public | Safe for frontend |
++
++## Which Supabase Project
++
++This app connects to the **Oasis Central** Supabase project.
++
++- Staging ref: `aruyieslaxjhnamlstpx`
++- Production ref: `tcxvcatsqqertcnycuop`
++
++Use staging URL for local development. Use production URL in Vercel production environment.
++
++Do NOT create a separate Supabase project. Do NOT use a Lovable Cloud database.
++
++## Vercel Setup
++
++In Vercel Dashboard > Project > Settings > Environment Variables, set:
++- `VITE_SUPABASE_URL` — for Production, Preview, Development
++- `VITE_SUPABASE_PUBLISHABLE_KEY` — for Production, Preview, Development
++
++## Security Rules
++
++- **Never** commit `.env` to Git
++- **Never** use `service_role` key in frontend code
++- **Never** share key values in chat, issues, or PRs
++- Only the `anon` / `publishable` key belongs in `VITE_*` variables
++- `service_role` key is for server-side Edge Functions only
++
++## Key Rotation
++
++If a key is exposed:
++1. Supabase Dashboard > Settings > API > Regenerate
++2. Update local `.env`
++3. Update Vercel environment variables
++4. Redeploy production
++
++## Troubleshooting
++
++- **Build fails with missing env var:** Create `.env` from `.env.example`
++- **"Invalid Supabase URL":** Must be `https://xxx.supabase.co` format
++- **Auth not working:** Verify you are using `anon` key, not `service_role`
+-- 
+2.43.0
+
