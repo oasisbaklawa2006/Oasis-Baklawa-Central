@@ -15,6 +15,7 @@ import type {
   ReadinessScanSlice,
 } from "@/lib/execution-read-models/adapters/readinessSignalAdapter";
 import { hasGovernedDispatchFinalizeLineage } from "./goldenChainDuplicateGuards";
+import { hasVerifiedManualReadinessReview } from "./goldenChainCompletionInput";
 import {
   isDispatchEvidencePrepared,
   missingDispatchEvidenceLabels,
@@ -43,6 +44,7 @@ export interface GoldenChainDerivationInput {
   scanSlice: ReadinessScanSlice;
   dispatchEvidencePrepared: boolean;
   financeCommerciallyReleased: boolean;
+  completionAttested: boolean;
 }
 
 export interface GoldenChainDerivationResult {
@@ -125,8 +127,12 @@ export function deriveGoldenChainStage(input: GoldenChainDerivationInput): Golde
   }
 
   const readiness = projectDispatchReadiness(readinessInputForReview(input.readinessInput));
-  if (readiness.readinessStatus !== "gate_eligible") {
+  const manualReadinessReviewed = hasVerifiedManualReadinessReview(input.readinessEvidenceSlices);
+  if (readiness.readinessStatus !== "gate_eligible" || !manualReadinessReviewed) {
     rawBlockers.push(...readiness.blockingReasons, ...readiness.missingRequirements);
+    if (readiness.readinessStatus === "gate_eligible" && !manualReadinessReviewed) {
+      rawBlockers.push("Operator readiness review not recorded (manual_readiness_review)");
+    }
     return stageResult(
       "readiness_review",
       "Complete readiness review",
@@ -142,14 +148,18 @@ export function deriveGoldenChainStage(input: GoldenChainDerivationInput): Golde
     ) || dispatchAlreadyFinalized;
 
   const completionSatisfied =
+    input.completionAttested ||
     completion.completionStatus === "completion_attested" ||
     (orderDispatchedEarly && completion.completionStatus === "already_dispatched");
 
   if (!completionSatisfied) {
     rawBlockers.push(...completion.blockingReasons);
+    const cta: GoldenChainCtaLabel = input.completionAttested
+      ? "Completion already attested"
+      : "Attest completion";
     return stageResult(
       "completion_attestation",
-      "Attest completion",
+      cta,
       rawBlockers,
       dispatchAlreadyFinalized,
       stockConsumptionComplete,

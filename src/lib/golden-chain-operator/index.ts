@@ -7,3 +7,4 @@ export * from "./goldenChainStockFilters";
 export * from "./goldenChainOrderQueries";
 export * from "./goldenChainPrerequisites";
 export * from "./goldenChainPrepareDispatchEvidence";
+export * from "./goldenChainCompletionInput";

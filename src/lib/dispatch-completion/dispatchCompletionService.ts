@@ -116,6 +116,15 @@ export function createDispatchCompletionService(deps: DispatchCompletionServiceD
       evidence: DispatchCompletionEvidenceRecord;
     }> {
       guard("dispatch:attest_completion", ctx);
+      const prior = await evidence.listByOrder(input.orderId);
+      if (
+        prior.some(
+          (row) =>
+            row.evidenceType === "completion_attestation" && row.evidenceStatus === "verified",
+        )
+      ) {
+        throw new DispatchCompletionError("not_eligible", "Completion already attested");
+      }
       const projection = projectDispatchCompletion(input);
       assertEligibleForAttestation(projection);
       const reason = requireAttestationReason(ctx.attestationReason);

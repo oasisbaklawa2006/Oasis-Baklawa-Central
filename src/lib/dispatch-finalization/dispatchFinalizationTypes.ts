@@ -44,6 +44,11 @@ export type GovernedDispatchSourceStatus = (typeof GOVERNED_DISPATCH_SOURCE_STAT
 
 export const DISPATCH_FINALIZE_TARGET_STATUS = "dispatched" as const;
 
+/**
+ * `pre_dispatch_wizard` — Golden Chain: finalize dispatch before inventory reservation.
+ */
+export type DispatchFinalizationPolicy = "full" | "pre_dispatch_wizard";
+
 export interface DispatchFinalizationInput {
   orderId: string;
   currentOrderStatus: string;
@@ -57,6 +62,7 @@ export interface DispatchFinalizationInput {
   completionReference: string | null;
   transporterReference: string | null;
   openReleaseBlockers: string[];
+  finalizationPolicy?: DispatchFinalizationPolicy;
 }
 
 export interface DispatchReleaseProjection {

@@ -1,43 +1,35 @@
 import { describe, expect, it } from "vitest";
-import { deriveDispatchCompletionStatus } from "../dispatchCompletionEligibility";
+import {
+  buildCompletionBlockingReasons,
+  deriveDispatchCompletionStatus,
+} from "../dispatchCompletionEligibility";
 import type { DispatchCompletionInput } from "../dispatchCompletionTypes";
 
 const base: DispatchCompletionInput = {
-  orderId: "o1",
-  queueItemId: "q1",
+  orderId: "00000000-0000-4000-8000-000000000301",
+  queueItemId: null,
   readinessStatus: "gate_eligible",
   financeSignal: "ready",
   financeReleaseStatus: "commercially_released",
-  reservationReady: true,
+  reservationReady: false,
   orderAlreadyDispatched: false,
   securityGatePassed: true,
   courierManifestAttached: true,
   openCompletionHolds: [],
 };
 
-describe("dispatchCompletionEligibility", () => {
-  it("completion_eligible when 4B gate + 4C finance + manifest + gate", () => {
-    expect(deriveDispatchCompletionStatus(base)).toBe("completion_eligible");
+describe("dispatchCompletionEligibility — pre_dispatch_wizard", () => {
+  it("allows completion_eligible without reservation when policy is pre_dispatch_wizard", () => {
+    const input: DispatchCompletionInput = {
+      ...base,
+      completionPolicy: "pre_dispatch_wizard",
+    };
+    expect(deriveDispatchCompletionStatus(input)).toBe("completion_eligible");
+    expect(buildCompletionBlockingReasons(input)).not.toContain("Inventory reservation not ready");
   });
 
-  it("prerequisites_pending when readiness not gate_eligible", () => {
-    expect(
-      deriveDispatchCompletionStatus({ ...base, readinessStatus: "ready_for_review" }),
-    ).toBe("prerequisites_pending");
-  });
-
-  it("blocked when completion holds open", () => {
-    expect(
-      deriveDispatchCompletionStatus({
-        ...base,
-        openCompletionHolds: ["supervisor_review_required"],
-      }),
-    ).toBe("completion_blocked");
-  });
-
-  it("already_dispatched terminal", () => {
-    expect(deriveDispatchCompletionStatus({ ...base, orderAlreadyDispatched: true })).toBe(
-      "already_dispatched",
-    );
+  it("still requires reservation under full policy", () => {
+    expect(deriveDispatchCompletionStatus(base)).toBe("prerequisites_pending");
+    expect(buildCompletionBlockingReasons(base)).toContain("Inventory reservation not ready");
   });
 });

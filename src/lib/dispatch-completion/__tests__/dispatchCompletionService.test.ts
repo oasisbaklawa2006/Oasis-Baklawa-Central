@@ -64,4 +64,13 @@ describe("dispatchCompletionService", () => {
       svc.attestCompletion(eligible, { ...ctx, attestationReason: "" }),
     ).rejects.toThrow(DispatchCompletionError);
   });
+
+  it("blocks duplicate completion attestation", async () => {
+    const svc = service();
+    await svc.attestCompletion(eligible, ctx);
+    await expect(svc.attestCompletion(eligible, ctx)).rejects.toMatchObject({
+      code: "not_eligible",
+      message: expect.stringMatching(/already attested/i),
+    });
+  });
 });

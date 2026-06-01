@@ -142,7 +142,13 @@ export default function GoldenChainOperatorWizard() {
 
   const primaryDisabled = useMemo(() => {
     if (busy || !state || loadingOrder) return true;
-    if (state.cta === "Already complete" || state.stage === "complete") return true;
+    if (
+      state.cta === "Already complete" ||
+      state.cta === "Completion already attested" ||
+      state.stage === "complete"
+    ) {
+      return true;
+    }
     if (state.stage === "dispatch_finalization" && state.dispatchAlreadyFinalized) return true;
     if (
       (state.stage === "prepare_dispatch_evidence" || state.stage === "readiness_review") &&
@@ -242,10 +248,22 @@ export default function GoldenChainOperatorWizard() {
         }
         case "completion_attestation": {
           if (!completionBundle?.service) throw new Error("Completion confirmation service is unavailable.");
-          await completionBundle.service.attestCompletion(state.completionInput, {
-            ...ctxBase,
-            attestationReason: ctxBase.attestationReason,
-          });
+          if (state.cta === "Completion already attested") {
+            toast.info("Completion already attested.");
+            break;
+          }
+          try {
+            await completionBundle.service.attestCompletion(state.completionInput, {
+              ...ctxBase,
+              attestationReason: ctxBase.attestationReason,
+            });
+          } catch (e) {
+            if (e instanceof Error && /already attested/i.test(e.message)) {
+              toast.info("Completion already attested.");
+              break;
+            }
+            throw e;
+          }
           break;
         }
         case "dispatch_finalization": {

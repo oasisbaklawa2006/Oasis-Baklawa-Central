@@ -29,6 +29,11 @@ const verifiedEvidence = [
   { evidenceType: "packing_photo", evidenceStatus: "verified", createdAt: "2026-01-01T00:00:00Z" },
   { evidenceType: "document_placeholder", evidenceStatus: "verified", createdAt: "2026-01-01T00:00:00Z" },
   { evidenceType: "gate_scan", evidenceStatus: "verified", createdAt: "2026-01-01T00:00:00Z" },
+  {
+    evidenceType: "manual_readiness_review",
+    evidenceStatus: "verified",
+    createdAt: "2026-01-01T00:00:00Z",
+  },
 ];
 
 const verifiedScan = {
@@ -114,6 +119,7 @@ function baseDerivation(overrides: Partial<GoldenChainDerivationInput> = {}): Go
     scanSlice: verifiedScan,
     dispatchEvidencePrepared: true,
     financeCommerciallyReleased: true,
+    completionAttested: overrides.completionAttested ?? false,
     ...overrides,
   };
 }
@@ -231,6 +237,7 @@ describe("golden chain operator", () => {
       baseDerivation({
         finalizationInput: dispatched,
         completionInput: { ...completionReady, orderAlreadyDispatched: true },
+        completionAttested: true,
         reservations: [reservation],
         dispatchLineage: [{ releaseType: "finalize", nextStatus: "dispatched", createdAt: new Date().toISOString() }],
         stockInput: {
@@ -255,6 +262,7 @@ describe("golden chain operator", () => {
       baseDerivation({
         finalizationInput: { ...finalizationReady, currentOrderStatus: "dispatched" },
         completionInput: { ...completionReady, orderAlreadyDispatched: true },
+        completionAttested: true,
         reservations: [reservation],
         consumptionFinalizedReservationIds: [reservation.id],
         dispatchLineage: [{ releaseType: "finalize", nextStatus: "dispatched", createdAt: new Date().toISOString() }],

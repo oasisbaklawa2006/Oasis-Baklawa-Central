@@ -22,6 +22,10 @@ import { projectFinanceRelease } from "@/lib/finance-governance/financeReleaseEl
 import type { ReservationReadinessStatus } from "@/lib/dispatch-readiness/dispatchReadinessTypes";
 import type { StockReservationRecord } from "@/lib/stock-finalization/stockReservationTypes";
 import { deriveGoldenChainStaffStage } from "@/lib/golden-chain/deriveGoldenChainStage";
+import {
+  buildGoldenChainWizardCompletionInput,
+  hasVerifiedCompletionAttestation,
+} from "./goldenChainCompletionInput";
 import { isDispatchEvidencePrepared } from "./goldenChainPrerequisites";
 import { buildGoldenChainEvidenceRefs } from "./goldenChainEvidenceRefs";
 import { blockersForStage, whoMustActForStage } from "./goldenChainBlockers";
@@ -258,6 +262,8 @@ export async function loadGoldenChainOrderState(
     evidence: completionSlices,
   });
 
+  const completionAttested = hasVerifiedCompletionAttestation(completionSlices);
+
   const lineageSlices = (dispatchLineage ?? []).map((l) => ({
     releaseType: l.release_type as string,
     nextStatus: l.next_status as string,
@@ -375,11 +381,29 @@ export async function loadGoldenChainOrderState(
     (financeFusion.financeSignal === "ready" &&
       projectFinanceRelease(financeInputForChain).releaseStatus === "commercially_released");
 
+  const wizardCompletionInput = buildGoldenChainWizardCompletionInput(completionFusion.input, {
+    orderStatus,
+    dispatchEvidencePrepared,
+    financeCommerciallyReleased,
+    scan,
+    readinessSlices: evidenceSlicesForPrep,
+    completionAttested,
+  });
+
+  const wizardFinalizationInput = orderDispatched
+    ? finalizationFusion.input
+    : {
+        ...finalizationFusion.input,
+        reservationReady: true,
+        completionStatus: completionAttested ? ("completion_attested" as const) : completionStatus,
+        finalizationPolicy: "pre_dispatch_wizard" as const,
+      };
+
   const derivationInput: GoldenChainDerivationInput = {
     readinessInput: readinessFusion.input,
     financeInput: financeInputForChain,
-    completionInput: completionFusion.input,
-    finalizationInput: finalizationFusion.input,
+    completionInput: wizardCompletionInput,
+    finalizationInput: wizardFinalizationInput,
     stockInput: stockFusion?.input ?? null,
     reservations: reservationRows,
     dispatchLineage: lineageSlices,
@@ -388,6 +412,7 @@ export async function loadGoldenChainOrderState(
     scanSlice: scan,
     dispatchEvidencePrepared,
     financeCommerciallyReleased,
+    completionAttested,
   };
 
   const derived = deriveGoldenChainStage(derivationInput);
@@ -427,8 +452,8 @@ export async function loadGoldenChainOrderState(
     whoMustActNext: whoMustActForStage(derived.stage),
     readinessInput: readinessFusion.input,
     financeInput: financeFusion.input,
-    completionInput: completionFusion.input,
-    finalizationInput: finalizationFusion.input,
+    completionInput: wizardCompletionInput,
+    finalizationInput: wizardFinalizationInput,
     stockInput: stockFusion?.input ?? null,
     reservations: reservationRows,
     dispatchLineage: lineageSlices,

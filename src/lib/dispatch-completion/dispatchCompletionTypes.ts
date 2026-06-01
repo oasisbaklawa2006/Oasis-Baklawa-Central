@@ -48,6 +48,13 @@ export const DISPATCH_COMPLETION_HOLD_TYPES = [
 
 export type DispatchCompletionHoldType = (typeof DISPATCH_COMPLETION_HOLD_TYPES)[number];
 
+/**
+ * `pre_dispatch_wizard` — Golden Chain operator wizard before dispatch finalize:
+ * reservation, security gate, and manifest are satisfied from prepare/finance/scans,
+ * not from inventory reservation or completion-board review rows.
+ */
+export type DispatchCompletionPolicy = "full" | "pre_dispatch_wizard";
+
 export interface DispatchCompletionInput {
   orderId: string;
   queueItemId: string | null;
@@ -59,6 +66,7 @@ export interface DispatchCompletionInput {
   securityGatePassed: boolean;
   courierManifestAttached: boolean;
   openCompletionHolds: DispatchCompletionHoldType[];
+  completionPolicy?: DispatchCompletionPolicy;
 }
 
 export interface DispatchCompletionProjection {
