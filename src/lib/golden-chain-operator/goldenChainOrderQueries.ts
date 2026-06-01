@@ -90,8 +90,8 @@ export async function searchGoldenChainOrders(
 
   if (q.length >= 2) {
     const tail = q.replace(/^SO-/i, "").trim();
-    const compact = tail.replace(/-/g, "");
-    orderQuery = orderQuery.or(`order_number.ilike.%${tail}%,id.ilike.%${compact}%`);
+    // PostgREST cannot apply ilike to uuid `id`; order_number covers SO search.
+    orderQuery = orderQuery.ilike("order_number", `%${tail}%`);
   }
 
   const { data: orders, error } = await orderQuery;
