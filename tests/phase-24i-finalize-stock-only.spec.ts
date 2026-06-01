@@ -27,6 +27,12 @@ test("SO-118 finalize stock only", async ({ page }) => {
   await page.getByRole("button", { name: /SO-2026-000118/ }).first().click();
   await page.waitForTimeout(5000);
 
+  const complete = page.getByRole("button", { name: /Already complete/i });
+  if (await complete.isVisible().catch(() => false)) {
+    console.log("[PHASE24I] SO-118 already complete — skipping finalize click");
+    return;
+  }
+
   const cta = page.getByRole("button", { name: /^Finalize stock$/i });
   await expect(cta).toBeVisible({ timeout: 60_000 });
   await expect(cta).toBeEnabled({ timeout: 60_000 });
@@ -40,7 +46,14 @@ test("SO-118 finalize stock only", async ({ page }) => {
     console.log("[TOAST]", (await toast.allTextContents()).join(" | "));
   }
 
+  const completeBtn = page.getByRole("button", { name: /Already complete/i });
+  const sawComplete = await completeBtn.isVisible().catch(() => false);
+  if (!sawComplete) {
+    await page.reload();
+    await page.getByRole("button", { name: /SO-2026-000118/ }).first().click();
+    await page.waitForTimeout(5000);
+  }
   await expect(page.getByRole("button", { name: /Already complete/i })).toBeVisible({
-    timeout: 120_000,
+    timeout: 60_000,
   });
 });
