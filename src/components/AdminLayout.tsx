@@ -4,6 +4,7 @@ import {
   Headphones, Users, Package, BarChart3, Scale, Globe, Settings, Shield, MessageCircle,
   Factory, PackageCheck, Landmark, AlertCircle, Languages, Bell, Sparkles, Monitor, Activity, Megaphone, Store,
   ScanLine, CalendarDays, Warehouse, Box, ListOrdered, AlertOctagon, ScanBarcode, Network, Gauge, LayoutGrid, Search, PackageMinus,
+  Workflow,
 } from "lucide-react";
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
@@ -17,13 +18,21 @@ import AdminHelpSidebar from "@/components/AdminHelpSidebar";
 import OnboardingOverlay from "@/components/OnboardingOverlay";
 import { signOutAndClearSession } from "@/utils/authSession";
 import { useAdminRealtimeToasts } from "@/hooks/useAdminRealtimeToasts";
+import { shouldHideAdvancedGovernanceNav } from "@/lib/golden-chain/operatorNavigation";
 
 const ROLE_MODULE_ACCESS: Record<string, string[]> = {
   SUPER_ADMIN: ["*"],
-  ADMIN: ["dashboard", "cmd_war_room", "orders", "clients", "products", "pricing", "finance", "users", "moq", "currency", "support", "settings", "audit", "inventory", "packing", "production", "accounts", "exceptions"],
-  FINANCE_HEAD: ["dashboard", "cmd_war_room", "finance", "accounts", "orders", "audit"],
-  FINANCE_EXEC: ["dashboard", "cmd_war_room", "finance", "accounts", "orders"],
-  OPERATIONS_MANAGER: ["dashboard", "cmd_war_room", "orders", "production", "packing", "dispatch", "inventory"],
+  ADMIN: [
+    "dashboard", "cmd_war_room", "orders", "clients", "products", "pricing", "finance", "finance_audit",
+    "users", "moq", "currency", "support", "settings", "audit", "inventory", "inventory_audit", "packing",
+    "production", "accounts", "exceptions", "dispatch", "dispatch_audit",
+  ],
+  FINANCE_HEAD: ["dashboard", "cmd_war_room", "finance", "finance_audit", "accounts", "orders", "audit"],
+  FINANCE_EXEC: ["dashboard", "cmd_war_room", "finance", "finance_audit", "accounts", "orders"],
+  OPERATIONS_MANAGER: [
+    "dashboard", "cmd_war_room", "orders", "production", "packing", "dispatch", "dispatch_audit", "inventory",
+    "inventory_audit",
+  ],
   PRODUCTION_MANAGER: ["dashboard", "orders", "production"],
   HOD_ARABIC: ["dashboard", "production", "orders"],
   HOD_FUSION: ["dashboard", "production", "orders"],
@@ -85,8 +94,8 @@ const AdminLayout = () => {
       items: [
         { to: "/admin/inventory-command-center", icon: Warehouse, label: "Inventory command center", end: false, moduleKey: "inventory" },
         { to: "/admin/carton-explorer", icon: Box, label: "Carton explorer", end: false, moduleKey: "inventory" },
-        { to: "/admin/reservation-board", icon: ListOrdered, label: "Reservation board", end: false, moduleKey: "inventory" },
-        { to: "/admin/stock-finalization", icon: PackageMinus, label: "Stock finalization", end: false, moduleKey: "inventory" },
+        { to: "/admin/reservation-board", icon: ListOrdered, label: "Reservation board (audit)", end: false, moduleKey: "inventory_audit" },
+        { to: "/admin/stock-finalization", icon: PackageMinus, label: "Stock finalization (audit)", end: false, moduleKey: "inventory_audit" },
         { to: "/admin/inventory-risk-board", icon: AlertOctagon, label: "Inventory risk board", end: false, moduleKey: "inventory" },
         { to: "/admin/scan-timeline", icon: ScanBarcode, label: "Scan timeline", end: false, moduleKey: "inventory" },
         // Central Pool fully removed from sidebar — War Room is the only active track.
@@ -102,9 +111,10 @@ const AdminLayout = () => {
         { to: "/admin/label-command-center", icon: ScanLine, label: "Label command center", moduleKey: "orders" },
         { to: "/admin/customer-timeline-preview", icon: CalendarDays, label: "Customer timeline preview", moduleKey: "cmd_war_room" },
         { to: "/admin/operational-search", icon: Search, label: "Operational search", moduleKey: "cmd_war_room" },
-        { to: "/admin/dispatch-readiness", icon: ClipboardList, label: "Dispatch readiness", moduleKey: "dispatch" },
-        { to: "/admin/dispatch-completion", icon: Truck, label: "Dispatch completion", moduleKey: "dispatch" },
-        { to: "/admin/dispatch-finalization", icon: Truck, label: "Dispatch finalization", moduleKey: "dispatch" },
+        { to: "/admin/golden-chain-operator", icon: Workflow, label: "Golden Chain Operator", moduleKey: "dispatch" },
+        { to: "/admin/dispatch-readiness", icon: ClipboardList, label: "Dispatch readiness (audit)", moduleKey: "dispatch_audit" },
+        { to: "/admin/dispatch-completion", icon: Truck, label: "Dispatch completion (audit)", moduleKey: "dispatch_audit" },
+        { to: "/admin/dispatch-finalization", icon: Truck, label: "Dispatch finalization (audit)", moduleKey: "dispatch_audit" },
         { to: "/admin/dispatch-mgmt", icon: Truck, label: "Dispatch", moduleKey: "packing" },
         { to: "/security-gate", icon: Shield, label: "Security Gate", moduleKey: "packing" },
       ],
@@ -116,7 +126,7 @@ const AdminLayout = () => {
         { to: "/admin/products", icon: Package, label: t("Products"), moduleKey: "products" },
         { to: "/admin/merchandising", icon: Sparkles, label: t("Merchandising"), moduleKey: "products" },
         { to: "/admin/pricing", icon: BarChart3, label: t("Pricing"), moduleKey: "pricing" },
-        { to: "/admin/finance-governance", icon: Landmark, label: "Finance governance", moduleKey: "finance" },
+        { to: "/admin/finance-governance", icon: Landmark, label: "Finance governance (audit)", moduleKey: "finance_audit" },
         { to: "/admin/finance", icon: DollarSign, label: t("Finance"), moduleKey: "finance" },
         { to: "/admin/users", icon: Users, label: t("Users"), moduleKey: "users" },
         { to: "/sales/dashboard", icon: BarChart3, label: t("Sales Console"), moduleKey: "clients" },
@@ -156,9 +166,18 @@ const AdminLayout = () => {
     return false;
   };
 
+  const hideAdvancedGovernance = shouldHideAdvancedGovernanceNav(role);
+
   const filteredSections = navSections
-    .map(section => ({ ...section, items: section.items.filter(item => hasAccess(item.moduleKey)) }))
-    .filter(section => section.items.length > 0);
+    .map((section) => ({
+      ...section,
+      items: section.items.filter((item) => {
+        if (!hasAccess(item.moduleKey)) return false;
+        if (hideAdvancedGovernance && item.moduleKey.endsWith("_audit")) return false;
+        return true;
+      }),
+    }))
+    .filter((section) => section.items.length > 0);
 
   return (
     <div className="min-h-screen flex bg-background max-w-[100vw] overflow-x-hidden">

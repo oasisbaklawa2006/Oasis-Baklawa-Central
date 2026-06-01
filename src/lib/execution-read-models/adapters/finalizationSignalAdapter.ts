@@ -51,6 +51,9 @@ export function deriveFinalizationInputFromSlices(params: {
   if (params.currentOrderStatus === "dispatched") {
     openReleaseBlockers.push("already_dispatched");
   }
+  if (params.lineage.some((l) => l.releaseType === "finalize")) {
+    openReleaseBlockers.push("dispatch_already_finalized");
+  }
 
   const transporterHandoffFinalized = Boolean(params.transporterReference?.trim());
 

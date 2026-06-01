@@ -100,6 +100,8 @@ export default function StockFinalizationBoard() {
   const { user, role } = useAuth();
   const [busy, setBusy] = useState(false);
   const [selected, setSelected] = useState<"finalized" | "pending">("finalized");
+  const [orderSearch, setOrderSearch] = useState("");
+  const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [overrideReason, setOverrideReason] = useState("");
   const [events, setEvents] = useState<OperationalEventRecord[]>([]);
@@ -113,14 +115,40 @@ export default function StockFinalizationBoard() {
     ["orders", "inventory_reservations", "inventory_stock_balances", "stock_consumption_lineage"],
   );
 
+  const candidateRows = useMemo(() => {
+    const q = orderSearch.replace(/%/g, "").trim().toLowerCase();
+    const rows = boardState.liveRows;
+    if (!q) return rows;
+    return rows.filter((row) => {
+      const tail = row.input.orderId.slice(-4).toLowerCase();
+      return tail.includes(q) || row.input.orderId.toLowerCase().includes(q);
+    });
+  }, [boardState.liveRows, orderSearch]);
+
+  useEffect(() => {
+    if (candidateRows.length === 0) {
+      setSelectedOrderId(null);
+      return;
+    }
+    if (
+      selectedOrderId &&
+      !candidateRows.some((r) => r.input.orderId === selectedOrderId)
+    ) {
+      setSelectedOrderId(null);
+    }
+  }, [candidateRows, selectedOrderId]);
+
   const activeRow = useMemo(() => {
-    if (boardState.liveRows.length > 0) return boardState.liveRows[0];
+    if (candidateRows.length > 0 && selectedOrderId) {
+      const picked = candidateRows.find((r) => r.input.orderId === selectedOrderId);
+      if (picked) return picked;
+    }
     if (boardState.showPreviewCards) {
       const previewInput = selected === "finalized" ? PREVIEW_STOCK_FINALIZED : PREVIEW_STOCK_PENDING;
       return { input: previewInput, missingSignals: [] as string[] };
     }
     return null;
-  }, [boardState.liveRows, boardState.showPreviewCards, selected]);
+  }, [candidateRows, boardState.showPreviewCards, selected, selectedOrderId]);
 
   const input = activeRow?.input ?? null;
   const missingSignals = activeRow?.missingSignals ?? [];
@@ -257,9 +285,16 @@ export default function StockFinalizationBoard() {
       setEvents(stockEventsToOperational(evts));
       const lineage = await bundle.service.listLineage(input.orderId);
       setLineageCount(lineage.length);
-      setMessage("Consumption finalized — physical deduction recorded in governed ledger.");
+      setMessage("Stock deducted successfully. Reservation updated.");
+      setSelectedOrderId(null);
+      boardState.reload();
     } catch (e) {
-      setMessage(e instanceof Error ? e.message : "Finalization failed");
+      const msg = e instanceof Error ? e.message : "Finalization failed";
+      setMessage(
+        msg.includes("already")
+          ? "This order cannot be finalized because stock has already been consumed."
+          : msg,
+      );
     } finally {
       setBusy(false);
     }
@@ -305,6 +340,41 @@ export default function StockFinalizationBoard() {
         </CardContent>
       </Card>
 
+      {boardState.liveRows.length > 0 && (
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm">Order selector</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            <Input
+              placeholder="Filter by order id fragment"
+              value={orderSearch}
+              onChange={(e) => setOrderSearch(e.target.value)}
+              className="font-mono text-sm"
+            />
+            <div className="max-h-40 space-y-1 overflow-y-auto rounded border border-border p-1">
+              {candidateRows.length === 0 && (
+                <p className="p-2 text-xs text-muted-foreground">
+                  No orders pending stock deduction (finalized orders are hidden).
+                </p>
+              )}
+              {candidateRows.map((row) => (
+                <button
+                  key={row.input.orderId}
+                  type="button"
+                  className={`block w-full rounded px-2 py-1.5 text-left font-mono text-xs hover:bg-muted ${
+                    activeRow?.input.orderId === row.input.orderId ? "bg-muted ring-1 ring-primary/30" : ""
+                  }`}
+                  onClick={() => setSelectedOrderId(row.input.orderId)}
+                >
+                  Order …{row.input.orderId.slice(-4)} · {row.input.reservations.length} reservation(s)
+                </button>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {showPreviewToggle && (
         <div className="flex gap-2">
           <Button
@@ -322,6 +392,10 @@ export default function StockFinalizationBoard() {
             Pre-finalization (blocked)
           </Button>
         </div>
+      )}
+
+      {candidateRows.length > 0 && !selectedOrderId && (
+        <p className="text-sm text-muted-foreground">Select an order above to deduct stock.</p>
       )}
 
       {input && projection && (

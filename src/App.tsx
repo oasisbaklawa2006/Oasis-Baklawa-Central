@@ -123,6 +123,7 @@ const DispatchReadinessBoard = lazy(() => import("./pages/admin/DispatchReadines
 const DispatchCompletionBoard = lazy(() => import("./pages/admin/DispatchCompletionBoard.tsx"));
 const DispatchFinalizationBoard = lazy(() => import("./pages/admin/DispatchFinalizationBoard.tsx"));
 const StockFinalizationBoard = lazy(() => import("./pages/admin/StockFinalizationBoard.tsx"));
+const GoldenChainOperatorWizard = lazy(() => import("./pages/admin/GoldenChainOperatorWizard.tsx"));
 
 const ADMIN_ONLY_ROLES = ["SUPER_ADMIN", "ADMIN"];
 
@@ -476,6 +477,7 @@ const App = () => (
                       }
                     />
                     <Route path="rgs-tv" element={<ReadyGoodsTV />} />
+                    <Route path="golden-chain-operator" element={<GoldenChainOperatorWizard />} />
                     <Route path="dispatch-readiness" element={<DispatchReadinessBoard />} />
                     <Route path="dispatch-completion" element={<DispatchCompletionBoard />} />
                     <Route path="dispatch-finalization" element={<DispatchFinalizationBoard />} />
