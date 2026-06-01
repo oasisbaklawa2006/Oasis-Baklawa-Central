@@ -19,6 +19,12 @@ describe("stockAuthorityGuard", () => {
     ).toBe(true);
   });
 
+  it("allows dispatch operator roles to finalize consumption after dispatch", () => {
+    for (const actorRole of ["DISPATCH_HEAD", "DISPATCH_MANAGER", "dispatch_manager", "DISPATCH_INCHARGE"]) {
+      expect(assertStockAuthority("stock:finalize_consumption", { actorRole }).allowed).toBe(true);
+    }
+  });
+
   it("denies finance", () => {
     expect(assertStockAuthority("stock:finalize_consumption", { actorRole: "FINANCE_HEAD" }).allowed).toBe(
       false,

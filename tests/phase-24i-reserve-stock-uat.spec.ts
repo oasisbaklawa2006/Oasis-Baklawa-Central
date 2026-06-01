@@ -31,7 +31,8 @@ test("SO-118 reserve and finalize stock", async ({ page }) => {
   phase24iMetrics.clicks += 1;
   await page.waitForTimeout(4000);
 
-  const cta = () => page.locator("div.fixed.bottom-0 button").filter({ hasNotText: /Working/i }).first();
+  const cta = () =>
+    page.getByRole("button", { name: /Reserve stock|Finalize stock|Already complete/i }).first();
 
   for (const label of [/Reserve stock/i, /Finalize stock/i, /Already complete/i]) {
     const before = ((await cta().textContent()) ?? "").trim();

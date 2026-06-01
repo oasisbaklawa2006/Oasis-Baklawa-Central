@@ -22,6 +22,7 @@ const KNOWN_ROLES: StockAuthorityRole[] = [
   "INVENTORY_MANAGER",
   "DISPATCH_HEAD",
   "DISPATCH_MANAGER",
+  "DISPATCH_INCHARGE",
   "OPERATIONS_MANAGER",
   "FINANCE_HEAD",
   "FINANCE_EXEC",
@@ -82,8 +83,11 @@ export function assertStockAuthority(
     return { allowed: true, reason: "SUPER_ADMIN override with reason" };
   }
 
-  if (action === "stock:finalize_consumption" && role === "DISPATCH_HEAD") {
-    return { allowed: true, reason: "DISPATCH_HEAD dispatch-linked consumption confirm" };
+  if (
+    action === "stock:finalize_consumption" &&
+    (role === "DISPATCH_HEAD" || role === "DISPATCH_MANAGER" || role === "DISPATCH_INCHARGE")
+  ) {
+    return { allowed: true, reason: "Dispatch-linked consumption confirm (golden chain / dispatch operator)" };
   }
 
   if (!allowedRoles.includes(role)) {

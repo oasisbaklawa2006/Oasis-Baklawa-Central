@@ -406,7 +406,10 @@ export default function GoldenChainOperatorWizard() {
       const ctaAdvanced = next.cta !== prevCta;
       const finalizeToReservation =
         state.stage === "dispatch_finalization" && next.stage === "reservation";
-      if (stageAdvanced || ctaAdvanced || finalizeToReservation) {
+      const stockFinalized =
+        state.stage === "stock_finalization" &&
+        (next.stage === "complete" || next.stockConsumptionComplete);
+      if (stageAdvanced || ctaAdvanced || finalizeToReservation || stockFinalized) {
         toast.success(`${prevCta} completed. Next: ${next.cta}`);
       } else if (state.stage === "prepare_dispatch_evidence") {
         toast.warning("Evidence recorded but prerequisites still missing — check blockers below.");
