@@ -168,11 +168,18 @@ const AdminLayout = () => {
 
   const hideAdvancedGovernance = shouldHideAdvancedGovernanceNav(role);
 
+  const canAccessGoldenChainOperator = () =>
+    ["dispatch", "finance", "inventory"].some((moduleKey) => hasAccess(moduleKey));
+
   const filteredSections = navSections
     .map((section) => ({
       ...section,
       items: section.items.filter((item) => {
-        if (!hasAccess(item.moduleKey)) return false;
+        if (item.to === "/admin/golden-chain-operator") {
+          if (!canAccessGoldenChainOperator()) return false;
+        } else if (!hasAccess(item.moduleKey)) {
+          return false;
+        }
         if (hideAdvancedGovernance && item.moduleKey.endsWith("_audit")) return false;
         return true;
       }),
