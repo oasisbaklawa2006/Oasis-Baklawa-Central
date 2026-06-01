@@ -224,7 +224,8 @@ export async function loadGoldenChainOrderState(
   const orderDispatched = ["dispatched", "in_transit", "delivered"].includes(
     orderStatus.trim().toLowerCase(),
   );
-  const readinessPolicy = orderDispatched ? ("full" as const) : ("pre_dispatch" as const);
+  /** Golden Chain wizard always uses pre_dispatch — reservation follows finalize in this flow. */
+  const readinessPolicy = "pre_dispatch" as const;
 
   const readinessFusion = deriveReadinessInputFromSlices({
     orderId,
