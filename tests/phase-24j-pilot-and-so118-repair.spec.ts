@@ -112,8 +112,12 @@ async function runWizardChain(page: Page, orderSo: string, metrics: Phase24jOrde
     }
 
     if (!step.expect.test(ctaBefore)) {
-      if (step.key === "prepare" && /Already recorded|Prepare/i.test(ctaBefore)) {
-        // continue
+      if (
+        step.key === "prepare" &&
+        (/Already recorded|Prepare/i.test(ctaBefore) || /Complete finance release/i.test(ctaBefore))
+      ) {
+        metrics.stages.push({ stage: step.key, result: "SKIP_ALREADY_DONE", ctaBefore });
+        continue;
       } else if (
         (step.key === "finance" && /Complete readiness|Attest|Finalize dispatch|Reserve stock|Finalize stock/i.test(ctaBefore)) ||
         (step.key === "readiness" && /Attest|Finalize dispatch|Reserve stock|Finalize stock/i.test(ctaBefore)) ||
