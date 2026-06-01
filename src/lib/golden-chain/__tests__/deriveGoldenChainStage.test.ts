@@ -101,6 +101,7 @@ function base(overrides: Partial<GoldenChainDerivationInput> = {}): GoldenChainD
     dispatchEvidencePrepared: true,
     financeCommerciallyReleased: true,
     ...overrides,
+    completionAttested: overrides.completionAttested ?? false,
   };
 }
 

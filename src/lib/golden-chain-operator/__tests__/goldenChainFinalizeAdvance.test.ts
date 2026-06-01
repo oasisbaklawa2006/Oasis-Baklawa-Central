@@ -176,7 +176,11 @@ describe("golden chain dispatch finalize advance", () => {
   });
 
   it("detects advance past finalize for UI reload helper", () => {
-    const prev = minimalState({ stage: "dispatch_finalization", orderStatus: "cleared_for_dispatch" });
+    const prev = minimalState({
+      stage: "dispatch_finalization",
+      orderStatus: "cleared_for_dispatch",
+      dispatchAlreadyFinalized: false,
+    });
     const next = minimalState({
       stage: "reservation",
       orderStatus: "dispatched",
