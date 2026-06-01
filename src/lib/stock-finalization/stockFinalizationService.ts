@@ -86,14 +86,6 @@ export function createStockFinalizationService(deps: StockFinalizationServiceDep
     ) {
       guard("stock:finalize_consumption", ctx);
 
-      const eligibility = evaluateStockDeductionEligibility(input);
-      if (!eligibility.eligible) {
-        throw new StockFinalizationError(
-          "not_eligible",
-          `Not eligible: ${eligibility.blockers.join(", ")}`,
-        );
-      }
-
       if (!ctx.finalizeReason?.trim()) {
         throw new StockFinalizationError(
           "reason_required",
@@ -136,6 +128,14 @@ export function createStockFinalizationService(deps: StockFinalizationServiceDep
             alreadyFinalizedReservationIds: finalizedReservationIds,
           }),
         };
+      }
+
+      const eligibility = evaluateStockDeductionEligibility(input);
+      if (!eligibility.eligible) {
+        throw new StockFinalizationError(
+          "not_eligible",
+          `Not eligible: ${eligibility.blockers.join(", ")}`,
+        );
       }
 
       const balanceMap = new Map<string, import("./stockFinalizationTypes").StockBalanceRecord>();
