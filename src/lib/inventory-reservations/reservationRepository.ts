@@ -313,11 +313,21 @@ export function createReservationRepository(deps: ReservationRepositoryDeps) {
       const auth = assertInventoryReservationAuthority("reservation:fulfill", {
         actorRole: ctx.actorRole,
         actorUserId: ctx.actorUserId,
+        writeChannel: ctx.writeChannel,
       });
       if (!auth.allowed) throw new RE("authority_denied", auth.reason);
 
       const current = await store.getReservationById(input.reservationId);
       if (!current) throw new Error("Reservation not found");
+
+      if (
+        current.reservationStatus === "fulfilled" &&
+        current.fulfilledQty >= current.requestedQty &&
+        current.requestedQty > 0
+      ) {
+        return { reservation: current, movementId: "", eventId: "" };
+      }
+
       assertReservationTransition(current.reservationStatus, "fulfilled");
 
       const consumedQty = roundQty(input.consumedQty);

@@ -1,6 +1,7 @@
 import { assertStockAuthority, isForbiddenStockAction } from "@/lib/stock-authority/stockAuthorityGuard";
 import { evaluateStockDeductionEligibility } from "./stockDeductionEligibility";
 import { buildStockFinalizationEvent } from "./stockFinalizationEvents";
+import { syncReservationFulfillmentFromLineage } from "./syncReservationFulfillmentAfterConsumption";
 import { projectStockFinalization } from "./stockFinalizationProjection";
 import {
   buildConsumptionMovementMetadata,
@@ -31,7 +32,7 @@ export interface StockFinalizationEventSink {
 export interface StockReservationPostFinalizePort {
   fulfillAfterStockConsumption(
     input: { reservationId: string; consumedQty: number; reasonCode?: string },
-    ctx: Pick<StockFinalizationWriteContext, "correlationId" | "actorUserId" | "actorRole">,
+    ctx: StockFinalizationWriteContext,
   ): Promise<void>;
 }
 
@@ -93,24 +94,6 @@ export function createStockFinalizationService(deps: StockFinalizationServiceDep
         );
       }
 
-      const reconciliation = reconcileReservationsForConsumption(
-        input.reservations,
-        input.alreadyFinalizedReservationIds ?? [],
-      );
-      if (reconciliation.reconciliationStatus === "variance") {
-        throw new StockFinalizationError(
-          "reconciliation_blocked",
-          `Reservation reconciliation variance (${reconciliation.varianceQty} unresolved qty); resolve before finalizing consumption`,
-        );
-      }
-
-      if (reconciliation.blockers.length > 0) {
-        throw new StockFinalizationError(
-          "reconciliation_blocked",
-          reconciliation.blockers.join(", "),
-        );
-      }
-
       if (!ctx.finalizeReason?.trim()) {
         throw new StockFinalizationError(
           "reason_required",
@@ -118,25 +101,45 @@ export function createStockFinalizationService(deps: StockFinalizationServiceDep
         );
       }
 
-      validateConsumptionItemsAgainstReconciliation(params.items, reconciliation);
-
       const existingLineage = await lineage.listByOrder(params.orderId);
-      const lineageFinalizedIds = new Set(
-        existingLineage
-          .filter((row) => row.lineageType === "consumption_finalized")
-          .map((row) => row.reservationId),
+      const lineageFinalizedRows = existingLineage.filter(
+        (row) => row.lineageType === "consumption_finalized",
       );
-      for (const item of params.items) {
-        if (lineageFinalizedIds.has(item.reservationId)) {
-          throw new StockFinalizationError(
-            "already_finalized",
-            `Reservation ${item.reservationId} already has consumption_finalized lineage`,
-          );
-        }
+      const lineageFinalizedIds = new Set(lineageFinalizedRows.map((row) => row.reservationId));
+
+      if (reservations && lineageFinalizedRows.length > 0) {
+        await syncReservationFulfillmentFromLineage(
+          input.reservations,
+          lineageFinalizedRows,
+          reservations,
+          ctx,
+        );
+      }
+
+      const itemsToConsume = params.items.filter((item) => !lineageFinalizedIds.has(item.reservationId));
+      if (itemsToConsume.length === 0) {
+        const finalizedReservationIds = [...lineageFinalizedIds];
+        await events.append(
+          buildStockFinalizationEvent(
+            "stock_consumption_finalized",
+            params.orderId,
+            "Stock consumption already finalized",
+            `Idempotent finalize: ${finalizedReservationIds.length} reservation line(s)`,
+            ctx,
+            { reservationIds: finalizedReservationIds, physicalDeduction: false, idempotent: true },
+          ),
+        );
+        return {
+          finalizedReservationIds,
+          projection: projectStockFinalization({
+            ...input,
+            alreadyFinalizedReservationIds: finalizedReservationIds,
+          }),
+        };
       }
 
       const balanceMap = new Map<string, import("./stockFinalizationTypes").StockBalanceRecord>();
-      for (const item of params.items) {
+      for (const item of itemsToConsume) {
         const bal = await balances.getBalance(item.productId, item.sku, item.locationCode);
         if (!bal) {
           throw new StockFinalizationError(
@@ -153,7 +156,30 @@ export function createStockFinalizationService(deps: StockFinalizationServiceDep
         balanceMap.set(`${item.productId}:${item.sku}:${item.locationCode}`, bal);
       }
 
-      const variances = detectStockVariance(reconciliation, balanceMap, input.locationCode);
+      const alreadyFinalizedIds = [
+        ...(input.alreadyFinalizedReservationIds ?? []),
+        ...lineageFinalizedIds,
+      ];
+      const reconciliationForConsume = reconcileReservationsForConsumption(
+        input.reservations,
+        alreadyFinalizedIds,
+      );
+      if (reconciliationForConsume.reconciliationStatus === "variance") {
+        throw new StockFinalizationError(
+          "reconciliation_blocked",
+          `Reservation reconciliation variance (${reconciliationForConsume.varianceQty} unresolved qty); resolve before finalizing consumption`,
+        );
+      }
+      if (reconciliationForConsume.blockers.length > 0) {
+        throw new StockFinalizationError(
+          "reconciliation_blocked",
+          reconciliationForConsume.blockers.join(", "),
+        );
+      }
+
+      validateConsumptionItemsAgainstReconciliation(itemsToConsume, reconciliationForConsume);
+
+      const variances = detectStockVariance(reconciliationForConsume, balanceMap, input.locationCode);
       if (variances.some((v) => v.code === "insufficient_available")) {
         await events.append(
           buildStockFinalizationEvent(
@@ -170,7 +196,7 @@ export function createStockFinalizationService(deps: StockFinalizationServiceDep
 
       const finalized: string[] = [];
 
-      for (const item of params.items) {
+      for (const item of itemsToConsume) {
         const reservation = input.reservations.find((r) => r.id === item.reservationId);
         const bal = balanceMap.get(`${item.productId}:${item.sku}:${item.locationCode}`);
         const releaseReserved = Math.min(
@@ -241,14 +267,12 @@ export function createStockFinalizationService(deps: StockFinalizationServiceDep
               consumedQty: item.consumeQty,
               reasonCode: ctx.finalizeReason ?? "stock_consumption_finalized",
             },
-            {
-              correlationId: ctx.correlationId,
-              actorUserId: ctx.actorUserId,
-              actorRole: ctx.actorRole,
-            },
+            ctx,
           );
         }
       }
+
+      const allFinalizedIds = [...new Set([...lineageFinalizedIds, ...finalized])];
 
       await events.append(
         buildStockFinalizationEvent(
@@ -257,11 +281,17 @@ export function createStockFinalizationService(deps: StockFinalizationServiceDep
           "Stock consumption finalized",
           `Finalized ${finalized.length} reservation line(s) after dispatch_finalized`,
           ctx,
-          { reservationIds: finalized, physicalDeduction: true },
+          { reservationIds: allFinalizedIds, physicalDeduction: finalized.length > 0 },
         ),
       );
 
-      return { finalizedReservationIds: finalized, projection: projectStockFinalization(input) };
+      return {
+        finalizedReservationIds: allFinalizedIds,
+        projection: projectStockFinalization({
+          ...input,
+          alreadyFinalizedReservationIds: allFinalizedIds,
+        }),
+      };
     },
 
     async reverseConsumption(

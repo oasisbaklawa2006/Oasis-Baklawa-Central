@@ -73,4 +73,74 @@ describe("fulfillAfterStockConsumption", () => {
     expect(result.reservation.reservedQty).toBe(0);
     expect(result.reservation.fulfilledQty).toBe(5);
   });
+
+  it("allows DISPATCH_MANAGER fulfill via golden_chain_operator write channel", async () => {
+    const store = createInMemoryReservationStore();
+    const events = createInMemoryOperationalEventRepository();
+    const repository = createReservationRepository({ store, events });
+
+    const created = await repository.createReservation(
+      {
+        orderId: "order-dispatch",
+        productId: "prod-1",
+        sku: "OAS-PUR-1",
+        requestedQty: 2,
+        sourceDepartment: "golden_chain_operator",
+      },
+      {
+        correlationId: "c1",
+        actorUserId: "dispatch-user",
+        actorRole: "DISPATCH_MANAGER",
+        writeChannel: "golden_chain_operator",
+      },
+    );
+
+    await repository.reserveInventory(
+      {
+        reservationId: created.reservation.id,
+        expectedVersion: created.reservation.version,
+        reserveQty: 2,
+        reason: "test",
+      },
+      {
+        correlationId: "c2",
+        actorUserId: "dispatch-user",
+        actorRole: "DISPATCH_MANAGER",
+        writeChannel: "golden_chain_operator",
+      },
+      {
+        productId: "prod-1",
+        sku: "OAS-PUR-1",
+        physicalStock: 100,
+        reservedOpen: 0,
+        blockedInventory: 0,
+        damagedInventory: 0,
+        expiredInventory: 0,
+        quarantineInventory: 0,
+      },
+    );
+
+    const current = await repository.getReservation(created.reservation.id);
+    if (!current) throw new Error("missing");
+
+    const result = await repository.fulfillAfterStockConsumption(
+      {
+        reservationId: current.id,
+        expectedVersion: current.version,
+        consumedQty: 2,
+        reasonCode: "stock_consumption_finalized",
+      },
+      {
+        correlationId: "c3",
+        actorUserId: "dispatch-user",
+        actorRole: "DISPATCH_MANAGER",
+        actorDepartment: "stock_finalization",
+        writeChannel: "golden_chain_operator",
+      },
+    );
+
+    expect(result.reservation.reservationStatus).toBe("fulfilled");
+    expect(result.reservation.fulfilledQty).toBe(2);
+    expect(result.reservation.reservedQty).toBe(0);
+  });
 });
