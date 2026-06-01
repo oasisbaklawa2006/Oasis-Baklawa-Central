@@ -15,6 +15,7 @@ const verifiedEvidence = [
   { evidenceType: "packing_photo", evidenceStatus: "verified", createdAt: "2026-01-01T00:00:00Z" },
   { evidenceType: "document_placeholder", evidenceStatus: "verified", createdAt: "2026-01-01T00:00:00Z" },
   { evidenceType: "gate_scan", evidenceStatus: "verified", createdAt: "2026-01-01T00:00:00Z" },
+  { evidenceType: "manual_readiness_review", evidenceStatus: "verified", createdAt: "2026-01-01T00:00:00Z" },
 ];
 
 const verifiedScan = {
@@ -195,11 +196,18 @@ describe("deriveGoldenChainStaffStage", () => {
   });
 
   it("complete when consumption finalized", () => {
+    const consumedReservation: StockReservationRecord = {
+      ...reservation,
+      fulfilledQty: reservation.requestedQty,
+      reservedQty: 0,
+      reservationStatus: "fulfilled",
+    };
     const r = deriveGoldenChainStaffStage(
       base({
         finalizationInput: { ...finalizationReady, currentOrderStatus: "dispatched" },
         completionInput: { ...completionReady, orderAlreadyDispatched: true },
-        reservations: [reservation],
+        completionAttested: true,
+        reservations: [consumedReservation],
         consumptionFinalizedReservationIds: [reservation.id],
         dispatchLineage: [{ releaseType: "finalize", nextStatus: "dispatched", createdAt: new Date().toISOString() }],
       }),
