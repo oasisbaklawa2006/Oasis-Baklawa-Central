@@ -23,8 +23,10 @@ import { loadOrderLinesForReservation } from "@/lib/inventory-reservations/reser
 import { createSupabaseStockBalanceRepository } from "@/lib/stock-finalization/supabaseStockFinalizationStore";
 import { dispatchFinalizeGuardMessage } from "@/lib/golden-chain-operator/goldenChainDuplicateGuards";
 import {
+  goldenChainAdvancedPastDispatchFinalize,
   loadGoldenChainOrderState,
   prepareDispatchEvidenceForOrder,
+  reloadGoldenChainOrderWithRetry,
   searchGoldenChainOrders,
   type GoldenChainOrderState,
   type GoldenChainOrderSummary,
@@ -276,7 +278,9 @@ export default function GoldenChainOperatorWizard() {
         }
         case "dispatch_finalization": {
           if (state.dispatchAlreadyFinalized) {
-            toast.info(finalizeGuardMsg ?? "Dispatch was already finalized.");
+            toast.info(
+              finalizeGuardMsg ?? "Dispatch was already finalized. Continue to reserve stock.",
+            );
             break;
           }
           if (!finalizationBundle?.service) throw new Error("Dispatch finalize service is unavailable.");
@@ -402,22 +406,31 @@ export default function GoldenChainOperatorWizard() {
           break;
       }
 
-      await reloadOrder(state.orderId);
       await reloadList();
-      const next = await loadGoldenChainOrderState(supabase, state.orderId);
+      const needsFinalizeReload = state.stage === "dispatch_finalization";
+      const next = needsFinalizeReload
+        ? await reloadGoldenChainOrderWithRetry(
+            supabase,
+            state.orderId,
+            (loaded) => goldenChainAdvancedPastDispatchFinalize(state, loaded),
+          )
+        : await loadGoldenChainOrderState(supabase, state.orderId);
+      setState(next);
+
       const stageAdvanced = next.stage !== state.stage;
       const ctaAdvanced = next.cta !== prevCta;
-      const finalizeToReservation =
-        state.stage === "dispatch_finalization" && next.stage === "reservation";
+      const finalizeAdvanced = goldenChainAdvancedPastDispatchFinalize(state, next);
       const stockFinalized =
         state.stage === "stock_finalization" &&
         (next.stage === "complete" || next.stockConsumptionComplete);
-      if (stageAdvanced || ctaAdvanced || finalizeToReservation || stockFinalized) {
+      if (finalizeAdvanced) {
+        toast.success("Dispatch finalized. Continue to reserve stock.");
+      } else if (stageAdvanced || ctaAdvanced || stockFinalized) {
         toast.success(`${prevCta} completed. Next: ${next.cta}`);
       } else if (state.stage === "prepare_dispatch_evidence") {
         toast.warning("Evidence recorded but prerequisites still missing — check blockers below.");
       } else if (state.stage === "dispatch_finalization" && next.dispatchAlreadyFinalized) {
-        toast.success("Dispatch was already finalized. Continue with Reserve stock.");
+        toast.success("Dispatch finalized. Continue to reserve stock.");
       } else {
         toast.error("Step did not advance — resolve blockers and try again.");
       }

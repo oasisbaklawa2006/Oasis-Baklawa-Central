@@ -245,10 +245,7 @@ function stageResult(
   dispatchAlreadyFinalized: boolean,
   stockConsumptionComplete: boolean,
 ): GoldenChainDerivationResult {
-  let resolvedCta = cta;
-  if (stage === "dispatch_finalization" && dispatchAlreadyFinalized) {
-    resolvedCta = "Already complete";
-  }
+  const resolvedCta = cta;
   return {
     stage,
     cta: resolvedCta,

@@ -9,3 +9,4 @@ export * from "./goldenChainPrerequisites";
 export * from "./goldenChainPrepareDispatchEvidence";
 export * from "./goldenChainCompletionInput";
 export * from "./goldenChainReservationAccess";
+export * from "./goldenChainReloadAfterMutation";
