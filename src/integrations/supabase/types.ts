@@ -471,6 +471,56 @@ export type Database = {
           },
         ]
       }
+      catalogue_product_mappings: {
+        Row: {
+          central_product_id: string | null
+          created_at: string
+          external_catalogue_product_id: string
+          id: string
+          last_synced_at: string | null
+          metadata: Json
+          sku: string
+          source_app: string
+          source_version: number
+          sync_status: string
+          updated_at: string
+        }
+        Insert: {
+          central_product_id?: string | null
+          created_at?: string
+          external_catalogue_product_id: string
+          id?: string
+          last_synced_at?: string | null
+          metadata?: Json
+          sku: string
+          source_app?: string
+          source_version?: number
+          sync_status?: string
+          updated_at?: string
+        }
+        Update: {
+          central_product_id?: string | null
+          created_at?: string
+          external_catalogue_product_id?: string
+          id?: string
+          last_synced_at?: string | null
+          metadata?: Json
+          sku?: string
+          source_app?: string
+          source_version?: number
+          sync_status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "catalogue_product_mappings_central_product_id_fkey"
+            columns: ["central_product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       companies: {
         Row: {
           account_manager_id: string | null
