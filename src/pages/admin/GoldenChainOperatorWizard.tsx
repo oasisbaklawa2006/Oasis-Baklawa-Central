@@ -137,6 +137,19 @@ export default function GoldenChainOperatorWizard() {
     else setState(null);
   }, [selectedId, reloadOrder]);
 
+  const viewState = useMemo(
+    () => (state ? normalizeGoldenChainStateAfterDispatchFinalize(state) : null),
+    [state],
+  );
+
+  useEffect(() => {
+    if (!state) return;
+    const normalized = normalizeGoldenChainStateAfterDispatchFinalize(state);
+    if (normalized.stage !== state.stage || normalized.cta !== state.cta) {
+      setState(normalized);
+    }
+  }, [state]);
+
   const writeCtx = (prefix: string) => ({
     correlationId: `golden-chain-${prefix}-${Date.now()}`,
     actorUserId: user?.id ?? "",
@@ -148,33 +161,34 @@ export default function GoldenChainOperatorWizard() {
     rejectionReason: null,
   });
 
-  const finalizeGuardMsg = state?.dispatchAlreadyFinalized
-    ? dispatchFinalizeGuardMessage(state.dispatchLineage)
-    : null;
+  const finalizeGuardMsg =
+    viewState?.dispatchAlreadyFinalized && viewState.stage === "dispatch_finalization"
+      ? dispatchFinalizeGuardMessage(viewState.dispatchLineage)
+      : null;
 
   const primaryDisabled = useMemo(() => {
-    if (busy || !state || loadingOrder) return true;
+    if (busy || !viewState || loadingOrder) return true;
     if (
-      state.cta === "Already complete" ||
-      state.cta === "Completion already attested" ||
-      state.stage === "complete"
+      viewState.cta === "Already complete" ||
+      viewState.cta === "Completion already attested" ||
+      viewState.stage === "complete"
     ) {
       return true;
     }
-    if (state.stage === "dispatch_finalization" && state.dispatchAlreadyFinalized) return true;
+    if (viewState.stage === "dispatch_finalization" && viewState.dispatchAlreadyFinalized) return true;
     if (
-      (state.stage === "prepare_dispatch_evidence" || state.stage === "readiness_review") &&
+      (viewState.stage === "prepare_dispatch_evidence" || viewState.stage === "readiness_review") &&
       !readinessBundle?.canExecuteWrites
     ) {
       return true;
     }
-    if (state.stage === "finance_release" && !financeBundle?.canExecuteWrites) return true;
-    if (state.stage === "completion_attestation" && !completionBundle?.canExecuteWrites) return true;
-    if (state.stage === "dispatch_finalization" && !finalizationBundle?.canExecuteWrites) return true;
-    if (state.stage === "stock_finalization" && !stockBundle?.canExecuteWrites) return true;
-    if (state.stage === "reservation" && !goldenChainUserCanReserveStock(role)) return true;
+    if (viewState.stage === "finance_release" && !financeBundle?.canExecuteWrites) return true;
+    if (viewState.stage === "completion_attestation" && !completionBundle?.canExecuteWrites) return true;
+    if (viewState.stage === "dispatch_finalization" && !finalizationBundle?.canExecuteWrites) return true;
+    if (viewState.stage === "stock_finalization" && !stockBundle?.canExecuteWrites) return true;
+    if (viewState.stage === "reservation" && !goldenChainUserCanReserveStock(role)) return true;
     if (
-      state.stage === "stock_finalization" &&
+      viewState.stage === "stock_finalization" &&
       requiresStockOverrideReason(role) &&
       !overrideReason.trim()
     ) {
@@ -183,7 +197,7 @@ export default function GoldenChainOperatorWizard() {
     return false;
   }, [
     busy,
-    state,
+    viewState,
     loadingOrder,
     readinessBundle,
     financeBundle,
@@ -194,19 +208,20 @@ export default function GoldenChainOperatorWizard() {
     overrideReason,
   ]);
 
-  const progressIdx = state ? stageIndex(state.stage) : -1;
+  const progressIdx = viewState ? stageIndex(viewState.stage) : -1;
 
   async function runPrimaryAction() {
     if (!state || primaryDisabled) return;
+    const actionStage = viewState?.stage ?? state.stage;
     setBusy(true);
     const refs = state.evidenceRefs;
-    const ctxBase = writeCtx(state.stage);
+    const ctxBase = writeCtx(actionStage);
     const prevCta = state.cta;
-    const stageBeforeAction = state.stage;
+    const stageBeforeAction = actionStage;
     let dispatchFinalizeSucceeded = false;
 
     try {
-      switch (state.stage) {
+      switch (actionStage) {
         case "prepare_dispatch_evidence": {
           if (!readinessBundle) throw new Error("Dispatch check service is unavailable. Try again or call IT.");
           const prep = await prepareDispatchEvidenceForOrder(supabase, {
@@ -563,7 +578,7 @@ export default function GoldenChainOperatorWizard() {
                     <p className="text-sm text-muted-foreground">{state.companyName}</p>
                   )}
                 </div>
-                <Badge variant={state.stage === "complete" ? "default" : "secondary"}>
+                <Badge variant={viewState?.stage === "complete" ? "default" : "secondary"}>
                   {state.staffStageLabel}
                 </Badge>
               </div>
@@ -577,8 +592,8 @@ export default function GoldenChainOperatorWizard() {
               </p>
               <div className="flex gap-1 overflow-x-auto pb-1">
                 {PROGRESS_STEPS.map((step, i) => {
-                  const done = progressIdx > i || state.stage === "complete";
-                  const current = state.stage === step.key;
+                  const done = progressIdx > i || viewState?.stage === "complete";
+                  const current = viewState?.stage === step.key;
                   return (
                     <div
                       key={step.key}
@@ -626,19 +641,19 @@ export default function GoldenChainOperatorWizard() {
             </Card>
           )}
 
-          {finalizeGuardMsg && state.stage === "dispatch_finalization" && (
+          {finalizeGuardMsg && viewState?.stage === "dispatch_finalization" && (
             <p className="rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm text-amber-900 dark:text-amber-100">
               {finalizeGuardMsg}
             </p>
           )}
 
-          {state.stage === "reservation" && !goldenChainUserCanReserveStock(role) && (
+          {viewState?.stage === "reservation" && !goldenChainUserCanReserveStock(role) && (
             <p className="rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm text-amber-900 dark:text-amber-100">
               {GOLDEN_CHAIN_RESERVATION_DENIED_MESSAGE}
             </p>
           )}
 
-          {state.stage === "stock_finalization" && requiresStockOverrideReason(role) && (
+          {viewState?.stage === "stock_finalization" && requiresStockOverrideReason(role) && (
             <div className="space-y-2">
               <Label htmlFor="override-reason" className="text-sm">
                 Override reason (required for stock deduction)
@@ -666,10 +681,10 @@ export default function GoldenChainOperatorWizard() {
                   Working…
                 </>
               ) : (
-                state.cta
+                viewState?.cta ?? state.cta
               )}
             </Button>
-            {state.stage === "dispatch_finalization" && state.dispatchAlreadyFinalized && (
+            {viewState?.stage === "dispatch_finalization" && viewState.dispatchAlreadyFinalized && (
               <p className="mt-2 text-center text-xs text-muted-foreground">
                 Dispatch already finalized — select another step after refresh.
               </p>
