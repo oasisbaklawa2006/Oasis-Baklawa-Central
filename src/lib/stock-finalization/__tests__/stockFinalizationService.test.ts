@@ -354,8 +354,8 @@ describe("stockFinalizationService", () => {
     ).rejects.toThrow(StockFinalizationError);
   });
 
-  it("rejects duplicate finalize when consumption_finalized lineage exists", async () => {
-    const { svc } = service();
+  it("idempotent second finalize does not double-deduct stock", async () => {
+    const { svc, balances } = service();
     const params = {
       orderId,
       scanReference: "PACK-SCAN-601",
@@ -373,9 +373,17 @@ describe("stockFinalizationService", () => {
       ],
     };
     await svc.finalizeConsumption(finalizedInput, params, ctx);
-    await expect(svc.finalizeConsumption(finalizedInput, params, ctx)).rejects.toMatchObject({
-      code: "already_finalized",
-    });
+    const afterFirst = await balances.getBalance(productId, "BAK-601", "WH-MAIN");
+    expect(afterFirst?.availableQty).toBe(15);
+
+    const second = await svc.finalizeConsumption(finalizedInput, params, ctx);
+    expect(second.finalizedReservationIds).toContain(reservationId);
+
+    const afterSecond = await balances.getBalance(productId, "BAK-601", "WH-MAIN");
+    expect(afterSecond?.availableQty).toBe(15);
+
+    const lineageRows = await svc.listLineage(orderId);
+    expect(lineageRows.filter((l) => l.lineageType === "consumption_finalized")).toHaveLength(1);
   });
 
   it("reversal restores reserved_qty released at finalize", async () => {

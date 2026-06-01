@@ -9,6 +9,7 @@ export type {
   StockFinalizationWriteContext,
 } from "./stockFinalizationTypes";
 export { projectStockFinalization } from "./stockFinalizationProjection";
+export { syncReservationFulfillmentFromLineage } from "./syncReservationFulfillmentAfterConsumption";
 export { evaluateStockDeductionEligibility, isDispatchFinalizedForStock } from "./stockDeductionEligibility";
 export { reconcileReservationsForConsumption } from "./stockReservationReconciliation";
 export { suppressStockEventFromCustomer } from "./stockFinalizationEvents";
