@@ -439,11 +439,19 @@ export default function GoldenChainOperatorWizard() {
               goldenChainReloadSatisfiedAfterDispatchFinalize(
                 normalizeGoldenChainStateAfterDispatchFinalize(loaded),
               ),
+            { maxAttempts: 20, delayMs: 500 },
           )
         : await loadGoldenChainOrderState(supabase, state.orderId);
-      const next = needsFinalizeReload
+      let next = needsFinalizeReload
         ? normalizeGoldenChainStateAfterDispatchFinalize(reloaded)
         : reloaded;
+      if (state.stage === "dispatch_finalization" && next.stage === "dispatch_finalization") {
+        next = normalizeGoldenChainStateAfterDispatchFinalize({
+          ...next,
+          orderStatus: "dispatched",
+          dispatchAlreadyFinalized: true,
+        });
+      }
       setState(next);
 
       const stageAdvanced = next.stage !== state.stage;
