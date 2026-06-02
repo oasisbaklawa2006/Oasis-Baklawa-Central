@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   computeHmacSha256Hex,
   constantTimeEqual,
+  resolveIngestHttpStatus,
   resolveSigningSecret,
   verifyHmacSignature,
 } from "@/lib/barcode-ingest";
@@ -48,6 +49,7 @@ describe("hmac", () => {
       secret,
     });
     expect(result).toEqual({ ok: false, reason: "signature_invalid" });
+    expect(resolveIngestHttpStatus("signature_invalid")).toBe(401);
   });
 
   it("rejects missing signature", async () => {
@@ -57,6 +59,7 @@ describe("hmac", () => {
       secret,
     });
     expect(result).toEqual({ ok: false, reason: "signature_missing" });
+    expect(resolveIngestHttpStatus("signature_missing")).toBe(401);
   });
 
   it("rejects missing secret", async () => {
