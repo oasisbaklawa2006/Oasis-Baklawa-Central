@@ -6,6 +6,7 @@ import {
   ScanLine, CalendarDays, Warehouse, Box, ListOrdered, AlertOctagon, ScanBarcode, Network, Gauge, LayoutGrid, Search, PackageMinus,
   Workflow,
   Link2,
+  Inbox,
 } from "lucide-react";
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
@@ -127,6 +128,7 @@ const AdminLayout = () => {
         { to: "/admin/products", icon: Package, label: t("Products"), moduleKey: "products" },
         { to: "/admin/merchandising", icon: Sparkles, label: t("Merchandising"), moduleKey: "products" },
         { to: "/admin/catalogue-sync", icon: Link2, label: "Catalogue sync", moduleKey: "products" },
+        { to: "/admin/catalogue-approvals", icon: Inbox, label: "Catalogue approvals", moduleKey: "products" },
         { to: "/admin/pricing", icon: BarChart3, label: t("Pricing"), moduleKey: "pricing" },
         { to: "/admin/finance-governance", icon: Landmark, label: "Finance governance (audit)", moduleKey: "finance_audit" },
         { to: "/admin/finance", icon: DollarSign, label: t("Finance"), moduleKey: "finance" },
