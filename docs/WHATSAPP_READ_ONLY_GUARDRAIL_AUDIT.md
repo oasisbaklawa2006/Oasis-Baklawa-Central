@@ -12,6 +12,7 @@ All invocations live in **`WhatsAppInbox.tsx`** only:
 
 | Slug | Purpose | Notes |
 |------|---------|--------|
+| **`whatsapp-identify-sender`** | TOOL 2 sender identity (read-only) | WA-03A: display only; Edge SELECT on `users` / `whatsapp_contacts`; no writes. |
 | **`whatsapp-operator-reply`** | Operator outbound reply | Pre–#66 TOOL 1 path; **not** read-only (Edge + DB writes). |
 | **`whatsapp-classify-intent`** | TOOL 3 suggestion | Return-only Edge path per governance; **no new invoke added in #66**. |
 | **`whatsapp-route-packet`** | TOOL 4 suggestion | Same as above. |
