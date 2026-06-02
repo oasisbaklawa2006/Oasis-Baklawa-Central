@@ -29,7 +29,11 @@ const LOCATION_TOKENS = [
 ];
 
 const GST_PATTERN = /\b([0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1})\b/gi;
-const ORDER_REF_PATTERN = /\b(?:SO[-\s]?|order\s*(?:#|no\.?|number)?\s*)?([A-Z0-9-]{5,20})\b/gi;
+const ORDER_REF_PATTERNS = [
+  /\b(SO[-\s#][0-9A-Z-]{4,18})\b/gi,
+  /\b(ORD(?:ER)?[-\s#][0-9A-Z-]{4,18})\b/gi,
+  /\border\s*(?:#|no\.?|number)\s*[:\-]?\s*([0-9A-Z-]{4,18})\b/gi,
+] as const;
 const CLIENT_CODE_PATTERN = /\b(?:client\s*code|code)\s*[:\-]?\s*(\d{3,8})\b/i;
 const PHONE_PATTERN = /\b(?:\+?91[\s-]?)?([6-9]\d{9})\b/g;
 
@@ -74,6 +78,18 @@ function extractLocationTokens(text: string): string[] {
   return LOCATION_TOKENS.filter((token) => lower.includes(token));
 }
 
+/** Explicit SO / ORD / order-number references only — not arbitrary words. */
+export function extractOrderReferences(text: string): string[] {
+  const refs: string[] = [];
+  for (const pattern of ORDER_REF_PATTERNS) {
+    for (const match of text.matchAll(pattern)) {
+      const raw = (match[1] ?? match[0]).trim().replace(/\s+/g, " ");
+      if (raw.length >= 5 && /\d/.test(raw)) refs.push(raw.toUpperCase());
+    }
+  }
+  return uniqueStrings(refs);
+}
+
 export function buildClientResolutionCombinedText(
   messageText: string,
   stitchedPlainText?: string,
@@ -90,11 +106,7 @@ export function extractClientResolutionTextSignals(
   const phoneLast10 = uniqueStrings(
     [...combinedText.matchAll(PHONE_PATTERN)].map((m) => m[1].slice(-10)),
   );
-  const orderReferences = uniqueStrings(
-    [...combinedText.matchAll(ORDER_REF_PATTERN)]
-      .map((m) => m[1].toUpperCase())
-      .filter((ref) => ref.length >= 5 && !/^\d+$/.test(ref)),
-  );
+  const orderReferences = extractOrderReferences(combinedText);
   const numericCodes = uniqueStrings(
     [...combinedText.matchAll(/\b(\d{3,8})\b/g)].map((m) => m[1]),
   );

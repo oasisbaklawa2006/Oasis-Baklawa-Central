@@ -15,6 +15,7 @@ export const CLIENT_RESOLUTION_SIGNAL_WEIGHTS = {
   whatsappContactCustomerAlias: 0.32,
   gstExactMatch: 0.52,
   phoneOnCompany: 0.4,
+  senderPhoneMatch: 0.4,
   b2bApplicationName: 0.22,
   shadowClientExtractedName: 0.18,
   orderReference: 0.35,
@@ -56,6 +57,7 @@ export interface ScoreClientResolutionInput {
   ownerProfiles: Map<string, OwnerProfileRow>;
   waCustomerName?: string | null;
   waCompanyName?: string | null;
+  senderPhoneLast10?: string | null;
   senderIsEmployee?: boolean;
   additionalReasons?: Map<string, ClientResolutionScoreReason[]>;
 }
@@ -130,6 +132,19 @@ export function scoreClientResolutionCandidates(
           company.id,
           CLIENT_RESOLUTION_SIGNAL_WEIGHTS.phoneOnCompany,
           `Phone ending ${last10} matches company record`,
+        );
+      }
+    }
+
+    if (input.senderPhoneLast10) {
+      const phone = (company.phone ?? "").replace(/\D/g, "");
+      const gstPhone = (company.gst_number ?? "").replace(/\D/g, "");
+      if (phone.endsWith(input.senderPhoneLast10) || gstPhone.endsWith(input.senderPhoneLast10)) {
+        addReason(
+          reasonsByCompany,
+          company.id,
+          CLIENT_RESOLUTION_SIGNAL_WEIGHTS.senderPhoneMatch,
+          `Sender phone ending ${input.senderPhoneLast10} matches company record`,
         );
       }
     }

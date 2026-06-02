@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { extractClientResolutionTextSignals } from "@/lib/wa-governance/clientResolutionSignals";
+import { extractClientResolutionTextSignals, extractOrderReferences } from "@/lib/wa-governance/clientResolutionSignals";
 import {
   CLIENT_RESOLUTION_SIGNAL_WEIGHTS,
   confidenceBandFromPercent,
@@ -57,6 +57,75 @@ describe("clientResolutionScoring", () => {
     expect(result.bestMatch?.ownerName).toBe("Anita Mehta");
     expect(result.bestMatch?.confidence).toBeGreaterThanOrEqual(95);
     expect(result.band).toBe("auto_highlight");
+  });
+
+  it("scores WhatsApp company alias from identify-sender output", () => {
+    const result = scoreClientResolutionCandidates({
+      signals: baseSignals(),
+      companies: [
+        company({
+          id: "c-bikaner",
+          business_name: "Bikanervala Connaught Place",
+          account_manager_id: "owner-2",
+        }),
+      ],
+      ownerProfiles,
+      waCompanyName: "Bikanervala Connaught Place",
+    });
+
+    expect(result.bestMatch?.reasons.some((reason) => reason.includes("WhatsApp contact company alias"))).toBe(
+      true,
+    );
+    expect(result.bestMatch?.confidence).toBeGreaterThanOrEqual(38);
+  });
+
+  it("scores sender phone match as a candidate reason", () => {
+    const result = scoreClientResolutionCandidates({
+      signals: baseSignals(),
+      companies: [
+        company({
+          id: "c-phone",
+          business_name: "Direct Customer Ltd",
+          phone: "+91 9876543210",
+          account_manager_id: "owner-1",
+        }),
+      ],
+      ownerProfiles,
+      senderPhoneLast10: "9876543210",
+    });
+
+    expect(result.candidateClients).toHaveLength(1);
+    expect(result.bestMatch?.reasons.some((reason) => reason.includes("Sender phone ending"))).toBe(true);
+    expect(result.bestMatch?.confidence).toBeGreaterThanOrEqual(40);
+  });
+
+  it("scores delivery-address-only match via additional reason", () => {
+    const result = scoreClientResolutionCandidates({
+      signals: baseSignals({ locationTokens: ["noida"] }),
+      companies: [
+        company({
+          id: "c-del",
+          business_name: "Warehouse Client",
+          registered_address: null,
+        }),
+      ],
+      ownerProfiles,
+      additionalReasons: new Map([
+        [
+          "c-del",
+          [
+            {
+              companyId: "c-del",
+              weight: CLIENT_RESOLUTION_SIGNAL_WEIGHTS.deliveryLocation,
+              reason: 'Delivery address matches location token "noida"',
+            },
+          ],
+        ],
+      ]),
+    });
+
+    expect(result.bestMatch?.companyName).toBe("Warehouse Client");
+    expect(result.bestMatch?.reasons.some((reason) => reason.includes("Delivery address"))).toBe(true);
   });
 
   it("scores WhatsApp contact alias as suggested match", () => {
@@ -170,5 +239,24 @@ describe("clientResolutionSignals", () => {
     );
     expect(signals.numericCodes).toContain("8472");
     expect(signals.locationTokens).toContain("cp");
+  });
+
+  it("extracts explicit order references only", () => {
+    const signals = extractClientResolutionTextSignals("Follow up on SO-12345 and ORD-99881", "");
+    expect(signals.orderReferences.some((ref) => ref.includes("12345"))).toBe(true);
+    expect(signals.orderReferences.some((ref) => ref.includes("99881"))).toBe(true);
+  });
+
+  it("ignores ordinary words as order references", () => {
+    const signals = extractClientResolutionTextSignals(
+      "Bikanervala CP urgent dispatch client gurgaon",
+      "",
+    );
+    expect(signals.orderReferences).toEqual([]);
+  });
+
+  it("extractOrderReferences requires explicit prefixes", () => {
+    expect(extractOrderReferences("order number SO-AB12CD")).toEqual(["SO-AB12CD"]);
+    expect(extractOrderReferences("urgent dispatch bikanervala")).toEqual([]);
   });
 });

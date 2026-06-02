@@ -237,9 +237,15 @@ export async function resolveClientCandidates(
   }
 
   const senderLast10 = phoneLast10(input.senderPhone);
-  if (senderLast10 && input.senderIdentity?.kind === "customer") {
-    absorb(await queryCompaniesByPhone(supabase, senderLast10));
-    absorb(await queryCompaniesViaPortalUserPhone(supabase, senderLast10));
+  const senderIsDirectExternal =
+    input.senderIdentity?.kind === "customer" || input.senderIdentity?.kind === "unknown";
+
+  if (senderLast10 && senderIsDirectExternal) {
+    const senderPhoneCompanies = dedupeCompanies([
+      ...(await queryCompaniesByPhone(supabase, senderLast10)),
+      ...(await queryCompaniesViaPortalUserPhone(supabase, senderLast10)),
+    ]);
+    absorb(senderPhoneCompanies);
   }
 
   for (const orderRef of signals.orderReferences.slice(0, 3)) {
@@ -255,7 +261,15 @@ export async function resolveClientCandidates(
   }
 
   for (const location of signals.locationTokens.slice(0, 3)) {
-    absorb(await queryCompaniesViaDeliveryLocation(supabase, location));
+    const deliveryCompanies = await queryCompaniesViaDeliveryLocation(supabase, location);
+    absorb(deliveryCompanies);
+    for (const company of deliveryCompanies) {
+      noteReason(
+        company.id,
+        CLIENT_RESOLUTION_SIGNAL_WEIGHTS.deliveryLocation,
+        `Delivery address matches location token "${location}"`,
+      );
+    }
   }
 
   const companies = dedupeCompanies(collected);
@@ -270,6 +284,7 @@ export async function resolveClientCandidates(
     ownerProfiles,
     waCustomerName: input.waCustomerName,
     waCompanyName: input.waCompanyName,
+    senderPhoneLast10: senderLast10,
     senderIsEmployee,
     additionalReasons,
   });

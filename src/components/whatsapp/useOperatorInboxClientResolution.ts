@@ -95,15 +95,16 @@ export function useOperatorInboxClientResolution(
       try {
         const stitched = packetStitchedPlainText(packet.stitched_content);
         const snippet = pickLatestInboundSnippetForIdentifySender(packet.messages, stitched) ?? "";
+        const senderIdentity =
+          senderIdentityState.status === "ready" ? senderIdentityState.identity : null;
         const result = await fetchClientResolution(supabase, {
           messageText: snippet,
           stitchedPlainText: stitched,
           senderPhone: packet.phone_number,
           waContactId: packet.wa_contact_id,
           waCustomerName: packet.customer_name,
-          waCompanyName: null,
-          senderIdentity:
-            senderIdentityState.status === "ready" ? senderIdentityState.identity : null,
+          waCompanyName: senderIdentity?.companyName ?? null,
+          senderIdentity,
         });
         if (cancelled || lookupKeyRef.current !== requestKey) return;
         setState({ status: "ready", result });
