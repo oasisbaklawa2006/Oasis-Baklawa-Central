@@ -239,6 +239,7 @@ export async function resolveClientCandidates(
   const senderLast10 = phoneLast10(input.senderPhone);
   const senderIsDirectExternal =
     input.senderIdentity?.kind === "customer" || input.senderIdentity?.kind === "unknown";
+  const senderPhoneForScoring = senderIsDirectExternal ? senderLast10 : null;
 
   if (senderLast10 && senderIsDirectExternal) {
     const senderPhoneCompanies = dedupeCompanies([
@@ -284,7 +285,7 @@ export async function resolveClientCandidates(
     ownerProfiles,
     waCustomerName: input.waCustomerName,
     waCompanyName: input.waCompanyName,
-    senderPhoneLast10: senderLast10,
+    senderPhoneLast10: senderPhoneForScoring,
     senderIsEmployee,
     additionalReasons,
   });

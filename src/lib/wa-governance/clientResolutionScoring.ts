@@ -41,6 +41,58 @@ function addReason(
   bucket.set(companyId, list);
 }
 
+function companyMatchesPhoneLast10(company: CompanyResolutionRow, last10: string): boolean {
+  const phone = (company.phone ?? "").replace(/\D/g, "");
+  const gstPhone = (company.gst_number ?? "").replace(/\D/g, "");
+  return phone.endsWith(last10) || gstPhone.endsWith(last10);
+}
+
+function deliveryTokenFromReason(reason: string): string | null {
+  const match = reason.match(/location token "([^"]+)"/i);
+  return match?.[1]?.toLowerCase() ?? null;
+}
+
+function addPhoneEvidenceReason(
+  bucket: Map<string, ClientResolutionScoreReason[]>,
+  company: CompanyResolutionRow,
+  last10: string,
+  scoredPhoneLast10: Set<string>,
+  preferSenderLabel: boolean,
+): void {
+  if (scoredPhoneLast10.has(last10) || !companyMatchesPhoneLast10(company, last10)) return;
+  scoredPhoneLast10.add(last10);
+  if (preferSenderLabel) {
+    addReason(
+      bucket,
+      company.id,
+      CLIENT_RESOLUTION_SIGNAL_WEIGHTS.senderPhoneMatch,
+      `Sender phone ending ${last10} matches company record`,
+    );
+    return;
+  }
+  addReason(
+    bucket,
+    company.id,
+    CLIENT_RESOLUTION_SIGNAL_WEIGHTS.phoneOnCompany,
+    `Phone ending ${last10} matches company record`,
+  );
+}
+
+function addDeliveryLocationReason(
+  bucket: Map<string, ClientResolutionScoreReason[]>,
+  deliveryLocationByCompany: Map<string, Set<string>>,
+  companyId: string,
+  locationToken: string,
+  reason: string,
+): void {
+  const tokenKey = locationToken.toLowerCase();
+  const scored = deliveryLocationByCompany.get(companyId) ?? new Set<string>();
+  if (scored.has(tokenKey)) return;
+  scored.add(tokenKey);
+  deliveryLocationByCompany.set(companyId, scored);
+  addReason(bucket, companyId, CLIENT_RESOLUTION_SIGNAL_WEIGHTS.deliveryLocation, reason);
+}
+
 export function confidenceBandFromPercent(confidence: number): ClientResolutionConfidenceBand {
   if (confidence >= 95) return "auto_highlight";
   if (confidence >= 70) return "suggested";
@@ -66,9 +118,12 @@ export function scoreClientResolutionCandidates(
   input: ScoreClientResolutionInput,
 ): ClientResolutionResult {
   const reasonsByCompany = new Map<string, ClientResolutionScoreReason[]>();
+  const deliveryLocationByCompany = new Map<string, Set<string>>();
   const companyById = new Map(input.companies.map((row) => [row.id, row]));
 
   for (const company of input.companies) {
+    const scoredPhoneLast10 = new Set<string>();
+
     for (const term of input.signals.nameCandidates) {
       const match = companyNameMatchesTerm(company.business_name, term);
       if (match === "exact") {
@@ -124,29 +179,24 @@ export function scoreClientResolutionCandidates(
     }
 
     for (const last10 of input.signals.phoneLast10) {
-      const phone = (company.phone ?? "").replace(/\D/g, "");
-      const gstPhone = (company.gst_number ?? "").replace(/\D/g, "");
-      if (phone.endsWith(last10) || gstPhone.endsWith(last10)) {
-        addReason(
-          reasonsByCompany,
-          company.id,
-          CLIENT_RESOLUTION_SIGNAL_WEIGHTS.phoneOnCompany,
-          `Phone ending ${last10} matches company record`,
-        );
+      if (
+        input.senderPhoneLast10 &&
+        !input.senderIsEmployee &&
+        last10 === input.senderPhoneLast10
+      ) {
+        continue;
       }
+      addPhoneEvidenceReason(reasonsByCompany, company, last10, scoredPhoneLast10, false);
     }
 
-    if (input.senderPhoneLast10) {
-      const phone = (company.phone ?? "").replace(/\D/g, "");
-      const gstPhone = (company.gst_number ?? "").replace(/\D/g, "");
-      if (phone.endsWith(input.senderPhoneLast10) || gstPhone.endsWith(input.senderPhoneLast10)) {
-        addReason(
-          reasonsByCompany,
-          company.id,
-          CLIENT_RESOLUTION_SIGNAL_WEIGHTS.senderPhoneMatch,
-          `Sender phone ending ${input.senderPhoneLast10} matches company record`,
-        );
-      }
+    if (input.senderPhoneLast10 && !input.senderIsEmployee) {
+      addPhoneEvidenceReason(
+        reasonsByCompany,
+        company,
+        input.senderPhoneLast10,
+        scoredPhoneLast10,
+        true,
+      );
     }
 
     for (const code of input.signals.numericCodes) {
@@ -163,10 +213,11 @@ export function scoreClientResolutionCandidates(
     for (const location of input.signals.locationTokens) {
       const address = `${company.registered_address ?? ""} ${company.business_name}`.toLowerCase();
       if (address.includes(location)) {
-        addReason(
+        addDeliveryLocationReason(
           reasonsByCompany,
+          deliveryLocationByCompany,
           company.id,
-          CLIENT_RESOLUTION_SIGNAL_WEIGHTS.deliveryLocation,
+          location,
           `Location token "${location}" matches company address/name`,
         );
       }
@@ -186,6 +237,19 @@ export function scoreClientResolutionCandidates(
 
   for (const [companyId, extraReasons] of input.additionalReasons ?? []) {
     for (const reason of extraReasons) {
+      if (reason.weight === CLIENT_RESOLUTION_SIGNAL_WEIGHTS.deliveryLocation) {
+        const token = deliveryTokenFromReason(reason.reason);
+        if (token) {
+          addDeliveryLocationReason(
+            reasonsByCompany,
+            deliveryLocationByCompany,
+            companyId,
+            token,
+            reason.reason,
+          );
+          continue;
+        }
+      }
       addReason(reasonsByCompany, companyId, reason.weight, reason.reason);
     }
   }

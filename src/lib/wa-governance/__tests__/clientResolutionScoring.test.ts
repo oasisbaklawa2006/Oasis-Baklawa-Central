@@ -99,6 +99,78 @@ describe("clientResolutionScoring", () => {
     expect(result.bestMatch?.confidence).toBeGreaterThanOrEqual(40);
   });
 
+  it("does not score sender phone match for employee sender identity", () => {
+    const result = scoreClientResolutionCandidates({
+      signals: baseSignals({ phoneLast10: ["9876543210"] }),
+      companies: [
+        company({
+          id: "c-employee-accident",
+          business_name: "Unrelated Company",
+          phone: "+91 9876543210",
+        }),
+      ],
+      ownerProfiles,
+      senderPhoneLast10: "9876543210",
+      senderIsEmployee: true,
+    });
+
+    expect(result.bestMatch?.reasons.some((reason) => reason.includes("Sender phone ending"))).toBe(false);
+    expect(result.bestMatch?.reasons.some((reason) => reason.includes("Phone ending"))).toBe(true);
+    expect(result.bestMatch?.confidence).toBe(40);
+  });
+
+  it("does not double-count the same phone last-10 from message and sender", () => {
+    const result = scoreClientResolutionCandidates({
+      signals: baseSignals({ phoneLast10: ["9876543210"] }),
+      companies: [
+        company({
+          id: "c-phone-dedupe",
+          business_name: "Direct Customer Ltd",
+          phone: "+91 9876543210",
+        }),
+      ],
+      ownerProfiles,
+      senderPhoneLast10: "9876543210",
+    });
+
+    const phoneReasons =
+      result.bestMatch?.reasons.filter((reason) => /phone ending/i.test(reason)) ?? [];
+    expect(phoneReasons).toHaveLength(1);
+    expect(phoneReasons[0]).toContain("Sender phone ending");
+    expect(result.bestMatch?.confidence).toBe(40);
+  });
+
+  it("does not double-count delivery location from lookup and address/name match", () => {
+    const result = scoreClientResolutionCandidates({
+      signals: baseSignals({ locationTokens: ["noida"] }),
+      companies: [
+        company({
+          id: "c-del-dedupe",
+          business_name: "Noida Traders",
+          registered_address: "Sector 18 Noida",
+        }),
+      ],
+      ownerProfiles,
+      additionalReasons: new Map([
+        [
+          "c-del-dedupe",
+          [
+            {
+              companyId: "c-del-dedupe",
+              weight: CLIENT_RESOLUTION_SIGNAL_WEIGHTS.deliveryLocation,
+              reason: 'Delivery address matches location token "noida"',
+            },
+          ],
+        ],
+      ]),
+    });
+
+    const deliveryReasons =
+      result.bestMatch?.reasons.filter((reason) => reason.toLowerCase().includes("noida")) ?? [];
+    expect(deliveryReasons).toHaveLength(1);
+    expect(result.bestMatch?.confidence).toBe(18);
+  });
+
   it("scores delivery-address-only match via additional reason", () => {
     const result = scoreClientResolutionCandidates({
       signals: baseSignals({ locationTokens: ["noida"] }),
