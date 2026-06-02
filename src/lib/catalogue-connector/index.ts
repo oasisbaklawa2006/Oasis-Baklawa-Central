@@ -19,6 +19,12 @@ export {
 } from "./syncApprovedCatalogueProduct";
 export { createInMemoryCatalogueConnectorStore } from "./inMemoryCatalogueConnectorStore";
 export { createSupabaseCatalogueConnectorStore } from "./supabaseCatalogueConnectorStore";
+export {
+  validateApprovedCatalogueSnapshot,
+  type CatalogueSnapshotValidationError,
+  type CatalogueSnapshotValidationResult,
+} from "./validateApprovedCatalogueSnapshot";
+export { intakeApprovedCatalogueSnapshot, type CatalogueIntakeResult } from "./intakeApprovedCatalogueSnapshot";
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createCatalogueConnectorSync } from "./syncApprovedCatalogueProduct";
