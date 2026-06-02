@@ -17,7 +17,10 @@ export {
 } from "./parseCatalogueApprovalPayload";
 export type {
   CatalogueAliasDraftView,
+  CatalogueApprovalAction,
+  CatalogueApprovalClientErrorAction,
   CatalogueApprovalOutcome,
+  CatalogueApprovalRpcAction,
   CatalogueApprovalRpcResult,
   CatalogueDraftKind,
   CatalogueDraftView,

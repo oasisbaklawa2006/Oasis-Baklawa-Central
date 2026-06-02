@@ -40,14 +40,22 @@ export interface CatalogueAliasDraftView {
 
 export type CatalogueDraftView = CatalogueTagDraftView | CatalogueAliasDraftView;
 
+/** Known RPC actions from Central Supabase approve/reject functions. */
 export type CatalogueApprovalRpcAction =
   | "approved"
   | "rejected"
   | "approve_blocked_mapping_not_finalized";
 
+/** Client-side action labels when Supabase returns a non-auth error. */
+export type CatalogueApprovalClientErrorAction = "tag_error" | "alias_error";
+
+export type CatalogueApprovalAction =
+  | CatalogueApprovalRpcAction
+  | CatalogueApprovalClientErrorAction;
+
 export interface CatalogueApprovalRpcResult {
   ok: boolean;
-  action?: string;
+  action?: CatalogueApprovalAction;
   message?: string;
   draft_table?: string;
   draft_id?: string;
