@@ -80,10 +80,21 @@ export function validateIngestHeaders(headers: BarcodeScanIngestHeaders): Barcod
   if (!headers.idempotencyKey.trim()) {
     return failure("missing_idempotency_key", "X-Idempotency-Key is required");
   }
-  if (!headers.signature.trim()) {
-    return failure("missing_signature", "X-Oasis-Signature is required");
-  }
   return null;
+}
+
+const INGEST_AUTH_FAILURE_REASONS = new Set([
+  "missing_signature",
+  "signature_missing",
+  "signature_invalid",
+  "signing_secret_missing",
+]);
+
+/** Maps ingest failure reason codes to HTTP status for the edge handler. */
+export function resolveIngestHttpStatus(reason: string): number {
+  if (INGEST_AUTH_FAILURE_REASONS.has(reason)) return 401;
+  if (reason === "order_not_found") return 404;
+  return 400;
 }
 
 export function parseBarcodeScanPayload(raw: unknown): BarcodeScanPayload | BarcodeScanIngestFailureResponse {

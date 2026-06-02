@@ -4,8 +4,10 @@ import {
   type BarcodeScanPayload,
   type InsertOperationalScanInput,
   processBarcodeScanIngest,
+  resolveIngestHttpStatus,
   validateBarcodeScanBusinessRules,
   validateIngestHeaders,
+  verifyHmacSignature,
 } from "@/lib/barcode-ingest";
 
 const ORDER_ID = "11111111-1111-4111-8111-111111111111";
@@ -115,6 +117,22 @@ describe("barcodeScanIngest", () => {
       reason: "missing_idempotency_key",
       message: "X-Idempotency-Key is required",
     });
+    expect(resolveIngestHttpStatus("missing_idempotency_key")).toBe(400);
+  });
+
+  it("does not treat missing signature as a 400 header validation error", () => {
+    expect(validateIngestHeaders(baseHeaders({ signature: "" }))).toBeNull();
+    expect(resolveIngestHttpStatus("missing_signature")).toBe(401);
+  });
+
+  it("maps invalid signature auth failures to HTTP 401", async () => {
+    const result = await verifyHmacSignature({
+      body: "{}",
+      signatureHeader: "deadbeef".repeat(8),
+      secret: "test-secret",
+    });
+    expect(result.ok).toBe(false);
+    expect(resolveIngestHttpStatus(result.reason ?? "")).toBe(401);
   });
 
   it("returns duplicate response without inserting again", async () => {

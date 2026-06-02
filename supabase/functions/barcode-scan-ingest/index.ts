@@ -4,6 +4,7 @@ import { resolveSigningSecret, verifyHmacSignature } from "../_shared/barcode-sc
 import {
   createSupabaseBarcodeScanIngestDb,
   processBarcodeScanIngest,
+  resolveIngestHttpStatus,
   validateIngestHeaders,
 } from "../_shared/barcode-scan-ingest/ingest.ts";
 import type { BarcodeScanIngestResponse } from "../_shared/barcode-scan-ingest/types.ts";
@@ -40,7 +41,7 @@ serve(async (req) => {
 
   const headerError = validateIngestHeaders(headers);
   if (headerError) {
-    return jsonResponse(headerError, 400);
+    return jsonResponse(headerError, resolveIngestHttpStatus(headerError.reason));
   }
 
   const secret = resolveSigningSecret({
@@ -62,7 +63,7 @@ serve(async (req) => {
         : reason === "signature_missing"
           ? "X-Oasis-Signature is required"
           : "Invalid HMAC signature";
-    return jsonResponse({ ok: false, reason, message }, 401);
+    return jsonResponse({ ok: false, reason, message }, resolveIngestHttpStatus(reason));
   }
 
   let payload: unknown;
@@ -88,8 +89,7 @@ serve(async (req) => {
     });
 
     if (!result.ok) {
-      const status = result.reason === "order_not_found" ? 404 : 400;
-      return jsonResponse(result, status);
+      return jsonResponse(result, resolveIngestHttpStatus(result.reason));
     }
 
     return jsonResponse(result, 200);

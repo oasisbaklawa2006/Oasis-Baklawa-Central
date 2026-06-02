@@ -83,14 +83,6 @@ export function validateCtnSoBarcode(input: {
       `expected_barcode must match order_number (${derivedExpected})`,
     );
   }
-  if (normalizedBarcode !== derivedExpected) {
-    return fail(
-      normalizedBarcode,
-      normalizedExpected,
-      normalizedOrderNumber,
-      `barcode_value must match order_number (${derivedExpected})`,
-    );
-  }
 
   return {
     ok: true,
