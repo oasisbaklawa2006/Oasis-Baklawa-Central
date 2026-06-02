@@ -1,8 +1,22 @@
 import type {
   CatalogueApprovalOutcome,
+  CatalogueApprovalRpcAction,
   CatalogueApprovalRpcResult,
   CatalogueDraftKind,
 } from "./catalogueApprovalTypes";
+
+const RPC_ACTIONS: CatalogueApprovalRpcAction[] = [
+  "approved",
+  "rejected",
+  "approve_blocked_mapping_not_finalized",
+];
+
+function parseRpcAction(value: unknown): CatalogueApprovalRpcAction | undefined {
+  if (typeof value !== "string") return undefined;
+  return RPC_ACTIONS.includes(value as CatalogueApprovalRpcAction)
+    ? (value as CatalogueApprovalRpcAction)
+    : undefined;
+}
 
 export const CATALOGUE_APPROVAL_MESSAGES = {
   tagApproved: "Tag approved",
@@ -23,7 +37,7 @@ export function parseCatalogueApprovalRpcResult(raw: unknown): CatalogueApproval
   }
   return {
     ok: raw.ok === true,
-    action: typeof raw.action === "string" ? raw.action : undefined,
+    action: parseRpcAction(raw.action),
     message: typeof raw.message === "string" ? raw.message : undefined,
     draft_table: typeof raw.draft_table === "string" ? raw.draft_table : undefined,
     draft_id: typeof raw.draft_id === "string" ? raw.draft_id : undefined,
@@ -98,9 +112,11 @@ export function outcomeFromSupabaseError(
       message: CATALOGUE_APPROVAL_MESSAGES.notAuthorized,
     };
   }
+  const action = kind === "tag" ? "tag_error" : "alias_error";
   return {
     kind: "failed",
     success: false,
     message: CATALOGUE_APPROVAL_MESSAGES.approvalFailed(errorMessage),
+    rpc: { ok: false, action, message: errorMessage },
   };
 }

@@ -66,5 +66,15 @@ describe("catalogue approval RPC parsing", () => {
     );
     expect(outcome.kind).toBe("not_authorized");
     expect(outcome.message).toBe(CATALOGUE_APPROVAL_MESSAGES.notAuthorized);
+    expect(outcome.rpc).toBeUndefined();
+  });
+
+  it("supabase error uses kind-specific client action on failed outcome", () => {
+    const tagOutcome = outcomeFromSupabaseError("connection reset", "tag");
+    expect(tagOutcome.kind).toBe("failed");
+    expect(tagOutcome.rpc?.action).toBe("tag_error");
+
+    const aliasOutcome = outcomeFromSupabaseError("connection reset", "alias");
+    expect(aliasOutcome.rpc?.action).toBe("alias_error");
   });
 });
