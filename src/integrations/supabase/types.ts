@@ -521,6 +521,108 @@ export type Database = {
           },
         ]
       }
+      catalogue_tag_drafts: {
+        Row: {
+          created_at: string
+          id: string
+          operation: string
+          payload: Json
+          reviewed_at: string | null
+          reviewed_by: string | null
+          review_notes: string | null
+          source_app: string
+          status: string
+          submitted_at: string | null
+          submitted_by: string | null
+          target_record_id: string | null
+          target_table: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          operation: string
+          payload?: Json
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          review_notes?: string | null
+          source_app?: string
+          status?: string
+          submitted_at?: string | null
+          submitted_by?: string | null
+          target_record_id?: string | null
+          target_table?: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          operation?: string
+          payload?: Json
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          review_notes?: string | null
+          source_app?: string
+          status?: string
+          submitted_at?: string | null
+          submitted_by?: string | null
+          target_record_id?: string | null
+          target_table?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      catalogue_alias_drafts: {
+        Row: {
+          created_at: string
+          id: string
+          operation: string
+          payload: Json
+          reviewed_at: string | null
+          reviewed_by: string | null
+          review_notes: string | null
+          source_app: string
+          status: string
+          submitted_at: string | null
+          submitted_by: string | null
+          target_record_id: string | null
+          target_table: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          operation: string
+          payload?: Json
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          review_notes?: string | null
+          source_app?: string
+          status?: string
+          submitted_at?: string | null
+          submitted_by?: string | null
+          target_record_id?: string | null
+          target_table?: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          operation?: string
+          payload?: Json
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          review_notes?: string | null
+          source_app?: string
+          status?: string
+          submitted_at?: string | null
+          submitted_by?: string | null
+          target_record_id?: string | null
+          target_table?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       companies: {
         Row: {
           account_manager_id: string | null
@@ -3842,6 +3944,16 @@ export type Database = {
       }
       restore_order_financials: { Args: { _order_id: string }; Returns: number }
       run_month_end_credit_lock: { Args: never; Returns: Json }
+      approve_catalogue_tag_draft: { Args: { draft_id: string }; Returns: Json }
+      approve_catalogue_alias_draft: { Args: { draft_id: string }; Returns: Json }
+      reject_catalogue_tag_draft: {
+        Args: { draft_id: string; reason: string }
+        Returns: Json
+      }
+      reject_catalogue_alias_draft: {
+        Args: { draft_id: string; reason: string }
+        Returns: Json
+      }
     }
     Enums: {
       [_ in never]: never
