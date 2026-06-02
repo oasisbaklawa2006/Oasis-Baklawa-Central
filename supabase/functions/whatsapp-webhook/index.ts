@@ -1,5 +1,9 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient, type SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
+import {
+  isWaWebhookAutoOrderWritesEnabled,
+  isWaWebhookOwnerReassignmentEnabled,
+} from "../_shared/wa-governance/flags.ts";
 
 /** Service-role client from `createClient` — schema-generic, matches runtime usage in this edge function. */
 type SupabaseAdminClient = SupabaseClient;
@@ -837,6 +841,9 @@ serve(async (req) => {
   );
 
   try {
+    const waAutoOrderWritesEnabled = isWaWebhookAutoOrderWritesEnabled((k) => Deno.env.get(k));
+    const waOwnerReassignmentEnabled = isWaWebhookOwnerReassignmentEnabled((k) => Deno.env.get(k));
+
     const payload = await req.json();
     console.log("Incoming WhatsApp webhook:", JSON.stringify(payload).substring(0, 1000));
 
@@ -1136,12 +1143,24 @@ serve(async (req) => {
         if (clientMatch && clientMatch.length > 0) {
           companyId = clientMatch[0].id;
           companyName = clientMatch[0].business_name;
-          accountManagerId = sender.userId!;
+          accountManagerId = clientMatch[0].account_manager_id ?? null;
           companyResolutionLocked = true;
-          if (!clientMatch[0].account_manager_id) {
+          if (
+            waOwnerReassignmentEnabled &&
+            !clientMatch[0].account_manager_id &&
+            sender.userId
+          ) {
             await supabaseAdmin.from("companies")
               .update({ account_manager_id: sender.userId })
               .eq("id", companyId);
+            accountManagerId = sender.userId;
+            console.log(
+              `[WA-GOV] Owner reassignment enabled: assigned ${sender.name} as account manager for ${companyId}`,
+            );
+          } else if (!clientMatch[0].account_manager_id) {
+            console.log(
+              `[WA-GOV] Client owner unset for company ${companyId}; automatic account_manager assignment skipped (ENABLE_WA_WEBHOOK_OWNER_REASSIGNMENT=false)`,
+            );
           }
           console.log(`Staff re-wire: ${sender.name} -> order for client "${companyName}" (${companyId})`);
         }
@@ -1246,12 +1265,18 @@ serve(async (req) => {
               .limit(1)
               .maybeSingle();
             if (recentShadowOrder?.id) {
-              await supabaseAdmin
-                .from("orders")
-                .update({ company_id: realCompany.id })
-                .eq("id", recentShadowOrder.id);
-              console.log(`[CONTEXT STITCH] Retargeted order ${recentShadowOrder.id} → ${realCompany.business_name} via "${candidateName}"`);
-              // Use the real company for the rest of this message too.
+              if (waAutoOrderWritesEnabled) {
+                await supabaseAdmin
+                  .from("orders")
+                  .update({ company_id: realCompany.id })
+                  .eq("id", recentShadowOrder.id);
+                console.log(`[CONTEXT STITCH] Retargeted order ${recentShadowOrder.id} → ${realCompany.business_name} via "${candidateName}"`);
+              } else {
+                console.log(
+                  `[WA-GOV] Context stitch order retarget skipped for ${recentShadowOrder.id} (ENABLE_WA_WEBHOOK_AUTO_ORDER_WRITES=false)`,
+                );
+              }
+              // Use the real company for the rest of this message (read/logging only when gated).
               companyId = realCompany.id;
               companyName = realCompany.business_name;
               accountManagerId = realCompany.account_manager_id;
@@ -1306,13 +1331,23 @@ serve(async (req) => {
       console.log(`Proxy staff sender unresolved: ${sender.name || sender.userId} phone=${phone91} (shadow creation skipped)`);
     }
 
-    // If sender is a sales exec, assign them as account manager
-    if (senderIsSalesExec && companyId && !accountManagerId) {
-      accountManagerId = sender.userId!;
+    // Client Owner (account_manager_id) must not change unless explicitly enabled (PR-WA-02B).
+    if (
+      senderIsSalesExec &&
+      companyId &&
+      !accountManagerId &&
+      waOwnerReassignmentEnabled &&
+      sender.userId
+    ) {
+      accountManagerId = sender.userId;
       await supabaseAdmin.from("companies")
         .update({ account_manager_id: sender.userId })
         .eq("id", companyId);
-      console.log(`Auto-assigned ${sender.name} as account manager for company ${companyId}`);
+      console.log(`[WA-GOV] Owner reassignment enabled: auto-assigned ${sender.name} as account manager for ${companyId}`);
+    } else if (senderIsSalesExec && companyId && !accountManagerId) {
+      console.log(
+        `[WA-GOV] Sales exec ${sender.name} proxy for ${companyId}; owner assignment skipped (ENABLE_WA_WEBHOOK_OWNER_REASSIGNMENT=false)`,
+      );
     }
 
     console.log(`Mapped phone ${phone91} -> company: ${companyName} (${companyId}), shadow: ${isShadowClient}, sender: ${sender.type}, salesExec: ${senderIsSalesExec}`);
@@ -1397,6 +1432,11 @@ serve(async (req) => {
     let piSent = false;
 
     if (hasOrderIntent && companyId && messageBody) {
+      if (!waAutoOrderWritesEnabled) {
+        console.log(
+          `[WA-GOV] Pipeline C auto-order skipped for company ${companyId} (ENABLE_WA_WEBHOOK_AUTO_ORDER_WRITES=false). Inbound capture + Banyan buffer path unchanged.`,
+        );
+      } else {
       const { data: allProducts } = await supabaseAdmin
         .from("products")
         .select("id, name, sku, base_price, price_b2b, price_wholesale, wholesale_price, price_per_kg")
@@ -1707,6 +1747,7 @@ serve(async (req) => {
           }
         }
       }
+      }
     } else if (messageBody && companyId && !hasOrderIntent) {
       // Intent-aware acknowledgement in corporate tone.
       let ackMsg: string;
@@ -1754,20 +1795,22 @@ serve(async (req) => {
       await sendReply(phone91, ackMsg, supabaseAdmin, companyId);
     }
 
-    // ── DRAFT CLEANUP: Auto-archive stale drafts ──
-    const cutoff48h = new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString();
-    const { data: staleDrafts } = await supabaseAdmin
-      .from("orders")
-      .select("id")
-      .eq("status", "draft")
-      .lte("sales_order_value", 0)
-      .lt("created_at", cutoff48h)
-      .limit(50);
+    // ── DRAFT CLEANUP: Auto-archive stale drafts (Pipeline C maintenance — gated with auto-order) ──
+    if (waAutoOrderWritesEnabled) {
+      const cutoff48h = new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString();
+      const { data: staleDrafts } = await supabaseAdmin
+        .from("orders")
+        .select("id")
+        .eq("status", "draft")
+        .lte("sales_order_value", 0)
+        .lt("created_at", cutoff48h)
+        .limit(50);
 
-    if (staleDrafts && staleDrafts.length > 0) {
-      const staleIds = staleDrafts.map((d: any) => d.id);
-      await supabaseAdmin.from("orders").update({ status: "cancelled" }).in("id", staleIds);
-      console.log(`Archived ${staleIds.length} stale draft orders`);
+      if (staleDrafts && staleDrafts.length > 0) {
+        const staleIds = staleDrafts.map((d: any) => d.id);
+        await supabaseAdmin.from("orders").update({ status: "cancelled" }).in("id", staleIds);
+        console.log(`Archived ${staleIds.length} stale draft orders`);
+      }
     }
 
     return new Response(
