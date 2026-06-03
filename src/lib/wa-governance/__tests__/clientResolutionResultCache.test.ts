@@ -35,6 +35,7 @@ describe("clientResolutionResultCache", () => {
 
     expect(getCachedClientResolutionState(lookupKey, cache)).toEqual({
       status: "ready",
+      requestKey: lookupKey,
       result: sampleResult(),
     });
   });

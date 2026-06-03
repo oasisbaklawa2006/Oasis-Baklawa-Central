@@ -4,14 +4,18 @@ import {
   clientResolutionBandLabel,
   summarizeClientResolution,
 } from "@/lib/wa-governance/clientResolutionDisplay";
+import { clientResolutionStateMatchesRequestKey } from "@/lib/wa-governance/clientResolutionRequestKey";
 import type { OperatorInboxClientResolutionState } from "./useOperatorInboxClientResolution";
 
 export function OperatorInboxClientResolutionPanel({
   state,
+  requestKey = null,
 }: {
   state: OperatorInboxClientResolutionState;
+  requestKey?: string | null;
 }) {
   if (state.status === "idle") return null;
+  if (requestKey && state.requestKey !== requestKey) return null;
 
   return (
     <div
@@ -39,7 +43,10 @@ export function OperatorInboxClientResolutionPanel({
         </p>
       ) : null}
 
-      {state.status === "ready" ? <ClientResolutionReadyBody state={state} /> : null}
+      {state.status === "ready" &&
+      (!requestKey || clientResolutionStateMatchesRequestKey(state, requestKey)) ? (
+        <ClientResolutionReadyBody state={state} />
+      ) : null}
     </div>
   );
 }

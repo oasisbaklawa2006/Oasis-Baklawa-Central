@@ -164,7 +164,8 @@ export function WhatsAppInbox() {
   const [obsRefreshKey, setObsRefreshKey] = useState(0);
   const observability = useOperatorInboxObservability(obsRefreshKey);
   const senderIdentityState = useOperatorInboxSenderIdentity(selectedPacket);
-  const clientResolutionState = useOperatorInboxClientResolution(selectedPacket, senderIdentityState);
+  const { state: clientResolutionState, requestKey: clientResolutionRequestKey } =
+    useOperatorInboxClientResolution(selectedPacket, senderIdentityState);
   const packetListVirtualRef = useRef<OperatorInboxVirtualizedPacketListHandle>(null);
   const [messagesBatchWarnings, setMessagesBatchWarnings] = useState<string[]>([]);
   const inboxLoadGenerationRef = useRef(0);
@@ -1260,7 +1261,10 @@ export function WhatsAppInbox() {
                   />
                 </div>
                 <OperatorInboxSenderIdentityPanel state={senderIdentityState} />
-                <OperatorInboxClientResolutionPanel state={clientResolutionState} />
+                <OperatorInboxClientResolutionPanel
+                  state={clientResolutionState}
+                  requestKey={clientResolutionRequestKey}
+                />
               </div>
             </div>
 

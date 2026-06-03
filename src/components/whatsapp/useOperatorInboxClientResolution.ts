@@ -2,41 +2,49 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { fetchClientResolution } from "@/lib/wa-governance/fetchClientResolution";
 import {
+  buildClientResolutionFetchInput,
+  buildClientResolutionRequestDescriptor,
+  buildClientResolutionRequestKey,
+  buildPacketMessagesFingerprint,
+  isClientResolutionIdentityReady,
+  projectClientResolutionDisplayState,
+  serializeClientResolutionIdentity,
+  type ClientResolutionSenderIdentitySnapshot,
+  type OperatorInboxClientResolutionState,
+} from "@/lib/wa-governance/clientResolutionRequestKey";
+import {
   getCachedClientResolutionState,
   storeCachedClientResolutionResult,
 } from "@/lib/wa-governance/clientResolutionResultCache";
-import { buildClientResolutionCombinedText } from "@/lib/wa-governance/clientResolutionSignals";
 import type { ClientResolutionResult } from "@/lib/wa-governance/clientResolutionTypes";
-import { pickLatestInboundSnippetForIdentifySender } from "@/lib/wa-governance/senderIdentitySnippet";
 import type { OperatorInboxSenderIdentityState } from "./useOperatorInboxSenderIdentity";
 import type { OperatorInboxPacket } from "./operatorInboxTypes";
 import { packetStitchedPlainText } from "./operatorInboxUtils";
 
-export type OperatorInboxClientResolutionState =
-  | { status: "idle" }
-  | { status: "loading" }
-  | { status: "ready"; result: ClientResolutionResult }
-  | { status: "error"; message: string };
+export type { OperatorInboxClientResolutionState } from "@/lib/wa-governance/clientResolutionRequestKey";
+export {
+  buildClientResolutionRequestKey,
+  hashResolutionText,
+} from "@/lib/wa-governance/clientResolutionRequestKey";
 
-export function hashResolutionText(text: string): string {
-  let hash = 0;
-  for (let i = 0; i < text.length; i += 1) {
-    hash = (hash * 31 + text.charCodeAt(i)) | 0;
+function snapshotSenderIdentity(
+  state: OperatorInboxSenderIdentityState,
+): ClientResolutionSenderIdentitySnapshot {
+  switch (state.status) {
+    case "idle":
+      return { status: "idle" };
+    case "loading":
+      return { status: "loading" };
+    case "error":
+      return { status: "error" };
+    case "ready":
+      return {
+        status: "ready",
+        kind: state.identity.kind,
+        companyName: state.identity.companyName,
+        customerName: state.identity.customerName,
+      };
   }
-  return String(hash);
-}
-
-function packetContentFingerprint(packet: OperatorInboxPacket): string {
-  const stitched = packetStitchedPlainText(packet.stitched_content);
-  const snippet = pickLatestInboundSnippetForIdentifySender(packet.messages, stitched) ?? "";
-  return hashResolutionText(buildClientResolutionCombinedText(snippet, stitched));
-}
-
-function senderIdentityKindKey(state: OperatorInboxSenderIdentityState): string {
-  if (state.status === "ready") return state.identity.kind;
-  if (state.status === "error") return "identity_error";
-  if (state.status === "loading") return "identity_pending";
-  return "identity_idle";
 }
 
 export function buildClientResolutionLookupKey(
@@ -44,64 +52,89 @@ export function buildClientResolutionLookupKey(
   senderIdentityState: OperatorInboxSenderIdentityState,
 ): string | null {
   if (!packet) return null;
-  return `${packet.id}:${packetContentFingerprint(packet)}:${senderIdentityKindKey(senderIdentityState)}`;
+  const stitchedPlainText = packetStitchedPlainText(packet.stitched_content);
+  const descriptor = buildClientResolutionRequestDescriptor(
+    packet,
+    snapshotSenderIdentity(senderIdentityState),
+    stitchedPlainText,
+  );
+  return descriptor ? buildClientResolutionRequestKey(descriptor) : null;
 }
 
 export function useOperatorInboxClientResolution(
   selectedPacket: OperatorInboxPacket | null,
   senderIdentityState: OperatorInboxSenderIdentityState,
-): OperatorInboxClientResolutionState {
+): { state: OperatorInboxClientResolutionState; requestKey: string | null } {
   const [state, setState] = useState<OperatorInboxClientResolutionState>({ status: "idle" });
   const packetRef = useRef(selectedPacket);
   packetRef.current = selectedPacket;
   const senderIdentityStateRef = useRef(senderIdentityState);
   senderIdentityStateRef.current = senderIdentityState;
-  const lookupKeyRef = useRef<string | null>(null);
+  const requestKeyRef = useRef<string | null>(null);
   const resolvedResultCacheRef = useRef(new Map<string, ClientResolutionResult>());
 
-  const identityKindKey = useMemo(() => senderIdentityKindKey(senderIdentityState), [
-    senderIdentityState.status,
-    senderIdentityState.status === "ready" ? senderIdentityState.identity.kind : null,
-    senderIdentityState.status === "ready" ? senderIdentityState.identity.companyName : null,
-  ]);
+  const identitySnapshot = useMemo(
+    () => snapshotSenderIdentity(senderIdentityState),
+    [
+      senderIdentityState.status,
+      senderIdentityState.status === "ready" ? senderIdentityState.identity.kind : null,
+      senderIdentityState.status === "ready" ? senderIdentityState.identity.companyName : null,
+      senderIdentityState.status === "ready" ? senderIdentityState.identity.customerName : null,
+    ],
+  );
 
-  const contentFingerprint = useMemo(() => {
+  const messagesFingerprintKey = useMemo(
+    () => buildPacketMessagesFingerprint(selectedPacket?.messages),
+    [
+      selectedPacket?.messages
+        ?.map(
+          (message) =>
+            `${message.id}:${message.direction}:${message.content ?? ""}:${message.created_at ?? ""}`,
+        )
+        .join("|") ?? "",
+    ],
+  );
+
+  const stitchedPlainText = useMemo(() => {
+    if (!selectedPacket) return "";
+    return packetStitchedPlainText(selectedPacket.stitched_content);
+  }, [selectedPacket?.id, selectedPacket?.stitched_content]);
+
+  const descriptor = useMemo(() => {
     if (!selectedPacket) return null;
-    return packetContentFingerprint(selectedPacket);
+    return buildClientResolutionRequestDescriptor(
+      selectedPacket,
+      identitySnapshot,
+      stitchedPlainText,
+    );
   }, [
     selectedPacket?.id,
-    selectedPacket?.stitched_content,
-    selectedPacket?.messages
-      ?.map((message) => `${message.id}:${message.direction}:${message.content ?? ""}:${message.created_at ?? ""}`)
-      .join("|") ?? "",
+    selectedPacket?.phone_number,
+    selectedPacket?.wa_contact_id,
+    selectedPacket?.customer_name,
+    stitchedPlainText,
+    messagesFingerprintKey,
+    serializeClientResolutionIdentity(identitySnapshot),
   ]);
 
-  const lookupKey = useMemo(() => {
-    if (!selectedPacket || contentFingerprint == null) return null;
-    return `${selectedPacket.id}:${contentFingerprint}:${identityKindKey}`;
-  }, [selectedPacket?.id, contentFingerprint, identityKindKey]);
+  const requestKey = useMemo(
+    () => (descriptor ? buildClientResolutionRequestKey(descriptor) : null),
+    [descriptor],
+  );
 
-  lookupKeyRef.current = lookupKey;
+  requestKeyRef.current = requestKey;
 
   useEffect(() => {
-    if (!lookupKey) {
+    if (!requestKey || !descriptor) {
       setState({ status: "idle" });
       return;
     }
 
-    const identityState = senderIdentityStateRef.current;
-    if (identityState.status === "loading" || identityState.status === "idle") {
-      setState({ status: "loading" });
+    if (!isClientResolutionIdentityReady(descriptor.identity)) {
+      setState({ status: "loading", requestKey });
       return;
     }
 
-    const packet = packetRef.current;
-    if (!packet) {
-      setState({ status: "idle" });
-      return;
-    }
-
-    const requestKey = lookupKey;
     const cachedState = getCachedClientResolutionState(
       requestKey,
       resolvedResultCacheRef.current,
@@ -112,38 +145,44 @@ export function useOperatorInboxClientResolution(
     }
 
     let cancelled = false;
-    setState({ status: "loading" });
+    setState({ status: "loading", requestKey });
 
     void (async () => {
+      const packet = packetRef.current;
+      if (!packet) return;
+
+      const identityState = senderIdentityStateRef.current;
+      const readyIdentity = identityState.status === "ready" ? identityState.identity : null;
+      const stitched = packetStitchedPlainText(packet.stitched_content);
+
       try {
-        const stitched = packetStitchedPlainText(packet.stitched_content);
-        const snippet = pickLatestInboundSnippetForIdentifySender(packet.messages, stitched) ?? "";
-        const latestIdentityState = senderIdentityStateRef.current;
-        const senderIdentity =
-          latestIdentityState.status === "ready" ? latestIdentityState.identity : null;
-        const result = await fetchClientResolution(supabase, {
-          messageText: snippet,
-          stitchedPlainText: stitched,
-          senderPhone: packet.phone_number,
-          waContactId: packet.wa_contact_id,
-          waCustomerName: packet.customer_name,
-          waCompanyName: senderIdentity?.companyName ?? null,
-          senderIdentity,
-        });
-        if (cancelled || lookupKeyRef.current !== requestKey) return;
+        const input = buildClientResolutionFetchInput(
+          packet,
+          descriptor,
+          stitched,
+          readyIdentity,
+        );
+        const result = await fetchClientResolution(supabase, input);
+        if (cancelled || requestKeyRef.current !== requestKey) return;
         storeCachedClientResolutionResult(resolvedResultCacheRef.current, requestKey, result);
-        setState({ status: "ready", result });
+        setState({ status: "ready", requestKey, result });
       } catch (e) {
-        if (cancelled || lookupKeyRef.current !== requestKey) return;
+        if (cancelled || requestKeyRef.current !== requestKey) return;
         const message = e instanceof Error ? e.message : "Could not resolve likely client";
-        setState({ status: "error", message });
+        setState({ status: "error", requestKey, message });
       }
     })();
 
     return () => {
       cancelled = true;
     };
-  }, [lookupKey]);
+  }, [requestKey]);
 
-  return state;
+  return useMemo(
+    () => ({
+      requestKey,
+      state: projectClientResolutionDisplayState(state, requestKey),
+    }),
+    [state, requestKey],
+  );
 }
