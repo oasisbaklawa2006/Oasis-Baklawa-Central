@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { findWarmCachedQuantityResolutionState } from "@/components/whatsapp/useOperatorInboxQuantityResolution";
 import { buildQuantityResolutionResultCacheKey } from "@/lib/wa-governance/quantityResolutionCacheKey";
 import {
   projectQuantityResolutionDisplayState,
@@ -77,6 +78,44 @@ function shouldApplyAsyncResult(
 }
 
 describe("quantityResolution cache/request lifecycle", () => {
+  it("renders warm cache synchronously without an intermediate loading state", () => {
+    const cache = new Map<string, QuantityResolutionResult>();
+    const cacheKey = buildQuantityResolutionResultCacheKey(logicalRequestKey, catalogueProfile24);
+    storeCachedQuantityResolutionResult(cache, cacheKey, sampleResult("warm hit"));
+
+    const warm = findWarmCachedQuantityResolutionState(logicalRequestKey, cache);
+    expect(warm).toEqual({
+      status: "ready",
+      requestKey: logicalRequestKey,
+      result: sampleResult("warm hit"),
+    });
+
+    const projected = projectQuantityResolutionDisplayState(warm!, logicalRequestKey);
+    expect(projected.status).toBe("ready");
+    expect(projected).not.toEqual({ status: "loading", requestKey: logicalRequestKey });
+  });
+
+  it("returns null for warm lookup on cache miss so async loading can proceed", () => {
+    const cache = new Map<string, QuantityResolutionResult>();
+    expect(findWarmCachedQuantityResolutionState(logicalRequestKey, cache)).toBeNull();
+  });
+
+  it("returns null for warm lookup when multiple catalogue fingerprints exist", () => {
+    const cache = new Map<string, QuantityResolutionResult>();
+    storeCachedQuantityResolutionResult(
+      cache,
+      buildQuantityResolutionResultCacheKey(logicalRequestKey, catalogueProfile24),
+      sampleResult("24 pc carton"),
+    );
+    storeCachedQuantityResolutionResult(
+      cache,
+      buildQuantityResolutionResultCacheKey(logicalRequestKey, catalogueProfile12),
+      sampleResult("12 pc carton"),
+    );
+
+    expect(findWarmCachedQuantityResolutionState(logicalRequestKey, cache)).toBeNull();
+  });
+
   it("accepts cached result on revisit without breaking request key identity", () => {
     const cache = new Map<string, QuantityResolutionResult>();
     const cacheKey = buildQuantityResolutionResultCacheKey(logicalRequestKey, catalogueProfile24);

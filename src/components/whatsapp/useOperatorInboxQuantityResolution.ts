@@ -30,6 +30,37 @@ import { packetStitchedPlainText } from "./operatorInboxUtils";
 
 export type { OperatorInboxQuantityResolutionState } from "@/lib/wa-governance/quantityResolutionRequestKey";
 
+const LOGICAL_REQUEST_KEY_CACHE_PREFIX = "|";
+
+/**
+ * Synchronous warm-cache lookup by logical request key.
+ * Composite cache keys are `${logicalRequestKey}|catalogue:...`; the catalogue
+ * segment requires a product fetch to compute on first resolve, but revisits can
+ * match the single stored entry without awaiting fetch.
+ * Returns null when absent or ambiguous (multiple catalogue fingerprints).
+ */
+export function findWarmCachedQuantityResolutionState(
+  logicalRequestKey: string,
+  cache: Map<string, QuantityResolutionResult>,
+): Extract<OperatorInboxQuantityResolutionState, { status: "ready" }> | null {
+  const prefix = `${logicalRequestKey}${LOGICAL_REQUEST_KEY_CACHE_PREFIX}`;
+  let matched: QuantityResolutionResult | null = null;
+
+  for (const [cacheKey, result] of cache.entries()) {
+    if (!cacheKey.startsWith(prefix)) continue;
+    if (matched != null) {
+      return null;
+    }
+    matched = result;
+  }
+
+  if (matched == null) {
+    return null;
+  }
+
+  return { status: "ready", requestKey: logicalRequestKey, result: matched };
+}
+
 function snapshotSenderIdentity(
   state: OperatorInboxSenderIdentityState,
 ): QuantityResolutionSenderIdentitySnapshot {
@@ -173,6 +204,15 @@ export function useOperatorInboxQuantityResolution(
       )
     ) {
       setState({ status: "loading", requestKey });
+      return;
+    }
+
+    const warmCache = findWarmCachedQuantityResolutionState(
+      requestKey,
+      resolvedResultCacheRef.current,
+    );
+    if (warmCache) {
+      setState(warmCache);
       return;
     }
 
