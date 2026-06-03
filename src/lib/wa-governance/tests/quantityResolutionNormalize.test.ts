@@ -52,6 +52,56 @@ describe("quantityResolutionNormalize hardening", () => {
     });
   });
 
+  it("3 cases converts using the same catalogue carton fields as cartons", () => {
+    expect(normalizeQuantityFromCatalogue(3, "cases", readyProduct)).toEqual({
+      normalizedQuantity: 72,
+      normalizedUnit: "pcs",
+      conversionSource: "products.pcs_per_master_carton",
+    });
+  });
+
+  it("gates catalogue conversion per line against product best match", async () => {
+    const baklavaProfile = {
+      category: "Baklava",
+      uom: "Pc",
+      weight_per_box_kg: 6,
+      pcs_per_master_carton: 24,
+    };
+
+    const single = await resolveQuantityCandidates(
+      { messageText: "Need 50 tins", stitchedPlainText: "", productBestMatchName: "Assorted Baklava 400gm Tin" },
+      null,
+      baklavaProfile,
+    );
+    expect(single.quantities[0]?.conversionStatus).toBe("resolved");
+
+    const multiBaklava = await resolveQuantityCandidates(
+      {
+        messageText: "50 Baklava tins and 25 Mamoul trays",
+        stitchedPlainText: "",
+        productBestMatchName: "Assorted Baklava 400gm Tin",
+      },
+      null,
+      baklavaProfile,
+    );
+    const baklavaLine = multiBaklava.quantities.find((entry) => entry.productHint === "Baklava");
+    const mamoulLine = multiBaklava.quantities.find((entry) => entry.productHint === "Mamoul");
+    expect(baklavaLine?.conversionStatus).toBe("resolved");
+    expect(mamoulLine?.conversionStatus).toBe("unknown");
+    expect(mamoulLine?.normalizedQuantity).toBeUndefined();
+
+    const multiNoHint = await resolveQuantityCandidates(
+      {
+        messageText: "50 tins and 25 trays",
+        stitchedPlainText: "",
+        productBestMatchName: "Assorted Baklava 400gm Tin",
+      },
+      null,
+      baklavaProfile,
+    );
+    expect(multiNoHint.quantities.every((entry) => entry.conversionStatus === "unknown")).toBe(true);
+  });
+
   it("returns unknown when catalogue conversion fields are missing", () => {
     expect(normalizeQuantityFromCatalogue(50, "tins", { category: "Bulk Sweets", uom: "Kg" })).toBeNull();
     expect(
@@ -112,7 +162,11 @@ describe("quantityResolutionNormalize hardening", () => {
 
   it("resolveQuantityCandidates applies catalogue conversion when product profile is supplied", async () => {
     const result = await resolveQuantityCandidates(
-      { messageText: "Need 50 tins", stitchedPlainText: "" },
+      {
+        messageText: "Need 50 tins",
+        stitchedPlainText: "",
+        productBestMatchName: "Assorted Baklawa 400gm Tin",
+      },
       null,
       bulkProduct,
     );

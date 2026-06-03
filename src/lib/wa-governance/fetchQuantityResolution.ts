@@ -2,6 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { extractQuantityResolutionTextSignals } from "./quantityResolutionSignals";
 import {
   normalizeQuantityFromCatalogue,
+  shouldApplyCatalogueConversionToEntry,
   type CatalogueQuantityProduct,
 } from "./quantityResolutionNormalize";
 import { scoreQuantityResolutionCandidates } from "./quantityResolutionScoring";
@@ -57,10 +58,20 @@ export function applyCatalogueConversionToEntry(
 function applyCatalogueNormalization(
   result: QuantityResolutionResult,
   product: CatalogueQuantityProduct | null,
+  productBestMatchName?: string | null,
 ): QuantityResolutionResult {
-  const quantities = result.quantities.map((entry) =>
-    applyCatalogueConversionToEntry(entry, product),
-  );
+  const quantities = result.quantities.map((entry) => {
+    if (
+      !shouldApplyCatalogueConversionToEntry(
+        entry,
+        productBestMatchName,
+        result.quantities.length,
+      )
+    ) {
+      return { ...entry, conversionStatus: "unknown" as const };
+    }
+    return applyCatalogueConversionToEntry(entry, product);
+  });
   return { ...result, quantities };
 }
 
@@ -80,7 +91,7 @@ export async function resolveQuantityCandidates(
   const scored = scoreQuantityResolutionCandidates({ signals });
 
   if (catalogueProduct !== undefined) {
-    return applyCatalogueNormalization(scored, catalogueProduct);
+    return applyCatalogueNormalization(scored, catalogueProduct, input.productBestMatchName);
   }
 
   if (!input.productId || !supabase) {
@@ -88,7 +99,7 @@ export async function resolveQuantityCandidates(
   }
 
   const product = await fetchCatalogueQuantityProduct(supabase, input.productId);
-  return applyCatalogueNormalization(scored, product);
+  return applyCatalogueNormalization(scored, product, input.productBestMatchName);
 }
 
 export async function fetchQuantityResolution(

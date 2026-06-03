@@ -98,11 +98,16 @@ export function buildQuantityResolutionFetchInput(
     productResolutionState?.status === "ready"
       ? (productResolutionState.result.bestMatch?.productId ?? null)
       : null;
+  const productBestMatchName =
+    productResolutionState?.status === "ready"
+      ? (productResolutionState.result.bestMatch?.productName ?? null)
+      : null;
 
   return {
     messageText: snippet,
     stitchedPlainText,
     productId,
+    productBestMatchName,
   };
 }
 

@@ -27,6 +27,7 @@ export interface QuantityResolutionInput {
   messageText: string;
   stitchedPlainText?: string;
   productId?: string | null;
+  productBestMatchName?: string | null;
 }
 
 export type QuantityMatchKind = "explicit_with_unit" | "explicit_qty_only" | "word_quantity";

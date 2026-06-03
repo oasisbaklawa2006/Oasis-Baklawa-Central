@@ -1,5 +1,7 @@
 import { convertToKgFromCatalogueWithSource } from "@/lib/unit-conversion";
+import { containsIdentityTermAsWholeWord } from "./productResolutionAliasPolicy";
 import { getProductCategory } from "@/utils/pricing";
+import type { QuantityResolutionEntry } from "./quantityResolutionTypes";
 
 export interface CatalogueQuantityProduct {
   weight_per_box_kg?: number | null;
@@ -62,10 +64,38 @@ function catalogueCartonInnerCount(
   }
 }
 
-function isCartonUnit(unit: string | null): boolean {
+function isCartonEquivalentUnit(unit: string | null): boolean {
   if (!unit) return false;
   const normalized = unit.toLowerCase();
-  return normalized === "carton" || normalized === "cartons" || normalized === "ctn" || normalized === "ctns";
+  return (
+    normalized === "carton" ||
+    normalized === "cartons" ||
+    normalized === "ctn" ||
+    normalized === "ctns" ||
+    normalized === "case" ||
+    normalized === "cases"
+  );
+}
+
+/**
+ * Gate catalogue normalization per quantity line against the product best match.
+ * A. Single quantity + product profile → allowed.
+ * B. Multiple quantities + productHint matches best-match name → allowed for that line.
+ * C. Otherwise → do not apply catalogue conversion.
+ */
+export function shouldApplyCatalogueConversionToEntry(
+  entry: QuantityResolutionEntry,
+  productBestMatchName: string | null | undefined,
+  totalQuantities: number,
+): boolean {
+  if (!productBestMatchName?.trim()) return false;
+  if (totalQuantities === 1) return true;
+  if (!entry.productHint?.trim()) return false;
+
+  return (
+    containsIdentityTermAsWholeWord(productBestMatchName, entry.productHint) ||
+    containsIdentityTermAsWholeWord(entry.productHint, productBestMatchName)
+  );
 }
 
 /**
@@ -79,7 +109,7 @@ export function normalizeQuantityFromCatalogue(
 ): CatalogueQuantityConversion | null {
   if (!product || !Number.isFinite(rawQuantity) || rawQuantity <= 0) return null;
 
-  if (isCartonUnit(rawUnit)) {
+  if (isCartonEquivalentUnit(rawUnit)) {
     const carton = catalogueCartonInnerCount(product);
     if (carton == null) return null;
     return {
