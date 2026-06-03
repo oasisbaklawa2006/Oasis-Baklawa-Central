@@ -304,6 +304,119 @@ describe("quantityResolutionNormalize hardening", () => {
       });
     });
 
+    it("ready_pc cartons fall back to packs via packs_per_master_carton", () => {
+      expect(
+        normalizeQuantityFromCatalogue(2, "cartons", {
+          category: "Ready Packs",
+          uom: "Pc",
+          packs_per_master_carton: 8,
+        }),
+      ).toEqual({
+        normalizedQuantity: 16,
+        normalizedUnit: "packs",
+        conversionSource: "products.packs_per_master_carton",
+      });
+    });
+
+    it("premium_pc cartons fall back to packs via packs_per_master_carton", () => {
+      expect(
+        normalizeQuantityFromCatalogue(2, "cases", {
+          category: "Premium Luxury Gifts",
+          uom: "Pc",
+          packs_per_master_carton: 6,
+        }),
+      ).toEqual({
+        normalizedQuantity: 12,
+        normalizedUnit: "packs",
+        conversionSource: "products.packs_per_master_carton",
+      });
+    });
+
+    it("maps conversionSource to normalizedUnit consistently for carton-equivalent units", () => {
+      const cases: Array<{
+        product: Parameters<typeof normalizeQuantityFromCatalogue>[2];
+        unit: string;
+        expected: { normalizedUnit: string; conversionSource: string; normalizedQuantity: number };
+      }> = [
+        {
+          product: readyProduct,
+          unit: "carton",
+          expected: {
+            normalizedQuantity: 24,
+            normalizedUnit: "pcs",
+            conversionSource: "products.pcs_per_master_carton",
+          },
+        },
+        {
+          product: {
+            category: "Ready Packs",
+            uom: "Pc",
+            packs_per_master_carton: 8,
+          },
+          unit: "cartons",
+          expected: {
+            normalizedQuantity: 8,
+            normalizedUnit: "packs",
+            conversionSource: "products.packs_per_master_carton",
+          },
+        },
+        {
+          product: {
+            category: "Bulk Sweets",
+            uom: "Kg",
+            packs_per_carton: 6,
+          },
+          unit: "case",
+          expected: {
+            normalizedQuantity: 6,
+            normalizedUnit: "packs",
+            conversionSource: "products.packs_per_carton",
+          },
+        },
+      ];
+
+      for (const { product, unit, expected } of cases) {
+        expect(normalizeQuantityFromCatalogue(1, unit, product)).toEqual(expected);
+      }
+    });
+
+    it("never labels packs_per_master_carton or packs_per_carton sources as pcs", () => {
+      const products = [
+        bulkCartonProduct,
+        {
+          category: "Ready Packs",
+          uom: "Pc",
+          packs_per_master_carton: 8,
+        },
+        {
+          category: "Premium Luxury Gifts",
+          uom: "Pc",
+          packs_per_master_carton: 6,
+        },
+        {
+          category: "Bulk Sweets",
+          uom: "Kg",
+          packs_per_carton: 6,
+        },
+      ];
+      const units = ["carton", "cartons", "ctn", "ctns", "case", "cases"];
+
+      for (const product of products) {
+        for (const unit of units) {
+          const result = normalizeQuantityFromCatalogue(1, unit, product);
+          if (!result) continue;
+          if (result.conversionSource === "products.packs_per_master_carton") {
+            expect(result.normalizedUnit).toBe("packs");
+            expect(result.normalizedUnit).not.toBe("pcs");
+          }
+          if (result.conversionSource === "products.packs_per_carton") {
+            expect(result.normalizedUnit).toBe("packs");
+            expect(result.normalizedUnit).not.toBe("pcs");
+          }
+        }
+      }
+    });
+
     it("treats ctn and ctns as carton-equivalent units", () => {
       expect(normalizeQuantityFromCatalogue(2, "ctn", readyProduct)).toEqual({
         normalizedQuantity: 48,

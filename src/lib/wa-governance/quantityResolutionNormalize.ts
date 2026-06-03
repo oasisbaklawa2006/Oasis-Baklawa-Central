@@ -61,7 +61,7 @@ function catalogueCartonInnerCount(
         return {
           count: product.packs_per_master_carton,
           conversionSource: "products.packs_per_master_carton",
-          normalizedUnit: "pcs",
+          normalizedUnit: "packs",
         };
       }
       return null;
