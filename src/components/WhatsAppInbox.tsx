@@ -79,6 +79,8 @@ import { OperatorInboxClientResolutionPanel } from "@/components/whatsapp/Operat
 import { useOperatorInboxClientResolution } from "@/components/whatsapp/useOperatorInboxClientResolution";
 import { OperatorInboxProductResolutionPanel } from "@/components/whatsapp/OperatorInboxProductResolutionPanel";
 import { useOperatorInboxProductResolution } from "@/components/whatsapp/useOperatorInboxProductResolution";
+import { OperatorInboxQuantityResolutionPanel } from "@/components/whatsapp/OperatorInboxQuantityResolutionPanel";
+import { useOperatorInboxQuantityResolution } from "@/components/whatsapp/useOperatorInboxQuantityResolution";
 import { buildWhatsAppOperationalFeed, normalizeWhatsAppEvents } from "@/lib/operational-events";
 
 const REALTIME_CHANNEL = "whatsapp-inbox-packets";
@@ -173,6 +175,13 @@ export function WhatsAppInbox() {
       selectedPacket,
       senderIdentityState,
       clientResolutionState,
+    );
+  const { state: quantityResolutionState, requestKey: quantityResolutionRequestKey } =
+    useOperatorInboxQuantityResolution(
+      selectedPacket,
+      senderIdentityState,
+      clientResolutionState,
+      productResolutionState,
     );
   const packetListVirtualRef = useRef<OperatorInboxVirtualizedPacketListHandle>(null);
   const [messagesBatchWarnings, setMessagesBatchWarnings] = useState<string[]>([]);
@@ -1276,6 +1285,10 @@ export function WhatsAppInbox() {
                 <OperatorInboxProductResolutionPanel
                   state={productResolutionState}
                   requestKey={productResolutionRequestKey}
+                />
+                <OperatorInboxQuantityResolutionPanel
+                  state={quantityResolutionState}
+                  requestKey={quantityResolutionRequestKey}
                 />
               </div>
             </div>
