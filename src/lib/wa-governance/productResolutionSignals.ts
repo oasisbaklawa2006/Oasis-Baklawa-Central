@@ -1,63 +1,17 @@
 import type { ProductResolutionTextSignals } from "./productResolutionTypes";
-
-const PRODUCT_KEYWORDS = [
-  "baklava",
-  "baklawa",
-  "mamoul",
-  "maamoul",
-  "turkish delight",
-  "lokum",
-  "dates",
-  "kunefe",
-  "kunafa",
-  "dragees",
-  "chocolate",
-  "gift box",
-  "tin pack",
-  "acrylic box",
-  "basbousa",
-  "namoura",
-  "barfi",
-  "peda",
-  "halwa",
-  "rasgulla",
-  "gulab jamun",
-  "sandesh",
-  "motichoor",
-  "laddu",
-  "pistachio",
-  "kaju",
-  "assorted",
-  "mixed",
-  "tray",
-  "carton",
-  "tin",
-  "acrylic",
-];
-
-const PACK_FORMAT_TOKENS = [
-  "tin",
-  "tins",
-  "carton",
-  "cartons",
-  "box",
-  "boxes",
-  "tray",
-  "trays",
-  "acrylic",
-  "gift box",
-  "tin pack",
-  "case",
-  "cases",
-  "pack",
-  "packs",
-];
+import {
+  extractIdentityKeywordHits,
+  extractPackagingFormatTokens,
+  filterIdentityAliases,
+  isIdentityAlias,
+  isPackagingAlias,
+} from "./productResolutionAliasPolicy";
 
 const WEIGHT_PATTERN =
   /\b(\d+(?:\.\d+)?)\s*(kg|kgs|kilogram|kilograms|gm|gms|gram|grams|g)\b/gi;
 const PIECE_COUNT_PATTERN = /\b(\d+)\s*(?:pc|pcs|piece|pieces)\b/gi;
 const QUANTITY_PATTERN =
-  /\b(\d+(?:\.\d+)?)\s+(?:(?:[A-Za-z]+\s+){0,3})?(boxes?|box|pcs?|pieces?|cartons?|ctns?|cases?|units?|tins?|trays?|packs?)\b/gi;
+  /\b(\d+(?:\.\d+)?)\s+(?:(?:[A-Za-z]+\s+){0,3})?(boxes?|box|pcs?|pieces?|cartons?|ctns?|cases?|units?|tins?|trays?|packs?|hampers?)\b/gi;
 
 function uniqueStrings(values: string[]): string[] {
   const seen = new Set<string>();
@@ -86,22 +40,6 @@ export function buildProductResolutionCombinedText(
   return [messageText, stitchedPlainText].filter(Boolean).join("\n").trim();
 }
 
-function keywordMatchesText(keyword: string, text: string): boolean {
-  const lower = text.toLowerCase();
-  if (lower.includes(keyword)) return true;
-  if (keyword === "maamoul" && /\bmamoul\b/.test(lower)) return true;
-  if (keyword === "mamoul" && /\bmaamoul\b/.test(lower)) return true;
-  if (keyword === "baklawa" && /\bbaklava\b/.test(lower)) return true;
-  if (keyword === "baklava" && /\bbaklawa\b/.test(lower)) return true;
-  return false;
-}
-
-function extractKeywordHits(text: string): string[] {
-  return PRODUCT_KEYWORDS.filter((keyword) => keywordMatchesText(keyword, text)).map((keyword) =>
-    keyword.replace(/\b\w/g, (char) => char.toUpperCase()),
-  );
-}
-
 function extractQuotedProductNames(text: string): string[] {
   const names: string[] = [];
   for (const match of text.matchAll(/["'“”‘’]([^"'“”‘’\n]{2,48})["'“”‘’]/g)) {
@@ -116,7 +54,7 @@ function extractProductPhraseCandidates(text: string): string[] {
     /\bneed\s+\d+(?:\.\d+)?\s+([A-Za-z][A-Za-z0-9\s-]{2,40})/gi,
     /\bsend\s+\d+(?:\.\d+)?\s+([A-Za-z][A-Za-z0-9\s-]{2,40})/gi,
     /\b(\d+(?:\.\d+)?\s*(?:kg|gm|g|pc|pcs|boxes?|cartons?)\s+[A-Za-z][A-Za-z0-9\s-]{2,40})/gi,
-    /\b([A-Za-z][A-Za-z0-9\s-]{2,40})\s+(?:tin|tins|box|boxes|carton|cartons|tray|trays)\b/gi,
+    /\b([A-Za-z][A-Za-z0-9\s-]{2,40})\s+(?:tin|tins|box|boxes|carton|cartons|tray|trays|hamper|hampers)\b/gi,
   ];
   for (const pattern of patterns) {
     for (const match of text.matchAll(pattern)) {
@@ -125,6 +63,11 @@ function extractProductPhraseCandidates(text: string): string[] {
     }
   }
   return phrases;
+}
+
+function eligibleProductNameCandidate(term: string): boolean {
+  if (isPackagingAlias(term)) return false;
+  return isIdentityAlias(term);
 }
 
 export function extractWeightTokens(text: string): { tokens: string[]; grams: number[] } {
@@ -165,12 +108,8 @@ export function extractQuantityReferences(
   return refs;
 }
 
-export function extractPackFormatTokens(text: string): string[] {
-  const lower = text.toLowerCase();
-  return uniqueStrings(PACK_FORMAT_TOKENS.filter((token) => lower.includes(token)));
-}
-
 export function productNameMatchesTerm(productName: string, term: string): boolean {
+  if (!isIdentityAlias(term)) return false;
   const name = productName.toLowerCase();
   const needle = term.toLowerCase();
   if (name === needle) return true;
@@ -183,31 +122,35 @@ export function extractProductResolutionTextSignals(
   stitchedPlainText?: string,
 ): ProductResolutionTextSignals {
   const combinedText = buildProductResolutionCombinedText(messageText, stitchedPlainText);
-  const keywordHits = extractKeywordHits(combinedText);
+  const identityKeywordHits = extractIdentityKeywordHits(combinedText);
   const quotedNames = extractQuotedProductNames(combinedText);
   const phraseCandidates = extractProductPhraseCandidates(combinedText);
   const weight = extractWeightTokens(combinedText);
   const pieceCounts = extractPieceCountTokens(combinedText);
 
-  const productNameCandidates = uniqueStrings([
+  const identityNameCandidates = filterIdentityAliases([
     ...quotedNames,
     ...phraseCandidates,
-    ...keywordHits,
-  ]).slice(0, 10);
+    ...identityKeywordHits,
+  ]).filter(eligibleProductNameCandidate);
 
   return {
     combinedText,
-    productNameCandidates,
-    aliasCandidates: uniqueStrings([...keywordHits, ...quotedNames, ...phraseCandidates]).slice(
-      0,
-      12,
-    ),
+    productNameCandidates: uniqueStrings(identityNameCandidates).slice(0, 10),
+    aliasCandidates: uniqueStrings(
+      filterIdentityAliases([...identityKeywordHits, ...quotedNames, ...phraseCandidates]),
+    ).slice(0, 12),
     weightTokens: weight.tokens,
     weightGrams: weight.grams,
     pieceCountTokens: pieceCounts.tokens,
     pieceCounts: pieceCounts.counts,
-    packFormatTokens: extractPackFormatTokens(combinedText),
-    catalogKeywords: keywordHits,
+    packFormatTokens: uniqueStrings(extractPackagingFormatTokens(combinedText)),
+    catalogKeywords: uniqueStrings(identityKeywordHits),
     quantityReferences: extractQuantityReferences(combinedText),
   };
 }
+
+export {
+  isIdentityAlias,
+  isPackagingAlias,
+} from "./productResolutionAliasPolicy";

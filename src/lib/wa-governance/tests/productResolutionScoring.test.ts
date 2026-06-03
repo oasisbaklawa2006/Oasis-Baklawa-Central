@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { extractProductResolutionTextSignals } from "@/lib/wa-governance/productResolutionSignals";
 import {
+  isIdentityAlias,
+  isPackagingAlias,
+} from "@/lib/wa-governance/productResolutionAliasPolicy";
+import {
   applyProductConfidenceCeiling,
   classifyProductIdentityStrength,
   confidenceBandFromPercent,
@@ -303,6 +307,10 @@ describe("productResolutionScoring", () => {
   it("classifies strong product-family keywords and applies identity ceilings", () => {
     expect(isStrongProductFamilyKeyword("Baklawa")).toBe(true);
     expect(isStrongProductFamilyKeyword("tin")).toBe(false);
+    expect(isPackagingAlias("tin")).toBe(true);
+    expect(isPackagingAlias("hamper")).toBe(true);
+    expect(isIdentityAlias("gift box")).toBe(false);
+    expect(isIdentityAlias("Mamoul")).toBe(true);
 
     expect(classifyProductIdentityStrength({
       exactProductName: false,
@@ -316,5 +324,103 @@ describe("productResolutionScoring", () => {
     expect(confidenceBandFromScoreAndIdentity(0.98, "none")).toBe("needs_clarification");
     expect(confidenceBandFromScoreAndIdentity(0.98, "weak")).toBe("suggested");
     expect(confidenceBandFromScoreAndIdentity(0.96, "strong")).toBe("auto_highlight");
+  });
+
+  it("does not treat packaging alias hits as product identity evidence", () => {
+    const result = scoreProductResolutionCandidates({
+      signals: baseSignals({
+        aliasCandidates: ["tin"],
+        packFormatTokens: ["tin"],
+      }),
+      products: [
+        product({
+          id: "p-pack",
+          name: "Generic Assorted Tin",
+          sku: "GEN-TIN",
+          pack_size: "400gm tin",
+          aliases: ["tin"],
+        }),
+      ],
+      aliasHits: new Map([["p-pack", ["tin"]]]),
+    });
+
+    expect(result.bestMatch?.reasons.some((reason) => reason.includes("alias"))).toBe(false);
+    expect(result.bestMatch?.reasons.some((reason) => reason.includes("Pack format"))).toBe(true);
+    expect(result.bestMatch?.confidence).toBeLessThanOrEqual(69);
+    expect(result.band).toBe("needs_clarification");
+  });
+
+  it("metadata-only 400gm hamper stays at or below 69% needs clarification", () => {
+    const signals = extractProductResolutionTextSignals("400gm hamper", "");
+    const result = scoreProductResolutionCandidates({
+      signals,
+      products: [
+        product({
+          id: "p-hamper",
+          name: "Festive Gift Hamper",
+          sku: "HAMP-1",
+          pack_size: "400gm hamper",
+          net_weight_grams: 400,
+        }),
+      ],
+    });
+
+    expect(signals.aliasCandidates).toEqual([]);
+    expect(result.bestMatch?.confidence).toBeLessThanOrEqual(69);
+    expect(result.band).toBe("needs_clarification");
+    expect(result.bestMatch?.reasons.some((reason) => reason.includes("Product family keyword"))).toBe(
+      false,
+    );
+  });
+
+  it("Baklava tin 400gm with identity is eligible for suggested or auto-highlight", () => {
+    const signals = extractProductResolutionTextSignals("Baklava tin 400gm", "");
+    const result = scoreProductResolutionCandidates({
+      signals,
+      products: [
+        product({
+          id: "p-baklava",
+          name: "Assorted Baklava 400gm Tin",
+          sku: "BK-400",
+          net_weight_grams: 400,
+          pack_size: "400gm tin",
+          category: "Baklava",
+        }),
+      ],
+    });
+
+    expect(result.bestMatch?.confidence).toBeGreaterThanOrEqual(70);
+    expect(["suggested", "auto_highlight"]).toContain(result.band);
+    expect(
+      result.bestMatch?.reasons.some((reason) => reason.includes("Product family keyword")),
+    ).toBe(true);
+  });
+
+  it("Mamoul gift box with identity is eligible for suggested or auto-highlight", () => {
+    const signals = extractProductResolutionTextSignals("Mamoul gift box", "");
+    const result = scoreProductResolutionCandidates({
+      signals,
+      products: [
+        product({
+          id: "p-mamoul",
+          name: "Maamoul Dates Gift Box",
+          sku: "MM-GIFT",
+          pack_size: "gift box",
+          category: "Maamoul",
+        }),
+      ],
+    });
+
+    expect(signals.aliasCandidates.map((value) => value.toLowerCase())).toEqual(
+      expect.arrayContaining(["mamoul"]),
+    );
+    expect(signals.aliasCandidates.map((value) => value.toLowerCase())).not.toEqual(
+      expect.arrayContaining(["gift box"]),
+    );
+    expect(result.bestMatch?.confidence).toBeGreaterThanOrEqual(70);
+    expect(result.band).not.toBe("needs_clarification");
+    expect(
+      result.bestMatch?.reasons.some((reason) => reason.includes("Product family keyword")),
+    ).toBe(true);
   });
 });

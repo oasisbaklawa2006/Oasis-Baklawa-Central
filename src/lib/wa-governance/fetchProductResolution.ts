@@ -3,6 +3,7 @@ import {
   postgrestIlikeContainsPattern,
   postgrestOrIlikeContains,
 } from "./clientResolutionIlike";
+import { isIdentityAlias } from "./productResolutionAliasPolicy";
 import { extractProductResolutionTextSignals } from "./productResolutionSignals";
 import { scoreProductResolutionCandidates } from "./productResolutionScoring";
 import type {
@@ -121,6 +122,7 @@ export async function resolveProductCandidates(
   }
 
   function noteAlias(productId: string, alias: string): void {
+    if (!isIdentityAlias(alias)) return;
     const list = aliasHits.get(productId) ?? [];
     if (!list.includes(alias)) list.push(alias);
     aliasHits.set(productId, list);

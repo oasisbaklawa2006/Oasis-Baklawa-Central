@@ -16,7 +16,13 @@ describe("productResolutionSignals", () => {
     );
 
     expect(signals.catalogKeywords.map((value) => value.toLowerCase())).toEqual(
-      expect.arrayContaining(["baklava", "assorted", "turkish delight"]),
+      expect.arrayContaining(["baklava", "turkish delight"]),
+    );
+    expect(signals.catalogKeywords.map((value) => value.toLowerCase())).not.toEqual(
+      expect.arrayContaining(["tin", "assorted"]),
+    );
+    expect(signals.aliasCandidates.map((value) => value.toLowerCase())).not.toEqual(
+      expect.arrayContaining(["tin"]),
     );
     expect(signals.weightTokens).toEqual(expect.arrayContaining(["400gm"]));
     expect(signals.packFormatTokens).toEqual(expect.arrayContaining(["tin", "carton"]));

@@ -5,6 +5,11 @@ import type {
   ProductResolutionScoreReason,
   ProductResolutionTextSignals,
 } from "./productResolutionTypes";
+import {
+  aliasesMatchForIdentity,
+  isIdentityAlias,
+  isPackagingAlias,
+} from "./productResolutionAliasPolicy";
 import { productNameMatchesTerm } from "./productResolutionSignals";
 
 export const PRODUCT_RESOLUTION_SIGNAL_WEIGHTS = {
@@ -22,55 +27,6 @@ export const AUTO_HIGHLIGHT_CONFIDENCE_THRESHOLD = 0.95;
 
 const MAX_SCORE = 0.98;
 
-const PACKAGING_KEYWORDS = new Set([
-  "tin",
-  "tins",
-  "tray",
-  "trays",
-  "carton",
-  "cartons",
-  "box",
-  "boxes",
-  "acrylic",
-  "case",
-  "cases",
-  "pack",
-  "packs",
-  "tin pack",
-  "assorted",
-  "mixed",
-]);
-
-export const STRONG_PRODUCT_FAMILY_KEYWORDS = [
-  "baklava",
-  "baklawa",
-  "mamoul",
-  "maamoul",
-  "turkish delight",
-  "lokum",
-  "dates",
-  "kunefe",
-  "kunafa",
-  "dragees",
-  "chocolate tray",
-  "chocolate box",
-  "chocolate",
-  "gift box",
-  "hamper",
-  "basbousa",
-  "namoura",
-  "barfi",
-  "peda",
-  "halwa",
-  "rasgulla",
-  "gulab jamun",
-  "sandesh",
-  "motichoor",
-  "laddu",
-  "pistachio",
-  "kaju",
-] as const;
-
 export type ProductIdentityEvidenceStrength = "none" | "weak" | "strong";
 
 type ProductEvidenceFlags = {
@@ -85,14 +41,7 @@ function clampScore(score: number): number {
 }
 
 export function isStrongProductFamilyKeyword(keyword: string): boolean {
-  const normalized = keyword.trim().toLowerCase();
-  if (!normalized || PACKAGING_KEYWORDS.has(normalized)) return false;
-  return STRONG_PRODUCT_FAMILY_KEYWORDS.some(
-    (familyKeyword) =>
-      normalized === familyKeyword ||
-      normalized.includes(familyKeyword) ||
-      familyKeyword.includes(normalized),
-  );
+  return isIdentityAlias(keyword);
 }
 
 export function classifyProductIdentityStrength(
@@ -199,16 +148,8 @@ function pieceCountMatchesProduct(product: ProductResolutionRow, count: number):
 }
 
 function packFormatMatchesProduct(product: ProductResolutionRow, token: string): boolean {
+  if (!isPackagingAlias(token)) return false;
   return productSearchText(product).includes(token.toLowerCase());
-}
-
-function isPackagingOnlyTerm(term: string): boolean {
-  const normalized = term.trim().toLowerCase();
-  return PACKAGING_KEYWORDS.has(normalized) && !isStrongProductFamilyKeyword(term);
-}
-
-function productNameTermEligibleForIdentity(term: string): boolean {
-  return !isPackagingOnlyTerm(term);
 }
 
 function emptyEvidenceFlags(): ProductEvidenceFlags {
@@ -253,8 +194,6 @@ export function scoreProductResolutionCandidates(
 
   for (const product of input.products) {
     for (const term of input.signals.productNameCandidates) {
-      if (!productNameTermEligibleForIdentity(term)) continue;
-
       if (product.name.toLowerCase() === term.toLowerCase()) {
         evidenceFor(product.id).exactProductName = true;
         addReason(
@@ -265,7 +204,12 @@ export function scoreProductResolutionCandidates(
           scoredSignals,
           `exact:${term.toLowerCase()}`,
         );
-      } else if (productNameMatchesTerm(product.name, term)) {
+        continue;
+      }
+
+      if (!isIdentityAlias(term)) continue;
+
+      if (productNameMatchesTerm(product.name, term)) {
         evidenceFor(product.id).partialProductName = true;
         addReason(
           reasonsByProduct,
@@ -279,6 +223,7 @@ export function scoreProductResolutionCandidates(
     }
 
     for (const alias of input.aliasHits?.get(product.id) ?? []) {
+      if (!isIdentityAlias(alias)) continue;
       evidenceFor(product.id).productAlias = true;
       addReason(
         reasonsByProduct,
@@ -291,23 +236,23 @@ export function scoreProductResolutionCandidates(
     }
 
     for (const alias of product.aliases ?? []) {
+      if (!isIdentityAlias(alias)) continue;
       if (
-        input.signals.aliasCandidates.some(
-          (candidate) =>
-            candidate.toLowerCase().includes(alias.toLowerCase()) ||
-            alias.toLowerCase().includes(candidate.toLowerCase()),
+        !input.signals.aliasCandidates.some((candidate) =>
+          aliasesMatchForIdentity(candidate, alias),
         )
       ) {
-        evidenceFor(product.id).productAlias = true;
-        addReason(
-          reasonsByProduct,
-          product.id,
-          PRODUCT_RESOLUTION_SIGNAL_WEIGHTS.productAlias,
-          `Catalog alias "${alias}" appears in message`,
-          scoredSignals,
-          `catalog-alias:${alias.toLowerCase()}`,
-        );
+        continue;
       }
+      evidenceFor(product.id).productAlias = true;
+      addReason(
+        reasonsByProduct,
+        product.id,
+        PRODUCT_RESOLUTION_SIGNAL_WEIGHTS.productAlias,
+        `Catalog alias "${alias}" appears in message`,
+        scoredSignals,
+        `catalog-alias:${alias.toLowerCase()}`,
+      );
     }
 
     for (const grams of input.signals.weightGrams) {
@@ -350,6 +295,7 @@ export function scoreProductResolutionCandidates(
     }
 
     for (const token of input.signals.packFormatTokens) {
+      if (!isPackagingAlias(token)) continue;
       if (packFormatMatchesProduct(product, token)) {
         addReason(
           reasonsByProduct,
@@ -363,29 +309,18 @@ export function scoreProductResolutionCandidates(
     }
 
     for (const keyword of input.signals.catalogKeywords) {
+      if (!isIdentityAlias(keyword) || isPackagingAlias(keyword)) continue;
       const haystack = productSearchText(product);
       if (!haystack.includes(keyword.toLowerCase())) continue;
 
-      if (isStrongProductFamilyKeyword(keyword)) {
-        evidenceFor(product.id).strongProductFamily = true;
-        addReason(
-          reasonsByProduct,
-          product.id,
-          PRODUCT_RESOLUTION_SIGNAL_WEIGHTS.catalogKeywordMatch,
-          `Product family keyword "${keyword}" matches catalog metadata`,
-          scoredSignals,
-          `family-keyword:${keyword.toLowerCase()}`,
-        );
-        continue;
-      }
-
+      evidenceFor(product.id).strongProductFamily = true;
       addReason(
         reasonsByProduct,
         product.id,
         PRODUCT_RESOLUTION_SIGNAL_WEIGHTS.catalogKeywordMatch,
-        `Catalog keyword "${keyword}" matches product metadata`,
+        `Product family keyword "${keyword}" matches catalog metadata`,
         scoredSignals,
-        `keyword:${keyword.toLowerCase()}`,
+        `family-keyword:${keyword.toLowerCase()}`,
       );
     }
   }
@@ -434,3 +369,5 @@ export function scoreProductResolutionCandidates(
     band,
   };
 }
+
+export { isIdentityAlias, isPackagingAlias } from "./productResolutionAliasPolicy";
