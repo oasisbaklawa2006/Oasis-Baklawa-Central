@@ -60,8 +60,9 @@ function QuantityResolutionReadyBody({
   state: Extract<OperatorInboxQuantityResolutionState, { status: "ready" }>;
 }) {
   const summary = summarizeQuantityResolution(state.result);
-  const top = state.result.quantities[0];
-  const alternatives = quantityResolutionAlternatives(state.result);
+  const quantities = state.result.quantities;
+  const top = quantities[0];
+  const isMultiLine = quantities.length > 1;
 
   return (
     <div className="space-y-3">
@@ -74,7 +75,55 @@ function QuantityResolutionReadyBody({
         ) : null}
       </div>
 
-      {top ? (
+      {!top ? (
+        <p className="text-sm text-gray-600">No quantities detected in this packet.</p>
+      ) : isMultiLine ? (
+        <div>
+          <p className="mb-2 text-xs font-medium uppercase tracking-wide text-gray-500">
+            Detected lines ({quantities.length})
+          </p>
+          <ul className="space-y-2">
+            {quantities.map((entry, index) => (
+              <li
+                key={`${entry.rawQuantity}-${entry.rawUnit ?? "none"}-${entry.productHint ?? index}`}
+                className="rounded border border-gray-100 bg-gray-50/80 p-2 text-sm text-gray-800"
+              >
+                <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-5">
+                  <div>
+                    <p className="text-xs font-medium uppercase tracking-wide text-gray-500">Quantity</p>
+                    <p>{entry.rawQuantity}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs font-medium uppercase tracking-wide text-gray-500">Unit</p>
+                    <p>{formatQuantityUnitLabel(entry.rawUnit)}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs font-medium uppercase tracking-wide text-gray-500">Normalized</p>
+                    <p>
+                      {formatNormalizedQuantityLabel(
+                        entry.normalizedQuantity,
+                        entry.normalizedUnit,
+                        entry.conversionStatus,
+                      )}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-xs font-medium uppercase tracking-wide text-gray-500">Conversion</p>
+                    <p className="capitalize">{entry.conversionStatus}</p>
+                    {entry.conversionStatus === "resolved" && entry.conversionSource ? (
+                      <p className="text-xs text-gray-500">{entry.conversionSource}</p>
+                    ) : null}
+                  </div>
+                  <div>
+                    <p className="text-xs font-medium uppercase tracking-wide text-gray-500">Product hint</p>
+                    <p>{entry.productHint ?? "—"}</p>
+                  </div>
+                </div>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : (
         <div className="grid gap-2 text-sm text-gray-800 sm:grid-cols-2 lg:grid-cols-5">
           <div>
             <p className="text-xs font-medium uppercase tracking-wide text-gray-500">Quantity</p>
@@ -110,11 +159,9 @@ function QuantityResolutionReadyBody({
             <p>{top.productHint ?? "—"}</p>
           </div>
         </div>
-      ) : (
-        <p className="text-sm text-gray-600">No quantities detected in this packet.</p>
       )}
 
-      {top?.reasons.length ? (
+      {top?.reasons.length && !isMultiLine ? (
         <div>
           <p className="mb-1 text-xs font-medium uppercase tracking-wide text-gray-500">
             Why detected
@@ -127,13 +174,13 @@ function QuantityResolutionReadyBody({
         </div>
       ) : null}
 
-      {alternatives.length > 0 ? (
+      {!isMultiLine && quantityResolutionAlternatives(state.result).length > 0 ? (
         <div>
           <p className="mb-1 text-xs font-medium uppercase tracking-wide text-gray-500">
             Alternative quantities
           </p>
           <ul className="space-y-1 text-xs text-gray-600">
-            {alternatives.map((entry, index) => (
+            {quantityResolutionAlternatives(state.result).map((entry, index) => (
               <li key={`${entry.rawQuantity}-${entry.rawUnit ?? "none"}-${entry.productHint ?? index}`}>
                 {entry.rawQuantity} {formatQuantityUnitLabel(entry.rawUnit)}
                 {entry.productHint ? ` · ${entry.productHint}` : ""} · {entry.confidence}%

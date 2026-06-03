@@ -174,11 +174,25 @@ describe("quantityResolutionNormalize hardening", () => {
     ).toBe(false);
     expect(
       shouldApplyCatalogueConversionToEntry(
+        { ...baseEntry, productHint: "Mamoul" },
+        "Assorted Baklava 400gm Tin",
+        1,
+      ),
+    ).toBe(false);
+    expect(
+      shouldApplyCatalogueConversionToEntry(
         { ...baseEntry, productHint: null },
         "Assorted Baklava 400gm Tin",
         2,
       ),
     ).toBe(false);
+    expect(
+      shouldApplyCatalogueConversionToEntry(
+        { ...baseEntry, productHint: null },
+        "Assorted Baklava 400gm Tin",
+        1,
+      ),
+    ).toBe(true);
   });
 
   it("returns unknown when catalogue conversion fields are missing", () => {
