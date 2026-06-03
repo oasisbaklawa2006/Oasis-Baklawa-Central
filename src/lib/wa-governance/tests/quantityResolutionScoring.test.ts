@@ -53,6 +53,29 @@ describe("quantityResolutionScoring", () => {
     expect(result.quantities[1]?.productHint).toBeTruthy();
   });
 
+  it("collapses bare qty+unit shadow duplicates when a hinted line exists", () => {
+    const signals = extractQuantityResolutionTextSignals("2 cases baklava", "");
+    const result = scoreQuantityResolutionCandidates({ signals });
+
+    expect(result.quantities).toHaveLength(1);
+    expect(result.quantities[0]).toMatchObject({
+      rawQuantity: 2,
+      rawUnit: "cases",
+      productHint: "Baklava",
+    });
+  });
+
+  it("keeps separate hinted lines that share unit but differ by product", () => {
+    const signals = extractQuantityResolutionTextSignals(
+      "50 Baklava tins and 50 Mamoul tins",
+      "",
+    );
+    const result = scoreQuantityResolutionCandidates({ signals });
+
+    expect(result.quantities).toHaveLength(2);
+    expect(result.quantities.map((entry) => entry.productHint).sort()).toEqual(["Baklava", "Mamoul"]);
+  });
+
   it("maps confidence bands at 95 and 70 thresholds", () => {
     expect(confidenceBandFromQuantityScore(98)).toBe("auto_highlight");
     expect(confidenceBandFromQuantityScore(80)).toBe("suggested");

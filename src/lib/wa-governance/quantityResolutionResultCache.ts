@@ -9,12 +9,13 @@ export type CachedQuantityResolutionReadyState = {
 };
 
 export function getCachedQuantityResolutionState(
-  requestKey: string,
+  cacheKey: string,
+  logicalRequestKey: string,
   cache: QuantityResolutionResultCache,
 ): CachedQuantityResolutionReadyState | null {
-  const result = cache.get(requestKey);
+  const result = cache.get(cacheKey);
   if (!result) return null;
-  return { status: "ready", requestKey, result };
+  return { status: "ready", requestKey: logicalRequestKey, result };
 }
 
 export function storeCachedQuantityResolutionResult(

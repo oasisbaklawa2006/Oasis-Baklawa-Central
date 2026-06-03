@@ -82,6 +82,22 @@ function isCartonEquivalentUnit(unit: string | null): boolean {
   );
 }
 
+const CARTON_INNER_COUNT_SOURCES = new Set([
+  "products.pcs_per_master_carton",
+  "products.packs_per_master_carton",
+  "products.packs_per_carton",
+]);
+
+export { isCartonEquivalentUnit };
+
+function isCartonInnerCountConversion(conversionSource: string): boolean {
+  return CARTON_INNER_COUNT_SOURCES.has(conversionSource);
+}
+
+export function isCatalogueCartonInnerCountConversion(conversionSource: string): boolean {
+  return isCartonInnerCountConversion(conversionSource);
+}
+
 function productHintMatchesBestMatchIdentity(
   productHint: string,
   productBestMatchName: string,
@@ -99,9 +115,10 @@ function productHintMatchesBestMatchIdentity(
 
 /**
  * Gate catalogue normalization per quantity line against the product best match.
- * A. Single quantity + product profile → allowed.
- * B. Multiple quantities + productHint matches best-match via WA-05A identity policy → allowed.
- * C. Otherwise → do not apply catalogue conversion.
+ * A. productBestMatchName required.
+ * B. Single quantity without productHint → allowed (packet-level best match anchor).
+ * C. Any productHint must match best-match via WA-05A identity policy.
+ * D. Multiple quantities without productHint → blocked.
  */
 export function shouldApplyCatalogueConversionToEntry(
   entry: QuantityResolutionEntry,
@@ -109,10 +126,13 @@ export function shouldApplyCatalogueConversionToEntry(
   totalQuantities: number,
 ): boolean {
   if (!productBestMatchName?.trim()) return false;
-  if (totalQuantities === 1) return true;
-  if (!entry.productHint?.trim()) return false;
 
-  return productHintMatchesBestMatchIdentity(entry.productHint, productBestMatchName);
+  const hint = entry.productHint?.trim();
+  if (hint) {
+    return productHintMatchesBestMatchIdentity(hint, productBestMatchName);
+  }
+
+  return totalQuantities === 1;
 }
 
 /**

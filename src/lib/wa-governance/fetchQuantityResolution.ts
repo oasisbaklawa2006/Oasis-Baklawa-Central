@@ -1,6 +1,8 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { extractQuantityResolutionTextSignals } from "./quantityResolutionSignals";
 import {
+  isCartonEquivalentUnit,
+  isCatalogueCartonInnerCountConversion,
   normalizeQuantityFromCatalogue,
   shouldApplyCatalogueConversionToEntry,
   type CatalogueQuantityProduct,
@@ -27,7 +29,7 @@ function entryWithoutCatalogueNormalization(
   };
 }
 
-async function fetchCatalogueQuantityProduct(
+export async function fetchCatalogueQuantityProduct(
   supabase: SupabaseClient,
   productId: string,
 ): Promise<CatalogueQuantityProduct | null> {
@@ -51,6 +53,13 @@ export function applyCatalogueConversionToEntry(
     product,
   );
   if (!conversion) {
+    return entryWithoutCatalogueNormalization(entry);
+  }
+
+  if (
+    isCatalogueCartonInnerCountConversion(conversion.conversionSource) &&
+    !isCartonEquivalentUnit(entry.rawUnit)
+  ) {
     return entryWithoutCatalogueNormalization(entry);
   }
 

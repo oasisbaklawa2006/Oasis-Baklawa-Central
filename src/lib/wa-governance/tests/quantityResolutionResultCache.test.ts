@@ -26,7 +26,7 @@ describe("quantityResolutionResultCache", () => {
     const requestKey = "packet-1:hash:client:none:product:none:identity:ready:customer::";
     storeCachedQuantityResolutionResult(cache, requestKey, sampleResult());
 
-    expect(getCachedQuantityResolutionState(requestKey, cache)).toEqual({
+    expect(getCachedQuantityResolutionState(requestKey, requestKey, cache)).toEqual({
       status: "ready",
       requestKey,
       result: sampleResult(),
@@ -35,7 +35,7 @@ describe("quantityResolutionResultCache", () => {
 
   it("returns null when requestKey is not cached", () => {
     const cache = new Map<string, QuantityResolutionResult>();
-    expect(getCachedQuantityResolutionState("missing-key", cache)).toBeNull();
+    expect(getCachedQuantityResolutionState("missing-key", "missing-key", cache)).toBeNull();
   });
 
   it("stores only successful payloads keyed by requestKey", () => {
@@ -50,8 +50,8 @@ describe("quantityResolutionResultCache", () => {
     });
 
     expect(cache.size).toBe(2);
-    expect(getCachedQuantityResolutionState(firstKey, cache)?.result.band).toBe("auto_highlight");
-    expect(getCachedQuantityResolutionState(secondKey, cache)?.result.band).toBe("suggested");
+    expect(getCachedQuantityResolutionState(firstKey, firstKey, cache)?.result.band).toBe("auto_highlight");
+    expect(getCachedQuantityResolutionState(secondKey, secondKey, cache)?.result.band).toBe("suggested");
   });
 
   it("reuses cached payload without duplicate entries for the same key", () => {
@@ -60,11 +60,24 @@ describe("quantityResolutionResultCache", () => {
     const payload = sampleResult();
 
     storeCachedQuantityResolutionResult(cache, requestKey, payload);
-    const firstHit = getCachedQuantityResolutionState(requestKey, cache);
-    const secondHit = getCachedQuantityResolutionState(requestKey, cache);
+    const firstHit = getCachedQuantityResolutionState(requestKey, requestKey, cache);
+    const secondHit = getCachedQuantityResolutionState(requestKey, requestKey, cache);
 
     expect(firstHit?.result).toBe(payload);
     expect(secondHit?.result).toBe(payload);
     expect(cache.size).toBe(1);
+  });
+
+  it("returns logical request key even when cache lookup uses a composite cache key", () => {
+    const cache = new Map<string, QuantityResolutionResult>();
+    const logicalKey = "packet-1:logical";
+    const compositeKey = `${logicalKey}|catalogue:6:22:9::24:Baklava:Pc`;
+    storeCachedQuantityResolutionResult(cache, compositeKey, sampleResult());
+
+    expect(getCachedQuantityResolutionState(compositeKey, logicalKey, cache)).toEqual({
+      status: "ready",
+      requestKey: logicalKey,
+      result: sampleResult(),
+    });
   });
 });

@@ -83,19 +83,59 @@ export interface ScoreQuantityResolutionInput {
   signals: QuantityResolutionTextSignals;
 }
 
+function sortQuantityEntries(entries: QuantityResolutionEntry[]): QuantityResolutionEntry[] {
+  return [...entries].sort(
+    (a, b) =>
+      b.confidence - a.confidence ||
+      a.rawQuantity - b.rawQuantity ||
+      (a.rawUnit ?? "").localeCompare(b.rawUnit ?? "") ||
+      (a.productHint ?? "").localeCompare(b.productHint ?? ""),
+  );
+}
+
+/**
+ * Collapse overlapping parser duplicates for the same quantity+unit.
+ * Keeps hint-bearing lines when a bare qty+unit shadow match also exists.
+ */
+export function collapseDuplicateQuantityEntries(
+  entries: QuantityResolutionEntry[],
+): QuantityResolutionEntry[] {
+  const groups = new Map<string, QuantityResolutionEntry[]>();
+  for (const entry of entries) {
+    const key = `${entry.rawQuantity}:${entry.rawUnit ?? ""}`;
+    const group = groups.get(key) ?? [];
+    group.push(entry);
+    groups.set(key, group);
+  }
+
+  const collapsed: QuantityResolutionEntry[] = [];
+  for (const group of groups.values()) {
+    if (group.length === 1) {
+      collapsed.push(group[0]);
+      continue;
+    }
+
+    const hinted = group.filter((entry) => entry.productHint?.trim());
+    if (hinted.length > 0) {
+      collapsed.push(...hinted);
+      continue;
+    }
+
+    collapsed.push(group[0]);
+  }
+
+  return sortQuantityEntries(collapsed);
+}
+
 export function scoreQuantityResolutionCandidates(
   input: ScoreQuantityResolutionInput,
 ): QuantityResolutionResult {
   const scoredSignals = new Set<string>();
-  const quantities = input.signals.matches
-    .map((match) => scoreMatch(match, scoredSignals))
-    .filter((entry): entry is QuantityResolutionEntry => entry != null)
-    .sort(
-      (a, b) =>
-        b.confidence - a.confidence ||
-        a.rawQuantity - b.rawQuantity ||
-        (a.rawUnit ?? "").localeCompare(b.rawUnit ?? ""),
-    );
+  const quantities = collapseDuplicateQuantityEntries(
+    input.signals.matches
+      .map((match) => scoreMatch(match, scoredSignals))
+      .filter((entry): entry is QuantityResolutionEntry => entry != null),
+  );
 
   const topConfidence = quantities[0]?.confidence ?? 0;
   return {

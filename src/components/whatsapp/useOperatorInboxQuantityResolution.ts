@@ -1,6 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { fetchQuantityResolution } from "@/lib/wa-governance/fetchQuantityResolution";
+import {
+  fetchCatalogueQuantityProduct,
+  resolveQuantityCandidates,
+} from "@/lib/wa-governance/fetchQuantityResolution";
 import {
   buildQuantityResolutionFetchInput,
   buildQuantityResolutionRequestDescriptor,
@@ -12,6 +15,7 @@ import {
   type OperatorInboxQuantityResolutionState,
   type QuantityResolutionSenderIdentitySnapshot,
 } from "@/lib/wa-governance/quantityResolutionRequestKey";
+import { buildQuantityResolutionResultCacheKey } from "@/lib/wa-governance/quantityResolutionCacheKey";
 import {
   getCachedQuantityResolutionState,
   storeCachedQuantityResolutionResult,
@@ -25,6 +29,37 @@ import type { OperatorInboxPacket } from "./operatorInboxTypes";
 import { packetStitchedPlainText } from "./operatorInboxUtils";
 
 export type { OperatorInboxQuantityResolutionState } from "@/lib/wa-governance/quantityResolutionRequestKey";
+
+const LOGICAL_REQUEST_KEY_CACHE_PREFIX = "|";
+
+/**
+ * Synchronous warm-cache lookup by logical request key.
+ * Composite cache keys are `${logicalRequestKey}|catalogue:...`; the catalogue
+ * segment requires a product fetch to compute on first resolve, but revisits can
+ * match the single stored entry without awaiting fetch.
+ * Returns null when absent or ambiguous (multiple catalogue fingerprints).
+ */
+export function findWarmCachedQuantityResolutionState(
+  logicalRequestKey: string,
+  cache: Map<string, QuantityResolutionResult>,
+): Extract<OperatorInboxQuantityResolutionState, { status: "ready" }> | null {
+  const prefix = `${logicalRequestKey}${LOGICAL_REQUEST_KEY_CACHE_PREFIX}`;
+  let matched: QuantityResolutionResult | null = null;
+
+  for (const [cacheKey, result] of cache.entries()) {
+    if (!cacheKey.startsWith(prefix)) continue;
+    if (matched != null) {
+      return null;
+    }
+    matched = result;
+  }
+
+  if (matched == null) {
+    return null;
+  }
+
+  return { status: "ready", requestKey: logicalRequestKey, result: matched };
+}
 
 function snapshotSenderIdentity(
   state: OperatorInboxSenderIdentityState,
@@ -172,12 +207,12 @@ export function useOperatorInboxQuantityResolution(
       return;
     }
 
-    const cachedState = getCachedQuantityResolutionState(
+    const warmCache = findWarmCachedQuantityResolutionState(
       requestKey,
       resolvedResultCacheRef.current,
     );
-    if (cachedState) {
-      setState(cachedState);
+    if (warmCache) {
+      setState(warmCache);
       return;
     }
 
@@ -196,9 +231,30 @@ export function useOperatorInboxQuantityResolution(
           stitched,
           productResolutionStateRef.current,
         );
-        const result = await fetchQuantityResolution(supabase, input);
+        const catalogueProduct =
+          input.productId != null
+            ? await fetchCatalogueQuantityProduct(supabase, input.productId)
+            : null;
+        const cacheKey = buildQuantityResolutionResultCacheKey(requestKey, catalogueProduct);
+
+        const cachedByCatalogue = getCachedQuantityResolutionState(
+          cacheKey,
+          requestKey,
+          resolvedResultCacheRef.current,
+        );
+        if (cachedByCatalogue) {
+          if (cancelled || requestKeyRef.current !== requestKey) return;
+          setState(cachedByCatalogue);
+          return;
+        }
+
+        const result = await resolveQuantityCandidates(
+          input,
+          supabase,
+          catalogueProduct,
+        );
         if (cancelled || requestKeyRef.current !== requestKey) return;
-        storeCachedQuantityResolutionResult(resolvedResultCacheRef.current, requestKey, result);
+        storeCachedQuantityResolutionResult(resolvedResultCacheRef.current, cacheKey, result);
         setState({ status: "ready", requestKey, result });
       } catch (e) {
         if (cancelled || requestKeyRef.current !== requestKey) return;
