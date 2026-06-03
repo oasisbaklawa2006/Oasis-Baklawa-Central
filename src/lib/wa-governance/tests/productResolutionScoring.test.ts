@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
+import { extractProductResolutionTextSignals } from "@/lib/wa-governance/productResolutionSignals";
 import {
+  applyProductConfidenceCeiling,
+  classifyProductIdentityStrength,
   confidenceBandFromPercent,
+  confidenceBandFromScoreAndIdentity,
+  isStrongProductFamilyKeyword,
   PRODUCT_RESOLUTION_SIGNAL_WEIGHTS,
   scoreProductResolutionCandidates,
 } from "@/lib/wa-governance/productResolutionScoring";
@@ -97,7 +102,7 @@ describe("productResolutionScoring", () => {
     expect(result.bestMatch?.confidence).toBeGreaterThanOrEqual(45);
   });
 
-  it("scores weight match", () => {
+  it("scores weight match but caps metadata-only candidates at 69%", () => {
     const result = scoreProductResolutionCandidates({
       signals: baseSignals({ weightGrams: [400], weightTokens: ["400gm"] }),
       products: [
@@ -114,7 +119,8 @@ describe("productResolutionScoring", () => {
     expect(result.bestMatch?.reasons.some((reason) => reason.toLowerCase().includes("weight"))).toBe(
       true,
     );
-    expect(result.bestMatch?.confidence).toBeGreaterThanOrEqual(35);
+    expect(result.bestMatch?.confidence).toBeLessThanOrEqual(69);
+    expect(result.band).toBe("needs_clarification");
   });
 
   it("scores piece-count match", () => {
@@ -188,5 +194,127 @@ describe("productResolutionScoring", () => {
     expect(confidenceBandFromPercent(96)).toBe("auto_highlight");
     expect(confidenceBandFromPercent(80)).toBe("suggested");
     expect(confidenceBandFromPercent(40)).toBe("needs_clarification");
+  });
+
+  it("Case A: metadata-only 400gm tin 24 pc stays at or below 69% needs clarification", () => {
+    const signals = extractProductResolutionTextSignals("400gm tin 24 pc", "");
+    const result = scoreProductResolutionCandidates({
+      signals,
+      products: [
+        product({
+          id: "p-generic",
+          name: "Generic Assorted Tin",
+          sku: "GEN-1",
+          pack_size: "400gm tin 24 pc",
+          net_weight_grams: 400,
+        }),
+      ],
+    });
+
+    expect(result.bestMatch?.confidence).toBeLessThanOrEqual(69);
+    expect(result.band).toBe("needs_clarification");
+    expect(result.bestMatch?.reasons.some((reason) => reason.includes("Exact product name"))).toBe(
+      false,
+    );
+    expect(result.bestMatch?.reasons.some((reason) => reason.includes("alias"))).toBe(false);
+    expect(
+      result.bestMatch?.reasons.some((reason) => reason.includes("Product family keyword")),
+    ).toBe(false);
+  });
+
+  it("Case B: Baklava 400gm tin with identity and metadata can reach suggested or auto-highlight", () => {
+    const signals = extractProductResolutionTextSignals("Baklava 400gm tin", "");
+    const result = scoreProductResolutionCandidates({
+      signals,
+      products: [
+        product({
+          id: "p-baklava",
+          name: "Assorted Baklava 400gm Tin",
+          sku: "BK-400",
+          net_weight_grams: 400,
+          pack_size: "400gm tin",
+          category: "Baklava",
+        }),
+      ],
+    });
+
+    expect(result.bestMatch?.confidence).toBeGreaterThanOrEqual(70);
+    expect(["suggested", "auto_highlight"]).toContain(result.band);
+    expect(
+      result.bestMatch?.reasons.some(
+        (reason) =>
+          reason.includes("Product family keyword") ||
+          reason.includes("Exact product name") ||
+          reason.includes("Product name contains"),
+      ),
+    ).toBe(true);
+  });
+
+  it("Case C: Mamoul 24 pc with identity is eligible for suggested band or higher", () => {
+    const signals = extractProductResolutionTextSignals("Mamoul 24 pc", "");
+    const result = scoreProductResolutionCandidates({
+      signals,
+      products: [
+        product({
+          id: "p-mamoul",
+          name: "Maamoul Dates Box 24pc",
+          sku: "MM-24",
+          pack_size: "24 pc box",
+          category: "Maamoul",
+        }),
+      ],
+    });
+
+    expect(result.bestMatch?.confidence).toBeGreaterThanOrEqual(70);
+    expect(result.band).not.toBe("needs_clarification");
+    expect(
+      result.bestMatch?.reasons.some((reason) => reason.includes("Product family keyword")),
+    ).toBe(true);
+  });
+
+  it("Case D: metadata-only ambiguity never auto-highlights", () => {
+    const signals = extractProductResolutionTextSignals("400gm tin 24 pc", "");
+    const result = scoreProductResolutionCandidates({
+      signals,
+      products: [
+        product({
+          id: "p-a",
+          name: "Generic Tin A",
+          sku: "A",
+          pack_size: "400gm tin 24 pc",
+          net_weight_grams: 400,
+        }),
+        product({
+          id: "p-b",
+          name: "Generic Tin B",
+          sku: "B",
+          pack_size: "400gm tin 24 pc",
+          net_weight_grams: 400,
+        }),
+      ],
+    });
+
+    expect(result.candidateProducts.length).toBeGreaterThanOrEqual(2);
+    expect(result.band).toBe("needs_clarification");
+    expect(result.candidateProducts.every((candidate) => candidate.confidence <= 69)).toBe(true);
+    expect(result.candidateProducts.every((candidate) => candidate.confidence < 95)).toBe(true);
+  });
+
+  it("classifies strong product-family keywords and applies identity ceilings", () => {
+    expect(isStrongProductFamilyKeyword("Baklawa")).toBe(true);
+    expect(isStrongProductFamilyKeyword("tin")).toBe(false);
+
+    expect(classifyProductIdentityStrength({
+      exactProductName: false,
+      productAlias: false,
+      strongProductFamily: false,
+      partialProductName: false,
+    })).toBe("none");
+
+    expect(applyProductConfidenceCeiling(0.98, "none")).toBe(0.69);
+    expect(applyProductConfidenceCeiling(0.98, "weak")).toBe(0.94);
+    expect(confidenceBandFromScoreAndIdentity(0.98, "none")).toBe("needs_clarification");
+    expect(confidenceBandFromScoreAndIdentity(0.98, "weak")).toBe("suggested");
+    expect(confidenceBandFromScoreAndIdentity(0.96, "strong")).toBe("auto_highlight");
   });
 });

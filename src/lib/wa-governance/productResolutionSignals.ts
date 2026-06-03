@@ -86,9 +86,18 @@ export function buildProductResolutionCombinedText(
   return [messageText, stitchedPlainText].filter(Boolean).join("\n").trim();
 }
 
-function extractKeywordHits(text: string): string[] {
+function keywordMatchesText(keyword: string, text: string): boolean {
   const lower = text.toLowerCase();
-  return PRODUCT_KEYWORDS.filter((keyword) => lower.includes(keyword)).map((keyword) =>
+  if (lower.includes(keyword)) return true;
+  if (keyword === "maamoul" && /\bmamoul\b/.test(lower)) return true;
+  if (keyword === "mamoul" && /\bmaamoul\b/.test(lower)) return true;
+  if (keyword === "baklawa" && /\bbaklava\b/.test(lower)) return true;
+  if (keyword === "baklava" && /\bbaklawa\b/.test(lower)) return true;
+  return false;
+}
+
+function extractKeywordHits(text: string): string[] {
+  return PRODUCT_KEYWORDS.filter((keyword) => keywordMatchesText(keyword, text)).map((keyword) =>
     keyword.replace(/\b\w/g, (char) => char.toUpperCase()),
   );
 }

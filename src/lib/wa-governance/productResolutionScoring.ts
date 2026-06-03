@@ -16,10 +16,130 @@ export const PRODUCT_RESOLUTION_SIGNAL_WEIGHTS = {
   catalogKeywordMatch: 0.18,
 } as const;
 
+export const METADATA_ONLY_CONFIDENCE_CEILING = 0.69;
+export const WEAK_IDENTITY_CONFIDENCE_CEILING = 0.94;
+export const AUTO_HIGHLIGHT_CONFIDENCE_THRESHOLD = 0.95;
+
 const MAX_SCORE = 0.98;
+
+const PACKAGING_KEYWORDS = new Set([
+  "tin",
+  "tins",
+  "tray",
+  "trays",
+  "carton",
+  "cartons",
+  "box",
+  "boxes",
+  "acrylic",
+  "case",
+  "cases",
+  "pack",
+  "packs",
+  "tin pack",
+  "assorted",
+  "mixed",
+]);
+
+export const STRONG_PRODUCT_FAMILY_KEYWORDS = [
+  "baklava",
+  "baklawa",
+  "mamoul",
+  "maamoul",
+  "turkish delight",
+  "lokum",
+  "dates",
+  "kunefe",
+  "kunafa",
+  "dragees",
+  "chocolate tray",
+  "chocolate box",
+  "chocolate",
+  "gift box",
+  "hamper",
+  "basbousa",
+  "namoura",
+  "barfi",
+  "peda",
+  "halwa",
+  "rasgulla",
+  "gulab jamun",
+  "sandesh",
+  "motichoor",
+  "laddu",
+  "pistachio",
+  "kaju",
+] as const;
+
+export type ProductIdentityEvidenceStrength = "none" | "weak" | "strong";
+
+type ProductEvidenceFlags = {
+  exactProductName: boolean;
+  productAlias: boolean;
+  strongProductFamily: boolean;
+  partialProductName: boolean;
+};
 
 function clampScore(score: number): number {
   return Math.min(MAX_SCORE, Math.max(0, score));
+}
+
+export function isStrongProductFamilyKeyword(keyword: string): boolean {
+  const normalized = keyword.trim().toLowerCase();
+  if (!normalized || PACKAGING_KEYWORDS.has(normalized)) return false;
+  return STRONG_PRODUCT_FAMILY_KEYWORDS.some(
+    (familyKeyword) =>
+      normalized === familyKeyword ||
+      normalized.includes(familyKeyword) ||
+      familyKeyword.includes(normalized),
+  );
+}
+
+export function classifyProductIdentityStrength(
+  flags: ProductEvidenceFlags,
+): ProductIdentityEvidenceStrength {
+  if (flags.exactProductName || flags.productAlias || flags.strongProductFamily) {
+    return "strong";
+  }
+  if (flags.partialProductName) return "weak";
+  return "none";
+}
+
+export function applyProductConfidenceCeiling(
+  rawScore: number,
+  identityStrength: ProductIdentityEvidenceStrength,
+): number {
+  if (identityStrength === "none") {
+    return Math.min(rawScore, METADATA_ONLY_CONFIDENCE_CEILING);
+  }
+  if (identityStrength === "weak") {
+    return Math.min(rawScore, WEAK_IDENTITY_CONFIDENCE_CEILING);
+  }
+  return clampScore(rawScore);
+}
+
+export function confidenceBandFromPercent(confidence: number): ProductResolutionConfidenceBand {
+  if (confidence >= 95) return "auto_highlight";
+  if (confidence >= 70) return "suggested";
+  return "needs_clarification";
+}
+
+export function confidenceBandFromScoreAndIdentity(
+  score: number,
+  identityStrength: ProductIdentityEvidenceStrength,
+): ProductResolutionConfidenceBand {
+  const confidence = formatProductConfidencePercent(score);
+  if (identityStrength === "none") return "needs_clarification";
+  if (identityStrength === "weak") {
+    return confidence >= 70 ? "suggested" : "needs_clarification";
+  }
+  if (confidence >= 95) return "auto_highlight";
+  if (confidence >= 70) return "suggested";
+  return "needs_clarification";
+}
+
+export function formatProductConfidencePercent(score: number): number {
+  return Math.round(clampScore(score) * 100);
 }
 
 function addReason(
@@ -82,14 +202,22 @@ function packFormatMatchesProduct(product: ProductResolutionRow, token: string):
   return productSearchText(product).includes(token.toLowerCase());
 }
 
-export function confidenceBandFromPercent(confidence: number): ProductResolutionConfidenceBand {
-  if (confidence >= 95) return "auto_highlight";
-  if (confidence >= 70) return "suggested";
-  return "needs_clarification";
+function isPackagingOnlyTerm(term: string): boolean {
+  const normalized = term.trim().toLowerCase();
+  return PACKAGING_KEYWORDS.has(normalized) && !isStrongProductFamilyKeyword(term);
 }
 
-export function formatProductConfidencePercent(score: number): number {
-  return Math.round(clampScore(score) * 100);
+function productNameTermEligibleForIdentity(term: string): boolean {
+  return !isPackagingOnlyTerm(term);
+}
+
+function emptyEvidenceFlags(): ProductEvidenceFlags {
+  return {
+    exactProductName: false,
+    productAlias: false,
+    strongProductFamily: false,
+    partialProductName: false,
+  };
 }
 
 export interface ScoreProductResolutionInput {
@@ -103,7 +231,16 @@ export function scoreProductResolutionCandidates(
   input: ScoreProductResolutionInput,
 ): ProductResolutionResult {
   const reasonsByProduct = new Map<string, ProductResolutionScoreReason[]>();
+  const evidenceByProduct = new Map<string, ProductEvidenceFlags>();
   const scoredSignals = new Map<string, Set<string>>();
+
+  function evidenceFor(productId: string): ProductEvidenceFlags {
+    const existing = evidenceByProduct.get(productId);
+    if (existing) return existing;
+    const created = emptyEvidenceFlags();
+    evidenceByProduct.set(productId, created);
+    return created;
+  }
 
   for (const [productId, reasons] of input.additionalReasons ?? []) {
     reasonsByProduct.set(productId, [...reasons]);
@@ -116,7 +253,10 @@ export function scoreProductResolutionCandidates(
 
   for (const product of input.products) {
     for (const term of input.signals.productNameCandidates) {
+      if (!productNameTermEligibleForIdentity(term)) continue;
+
       if (product.name.toLowerCase() === term.toLowerCase()) {
+        evidenceFor(product.id).exactProductName = true;
         addReason(
           reasonsByProduct,
           product.id,
@@ -126,6 +266,7 @@ export function scoreProductResolutionCandidates(
           `exact:${term.toLowerCase()}`,
         );
       } else if (productNameMatchesTerm(product.name, term)) {
+        evidenceFor(product.id).partialProductName = true;
         addReason(
           reasonsByProduct,
           product.id,
@@ -138,6 +279,7 @@ export function scoreProductResolutionCandidates(
     }
 
     for (const alias of input.aliasHits?.get(product.id) ?? []) {
+      evidenceFor(product.id).productAlias = true;
       addReason(
         reasonsByProduct,
         product.id,
@@ -156,6 +298,7 @@ export function scoreProductResolutionCandidates(
             alias.toLowerCase().includes(candidate.toLowerCase()),
         )
       ) {
+        evidenceFor(product.id).productAlias = true;
         addReason(
           reasonsByProduct,
           product.id,
@@ -221,38 +364,68 @@ export function scoreProductResolutionCandidates(
 
     for (const keyword of input.signals.catalogKeywords) {
       const haystack = productSearchText(product);
-      if (haystack.includes(keyword.toLowerCase())) {
+      if (!haystack.includes(keyword.toLowerCase())) continue;
+
+      if (isStrongProductFamilyKeyword(keyword)) {
+        evidenceFor(product.id).strongProductFamily = true;
         addReason(
           reasonsByProduct,
           product.id,
           PRODUCT_RESOLUTION_SIGNAL_WEIGHTS.catalogKeywordMatch,
-          `Catalog keyword "${keyword}" matches product metadata`,
+          `Product family keyword "${keyword}" matches catalog metadata`,
           scoredSignals,
-          `keyword:${keyword.toLowerCase()}`,
+          `family-keyword:${keyword.toLowerCase()}`,
         );
+        continue;
       }
+
+      addReason(
+        reasonsByProduct,
+        product.id,
+        PRODUCT_RESOLUTION_SIGNAL_WEIGHTS.catalogKeywordMatch,
+        `Catalog keyword "${keyword}" matches product metadata`,
+        scoredSignals,
+        `keyword:${keyword.toLowerCase()}`,
+      );
     }
   }
 
-  const candidateProducts = input.products
+  const scoredCandidates = input.products
     .map((product) => {
       const reasons = reasonsByProduct.get(product.id) ?? [];
-      const score = clampScore(reasons.reduce((sum, reason) => sum + reason.weight, 0));
-      if (score <= 0) return null;
+      const rawScore = clampScore(reasons.reduce((sum, reason) => sum + reason.weight, 0));
+      if (rawScore <= 0) return null;
+
+      const identityStrength = classifyProductIdentityStrength(
+        evidenceByProduct.get(product.id) ?? emptyEvidenceFlags(),
+      );
+      const cappedScore = applyProductConfidenceCeiling(rawScore, identityStrength);
+
       return {
         productId: product.id,
         productName: product.name,
         sku: product.sku,
-        confidence: formatProductConfidencePercent(score),
+        confidence: formatProductConfidencePercent(cappedScore),
         reasons: reasons.map((reason) => reason.reason),
+        identityStrength,
+        cappedScore,
       };
     })
     .filter((candidate): candidate is NonNullable<typeof candidate> => candidate != null)
-    .sort((a, b) => b.confidence - a.confidence || a.productName.localeCompare(b.productName));
+    .sort(
+      (a, b) =>
+        b.confidence - a.confidence ||
+        b.cappedScore - a.cappedScore ||
+        a.productName.localeCompare(b.productName),
+    );
 
+  const bestScored = scoredCandidates[0] ?? null;
+  const candidateProducts = scoredCandidates.map(
+    ({ identityStrength: _identityStrength, cappedScore: _cappedScore, ...candidate }) => candidate,
+  );
   const bestMatch = candidateProducts[0] ?? null;
-  const band = bestMatch
-    ? confidenceBandFromPercent(bestMatch.confidence)
+  const band = bestScored
+    ? confidenceBandFromScoreAndIdentity(bestScored.cappedScore, bestScored.identityStrength)
     : "needs_clarification";
 
   return {
