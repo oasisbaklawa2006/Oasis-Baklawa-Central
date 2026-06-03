@@ -119,6 +119,7 @@ export function scoreClientResolutionCandidates(
 ): ClientResolutionResult {
   const reasonsByCompany = new Map<string, ClientResolutionScoreReason[]>();
   const deliveryLocationByCompany = new Map<string, Set<string>>();
+  const nameEvidenceCompanyIds = new Set<string>();
   const companyById = new Map(input.companies.map((row) => [row.id, row]));
 
   for (const company of input.companies) {
@@ -127,6 +128,7 @@ export function scoreClientResolutionCandidates(
     for (const term of input.signals.nameCandidates) {
       const match = companyNameMatchesTerm(company.business_name, term);
       if (match === "exact") {
+        nameEvidenceCompanyIds.add(company.id);
         addReason(
           reasonsByCompany,
           company.id,
@@ -134,6 +136,7 @@ export function scoreClientResolutionCandidates(
           `Company name "${term}" appears in message`,
         );
       } else if (match === "partial") {
+        nameEvidenceCompanyIds.add(company.id);
         addReason(
           reasonsByCompany,
           company.id,
@@ -146,6 +149,7 @@ export function scoreClientResolutionCandidates(
     if (input.waCompanyName) {
       const aliasMatch = companyNameMatchesTerm(company.business_name, input.waCompanyName);
       if (aliasMatch !== "none") {
+        nameEvidenceCompanyIds.add(company.id);
         addReason(
           reasonsByCompany,
           company.id,
@@ -158,6 +162,7 @@ export function scoreClientResolutionCandidates(
     if (input.waCustomerName) {
       const aliasMatch = companyNameMatchesTerm(company.business_name, input.waCustomerName);
       if (aliasMatch !== "none") {
+        nameEvidenceCompanyIds.add(company.id);
         addReason(
           reasonsByCompany,
           company.id,
@@ -225,7 +230,8 @@ export function scoreClientResolutionCandidates(
   }
 
   if (input.senderIsEmployee && input.signals.nameCandidates.length > 0) {
-    for (const companyId of reasonsByCompany.keys()) {
+    for (const companyId of nameEvidenceCompanyIds) {
+      if (!reasonsByCompany.has(companyId)) continue;
       addReason(
         reasonsByCompany,
         companyId,

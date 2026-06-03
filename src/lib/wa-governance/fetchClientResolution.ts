@@ -8,6 +8,10 @@ import type {
 } from "./clientResolutionTypes";
 import { extractClientResolutionTextSignals } from "./clientResolutionSignals";
 import {
+  postgrestIlikeContainsPattern,
+  postgrestOrIlikeContains,
+} from "./clientResolutionIlike";
+import {
   CLIENT_RESOLUTION_SIGNAL_WEIGHTS,
   scoreClientResolutionCandidates,
 } from "./clientResolutionScoring";
@@ -52,7 +56,7 @@ async function queryCompaniesByName(
   const { data, error } = await supabase
     .from("companies")
     .select(COMPANY_SELECT)
-    .ilike("business_name", `%${term}%`)
+    .ilike("business_name", postgrestIlikeContainsPattern(term))
     .limit(5);
   if (error || !data) return [];
   return data as CompanyResolutionRow[];
@@ -65,7 +69,7 @@ async function queryCompaniesByPhone(
   const { data, error } = await supabase
     .from("companies")
     .select(COMPANY_SELECT)
-    .or(`phone.ilike.%${last10},gst_number.ilike.%${last10}%`)
+    .or(`${postgrestOrIlikeContains("phone", last10)},${postgrestOrIlikeContains("gst_number", last10)}`)
     .limit(5);
   if (error || !data) return [];
   return data as CompanyResolutionRow[];
@@ -106,7 +110,7 @@ async function queryCompaniesViaOrders(
   const { data: orders, error } = await supabase
     .from("orders")
     .select("company_id, order_number")
-    .ilike("order_number", `%${orderReference}%`)
+    .ilike("order_number", postgrestIlikeContainsPattern(orderReference))
     .limit(3);
   if (error || !orders?.length) return [];
   const companyIds = orders
@@ -122,7 +126,7 @@ async function queryCompaniesViaB2bPhone(
   const { data: apps, error } = await supabase
     .from("b2b_applications")
     .select("business_name")
-    .or(`contact_phone.ilike.%${last10},mobile_number.ilike.%${last10}%`)
+    .or(`${postgrestOrIlikeContains("contact_phone", last10)},${postgrestOrIlikeContains("mobile_number", last10)}`)
     .eq("status", "approved")
     .limit(3);
   if (error || !apps?.length) return [];
@@ -142,7 +146,7 @@ async function queryCompaniesViaPortalUserPhone(
   const { data: users, error } = await supabase
     .from("users")
     .select("company_id")
-    .or(`phone.ilike.%${last10},mobile_number.ilike.%${last10}%`)
+    .or(`${postgrestOrIlikeContains("phone", last10)},${postgrestOrIlikeContains("mobile_number", last10)}`)
     .not("company_id", "is", null)
     .limit(3);
   if (error || !users?.length) return [];
@@ -159,7 +163,7 @@ async function queryCompaniesViaDeliveryLocation(
   const { data, error } = await supabase
     .from("delivery_addresses")
     .select("company_id, city, street_address")
-    .or(`city.ilike.%${locationToken}%,street_address.ilike.%${locationToken}%`)
+    .or(`${postgrestOrIlikeContains("city", locationToken)},${postgrestOrIlikeContains("street_address", locationToken)}`)
     .limit(5);
   if (error || !data?.length) return [];
   const companyIds = data
@@ -175,7 +179,7 @@ async function queryCompaniesViaShadowClients(
   const { data, error } = await supabase
     .from("shadow_clients")
     .select("extracted_business_name, promoted_to_company_id")
-    .ilike("extracted_business_name", `%${term}%`)
+    .ilike("extracted_business_name", postgrestIlikeContainsPattern(term))
     .limit(5);
   if (error || !data?.length) return [];
 

@@ -240,6 +240,83 @@ describe("clientResolutionScoring", () => {
     expect(result.bestMatch?.confidence).toBeGreaterThanOrEqual(70);
   });
 
+  it("does not apply employee relay boost to phone-only candidates", () => {
+    const result = scoreClientResolutionCandidates({
+      signals: baseSignals({
+        phoneLast10: ["9876543210"],
+        nameCandidates: ["Need 50 boxes for HDFC"],
+      }),
+      companies: [
+        company({
+          id: "c-phone-only",
+          business_name: "Unrelated Phone Co",
+          phone: "+91 9876543210",
+        }),
+      ],
+      ownerProfiles,
+      senderIsEmployee: true,
+    });
+
+    expect(result.bestMatch?.reasons.some((reason) => reason.includes("Employee sender relay"))).toBe(
+      false,
+    );
+    expect(result.bestMatch?.confidence).toBe(40);
+  });
+
+  it("does not apply employee relay boost to delivery-only candidates", () => {
+    const result = scoreClientResolutionCandidates({
+      signals: baseSignals({
+        locationTokens: ["noida"],
+        nameCandidates: ["Need 50 boxes for HDFC"],
+      }),
+      companies: [
+        company({
+          id: "c-delivery-only",
+          business_name: "Warehouse Client",
+          registered_address: null,
+        }),
+      ],
+      ownerProfiles,
+      additionalReasons: new Map([
+        [
+          "c-delivery-only",
+          [
+            {
+              companyId: "c-delivery-only",
+              weight: CLIENT_RESOLUTION_SIGNAL_WEIGHTS.deliveryLocation,
+              reason: 'Delivery address matches location token "noida"',
+            },
+          ],
+        ],
+      ]),
+      senderIsEmployee: true,
+    });
+
+    expect(result.bestMatch?.reasons.some((reason) => reason.includes("Employee sender relay"))).toBe(
+      false,
+    );
+    expect(result.bestMatch?.confidence).toBe(18);
+  });
+
+  it("applies employee relay boost only when name-based evidence exists", () => {
+    const result = scoreClientResolutionCandidates({
+      signals: baseSignals({ nameCandidates: ["HDFC Bank"] }),
+      companies: [
+        company({
+          id: "c-named",
+          business_name: "HDFC Bank",
+          account_manager_id: "owner-1",
+        }),
+      ],
+      ownerProfiles,
+      senderIsEmployee: true,
+    });
+
+    expect(result.bestMatch?.reasons.some((reason) => reason.includes("Employee sender relay"))).toBe(
+      true,
+    );
+  });
+
   it("returns ambiguous matches when multiple companies score similarly", () => {
     const result = scoreClientResolutionCandidates({
       signals: baseSignals({ nameCandidates: ["Haldiram"] }),
