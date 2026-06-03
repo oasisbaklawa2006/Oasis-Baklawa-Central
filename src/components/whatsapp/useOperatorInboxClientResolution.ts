@@ -50,7 +50,16 @@ export function useOperatorInboxClientResolution(
   const [state, setState] = useState<OperatorInboxClientResolutionState>({ status: "idle" });
   const packetRef = useRef(selectedPacket);
   packetRef.current = selectedPacket;
+  const senderIdentityStateRef = useRef(senderIdentityState);
+  senderIdentityStateRef.current = senderIdentityState;
   const lookupKeyRef = useRef<string | null>(null);
+  const resolvedLookupKeyRef = useRef<string | null>(null);
+
+  const identityKindKey = useMemo(() => senderIdentityKindKey(senderIdentityState), [
+    senderIdentityState.status,
+    senderIdentityState.status === "ready" ? senderIdentityState.identity.kind : null,
+    senderIdentityState.status === "ready" ? senderIdentityState.identity.companyName : null,
+  ]);
 
   const contentFingerprint = useMemo(() => {
     if (!selectedPacket) return null;
@@ -65,18 +74,20 @@ export function useOperatorInboxClientResolution(
 
   const lookupKey = useMemo(() => {
     if (!selectedPacket || contentFingerprint == null) return null;
-    return `${selectedPacket.id}:${contentFingerprint}:${senderIdentityKindKey(senderIdentityState)}`;
-  }, [selectedPacket?.id, contentFingerprint, senderIdentityState]);
+    return `${selectedPacket.id}:${contentFingerprint}:${identityKindKey}`;
+  }, [selectedPacket?.id, contentFingerprint, identityKindKey]);
 
   lookupKeyRef.current = lookupKey;
 
   useEffect(() => {
-    if (!lookupKey || !selectedPacket) {
+    if (!lookupKey) {
       setState({ status: "idle" });
+      resolvedLookupKeyRef.current = null;
       return;
     }
 
-    if (senderIdentityState.status === "loading" || senderIdentityState.status === "idle") {
+    const identityState = senderIdentityStateRef.current;
+    if (identityState.status === "loading" || identityState.status === "idle") {
       setState({ status: "loading" });
       return;
     }
@@ -88,6 +99,10 @@ export function useOperatorInboxClientResolution(
     }
 
     const requestKey = lookupKey;
+    if (resolvedLookupKeyRef.current === requestKey) {
+      return;
+    }
+
     let cancelled = false;
     setState({ status: "loading" });
 
@@ -95,8 +110,9 @@ export function useOperatorInboxClientResolution(
       try {
         const stitched = packetStitchedPlainText(packet.stitched_content);
         const snippet = pickLatestInboundSnippetForIdentifySender(packet.messages, stitched) ?? "";
+        const latestIdentityState = senderIdentityStateRef.current;
         const senderIdentity =
-          senderIdentityState.status === "ready" ? senderIdentityState.identity : null;
+          latestIdentityState.status === "ready" ? latestIdentityState.identity : null;
         const result = await fetchClientResolution(supabase, {
           messageText: snippet,
           stitchedPlainText: stitched,
@@ -107,6 +123,7 @@ export function useOperatorInboxClientResolution(
           senderIdentity,
         });
         if (cancelled || lookupKeyRef.current !== requestKey) return;
+        resolvedLookupKeyRef.current = requestKey;
         setState({ status: "ready", result });
       } catch (e) {
         if (cancelled || lookupKeyRef.current !== requestKey) return;
@@ -118,7 +135,7 @@ export function useOperatorInboxClientResolution(
     return () => {
       cancelled = true;
     };
-  }, [lookupKey, selectedPacket, senderIdentityState]);
+  }, [lookupKey]);
 
   return state;
 }
