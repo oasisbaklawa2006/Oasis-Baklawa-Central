@@ -199,6 +199,7 @@ export function useOperatorInboxQuantityResolution(
 
         const cachedByCatalogue = getCachedQuantityResolutionState(
           cacheKey,
+          requestKey,
           resolvedResultCacheRef.current,
         );
         if (cachedByCatalogue) {

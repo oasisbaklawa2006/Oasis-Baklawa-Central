@@ -293,14 +293,14 @@ describe("quantityResolutionIntegration runtime path", () => {
     );
     storeCachedQuantityResolutionResult(cache, keyB, resultB);
 
-    expect(getCachedQuantityResolutionState(keyA, cache)?.result.quantities[0]?.conversionSource).toBe(
+    expect(getCachedQuantityResolutionState(keyA, keyA, cache)?.result.quantities[0]?.conversionSource).toBe(
       "products.pcs_per_master_carton",
     );
-    expect(getCachedQuantityResolutionState(keyB, cache)?.result.quantities[0]?.conversionSource).toBe(
+    expect(getCachedQuantityResolutionState(keyB, keyB, cache)?.result.quantities[0]?.conversionSource).toBe(
       "products.grams_per_piece",
     );
-    expect(getCachedQuantityResolutionState(keyB, cache)?.result).not.toEqual(
-      getCachedQuantityResolutionState(keyA, cache)?.result,
+    expect(getCachedQuantityResolutionState(keyB, keyB, cache)?.result).not.toEqual(
+      getCachedQuantityResolutionState(keyA, keyA, cache)?.result,
     );
   });
 });
