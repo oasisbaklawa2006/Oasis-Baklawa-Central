@@ -48,6 +48,15 @@ describe("quantityResolutionSignals", () => {
     expect(normalizeQuantityUnit("pc")).toBe("pcs");
   });
 
+  it("does not extract partial digits or dates as qty-only quantities", () => {
+    expect(extractQuantityResolutionTextSignals("Need 50 boxes", "Need 50 boxes").matches).toHaveLength(1);
+    expect(extractQuantityResolutionTextSignals("order 25/12/2026", "").matches).toHaveLength(0);
+    expect(extractQuantityResolutionTextSignals("Need 50 please confirm", "").matches).toHaveLength(1);
+    expect(extractQuantityResolutionTextSignals("Need 50 please confirm", "").matches[0]?.kind).toBe(
+      "explicit_qty_only",
+    );
+  });
+
   it("does not treat phone numbers, GSTIN, or order refs as quantities", () => {
     const signals = extractQuantityResolutionTextSignals(
       "Call 9876543210 GST 22AAAAA0000A1Z5 order SO-12345",

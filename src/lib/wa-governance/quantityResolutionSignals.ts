@@ -18,7 +18,7 @@ const WEIGHT_ORDER_PATTERN =
   /\b(?:need|send|want|order|qty|quantity)\s+(?:me\s+)?(\d+(?:\.\d+)?)\s*(kg|kgs|kilograms?|gm|gms|grams?|g)\b/gi;
 
 const EXPLICIT_QTY_ONLY_PATTERN =
-  /\b(?:need|send|want|order|qty|quantity)\s+(?:me\s+)?(\d+(?:\.\d+)?)(?!\s+(?:[A-Za-z][A-Za-z\s-]{0,40}\s+)?(?:boxes?|box|tins?|tin|trays?|tray|pcs?|pc|pieces?|piece|cartons?|carton|ctns?|ctn|cases?|case|units?|unit|packs?|pack|kg|kgs|gm|gms|grams?|g)\b)(?:\s*(?:please|confirm|total|only|[,.!]|$))?/gi;
+  /\b(?:need|send|want|order|qty|quantity)\s+(?:me\s+)?(\d+(?:\.\d+)?)\b(?!\s*(?:\/|\d))(?!\s+(?:[A-Za-z][A-Za-z\s-]{0,40}\s+)?(?:boxes?|box|tins?|tin|trays?|tray|pcs?|pc|pieces?|piece|cartons?|carton|ctns?|ctn|cases?|case|units?|unit|packs?|pack|kg|kgs|gm|gms|grams?|g)\b)(?:\s*(?:please|confirm|total|only|[,.!]|$))?/gi;
 
 const DOZEN_PATTERN = /\b(\d+(?:\.\d+)?)\s+dozen\b/gi;
 const HALF_DOZEN_PATTERN = /\bhalf\s+dozen\b/gi;
