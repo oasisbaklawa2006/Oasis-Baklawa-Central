@@ -3,7 +3,7 @@ import {
   applyCatalogueConversionToEntry,
   resolveQuantityCandidates,
 } from "@/lib/wa-governance/fetchQuantityResolution";
-import { normalizeQuantityFromCatalogue } from "@/lib/wa-governance/quantityResolutionNormalize";
+import { normalizeQuantityFromCatalogue, shouldApplyCatalogueConversionToEntry } from "@/lib/wa-governance/quantityResolutionNormalize";
 import {
   BULK_DEFAULT_BOX_KG,
   BULK_DEFAULT_GRAMS_PER_PIECE,
@@ -60,14 +60,14 @@ describe("quantityResolutionNormalize hardening", () => {
     });
   });
 
-  it("gates catalogue conversion per line against product best match", async () => {
-    const baklavaProfile = {
-      category: "Baklava",
-      uom: "Pc",
-      weight_per_box_kg: 6,
-      pcs_per_master_carton: 24,
-    };
+  const baklavaProfile = {
+    category: "Baklava",
+    uom: "Pc",
+    weight_per_box_kg: 6,
+    pcs_per_master_carton: 24,
+  };
 
+  it("gates catalogue conversion per line against product best match", async () => {
     const single = await resolveQuantityCandidates(
       { messageText: "Need 50 tins", stitchedPlainText: "", productBestMatchName: "Assorted Baklava 400gm Tin" },
       null,
@@ -100,6 +100,85 @@ describe("quantityResolutionNormalize hardening", () => {
       baklavaProfile,
     );
     expect(multiNoHint.quantities.every((entry) => entry.conversionStatus === "unknown")).toBe(true);
+  });
+
+  it("allows catalogue conversion for alias-variant hints matching product best match", async () => {
+    const baklawaProductProfile = {
+      category: "Baklava",
+      uom: "Pc",
+      weight_per_box_kg: 6,
+      pcs_per_master_carton: 24,
+    };
+
+    const baklavaHintBaklawaProduct = await resolveQuantityCandidates(
+      {
+        messageText: "50 Baklava tins and 25 Mamoul trays",
+        stitchedPlainText: "",
+        productBestMatchName: "Assorted Baklawa 400gm Tin",
+      },
+      null,
+      baklawaProductProfile,
+    );
+    expect(
+      baklavaHintBaklawaProduct.quantities.find((entry) => entry.productHint === "Baklava")?.conversionStatus,
+    ).toBe("resolved");
+
+    const baklawaHintBaklavaProduct = await resolveQuantityCandidates(
+      {
+        messageText: "50 Baklawa tins and 25 Mamoul trays",
+        stitchedPlainText: "",
+        productBestMatchName: "Assorted Baklava 400gm Tin",
+      },
+      null,
+      baklavaProfile,
+    );
+    const baklawaSpelledLine = baklawaHintBaklavaProduct.quantities.find(
+      (entry) => entry.rawQuantity === 50 && entry.rawUnit === "tins",
+    );
+    expect(baklawaSpelledLine?.conversionStatus).toBe("resolved");
+    expect(
+      baklawaHintBaklavaProduct.quantities.find((entry) => entry.productHint === "Mamoul")?.conversionStatus,
+    ).toBe("unknown");
+  });
+
+  it("shouldApplyCatalogueConversionToEntry uses WA-05A alias identity policy", () => {
+    const baseEntry = {
+      rawQuantity: 50,
+      rawUnit: "tins",
+      conversionStatus: "unknown" as const,
+      confidence: 90,
+      reasons: [],
+      band: "auto_highlight" as const,
+    };
+
+    expect(
+      shouldApplyCatalogueConversionToEntry(
+        { ...baseEntry, productHint: "Baklava" },
+        "Assorted Baklawa 400gm Tin",
+        2,
+      ),
+    ).toBe(true);
+    expect(
+      shouldApplyCatalogueConversionToEntry(
+        { ...baseEntry, productHint: "Baklawa" },
+        "Assorted Baklava 400gm Tin",
+        2,
+      ),
+    ).toBe(true);
+    expect(
+      shouldApplyCatalogueConversionToEntry(
+        { ...baseEntry, productHint: "Mamoul" },
+        "Assorted Baklava 400gm Tin",
+        2,
+      ),
+    ).toBe(false);
+    expect(
+      shouldApplyCatalogueConversionToEntry(
+        { ...baseEntry, productHint: null },
+        "Assorted Baklava 400gm Tin",
+        2,
+      ),
+    ).toBe(false);
   });
 
   it("returns unknown when catalogue conversion fields are missing", () => {

@@ -1,5 +1,10 @@
 import { convertToKgFromCatalogueWithSource } from "@/lib/unit-conversion";
-import { containsIdentityTermAsWholeWord } from "./productResolutionAliasPolicy";
+import {
+  aliasesMatchForIdentity,
+  extractIdentityKeywordHits,
+  isIdentityAlias,
+  keywordMatchesIdentityAlias,
+} from "./productResolutionAliasPolicy";
 import { getProductCategory } from "@/utils/pricing";
 import type { QuantityResolutionEntry } from "./quantityResolutionTypes";
 
@@ -77,10 +82,25 @@ function isCartonEquivalentUnit(unit: string | null): boolean {
   );
 }
 
+function productHintMatchesBestMatchIdentity(
+  productHint: string,
+  productBestMatchName: string,
+): boolean {
+  if (!isIdentityAlias(productHint)) return false;
+  if (keywordMatchesIdentityAlias(productHint, productBestMatchName)) return true;
+
+  return extractIdentityKeywordHits(productBestMatchName).some(
+    (identityHit) =>
+      aliasesMatchForIdentity(productHint, identityHit) ||
+      keywordMatchesIdentityAlias(productHint, identityHit) ||
+      keywordMatchesIdentityAlias(identityHit, productHint),
+  );
+}
+
 /**
  * Gate catalogue normalization per quantity line against the product best match.
  * A. Single quantity + product profile → allowed.
- * B. Multiple quantities + productHint matches best-match name → allowed for that line.
+ * B. Multiple quantities + productHint matches best-match via WA-05A identity policy → allowed.
  * C. Otherwise → do not apply catalogue conversion.
  */
 export function shouldApplyCatalogueConversionToEntry(
@@ -92,10 +112,7 @@ export function shouldApplyCatalogueConversionToEntry(
   if (totalQuantities === 1) return true;
   if (!entry.productHint?.trim()) return false;
 
-  return (
-    containsIdentityTermAsWholeWord(productBestMatchName, entry.productHint) ||
-    containsIdentityTermAsWholeWord(entry.productHint, productBestMatchName)
-  );
+  return productHintMatchesBestMatchIdentity(entry.productHint, productBestMatchName);
 }
 
 /**
