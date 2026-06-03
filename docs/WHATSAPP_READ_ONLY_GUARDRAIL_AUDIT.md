@@ -15,6 +15,7 @@ All invocations live in **`WhatsAppInbox.tsx`** only:
 | **`whatsapp-identify-sender`** | TOOL 2 sender identity (read-only) | WA-03A: display only; Edge SELECT on `users` / `whatsapp_contacts`; no writes. |
 | **`fetchClientResolution` (client lib)** | WA-04A client resolution (read-only) | PostgREST SELECT only on `companies`, `users`, `orders`, `b2b_applications`, `shadow_clients`, `delivery_addresses`; no writes. |
 | **`fetchProductResolution` (client lib)** | WA-05A product resolution (read-only) | PostgREST SELECT only on `products`, `product_aliases`; no writes. |
+| **`fetchQuantityResolution` (client lib)** | WA-06A quantity resolution (read-only) | Message parsing; optional SELECT on `products` for catalogue normalization only; no writes. |
 | **`whatsapp-operator-reply`** | Operator outbound reply | Pre–#66 TOOL 1 path; **not** read-only (Edge + DB writes). |
 | **`whatsapp-classify-intent`** | TOOL 3 suggestion | Return-only Edge path per governance; **no new invoke added in #66**. |
 | **`whatsapp-route-packet`** | TOOL 4 suggestion | Same as above. |

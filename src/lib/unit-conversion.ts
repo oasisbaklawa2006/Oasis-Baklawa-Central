@@ -38,8 +38,74 @@ export function normalizeUnit(raw: string | null | undefined): UnitToken {
   if (["pc", "pcs", "piece", "pieces"].includes(u)) return "pcs";
   if (["box", "boxes"].includes(u)) return "box";
   if (["carton", "cartons", "ctn", "ctns"].includes(u)) return "carton";
+  if (["tin", "tins", "tray", "trays", "pack", "packs"].includes(u)) return "box";
   if (["unit", "units"].includes(u)) return "unit";
   return null;
+}
+
+/**
+ * Convert using catalogue fields only — no bulk defaults, no inferred pack sizes.
+ * Returns null when authoritative product data is missing.
+ */
+export function convertToKgFromCatalogueWithSource(
+  quantity: number,
+  rawUnit: string | null | undefined,
+  product: WeightProfile,
+): { normalizedQuantity: number; normalizedUnit: "kg"; conversionSource: string } | null {
+  if (!Number.isFinite(quantity) || quantity <= 0) return null;
+
+  const unit = normalizeUnit(rawUnit);
+  const boxKg =
+    product.weight_per_box_kg != null && product.weight_per_box_kg > 0
+      ? product.weight_per_box_kg
+      : null;
+  const gramsPerPiece =
+    product.grams_per_piece != null && product.grams_per_piece > 0
+      ? product.grams_per_piece
+      : null;
+
+  switch (unit) {
+    case "kg":
+      return {
+        normalizedQuantity: quantity,
+        normalizedUnit: "kg",
+        conversionSource: "catalogue.kg_identity",
+      };
+    case "gm":
+      return {
+        normalizedQuantity: quantity / 1000,
+        normalizedUnit: "kg",
+        conversionSource: "catalogue.gm_to_kg",
+      };
+    case "box":
+    case "carton":
+      return boxKg != null
+        ? {
+            normalizedQuantity: quantity * boxKg,
+            normalizedUnit: "kg",
+            conversionSource: "products.weight_per_box_kg",
+          }
+        : null;
+    case "pcs":
+    case "unit":
+      return gramsPerPiece != null
+        ? {
+            normalizedQuantity: (quantity * gramsPerPiece) / 1000,
+            normalizedUnit: "kg",
+            conversionSource: "products.grams_per_piece",
+          }
+        : null;
+    default:
+      return null;
+  }
+}
+
+export function convertToKgFromCatalogue(
+  quantity: number,
+  rawUnit: string | null | undefined,
+  product: WeightProfile,
+): number | null {
+  return convertToKgFromCatalogueWithSource(quantity, rawUnit, product)?.normalizedQuantity ?? null;
 }
 
 /**
