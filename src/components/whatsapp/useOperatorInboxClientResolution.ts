@@ -1,6 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { fetchClientResolution } from "@/lib/wa-governance/fetchClientResolution";
+import {
+  getCachedClientResolutionState,
+  storeCachedClientResolutionResult,
+} from "@/lib/wa-governance/clientResolutionResultCache";
 import { buildClientResolutionCombinedText } from "@/lib/wa-governance/clientResolutionSignals";
 import type { ClientResolutionResult } from "@/lib/wa-governance/clientResolutionTypes";
 import { pickLatestInboundSnippetForIdentifySender } from "@/lib/wa-governance/senderIdentitySnippet";
@@ -53,7 +57,7 @@ export function useOperatorInboxClientResolution(
   const senderIdentityStateRef = useRef(senderIdentityState);
   senderIdentityStateRef.current = senderIdentityState;
   const lookupKeyRef = useRef<string | null>(null);
-  const resolvedLookupKeyRef = useRef<string | null>(null);
+  const resolvedResultCacheRef = useRef(new Map<string, ClientResolutionResult>());
 
   const identityKindKey = useMemo(() => senderIdentityKindKey(senderIdentityState), [
     senderIdentityState.status,
@@ -82,7 +86,6 @@ export function useOperatorInboxClientResolution(
   useEffect(() => {
     if (!lookupKey) {
       setState({ status: "idle" });
-      resolvedLookupKeyRef.current = null;
       return;
     }
 
@@ -99,7 +102,12 @@ export function useOperatorInboxClientResolution(
     }
 
     const requestKey = lookupKey;
-    if (resolvedLookupKeyRef.current === requestKey) {
+    const cachedState = getCachedClientResolutionState(
+      requestKey,
+      resolvedResultCacheRef.current,
+    );
+    if (cachedState) {
+      setState(cachedState);
       return;
     }
 
@@ -123,7 +131,7 @@ export function useOperatorInboxClientResolution(
           senderIdentity,
         });
         if (cancelled || lookupKeyRef.current !== requestKey) return;
-        resolvedLookupKeyRef.current = requestKey;
+        storeCachedClientResolutionResult(resolvedResultCacheRef.current, requestKey, result);
         setState({ status: "ready", result });
       } catch (e) {
         if (cancelled || lookupKeyRef.current !== requestKey) return;
