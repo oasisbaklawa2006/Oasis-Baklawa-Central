@@ -2,6 +2,8 @@
 
 **Purpose:** Record **current** client-side **read vs write** posture for the operator inbox after PR **#66**, and set expectations for **future PRs**. **Documentation only.**
 
+**Stage-1 pilot:** See `docs/WHATSAPP_STAGE1_GO_NO_GO_EVIDENCE_PACK.md` for the GO/NO-GO checklist, write-path audit, validation commands, and sign-off table.
+
 **Scope:** `src/components/WhatsAppInbox.tsx`, `src/components/whatsapp/*` (grep + file inspection on `main` after merge).
 
 ---
