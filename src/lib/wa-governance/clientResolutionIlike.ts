@@ -6,6 +6,11 @@ export function escapePostgrestIlikePattern(value: string): string {
   return value.replace(/\\/g, "\\\\").replace(/%/g, "\\%").replace(/_/g, "\\_");
 }
 
+/** Reject blank/whitespace-only terms that would produce an unbounded ILIKE `%%` scan. */
+export function isPostgrestIlikeQueryableTerm(term: string): boolean {
+  return term.trim().length >= 2;
+}
+
 /** Build a bounded contains ILIKE pattern with escaped inner term. */
 export function postgrestIlikeContainsPattern(term: string): string {
   return `%${escapePostgrestIlikePattern(term)}%`;
