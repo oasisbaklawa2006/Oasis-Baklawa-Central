@@ -1,8 +1,10 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
+  isPostgrestIlikeQueryableTerm,
   postgrestIlikeContainsPattern,
   postgrestOrIlikeContains,
 } from "./clientResolutionIlike";
+import { containsIdentityTermAsWholeWord } from "./productResolutionAliasPolicy";
 import { isIdentityAlias } from "./productResolutionAliasPolicy";
 import { extractProductResolutionTextSignals } from "./productResolutionSignals";
 import { scoreProductResolutionCandidates } from "./productResolutionScoring";
@@ -28,6 +30,7 @@ async function queryProductsByName(
   supabase: SupabaseClient,
   term: string,
 ): Promise<ProductResolutionRow[]> {
+  if (!isPostgrestIlikeQueryableTerm(term)) return [];
   const { data, error } = await supabase
     .from("products")
     .select(PRODUCT_SELECT)
@@ -42,6 +45,7 @@ async function queryProductsBySku(
   supabase: SupabaseClient,
   term: string,
 ): Promise<ProductResolutionRow[]> {
+  if (!isPostgrestIlikeQueryableTerm(term)) return [];
   const { data, error } = await supabase
     .from("products")
     .select(PRODUCT_SELECT)
@@ -72,6 +76,7 @@ async function queryProductAliases(
   supabase: SupabaseClient,
   term: string,
 ): Promise<ProductAliasRow[]> {
+  if (!isPostgrestIlikeQueryableTerm(term)) return [];
   const { data, error } = await supabase
     .from("product_aliases")
     .select("alias_text, canonical_name, product_id")
@@ -85,6 +90,7 @@ async function queryProductsByKeyword(
   supabase: SupabaseClient,
   keyword: string,
 ): Promise<ProductResolutionRow[]> {
+  if (!isPostgrestIlikeQueryableTerm(keyword)) return [];
   const { data, error } = await supabase
     .from("products")
     .select(PRODUCT_SELECT)
@@ -97,7 +103,7 @@ async function queryProductsByKeyword(
   return (data as ProductResolutionRow[]).filter((row) =>
     [row.name, row.category, row.sub_category, row.pack_size]
       .filter(Boolean)
-      .some((value) => value!.toLowerCase().includes(keyword.toLowerCase())),
+      .some((value) => containsIdentityTermAsWholeWord(value!.toLowerCase(), keyword)),
   );
 }
 
@@ -134,7 +140,9 @@ export async function resolveProductCandidates(
     const aliasRows = await queryProductAliases(supabase, term);
     for (const aliasRow of aliasRows) {
       if (aliasRow.product_id) noteAlias(aliasRow.product_id, aliasRow.alias_text);
-      absorb(await queryProductsByName(supabase, aliasRow.canonical_name));
+      if (isPostgrestIlikeQueryableTerm(aliasRow.canonical_name)) {
+        absorb(await queryProductsByName(supabase, aliasRow.canonical_name));
+      }
     }
   }
 

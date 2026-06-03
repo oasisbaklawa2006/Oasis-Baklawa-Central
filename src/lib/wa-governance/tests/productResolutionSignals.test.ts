@@ -63,5 +63,14 @@ describe("productResolutionSignals", () => {
   it("matches product names by exact and partial terms", () => {
     expect(productNameMatchesTerm("Assorted Baklawa 400gm Tin", "Baklawa")).toBe(true);
     expect(productNameMatchesTerm("Chocolate Dragees Box", "Turkish Delight")).toBe(false);
+    expect(productNameMatchesTerm("Order Updates SKU", "Dates")).toBe(false);
+  });
+
+  it("does not extract dates identity from order updates messages", () => {
+    const signals = extractProductResolutionTextSignals("Please send order updates by Friday", "");
+    expect(signals.catalogKeywords.map((value) => value.toLowerCase())).not.toContain("dates");
+    expect(signals.productNameCandidates.map((value) => value.toLowerCase())).not.toContain(
+      "dates",
+    );
   });
 });

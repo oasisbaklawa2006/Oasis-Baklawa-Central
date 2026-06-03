@@ -7,6 +7,7 @@ import type {
 } from "./productResolutionTypes";
 import {
   aliasesMatchForIdentity,
+  containsIdentityTermAsWholeWord,
   isIdentityAlias,
   isPackagingAlias,
 } from "./productResolutionAliasPolicy";
@@ -311,7 +312,7 @@ export function scoreProductResolutionCandidates(
     for (const keyword of input.signals.catalogKeywords) {
       if (!isIdentityAlias(keyword) || isPackagingAlias(keyword)) continue;
       const haystack = productSearchText(product);
-      if (!haystack.includes(keyword.toLowerCase())) continue;
+      if (!containsIdentityTermAsWholeWord(haystack, keyword)) continue;
 
       evidenceFor(product.id).strongProductFamily = true;
       addReason(

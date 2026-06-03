@@ -423,4 +423,23 @@ describe("productResolutionScoring", () => {
       result.bestMatch?.reasons.some((reason) => reason.includes("Product family keyword")),
     ).toBe(true);
   });
+
+  it("order updates message does not score dates family keyword on Premium Dates Box", () => {
+    const signals = extractProductResolutionTextSignals("Please send order updates by Friday", "");
+    const result = scoreProductResolutionCandidates({
+      signals,
+      products: [
+        product({
+          id: "p-dates",
+          name: "Premium Dates Box",
+          sku: "DT-1",
+          category: "Dates",
+        }),
+      ],
+    });
+
+    expect(signals.catalogKeywords).toEqual([]);
+    expect(result.bestMatch).toBeNull();
+    expect(result.band).toBe("needs_clarification");
+  });
 });

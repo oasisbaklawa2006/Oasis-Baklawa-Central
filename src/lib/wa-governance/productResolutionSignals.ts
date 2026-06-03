@@ -1,5 +1,6 @@
 import type { ProductResolutionTextSignals } from "./productResolutionTypes";
 import {
+  containsIdentityTermAsWholeWord,
   extractIdentityKeywordHits,
   extractPackagingFormatTokens,
   filterIdentityAliases,
@@ -113,8 +114,10 @@ export function productNameMatchesTerm(productName: string, term: string): boole
   const name = productName.toLowerCase();
   const needle = term.toLowerCase();
   if (name === needle) return true;
-  if (name.includes(needle)) return true;
-  return needle.split(/\s+/).every((part) => part.length >= 3 && name.includes(part));
+  if (containsIdentityTermAsWholeWord(name, needle)) return true;
+  return needle
+    .split(/\s+/)
+    .every((part) => part.length >= 3 && containsIdentityTermAsWholeWord(name, part));
 }
 
 export function extractProductResolutionTextSignals(

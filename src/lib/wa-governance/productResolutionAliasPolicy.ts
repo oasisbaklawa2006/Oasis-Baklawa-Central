@@ -74,12 +74,23 @@ export function normalizeProductAlias(alias: string): string {
   return alias.trim().replace(/\s+/g, " ").toLowerCase();
 }
 
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+/** Match identity term as whole word(s); rejects substring hits like "dates" inside "updates". */
+export function containsIdentityTermAsWholeWord(haystack: string, term: string): boolean {
+  const normalizedTerm = normalizeProductAlias(term);
+  if (!normalizedTerm) return false;
+  const pattern = escapeRegExp(normalizedTerm).replace(/\s+/g, "\\s+");
+  return new RegExp(`\\b${pattern}\\b`, "i").test(haystack);
+}
+
 function identityAliasMatchesNormalized(normalized: string): boolean {
   if (!normalized) return false;
   return IDENTITY_ALIAS_TERMS.some((term) => {
     if (normalized === term) return true;
-    if (normalized.includes(term)) return true;
-    if (term.includes(normalized) && normalized.length >= 4) return true;
+    if (containsIdentityTermAsWholeWord(normalized, term)) return true;
     if (term === "maamoul" && /\bmamoul\b/.test(normalized)) return true;
     if (term === "mamoul" && /\bmaamoul\b/.test(normalized)) return true;
     if (term === "baklawa" && /\bbaklava\b/.test(normalized)) return true;
@@ -125,7 +136,10 @@ export function aliasesMatchForIdentity(candidate: string, alias: string): boole
   if (!isIdentityAlias(alias) || !isIdentityAlias(candidate)) return false;
   const left = normalizeProductAlias(candidate);
   const right = normalizeProductAlias(alias);
-  return left.includes(right) || right.includes(left);
+  if (left === right) return true;
+  return (
+    containsIdentityTermAsWholeWord(left, right) || containsIdentityTermAsWholeWord(right, left)
+  );
 }
 
 export function extractPackagingFormatTokens(text: string): string[] {
@@ -137,7 +151,7 @@ export function extractPackagingFormatTokens(text: string): string[] {
 export function keywordMatchesIdentityAlias(keyword: string, text: string): boolean {
   const lower = text.toLowerCase();
   if (!isIdentityAlias(keyword)) return false;
-  if (lower.includes(normalizeProductAlias(keyword))) return true;
+  if (containsIdentityTermAsWholeWord(lower, keyword)) return true;
   if (keyword === "maamoul" && /\bmamoul\b/.test(lower)) return true;
   if (keyword === "mamoul" && /\bmaamoul\b/.test(lower)) return true;
   if (keyword === "baklawa" && /\bbaklava\b/.test(lower)) return true;
