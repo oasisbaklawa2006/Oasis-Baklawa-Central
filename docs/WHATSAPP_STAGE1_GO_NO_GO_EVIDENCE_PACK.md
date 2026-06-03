@@ -67,7 +67,7 @@ The operator inbox module does **not** enqueue work to `customer_support_queue` 
 | Approve Draft disabled | Same bar | "Approve Draft" disabled with governance tooltip | Draft persisted server-side |
 | Reassign disabled | Same bar | "Reassign" disabled | Owner mutation triggered |
 | Failed-msg retry disabled | Failed delivery panel | Retry control absent or disabled | Retry invokes send |
-| No inbox queue RPC | Static grep + guard test | Zero `rpc(` in `src/components/whatsapp/*` | Any queue enqueue from inbox |
+| No inbox queue RPC | Static grep + guard test | Zero `rpc(` in inbox write scan paths (see §3) | Any queue enqueue from inbox |
 
 **Commands:**
 ```bash
@@ -147,9 +147,10 @@ npx vitest run src/lib/operational-events/__tests__/operational-stitching.test.t
 
 | Surface | Mechanism | Verified by |
 |---------|-----------|-------------|
+| `src/components/WhatsAppInbox.tsx` | No `.insert/.update/.delete/.upsert/.rpc(` | Static guard test |
 | `src/components/whatsapp/*` | No `.insert/.update/.delete/.upsert/.rpc(` | Static guard test |
 | `src/lib/wa-governance/*` | SELECT-only fetch engines | Static guard test |
-| `WhatsAppInbox.tsx` PostgREST | `.select` + Realtime subscribe only | Static guard test |
+| `WhatsAppInbox.tsx` PostgREST | `.select` + Realtime subscribe only | Static guard test + manual review |
 | localStorage features | UI state, notes, saved views — no server sync | `operatorInboxLocalNotes.ts`, `operatorInboxUiPersistence.ts` |
 | TOOL 3/4 Edge | SELECT-only handlers | Edge grep (no writes in classify/route) |
 | WA-03A–06A resolution | In-memory cache; optional SELECT on catalogue | Integration tests |
@@ -157,7 +158,7 @@ npx vitest run src/lib/operational-events/__tests__/operational-stitching.test.t
 **Commands:**
 ```bash
 npx vitest run src/lib/wa-governance/tests/operatorInboxStage1Guard.test.ts
-rg '\.(insert|update|delete|upsert|rpc)\(' src/components/whatsapp src/lib/wa-governance
+rg '\.(insert|update|delete|upsert|rpc)\(' src/components/WhatsAppInbox.tsx src/components/whatsapp src/lib/wa-governance
 ```
 
 **Evidence placeholders:**
@@ -305,7 +306,19 @@ npx vitest run src/lib/wa-governance/tests/operatorInboxStage1Guard.test.ts -t "
 
 ---
 
-## 3. Validation commands (run before GO sign-off)
+## 3. PostgREST write guard scan paths
+
+The Stage-1 static guard (`operatorInboxStage1Guard.test.ts`) scans these paths for forbidden patterns: `.insert(`, `.update(`, `.upsert(`, `.delete(`, `.rpc(`.
+
+| Scan root | Coverage |
+|-----------|----------|
+| `src/components/WhatsAppInbox.tsx` | Main inbox shell (packet load, reply invoke, suggestions) |
+| `src/components/whatsapp/**` | Hooks, panels, utils (excludes `*.test.ts`) |
+| `src/lib/wa-governance/**` | Resolution fetch engines (excludes `tests/` and `__tests__/`) |
+
+---
+
+## 4. Validation commands (run before GO sign-off)
 
 ```bash
 # Required CI-equivalent
@@ -319,7 +332,7 @@ npx vitest run src/lib/wa-governance/__tests__/waFlags.test.ts
 npx vitest run src/lib/operational-events/__tests__/operational-stitching.test.ts
 
 # Static spot-checks (expect zero matches in inbox tree for writes)
-rg '\.(insert|update|delete|upsert|rpc)\(' src/components/whatsapp src/lib/wa-governance
+rg '\.(insert|update|delete|upsert|rpc)\(' src/components/WhatsAppInbox.tsx src/components/whatsapp src/lib/wa-governance
 
 # Inbox invoke allowlist (expect exactly 3 slugs in WhatsAppInbox.tsx)
 rg 'functions\.invoke\("whatsapp-' src/components/WhatsAppInbox.tsx
@@ -335,7 +348,7 @@ rg 'functions\.invoke\("whatsapp-' src/components/WhatsAppInbox.tsx
 
 ---
 
-## 4. Final GO/NO-GO decision table
+## 5. Final GO/NO-GO decision table
 
 | Capability | Evidence status | Decision | Owner action |
 |------------|---------------|----------|--------------|
@@ -352,7 +365,7 @@ rg 'functions\.invoke\("whatsapp-' src/components/WhatsAppInbox.tsx
 
 ---
 
-## 5. Sign-off
+## 6. Sign-off
 
 | Role | Name | Date | Decision |
 |------|------|------|----------|

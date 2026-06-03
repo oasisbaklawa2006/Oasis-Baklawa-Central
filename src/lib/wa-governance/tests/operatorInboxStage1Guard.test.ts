@@ -8,7 +8,14 @@ import {
 
 const REPO_ROOT = join(import.meta.dirname, "../../../..");
 
-const WRITE_PATTERN = /\.(insert|update|delete|upsert|rpc)\(/;
+/** Paths covered by the Stage-1 PostgREST write guard (must match evidence pack). */
+export const INBOX_POSTGREST_WRITE_SCAN_ROOTS = [
+  "src/components/WhatsAppInbox.tsx",
+  "src/components/whatsapp",
+  "src/lib/wa-governance",
+] as const;
+
+const FORBIDDEN_POSTGREST_WRITE_PATTERN = /\.(insert|update|delete|upsert|rpc)\(/;
 const ORDER_WRITE_PATTERN = /from\(["']orders["']\)[\s\S]{0,120}\.(insert|update|upsert|delete)\(/;
 
 function collectSourceFiles(dir: string): string[] {
@@ -34,18 +41,42 @@ function readRepoFile(pathFromRoot: string): string {
   return readFileSync(join(REPO_ROOT, pathFromRoot), "utf8");
 }
 
-describe("operator inbox Stage-1 guardrails", () => {
-  const whatsappComponentFiles = collectSourceFiles("src/components/whatsapp");
-  const waGovernanceFiles = collectSourceFiles("src/lib/wa-governance").filter(
-    (path) => !path.includes("/tests/") && !path.includes("/__tests__/"),
-  );
+function collectInboxPostgrestWriteScanFiles(): string[] {
+  const files = new Set<string>();
 
-  it("wa-governance and whatsapp component trees have no PostgREST writes", () => {
+  for (const root of INBOX_POSTGREST_WRITE_SCAN_ROOTS) {
+    if (root.endsWith(".tsx") || root.endsWith(".ts")) {
+      files.add(root);
+      continue;
+    }
+
+    for (const file of collectSourceFiles(root)) {
+      if (file.includes("/tests/") || file.includes("/__tests__/")) continue;
+      files.add(file);
+    }
+  }
+
+  return [...files].sort();
+}
+
+describe("operator inbox Stage-1 guardrails", () => {
+  const inboxPostgrestWriteScanFiles = collectInboxPostgrestWriteScanFiles();
+
+  it("documents the PostgREST write scan paths", () => {
+    expect(INBOX_POSTGREST_WRITE_SCAN_ROOTS).toEqual([
+      "src/components/WhatsAppInbox.tsx",
+      "src/components/whatsapp",
+      "src/lib/wa-governance",
+    ]);
+    expect(inboxPostgrestWriteScanFiles).toContain("src/components/WhatsAppInbox.tsx");
+  });
+
+  it("inbox module trees including WhatsAppInbox.tsx have no forbidden PostgREST writes", () => {
     const violations: string[] = [];
 
-    for (const file of [...whatsappComponentFiles, ...waGovernanceFiles]) {
+    for (const file of inboxPostgrestWriteScanFiles) {
       const content = readRepoFile(file);
-      if (WRITE_PATTERN.test(content)) {
+      if (FORBIDDEN_POSTGREST_WRITE_PATTERN.test(content)) {
         violations.push(file);
       }
     }
