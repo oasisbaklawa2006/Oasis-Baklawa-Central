@@ -15,6 +15,18 @@ import type {
 const CATALOGUE_QUANTITY_SELECT =
   "id, weight_per_box_kg, grams_per_piece, category, sub_category, uom, packs_per_master_carton, packs_per_carton, pcs_per_master_carton, settlement_unit";
 
+function entryWithoutCatalogueNormalization(
+  entry: QuantityResolutionEntry,
+): QuantityResolutionEntry {
+  return {
+    ...entry,
+    conversionStatus: "unknown",
+    normalizedQuantity: undefined,
+    normalizedUnit: undefined,
+    conversionSource: undefined,
+  };
+}
+
 async function fetchCatalogueQuantityProduct(
   supabase: SupabaseClient,
   productId: string,
@@ -39,7 +51,7 @@ export function applyCatalogueConversionToEntry(
     product,
   );
   if (!conversion) {
-    return { ...entry, conversionStatus: "unknown" };
+    return entryWithoutCatalogueNormalization(entry);
   }
 
   return {
@@ -68,7 +80,7 @@ function applyCatalogueNormalization(
         result.quantities.length,
       )
     ) {
-      return { ...entry, conversionStatus: "unknown" as const };
+      return entryWithoutCatalogueNormalization(entry);
     }
     return applyCatalogueConversionToEntry(entry, product);
   });

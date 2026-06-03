@@ -88,12 +88,18 @@ function QuantityResolutionReadyBody({
             <p className="text-xs font-medium uppercase tracking-wide text-gray-500">
               Normalized
             </p>
-            <p>{formatNormalizedQuantityLabel(top.normalizedQuantity, top.normalizedUnit)}</p>
+            <p>
+              {formatNormalizedQuantityLabel(
+                top.normalizedQuantity,
+                top.normalizedUnit,
+                top.conversionStatus,
+              )}
+            </p>
           </div>
           <div>
             <p className="text-xs font-medium uppercase tracking-wide text-gray-500">Conversion</p>
             <p className="capitalize">{top.conversionStatus}</p>
-            {top.conversionSource ? (
+            {top.conversionStatus === "resolved" && top.conversionSource ? (
               <p className="text-xs text-gray-500">{top.conversionSource}</p>
             ) : null}
           </div>

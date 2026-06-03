@@ -1,4 +1,5 @@
 import type {
+  QuantityConversionStatus,
   QuantityResolutionConfidenceBand,
   QuantityResolutionEntry,
   QuantityResolutionResult,
@@ -36,7 +37,9 @@ export function formatQuantityUnitLabel(unit: string | null): string {
 export function formatNormalizedQuantityLabel(
   value: number | null | undefined,
   unit: string | null | undefined,
+  conversionStatus?: QuantityConversionStatus,
 ): string {
+  if (conversionStatus === "unknown") return "—";
   if (value == null || !unit) return "—";
   return `${value} ${unit}`;
 }

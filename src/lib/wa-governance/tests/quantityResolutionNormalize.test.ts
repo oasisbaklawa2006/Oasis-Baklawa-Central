@@ -259,4 +259,151 @@ describe("quantityResolutionNormalize hardening", () => {
       conversionStatus: "resolved",
     });
   });
+
+  describe("catalogue conversion branch matrix", () => {
+    const bulkCartonProduct = {
+      category: "Bulk Sweets",
+      uom: "Kg",
+      packs_per_master_carton: 9,
+      packs_per_carton: 6,
+    };
+
+    const premiumProduct = {
+      category: "Premium Luxury Gifts",
+      uom: "Pc",
+      pcs_per_master_carton: 12,
+    };
+
+    it("bulk cartons normalize to packs via packs_per_master_carton", () => {
+      expect(normalizeQuantityFromCatalogue(2, "cartons", bulkCartonProduct)).toEqual({
+        normalizedQuantity: 18,
+        normalizedUnit: "packs",
+        conversionSource: "products.packs_per_master_carton",
+      });
+    });
+
+    it("bulk cartons fall back to packs_per_carton when master count is missing", () => {
+      expect(
+        normalizeQuantityFromCatalogue(2, "cartons", {
+          category: "Bulk Sweets",
+          uom: "Kg",
+          packs_per_carton: 6,
+        }),
+      ).toEqual({
+        normalizedQuantity: 12,
+        normalizedUnit: "packs",
+        conversionSource: "products.packs_per_carton",
+      });
+    });
+
+    it("premium_pc cartons normalize to pcs via pcs_per_master_carton", () => {
+      expect(normalizeQuantityFromCatalogue(2, "cartons", premiumProduct)).toEqual({
+        normalizedQuantity: 24,
+        normalizedUnit: "pcs",
+        conversionSource: "products.pcs_per_master_carton",
+      });
+    });
+
+    it("treats ctn and ctns as carton-equivalent units", () => {
+      expect(normalizeQuantityFromCatalogue(2, "ctn", readyProduct)).toEqual({
+        normalizedQuantity: 48,
+        normalizedUnit: "pcs",
+        conversionSource: "products.pcs_per_master_carton",
+      });
+      expect(normalizeQuantityFromCatalogue(2, "ctns", readyProduct)).toEqual({
+        normalizedQuantity: 48,
+        normalizedUnit: "pcs",
+        conversionSource: "products.pcs_per_master_carton",
+      });
+    });
+
+    it("kg and gm normalize through catalogue weight identity paths", () => {
+      expect(normalizeQuantityFromCatalogue(5, "kg", bulkProduct)).toEqual({
+        normalizedQuantity: 5,
+        normalizedUnit: "kg",
+        conversionSource: "catalogue.kg_identity",
+      });
+      expect(normalizeQuantityFromCatalogue(500, "gm", bulkProduct)).toEqual({
+        normalizedQuantity: 0.5,
+        normalizedUnit: "kg",
+        conversionSource: "catalogue.gm_to_kg",
+      });
+    });
+
+    it("rejects non-positive quantities and zero catalogue fields", () => {
+      expect(normalizeQuantityFromCatalogue(0, "tins", bulkProduct)).toBeNull();
+      expect(normalizeQuantityFromCatalogue(-3, "cartons", readyProduct)).toBeNull();
+      expect(
+        normalizeQuantityFromCatalogue(3, "cartons", {
+          category: "Ready Packs",
+          uom: "Pc",
+          pcs_per_master_carton: 0,
+        }),
+      ).toBeNull();
+    });
+  });
+
+  describe("conversion status invariants", () => {
+    it("strips normalized fields when gating blocks multi-line conversion", async () => {
+      const result = await resolveQuantityCandidates(
+        {
+          messageText: "50 tins and 25 trays",
+          stitchedPlainText: "",
+          productBestMatchName: "Assorted Baklava 400gm Tin",
+        },
+        null,
+        baklavaProfile,
+      );
+
+      for (const entry of result.quantities) {
+        expect(entry.conversionStatus).toBe("unknown");
+        expect(entry.normalizedQuantity).toBeUndefined();
+        expect(entry.normalizedUnit).toBeUndefined();
+        expect(entry.conversionSource).toBeUndefined();
+      }
+    });
+
+    it("strips stale normalized fields when catalogue conversion fails", () => {
+      const entry = applyCatalogueConversionToEntry(
+        {
+          rawQuantity: 50,
+          rawUnit: "tins",
+          conversionStatus: "resolved",
+          normalizedQuantity: 999,
+          normalizedUnit: "kg",
+          conversionSource: "stale.source",
+          productHint: null,
+          confidence: 98,
+          reasons: [],
+          band: "auto_highlight",
+        },
+        { category: "Bulk Sweets", uom: "Kg" },
+      );
+
+      expect(entry.conversionStatus).toBe("unknown");
+      expect(entry.normalizedQuantity).toBeUndefined();
+      expect(entry.normalizedUnit).toBeUndefined();
+      expect(entry.conversionSource).toBeUndefined();
+    });
+
+    it("resolved entries always include normalizedQuantity, normalizedUnit, and conversionSource", () => {
+      const resolved = applyCatalogueConversionToEntry(
+        {
+          rawQuantity: 50,
+          rawUnit: "tins",
+          conversionStatus: "unknown",
+          productHint: null,
+          confidence: 98,
+          reasons: [],
+          band: "auto_highlight",
+        },
+        bulkProduct,
+      );
+
+      expect(resolved.conversionStatus).toBe("resolved");
+      expect(resolved.normalizedQuantity).toBeTypeOf("number");
+      expect(resolved.normalizedUnit).toBeTruthy();
+      expect(resolved.conversionSource).toMatch(/^products\.|^catalogue\./);
+    });
+  });
 });
