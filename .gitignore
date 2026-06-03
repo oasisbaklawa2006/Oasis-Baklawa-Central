@@ -38,3 +38,5 @@ audit-artifacts/playwright-report.json
 # Supabase CLI local link artifacts (do not commit)
 supabase/.temp/
 
+.vercel
+.env*
