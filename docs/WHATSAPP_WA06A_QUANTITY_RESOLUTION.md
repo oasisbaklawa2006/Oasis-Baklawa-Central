@@ -87,7 +87,20 @@ When product resolution provides a best match, WA-06A reuses:
 - `convertToKgFromCatalogue()` from `src/lib/unit-conversion.ts` (catalogue fields only — no bulk defaults)
 - `getProductCategory()` from `src/utils/pricing.ts` for carton inner-unit selection
 
-If no catalogue conversion exists, raw parsed quantity is returned unchanged.
+If no catalogue conversion exists, entries keep raw parsed quantity with `conversionStatus: "unknown"`.
+
+Resolved payload shape:
+
+```json
+{
+  "rawQuantity": 50,
+  "rawUnit": "tins",
+  "normalizedQuantity": 300,
+  "normalizedUnit": "kg",
+  "conversionSource": "products.weight_per_box_kg",
+  "conversionStatus": "resolved"
+}
+```
 
 ---
 

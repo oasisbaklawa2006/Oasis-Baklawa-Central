@@ -5,7 +5,11 @@ import {
   type CatalogueQuantityProduct,
 } from "./quantityResolutionNormalize";
 import { scoreQuantityResolutionCandidates } from "./quantityResolutionScoring";
-import type { QuantityResolutionInput, QuantityResolutionResult } from "./quantityResolutionTypes";
+import type {
+  QuantityResolutionEntry,
+  QuantityResolutionInput,
+  QuantityResolutionResult,
+} from "./quantityResolutionTypes";
 
 const CATALOGUE_QUANTITY_SELECT =
   "id, weight_per_box_kg, grams_per_piece, category, sub_category, uom, packs_per_master_carton, packs_per_carton, pcs_per_master_carton, settlement_unit";
@@ -24,24 +28,39 @@ async function fetchCatalogueQuantityProduct(
   return data as CatalogueQuantityProduct;
 }
 
+export function applyCatalogueConversionToEntry(
+  entry: QuantityResolutionEntry,
+  product: CatalogueQuantityProduct | null | undefined,
+): QuantityResolutionEntry {
+  const conversion = normalizeQuantityFromCatalogue(
+    entry.rawQuantity,
+    entry.rawUnit,
+    product,
+  );
+  if (!conversion) {
+    return { ...entry, conversionStatus: "unknown" };
+  }
+
+  return {
+    ...entry,
+    normalizedQuantity: conversion.normalizedQuantity,
+    normalizedUnit: conversion.normalizedUnit,
+    conversionSource: conversion.conversionSource,
+    conversionStatus: "resolved",
+    reasons: [
+      ...entry.reasons,
+      `Catalogue conversion via ${conversion.conversionSource}: ${entry.rawQuantity}${entry.rawUnit ? ` ${entry.rawUnit}` : ""} → ${conversion.normalizedQuantity} ${conversion.normalizedUnit}`,
+    ],
+  };
+}
+
 function applyCatalogueNormalization(
   result: QuantityResolutionResult,
   product: CatalogueQuantityProduct | null,
 ): QuantityResolutionResult {
-  if (!product) return result;
-
-  const quantities = result.quantities.map((entry) => {
-    const normalized = normalizeQuantityFromCatalogue(entry.value, entry.unit, product);
-    if (!normalized) return entry;
-    return {
-      ...entry,
-      normalizedValue: normalized.normalizedValue,
-      normalizedUnit: normalized.normalizedUnit,
-      normalizationReason: normalized.normalizationReason,
-      reasons: [...entry.reasons, normalized.normalizationReason],
-    };
-  });
-
+  const quantities = result.quantities.map((entry) =>
+    applyCatalogueConversionToEntry(entry, product),
+  );
   return { ...result, quantities };
 }
 
@@ -52,12 +71,17 @@ function applyCatalogueNormalization(
 export async function resolveQuantityCandidates(
   input: QuantityResolutionInput,
   supabase?: SupabaseClient | null,
+  catalogueProduct?: CatalogueQuantityProduct | null,
 ): Promise<QuantityResolutionResult> {
   const signals = extractQuantityResolutionTextSignals(
     input.messageText,
     input.stitchedPlainText,
   );
   const scored = scoreQuantityResolutionCandidates({ signals });
+
+  if (catalogueProduct !== undefined) {
+    return applyCatalogueNormalization(scored, catalogueProduct);
+  }
 
   if (!input.productId || !supabase) {
     return scored;

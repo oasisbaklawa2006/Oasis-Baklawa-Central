@@ -47,11 +47,11 @@ export function normalizeUnit(raw: string | null | undefined): UnitToken {
  * Convert using catalogue fields only — no bulk defaults, no inferred pack sizes.
  * Returns null when authoritative product data is missing.
  */
-export function convertToKgFromCatalogue(
+export function convertToKgFromCatalogueWithSource(
   quantity: number,
   rawUnit: string | null | undefined,
   product: WeightProfile,
-): number | null {
+): { normalizedQuantity: number; normalizedUnit: "kg"; conversionSource: string } | null {
   if (!Number.isFinite(quantity) || quantity <= 0) return null;
 
   const unit = normalizeUnit(rawUnit);
@@ -66,18 +66,46 @@ export function convertToKgFromCatalogue(
 
   switch (unit) {
     case "kg":
-      return quantity;
+      return {
+        normalizedQuantity: quantity,
+        normalizedUnit: "kg",
+        conversionSource: "catalogue.kg_identity",
+      };
     case "gm":
-      return quantity / 1000;
+      return {
+        normalizedQuantity: quantity / 1000,
+        normalizedUnit: "kg",
+        conversionSource: "catalogue.gm_to_kg",
+      };
     case "box":
     case "carton":
-      return boxKg != null ? quantity * boxKg : null;
+      return boxKg != null
+        ? {
+            normalizedQuantity: quantity * boxKg,
+            normalizedUnit: "kg",
+            conversionSource: "products.weight_per_box_kg",
+          }
+        : null;
     case "pcs":
     case "unit":
-      return gramsPerPiece != null ? (quantity * gramsPerPiece) / 1000 : null;
+      return gramsPerPiece != null
+        ? {
+            normalizedQuantity: (quantity * gramsPerPiece) / 1000,
+            normalizedUnit: "kg",
+            conversionSource: "products.grams_per_piece",
+          }
+        : null;
     default:
       return null;
   }
+}
+
+export function convertToKgFromCatalogue(
+  quantity: number,
+  rawUnit: string | null | undefined,
+  product: WeightProfile,
+): number | null {
+  return convertToKgFromCatalogueWithSource(quantity, rawUnit, product)?.normalizedQuantity ?? null;
 }
 
 /**

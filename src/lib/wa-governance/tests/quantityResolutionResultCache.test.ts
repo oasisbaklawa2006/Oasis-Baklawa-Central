@@ -8,12 +8,13 @@ import {
 const sampleResult = (): QuantityResolutionResult => ({
   quantities: [
     {
-      value: 50,
-      unit: "boxes",
+      rawQuantity: 50,
+      rawUnit: "boxes",
       productHint: null,
       confidence: 98,
       reasons: ["Detected explicit quantity 50 boxes in message"],
       band: "auto_highlight",
+      conversionStatus: "unknown",
     },
   ],
   band: "auto_highlight",

@@ -69,8 +69,9 @@ function scoreMatch(
   const score = weightForKind(match.kind);
   const confidence = formatQuantityConfidencePercent(score);
   return {
-    value: match.value,
-    unit: match.unit,
+    rawQuantity: match.value,
+    rawUnit: match.unit,
+    conversionStatus: "unknown",
     productHint: match.productHint,
     confidence,
     reasons: [buildReason(match)],
@@ -92,8 +93,8 @@ export function scoreQuantityResolutionCandidates(
     .sort(
       (a, b) =>
         b.confidence - a.confidence ||
-        a.value - b.value ||
-        (a.unit ?? "").localeCompare(b.unit ?? ""),
+        a.rawQuantity - b.rawQuantity ||
+        (a.rawUnit ?? "").localeCompare(b.rawUnit ?? ""),
     );
 
   const topConfidence = quantities[0]?.confidence ?? 0;

@@ -75,20 +75,27 @@ function QuantityResolutionReadyBody({
       </div>
 
       {top ? (
-        <div className="grid gap-2 text-sm text-gray-800 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="grid gap-2 text-sm text-gray-800 sm:grid-cols-2 lg:grid-cols-5">
           <div>
             <p className="text-xs font-medium uppercase tracking-wide text-gray-500">Quantity</p>
-            <p>{top.value}</p>
+            <p>{top.rawQuantity}</p>
           </div>
           <div>
             <p className="text-xs font-medium uppercase tracking-wide text-gray-500">Unit</p>
-            <p>{formatQuantityUnitLabel(top.unit)}</p>
+            <p>{formatQuantityUnitLabel(top.rawUnit)}</p>
           </div>
           <div>
             <p className="text-xs font-medium uppercase tracking-wide text-gray-500">
               Normalized
             </p>
-            <p>{formatNormalizedQuantityLabel(top.normalizedValue, top.normalizedUnit)}</p>
+            <p>{formatNormalizedQuantityLabel(top.normalizedQuantity, top.normalizedUnit)}</p>
+          </div>
+          <div>
+            <p className="text-xs font-medium uppercase tracking-wide text-gray-500">Conversion</p>
+            <p className="capitalize">{top.conversionStatus}</p>
+            {top.conversionSource ? (
+              <p className="text-xs text-gray-500">{top.conversionSource}</p>
+            ) : null}
           </div>
           <div>
             <p className="text-xs font-medium uppercase tracking-wide text-gray-500">
@@ -121,9 +128,12 @@ function QuantityResolutionReadyBody({
           </p>
           <ul className="space-y-1 text-xs text-gray-600">
             {alternatives.map((entry, index) => (
-              <li key={`${entry.value}-${entry.unit ?? "none"}-${entry.productHint ?? index}`}>
-                {entry.value} {formatQuantityUnitLabel(entry.unit)}
+              <li key={`${entry.rawQuantity}-${entry.rawUnit ?? "none"}-${entry.productHint ?? index}`}>
+                {entry.rawQuantity} {formatQuantityUnitLabel(entry.rawUnit)}
                 {entry.productHint ? ` · ${entry.productHint}` : ""} · {entry.confidence}%
+                {entry.conversionStatus === "resolved"
+                  ? ` · ${entry.normalizedQuantity} ${entry.normalizedUnit}`
+                  : ""}
               </li>
             ))}
           </ul>

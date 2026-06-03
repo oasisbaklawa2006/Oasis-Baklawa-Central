@@ -53,10 +53,10 @@ export function summarizeQuantityResolution(result: QuantityResolutionResult): {
     };
   }
 
-  const unitLabel = top.unit ? ` ${top.unit}` : "";
+  const unitLabel = top.rawUnit ? ` ${top.rawUnit}` : "";
   const hintLabel = top.productHint ? ` (${top.productHint})` : "";
   return {
-    primaryQuantity: `${top.value}${unitLabel}${hintLabel}`,
+    primaryQuantity: `${top.rawQuantity}${unitLabel}${hintLabel}`,
     confidenceLabel: `${top.confidence}%`,
   };
 }

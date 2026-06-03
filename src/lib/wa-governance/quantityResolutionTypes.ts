@@ -3,16 +3,19 @@ export type QuantityResolutionConfidenceBand =
   | "suggested"
   | "needs_clarification";
 
+export type QuantityConversionStatus = "resolved" | "unknown";
+
 export interface QuantityResolutionEntry {
-  value: number;
-  unit: string | null;
+  rawQuantity: number;
+  rawUnit: string | null;
+  normalizedQuantity?: number | null;
+  normalizedUnit?: string | null;
+  conversionSource?: string | null;
+  conversionStatus: QuantityConversionStatus;
   productHint: string | null;
   confidence: number;
   reasons: string[];
   band: QuantityResolutionConfidenceBand;
-  normalizedValue?: number | null;
-  normalizedUnit?: string | null;
-  normalizationReason?: string | null;
 }
 
 export interface QuantityResolutionResult {

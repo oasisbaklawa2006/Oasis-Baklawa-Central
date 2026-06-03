@@ -1,4 +1,4 @@
-import { convertToKgFromCatalogue } from "@/lib/unit-conversion";
+import { convertToKgFromCatalogueWithSource } from "@/lib/unit-conversion";
 import { getProductCategory } from "@/utils/pricing";
 
 export interface CatalogueQuantityProduct {
@@ -13,29 +13,53 @@ export interface CatalogueQuantityProduct {
   settlement_unit?: string | null;
 }
 
-export interface CatalogueNormalizedQuantity {
-  normalizedValue: number;
+export interface CatalogueQuantityConversion {
+  normalizedQuantity: number;
   normalizedUnit: string;
-  normalizationReason: string;
+  conversionSource: string;
 }
 
-function cataloguePacksPerCarton(product: CatalogueQuantityProduct): number | null {
+function catalogueCartonInnerCount(
+  product: CatalogueQuantityProduct,
+): { count: number; conversionSource: string; normalizedUnit: "packs" | "pcs" } | null {
   const cat = getProductCategory(product);
   switch (cat) {
     case "bulk_kg": {
-      const count = product.packs_per_master_carton ?? product.packs_per_carton ?? null;
-      return count != null && count > 0 ? count : null;
+      if (product.packs_per_master_carton != null && product.packs_per_master_carton > 0) {
+        return {
+          count: product.packs_per_master_carton,
+          conversionSource: "products.packs_per_master_carton",
+          normalizedUnit: "packs",
+        };
+      }
+      if (product.packs_per_carton != null && product.packs_per_carton > 0) {
+        return {
+          count: product.packs_per_carton,
+          conversionSource: "products.packs_per_carton",
+          normalizedUnit: "packs",
+        };
+      }
+      return null;
     }
     case "ready_pc":
     case "premium_pc": {
-      const count = product.pcs_per_master_carton ?? product.packs_per_master_carton ?? null;
-      return count != null && count > 0 ? count : null;
+      if (product.pcs_per_master_carton != null && product.pcs_per_master_carton > 0) {
+        return {
+          count: product.pcs_per_master_carton,
+          conversionSource: "products.pcs_per_master_carton",
+          normalizedUnit: "pcs",
+        };
+      }
+      if (product.packs_per_master_carton != null && product.packs_per_master_carton > 0) {
+        return {
+          count: product.packs_per_master_carton,
+          conversionSource: "products.packs_per_master_carton",
+          normalizedUnit: "pcs",
+        };
+      }
+      return null;
     }
   }
-}
-
-function innerUnitLabel(product: CatalogueQuantityProduct): "packs" | "pcs" {
-  return getProductCategory(product) === "bulk_kg" ? "packs" : "pcs";
 }
 
 function isCartonUnit(unit: string | null): boolean {
@@ -49,29 +73,28 @@ function isCartonUnit(unit: string | null): boolean {
  * Returns null when no catalogue-backed conversion exists (caller keeps raw quantity).
  */
 export function normalizeQuantityFromCatalogue(
-  value: number,
-  unit: string | null,
+  rawQuantity: number,
+  rawUnit: string | null,
   product: CatalogueQuantityProduct | null | undefined,
-): CatalogueNormalizedQuantity | null {
-  if (!product || !Number.isFinite(value) || value <= 0) return null;
+): CatalogueQuantityConversion | null {
+  if (!product || !Number.isFinite(rawQuantity) || rawQuantity <= 0) return null;
 
-  if (isCartonUnit(unit)) {
-    const perCarton = cataloguePacksPerCarton(product);
-    if (perCarton == null) return null;
-    const innerUnit = innerUnitLabel(product);
+  if (isCartonUnit(rawUnit)) {
+    const carton = catalogueCartonInnerCount(product);
+    if (carton == null) return null;
     return {
-      normalizedValue: value * perCarton,
-      normalizedUnit: innerUnit,
-      normalizationReason: `Catalogue packs per carton (${perCarton}) converts ${value} cartons to ${value * perCarton} ${innerUnit}`,
+      normalizedQuantity: rawQuantity * carton.count,
+      normalizedUnit: carton.normalizedUnit,
+      conversionSource: carton.conversionSource,
     };
   }
 
-  const kg = convertToKgFromCatalogue(value, unit, product);
-  if (kg == null) return null;
+  const kgConversion = convertToKgFromCatalogueWithSource(rawQuantity, rawUnit, product);
+  if (kgConversion == null) return null;
 
   return {
-    normalizedValue: kg,
-    normalizedUnit: "kg",
-    normalizationReason: `Catalogue weight profile converts ${value}${unit ? ` ${unit}` : ""} to ${kg} kg`,
+    normalizedQuantity: kgConversion.normalizedQuantity,
+    normalizedUnit: kgConversion.normalizedUnit,
+    conversionSource: kgConversion.conversionSource,
   };
 }
