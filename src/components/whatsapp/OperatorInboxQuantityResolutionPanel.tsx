@@ -1,5 +1,6 @@
 import { Hash, Loader2 } from "lucide-react";
 import {
+  formatNormalizedQuantityLabel,
   formatQuantityUnitLabel,
   quantityResolutionAlternatives,
   quantityResolutionBandClassName,
@@ -74,7 +75,7 @@ function QuantityResolutionReadyBody({
       </div>
 
       {top ? (
-        <div className="grid gap-2 text-sm text-gray-800 sm:grid-cols-3">
+        <div className="grid gap-2 text-sm text-gray-800 sm:grid-cols-2 lg:grid-cols-4">
           <div>
             <p className="text-xs font-medium uppercase tracking-wide text-gray-500">Quantity</p>
             <p>{top.value}</p>
@@ -82,6 +83,12 @@ function QuantityResolutionReadyBody({
           <div>
             <p className="text-xs font-medium uppercase tracking-wide text-gray-500">Unit</p>
             <p>{formatQuantityUnitLabel(top.unit)}</p>
+          </div>
+          <div>
+            <p className="text-xs font-medium uppercase tracking-wide text-gray-500">
+              Normalized
+            </p>
+            <p>{formatNormalizedQuantityLabel(top.normalizedValue, top.normalizedUnit)}</p>
           </div>
           <div>
             <p className="text-xs font-medium uppercase tracking-wide text-gray-500">

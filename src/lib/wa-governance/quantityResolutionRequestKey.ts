@@ -10,7 +10,7 @@ import {
 import { pickLatestInboundSnippetForIdentifySender } from "./senderIdentitySnippet";
 import type { OperatorInboxProductResolutionState } from "./productResolutionRequestKey";
 import { serializeClientResolutionBestMatch } from "./productResolutionRequestKey";
-import type { QuantityResolutionResult } from "./quantityResolutionTypes";
+import type { QuantityResolutionInput, QuantityResolutionResult } from "./quantityResolutionTypes";
 
 export type QuantityResolutionPacketSnapshot = ClientResolutionPacketSnapshot;
 export type QuantityResolutionPacketMessage = ClientResolutionPacketMessage;
@@ -90,15 +90,19 @@ export function isQuantityResolutionUpstreamReady(
 export function buildQuantityResolutionFetchInput(
   packet: QuantityResolutionPacketSnapshot,
   stitchedPlainText: string,
-): {
-  messageText: string;
-  stitchedPlainText: string;
-} {
+  productResolutionState?: OperatorInboxProductResolutionState,
+): QuantityResolutionInput {
   const snippet =
     pickLatestInboundSnippetForIdentifySender(packet.messages, stitchedPlainText) ?? "";
+  const productId =
+    productResolutionState?.status === "ready"
+      ? (productResolutionState.result.bestMatch?.productId ?? null)
+      : null;
+
   return {
     messageText: snippet,
     stitchedPlainText,
+    productId,
   };
 }
 

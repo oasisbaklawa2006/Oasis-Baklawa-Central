@@ -33,6 +33,14 @@ export function formatQuantityUnitLabel(unit: string | null): string {
   return unit;
 }
 
+export function formatNormalizedQuantityLabel(
+  value: number | null | undefined,
+  unit: string | null | undefined,
+): string {
+  if (value == null || !unit) return "—";
+  return `${value} ${unit}`;
+}
+
 export function summarizeQuantityResolution(result: QuantityResolutionResult): {
   primaryQuantity: string;
   confidenceLabel: string;

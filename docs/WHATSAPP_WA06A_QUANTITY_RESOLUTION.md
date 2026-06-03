@@ -7,7 +7,7 @@
 
 ## Summary
 
-Operator inbox now shows **read-only quantity resolution suggestions** for the selected packet. The engine extracts **likely order quantities** from message content. **No mutations** and **no database reads** are performed.
+Operator inbox now shows **read-only quantity resolution suggestions** for the selected packet. The engine extracts **likely order quantities** from message content and optionally normalizes them using **authoritative catalogue fields** when product resolution provides a match. **No mutations** are performed.
 
 ---
 
@@ -28,7 +28,7 @@ Selected packet
 | Types | `src/lib/wa-governance/quantityResolutionTypes.ts` |
 | Text signals | `src/lib/wa-governance/quantityResolutionSignals.ts` |
 | Scoring | `src/lib/wa-governance/quantityResolutionScoring.ts` |
-| Resolver | `src/lib/wa-governance/fetchQuantityResolution.ts` |
+| Resolver | `src/lib/wa-governance/fetchQuantityResolution.ts`, `quantityResolutionNormalize.ts` |
 | Display | `src/lib/wa-governance/quantityResolutionDisplay.ts` |
 | Request key / cache | `src/lib/wa-governance/quantityResolutionRequestKey.ts`, `quantityResolutionResultCache.ts` |
 | Hook | `src/components/whatsapp/useOperatorInboxQuantityResolution.ts` |
@@ -76,6 +76,21 @@ packetId | contentFingerprint | clientResolutionBestMatch | productResolutionBes
 
 ---
 
+## Data sources audited (read-only)
+
+| Source | Use |
+|--------|-----|
+| `products` (optional SELECT) | Catalogue normalization only — `weight_per_box_kg`, `grams_per_piece`, `packs_per_master_carton`, `pcs_per_master_carton`, `uom`, `settlement_unit` |
+
+When product resolution provides a best match, WA-06A reuses:
+
+- `convertToKgFromCatalogue()` from `src/lib/unit-conversion.ts` (catalogue fields only — no bulk defaults)
+- `getProductCategory()` from `src/utils/pricing.ts` for carton inner-unit selection
+
+If no catalogue conversion exists, raw parsed quantity is returned unchanged.
+
+---
+
 ## Regression guards
 
 Excluded from quantity extraction:
@@ -93,7 +108,8 @@ Dedupe prevents the same quantity block from scoring twice.
 
 - No `.insert`, `.update`, `.upsert`, `.delete`, or `.rpc`
 - No migrations or Edge functions
-- Pure message parsing — suggestions are **not persisted**
+- Optional SELECT on `products` for catalogue normalization when a product match exists
+- Suggestions are **not persisted**
 
 ---
 

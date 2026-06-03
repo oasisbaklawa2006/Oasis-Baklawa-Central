@@ -10,6 +10,9 @@ export interface QuantityResolutionEntry {
   confidence: number;
   reasons: string[];
   band: QuantityResolutionConfidenceBand;
+  normalizedValue?: number | null;
+  normalizedUnit?: string | null;
+  normalizationReason?: string | null;
 }
 
 export interface QuantityResolutionResult {
@@ -20,6 +23,7 @@ export interface QuantityResolutionResult {
 export interface QuantityResolutionInput {
   messageText: string;
   stitchedPlainText?: string;
+  productId?: string | null;
 }
 
 export type QuantityMatchKind = "explicit_with_unit" | "explicit_qty_only" | "word_quantity";

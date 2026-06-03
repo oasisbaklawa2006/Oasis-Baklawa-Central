@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { supabase } from "@/integrations/supabase/client";
 import { fetchQuantityResolution } from "@/lib/wa-governance/fetchQuantityResolution";
 import {
   buildQuantityResolutionFetchInput,
@@ -68,6 +69,8 @@ export function useOperatorInboxQuantityResolution(
   const [state, setState] = useState<OperatorInboxQuantityResolutionState>({ status: "idle" });
   const packetRef = useRef(selectedPacket);
   packetRef.current = selectedPacket;
+  const productResolutionStateRef = useRef(productResolutionState);
+  productResolutionStateRef.current = productResolutionState;
   const requestKeyRef = useRef<string | null>(null);
   const resolvedResultCacheRef = useRef(new Map<string, QuantityResolutionResult>());
 
@@ -188,8 +191,12 @@ export function useOperatorInboxQuantityResolution(
       const stitched = packetStitchedPlainText(packet.stitched_content);
 
       try {
-        const input = buildQuantityResolutionFetchInput(packet, stitched);
-        const result = await fetchQuantityResolution(input);
+        const input = buildQuantityResolutionFetchInput(
+          packet,
+          stitched,
+          productResolutionStateRef.current,
+        );
+        const result = await fetchQuantityResolution(supabase, input);
         if (cancelled || requestKeyRef.current !== requestKey) return;
         storeCachedQuantityResolutionResult(resolvedResultCacheRef.current, requestKey, result);
         setState({ status: "ready", requestKey, result });

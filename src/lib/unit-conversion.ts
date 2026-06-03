@@ -38,8 +38,46 @@ export function normalizeUnit(raw: string | null | undefined): UnitToken {
   if (["pc", "pcs", "piece", "pieces"].includes(u)) return "pcs";
   if (["box", "boxes"].includes(u)) return "box";
   if (["carton", "cartons", "ctn", "ctns"].includes(u)) return "carton";
+  if (["tin", "tins", "tray", "trays", "pack", "packs"].includes(u)) return "box";
   if (["unit", "units"].includes(u)) return "unit";
   return null;
+}
+
+/**
+ * Convert using catalogue fields only — no bulk defaults, no inferred pack sizes.
+ * Returns null when authoritative product data is missing.
+ */
+export function convertToKgFromCatalogue(
+  quantity: number,
+  rawUnit: string | null | undefined,
+  product: WeightProfile,
+): number | null {
+  if (!Number.isFinite(quantity) || quantity <= 0) return null;
+
+  const unit = normalizeUnit(rawUnit);
+  const boxKg =
+    product.weight_per_box_kg != null && product.weight_per_box_kg > 0
+      ? product.weight_per_box_kg
+      : null;
+  const gramsPerPiece =
+    product.grams_per_piece != null && product.grams_per_piece > 0
+      ? product.grams_per_piece
+      : null;
+
+  switch (unit) {
+    case "kg":
+      return quantity;
+    case "gm":
+      return quantity / 1000;
+    case "box":
+    case "carton":
+      return boxKg != null ? quantity * boxKg : null;
+    case "pcs":
+    case "unit":
+      return gramsPerPiece != null ? (quantity * gramsPerPiece) / 1000 : null;
+    default:
+      return null;
+  }
 }
 
 /**
