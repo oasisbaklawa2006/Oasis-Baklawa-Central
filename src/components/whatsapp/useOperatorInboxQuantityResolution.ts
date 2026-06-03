@@ -1,6 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { fetchQuantityResolution } from "@/lib/wa-governance/fetchQuantityResolution";
+import {
+  fetchCatalogueQuantityProduct,
+  resolveQuantityCandidates,
+} from "@/lib/wa-governance/fetchQuantityResolution";
 import {
   buildQuantityResolutionFetchInput,
   buildQuantityResolutionRequestDescriptor,
@@ -12,6 +15,7 @@ import {
   type OperatorInboxQuantityResolutionState,
   type QuantityResolutionSenderIdentitySnapshot,
 } from "@/lib/wa-governance/quantityResolutionRequestKey";
+import { buildQuantityResolutionResultCacheKey } from "@/lib/wa-governance/quantityResolutionCacheKey";
 import {
   getCachedQuantityResolutionState,
   storeCachedQuantityResolutionResult,
@@ -172,15 +176,6 @@ export function useOperatorInboxQuantityResolution(
       return;
     }
 
-    const cachedState = getCachedQuantityResolutionState(
-      requestKey,
-      resolvedResultCacheRef.current,
-    );
-    if (cachedState) {
-      setState(cachedState);
-      return;
-    }
-
     let cancelled = false;
     setState({ status: "loading", requestKey });
 
@@ -196,9 +191,29 @@ export function useOperatorInboxQuantityResolution(
           stitched,
           productResolutionStateRef.current,
         );
-        const result = await fetchQuantityResolution(supabase, input);
+        const catalogueProduct =
+          input.productId != null
+            ? await fetchCatalogueQuantityProduct(supabase, input.productId)
+            : null;
+        const cacheKey = buildQuantityResolutionResultCacheKey(requestKey, catalogueProduct);
+
+        const cachedByCatalogue = getCachedQuantityResolutionState(
+          cacheKey,
+          resolvedResultCacheRef.current,
+        );
+        if (cachedByCatalogue) {
+          if (cancelled || requestKeyRef.current !== requestKey) return;
+          setState(cachedByCatalogue);
+          return;
+        }
+
+        const result = await resolveQuantityCandidates(
+          input,
+          supabase,
+          catalogueProduct,
+        );
         if (cancelled || requestKeyRef.current !== requestKey) return;
-        storeCachedQuantityResolutionResult(resolvedResultCacheRef.current, requestKey, result);
+        storeCachedQuantityResolutionResult(resolvedResultCacheRef.current, cacheKey, result);
         setState({ status: "ready", requestKey, result });
       } catch (e) {
         if (cancelled || requestKeyRef.current !== requestKey) return;

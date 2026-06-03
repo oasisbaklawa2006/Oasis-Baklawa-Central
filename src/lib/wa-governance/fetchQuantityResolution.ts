@@ -29,7 +29,7 @@ function entryWithoutCatalogueNormalization(
   };
 }
 
-async function fetchCatalogueQuantityProduct(
+export async function fetchCatalogueQuantityProduct(
   supabase: SupabaseClient,
   productId: string,
 ): Promise<CatalogueQuantityProduct | null> {
