@@ -119,10 +119,20 @@ export function useOperatorInboxSalesOrderDraft(args: {
   const submitForReview = useCallback(async () => {
     const actor = actorFromUser(user);
     if (state.status !== "ready" || !state.bundle || !actor) return;
-    await runAction(() =>
-      submitSalesOrderDraftForReview({ draftId: state.bundle!.draft.id, actor }),
-    );
-  }, [runAction, state, user]);
+    const draftId = state.bundle.draft.id;
+    const latestQuantities = resolveLatestOperatorLineQuantities();
+    await runAction(async () => {
+      if (extracted) {
+        await updateSalesOrderDraftOperatorFinal({
+          draftId,
+          extracted,
+          operatorLineQuantities: latestQuantities,
+          actor,
+        });
+      }
+      return submitSalesOrderDraftForReview({ draftId, actor });
+    });
+  }, [extracted, resolveLatestOperatorLineQuantities, runAction, state, user]);
 
   const approveDraft = useCallback(async (reviewNotes?: string) => {
     const actor = actorFromUser(user);

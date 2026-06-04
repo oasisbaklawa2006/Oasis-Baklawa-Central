@@ -1,7 +1,12 @@
 import { supabase } from "@/integrations/supabase/client";
 import type { Database, Json } from "@/integrations/supabase/types";
 import type { ExtractedDraftOrder } from "@/lib/wa-governance/draftOrderExtractionTypes";
-import { buildOperatorFinalSnapshot, buildDraftHeaderInsert, buildDraftLineInserts } from "./mapExtractedDraft";
+import {
+  buildOperatorFinalSnapshot,
+  buildDraftHeaderRpcPayload,
+  buildDraftLineInserts,
+  buildDraftLineRpcPayloads,
+} from "./mapExtractedDraft";
 import { canTransitionToApproved } from "./readinessValidation";
 import type {
   CreateSalesOrderDraftInput,
@@ -13,7 +18,6 @@ import type {
 } from "./types";
 import { getNextStatus } from "./workflowTransitions";
 
-type DraftInsert = Database["public"]["Tables"]["sales_order_drafts"]["Insert"];
 type DraftLineInsert = Database["public"]["Tables"]["sales_order_draft_lines"]["Insert"];
 type DraftUpdate = Database["public"]["Tables"]["sales_order_drafts"]["Update"];
 type DraftLineUpdate = Database["public"]["Tables"]["sales_order_draft_lines"]["Update"];
@@ -112,42 +116,19 @@ export async function createSalesOrderDraft(
     );
   }
 
-  const header = buildDraftHeaderInsert(input) as DraftInsert;
-  const { data: inserted, error: insertError } = await supabase
-    .from("sales_order_drafts")
-    .insert(header)
-    .select("*")
-    .single();
-
-  if (insertError) throw new Error(insertError.message);
-  const draft = parseDraftRow(inserted);
-
-  const lineRows = buildDraftLineInserts(
-    draft.id,
-    input.extracted,
-    input.operatorLineQuantities,
-  );
-
-  if (lineRows.length > 0) {
-    const { error: linesError } = await supabase
-      .from("sales_order_draft_lines")
-      .insert(lineRows as DraftLineInsert[]);
-    if (linesError) throw new Error(linesError.message);
-  }
-
-  await appendAuditEntry({
-    draftId: draft.id,
-    action: "CREATE",
-    fromStatus: null,
-    toStatus: "AI_DRAFT",
-    actorId: input.actor.id,
-    actorName: input.actor.name,
-    metadata: {
+  const { error: createError } = await supabase.rpc("create_sales_order_draft_atomic", {
+    p_header: buildDraftHeaderRpcPayload(input) as Json,
+    p_lines: buildDraftLineRpcPayloads(input.extracted, input.operatorLineQuantities) as Json,
+    p_actor_id: input.actor.id,
+    p_actor_name: input.actor.name,
+    p_audit_metadata: {
       packetId: input.extracted.packetId,
       extractionRequestKey: input.extracted.extractionRequestKey,
       readinessScore: input.extracted.readiness.overallScore,
-    },
+    } as Json,
   });
+
+  if (createError) throw new Error(createError.message);
 
   const bundle = await fetchSalesOrderDraftByPacket(input.extracted.packetId);
   if (!bundle) throw new Error("Failed to reload created sales order draft.");

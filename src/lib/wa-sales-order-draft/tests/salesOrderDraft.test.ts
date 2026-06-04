@@ -2,7 +2,9 @@ import { describe, expect, it } from "vitest";
 import { buildSalesOrderDraftComparisonView } from "@/lib/wa-sales-order-draft/buildComparisonView";
 import {
   buildDraftHeaderInsert,
+  buildDraftHeaderRpcPayload,
   buildDraftLineInserts,
+  buildDraftLineRpcPayloads,
   buildOperatorFinalSnapshot,
   resolveOperatorQuantity,
 } from "@/lib/wa-sales-order-draft/mapExtractedDraft";
@@ -142,6 +144,23 @@ describe("map extracted draft", () => {
     });
     const operatorFinal = buildOperatorFinalSnapshot(extractedFixture, { 0: 12 });
     expect(operatorFinal.lineItems[0].quantity).toBe(12);
+  });
+
+  it("builds RPC line payloads without draft_id for atomic create", () => {
+    const lines = buildDraftLineRpcPayloads(extractedFixture, { 0: 12 });
+    expect(lines[0].operator_quantity).toBe(12);
+    expect(lines[0]).not.toHaveProperty("draft_id");
+  });
+
+  it("builds RPC header payload from create input", () => {
+    const payload = buildDraftHeaderRpcPayload({
+      extracted: extractedFixture,
+      operatorLineQuantities: { 0: 12 },
+      actor: { id: "user-1", name: "Reviewer" },
+    });
+    expect(payload.packet_id).toBe("pkt-1");
+    expect(payload.status).toBe("AI_DRAFT");
+    expect(payload).not.toHaveProperty("created_by");
   });
 });
 

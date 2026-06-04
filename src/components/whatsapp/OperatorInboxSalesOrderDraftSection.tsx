@@ -52,9 +52,9 @@ export const OperatorInboxSalesOrderDraftSection = memo(function OperatorInboxSa
     syncOperatorFinal,
   } = draftHook;
 
-  if (!extractionReady) return null;
-
   const bundle = state.status === "ready" ? state.bundle : null;
+  const isRejected = bundle?.draft.status === "REJECTED";
+  const canCreateDraft = extractionReady && Boolean(extracted);
 
   return (
     <section
@@ -105,7 +105,7 @@ export const OperatorInboxSalesOrderDraftSection = memo(function OperatorInboxSa
             type="button"
             size="sm"
             className="h-8 text-xs"
-            disabled={!extracted || actionPending}
+            disabled={!canCreateDraft || actionPending}
             onClick={() => void createDraft()}
           >
             {actionPending ? (
@@ -115,6 +115,11 @@ export const OperatorInboxSalesOrderDraftSection = memo(function OperatorInboxSa
             )}
             Create Sales Order Draft
           </Button>
+          {!extractionReady ? (
+            <p className="mt-1 text-[11px] text-indigo-800/80">
+              Draft extraction must finish before creating a new sales order draft.
+            </p>
+          ) : null}
         </div>
       ) : (
         <>
@@ -212,10 +217,35 @@ export const OperatorInboxSalesOrderDraftSection = memo(function OperatorInboxSa
             </div>
           ) : (
             <p className="mt-3 text-xs text-indigo-800/80">
-              Terminal status — no further workflow actions. Live Sales Order promotion requires a
-              separate explicit human step (not automated in Sprint 9).
+              {isRejected
+                ? "Rejected — terminal for this draft. Create a new draft when extraction is ready."
+                : "Terminal status — no further workflow actions. Live Sales Order promotion requires a separate explicit human step (not automated in Sprint 9)."}
             </p>
           )}
+
+          {isRejected ? (
+            <div className="mt-3 border-t border-indigo-200/80 pt-3">
+              <Button
+                type="button"
+                size="sm"
+                className="h-8 text-xs"
+                disabled={!canCreateDraft || actionPending}
+                onClick={() => void createDraft()}
+              >
+                {actionPending ? (
+                  <Loader2 className="mr-1 h-3 w-3 animate-spin" aria-hidden />
+                ) : (
+                  <Save className="mr-1 h-3 w-3" aria-hidden />
+                )}
+                Create New Draft
+              </Button>
+              {!extractionReady ? (
+                <p className="mt-1 text-[11px] text-indigo-800/80">
+                  Draft extraction must finish before creating a new sales order draft.
+                </p>
+              ) : null}
+            </div>
+          ) : null}
 
           {bundle.auditLog.length > 0 ? <AuditTrail entries={bundle.auditLog} /> : null}
         </>

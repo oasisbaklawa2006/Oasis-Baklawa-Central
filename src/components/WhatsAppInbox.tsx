@@ -230,7 +230,7 @@ export function WhatsAppInbox() {
       draftOrderExtractionState.status === "ready" ? draftOrderExtractionState.draft : null,
     operatorLineQuantities: draftOrderLineQuantities,
     user,
-    enabled: draftOrderExtractionState.status === "ready",
+    enabled: Boolean(selectedPacket?.id),
   });
   const packetListVirtualRef = useRef<OperatorInboxVirtualizedPacketListHandle>(null);
   const [messagesBatchWarnings, setMessagesBatchWarnings] = useState<string[]>([]);

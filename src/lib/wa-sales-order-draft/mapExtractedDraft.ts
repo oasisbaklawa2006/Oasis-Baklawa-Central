@@ -47,6 +47,43 @@ export function buildOperatorFinalSnapshot(
   };
 }
 
+export type DraftLineRpcPayload = Omit<DraftLineInsert, "draft_id">;
+
+export function buildDraftLineRpcPayloads(
+  extracted: ExtractedDraftOrder,
+  operatorLineQuantities: Record<number, number>,
+): DraftLineRpcPayload[] {
+  return buildDraftLineInserts("", extracted, operatorLineQuantities).map(
+    ({ draft_id: _draftId, ...line }) => line,
+  );
+}
+
+export function buildDraftHeaderRpcPayload(
+  input: CreateSalesOrderDraftInput,
+): Record<string, unknown> {
+  const header = buildDraftHeaderInsert(input);
+  return {
+    packet_id: header.packet_id,
+    extraction_request_key: header.extraction_request_key,
+    status: header.status,
+    client_owner_id: header.client_owner_id,
+    client_owner_name: header.client_owner_name,
+    order_creator_id: header.order_creator_id,
+    order_creator_name: header.order_creator_name,
+    order_handler_id: header.order_handler_id,
+    order_handler_name: header.order_handler_name,
+    approver_id: header.approver_id,
+    approver_name: header.approver_name,
+    company_id: header.company_id,
+    company_name: header.company_name,
+    readiness_overall_score: header.readiness_overall_score,
+    readiness_dimensions: header.readiness_dimensions,
+    original_whatsapp_text: header.original_whatsapp_text,
+    ai_draft_snapshot: header.ai_draft_snapshot,
+    operator_final_snapshot: header.operator_final_snapshot,
+  };
+}
+
 export function buildDraftLineInserts(
   draftId: string,
   extracted: ExtractedDraftOrder,

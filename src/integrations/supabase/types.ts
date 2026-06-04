@@ -4175,6 +4175,16 @@ export type Database = {
         }
         Returns: string
       }
+      create_sales_order_draft_atomic: {
+        Args: {
+          p_header: Json
+          p_lines: Json
+          p_actor_id: string
+          p_actor_name: string
+          p_audit_metadata?: Json
+        }
+        Returns: string
+      }
     }
     Enums: {
       [_ in never]: never
