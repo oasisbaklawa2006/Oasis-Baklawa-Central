@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { User } from "@supabase/supabase-js";
 import { getDraftOrderLocalEdits } from "@/components/whatsapp/operatorInboxDraftOrderLocalState";
 import type { ExtractedDraftOrder } from "@/lib/wa-governance/draftOrderExtractionTypes";
@@ -44,24 +44,36 @@ export function useOperatorInboxSalesOrderDraft(args: {
   const [state, setState] = useState<SalesOrderDraftUiState>({ status: "idle" });
   const [actionPending, setActionPending] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
+  const activePacketIdRef = useRef<string | null>(packetId);
+
+  useEffect(() => {
+    activePacketIdRef.current = packetId;
+  }, [packetId]);
+
+  const isActivePacket = useCallback((requestPacketId: string) => {
+    return activePacketIdRef.current === requestPacketId;
+  }, []);
 
   const reload = useCallback(async () => {
     if (!packetId || !enabled) {
       setState({ status: "idle" });
       return;
     }
+    const requestPacketId = packetId;
     setState({ status: "loading" });
     try {
-      const bundle = await fetchSalesOrderDraftByPacket(packetId);
+      const bundle = await fetchSalesOrderDraftByPacket(requestPacketId);
+      if (!isActivePacket(requestPacketId)) return;
       setState({ status: "ready", bundle });
     } catch (error) {
+      if (!isActivePacket(requestPacketId)) return;
       setState((prev) => ({
         status: "error",
         message: error instanceof Error ? error.message : "Failed to load sales order draft.",
         bundle: prev.status === "ready" ? prev.bundle : null,
       }));
     }
-  }, [packetId, enabled]);
+  }, [packetId, enabled, isActivePacket]);
 
   useEffect(() => {
     void reload();
@@ -85,18 +97,22 @@ export function useOperatorInboxSalesOrderDraft(args: {
 
   const runAction = useCallback(
     async (fn: () => Promise<SalesOrderDraftBundle>) => {
+      if (!packetId) return;
+      const requestPacketId = packetId;
       setActionPending(true);
       setActionError(null);
       try {
         const bundle = await fn();
+        if (!isActivePacket(requestPacketId)) return;
         setState({ status: "ready", bundle });
       } catch (error) {
+        if (!isActivePacket(requestPacketId)) return;
         setActionError(error instanceof Error ? error.message : "Action failed.");
       } finally {
         setActionPending(false);
       }
     },
-    [],
+    [isActivePacket, packetId],
   );
 
   const resolveLatestOperatorLineQuantities = useCallback(() => {
@@ -189,11 +205,17 @@ export function useOperatorInboxSalesOrderDraft(args: {
 
   const draftStatus = currentBundle ? currentBundle.draft.status : null;
   const isTerminal = draftStatus ? isTerminalStatus(draftStatus) : false;
+  const extractionProjectionStale = Boolean(
+    extracted &&
+      currentBundle &&
+      extracted.extractionRequestKey !== currentBundle.draft.extraction_request_key,
+  );
 
   return {
     state,
     comparisonView,
     approvalReadiness,
+    extractionProjectionStale,
     actionPending,
     actionError,
     draftStatus,

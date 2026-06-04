@@ -482,6 +482,32 @@ describe("extraction projection guard (static)", () => {
     expect(panel).toMatch(/quantityEditsLocked/);
     expect(panel).toMatch(/Quantity edits are locked while the sales order draft is under review/);
   });
+  it("ignores stale reload and action results after packet switch", async () => {
+    const { readFileSync } = await import("node:fs");
+    const { join } = await import("node:path");
+    const hook = readFileSync(
+      join(import.meta.dirname, "../../../components/whatsapp/useOperatorInboxSalesOrderDraft.ts"),
+      "utf8",
+    );
+    expect(hook).toMatch(/activePacketIdRef/);
+    expect(hook).toMatch(/isActivePacket\(requestPacketId\)/);
+    expect(hook).toMatch(/if \(!isActivePacket\(requestPacketId\)\) return;/);
+  });
+
+  it("allows AI_DRAFT reject when extraction projection is stale", async () => {
+    const { readFileSync } = await import("node:fs");
+    const { join } = await import("node:path");
+    const section = readFileSync(
+      join(
+        import.meta.dirname,
+        "../../../components/whatsapp/OperatorInboxSalesOrderDraftSection.tsx",
+      ),
+      "utf8",
+    );
+    expect(section).toMatch(/extractionProjectionStale/);
+    expect(section).toMatch(/Reject draft/);
+    expect(section).toMatch(/!extracted \|\| extractionProjectionStale/);
+  });
 });
 describe("persisted draft fetch and rejected recreate UI (static)", () => {
   it("enables draft fetch by packetId rather than extraction readiness", async () => {
@@ -556,7 +582,7 @@ describe("persisted draft fetch and rejected recreate UI (static)", () => {
       "utf8",
     );
     expect(section).toMatch(/state\.status === "error"/);
-    expect(section).toMatch(/disabled=\{actionPending \|\| !extracted\}/);
+    expect(section).toMatch(/!extracted \|\| extractionProjectionStale/);
   });
 
   it("disables submit for review without extraction", async () => {
@@ -571,7 +597,7 @@ describe("persisted draft fetch and rejected recreate UI (static)", () => {
     );
     const submitButtonStart = section.indexOf("onClick={() => void submitForReview()}");
     expect(submitButtonStart).toBeGreaterThan(-1);
-    const submitBlock = section.slice(submitButtonStart - 120, submitButtonStart);
-    expect(submitBlock).toMatch(/disabled=\{actionPending \|\| !extracted\}/);
+    const submitBlock = section.slice(submitButtonStart - 160, submitButtonStart);
+    expect(submitBlock).toMatch(/!extracted \|\| extractionProjectionStale/);
   });
 });

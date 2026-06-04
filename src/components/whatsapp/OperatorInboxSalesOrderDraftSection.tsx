@@ -41,6 +41,7 @@ export const OperatorInboxSalesOrderDraftSection = memo(function OperatorInboxSa
     state,
     comparisonView,
     approvalReadiness,
+    extractionProjectionStale,
     actionPending,
     actionError,
     draftStatus,
@@ -132,6 +133,13 @@ export const OperatorInboxSalesOrderDraftSection = memo(function OperatorInboxSa
 
           {comparisonView ? <ComparisonView comparison={comparisonView} /> : null}
 
+          {extractionProjectionStale && bundle.draft.status === "AI_DRAFT" ? (
+            <div className="mt-3 rounded border border-amber-200 bg-amber-50/80 p-2 text-[11px] text-amber-950">
+              Live extraction changed since this draft was saved. Sync and submit are blocked until you
+              reject this draft and create a new one from the current extraction.
+            </div>
+          ) : null}
+
           {approvalReadiness && !approvalReadiness.valid && bundle.draft.status === "UNDER_REVIEW" ? (
             <div className="mt-3 rounded border border-amber-200 bg-amber-50/80 p-2 text-[11px] text-amber-950">
               <p className="flex items-center gap-1 font-medium">
@@ -155,7 +163,7 @@ export const OperatorInboxSalesOrderDraftSection = memo(function OperatorInboxSa
               aria-label="Sales order draft review notes"
               disabled={isTerminal || actionPending}
             />
-            {bundle.draft.status === "UNDER_REVIEW" ? (
+            {bundle.draft.status === "AI_DRAFT" || bundle.draft.status === "UNDER_REVIEW" ? (
               <Input
                 value={rejectReason}
                 onChange={(e) => setRejectReason(e.target.value)}
@@ -176,7 +184,7 @@ export const OperatorInboxSalesOrderDraftSection = memo(function OperatorInboxSa
                     size="sm"
                     variant="outline"
                     className="h-8 text-xs"
-                    disabled={actionPending || !extracted}
+                    disabled={actionPending || !extracted || extractionProjectionStale}
                     onClick={() => void syncOperatorFinal()}
                   >
                     <ArrowRightLeft className="mr-1 h-3 w-3" aria-hidden />
@@ -186,11 +194,22 @@ export const OperatorInboxSalesOrderDraftSection = memo(function OperatorInboxSa
                     type="button"
                     size="sm"
                     className="h-8 text-xs"
-                    disabled={actionPending || !extracted}
+                    disabled={actionPending || !extracted || extractionProjectionStale}
                     onClick={() => void submitForReview()}
                   >
                     <Send className="mr-1 h-3 w-3" aria-hidden />
                     Submit for review
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="destructive"
+                    className="h-8 text-xs"
+                    disabled={actionPending || !rejectReason.trim()}
+                    onClick={() => void rejectDraft(rejectReason, reviewNotes || undefined)}
+                  >
+                    <XCircle className="mr-1 h-3 w-3" aria-hidden />
+                    Reject draft
                   </Button>
                 </>
               ) : null}
