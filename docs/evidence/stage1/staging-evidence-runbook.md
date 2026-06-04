@@ -26,17 +26,17 @@
 | ID | Proof item | Owner | Staging? | Steps | Expected artifact | Pass | Fail | Blocker |
 |----|------------|-------|----------|-------|-------------------|------|------|---------|
 | **E1** | Load error alert banner | Engineering | **Yes** | Break Supabase URL or block network; open `/admin/operator-inbox` | `alert-load-error.png` | Red `role="alert"` with message; no blank screen | Silent empty UI | Open |
-| **E2** | Reply phone validation alert | Engineering | **Yes** | Select packet with invalid phone; click Send | `alert-reply-validation.png` | Browser `alert()` with validation text | Send proceeds | Open |
-| **E3** | Failed delivery read-only panel | Engineering | **Yes** | Use packet with failed `operator_reply` row or trigger failed send | `alert-failed-msgs-panel.png` | Failed panel lists row; no retry write | Panel missing / editable | Open |
-| **E4** | Governance bar disabled actions | Engineering | **Yes** | Open inbox; inspect amber governance bar | `queue-disabled-governance-bar.png` | Reassign / Approve Draft / Send Automation locked | Click triggers action | Open |
-| **E5** | Resolution "not persisted" label | Engineering | **Yes** | Open insights column; WA-03A–06A panels | `audit-readonly-label.png` | "read-only · not persisted" visible | Label absent | Open |
+| **E2** | Reply phone validation alert | Engineering | **Yes** | Select packet with invalid phone; click Send | `alert-reply-validation.png` | Browser `alert()` with validation text | Send proceeds | **Blocked** (0 packets) |
+| **E3** | Failed delivery read-only panel | Engineering | **Yes** | Use packet with failed `operator_reply` row or trigger failed send | `alert-failed-msgs-panel.png` | Failed panel lists row; no retry write | Panel missing / editable | **Blocked** (0 packets; no seed row) |
+| **E4** | Governance bar disabled actions | Engineering | **Yes** | Open inbox; inspect amber governance bar | `queue-disabled-governance-bar.png` | Reassign / Approve Draft / Send Automation locked | Click triggers action | **Blocked** (0 packets) — [`queue-disabled-governance-bar.png.note.txt`](./queue-disabled-governance-bar.png.note.txt) |
+| **E5** | Resolution "not persisted" label | Engineering | **Yes** | Open insights column; WA-03A–06A panels | `audit-readonly-label.png` | "read-only · not persisted" visible | Label absent | **Blocked** (0 packets) |
 | **E6** | Override audit table count | Engineering / DBA | **Yes** | Run SQL on staging Supabase | `audit-override-log-count.txt` | Zero inbox-driven rows in 24h (expected today) | Unexpected writes | Open |
 | **E7** | Idempotency reply gap note | Engineering | **No** | Static code audit | [`idempotency-reply-gap.md`](./idempotency-reply-gap.md) | Documents NO-GO gap | — | **Complete** |
 | **E8** | Suggestions error state | Engineering | **Yes** | Disable/break classify or route Edge; click suggest | `failure-suggestions-error.png` | Error in suggestions area | Stale success | Open |
 | **E9** | CI read-only guard log | Engineering | **No** | `npm test -- src/lib/wa-governance/tests/` | [`ci-readonly-guard.log`](./ci-readonly-guard.log) | 137/137 pass | Any failure | **Complete** |
-| **E10** | RBAC nav hidden | Engineering / Ops | **Yes** | Login as role without `support`; check nav | `rbac-nav-hidden.png` | No WhatsApp Inbox link | Link visible incorrectly | Open |
-| **E11** | RBAC URL access note | Engineering | **No** | Static audit; staging test deferred | [`rbac-url-access.md`](./rbac-url-access.md) | Documents gap; does not claim pass | Claims pass without proof | **Complete** (static); staging **Open** |
-| **E12** | Full inbox visibility | Engineering | **Yes** | Open inbox with insights column expanded | `visibility-full-inbox.png` | Packets, thread, insights visible | Broken layout | Open |
+| **E10** | RBAC nav hidden | Engineering / Ops | **Yes** | Login as role without `support`; check nav | [`rbac-nav-hidden.png`](./rbac-nav-hidden.png) | No WhatsApp Inbox link | Link visible incorrectly | **Complete** |
+| **E11** | RBAC URL access note | Engineering | **No** | Static + staging URL test | [`rbac-url-access.md`](./rbac-url-access.md) | Documents gap; staging URL proof captured | Claims pass without proof | **Complete** (static + staging) |
+| **E12** | Full inbox visibility | Engineering | **Yes** | Open inbox with insights column expanded | [`visibility-full-inbox.png`](./visibility-full-inbox.png) | Packets, thread, insights visible | Broken layout | **Complete** (shell; 0 packets in session) |
 | **E13** | Sign-off table | Eng / Ops / Security | **No** | Human review after staging artifacts | §6 in evidence pack | All roles signed | Empty sign-off | Blocked on E1–E6, E8, E10, E12, E14–E19 |
 | **E14** | POST_MERGE_PR69 smoke (14 checks) | Engineering | **Yes** | Follow `docs/POST_MERGE_PR69_OPERATOR_INBOX_SMOKE.md` | Checklist copy in `docs/evidence/stage1/` | All items checked | Any blocking failure | Open |
 | **E15** | Duplicate-click reply rows | Engineering | **Yes** | Double-click Send on staging; query DB | Append to `idempotency-reply-gap.md` or new SQL snapshot | Document duplicate rows if reproduced | N/A if blocked | Open |
@@ -58,13 +58,42 @@
 
 ---
 
+## Session 1 outcome (2026-06-04)
+
+**URL:** https://cursor-central-vercel.vercel.app  
+**Accounts:** `dispatch@oasisbaklawa.com` (inbox session), `finance@oasisbaklawa.com` (RBAC session)
+
+| ID | Outcome |
+|----|---------|
+| E10 | **Complete** — finance nav hides WhatsApp Inbox |
+| E11 | **Complete** — finance direct URL to `/admin/operator-inbox` **allowed** |
+| E12 | **Complete** — inbox shell screenshot (read-only labels visible; 0 packets) |
+| E2, E3, E4, E5 | **Blocked** — UI showed 0 packets (RLS `user_role_map.role_key` mismatch vs `whatsapp_packets_view` policy) |
+
+**Session log:** [`CAPTURE-SESSION-REPORT.md`](./CAPTURE-SESSION-REPORT.md)
+
+### Blocker — seed test packets before Session 2
+
+Before re-running **E2, E3, E4, E5** (and full **E14** smoke):
+
+1. Seed **2–3 open** `whatsapp_message_packets` visible to the support/inbox test account, **or**
+2. Assign `user_role_map` with RLS-compatible `role_key` (`operations`, `finance`, or `director`) for the test login used in browser capture.
+
+Without visible packets, governance bar, resolution panels, and reply validation paths cannot be exercised.
+
+---
+
 ## Static evidence index (complete)
 
 | File | Description |
 |------|-------------|
 | [`ci-readonly-guard.log`](./ci-readonly-guard.log) | wa-governance test suite output (137/137) |
 | [`idempotency-reply-gap.md`](./idempotency-reply-gap.md) | Known operator reply idempotency NO-GO |
-| [`rbac-url-access.md`](./rbac-url-access.md) | Static RBAC note; staging test pending |
+| [`rbac-url-access.md`](./rbac-url-access.md) | RBAC static + Session 1 staging observation |
+| [`rbac-nav-hidden.png`](./rbac-nav-hidden.png) | E10 finance nav screenshot |
+| [`rbac-direct-url-operator-inbox.png`](./rbac-direct-url-operator-inbox.png) | E11 staging direct URL |
+| [`visibility-full-inbox.png`](./visibility-full-inbox.png) | E12 inbox shell |
+| [`CAPTURE-SESSION-REPORT.md`](./CAPTURE-SESSION-REPORT.md) | Session 1 browser capture log |
 | [`staging-evidence-runbook.md`](./staging-evidence-runbook.md) | This file |
 
 ---

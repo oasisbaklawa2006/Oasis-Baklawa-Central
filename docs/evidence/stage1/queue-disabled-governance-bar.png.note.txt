@@ -1,0 +1,5 @@
+NOTE: Governance bar screenshot not possible.
+Reason: No packets available in operator inbox to select.
+Governance bar (Send Automation, Approve Draft, Reassign) only appears when a packet is selected.
+Current state: 0 open packets shown in inbox.
+Stage-1 validation: Read-only mode confirmed by "Same read-only inbox: /admin/whatsapp" message visible in screenshot.

@@ -1,7 +1,8 @@
-# Stage-1 evidence: RBAC direct URL access (static note)
+# Stage-1 evidence: RBAC direct URL access
 
-**Status:** Static audit only — **does not claim pass**. Multi-role staging test still required.  
-**Date captured:** 2026-06-03  
+**Status:** Static audit + Session 1 staging observation captured.  
+**Date captured (static):** 2026-06-03  
+**Date captured (staging):** 2026-06-04  
 **Scope:** `/admin/operator-inbox`, `/admin/whatsapp`
 
 ---
@@ -16,30 +17,43 @@
 
 ---
 
-## What is NOT proven yet
+## Session 1 staging observation (2026-06-04)
 
-- [ ] Non-support admin-staff role cannot see WhatsApp Inbox nav link (screenshot **E10** pending)
-- [ ] `SUPPORT_EXECUTIVE` (or similar) direct URL behavior documented with session proof (**staging required**)
-- [ ] Edge invoke authorization (`verify_jwt = false` on all WhatsApp functions) — separate NO-GO for send pilot
+**Environment:** https://cursor-central-vercel.vercel.app  
+**Non-support account:** `finance@oasisbaklawa.com` (FINANCE_HEAD)
+
+| Check | Result | Artifact |
+|-------|--------|----------|
+| Nav: WhatsApp Inbox link | **Hidden** | [`rbac-nav-hidden.png`](./rbac-nav-hidden.png) |
+| Direct URL: `/admin/operator-inbox` | **Allowed** — page loads, no 403/redirect | [`rbac-direct-url-operator-inbox.png`](./rbac-direct-url-operator-inbox.png) |
+
+**Observed behavior:** Finance user **cannot** see WhatsApp Inbox in nav but **can** access `/admin/operator-inbox` directly. Same read-only inbox shell as other staff sessions (0 packets shown in Session 1).
 
 ---
 
-## Staging test required (do not skip)
+## RBAC classification (owner decision required)
 
-1. Authenticate as a role **without** `support` in `ROLE_MODULE_ACCESS` (e.g. production-only role if available).
-2. Confirm nav does not show "WhatsApp Inbox".
-3. Attempt direct navigation to `/admin/operator-inbox`.
-4. Record: allowed redirect, 403, or empty shell — attach screenshot and short note.
+| Interpretation | Implication |
+|----------------|-------------|
+| **Soft RBAC (intentional)** | Nav guides role-appropriate workflows; finance/ops may retain read-only URL access for audit/oversight. Acceptable for **read-only observation pilot** if documented and signed off. |
+| **RBAC gap (unintentional)** | Module nav implies access control; missing `AdminModuleRoute` (or equivalent) on operator-inbox routes is a **defect** to fix before send pilot or broader rollout. |
 
-**Pass criteria (observation pilot):** Document actual behavior; for read-only pilot, staff-only route guard may be acceptable if documented. For send pilot, Edge JWT hardening is mandatory regardless.
+**Stage-1 posture:** Classify as **soft-RBAC with documented URL gap** for read-only planning. **Not** sufficient for send pilot — Edge JWT hardening remains NO-GO regardless (see evidence pack §2.6).
+
+**Owner action:** Engineering + Security to confirm intended policy (soft vs hard module RBAC on `/admin/operator-inbox`).
+
+---
+
+## Remaining gaps
+
+- [ ] Owner sign-off on soft-RBAC vs hard-RBAC for finance direct URL access
+- [ ] Edge invoke authorization (`verify_jwt = false` on WhatsApp Edge functions) — separate NO-GO for send pilot
+- [ ] SUPPORT_EXECUTIVE vs non-support comparison with **visible packets** (Session 2 after packet seed)
 
 ---
 
 ## Related evidence
 
-- Staging runbook: `docs/evidence/stage1/staging-evidence-runbook.md` (E10, E11, P16, P17)
+- Session log: [`CAPTURE-SESSION-REPORT.md`](./CAPTURE-SESSION-REPORT.md)
+- Staging runbook: [`staging-evidence-runbook.md`](./staging-evidence-runbook.md) (E10, E11)
 - Evidence pack: `docs/WHATSAPP_STAGE1_GO_NO_GO_EVIDENCE_PACK.md` §1.7
-
----
-
-*This document is a static note only. RBAC URL access is **pending** staging verification.*
