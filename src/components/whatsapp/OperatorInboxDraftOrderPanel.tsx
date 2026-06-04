@@ -28,6 +28,7 @@ export const OperatorInboxDraftOrderPanel = memo(function OperatorInboxDraftOrde
   lineQuantities,
   onLineQuantityChange,
   onLineQuantitiesReset,
+  quantityEditsLocked = false,
 }: {
   state: OperatorInboxDraftOrderExtractionState;
   requestKey?: string | null;
@@ -35,6 +36,7 @@ export const OperatorInboxDraftOrderPanel = memo(function OperatorInboxDraftOrde
   lineQuantities: Record<number, number>;
   onLineQuantityChange: (lineIndex: number, quantity: number) => void;
   onLineQuantitiesReset: () => void;
+  quantityEditsLocked?: boolean;
 }) {
   const reactId = useId();
   const headingId = `${reactId}-draft-order-heading`;
@@ -44,6 +46,12 @@ export const OperatorInboxDraftOrderPanel = memo(function OperatorInboxDraftOrde
   useEffect(() => {
     setEditMode(false);
   }, [packetId]);
+
+  useEffect(() => {
+    if (quantityEditsLocked) {
+      setEditMode(false);
+    }
+  }, [quantityEditsLocked]);
 
   const refreshLocal = useCallback(() => setLocalRevision((n) => n + 1), []);
 
@@ -93,10 +101,11 @@ export const OperatorInboxDraftOrderPanel = memo(function OperatorInboxDraftOrde
         <DraftOrderBody
           draft={draft}
           summary={summary}
-          editMode={editMode}
+          editMode={editMode && !quantityEditsLocked}
           localEdits={localEdits}
           lineQuantities={mergedLineQuantities}
           onQuantityChange={(lineIndex, qty) => {
+            if (quantityEditsLocked) return;
             onLineQuantityChange(lineIndex, qty);
             refreshLocal();
           }}
@@ -110,6 +119,7 @@ export const OperatorInboxDraftOrderPanel = memo(function OperatorInboxDraftOrde
           size="sm"
           variant={editMode ? "secondary" : "outline"}
           className="h-8 text-xs"
+          disabled={quantityEditsLocked}
           onClick={() => setEditMode((v) => !v)}
           aria-pressed={editMode}
         >
@@ -160,6 +170,11 @@ export const OperatorInboxDraftOrderPanel = memo(function OperatorInboxDraftOrde
           <Badge variant="outline" className="font-normal capitalize">
             Local decision: {localEdits.decision}
           </Badge>
+        ) : null}
+        {quantityEditsLocked ? (
+          <p className="w-full text-[11px] text-teal-900/80">
+            Quantity edits are locked while the sales order draft is under review or terminal.
+          </p>
         ) : null}
       </div>
       ) : null}

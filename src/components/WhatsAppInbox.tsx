@@ -1628,6 +1628,10 @@ export function WhatsAppInbox() {
                       lineQuantities={draftOrderLineQuantities}
                       onLineQuantityChange={handleDraftOrderLineQuantityChange}
                       onLineQuantitiesReset={handleDraftOrderLineQuantitiesReset}
+                      quantityEditsLocked={
+                        salesOrderDraftHook.draftStatus === "UNDER_REVIEW" ||
+                        salesOrderDraftHook.isTerminal
+                      }
                     />
                     <OperatorInboxSalesOrderDraftSection
                       extracted={

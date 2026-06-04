@@ -1,6 +1,7 @@
 import { supabase } from "@/integrations/supabase/client";
 import type { Database, Json } from "@/integrations/supabase/types";
 import type { ExtractedDraftOrder } from "@/lib/wa-governance/draftOrderExtractionTypes";
+import { assertPersistedDraftExtractionMatch } from "./assertPersistedDraftExtractionMatch";
 import {
   buildOperatorFinalSnapshot,
   buildDraftHeaderRpcPayload,
@@ -124,6 +125,14 @@ export async function submitSalesOrderDraftForReviewWithOperatorSync(
     throw new Error("Draft extraction must be ready before submitting for review.");
   }
 
+  const draftHeader = await fetchDraftHeaderForMutation(input.draftId);
+  assertPersistedDraftExtractionMatch({
+    extracted: input.extracted,
+    extractionRequestKey: draftHeader.extraction_request_key,
+    status: draftHeader.status,
+    actionLabel: "submit for review",
+  });
+
   const operatorFinal = buildOperatorFinalSnapshot(input.extracted, input.operatorLineQuantities);
   const linePayloads = buildDraftLineRpcPayloads(input.extracted, input.operatorLineQuantities);
 
@@ -197,6 +206,14 @@ export async function updateSalesOrderDraftOperatorFinal(args: {
   operatorLineQuantities: Record<number, number>;
   actor: TransitionSalesOrderDraftInput["actor"];
 }): Promise<SalesOrderDraftBundle> {
+  const draftHeader = await fetchDraftHeaderForMutation(args.draftId);
+  assertPersistedDraftExtractionMatch({
+    extracted: args.extracted,
+    extractionRequestKey: draftHeader.extraction_request_key,
+    status: draftHeader.status,
+    actionLabel: "sync operator edits",
+  });
+
   const operatorFinal = buildOperatorFinalSnapshot(args.extracted, args.operatorLineQuantities);
   const linePayloads = buildDraftLineRpcPayloads(args.extracted, args.operatorLineQuantities);
 
@@ -216,6 +233,19 @@ export async function updateSalesOrderDraftOperatorFinal(args: {
   const reloaded = await fetchSalesOrderDraftById(draftId ?? args.draftId);
   if (!reloaded) throw new Error("Failed to reload updated draft.");
   return reloaded;
+}
+
+async function fetchDraftHeaderForMutation(draftId: string): Promise<SalesOrderDraftRow> {
+  const { data: draftRow, error } = await supabase
+    .from("sales_order_drafts")
+    .select("id, status, extraction_request_key")
+    .eq("id", draftId)
+    .maybeSingle();
+
+  if (error) throw new Error(error.message);
+  if (!draftRow) throw new Error("Sales order draft not found.");
+
+  return parseDraftRow(draftRow as Database["public"]["Tables"]["sales_order_drafts"]["Row"]);
 }
 
 async function fetchSalesOrderDraftById(draftId: string): Promise<SalesOrderDraftBundle | null> {

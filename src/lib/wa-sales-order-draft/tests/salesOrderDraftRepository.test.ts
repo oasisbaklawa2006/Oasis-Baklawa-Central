@@ -1,12 +1,20 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { linesResult, auditResult, fromMock, rpcMock } = vi.hoisted(() => ({
+const { linesResult, auditResult, fromMock, rpcMock, draftHeaderResult } = vi.hoisted(() => ({
   linesResult: {
     data: null as unknown[] | null,
     error: null as { message: string } | null,
   },
   auditResult: {
     data: [] as unknown[],
+    error: null as { message: string } | null,
+  },
+  draftHeaderResult: {
+    data: {
+      id: "draft-1",
+      status: "AI_DRAFT",
+      extraction_request_key: "key-1",
+    } as Record<string, unknown> | null,
     error: null as { message: string } | null,
   },
   fromMock: vi.fn(),
@@ -25,6 +33,16 @@ function chainMock(result: { data: unknown; error: { message: string } | null })
     select: vi.fn().mockReturnValue({
       eq: vi.fn().mockReturnValue({
         order: vi.fn().mockResolvedValue(result),
+      }),
+    }),
+  };
+}
+
+function draftHeaderChainMock() {
+  return {
+    select: vi.fn().mockReturnValue({
+      eq: vi.fn().mockReturnValue({
+        maybeSingle: vi.fn().mockResolvedValue(draftHeaderResult),
       }),
     }),
   };
@@ -208,6 +226,12 @@ describe("updateSalesOrderDraftOperatorFinal atomicity", () => {
   beforeEach(() => {
     fromMock.mockReset();
     rpcMock.mockReset();
+    draftHeaderResult.data = {
+      id: "draft-1",
+      status: "AI_DRAFT",
+      extraction_request_key: "key-1",
+    };
+    draftHeaderResult.error = null;
   });
 
   it("uses RPC only and does not manually update header, lines, or audit", async () => {
@@ -218,7 +242,7 @@ describe("updateSalesOrderDraftOperatorFinal atomicity", () => {
       "utf8",
     );
     const updateStart = repo.indexOf("export async function updateSalesOrderDraftOperatorFinal");
-    const updateEnd = repo.indexOf("async function fetchSalesOrderDraftById");
+    const updateEnd = repo.indexOf("async function fetchDraftHeaderForMutation");
     const updateBlock = repo.slice(updateStart, updateEnd);
     expect(updateBlock).toMatch(/rpc\("update_sales_order_draft_operator_final"/);
     expect(updateBlock).not.toMatch(/from\("sales_order_drafts"\)\s*\n\s*\.update/);
@@ -232,13 +256,7 @@ describe("updateSalesOrderDraftOperatorFinal atomicity", () => {
 
     fromMock.mockImplementation((table: string) => {
       if (table === "sales_order_drafts") {
-        return {
-          select: vi.fn().mockReturnValue({
-            eq: vi.fn().mockReturnValue({
-              maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }),
-            }),
-          }),
-        };
+        return draftHeaderChainMock();
       }
       return chainMock({ data: [], error: null });
     });
@@ -266,11 +284,10 @@ describe("updateSalesOrderDraftOperatorFinal atomicity", () => {
     );
     expect(rpcMock).toHaveBeenCalledTimes(1);
 
-    const updateCalls = fromMock.mock.calls.filter(
-      ([table, _opts]) =>
-        table === "sales_order_drafts" || table === "sales_order_draft_audit_log",
+    const writeCalls = fromMock.mock.calls.filter(
+      ([table]) => table === "sales_order_draft_audit_log",
     );
-    expect(updateCalls).toHaveLength(0);
+    expect(writeCalls).toHaveLength(0);
   });
 
   it("operator final RPC migration verifies actor id matches auth.uid()", async () => {
@@ -292,6 +309,18 @@ describe("submitForReview atomicity (static)", () => {
   beforeEach(() => {
     fromMock.mockReset();
     rpcMock.mockReset();
+    draftHeaderResult.data = {
+      id: "draft-1",
+      status: "AI_DRAFT",
+      extraction_request_key: "key-1",
+    };
+    draftHeaderResult.error = null;
+    fromMock.mockImplementation((table: string) => {
+      if (table === "sales_order_drafts") {
+        return draftHeaderChainMock();
+      }
+      return chainMock({ data: [], error: null });
+    });
   });
 
   it("hook calls single repository method without chaining update and submit", async () => {
@@ -417,6 +446,43 @@ describe("submitForReview operator sync (static)", () => {
   });
 });
 
+describe("extraction projection guard (static)", () => {
+  it("sync and submit validate extraction_request_key before RPC", async () => {
+    const { readFileSync } = await import("node:fs");
+    const { join } = await import("node:path");
+    const repo = readFileSync(
+      join(import.meta.dirname, "../salesOrderDraftRepository.ts"),
+      "utf8",
+    );
+    expect(repo).toMatch(/assertPersistedDraftExtractionMatch/);
+    expect(repo).toMatch(/fetchDraftHeaderForMutation/);
+    const submitStart = repo.indexOf("export async function submitSalesOrderDraftForReviewWithOperatorSync");
+    const submitEnd = repo.indexOf("export async function approveSalesOrderDraft");
+    const submitBlock = repo.slice(submitStart, submitEnd);
+    expect(submitBlock).toMatch(/assertPersistedDraftExtractionMatch/);
+    const updateStart = repo.indexOf("export async function updateSalesOrderDraftOperatorFinal");
+    const updateEnd = repo.indexOf("async function fetchDraftHeaderForMutation");
+    const updateBlock = repo.slice(updateStart, updateEnd);
+    expect(updateBlock).toMatch(/assertPersistedDraftExtractionMatch/);
+  });
+
+  it("locks draft panel quantity edits while under review or terminal", async () => {
+    const { readFileSync } = await import("node:fs");
+    const { join } = await import("node:path");
+    const inbox = readFileSync(
+      join(import.meta.dirname, "../../../components/WhatsAppInbox.tsx"),
+      "utf8",
+    );
+    const panel = readFileSync(
+      join(import.meta.dirname, "../../../components/whatsapp/OperatorInboxDraftOrderPanel.tsx"),
+      "utf8",
+    );
+    expect(inbox).toMatch(/quantityEditsLocked/);
+    expect(inbox).toMatch(/draftStatus === "UNDER_REVIEW"/);
+    expect(panel).toMatch(/quantityEditsLocked/);
+    expect(panel).toMatch(/Quantity edits are locked while the sales order draft is under review/);
+  });
+});
 describe("persisted draft fetch and rejected recreate UI (static)", () => {
   it("enables draft fetch by packetId rather than extraction readiness", async () => {
     const { readFileSync } = await import("node:fs");

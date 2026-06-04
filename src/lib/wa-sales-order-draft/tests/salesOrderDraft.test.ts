@@ -10,6 +10,7 @@ import {
 } from "@/lib/wa-sales-order-draft/mapExtractedDraft";
 import { resolveOperatorLineQuantities } from "@/lib/wa-sales-order-draft/resolveOperatorLineQuantities";
 import { validateSalesOrderDraftReadiness } from "@/lib/wa-sales-order-draft/readinessValidation";
+import { assertPersistedDraftExtractionMatch } from "@/lib/wa-sales-order-draft/assertPersistedDraftExtractionMatch";
 import type { SalesOrderDraftBundle } from "@/lib/wa-sales-order-draft/types";
 import { getNextStatus, isTerminalStatus } from "@/lib/wa-sales-order-draft/workflowTransitions";
 import type { ExtractedDraftOrder } from "@/lib/wa-governance/draftOrderExtractionTypes";
@@ -126,6 +127,30 @@ describe("readiness validation", () => {
     }
     expect(sql).toMatch(/v_min_score constant integer := 40/);
     expect(SALES_ORDER_DRAFT_MIN_APPROVAL_SCORE).toBe(40);
+  });
+});
+
+describe("persisted extraction match guard", () => {
+  it("rejects sync/submit when live extraction key diverges", () => {
+    expect(() =>
+      assertPersistedDraftExtractionMatch({
+        extracted: { ...extractedFixture, extractionRequestKey: "new-key" },
+        extractionRequestKey: "key-1",
+        status: "AI_DRAFT",
+        actionLabel: "sync operator edits",
+      }),
+    ).toThrow(/Live extraction no longer matches the persisted draft projection/);
+  });
+
+  it("rejects mutations from terminal statuses", () => {
+    expect(() =>
+      assertPersistedDraftExtractionMatch({
+        extracted: extractedFixture,
+        extractionRequestKey: "key-1",
+        status: "APPROVED_FOR_SO",
+        actionLabel: "sync operator edits",
+      }),
+    ).toThrow(/terminal status APPROVED_FOR_SO/);
   });
 });
 
