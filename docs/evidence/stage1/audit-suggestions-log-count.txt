@@ -1,0 +1,15 @@
+# E20 — whatsapp_suggestions_log 24h count (read-only SQL)
+# Captured: 2026-06-04T03:10:00Z
+# Project: oasis-baklawa (tcxvcatsqqertcnycuop)
+# Executor: Supabase MCP execute_sql (service role)
+
+SQL:
+SELECT count(*) AS suggestions_log_24h
+FROM whatsapp_suggestions_log
+WHERE created_at > now() - interval '1 day';
+
+Result:
+suggestions_log_24h = 0
+
+Pass criteria (Stage-1): Zero inbox-driven writes in 24h.
+Verdict: PASS (no unexpected suggestion log writes in last 24h).

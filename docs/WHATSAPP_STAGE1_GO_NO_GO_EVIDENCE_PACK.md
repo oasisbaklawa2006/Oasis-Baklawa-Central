@@ -17,7 +17,17 @@
 **Static evidence artifacts (complete):**
 - `docs/evidence/stage1/ci-readonly-guard.log` — wa-governance test suite (137/137)
 - `docs/evidence/stage1/idempotency-reply-gap.md` — operator reply idempotency NO-GO (static)
-- `docs/evidence/stage1/rbac-url-access.md` — RBAC URL note (static; staging test pending)
+- `docs/evidence/stage1/rbac-url-access.md` — RBAC URL note (static)
+
+**Session 1 staging artifacts (partial — 2026-06-04):**
+- `docs/evidence/stage1/visibility-full-inbox.png` — E12 (empty inbox shell)
+- `docs/evidence/stage1/rbac-nav-hidden.png` — E10
+- `docs/evidence/stage1/rbac-direct-url-operator-inbox.png` + `rbac-url-access-staging.md` — E11 staging
+- `docs/evidence/stage1/pr69-smoke-checklist.md` — E14 (partial)
+- `docs/evidence/stage1/audit-override-log-count.txt` — E6
+- `docs/evidence/stage1/audit-suggestions-log-count.txt` — E20
+- `docs/evidence/stage1/webhook-auto-order-env.txt` — E18 (conditional)
+- `docs/evidence/stage1/e2-e3-deferred.md` — E2/E3 deferred
 
 ---
 
@@ -58,8 +68,8 @@ npx vitest run src/lib/wa-governance/tests/operatorInboxStage1Guard.test.ts
 
 **Evidence placeholders:**
 - [ ] Screenshot: load error banner (`<!-- EVIDENCE: alert-load-error.png -->`)
-- [ ] Screenshot: reply validation alert (`<!-- EVIDENCE: alert-reply-validation.png -->`)
-- [ ] Screenshot: failed delivery read-only panel (`<!-- EVIDENCE: alert-failed-msgs-panel.png -->`)
+- [ ] Screenshot: reply validation alert — **deferred** [`e2-e3-deferred.md`](../evidence/stage1/e2-e3-deferred.md)
+- [ ] Screenshot: failed delivery read-only panel — **deferred** [`e2-e3-deferred.md`](../evidence/stage1/e2-e3-deferred.md)
 
 ---
 
@@ -82,7 +92,7 @@ npx vitest run src/lib/wa-governance/tests/operatorInboxStage1Guard.test.ts -t "
 ```
 
 **Evidence placeholders:**
-- [ ] Screenshot: governance bar with three disabled actions (`<!-- EVIDENCE: queue-disabled-governance-bar.png -->`)
+- [ ] Screenshot: governance bar with three disabled actions — **blocked** [`queue-disabled-governance-bar.png.note.txt`](../evidence/stage1/queue-disabled-governance-bar.png.note.txt) (0 packets visible; RLS role_key gap)
 
 ---
 
@@ -102,8 +112,9 @@ rg 'whatsapp_override_log|whatsapp_suggestions_log' src/components src/lib/wa-go
 ```
 
 **Evidence placeholders:**
-- [ ] Screenshot: resolution panel "not persisted" label (`<!-- EVIDENCE: audit-readonly-label.png -->`)
-- [ ] SQL snapshot: `SELECT count(*) FROM whatsapp_override_log WHERE created_at > now() - interval '1 day';` (`<!-- EVIDENCE: audit-override-log-count.txt -->`)
+- [ ] Screenshot: resolution panel "not persisted" label — **blocked** (requires packet selection; 0 packets visible in Session 1)
+- [x] SQL snapshot: override log 24h count — [`audit-override-log-count.txt`](../evidence/stage1/audit-override-log-count.txt) (0 rows)
+- [x] SQL snapshot: suggestions log 24h count — [`audit-suggestions-log-count.txt`](../evidence/stage1/audit-suggestions-log-count.txt) (0 rows)
 
 ---
 
@@ -189,8 +200,9 @@ rg 'verify_jwt' supabase/config.toml | rg whatsapp
 ```
 
 **Evidence placeholders:**
-- [ ] Screenshot: non-support role cannot see nav link (`<!-- EVIDENCE: rbac-nav-hidden.png -->`) — **staging pending**
-- [x] Note: RBAC direct URL access (static audit only) — [`docs/evidence/stage1/rbac-url-access.md`](../evidence/stage1/rbac-url-access.md). Does **not** claim pass; multi-role staging test **pending**.
+- [x] Screenshot: non-support role cannot see nav link — [`rbac-nav-hidden.png`](../evidence/stage1/rbac-nav-hidden.png) (FINANCE_HEAD)
+- [x] Note: RBAC direct URL access (static) — [`rbac-url-access.md`](../evidence/stage1/rbac-url-access.md)
+- [x] Staging: RBAC direct URL behavior — [`rbac-url-access-staging.md`](../evidence/stage1/rbac-url-access-staging.md) + [`rbac-direct-url-operator-inbox.png`](../evidence/stage1/rbac-direct-url-operator-inbox.png) (finance URL loads; documented gap)
 
 ---
 
@@ -209,7 +221,8 @@ rg 'verify_jwt' supabase/config.toml | rg whatsapp
 **Manual smoke:** `docs/POST_MERGE_PR69_OPERATOR_INBOX_SMOKE.md`
 
 **Evidence placeholders:**
-- [ ] Screenshot: full inbox with insights column (`<!-- EVIDENCE: visibility-full-inbox.png -->`)
+- [x] Screenshot: full inbox layout — [`visibility-full-inbox.png`](../evidence/stage1/visibility-full-inbox.png) (empty inbox shell; insights column not expandable without packets)
+- [x] Smoke checklist (partial) — [`pr69-smoke-checklist.md`](../evidence/stage1/pr69-smoke-checklist.md)
 
 ---
 
@@ -360,8 +373,9 @@ rg 'functions\.invoke\("whatsapp-' src/components/WhatsAppInbox.tsx
 
 **Manual (staging):** complete `docs/POST_MERGE_PR69_OPERATOR_INBOX_SMOKE.md` and attach screenshots to §1 placeholders. Execution map: [`docs/evidence/stage1/staging-evidence-runbook.md`](../evidence/stage1/staging-evidence-runbook.md).
 
-**Static evidence (complete):** E7, E9, E11 — see `docs/evidence/stage1/`.  
-**Staging evidence (pending):** E1–E6, E8, E10, E12–E20 — screenshots, SQL snapshots, smoke checklist, sign-off.
+**Static evidence (complete):** E7, E9, E11 (static note).  
+**Session 1 staging (partial):** E6, E10, E11 (staging), E12 (shell), E14 (partial), E18 (conditional), E20 — see `docs/evidence/stage1/`.  
+**Staging evidence (still pending):** E1, E2, E3, E4, E5, E8, E13, E15–E17, E19; E14 items blocked on packet visibility; optional E18 dashboard secret screenshot.
 
 ---
 

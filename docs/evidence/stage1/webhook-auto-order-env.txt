@@ -1,0 +1,27 @@
+# E18 — ENABLE_WA_WEBHOOK_AUTO_ORDER_WRITES env verification
+# Captured: 2026-06-04T03:10:00Z
+# Environment: Supabase project oasis-baklawa (ref tcxvcatsqqertcnycuop)
+# App URL: https://cursor-central-vercel.vercel.app
+
+## Flag under test
+ENABLE_WA_WEBHOOK_AUTO_ORDER_WRITES
+
+## Code contract (repo main)
+- File: supabase/functions/_shared/wa-governance/flags.ts
+- Default when unset: false (parseEnvFlagTrue returns false for undefined)
+- True only when env is explicitly "true", "1", or "yes"
+
+## Verification performed (read-only)
+1. Supabase MCP execute_sql on vault.secrets for names matching %WA% / %WEBHOOK% → no rows returned (no named secret exposed via this path; does not prove absence in Edge runtime secrets UI).
+2. Edge function whatsapp-webhook deployed (v99) reads flag via isWaWebhookAutoOrderWritesEnabled at handler start.
+3. Unit tests: src/lib/wa-governance/__tests__/waFlags.test.ts — unset env defaults to false.
+
+## Vercel env read
+- Vercel MCP: project cursor-central-vercel confirmed; no env-var list tool result captured for this flag (flag is Edge-side on Supabase, not Vite client env).
+
+## Staging conclusion (conditional PASS)
+- **Observed:** No evidence flag is enabled in repo defaults or readable secret store.
+- **Expected runtime posture:** Pipeline C auto-order writes **disabled** unless Edge secret explicitly set.
+- **Residual gap:** Human confirmation in Supabase Dashboard → Edge Functions → Secrets recommended to close E18 with dashboard screenshot (optional follow-up).
+
+Verdict: **PASS (code-default + no readable enablement)** — conditional pending optional dashboard secret screenshot.
