@@ -508,6 +508,18 @@ describe("extraction projection guard (static)", () => {
     expect(section).toMatch(/Reject draft/);
     expect(section).toMatch(/!extracted \|\| extractionProjectionStale/);
   });
+  it("hides create draft CTA while persisted draft is loading", async () => {
+    const { readFileSync } = await import("node:fs");
+    const { join } = await import("node:path");
+    const section = readFileSync(
+      join(
+        import.meta.dirname,
+        "../../../components/whatsapp/OperatorInboxSalesOrderDraftSection.tsx",
+      ),
+      "utf8",
+    );
+    expect(section).toMatch(/!bundle && state\.status !== "loading"/);
+  });
 });
 describe("persisted draft fetch and rejected recreate UI (static)", () => {
   it("enables draft fetch by packetId rather than extraction readiness", async () => {

@@ -105,7 +105,7 @@ export const OperatorInboxSalesOrderDraftSection = memo(function OperatorInboxSa
         </p>
       ) : null}
 
-      {!bundle ? (
+      {!bundle && state.status !== "loading" ? (
         <div className="mt-3">
           <Button
             type="button"
