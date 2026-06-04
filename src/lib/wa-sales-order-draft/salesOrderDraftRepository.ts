@@ -6,7 +6,6 @@ import {
   buildDraftHeaderRpcPayload,
   buildDraftLineRpcPayloads,
 } from "./mapExtractedDraft";
-import { canTransitionToApproved } from "./readinessValidation";
 import type {
   CreateSalesOrderDraftInput,
   SalesOrderDraftAuditEntry,
@@ -16,7 +15,6 @@ import type {
   SubmitSalesOrderDraftForReviewInput,
   TransitionSalesOrderDraftInput,
 } from "./types";
-import { getNextStatus } from "./workflowTransitions";
 
 function parseDraftRow(row: Database["public"]["Tables"]["sales_order_drafts"]["Row"]): SalesOrderDraftRow {
   return {
@@ -119,12 +117,6 @@ export async function createSalesOrderDraft(
   return bundle;
 }
 
-export async function submitSalesOrderDraftForReview(
-  input: TransitionSalesOrderDraftInput,
-): Promise<SalesOrderDraftBundle> {
-  return transitionDraft(input, "SUBMIT_REVIEW", "SUBMIT_REVIEW");
-}
-
 export async function submitSalesOrderDraftForReviewWithOperatorSync(
   input: SubmitSalesOrderDraftForReviewInput,
 ): Promise<SalesOrderDraftBundle> {
@@ -156,15 +148,21 @@ export async function submitSalesOrderDraftForReviewWithOperatorSync(
 export async function approveSalesOrderDraft(
   input: TransitionSalesOrderDraftInput,
 ): Promise<SalesOrderDraftBundle> {
-  const bundle = await fetchSalesOrderDraftById(input.draftId);
-  if (!bundle) throw new Error("Sales order draft not found.");
+  const { data: draftId, error } = await supabase.rpc("approve_sales_order_draft_for_so_atomic", {
+    p_draft_id: input.draftId,
+    p_actor_id: input.actor.id,
+    p_actor_name: input.actor.name,
+    p_review_notes: input.reviewNotes ?? null,
+    p_metadata: {
+      reviewNotes: input.reviewNotes ?? null,
+    } as Json,
+  });
 
-  const validation = canTransitionToApproved(bundle.draft.readiness_dimensions);
-  if (!validation.valid) {
-    throw new Error(validation.messages.join(" "));
-  }
+  if (error) throw new Error(error.message);
 
-  return transitionDraft(input, "APPROVE", "APPROVE");
+  const reloaded = await fetchSalesOrderDraftById(draftId ?? input.draftId);
+  if (!reloaded) throw new Error("Failed to reload approved draft.");
+  return reloaded;
 }
 
 export async function rejectSalesOrderDraft(
@@ -173,7 +171,24 @@ export async function rejectSalesOrderDraft(
   if (!input.rejectionReason?.trim()) {
     throw new Error("Rejection reason is required.");
   }
-  return transitionDraft(input, "REJECT", "REJECT");
+
+  const { data: draftId, error } = await supabase.rpc("reject_sales_order_draft_atomic", {
+    p_draft_id: input.draftId,
+    p_actor_id: input.actor.id,
+    p_actor_name: input.actor.name,
+    p_rejection_reason: input.rejectionReason.trim(),
+    p_review_notes: input.reviewNotes ?? null,
+    p_metadata: {
+      reviewNotes: input.reviewNotes ?? null,
+      rejectionReason: input.rejectionReason.trim(),
+    } as Json,
+  });
+
+  if (error) throw new Error(error.message);
+
+  const reloaded = await fetchSalesOrderDraftById(draftId ?? input.draftId);
+  if (!reloaded) throw new Error("Failed to reload rejected draft.");
+  return reloaded;
 }
 
 export async function updateSalesOrderDraftOperatorFinal(args: {
@@ -222,44 +237,6 @@ async function fetchSalesOrderDraftById(draftId: string): Promise<SalesOrderDraf
     lines,
     auditLog,
   };
-}
-
-async function transitionDraft(
-  input: TransitionSalesOrderDraftInput,
-  transition: "SUBMIT_REVIEW" | "APPROVE" | "REJECT",
-  auditAction: SalesOrderDraftAuditEntry["action"],
-): Promise<SalesOrderDraftBundle> {
-  const bundle = await fetchSalesOrderDraftById(input.draftId);
-  if (!bundle) throw new Error("Sales order draft not found.");
-
-  const expectedStatus = bundle.draft.status;
-  const nextStatus = getNextStatus(expectedStatus, transition);
-  if (!nextStatus) {
-    throw new Error(`Transition ${transition} not allowed from ${expectedStatus}.`);
-  }
-
-  const { error } = await supabase.rpc("transition_sales_order_draft_status", {
-    p_draft_id: input.draftId,
-    p_expected_status: expectedStatus,
-    p_next_status: nextStatus,
-    p_action: auditAction,
-    p_actor_id: input.actor.id,
-    p_actor_name: input.actor.name,
-    p_review_notes: input.reviewNotes ?? null,
-    p_rejection_reason: input.rejectionReason?.trim() ?? null,
-    p_approver_id: transition === "APPROVE" ? input.actor.id : null,
-    p_approver_name: transition === "APPROVE" ? input.actor.name : null,
-    p_metadata: {
-      reviewNotes: input.reviewNotes ?? null,
-      rejectionReason: input.rejectionReason ?? null,
-    } as Json,
-  });
-
-  if (error) throw new Error(error.message);
-
-  const reloaded = await fetchSalesOrderDraftById(input.draftId);
-  if (!reloaded) throw new Error("Failed to reload transitioned draft.");
-  return reloaded;
 }
 
 export { fetchSalesOrderDraftById };

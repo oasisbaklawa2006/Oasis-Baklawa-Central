@@ -70,20 +70,105 @@ describe("fetchDraftLinesAndAudit", () => {
   });
 });
 
-describe("transitionDraft atomicity (static)", () => {
-  it("uses RPC for status transition and does not append audit separately", async () => {
+describe("approve and reject atomicity (static)", () => {
+  beforeEach(() => {
+    rpcMock.mockReset();
+  });
+
+  it("approve uses atomic RPC only without operator sync chain", async () => {
     const { readFileSync } = await import("node:fs");
     const { join } = await import("node:path");
     const repo = readFileSync(
       join(import.meta.dirname, "../salesOrderDraftRepository.ts"),
       "utf8",
     );
-    const transitionStart = repo.indexOf("async function transitionDraft");
-    expect(transitionStart).toBeGreaterThan(-1);
-    const transitionBlock = repo.slice(transitionStart);
-    expect(transitionBlock).toMatch(/rpc\("transition_sales_order_draft_status"/);
-    expect(transitionBlock).not.toMatch(/appendAuditEntry/);
-    expect(transitionBlock).not.toMatch(/from\("sales_order_drafts"\)\s*\n\s*\.update/);
+    const approveStart = repo.indexOf("export async function approveSalesOrderDraft");
+    const approveEnd = repo.indexOf("export async function rejectSalesOrderDraft");
+    const approveBlock = repo.slice(approveStart, approveEnd);
+    expect(approveBlock).toMatch(/rpc\("approve_sales_order_draft_for_so_atomic"/);
+    expect(approveBlock).not.toMatch(/update_sales_order_draft_operator_final/);
+    expect(approveBlock).not.toMatch(/transition_sales_order_draft_status/);
+    expect(approveBlock).not.toMatch(/canTransitionToApproved/);
+    expect(approveBlock).not.toMatch(/from\("sales_order_drafts"\)\s*\n\s*\.update/);
+  });
+
+  it("reject uses atomic RPC only", async () => {
+    const { readFileSync } = await import("node:fs");
+    const { join } = await import("node:path");
+    const repo = readFileSync(
+      join(import.meta.dirname, "../salesOrderDraftRepository.ts"),
+      "utf8",
+    );
+    const rejectStart = repo.indexOf("export async function rejectSalesOrderDraft");
+    const rejectEnd = repo.indexOf("export async function updateSalesOrderDraftOperatorFinal");
+    const rejectBlock = repo.slice(rejectStart, rejectEnd);
+    expect(rejectBlock).toMatch(/rpc\("reject_sales_order_draft_atomic"/);
+    expect(rejectBlock).not.toMatch(/transition_sales_order_draft_status/);
+    expect(rejectBlock).not.toMatch(/from\("sales_order_drafts"\)\s*\n\s*\.update/);
+  });
+
+  it("throws on approve RPC failure without separate writes", async () => {
+    rpcMock.mockResolvedValue({ data: null, error: { message: "client is not ready" } });
+
+    const { approveSalesOrderDraft } = await import(
+      "@/lib/wa-sales-order-draft/salesOrderDraftRepository"
+    );
+
+    await expect(
+      approveSalesOrderDraft({
+        draftId: "draft-1",
+        actor: { id: "user-1", name: "Approver" },
+      }),
+    ).rejects.toThrow("client is not ready");
+
+    expect(rpcMock).toHaveBeenCalledWith(
+      "approve_sales_order_draft_for_so_atomic",
+      expect.objectContaining({ p_draft_id: "draft-1", p_actor_id: "user-1" }),
+    );
+    expect(rpcMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("throws on reject RPC failure without separate writes", async () => {
+    rpcMock.mockResolvedValue({ data: null, error: { message: "Reject not allowed" } });
+
+    const { rejectSalesOrderDraft } = await import(
+      "@/lib/wa-sales-order-draft/salesOrderDraftRepository"
+    );
+
+    await expect(
+      rejectSalesOrderDraft({
+        draftId: "draft-1",
+        actor: { id: "user-1", name: "Reviewer" },
+        rejectionReason: "Incomplete address",
+      }),
+    ).rejects.toThrow("Reject not allowed");
+
+    expect(rpcMock).toHaveBeenCalledWith(
+      "reject_sales_order_draft_atomic",
+      expect.objectContaining({
+        p_draft_id: "draft-1",
+        p_rejection_reason: "Incomplete address",
+      }),
+    );
+    expect(rpcMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("approve/reject RPC migrations verify actor id and readiness validation", async () => {
+    const { readFileSync } = await import("node:fs");
+    const { join } = await import("node:path");
+    const sql = readFileSync(
+      join(
+        import.meta.dirname,
+        "../../../../supabase/migrations/20260606160000_wa_sprint9_sales_order_draft_approve_reject_atomic_rpc.sql",
+      ),
+      "utf8",
+    );
+    expect(sql).toMatch(/p_actor_id IS DISTINCT FROM auth\.uid\(\)/);
+    expect(sql).toMatch(/validate_sales_order_draft_readiness/);
+    expect(sql).toMatch(/APPROVE/);
+    expect(sql).toMatch(/REJECT/);
+    expect(sql).toMatch(/UNDER_REVIEW/);
+    expect(sql).toMatch(/payment_terms/);
   });
 });
 
@@ -96,7 +181,7 @@ describe("createSalesOrderDraft atomicity", () => {
       "utf8",
     );
     const createStart = repo.indexOf("export async function createSalesOrderDraft");
-    const createEnd = repo.indexOf("export async function submitSalesOrderDraftForReview");
+    const createEnd = repo.indexOf("export async function submitSalesOrderDraftForReviewWithOperatorSync");
     const createBlock = repo.slice(createStart, createEnd);
     expect(createBlock).toMatch(/rpc\("create_sales_order_draft_atomic"/);
     expect(createBlock).not.toMatch(/from\("sales_order_drafts"\)\s*\n\s*\.insert/);
@@ -111,7 +196,7 @@ describe("createSalesOrderDraft atomicity", () => {
       "utf8",
     );
     const createStart = repo.indexOf("export async function createSalesOrderDraft");
-    const createEnd = repo.indexOf("export async function submitSalesOrderDraftForReview");
+    const createEnd = repo.indexOf("export async function submitSalesOrderDraftForReviewWithOperatorSync");
     const createBlock = repo.slice(createStart, createEnd);
     expect(createBlock).toMatch(/fetchSalesOrderDraftById\(draftId\)/);
     expect(createBlock).toMatch(/return existing;/);
@@ -316,7 +401,7 @@ describe("submitForReview operator sync (static)", () => {
     expect(submitBlock).toMatch(/Draft extraction must be ready before submitting for review/);
   });
 
-  it("persists latest operator quantities before approve transition", async () => {
+  it("approve uses single atomic repository call without operator sync chain", async () => {
     const { readFileSync } = await import("node:fs");
     const { join } = await import("node:path");
     const hook = readFileSync(
@@ -325,13 +410,10 @@ describe("submitForReview operator sync (static)", () => {
     );
     const approveStart = hook.indexOf("const approveDraft = useCallback");
     expect(approveStart).toBeGreaterThan(-1);
-    const approveBlock = hook.slice(approveStart, approveStart + 900);
-    expect(approveBlock).toMatch(/resolveLatestOperatorLineQuantities/);
-    expect(approveBlock).toMatch(/updateSalesOrderDraftOperatorFinal/);
+    const approveBlock = hook.slice(approveStart, approveStart + 500);
     expect(approveBlock).toMatch(/approveSalesOrderDraft/);
-    expect(approveBlock.indexOf("updateSalesOrderDraftOperatorFinal")).toBeLessThan(
-      approveBlock.indexOf("approveSalesOrderDraft"),
-    );
+    expect(approveBlock).not.toMatch(/updateSalesOrderDraftOperatorFinal/);
+    expect(approveBlock).not.toMatch(/resolveLatestOperatorLineQuantities/);
   });
 });
 

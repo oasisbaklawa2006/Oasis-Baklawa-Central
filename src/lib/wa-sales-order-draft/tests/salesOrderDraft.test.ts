@@ -108,6 +108,25 @@ describe("readiness validation", () => {
     expect(result.valid).toBe(false);
     expect(result.blockingDimensions[0].dimension).toBe("client");
   });
+
+  it("requires all five dimensions with score >= 40 for approval", async () => {
+    const { readFileSync } = await import("node:fs");
+    const { join } = await import("node:path");
+    const { SALES_ORDER_DRAFT_REQUIRED_READINESS_DIMENSIONS, SALES_ORDER_DRAFT_MIN_APPROVAL_SCORE } =
+      await import("@/lib/wa-sales-order-draft/readinessValidation");
+    const sql = readFileSync(
+      join(
+        import.meta.dirname,
+        "../../../../supabase/migrations/20260606160000_wa_sprint9_sales_order_draft_approve_reject_atomic_rpc.sql",
+      ),
+      "utf8",
+    );
+    for (const dim of SALES_ORDER_DRAFT_REQUIRED_READINESS_DIMENSIONS) {
+      expect(sql).toMatch(new RegExp(`'${dim}'`));
+    }
+    expect(sql).toMatch(/v_min_score constant integer := 40/);
+    expect(SALES_ORDER_DRAFT_MIN_APPROVAL_SCORE).toBe(40);
+  });
 });
 
 describe("map extracted draft", () => {

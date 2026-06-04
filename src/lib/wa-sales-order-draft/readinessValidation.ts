@@ -1,7 +1,7 @@
 import type { DraftOrderReadinessDimension } from "@/lib/wa-governance/draftOrderExtractionTypes";
 import type { ReadinessValidationResult } from "./types";
 
-const REQUIRED_DIMENSIONS = [
+export const SALES_ORDER_DRAFT_REQUIRED_READINESS_DIMENSIONS = [
   "client",
   "product",
   "quantity",
@@ -9,7 +9,7 @@ const REQUIRED_DIMENSIONS = [
   "payment_terms",
 ] as const;
 
-const MIN_APPROVAL_SCORE = 40;
+export const SALES_ORDER_DRAFT_MIN_APPROVAL_SCORE = 40;
 
 export function validateSalesOrderDraftReadiness(
   dimensions: DraftOrderReadinessDimension[],
@@ -18,13 +18,16 @@ export function validateSalesOrderDraftReadiness(
   const blockingDimensions: DraftOrderReadinessDimension[] = [];
   const messages: string[] = [];
 
-  for (const key of REQUIRED_DIMENSIONS) {
+  for (const key of SALES_ORDER_DRAFT_REQUIRED_READINESS_DIMENSIONS) {
     const dimension = byKey.get(key);
     if (!dimension) {
       messages.push(`Missing readiness dimension: ${key}.`);
       continue;
     }
-    if (dimension.status === "missing" || dimension.score < MIN_APPROVAL_SCORE) {
+    if (
+      dimension.status === "missing" ||
+      dimension.score < SALES_ORDER_DRAFT_MIN_APPROVAL_SCORE
+    ) {
       blockingDimensions.push(dimension);
       messages.push(
         `${key} is not ready (${dimension.score}% — ${dimension.status}). ${dimension.explanation}`,

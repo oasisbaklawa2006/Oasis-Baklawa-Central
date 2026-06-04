@@ -4211,6 +4211,33 @@ export type Database = {
         }
         Returns: string
       }
+      approve_sales_order_draft_for_so_atomic: {
+        Args: {
+          p_draft_id: string
+          p_actor_id: string
+          p_actor_name: string
+          p_review_notes?: string | null
+          p_metadata?: Json
+        }
+        Returns: string
+      }
+      reject_sales_order_draft_atomic: {
+        Args: {
+          p_draft_id: string
+          p_actor_id: string
+          p_actor_name: string
+          p_rejection_reason: string
+          p_review_notes?: string | null
+          p_metadata?: Json
+        }
+        Returns: string
+      }
+      validate_sales_order_draft_readiness: {
+        Args: {
+          p_dimensions: Json
+        }
+        Returns: undefined
+      }
     }
     Enums: {
       [_ in never]: never
