@@ -562,7 +562,7 @@ describe("submitForReview operator sync (static)", () => {
     );
     const approveStart = hook.indexOf("const approveDraft = useCallback");
     expect(approveStart).toBeGreaterThan(-1);
-    const approveBlock = hook.slice(approveStart, approveStart + 500);
+    const approveBlock = hook.slice(approveStart, approveStart + 700);
     expect(approveBlock).toMatch(/approveSalesOrderDraft/);
     expect(approveBlock).not.toMatch(/updateSalesOrderDraftOperatorFinal/);
     expect(approveBlock).not.toMatch(/resolveLatestOperatorLineQuantities/);
@@ -694,19 +694,58 @@ describe("extraction projection guard (static)", () => {
     const approveButtonStart = section.indexOf("Approve for SO");
     expect(approveButtonStart).toBeGreaterThan(-1);
     const approveBlock = section.slice(approveButtonStart - 520, approveButtonStart + 80);
-    expect(approveBlock).toMatch(/extractionProjectionStale/);
-    expect(approveBlock).toMatch(/approvalReadiness\?\.valid/);
+    expect(approveBlock).toMatch(/canApproveDraft/);
+    expect(approveBlock).toMatch(/extractionReady/);
+    expect(section).toMatch(/Waiting for latest WhatsApp extraction/);
     expect(section).toMatch(
       /Cannot approve: draft was created from an older WhatsApp extraction/,
     );
 
     const approveDraftStart = hook.indexOf("const approveDraft = useCallback");
     expect(approveDraftStart).toBeGreaterThan(-1);
-    const approveHandlerBlock = hook.slice(approveDraftStart, approveDraftStart + 550);
+    const approveHandlerBlock = hook.slice(approveDraftStart, approveDraftStart + 650);
+    expect(approveHandlerBlock).toMatch(/if \(!extracted\)/);
+    expect(approveHandlerBlock).toMatch(/Waiting for latest WhatsApp extraction/);
     expect(approveHandlerBlock).toMatch(/if \(extractionProjectionStale\)/);
     expect(approveHandlerBlock).toMatch(/setActionError/);
-    expect(approveHandlerBlock).toMatch(/Cannot approve: draft was created from an older WhatsApp extraction/);
     expect(approveHandlerBlock).toMatch(/return;/);
+  });
+
+  it("blocks approve in UI when extraction is null, loading, or error", async () => {
+    const { readFileSync } = await import("node:fs");
+    const { join } = await import("node:path");
+    const section = readFileSync(
+      join(
+        import.meta.dirname,
+        "../../../components/whatsapp/OperatorInboxSalesOrderDraftSection.tsx",
+      ),
+      "utf8",
+    );
+    const hook = readFileSync(
+      join(import.meta.dirname, "../../../components/whatsapp/useOperatorInboxSalesOrderDraft.ts"),
+      "utf8",
+    );
+    expect(section).toMatch(/!extractionReady \|\| !extracted/);
+    expect(section).toMatch(/disabled=\{actionPending \|\| !canApproveDraft \|\| !extractionReady\}/);
+    expect(hook).toMatch(/canApproveDraft/);
+    expect(hook).toMatch(/approveExtractionReady = Boolean\(extracted\)/);
+  });
+
+  it("clears actionPending via action token after stale async action completes", async () => {
+    const { readFileSync } = await import("node:fs");
+    const { join } = await import("node:path");
+    const hook = readFileSync(
+      join(import.meta.dirname, "../../../components/whatsapp/useOperatorInboxSalesOrderDraft.ts"),
+      "utf8",
+    );
+    const runActionStart = hook.indexOf("const runAction = useCallback");
+    expect(runActionStart).toBeGreaterThan(-1);
+    const runActionBlock = hook.slice(runActionStart, runActionStart + 900);
+    expect(runActionBlock).toMatch(/actionTokenRef/);
+    expect(runActionBlock).toMatch(/const actionToken = \+\+actionTokenRef\.current/);
+    expect(runActionBlock).toMatch(/if \(actionTokenRef\.current === actionToken\)/);
+    expect(runActionBlock).toMatch(/setActionPending\(false\)/);
+    expect(hook).toMatch(/actionTokenRef\.current \+= 1[\s\S]*setActionPending\(false\)/);
   });
 
   it("hides create draft CTA while persisted draft is loading", async () => {

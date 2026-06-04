@@ -48,6 +48,8 @@ export const OperatorInboxSalesOrderDraftSection = memo(function OperatorInboxSa
     isTerminal,
     isPersistedDraftLoading,
     canShowCreateDraft,
+    approveExtractionReady,
+    canApproveDraft,
     createDraft,
     submitForReview,
     approveDraft,
@@ -237,6 +239,11 @@ export const OperatorInboxSalesOrderDraftSection = memo(function OperatorInboxSa
               ) : null}
               {bundle.draft.status === "UNDER_REVIEW" ? (
                 <>
+                  {!extractionReady || !extracted ? (
+                    <p className="w-full text-[11px] text-amber-950">
+                      Waiting for latest WhatsApp extraction.
+                    </p>
+                  ) : null}
                   {extractionProjectionStale ? (
                     <p className="w-full text-[11px] text-amber-950">
                       Cannot approve: draft was created from an older WhatsApp extraction. Reject and
@@ -247,11 +254,7 @@ export const OperatorInboxSalesOrderDraftSection = memo(function OperatorInboxSa
                     type="button"
                     size="sm"
                     className="h-8 text-xs border-emerald-300 text-emerald-900 hover:bg-emerald-50"
-                    disabled={
-                      actionPending ||
-                      extractionProjectionStale ||
-                      !(approvalReadiness?.valid ?? false)
-                    }
+                    disabled={actionPending || !canApproveDraft || !extractionReady}
                     onClick={() => void approveDraft(reviewNotes || undefined)}
                   >
                     <CheckCircle2 className="mr-1 h-3 w-3" aria-hidden />

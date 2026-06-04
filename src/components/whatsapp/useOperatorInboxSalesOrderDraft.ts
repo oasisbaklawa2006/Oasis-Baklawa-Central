@@ -46,10 +46,13 @@ export function useOperatorInboxSalesOrderDraft(args: {
   const [actionError, setActionError] = useState<string | null>(null);
   const activePacketIdRef = useRef<string | null>(packetId);
   const requestGenerationRef = useRef(0);
+  const actionTokenRef = useRef(0);
 
   useEffect(() => {
     activePacketIdRef.current = packetId;
     requestGenerationRef.current += 1;
+    actionTokenRef.current += 1;
+    setActionPending(false);
     if (packetId && enabled) {
       setState({ status: "loading" });
     } else {
@@ -122,6 +125,7 @@ export function useOperatorInboxSalesOrderDraft(args: {
       if (!packetId) return;
       const requestPacketId = packetId;
       const requestGeneration = requestGenerationRef.current;
+      const actionToken = ++actionTokenRef.current;
       setActionPending(true);
       setActionError(null);
       try {
@@ -133,7 +137,7 @@ export function useOperatorInboxSalesOrderDraft(args: {
         if (!isActivePacketRequest(requestPacketId, requestGeneration)) return;
         setActionError(error instanceof Error ? error.message : "Action failed.");
       } finally {
-        if (isActivePacketRequest(requestPacketId, requestGeneration)) {
+        if (actionTokenRef.current === actionToken) {
           setActionPending(false);
         }
       }
@@ -200,6 +204,10 @@ export function useOperatorInboxSalesOrderDraft(args: {
   const approveDraft = useCallback(async (reviewNotes?: string) => {
     const actor = actorFromUser(user);
     if (!currentBundle || !actor) return;
+    if (!extracted) {
+      setActionError("Waiting for latest WhatsApp extraction.");
+      return;
+    }
     if (extractionProjectionStale) {
       setActionError(
         "Cannot approve: draft was created from an older WhatsApp extraction. Reject and create a new draft first.",
@@ -213,7 +221,7 @@ export function useOperatorInboxSalesOrderDraft(args: {
         reviewNotes,
       }),
     );
-  }, [currentBundle, extractionProjectionStale, runAction, user]);
+  }, [currentBundle, extracted, extractionProjectionStale, runAction, user]);
 
   const rejectDraft = useCallback(
     async (rejectionReason: string, reviewNotes?: string) => {
@@ -263,12 +271,19 @@ export function useOperatorInboxSalesOrderDraft(args: {
   const isPersistedDraftLoading =
     Boolean(enabled && packetId) && (state.status === "loading" || state.status === "idle");
   const canShowCreateDraft = state.status === "ready" && !currentBundle;
+  const approveExtractionReady = Boolean(extracted);
+  const canApproveDraft =
+    approveExtractionReady &&
+    !extractionProjectionStale &&
+    Boolean(approvalReadiness?.valid);
 
   return {
     state,
     comparisonView,
     approvalReadiness,
     extractionProjectionStale,
+    approveExtractionReady,
+    canApproveDraft,
     actionPending,
     actionError,
     draftStatus,
