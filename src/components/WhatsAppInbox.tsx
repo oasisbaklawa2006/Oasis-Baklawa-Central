@@ -82,7 +82,10 @@ import { useOperatorInboxProductResolution } from "@/components/whatsapp/useOper
 import { OperatorInboxQuantityResolutionPanel } from "@/components/whatsapp/OperatorInboxQuantityResolutionPanel";
 import { useOperatorInboxQuantityResolution } from "@/components/whatsapp/useOperatorInboxQuantityResolution";
 import { OperatorInboxDraftOrderPanel } from "@/components/whatsapp/OperatorInboxDraftOrderPanel";
+import { OperatorInboxSalesOrderDraftSection } from "@/components/whatsapp/OperatorInboxSalesOrderDraftSection";
+import { getDraftOrderLocalEdits } from "@/components/whatsapp/operatorInboxDraftOrderLocalState";
 import { useOperatorInboxDraftOrderExtraction } from "@/components/whatsapp/useOperatorInboxDraftOrderExtraction";
+import { useOperatorInboxSalesOrderDraft } from "@/components/whatsapp/useOperatorInboxSalesOrderDraft";
 import { buildWhatsAppOperationalFeed, normalizeWhatsAppEvents } from "@/lib/operational-events";
 
 const REALTIME_CHANNEL = "whatsapp-inbox-packets";
@@ -193,6 +196,17 @@ export function WhatsAppInbox() {
       productResolutionState,
       quantityResolutionState,
     );
+  const draftOrderLocalEdits = selectedPacket
+    ? getDraftOrderLocalEdits(selectedPacket.id)
+    : { lineQuantities: {}, decision: "pending" as const, updatedAt: "" };
+  const salesOrderDraftHook = useOperatorInboxSalesOrderDraft({
+    packetId: selectedPacket?.id ?? null,
+    extracted:
+      draftOrderExtractionState.status === "ready" ? draftOrderExtractionState.draft : null,
+    operatorLineQuantities: draftOrderLocalEdits.lineQuantities,
+    user,
+    enabled: draftOrderExtractionState.status === "ready",
+  });
   const packetListVirtualRef = useRef<OperatorInboxVirtualizedPacketListHandle>(null);
   const [messagesBatchWarnings, setMessagesBatchWarnings] = useState<string[]>([]);
   const inboxLoadGenerationRef = useRef(0);
@@ -1586,6 +1600,15 @@ export function WhatsAppInbox() {
                       state={draftOrderExtractionState}
                       requestKey={draftOrderExtractionRequestKey}
                       packetId={selectedPacket.id}
+                    />
+                    <OperatorInboxSalesOrderDraftSection
+                      extracted={
+                        draftOrderExtractionState.status === "ready"
+                          ? draftOrderExtractionState.draft
+                          : null
+                      }
+                      draftHook={salesOrderDraftHook}
+                      extractionReady={draftOrderExtractionState.status === "ready"}
                     />
                     {showAiPreviewPanel ? (
                       <OperatorInboxLocalAiPreviewPanel messages={selectedPacket.messages ?? []} />

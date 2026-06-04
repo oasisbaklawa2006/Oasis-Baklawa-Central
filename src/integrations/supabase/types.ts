@@ -3144,6 +3144,211 @@ export type Database = {
         }
         Relationships: []
       }
+      sales_order_draft_audit_log: {
+        Row: {
+          action: string
+          actor_id: string | null
+          actor_name: string | null
+          created_at: string
+          draft_id: string
+          from_status: string | null
+          id: string
+          metadata: Json
+          to_status: string | null
+        }
+        Insert: {
+          action: string
+          actor_id?: string | null
+          actor_name?: string | null
+          created_at?: string
+          draft_id: string
+          from_status?: string | null
+          id?: string
+          metadata?: Json
+          to_status?: string | null
+        }
+        Update: {
+          action?: string
+          actor_id?: string | null
+          actor_name?: string | null
+          created_at?: string
+          draft_id?: string
+          from_status?: string | null
+          id?: string
+          metadata?: Json
+          to_status?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sales_order_draft_audit_log_draft_id_fkey"
+            columns: ["draft_id"]
+            isOneToOne: false
+            referencedRelation: "sales_order_drafts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      sales_order_draft_lines: {
+        Row: {
+          ai_line_snapshot: Json
+          conversion_explanation: string | null
+          created_at: string
+          draft_id: string
+          id: string
+          line_index: number
+          normalized_quantity: number | null
+          normalized_unit: string | null
+          operator_line_snapshot: Json
+          operator_quantity: number | null
+          original_text_span: string | null
+          product_confidence: number | null
+          product_id: string | null
+          product_name: string
+          quantity_confidence: number | null
+          raw_quantity: number
+          raw_unit: string | null
+          sku: string | null
+          updated_at: string
+        }
+        Insert: {
+          ai_line_snapshot?: Json
+          conversion_explanation?: string | null
+          created_at?: string
+          draft_id: string
+          id?: string
+          line_index: number
+          normalized_quantity?: number | null
+          normalized_unit?: string | null
+          operator_line_snapshot?: Json
+          operator_quantity?: number | null
+          original_text_span?: string | null
+          product_confidence?: number | null
+          product_id?: string | null
+          product_name?: string
+          quantity_confidence?: number | null
+          raw_quantity?: number
+          raw_unit?: string | null
+          sku?: string | null
+          updated_at?: string
+        }
+        Update: {
+          ai_line_snapshot?: Json
+          conversion_explanation?: string | null
+          created_at?: string
+          draft_id?: string
+          id?: string
+          line_index?: number
+          normalized_quantity?: number | null
+          normalized_unit?: string | null
+          operator_line_snapshot?: Json
+          operator_quantity?: number | null
+          original_text_span?: string | null
+          product_confidence?: number | null
+          product_id?: string | null
+          product_name?: string
+          quantity_confidence?: number | null
+          raw_quantity?: number
+          raw_unit?: string | null
+          sku?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sales_order_draft_lines_draft_id_fkey"
+            columns: ["draft_id"]
+            isOneToOne: false
+            referencedRelation: "sales_order_drafts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      sales_order_drafts: {
+        Row: {
+          ai_draft_snapshot: Json
+          approver_id: string | null
+          approver_name: string | null
+          client_owner_id: string | null
+          client_owner_name: string | null
+          company_id: string | null
+          company_name: string | null
+          created_at: string
+          created_by: string | null
+          extraction_request_key: string
+          id: string
+          operator_final_snapshot: Json
+          order_creator_id: string | null
+          order_creator_name: string | null
+          order_handler_id: string | null
+          order_handler_name: string | null
+          original_whatsapp_text: string
+          packet_id: string
+          promoted_order_id: string | null
+          readiness_dimensions: Json
+          readiness_overall_score: number
+          rejection_reason: string | null
+          review_notes: string | null
+          status: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          ai_draft_snapshot?: Json
+          approver_id?: string | null
+          approver_name?: string | null
+          client_owner_id?: string | null
+          client_owner_name?: string | null
+          company_id?: string | null
+          company_name?: string | null
+          created_at?: string
+          created_by?: string | null
+          extraction_request_key: string
+          id?: string
+          operator_final_snapshot?: Json
+          order_creator_id?: string | null
+          order_creator_name?: string | null
+          order_handler_id?: string | null
+          order_handler_name?: string | null
+          original_whatsapp_text?: string
+          packet_id: string
+          promoted_order_id?: string | null
+          readiness_dimensions?: Json
+          readiness_overall_score?: number
+          rejection_reason?: string | null
+          review_notes?: string | null
+          status?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          ai_draft_snapshot?: Json
+          approver_id?: string | null
+          approver_name?: string | null
+          client_owner_id?: string | null
+          client_owner_name?: string | null
+          company_id?: string | null
+          company_name?: string | null
+          created_at?: string
+          created_by?: string | null
+          extraction_request_key?: string
+          id?: string
+          operator_final_snapshot?: Json
+          order_creator_id?: string | null
+          order_creator_name?: string | null
+          order_handler_id?: string | null
+          order_handler_name?: string | null
+          original_whatsapp_text?: string
+          packet_id?: string
+          promoted_order_id?: string | null
+          readiness_dimensions?: Json
+          readiness_overall_score?: number
+          rejection_reason?: string | null
+          review_notes?: string | null
+          status?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: []
+      }
       shadow_clients: {
         Row: {
           created_at: string
