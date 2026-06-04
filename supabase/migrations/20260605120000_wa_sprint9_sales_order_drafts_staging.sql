@@ -165,6 +165,55 @@ CREATE TRIGGER trg_sales_order_draft_lines_touch
   FOR EACH ROW EXECUTE FUNCTION public.touch_updated_at();
 
 -- =============================================================================
+-- 5b. Immutable field guard (post-create governance + original snapshots)
+-- =============================================================================
+CREATE OR REPLACE FUNCTION public.enforce_sales_order_draft_immutable_fields()
+RETURNS trigger
+LANGUAGE plpgsql
+AS $$
+BEGIN
+  IF NEW.original_whatsapp_text IS DISTINCT FROM OLD.original_whatsapp_text THEN
+    RAISE EXCEPTION 'sales_order_drafts.original_whatsapp_text is immutable after create';
+  END IF;
+
+  IF NEW.ai_draft_snapshot IS DISTINCT FROM OLD.ai_draft_snapshot THEN
+    RAISE EXCEPTION 'sales_order_drafts.ai_draft_snapshot is immutable after create';
+  END IF;
+
+  IF NEW.client_owner_id IS DISTINCT FROM OLD.client_owner_id THEN
+    RAISE EXCEPTION 'sales_order_drafts.client_owner_id is immutable after create';
+  END IF;
+
+  IF NEW.client_owner_name IS DISTINCT FROM OLD.client_owner_name THEN
+    RAISE EXCEPTION 'sales_order_drafts.client_owner_name is immutable after create';
+  END IF;
+
+  IF NEW.order_creator_id IS DISTINCT FROM OLD.order_creator_id THEN
+    RAISE EXCEPTION 'sales_order_drafts.order_creator_id is immutable after create';
+  END IF;
+
+  IF NEW.order_creator_name IS DISTINCT FROM OLD.order_creator_name THEN
+    RAISE EXCEPTION 'sales_order_drafts.order_creator_name is immutable after create';
+  END IF;
+
+  IF NEW.order_handler_id IS DISTINCT FROM OLD.order_handler_id THEN
+    RAISE EXCEPTION 'sales_order_drafts.order_handler_id is immutable after create';
+  END IF;
+
+  IF NEW.order_handler_name IS DISTINCT FROM OLD.order_handler_name THEN
+    RAISE EXCEPTION 'sales_order_drafts.order_handler_name is immutable after create';
+  END IF;
+
+  RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS trg_sales_order_drafts_immutable_fields ON public.sales_order_drafts;
+CREATE TRIGGER trg_sales_order_drafts_immutable_fields
+  BEFORE UPDATE ON public.sales_order_drafts
+  FOR EACH ROW EXECUTE FUNCTION public.enforce_sales_order_draft_immutable_fields();
+
+-- =============================================================================
 -- 6. RLS — inbox readers may manage drafts; no DELETE; audit log insert-only
 -- =============================================================================
 ALTER TABLE public.sales_order_drafts ENABLE ROW LEVEL SECURITY;

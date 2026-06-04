@@ -273,26 +273,35 @@ async function transitionDraft(
   const bundle = await fetchSalesOrderDraftById(input.draftId);
   if (!bundle) throw new Error("Sales order draft not found.");
 
-  const nextStatus = getNextStatus(bundle.draft.status, transition);
+  const expectedStatus = bundle.draft.status;
+  const nextStatus = getNextStatus(expectedStatus, transition);
   if (!nextStatus) {
-    throw new Error(`Transition ${transition} not allowed from ${bundle.draft.status}.`);
+    throw new Error(`Transition ${transition} not allowed from ${expectedStatus}.`);
   }
 
-  const { error } = await supabase
+  const { data: updated, error } = await supabase
     .from("sales_order_drafts")
     .update({
       status: nextStatus,
       updated_by: input.actor.id,
       ...extraFields,
     } satisfies DraftUpdate)
-    .eq("id", input.draftId);
+    .eq("id", input.draftId)
+    .eq("status", expectedStatus)
+    .select("*")
+    .maybeSingle();
 
   if (error) throw new Error(error.message);
+  if (!updated) {
+    throw new Error(
+      `Concurrent or stale transition: draft is no longer ${expectedStatus}. Refresh and retry.`,
+    );
+  }
 
   await appendAuditEntry({
     draftId: input.draftId,
     action: auditAction,
-    fromStatus: bundle.draft.status,
+    fromStatus: expectedStatus,
     toStatus: nextStatus,
     actorId: input.actor.id,
     actorName: input.actor.name,
