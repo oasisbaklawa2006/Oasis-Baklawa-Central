@@ -67,7 +67,7 @@ The operator inbox module does **not** enqueue work to `customer_support_queue` 
 | Approve Draft disabled | Same bar | "Approve Draft" disabled with governance tooltip | Draft persisted server-side |
 | Reassign disabled | Same bar | "Reassign" disabled | Owner mutation triggered |
 | Failed-msg retry disabled | Failed delivery panel | Retry control absent or disabled | Retry invokes send |
-| No inbox queue RPC | Static grep + guard test | Zero `rpc(` in inbox write scan paths (see §3) | Any queue enqueue from inbox |
+| No inbox queue RPC | AST guard test | Zero `rpc(` PostgREST call expressions in inbox write scan paths (see §3) | Any queue enqueue from inbox |
 
 **Commands:**
 ```bash
@@ -147,10 +147,10 @@ npx vitest run src/lib/operational-events/__tests__/operational-stitching.test.t
 
 | Surface | Mechanism | Verified by |
 |---------|-----------|-------------|
-| `src/components/WhatsAppInbox.tsx` | No `.insert/.update/.delete/.upsert/.rpc(` | Static guard test |
-| `src/components/whatsapp/*` | No `.insert/.update/.delete/.upsert/.rpc(` | Static guard test |
-| `src/lib/wa-governance/*` | SELECT-only fetch engines | Static guard test |
-| `WhatsAppInbox.tsx` PostgREST | `.select` + Realtime subscribe only | Static guard test + manual review |
+| `src/components/WhatsAppInbox.tsx` | No forbidden PostgREST write call expressions | AST guard test |
+| `src/components/whatsapp/*` | No forbidden PostgREST write call expressions | AST guard test |
+| `src/lib/wa-governance/*` | SELECT-only fetch engines | AST guard test |
+| `WhatsAppInbox.tsx` PostgREST | `.select` + Realtime subscribe only | AST guard test + manual review |
 | localStorage features | UI state, notes, saved views — no server sync | `operatorInboxLocalNotes.ts`, `operatorInboxUiPersistence.ts` |
 | TOOL 3/4 Edge | SELECT-only handlers | Edge grep (no writes in classify/route) |
 | WA-03A–06A resolution | In-memory cache; optional SELECT on catalogue | Integration tests |
@@ -158,7 +158,8 @@ npx vitest run src/lib/operational-events/__tests__/operational-stitching.test.t
 **Commands:**
 ```bash
 npx vitest run src/lib/wa-governance/tests/operatorInboxStage1Guard.test.ts
-rg '\.(insert|update|delete|upsert|rpc)\(' src/components/WhatsAppInbox.tsx src/components/whatsapp src/lib/wa-governance
+npx vitest run src/lib/wa-governance/tests/stage1InvokeScan.test.ts
+npx vitest run src/lib/wa-governance/tests/stage1PostgrestWriteScan.test.ts
 ```
 
 **Evidence placeholders:**
@@ -308,7 +309,12 @@ npx vitest run src/lib/wa-governance/tests/operatorInboxStage1Guard.test.ts -t "
 
 ## 3. PostgREST write guard scan paths
 
-The Stage-1 static guard (`operatorInboxStage1Guard.test.ts`) scans these paths for forbidden patterns: `.insert(`, `.update(`, `.upsert(`, `.delete(`, `.rpc(`.
+The Stage-1 guard uses **TypeScript AST scanners** (not regex) via:
+
+- `src/lib/wa-governance/stage1PostgrestWriteScan.ts` — forbidden `.insert(`, `.update(`, `.upsert(`, `.delete(`, `.rpc(` call expressions
+- `src/lib/wa-governance/stage1InvokeScan.ts` — `*.functions.invoke("slug", …)` call expressions
+
+Tests: `stage1PostgrestWriteScan.test.ts`, `stage1InvokeScan.test.ts`, and `operatorInboxStage1Guard.test.ts`.
 
 | Scan root | Coverage |
 |-----------|----------|
@@ -327,22 +333,24 @@ npm run build
 
 # Stage-1 guard + WA governance suite
 npx vitest run src/lib/wa-governance/tests/operatorInboxStage1Guard.test.ts
+npx vitest run src/lib/wa-governance/tests/stage1InvokeScan.test.ts
+npx vitest run src/lib/wa-governance/tests/stage1PostgrestWriteScan.test.ts
 npx vitest run src/lib/wa-governance/tests/quantityResolution*.test.ts
 npx vitest run src/lib/wa-governance/__tests__/waFlags.test.ts
 npx vitest run src/lib/operational-events/__tests__/operational-stitching.test.ts
 
-# Static spot-checks (expect zero matches in inbox tree for writes)
+# Optional manual spot-check (AST tests are authoritative)
 rg '\.(insert|update|delete|upsert|rpc)\(' src/components/WhatsAppInbox.tsx src/components/whatsapp src/lib/wa-governance
 
-# Inbox invoke allowlist (expect exactly 3 slugs in WhatsAppInbox.tsx)
+# Inbox invoke allowlist (AST-tested in operatorInboxStage1Guard.test.ts)
 rg 'functions\.invoke\("whatsapp-' src/components/WhatsAppInbox.tsx
 ```
 
 **Expected results:**
 - typecheck + build: exit 0
-- vitest: all tests pass
-- write grep: no matches in scoped dirs
-- invoke grep: `whatsapp-operator-reply`, `whatsapp-classify-intent`, `whatsapp-route-packet` only
+- vitest: all tests pass (AST scanners are authoritative for write/invoke guards)
+- optional write grep: no matches in scoped dirs
+- optional invoke grep: `whatsapp-operator-reply`, `whatsapp-classify-intent`, `whatsapp-route-packet` only
 
 **Manual (staging):** complete `docs/POST_MERGE_PR69_OPERATOR_INBOX_SMOKE.md` and attach screenshots to §1 placeholders.
 
