@@ -46,11 +46,14 @@ export const OperatorInboxSalesOrderDraftSection = memo(function OperatorInboxSa
     actionError,
     draftStatus,
     isTerminal,
+    isPersistedDraftLoading,
+    canShowCreateDraft,
     createDraft,
     submitForReview,
     approveDraft,
     rejectDraft,
     syncOperatorFinal,
+    reload,
   } = draftHook;
 
   const bundle =
@@ -86,14 +89,30 @@ export const OperatorInboxSalesOrderDraftSection = memo(function OperatorInboxSa
 
       <p className="text-[11px] leading-snug text-indigo-900/90">{GOVERNANCE_BANNER}</p>
 
-      {state.status === "loading" ? (
+      {isPersistedDraftLoading ? (
         <div className="mt-2 flex items-center gap-2 text-sm text-indigo-900">
           <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
           Loading persisted draft…
         </div>
       ) : null}
 
-      {state.status === "error" ? (
+      {state.status === "error" && !bundle ? (
+        <div className="mt-2 space-y-2">
+          <p className="text-sm text-amber-900" role="alert">
+            {state.message}
+          </p>
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            className="h-8 text-xs"
+            disabled={actionPending}
+            onClick={() => void reload()}
+          >
+            Retry loading draft
+          </Button>
+        </div>
+      ) : state.status === "error" ? (
         <p className="mt-2 text-sm text-amber-900" role="alert">
           {state.message}
         </p>
@@ -105,7 +124,7 @@ export const OperatorInboxSalesOrderDraftSection = memo(function OperatorInboxSa
         </p>
       ) : null}
 
-      {!bundle && state.status !== "loading" ? (
+      {canShowCreateDraft ? (
         <div className="mt-3">
           <Button
             type="button"
@@ -127,7 +146,7 @@ export const OperatorInboxSalesOrderDraftSection = memo(function OperatorInboxSa
             </p>
           ) : null}
         </div>
-      ) : (
+      ) : bundle ? (
         <>
           <GovernanceSlots draft={bundle.draft} />
 
@@ -276,7 +295,7 @@ export const OperatorInboxSalesOrderDraftSection = memo(function OperatorInboxSa
 
           {bundle.auditLog.length > 0 ? <AuditTrail entries={bundle.auditLog} /> : null}
         </>
-      )}
+      ) : null}
     </section>
   );
 });

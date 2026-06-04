@@ -686,7 +686,29 @@ describe("extraction projection guard (static)", () => {
       ),
       "utf8",
     );
-    expect(section).toMatch(/!bundle && state\.status !== "loading"/);
+    const hook = readFileSync(
+      join(import.meta.dirname, "../../../components/whatsapp/useOperatorInboxSalesOrderDraft.ts"),
+      "utf8",
+    );
+    expect(section).toMatch(/canShowCreateDraft/);
+    expect(section).toMatch(/isPersistedDraftLoading/);
+    expect(section).not.toMatch(/!bundle && state\.status !== "loading"/);
+    expect(hook).toMatch(/canShowCreateDraft = state\.status === "ready" && !currentBundle/);
+    expect(hook).toMatch(/isPersistedDraftLoading/);
+  });
+  it("shows retry instead of create when persisted draft fetch errors without bundle", async () => {
+    const { readFileSync } = await import("node:fs");
+    const { join } = await import("node:path");
+    const section = readFileSync(
+      join(
+        import.meta.dirname,
+        "../../../components/whatsapp/OperatorInboxSalesOrderDraftSection.tsx",
+      ),
+      "utf8",
+    );
+    expect(section).toMatch(/state\.status === "error" && !bundle/);
+    expect(section).toMatch(/Retry loading draft/);
+    expect(section).not.toMatch(/Create Sales Order Draft[\s\S]*state\.status === "error" && !bundle/);
   });
   it("clears stale local qty overrides when creating after extraction drift", async () => {
     const { readFileSync } = await import("node:fs");

@@ -50,7 +50,12 @@ export function useOperatorInboxSalesOrderDraft(args: {
   useEffect(() => {
     activePacketIdRef.current = packetId;
     requestGenerationRef.current += 1;
-  }, [packetId]);
+    if (packetId && enabled) {
+      setState({ status: "loading" });
+    } else {
+      setState({ status: "idle" });
+    }
+  }, [packetId, enabled]);
 
   const isActivePacketRequest = useCallback((requestPacketId: string, requestGeneration: number) => {
     return (
@@ -249,6 +254,9 @@ export function useOperatorInboxSalesOrderDraft(args: {
 
   const draftStatus = currentBundle ? currentBundle.draft.status : null;
   const isTerminal = draftStatus ? isTerminalStatus(draftStatus) : false;
+  const isPersistedDraftLoading =
+    Boolean(enabled && packetId) && (state.status === "loading" || state.status === "idle");
+  const canShowCreateDraft = state.status === "ready" && !currentBundle;
 
   return {
     state,
@@ -260,6 +268,8 @@ export function useOperatorInboxSalesOrderDraft(args: {
     draftStatus,
     statusLabel: draftStatus ? statusLabel(draftStatus) : null,
     isTerminal,
+    isPersistedDraftLoading,
+    canShowCreateDraft,
     reload,
     createDraft,
     submitForReview,
