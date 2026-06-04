@@ -122,6 +122,24 @@ describe("submitForReview operator sync (static)", () => {
       submitBlock.indexOf("submitSalesOrderDraftForReview"),
     );
   });
+
+  it("persists latest operator quantities before approve transition", async () => {
+    const { readFileSync } = await import("node:fs");
+    const { join } = await import("node:path");
+    const hook = readFileSync(
+      join(import.meta.dirname, "../../../components/whatsapp/useOperatorInboxSalesOrderDraft.ts"),
+      "utf8",
+    );
+    const approveStart = hook.indexOf("const approveDraft = useCallback");
+    expect(approveStart).toBeGreaterThan(-1);
+    const approveBlock = hook.slice(approveStart, approveStart + 900);
+    expect(approveBlock).toMatch(/resolveLatestOperatorLineQuantities/);
+    expect(approveBlock).toMatch(/updateSalesOrderDraftOperatorFinal/);
+    expect(approveBlock).toMatch(/approveSalesOrderDraft/);
+    expect(approveBlock.indexOf("updateSalesOrderDraftOperatorFinal")).toBeLessThan(
+      approveBlock.indexOf("approveSalesOrderDraft"),
+    );
+  });
 });
 
 describe("persisted draft fetch and rejected recreate UI (static)", () => {
@@ -166,5 +184,17 @@ describe("persisted draft fetch and rejected recreate UI (static)", () => {
     expect(section).toMatch(/isRejected/);
     expect(section).toMatch(/Create New Draft/);
     expect(section).toMatch(/bundle\?\.draft\.status === "REJECTED"/);
+  });
+
+  it("RPC migrations verify actor id matches auth.uid()", async () => {
+    const { readFileSync } = await import("node:fs");
+    const { join } = await import("node:path");
+    for (const file of [
+      "20260606120000_wa_sprint9_sales_order_draft_transition_rpc.sql",
+      "20260606130000_wa_sprint9_sales_order_draft_create_atomic_rpc.sql",
+    ]) {
+      const sql = readFileSync(join(import.meta.dirname, "../../../../supabase/migrations", file), "utf8");
+      expect(sql).toMatch(/p_actor_id IS DISTINCT FROM auth\.uid\(\)/);
+    }
   });
 });

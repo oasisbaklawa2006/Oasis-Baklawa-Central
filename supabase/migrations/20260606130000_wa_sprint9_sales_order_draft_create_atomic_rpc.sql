@@ -22,6 +22,10 @@ BEGIN
     RAISE EXCEPTION 'Not authorized to create sales order drafts';
   END IF;
 
+  IF p_actor_id IS DISTINCT FROM auth.uid() THEN
+    RAISE EXCEPTION 'Actor id must match authenticated user';
+  END IF;
+
   v_packet_id := (p_header->>'packet_id')::uuid;
 
   IF EXISTS (

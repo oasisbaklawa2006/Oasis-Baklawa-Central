@@ -26,6 +26,10 @@ BEGIN
     RAISE EXCEPTION 'Not authorized to transition sales order drafts';
   END IF;
 
+  IF p_actor_id IS DISTINCT FROM auth.uid() THEN
+    RAISE EXCEPTION 'Actor id must match authenticated user';
+  END IF;
+
   UPDATE public.sales_order_drafts
   SET
     status = p_next_status,
