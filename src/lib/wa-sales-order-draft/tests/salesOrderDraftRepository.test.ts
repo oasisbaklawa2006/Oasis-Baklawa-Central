@@ -190,6 +190,125 @@ describe("approve and reject atomicity (static)", () => {
   });
 });
 
+describe("createSalesOrderDraft version recovery", () => {
+  beforeEach(() => {
+    fromMock.mockReset();
+    rpcMock.mockReset();
+  });
+
+  it("throws when active draft extraction key mismatches live extraction", async () => {
+    fromMock.mockImplementation((table: string) => {
+      if (table === "sales_order_drafts") {
+        return {
+          select: vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnValue({
+              order: vi.fn().mockReturnValue({
+                limit: vi.fn().mockResolvedValue({
+                  data: [
+                    {
+                      id: "draft-1",
+                      packet_id: "pkt-1",
+                      extraction_request_key: "old-key",
+                      status: "AI_DRAFT",
+                      readiness_dimensions: [],
+                      ai_draft_snapshot: {},
+                      operator_final_snapshot: {},
+                    },
+                  ],
+                  error: null,
+                }),
+              }),
+            }),
+          }),
+        };
+      }
+      return chainMock({ data: [], error: null });
+    });
+
+    const { createSalesOrderDraft } = await import(
+      "@/lib/wa-sales-order-draft/salesOrderDraftRepository"
+    );
+    const { extractedFixture } = await import("./fixtures/extractedDraftFixture");
+
+    await expect(
+      createSalesOrderDraft({
+        extracted: { ...extractedFixture, extractionRequestKey: "new-key" },
+        operatorLineQuantities: { 0: 12 },
+        actor: { id: "user-1", name: "Operator" },
+      }),
+    ).rejects.toThrow(/older WhatsApp extraction/);
+
+    expect(rpcMock).not.toHaveBeenCalled();
+  });
+
+  it("allows create when latest draft is REJECTED even if extraction key changed", async () => {
+    rpcMock.mockResolvedValue({ data: "draft-2", error: null });
+
+    fromMock.mockImplementation((table: string) => {
+      if (table === "sales_order_drafts") {
+        return {
+          select: vi.fn().mockReturnValue({
+            eq: vi.fn().mockImplementation((_col: string, val: string) => {
+              if (val === "draft-2") {
+                return {
+                  maybeSingle: vi.fn().mockResolvedValue({
+                    data: {
+                      id: "draft-2",
+                      packet_id: "pkt-1",
+                      extraction_request_key: "new-key",
+                      status: "AI_DRAFT",
+                      readiness_dimensions: [],
+                      ai_draft_snapshot: {},
+                      operator_final_snapshot: {},
+                    },
+                    error: null,
+                  }),
+                };
+              }
+              return {
+                order: vi.fn().mockReturnValue({
+                  limit: vi.fn().mockResolvedValue({
+                    data: [
+                      {
+                        id: "draft-1",
+                        packet_id: "pkt-1",
+                        extraction_request_key: "old-key",
+                        status: "REJECTED",
+                        readiness_dimensions: [],
+                        ai_draft_snapshot: {},
+                        operator_final_snapshot: {},
+                      },
+                    ],
+                    error: null,
+                  }),
+                }),
+              };
+            }),
+          }),
+        };
+      }
+      if (table === "sales_order_draft_lines" || table === "sales_order_draft_audit_log") {
+        return chainMock({ data: [], error: null });
+      }
+      return chainMock({ data: [], error: null });
+    });
+
+    const { createSalesOrderDraft } = await import(
+      "@/lib/wa-sales-order-draft/salesOrderDraftRepository"
+    );
+    const { extractedFixture } = await import("./fixtures/extractedDraftFixture");
+
+    const bundle = await createSalesOrderDraft({
+      extracted: { ...extractedFixture, extractionRequestKey: "new-key" },
+      operatorLineQuantities: { 0: 12 },
+      actor: { id: "user-1", name: "Operator" },
+    });
+
+    expect(bundle.draft.id).toBe("draft-2");
+    expect(rpcMock).toHaveBeenCalledWith("create_sales_order_draft_atomic", expect.any(Object));
+  });
+});
+
 describe("createSalesOrderDraft atomicity", () => {
   it("does not leave partial header insert path on line failure (static)", async () => {
     const { readFileSync } = await import("node:fs");
@@ -279,6 +398,7 @@ describe("updateSalesOrderDraftOperatorFinal atomicity", () => {
       "update_sales_order_draft_operator_final",
       expect.objectContaining({
         p_draft_id: "draft-1",
+        p_expected_extraction_request_key: "key-1",
         p_actor_id: "user-1",
       }),
     );
@@ -391,7 +511,10 @@ describe("submitForReview atomicity (static)", () => {
 
     expect(rpcMock).toHaveBeenCalledWith(
       "submit_sales_order_draft_for_review_atomic",
-      expect.objectContaining({ p_draft_id: "draft-1" }),
+      expect.objectContaining({
+        p_draft_id: "draft-1",
+        p_expected_extraction_request_key: "key-1",
+      }),
     );
     expect(rpcMock).toHaveBeenCalledTimes(1);
   });
@@ -423,7 +546,7 @@ describe("submitForReview operator sync (static)", () => {
     );
     const submitStart = hook.indexOf("const submitForReview = useCallback");
     expect(submitStart).toBeGreaterThan(-1);
-    const submitBlock = hook.slice(submitStart, submitStart + 700);
+    const submitBlock = hook.slice(submitStart, submitStart + 900);
     expect(submitBlock).toMatch(/resolveLatestOperatorLineQuantities/);
     expect(submitBlock).toMatch(/submitSalesOrderDraftForReviewWithOperatorSync/);
     expect(submitBlock).toMatch(/operatorLineQuantities: latestQuantities/);
@@ -480,7 +603,7 @@ describe("extraction projection guard (static)", () => {
     expect(inbox).toMatch(/quantityEditsLocked/);
     expect(inbox).toMatch(/draftStatus === "UNDER_REVIEW"/);
     expect(inbox).toMatch(/draftStatus === "APPROVED_FOR_SO"/);
-    expect(inbox).not.toMatch(/isTerminal/);
+    expect(inbox).not.toMatch(/quantityEditsLocked=\{\s*\n\s*salesOrderDraftHook\.isTerminal/);
     expect(panel).toMatch(/quantityEditsLocked/);
     expect(panel).toMatch(/Quantity edits are locked while the sales order draft is under review/);
   });
@@ -491,9 +614,52 @@ describe("extraction projection guard (static)", () => {
       join(import.meta.dirname, "../../../components/whatsapp/useOperatorInboxSalesOrderDraft.ts"),
       "utf8",
     );
-    expect(hook).toMatch(/activePacketIdRef/);
-    expect(hook).toMatch(/isActivePacket\(requestPacketId\)/);
-    expect(hook).toMatch(/if \(!isActivePacket\(requestPacketId\)\) return;/);
+    expect(hook).toMatch(/requestGenerationRef/);
+    expect(hook).toMatch(/isActivePacketRequest\(requestPacketId, requestGeneration\)/);
+    expect(hook).toMatch(/bundle\.draft\.packet_id !== requestPacketId/);
+  });
+
+  it("passes expected extraction key to sync/submit RPCs", async () => {
+    const { readFileSync } = await import("node:fs");
+    const { join } = await import("node:path");
+    const repo = readFileSync(
+      join(import.meta.dirname, "../salesOrderDraftRepository.ts"),
+      "utf8",
+    );
+    expect(repo).toMatch(/p_expected_extraction_request_key: draftHeader\.extraction_request_key/);
+    const sql = readFileSync(
+      join(
+        import.meta.dirname,
+        "../../../../supabase/migrations/20260606170000_wa_sprint9_sales_order_draft_extraction_version_rpc.sql",
+      ),
+      "utf8",
+    );
+    expect(sql).toMatch(/p_expected_extraction_request_key text/);
+    expect(sql).toMatch(/Extraction version mismatch/);
+  });
+
+  it("blocks create from returning stale active AI_DRAFT", async () => {
+    const { readFileSync } = await import("node:fs");
+    const { join } = await import("node:path");
+    const repo = readFileSync(
+      join(import.meta.dirname, "../salesOrderDraftRepository.ts"),
+      "utf8",
+    );
+    expect(repo).toMatch(/STALE_EXTRACTION_DRAFT_MESSAGE/);
+    expect(repo).toMatch(/isExtractionVersionStale/);
+  });
+
+  it("shows stale extraction recovery copy in UI", async () => {
+    const { readFileSync } = await import("node:fs");
+    const { join } = await import("node:path");
+    const section = readFileSync(
+      join(
+        import.meta.dirname,
+        "../../../components/whatsapp/OperatorInboxSalesOrderDraftSection.tsx",
+      ),
+      "utf8",
+    );
+    expect(section).toMatch(/This draft was created from an older WhatsApp extraction/);
   });
 
   it("allows AI_DRAFT reject when extraction projection is stale", async () => {

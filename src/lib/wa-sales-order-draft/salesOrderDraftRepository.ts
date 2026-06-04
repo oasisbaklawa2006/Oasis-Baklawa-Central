@@ -3,6 +3,10 @@ import type { Database, Json } from "@/integrations/supabase/types";
 import type { ExtractedDraftOrder } from "@/lib/wa-governance/draftOrderExtractionTypes";
 import { assertPersistedDraftExtractionMatch } from "./assertPersistedDraftExtractionMatch";
 import {
+  isExtractionVersionStale,
+  STALE_EXTRACTION_DRAFT_MESSAGE,
+} from "./draftIntegrityContract";
+import {
   buildOperatorFinalSnapshot,
   buildDraftHeaderRpcPayload,
   buildDraftLineRpcPayloads,
@@ -84,8 +88,19 @@ export async function createSalesOrderDraft(
   input: CreateSalesOrderDraftInput,
 ): Promise<SalesOrderDraftBundle> {
   const existing = await fetchSalesOrderDraftByPacket(input.extracted.packetId);
-  if (existing && existing.draft.status !== "REJECTED") {
-    return existing;
+  if (existing) {
+    if (existing.draft.status === "REJECTED") {
+      // allow new draft after terminal rejection
+    } else if (
+      isExtractionVersionStale({
+        persistedExtractionRequestKey: existing.draft.extraction_request_key,
+        liveExtractionRequestKey: input.extracted.extractionRequestKey,
+      })
+    ) {
+      throw new Error(STALE_EXTRACTION_DRAFT_MESSAGE);
+    } else {
+      return existing;
+    }
   }
 
   const { data: draftId, error: createError } = await supabase.rpc("create_sales_order_draft_atomic", {
@@ -103,7 +118,20 @@ export async function createSalesOrderDraft(
   if (createError) {
     if (createError.message.includes("Active sales order draft already exists")) {
       const retryBundle = await fetchSalesOrderDraftByPacket(input.extracted.packetId);
-      if (retryBundle) return retryBundle;
+      if (retryBundle) {
+        if (
+          retryBundle.draft.status !== "REJECTED" &&
+          isExtractionVersionStale({
+            persistedExtractionRequestKey: retryBundle.draft.extraction_request_key,
+            liveExtractionRequestKey: input.extracted.extractionRequestKey,
+          })
+        ) {
+          throw new Error(STALE_EXTRACTION_DRAFT_MESSAGE);
+        }
+        if (retryBundle.draft.status !== "REJECTED") {
+          return retryBundle;
+        }
+      }
     }
     throw new Error(createError.message);
   }
@@ -138,6 +166,7 @@ export async function submitSalesOrderDraftForReviewWithOperatorSync(
 
   const { data: draftId, error } = await supabase.rpc("submit_sales_order_draft_for_review_atomic", {
     p_draft_id: input.draftId,
+    p_expected_extraction_request_key: draftHeader.extraction_request_key,
     p_operator_final_snapshot: operatorFinal as unknown as Json,
     p_readiness_overall_score: input.extracted.readiness.overallScore,
     p_readiness_dimensions: input.extracted.readiness.dimensions as unknown as Json,
@@ -219,6 +248,7 @@ export async function updateSalesOrderDraftOperatorFinal(args: {
 
   const { data: draftId, error } = await supabase.rpc("update_sales_order_draft_operator_final", {
     p_draft_id: args.draftId,
+    p_expected_extraction_request_key: draftHeader.extraction_request_key,
     p_operator_final_snapshot: operatorFinal as unknown as Json,
     p_readiness_overall_score: args.extracted.readiness.overallScore,
     p_readiness_dimensions: args.extracted.readiness.dimensions as unknown as Json,

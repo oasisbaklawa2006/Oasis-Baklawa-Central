@@ -4188,6 +4188,7 @@ export type Database = {
       update_sales_order_draft_operator_final: {
         Args: {
           p_draft_id: string
+          p_expected_extraction_request_key: string
           p_operator_final_snapshot: Json
           p_readiness_overall_score: number
           p_readiness_dimensions: Json
@@ -4201,6 +4202,7 @@ export type Database = {
       submit_sales_order_draft_for_review_atomic: {
         Args: {
           p_draft_id: string
+          p_expected_extraction_request_key: string
           p_operator_final_snapshot: Json
           p_readiness_overall_score: number
           p_readiness_dimensions: Json

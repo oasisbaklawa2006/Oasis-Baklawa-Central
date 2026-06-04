@@ -139,7 +139,7 @@ describe("persisted extraction match guard", () => {
         status: "AI_DRAFT",
         actionLabel: "sync operator edits",
       }),
-    ).toThrow(/Live extraction no longer matches the persisted draft projection/);
+    ).toThrow(/live extraction no longer matches the persisted draft version/);
   });
 
   it("rejects mutations from terminal statuses", () => {
@@ -151,6 +151,21 @@ describe("persisted extraction match guard", () => {
         actionLabel: "sync operator edits",
       }),
     ).toThrow(/terminal status APPROVED_FOR_SO/);
+  });
+});
+
+describe("draft integrity contract", () => {
+  it("detects extraction version stale state", async () => {
+    const { isExtractionVersionStale, STALE_EXTRACTION_DRAFT_MESSAGE } = await import(
+      "@/lib/wa-sales-order-draft/draftIntegrityContract"
+    );
+    expect(
+      isExtractionVersionStale({
+        persistedExtractionRequestKey: "old-key",
+        liveExtractionRequestKey: "new-key",
+      }),
+    ).toBe(true);
+    expect(STALE_EXTRACTION_DRAFT_MESSAGE).toMatch(/older WhatsApp extraction/);
   });
 });
 

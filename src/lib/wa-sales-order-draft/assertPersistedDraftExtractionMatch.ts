@@ -1,5 +1,6 @@
 import type { ExtractedDraftOrder } from "@/lib/wa-governance/draftOrderExtractionTypes";
 import type { SalesOrderDraftStatus } from "./types";
+import { assertActiveDraftExtractionVersion } from "./draftIntegrityContract";
 
 export function assertPersistedDraftExtractionMatch(args: {
   extracted: ExtractedDraftOrder;
@@ -11,9 +12,9 @@ export function assertPersistedDraftExtractionMatch(args: {
     throw new Error(`Cannot ${args.actionLabel} from terminal status ${args.status}.`);
   }
 
-  if (args.extracted.extractionRequestKey !== args.extractionRequestKey) {
-    throw new Error(
-      "Live extraction no longer matches the persisted draft projection. Reload the packet before syncing operator edits.",
-    );
-  }
+  assertActiveDraftExtractionVersion({
+    persistedExtractionRequestKey: args.extractionRequestKey,
+    liveExtractionRequestKey: args.extracted.extractionRequestKey,
+    actionLabel: args.actionLabel,
+  });
 }

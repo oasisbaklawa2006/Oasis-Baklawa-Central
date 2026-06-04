@@ -45,13 +45,18 @@ export function useOperatorInboxSalesOrderDraft(args: {
   const [actionPending, setActionPending] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
   const activePacketIdRef = useRef<string | null>(packetId);
+  const requestGenerationRef = useRef(0);
 
   useEffect(() => {
     activePacketIdRef.current = packetId;
+    requestGenerationRef.current += 1;
   }, [packetId]);
 
-  const isActivePacket = useCallback((requestPacketId: string) => {
-    return activePacketIdRef.current === requestPacketId;
+  const isActivePacketRequest = useCallback((requestPacketId: string, requestGeneration: number) => {
+    return (
+      activePacketIdRef.current === requestPacketId &&
+      requestGenerationRef.current === requestGeneration
+    );
   }, []);
 
   const reload = useCallback(async () => {
@@ -60,20 +65,22 @@ export function useOperatorInboxSalesOrderDraft(args: {
       return;
     }
     const requestPacketId = packetId;
+    const requestGeneration = requestGenerationRef.current;
     setState({ status: "loading" });
     try {
       const bundle = await fetchSalesOrderDraftByPacket(requestPacketId);
-      if (!isActivePacket(requestPacketId)) return;
+      if (!isActivePacketRequest(requestPacketId, requestGeneration)) return;
+      if (bundle && bundle.draft.packet_id !== requestPacketId) return;
       setState({ status: "ready", bundle });
     } catch (error) {
-      if (!isActivePacket(requestPacketId)) return;
+      if (!isActivePacketRequest(requestPacketId, requestGeneration)) return;
       setState((prev) => ({
         status: "error",
         message: error instanceof Error ? error.message : "Failed to load sales order draft.",
         bundle: prev.status === "ready" ? prev.bundle : null,
       }));
     }
-  }, [packetId, enabled, isActivePacket]);
+  }, [packetId, enabled, isActivePacketRequest]);
 
   useEffect(() => {
     void reload();
@@ -109,20 +116,24 @@ export function useOperatorInboxSalesOrderDraft(args: {
     async (fn: () => Promise<SalesOrderDraftBundle>) => {
       if (!packetId) return;
       const requestPacketId = packetId;
+      const requestGeneration = requestGenerationRef.current;
       setActionPending(true);
       setActionError(null);
       try {
         const bundle = await fn();
-        if (!isActivePacket(requestPacketId)) return;
+        if (!isActivePacketRequest(requestPacketId, requestGeneration)) return;
+        if (bundle.draft.packet_id !== requestPacketId) return;
         setState({ status: "ready", bundle });
       } catch (error) {
-        if (!isActivePacket(requestPacketId)) return;
+        if (!isActivePacketRequest(requestPacketId, requestGeneration)) return;
         setActionError(error instanceof Error ? error.message : "Action failed.");
       } finally {
-        setActionPending(false);
+        if (isActivePacketRequest(requestPacketId, requestGeneration)) {
+          setActionPending(false);
+        }
       }
     },
-    [isActivePacket, packetId],
+    [isActivePacketRequest, packetId],
   );
 
   const resolveLatestOperatorLineQuantities = useCallback(() => {
@@ -166,6 +177,10 @@ export function useOperatorInboxSalesOrderDraft(args: {
       setActionError("Draft extraction must be ready before submitting for review.");
       return;
     }
+    if (extractionProjectionStale) {
+      setActionError("This draft was created from an older WhatsApp extraction. Reject it before submitting with the latest extraction.");
+      return;
+    }
     const latestQuantities = resolveLatestOperatorLineQuantities();
     await runAction(() =>
       submitSalesOrderDraftForReviewWithOperatorSync({
@@ -175,7 +190,7 @@ export function useOperatorInboxSalesOrderDraft(args: {
         actor,
       }),
     );
-  }, [currentBundle, extracted, resolveLatestOperatorLineQuantities, runAction, user]);
+  }, [currentBundle, extracted, extractionProjectionStale, resolveLatestOperatorLineQuantities, runAction, user]);
 
   const approveDraft = useCallback(async (reviewNotes?: string) => {
     const actor = actorFromUser(user);
@@ -217,6 +232,10 @@ export function useOperatorInboxSalesOrderDraft(args: {
       setActionError("Draft extraction must be ready before syncing operator edits.");
       return;
     }
+    if (extractionProjectionStale) {
+      setActionError("This draft was created from an older WhatsApp extraction. Reject it before syncing with the latest extraction.");
+      return;
+    }
     const latestQuantities = resolveLatestOperatorLineQuantities();
     await runAction(() =>
       updateSalesOrderDraftOperatorFinal({
@@ -226,7 +245,7 @@ export function useOperatorInboxSalesOrderDraft(args: {
         actor,
       }),
     );
-  }, [currentBundle, extracted, resolveLatestOperatorLineQuantities, runAction, user]);
+  }, [currentBundle, extracted, extractionProjectionStale, resolveLatestOperatorLineQuantities, runAction, user]);
 
   const draftStatus = currentBundle ? currentBundle.draft.status : null;
   const isTerminal = draftStatus ? isTerminalStatus(draftStatus) : false;

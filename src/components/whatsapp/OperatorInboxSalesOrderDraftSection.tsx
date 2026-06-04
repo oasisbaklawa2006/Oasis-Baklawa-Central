@@ -133,10 +133,13 @@ export const OperatorInboxSalesOrderDraftSection = memo(function OperatorInboxSa
 
           {comparisonView ? <ComparisonView comparison={comparisonView} /> : null}
 
-          {extractionProjectionStale && bundle.draft.status === "AI_DRAFT" ? (
+          {extractionProjectionStale && !isTerminal ? (
             <div className="mt-3 rounded border border-amber-200 bg-amber-50/80 p-2 text-[11px] text-amber-950">
-              Live extraction changed since this draft was saved. Sync and submit are blocked until you
-              reject this draft and create a new one from the current extraction.
+              <p className="font-medium">This draft was created from an older WhatsApp extraction.</p>
+              <p className="mt-1">
+                You can review the persisted draft read-only, reject it to unblock recovery, then create a
+                new draft from the latest extraction after rejection.
+              </p>
             </div>
           ) : null}
 
