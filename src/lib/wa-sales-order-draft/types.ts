@@ -147,6 +147,13 @@ export interface TransitionSalesOrderDraftInput {
   rejectionReason?: string;
 }
 
+export interface SubmitSalesOrderDraftForReviewInput {
+  draftId: string;
+  extracted: ExtractedDraftOrder | null;
+  operatorLineQuantities: Record<number, number>;
+  actor: SalesOrderDraftActor;
+}
+
 export type DraftOrderLineItemLike = Pick<
   DraftOrderLineItem,
   | "lineIndex"

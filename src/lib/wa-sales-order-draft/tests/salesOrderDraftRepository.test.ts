@@ -203,8 +203,13 @@ describe("updateSalesOrderDraftOperatorFinal atomicity", () => {
   });
 });
 
-describe("submitForReview operator sync (static)", () => {
-  it("persists latest operator quantities before submit transition", async () => {
+describe("submitForReview atomicity (static)", () => {
+  beforeEach(() => {
+    fromMock.mockReset();
+    rpcMock.mockReset();
+  });
+
+  it("hook calls single repository method without chaining update and submit", async () => {
     const { readFileSync } = await import("node:fs");
     const { join } = await import("node:path");
     const hook = readFileSync(
@@ -213,13 +218,98 @@ describe("submitForReview operator sync (static)", () => {
     );
     const submitStart = hook.indexOf("const submitForReview = useCallback");
     expect(submitStart).toBeGreaterThan(-1);
-    const submitBlock = hook.slice(submitStart, submitStart + 900);
+    const submitBlock = hook.slice(submitStart, submitStart + 700);
+    expect(submitBlock).toMatch(/submitSalesOrderDraftForReviewWithOperatorSync/);
     expect(submitBlock).toMatch(/resolveLatestOperatorLineQuantities/);
-    expect(submitBlock).toMatch(/updateSalesOrderDraftOperatorFinal/);
-    expect(submitBlock).toMatch(/submitSalesOrderDraftForReview/);
-    expect(submitBlock.indexOf("updateSalesOrderDraftOperatorFinal")).toBeLessThan(
-      submitBlock.indexOf("submitSalesOrderDraftForReview"),
+    expect(submitBlock).not.toMatch(/updateSalesOrderDraftOperatorFinal/);
+    expect(submitBlock).not.toMatch(/submitSalesOrderDraftForReview\(/);
+  });
+
+  it("repository uses atomic submit RPC when extracted draft is present", async () => {
+    const { readFileSync } = await import("node:fs");
+    const { join } = await import("node:path");
+    const repo = readFileSync(
+      join(import.meta.dirname, "../salesOrderDraftRepository.ts"),
+      "utf8",
     );
+    const submitStart = repo.indexOf("export async function submitSalesOrderDraftForReviewWithOperatorSync");
+    const submitEnd = repo.indexOf("export async function approveSalesOrderDraft");
+    const submitBlock = repo.slice(submitStart, submitEnd);
+    expect(submitBlock).toMatch(/rpc\("submit_sales_order_draft_for_review_atomic"/);
+    expect(submitBlock).not.toMatch(/update_sales_order_draft_operator_final/);
+    expect(submitBlock).not.toMatch(/transition_sales_order_draft_status/);
+    expect(submitBlock).not.toMatch(/for \(const line of/);
+  });
+
+  it("falls back to transition-only submit when extracted is null", async () => {
+    const { readFileSync } = await import("node:fs");
+    const { join } = await import("node:path");
+    const repo = readFileSync(
+      join(import.meta.dirname, "../salesOrderDraftRepository.ts"),
+      "utf8",
+    );
+    const submitStart = repo.indexOf("export async function submitSalesOrderDraftForReviewWithOperatorSync");
+    const submitEnd = repo.indexOf("export async function approveSalesOrderDraft");
+    const submitBlock = repo.slice(submitStart, submitEnd);
+    expect(submitBlock).toMatch(/if \(!input\.extracted\)/);
+    expect(submitBlock).toMatch(/submitSalesOrderDraftForReview\(/);
+  });
+
+  it("throws on atomic submit RPC failure without separate operator or transition calls", async () => {
+    rpcMock.mockResolvedValue({ data: null, error: { message: "Draft line 0 not found" } });
+
+    const { submitSalesOrderDraftForReviewWithOperatorSync } = await import(
+      "@/lib/wa-sales-order-draft/salesOrderDraftRepository"
+    );
+    const { extractedFixture } = await import("./fixtures/extractedDraftFixture");
+
+    await expect(
+      submitSalesOrderDraftForReviewWithOperatorSync({
+        draftId: "draft-1",
+        extracted: extractedFixture,
+        operatorLineQuantities: { 0: 12 },
+        actor: { id: "user-1", name: "Operator" },
+      }),
+    ).rejects.toThrow("Draft line 0 not found");
+
+    expect(rpcMock).toHaveBeenCalledWith(
+      "submit_sales_order_draft_for_review_atomic",
+      expect.objectContaining({ p_draft_id: "draft-1" }),
+    );
+    expect(rpcMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("submit review RPC migration verifies actor id and status transition", async () => {
+    const { readFileSync } = await import("node:fs");
+    const { join } = await import("node:path");
+    const sql = readFileSync(
+      join(
+        import.meta.dirname,
+        "../../../../supabase/migrations/20260606150000_wa_sprint9_sales_order_draft_submit_review_atomic_rpc.sql",
+      ),
+      "utf8",
+    );
+    expect(sql).toMatch(/p_actor_id IS DISTINCT FROM auth\.uid\(\)/);
+    expect(sql).toMatch(/status = 'UNDER_REVIEW'/);
+    expect(sql).toMatch(/SUBMIT_REVIEW/);
+    expect(sql).toMatch(/AI_DRAFT/);
+  });
+});
+
+describe("submitForReview operator sync (static)", () => {
+  it("persists latest operator quantities via atomic submit repository method", async () => {
+    const { readFileSync } = await import("node:fs");
+    const { join } = await import("node:path");
+    const hook = readFileSync(
+      join(import.meta.dirname, "../../../components/whatsapp/useOperatorInboxSalesOrderDraft.ts"),
+      "utf8",
+    );
+    const submitStart = hook.indexOf("const submitForReview = useCallback");
+    expect(submitStart).toBeGreaterThan(-1);
+    const submitBlock = hook.slice(submitStart, submitStart + 700);
+    expect(submitBlock).toMatch(/resolveLatestOperatorLineQuantities/);
+    expect(submitBlock).toMatch(/submitSalesOrderDraftForReviewWithOperatorSync/);
+    expect(submitBlock).toMatch(/operatorLineQuantities: latestQuantities/);
   });
 
   it("persists latest operator quantities before approve transition", async () => {

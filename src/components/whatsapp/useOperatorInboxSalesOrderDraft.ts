@@ -8,7 +8,7 @@ import {
   createSalesOrderDraft,
   fetchSalesOrderDraftByPacket,
   rejectSalesOrderDraft,
-  submitSalesOrderDraftForReview,
+  submitSalesOrderDraftForReviewWithOperatorSync,
   updateSalesOrderDraftOperatorFinal,
 } from "@/lib/wa-sales-order-draft/salesOrderDraftRepository";
 import { resolveOperatorLineQuantities } from "@/lib/wa-sales-order-draft/resolveOperatorLineQuantities";
@@ -126,19 +126,15 @@ export function useOperatorInboxSalesOrderDraft(args: {
   const submitForReview = useCallback(async () => {
     const actor = actorFromUser(user);
     if (!currentBundle || !actor) return;
-    const draftId = currentBundle.draft.id;
     const latestQuantities = resolveLatestOperatorLineQuantities();
-    await runAction(async () => {
-      if (extracted) {
-        await updateSalesOrderDraftOperatorFinal({
-          draftId,
-          extracted,
-          operatorLineQuantities: latestQuantities,
-          actor,
-        });
-      }
-      return submitSalesOrderDraftForReview({ draftId, actor });
-    });
+    await runAction(() =>
+      submitSalesOrderDraftForReviewWithOperatorSync({
+        draftId: currentBundle.draft.id,
+        extracted,
+        operatorLineQuantities: latestQuantities,
+        actor,
+      }),
+    );
   }, [currentBundle, extracted, resolveLatestOperatorLineQuantities, runAction, user]);
 
   const approveDraft = useCallback(async (reviewNotes?: string) => {

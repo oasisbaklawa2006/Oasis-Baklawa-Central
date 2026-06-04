@@ -13,6 +13,7 @@ import type {
   SalesOrderDraftBundle,
   SalesOrderDraftRow,
   SalesOrderDraftStatus,
+  SubmitSalesOrderDraftForReviewInput,
   TransitionSalesOrderDraftInput,
 } from "./types";
 import { getNextStatus } from "./workflowTransitions";
@@ -122,6 +123,34 @@ export async function submitSalesOrderDraftForReview(
   input: TransitionSalesOrderDraftInput,
 ): Promise<SalesOrderDraftBundle> {
   return transitionDraft(input, "SUBMIT_REVIEW", "SUBMIT_REVIEW");
+}
+
+export async function submitSalesOrderDraftForReviewWithOperatorSync(
+  input: SubmitSalesOrderDraftForReviewInput,
+): Promise<SalesOrderDraftBundle> {
+  if (!input.extracted) {
+    return submitSalesOrderDraftForReview({ draftId: input.draftId, actor: input.actor });
+  }
+
+  const operatorFinal = buildOperatorFinalSnapshot(input.extracted, input.operatorLineQuantities);
+  const linePayloads = buildDraftLineRpcPayloads(input.extracted, input.operatorLineQuantities);
+
+  const { data: draftId, error } = await supabase.rpc("submit_sales_order_draft_for_review_atomic", {
+    p_draft_id: input.draftId,
+    p_operator_final_snapshot: operatorFinal as unknown as Json,
+    p_readiness_overall_score: input.extracted.readiness.overallScore,
+    p_readiness_dimensions: input.extracted.readiness.dimensions as unknown as Json,
+    p_lines: linePayloads as unknown as Json,
+    p_actor_id: input.actor.id,
+    p_actor_name: input.actor.name,
+    p_audit_metadata: { lineCount: linePayloads.length, operatorSync: true } as Json,
+  });
+
+  if (error) throw new Error(error.message);
+
+  const reloaded = await fetchSalesOrderDraftById(draftId ?? input.draftId);
+  if (!reloaded) throw new Error("Failed to reload submitted draft.");
+  return reloaded;
 }
 
 export async function approveSalesOrderDraft(

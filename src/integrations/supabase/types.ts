@@ -4198,6 +4198,19 @@ export type Database = {
         }
         Returns: string
       }
+      submit_sales_order_draft_for_review_atomic: {
+        Args: {
+          p_draft_id: string
+          p_operator_final_snapshot: Json
+          p_readiness_overall_score: number
+          p_readiness_dimensions: Json
+          p_lines: Json
+          p_actor_id: string
+          p_actor_name: string
+          p_audit_metadata?: Json
+        }
+        Returns: string
+      }
     }
     Enums: {
       [_ in never]: never
