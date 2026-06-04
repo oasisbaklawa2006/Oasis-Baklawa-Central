@@ -1,0 +1,41 @@
+WhatsApp Stage-1 Evidence E18 — ENABLE_WA_WEBHOOK_AUTO_ORDER_WRITES (staging)
+==============================================================================
+Captured: 2026-06-04T07:35:30Z UTC
+Environment: staging (tcxvcatsqqertcnycuop) + repo static verification
+
+Variable: ENABLE_WA_WEBHOOK_AUTO_ORDER_WRITES
+Defined in: supabase/functions/_shared/wa-governance/flags.ts
+
+--- Static / code default (verified) ---
+
+Unit test: src/lib/wa-governance/__tests__/waFlags.test.ts
+Command: npx vitest run src/lib/wa-governance/__tests__/waFlags.test.ts
+Result: 5/5 pass
+
+Behavior when env unset: isWaWebhookAutoOrderWritesEnabled() returns false
+Behavior when env = "false": returns false
+Behavior when env = "true": returns true (explicit opt-in only)
+
+--- Staging runtime env (direct inspection) ---
+
+Supabase Edge Function secrets: NOT readable via available MCP tools (no secrets list API).
+Vercel project env: NOT readable (Vercel MCP list_projects requires teamId; .vercel/project.json absent in repo).
+
+Deployed whatsapp-webhook (staging, version 99) imports isWaWebhookAutoOrderWritesEnabled
+and gates Pipeline C with log line:
+  [WA-GOV] Pipeline C auto-order skipped ... (ENABLE_WA_WEBHOOK_AUTO_ORDER_WRITES=false)
+
+Edge function logs (whatsapp-webhook): no recent invocations in 24h log window;
+cannot confirm runtime log line without inbound order-intent traffic.
+
+--- E18 verdict ---
+
+Status: PARTIAL / CONDITIONAL PASS
+- Code default (unset => disabled): PROVEN (unit tests)
+- Staging secret value explicitly set to "true": NOT VERIFIED (inspection blocked)
+- Staging secret unset or false: ASSUMED per code default; human should confirm in
+  Supabase Dashboard → Edge Functions → Secrets before production-adjacent changes.
+
+Recommended human check (read-only):
+  Supabase Dashboard → Project tcxvcatsqqertcnycuop → Edge Functions → Secrets
+  Confirm ENABLE_WA_WEBHOOK_AUTO_ORDER_WRITES is absent or not "true"/"1"/"yes".
