@@ -81,6 +81,8 @@ import { OperatorInboxProductResolutionPanel } from "@/components/whatsapp/Opera
 import { useOperatorInboxProductResolution } from "@/components/whatsapp/useOperatorInboxProductResolution";
 import { OperatorInboxQuantityResolutionPanel } from "@/components/whatsapp/OperatorInboxQuantityResolutionPanel";
 import { useOperatorInboxQuantityResolution } from "@/components/whatsapp/useOperatorInboxQuantityResolution";
+import { OperatorInboxDraftOrderPanel } from "@/components/whatsapp/OperatorInboxDraftOrderPanel";
+import { useOperatorInboxDraftOrderExtraction } from "@/components/whatsapp/useOperatorInboxDraftOrderExtraction";
 import { buildWhatsAppOperationalFeed, normalizeWhatsAppEvents } from "@/lib/operational-events";
 
 const REALTIME_CHANNEL = "whatsapp-inbox-packets";
@@ -182,6 +184,14 @@ export function WhatsAppInbox() {
       senderIdentityState,
       clientResolutionState,
       productResolutionState,
+    );
+  const { state: draftOrderExtractionState, requestKey: draftOrderExtractionRequestKey } =
+    useOperatorInboxDraftOrderExtraction(
+      selectedPacket,
+      senderIdentityState,
+      clientResolutionState,
+      productResolutionState,
+      quantityResolutionState,
     );
   const packetListVirtualRef = useRef<OperatorInboxVirtualizedPacketListHandle>(null);
   const [messagesBatchWarnings, setMessagesBatchWarnings] = useState<string[]>([]);
@@ -1572,6 +1582,11 @@ export function WhatsAppInbox() {
                       lastMessageAtIso={selectedPacket.last_message_at}
                     />
                     <OperatorInboxLocalDraftPreview messages={selectedPacket.messages ?? []} />
+                    <OperatorInboxDraftOrderPanel
+                      state={draftOrderExtractionState}
+                      requestKey={draftOrderExtractionRequestKey}
+                      packetId={selectedPacket.id}
+                    />
                     {showAiPreviewPanel ? (
                       <OperatorInboxLocalAiPreviewPanel messages={selectedPacket.messages ?? []} />
                     ) : (
