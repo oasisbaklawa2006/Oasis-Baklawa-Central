@@ -107,6 +107,17 @@ describe("operator inbox Stage-1 guardrails", () => {
     expect(localState).toMatch(/never writes to orders/);
   });
 
+  it("sales order draft section persists to sales_order_drafts only", () => {
+    const section = readRepoFile("src/components/whatsapp/OperatorInboxSalesOrderDraftSection.tsx");
+    expect(section).not.toMatch(/from\("orders"\)/);
+    expect(section).toMatch(/sales_order_drafts/);
+    expect(section).toMatch(/Does not create live Sales Orders/);
+    const hook = readRepoFile("src/components/whatsapp/useOperatorInboxSalesOrderDraft.ts");
+    expect(hook).not.toMatch(/from\("orders"\)/);
+    expect(scanRepoFileForForbiddenPostgrestWrites(REPO_ROOT, "src/components/whatsapp/useOperatorInboxSalesOrderDraft.ts")).toEqual([]);
+    expect(scanRepoFileForForbiddenPostgrestWrites(REPO_ROOT, "src/components/whatsapp/OperatorInboxSalesOrderDraftSection.tsx")).toEqual([]);
+  });
+
   it("webhook auto-order and owner reassignment flags default to disabled", () => {
     expect(isWaWebhookAutoOrderWritesEnabled(() => undefined)).toBe(false);
     expect(isWaWebhookOwnerReassignmentEnabled(() => undefined)).toBe(false);
