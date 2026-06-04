@@ -522,6 +522,17 @@ describe("extraction projection guard (static)", () => {
     );
     expect(section).toMatch(/!bundle && state\.status !== "loading"/);
   });
+  it("clears stale local qty overrides when creating after extraction drift", async () => {
+    const { readFileSync } = await import("node:fs");
+    const { join } = await import("node:path");
+    const hook = readFileSync(
+      join(import.meta.dirname, "../../../components/whatsapp/useOperatorInboxSalesOrderDraft.ts"),
+      "utf8",
+    );
+    expect(hook).toMatch(/resolveCreateOperatorLineQuantities/);
+    expect(hook).toMatch(/extractionProjectionStale/);
+    expect(hook).toMatch(/clearDraftOrderLocalEdits\(packetId\)/);
+  });
 });
 describe("persisted draft fetch and rejected recreate UI (static)", () => {
   it("enables draft fetch by packetId rather than extraction readiness", async () => {

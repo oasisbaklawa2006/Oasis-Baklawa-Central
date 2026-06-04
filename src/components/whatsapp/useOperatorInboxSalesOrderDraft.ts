@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { User } from "@supabase/supabase-js";
-import { getDraftOrderLocalEdits } from "@/components/whatsapp/operatorInboxDraftOrderLocalState";
+import { getDraftOrderLocalEdits, clearDraftOrderLocalEdits } from "@/components/whatsapp/operatorInboxDraftOrderLocalState";
 import type { ExtractedDraftOrder } from "@/lib/wa-governance/draftOrderExtractionTypes";
 import { buildSalesOrderDraftComparisonView } from "@/lib/wa-sales-order-draft/buildComparisonView";
 import {
@@ -95,6 +95,16 @@ export function useOperatorInboxSalesOrderDraft(args: {
     return canTransitionToApproved(currentBundle.draft.readiness_dimensions);
   }, [currentBundle]);
 
+  const extractionProjectionStale = useMemo(
+    () =>
+      Boolean(
+        extracted &&
+          currentBundle &&
+          extracted.extractionRequestKey !== currentBundle.draft.extraction_request_key,
+      ),
+    [currentBundle, extracted],
+  );
+
   const runAction = useCallback(
     async (fn: () => Promise<SalesOrderDraftBundle>) => {
       if (!packetId) return;
@@ -123,13 +133,23 @@ export function useOperatorInboxSalesOrderDraft(args: {
     });
   }, [operatorLineQuantities, packetId]);
 
+  const resolveCreateOperatorLineQuantities = useCallback(() => {
+    if (extractionProjectionStale) {
+      return resolveOperatorLineQuantities({
+        parentLineQuantities: operatorLineQuantities,
+        storedLineQuantities: {},
+      });
+    }
+    return resolveLatestOperatorLineQuantities();
+  }, [extractionProjectionStale, operatorLineQuantities, resolveLatestOperatorLineQuantities]);
+
   const createDraft = useCallback(async () => {
     const actor = actorFromUser(user);
     if (!extracted || !actor) {
       setActionError("Sign in and wait for draft extraction before creating a Sales Order Draft.");
       return;
     }
-    const latestQuantities = resolveLatestOperatorLineQuantities();
+    const latestQuantities = resolveCreateOperatorLineQuantities();
     await runAction(() =>
       createSalesOrderDraft({
         extracted,
@@ -137,7 +157,7 @@ export function useOperatorInboxSalesOrderDraft(args: {
         actor,
       }),
     );
-  }, [extracted, resolveLatestOperatorLineQuantities, runAction, user]);
+  }, [extracted, resolveCreateOperatorLineQuantities, runAction, user]);
 
   const submitForReview = useCallback(async () => {
     const actor = actorFromUser(user);
@@ -173,16 +193,21 @@ export function useOperatorInboxSalesOrderDraft(args: {
     async (rejectionReason: string, reviewNotes?: string) => {
       const actor = actorFromUser(user);
       if (!currentBundle || !actor) return;
-      await runAction(() =>
-        rejectSalesOrderDraft({
+      const shouldClearLocalEdits = extractionProjectionStale;
+      await runAction(async () => {
+        const bundle = await rejectSalesOrderDraft({
           draftId: currentBundle.draft.id,
           actor,
           rejectionReason,
           reviewNotes,
-        }),
-      );
+        });
+        if (packetId && shouldClearLocalEdits) {
+          clearDraftOrderLocalEdits(packetId);
+        }
+        return bundle;
+      });
     },
-    [runAction, currentBundle, user],
+    [runAction, currentBundle, extractionProjectionStale, packetId, user],
   );
 
   const syncOperatorFinal = useCallback(async () => {
@@ -205,11 +230,6 @@ export function useOperatorInboxSalesOrderDraft(args: {
 
   const draftStatus = currentBundle ? currentBundle.draft.status : null;
   const isTerminal = draftStatus ? isTerminalStatus(draftStatus) : false;
-  const extractionProjectionStale = Boolean(
-    extracted &&
-      currentBundle &&
-      extracted.extractionRequestKey !== currentBundle.draft.extraction_request_key,
-  );
 
   return {
     state,
