@@ -91,11 +91,20 @@ describe("operator inbox Stage-1 guardrails", () => {
       "src/components/whatsapp/OperatorInboxClientResolutionPanel.tsx",
       "src/components/whatsapp/OperatorInboxProductResolutionPanel.tsx",
       "src/components/whatsapp/OperatorInboxQuantityResolutionPanel.tsx",
+      "src/components/whatsapp/OperatorInboxDraftOrderPanel.tsx",
     ]) {
       const content = readRepoFile(panel);
       expect(content).toMatch(/read-only/);
       expect(content).toMatch(/not persisted/);
     }
+  });
+
+  it("draft order panel does not invoke orders write paths", () => {
+    const panel = readRepoFile("src/components/whatsapp/OperatorInboxDraftOrderPanel.tsx");
+    expect(panel).not.toMatch(/from\("orders"\)/);
+    expect(panel).toMatch(/does not create Sales Orders/);
+    const localState = readRepoFile("src/components/whatsapp/operatorInboxDraftOrderLocalState.ts");
+    expect(localState).toMatch(/never writes to orders/);
   });
 
   it("webhook auto-order and owner reassignment flags default to disabled", () => {

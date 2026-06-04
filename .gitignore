@@ -25,6 +25,7 @@ dist-ssr
 
 # Playwright generated artifacts
 playwright-report/
+.playwright-mcp/
 test-results/
 
 # UX audit run output (large binaries; keep report in docs/)
