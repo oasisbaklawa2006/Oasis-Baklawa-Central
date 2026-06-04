@@ -1630,7 +1630,7 @@ export function WhatsAppInbox() {
                       onLineQuantitiesReset={handleDraftOrderLineQuantitiesReset}
                       quantityEditsLocked={
                         salesOrderDraftHook.draftStatus === "UNDER_REVIEW" ||
-                        salesOrderDraftHook.isTerminal
+                        salesOrderDraftHook.draftStatus === "APPROVED_FOR_SO"
                       }
                     />
                     <OperatorInboxSalesOrderDraftSection

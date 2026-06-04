@@ -479,6 +479,8 @@ describe("extraction projection guard (static)", () => {
     );
     expect(inbox).toMatch(/quantityEditsLocked/);
     expect(inbox).toMatch(/draftStatus === "UNDER_REVIEW"/);
+    expect(inbox).toMatch(/draftStatus === "APPROVED_FOR_SO"/);
+    expect(inbox).not.toMatch(/isTerminal/);
     expect(panel).toMatch(/quantityEditsLocked/);
     expect(panel).toMatch(/Quantity edits are locked while the sales order draft is under review/);
   });

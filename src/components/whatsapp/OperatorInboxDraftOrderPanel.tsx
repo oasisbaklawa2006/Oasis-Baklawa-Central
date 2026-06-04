@@ -173,7 +173,7 @@ export const OperatorInboxDraftOrderPanel = memo(function OperatorInboxDraftOrde
         ) : null}
         {quantityEditsLocked ? (
           <p className="w-full text-[11px] text-teal-900/80">
-            Quantity edits are locked while the sales order draft is under review or terminal.
+            Quantity edits are locked while the sales order draft is under review or approved.
           </p>
         ) : null}
       </div>
