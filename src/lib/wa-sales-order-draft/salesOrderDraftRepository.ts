@@ -4,7 +4,6 @@ import type { ExtractedDraftOrder } from "@/lib/wa-governance/draftOrderExtracti
 import {
   buildOperatorFinalSnapshot,
   buildDraftHeaderRpcPayload,
-  buildDraftLineInserts,
   buildDraftLineRpcPayloads,
 } from "./mapExtractedDraft";
 import { canTransitionToApproved } from "./readinessValidation";
@@ -18,10 +17,6 @@ import type {
 } from "./types";
 import { getNextStatus } from "./workflowTransitions";
 
-type DraftLineInsert = Database["public"]["Tables"]["sales_order_draft_lines"]["Insert"];
-type DraftUpdate = Database["public"]["Tables"]["sales_order_drafts"]["Update"];
-type DraftLineUpdate = Database["public"]["Tables"]["sales_order_draft_lines"]["Update"];
-
 function parseDraftRow(row: Database["public"]["Tables"]["sales_order_drafts"]["Row"]): SalesOrderDraftRow {
   return {
     ...row,
@@ -32,27 +27,6 @@ function parseDraftRow(row: Database["public"]["Tables"]["sales_order_drafts"]["
     operator_final_snapshot:
       row.operator_final_snapshot as unknown as SalesOrderDraftRow["operator_final_snapshot"],
   };
-}
-
-async function appendAuditEntry(args: {
-  draftId: string;
-  action: SalesOrderDraftAuditEntry["action"];
-  fromStatus: SalesOrderDraftStatus | null;
-  toStatus: SalesOrderDraftStatus | null;
-  actorId: string;
-  actorName: string;
-  metadata?: Record<string, unknown>;
-}): Promise<void> {
-  const { error } = await supabase.from("sales_order_draft_audit_log").insert({
-    draft_id: args.draftId,
-    action: args.action,
-    from_status: args.fromStatus,
-    to_status: args.toStatus,
-    actor_id: args.actorId,
-    actor_name: args.actorName,
-    metadata: (args.metadata ?? {}) as Json,
-  });
-  if (error) throw new Error(error.message);
 }
 
 export async function fetchDraftLinesAndAudit(draftId: string): Promise<{
@@ -179,50 +153,23 @@ export async function updateSalesOrderDraftOperatorFinal(args: {
   operatorLineQuantities: Record<number, number>;
   actor: TransitionSalesOrderDraftInput["actor"];
 }): Promise<SalesOrderDraftBundle> {
-  const bundle = await fetchSalesOrderDraftById(args.draftId);
-  if (!bundle) throw new Error("Sales order draft not found.");
-  if (bundle.draft.status === "APPROVED_FOR_SO" || bundle.draft.status === "REJECTED") {
-    throw new Error(`Cannot update operator final in terminal status ${bundle.draft.status}.`);
-  }
-
   const operatorFinal = buildOperatorFinalSnapshot(args.extracted, args.operatorLineQuantities);
-  const lineUpdates = buildDraftLineInserts(args.draftId, args.extracted, args.operatorLineQuantities);
+  const linePayloads = buildDraftLineRpcPayloads(args.extracted, args.operatorLineQuantities);
 
-  const { error: headerError } = await supabase
-    .from("sales_order_drafts")
-    .update({
-      operator_final_snapshot: operatorFinal as unknown as Json,
-      readiness_overall_score: args.extracted.readiness.overallScore,
-      readiness_dimensions: args.extracted.readiness.dimensions as unknown as Json,
-      updated_by: args.actor.id,
-    } satisfies DraftUpdate)
-    .eq("id", args.draftId);
-
-  if (headerError) throw new Error(headerError.message);
-
-  for (const line of lineUpdates) {
-    const { error } = await supabase
-      .from("sales_order_draft_lines")
-      .update({
-        operator_quantity: line.operator_quantity,
-        operator_line_snapshot: line.operator_line_snapshot as unknown as Json,
-      } satisfies DraftLineUpdate)
-      .eq("draft_id", args.draftId)
-      .eq("line_index", line.line_index);
-    if (error) throw new Error(error.message);
-  }
-
-  await appendAuditEntry({
-    draftId: args.draftId,
-    action: "UPDATE_OPERATOR_FINAL",
-    fromStatus: bundle.draft.status,
-    toStatus: bundle.draft.status,
-    actorId: args.actor.id,
-    actorName: args.actor.name,
-    metadata: { lineCount: lineUpdates.length },
+  const { data: draftId, error } = await supabase.rpc("update_sales_order_draft_operator_final", {
+    p_draft_id: args.draftId,
+    p_operator_final_snapshot: operatorFinal as unknown as Json,
+    p_readiness_overall_score: args.extracted.readiness.overallScore,
+    p_readiness_dimensions: args.extracted.readiness.dimensions as unknown as Json,
+    p_lines: linePayloads as unknown as Json,
+    p_actor_id: args.actor.id,
+    p_actor_name: args.actor.name,
+    p_audit_metadata: { lineCount: linePayloads.length } as Json,
   });
 
-  const reloaded = await fetchSalesOrderDraftById(args.draftId);
+  if (error) throw new Error(error.message);
+
+  const reloaded = await fetchSalesOrderDraftById(draftId ?? args.draftId);
   if (!reloaded) throw new Error("Failed to reload updated draft.");
   return reloaded;
 }

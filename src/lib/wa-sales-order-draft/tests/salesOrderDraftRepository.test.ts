@@ -119,6 +119,90 @@ describe("createSalesOrderDraft atomicity", () => {
   });
 });
 
+describe("updateSalesOrderDraftOperatorFinal atomicity", () => {
+  beforeEach(() => {
+    fromMock.mockReset();
+    rpcMock.mockReset();
+  });
+
+  it("uses RPC only and does not manually update header, lines, or audit", async () => {
+    const { readFileSync } = await import("node:fs");
+    const { join } = await import("node:path");
+    const repo = readFileSync(
+      join(import.meta.dirname, "../salesOrderDraftRepository.ts"),
+      "utf8",
+    );
+    const updateStart = repo.indexOf("export async function updateSalesOrderDraftOperatorFinal");
+    const updateEnd = repo.indexOf("async function fetchSalesOrderDraftById");
+    const updateBlock = repo.slice(updateStart, updateEnd);
+    expect(updateBlock).toMatch(/rpc\("update_sales_order_draft_operator_final"/);
+    expect(updateBlock).not.toMatch(/from\("sales_order_drafts"\)\s*\n\s*\.update/);
+    expect(updateBlock).not.toMatch(/from\("sales_order_draft_lines"\)\s*\n\s*\.update/);
+    expect(updateBlock).not.toMatch(/appendAuditEntry/);
+    expect(updateBlock).not.toMatch(/for \(const line of/);
+  });
+
+  it("throws on RPC failure without issuing separate line or audit writes", async () => {
+    rpcMock.mockResolvedValue({ data: null, error: { message: "line 0 not found" } });
+
+    fromMock.mockImplementation((table: string) => {
+      if (table === "sales_order_drafts") {
+        return {
+          select: vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnValue({
+              maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }),
+            }),
+          }),
+        };
+      }
+      return chainMock({ data: [], error: null });
+    });
+
+    const { updateSalesOrderDraftOperatorFinal } = await import(
+      "@/lib/wa-sales-order-draft/salesOrderDraftRepository"
+    );
+    const { extractedFixture } = await import("./fixtures/extractedDraftFixture");
+
+    await expect(
+      updateSalesOrderDraftOperatorFinal({
+        draftId: "draft-1",
+        extracted: extractedFixture,
+        operatorLineQuantities: { 0: 12 },
+        actor: { id: "user-1", name: "Operator" },
+      }),
+    ).rejects.toThrow("line 0 not found");
+
+    expect(rpcMock).toHaveBeenCalledWith(
+      "update_sales_order_draft_operator_final",
+      expect.objectContaining({
+        p_draft_id: "draft-1",
+        p_actor_id: "user-1",
+      }),
+    );
+    expect(rpcMock).toHaveBeenCalledTimes(1);
+
+    const updateCalls = fromMock.mock.calls.filter(
+      ([table, _opts]) =>
+        table === "sales_order_drafts" || table === "sales_order_draft_audit_log",
+    );
+    expect(updateCalls).toHaveLength(0);
+  });
+
+  it("operator final RPC migration verifies actor id matches auth.uid()", async () => {
+    const { readFileSync } = await import("node:fs");
+    const { join } = await import("node:path");
+    const sql = readFileSync(
+      join(
+        import.meta.dirname,
+        "../../../../supabase/migrations/20260606140000_wa_sprint9_sales_order_draft_operator_final_rpc.sql",
+      ),
+      "utf8",
+    );
+    expect(sql).toMatch(/p_actor_id IS DISTINCT FROM auth\.uid\(\)/);
+    expect(sql).toMatch(/UPDATE_OPERATOR_FINAL/);
+  });
+});
+
 describe("submitForReview operator sync (static)", () => {
   it("persists latest operator quantities before submit transition", async () => {
     const { readFileSync } = await import("node:fs");
