@@ -104,6 +104,8 @@ describe("approve and reject atomicity (static)", () => {
     const approveEnd = repo.indexOf("export async function rejectSalesOrderDraft");
     const approveBlock = repo.slice(approveStart, approveEnd);
     expect(approveBlock).toMatch(/rpc\("approve_sales_order_draft_for_so_atomic"/);
+    expect(approveBlock).toMatch(/assertPersistedDraftExtractionMatch/);
+    expect(approveBlock).toMatch(/p_expected_extraction_request_key/);
     expect(approveBlock).not.toMatch(/update_sales_order_draft_operator_final/);
     expect(approveBlock).not.toMatch(/transition_sales_order_draft_status/);
     expect(approveBlock).not.toMatch(/canTransitionToApproved/);
@@ -127,21 +129,38 @@ describe("approve and reject atomicity (static)", () => {
 
   it("throws on approve RPC failure without separate writes", async () => {
     rpcMock.mockResolvedValue({ data: null, error: { message: "client is not ready" } });
+    draftHeaderResult.data = {
+      id: "draft-1",
+      status: "UNDER_REVIEW",
+      extraction_request_key: "key-1",
+    };
+    fromMock.mockImplementation((table: string) => {
+      if (table === "sales_order_drafts") {
+        return draftHeaderChainMock();
+      }
+      return chainMock({ data: [], error: null });
+    });
 
     const { approveSalesOrderDraft } = await import(
       "@/lib/wa-sales-order-draft/salesOrderDraftRepository"
     );
+    const { extractedFixture } = await import("./fixtures/extractedDraftFixture");
 
     await expect(
       approveSalesOrderDraft({
         draftId: "draft-1",
+        extracted: extractedFixture,
         actor: { id: "user-1", name: "Approver" },
       }),
     ).rejects.toThrow("client is not ready");
 
     expect(rpcMock).toHaveBeenCalledWith(
       "approve_sales_order_draft_for_so_atomic",
-      expect.objectContaining({ p_draft_id: "draft-1", p_actor_id: "user-1" }),
+      expect.objectContaining({
+        p_draft_id: "draft-1",
+        p_expected_extraction_request_key: "key-1",
+        p_actor_id: "user-1",
+      }),
     );
     expect(rpcMock).toHaveBeenCalledTimes(1);
   });
@@ -177,16 +196,213 @@ describe("approve and reject atomicity (static)", () => {
     const sql = readFileSync(
       join(
         import.meta.dirname,
-        "../../../../supabase/migrations/20260606160000_wa_sprint9_sales_order_draft_approve_reject_atomic_rpc.sql",
+        "../../../../supabase/migrations/20260606180000_wa_sprint9_sales_order_draft_approve_extraction_readiness_hardening.sql",
       ),
       "utf8",
     );
     expect(sql).toMatch(/p_actor_id IS DISTINCT FROM auth\.uid\(\)/);
-    expect(sql).toMatch(/validate_sales_order_draft_readiness/);
+    expect(sql).toMatch(/validate_sales_order_draft_readiness\(v_readiness_dimensions\)/);
+    expect(sql).toMatch(/p_expected_extraction_request_key text/);
+    expect(sql).toMatch(/Extraction version mismatch/);
+    expect(sql).toMatch(/Draft extraction request key is missing/);
+    expect(sql).toMatch(/Expected extraction request key is required/);
     expect(sql).toMatch(/APPROVE/);
-    expect(sql).toMatch(/REJECT/);
     expect(sql).toMatch(/UNDER_REVIEW/);
-    expect(sql).toMatch(/payment_terms/);
+    expect(sql).toMatch(/persisted dimensions only/);
+  });
+});
+
+describe("approve extraction version and readiness validation", () => {
+  beforeEach(() => {
+    fromMock.mockReset();
+    rpcMock.mockReset();
+    draftHeaderResult.data = {
+      id: "draft-1",
+      status: "UNDER_REVIEW",
+      extraction_request_key: "key-1",
+    };
+    draftHeaderResult.error = null;
+    fromMock.mockImplementation((table: string) => {
+      if (table === "sales_order_drafts") {
+        return draftHeaderChainMock();
+      }
+      return chainMock({ data: [], error: null });
+    });
+  });
+
+  it("stale extraction version cannot approve", async () => {
+    const { approveSalesOrderDraft } = await import(
+      "@/lib/wa-sales-order-draft/salesOrderDraftRepository"
+    );
+    const { extractedFixture } = await import("./fixtures/extractedDraftFixture");
+
+    await expect(
+      approveSalesOrderDraft({
+        draftId: "draft-1",
+        extracted: { ...extractedFixture, extractionRequestKey: "new-key" },
+        actor: { id: "user-1", name: "Approver" },
+      }),
+    ).rejects.toThrow(/approve for SO/);
+
+    expect(rpcMock).not.toHaveBeenCalled();
+  });
+
+  it("missing extraction version cannot approve", async () => {
+    draftHeaderResult.data = {
+      id: "draft-1",
+      status: "UNDER_REVIEW",
+      extraction_request_key: "",
+    };
+    rpcMock.mockResolvedValue({
+      data: null,
+      error: { message: "Expected extraction request key is required" },
+    });
+
+    const { approveSalesOrderDraft } = await import(
+      "@/lib/wa-sales-order-draft/salesOrderDraftRepository"
+    );
+    const { extractedFixture } = await import("./fixtures/extractedDraftFixture");
+
+    await expect(
+      approveSalesOrderDraft({
+        draftId: "draft-1",
+        extracted: { ...extractedFixture, extractionRequestKey: "" },
+        actor: { id: "user-1", name: "Approver" },
+      }),
+    ).rejects.toThrow("Expected extraction request key is required");
+
+    expect(rpcMock).toHaveBeenCalledWith(
+      "approve_sales_order_draft_for_so_atomic",
+      expect.objectContaining({ p_expected_extraction_request_key: "" }),
+    );
+  });
+
+  it("invalid persisted readiness cannot approve", async () => {
+    rpcMock.mockResolvedValue({ data: null, error: { message: "client is not ready (20 — missing)" } });
+
+    const { approveSalesOrderDraft } = await import(
+      "@/lib/wa-sales-order-draft/salesOrderDraftRepository"
+    );
+    const { extractedFixture } = await import("./fixtures/extractedDraftFixture");
+
+    await expect(
+      approveSalesOrderDraft({
+        draftId: "draft-1",
+        extracted: extractedFixture,
+        actor: { id: "user-1", name: "Approver" },
+      }),
+    ).rejects.toThrow("client is not ready");
+
+    expect(rpcMock).toHaveBeenCalledWith(
+      "approve_sales_order_draft_for_so_atomic",
+      expect.objectContaining({ p_expected_extraction_request_key: "key-1" }),
+    );
+  });
+
+  it("valid persisted readiness approves via atomic RPC", async () => {
+    rpcMock.mockResolvedValue({ data: "draft-1", error: null });
+
+    const { approveSalesOrderDraft } = await import(
+      "@/lib/wa-sales-order-draft/salesOrderDraftRepository"
+    );
+    const { extractedFixture } = await import("./fixtures/extractedDraftFixture");
+
+    fromMock.mockImplementation((table: string) => {
+      if (table === "sales_order_drafts") {
+        return {
+          select: vi.fn().mockImplementation((fields: string) => ({
+            eq: vi.fn().mockReturnValue({
+              maybeSingle: vi.fn().mockResolvedValue({
+                data:
+                  fields === "id, status, extraction_request_key"
+                    ? {
+                        id: "draft-1",
+                        status: "UNDER_REVIEW",
+                        extraction_request_key: "key-1",
+                      }
+                    : {
+                        id: "draft-1",
+                        packet_id: "pkt-1",
+                        extraction_request_key: "key-1",
+                        status: "APPROVED_FOR_SO",
+                        readiness_dimensions: extractedFixture.readiness.dimensions,
+                        ai_draft_snapshot: extractedFixture,
+                        operator_final_snapshot: {},
+                      },
+                error: null,
+              }),
+            }),
+          })),
+        };
+      }
+      return chainMock({ data: [], error: null });
+    });
+
+    await approveSalesOrderDraft({
+      draftId: "draft-1",
+      extracted: extractedFixture,
+      actor: { id: "user-1", name: "Approver" },
+    });
+
+    expect(rpcMock).toHaveBeenCalledWith(
+      "approve_sales_order_draft_for_so_atomic",
+      expect.objectContaining({
+        p_draft_id: "draft-1",
+        p_expected_extraction_request_key: "key-1",
+        p_actor_id: "user-1",
+      }),
+    );
+  });
+
+  it("approve RPC migration rejects stale extraction version on server", async () => {
+    const { readFileSync } = await import("node:fs");
+    const { join } = await import("node:path");
+    const sql = readFileSync(
+      join(
+        import.meta.dirname,
+        "../../../../supabase/migrations/20260606180000_wa_sprint9_sales_order_draft_approve_extraction_readiness_hardening.sql",
+      ),
+      "utf8",
+    );
+    expect(sql).toMatch(
+      /v_extraction_request_key IS DISTINCT FROM trim\(p_expected_extraction_request_key\)/,
+    );
+  });
+
+  it("approve RPC migration rejects missing draft extraction key on server", async () => {
+    const { readFileSync } = await import("node:fs");
+    const { join } = await import("node:path");
+    const sql = readFileSync(
+      join(
+        import.meta.dirname,
+        "../../../../supabase/migrations/20260606180000_wa_sprint9_sales_order_draft_approve_extraction_readiness_hardening.sql",
+      ),
+      "utf8",
+    );
+    expect(sql).toMatch(/NULLIF\(trim\(v_extraction_request_key\), ''\) IS NULL/);
+  });
+
+  it("approve RPC validates all five persisted readiness dimensions on server", async () => {
+    const { readFileSync } = await import("node:fs");
+    const { join } = await import("node:path");
+    const baseSql = readFileSync(
+      join(
+        import.meta.dirname,
+        "../../../../supabase/migrations/20260606160000_wa_sprint9_sales_order_draft_approve_reject_atomic_rpc.sql",
+      ),
+      "utf8",
+    );
+    const approveSql = readFileSync(
+      join(
+        import.meta.dirname,
+        "../../../../supabase/migrations/20260606180000_wa_sprint9_sales_order_draft_approve_extraction_readiness_hardening.sql",
+      ),
+      "utf8",
+    );
+    expect(baseSql).toMatch(/payment_terms/);
+    expect(baseSql).toMatch(/client.*product.*quantity.*address/s);
+    expect(approveSql).toMatch(/validate_sales_order_draft_readiness\(v_readiness_dimensions\)/);
+    expect(approveSql).not.toMatch(/p_metadata.*readiness/);
   });
 });
 
@@ -563,7 +779,7 @@ describe("submitForReview operator sync (static)", () => {
     const approveStart = hook.indexOf("const approveDraft = useCallback");
     expect(approveStart).toBeGreaterThan(-1);
     const approveBlock = hook.slice(approveStart, approveStart + 700);
-    expect(approveBlock).toMatch(/approveSalesOrderDraft/);
+    expect(hook).toMatch(/approveSalesOrderDraft\([\s\S]*extracted,/);
     expect(approveBlock).not.toMatch(/updateSalesOrderDraftOperatorFinal/);
     expect(approveBlock).not.toMatch(/resolveLatestOperatorLineQuantities/);
   });
@@ -627,6 +843,7 @@ describe("extraction projection guard (static)", () => {
       "utf8",
     );
     expect(repo).toMatch(/p_expected_extraction_request_key: draftHeader\.extraction_request_key/);
+    expect(repo).toMatch(/p_expected_extraction_request_key: input\.extracted\.extractionRequestKey/);
     const sql = readFileSync(
       join(
         import.meta.dirname,
@@ -636,6 +853,15 @@ describe("extraction projection guard (static)", () => {
     );
     expect(sql).toMatch(/p_expected_extraction_request_key text/);
     expect(sql).toMatch(/Extraction version mismatch/);
+    const approveSql = readFileSync(
+      join(
+        import.meta.dirname,
+        "../../../../supabase/migrations/20260606180000_wa_sprint9_sales_order_draft_approve_extraction_readiness_hardening.sql",
+      ),
+      "utf8",
+    );
+    expect(approveSql).toMatch(/p_expected_extraction_request_key text/);
+    expect(approveSql).toMatch(/validate_sales_order_draft_readiness\(v_readiness_dimensions\)/);
   });
 
   it("blocks create from returning stale active AI_DRAFT", async () => {

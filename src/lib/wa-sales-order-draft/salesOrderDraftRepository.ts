@@ -184,10 +184,19 @@ export async function submitSalesOrderDraftForReviewWithOperatorSync(
 }
 
 export async function approveSalesOrderDraft(
-  input: TransitionSalesOrderDraftInput,
+  input: TransitionSalesOrderDraftInput & { extracted: ExtractedDraftOrder },
 ): Promise<SalesOrderDraftBundle> {
+  const draftHeader = await fetchDraftHeaderForMutation(input.draftId);
+  assertPersistedDraftExtractionMatch({
+    extracted: input.extracted,
+    extractionRequestKey: draftHeader.extraction_request_key,
+    status: draftHeader.status,
+    actionLabel: "approve for SO",
+  });
+
   const { data: draftId, error } = await supabase.rpc("approve_sales_order_draft_for_so_atomic", {
     p_draft_id: input.draftId,
+    p_expected_extraction_request_key: input.extracted.extractionRequestKey,
     p_actor_id: input.actor.id,
     p_actor_name: input.actor.name,
     p_review_notes: input.reviewNotes ?? null,

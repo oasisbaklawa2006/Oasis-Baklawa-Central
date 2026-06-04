@@ -217,6 +217,7 @@ export function useOperatorInboxSalesOrderDraft(args: {
     await runAction(() =>
       approveSalesOrderDraft({
         draftId: currentBundle.draft.id,
+        extracted,
         actor,
         reviewNotes,
       }),

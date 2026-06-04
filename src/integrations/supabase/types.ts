@@ -4216,6 +4216,7 @@ export type Database = {
       approve_sales_order_draft_for_so_atomic: {
         Args: {
           p_draft_id: string
+          p_expected_extraction_request_key: string
           p_actor_id: string
           p_actor_name: string
           p_review_notes?: string | null
