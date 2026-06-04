@@ -67,15 +67,21 @@ export function useOperatorInboxSalesOrderDraft(args: {
     void reload();
   }, [reload]);
 
-  const comparisonView = useMemo(() => {
-    if (state.status !== "ready" || !state.bundle) return null;
-    return buildSalesOrderDraftComparisonView(state.bundle);
+  const currentBundle = useMemo(() => {
+    if (state.status === "ready") return state.bundle;
+    if (state.status === "error") return state.bundle ?? null;
+    return null;
   }, [state]);
 
+  const comparisonView = useMemo(() => {
+    if (!currentBundle) return null;
+    return buildSalesOrderDraftComparisonView(currentBundle);
+  }, [currentBundle]);
+
   const approvalReadiness = useMemo(() => {
-    if (state.status !== "ready" || !state.bundle) return null;
-    return canTransitionToApproved(state.bundle.draft.readiness_dimensions);
-  }, [state]);
+    if (!currentBundle) return null;
+    return canTransitionToApproved(currentBundle.draft.readiness_dimensions);
+  }, [currentBundle]);
 
   const runAction = useCallback(
     async (fn: () => Promise<SalesOrderDraftBundle>) => {
@@ -119,8 +125,8 @@ export function useOperatorInboxSalesOrderDraft(args: {
 
   const submitForReview = useCallback(async () => {
     const actor = actorFromUser(user);
-    if (state.status !== "ready" || !state.bundle || !actor) return;
-    const draftId = state.bundle.draft.id;
+    if (!currentBundle || !actor) return;
+    const draftId = currentBundle.draft.id;
     const latestQuantities = resolveLatestOperatorLineQuantities();
     await runAction(async () => {
       if (extracted) {
@@ -133,12 +139,12 @@ export function useOperatorInboxSalesOrderDraft(args: {
       }
       return submitSalesOrderDraftForReview({ draftId, actor });
     });
-  }, [extracted, resolveLatestOperatorLineQuantities, runAction, state, user]);
+  }, [currentBundle, extracted, resolveLatestOperatorLineQuantities, runAction, user]);
 
   const approveDraft = useCallback(async (reviewNotes?: string) => {
     const actor = actorFromUser(user);
-    if (state.status !== "ready" || !state.bundle || !actor) return;
-    const draftId = state.bundle.draft.id;
+    if (!currentBundle || !actor) return;
+    const draftId = currentBundle.draft.id;
     const latestQuantities = resolveLatestOperatorLineQuantities();
     await runAction(async () => {
       if (extracted) {
@@ -155,27 +161,27 @@ export function useOperatorInboxSalesOrderDraft(args: {
         reviewNotes,
       });
     });
-  }, [extracted, resolveLatestOperatorLineQuantities, runAction, state, user]);
+  }, [currentBundle, extracted, resolveLatestOperatorLineQuantities, runAction, user]);
 
   const rejectDraft = useCallback(
     async (rejectionReason: string, reviewNotes?: string) => {
       const actor = actorFromUser(user);
-      if (state.status !== "ready" || !state.bundle || !actor) return;
+      if (!currentBundle || !actor) return;
       await runAction(() =>
         rejectSalesOrderDraft({
-          draftId: state.bundle!.draft.id,
+          draftId: currentBundle.draft.id,
           actor,
           rejectionReason,
           reviewNotes,
         }),
       );
     },
-    [runAction, state, user],
+    [runAction, currentBundle, user],
   );
 
   const syncOperatorFinal = useCallback(async () => {
     const actor = actorFromUser(user);
-    if (state.status !== "ready" || !state.bundle || !actor) return;
+    if (!currentBundle || !actor) return;
     if (!extracted) {
       setActionError("Draft extraction must be ready before syncing operator edits.");
       return;
@@ -183,16 +189,15 @@ export function useOperatorInboxSalesOrderDraft(args: {
     const latestQuantities = resolveLatestOperatorLineQuantities();
     await runAction(() =>
       updateSalesOrderDraftOperatorFinal({
-        draftId: state.bundle!.draft.id,
+        draftId: currentBundle.draft.id,
         extracted,
         operatorLineQuantities: latestQuantities,
         actor,
       }),
     );
-  }, [extracted, resolveLatestOperatorLineQuantities, runAction, state, user]);
+  }, [currentBundle, extracted, resolveLatestOperatorLineQuantities, runAction, user]);
 
-  const draftStatus =
-    state.status === "ready" && state.bundle ? state.bundle.draft.status : null;
+  const draftStatus = currentBundle ? currentBundle.draft.status : null;
   const isTerminal = draftStatus ? isTerminalStatus(draftStatus) : false;
 
   return {
