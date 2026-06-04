@@ -129,7 +129,7 @@ export async function submitSalesOrderDraftForReviewWithOperatorSync(
   input: SubmitSalesOrderDraftForReviewInput,
 ): Promise<SalesOrderDraftBundle> {
   if (!input.extracted) {
-    return submitSalesOrderDraftForReview({ draftId: input.draftId, actor: input.actor });
+    throw new Error("Draft extraction must be ready before submitting for review.");
   }
 
   const operatorFinal = buildOperatorFinalSnapshot(input.extracted, input.operatorLineQuantities);

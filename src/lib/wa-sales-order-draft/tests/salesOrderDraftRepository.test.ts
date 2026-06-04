@@ -223,6 +223,7 @@ describe("submitForReview atomicity (static)", () => {
     expect(submitBlock).toMatch(/resolveLatestOperatorLineQuantities/);
     expect(submitBlock).not.toMatch(/updateSalesOrderDraftOperatorFinal/);
     expect(submitBlock).not.toMatch(/submitSalesOrderDraftForReview\(/);
+    expect(submitBlock).toMatch(/Draft extraction must be ready before submitting for review/);
   });
 
   it("repository uses atomic submit RPC when extracted draft is present", async () => {
@@ -241,7 +242,7 @@ describe("submitForReview atomicity (static)", () => {
     expect(submitBlock).not.toMatch(/for \(const line of/);
   });
 
-  it("falls back to transition-only submit when extracted is null", async () => {
+  it("requires extracted draft and always uses atomic submit RPC", async () => {
     const { readFileSync } = await import("node:fs");
     const { join } = await import("node:path");
     const repo = readFileSync(
@@ -252,7 +253,9 @@ describe("submitForReview atomicity (static)", () => {
     const submitEnd = repo.indexOf("export async function approveSalesOrderDraft");
     const submitBlock = repo.slice(submitStart, submitEnd);
     expect(submitBlock).toMatch(/if \(!input\.extracted\)/);
-    expect(submitBlock).toMatch(/submitSalesOrderDraftForReview\(/);
+    expect(submitBlock).toMatch(/Draft extraction must be ready before submitting for review/);
+    expect(submitBlock).toMatch(/rpc\("submit_sales_order_draft_for_review_atomic"/);
+    expect(submitBlock).not.toMatch(/submitSalesOrderDraftForReview\(/);
   });
 
   it("throws on atomic submit RPC failure without separate operator or transition calls", async () => {
@@ -310,6 +313,7 @@ describe("submitForReview operator sync (static)", () => {
     expect(submitBlock).toMatch(/resolveLatestOperatorLineQuantities/);
     expect(submitBlock).toMatch(/submitSalesOrderDraftForReviewWithOperatorSync/);
     expect(submitBlock).toMatch(/operatorLineQuantities: latestQuantities/);
+    expect(submitBlock).toMatch(/Draft extraction must be ready before submitting for review/);
   });
 
   it("persists latest operator quantities before approve transition", async () => {
@@ -405,5 +409,21 @@ describe("persisted draft fetch and rejected recreate UI (static)", () => {
     );
     expect(section).toMatch(/state\.status === "error"/);
     expect(section).toMatch(/disabled=\{actionPending \|\| !extracted\}/);
+  });
+
+  it("disables submit for review without extraction", async () => {
+    const { readFileSync } = await import("node:fs");
+    const { join } = await import("node:path");
+    const section = readFileSync(
+      join(
+        import.meta.dirname,
+        "../../../components/whatsapp/OperatorInboxSalesOrderDraftSection.tsx",
+      ),
+      "utf8",
+    );
+    const submitButtonStart = section.indexOf("onClick={() => void submitForReview()}");
+    expect(submitButtonStart).toBeGreaterThan(-1);
+    const submitBlock = section.slice(submitButtonStart - 120, submitButtonStart);
+    expect(submitBlock).toMatch(/disabled=\{actionPending \|\| !extracted\}/);
   });
 });

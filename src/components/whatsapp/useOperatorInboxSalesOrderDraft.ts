@@ -126,6 +126,10 @@ export function useOperatorInboxSalesOrderDraft(args: {
   const submitForReview = useCallback(async () => {
     const actor = actorFromUser(user);
     if (!currentBundle || !actor) return;
+    if (!extracted) {
+      setActionError("Draft extraction must be ready before submitting for review.");
+      return;
+    }
     const latestQuantities = resolveLatestOperatorLineQuantities();
     await runAction(() =>
       submitSalesOrderDraftForReviewWithOperatorSync({

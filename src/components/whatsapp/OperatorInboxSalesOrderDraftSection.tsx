@@ -186,7 +186,7 @@ export const OperatorInboxSalesOrderDraftSection = memo(function OperatorInboxSa
                     type="button"
                     size="sm"
                     className="h-8 text-xs"
-                    disabled={actionPending}
+                    disabled={actionPending || !extracted}
                     onClick={() => void submitForReview()}
                   >
                     <Send className="mr-1 h-3 w-3" aria-hidden />
