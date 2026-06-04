@@ -1,4 +1,4 @@
-import { memo, useCallback, useId, useState } from "react";
+import { memo, useCallback, useEffect, useId, useState } from "react";
 import { FileText, Loader2, Pencil, ShieldCheck, XCircle } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -35,6 +35,10 @@ export const OperatorInboxDraftOrderPanel = memo(function OperatorInboxDraftOrde
   const headingId = `${reactId}-draft-order-heading`;
   const [editMode, setEditMode] = useState(false);
   const [localRevision, setLocalRevision] = useState(0);
+
+  useEffect(() => {
+    setEditMode(false);
+  }, [packetId]);
 
   const refreshLocal = useCallback(() => setLocalRevision((n) => n + 1), []);
 
@@ -79,7 +83,7 @@ export const OperatorInboxDraftOrderPanel = memo(function OperatorInboxDraftOrde
         </p>
       ) : null}
 
-      {(state.status === "loading" || state.status === "ready" || state.status === "error") && (
+      {(state.status === "ready" || state.status === "error") && (
         <DraftOrderBody
           draft={draft}
           summary={summary}
@@ -92,6 +96,7 @@ export const OperatorInboxDraftOrderPanel = memo(function OperatorInboxDraftOrde
         />
       )}
 
+      {state.status !== "loading" ? (
       <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-teal-200/80 pt-3">
         <Button
           type="button"
@@ -149,6 +154,7 @@ export const OperatorInboxDraftOrderPanel = memo(function OperatorInboxDraftOrde
           </Badge>
         ) : null}
       </div>
+      ) : null}
     </section>
   );
 });
