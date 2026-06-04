@@ -1,0 +1,37 @@
+
+> vite_react_shadcn_ts@0.0.0 test
+> vitest run src/lib/wa-governance/tests/
+
+
+ RUN  v3.2.4 /workspace
+
+2:19:35 AM [vite] Failed to load source map for /workspace/node_modules/typescript/lib/typescript.js.
+Error: An error occurred while trying to read the map file at typescript.js.map
+Error: ENOENT: no such file or directory, open '/workspace/node_modules/typescript/lib/typescript.js.map'
+    at async open (node:internal/fs/promises:639:25)
+    at async Object.readFile (node:internal/fs/promises:1249:14)
+    at async extractSourcemapFromFile (file:///workspace/node_modules/vite/dist/node/chunks/dep-C6uTJdX2.js:21002:53)
+    at async loadAndTransform (file:///workspace/node_modules/vite/dist/node/chunks/dep-C6uTJdX2.js:51940:27)
+ ✓ src/lib/wa-governance/tests/quantityResolutionAudit.test.ts (12 tests) 23ms
+ ✓ src/lib/wa-governance/tests/quantityResolutionIntegration.test.ts (7 tests) 21ms
+ ✓ src/lib/wa-governance/tests/quantityResolutionNormalize.test.ts (24 tests) 30ms
+ ✓ src/lib/wa-governance/tests/productResolutionScoring.test.ts (19 tests) 27ms
+ ✓ src/lib/wa-governance/tests/quantityResolutionScoring.test.ts (8 tests) 19ms
+ ✓ src/lib/wa-governance/tests/quantityResolutionSignals.test.ts (8 tests) 13ms
+ ✓ src/lib/wa-governance/tests/operatorInboxStage1Guard.test.ts (10 tests) 358ms
+ ✓ src/lib/wa-governance/tests/stage1InvokeScan.test.ts (7 tests) 13ms
+ ✓ src/lib/wa-governance/tests/productResolutionSignals.test.ts (6 tests) 8ms
+ ✓ src/lib/wa-governance/tests/quantityResolutionRequestKey.test.ts (5 tests) 3ms
+ ✓ src/lib/wa-governance/tests/productResolutionAliasPolicy.test.ts (3 tests) 4ms
+ ✓ src/lib/wa-governance/tests/stage1PostgrestWriteScan.test.ts (4 tests) 10ms
+ ✓ src/lib/wa-governance/tests/quantityResolutionLifecycle.test.ts (8 tests) 10ms
+ ✓ src/lib/wa-governance/tests/productResolutionRequestKey.test.ts (5 tests) 3ms
+ ✓ src/lib/wa-governance/tests/quantityResolutionResultCache.test.ts (5 tests) 3ms
+ ✓ src/lib/wa-governance/tests/clientResolutionIlike.test.ts (2 tests) 2ms
+ ✓ src/lib/wa-governance/tests/productResolutionResultCache.test.ts (4 tests) 3ms
+
+ Test Files  17 passed (17)
+      Tests  137 passed (137)
+   Start at  02:19:34
+   Duration  6.71s (transform 2.62s, setup 3.78s, collect 6.83s, tests 550ms, environment 4.90s, prepare 1.20s)
+

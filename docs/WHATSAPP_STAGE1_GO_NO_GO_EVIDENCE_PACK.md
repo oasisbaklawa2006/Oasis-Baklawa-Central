@@ -12,6 +12,12 @@
 - `docs/WHATSAPP_WA02B_GOVERNANCE_HARDENING.md` — webhook auto-order flag gating
 - `docs/WHATSAPP_WA03A` … `WA06A` — resolution stack (read-only)
 - `docs/POST_MERGE_PR69_OPERATOR_INBOX_SMOKE.md` — manual browser smoke checklist
+- `docs/evidence/stage1/staging-evidence-runbook.md` — open staging evidence execution map (E1–E20)
+
+**Static evidence artifacts (complete):**
+- `docs/evidence/stage1/ci-readonly-guard.log` — wa-governance test suite (137/137)
+- `docs/evidence/stage1/idempotency-reply-gap.md` — operator reply idempotency NO-GO (static)
+- `docs/evidence/stage1/rbac-url-access.md` — RBAC URL note (static; staging test pending)
 
 ---
 
@@ -19,12 +25,12 @@
 
 | Pilot mode | Stage-1 verdict | Rationale |
 |------------|-----------------|-----------|
-| **Read-only observation** (packets, thread, resolution panels, TOOL 3/4 suggestions) | **CONDITIONAL GO** | No PostgREST writes in inbox tree; resolution stack SELECT-only; governance UI blocks draft/automation/reassign; webhook auto-order flags default **off** |
+| **Read-only observation** (packets, thread, resolution panels, TOOL 3/4 suggestions) | **NOT GO** (staging sign-off) / **Conditional** (planning) | Static AST guards pass; staging screenshots/smoke **pending** (runbook E1–E20) |
 | **Operator reply send** (TOOL 1) | **NO-GO** | `whatsapp-operator-reply` writes DB + provider send; `verify_jwt = false`; no idempotency key; no override audit table writes |
 | **Order / draft creation from inbox** | **GO (blocked by design)** | No order/draft write path in inbox UI; local draft preview is client-only |
 | **Live send / order-write automation pilot** | **NO-GO** | Write-path guardrails incomplete; see blockers §8 |
 
-**Stage-1 status:** Safe enough to **plan** a **read-only controlled pilot**. **Not** safe to expand into governed send or order-write automation without closing blockers in §8.
+**Stage-1 status:** Static guard evidence **complete** (`docs/evidence/stage1/`). **NOT GO** for staging sign-off until screenshot/SQL/manual runbook items are captured. **Conditional** read-only pilot **planning** only. **Not** safe to expand into governed send or order-write automation without closing blockers in §2.6.
 
 ---
 
@@ -118,7 +124,7 @@ npx vitest run src/lib/wa-governance/tests/operatorInboxStage1Guard.test.ts -t "
 ```
 
 **Evidence placeholders:**
-- [ ] Note: operator reply duplicate-click creates duplicate outbound rows (`<!-- EVIDENCE: idempotency-reply-gap.md -->`)
+- [x] Note: operator reply idempotency NO-GO (static) — [`docs/evidence/stage1/idempotency-reply-gap.md`](../evidence/stage1/idempotency-reply-gap.md). Staging duplicate-click proof still **pending**.
 
 ---
 
@@ -163,7 +169,7 @@ npx vitest run src/lib/wa-governance/tests/stage1PostgrestWriteScan.test.ts
 ```
 
 **Evidence placeholders:**
-- [ ] CI log: guard test green (`<!-- EVIDENCE: ci-readonly-guard.log -->`)
+- [x] CI log: guard test green — [`docs/evidence/stage1/ci-readonly-guard.log`](../evidence/stage1/ci-readonly-guard.log) (137/137 pass)
 
 ---
 
@@ -183,8 +189,8 @@ rg 'verify_jwt' supabase/config.toml | rg whatsapp
 ```
 
 **Evidence placeholders:**
-- [ ] Screenshot: non-support role cannot see nav link (`<!-- EVIDENCE: rbac-nav-hidden.png -->`)
-- [ ] Note: direct URL access for `SUPPORT_EXECUTIVE` (`<!-- EVIDENCE: rbac-url-access.md -->`)
+- [ ] Screenshot: non-support role cannot see nav link (`<!-- EVIDENCE: rbac-nav-hidden.png -->`) — **staging pending**
+- [x] Note: RBAC direct URL access (static audit only) — [`docs/evidence/stage1/rbac-url-access.md`](../evidence/stage1/rbac-url-access.md). Does **not** claim pass; multi-role staging test **pending**.
 
 ---
 
@@ -352,7 +358,10 @@ rg 'functions\.invoke\("whatsapp-' src/components/WhatsAppInbox.tsx
 - optional write grep: no matches in scoped dirs
 - optional invoke grep: `whatsapp-operator-reply`, `whatsapp-classify-intent`, `whatsapp-route-packet` only
 
-**Manual (staging):** complete `docs/POST_MERGE_PR69_OPERATOR_INBOX_SMOKE.md` and attach screenshots to §1 placeholders.
+**Manual (staging):** complete `docs/POST_MERGE_PR69_OPERATOR_INBOX_SMOKE.md` and attach screenshots to §1 placeholders. Execution map: [`docs/evidence/stage1/staging-evidence-runbook.md`](../evidence/stage1/staging-evidence-runbook.md).
+
+**Static evidence (complete):** E7, E9, E11 — see `docs/evidence/stage1/`.  
+**Staging evidence (pending):** E1–E6, E8, E10, E12–E20 — screenshots, SQL snapshots, smoke checklist, sign-off.
 
 ---
 
@@ -360,16 +369,16 @@ rg 'functions\.invoke\("whatsapp-' src/components/WhatsAppInbox.tsx
 
 | Capability | Evidence status | Decision | Owner action |
 |------------|---------------|----------|--------------|
-| Read-only packet/thread observation | Static + unit tests pass; manual smoke pending | **GO** | Fill screenshot placeholders; run staging smoke |
-| Resolution panels (WA-03A–06A) | SELECT-only; labelled not persisted | **GO** | None for observation pilot |
-| TOOL 3/4 suggestions | Edge SELECT-only | **GO** | Monitor suggestion errors in staging |
-| Governance disabled actions | UI + guard test | **GO** | None |
-| Webhook auto-order writes | Flag defaults false | **GO (blocked off)** | Verify staging env unset |
-| Operator reply send | Live write + no JWT/idempotency/audit | **NO-GO** | Do not include in Stage-1 send pilot |
-| Order/draft creation from inbox | No path | **GO (N/A)** | Keep Approve Draft disabled |
+| Read-only packet/thread observation | Static tests pass; staging smoke **pending** | **NOT GO** (staging sign-off) | Run runbook E12, E14; attach screenshots |
+| Resolution panels (WA-03A–06A) | SELECT-only (static); label screenshot **pending** | **Conditional** | Capture E5 on staging |
+| TOOL 3/4 suggestions | Edge SELECT-only (static); error UI **pending** | **Conditional** | Capture E8 on staging |
+| Governance disabled actions | AST guard pass; screenshot **pending** | **Conditional** | Capture E4 on staging |
+| Webhook auto-order writes | Flag defaults false (static); env verify **pending** | **Conditional** | Capture E18 on staging |
+| Operator reply send | Idempotency NO-GO documented (static) | **NO-GO** | Do not include in send pilot; see `idempotency-reply-gap.md` |
+| Order/draft creation from inbox | No path (static) | **GO (N/A)** | Keep Approve Draft disabled |
 | Full live send/order-write automation | Multiple blockers §2.6 | **NO-GO** | Complete WA-02B hardening + reply replacement plan |
 
-**Overall Stage-1 recommendation:** **CONDITIONAL GO** for **read-only controlled pilot planning**. **NO-GO** for expanding to **governed send or order-write automation** until §2.6 blockers close.
+**Overall Stage-1 recommendation:** **NOT GO** for staging sign-off until open placeholders (§1) and runbook items are captured. **Conditional** read-only pilot **planning** only — static guards complete; staging evidence **pending**.
 
 ---
 
