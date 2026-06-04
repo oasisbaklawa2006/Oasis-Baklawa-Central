@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { User } from "@supabase/supabase-js";
+import { getDraftOrderLocalEdits } from "@/components/whatsapp/operatorInboxDraftOrderLocalState";
 import type { ExtractedDraftOrder } from "@/lib/wa-governance/draftOrderExtractionTypes";
 import { buildSalesOrderDraftComparisonView } from "@/lib/wa-sales-order-draft/buildComparisonView";
 import {
@@ -10,6 +11,7 @@ import {
   submitSalesOrderDraftForReview,
   updateSalesOrderDraftOperatorFinal,
 } from "@/lib/wa-sales-order-draft/salesOrderDraftRepository";
+import { resolveOperatorLineQuantities } from "@/lib/wa-sales-order-draft/resolveOperatorLineQuantities";
 import { isTerminalStatus, statusLabel } from "@/lib/wa-sales-order-draft/workflowTransitions";
 import type { SalesOrderDraftBundle } from "@/lib/wa-sales-order-draft/types";
 import { canTransitionToApproved } from "@/lib/wa-sales-order-draft/readinessValidation";
@@ -90,20 +92,29 @@ export function useOperatorInboxSalesOrderDraft(args: {
     [],
   );
 
+  const resolveLatestOperatorLineQuantities = useCallback(() => {
+    const stored = packetId ? getDraftOrderLocalEdits(packetId).lineQuantities : {};
+    return resolveOperatorLineQuantities({
+      parentLineQuantities: operatorLineQuantities,
+      storedLineQuantities: stored,
+    });
+  }, [operatorLineQuantities, packetId]);
+
   const createDraft = useCallback(async () => {
     const actor = actorFromUser(user);
     if (!extracted || !actor) {
       setActionError("Sign in and wait for draft extraction before creating a Sales Order Draft.");
       return;
     }
+    const latestQuantities = resolveLatestOperatorLineQuantities();
     await runAction(() =>
       createSalesOrderDraft({
         extracted,
-        operatorLineQuantities,
+        operatorLineQuantities: latestQuantities,
         actor,
       }),
     );
-  }, [extracted, operatorLineQuantities, runAction, user]);
+  }, [extracted, resolveLatestOperatorLineQuantities, runAction, user]);
 
   const submitForReview = useCallback(async () => {
     const actor = actorFromUser(user);
@@ -144,15 +155,16 @@ export function useOperatorInboxSalesOrderDraft(args: {
   const syncOperatorFinal = useCallback(async () => {
     const actor = actorFromUser(user);
     if (state.status !== "ready" || !state.bundle || !extracted || !actor) return;
+    const latestQuantities = resolveLatestOperatorLineQuantities();
     await runAction(() =>
       updateSalesOrderDraftOperatorFinal({
         draftId: state.bundle!.draft.id,
         extracted,
-        operatorLineQuantities,
+        operatorLineQuantities: latestQuantities,
         actor,
       }),
     );
-  }, [extracted, operatorLineQuantities, runAction, state, user]);
+  }, [extracted, resolveLatestOperatorLineQuantities, runAction, state, user]);
 
   const draftStatus =
     state.status === "ready" && state.bundle ? state.bundle.draft.status : null;

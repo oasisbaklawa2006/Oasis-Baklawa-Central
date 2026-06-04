@@ -51,6 +51,33 @@ async function appendAuditEntry(args: {
   if (error) throw new Error(error.message);
 }
 
+export async function fetchDraftLinesAndAudit(draftId: string): Promise<{
+  lines: SalesOrderDraftBundle["lines"];
+  auditLog: SalesOrderDraftAuditEntry[];
+}> {
+  const [{ data: lines, error: linesError }, { data: auditLog, error: auditError }] =
+    await Promise.all([
+      supabase
+        .from("sales_order_draft_lines")
+        .select("*")
+        .eq("draft_id", draftId)
+        .order("line_index", { ascending: true }),
+      supabase
+        .from("sales_order_draft_audit_log")
+        .select("*")
+        .eq("draft_id", draftId)
+        .order("created_at", { ascending: true }),
+    ]);
+
+  if (linesError) throw new Error(linesError.message);
+  if (auditError) throw new Error(auditError.message);
+
+  return {
+    lines: (lines ?? []) as SalesOrderDraftBundle["lines"],
+    auditLog: (auditLog ?? []) as SalesOrderDraftAuditEntry[],
+  };
+}
+
 export async function fetchSalesOrderDraftByPacket(
   packetId: string,
 ): Promise<SalesOrderDraftBundle | null> {
@@ -66,27 +93,12 @@ export async function fetchSalesOrderDraftByPacket(
 
   const draft = parseDraftRow(drafts[0]);
 
-  const [{ data: lines, error: linesError }, { data: auditLog, error: auditError }] =
-    await Promise.all([
-      supabase
-        .from("sales_order_draft_lines")
-        .select("*")
-        .eq("draft_id", draft.id)
-        .order("line_index", { ascending: true }),
-      supabase
-        .from("sales_order_draft_audit_log")
-        .select("*")
-        .eq("draft_id", draft.id)
-        .order("created_at", { ascending: true }),
-    ]);
-
-  if (linesError) throw new Error(linesError.message);
-  if (auditError) throw new Error(auditError.message);
+  const { lines, auditLog } = await fetchDraftLinesAndAudit(draft.id);
 
   return {
     draft,
-    lines: (lines ?? []) as SalesOrderDraftBundle["lines"],
-    auditLog: (auditLog ?? []) as SalesOrderDraftAuditEntry[],
+    lines,
+    auditLog,
   };
 }
 
@@ -159,11 +171,7 @@ export async function approveSalesOrderDraft(
     throw new Error(validation.messages.join(" "));
   }
 
-  return transitionDraft(input, "APPROVE", "APPROVE", {
-    approver_id: input.actor.id,
-    approver_name: input.actor.name,
-    review_notes: input.reviewNotes ?? null,
-  });
+  return transitionDraft(input, "APPROVE", "APPROVE");
 }
 
 export async function rejectSalesOrderDraft(
@@ -172,10 +180,7 @@ export async function rejectSalesOrderDraft(
   if (!input.rejectionReason?.trim()) {
     throw new Error("Rejection reason is required.");
   }
-  return transitionDraft(input, "REJECT", "REJECT", {
-    rejection_reason: input.rejectionReason.trim(),
-    review_notes: input.reviewNotes ?? null,
-  });
+  return transitionDraft(input, "REJECT", "REJECT");
 }
 
 export async function updateSalesOrderDraftOperatorFinal(args: {
@@ -244,23 +249,12 @@ async function fetchSalesOrderDraftById(draftId: string): Promise<SalesOrderDraf
 
   const draft = parseDraftRow(draftRow);
 
-  const [{ data: lines }, { data: auditLog }] = await Promise.all([
-    supabase
-      .from("sales_order_draft_lines")
-      .select("*")
-      .eq("draft_id", draftId)
-      .order("line_index", { ascending: true }),
-    supabase
-      .from("sales_order_draft_audit_log")
-      .select("*")
-      .eq("draft_id", draftId)
-      .order("created_at", { ascending: true }),
-  ]);
+  const { lines, auditLog } = await fetchDraftLinesAndAudit(draftId);
 
   return {
     draft,
-    lines: (lines ?? []) as SalesOrderDraftBundle["lines"],
-    auditLog: (auditLog ?? []) as SalesOrderDraftAuditEntry[],
+    lines,
+    auditLog,
   };
 }
 
@@ -268,7 +262,6 @@ async function transitionDraft(
   input: TransitionSalesOrderDraftInput,
   transition: "SUBMIT_REVIEW" | "APPROVE" | "REJECT",
   auditAction: SalesOrderDraftAuditEntry["action"],
-  extraFields: Record<string, unknown> = {},
 ): Promise<SalesOrderDraftBundle> {
   const bundle = await fetchSalesOrderDraftById(input.draftId);
   if (!bundle) throw new Error("Sales order draft not found.");
@@ -279,37 +272,24 @@ async function transitionDraft(
     throw new Error(`Transition ${transition} not allowed from ${expectedStatus}.`);
   }
 
-  const { data: updated, error } = await supabase
-    .from("sales_order_drafts")
-    .update({
-      status: nextStatus,
-      updated_by: input.actor.id,
-      ...extraFields,
-    } satisfies DraftUpdate)
-    .eq("id", input.draftId)
-    .eq("status", expectedStatus)
-    .select("*")
-    .maybeSingle();
-
-  if (error) throw new Error(error.message);
-  if (!updated) {
-    throw new Error(
-      `Concurrent or stale transition: draft is no longer ${expectedStatus}. Refresh and retry.`,
-    );
-  }
-
-  await appendAuditEntry({
-    draftId: input.draftId,
-    action: auditAction,
-    fromStatus: expectedStatus,
-    toStatus: nextStatus,
-    actorId: input.actor.id,
-    actorName: input.actor.name,
-    metadata: {
+  const { error } = await supabase.rpc("transition_sales_order_draft_status", {
+    p_draft_id: input.draftId,
+    p_expected_status: expectedStatus,
+    p_next_status: nextStatus,
+    p_action: auditAction,
+    p_actor_id: input.actor.id,
+    p_actor_name: input.actor.name,
+    p_review_notes: input.reviewNotes ?? null,
+    p_rejection_reason: input.rejectionReason?.trim() ?? null,
+    p_approver_id: transition === "APPROVE" ? input.actor.id : null,
+    p_approver_name: transition === "APPROVE" ? input.actor.name : null,
+    p_metadata: {
       reviewNotes: input.reviewNotes ?? null,
       rejectionReason: input.rejectionReason ?? null,
-    },
+    } as Json,
   });
+
+  if (error) throw new Error(error.message);
 
   const reloaded = await fetchSalesOrderDraftById(input.draftId);
   if (!reloaded) throw new Error("Failed to reload transitioned draft.");

@@ -2,9 +2,11 @@ import { describe, expect, it } from "vitest";
 import { buildSalesOrderDraftComparisonView } from "@/lib/wa-sales-order-draft/buildComparisonView";
 import {
   buildDraftHeaderInsert,
+  buildDraftLineInserts,
   buildOperatorFinalSnapshot,
   resolveOperatorQuantity,
 } from "@/lib/wa-sales-order-draft/mapExtractedDraft";
+import { resolveOperatorLineQuantities } from "@/lib/wa-sales-order-draft/resolveOperatorLineQuantities";
 import { validateSalesOrderDraftReadiness } from "@/lib/wa-sales-order-draft/readinessValidation";
 import type { SalesOrderDraftBundle } from "@/lib/wa-sales-order-draft/types";
 import { getNextStatus, isTerminalStatus } from "@/lib/wa-sales-order-draft/workflowTransitions";
@@ -129,6 +131,28 @@ describe("map extracted draft", () => {
     const resolved = resolveOperatorQuantity(0, extractedFixture, {});
     expect(resolved.quantity).toBe(10);
     expect(resolved.source).toBe("ai");
+  });
+
+  it("persists operator-edited quantity in draft line inserts (not stale AI qty)", () => {
+    const lines = buildDraftLineInserts("draft-1", extractedFixture, { 0: 12 });
+    expect(lines[0].operator_quantity).toBe(12);
+    expect(lines[0].operator_line_snapshot).toMatchObject({
+      quantity: 12,
+      source: "operator_edit",
+    });
+    const operatorFinal = buildOperatorFinalSnapshot(extractedFixture, { 0: 12 });
+    expect(operatorFinal.lineItems[0].quantity).toBe(12);
+  });
+});
+
+describe("resolveOperatorLineQuantities", () => {
+  it("prefers parent live edits over stored quantities for persistence", () => {
+    expect(
+      resolveOperatorLineQuantities({
+        storedLineQuantities: { 0: 10 },
+        parentLineQuantities: { 0: 12 },
+      }),
+    ).toEqual({ 0: 12 });
   });
 });
 

@@ -83,7 +83,10 @@ import { OperatorInboxQuantityResolutionPanel } from "@/components/whatsapp/Oper
 import { useOperatorInboxQuantityResolution } from "@/components/whatsapp/useOperatorInboxQuantityResolution";
 import { OperatorInboxDraftOrderPanel } from "@/components/whatsapp/OperatorInboxDraftOrderPanel";
 import { OperatorInboxSalesOrderDraftSection } from "@/components/whatsapp/OperatorInboxSalesOrderDraftSection";
-import { getDraftOrderLocalEdits } from "@/components/whatsapp/operatorInboxDraftOrderLocalState";
+import {
+  getDraftOrderLocalEdits,
+  setDraftOrderLineQuantity,
+} from "@/components/whatsapp/operatorInboxDraftOrderLocalState";
 import { useOperatorInboxDraftOrderExtraction } from "@/components/whatsapp/useOperatorInboxDraftOrderExtraction";
 import { useOperatorInboxSalesOrderDraft } from "@/components/whatsapp/useOperatorInboxSalesOrderDraft";
 import { buildWhatsAppOperationalFeed, normalizeWhatsAppEvents } from "@/lib/operational-events";
@@ -196,14 +199,36 @@ export function WhatsAppInbox() {
       productResolutionState,
       quantityResolutionState,
     );
-  const draftOrderLocalEdits = selectedPacket
-    ? getDraftOrderLocalEdits(selectedPacket.id)
-    : { lineQuantities: {}, decision: "pending" as const, updatedAt: "" };
+  const [draftOrderLineQuantities, setDraftOrderLineQuantities] = useState<Record<number, number>>(
+    {},
+  );
+
+  useEffect(() => {
+    if (!selectedPacket) {
+      setDraftOrderLineQuantities({});
+      return;
+    }
+    setDraftOrderLineQuantities(getDraftOrderLocalEdits(selectedPacket.id).lineQuantities);
+  }, [selectedPacket?.id]);
+
+  const handleDraftOrderLineQuantityChange = useCallback(
+    (lineIndex: number, quantity: number) => {
+      if (!selectedPacket) return;
+      setDraftOrderLineQuantity(selectedPacket.id, lineIndex, quantity);
+      setDraftOrderLineQuantities((current) => ({ ...current, [lineIndex]: quantity }));
+    },
+    [selectedPacket?.id],
+  );
+
+  const handleDraftOrderLineQuantitiesReset = useCallback(() => {
+    setDraftOrderLineQuantities({});
+  }, []);
+
   const salesOrderDraftHook = useOperatorInboxSalesOrderDraft({
     packetId: selectedPacket?.id ?? null,
     extracted:
       draftOrderExtractionState.status === "ready" ? draftOrderExtractionState.draft : null,
-    operatorLineQuantities: draftOrderLocalEdits.lineQuantities,
+    operatorLineQuantities: draftOrderLineQuantities,
     user,
     enabled: draftOrderExtractionState.status === "ready",
   });
@@ -1600,6 +1625,9 @@ export function WhatsAppInbox() {
                       state={draftOrderExtractionState}
                       requestKey={draftOrderExtractionRequestKey}
                       packetId={selectedPacket.id}
+                      lineQuantities={draftOrderLineQuantities}
+                      onLineQuantityChange={handleDraftOrderLineQuantityChange}
+                      onLineQuantitiesReset={handleDraftOrderLineQuantitiesReset}
                     />
                     <OperatorInboxSalesOrderDraftSection
                       extracted={

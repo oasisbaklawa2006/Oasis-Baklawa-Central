@@ -4159,6 +4159,22 @@ export type Database = {
         Args: { draft_id: string; reason: string }
         Returns: Json
       }
+      transition_sales_order_draft_status: {
+        Args: {
+          p_draft_id: string
+          p_expected_status: string
+          p_next_status: string
+          p_action: string
+          p_actor_id: string
+          p_actor_name: string
+          p_review_notes?: string | null
+          p_rejection_reason?: string | null
+          p_approver_id?: string | null
+          p_approver_name?: string | null
+          p_metadata?: Json
+        }
+        Returns: string
+      }
     }
     Enums: {
       [_ in never]: never

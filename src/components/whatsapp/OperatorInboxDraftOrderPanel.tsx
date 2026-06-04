@@ -14,7 +14,6 @@ import type { ExtractedDraftOrder } from "@/lib/wa-governance/draftOrderExtracti
 import {
   clearDraftOrderLocalEdits,
   getDraftOrderLocalEdits,
-  setDraftOrderLineQuantity,
   setDraftOrderLocalDecision,
 } from "./operatorInboxDraftOrderLocalState";
 import type { OperatorInboxDraftOrderExtractionState } from "./useOperatorInboxDraftOrderExtraction";
@@ -26,10 +25,16 @@ export const OperatorInboxDraftOrderPanel = memo(function OperatorInboxDraftOrde
   state,
   requestKey = null,
   packetId,
+  lineQuantities,
+  onLineQuantityChange,
+  onLineQuantitiesReset,
 }: {
   state: OperatorInboxDraftOrderExtractionState;
   requestKey?: string | null;
   packetId: string;
+  lineQuantities: Record<number, number>;
+  onLineQuantityChange: (lineIndex: number, quantity: number) => void;
+  onLineQuantitiesReset: () => void;
 }) {
   const reactId = useId();
   const headingId = `${reactId}-draft-order-heading`;
@@ -46,6 +51,7 @@ export const OperatorInboxDraftOrderPanel = memo(function OperatorInboxDraftOrde
   if (requestKey && state.requestKey !== requestKey) return null;
 
   const localEdits = getDraftOrderLocalEdits(packetId);
+  const mergedLineQuantities = { ...localEdits.lineQuantities, ...lineQuantities };
   void localRevision;
 
   const draft = state.draft;
@@ -89,8 +95,9 @@ export const OperatorInboxDraftOrderPanel = memo(function OperatorInboxDraftOrde
           summary={summary}
           editMode={editMode}
           localEdits={localEdits}
+          lineQuantities={mergedLineQuantities}
           onQuantityChange={(lineIndex, qty) => {
-            setDraftOrderLineQuantity(packetId, lineIndex, qty);
+            onLineQuantityChange(lineIndex, qty);
             refreshLocal();
           }}
         />
@@ -142,6 +149,7 @@ export const OperatorInboxDraftOrderPanel = memo(function OperatorInboxDraftOrde
           className="h-8 text-xs text-teal-800"
           onClick={() => {
             clearDraftOrderLocalEdits(packetId);
+            onLineQuantitiesReset();
             setEditMode(false);
             refreshLocal();
           }}
@@ -164,12 +172,14 @@ function DraftOrderBody({
   summary,
   editMode,
   localEdits,
+  lineQuantities,
   onQuantityChange,
 }: {
   draft: ExtractedDraftOrder;
   summary: ReturnType<typeof summarizeDraftOrder>;
   editMode: boolean;
   localEdits: ReturnType<typeof getDraftOrderLocalEdits>;
+  lineQuantities: Record<number, number>;
   onQuantityChange: (lineIndex: number, qty: number) => void;
 }) {
   return (
@@ -230,6 +240,7 @@ function DraftOrderBody({
           <ul className="space-y-2">
             {draft.lineItems.map((line) => {
               const displayQty =
+                lineQuantities[line.lineIndex] ??
                 localEdits.lineQuantities[line.lineIndex] ??
                 line.normalizedQuantity ??
                 line.rawQuantity;
