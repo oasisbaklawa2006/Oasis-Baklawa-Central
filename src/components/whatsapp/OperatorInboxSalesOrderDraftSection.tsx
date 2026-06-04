@@ -52,7 +52,12 @@ export const OperatorInboxSalesOrderDraftSection = memo(function OperatorInboxSa
     syncOperatorFinal,
   } = draftHook;
 
-  const bundle = state.status === "ready" ? state.bundle : null;
+  const bundle =
+    state.status === "ready"
+      ? state.bundle
+      : state.status === "error"
+        ? (state.bundle ?? null)
+        : null;
   const isRejected = bundle?.draft.status === "REJECTED";
   const canCreateDraft = extractionReady && Boolean(extracted);
 
@@ -171,7 +176,7 @@ export const OperatorInboxSalesOrderDraftSection = memo(function OperatorInboxSa
                     size="sm"
                     variant="outline"
                     className="h-8 text-xs"
-                    disabled={actionPending}
+                    disabled={actionPending || !extracted}
                     onClick={() => void syncOperatorFinal()}
                   >
                     <ArrowRightLeft className="mr-1 h-3 w-3" aria-hidden />

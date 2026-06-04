@@ -212,4 +212,24 @@ describe("persisted draft fetch and rejected recreate UI (static)", () => {
       expect(sql).toMatch(/p_actor_id IS DISTINCT FROM auth\.uid\(\)/);
     }
   });
+
+  it("preserves bundle on reload error and disables sync without extraction", async () => {
+    const { readFileSync } = await import("node:fs");
+    const { join } = await import("node:path");
+    const hook = readFileSync(
+      join(import.meta.dirname, "../../../components/whatsapp/useOperatorInboxSalesOrderDraft.ts"),
+      "utf8",
+    );
+    expect(hook).toMatch(/bundle: prev\.status === "ready" \? prev\.bundle : null/);
+    expect(hook).toMatch(/Draft extraction must be ready before syncing operator edits/);
+    const section = readFileSync(
+      join(
+        import.meta.dirname,
+        "../../../components/whatsapp/OperatorInboxSalesOrderDraftSection.tsx",
+      ),
+      "utf8",
+    );
+    expect(section).toMatch(/state\.status === "error"/);
+    expect(section).toMatch(/disabled=\{actionPending \|\| !extracted\}/);
+  });
 });

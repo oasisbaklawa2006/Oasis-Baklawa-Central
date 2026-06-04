@@ -20,7 +20,7 @@ export type SalesOrderDraftUiState =
   | { status: "idle" }
   | { status: "loading" }
   | { status: "ready"; bundle: SalesOrderDraftBundle | null }
-  | { status: "error"; message: string };
+  | { status: "error"; message: string; bundle?: SalesOrderDraftBundle | null };
 
 function actorFromUser(user: User | null): { id: string; name: string } | null {
   if (!user?.id) return null;
@@ -55,10 +55,11 @@ export function useOperatorInboxSalesOrderDraft(args: {
       const bundle = await fetchSalesOrderDraftByPacket(packetId);
       setState({ status: "ready", bundle });
     } catch (error) {
-      setState({
+      setState((prev) => ({
         status: "error",
         message: error instanceof Error ? error.message : "Failed to load sales order draft.",
-      });
+        bundle: prev.status === "ready" ? prev.bundle : null,
+      }));
     }
   }, [packetId, enabled]);
 
@@ -174,7 +175,11 @@ export function useOperatorInboxSalesOrderDraft(args: {
 
   const syncOperatorFinal = useCallback(async () => {
     const actor = actorFromUser(user);
-    if (state.status !== "ready" || !state.bundle || !extracted || !actor) return;
+    if (state.status !== "ready" || !state.bundle || !actor) return;
+    if (!extracted) {
+      setActionError("Draft extraction must be ready before syncing operator edits.");
+      return;
+    }
     const latestQuantities = resolveLatestOperatorLineQuantities();
     await runAction(() =>
       updateSalesOrderDraftOperatorFinal({
