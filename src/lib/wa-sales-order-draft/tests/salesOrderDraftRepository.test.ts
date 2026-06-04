@@ -676,6 +676,39 @@ describe("extraction projection guard (static)", () => {
     expect(section).toMatch(/Reject draft/);
     expect(section).toMatch(/!extracted \|\| extractionProjectionStale/);
   });
+
+  it("blocks approve when extraction projection is stale even if readiness passes", async () => {
+    const { readFileSync } = await import("node:fs");
+    const { join } = await import("node:path");
+    const section = readFileSync(
+      join(
+        import.meta.dirname,
+        "../../../components/whatsapp/OperatorInboxSalesOrderDraftSection.tsx",
+      ),
+      "utf8",
+    );
+    const hook = readFileSync(
+      join(import.meta.dirname, "../../../components/whatsapp/useOperatorInboxSalesOrderDraft.ts"),
+      "utf8",
+    );
+    const approveButtonStart = section.indexOf("Approve for SO");
+    expect(approveButtonStart).toBeGreaterThan(-1);
+    const approveBlock = section.slice(approveButtonStart - 520, approveButtonStart + 80);
+    expect(approveBlock).toMatch(/extractionProjectionStale/);
+    expect(approveBlock).toMatch(/approvalReadiness\?\.valid/);
+    expect(section).toMatch(
+      /Cannot approve: draft was created from an older WhatsApp extraction/,
+    );
+
+    const approveDraftStart = hook.indexOf("const approveDraft = useCallback");
+    expect(approveDraftStart).toBeGreaterThan(-1);
+    const approveHandlerBlock = hook.slice(approveDraftStart, approveDraftStart + 550);
+    expect(approveHandlerBlock).toMatch(/if \(extractionProjectionStale\)/);
+    expect(approveHandlerBlock).toMatch(/setActionError/);
+    expect(approveHandlerBlock).toMatch(/Cannot approve: draft was created from an older WhatsApp extraction/);
+    expect(approveHandlerBlock).toMatch(/return;/);
+  });
+
   it("hides create draft CTA while persisted draft is loading", async () => {
     const { readFileSync } = await import("node:fs");
     const { join } = await import("node:path");

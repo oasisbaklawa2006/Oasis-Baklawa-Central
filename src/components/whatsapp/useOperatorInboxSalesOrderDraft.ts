@@ -200,6 +200,12 @@ export function useOperatorInboxSalesOrderDraft(args: {
   const approveDraft = useCallback(async (reviewNotes?: string) => {
     const actor = actorFromUser(user);
     if (!currentBundle || !actor) return;
+    if (extractionProjectionStale) {
+      setActionError(
+        "Cannot approve: draft was created from an older WhatsApp extraction. Reject and create a new draft first.",
+      );
+      return;
+    }
     await runAction(() =>
       approveSalesOrderDraft({
         draftId: currentBundle.draft.id,
@@ -207,7 +213,7 @@ export function useOperatorInboxSalesOrderDraft(args: {
         reviewNotes,
       }),
     );
-  }, [currentBundle, runAction, user]);
+  }, [currentBundle, extractionProjectionStale, runAction, user]);
 
   const rejectDraft = useCallback(
     async (rejectionReason: string, reviewNotes?: string) => {
