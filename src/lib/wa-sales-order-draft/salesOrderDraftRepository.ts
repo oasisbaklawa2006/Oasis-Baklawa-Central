@@ -111,12 +111,10 @@ export async function createSalesOrderDraft(
 ): Promise<SalesOrderDraftBundle> {
   const existing = await fetchSalesOrderDraftByPacket(input.extracted.packetId);
   if (existing && existing.draft.status !== "REJECTED") {
-    throw new Error(
-      `Active sales order draft already exists for packet (${existing.draft.status}).`,
-    );
+    return existing;
   }
 
-  const { error: createError } = await supabase.rpc("create_sales_order_draft_atomic", {
+  const { data: draftId, error: createError } = await supabase.rpc("create_sales_order_draft_atomic", {
     p_header: buildDraftHeaderRpcPayload(input) as Json,
     p_lines: buildDraftLineRpcPayloads(input.extracted, input.operatorLineQuantities) as Json,
     p_actor_id: input.actor.id,
@@ -128,7 +126,18 @@ export async function createSalesOrderDraft(
     } as Json,
   });
 
-  if (createError) throw new Error(createError.message);
+  if (createError) {
+    if (createError.message.includes("Active sales order draft already exists")) {
+      const retryBundle = await fetchSalesOrderDraftByPacket(input.extracted.packetId);
+      if (retryBundle) return retryBundle;
+    }
+    throw new Error(createError.message);
+  }
+
+  if (draftId) {
+    const byId = await fetchSalesOrderDraftById(draftId);
+    if (byId) return byId;
+  }
 
   const bundle = await fetchSalesOrderDraftByPacket(input.extracted.packetId);
   if (!bundle) throw new Error("Failed to reload created sales order draft.");

@@ -102,6 +102,21 @@ describe("createSalesOrderDraft atomicity", () => {
     expect(createBlock).not.toMatch(/from\("sales_order_drafts"\)\s*\n\s*\.insert/);
     expect(createBlock).not.toMatch(/from\("sales_order_draft_lines"\)\s*\n\s*\.insert/);
   });
+
+  it("reloads created draft by RPC id and returns existing on retry (static)", async () => {
+    const { readFileSync } = await import("node:fs");
+    const { join } = await import("node:path");
+    const repo = readFileSync(
+      join(import.meta.dirname, "../salesOrderDraftRepository.ts"),
+      "utf8",
+    );
+    const createStart = repo.indexOf("export async function createSalesOrderDraft");
+    const createEnd = repo.indexOf("export async function submitSalesOrderDraftForReview");
+    const createBlock = repo.slice(createStart, createEnd);
+    expect(createBlock).toMatch(/fetchSalesOrderDraftById\(draftId\)/);
+    expect(createBlock).toMatch(/return existing;/);
+    expect(createBlock).toMatch(/Active sales order draft already exists/);
+  });
 });
 
 describe("submitForReview operator sync (static)", () => {
