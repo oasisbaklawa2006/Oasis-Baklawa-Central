@@ -8,6 +8,8 @@ import {
 import {
   ALLOWED_WHATSAPP_INBOX_INVOKE_SLUGS,
   countFunctionsInvokeSlug,
+  findInboxTreeInvokeViolations,
+  scanDynamicFunctionsInvokes,
   scanFunctionsInvokeSlugs,
   WHATSAPP_INBOX_INVOKE_SCAN_FILE,
 } from "@/lib/wa-governance/stage1InvokeScan";
@@ -15,7 +17,6 @@ import {
   collectInboxPostgrestWriteScanFiles,
   INBOX_POSTGREST_WRITE_SCAN_ROOTS,
   readRepoSource,
-  scanForbiddenPostgrestWrites,
   scanOrderTableMutations,
   scanRepoFileForForbiddenPostgrestWrites,
 } from "@/lib/wa-governance/stage1PostgrestWriteScan";
@@ -49,6 +50,19 @@ describe("operator inbox Stage-1 guardrails", () => {
     }
 
     expect(violations).toEqual([]);
+  });
+
+  it("inbox-tree invoke scan has no dynamic or unallowlisted slugs (AST)", () => {
+    expect(
+      findInboxTreeInvokeViolations(inboxPostgrestWriteScanFiles, (file) =>
+        readRepoSource(REPO_ROOT, file),
+      ),
+    ).toEqual([]);
+  });
+
+  it("WhatsAppInbox has no dynamic functions.invoke slugs (AST)", () => {
+    const inbox = readRepoSource(REPO_ROOT, WHATSAPP_INBOX_INVOKE_SCAN_FILE);
+    expect(scanDynamicFunctionsInvokes(inbox, WHATSAPP_INBOX_INVOKE_SCAN_FILE)).toEqual([]);
   });
 
   it("WhatsAppInbox has no direct order table mutations (AST)", () => {
