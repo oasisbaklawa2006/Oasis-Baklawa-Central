@@ -158,9 +158,9 @@ flowchart TD
 
 | Rule | Scope | Action |
 |------|-------|--------|
-| Duplicate GST in batch | Same normalized `gstin` among non-`skip` company rows | Block until Duplicate GST Review resolved (`resolution_status <> 'pending'`) |
-| Duplicate phone in batch | Same last-10 on company primary/secondary or contact rows (cross-table) | Block until Duplicate Phone Review resolved |
-| Duplicate name in batch | Same normalized `company_name` among non-`skip` rows | Block until Possible Name Duplicate Review resolved |
+| Duplicate GST in batch | Same normalized `gstin` among non-`skip` company rows | Block until Duplicate GST Review resolved (`resolution_status = 'pending'` cleared) and losers marked `skip` |
+| Duplicate phone in batch | Same last-10 on company primary/secondary or contact rows (cross-table) | Block until Duplicate Phone Review resolved and losers marked `skip` |
+| Duplicate name in batch | Same normalized `company_name` among non-`skip` rows | Block until Possible Name Duplicate Review resolved and losers marked `skip` |
 | Orphan contact | No link via `company_candidate_id`, `source_customer_key`, or `company_name` | Block until linked or contact marked `skip` |
 | GST/phone vs existing master | Read-only cross-match (primary + secondary company phones) | `link_existing` or `review`; **never auto-UPDATE** |
 | `import_action = 'skip'` | Any row | Excluded from duplicate, gap, orphan, and promotion blocking |
