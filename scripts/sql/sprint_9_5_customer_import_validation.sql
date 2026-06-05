@@ -560,12 +560,12 @@ BEGIN
 
   UNION ALL
 
-  SELECT 'duplicate_gst_in_batch', 'error', COUNT(*), true, 'Duplicate GST groups within batch'
+  SELECT 'duplicate_gst_in_batch', 'error', COUNT(*), (COUNT(*) > 0), 'Duplicate GST groups within batch'
   FROM public.v_customer_import_duplicate_gst_in_batch g WHERE g.batch_id = p_batch_id
 
   UNION ALL
 
-  SELECT 'duplicate_phone_any_in_batch', 'error', COUNT(*), true,
+  SELECT 'duplicate_phone_any_in_batch', 'error', COUNT(*), (COUNT(*) > 0),
     'Duplicate phone groups within batch (company and/or contact rows)'
   FROM public.v_customer_import_duplicate_phone_any_in_batch p WHERE p.batch_id = p_batch_id
 
@@ -576,7 +576,7 @@ BEGIN
 
   UNION ALL
 
-  SELECT 'duplicate_name_in_batch', 'error', COUNT(*), true, 'Duplicate company name groups within batch'
+  SELECT 'duplicate_name_in_batch', 'error', COUNT(*), (COUNT(*) > 0), 'Duplicate company name groups within batch'
   FROM public.v_customer_import_duplicate_name_in_batch n WHERE n.batch_id = p_batch_id
 
   UNION ALL
@@ -586,30 +586,30 @@ BEGIN
 
   UNION ALL
 
-  SELECT 'orphan_contacts', 'error', COUNT(*), true, 'Contacts without matching company candidate key'
+  SELECT 'orphan_contacts', 'error', COUNT(*), (COUNT(*) > 0), 'Contacts without matching company candidate key'
   FROM public.v_customer_import_orphan_contacts o WHERE o.batch_id = p_batch_id
 
   UNION ALL
 
-  SELECT 'required_field_gaps', 'error', COUNT(*), true, 'Company candidates with required field gaps'
+  SELECT 'required_field_gaps', 'error', COUNT(*), (COUNT(*) > 0), 'Company candidates with required field gaps'
   FROM public.v_customer_import_company_required_gaps g
   WHERE g.batch_id = p_batch_id AND cardinality(g.gap_codes) > 0
 
   UNION ALL
 
-  SELECT 'contact_phone_gaps', 'error', COUNT(*), true, 'Contact candidates with missing or invalid phone'
+  SELECT 'contact_phone_gaps', 'error', COUNT(*), (COUNT(*) > 0), 'Contact candidates with missing or invalid phone'
   FROM public.v_customer_import_contact_phone_gaps g
   WHERE g.batch_id = p_batch_id AND cardinality(g.gap_codes) > 0
 
   UNION ALL
 
-  SELECT 'company_rows_pending_review', 'error', COUNT(*), true, 'Company candidates with import_action = review'
+  SELECT 'company_rows_pending_review', 'error', COUNT(*), (COUNT(*) > 0), 'Company candidates with import_action = review'
   FROM public.customer_import_company_candidates c
   WHERE c.batch_id = p_batch_id AND c.import_action = 'review'
 
   UNION ALL
 
-  SELECT 'contact_rows_pending_review', 'error', COUNT(*), true, 'Contact candidates with import_action = review'
+  SELECT 'contact_rows_pending_review', 'error', COUNT(*), (COUNT(*) > 0), 'Contact candidates with import_action = review'
   FROM public.customer_import_contact_candidates ct
   WHERE ct.batch_id = p_batch_id AND ct.import_action = 'review'
 
@@ -621,7 +621,7 @@ BEGIN
 
   UNION ALL
 
-  SELECT 'duplicate_review_pending', 'error', COUNT(*), true, 'Duplicate review rows still pending'
+  SELECT 'duplicate_review_pending', 'error', COUNT(*), (COUNT(*) > 0), 'Duplicate review rows still pending'
   FROM public.customer_import_duplicate_review d
   WHERE d.batch_id = p_batch_id AND d.resolution_status = 'pending'
 
@@ -662,6 +662,10 @@ COMMENT ON FUNCTION public.run_customer_import_validation IS
 --
 -- 3) Missing batch must block (expect single fatal row, row_count = 1, is_blocking = true):
 --    SELECT * FROM public.run_customer_import_validation('00000000-0000-0000-0000-000000000000'::uuid);
+--
+-- 3b) Clean batch: error checks return row_count = 0 with is_blocking = false:
+--    SELECT check_code, row_count, is_blocking FROM public.run_customer_import_validation('<batch_id>')
+--    WHERE severity = 'error';
 --
 -- 4) Resolved duplicate review must clear blocking duplicate gates:
 --    UPDATE customer_import_duplicate_review SET resolution_status = 'keep_one' WHERE ...;
