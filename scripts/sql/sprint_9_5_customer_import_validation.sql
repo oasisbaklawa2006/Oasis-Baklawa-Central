@@ -196,15 +196,15 @@ SELECT
   d.chosen_winner_source_key,
   CASE d.duplicate_type
     WHEN 'gst' THEN (
-      SELECT COUNT(*) FROM public.v_customer_import_duplicate_gst_in_batch g
+      SELECT g.candidate_count FROM public.v_customer_import_duplicate_gst_in_batch g
       WHERE g.batch_id = d.batch_id AND g.gst_number_normalized = d.duplicate_key_normalized
     )
     WHEN 'phone' THEN (
-      SELECT COUNT(*) FROM public.v_customer_import_duplicate_phone_in_batch p
+      SELECT p.candidate_count FROM public.v_customer_import_duplicate_phone_in_batch p
       WHERE p.batch_id = d.batch_id AND p.phone_last10 = d.duplicate_key_normalized
     )
     WHEN 'name' THEN (
-      SELECT COUNT(*) FROM public.v_customer_import_duplicate_name_in_batch n
+      SELECT n.candidate_count FROM public.v_customer_import_duplicate_name_in_batch n
       WHERE n.batch_id = d.batch_id AND n.business_name_normalized = d.duplicate_key_normalized
     )
   END AS computed_candidate_count
@@ -250,6 +250,10 @@ SELECT
     WHERE p.batch_id = b.id
   ) AS has_unresolved_duplicate_phone_in_batch,
   EXISTS (
+    SELECT 1 FROM public.v_customer_import_duplicate_contact_phone_in_batch cp
+    WHERE cp.batch_id = b.id
+  ) AS has_unresolved_duplicate_contact_phone_in_batch,
+  EXISTS (
     SELECT 1 FROM public.v_customer_import_duplicate_name_in_batch n
     WHERE n.batch_id = b.id
   ) AS has_unresolved_duplicate_name_in_batch,
@@ -269,9 +273,16 @@ SELECT
     SELECT 1 FROM public.customer_import_company_candidates c
     WHERE c.batch_id = b.id AND c.import_action = 'review'
   ) AS has_company_rows_pending_review,
+  EXISTS (
+    SELECT 1 FROM public.customer_import_contact_candidates ct
+    WHERE ct.batch_id = b.id AND ct.import_action = 'review'
+  ) AS has_contact_rows_pending_review,
   (
     NOT EXISTS (SELECT 1 FROM public.v_customer_import_duplicate_gst_in_batch g WHERE g.batch_id = b.id)
     AND NOT EXISTS (SELECT 1 FROM public.v_customer_import_duplicate_phone_in_batch p WHERE p.batch_id = b.id)
+    AND NOT EXISTS (
+      SELECT 1 FROM public.v_customer_import_duplicate_contact_phone_in_batch cp WHERE cp.batch_id = b.id
+    )
     AND NOT EXISTS (SELECT 1 FROM public.v_customer_import_duplicate_name_in_batch n WHERE n.batch_id = b.id)
     AND NOT EXISTS (SELECT 1 FROM public.v_customer_import_orphan_contacts o WHERE o.batch_id = b.id)
     AND NOT EXISTS (
@@ -281,6 +292,14 @@ SELECT
     AND NOT EXISTS (
       SELECT 1 FROM public.customer_import_duplicate_review d
       WHERE d.batch_id = b.id AND d.resolution_status = 'pending'
+    )
+    AND NOT EXISTS (
+      SELECT 1 FROM public.customer_import_company_candidates c
+      WHERE c.batch_id = b.id AND c.import_action = 'review'
+    )
+    AND NOT EXISTS (
+      SELECT 1 FROM public.customer_import_contact_candidates ct
+      WHERE ct.batch_id = b.id AND ct.import_action = 'review'
     )
   ) AS safe_for_staging_promotion_review
 FROM public.customer_import_batches b;
@@ -293,79 +312,99 @@ RETURNS TABLE (
   check_code text,
   severity text,
   row_count bigint,
+  is_blocking boolean,
   detail text
 )
-LANGUAGE sql
+LANGUAGE plpgsql
 STABLE
 SECURITY DEFINER
 SET search_path = public
 AS $$
-  SELECT 'batch_exists'::text, 'error'::text, 0::bigint, 'Batch not found'::text
+BEGIN
+  IF auth.uid() IS NOT NULL AND NOT public.is_internal_staff(auth.uid()) THEN
+    RAISE EXCEPTION 'Unauthorized: customer import validation is restricted to internal staff';
+  END IF;
+
+  RETURN QUERY
+  SELECT 'batch_exists'::text, 'error'::text, 1::bigint, true, 'Batch not found'::text
   WHERE NOT EXISTS (SELECT 1 FROM public.customer_import_batches b WHERE b.id = p_batch_id)
 
   UNION ALL
 
-  SELECT 'raw_rows_loaded', 'info', COUNT(*), 'Rows in customer_import_raw'
+  SELECT 'raw_rows_loaded', 'info', COUNT(*), false, 'Rows in customer_import_raw'
   FROM public.customer_import_raw r WHERE r.batch_id = p_batch_id
 
   UNION ALL
 
-  SELECT 'company_candidates', 'info', COUNT(*), 'Rows in customer_import_company_candidates'
+  SELECT 'company_candidates', 'info', COUNT(*), false, 'Rows in customer_import_company_candidates'
   FROM public.customer_import_company_candidates c WHERE c.batch_id = p_batch_id
 
   UNION ALL
 
-  SELECT 'contact_candidates', 'info', COUNT(*), 'Rows in customer_import_contact_candidates'
+  SELECT 'contact_candidates', 'info', COUNT(*), false, 'Rows in customer_import_contact_candidates'
   FROM public.customer_import_contact_candidates ct WHERE ct.batch_id = p_batch_id
 
   UNION ALL
 
-  SELECT 'duplicate_gst_in_batch', 'error', COUNT(*), 'Duplicate GST groups within batch'
+  SELECT 'duplicate_gst_in_batch', 'error', COUNT(*), true, 'Duplicate GST groups within batch'
   FROM public.v_customer_import_duplicate_gst_in_batch g WHERE g.batch_id = p_batch_id
 
   UNION ALL
 
-  SELECT 'duplicate_phone_in_batch', 'error', COUNT(*), 'Duplicate company phone groups within batch'
+  SELECT 'duplicate_phone_in_batch', 'error', COUNT(*), true, 'Duplicate company phone groups within batch'
   FROM public.v_customer_import_duplicate_phone_in_batch p WHERE p.batch_id = p_batch_id
 
   UNION ALL
 
-  SELECT 'duplicate_name_in_batch', 'error', COUNT(*), 'Duplicate company name groups within batch'
+  SELECT 'duplicate_name_in_batch', 'error', COUNT(*), true, 'Duplicate company name groups within batch'
   FROM public.v_customer_import_duplicate_name_in_batch n WHERE n.batch_id = p_batch_id
 
   UNION ALL
 
-  SELECT 'duplicate_contact_phone_in_batch', 'error', COUNT(*), 'Duplicate contact phone groups within batch'
+  SELECT 'duplicate_contact_phone_in_batch', 'error', COUNT(*), true, 'Duplicate contact phone groups within batch'
   FROM public.v_customer_import_duplicate_contact_phone_in_batch p WHERE p.batch_id = p_batch_id
 
   UNION ALL
 
-  SELECT 'orphan_contacts', 'error', COUNT(*), 'Contacts without matching company candidate key'
+  SELECT 'orphan_contacts', 'error', COUNT(*), true, 'Contacts without matching company candidate key'
   FROM public.v_customer_import_orphan_contacts o WHERE o.batch_id = p_batch_id
 
   UNION ALL
 
-  SELECT 'required_field_gaps', 'error', COUNT(*), 'Company candidates with required field gaps'
+  SELECT 'required_field_gaps', 'error', COUNT(*), true, 'Company candidates with required field gaps'
   FROM public.v_customer_import_company_required_gaps g
   WHERE g.batch_id = p_batch_id AND cardinality(g.gap_codes) > 0
 
   UNION ALL
 
-  SELECT 'gst_conflicts_existing', 'warning', COUNT(*), 'Import GST matches different existing company'
+  SELECT 'company_rows_pending_review', 'error', COUNT(*), true, 'Company candidates with import_action = review'
+  FROM public.customer_import_company_candidates c
+  WHERE c.batch_id = p_batch_id AND c.import_action = 'review'
+
+  UNION ALL
+
+  SELECT 'contact_rows_pending_review', 'error', COUNT(*), true, 'Contact candidates with import_action = review'
+  FROM public.customer_import_contact_candidates ct
+  WHERE ct.batch_id = p_batch_id AND ct.import_action = 'review'
+
+  UNION ALL
+
+  SELECT 'gst_conflicts_existing', 'warning', COUNT(*), false, 'Import GST matches different existing company'
   FROM public.v_customer_import_gst_match_existing m
   WHERE m.batch_id = p_batch_id AND m.match_outcome = 'conflict_existing_gst'
 
   UNION ALL
 
-  SELECT 'duplicate_review_pending', 'warning', COUNT(*), 'Duplicate review rows still pending'
+  SELECT 'duplicate_review_pending', 'error', COUNT(*), true, 'Duplicate review rows still pending'
   FROM public.customer_import_duplicate_review d
   WHERE d.batch_id = p_batch_id AND d.resolution_status = 'pending'
 
   UNION ALL
 
-  SELECT 'owner_unresolved', 'warning', COUNT(*), 'Company rows with unresolved owner placeholder'
+  SELECT 'owner_unresolved', 'warning', COUNT(*), false, 'Company rows with unresolved owner placeholder'
   FROM public.v_customer_import_owner_placeholder o
   WHERE o.batch_id = p_batch_id AND o.owner_resolution_status LIKE 'unresolved%';
+END;
 $$;
 
 REVOKE ALL ON FUNCTION public.run_customer_import_validation(uuid) FROM PUBLIC;
@@ -373,4 +412,19 @@ GRANT EXECUTE ON FUNCTION public.run_customer_import_validation(uuid) TO service
 GRANT EXECUTE ON FUNCTION public.run_customer_import_validation(uuid) TO authenticated;
 
 COMMENT ON FUNCTION public.run_customer_import_validation IS
-  'Sprint 9.5 read-only validation summary for a customer import batch. Does not mutate master data.';
+  'Sprint 9.5 read-only validation summary for a customer import batch. Internal staff only; does not mutate master data.';
+
+-- =============================================================================
+-- M. Verification queries (manual / fixture checks)
+-- =============================================================================
+-- 1) Duplicate alignment must expose group size, not 0/1:
+--    SELECT duplicate_type, workbook_count, computed_candidate_count
+--    FROM public.v_customer_import_duplicate_review_alignment
+--    WHERE batch_id = '<batch_id>' AND computed_candidate_count IS DISTINCT FROM workbook_count;
+--
+-- 2) Promotion gate must agree with validation errors (expect safe_for_staging_promotion_review = false):
+--    SELECT * FROM public.v_customer_import_promotion_readiness WHERE batch_id = '<batch_id>';
+--
+-- 3) Missing batch must block (expect row_count = 1, is_blocking = true):
+--    SELECT * FROM public.run_customer_import_validation('00000000-0000-0000-0000-000000000000'::uuid)
+--    WHERE check_code = 'batch_exists';
