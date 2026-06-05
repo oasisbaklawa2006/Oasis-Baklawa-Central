@@ -187,7 +187,28 @@ LEFT JOIN public.whatsapp_contacts wc
 WHERE c.phone_last10 IS NOT NULL;
 
 -- =============================================================================
--- H. Orphan contacts (missing company candidate by key or company_name)
+-- G2. Contact phone required-field gaps
+-- =============================================================================
+CREATE OR REPLACE VIEW public.v_customer_import_contact_phone_gaps AS
+SELECT
+  ct.id,
+  ct.batch_id,
+  ct.source_contact_key,
+  ct.source_customer_key,
+  ct.whatsapp_phone_raw,
+  ct.phone_last10,
+  ct.validation_status,
+  ARRAY_REMOVE(ARRAY[
+    CASE WHEN NULLIF(trim(ct.whatsapp_phone_raw), '') IS NULL THEN 'missing_phone' END,
+    CASE WHEN NULLIF(trim(ct.whatsapp_phone_raw), '') IS NOT NULL
+      AND ct.phone_last10 IS NULL
+      THEN 'invalid_phone_format' END
+  ], NULL) AS gap_codes
+FROM public.customer_import_contact_candidates ct
+WHERE ct.import_action <> 'skip';
+
+-- =============================================================================
+-- H. Orphan contacts (missing company candidate by key, name, or FK)
 -- =============================================================================
 CREATE OR REPLACE VIEW public.v_customer_import_orphan_contacts AS
 SELECT
@@ -203,7 +224,8 @@ LEFT JOIN public.customer_import_company_candidates c
   ON c.batch_id = ct.batch_id
   AND c.import_action <> 'skip'
   AND (
-    c.source_customer_key = ct.source_customer_key
+    c.id = ct.company_candidate_id
+    OR c.source_customer_key = ct.source_customer_key
     OR lower(trim(c.business_name)) = lower(trim(ct.company_name))
   )
 WHERE ct.import_action <> 'skip'
@@ -323,6 +345,10 @@ SELECT
     WHERE g.batch_id = b.id AND cardinality(g.gap_codes) > 0
   ) AS has_required_field_gaps,
   EXISTS (
+    SELECT 1 FROM public.v_customer_import_contact_phone_gaps g
+    WHERE g.batch_id = b.id AND cardinality(g.gap_codes) > 0
+  ) AS has_contact_phone_gaps,
+  EXISTS (
     SELECT 1 FROM public.customer_import_duplicate_review d
     WHERE d.batch_id = b.id AND d.resolution_status = 'pending'
   ) AS has_pending_duplicate_review,
@@ -341,6 +367,10 @@ SELECT
     AND NOT EXISTS (SELECT 1 FROM public.v_customer_import_orphan_contacts o WHERE o.batch_id = b.id)
     AND NOT EXISTS (
       SELECT 1 FROM public.v_customer_import_company_required_gaps g
+      WHERE g.batch_id = b.id AND cardinality(g.gap_codes) > 0
+    )
+    AND NOT EXISTS (
+      SELECT 1 FROM public.v_customer_import_contact_phone_gaps g
       WHERE g.batch_id = b.id AND cardinality(g.gap_codes) > 0
     )
     AND NOT EXISTS (
@@ -435,6 +465,12 @@ BEGIN
 
   SELECT 'required_field_gaps', 'error', COUNT(*), true, 'Company candidates with required field gaps'
   FROM public.v_customer_import_company_required_gaps g
+  WHERE g.batch_id = p_batch_id AND cardinality(g.gap_codes) > 0
+
+  UNION ALL
+
+  SELECT 'contact_phone_gaps', 'error', COUNT(*), true, 'Contact candidates with missing or invalid phone'
+  FROM public.v_customer_import_contact_phone_gaps g
   WHERE g.batch_id = p_batch_id AND cardinality(g.gap_codes) > 0
 
   UNION ALL
