@@ -261,20 +261,35 @@ SELECT
   c.source_customer_key,
   c.account_manager_name_raw,
   c.account_manager_email_raw,
-  u.id AS resolved_user_id,
-  u.full_name AS resolved_user_name,
-  u.is_sales_executive,
+  match.resolved_user_id,
+  match.resolved_user_name,
+  match.is_sales_executive,
   CASE
-    WHEN u.id IS NOT NULL THEN 'resolved'
+    WHEN match.resolved_user_id IS NOT NULL THEN 'resolved'
     WHEN NULLIF(trim(c.account_manager_name_raw), '') IS NOT NULL THEN 'unresolved_name'
     WHEN NULLIF(trim(c.account_manager_email_raw), '') IS NOT NULL THEN 'unresolved_email'
     ELSE 'missing_owner_placeholder'
   END AS owner_resolution_status
 FROM public.customer_import_company_candidates c
-LEFT JOIN public.users u
-  ON lower(trim(u.email)) = lower(trim(c.account_manager_email_raw))
-  OR lower(trim(u.full_name)) = lower(trim(c.account_manager_name_raw))
-  OR lower(trim(u.name)) = lower(trim(c.account_manager_name_raw));
+LEFT JOIN LATERAL (
+  SELECT
+    u.id AS resolved_user_id,
+    u.full_name AS resolved_user_name,
+    u.is_sales_executive
+  FROM public.users u
+  WHERE lower(trim(u.email)) = lower(trim(c.account_manager_email_raw))
+    OR lower(trim(u.full_name)) = lower(trim(c.account_manager_name_raw))
+    OR lower(trim(u.name)) = lower(trim(c.account_manager_name_raw))
+  ORDER BY
+    CASE
+      WHEN lower(trim(u.email)) = lower(trim(c.account_manager_email_raw)) THEN 0
+      WHEN lower(trim(u.full_name)) = lower(trim(c.account_manager_name_raw)) THEN 1
+      ELSE 2
+    END,
+    u.id
+  LIMIT 1
+) match ON true
+WHERE c.import_action <> 'skip';
 
 -- =============================================================================
 -- K. Promotion readiness gate (staging import NOT safe until all pass)
