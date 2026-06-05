@@ -1,0 +1,75 @@
+{
+  "workbook": "oasis_customer_master_audit_import_plan.xlsx",
+  "reference_url": "https://docs.google.com/spreadsheets/d/1idaaSF2qVI8wym0a8TzUOeF31-Vfu5lN/htmlview",
+  "tabs": {
+    "Import Summary": {
+      "staging": "customer_import_batches.row_counts / validation_summary",
+      "expected_columns": []
+    },
+    "Customer Master Candidate": {
+      "staging": "customer_import_company_candidates",
+      "expected_columns": [
+        "company_name",
+        "gstin",
+        "address",
+        "state",
+        "country",
+        "registration_type",
+        "phone_primary",
+        "phone_secondary",
+        "source_sheet",
+        "source_row"
+      ]
+    },
+    "Contact WhatsApp Candidate": {
+      "staging": "customer_import_contact_candidates",
+      "expected_columns": [
+        "company_name",
+        "contact_name",
+        "phone",
+        "whatsapp_candidate",
+        "source_sheet",
+        "source_row"
+      ]
+    },
+    "Duplicate Phone Review": {
+      "staging": "customer_import_duplicate_review",
+      "duplicate_type": "phone",
+      "expected_columns": [
+        "phone",
+        "matched_company_count",
+        "matched_companies",
+        "review_status"
+      ]
+    },
+    "Duplicate GST Review": {
+      "staging": "customer_import_duplicate_review",
+      "duplicate_type": "gst",
+      "expected_columns": [
+        "gstin",
+        "matched_company_count",
+        "matched_companies",
+        "review_status"
+      ]
+    },
+    "Possible Name Duplicate Review": {
+      "staging": "customer_import_duplicate_review",
+      "duplicate_type": "name",
+      "expected_columns": [
+        "company_name",
+        "matched_company_count",
+        "matched_companies",
+        "review_status"
+      ]
+    },
+    "Central Mapping": {
+      "staging": "customer_import_batches.central_mapping",
+      "expected_columns": [
+        "source_column",
+        "target_table",
+        "target_field",
+        "import_rule"
+      ]
+    }
+  }
+}

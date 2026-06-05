@@ -148,7 +148,7 @@ LEFT JOIN public.whatsapp_contacts wc
 WHERE c.phone_last10 IS NOT NULL;
 
 -- =============================================================================
--- H. Orphan contacts (missing company candidate key)
+-- H. Orphan contacts (missing company candidate by key or company_name)
 -- =============================================================================
 CREATE OR REPLACE VIEW public.v_customer_import_orphan_contacts AS
 SELECT
@@ -156,12 +156,32 @@ SELECT
   ct.batch_id,
   ct.source_contact_key,
   ct.source_customer_key,
+  ct.company_name,
   ct.whatsapp_phone_raw,
   ct.validation_status
 FROM public.customer_import_contact_candidates ct
 LEFT JOIN public.customer_import_company_candidates c
-  ON c.batch_id = ct.batch_id AND c.source_customer_key = ct.source_customer_key
+  ON c.batch_id = ct.batch_id
+  AND (
+    c.source_customer_key = ct.source_customer_key
+    OR lower(trim(c.business_name)) = lower(trim(ct.company_name))
+  )
 WHERE c.id IS NULL;
+
+-- =============================================================================
+-- H2. Duplicate company name within batch
+-- =============================================================================
+CREATE OR REPLACE VIEW public.v_customer_import_duplicate_name_in_batch AS
+SELECT
+  c.batch_id,
+  lower(trim(c.business_name)) AS business_name_normalized,
+  COUNT(*) AS candidate_count,
+  array_agg(c.source_customer_key ORDER BY c.source_customer_key) AS source_customer_keys,
+  array_agg(c.business_name ORDER BY c.source_customer_key) AS business_names
+FROM public.customer_import_company_candidates c
+WHERE NULLIF(trim(c.business_name), '') IS NOT NULL
+GROUP BY c.batch_id, lower(trim(c.business_name))
+HAVING COUNT(*) > 1;
 
 -- =============================================================================
 -- I. Duplicate review alignment (workbook vs computed)
@@ -182,6 +202,10 @@ SELECT
     WHEN 'phone' THEN (
       SELECT COUNT(*) FROM public.v_customer_import_duplicate_phone_in_batch p
       WHERE p.batch_id = d.batch_id AND p.phone_last10 = d.duplicate_key_normalized
+    )
+    WHEN 'name' THEN (
+      SELECT COUNT(*) FROM public.v_customer_import_duplicate_name_in_batch n
+      WHERE n.batch_id = d.batch_id AND n.business_name_normalized = d.duplicate_key_normalized
     )
   END AS computed_candidate_count
 FROM public.customer_import_duplicate_review d;
@@ -226,6 +250,10 @@ SELECT
     WHERE p.batch_id = b.id
   ) AS has_unresolved_duplicate_phone_in_batch,
   EXISTS (
+    SELECT 1 FROM public.v_customer_import_duplicate_name_in_batch n
+    WHERE n.batch_id = b.id
+  ) AS has_unresolved_duplicate_name_in_batch,
+  EXISTS (
     SELECT 1 FROM public.v_customer_import_orphan_contacts o
     WHERE o.batch_id = b.id
   ) AS has_orphan_contacts,
@@ -244,6 +272,7 @@ SELECT
   (
     NOT EXISTS (SELECT 1 FROM public.v_customer_import_duplicate_gst_in_batch g WHERE g.batch_id = b.id)
     AND NOT EXISTS (SELECT 1 FROM public.v_customer_import_duplicate_phone_in_batch p WHERE p.batch_id = b.id)
+    AND NOT EXISTS (SELECT 1 FROM public.v_customer_import_duplicate_name_in_batch n WHERE n.batch_id = b.id)
     AND NOT EXISTS (SELECT 1 FROM public.v_customer_import_orphan_contacts o WHERE o.batch_id = b.id)
     AND NOT EXISTS (
       SELECT 1 FROM public.v_customer_import_company_required_gaps g
@@ -298,6 +327,11 @@ AS $$
 
   SELECT 'duplicate_phone_in_batch', 'error', COUNT(*), 'Duplicate company phone groups within batch'
   FROM public.v_customer_import_duplicate_phone_in_batch p WHERE p.batch_id = p_batch_id
+
+  UNION ALL
+
+  SELECT 'duplicate_name_in_batch', 'error', COUNT(*), 'Duplicate company name groups within batch'
+  FROM public.v_customer_import_duplicate_name_in_batch n WHERE n.batch_id = p_batch_id
 
   UNION ALL
 

@@ -38,10 +38,12 @@ CREATE TABLE IF NOT EXISTS public.customer_import_raw (
   batch_id uuid NOT NULL REFERENCES public.customer_import_batches (id) ON DELETE CASCADE,
   source_tab text NOT NULL
     CHECK (source_tab IN (
+      'Import Summary',
       'Customer Master Candidate',
       'Contact WhatsApp Candidate',
       'Duplicate Phone Review',
       'Duplicate GST Review',
+      'Possible Name Duplicate Review',
       'Central Mapping'
     )),
   source_row_number integer NOT NULL CHECK (source_row_number > 0),
@@ -64,18 +66,30 @@ CREATE TABLE IF NOT EXISTS public.customer_import_company_candidates (
   batch_id uuid NOT NULL REFERENCES public.customer_import_batches (id) ON DELETE CASCADE,
   raw_id uuid NULL REFERENCES public.customer_import_raw (id) ON DELETE SET NULL,
 
-  -- Source identity (from Excel; never overwrites production keys)
+  -- Source identity (from Excel Customer Master Candidate tab)
+  -- source_customer_key = source_sheet || ':' || source_row
   source_customer_key text NOT NULL,
+  source_sheet text NULL,
+  source_row integer NULL,
+
+  -- Workbook columns: company_name, gstin, address, state, country, registration_type,
+  -- phone_primary, phone_secondary, source_sheet, source_row
   business_name text NOT NULL,
-  trade_name text NULL,
   gst_number_raw text NULL,
   gst_number_normalized text NULL,
   registered_address text NULL,
-  city text NULL,
   state text NULL,
-  pincode text NULL,
+  country text NULL,
+  registration_type text NULL,
   phone_raw text NULL,
+  phone_secondary_raw text NULL,
   phone_last10 text NULL,
+  phone_secondary_last10 text NULL,
+
+  -- Optional promotion fields (not in audit workbook; nullable)
+  trade_name text NULL,
+  city text NULL,
+  pincode text NULL,
   payment_terms_raw text NULL,
   payment_terms_normalized text NULL
     CHECK (payment_terms_normalized IS NULL OR payment_terms_normalized IN ('prepaid', 'credit')),
@@ -140,15 +154,17 @@ CREATE TABLE IF NOT EXISTS public.customer_import_contact_candidates (
 
   source_contact_key text NOT NULL,
   source_customer_key text NOT NULL,
+  company_name text NOT NULL,
+  source_sheet text NULL,
+  source_row integer NULL,
   company_candidate_id uuid NULL
     REFERENCES public.customer_import_company_candidates (id) ON DELETE SET NULL,
 
   contact_name text NULL,
   whatsapp_phone_raw text NOT NULL,
+  whatsapp_candidate_raw text NULL,
   whatsapp_phone_normalized text NULL,
   phone_last10 text NULL,
-  contact_role text NULL,
-  is_primary boolean NOT NULL DEFAULT false,
 
   -- Read-only matches (link only)
   matched_company_id uuid NULL,
@@ -183,26 +199,27 @@ CREATE INDEX IF NOT EXISTS idx_customer_import_contact_phone
   ON public.customer_import_contact_candidates (batch_id, phone_last10)
   WHERE phone_last10 IS NOT NULL;
 
-CREATE INDEX IF NOT EXISTS idx_customer_import_contact_company_key
-  ON public.customer_import_contact_candidates (batch_id, source_customer_key);
+CREATE INDEX IF NOT EXISTS idx_customer_import_contact_company_name
+  ON public.customer_import_contact_candidates (batch_id, lower(trim(company_name)));
 
 -- =============================================================================
--- 4. Duplicate review queue (Duplicate Phone / GST Review tabs)
+-- 4. Duplicate review queue (Duplicate Phone / GST / Name Review tabs)
 -- =============================================================================
 CREATE TABLE IF NOT EXISTS public.customer_import_duplicate_review (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   batch_id uuid NOT NULL REFERENCES public.customer_import_batches (id) ON DELETE CASCADE,
   raw_id uuid NULL REFERENCES public.customer_import_raw (id) ON DELETE SET NULL,
 
-  duplicate_type text NOT NULL CHECK (duplicate_type IN ('phone', 'gst')),
+  duplicate_type text NOT NULL CHECK (duplicate_type IN ('phone', 'gst', 'name')),
   duplicate_key_raw text NOT NULL,
   duplicate_key_normalized text NOT NULL,
   occurrence_count integer NOT NULL DEFAULT 0 CHECK (occurrence_count >= 0),
+  matched_companies_raw text NULL,
 
   candidate_source_keys text[] NOT NULL DEFAULT '{}',
   candidate_details jsonb NOT NULL DEFAULT '[]'::jsonb,
 
-  recommended_action_raw text NULL,
+  review_status_raw text NULL,
   resolution_status text NOT NULL DEFAULT 'pending'
     CHECK (resolution_status IN ('pending', 'keep_one', 'merge', 'skip_all', 'resolved')),
   chosen_winner_source_key text NULL,
@@ -368,4 +385,4 @@ COMMENT ON TABLE public.customer_import_contact_candidates IS
   'Parsed WhatsApp/contact candidates. Links to company candidates by source_customer_key.';
 
 COMMENT ON TABLE public.customer_import_duplicate_review IS
-  'Human review queue for duplicate phone/GST groups from audit workbook.';
+  'Human review queue for duplicate phone/GST/name groups from audit workbook.';
