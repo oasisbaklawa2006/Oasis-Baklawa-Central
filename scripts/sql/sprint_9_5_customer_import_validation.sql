@@ -63,6 +63,7 @@ SELECT
   array_agg(c.business_name ORDER BY c.source_customer_key) AS business_names
 FROM public.customer_import_company_candidates c
 WHERE c.gst_number_normalized IS NOT NULL
+  AND c.import_action <> 'skip'
 GROUP BY c.batch_id, c.gst_number_normalized
 HAVING COUNT(*) > 1;
 
@@ -78,6 +79,7 @@ SELECT
   array_agg(c.business_name ORDER BY c.source_customer_key) AS business_names
 FROM public.customer_import_company_candidates c
 WHERE c.phone_last10 IS NOT NULL
+  AND c.import_action <> 'skip'
 GROUP BY c.batch_id, c.phone_last10
 HAVING COUNT(*) > 1;
 
@@ -93,6 +95,7 @@ SELECT
   array_agg(ct.source_customer_key ORDER BY ct.source_contact_key) AS source_customer_keys
 FROM public.customer_import_contact_candidates ct
 WHERE ct.phone_last10 IS NOT NULL
+  AND ct.import_action <> 'skip'
 GROUP BY ct.batch_id, ct.phone_last10
 HAVING COUNT(*) > 1;
 
@@ -180,6 +183,7 @@ SELECT
   array_agg(c.business_name ORDER BY c.source_customer_key) AS business_names
 FROM public.customer_import_company_candidates c
 WHERE NULLIF(trim(c.business_name), '') IS NOT NULL
+  AND c.import_action <> 'skip'
 GROUP BY c.batch_id, lower(trim(c.business_name))
 HAVING COUNT(*) > 1;
 
@@ -199,9 +203,15 @@ SELECT
       SELECT g.candidate_count FROM public.v_customer_import_duplicate_gst_in_batch g
       WHERE g.batch_id = d.batch_id AND g.gst_number_normalized = d.duplicate_key_normalized
     )
-    WHEN 'phone' THEN (
-      SELECT p.candidate_count FROM public.v_customer_import_duplicate_phone_in_batch p
-      WHERE p.batch_id = d.batch_id AND p.phone_last10 = d.duplicate_key_normalized
+    WHEN 'phone' THEN COALESCE(
+      (
+        SELECT p.candidate_count FROM public.v_customer_import_duplicate_phone_in_batch p
+        WHERE p.batch_id = d.batch_id AND p.phone_last10 = d.duplicate_key_normalized
+      ),
+      (
+        SELECT cp.contact_count FROM public.v_customer_import_duplicate_contact_phone_in_batch cp
+        WHERE cp.batch_id = d.batch_id AND cp.phone_last10 = d.duplicate_key_normalized
+      )
     )
     WHEN 'name' THEN (
       SELECT n.candidate_count FROM public.v_customer_import_duplicate_name_in_batch n
@@ -325,11 +335,13 @@ BEGIN
     RAISE EXCEPTION 'Unauthorized: customer import validation is restricted to internal staff';
   END IF;
 
-  RETURN QUERY
-  SELECT 'batch_exists'::text, 'error'::text, 1::bigint, true, 'Batch not found'::text
-  WHERE NOT EXISTS (SELECT 1 FROM public.customer_import_batches b WHERE b.id = p_batch_id)
+  IF NOT EXISTS (SELECT 1 FROM public.customer_import_batches b WHERE b.id = p_batch_id) THEN
+    RETURN QUERY
+    SELECT 'batch_exists'::text, 'error'::text, 1::bigint, true, 'Batch not found'::text;
+    RETURN;
+  END IF;
 
-  UNION ALL
+  RETURN QUERY
 
   SELECT 'raw_rows_loaded', 'info', COUNT(*), false, 'Rows in customer_import_raw'
   FROM public.customer_import_raw r WHERE r.batch_id = p_batch_id
@@ -425,6 +437,9 @@ COMMENT ON FUNCTION public.run_customer_import_validation IS
 -- 2) Promotion gate must agree with validation errors (expect safe_for_staging_promotion_review = false):
 --    SELECT * FROM public.v_customer_import_promotion_readiness WHERE batch_id = '<batch_id>';
 --
--- 3) Missing batch must block (expect row_count = 1, is_blocking = true):
---    SELECT * FROM public.run_customer_import_validation('00000000-0000-0000-0000-000000000000'::uuid)
---    WHERE check_code = 'batch_exists';
+-- 3) Missing batch must block (expect single row, row_count = 1, is_blocking = true):
+--    SELECT * FROM public.run_customer_import_validation('00000000-0000-0000-0000-000000000000'::uuid);
+--
+-- 4) Resolved duplicate review with losers marked skip must clear duplicate gates:
+--    UPDATE customer_import_company_candidates SET import_action = 'skip' WHERE ...;
+--    SELECT safe_for_staging_promotion_review FROM v_customer_import_promotion_readiness WHERE batch_id = '...';
