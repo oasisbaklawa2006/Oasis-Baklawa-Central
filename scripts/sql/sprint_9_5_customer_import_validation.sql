@@ -87,6 +87,7 @@ CROSS JOIN LATERAL (
 
   SELECT c.phone_secondary_last10 AS phone_last10, 'secondary'::text AS phone_slot
   WHERE c.phone_secondary_last10 IS NOT NULL
+    AND c.phone_secondary_last10 IS DISTINCT FROM c.phone_last10
 ) phones
 WHERE c.import_action <> 'skip';
 
@@ -206,11 +207,19 @@ CROSS JOIN LATERAL (
 
   SELECT c.phone_secondary_last10 AS phone_last10, 'secondary'::text AS phone_slot
   WHERE c.phone_secondary_last10 IS NOT NULL
+    AND c.phone_secondary_last10 IS DISTINCT FROM c.phone_last10
 ) phones
 LEFT JOIN public.companies co
   ON public.customer_import_normalize_phone_last10(co.phone) = phones.phone_last10
 LEFT JOIN public.users u
-  ON public.customer_import_normalize_phone_last10(COALESCE(u.phone, u.mobile_number)) = phones.phone_last10
+  ON (
+    public.customer_import_normalize_phone_last10(COALESCE(u.phone, u.mobile_number)) = phones.phone_last10
+    OR EXISTS (
+      SELECT 1
+      FROM unnest(COALESCE(u.secondary_phones, ARRAY[]::text[])) AS sp(phone)
+      WHERE public.customer_import_normalize_phone_last10(sp.phone) = phones.phone_last10
+    )
+  )
 LEFT JOIN public.whatsapp_contacts wc
   ON public.customer_import_normalize_phone_last10(wc.phone_number) = phones.phone_last10
 WHERE c.import_action <> 'skip';
@@ -251,11 +260,20 @@ SELECT
 FROM public.customer_import_contact_candidates ct
 LEFT JOIN public.customer_import_company_candidates c
   ON c.batch_id = ct.batch_id
-  AND c.import_action <> 'skip'
   AND (
-    c.id = ct.company_candidate_id
-    OR c.source_customer_key = ct.source_customer_key
-    OR lower(trim(c.business_name)) = lower(trim(ct.company_name))
+    (
+      ct.company_candidate_id IS NOT NULL
+      AND c.id = ct.company_candidate_id
+      AND c.import_action <> 'skip'
+    )
+    OR (
+      ct.company_candidate_id IS NULL
+      AND c.import_action <> 'skip'
+      AND (
+        c.source_customer_key = ct.source_customer_key
+        OR lower(trim(c.business_name)) = lower(trim(ct.company_name))
+      )
+    )
   )
 WHERE ct.import_action <> 'skip'
   AND c.id IS NULL;
@@ -388,13 +406,20 @@ LEFT JOIN LATERAL (
   FROM public.users u
   WHERE (
     NULLIF(trim(c.account_manager_email_raw), '') IS NOT NULL
+    AND NULLIF(trim(u.email), '') IS NOT NULL
     AND lower(trim(u.email)) = lower(trim(c.account_manager_email_raw))
   )
   OR (
     NULLIF(trim(c.account_manager_name_raw), '') IS NOT NULL
     AND (
-      lower(trim(u.full_name)) = lower(trim(c.account_manager_name_raw))
-      OR lower(trim(u.name)) = lower(trim(c.account_manager_name_raw))
+      (
+        NULLIF(trim(u.full_name), '') IS NOT NULL
+        AND lower(trim(u.full_name)) = lower(trim(c.account_manager_name_raw))
+      )
+      OR (
+        NULLIF(trim(u.name), '') IS NOT NULL
+        AND lower(trim(u.name)) = lower(trim(c.account_manager_name_raw))
+      )
     )
   )
   ORDER BY
@@ -642,3 +667,6 @@ COMMENT ON FUNCTION public.run_customer_import_validation IS
 --
 -- 5) Skip rows must not block gaps, orphans, or duplicate groups:
 --    SELECT import_action, COUNT(*) FROM customer_import_company_candidates GROUP BY 1;
+--
+-- 6) Orphan FK: contact with company_candidate_id only matches that non-skip company (no name fallback):
+--    SELECT * FROM v_customer_import_orphan_contacts WHERE batch_id = '<batch_id>';
