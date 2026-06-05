@@ -72,27 +72,23 @@ HAVING COUNT(*) > 1;
 -- D. Company phone slots (primary + secondary, last-10 normalized)
 -- =============================================================================
 CREATE OR REPLACE VIEW public.v_customer_import_company_phone_slots AS
-SELECT
+SELECT DISTINCT
   c.batch_id,
   c.source_customer_key,
   c.business_name,
-  c.phone_last10,
-  'primary'::text AS phone_slot
+  phones.phone_last10,
+  phones.phone_slot
 FROM public.customer_import_company_candidates c
-WHERE c.phone_last10 IS NOT NULL
-  AND c.import_action <> 'skip'
+CROSS JOIN LATERAL (
+  SELECT c.phone_last10 AS phone_last10, 'primary'::text AS phone_slot
+  WHERE c.phone_last10 IS NOT NULL
 
-UNION ALL
+  UNION ALL
 
-SELECT
-  c.batch_id,
-  c.source_customer_key,
-  c.business_name,
-  c.phone_secondary_last10 AS phone_last10,
-  'secondary'::text AS phone_slot
-FROM public.customer_import_company_candidates c
-WHERE c.phone_secondary_last10 IS NOT NULL
-  AND c.import_action <> 'skip';
+  SELECT c.phone_secondary_last10 AS phone_last10, 'secondary'::text AS phone_slot
+  WHERE c.phone_secondary_last10 IS NOT NULL
+) phones
+WHERE c.import_action <> 'skip';
 
 -- =============================================================================
 -- D1. Duplicate phone within batch (company-level, primary + secondary)
