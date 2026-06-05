@@ -1,0 +1,27 @@
+{
+  "data_dir": "data/customer-import",
+  "expected_files": ["sale.xlsx", "party.xlsx", "outstanding.xlsx", "address.xls"],
+  "evidence_dir": "docs/evidence/customer-import",
+  "party_file": "party.xlsx",
+  "sale_file": "sale.xlsx",
+  "outstanding_file": "outstanding.xlsx",
+  "address_file": "address.xls",
+  "column_aliases": {
+    "business_name": ["party name", "name", "ledger name", "company name", "customer name", "party", "mailing name"],
+    "gst": ["gstin", "gst", "gst number", "gst no", "uin", "gstin/uin"],
+    "registered_address": ["address", "mailing address", "billing address", "full address"],
+    "state": ["state", "place of supply"],
+    "country": ["country"],
+    "phone_primary": ["mobile", "phone", "telephone", "contact number", "primary mobile", "phone number"],
+    "phone_secondary": ["alternate mobile", "secondary phone", "phone 2", "alternate phone"],
+    "contact_name": ["contact person", "contact name", "attention"],
+    "email": ["email", "e-mail", "email id"],
+    "sale_date": ["date", "voucher date", "invoice date", "bill date"],
+    "sale_amount": ["amount", "total", "value", "bill amount", "invoice amount"],
+    "voucher_no": ["voucher no", "invoice no", "bill no", "voucher number"],
+    "outstanding_amount": ["closing balance", "outstanding", "balance", "amount", "pending amount"],
+    "address_line": ["address", "address line", "street", "full address"],
+    "city": ["city", "town"],
+    "pincode": ["pincode", "pin code", "zip"]
+  }
+}
