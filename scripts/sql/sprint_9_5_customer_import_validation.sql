@@ -378,31 +378,52 @@ SELECT
   d.chosen_winner_source_key,
   CASE d.duplicate_type
     WHEN 'gst' THEN (
-      SELECT g.candidate_count FROM public.v_customer_import_duplicate_gst_in_batch g
-      WHERE g.batch_id = d.batch_id AND g.gst_number_normalized = d.duplicate_key_normalized
+      SELECT COUNT(*)::integer
+      FROM public.customer_import_company_candidates c
+      WHERE c.batch_id = d.batch_id
+        AND c.gst_number_normalized = d.duplicate_key_normalized
+        AND c.import_action <> 'skip'
     )
     WHEN 'phone' THEN NULLIF(GREATEST(
       COALESCE((
-        SELECT p.occurrence_count
-        FROM public.v_customer_import_duplicate_phone_any_in_batch p
-        WHERE p.batch_id = d.batch_id AND p.phone_last10 = d.duplicate_key_normalized
+        SELECT COUNT(*)::integer
+        FROM public.v_customer_import_company_phone_slots s
+        WHERE s.batch_id = d.batch_id
+          AND s.phone_last10 = d.duplicate_key_normalized
       ), 0),
       COALESCE((
-        SELECT p.candidate_count
-        FROM public.v_customer_import_duplicate_phone_in_batch p
-        WHERE p.batch_id = d.batch_id AND p.phone_last10 = d.duplicate_key_normalized
-      ), 0),
-      COALESCE((
-        SELECT cp.contact_count
-        FROM public.v_customer_import_duplicate_contact_phone_in_batch cp
-        WHERE cp.batch_id = d.batch_id AND cp.phone_last10 = d.duplicate_key_normalized
+        SELECT COUNT(*)::integer
+        FROM public.customer_import_contact_candidates ct
+        WHERE ct.batch_id = d.batch_id
+          AND ct.phone_last10 = d.duplicate_key_normalized
+          AND ct.import_action <> 'skip'
       ), 0)
     ), 0)
     WHEN 'name' THEN (
-      SELECT n.candidate_count FROM public.v_customer_import_duplicate_name_in_batch n
-      WHERE n.batch_id = d.batch_id AND n.business_name_normalized = d.duplicate_key_normalized
+      SELECT COUNT(*)::integer
+      FROM public.customer_import_company_candidates c
+      WHERE c.batch_id = d.batch_id
+        AND lower(trim(c.business_name)) = d.duplicate_key_normalized
+        AND c.import_action <> 'skip'
     )
-  END AS computed_candidate_count
+  END AS computed_candidate_count,
+  CASE d.duplicate_type
+    WHEN 'phone' THEN NULLIF((
+      SELECT COUNT(*)::integer
+      FROM public.v_customer_import_company_phone_slots s
+      WHERE s.batch_id = d.batch_id
+        AND s.phone_last10 = d.duplicate_key_normalized
+    ), 0)
+  END AS computed_company_phone_count,
+  CASE d.duplicate_type
+    WHEN 'phone' THEN NULLIF((
+      SELECT COUNT(*)::integer
+      FROM public.customer_import_contact_candidates ct
+      WHERE ct.batch_id = d.batch_id
+        AND ct.phone_last10 = d.duplicate_key_normalized
+        AND ct.import_action <> 'skip'
+    ), 0)
+  END AS computed_contact_phone_count
 FROM public.customer_import_duplicate_review d;
 
 -- =============================================================================
@@ -667,10 +688,11 @@ COMMENT ON FUNCTION public.run_customer_import_validation IS
 -- =============================================================================
 -- M. Verification queries (manual / fixture checks)
 -- =============================================================================
--- 1) Duplicate alignment must expose group size, not 0/1:
---    SELECT duplicate_type, workbook_count, computed_candidate_count
+-- 1) Duplicate alignment compares workbook occurrence_count to active non-skip row counts:
+--    SELECT duplicate_type, workbook_count, computed_candidate_count,
+--           computed_company_phone_count, computed_contact_phone_count
 --    FROM public.v_customer_import_duplicate_review_alignment
---    WHERE batch_id = '<batch_id>' AND computed_candidate_count IS DISTINCT FROM workbook_count;
+--    WHERE batch_id = '<batch_id>';
 --
 -- 2) Promotion gate must agree with validation errors (expect safe_for_staging_promotion_review = false):
 --    SELECT * FROM public.v_customer_import_promotion_readiness WHERE batch_id = '<batch_id>';

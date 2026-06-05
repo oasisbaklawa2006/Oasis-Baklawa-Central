@@ -188,7 +188,7 @@ Key views:
 - `v_customer_import_duplicate_phone_any_in_batch` (company/contact cross-table, blocking)
 - `v_customer_import_duplicate_phone_in_batch` / `v_customer_import_duplicate_contact_phone_in_batch` (diagnostic)
 - `v_customer_import_duplicate_name_in_batch`
-- `v_customer_import_duplicate_review_alignment` (workbook vs computed counts)
+- `v_customer_import_duplicate_review_alignment` (workbook `occurrence_count` vs active non-skip row counts; phone exposes company and contact counts separately)
 - `v_customer_import_orphan_contacts`
 - `v_customer_import_gst_match_existing` / `v_customer_import_phone_match_existing` (read-only)
 - `v_customer_import_promotion_readiness`
