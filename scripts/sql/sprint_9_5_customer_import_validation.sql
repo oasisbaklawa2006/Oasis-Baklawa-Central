@@ -43,7 +43,10 @@ SELECT
     CASE WHEN c.payment_terms_normalized IS NULL AND NULLIF(trim(c.payment_terms_raw), '') IS NOT NULL
       THEN 'invalid_payment_terms' END,
     CASE WHEN NULLIF(trim(c.gst_number_raw), '') IS NOT NULL
-      AND length(public.customer_import_normalize_gst(c.gst_number_raw)) <> 15
+      AND (
+        public.customer_import_normalize_gst(c.gst_number_raw) IS NULL
+        OR length(public.customer_import_normalize_gst(c.gst_number_raw)) <> 15
+      )
       THEN 'invalid_gst_format' END,
     CASE WHEN NULLIF(trim(c.phone_raw), '') IS NOT NULL
       AND public.customer_import_normalize_phone_last10(c.phone_raw) IS NULL
@@ -239,7 +242,7 @@ SELECT
   ARRAY_REMOVE(ARRAY[
     CASE WHEN NULLIF(trim(ct.whatsapp_phone_raw), '') IS NULL THEN 'missing_phone' END,
     CASE WHEN NULLIF(trim(ct.whatsapp_phone_raw), '') IS NOT NULL
-      AND ct.phone_last10 IS NULL
+      AND public.customer_import_normalize_phone_last10(ct.whatsapp_phone_raw) IS NULL
       THEN 'invalid_phone_format' END
   ], NULL) AS gap_codes
 FROM public.customer_import_contact_candidates ct
