@@ -57,83 +57,170 @@ WHERE c.import_action <> 'skip';
 -- =============================================================================
 CREATE OR REPLACE VIEW public.v_customer_import_duplicate_gst_in_batch AS
 SELECT
-  c.batch_id,
-  c.gst_number_normalized,
-  COUNT(*) AS candidate_count,
-  array_agg(c.source_customer_key ORDER BY c.source_customer_key) AS source_customer_keys,
-  array_agg(c.business_name ORDER BY c.source_customer_key) AS business_names
-FROM public.customer_import_company_candidates c
-WHERE c.gst_number_normalized IS NOT NULL
-  AND c.import_action <> 'skip'
-GROUP BY c.batch_id, c.gst_number_normalized
-HAVING COUNT(*) > 1;
+  dupes.batch_id,
+  dupes.gst_number_normalized,
+  dupes.candidate_count,
+  dupes.source_customer_keys,
+  dupes.business_names
+FROM (
+  SELECT
+    c.batch_id,
+    c.gst_number_normalized,
+    COUNT(*) AS candidate_count,
+    array_agg(c.source_customer_key ORDER BY c.source_customer_key) AS source_customer_keys,
+    array_agg(c.business_name ORDER BY c.source_customer_key) AS business_names
+  FROM public.customer_import_company_candidates c
+  WHERE c.gst_number_normalized IS NOT NULL
+    AND c.import_action <> 'skip'
+  GROUP BY c.batch_id, c.gst_number_normalized
+  HAVING COUNT(*) > 1
+) dupes
+WHERE NOT EXISTS (
+  SELECT 1
+  FROM public.customer_import_duplicate_review d
+  WHERE d.batch_id = dupes.batch_id
+    AND d.duplicate_type = 'gst'
+    AND d.duplicate_key_normalized = dupes.gst_number_normalized
+    AND d.resolution_status <> 'pending'
+);
 
 -- =============================================================================
--- D. Duplicate phone within batch (company-level)
+-- D. Company phone slots (primary + secondary, last-10 normalized)
 -- =============================================================================
-CREATE OR REPLACE VIEW public.v_customer_import_duplicate_phone_in_batch AS
+CREATE OR REPLACE VIEW public.v_customer_import_company_phone_slots AS
 SELECT
   c.batch_id,
+  c.source_customer_key,
+  c.business_name,
   c.phone_last10,
-  COUNT(*) AS candidate_count,
-  array_agg(c.source_customer_key ORDER BY c.source_customer_key) AS source_customer_keys,
-  array_agg(c.business_name ORDER BY c.source_customer_key) AS business_names
+  'primary'::text AS phone_slot
 FROM public.customer_import_company_candidates c
 WHERE c.phone_last10 IS NOT NULL
   AND c.import_action <> 'skip'
-GROUP BY c.batch_id, c.phone_last10
-HAVING COUNT(*) > 1;
+
+UNION ALL
+
+SELECT
+  c.batch_id,
+  c.source_customer_key,
+  c.business_name,
+  c.phone_secondary_last10 AS phone_last10,
+  'secondary'::text AS phone_slot
+FROM public.customer_import_company_candidates c
+WHERE c.phone_secondary_last10 IS NOT NULL
+  AND c.import_action <> 'skip';
+
+-- =============================================================================
+-- D1. Duplicate phone within batch (company-level, primary + secondary)
+-- =============================================================================
+CREATE OR REPLACE VIEW public.v_customer_import_duplicate_phone_in_batch AS
+SELECT
+  dupes.batch_id,
+  dupes.phone_last10,
+  dupes.candidate_count,
+  dupes.source_customer_keys,
+  dupes.business_names
+FROM (
+  SELECT
+    slots.batch_id,
+    slots.phone_last10,
+    COUNT(*) AS candidate_count,
+    array_agg(slots.source_customer_key ORDER BY slots.source_customer_key, slots.phone_slot) AS source_customer_keys,
+    array_agg(slots.business_name ORDER BY slots.source_customer_key, slots.phone_slot) AS business_names
+  FROM public.v_customer_import_company_phone_slots slots
+  GROUP BY slots.batch_id, slots.phone_last10
+  HAVING COUNT(*) > 1
+) dupes
+WHERE NOT EXISTS (
+  SELECT 1
+  FROM public.customer_import_duplicate_review d
+  WHERE d.batch_id = dupes.batch_id
+    AND d.duplicate_type = 'phone'
+    AND d.duplicate_key_normalized = dupes.phone_last10
+    AND d.resolution_status <> 'pending'
+);
 
 -- =============================================================================
 -- D2. Duplicate phone within batch (company + contact, cross-table)
 -- =============================================================================
 CREATE OR REPLACE VIEW public.v_customer_import_duplicate_phone_any_in_batch AS
 SELECT
-  phones.batch_id,
-  phones.phone_last10,
-  COUNT(*) AS occurrence_count,
-  COUNT(*) FILTER (WHERE phones.source_kind = 'company') AS company_candidate_count,
-  COUNT(*) FILTER (WHERE phones.source_kind = 'contact') AS contact_candidate_count,
-  array_agg(phones.source_key ORDER BY phones.source_kind, phones.source_key) AS source_keys
+  dupes.batch_id,
+  dupes.phone_last10,
+  dupes.occurrence_count,
+  dupes.company_candidate_count,
+  dupes.contact_candidate_count,
+  dupes.source_keys
 FROM (
   SELECT
-    c.batch_id,
-    c.phone_last10,
-    'company'::text AS source_kind,
-    c.source_customer_key AS source_key
-  FROM public.customer_import_company_candidates c
-  WHERE c.phone_last10 IS NOT NULL
-    AND c.import_action <> 'skip'
+    phones.batch_id,
+    phones.phone_last10,
+    COUNT(*) AS occurrence_count,
+    COUNT(*) FILTER (WHERE phones.source_kind LIKE 'company%') AS company_candidate_count,
+    COUNT(*) FILTER (WHERE phones.source_kind = 'contact') AS contact_candidate_count,
+    array_agg(phones.source_key ORDER BY phones.source_kind, phones.source_key) AS source_keys
+  FROM (
+    SELECT
+      slots.batch_id,
+      slots.phone_last10,
+      ('company_' || slots.phone_slot)::text AS source_kind,
+      slots.source_customer_key AS source_key
+    FROM public.v_customer_import_company_phone_slots slots
 
-  UNION ALL
+    UNION ALL
 
-  SELECT
-    ct.batch_id,
-    ct.phone_last10,
-    'contact'::text AS source_kind,
-    ct.source_contact_key AS source_key
-  FROM public.customer_import_contact_candidates ct
-  WHERE ct.phone_last10 IS NOT NULL
-    AND ct.import_action <> 'skip'
-) phones
-GROUP BY phones.batch_id, phones.phone_last10
-HAVING COUNT(*) > 1;
+    SELECT
+      ct.batch_id,
+      ct.phone_last10,
+      'contact'::text AS source_kind,
+      ct.source_contact_key AS source_key
+    FROM public.customer_import_contact_candidates ct
+    WHERE ct.phone_last10 IS NOT NULL
+      AND ct.import_action <> 'skip'
+  ) phones
+  GROUP BY phones.batch_id, phones.phone_last10
+  HAVING COUNT(*) > 1
+) dupes
+WHERE NOT EXISTS (
+  SELECT 1
+  FROM public.customer_import_duplicate_review d
+  WHERE d.batch_id = dupes.batch_id
+    AND d.duplicate_type = 'phone'
+    AND d.duplicate_key_normalized = dupes.phone_last10
+    AND d.resolution_status <> 'pending'
+);
 
 -- =============================================================================
 -- E. Duplicate phone within batch (contact-level)
 -- =============================================================================
 CREATE OR REPLACE VIEW public.v_customer_import_duplicate_contact_phone_in_batch AS
 SELECT
-  ct.batch_id,
-  ct.phone_last10,
-  COUNT(*) AS contact_count,
-  array_agg(ct.source_contact_key ORDER BY ct.source_contact_key) AS source_contact_keys,
-  array_agg(ct.source_customer_key ORDER BY ct.source_contact_key) AS source_customer_keys
-FROM public.customer_import_contact_candidates ct
-WHERE ct.phone_last10 IS NOT NULL
-  AND ct.import_action <> 'skip'
-GROUP BY ct.batch_id, ct.phone_last10
-HAVING COUNT(*) > 1;
+  dupes.batch_id,
+  dupes.phone_last10,
+  dupes.contact_count,
+  dupes.source_contact_keys,
+  dupes.source_customer_keys
+FROM (
+  SELECT
+    ct.batch_id,
+    ct.phone_last10,
+    COUNT(*) AS contact_count,
+    array_agg(ct.source_contact_key ORDER BY ct.source_contact_key) AS source_contact_keys,
+    array_agg(ct.source_customer_key ORDER BY ct.source_contact_key) AS source_customer_keys
+  FROM public.customer_import_contact_candidates ct
+  WHERE ct.phone_last10 IS NOT NULL
+    AND ct.import_action <> 'skip'
+  GROUP BY ct.batch_id, ct.phone_last10
+  HAVING COUNT(*) > 1
+) dupes
+WHERE NOT EXISTS (
+  SELECT 1
+  FROM public.customer_import_duplicate_review d
+  WHERE d.batch_id = dupes.batch_id
+    AND d.duplicate_type = 'phone'
+    AND d.duplicate_key_normalized = dupes.phone_last10
+    AND d.resolution_status <> 'pending'
+);
 
 -- =============================================================================
 -- F. Cross-match: import GST vs existing companies (read-only; no overwrite)
@@ -156,7 +243,8 @@ SELECT
 FROM public.customer_import_company_candidates c
 LEFT JOIN public.companies co
   ON public.customer_import_normalize_gst(co.gst_number) = c.gst_number_normalized
-WHERE c.gst_number_normalized IS NOT NULL;
+WHERE c.gst_number_normalized IS NOT NULL
+  AND c.import_action <> 'skip';
 
 -- =============================================================================
 -- G. Cross-match: import phone vs existing companies / users / WA contacts
@@ -166,7 +254,8 @@ SELECT
   c.batch_id,
   c.id AS company_candidate_id,
   c.source_customer_key,
-  c.phone_last10,
+  phones.phone_last10,
+  phones.phone_slot,
   co.id AS matched_company_id,
   co.business_name AS matched_company_name,
   u.id AS matched_user_id,
@@ -178,13 +267,22 @@ SELECT
     ELSE 'no_match'
   END AS match_source
 FROM public.customer_import_company_candidates c
+CROSS JOIN LATERAL (
+  SELECT c.phone_last10 AS phone_last10, 'primary'::text AS phone_slot
+  WHERE c.phone_last10 IS NOT NULL
+
+  UNION ALL
+
+  SELECT c.phone_secondary_last10 AS phone_last10, 'secondary'::text AS phone_slot
+  WHERE c.phone_secondary_last10 IS NOT NULL
+) phones
 LEFT JOIN public.companies co
-  ON public.customer_import_normalize_phone_last10(co.phone) = c.phone_last10
+  ON public.customer_import_normalize_phone_last10(co.phone) = phones.phone_last10
 LEFT JOIN public.users u
-  ON public.customer_import_normalize_phone_last10(COALESCE(u.phone, u.mobile_number)) = c.phone_last10
+  ON public.customer_import_normalize_phone_last10(COALESCE(u.phone, u.mobile_number)) = phones.phone_last10
 LEFT JOIN public.whatsapp_contacts wc
-  ON public.customer_import_normalize_phone_last10(wc.phone_number) = c.phone_last10
-WHERE c.phone_last10 IS NOT NULL;
+  ON public.customer_import_normalize_phone_last10(wc.phone_number) = phones.phone_last10
+WHERE c.import_action <> 'skip';
 
 -- =============================================================================
 -- G2. Contact phone required-field gaps
@@ -222,11 +320,15 @@ SELECT
 FROM public.customer_import_contact_candidates ct
 LEFT JOIN public.customer_import_company_candidates c
   ON c.batch_id = ct.batch_id
-  AND c.import_action <> 'skip'
   AND (
-    c.id = ct.company_candidate_id
-    OR c.source_customer_key = ct.source_customer_key
-    OR lower(trim(c.business_name)) = lower(trim(ct.company_name))
+    (ct.company_candidate_id IS NOT NULL AND c.id = ct.company_candidate_id)
+    OR (
+      c.import_action <> 'skip'
+      AND (
+        c.source_customer_key = ct.source_customer_key
+        OR lower(trim(c.business_name)) = lower(trim(ct.company_name))
+      )
+    )
   )
 WHERE ct.import_action <> 'skip'
   AND c.id IS NULL;
@@ -236,16 +338,32 @@ WHERE ct.import_action <> 'skip'
 -- =============================================================================
 CREATE OR REPLACE VIEW public.v_customer_import_duplicate_name_in_batch AS
 SELECT
-  c.batch_id,
-  lower(trim(c.business_name)) AS business_name_normalized,
-  COUNT(*) AS candidate_count,
-  array_agg(c.source_customer_key ORDER BY c.source_customer_key) AS source_customer_keys,
-  array_agg(c.business_name ORDER BY c.source_customer_key) AS business_names
-FROM public.customer_import_company_candidates c
-WHERE NULLIF(trim(c.business_name), '') IS NOT NULL
-  AND c.import_action <> 'skip'
-GROUP BY c.batch_id, lower(trim(c.business_name))
-HAVING COUNT(*) > 1;
+  dupes.batch_id,
+  dupes.business_name_normalized,
+  dupes.candidate_count,
+  dupes.source_customer_keys,
+  dupes.business_names
+FROM (
+  SELECT
+    c.batch_id,
+    lower(trim(c.business_name)) AS business_name_normalized,
+    COUNT(*) AS candidate_count,
+    array_agg(c.source_customer_key ORDER BY c.source_customer_key) AS source_customer_keys,
+    array_agg(c.business_name ORDER BY c.source_customer_key) AS business_names
+  FROM public.customer_import_company_candidates c
+  WHERE NULLIF(trim(c.business_name), '') IS NOT NULL
+    AND c.import_action <> 'skip'
+  GROUP BY c.batch_id, lower(trim(c.business_name))
+  HAVING COUNT(*) > 1
+) dupes
+WHERE NOT EXISTS (
+  SELECT 1
+  FROM public.customer_import_duplicate_review d
+  WHERE d.batch_id = dupes.batch_id
+    AND d.duplicate_type = 'name'
+    AND d.duplicate_key_normalized = dupes.business_name_normalized
+    AND d.resolution_status <> 'pending'
+);
 
 -- =============================================================================
 -- I. Duplicate review alignment (workbook vs computed)
@@ -263,10 +381,23 @@ SELECT
       SELECT g.candidate_count FROM public.v_customer_import_duplicate_gst_in_batch g
       WHERE g.batch_id = d.batch_id AND g.gst_number_normalized = d.duplicate_key_normalized
     )
-    WHEN 'phone' THEN (
-      SELECT p.occurrence_count FROM public.v_customer_import_duplicate_phone_any_in_batch p
-      WHERE p.batch_id = d.batch_id AND p.phone_last10 = d.duplicate_key_normalized
-    )
+    WHEN 'phone' THEN NULLIF(GREATEST(
+      COALESCE((
+        SELECT p.occurrence_count
+        FROM public.v_customer_import_duplicate_phone_any_in_batch p
+        WHERE p.batch_id = d.batch_id AND p.phone_last10 = d.duplicate_key_normalized
+      ), 0),
+      COALESCE((
+        SELECT p.candidate_count
+        FROM public.v_customer_import_duplicate_phone_in_batch p
+        WHERE p.batch_id = d.batch_id AND p.phone_last10 = d.duplicate_key_normalized
+      ), 0),
+      COALESCE((
+        SELECT cp.contact_count
+        FROM public.v_customer_import_duplicate_contact_phone_in_batch cp
+        WHERE cp.batch_id = d.batch_id AND cp.phone_last10 = d.duplicate_key_normalized
+      ), 0)
+    ), 0)
     WHEN 'name' THEN (
       SELECT n.candidate_count FROM public.v_customer_import_duplicate_name_in_batch n
       WHERE n.batch_id = d.batch_id AND n.business_name_normalized = d.duplicate_key_normalized
@@ -299,9 +430,17 @@ LEFT JOIN LATERAL (
     u.full_name AS resolved_user_name,
     u.is_sales_executive
   FROM public.users u
-  WHERE lower(trim(u.email)) = lower(trim(c.account_manager_email_raw))
-    OR lower(trim(u.full_name)) = lower(trim(c.account_manager_name_raw))
-    OR lower(trim(u.name)) = lower(trim(c.account_manager_name_raw))
+  WHERE (
+    NULLIF(trim(c.account_manager_email_raw), '') IS NOT NULL
+    AND lower(trim(u.email)) = lower(trim(c.account_manager_email_raw))
+  )
+  OR (
+    NULLIF(trim(c.account_manager_name_raw), '') IS NOT NULL
+    AND (
+      lower(trim(u.full_name)) = lower(trim(c.account_manager_name_raw))
+      OR lower(trim(u.name)) = lower(trim(c.account_manager_name_raw))
+    )
+  )
   ORDER BY
     CASE
       WHEN lower(trim(u.email)) = lower(trim(c.account_manager_email_raw)) THEN 0
@@ -411,7 +550,12 @@ BEGIN
 
   IF NOT EXISTS (SELECT 1 FROM public.customer_import_batches b WHERE b.id = p_batch_id) THEN
     RETURN QUERY
-    SELECT 'batch_exists'::text, 'error'::text, 1::bigint, true, 'Batch not found'::text;
+    SELECT
+      'batch_not_found'::text,
+      'error'::text,
+      1::bigint,
+      true,
+      'Fatal: customer import batch id not found; no further validation checks were run'::text;
     RETURN;
   END IF;
 
@@ -501,7 +645,15 @@ BEGIN
 
   SELECT 'owner_unresolved', 'warning', COUNT(*), false, 'Company rows with unresolved owner placeholder'
   FROM public.v_customer_import_owner_placeholder o
-  WHERE o.batch_id = p_batch_id AND o.owner_resolution_status LIKE 'unresolved%';
+  WHERE o.batch_id = p_batch_id AND o.owner_resolution_status LIKE 'unresolved%'
+
+  UNION ALL
+
+  SELECT 'promotion_not_ready', 'error', 1::bigint, true,
+    'One or more promotion readiness gates failed; see v_customer_import_promotion_readiness'
+  FROM public.v_customer_import_promotion_readiness pr
+  WHERE pr.batch_id = p_batch_id
+    AND pr.safe_for_staging_promotion_review = false;
 END;
 $$;
 
@@ -523,9 +675,13 @@ COMMENT ON FUNCTION public.run_customer_import_validation IS
 -- 2) Promotion gate must agree with validation errors (expect safe_for_staging_promotion_review = false):
 --    SELECT * FROM public.v_customer_import_promotion_readiness WHERE batch_id = '<batch_id>';
 --
--- 3) Missing batch must block (expect single row, row_count = 1, is_blocking = true):
+-- 3) Missing batch must block (expect single fatal row, row_count = 1, is_blocking = true):
 --    SELECT * FROM public.run_customer_import_validation('00000000-0000-0000-0000-000000000000'::uuid);
 --
--- 4) Resolved duplicate review with losers marked skip must clear duplicate gates:
---    UPDATE customer_import_company_candidates SET import_action = 'skip' WHERE ...;
+-- 4) Resolved duplicate review must clear blocking duplicate gates:
+--    UPDATE customer_import_duplicate_review SET resolution_status = 'keep_one' WHERE ...;
+--    UPDATE customer_import_company_candidates SET import_action = 'skip' WHERE ... losers ...;
 --    SELECT safe_for_staging_promotion_review FROM v_customer_import_promotion_readiness WHERE batch_id = '...';
+--
+-- 5) Skip rows must not block gaps, orphans, or duplicate groups:
+--    SELECT import_action, COUNT(*) FROM customer_import_company_candidates GROUP BY 1;

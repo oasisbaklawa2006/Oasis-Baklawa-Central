@@ -158,11 +158,13 @@ flowchart TD
 
 | Rule | Scope | Action |
 |------|-------|--------|
-| Duplicate GST in batch | Same normalized `gstin` | Block until Duplicate GST Review resolved |
-| Duplicate phone in batch | Same last-10 on company or contact | Block until Duplicate Phone Review resolved |
-| Duplicate name in batch | Same normalized `company_name` | Block until Possible Name Duplicate Review resolved |
-| Orphan contact | `company_name` not matched to company candidate | `orphan_customer_key` validation error |
-| GST/phone vs existing master | Read-only cross-match | `link_existing` or `review`; **never auto-UPDATE** |
+| Duplicate GST in batch | Same normalized `gstin` among non-`skip` company rows | Block until Duplicate GST Review resolved (`resolution_status <> 'pending'`) |
+| Duplicate phone in batch | Same last-10 on company primary/secondary or contact rows (cross-table) | Block until Duplicate Phone Review resolved |
+| Duplicate name in batch | Same normalized `company_name` among non-`skip` rows | Block until Possible Name Duplicate Review resolved |
+| Orphan contact | No link via `company_candidate_id`, `source_customer_key`, or `company_name` | Block until linked or contact marked `skip` |
+| GST/phone vs existing master | Read-only cross-match (primary + secondary company phones) | `link_existing` or `review`; **never auto-UPDATE** |
+| `import_action = 'skip'` | Any row | Excluded from duplicate, gap, orphan, and promotion blocking |
+| `import_action = 'review'` | Default on load | Blocks promotion until operator resolves |
 
 ---
 
@@ -181,17 +183,22 @@ flowchart TD
 Key views:
 
 - `v_customer_import_batch_summary`
+- `v_customer_import_company_phone_slots` (primary + secondary last-10)
 - `v_customer_import_duplicate_gst_in_batch`
-- `v_customer_import_duplicate_phone_in_batch`
+- `v_customer_import_duplicate_phone_any_in_batch` (company/contact cross-table, blocking)
+- `v_customer_import_duplicate_phone_in_batch` / `v_customer_import_duplicate_contact_phone_in_batch` (diagnostic)
 - `v_customer_import_duplicate_name_in_batch`
+- `v_customer_import_duplicate_review_alignment` (workbook vs computed counts)
 - `v_customer_import_orphan_contacts`
-- `v_customer_import_gst_match_existing` (read-only)
+- `v_customer_import_gst_match_existing` / `v_customer_import_phone_match_existing` (read-only)
 - `v_customer_import_promotion_readiness`
 
-Runner:
+Runner (internal staff or `service_role` only):
 
 ```sql
 SELECT * FROM public.run_customer_import_validation('<batch_id>');
+-- Returns check_code, severity, row_count, is_blocking, detail
+-- Fatal unknown batch: single row batch_not_found with is_blocking = true
 ```
 
 ---
