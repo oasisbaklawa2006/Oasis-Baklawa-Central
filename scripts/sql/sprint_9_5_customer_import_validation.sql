@@ -49,7 +49,8 @@ SELECT
       AND public.customer_import_normalize_phone_last10(c.phone_raw) IS NULL
       THEN 'invalid_phone_format' END
   ], NULL) AS gap_codes
-FROM public.customer_import_company_candidates c;
+FROM public.customer_import_company_candidates c
+WHERE c.import_action <> 'skip';
 
 -- =============================================================================
 -- C. Duplicate GST within batch
@@ -81,6 +82,41 @@ FROM public.customer_import_company_candidates c
 WHERE c.phone_last10 IS NOT NULL
   AND c.import_action <> 'skip'
 GROUP BY c.batch_id, c.phone_last10
+HAVING COUNT(*) > 1;
+
+-- =============================================================================
+-- D2. Duplicate phone within batch (company + contact, cross-table)
+-- =============================================================================
+CREATE OR REPLACE VIEW public.v_customer_import_duplicate_phone_any_in_batch AS
+SELECT
+  phones.batch_id,
+  phones.phone_last10,
+  COUNT(*) AS occurrence_count,
+  COUNT(*) FILTER (WHERE phones.source_kind = 'company') AS company_candidate_count,
+  COUNT(*) FILTER (WHERE phones.source_kind = 'contact') AS contact_candidate_count,
+  array_agg(phones.source_key ORDER BY phones.source_kind, phones.source_key) AS source_keys
+FROM (
+  SELECT
+    c.batch_id,
+    c.phone_last10,
+    'company'::text AS source_kind,
+    c.source_customer_key AS source_key
+  FROM public.customer_import_company_candidates c
+  WHERE c.phone_last10 IS NOT NULL
+    AND c.import_action <> 'skip'
+
+  UNION ALL
+
+  SELECT
+    ct.batch_id,
+    ct.phone_last10,
+    'contact'::text AS source_kind,
+    ct.source_contact_key AS source_key
+  FROM public.customer_import_contact_candidates ct
+  WHERE ct.phone_last10 IS NOT NULL
+    AND ct.import_action <> 'skip'
+) phones
+GROUP BY phones.batch_id, phones.phone_last10
 HAVING COUNT(*) > 1;
 
 -- =============================================================================
@@ -165,11 +201,13 @@ SELECT
 FROM public.customer_import_contact_candidates ct
 LEFT JOIN public.customer_import_company_candidates c
   ON c.batch_id = ct.batch_id
+  AND c.import_action <> 'skip'
   AND (
     c.source_customer_key = ct.source_customer_key
     OR lower(trim(c.business_name)) = lower(trim(ct.company_name))
   )
-WHERE c.id IS NULL;
+WHERE ct.import_action <> 'skip'
+  AND c.id IS NULL;
 
 -- =============================================================================
 -- H2. Duplicate company name within batch
@@ -203,15 +241,9 @@ SELECT
       SELECT g.candidate_count FROM public.v_customer_import_duplicate_gst_in_batch g
       WHERE g.batch_id = d.batch_id AND g.gst_number_normalized = d.duplicate_key_normalized
     )
-    WHEN 'phone' THEN COALESCE(
-      (
-        SELECT p.candidate_count FROM public.v_customer_import_duplicate_phone_in_batch p
-        WHERE p.batch_id = d.batch_id AND p.phone_last10 = d.duplicate_key_normalized
-      ),
-      (
-        SELECT cp.contact_count FROM public.v_customer_import_duplicate_contact_phone_in_batch cp
-        WHERE cp.batch_id = d.batch_id AND cp.phone_last10 = d.duplicate_key_normalized
-      )
+    WHEN 'phone' THEN (
+      SELECT p.occurrence_count FROM public.v_customer_import_duplicate_phone_any_in_batch p
+      WHERE p.batch_id = d.batch_id AND p.phone_last10 = d.duplicate_key_normalized
     )
     WHEN 'name' THEN (
       SELECT n.candidate_count FROM public.v_customer_import_duplicate_name_in_batch n
@@ -256,7 +288,7 @@ SELECT
     WHERE g.batch_id = b.id
   ) AS has_unresolved_duplicate_gst_in_batch,
   EXISTS (
-    SELECT 1 FROM public.v_customer_import_duplicate_phone_in_batch p
+    SELECT 1 FROM public.v_customer_import_duplicate_phone_any_in_batch p
     WHERE p.batch_id = b.id
   ) AS has_unresolved_duplicate_phone_in_batch,
   EXISTS (
@@ -289,10 +321,7 @@ SELECT
   ) AS has_contact_rows_pending_review,
   (
     NOT EXISTS (SELECT 1 FROM public.v_customer_import_duplicate_gst_in_batch g WHERE g.batch_id = b.id)
-    AND NOT EXISTS (SELECT 1 FROM public.v_customer_import_duplicate_phone_in_batch p WHERE p.batch_id = b.id)
-    AND NOT EXISTS (
-      SELECT 1 FROM public.v_customer_import_duplicate_contact_phone_in_batch cp WHERE cp.batch_id = b.id
-    )
+    AND NOT EXISTS (SELECT 1 FROM public.v_customer_import_duplicate_phone_any_in_batch p WHERE p.batch_id = b.id)
     AND NOT EXISTS (SELECT 1 FROM public.v_customer_import_duplicate_name_in_batch n WHERE n.batch_id = b.id)
     AND NOT EXISTS (SELECT 1 FROM public.v_customer_import_orphan_contacts o WHERE o.batch_id = b.id)
     AND NOT EXISTS (
@@ -363,7 +392,13 @@ BEGIN
 
   UNION ALL
 
-  SELECT 'duplicate_phone_in_batch', 'error', COUNT(*), true, 'Duplicate company phone groups within batch'
+  SELECT 'duplicate_phone_any_in_batch', 'error', COUNT(*), true,
+    'Duplicate phone groups within batch (company and/or contact rows)'
+  FROM public.v_customer_import_duplicate_phone_any_in_batch p WHERE p.batch_id = p_batch_id
+
+  UNION ALL
+
+  SELECT 'duplicate_phone_in_batch', 'info', COUNT(*), false, 'Duplicate company-only phone groups within batch'
   FROM public.v_customer_import_duplicate_phone_in_batch p WHERE p.batch_id = p_batch_id
 
   UNION ALL
@@ -373,7 +408,7 @@ BEGIN
 
   UNION ALL
 
-  SELECT 'duplicate_contact_phone_in_batch', 'error', COUNT(*), true, 'Duplicate contact phone groups within batch'
+  SELECT 'duplicate_contact_phone_in_batch', 'info', COUNT(*), false, 'Duplicate contact-only phone groups within batch'
   FROM public.v_customer_import_duplicate_contact_phone_in_batch p WHERE p.batch_id = p_batch_id
 
   UNION ALL
