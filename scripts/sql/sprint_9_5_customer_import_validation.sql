@@ -255,15 +255,11 @@ SELECT
 FROM public.customer_import_contact_candidates ct
 LEFT JOIN public.customer_import_company_candidates c
   ON c.batch_id = ct.batch_id
+  AND c.import_action <> 'skip'
   AND (
-    (ct.company_candidate_id IS NOT NULL AND c.id = ct.company_candidate_id)
-    OR (
-      c.import_action <> 'skip'
-      AND (
-        c.source_customer_key = ct.source_customer_key
-        OR lower(trim(c.business_name)) = lower(trim(ct.company_name))
-      )
-    )
+    c.id = ct.company_candidate_id
+    OR c.source_customer_key = ct.source_customer_key
+    OR lower(trim(c.business_name)) = lower(trim(ct.company_name))
   )
 WHERE ct.import_action <> 'skip'
   AND c.id IS NULL;
