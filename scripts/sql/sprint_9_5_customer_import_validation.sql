@@ -57,32 +57,16 @@ WHERE c.import_action <> 'skip';
 -- =============================================================================
 CREATE OR REPLACE VIEW public.v_customer_import_duplicate_gst_in_batch AS
 SELECT
-  dupes.batch_id,
-  dupes.gst_number_normalized,
-  dupes.candidate_count,
-  dupes.source_customer_keys,
-  dupes.business_names
-FROM (
-  SELECT
-    c.batch_id,
-    c.gst_number_normalized,
-    COUNT(*) AS candidate_count,
-    array_agg(c.source_customer_key ORDER BY c.source_customer_key) AS source_customer_keys,
-    array_agg(c.business_name ORDER BY c.source_customer_key) AS business_names
-  FROM public.customer_import_company_candidates c
-  WHERE c.gst_number_normalized IS NOT NULL
-    AND c.import_action <> 'skip'
-  GROUP BY c.batch_id, c.gst_number_normalized
-  HAVING COUNT(*) > 1
-) dupes
-WHERE NOT EXISTS (
-  SELECT 1
-  FROM public.customer_import_duplicate_review d
-  WHERE d.batch_id = dupes.batch_id
-    AND d.duplicate_type = 'gst'
-    AND d.duplicate_key_normalized = dupes.gst_number_normalized
-    AND d.resolution_status <> 'pending'
-);
+  c.batch_id,
+  c.gst_number_normalized,
+  COUNT(*) AS candidate_count,
+  array_agg(c.source_customer_key ORDER BY c.source_customer_key) AS source_customer_keys,
+  array_agg(c.business_name ORDER BY c.source_customer_key) AS business_names
+FROM public.customer_import_company_candidates c
+WHERE c.gst_number_normalized IS NOT NULL
+  AND c.import_action <> 'skip'
+GROUP BY c.batch_id, c.gst_number_normalized
+HAVING COUNT(*) > 1;
 
 -- =============================================================================
 -- D. Company phone slots (primary + secondary, last-10 normalized)
@@ -115,112 +99,63 @@ WHERE c.phone_secondary_last10 IS NOT NULL
 -- =============================================================================
 CREATE OR REPLACE VIEW public.v_customer_import_duplicate_phone_in_batch AS
 SELECT
-  dupes.batch_id,
-  dupes.phone_last10,
-  dupes.candidate_count,
-  dupes.source_customer_keys,
-  dupes.business_names
-FROM (
-  SELECT
-    slots.batch_id,
-    slots.phone_last10,
-    COUNT(*) AS candidate_count,
-    array_agg(slots.source_customer_key ORDER BY slots.source_customer_key, slots.phone_slot) AS source_customer_keys,
-    array_agg(slots.business_name ORDER BY slots.source_customer_key, slots.phone_slot) AS business_names
-  FROM public.v_customer_import_company_phone_slots slots
-  GROUP BY slots.batch_id, slots.phone_last10
-  HAVING COUNT(*) > 1
-) dupes
-WHERE NOT EXISTS (
-  SELECT 1
-  FROM public.customer_import_duplicate_review d
-  WHERE d.batch_id = dupes.batch_id
-    AND d.duplicate_type = 'phone'
-    AND d.duplicate_key_normalized = dupes.phone_last10
-    AND d.resolution_status <> 'pending'
-);
+  slots.batch_id,
+  slots.phone_last10,
+  COUNT(*) AS candidate_count,
+  array_agg(slots.source_customer_key ORDER BY slots.source_customer_key, slots.phone_slot) AS source_customer_keys,
+  array_agg(slots.business_name ORDER BY slots.source_customer_key, slots.phone_slot) AS business_names
+FROM public.v_customer_import_company_phone_slots slots
+GROUP BY slots.batch_id, slots.phone_last10
+HAVING COUNT(*) > 1;
 
 -- =============================================================================
 -- D2. Duplicate phone within batch (company + contact, cross-table)
 -- =============================================================================
 CREATE OR REPLACE VIEW public.v_customer_import_duplicate_phone_any_in_batch AS
 SELECT
-  dupes.batch_id,
-  dupes.phone_last10,
-  dupes.occurrence_count,
-  dupes.company_candidate_count,
-  dupes.contact_candidate_count,
-  dupes.source_keys
+  phones.batch_id,
+  phones.phone_last10,
+  COUNT(*) AS occurrence_count,
+  COUNT(*) FILTER (WHERE phones.source_kind LIKE 'company%') AS company_candidate_count,
+  COUNT(*) FILTER (WHERE phones.source_kind = 'contact') AS contact_candidate_count,
+  array_agg(phones.source_key ORDER BY phones.source_kind, phones.source_key) AS source_keys
 FROM (
   SELECT
-    phones.batch_id,
-    phones.phone_last10,
-    COUNT(*) AS occurrence_count,
-    COUNT(*) FILTER (WHERE phones.source_kind LIKE 'company%') AS company_candidate_count,
-    COUNT(*) FILTER (WHERE phones.source_kind = 'contact') AS contact_candidate_count,
-    array_agg(phones.source_key ORDER BY phones.source_kind, phones.source_key) AS source_keys
-  FROM (
-    SELECT
-      slots.batch_id,
-      slots.phone_last10,
-      ('company_' || slots.phone_slot)::text AS source_kind,
-      slots.source_customer_key AS source_key
-    FROM public.v_customer_import_company_phone_slots slots
+    slots.batch_id,
+    slots.phone_last10,
+    ('company_' || slots.phone_slot)::text AS source_kind,
+    slots.source_customer_key AS source_key
+  FROM public.v_customer_import_company_phone_slots slots
 
-    UNION ALL
+  UNION ALL
 
-    SELECT
-      ct.batch_id,
-      ct.phone_last10,
-      'contact'::text AS source_kind,
-      ct.source_contact_key AS source_key
-    FROM public.customer_import_contact_candidates ct
-    WHERE ct.phone_last10 IS NOT NULL
-      AND ct.import_action <> 'skip'
-  ) phones
-  GROUP BY phones.batch_id, phones.phone_last10
-  HAVING COUNT(*) > 1
-) dupes
-WHERE NOT EXISTS (
-  SELECT 1
-  FROM public.customer_import_duplicate_review d
-  WHERE d.batch_id = dupes.batch_id
-    AND d.duplicate_type = 'phone'
-    AND d.duplicate_key_normalized = dupes.phone_last10
-    AND d.resolution_status <> 'pending'
-);
+  SELECT
+    ct.batch_id,
+    ct.phone_last10,
+    'contact'::text AS source_kind,
+    ct.source_contact_key AS source_key
+  FROM public.customer_import_contact_candidates ct
+  WHERE ct.phone_last10 IS NOT NULL
+    AND ct.import_action <> 'skip'
+) phones
+GROUP BY phones.batch_id, phones.phone_last10
+HAVING COUNT(*) > 1;
 
 -- =============================================================================
 -- E. Duplicate phone within batch (contact-level)
 -- =============================================================================
 CREATE OR REPLACE VIEW public.v_customer_import_duplicate_contact_phone_in_batch AS
 SELECT
-  dupes.batch_id,
-  dupes.phone_last10,
-  dupes.contact_count,
-  dupes.source_contact_keys,
-  dupes.source_customer_keys
-FROM (
-  SELECT
-    ct.batch_id,
-    ct.phone_last10,
-    COUNT(*) AS contact_count,
-    array_agg(ct.source_contact_key ORDER BY ct.source_contact_key) AS source_contact_keys,
-    array_agg(ct.source_customer_key ORDER BY ct.source_contact_key) AS source_customer_keys
-  FROM public.customer_import_contact_candidates ct
-  WHERE ct.phone_last10 IS NOT NULL
-    AND ct.import_action <> 'skip'
-  GROUP BY ct.batch_id, ct.phone_last10
-  HAVING COUNT(*) > 1
-) dupes
-WHERE NOT EXISTS (
-  SELECT 1
-  FROM public.customer_import_duplicate_review d
-  WHERE d.batch_id = dupes.batch_id
-    AND d.duplicate_type = 'phone'
-    AND d.duplicate_key_normalized = dupes.phone_last10
-    AND d.resolution_status <> 'pending'
-);
+  ct.batch_id,
+  ct.phone_last10,
+  COUNT(*) AS contact_count,
+  array_agg(ct.source_contact_key ORDER BY ct.source_contact_key) AS source_contact_keys,
+  array_agg(ct.source_customer_key ORDER BY ct.source_contact_key) AS source_customer_keys
+FROM public.customer_import_contact_candidates ct
+WHERE ct.phone_last10 IS NOT NULL
+  AND ct.import_action <> 'skip'
+GROUP BY ct.batch_id, ct.phone_last10
+HAVING COUNT(*) > 1;
 
 -- =============================================================================
 -- F. Cross-match: import GST vs existing companies (read-only; no overwrite)
@@ -338,32 +273,16 @@ WHERE ct.import_action <> 'skip'
 -- =============================================================================
 CREATE OR REPLACE VIEW public.v_customer_import_duplicate_name_in_batch AS
 SELECT
-  dupes.batch_id,
-  dupes.business_name_normalized,
-  dupes.candidate_count,
-  dupes.source_customer_keys,
-  dupes.business_names
-FROM (
-  SELECT
-    c.batch_id,
-    lower(trim(c.business_name)) AS business_name_normalized,
-    COUNT(*) AS candidate_count,
-    array_agg(c.source_customer_key ORDER BY c.source_customer_key) AS source_customer_keys,
-    array_agg(c.business_name ORDER BY c.source_customer_key) AS business_names
-  FROM public.customer_import_company_candidates c
-  WHERE NULLIF(trim(c.business_name), '') IS NOT NULL
-    AND c.import_action <> 'skip'
-  GROUP BY c.batch_id, lower(trim(c.business_name))
-  HAVING COUNT(*) > 1
-) dupes
-WHERE NOT EXISTS (
-  SELECT 1
-  FROM public.customer_import_duplicate_review d
-  WHERE d.batch_id = dupes.batch_id
-    AND d.duplicate_type = 'name'
-    AND d.duplicate_key_normalized = dupes.business_name_normalized
-    AND d.resolution_status <> 'pending'
-);
+  c.batch_id,
+  lower(trim(c.business_name)) AS business_name_normalized,
+  COUNT(*) AS candidate_count,
+  array_agg(c.source_customer_key ORDER BY c.source_customer_key) AS source_customer_keys,
+  array_agg(c.business_name ORDER BY c.source_customer_key) AS business_names
+FROM public.customer_import_company_candidates c
+WHERE NULLIF(trim(c.business_name), '') IS NOT NULL
+  AND c.import_action <> 'skip'
+GROUP BY c.batch_id, lower(trim(c.business_name))
+HAVING COUNT(*) > 1;
 
 -- =============================================================================
 -- I. Duplicate review alignment (workbook vs computed)
@@ -384,21 +303,23 @@ SELECT
         AND c.gst_number_normalized = d.duplicate_key_normalized
         AND c.import_action <> 'skip'
     )
-    WHEN 'phone' THEN NULLIF(GREATEST(
-      COALESCE((
-        SELECT COUNT(*)::integer
+    WHEN 'phone' THEN (
+      SELECT COUNT(*)::integer
+      FROM (
+        SELECT s.phone_last10
         FROM public.v_customer_import_company_phone_slots s
         WHERE s.batch_id = d.batch_id
           AND s.phone_last10 = d.duplicate_key_normalized
-      ), 0),
-      COALESCE((
-        SELECT COUNT(*)::integer
+
+        UNION ALL
+
+        SELECT ct.phone_last10
         FROM public.customer_import_contact_candidates ct
         WHERE ct.batch_id = d.batch_id
           AND ct.phone_last10 = d.duplicate_key_normalized
           AND ct.import_action <> 'skip'
-      ), 0)
-    ), 0)
+      ) phones
+    )
     WHEN 'name' THEN (
       SELECT COUNT(*)::integer
       FROM public.customer_import_company_candidates c
@@ -423,7 +344,29 @@ SELECT
         AND ct.phone_last10 = d.duplicate_key_normalized
         AND ct.import_action <> 'skip'
     ), 0)
-  END AS computed_contact_phone_count
+  END AS computed_contact_phone_count,
+  CASE d.duplicate_type
+    WHEN 'phone' THEN NULLIF((
+      SELECT COUNT(*)::integer
+      FROM public.v_customer_import_company_phone_slots s
+      WHERE s.batch_id = d.batch_id
+        AND s.phone_last10 = d.duplicate_key_normalized
+    ), 0)
+    WHEN 'gst' THEN (
+      SELECT COUNT(*)::integer
+      FROM public.customer_import_company_candidates c
+      WHERE c.batch_id = d.batch_id
+        AND c.gst_number_normalized = d.duplicate_key_normalized
+        AND c.import_action <> 'skip'
+    )
+    WHEN 'name' THEN (
+      SELECT COUNT(*)::integer
+      FROM public.customer_import_company_candidates c
+      WHERE c.batch_id = d.batch_id
+        AND lower(trim(c.business_name)) = d.duplicate_key_normalized
+        AND c.import_action <> 'skip'
+    )
+  END AS workbook_alignment_count
 FROM public.customer_import_duplicate_review d;
 
 -- =============================================================================
