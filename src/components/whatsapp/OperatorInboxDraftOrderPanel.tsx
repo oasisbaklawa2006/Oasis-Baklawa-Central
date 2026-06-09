@@ -81,6 +81,9 @@ export const OperatorInboxDraftOrderPanel = memo(function OperatorInboxDraftOrde
         <OperationalStatusLabel kind="local-only" />
         <OperationalStatusLabel kind="not-persisted" />
         <OperationalStatusLabel kind="does-not-create-so" />
+        <span className="text-[11px] font-normal normal-case text-teal-800/80">
+          read-only · not persisted to orders
+        </span>
       </div>
 
       <p className="text-[11px] leading-snug text-teal-900/90">{LOCAL_WORKFLOW_HINT}</p>
