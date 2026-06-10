@@ -1,0 +1,21 @@
+WhatsApp Stage-1 Evidence E6 — whatsapp_override_log count (staging)
+======================================================================
+Project: tcxvcatsqqertcnycuop (staging only)
+Captured: 2026-06-04T07:35:10Z UTC
+Method: read-only SQL via Supabase MCP execute_sql
+
+Query (total):
+  SELECT count(*)::bigint AS cnt FROM whatsapp_override_log;
+
+Query (last 24 hours):
+  SELECT count(*)::bigint AS cnt
+  FROM whatsapp_override_log
+  WHERE created_at > now() - interval '24 hours';
+
+Results:
+  total_rows: 0
+  rows_last_24h: 0
+
+Interpretation:
+  Expected for Stage-1 read-only pilot — no inbox-driven override audit writes observed.
+  Pass criteria met (zero inbox-driven rows in 24h).

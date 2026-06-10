@@ -3,8 +3,11 @@
 **Phase:** WA Stage-1 — GO/NO-GO evidence + write-path readiness audit (pre–live send / order-write automation)  
 **Repository:** `oasisbaklawa2006/Oasis-Baklawa-Central`  
 **Scope:** WhatsApp / operator inbox module only (`src/components/WhatsAppInbox.tsx`, `src/components/whatsapp/*`, `src/lib/wa-governance/*`, inbox-invoked Edge Functions)  
-**Date:** 2026-06-02  
+**Date:** 2026-06-02 (finalization update 2026-06-04)  
 **Out of scope:** War Room, Central Order Pool, finance flows, order save, quotation, PI, migrations, live send automation implementation
+
+**Finalization sprint (2026-06-04):** See `docs/evidence/stage1/STAGE1_FINAL_READINESS_REPORT.md` and `STAGE1_EXECUTIVE_SUMMARY.md`.  
+**Recommendation:** **GO WITH CONDITIONS** (read-only staging pilot). Production NOT touched.
 
 **Related docs:**
 - `docs/WHATSAPP_READ_ONLY_GUARDRAIL_AUDIT.md` — post–PR #66 read/write guardrails
@@ -17,7 +20,19 @@
 **Static evidence artifacts (complete):**
 - `docs/evidence/stage1/ci-readonly-guard.log` — wa-governance test suite (137/137)
 - `docs/evidence/stage1/idempotency-reply-gap.md` — operator reply idempotency NO-GO (static)
-- `docs/evidence/stage1/rbac-url-access.md` — RBAC URL note (static; staging test pending)
+- `docs/evidence/stage1/rbac-url-access.md` — RBAC URL note (static; E10 nav screenshot pending)
+
+**Staging evidence artifacts (partial — finalization sprint):**
+- `docs/evidence/stage1/queue-disabled-governance-bar.png` — E4
+- `docs/evidence/stage1/audit-readonly-label.png` — E5
+- `docs/evidence/stage1/visibility-full-inbox-with-packets.png` — E12
+- `docs/evidence/stage1/audit-override-log-count.txt` — E6
+- `docs/evidence/stage1/audit-suggestions-log-count.txt` — E20
+- `docs/evidence/stage1/webhook-auto-order-env.txt` — E18 (partial)
+- `docs/evidence/stage1/wa_stage1_rls_post_apply_verification.md` — RLS verified staging
+- `docs/evidence/stage1/pr69-smoke-checklist-final.md` — E14 partial (4 PASS, 10 BLOCKED)
+- `docs/evidence/stage1/e3-no-failed-row-available.md` — E3 blocked
+- `docs/evidence/stage1/e17-realtime-refresh-blocked.md` — E17 blocked
 
 ---
 
@@ -25,12 +40,12 @@
 
 | Pilot mode | Stage-1 verdict | Rationale |
 |------------|-----------------|-----------|
-| **Read-only observation** (packets, thread, resolution panels, TOOL 3/4 suggestions) | **NOT GO** (staging sign-off) / **Conditional** (planning) | Static AST guards pass; staging screenshots/smoke **pending** (runbook E1–E20) |
+| **Read-only observation** (packets, thread, resolution panels, TOOL 3/4 suggestions) | **GO WITH CONDITIONS** | AST guards pass; RLS Option A verified staging; E4/E5/E6/E12/E20 captured; E1/E2/E8/E10/E14 items remain open/blocked |
 | **Operator reply send** (TOOL 1) | **NO-GO** | `whatsapp-operator-reply` writes DB + provider send; `verify_jwt = false`; no idempotency key; no override audit table writes |
 | **Order / draft creation from inbox** | **GO (blocked by design)** | No order/draft write path in inbox UI; local draft preview is client-only |
 | **Live send / order-write automation pilot** | **NO-GO** | Write-path guardrails incomplete; see blockers §8 |
 
-**Stage-1 status:** Static guard evidence **complete** (`docs/evidence/stage1/`). **NOT GO** for staging sign-off until screenshot/SQL/manual runbook items are captured. **Conditional** read-only pilot **planning** only. **Not** safe to expand into governed send or order-write automation without closing blockers in §2.6.
+**Stage-1 status:** Static guards **complete**; staging RLS **verified**; core visibility/governance/audit SQL **captured**. **GO WITH CONDITIONS** for read-only staging pilot. Full operational sign-off pending E1/E2/E8/E10/E13/E14 blocked rows and human sign-off. **Not** safe to expand into governed send or order-write automation without closing blockers in §2.6.
 
 ---
 
@@ -82,7 +97,7 @@ npx vitest run src/lib/wa-governance/tests/operatorInboxStage1Guard.test.ts -t "
 ```
 
 **Evidence placeholders:**
-- [ ] Screenshot: governance bar with three disabled actions (`<!-- EVIDENCE: queue-disabled-governance-bar.png -->`)
+- [x] Screenshot: governance bar with three disabled actions — [`queue-disabled-governance-bar.png`](../evidence/stage1/queue-disabled-governance-bar.png) (E4)
 
 ---
 
@@ -102,8 +117,8 @@ rg 'whatsapp_override_log|whatsapp_suggestions_log' src/components src/lib/wa-go
 ```
 
 **Evidence placeholders:**
-- [ ] Screenshot: resolution panel "not persisted" label (`<!-- EVIDENCE: audit-readonly-label.png -->`)
-- [ ] SQL snapshot: `SELECT count(*) FROM whatsapp_override_log WHERE created_at > now() - interval '1 day';` (`<!-- EVIDENCE: audit-override-log-count.txt -->`)
+- [x] Screenshot: resolution panel "not persisted" label — [`audit-readonly-label.png`](../evidence/stage1/audit-readonly-label.png) (E5)
+- [x] SQL snapshot: override log count — [`audit-override-log-count.txt`](../evidence/stage1/audit-override-log-count.txt) (E6)
 
 ---
 
@@ -209,7 +224,7 @@ rg 'verify_jwt' supabase/config.toml | rg whatsapp
 **Manual smoke:** `docs/POST_MERGE_PR69_OPERATOR_INBOX_SMOKE.md`
 
 **Evidence placeholders:**
-- [ ] Screenshot: full inbox with insights column (`<!-- EVIDENCE: visibility-full-inbox.png -->`)
+- [x] Screenshot: full inbox with insights column — [`visibility-full-inbox-with-packets.png`](../evidence/stage1/visibility-full-inbox-with-packets.png) (E12)
 
 ---
 
@@ -361,7 +376,10 @@ rg 'functions\.invoke\("whatsapp-' src/components/WhatsAppInbox.tsx
 **Manual (staging):** complete `docs/POST_MERGE_PR69_OPERATOR_INBOX_SMOKE.md` and attach screenshots to §1 placeholders. Execution map: [`docs/evidence/stage1/staging-evidence-runbook.md`](../evidence/stage1/staging-evidence-runbook.md).
 
 **Static evidence (complete):** E7, E9, E11 — see `docs/evidence/stage1/`.  
-**Staging evidence (pending):** E1–E6, E8, E10, E12–E20 — screenshots, SQL snapshots, smoke checklist, sign-off.
+**Staging evidence (complete):** E4, E5, E6, E12, E20; RLS post-apply verification.  
+**Staging evidence (partial):** E14 (4/14 PASS), E18 (code default only).  
+**Staging evidence (open):** E1, E2, E8, E10, E15, E16, E19.  
+**Staging evidence (blocked):** E3, E13, E17 — see blocker docs in `docs/evidence/stage1/`.
 
 ---
 
@@ -369,16 +387,16 @@ rg 'functions\.invoke\("whatsapp-' src/components/WhatsAppInbox.tsx
 
 | Capability | Evidence status | Decision | Owner action |
 |------------|---------------|----------|--------------|
-| Read-only packet/thread observation | Static tests pass; staging smoke **pending** | **NOT GO** (staging sign-off) | Run runbook E12, E14; attach screenshots |
-| Resolution panels (WA-03A–06A) | SELECT-only (static); label screenshot **pending** | **Conditional** | Capture E5 on staging |
-| TOOL 3/4 suggestions | Edge SELECT-only (static); error UI **pending** | **Conditional** | Capture E8 on staging |
-| Governance disabled actions | AST guard pass; screenshot **pending** | **Conditional** | Capture E4 on staging |
-| Webhook auto-order writes | Flag defaults false (static); env verify **pending** | **Conditional** | Capture E18 on staging |
+| Read-only packet/thread observation | Static + RLS + E12/E14 partial | **GO WITH CONDITIONS** | Complete E14 blocked rows; E1/E2/E8 |
+| Resolution panels (WA-03A–06A) | SELECT-only (static); E5 captured | **GO WITH CONDITIONS** | — |
+| TOOL 3/4 suggestions | Edge SELECT-only (static); error UI open | **Conditional** | Capture E8 on staging |
+| Governance disabled actions | AST guard pass; E4 captured | **GO WITH CONDITIONS** | — |
+| Webhook auto-order writes | Code default false; E18 partial | **Conditional** | Confirm secret in Supabase Dashboard |
 | Operator reply send | Idempotency NO-GO documented (static) | **NO-GO** | Do not include in send pilot; see `idempotency-reply-gap.md` |
 | Order/draft creation from inbox | No path (static) | **GO (N/A)** | Keep Approve Draft disabled |
 | Full live send/order-write automation | Multiple blockers §2.6 | **NO-GO** | Complete WA-02B hardening + reply replacement plan |
 
-**Overall Stage-1 recommendation:** **NOT GO** for staging sign-off until open placeholders (§1) and runbook items are captured. **Conditional** read-only pilot **planning** only — static guards complete; staging evidence **pending**.
+**Overall Stage-1 recommendation:** **GO WITH CONDITIONS** for read-only staging observation pilot. Operator reply send and full operational sign-off remain **NO-GO** / pending until E13 and open alert/smoke items close. See `docs/evidence/stage1/STAGE1_FINAL_READINESS_REPORT.md`.
 
 ---
 
