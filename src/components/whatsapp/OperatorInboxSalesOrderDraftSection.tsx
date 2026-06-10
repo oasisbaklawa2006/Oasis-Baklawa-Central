@@ -19,6 +19,7 @@ import { draftOrderDimensionLabel } from "@/lib/wa-governance/draftOrderDisplay"
 import type { ExtractedDraftOrder } from "@/lib/wa-governance/draftOrderExtractionTypes";
 import { statusLabel } from "@/lib/wa-sales-order-draft/workflowTransitions";
 import type { useOperatorInboxSalesOrderDraft } from "./useOperatorInboxSalesOrderDraft";
+import { OperationalStatusLabel } from "@/components/admin/OperationalStatusLabel";
 
 const GOVERNANCE_BANNER =
   "Governed handoff — persists to sales_order_drafts only. Does not create live Sales Orders, production allocation, dispatch, finance release, or invoices.";
@@ -79,14 +80,16 @@ export const OperatorInboxSalesOrderDraftSection = memo(function OperatorInboxSa
           Sales order draft
         </h4>
         {draftStatus ? (
-          <Badge variant="outline" className="font-normal">
-            {statusLabel(draftStatus)}
-          </Badge>
+          <>
+            <Badge variant="outline" className="font-normal">
+              {statusLabel(draftStatus)}
+            </Badge>
+            <OperationalStatusLabel kind="live" />
+          </>
         ) : (
-          <span className="text-[11px] font-normal normal-case text-indigo-800/80">
-            · not yet persisted
-          </span>
+          <OperationalStatusLabel kind="not-persisted" />
         )}
+        <OperationalStatusLabel kind="does-not-create-so" />
       </div>
 
       <p className="text-[11px] leading-snug text-indigo-900/90">{GOVERNANCE_BANNER}</p>
@@ -258,7 +261,7 @@ export const OperatorInboxSalesOrderDraftSection = memo(function OperatorInboxSa
                     onClick={() => void approveDraft(reviewNotes || undefined)}
                   >
                     <CheckCircle2 className="mr-1 h-3 w-3" aria-hidden />
-                    Approve for SO
+                    Approve for SO (staging only)
                   </Button>
                   <Button
                     type="button"

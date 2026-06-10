@@ -24,6 +24,10 @@ import {
 import { createSupabaseStockBalanceRepository } from "@/lib/stock-finalization/supabaseStockFinalizationStore";
 import { OperationalTimeline } from "@/components/admin/OperationalTimeline";
 import { GovernanceBoardLiveNotice } from "@/components/admin/GovernanceBoardLiveNotice";
+import {
+  governanceWritesBlocked,
+  OperationalStatusLabel,
+} from "@/components/admin/OperationalStatusLabel";
 import { GovernancePrerequisiteList } from "@/components/admin/GovernancePrerequisiteList";
 import type { OperationalEventRecord } from "@/lib/operational-events/types";
 import {
@@ -183,6 +187,12 @@ export default function StockFinalizationBoard() {
   }, []);
 
   const canExecuteWrites = bundle?.canExecuteWrites ?? false;
+  const governedWritesBlocked = governanceWritesBlocked({
+    showPreviewCards: boardState.showPreviewCards,
+    persistenceMode: bundle?.persistenceMode,
+    canExecuteWrites: bundle?.canExecuteWrites,
+  });
+  const canFinalizeWrites = canExecuteWrites && !governedWritesBlocked;
   const requiresOverrideReason = requiresStockOverrideReason(role);
 
   const overrideReasonReady = !requiresOverrideReason || overrideReason.trim().length > 0;
@@ -190,8 +200,12 @@ export default function StockFinalizationBoard() {
   const finalizeBlockers = useMemo(() => {
     if (!projection || !input) return [];
     const reasons = [...projection.blockingReasons, ...missingSignals];
-    if (!canExecuteWrites) {
-      reasons.push("Physical stock writes unavailable — Phase 4G persistence or demo flag required.");
+    if (!canFinalizeWrites) {
+      reasons.push(
+        governedWritesBlocked
+          ? "Physical stock writes disabled on preview/demo cards or non-Supabase persistence."
+          : "Physical stock writes unavailable — Phase 4G persistence or demo flag required.",
+      );
     }
     if (!input.dispatchLineageId) {
       reasons.push("dispatchLineageId missing — finalize dispatch on 4E first (dispatch_release_lineage).");
@@ -206,7 +220,7 @@ export default function StockFinalizationBoard() {
       reasons.push("SUPER_ADMIN override reason required — type overrideReason before finalizing consumption.");
     }
     return [...new Set(reasons)];
-  }, [projection, input, missingSignals, canExecuteWrites, requiresOverrideReason, overrideReason]);
+  }, [projection, input, missingSignals, canFinalizeWrites, governedWritesBlocked, requiresOverrideReason, overrideReason]);
 
   const persistenceLabel =
     bundle?.persistenceMode === "supabase"
@@ -219,7 +233,7 @@ export default function StockFinalizationBoard() {
 
   async function handleFinalize() {
     if (!input || !projection) return;
-    if (!canExecuteWrites || !bundle) {
+    if (!canFinalizeWrites || !bundle) {
       setMessage(
         "Physical stock writes are disabled until Phase 4G migrations are applied and Supabase persistence is available (or VITE_STOCK_FINALIZATION_DEMO=true for controlled demo only).",
       );
@@ -313,6 +327,16 @@ export default function StockFinalizationBoard() {
           <ShieldCheck className="h-3 w-3" />
           Phase 4G
         </Badge>
+        {boardState.showPreviewCards ? (
+          <>
+            <OperationalStatusLabel kind="preview-only" />
+            <OperationalStatusLabel kind="demo-data" />
+          </>
+        ) : bundle?.persistenceMode === "supabase" ? (
+          <OperationalStatusLabel kind="live" />
+        ) : bundle?.persistenceMode === "demo" ? (
+          <OperationalStatusLabel kind="demo-data" />
+        ) : null}
       </div>
 
       <GovernanceBoardLiveNotice
@@ -516,7 +540,7 @@ export default function StockFinalizationBoard() {
               disabled={
                 busy ||
                 !projection.canFinalizeConsumption ||
-                !canExecuteWrites ||
+                !canFinalizeWrites ||
                 !overrideReasonReady
               }
               onClick={() => void handleFinalize()}

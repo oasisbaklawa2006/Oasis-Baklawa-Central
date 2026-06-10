@@ -1,4 +1,5 @@
 import type { ReadModelMetadata } from "@/lib/execution-read-models";
+import { OperationalStatusLabel } from "@/components/admin/OperationalStatusLabel";
 
 export function GovernanceBoardLiveNotice({
   meta,
@@ -43,18 +44,27 @@ export function GovernanceBoardLiveNotice({
   }
   if (showPreviewCards) {
     return (
-      <p className="rounded-md border border-amber-500/40 bg-amber-500/10 p-3 text-xs text-amber-800 dark:text-amber-200">
-        Preview cards (non-production). Source: {meta.projectionSource} · tables:{" "}
-        {meta.derivedFromTables.join(", ") || "n/a"}
-      </p>
+      <div className="space-y-2 rounded-md border border-amber-500/40 bg-amber-500/10 p-3 text-xs text-amber-900 dark:text-amber-100">
+        <div className="flex flex-wrap items-center gap-2">
+          <OperationalStatusLabel kind="preview-only" />
+          <OperationalStatusLabel kind="demo-data" />
+        </div>
+        <p>
+          Sample order cards only — governed write buttons are disabled. Not live operational data. Source:{" "}
+          {meta.projectionSource} · tables: {meta.derivedFromTables.join(", ") || "n/a"}
+        </p>
+      </div>
     );
   }
   if (meta.projectionSource === "live") {
     return (
-      <p className="text-xs text-muted-foreground">
-        Live signals · {meta.derivedFromTables.join(", ")}
-        {meta.missingSignals.length > 0 ? ` · gaps: ${meta.missingSignals.slice(0, 4).join(", ")}` : ""}
-      </p>
+      <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+        <OperationalStatusLabel kind="live" />
+        <span>
+          {meta.derivedFromTables.join(", ")}
+          {meta.missingSignals.length > 0 ? ` · gaps: ${meta.missingSignals.slice(0, 4).join(", ")}` : ""}
+        </span>
+      </div>
     );
   }
   return null;

@@ -18,6 +18,7 @@ import {
 } from "@/lib/barcode/barcodePayloads";
 import { LABEL_PRINT_PRESETS } from "@/lib/barcode/labelPrintPresets";
 import { listTemplatesForKind } from "@/lib/barcode/labelTemplates";
+import { OperationalStatusLabel } from "@/components/admin/OperationalStatusLabel";
 
 const LS_KEY = "label-command-center-preferences-v1";
 
@@ -141,6 +142,9 @@ export default function LabelCommandCenter() {
           <Badge variant="outline" className="text-[10px] uppercase">
             Payloads only
           </Badge>
+          <OperationalStatusLabel kind="demo-data" />
+          <OperationalStatusLabel kind="preview-only" />
+          <OperationalStatusLabel kind="not-persisted" />
         </div>
         <p className="text-sm text-muted-foreground">
           TSC TE244 / compatible thermal layout assumptions. This page builds <span className="font-medium text-foreground">JSON payloads</span>{" "}

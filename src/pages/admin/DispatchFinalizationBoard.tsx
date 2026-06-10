@@ -18,6 +18,10 @@ import {
 } from "@/lib/dispatch-finalization/createDispatchFinalizationBundle";
 import { OperationalTimeline } from "@/components/admin/OperationalTimeline";
 import { GovernanceBoardLiveNotice } from "@/components/admin/GovernanceBoardLiveNotice";
+import {
+  governanceWritesBlocked,
+  OperationalStatusLabel,
+} from "@/components/admin/OperationalStatusLabel";
 import { GovernanceHandoffReferences } from "@/components/admin/GovernanceHandoffReferences";
 import { GovernancePrerequisiteList } from "@/components/admin/GovernancePrerequisiteList";
 import type { OperationalEventRecord } from "@/lib/operational-events/types";
@@ -100,6 +104,7 @@ function ReleaseCard({
   busy,
   customerPreview,
   canWrite,
+  showPreviewCards,
 }: {
   input: DispatchFinalizationInput;
   projection: DispatchReleaseProjection;
@@ -110,6 +115,7 @@ function ReleaseCard({
   busy: boolean;
   customerPreview: { label: string }[];
   canWrite: boolean;
+  showPreviewCards: boolean;
 }) {
   const alreadyFinalized = input.openReleaseBlockers.includes("dispatch_already_finalized");
   const lane = projection.canFinalize ? "eligible" : projection.releaseStatus === "dispatch_release_blocked" ? "blocked" : "pending";
@@ -122,6 +128,12 @@ function ReleaseCard({
     <Card className={lane === "eligible" ? "ring-1 ring-primary/30" : "ring-1 ring-border/50"}>
       <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-2 pb-2">
         <CardTitle className="text-sm font-semibold">Order {input.orderId.slice(-4)}</CardTitle>
+        {showPreviewCards ? (
+          <div className="flex w-full flex-wrap gap-1">
+            <OperationalStatusLabel kind="preview-only" />
+            <OperationalStatusLabel kind="demo-data" />
+          </div>
+        ) : null}
         <Badge variant={projection.canFinalize ? "default" : "secondary"}>
           {projection.releaseStatus.replace(/_/g, " ")}
         </Badge>
@@ -277,8 +289,14 @@ export default function DispatchFinalizationBoard() {
     setLineageLabels(lin.map((l) => `${lineageReleaseTypeLabel(l.releaseType)}: ${l.previousStatus}→${l.nextStatus}`));
   };
 
+  const governedWritesBlocked = governanceWritesBlocked({
+    showPreviewCards: boardState.showPreviewCards,
+    persistenceMode: bundle?.persistenceMode,
+    canExecuteWrites: bundle?.canExecuteWrites,
+  });
+
   const handleFinalize = async (input: DispatchFinalizationInput) => {
-    if (!user?.id || !service || !bundle?.canExecuteWrites) return;
+    if (!user?.id || !service || governedWritesBlocked) return;
     setBusyId(input.orderId);
     try {
       const finalizedInput: DispatchFinalizationInput = {
@@ -302,7 +320,7 @@ export default function DispatchFinalizationBoard() {
   };
 
   const handlePublish = async (input: DispatchFinalizationInput) => {
-    if (!user?.id || !service || !bundle?.canExecuteWrites) return;
+    if (!user?.id || !service || governedWritesBlocked) return;
     setBusyId(input.orderId);
     try {
       await service.publishCustomerRelease(input.orderId, writeCtx(input.orderId), input.transporterReference ?? undefined);
@@ -313,7 +331,7 @@ export default function DispatchFinalizationBoard() {
   };
 
   const handleReversal = async (input: DispatchFinalizationInput) => {
-    if (!user?.id || !service || !bundle?.canExecuteWrites) return;
+    if (!user?.id || !service || governedWritesBlocked) return;
     setBusyId(input.orderId);
     try {
       await service.requestDispatchReversal(input.orderId, {
@@ -378,7 +396,8 @@ export default function DispatchFinalizationBoard() {
             projection={projection}
             missingSignals={missingSignals}
             busy={busyId === input.orderId}
-            canWrite={bundle?.canExecuteWrites ?? false}
+            canWrite={!governedWritesBlocked}
+            showPreviewCards={boardState.showPreviewCards}
             customerPreview={preview}
             onFinalize={() => void handleFinalize(input)}
             onPublish={() => void handlePublish(input)}
