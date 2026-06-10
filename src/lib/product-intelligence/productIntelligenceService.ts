@@ -16,14 +16,20 @@ export function createProductIntelligenceService(
   supabase: SupabaseClient,
 ): ProductIntelligenceService {
   let catalog: ApprovedAliasCatalog | null = null;
+  let loadGeneration = 0;
 
   return {
     getCatalog() {
       return catalog;
     },
     async loadCatalog() {
-      catalog = await loadApprovedAliasCatalog(supabase);
-      return catalog;
+      const generation = ++loadGeneration;
+      const loaded = await loadApprovedAliasCatalog(supabase);
+      if (generation !== loadGeneration) {
+        return catalog ?? loaded;
+      }
+      catalog = loaded;
+      return loaded;
     },
     resolve(utterance: string) {
       if (!catalog) {

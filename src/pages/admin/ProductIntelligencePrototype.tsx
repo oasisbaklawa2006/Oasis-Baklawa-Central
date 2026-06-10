@@ -53,7 +53,7 @@ export default function ProductIntelligencePrototype() {
   }, [service, utterance]);
 
   useEffect(() => {
-    if (catalog) runResolve();
+    runResolve();
   }, [catalog, utterance, runResolve]);
 
   return (
