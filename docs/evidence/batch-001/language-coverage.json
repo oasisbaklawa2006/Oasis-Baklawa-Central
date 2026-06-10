@@ -1,0 +1,302 @@
+[
+  {
+    "sku": "OAS-AS-BKL-0001",
+    "name": "Cashew Kitta",
+    "kinds_present": [
+      "official_alias",
+      "whatsapp_keyword",
+      "customer_term",
+      "search_keyword"
+    ],
+    "complete": true,
+    "source": "live_aliases"
+  },
+  {
+    "sku": "OAS-AS-BKL-0002",
+    "name": "Square Baklawa",
+    "kinds_present": [
+      "official_alias",
+      "whatsapp_keyword",
+      "customer_term",
+      "search_keyword"
+    ],
+    "complete": true,
+    "source": "wave2c_pending"
+  },
+  {
+    "sku": "OAS-AS-BKL-0003",
+    "name": "Cashew Ring",
+    "kinds_present": [
+      "official_alias",
+      "whatsapp_keyword",
+      "customer_term",
+      "search_keyword"
+    ],
+    "complete": true,
+    "source": "live_aliases"
+  },
+  {
+    "sku": "OAS-AS-BKL-0004",
+    "name": "Cashew Rosebud",
+    "kinds_present": [
+      "official_alias",
+      "whatsapp_keyword",
+      "customer_term",
+      "search_keyword"
+    ],
+    "complete": true,
+    "source": "wave2c_pending"
+  },
+  {
+    "sku": "OAS-AS-BKL-0005",
+    "name": "Almond Crosole",
+    "kinds_present": [
+      "official_alias",
+      "whatsapp_keyword",
+      "customer_term",
+      "search_keyword"
+    ],
+    "complete": true,
+    "source": "wave2c_pending"
+  },
+  {
+    "sku": "OAS-AS-BKL-0006",
+    "name": "Cashew Pyramid",
+    "kinds_present": [
+      "official_alias",
+      "whatsapp_keyword",
+      "customer_term",
+      "search_keyword"
+    ],
+    "complete": true,
+    "source": "wave2c_pending"
+  },
+  {
+    "sku": "OAS-AS-BKL-0007",
+    "name": "Cashew Finger",
+    "kinds_present": [
+      "official_alias",
+      "whatsapp_keyword",
+      "customer_term",
+      "search_keyword"
+    ],
+    "complete": true,
+    "source": "live_aliases"
+  },
+  {
+    "sku": "OAS-AS-BKL-0008",
+    "name": "Date Baklawa",
+    "kinds_present": [
+      "official_alias",
+      "whatsapp_keyword",
+      "customer_term",
+      "search_keyword"
+    ],
+    "complete": true,
+    "source": "wave2c_pending"
+  },
+  {
+    "sku": "OAS-AS-BKL-0009",
+    "name": "Special Square Baklawa",
+    "kinds_present": [
+      "official_alias",
+      "whatsapp_keyword",
+      "customer_term",
+      "search_keyword"
+    ],
+    "complete": true,
+    "source": "wave2c_pending"
+  },
+  {
+    "sku": "OAS-AS-BKL-0010",
+    "name": "Pistachio Ring",
+    "kinds_present": [
+      "official_alias",
+      "whatsapp_keyword",
+      "customer_term",
+      "search_keyword"
+    ],
+    "complete": true,
+    "source": "live_aliases"
+  },
+  {
+    "sku": "OAS-AS-BKL-0011",
+    "name": "Pistachio Pyramid(Topping)",
+    "kinds_present": [
+      "official_alias",
+      "whatsapp_keyword",
+      "customer_term",
+      "search_keyword"
+    ],
+    "complete": true,
+    "source": "wave2c_pending"
+  },
+  {
+    "sku": "OAS-AS-BKL-0012",
+    "name": "Chocolate Pistachio Asiyah",
+    "kinds_present": [
+      "official_alias",
+      "whatsapp_keyword",
+      "customer_term",
+      "search_keyword"
+    ],
+    "complete": true,
+    "source": "live_aliases"
+  },
+  {
+    "sku": "OAS-AS-BKL-0013",
+    "name": "Chocolate Cashew Asiyah",
+    "kinds_present": [
+      "official_alias",
+      "whatsapp_keyword",
+      "customer_term",
+      "search_keyword"
+    ],
+    "complete": true,
+    "source": "live_aliases"
+  },
+  {
+    "sku": "OAS-AS-BKL-0014",
+    "name": "Mor Cashew Asiyah",
+    "kinds_present": [
+      "official_alias",
+      "whatsapp_keyword",
+      "customer_term",
+      "search_keyword"
+    ],
+    "complete": true,
+    "source": "live_aliases"
+  },
+  {
+    "sku": "OAS-AS-BKL-0015",
+    "name": "Mor Pistachio Asiyah",
+    "kinds_present": [
+      "official_alias",
+      "whatsapp_keyword",
+      "customer_term",
+      "search_keyword"
+    ],
+    "complete": true,
+    "source": "live_aliases"
+  },
+  {
+    "sku": "OAS-AS-BKL-0016",
+    "name": "Pistachio Asiyah",
+    "kinds_present": [
+      "official_alias",
+      "whatsapp_keyword",
+      "customer_term",
+      "search_keyword"
+    ],
+    "complete": true,
+    "source": "live_aliases"
+  },
+  {
+    "sku": "OAS-AS-BKL-0017",
+    "name": "Cashew Asiyah",
+    "kinds_present": [
+      "official_alias",
+      "whatsapp_keyword",
+      "customer_term",
+      "search_keyword"
+    ],
+    "complete": true,
+    "source": "live_aliases"
+  },
+  {
+    "sku": "OAS-AS-BKL-0018",
+    "name": "Diamond Pistachio",
+    "kinds_present": [
+      "official_alias",
+      "whatsapp_keyword",
+      "customer_term",
+      "search_keyword"
+    ],
+    "complete": true,
+    "source": "wave2c_pending"
+  },
+  {
+    "sku": "OAS-AS-BKL-0019",
+    "name": "Pistachio Pyramid",
+    "kinds_present": [
+      "official_alias",
+      "whatsapp_keyword",
+      "customer_term",
+      "search_keyword"
+    ],
+    "complete": true,
+    "source": "live_aliases"
+  },
+  {
+    "sku": "OAS-AS-BKL-0020",
+    "name": "Tart Cashew",
+    "kinds_present": [
+      "official_alias",
+      "whatsapp_keyword",
+      "customer_term",
+      "search_keyword"
+    ],
+    "complete": true,
+    "source": "live_aliases"
+  },
+  {
+    "sku": "OAS-AS-BKL-0021",
+    "name": "Mix Nut Tart",
+    "kinds_present": [
+      "official_alias",
+      "whatsapp_keyword",
+      "customer_term",
+      "search_keyword"
+    ],
+    "complete": true,
+    "source": "live_aliases"
+  },
+  {
+    "sku": "OAS-AS-BKL-0022",
+    "name": "Almond Tart",
+    "kinds_present": [
+      "official_alias",
+      "whatsapp_keyword",
+      "customer_term",
+      "search_keyword"
+    ],
+    "complete": true,
+    "source": "live_aliases"
+  },
+  {
+    "sku": "OAS-AS-BKL-0023",
+    "name": "Pistachio Tart",
+    "kinds_present": [
+      "official_alias",
+      "whatsapp_keyword",
+      "customer_term",
+      "search_keyword"
+    ],
+    "complete": true,
+    "source": "live_aliases"
+  },
+  {
+    "sku": "OAS-AS-BKL-0024",
+    "name": "Mor Pistachio Durum",
+    "kinds_present": [
+      "official_alias",
+      "whatsapp_keyword",
+      "customer_term",
+      "search_keyword"
+    ],
+    "complete": true,
+    "source": "live_aliases"
+  },
+  {
+    "sku": "OAS-AS-BKL-0025",
+    "name": "Coconut Durum",
+    "kinds_present": [
+      "official_alias",
+      "whatsapp_keyword",
+      "customer_term",
+      "search_keyword"
+    ],
+    "complete": true,
+    "source": "live_aliases"
+  }
+]
