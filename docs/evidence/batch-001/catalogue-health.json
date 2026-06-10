@@ -1,0 +1,246 @@
+{
+  "batch_percent": 62,
+  "rows": [
+    {
+      "sku": "OAS-AS-BKL-0001",
+      "name": "Cashew Kitta",
+      "score": 71,
+      "missing": [
+        "Media",
+        "Search visibility"
+      ]
+    },
+    {
+      "sku": "OAS-AS-BKL-0002",
+      "name": "Square Baklawa",
+      "score": 43,
+      "missing": [
+        "Media",
+        "Search visibility",
+        "Alias readiness",
+        "WhatsApp keyword path"
+      ]
+    },
+    {
+      "sku": "OAS-AS-BKL-0003",
+      "name": "Cashew Ring",
+      "score": 71,
+      "missing": [
+        "Media",
+        "Search visibility"
+      ]
+    },
+    {
+      "sku": "OAS-AS-BKL-0004",
+      "name": "Cashew Rosebud",
+      "score": 43,
+      "missing": [
+        "Media",
+        "Search visibility",
+        "Alias readiness",
+        "WhatsApp keyword path"
+      ]
+    },
+    {
+      "sku": "OAS-AS-BKL-0005",
+      "name": "Almond Crosole",
+      "score": 43,
+      "missing": [
+        "Media",
+        "Search visibility",
+        "Alias readiness",
+        "WhatsApp keyword path"
+      ]
+    },
+    {
+      "sku": "OAS-AS-BKL-0006",
+      "name": "Cashew Pyramid",
+      "score": 43,
+      "missing": [
+        "Media",
+        "Search visibility",
+        "Alias readiness",
+        "WhatsApp keyword path"
+      ]
+    },
+    {
+      "sku": "OAS-AS-BKL-0007",
+      "name": "Cashew Finger",
+      "score": 71,
+      "missing": [
+        "Media",
+        "Search visibility"
+      ]
+    },
+    {
+      "sku": "OAS-AS-BKL-0008",
+      "name": "Date Baklawa",
+      "score": 43,
+      "missing": [
+        "Media",
+        "Search visibility",
+        "Alias readiness",
+        "WhatsApp keyword path"
+      ]
+    },
+    {
+      "sku": "OAS-AS-BKL-0009",
+      "name": "Special Square Baklawa",
+      "score": 43,
+      "missing": [
+        "Media",
+        "Search visibility",
+        "Alias readiness",
+        "WhatsApp keyword path"
+      ]
+    },
+    {
+      "sku": "OAS-AS-BKL-0010",
+      "name": "Pistachio Ring",
+      "score": 71,
+      "missing": [
+        "Media",
+        "Search visibility"
+      ]
+    },
+    {
+      "sku": "OAS-AS-BKL-0011",
+      "name": "Pistachio Pyramid(Topping)",
+      "score": 43,
+      "missing": [
+        "Media",
+        "Search visibility",
+        "Alias readiness",
+        "WhatsApp keyword path"
+      ]
+    },
+    {
+      "sku": "OAS-AS-BKL-0012",
+      "name": "Chocolate Pistachio Asiyah",
+      "score": 71,
+      "missing": [
+        "Media",
+        "Search visibility"
+      ]
+    },
+    {
+      "sku": "OAS-AS-BKL-0013",
+      "name": "Chocolate Cashew Asiyah",
+      "score": 71,
+      "missing": [
+        "Media",
+        "Search visibility"
+      ]
+    },
+    {
+      "sku": "OAS-AS-BKL-0014",
+      "name": "Mor Cashew Asiyah",
+      "score": 71,
+      "missing": [
+        "Media",
+        "Search visibility"
+      ]
+    },
+    {
+      "sku": "OAS-AS-BKL-0015",
+      "name": "Mor Pistachio Asiyah",
+      "score": 71,
+      "missing": [
+        "Media",
+        "Search visibility"
+      ]
+    },
+    {
+      "sku": "OAS-AS-BKL-0016",
+      "name": "Pistachio Asiyah",
+      "score": 71,
+      "missing": [
+        "Media",
+        "Search visibility"
+      ]
+    },
+    {
+      "sku": "OAS-AS-BKL-0017",
+      "name": "Cashew Asiyah",
+      "score": 71,
+      "missing": [
+        "Media",
+        "Search visibility"
+      ]
+    },
+    {
+      "sku": "OAS-AS-BKL-0018",
+      "name": "Diamond Pistachio",
+      "score": 43,
+      "missing": [
+        "Media",
+        "Search visibility",
+        "Alias readiness",
+        "WhatsApp keyword path"
+      ]
+    },
+    {
+      "sku": "OAS-AS-BKL-0019",
+      "name": "Pistachio Pyramid",
+      "score": 71,
+      "missing": [
+        "Media",
+        "Search visibility"
+      ]
+    },
+    {
+      "sku": "OAS-AS-BKL-0020",
+      "name": "Tart Cashew",
+      "score": 71,
+      "missing": [
+        "Media",
+        "Search visibility"
+      ]
+    },
+    {
+      "sku": "OAS-AS-BKL-0021",
+      "name": "Mix Nut Tart",
+      "score": 71,
+      "missing": [
+        "Media",
+        "Search visibility"
+      ]
+    },
+    {
+      "sku": "OAS-AS-BKL-0022",
+      "name": "Almond Tart",
+      "score": 71,
+      "missing": [
+        "Media",
+        "Search visibility"
+      ]
+    },
+    {
+      "sku": "OAS-AS-BKL-0023",
+      "name": "Pistachio Tart",
+      "score": 71,
+      "missing": [
+        "Media",
+        "Search visibility"
+      ]
+    },
+    {
+      "sku": "OAS-AS-BKL-0024",
+      "name": "Mor Pistachio Durum",
+      "score": 71,
+      "missing": [
+        "Media",
+        "Search visibility"
+      ]
+    },
+    {
+      "sku": "OAS-AS-BKL-0025",
+      "name": "Coconut Durum",
+      "score": 71,
+      "missing": [
+        "Media",
+        "Search visibility"
+      ]
+    }
+  ]
+}

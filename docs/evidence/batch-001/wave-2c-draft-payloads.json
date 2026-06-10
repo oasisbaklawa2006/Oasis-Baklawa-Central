@@ -1,0 +1,386 @@
+[
+  {
+    "operation": "insert",
+    "alias_text": "Square Baklawa",
+    "canonical_name": "Square Baklawa",
+    "product_id": "89de33c7-e4c1-475e-b711-18258683fdec",
+    "metadata": {
+      "wave": "wave-2c",
+      "term_kind": "official_alias",
+      "sku": "OAS-AS-BKL-0002",
+      "classification": "SAFE_TO_APPROVE"
+    }
+  },
+  {
+    "operation": "insert",
+    "alias_text": "square baklawa",
+    "canonical_name": "Square Baklawa",
+    "product_id": "89de33c7-e4c1-475e-b711-18258683fdec",
+    "metadata": {
+      "wave": "wave-2c",
+      "term_kind": "whatsapp_keyword",
+      "sku": "OAS-AS-BKL-0002",
+      "classification": "SAFE_TO_APPROVE"
+    }
+  },
+  {
+    "operation": "insert",
+    "alias_text": "chatur baklawa",
+    "canonical_name": "Square Baklawa",
+    "product_id": "89de33c7-e4c1-475e-b711-18258683fdec",
+    "metadata": {
+      "wave": "wave-2c",
+      "term_kind": "customer_term",
+      "sku": "OAS-AS-BKL-0002",
+      "classification": "SAFE_TO_APPROVE"
+    }
+  },
+  {
+    "operation": "insert",
+    "alias_text": "square piece baklawa lebanese",
+    "canonical_name": "Square Baklawa",
+    "product_id": "89de33c7-e4c1-475e-b711-18258683fdec",
+    "metadata": {
+      "wave": "wave-2c",
+      "term_kind": "search_keyword",
+      "sku": "OAS-AS-BKL-0002",
+      "classification": "SAFE_TO_APPROVE"
+    }
+  },
+  {
+    "operation": "insert",
+    "alias_text": "Cashew Rosebud",
+    "canonical_name": "Cashew Rosebud",
+    "product_id": "eb9c7a73-d1df-4bea-bdf1-209a5b386262",
+    "metadata": {
+      "wave": "wave-2c",
+      "term_kind": "official_alias",
+      "sku": "OAS-AS-BKL-0004",
+      "classification": "SAFE_TO_APPROVE"
+    }
+  },
+  {
+    "operation": "insert",
+    "alias_text": "cashew rosebud",
+    "canonical_name": "Cashew Rosebud",
+    "product_id": "eb9c7a73-d1df-4bea-bdf1-209a5b386262",
+    "metadata": {
+      "wave": "wave-2c",
+      "term_kind": "whatsapp_keyword",
+      "sku": "OAS-AS-BKL-0004",
+      "classification": "SAFE_TO_APPROVE"
+    }
+  },
+  {
+    "operation": "insert",
+    "alias_text": "rosebud cashew",
+    "canonical_name": "Cashew Rosebud",
+    "product_id": "eb9c7a73-d1df-4bea-bdf1-209a5b386262",
+    "metadata": {
+      "wave": "wave-2c",
+      "term_kind": "customer_term",
+      "sku": "OAS-AS-BKL-0004",
+      "classification": "SAFE_TO_APPROVE"
+    }
+  },
+  {
+    "operation": "insert",
+    "alias_text": "cashew rosebud baklawa",
+    "canonical_name": "Cashew Rosebud",
+    "product_id": "eb9c7a73-d1df-4bea-bdf1-209a5b386262",
+    "metadata": {
+      "wave": "wave-2c",
+      "term_kind": "search_keyword",
+      "sku": "OAS-AS-BKL-0004",
+      "classification": "SAFE_TO_APPROVE"
+    }
+  },
+  {
+    "operation": "insert",
+    "alias_text": "Almond Crosole",
+    "canonical_name": "Almond Crosole",
+    "product_id": "691f2fe6-2d25-4ce2-a9fd-d4b81ecb694b",
+    "metadata": {
+      "wave": "wave-2c",
+      "term_kind": "official_alias",
+      "sku": "OAS-AS-BKL-0005",
+      "classification": "SAFE_TO_APPROVE"
+    }
+  },
+  {
+    "operation": "insert",
+    "alias_text": "almond crosole",
+    "canonical_name": "Almond Crosole",
+    "product_id": "691f2fe6-2d25-4ce2-a9fd-d4b81ecb694b",
+    "metadata": {
+      "wave": "wave-2c",
+      "term_kind": "whatsapp_keyword",
+      "sku": "OAS-AS-BKL-0005",
+      "classification": "SAFE_TO_APPROVE"
+    }
+  },
+  {
+    "operation": "insert",
+    "alias_text": "crosole almond",
+    "canonical_name": "Almond Crosole",
+    "product_id": "691f2fe6-2d25-4ce2-a9fd-d4b81ecb694b",
+    "metadata": {
+      "wave": "wave-2c",
+      "term_kind": "customer_term",
+      "sku": "OAS-AS-BKL-0005",
+      "classification": "SAFE_TO_APPROVE"
+    }
+  },
+  {
+    "operation": "insert",
+    "alias_text": "almond crosole baklawa",
+    "canonical_name": "Almond Crosole",
+    "product_id": "691f2fe6-2d25-4ce2-a9fd-d4b81ecb694b",
+    "metadata": {
+      "wave": "wave-2c",
+      "term_kind": "search_keyword",
+      "sku": "OAS-AS-BKL-0005",
+      "classification": "SAFE_TO_APPROVE"
+    }
+  },
+  {
+    "operation": "insert",
+    "alias_text": "Cashew Pyramid",
+    "canonical_name": "Cashew Pyramid",
+    "product_id": "da4372b9-e1b3-4b17-bdd0-278bd636ab9a",
+    "metadata": {
+      "wave": "wave-2c",
+      "term_kind": "official_alias",
+      "sku": "OAS-AS-BKL-0006",
+      "classification": "SAFE_TO_APPROVE"
+    }
+  },
+  {
+    "operation": "insert",
+    "alias_text": "cashew pyramid",
+    "canonical_name": "Cashew Pyramid",
+    "product_id": "da4372b9-e1b3-4b17-bdd0-278bd636ab9a",
+    "metadata": {
+      "wave": "wave-2c",
+      "term_kind": "whatsapp_keyword",
+      "sku": "OAS-AS-BKL-0006",
+      "classification": "SAFE_TO_APPROVE"
+    }
+  },
+  {
+    "operation": "insert",
+    "alias_text": "kaju pyramid",
+    "canonical_name": "Cashew Pyramid",
+    "product_id": "da4372b9-e1b3-4b17-bdd0-278bd636ab9a",
+    "metadata": {
+      "wave": "wave-2c",
+      "term_kind": "customer_term",
+      "sku": "OAS-AS-BKL-0006",
+      "classification": "SAFE_TO_APPROVE"
+    }
+  },
+  {
+    "operation": "insert",
+    "alias_text": "cashew pyramid baklawa",
+    "canonical_name": "Cashew Pyramid",
+    "product_id": "da4372b9-e1b3-4b17-bdd0-278bd636ab9a",
+    "metadata": {
+      "wave": "wave-2c",
+      "term_kind": "search_keyword",
+      "sku": "OAS-AS-BKL-0006",
+      "classification": "SAFE_TO_APPROVE"
+    }
+  },
+  {
+    "operation": "insert",
+    "alias_text": "Date Baklawa",
+    "canonical_name": "Date Baklawa",
+    "product_id": "a6013e20-0fc7-4fe6-b2ab-f7f82d336b0c",
+    "metadata": {
+      "wave": "wave-2c",
+      "term_kind": "official_alias",
+      "sku": "OAS-AS-BKL-0008",
+      "classification": "SAFE_TO_APPROVE"
+    }
+  },
+  {
+    "operation": "insert",
+    "alias_text": "date baklawa",
+    "canonical_name": "Date Baklawa",
+    "product_id": "a6013e20-0fc7-4fe6-b2ab-f7f82d336b0c",
+    "metadata": {
+      "wave": "wave-2c",
+      "term_kind": "whatsapp_keyword",
+      "sku": "OAS-AS-BKL-0008",
+      "classification": "SAFE_TO_APPROVE"
+    }
+  },
+  {
+    "operation": "insert",
+    "alias_text": "khajoor baklawa",
+    "canonical_name": "Date Baklawa",
+    "product_id": "a6013e20-0fc7-4fe6-b2ab-f7f82d336b0c",
+    "metadata": {
+      "wave": "wave-2c",
+      "term_kind": "customer_term",
+      "sku": "OAS-AS-BKL-0008",
+      "classification": "SAFE_TO_APPROVE"
+    }
+  },
+  {
+    "operation": "insert",
+    "alias_text": "date baklawa lebanese",
+    "canonical_name": "Date Baklawa",
+    "product_id": "a6013e20-0fc7-4fe6-b2ab-f7f82d336b0c",
+    "metadata": {
+      "wave": "wave-2c",
+      "term_kind": "search_keyword",
+      "sku": "OAS-AS-BKL-0008",
+      "classification": "SAFE_TO_APPROVE"
+    }
+  },
+  {
+    "operation": "insert",
+    "alias_text": "Special Square Baklawa",
+    "canonical_name": "Special Square Baklawa",
+    "product_id": "c522fa96-9247-4cf5-9699-a20bc316dc55",
+    "metadata": {
+      "wave": "wave-2c",
+      "term_kind": "official_alias",
+      "sku": "OAS-AS-BKL-0009",
+      "classification": "SAFE_TO_APPROVE"
+    }
+  },
+  {
+    "operation": "insert",
+    "alias_text": "special square baklawa",
+    "canonical_name": "Special Square Baklawa",
+    "product_id": "c522fa96-9247-4cf5-9699-a20bc316dc55",
+    "metadata": {
+      "wave": "wave-2c",
+      "term_kind": "whatsapp_keyword",
+      "sku": "OAS-AS-BKL-0009",
+      "classification": "SAFE_TO_APPROVE"
+    }
+  },
+  {
+    "operation": "insert",
+    "alias_text": "special square",
+    "canonical_name": "Special Square Baklawa",
+    "product_id": "c522fa96-9247-4cf5-9699-a20bc316dc55",
+    "metadata": {
+      "wave": "wave-2c",
+      "term_kind": "customer_term",
+      "sku": "OAS-AS-BKL-0009",
+      "classification": "SAFE_TO_APPROVE"
+    }
+  },
+  {
+    "operation": "insert",
+    "alias_text": "special square baklawa lebanese",
+    "canonical_name": "Special Square Baklawa",
+    "product_id": "c522fa96-9247-4cf5-9699-a20bc316dc55",
+    "metadata": {
+      "wave": "wave-2c",
+      "term_kind": "search_keyword",
+      "sku": "OAS-AS-BKL-0009",
+      "classification": "SAFE_TO_APPROVE"
+    }
+  },
+  {
+    "operation": "insert",
+    "alias_text": "Pistachio Pyramid Topping",
+    "canonical_name": "Pistachio Pyramid(Topping)",
+    "product_id": "2178c1c7-80c2-4ba3-a211-8643dcf57777",
+    "metadata": {
+      "wave": "wave-2c",
+      "term_kind": "official_alias",
+      "sku": "OAS-AS-BKL-0011",
+      "classification": "SAFE_TO_APPROVE"
+    }
+  },
+  {
+    "operation": "insert",
+    "alias_text": "pistachio pyramid topping",
+    "canonical_name": "Pistachio Pyramid(Topping)",
+    "product_id": "2178c1c7-80c2-4ba3-a211-8643dcf57777",
+    "metadata": {
+      "wave": "wave-2c",
+      "term_kind": "whatsapp_keyword",
+      "sku": "OAS-AS-BKL-0011",
+      "classification": "SAFE_TO_APPROVE"
+    }
+  },
+  {
+    "operation": "insert",
+    "alias_text": "pista pyramid topping",
+    "canonical_name": "Pistachio Pyramid(Topping)",
+    "product_id": "2178c1c7-80c2-4ba3-a211-8643dcf57777",
+    "metadata": {
+      "wave": "wave-2c",
+      "term_kind": "customer_term",
+      "sku": "OAS-AS-BKL-0011",
+      "classification": "SAFE_TO_APPROVE"
+    }
+  },
+  {
+    "operation": "insert",
+    "alias_text": "pistachio pyramid topping baklawa",
+    "canonical_name": "Pistachio Pyramid(Topping)",
+    "product_id": "2178c1c7-80c2-4ba3-a211-8643dcf57777",
+    "metadata": {
+      "wave": "wave-2c",
+      "term_kind": "search_keyword",
+      "sku": "OAS-AS-BKL-0011",
+      "classification": "SAFE_TO_APPROVE"
+    }
+  },
+  {
+    "operation": "insert",
+    "alias_text": "Diamond Pistachio",
+    "canonical_name": "Diamond Pistachio",
+    "product_id": "2cab3d7f-7593-441e-a030-6ac6ad3ed9bc",
+    "metadata": {
+      "wave": "wave-2c",
+      "term_kind": "official_alias",
+      "sku": "OAS-AS-BKL-0018",
+      "classification": "SAFE_TO_APPROVE"
+    }
+  },
+  {
+    "operation": "insert",
+    "alias_text": "diamond pistachio",
+    "canonical_name": "Diamond Pistachio",
+    "product_id": "2cab3d7f-7593-441e-a030-6ac6ad3ed9bc",
+    "metadata": {
+      "wave": "wave-2c",
+      "term_kind": "whatsapp_keyword",
+      "sku": "OAS-AS-BKL-0018",
+      "classification": "SAFE_TO_APPROVE"
+    }
+  },
+  {
+    "operation": "insert",
+    "alias_text": "diamond pista",
+    "canonical_name": "Diamond Pistachio",
+    "product_id": "2cab3d7f-7593-441e-a030-6ac6ad3ed9bc",
+    "metadata": {
+      "wave": "wave-2c",
+      "term_kind": "customer_term",
+      "sku": "OAS-AS-BKL-0018",
+      "classification": "SAFE_TO_APPROVE"
+    }
+  },
+  {
+    "operation": "insert",
+    "alias_text": "diamond pistachio baklawa",
+    "canonical_name": "Diamond Pistachio",
+    "product_id": "2cab3d7f-7593-441e-a030-6ac6ad3ed9bc",
+    "metadata": {
+      "wave": "wave-2c",
+      "term_kind": "search_keyword",
+      "sku": "OAS-AS-BKL-0018",
+      "classification": "SAFE_TO_APPROVE"
+    }
+  }
+]

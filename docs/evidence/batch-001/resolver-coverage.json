@@ -1,0 +1,205 @@
+{
+  "percent": 88,
+  "rows": [
+    {
+      "sku": "OAS-AS-BKL-0001",
+      "utterance": "Cashew Kitta Lebanese Baklava",
+      "resolved": true,
+      "clarification_required": false,
+      "productId": "c7c0c5aa-1d2f-4088-88f1-1e5aacd321a0",
+      "confidence": 94
+    },
+    {
+      "sku": "OAS-AS-BKL-0002",
+      "utterance": "Square Baklawa",
+      "resolved": true,
+      "clarification_required": false,
+      "productId": "89de33c7-e4c1-475e-b711-18258683fdec",
+      "confidence": 94
+    },
+    {
+      "sku": "OAS-AS-BKL-0003",
+      "utterance": "Cashew Ring Lebanese Baklava",
+      "resolved": true,
+      "clarification_required": false,
+      "productId": "90e0f9df-d4dc-4ec5-8238-d7a2624e759a",
+      "confidence": 94
+    },
+    {
+      "sku": "OAS-AS-BKL-0004",
+      "utterance": "Cashew Rosebud",
+      "resolved": true,
+      "clarification_required": false,
+      "productId": "eb9c7a73-d1df-4bea-bdf1-209a5b386262",
+      "confidence": 94
+    },
+    {
+      "sku": "OAS-AS-BKL-0005",
+      "utterance": "Almond Crosole",
+      "resolved": true,
+      "clarification_required": false,
+      "productId": "691f2fe6-2d25-4ce2-a9fd-d4b81ecb694b",
+      "confidence": 94
+    },
+    {
+      "sku": "OAS-AS-BKL-0006",
+      "utterance": "Cashew Pyramid",
+      "resolved": true,
+      "clarification_required": false,
+      "productId": "da4372b9-e1b3-4b17-bdd0-278bd636ab9a",
+      "confidence": 94
+    },
+    {
+      "sku": "OAS-AS-BKL-0007",
+      "utterance": "Cashew Finger Lebanese Baklava",
+      "resolved": true,
+      "clarification_required": false,
+      "productId": "2390ea3d-19ba-43bb-8624-d6b033153c2f",
+      "confidence": 94
+    },
+    {
+      "sku": "OAS-AS-BKL-0008",
+      "utterance": "Date Baklawa",
+      "resolved": true,
+      "clarification_required": false,
+      "productId": "a6013e20-0fc7-4fe6-b2ab-f7f82d336b0c",
+      "confidence": 94
+    },
+    {
+      "sku": "OAS-AS-BKL-0009",
+      "utterance": "Special Square Baklawa",
+      "resolved": false,
+      "clarification_required": true,
+      "productId": "89de33c7-e4c1-475e-b711-18258683fdec",
+      "confidence": 94
+    },
+    {
+      "sku": "OAS-AS-BKL-0010",
+      "utterance": "Pistachio Ring Lebanese Baklava",
+      "resolved": true,
+      "clarification_required": false,
+      "productId": "7d66f253-a179-4a33-b8ba-7b94ec783a3e",
+      "confidence": 94
+    },
+    {
+      "sku": "OAS-AS-BKL-0011",
+      "utterance": "Pistachio Pyramid Topping",
+      "resolved": true,
+      "clarification_required": false,
+      "productId": "2178c1c7-80c2-4ba3-a211-8643dcf57777",
+      "confidence": 94
+    },
+    {
+      "sku": "OAS-AS-BKL-0012",
+      "utterance": "Chocolate Pistachio Asiyah Lebanese Baklava",
+      "resolved": true,
+      "clarification_required": false,
+      "productId": "4baff7d1-bf58-4d0f-b842-c53f99caac61",
+      "confidence": 94
+    },
+    {
+      "sku": "OAS-AS-BKL-0013",
+      "utterance": "Chocolate Cashew Asiyah Lebanese Baklava",
+      "resolved": true,
+      "clarification_required": false,
+      "productId": "c5e84d04-0d8b-4466-8690-a7e6267b44a8",
+      "confidence": 94
+    },
+    {
+      "sku": "OAS-AS-BKL-0014",
+      "utterance": "Mor Cashew Asiyah Lebanese Baklava",
+      "resolved": false,
+      "clarification_required": true,
+      "productId": "4af95ba1-ff0f-4740-8869-6a19a41e8c83",
+      "confidence": 94
+    },
+    {
+      "sku": "OAS-AS-BKL-0015",
+      "utterance": "Mor Pistachio Asiyah Lebanese Baklava",
+      "resolved": false,
+      "clarification_required": true,
+      "productId": "73f91572-8844-4fa6-b267-56210d180468",
+      "confidence": 94
+    },
+    {
+      "sku": "OAS-AS-BKL-0016",
+      "utterance": "Pistachio Asiyah Lebanese Baklava",
+      "resolved": true,
+      "clarification_required": false,
+      "productId": "f3f7a8fd-cea8-4ecb-a258-ef1ea86940b7",
+      "confidence": 94
+    },
+    {
+      "sku": "OAS-AS-BKL-0017",
+      "utterance": "Cashew Asiyah Lebanese Baklava",
+      "resolved": true,
+      "clarification_required": false,
+      "productId": "0cb6c64c-0529-4dfc-83cd-9b45ab7f9de6",
+      "confidence": 94
+    },
+    {
+      "sku": "OAS-AS-BKL-0018",
+      "utterance": "Diamond Pistachio",
+      "resolved": true,
+      "clarification_required": false,
+      "productId": "2cab3d7f-7593-441e-a030-6ac6ad3ed9bc",
+      "confidence": 94
+    },
+    {
+      "sku": "OAS-AS-BKL-0019",
+      "utterance": "Pistachio Pyramid Lebanese Baklava",
+      "resolved": true,
+      "clarification_required": false,
+      "productId": "636b47cb-ea6f-4711-ae29-d6153e565ae3",
+      "confidence": 94
+    },
+    {
+      "sku": "OAS-AS-BKL-0020",
+      "utterance": "Tart Cashew Lebanese Baklava",
+      "resolved": true,
+      "clarification_required": false,
+      "productId": "b0aee1c4-4502-4a15-9880-e2c01378c0b5",
+      "confidence": 94
+    },
+    {
+      "sku": "OAS-AS-BKL-0021",
+      "utterance": "Mix Nut Tart Lebanese Baklava",
+      "resolved": true,
+      "clarification_required": false,
+      "productId": "6b258e44-69dc-465a-b82a-cbb72f68d723",
+      "confidence": 94
+    },
+    {
+      "sku": "OAS-AS-BKL-0022",
+      "utterance": "Almond Tart Lebanese Baklava",
+      "resolved": true,
+      "clarification_required": false,
+      "productId": "8554f5d5-5e46-4ffe-b98a-0ed10ec522ae",
+      "confidence": 94
+    },
+    {
+      "sku": "OAS-AS-BKL-0023",
+      "utterance": "Pistachio Tart Lebanese Baklava",
+      "resolved": true,
+      "clarification_required": false,
+      "productId": "43a25d30-f7d9-426b-b5af-cae7d477468e",
+      "confidence": 94
+    },
+    {
+      "sku": "OAS-AS-BKL-0024",
+      "utterance": "Mor Pistachio Durum Turkish Baklava",
+      "resolved": true,
+      "clarification_required": false,
+      "productId": "cea65af8-129c-4838-988f-30955fa5bc22",
+      "confidence": 94
+    },
+    {
+      "sku": "OAS-AS-BKL-0025",
+      "utterance": "Coconut Durum Turkish Baklava",
+      "resolved": true,
+      "clarification_required": false,
+      "productId": "f58e0a78-53a9-400b-8768-7af09b68ba38",
+      "confidence": 94
+    }
+  ]
+}
