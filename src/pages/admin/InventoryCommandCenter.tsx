@@ -8,7 +8,6 @@ import { buildInventoryOsOperationalFeed } from "@/lib/operational-events/invent
 import { buildExecutionOperationalFeed } from "@/lib/operational-events/executionOperationalFeed";
 import { buildGovernanceOperationalFeed } from "@/lib/operational-events/governanceOperationalFeed";
 import { buildBarcodeOperationalFeed } from "@/lib/operational-events/barcodeOperationalFeed";
-import { OperationalStatusLabel } from "@/components/admin/OperationalStatusLabel";
 
 /**
  * Inventory command center — merged projections only (no stock edits, no scanner I/O).
@@ -45,12 +44,7 @@ export default function InventoryCommandCenter() {
         <Badge variant="outline" className="text-[10px] uppercase">
           Projections only
         </Badge>
-        <OperationalStatusLabel kind="preview-only" />
-        <OperationalStatusLabel kind="demo-data" />
       </header>
-      <p className="text-xs text-amber-900 dark:text-amber-100">
-        Synthetic projection feeds only — no live inventory reads or stock mutations on this surface.
-      </p>
       <Card>
         <CardHeader>
           <CardTitle className="text-base">Merged operational intelligence</CardTitle>

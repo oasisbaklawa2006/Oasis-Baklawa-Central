@@ -17,7 +17,6 @@ import {
   setDraftOrderLocalDecision,
 } from "./operatorInboxDraftOrderLocalState";
 import type { OperatorInboxDraftOrderExtractionState } from "./useOperatorInboxDraftOrderExtraction";
-import { OperationalStatusLabel } from "@/components/admin/OperationalStatusLabel";
 
 const LOCAL_WORKFLOW_HINT =
   "Local workflow only — Approve/Reject/Edit does not create Sales Orders, deduct inventory, or post finance entries.";
@@ -78,11 +77,8 @@ export const OperatorInboxDraftOrderPanel = memo(function OperatorInboxDraftOrde
           <FileText className="h-3.5 w-3.5 shrink-0" aria-hidden />
           Draft order extraction
         </h4>
-        <OperationalStatusLabel kind="local-only" />
-        <OperationalStatusLabel kind="not-persisted" />
-        <OperationalStatusLabel kind="does-not-create-so" />
         <span className="text-[11px] font-normal normal-case text-teal-800/80">
-          read-only · not persisted to orders
+          · read-only · not persisted to orders
         </span>
       </div>
 

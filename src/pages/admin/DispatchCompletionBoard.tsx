@@ -19,10 +19,6 @@ import {
 } from "@/lib/dispatch-completion/createDispatchCompletionBundle";
 import { OperationalTimeline } from "@/components/admin/OperationalTimeline";
 import { GovernanceBoardLiveNotice } from "@/components/admin/GovernanceBoardLiveNotice";
-import {
-  governanceWritesBlocked,
-  OperationalStatusLabel,
-} from "@/components/admin/OperationalStatusLabel";
 import { GovernancePrerequisiteList } from "@/components/admin/GovernancePrerequisiteList";
 import type { OperationalEventRecord } from "@/lib/operational-events/types";
 import {
@@ -79,7 +75,6 @@ function CompletionCard({
   onAttest,
   busy,
   canWrite,
-  showPreviewCards,
 }: {
   input: DispatchCompletionInput;
   projection: DispatchCompletionProjection;
@@ -88,7 +83,6 @@ function CompletionCard({
   onAttest: () => void;
   busy: boolean;
   canWrite: boolean;
-  showPreviewCards: boolean;
 }) {
   const prereqChecks = [
     { label: "Readiness gate_eligible", ok: input.readinessStatus === "gate_eligible" },
@@ -109,12 +103,6 @@ function CompletionCard({
     <Card className="shadow-none ring-1 ring-border/50">
       <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-2 pb-2">
         <CardTitle className="text-sm font-semibold">Order {input.orderId.slice(-4)}</CardTitle>
-        {showPreviewCards ? (
-          <div className="flex w-full flex-wrap gap-1">
-            <OperationalStatusLabel kind="preview-only" />
-            <OperationalStatusLabel kind="demo-data" />
-          </div>
-        ) : null}
         <Badge variant={projection.completionStatus === "completion_eligible" ? "default" : "secondary"}>
           {projection.completionStatus.replace(/_/g, " ")}
         </Badge>
@@ -235,14 +223,8 @@ export default function DispatchCompletionBoard() {
     setEvents(completionEventsToOperational(evts));
   };
 
-  const governedWritesBlocked = governanceWritesBlocked({
-    showPreviewCards: boardState.showPreviewCards,
-    persistenceMode: bundle?.persistenceMode,
-    canExecuteWrites: bundle?.canExecuteWrites,
-  });
-
   const handleReview = async (input: DispatchCompletionInput) => {
-    if (!user?.id || !role || governedWritesBlocked) return;
+    if (!user?.id || !role || !bundle?.canExecuteWrites) return;
     setBusyId(input.orderId);
     try {
       await bundle.service.reviewCompletion(input, writeCtx(input.orderId));
@@ -254,7 +236,7 @@ export default function DispatchCompletionBoard() {
   };
 
   const handleAttest = async (input: DispatchCompletionInput) => {
-    if (!user?.id || !role || governedWritesBlocked) return;
+    if (!user?.id || !role || !bundle?.canExecuteWrites) return;
     setBusyId(input.orderId);
     try {
       await bundle.service.attestCompletion(input, writeCtx(input.orderId));
@@ -319,8 +301,7 @@ export default function DispatchCompletionBoard() {
             projection={projection}
             missingSignals={missingSignals}
             busy={busyId === input.orderId}
-            canWrite={!governedWritesBlocked}
-            showPreviewCards={boardState.showPreviewCards}
+            canWrite={bundle?.canExecuteWrites ?? false}
             onReview={() => void handleReview(input)}
             onAttest={() => void handleAttest(input)}
           />

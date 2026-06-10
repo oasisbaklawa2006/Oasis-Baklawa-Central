@@ -29,16 +29,13 @@ export function DispatchReadinessEvidencePanel({
   writeCtx,
   dimensionResults,
   onRecorded,
-  canWrite,
 }: {
   orderId: string;
   bundle: DispatchReadinessBundle | null;
   writeCtx: () => DispatchReadinessWriteContext;
   dimensionResults: Record<DispatchReadinessDimension, boolean>;
   onRecorded: () => void;
-  canWrite?: boolean;
 }) {
-  const canRecordEvidence = canWrite ?? bundle?.canExecuteWrites ?? false;
   const [evidence, setEvidence] = useState<DispatchEvidenceRecord[]>([]);
   const [packingRef, setPackingRef] = useState("");
   const [documentRef, setDocumentRef] = useState("");
@@ -87,7 +84,7 @@ export function DispatchReadinessEvidencePanel({
     evidenceRef: string,
     photoRef: string | null = null,
   ) => {
-    if (!canRecordEvidence || !bundle?.service) return;
+    if (!bundle?.canExecuteWrites || !bundle.service) return;
     const ref = evidenceRef.trim();
     if (!ref) return;
     setBusy(evidenceType);
@@ -157,7 +154,7 @@ export function DispatchReadinessEvidencePanel({
             type="button"
             size="sm"
             variant="secondary"
-            disabled={!canRecordEvidence || !!busy || hasVerified("packing_photo")}
+            disabled={!bundle?.canExecuteWrites || !!busy || hasVerified("packing_photo")}
             onClick={() => void addEvidence("packing_photo", packingRef, packingRef || null)}
           >
             {busy === "packing_photo" ? <Loader2 className="h-3 w-3 animate-spin" /> : <Camera className="h-3 w-3" />}
@@ -179,7 +176,7 @@ export function DispatchReadinessEvidencePanel({
             type="button"
             size="sm"
             variant="secondary"
-            disabled={!canRecordEvidence || !!busy || hasVerified("document_placeholder")}
+            disabled={!bundle?.canExecuteWrites || !!busy || hasVerified("document_placeholder")}
             onClick={() => void addEvidence("document_placeholder", documentRef)}
           >
             {busy === "document_placeholder" ? (
@@ -206,7 +203,7 @@ export function DispatchReadinessEvidencePanel({
             type="button"
             size="sm"
             variant="secondary"
-            disabled={!canRecordEvidence || !!busy || hasVerified("gate_scan")}
+            disabled={!bundle?.canExecuteWrites || !!busy || hasVerified("gate_scan")}
             onClick={() => void addEvidence("gate_scan", gateRef)}
           >
             {busy === "gate_scan" ? <Loader2 className="h-3 w-3 animate-spin" /> : <ScanLine className="h-3 w-3" />}

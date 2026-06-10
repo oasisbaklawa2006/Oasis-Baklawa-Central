@@ -16,10 +16,6 @@ import { financeSignalLabel } from "@/lib/dispatch-readiness/financeDispatchSign
 import { financeEventsToOperational } from "@/lib/finance-governance/financeOperationalBridge";
 import { OperationalTimeline } from "@/components/admin/OperationalTimeline";
 import { GovernanceBoardLiveNotice } from "@/components/admin/GovernanceBoardLiveNotice";
-import {
-  governanceWritesBlocked,
-  OperationalStatusLabel,
-} from "@/components/admin/OperationalStatusLabel";
 import { GovernancePrerequisiteList } from "@/components/admin/GovernancePrerequisiteList";
 import type { OperationalEventRecord } from "@/lib/operational-events/types";
 import { FINANCE_HOLD_LABELS } from "@/lib/finance-governance/financeHoldRules";
@@ -152,12 +148,6 @@ export default function FinanceGovernanceBoard() {
       (r) => r.reviewType === "commercial_release" && r.reviewStatus === "released",
     );
 
-  const governedWritesBlocked = governanceWritesBlocked({
-    showPreviewCards: boardState.showPreviewCards,
-    persistenceMode: bundle?.persistenceMode,
-    canExecuteWrites: bundle?.canExecuteWrites,
-  });
-
   return (
     <div className="mx-auto max-w-6xl space-y-6 p-4 pb-24">
       <header className="flex flex-wrap items-center gap-2 border-b border-border pb-4">
@@ -206,12 +196,6 @@ export default function FinanceGovernanceBoard() {
             <Card key={input.orderId} className="ring-1 ring-border/50">
               <CardHeader className="pb-2">
                 <CardTitle className="text-sm">Order {input.orderId.slice(-4)}</CardTitle>
-                {boardState.showPreviewCards ? (
-                  <div className="flex flex-wrap gap-1 pt-1">
-                    <OperationalStatusLabel kind="preview-only" />
-                    <OperationalStatusLabel kind="demo-data" />
-                  </div>
-                ) : null}
                 <div className="flex flex-wrap gap-1">
                   <Badge>{projection.releaseStatus.replace(/_/g, " ")}</Badge>
                   <Badge variant="outline">Risk: {projection.commercialRiskLevel}</Badge>
@@ -256,7 +240,7 @@ export default function FinanceGovernanceBoard() {
                     size="sm"
                     variant="outline"
                     className="w-full justify-start"
-                    disabled={!!acting || governedWritesBlocked}
+                    disabled={!!acting || !bundle?.canExecuteWrites}
                     onClick={() => void runReview(input)}
                   >
                     Step 1 — Start finance review (writes credit_review evidence)
@@ -266,7 +250,7 @@ export default function FinanceGovernanceBoard() {
                     className="w-full justify-start"
                     disabled={
                       !!acting ||
-                      governedWritesBlocked ||
+                      !bundle?.canExecuteWrites ||
                       alreadyReleased ||
                       !releaseEligible
                     }
@@ -283,11 +267,6 @@ export default function FinanceGovernanceBoard() {
                   {alreadyReleased && (
                     <p className="text-[10px] text-muted-foreground">
                       Commercial release evidence already on file for this order.
-                    </p>
-                  )}
-                  {governedWritesBlocked && (
-                    <p className="text-[10px] text-amber-900 dark:text-amber-100">
-                      Governed writes disabled — preview/demo cards or non-Supabase persistence.
                     </p>
                   )}
                 </div>

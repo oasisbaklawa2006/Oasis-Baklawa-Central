@@ -6,7 +6,6 @@ import { OperationalTimeline } from "@/components/admin/OperationalTimeline";
 import { dedupeOperationalEventsById, mergeOperationalEventFeeds } from "@/lib/operational-events/normalize";
 import { buildInventoryOsOperationalFeed } from "@/lib/operational-events/inventoryOperationalFeed";
 import { buildExecutionOperationalFeed } from "@/lib/operational-events/executionOperationalFeed";
-import { OperationalStatusLabel } from "@/components/admin/OperationalStatusLabel";
 
 export default function InventoryRiskBoard() {
   const events = useMemo(
@@ -38,8 +37,6 @@ export default function InventoryRiskBoard() {
         <Badge variant="outline" className="text-[10px] uppercase">
           Variance + execution
         </Badge>
-        <OperationalStatusLabel kind="preview-only" />
-        <OperationalStatusLabel kind="demo-data" />
       </header>
       <p className="text-xs text-muted-foreground">
         Feed uses honest flags only (e.g. shelf truth unknown). Reservation counts and reconciliation backlog hints stay off

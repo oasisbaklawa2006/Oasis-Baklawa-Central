@@ -18,10 +18,6 @@ import { financeSignalLabel } from "@/lib/dispatch-readiness/financeDispatchSign
 import { createDispatchReadinessBundle, type DispatchReadinessBundle } from "@/lib/dispatch-readiness/createDispatchReadinessBundle";
 import { OperationalTimeline } from "@/components/admin/OperationalTimeline";
 import { GovernanceBoardLiveNotice } from "@/components/admin/GovernanceBoardLiveNotice";
-import {
-  governanceWritesBlocked,
-  OperationalStatusLabel,
-} from "@/components/admin/OperationalStatusLabel";
 import { DispatchReadinessEvidencePanel } from "@/components/admin/DispatchReadinessEvidencePanel";
 import { GovernancePrerequisiteList } from "@/components/admin/GovernancePrerequisiteList";
 import type { OperationalEventRecord } from "@/lib/operational-events/types";
@@ -74,7 +70,6 @@ function ReadinessCard({
   bundle,
   writeCtx,
   onEvidenceRecorded,
-  showPreviewCards,
 }: {
   input: DispatchReadinessInput;
   projection: DispatchReadinessProjection;
@@ -85,18 +80,11 @@ function ReadinessCard({
   bundle: DispatchReadinessBundle | null;
   writeCtx: () => DispatchReadinessWriteContext;
   onEvidenceRecorded: () => void;
-  showPreviewCards: boolean;
 }) {
   return (
     <Card className="shadow-none ring-1 ring-border/50">
       <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-2 pb-2">
         <CardTitle className="text-sm font-semibold">Order {input.orderId.slice(-4)}</CardTitle>
-        {showPreviewCards ? (
-          <div className="flex w-full flex-wrap gap-1">
-            <OperationalStatusLabel kind="preview-only" />
-            <OperationalStatusLabel kind="demo-data" />
-          </div>
-        ) : null}
         <div className="flex flex-wrap gap-1">
           <Badge variant={projection.readinessStatus === "gate_eligible" ? "default" : "secondary"}>
             {projection.readinessStatus.replace(/_/g, " ")}
@@ -132,7 +120,6 @@ function ReadinessCard({
           writeCtx={writeCtx}
           dimensionResults={projection.dimensionResults}
           onRecorded={onEvidenceRecorded}
-          canWrite={canWrite}
         />
 
         <Button
@@ -206,14 +193,8 @@ export default function DispatchReadinessBoard() {
     overrideReason: role === "SUPER_ADMIN" ? "Governed readiness review" : null,
   });
 
-  const governedWritesBlocked = governanceWritesBlocked({
-    showPreviewCards: boardState.showPreviewCards,
-    persistenceMode: bundle?.persistenceMode,
-    canExecuteWrites: bundle?.canExecuteWrites,
-  });
-
   const handleReview = async (input: DispatchReadinessInput) => {
-    if (!user?.id || !role || governedWritesBlocked) return;
+    if (!user?.id || !role || !bundle?.canExecuteWrites) return;
     setReviewingId(input.orderId);
     try {
       await bundle.service.reviewReadiness(input, writeCtx(input.orderId));
@@ -277,9 +258,8 @@ export default function DispatchReadinessBoard() {
             projection={projection}
             missingSignals={missingSignals}
             reviewing={reviewingId === input.orderId}
-            canWrite={!governedWritesBlocked}
+            canWrite={bundle?.canExecuteWrites ?? false}
             bundle={bundle}
-            showPreviewCards={boardState.showPreviewCards}
             writeCtx={() => writeCtx(input.orderId)}
             onEvidenceRecorded={() => boardState.reload()}
             onReview={() => void handleReview(input)}

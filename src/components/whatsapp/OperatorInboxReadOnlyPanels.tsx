@@ -6,7 +6,6 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { cn } from "@/lib/utils";
 import type { Message } from "./operatorInboxTypes";
 import type { OperatorInboxObservabilitySnapshot } from "./useOperatorInboxObservability";
-import { OperationalStatusLabel } from "@/components/admin/OperationalStatusLabel";
 import {
   extractDraftOrderHints,
   inferLocalIntentFromText,
@@ -158,14 +157,9 @@ export function OperatorInboxLocalDraftPreview({ messages }: { messages: Message
   const hints = extractDraftOrderHints(messages);
   return (
     <section className="rounded-lg border border-dashed border-gray-200 bg-gray-50/80 p-3" aria-labelledby={headingId}>
-      <div className="flex flex-wrap items-center gap-2">
-        <h4 id={headingId} className="text-xs font-semibold uppercase tracking-wide text-gray-600">
-          Draft order hints (local parse)
-        </h4>
-        <OperationalStatusLabel kind="local-only" />
-        <OperationalStatusLabel kind="not-persisted" />
-        <OperationalStatusLabel kind="does-not-create-so" />
-      </div>
+      <h4 id={headingId} className="text-xs font-semibold uppercase tracking-wide text-gray-600">
+        Draft order hints (local parse)
+      </h4>
       <p className="mt-1 text-[11px] text-gray-500">In-browser only. Does not create or update orders.</p>
       <ul className="mt-2 space-y-1 text-xs text-gray-800">
         {hints.map((h, i) => (
@@ -187,14 +181,9 @@ export function OperatorInboxLocalAiPreviewPanel({ messages }: { messages: Messa
   const { headline, bullets } = localOnlyAiSuggestionPreview(messages);
   return (
     <section className="rounded-lg border border-dashed border-indigo-200 bg-indigo-50/50 p-3" aria-labelledby={headingId}>
-      <div className="flex flex-wrap items-center gap-2">
-        <h4 id={headingId} className="text-xs font-semibold uppercase tracking-wide text-indigo-900">
-          AI-style preview (local keywords)
-        </h4>
-        <OperationalStatusLabel kind="preview-only" />
-        <OperationalStatusLabel kind="local-only" />
-        <OperationalStatusLabel kind="not-persisted" />
-      </div>
+      <h4 id={headingId} className="text-xs font-semibold uppercase tracking-wide text-indigo-900">
+        AI-style preview (local keywords)
+      </h4>
       <p className="mt-1 text-sm font-medium text-indigo-950">{headline}</p>
       <ul className="mt-2 space-y-1 text-xs text-indigo-900/90">
         {bullets.map((b, i) => (
