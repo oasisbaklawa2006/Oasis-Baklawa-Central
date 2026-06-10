@@ -111,6 +111,9 @@ const LiveWorkQueues = lazy(() => import("./pages/admin/LiveWorkQueues.tsx"));
 const EntityGraphExplorer = lazy(() => import("./pages/admin/EntityGraphExplorer.tsx"));
 const QueueExecutionPreview = lazy(() => import("./pages/admin/QueueExecutionPreview.tsx"));
 const BarcodeExecutionPreview = lazy(() => import("./pages/admin/BarcodeExecutionPreview.tsx"));
+const ProductIntelligencePrototype = lazy(
+  () => import("./pages/admin/ProductIntelligencePrototype.tsx"),
+);
 const ExecutionCommandCenter = lazy(() => import("./pages/admin/ExecutionCommandCenter.tsx"));
 const ExecutionRiskBoard = lazy(() => import("./pages/admin/ExecutionRiskBoard.tsx"));
 const ExecutionBottlenecks = lazy(() => import("./pages/admin/ExecutionBottlenecks.tsx"));
@@ -397,6 +400,14 @@ const App = () => (
                       element={
                         <AdminModuleRoute moduleKey="cmd_war_room">
                           <BarcodeExecutionPreview />
+                        </AdminModuleRoute>
+                      }
+                    />
+                    <Route
+                      path="product-intelligence-prototype"
+                      element={
+                        <AdminModuleRoute moduleKey="cmd_war_room">
+                          <ProductIntelligencePrototype />
                         </AdminModuleRoute>
                       }
                     />
