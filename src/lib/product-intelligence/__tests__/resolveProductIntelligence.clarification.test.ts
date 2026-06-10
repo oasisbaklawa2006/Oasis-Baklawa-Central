@@ -20,6 +20,7 @@ function miniCatalog(
     loaded_at: "2026-06-10T00:00:00.000Z",
     product_count: products.length,
     alias_count: 0,
+    catalog_complete: true,
   };
 }
 

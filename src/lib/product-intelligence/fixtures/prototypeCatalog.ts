@@ -8,6 +8,7 @@ export const PROTOTYPE_APPROVED_CATALOG: ApprovedAliasCatalog = {
   loaded_at: "2026-06-09T00:00:00.000Z",
   product_count: 8,
   alias_count: 10,
+  catalog_complete: true,
   aliases: [
     { alias_text: "Kitta", canonical_name: "Kitta Cashew Bulk", product_id: "p-kitta" },
     { alias_text: "Kita", canonical_name: "Kitta Cashew Bulk", product_id: "p-kitta" },

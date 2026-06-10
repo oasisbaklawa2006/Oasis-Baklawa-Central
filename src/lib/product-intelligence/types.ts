@@ -27,6 +27,8 @@ export interface ApprovedAliasCatalog {
   product_count: number;
   /** `product_aliases` row count plus `products.aliases[]` entries loaded (pre-merge). */
   alias_count: number;
+  /** False when a paged SELECT ended before the full table was read. */
+  catalog_complete: boolean;
 }
 
 export interface IntelligenceCandidate {

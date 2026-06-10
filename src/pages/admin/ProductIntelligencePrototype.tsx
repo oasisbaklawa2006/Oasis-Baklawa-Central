@@ -84,9 +84,16 @@ export default function ProductIntelligencePrototype() {
           </CardDescription>
         </CardHeader>
         {catalog ? (
-          <CardContent className="text-xs text-muted-foreground">
-            Loaded {catalog.alias_count} approved aliases across {catalog.product_count} active products ·{" "}
-            {catalog.loaded_at}
+          <CardContent className="space-y-1 text-xs text-muted-foreground">
+            <p>
+              Loaded {catalog.alias_count} approved aliases across {catalog.product_count} active products ·{" "}
+              {catalog.loaded_at}
+            </p>
+            {!catalog.catalog_complete ? (
+              <p className="text-destructive">
+                Catalogue load incomplete — PostgREST page cap may have truncated results. Reload or contact admin.
+              </p>
+            ) : null}
           </CardContent>
         ) : null}
       </Card>

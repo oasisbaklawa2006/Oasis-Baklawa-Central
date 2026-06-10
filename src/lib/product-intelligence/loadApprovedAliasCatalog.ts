@@ -4,6 +4,11 @@ import type { ApprovedAliasCatalog, IntelligenceAliasRow, IntelligenceProductRow
 const PRODUCT_SELECT =
   "id, name, sku, pack_size, net_weight_grams, uom, category, sub_category, aliases";
 
+/** PostgREST default max rows is 1000; page below that and fetch until a short page. */
+export const CATALOG_SELECT_PAGE_SIZE = 900;
+
+type PagedResult<T> = { data: T[] | null; error: { message: string } | null };
+
 function mergeProductAliases(
   product: IntelligenceProductRow,
   aliasRows: IntelligenceAliasRow[],
@@ -32,6 +37,37 @@ function countLoadedAliasEntries(
   return aliasRows.length + productAliasEntries;
 }
 
+async function fetchAllPagedRows<T>(
+  label: string,
+  queryPage: (from: number, to: number) => Promise<PagedResult<T>>,
+): Promise<{ rows: T[]; complete: boolean }> {
+  const rows: T[] = [];
+  let from = 0;
+
+  for (;;) {
+    const to = from + CATALOG_SELECT_PAGE_SIZE - 1;
+    const { data, error } = await queryPage(from, to);
+
+    if (error) {
+      if (from > 0) {
+        throw new Error(
+          `${label} read incomplete after ${rows.length} rows (catalog truncated): ${error.message}`,
+        );
+      }
+      throw new Error(`${label} read failed: ${error.message}`);
+    }
+
+    const page = data ?? [];
+    rows.push(...page);
+
+    if (page.length < CATALOG_SELECT_PAGE_SIZE) {
+      return { rows, complete: true };
+    }
+
+    from += CATALOG_SELECT_PAGE_SIZE;
+  }
+}
+
 /**
  * Read-only load of approved language intelligence from Central.
  * SELECT on `product_aliases` and `products` only — no mutations.
@@ -39,29 +75,29 @@ function countLoadedAliasEntries(
 export async function loadApprovedAliasCatalog(
   supabase: SupabaseClient,
 ): Promise<ApprovedAliasCatalog> {
-  const [aliasResult, productResult] = await Promise.all([
-    supabase
-      .from("product_aliases")
-      .select("alias_text, canonical_name, product_id")
-      .order("alias_text"),
-    supabase
-      .from("products")
-      .select(PRODUCT_SELECT)
-      .eq("is_active", true)
-      .order("name"),
+  const [aliasLoad, productLoad] = await Promise.all([
+    fetchAllPagedRows<IntelligenceAliasRow>("product_aliases", async (from, to) =>
+      supabase
+        .from("product_aliases")
+        .select("alias_text, canonical_name, product_id")
+        .order("alias_text")
+        .range(from, to),
+    ),
+    fetchAllPagedRows<
+      Omit<IntelligenceProductRow, "approved_aliases"> & { aliases: string[] | null }
+    >("products", async (from, to) =>
+      supabase
+        .from("products")
+        .select(PRODUCT_SELECT)
+        .eq("is_active", true)
+        .order("name")
+        .range(from, to),
+    ),
   ]);
 
-  if (aliasResult.error) {
-    throw new Error(`product_aliases read failed: ${aliasResult.error.message}`);
-  }
-  if (productResult.error) {
-    throw new Error(`products read failed: ${productResult.error.message}`);
-  }
-
-  const aliases = (aliasResult.data ?? []) as IntelligenceAliasRow[];
-  const productsRaw = (productResult.data ?? []) as Array<
-    Omit<IntelligenceProductRow, "approved_aliases"> & { aliases: string[] | null }
-  >;
+  const aliases = aliasLoad.rows;
+  const productsRaw = productLoad.rows;
+  const catalog_complete = aliasLoad.complete && productLoad.complete;
 
   const products: IntelligenceProductRow[] = productsRaw.map((row) => {
     const base: IntelligenceProductRow = {
@@ -87,5 +123,6 @@ export async function loadApprovedAliasCatalog(
     loaded_at: new Date().toISOString(),
     product_count: products.length,
     alias_count: countLoadedAliasEntries(aliases, productsRaw),
+    catalog_complete,
   };
 }

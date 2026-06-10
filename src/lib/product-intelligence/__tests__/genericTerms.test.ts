@@ -18,6 +18,9 @@ describe("isGenericFamilyUtterance", () => {
     "Send Mor Cashew Asiyah",
     "Mix Nut Tart 500gm",
     "Coconut Durum 1 kg",
+    "send pistachio pyramid",
+    "please send cashew ring",
+    "need mor cashew asiyah",
   ];
 
   const genericOnlyPhrases = [
@@ -33,6 +36,12 @@ describe("isGenericFamilyUtterance", () => {
     "Need Asiyah",
     "send pyramid",
     "mixed sweets",
+    "please send baklava",
+    "kindly send baklava",
+    "please give asiyah",
+    "send baklava",
+    "need asiyah",
+    "please share tart",
   ];
 
   it.each(specificPhrases)('does not treat "%s" as generic-only', (utterance) => {
