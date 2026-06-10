@@ -25,6 +25,7 @@ export interface ApprovedAliasCatalog {
   aliases: IntelligenceAliasRow[];
   loaded_at: string;
   product_count: number;
+  /** `product_aliases` row count plus `products.aliases[]` entries loaded (pre-merge). */
   alias_count: number;
 }
 

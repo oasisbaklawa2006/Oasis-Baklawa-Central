@@ -21,6 +21,17 @@ function mergeProductAliases(
   return [...set];
 }
 
+function countLoadedAliasEntries(
+  aliasRows: IntelligenceAliasRow[],
+  productsRaw: Array<{ aliases: string[] | null }>,
+): number {
+  const productAliasEntries = productsRaw.reduce(
+    (sum, row) => sum + (row.aliases ?? []).filter((alias) => alias.trim()).length,
+    0,
+  );
+  return aliasRows.length + productAliasEntries;
+}
+
 /**
  * Read-only load of approved language intelligence from Central.
  * SELECT on `product_aliases` and `products` only — no mutations.
@@ -75,6 +86,6 @@ export async function loadApprovedAliasCatalog(
     aliases,
     loaded_at: new Date().toISOString(),
     product_count: products.length,
-    alias_count: aliases.length,
+    alias_count: countLoadedAliasEntries(aliases, productsRaw),
   };
 }

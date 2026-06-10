@@ -153,6 +153,12 @@ export function resolveProductIntelligence(
     if (scored) candidates.push(scored);
   }
 
+  if (genericOnly) {
+    for (const candidate of candidates) {
+      candidate.confidence = Math.min(candidate.confidence, 55);
+    }
+  }
+
   candidates.sort((a, b) => b.confidence - a.confidence);
 
   const best = candidates[0] ?? null;
@@ -165,7 +171,6 @@ export function resolveProductIntelligence(
 
   if (genericOnly) {
     clarification_required = true;
-    if (best) best.confidence = Math.min(best.confidence, 55);
   } else if (!best || best.confidence < CLARIFICATION_THRESHOLD) {
     clarification_required = true;
   } else if (
@@ -176,14 +181,17 @@ export function resolveProductIntelligence(
     const distinctiveLongAlias =
       longestAliasLen(best) >= 10 && longestAliasLen(best) - longestAliasLen(second) >= 6;
     if (!distinctiveLongAlias) clarification_required = true;
-  } else if (best.confidence < AUTO_RESOLVE_THRESHOLD) {
-    clarification_required = true;
   }
 
   // Single-token family name with multiple strong hits (e.g. "Asiyah")
   const stripped = signals.normalized.replace(/^(need|send|want|order|please)\s+/i, "").trim();
   const tokens = stripped.split(/\s+/).filter(Boolean);
   if (tokens.length === 1 && candidates.filter((c) => c.confidence >= CLARIFICATION_THRESHOLD).length > 1) {
+    clarification_required = true;
+  }
+
+  // Auto-resolve threshold is always enforced — long alias / ambiguity cannot bypass it.
+  if (best && best.confidence < AUTO_RESOLVE_THRESHOLD) {
     clarification_required = true;
   }
 

@@ -35,7 +35,7 @@ describe("loadApprovedAliasCatalog", () => {
 
     expect(from).toHaveBeenCalledWith("product_aliases");
     expect(from).toHaveBeenCalledWith("products");
-    expect(catalog.alias_count).toBe(1);
+    expect(catalog.alias_count).toBe(2);
     expect(catalog.products[0]?.approved_aliases).toContain("Kitta");
   });
 });
