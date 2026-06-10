@@ -10,21 +10,33 @@ function batch001Specific(): GoldenUtteranceCase[] {
         id: `b001-${product.sku}-official`,
         utterance: product.name,
         category: "batch001_specific" as const,
-        expected: "resolve" as const,
-        expectedSku: product.sku,
-        notes: "Official product name",
+        expected:
+          product.sku === "OAS-AS-BKL-0002"
+            ? ("clarify" as const)
+            : ("resolve" as const),
+        expectedSku: product.sku === "OAS-AS-BKL-0002" ? undefined : product.sku,
+        clarifySkus:
+          product.sku === "OAS-AS-BKL-0002"
+            ? ["OAS-AS-BKL-0002", "OAS-AS-BKL-0009"]
+            : undefined,
+        notes:
+          product.sku === "OAS-AS-BKL-0002"
+            ? "Official name normalizes to ambiguous square family phrase"
+            : "Official product name",
       },
       {
         id: `b001-${product.sku}-wa`,
         utterance: whatsapp ?? product.name.toLowerCase(),
         category: "batch001_specific" as const,
         expected:
+          product.sku === "OAS-AS-BKL-0002" ||
           product.sku === "OAS-AS-BKL-0009" ||
           product.sku === "OAS-AS-BKL-0014" ||
           product.sku === "OAS-AS-BKL-0015"
             ? ("clarify" as const)
             : ("resolve" as const),
         expectedSku:
+          product.sku === "OAS-AS-BKL-0002" ||
           product.sku === "OAS-AS-BKL-0009" ||
           product.sku === "OAS-AS-BKL-0014" ||
           product.sku === "OAS-AS-BKL-0015"
@@ -35,7 +47,7 @@ function batch001Specific(): GoldenUtteranceCase[] {
             ? ["OAS-AS-BKL-0014", "OAS-AS-BKL-0017"]
             : product.sku === "OAS-AS-BKL-0015"
               ? ["OAS-AS-BKL-0015", "OAS-AS-BKL-0016"]
-              : product.sku === "OAS-AS-BKL-0009"
+              : product.sku === "OAS-AS-BKL-0002" || product.sku === "OAS-AS-BKL-0009"
                 ? ["OAS-AS-BKL-0002", "OAS-AS-BKL-0009"]
                 : undefined,
       },
@@ -70,7 +82,38 @@ const AMBIGUOUS_FAMILY: GoldenUtteranceCase[] = [
   { id: "amb-tart", utterance: "Tart", category: "ambiguous_family", expected: "clarify", clarifySkus: ["OAS-AS-BKL-0020", "OAS-AS-BKL-0021", "OAS-AS-BKL-0022", "OAS-AS-BKL-0023"] },
   { id: "amb-durum", utterance: "Durum", category: "ambiguous_family", expected: "clarify", clarifySkus: ["OAS-AS-BKL-0024", "OAS-AS-BKL-0025"] },
   { id: "amb-cashew-assiyah", utterance: "cashew assiyah", category: "ambiguous_family", expected: "clarify", clarifySkus: ["OAS-AS-BKL-0013", "OAS-AS-BKL-0014"], notes: "Live alias collision" },
-  { id: "amb-square", utterance: "square baklawa", category: "ambiguous_family", expected: "clarify", clarifySkus: ["OAS-AS-BKL-0002", "OAS-AS-BKL-0009"] },
+  {
+    id: "amb-square",
+    utterance: "square baklawa",
+    category: "ambiguous_family",
+    expected: "clarify",
+    clarifySkus: ["OAS-AS-BKL-0002", "OAS-AS-BKL-0009"],
+    notes: "Bare phrase — Square vs Special Square both match",
+  },
+  {
+    id: "sq-plain",
+    utterance: "plain square baklawa",
+    category: "ambiguous_family",
+    expected: "resolve",
+    expectedSku: "OAS-AS-BKL-0002",
+    notes: "Disambiguates to plain Square Baklawa",
+  },
+  {
+    id: "sq-regular",
+    utterance: "regular square baklawa",
+    category: "ambiguous_family",
+    expected: "resolve",
+    expectedSku: "OAS-AS-BKL-0002",
+    notes: "Disambiguates to plain Square Baklawa",
+  },
+  {
+    id: "sq-special",
+    utterance: "special square baklawa",
+    category: "ambiguous_family",
+    expected: "resolve",
+    expectedSku: "OAS-AS-BKL-0009",
+    notes: "Disambiguates to Special Square Baklawa",
+  },
   { id: "amb-cashew-pyramid", utterance: "pyramid", category: "ambiguous_family", expected: "clarify", notes: "Unsafe generic live alias" },
   { id: "amb-mor-asiyah", utterance: "mor asiyah", category: "ambiguous_family", expected: "clarify", clarifySkus: ["OAS-AS-BKL-0014", "OAS-AS-BKL-0015"] },
   { id: "amb-choc-asiyah", utterance: "chocolate asiyah", category: "ambiguous_family", expected: "clarify", clarifySkus: ["OAS-AS-BKL-0012", "OAS-AS-BKL-0013"] },
