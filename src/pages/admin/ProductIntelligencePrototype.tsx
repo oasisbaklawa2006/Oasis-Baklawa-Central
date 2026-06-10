@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Brain, RefreshCw, ShieldAlert } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -7,6 +7,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { supabase } from "@/integrations/supabase/client";
 import {
   createProductIntelligenceService,
+  createGenerationGuard,
   type ProductIntelligenceResolution,
 } from "@/lib/product-intelligence";
 
@@ -26,6 +27,7 @@ const SAMPLE_UTTERANCES = [
  */
 export default function ProductIntelligencePrototype() {
   const service = useMemo(() => createProductIntelligenceService(supabase), []);
+  const reloadGenerationRef = useRef(createGenerationGuard());
   const [loading, setLoading] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [utterance, setUtterance] = useState(SAMPLE_UTTERANCES[0]!);
@@ -33,14 +35,19 @@ export default function ProductIntelligencePrototype() {
   const catalog = service.getCatalog();
 
   const reload = useCallback(async () => {
+    const generation = reloadGenerationRef.current.start();
     setLoading(true);
     setLoadError(null);
     try {
       await service.loadCatalog();
+      if (!reloadGenerationRef.current.isLatest(generation)) return;
     } catch (e) {
+      if (!reloadGenerationRef.current.isLatest(generation)) return;
       setLoadError(e instanceof Error ? e.message : "Catalogue load failed");
     } finally {
-      setLoading(false);
+      if (reloadGenerationRef.current.isLatest(generation)) {
+        setLoading(false);
+      }
     }
   }, [service]);
 

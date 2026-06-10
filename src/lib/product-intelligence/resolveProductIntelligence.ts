@@ -1,4 +1,4 @@
-import { isGenericFamilyUtterance } from "./genericTerms";
+import { GENERIC_FAMILY_TERMS, isGenericFamilyUtterance } from "./genericTerms";
 import type {
   ApprovedAliasCatalog,
   IntelligenceCandidate,
@@ -85,6 +85,30 @@ function scoreProduct(
   };
 }
 
+function normalizeCatalogLabel(value: string): string {
+  return value.trim().replace(/\s+/g, " ").toLowerCase();
+}
+
+function productsForCanonicalName(
+  catalog: ApprovedAliasCatalog,
+  canonicalName: string,
+): IntelligenceProductRow[] {
+  const canonical = normalizeCatalogLabel(canonicalName);
+  return catalog.products.filter((product) => normalizeCatalogLabel(product.name) === canonical);
+}
+
+function isStrongApprovedAliasMatch(utterance: string, candidate: IntelligenceCandidate): boolean {
+  if (candidate.confidence < AUTO_RESOLVE_THRESHOLD) return false;
+
+  return candidate.matched_aliases.some((alias) => {
+    if (!containsWholePhrase(utterance, alias)) return false;
+    const tokens = alias.trim().toLowerCase().split(/\s+/).filter(Boolean);
+    if (tokens.length >= 2) return true;
+    if (tokens.length === 1 && !GENERIC_FAMILY_TERMS.has(tokens[0]!)) return true;
+    return false;
+  });
+}
+
 function collectAliasHits(
   catalog: ApprovedAliasCatalog,
   utterance: string,
@@ -99,8 +123,23 @@ function collectAliasHits(
   }
 
   for (const row of catalog.aliases) {
-    if (row.product_id) note(row.product_id, row.alias_text);
-    if (row.canonical_name && row.product_id) note(row.product_id, row.canonical_name);
+    if (row.product_id) {
+      note(row.product_id, row.alias_text);
+      if (row.canonical_name) note(row.product_id, row.canonical_name);
+      continue;
+    }
+
+    if (!row.canonical_name) continue;
+
+    const aliasMatches = containsWholePhrase(utterance, row.alias_text);
+    const canonicalMatches = containsWholePhrase(utterance, row.canonical_name);
+    if (!aliasMatches && !canonicalMatches) continue;
+
+    const matchedProducts = productsForCanonicalName(catalog, row.canonical_name);
+    for (const product of matchedProducts) {
+      if (aliasMatches) note(product.id, row.alias_text);
+      if (canonicalMatches) note(product.id, row.canonical_name);
+    }
   }
 
   for (const product of catalog.products) {
@@ -143,7 +182,7 @@ export function resolveProductIntelligence(
 ): ProductIntelligenceResolution {
   const trimmed = utterance.trim();
   const signals = extractUtteranceSignals(trimmed);
-  const genericOnly = isGenericFamilyUtterance(signals.normalized);
+  const genericOnlyUtterance = isGenericFamilyUtterance(signals.normalized);
   const aliasHitsByProduct = collectAliasHits(catalog, signals.normalized);
 
   const candidates: IntelligenceCandidate[] = [];
@@ -153,15 +192,20 @@ export function resolveProductIntelligence(
     if (scored) candidates.push(scored);
   }
 
-  if (genericOnly) {
+  candidates.sort((a, b) => b.confidence - a.confidence);
+
+  let best = candidates[0] ?? null;
+  const strongApprovedAlias = best != null && isStrongApprovedAliasMatch(signals.normalized, best);
+  const applyGenericPolicy = genericOnlyUtterance && !strongApprovedAlias;
+
+  if (applyGenericPolicy) {
     for (const candidate of candidates) {
       candidate.confidence = Math.min(candidate.confidence, 55);
     }
+    candidates.sort((a, b) => b.confidence - a.confidence);
+    best = candidates[0] ?? null;
   }
 
-  candidates.sort((a, b) => b.confidence - a.confidence);
-
-  const best = candidates[0] ?? null;
   const second = candidates[1] ?? null;
 
   const longestAliasLen = (c: IntelligenceCandidate | null): number =>
@@ -169,7 +213,7 @@ export function resolveProductIntelligence(
 
   let clarification_required = false;
 
-  if (genericOnly) {
+  if (applyGenericPolicy) {
     clarification_required = true;
   } else if (!best || best.confidence < CLARIFICATION_THRESHOLD) {
     clarification_required = true;
@@ -200,6 +244,6 @@ export function resolveProductIntelligence(
     candidate_products: candidates.slice(0, 5),
     best_match: best,
     clarification_required,
-    explanation: buildExplanation(trimmed, candidates, clarification_required, genericOnly),
+    explanation: buildExplanation(trimmed, candidates, clarification_required, applyGenericPolicy),
   };
 }

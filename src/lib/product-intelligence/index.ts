@@ -8,6 +8,7 @@ export type {
 export { isGenericFamilyUtterance, GENERIC_FAMILY_TERMS } from "./genericTerms";
 export { loadApprovedAliasCatalog } from "./loadApprovedAliasCatalog";
 export { resolveProductIntelligence } from "./resolveProductIntelligence";
+export { createGenerationGuard } from "./generationGuard";
 export {
   createProductIntelligenceService,
   type ProductIntelligenceService,
