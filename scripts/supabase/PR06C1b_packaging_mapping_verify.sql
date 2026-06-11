@@ -219,6 +219,66 @@ FROM   public.catalogue_alias_drafts;
 -- WARN: non-zero rows means pre-existing C1a data — acceptable, do not delete
 
 -- =============================================================================
+-- SECTION 14 — Ordering-safety assertion (Bugbot PR06C1b fix verification)
+-- =============================================================================
+-- The original migration had CREATE INDEX and COMMENT ON COLUMN referencing
+-- source_mapping_id BEFORE the DO $$ ALTER ADD COLUMN guard. This caused
+-- migration failure in Case B (table pre-exists without column — production state).
+--
+-- The fix moved the DO $$ guard before those statements. This section asserts
+-- that all three artefacts that depend on source_mapping_id existing are present,
+-- which is only possible if the migration reached them (i.e., the column was added
+-- before they executed):
+--   1. Column exists
+--   2. Index on column exists
+--   3. FK from column exists
+--
+-- If all three pass, the ordering fix executed correctly for Case B.
+
+SELECT
+  col.column_name                          AS "1_column_exists",
+  idx.indexname                            AS "2_index_exists",
+  fk.constraint_name                       AS "3_fk_exists"
+FROM
+  -- 1. Column
+  ( SELECT column_name
+    FROM   information_schema.columns
+    WHERE  table_schema = 'public'
+      AND  table_name   = 'catalogue_alias_drafts'
+      AND  column_name  = 'source_mapping_id'
+  ) col
+  -- 2. Index
+  CROSS JOIN (
+    SELECT indexname
+    FROM   pg_indexes
+    WHERE  schemaname = 'public'
+      AND  tablename  = 'catalogue_alias_drafts'
+      AND  indexname  = 'idx_catalogue_alias_drafts_source_mapping'
+  ) idx
+  -- 3. FK
+  CROSS JOIN (
+    SELECT tc.constraint_name
+    FROM   information_schema.table_constraints        tc
+    JOIN   information_schema.key_column_usage         kcu
+           ON  tc.constraint_name = kcu.constraint_name
+           AND tc.table_schema    = kcu.table_schema
+    JOIN   information_schema.constraint_column_usage  ccu
+           ON  ccu.constraint_name = tc.constraint_name
+    WHERE  tc.constraint_type = 'FOREIGN KEY'
+      AND  tc.table_schema    = 'public'
+      AND  tc.table_name      = 'catalogue_alias_drafts'
+      AND  kcu.column_name    = 'source_mapping_id'
+  ) fk;
+-- PASS: 1 row — all three artefacts present.
+--       Confirms ordering fix ran correctly: ADD COLUMN executed before INDEX and FK were applied.
+-- FAIL: 0 rows — at least one of column / index / FK is absent;
+--       migration may have failed mid-way in Case B (pre-existing table, column absent).
+--
+-- Case A (fresh table) and Case C (column pre-existed) also produce 1 row on PASS.
+
+-- =============================================================================
 -- END OF VERIFICATION SCRIPT
 -- All sections above are SELECT-only. No schema or data changes are made.
+-- Sections §1–§11 must all PASS before declaring migration successful.
+-- Section §14 must return 1 row to confirm ordering-safety fix applied correctly.
 -- =============================================================================
