@@ -4,7 +4,43 @@
 **Verification script:** `scripts/supabase/PR06C1b_packaging_mapping_verify.sql`  
 **Production project:** `tcxvcatsqqertcnycuop`  
 **Prepared:** 2026-06-11  
-**Status:** Ready to apply — preview branch verification confirmed
+**Status:** ✅ GO — Bugbot ordering blocker fixed; all pre-apply checks passed live
+
+---
+
+## Bugbot finding — migration ordering blocker (resolved 2026-06-11)
+
+**Finding: VALID — FIX BEFORE APPLY (now fixed).**
+
+### Offending lines (original migration)
+
+| Line | Statement | Failure case |
+|------|-----------|-------------|
+| 98–100 | `CREATE INDEX … idx_catalogue_alias_drafts_source_mapping ON … (source_mapping_id)` | Case B: column does not exist yet → `ERROR: column "source_mapping_id" does not exist` |
+| 106–108 | `COMMENT ON COLUMN … catalogue_alias_drafts.source_mapping_id` | Case B: column does not exist yet → same error |
+
+Both statements referenced `source_mapping_id` **before** the `DO $$` guard that adds the column (original Section 3, line 115+). In Case A (fresh table) and Case C (column already present) the statements succeeded because the column existed from the `CREATE TABLE` or pre-existed. In **Case B — the current production state — the migration would have failed at line 98**.
+
+### Root cause
+
+The `CREATE TABLE IF NOT EXISTS` at line 69 is a **no-op** when the table already exists (Case B). The `source_mapping_id` column in that CREATE TABLE definition is therefore never reached. The `DO $$` guard that ALTERs the existing table to add the column was placed in Section 3, *after* the two statements that already tried to reference the not-yet-added column.
+
+### Fix applied
+
+1. Moved the `DO $$` guard (ALTER TABLE ADD COLUMN) to **immediately after** `idx_catalogue_alias_drafts_status` creation — before any `source_mapping_id` reference.
+2. Removed the duplicated `COMMENT ON COLUMN` and `CREATE INDEX` from **inside** the `DO $$` body; both are now unconditional outer statements that execute safely in all cases because the guard has already ensured the column exists.
+
+### Verified execution contract (all three cases)
+
+| Step | Case A: table absent | Case B: table exists, no col ← prod | Case C: table exists, col present |
+|------|----------------------|--------------------------------------|-----------------------------------|
+| `CREATE TABLE IF NOT EXISTS` | Creates table + column | **No-op** | No-op |
+| `CREATE INDEX … idx_status` | ✅ | ✅ | ✅ |
+| `DO $$ ADD COLUMN guard` | Column exists → skip | **Adds column** ✅ | Column exists → skip |
+| `CREATE INDEX … source_mapping` | ✅ column present | ✅ column just added | ✅ column pre-existed |
+| `COMMENT ON COLUMN` | ✅ | ✅ | ✅ |
+
+**Production apply status: GO** (migration corrected; all pre-apply live checks passed).
 
 ---
 

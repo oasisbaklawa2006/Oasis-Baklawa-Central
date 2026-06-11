@@ -26,6 +26,16 @@
 --   products, product_tags, product_aliases, catalogue_product_mappings,
 --   orders/order_items, sales_order_drafts, Golden Chain tables,
 --   approve_catalogue_*_draft / reject_catalogue_*_draft RPCs (already live on prod)
+--
+-- Ordering note (PR06C1b bugfix):
+--   source_mapping_id only exists after EITHER the CREATE TABLE (Case A: fresh table)
+--   OR the DO $$ guard (Case B: table pre-existed without column).
+--   The DO $$ guard is therefore placed BEFORE any statement that references
+--   source_mapping_id (CREATE INDEX on it, COMMENT ON COLUMN it).
+--   Execution contract per case:
+--     A. table absent          → CREATE TABLE adds column → DO $$ skips → outer refs safe
+--     B. table exists, no col  → CREATE TABLE no-op       → DO $$ adds column → outer refs safe
+--     C. table exists, col ok  → CREATE TABLE no-op       → DO $$ skips → outer refs safe
 
 -- =============================================================================
 -- 1. catalogue_tag_drafts  (C1a reconcile — idempotent)
@@ -92,24 +102,20 @@ CREATE TABLE IF NOT EXISTS public.catalogue_alias_drafts (
   )
 );
 
+-- Index on status is safe here: status column always exists (either just created
+-- by CREATE TABLE above, or was already present in the pre-existing C1a table).
 CREATE INDEX IF NOT EXISTS idx_catalogue_alias_drafts_status
   ON public.catalogue_alias_drafts (status, submitted_at DESC NULLS LAST);
 
-CREATE INDEX IF NOT EXISTS idx_catalogue_alias_drafts_source_mapping
-  ON public.catalogue_alias_drafts (source_mapping_id)
-  WHERE source_mapping_id IS NOT NULL;
-
-COMMENT ON TABLE public.catalogue_alias_drafts IS
-  'C1a draft queue for product_aliases proposals. source_mapping_id (PR06C1b) enforces '
-  'approve_blocked_mapping_not_finalized guard for connector-sourced packaging products.';
-
-COMMENT ON COLUMN public.catalogue_alias_drafts.source_mapping_id IS
-  'FK → catalogue_product_mappings.id. Null for drafts not linked to a connector '
-  'mapping (e.g. manual curator drafts). When set, approve RPC must see sync_status = synced.';
-
 -- =============================================================================
--- 3. Backfill source_mapping_id column if table already existed from C1a
---    and the column was not added in the CREATE TABLE above (idempotent guard).
+-- 3. Ensure source_mapping_id exists before any statement references it.
+--
+--    Case A (table was just created above): source_mapping_id is already in the
+--      table → IF NOT EXISTS check is false → this block is a no-op.
+--    Case B (table pre-existed without column — current production state):
+--      CREATE TABLE above was a no-op → column absent → this block adds it.
+--    Case C (table pre-existed and column already present):
+--      → IF NOT EXISTS check is false → this block is a no-op.
 -- =============================================================================
 
 DO $$
@@ -124,16 +130,23 @@ BEGIN
     ALTER TABLE public.catalogue_alias_drafts
       ADD COLUMN source_mapping_id uuid NULL
       REFERENCES public.catalogue_product_mappings (id) ON DELETE SET NULL;
-
-    COMMENT ON COLUMN public.catalogue_alias_drafts.source_mapping_id IS
-      'FK → catalogue_product_mappings.id. Null for drafts not linked to a connector '
-      'mapping (e.g. manual curator drafts). When set, approve RPC must see sync_status = synced.';
-
-    CREATE INDEX IF NOT EXISTS idx_catalogue_alias_drafts_source_mapping
-      ON public.catalogue_alias_drafts (source_mapping_id)
-      WHERE source_mapping_id IS NOT NULL;
   END IF;
 END $$;
+
+-- source_mapping_id is now guaranteed to exist in all three cases.
+-- The following two statements are safe to execute unconditionally.
+
+CREATE INDEX IF NOT EXISTS idx_catalogue_alias_drafts_source_mapping
+  ON public.catalogue_alias_drafts (source_mapping_id)
+  WHERE source_mapping_id IS NOT NULL;
+
+COMMENT ON TABLE public.catalogue_alias_drafts IS
+  'C1a draft queue for product_aliases proposals. source_mapping_id (PR06C1b) enforces '
+  'approve_blocked_mapping_not_finalized guard for connector-sourced packaging products.';
+
+COMMENT ON COLUMN public.catalogue_alias_drafts.source_mapping_id IS
+  'FK → catalogue_product_mappings.id. Null for drafts not linked to a connector '
+  'mapping (e.g. manual curator drafts). When set, approve RPC must see sync_status = synced.';
 
 -- =============================================================================
 -- 4. RLS — catalogue_tag_drafts
