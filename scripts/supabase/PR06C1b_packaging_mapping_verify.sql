@@ -122,7 +122,7 @@ ORDER  BY relname;
 -- FAIL: any row with relrowsecurity = false — RLS not enabled
 
 -- ---------------------------------------------------------------------------
--- SECTION 8 — RLS policies: correct set on both tables
+-- SECTION 8 — RLS security: no broad FOR ALL write_internal bypass policies
 -- ---------------------------------------------------------------------------
 SELECT
   tablename,
@@ -132,13 +132,46 @@ SELECT
 FROM   pg_policies
 WHERE  schemaname = 'public'
   AND  tablename IN ('catalogue_tag_drafts', 'catalogue_alias_drafts')
+  AND  policyname LIKE '%write_internal%';
+-- PASS: 0 rows — no unsafe is_internal_staff FOR ALL write bypass
+-- FAIL: any row — direct INSERT/UPDATE/DELETE bypasses approve/reject RPC governance
+
+-- ---------------------------------------------------------------------------
+-- SECTION 8b — C1a granular policies preserved (tag + alias branches)
+-- ---------------------------------------------------------------------------
+SELECT
+  tablename,
+  policyname,
+  cmd
+FROM   pg_policies
+WHERE  schemaname = 'public'
+  AND  tablename IN ('catalogue_tag_drafts', 'catalogue_alias_drafts')
+  AND  policyname IN (
+         'catalogue_app_alias_drafts_insert_submitter',
+         'catalogue_app_alias_drafts_reviewer_select',
+         'catalogue_app_alias_drafts_select_own',
+         'catalogue_app_tag_drafts_insert_submitter',
+         'catalogue_app_tag_drafts_reviewer_select',
+         'catalogue_app_tag_drafts_select_own'
+       )
 ORDER  BY tablename, policyname;
--- PASS: at least 4 rows:
---   catalogue_alias_drafts | catalogue_alias_drafts_select_internal | SELECT | {authenticated}
---   catalogue_alias_drafts | catalogue_alias_drafts_write_internal  | ALL    | {authenticated}
---   catalogue_tag_drafts   | catalogue_tag_drafts_select_internal   | SELECT | {authenticated}
---   catalogue_tag_drafts   | catalogue_tag_drafts_write_internal    | ALL    | {authenticated}
--- NOTE: additional C1a policies may also appear — that is acceptable
+-- PASS: 6 rows — submitter insert + reviewer/own select on both tag and alias tables
+-- FAIL: < 6 rows — C1a access model degraded
+
+-- ---------------------------------------------------------------------------
+-- SECTION 8c — Optional internal-staff SELECT policies (migration may add)
+-- ---------------------------------------------------------------------------
+SELECT
+  tablename,
+  policyname,
+  cmd
+FROM   pg_policies
+WHERE  schemaname = 'public'
+  AND  tablename IN ('catalogue_tag_drafts', 'catalogue_alias_drafts')
+  AND  policyname LIKE '%_select_internal%'
+  AND  cmd = 'SELECT'
+ORDER  BY tablename, policyname;
+-- PASS: 0–2 rows — SELECT-only supplement; never FOR ALL
 
 -- ---------------------------------------------------------------------------
 -- SECTION 9 — GRANT check: authenticated role has SELECT
@@ -192,7 +225,29 @@ ORDER  BY tc.table_name;
 -- PASS: 2 rows — both tables have status CHECK including 'pending_approval'
 
 -- ---------------------------------------------------------------------------
--- SECTION 12 — Upstream Phase 25B mapping table row count (informational)
+-- SECTION 12 — Packaging mapping FK target preserved (catalogue_product_mappings)
+-- ---------------------------------------------------------------------------
+SELECT
+  tc.table_name            AS fk_source_table,
+  kcu.column_name          AS fk_column,
+  ccu.table_name           AS referenced_table,
+  ccu.column_name          AS referenced_column
+FROM   information_schema.table_constraints        tc
+JOIN   information_schema.key_column_usage         kcu
+       ON  tc.constraint_name = kcu.constraint_name
+       AND tc.table_schema    = kcu.table_schema
+JOIN   information_schema.constraint_column_usage  ccu
+       ON  ccu.constraint_name = tc.constraint_name
+WHERE  tc.constraint_type = 'FOREIGN KEY'
+  AND  tc.table_schema    = 'public'
+  AND  tc.table_name      = 'catalogue_alias_drafts'
+  AND  kcu.column_name    = 'source_mapping_id'
+  AND  ccu.table_name     = 'catalogue_product_mappings';
+-- PASS: 1 row — packaging connector mapping table link intact
+-- FAIL: 0 rows — FK to catalogue_product_mappings missing
+
+-- ---------------------------------------------------------------------------
+-- SECTION 13 — Upstream Phase 25B mapping table row count (informational)
 -- ---------------------------------------------------------------------------
 SELECT
   sync_status,
@@ -204,7 +259,7 @@ ORDER  BY sync_status;
 -- No PASS/FAIL: empty result means no products have been synced yet (normal for fresh env).
 
 -- ---------------------------------------------------------------------------
--- SECTION 13 — No rows accidentally inserted into draft tables by migration
+-- SECTION 14 — No rows accidentally inserted into draft tables by migration
 -- ---------------------------------------------------------------------------
 SELECT
   'catalogue_tag_drafts'   AS table_name,
@@ -219,7 +274,7 @@ FROM   public.catalogue_alias_drafts;
 -- WARN: non-zero rows means pre-existing C1a data — acceptable, do not delete
 
 -- =============================================================================
--- SECTION 14 — Ordering-safety assertion (Bugbot PR06C1b fix verification)
+-- SECTION 15 — Ordering-safety assertion (Bugbot PR06C1b fix verification)
 -- =============================================================================
 -- The original migration had CREATE INDEX and COMMENT ON COLUMN referencing
 -- source_mapping_id BEFORE the DO $$ ALTER ADD COLUMN guard. This caused
@@ -279,6 +334,6 @@ FROM
 -- =============================================================================
 -- END OF VERIFICATION SCRIPT
 -- All sections above are SELECT-only. No schema or data changes are made.
--- Sections §1–§11 must all PASS before declaring migration successful.
--- Section §14 must return 1 row to confirm ordering-safety fix applied correctly.
+-- Sections §1–§11, §8 (0 rows), §8b (6 rows), §12 must PASS before success.
+-- Section §15 must return 1 row to confirm ordering-safety fix applied correctly.
 -- =============================================================================
