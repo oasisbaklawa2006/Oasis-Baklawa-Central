@@ -310,6 +310,13 @@ const App = () => (
                     }
                   >
                     <Route index element={<AdminDashboard />} />
+                    {/* Legacy bookmarks from older audits / docs */}
+                    <Route path="customers" element={<Navigate to="/admin/clients" replace />} />
+                    <Route path="assembly" element={<Navigate to="/admin/assembly-tasks" replace />} />
+                    <Route path="finance/payments" element={<Navigate to="/admin/finance" replace />} />
+                    <Route path="finance/invoices" element={<Navigate to="/admin/finance" replace />} />
+                    <Route path="crm" element={<Navigate to="/admin/clients" replace />} />
+                    <Route path="roles" element={<Navigate to="/admin/users" replace />} />
                     <Route path="clients" element={<AdminClients />} />
                     <Route path="approvals" element={<AdminClients />} />
                     <Route path="products" element={<AdminProducts />} />

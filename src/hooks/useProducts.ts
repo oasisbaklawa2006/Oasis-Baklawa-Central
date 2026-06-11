@@ -53,7 +53,10 @@ export function useProducts() {
       }
     });
 
-    const merged = prods.map((p) => ({ ...p, stock: stockMap[p.id] || 0 }));
+    const buyerVisible = prods.filter(
+      (p) => p.is_active !== false && (p as { visible_in_catalog?: boolean }).visible_in_catalog !== false,
+    );
+    const merged = buyerVisible.map((p) => ({ ...p, stock: stockMap[p.id] || 0 }));
     writeCache(merged);
     setProducts(merged);
     setLoading(false);

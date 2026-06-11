@@ -7,6 +7,7 @@ import {
   Workflow,
   Link2,
   Inbox,
+  Brain,
 } from "lucide-react";
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
@@ -89,6 +90,7 @@ const AdminLayout = () => {
         { to: "/admin/execution/complaints", icon: LayoutGrid, label: "Complaints board", end: false, moduleKey: "support" },
         { to: "/admin/live-work-queues", icon: ListOrdered, label: "Live work queues", end: false, moduleKey: "cmd_war_room" },
         { to: "/admin/entity-graph-explorer", icon: Network, label: "Entity graph explorer", end: false, moduleKey: "cmd_war_room" },
+        { to: "/admin/product-intelligence-prototype", icon: Brain, label: "Product intelligence lab", end: false, moduleKey: "cmd_war_room" },
       ],
     },
     {
