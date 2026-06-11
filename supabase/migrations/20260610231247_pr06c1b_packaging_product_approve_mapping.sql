@@ -4,13 +4,19 @@
 --   - catalogue_tag_drafts, catalogue_alias_drafts, and the four approve/reject RPCs
 --     are pre-existing on production (Central DB C1a objects, never exported to repo).
 --   - This migration reconciles them into git history (idempotent: CREATE IF NOT EXISTS)
---     and adds source_mapping_id on catalogue_alias_drafts so the approve RPC can
---     enforce the approve_blocked_mapping_not_finalized guard for products that
---     originated from the AI Catalogue Builder (packaging / goldware / retail_pack).
+--     and adds source_mapping_id on catalogue_alias_drafts as an optional FK link to
+--     catalogue_product_mappings for future connector traceability.
+--   - Live approve_catalogue_alias_draft does NOT currently read source_mapping_id or
+--     sync_status; approve_blocked_mapping_not_finalized is frontend-handled only today.
 --
 -- Production target : tcxvcatsqqertcnycuop
 -- Repo path         : supabase/migrations/20260610231247_pr06c1b_packaging_product_approve_mapping.sql
 -- Safe to re-run    : YES — all DDL is CREATE IF NOT EXISTS or guarded by pg_catalog checks
+--
+-- Production DDL drift (CREATE TABLE is a no-op on prod — documented, not altered here):
+--   - status CHECK uses 'cancelled' (not 'withdrawn')
+--   - submitted_by / submitted_at are NOT NULL on production
+--   - operation CHECK exists: create | update | delete_request
 --
 -- Objects touched (additive / idempotent only):
 --   NEW TABLE   : public.catalogue_tag_drafts     (CREATE IF NOT EXISTS)
@@ -20,7 +26,7 @@
 --                 idx_catalogue_tag_drafts_target_record,
 --                 idx_catalogue_alias_drafts_status,
 --                 idx_catalogue_alias_drafts_source_mapping
---   RLS POLICIES: internal-staff SELECT + ALL on both draft tables
+--   RLS POLICIES: optional internal-staff SELECT only (no FOR ALL write policies)
 --
 -- Objects NOT touched:
 --   products, product_tags, product_aliases, catalogue_product_mappings,
@@ -84,10 +90,10 @@ CREATE TABLE IF NOT EXISTS public.catalogue_alias_drafts (
   target_table    text        NOT NULL DEFAULT 'product_aliases',
   target_record_id uuid       NULL,
   source_app      text        NOT NULL DEFAULT 'ai_catalogue_builder',
-  -- PR06C1b packaging mapping FK:
-  -- Links this alias draft to the catalogue_product_mappings row that produced it.
-  -- When non-null, approve_catalogue_alias_draft checks sync_status = 'synced'
-  -- before proceeding; otherwise returns approve_blocked_mapping_not_finalized.
+  -- PR06C1b packaging mapping FK (optional connector traceability):
+  -- Links this alias draft to catalogue_product_mappings.id when known.
+  -- Not enforced by approve_catalogue_alias_draft today; reserved for future
+  -- packaging / goldware / retail_pack connector workflows.
   source_mapping_id uuid      NULL
     REFERENCES public.catalogue_product_mappings (id) ON DELETE SET NULL,
   submitted_by    uuid        NULL REFERENCES auth.users (id) ON DELETE SET NULL,
@@ -141,15 +147,23 @@ CREATE INDEX IF NOT EXISTS idx_catalogue_alias_drafts_source_mapping
   WHERE source_mapping_id IS NOT NULL;
 
 COMMENT ON TABLE public.catalogue_alias_drafts IS
-  'C1a draft queue for product_aliases proposals. source_mapping_id (PR06C1b) enforces '
-  'approve_blocked_mapping_not_finalized guard for connector-sourced packaging products.';
+  'C1a draft queue for product_aliases proposals. source_mapping_id (PR06C1b) is an '
+  'optional FK to catalogue_product_mappings for future connector traceability.';
 
 COMMENT ON COLUMN public.catalogue_alias_drafts.source_mapping_id IS
-  'FK → catalogue_product_mappings.id. Null for drafts not linked to a connector '
-  'mapping (e.g. manual curator drafts). When set, approve RPC must see sync_status = synced.';
+  'Optional FK → catalogue_product_mappings.id for connector-sourced alias drafts '
+  '(packaging / goldware / retail_pack). Null for manual curator drafts. '
+  'Not currently enforced by approve_catalogue_alias_draft.';
 
 -- =============================================================================
 -- 4. RLS — catalogue_tag_drafts
+--
+-- Production already has C1a granular policies:
+--   catalogue_app_tag_drafts_insert_submitter  (INSERT)
+--   catalogue_app_tag_drafts_reviewer_select   (SELECT)
+--   catalogue_app_tag_drafts_select_own        (SELECT)
+-- Draft status transitions must go through approve/reject RPCs (is_catalogue_reviewer).
+-- Do NOT add FOR ALL write_internal policies — they bypass RPC audit governance.
 -- =============================================================================
 
 ALTER TABLE public.catalogue_tag_drafts ENABLE ROW LEVEL SECURITY;
@@ -169,25 +183,15 @@ BEGIN
         USING (public.is_internal_staff(auth.uid()))
     $pol$;
   END IF;
-
-  IF NOT EXISTS (
-    SELECT 1 FROM pg_policies
-    WHERE  schemaname = 'public'
-      AND  tablename  = 'catalogue_tag_drafts'
-      AND  policyname = 'catalogue_tag_drafts_write_internal'
-  ) THEN
-    EXECUTE $pol$
-      CREATE POLICY catalogue_tag_drafts_write_internal
-        ON public.catalogue_tag_drafts
-        FOR ALL TO authenticated
-        USING (public.is_internal_staff(auth.uid()))
-        WITH CHECK (public.is_internal_staff(auth.uid()))
-    $pol$;
-  END IF;
 END $$;
 
 -- =============================================================================
 -- 5. RLS — catalogue_alias_drafts
+--
+-- Production already has C1a granular policies:
+--   catalogue_app_alias_drafts_insert_submitter  (INSERT)
+--   catalogue_app_alias_drafts_reviewer_select   (SELECT)
+--   catalogue_app_alias_drafts_select_own        (SELECT)
 -- =============================================================================
 
 ALTER TABLE public.catalogue_alias_drafts ENABLE ROW LEVEL SECURITY;
@@ -205,21 +209,6 @@ BEGIN
         ON public.catalogue_alias_drafts
         FOR SELECT TO authenticated
         USING (public.is_internal_staff(auth.uid()))
-    $pol$;
-  END IF;
-
-  IF NOT EXISTS (
-    SELECT 1 FROM pg_policies
-    WHERE  schemaname = 'public'
-      AND  tablename  = 'catalogue_alias_drafts'
-      AND  policyname = 'catalogue_alias_drafts_write_internal'
-  ) THEN
-    EXECUTE $pol$
-      CREATE POLICY catalogue_alias_drafts_write_internal
-        ON public.catalogue_alias_drafts
-        FOR ALL TO authenticated
-        USING (public.is_internal_staff(auth.uid()))
-        WITH CHECK (public.is_internal_staff(auth.uid()))
     $pol$;
   END IF;
 END $$;

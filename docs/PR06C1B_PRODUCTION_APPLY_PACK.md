@@ -4,7 +4,18 @@
 **Verification script:** `scripts/supabase/PR06C1b_packaging_mapping_verify.sql`  
 **Production project:** `tcxvcatsqqertcnycuop`  
 **Prepared:** 2026-06-11  
-**Status:** ✅ GO — Bugbot ordering blocker fixed; all pre-apply checks passed live
+**Status:** ✅ GO — RLS write bypass removed; ordering blocker fixed; apply blocked until this revision lands
+
+---
+
+## Apply history
+
+| Revision | Status | Blocker |
+|----------|--------|---------|
+| 2026-06-11 (ordering fix only) | **BLOCKED** | Unsafe `*_write_internal` FOR ALL policies |
+| 2026-06-11 (RLS + comment fix) | **GO** (this document) | None — pending human apply + §4 verification |
+
+> **Do not apply** any migration revision that creates `catalogue_*_drafts_write_internal` FOR ALL policies.
 
 ---
 
@@ -40,7 +51,40 @@ The `CREATE TABLE IF NOT EXISTS` at line 69 is a **no-op** when the table alread
 | `CREATE INDEX … source_mapping` | ✅ column present | ✅ column just added | ✅ column pre-existed |
 | `COMMENT ON COLUMN` | ✅ | ✅ | ✅ |
 
-**Production apply status: GO** (migration corrected; all pre-apply live checks passed).
+**Production apply status: GO** (ordering corrected).
+
+---
+
+## Bugbot finding — unsafe RLS write_internal bypass (resolved 2026-06-11)
+
+**Finding: VALID — FIX BEFORE APPLY (now fixed).**
+
+### Problem
+
+The original migration added:
+
+| Policy | CMD | Risk |
+|--------|-----|------|
+| `catalogue_tag_drafts_write_internal` | `FOR ALL` | Any `is_internal_staff` user could INSERT/UPDATE/DELETE tag drafts directly |
+| `catalogue_alias_drafts_write_internal` | `FOR ALL` | Same for alias drafts |
+
+This bypasses `approve_catalogue_draft_internal` and `is_catalogue_reviewer()` RPC audit governance. Status transitions must not be opened via broad table writes.
+
+### Fix applied
+
+1. **Removed** both `*_write_internal` FOR ALL policy blocks from the migration.
+2. **Preserved** optional `*_select_internal` SELECT-only policies (additive read path for internal staff).
+3. **Preserved** existing C1a granular policies on production (not touched by migration):
+   - `catalogue_app_*_drafts_insert_submitter`
+   - `catalogue_app_*_drafts_reviewer_select`
+   - `catalogue_app_*_drafts_select_own`
+4. Post-apply verification §8 asserts **0 rows** for any `write_internal` policy.
+
+### Misleading comment fix (same revision)
+
+Comments previously claimed `approve_catalogue_alias_draft` enforces `sync_status = synced` via `source_mapping_id` and returns `approve_blocked_mapping_not_finalized`. **Live RPC does not check these fields.** Comments rewritten to document optional FK traceability only.
+
+**Production apply status: GO** after this revision is merged and §4 verification passes.
 
 ---
 
@@ -52,8 +96,8 @@ This apply pack:
 
 1. Records the migration in Supabase's `schema_migrations` history.
 2. Creates `catalogue_tag_drafts` / `catalogue_alias_drafts` **IF NOT EXISTS** — reconciling the C1a repo gap.
-3. Adds `catalogue_alias_drafts.source_mapping_id` FK → `catalogue_product_mappings.id` — the "packaging product approve mapping" column that the `approve_catalogue_alias_draft` RPC uses to enforce the `approve_blocked_mapping_not_finalized` guard for connector-sourced products.
-4. Adds indexes and RLS policies idempotently.
+3. Adds `catalogue_alias_drafts.source_mapping_id` FK → `catalogue_product_mappings.id` — optional connector traceability for packaging / goldware / retail_pack workflows (not enforced by live approve RPC today).
+4. Adds indexes and optional SELECT-only RLS policies idempotently. **No FOR ALL write policies.**
 
 **Nothing is removed, altered, or destructive.** Every statement is `IF NOT EXISTS` or wrapped in an existence check.
 
@@ -103,7 +147,7 @@ Production has 3 policies per table (not the names our migration adds):
 | `catalogue_tag_drafts` | `catalogue_app_tag_drafts_select_own` | SELECT |
 | RLS enabled | Both tables | `relrowsecurity = true` ✅ |
 
-The migration's `pg_policies` existence checks use different names (`*_select_internal`, `*_write_internal`), so they will be added as **new policies** alongside the existing three. The existing submitter/reviewer access model is preserved; the new policies give `is_internal_staff` users SELECT + ALL write access via a separate path. This is additive and does not remove or alter any existing policy.
+The migration may add optional `*_select_internal` SELECT policies (different names from C1a). The existing submitter/reviewer access model is preserved. **No `*_write_internal` FOR ALL policies** are created — draft writes remain governed by C1a INSERT submitter policy + approve/reject RPCs only.
 
 ---
 
@@ -252,14 +296,18 @@ The critical sections and their expected outcomes are summarised below.
 | §5 | `catalogue_product_mappings` RLS | `relrowsecurity = true` |
 | §6 | `pg_indexes` | 4 rows: all four new indexes |
 | §7 | `pg_class` RLS flags | Both tables: `relrowsecurity = true` |
-| §8 | `pg_policies` | ≥ 4 rows: select + write policies on both tables |
+| §8 | `pg_policies` `write_internal` | **0 rows** — no FOR ALL bypass |
+| §8b | C1a granular policies | **6 rows** — tag + alias submitter/reviewer/own |
+| §8c | `*_select_internal` | 0–2 rows — SELECT-only supplement |
 | §9 | `role_table_grants` | `authenticated` SELECT on both; `service_role` ALL |
 | §10 | `information_schema.routines` | 4 rows: all C1a RPCs present |
 | §11 | CHECK constraints | 2 rows: `pending_approval` in status CHECK |
-| §12 | `catalogue_product_mappings` counts | Informational only |
-| §13 | Row counts on draft tables | 0 rows if fresh; non-zero acceptable (pre-existing C1a data) |
+| §12 | Packaging FK target | 1 row: `source_mapping_id` → `catalogue_product_mappings` |
+| §13 | `catalogue_product_mappings` counts | Informational only |
+| §14 | Row counts on draft tables | 0 rows if fresh; non-zero acceptable (pre-existing C1a data) |
+| §15 | Ordering-safety cross-join | 1 row: column + index + FK all present |
 
-**All §1–§11 checks must PASS before declaring the migration successful.**
+**All §1–§11, §8 (0 rows), §8b (6 rows), §12, §15 checks must PASS before declaring the migration successful.**
 
 ### Spot-check: end-to-end approval path
 
@@ -273,7 +321,7 @@ WHERE  status = 'pending_approval'
 LIMIT  1;
 ```
 
-Confirm `source_mapping_id` is `NULL` for pre-existing drafts (expected — nullable, no mapping linked yet). The approve RPC path for `source_mapping_id IS NULL` proceeds without the finalization check; only drafts explicitly linked to a mapping record trigger the guard.
+Confirm `source_mapping_id` is `NULL` for pre-existing drafts (expected — nullable, no mapping linked yet). Live `approve_catalogue_alias_draft` does not currently gate on this column; the FK is for future connector traceability.
 
 ---
 
@@ -325,11 +373,11 @@ Wave 4A-1 is the first wave of catalogue authority staging import (PR C per `doc
 
 | # | Check | Live status (2026-06-11) | Notes |
 |---|-------|--------------------------|-------|
-| 1 | PR06C1b migration applied and all §4 post-apply checks pass | **GATE — PENDING** (migration not yet applied) | Apply this pack first; then re-evaluate |
+| 1 | PR06C1b migration (RLS-safe revision) applied and all §4 post-apply checks pass | **GATE — PENDING** (migration not yet applied) | Apply this pack first; §8 must return 0 rows |
 | 2 | `catalogue_product_mappings` live with ≥ 1 `synced` row | **INFO — NOT MET** (0 rows in table) | Wave 4A-1 schema-only PR is not blocked; data-load step requires synced mappings |
 | 3 | `catalogue_tag_drafts` and `catalogue_alias_drafts` confirmed present on prod | **GATE — MET** ✅ (both tables live, RLS enabled) | C1a dependency satisfied |
 | 4 | All 4 C1a RPCs live | **GATE — MET** ✅ (all 4 RPCs confirmed) | Approval path functional |
-| 5 | No `pending_approval` alias/tag drafts that would be blocked by missing `source_mapping_id` mapping | **MET** ✅ (0 pending_approval rows; 267 approved) | No inbox backlog to clear before apply |
+| 5 | No `pending_approval` alias/tag drafts blocking apply | **MET** ✅ (0 pending_approval rows; 267 approved) | `source_mapping_id` is optional; not RPC-gated today |
 | 6 | Migration drift acknowledged; apply via SQL Editor | **INFO — OPEN** (13 remote-only versions, drift unresolved) | Wave 4A-1 migration must also use SQL Editor path |
 | 7 | Authority source files committed under `project/raw/catalogue-authority/` | **NOT MET** (per `CATALOGUE_AUTHORITY_STAGING_IMPORT_PLAN.md` §2) | Blocks data-load step only, not schema step |
 | 8 | Wave 4A-1 migration carries `source_environment = 'staging'` CHECK on all candidate tables | **GATE — PENDING** (Wave 4A-1 not yet drafted) | Must be enforced on PR before staging apply |
@@ -342,6 +390,8 @@ Wave 4A-1 is the first wave of catalogue authority staging import (PR C per `doc
 |-----------------------|------------|
 | YES | **GO** — Wave 4A-1 staging schema PR may be prepared and applied to staging first |
 | Any GATE item red | **NO-GO** — resolve blocking items before preparing Wave 4A-1 |
+
+**Current Wave 4A-1 decision: NO-GO** until PR06C1b post-apply verification (§4) passes on production.
 
 > Wave 4A drafts must not be approved or applied automatically. Each must pass the human-reviewed apply pack flow analogous to this document.
 
@@ -360,10 +410,8 @@ Wave 4A-1 is the first wave of catalogue authority staging import (PR C per `doc
 | `idx_catalogue_tag_drafts_target_record` | INDEX | CREATE IF NOT EXISTS |
 | `idx_catalogue_alias_drafts_status` | INDEX | CREATE IF NOT EXISTS |
 | `idx_catalogue_alias_drafts_source_mapping` | INDEX | CREATE IF NOT EXISTS |
-| `catalogue_tag_drafts_select_internal` | POLICY | CREATE IF NOT EXISTS (via pg_policies check) |
-| `catalogue_tag_drafts_write_internal` | POLICY | CREATE IF NOT EXISTS (via pg_policies check) |
-| `catalogue_alias_drafts_select_internal` | POLICY | CREATE IF NOT EXISTS (via pg_policies check) |
-| `catalogue_alias_drafts_write_internal` | POLICY | CREATE IF NOT EXISTS (via pg_policies check) |
+| `catalogue_tag_drafts_select_internal` | POLICY | CREATE IF NOT EXISTS — SELECT only |
+| `catalogue_alias_drafts_select_internal` | POLICY | CREATE IF NOT EXISTS — SELECT only |
 | `supabase_migrations.schema_migrations` row `20260610231247` | DATA | INSERT (manual step after SQL Editor apply) |
 
 ### Objects this migration does NOT touch
