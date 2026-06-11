@@ -65,6 +65,9 @@ const APP_ROUTES = [
   "/sales/dashboard",
 ];
 
+/** Matches Operator Inbox (`WhatsAppInbox.tsx`) — not `whatsapp_packets`. */
+const WHATSAPP_PACKET_TABLE = "whatsapp_message_packets";
+
 /** Ghost routes referenced in old audits but NOT in App.tsx */
 const GHOST_ROUTES = [
   "/admin/customers", "/admin/assembly", "/admin/finance/payments", "/admin/finance/invoices",
@@ -191,15 +194,18 @@ async function main() {
     aliasCountRes = String(e);
   }
 
-  console.log("\n=== WhatsApp packets (read-only sample) ===");
+  console.log(`\n=== ${WHATSAPP_PACKET_TABLE} (read-only sample) ===`);
   let waPackets = [];
   try {
     waPackets = await supabaseSelect(
-      "whatsapp_packets",
-      "select=id,phone_number,customer_name,status,last_message_at&order=last_message_at.desc&limit=3",
+      WHATSAPP_PACKET_TABLE,
+      "select=id,contact_id,status,last_message_at&order=last_message_at.desc&limit=3",
     );
+    if (WHATSAPP_PACKET_TABLE !== "whatsapp_message_packets") {
+      throw new Error("audit script must query whatsapp_message_packets");
+    }
   } catch (e) {
-    console.log("whatsapp_packets:", e.message);
+    console.log(`${WHATSAPP_PACKET_TABLE}:`, e.message);
   }
 
   const report = {
@@ -220,7 +226,8 @@ async function main() {
       rows: batchAudit,
     },
     product_aliases_content_range: aliasCountRes,
-    whatsapp_packets_sample_count: waPackets.length,
+    whatsapp_message_packets_sample_count: waPackets.length,
+    whatsapp_packet_table: WHATSAPP_PACKET_TABLE,
   };
 
   const outPath = join(outDir, "usability-wave-audit.json");

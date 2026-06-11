@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import type { Tables } from "@/integrations/supabase/types";
+import { isBuyerVisibleProduct } from "@/lib/buyerCatalogue";
 
 export type Product = Tables<"products"> & { stock?: number };
 
@@ -8,23 +9,39 @@ export type Product = Tables<"products"> & { stock?: number };
 const CACHE_KEY = "oasis_products_swr";
 let memoryCache: Product[] | null = null;
 
+function filterBuyerVisibleProducts(products: Product[]): Product[] {
+  return products.filter(isBuyerVisibleProduct);
+}
+
+/**
+ * Returns filtered buyer-visible products, or null when no cache entry exists.
+ * An empty array means cache existed but nothing passed the buyer-visible predicate.
+ */
 function readPersistedCache(): Product[] | null {
-  if (memoryCache) return memoryCache;
+  if (memoryCache) return filterBuyerVisibleProducts(memoryCache);
+
   try {
     const raw = sessionStorage.getItem(CACHE_KEY);
     if (!raw) return null;
     const parsed = JSON.parse(raw) as Product[];
-    memoryCache = parsed;
-    return parsed;
+    const visible = filterBuyerVisibleProducts(parsed);
+    memoryCache = visible;
+    if (visible.length !== parsed.length) {
+      try {
+        sessionStorage.setItem(CACHE_KEY, JSON.stringify(visible));
+      } catch {}
+    }
+    return visible;
   } catch {
     return null;
   }
 }
 
 function writeCache(products: Product[]) {
-  memoryCache = products;
+  const visible = filterBuyerVisibleProducts(products);
+  memoryCache = visible;
   try {
-    sessionStorage.setItem(CACHE_KEY, JSON.stringify(products));
+    sessionStorage.setItem(CACHE_KEY, JSON.stringify(visible));
   } catch {}
 }
 
@@ -32,7 +49,7 @@ export function useProducts() {
   const cached = readPersistedCache();
   const [products, setProducts] = useState<Product[]>(cached ?? []);
   // If we already have cached data, never show the loading spinner — SWR pattern.
-  const [loading, setLoading] = useState<boolean>(!cached);
+  const [loading, setLoading] = useState<boolean>(cached === null);
   const mounted = useRef(true);
 
   const load = useCallback(async () => {
@@ -53,9 +70,7 @@ export function useProducts() {
       }
     });
 
-    const buyerVisible = prods.filter(
-      (p) => p.is_active !== false && (p as { visible_in_catalog?: boolean }).visible_in_catalog !== false,
-    );
+    const buyerVisible = filterBuyerVisibleProducts(prods);
     const merged = buyerVisible.map((p) => ({ ...p, stock: stockMap[p.id] || 0 }));
     writeCache(merged);
     setProducts(merged);

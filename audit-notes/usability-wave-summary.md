@@ -38,14 +38,14 @@ From `BATCH001_LIVE_HEALTH_SNAPSHOT` (Central read-only audit 2026-06-09):
 
 Public product deep links (`/product/{uuid}`) are structurally valid for all 25 Batch 001 IDs in manifest; buyers hit auth gate before catalogue.
 
-**UI fix applied:** `useProducts` now filters `is_active` + `visible_in_catalog` so internal/hidden SKUs do not leak into buyer catalogue components when RLS returns them.
+**UI fix applied:** `useProducts` uses shared `isBuyerVisibleProduct()` (`is_active === true` && `visible_in_catalog === true`) on live load **and** session/memory cache so hidden/inactive SKUs never flash from stale cache.
 
 ## Fixes made
 
 1. Legacy admin route redirects (6 ghost paths → real modules)
 2. Admin nav: **Product intelligence lab** under Command (cmd_war_room module)
 3. Buyer `useProducts`: filter inactive / not-visible-in-catalog products
-4. Added `scripts/usability-wave-audit.mjs` + `tests/usability-wave-smoke.spec.ts` for repeat audits
+4. Added `scripts/usability-wave-audit.mjs` (queries `whatsapp_message_packets`) + `tests/usability-wave-smoke.spec.ts` for repeat audits
 
 ## Remaining blockers (not in scope — need data/backend)
 

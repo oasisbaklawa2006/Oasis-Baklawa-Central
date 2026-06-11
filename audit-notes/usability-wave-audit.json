@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-06-11T12:10:16.626Z",
+  "generated_at": "2026-06-11T16:35:01.987Z",
   "app_url_local": "http://127.0.0.1:5173",
   "app_url_live": "https://b2b.oasisbaklawa.com",
   "routes": {
@@ -192,5 +192,6 @@
     ]
   },
   "product_aliases_content_range": "Error: product_aliases: 400 {\"code\":\"42703\",\"details\":null,\"hint\":null,\"message\":\"column product_aliases.status does not exist\"}",
-  "whatsapp_packets_sample_count": 0
+  "whatsapp_message_packets_sample_count": 0,
+  "whatsapp_packet_table": "whatsapp_message_packets"
 }
