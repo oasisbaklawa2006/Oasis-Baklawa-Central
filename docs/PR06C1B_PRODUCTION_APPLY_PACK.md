@@ -23,6 +23,54 @@ This apply pack:
 
 ---
 
+## Live pre-apply check results (run 2026-06-11)
+
+All six checks executed against `tcxvcatsqqertcnycuop` via Supabase MCP (`execute_sql`).
+
+| # | Check | Result | Verdict |
+|---|-------|--------|---------|
+| 1 | Migration `20260610231247` in `schema_migrations` | **0 rows** | ✅ PASS — not yet applied |
+| 2 | `catalogue_product_mappings` with `relrowsecurity = true` | **1 row**, `true` | ✅ PASS — Phase 25B live |
+| 3 | Both C1a draft tables present | **2 rows** (`catalogue_alias_drafts`, `catalogue_tag_drafts`) | ✅ PASS — pre-existing C1a |
+| 4 | `source_mapping_id` column absent | **0 rows** | ✅ PASS — column will be added |
+| 5 | Open pending drafts | `catalogue_alias_drafts`: **267 `approved`**; `catalogue_tag_drafts`: **0 rows** | ✅ No pending_approval blockers |
+| 6 | Four C1a RPCs | **4 rows** — all present | ✅ PASS |
+| — | `catalogue_product_mappings` row counts | **0 rows** | INFO — no synced products yet |
+
+**Rollback path (per §5 decision matrix):** §3 = 2 rows (tables existed), §4 = 0 rows (column new) → `DROP COLUMN source_mapping_id` + delete `schema_migrations` row.
+
+### Production schema variances (informational — do not affect this apply)
+
+`CREATE TABLE IF NOT EXISTS` is a **no-op** because both tables already exist. These variances between the migration DDL and live production only matter if the table is ever dropped and recreated:
+
+| Column / constraint | Migration definition | Live production |
+|---------------------|---------------------|-----------------|
+| `submitted_by` nullability | `NULL` (nullable) | **NOT NULL** |
+| `submitted_at` nullability | `NULL` (nullable) | **NOT NULL** |
+| `status` CHECK values | `pending_approval, approved, rejected, **withdrawn**` | `pending_approval, approved, rejected, **cancelled**` |
+| `operation` CHECK | Not present | `create, update, delete_request` |
+
+**Impact on apply:** None — the CREATE TABLE is skipped entirely.  
+**Impact on future data writes:** Use `'cancelled'` (not `'withdrawn'`) and `operation IN ('create','update','delete_request')` when inserting draft rows directly.
+
+### Existing RLS policy names on production
+
+Production has 3 policies per table (not the names our migration adds):
+
+| Table | Policy name | CMD |
+|-------|-------------|-----|
+| `catalogue_alias_drafts` | `catalogue_app_alias_drafts_insert_submitter` | INSERT |
+| `catalogue_alias_drafts` | `catalogue_app_alias_drafts_reviewer_select` | SELECT |
+| `catalogue_alias_drafts` | `catalogue_app_alias_drafts_select_own` | SELECT |
+| `catalogue_tag_drafts` | `catalogue_app_tag_drafts_insert_submitter` | INSERT |
+| `catalogue_tag_drafts` | `catalogue_app_tag_drafts_reviewer_select` | SELECT |
+| `catalogue_tag_drafts` | `catalogue_app_tag_drafts_select_own` | SELECT |
+| RLS enabled | Both tables | `relrowsecurity = true` ✅ |
+
+The migration's `pg_policies` existence checks use different names (`*_select_internal`, `*_write_internal`), so they will be added as **new policies** alongside the existing three. The existing submitter/reviewer access model is preserved; the new policies give `is_internal_staff` users SELECT + ALL write access via a separate path. This is additive and does not remove or alter any existing policy.
+
+---
+
 ## 1. Exact migration file to apply
 
 ```
@@ -239,18 +287,18 @@ Wave 4A-1 is the first wave of catalogue authority staging import (PR C per `doc
 
 **Wave 4A-1 drafts must not be approved or applied before all items below are GO.**
 
-| # | Check | Status | Notes |
-|---|-------|--------|-------|
-| 1 | PR06C1b migration applied and all §4 post-apply checks pass | **GATE** | Required — Wave 4A-1 staging tables reference the same is_internal_staff RLS pattern; must confirm it works on this project first |
-| 2 | `catalogue_product_mappings` is live with ≥ 1 `synced` row | Verify via §4 §12 | Wave 4A-1 will reference this as the connector sync ledger; absence is a warning, not a hard blocker for Wave 4A-1 schema-only |
-| 3 | `catalogue_tag_drafts` and `catalogue_alias_drafts` confirmed present on prod | GATE (§4 §2) | C1a dependency for downstream Wave 4A collection→tag promotion path |
-| 4 | `approve_catalogue_tag_draft` / `approve_catalogue_alias_draft` RPCs confirmed live | GATE (§4 §10) | Wave 4A-1 is staging-only (no promotion), but the RPC gap must be documented before promotion PRs are drafted |
-| 5 | No active `catalogue_alias_drafts` with `status = pending_approval` that have a blocking `source_mapping_id` with `sync_status != 'synced'` | Verify | Clear any blocked drafts before Wave 4A-1 to avoid confusion in the approval inbox |
-| 6 | Migration drift acknowledged: 13 remote-only versions still unreconciled | INFO | Wave 4A-1 migration must also be applied via SQL Editor (not `db push`) until drift is resolved |
-| 7 | Authority source files committed under `project/raw/catalogue-authority/` (or equivalent) | Prerequisite per plan §2 | Block Wave 4A-1 data-load step (not schema step) until source manifest exists |
-| 8 | Staging environment (`source_environment = 'staging'` CHECK) validated on Wave 4A-1 PR before production apply | GATE | All Wave 4A-1 candidate tables must carry the staging constraint; no production promotion in Wave 4A-1 |
-| 9 | Internal staff user with `is_internal_staff() = true` confirmed available to test RLS on Wave 4A-1 staging tables | Verify | RLS testing requires a real authenticated user with correct role |
-| 10 | `CATALOGUE_AUTHORITY_STAGING_IMPORT_PLAN.md` §8 read-only boundaries reviewed and accepted by approver | Requirement | Products, product_aliases, product_bom, product_tags must remain read-only from Wave 4A-1 import job |
+| # | Check | Live status (2026-06-11) | Notes |
+|---|-------|--------------------------|-------|
+| 1 | PR06C1b migration applied and all §4 post-apply checks pass | **GATE — PENDING** (migration not yet applied) | Apply this pack first; then re-evaluate |
+| 2 | `catalogue_product_mappings` live with ≥ 1 `synced` row | **INFO — NOT MET** (0 rows in table) | Wave 4A-1 schema-only PR is not blocked; data-load step requires synced mappings |
+| 3 | `catalogue_tag_drafts` and `catalogue_alias_drafts` confirmed present on prod | **GATE — MET** ✅ (both tables live, RLS enabled) | C1a dependency satisfied |
+| 4 | All 4 C1a RPCs live | **GATE — MET** ✅ (all 4 RPCs confirmed) | Approval path functional |
+| 5 | No `pending_approval` alias/tag drafts that would be blocked by missing `source_mapping_id` mapping | **MET** ✅ (0 pending_approval rows; 267 approved) | No inbox backlog to clear before apply |
+| 6 | Migration drift acknowledged; apply via SQL Editor | **INFO — OPEN** (13 remote-only versions, drift unresolved) | Wave 4A-1 migration must also use SQL Editor path |
+| 7 | Authority source files committed under `project/raw/catalogue-authority/` | **NOT MET** (per `CATALOGUE_AUTHORITY_STAGING_IMPORT_PLAN.md` §2) | Blocks data-load step only, not schema step |
+| 8 | Wave 4A-1 migration carries `source_environment = 'staging'` CHECK on all candidate tables | **GATE — PENDING** (Wave 4A-1 not yet drafted) | Must be enforced on PR before staging apply |
+| 9 | Internal staff user confirmed available to test RLS on Wave 4A-1 tables | **Verify** | Required before production apply of Wave 4A-1 |
+| 10 | `CATALOGUE_AUTHORITY_STAGING_IMPORT_PLAN.md` §8 read-only boundaries reviewed and accepted | **Requirement — OPEN** | Products/aliases/tags must stay read-only from staging import job |
 
 ### Wave 4A-1 GO decision
 
