@@ -1,0 +1,51 @@
+sku,product_name,product_id,activation_order,step_id,step_label,owner,prerequisite,status,blocker
+OAS-AS-BKL-0024,Mor Pistachio Durum,cea65af8-129c-4838-988f-30955fa5bc22,1,intake_upload,Hero and square uploaded to intake prefix,merchandising,none,pending,0 files in intake
+OAS-AS-BKL-0024,Mor Pistachio Durum,cea65af8-129c-4838-988f-30955fa5bc22,1,image_review,Image reviewer checklist passed (clarity product packaging watermark catalogue),merchandising_lead,intake_upload,pending,awaiting upload
+OAS-AS-BKL-0024,Mor Pistachio Durum,cea65af8-129c-4838-988f-30955fa5bc22,1,image_publish,Square published to live prefix and image_url linked,catalogue_admin,image_review,deferred,no direct product update in intake wave
+OAS-AS-BKL-0024,Mor Pistachio Durum,cea65af8-129c-4838-988f-30955fa5bc22,1,description_review,Description approval checklist signed,merchandising,none,pending,draft in CSV only
+OAS-AS-BKL-0024,Mor Pistachio Durum,cea65af8-129c-4838-988f-30955fa5bc22,1,description_publish,Description saved to products.description,catalogue_admin,description_review,deferred,governed write separate
+OAS-AS-BKL-0024,Mor Pistachio Durum,cea65af8-129c-4838-988f-30955fa5bc22,1,is_active_verify,products.is_active confirmed true,catalogue_admin,none,unverified,not in snapshot
+OAS-AS-BKL-0024,Mor Pistachio Durum,cea65af8-129c-4838-988f-30955fa5bc22,1,aliases_verify,Live product_aliases count re-verified,language_ops,none,ready,21 live rows
+OAS-AS-BKL-0024,Mor Pistachio Durum,cea65af8-129c-4838-988f-30955fa5bc22,1,resolver_verify,Resolver PASS on primary utterance,language_ops,none,ready,PASS
+OAS-AS-BKL-0024,Mor Pistachio Durum,cea65af8-129c-4838-988f-30955fa5bc22,1,staging_qa,Staging buyer preview QA,operations,"image_publish,description_publish,is_active_verify",pending,blocked on media
+OAS-AS-BKL-0024,Mor Pistachio Durum,cea65af8-129c-4838-988f-30955fa5bc22,1,visibility_flip,Per-SKU visible_in_catalog activation,catalogue_admin,all_prior_steps,do_not_activate,no bulk publish
+OAS-AS-BKL-0020,Tart Cashew,b0aee1c4-4502-4a15-9880-e2c01378c0b5,2,intake_upload,Hero and square uploaded to intake prefix,merchandising,none,pending,0 files in intake
+OAS-AS-BKL-0020,Tart Cashew,b0aee1c4-4502-4a15-9880-e2c01378c0b5,2,image_review,Image reviewer checklist passed (clarity product packaging watermark catalogue),merchandising_lead,intake_upload,pending,awaiting upload
+OAS-AS-BKL-0020,Tart Cashew,b0aee1c4-4502-4a15-9880-e2c01378c0b5,2,image_publish,Square published to live prefix and image_url linked,catalogue_admin,image_review,deferred,no direct product update in intake wave
+OAS-AS-BKL-0020,Tart Cashew,b0aee1c4-4502-4a15-9880-e2c01378c0b5,2,description_review,Description approval checklist signed,merchandising,none,pending,draft in CSV only
+OAS-AS-BKL-0020,Tart Cashew,b0aee1c4-4502-4a15-9880-e2c01378c0b5,2,description_publish,Description saved to products.description,catalogue_admin,description_review,deferred,governed write separate
+OAS-AS-BKL-0020,Tart Cashew,b0aee1c4-4502-4a15-9880-e2c01378c0b5,2,is_active_verify,products.is_active confirmed true,catalogue_admin,none,unverified,not in snapshot
+OAS-AS-BKL-0020,Tart Cashew,b0aee1c4-4502-4a15-9880-e2c01378c0b5,2,aliases_verify,Live product_aliases count re-verified,language_ops,none,ready,19 live rows
+OAS-AS-BKL-0020,Tart Cashew,b0aee1c4-4502-4a15-9880-e2c01378c0b5,2,resolver_verify,Resolver PASS on primary utterance,language_ops,none,ready,PASS
+OAS-AS-BKL-0020,Tart Cashew,b0aee1c4-4502-4a15-9880-e2c01378c0b5,2,staging_qa,Staging buyer preview QA,operations,"image_publish,description_publish,is_active_verify",pending,blocked on media
+OAS-AS-BKL-0020,Tart Cashew,b0aee1c4-4502-4a15-9880-e2c01378c0b5,2,visibility_flip,Per-SKU visible_in_catalog activation,catalogue_admin,all_prior_steps,do_not_activate,no bulk publish
+OAS-AS-BKL-0001,Cashew Kitta,c7c0c5aa-1d2f-4088-88f1-1e5aacd321a0,3,intake_upload,Hero and square uploaded to intake prefix,merchandising,none,pending,0 files in intake
+OAS-AS-BKL-0001,Cashew Kitta,c7c0c5aa-1d2f-4088-88f1-1e5aacd321a0,3,image_review,Image reviewer checklist passed (clarity product packaging watermark catalogue),merchandising_lead,intake_upload,pending,awaiting upload
+OAS-AS-BKL-0001,Cashew Kitta,c7c0c5aa-1d2f-4088-88f1-1e5aacd321a0,3,image_publish,Square published to live prefix and image_url linked,catalogue_admin,image_review,deferred,no direct product update in intake wave
+OAS-AS-BKL-0001,Cashew Kitta,c7c0c5aa-1d2f-4088-88f1-1e5aacd321a0,3,description_review,Description approval checklist signed,merchandising,none,pending,draft in CSV only
+OAS-AS-BKL-0001,Cashew Kitta,c7c0c5aa-1d2f-4088-88f1-1e5aacd321a0,3,description_publish,Description saved to products.description,catalogue_admin,description_review,deferred,governed write separate
+OAS-AS-BKL-0001,Cashew Kitta,c7c0c5aa-1d2f-4088-88f1-1e5aacd321a0,3,is_active_verify,products.is_active confirmed true,catalogue_admin,none,unverified,not in snapshot
+OAS-AS-BKL-0001,Cashew Kitta,c7c0c5aa-1d2f-4088-88f1-1e5aacd321a0,3,aliases_verify,Live product_aliases count re-verified,language_ops,none,ready,12 live rows
+OAS-AS-BKL-0001,Cashew Kitta,c7c0c5aa-1d2f-4088-88f1-1e5aacd321a0,3,resolver_verify,Resolver PASS on primary utterance,language_ops,none,ready,PASS
+OAS-AS-BKL-0001,Cashew Kitta,c7c0c5aa-1d2f-4088-88f1-1e5aacd321a0,3,staging_qa,Staging buyer preview QA,operations,"image_publish,description_publish,is_active_verify",pending,blocked on media
+OAS-AS-BKL-0001,Cashew Kitta,c7c0c5aa-1d2f-4088-88f1-1e5aacd321a0,3,visibility_flip,Per-SKU visible_in_catalog activation,catalogue_admin,all_prior_steps,do_not_activate,no bulk publish
+OAS-AS-BKL-0025,Coconut Durum,f58e0a78-53a9-400b-8768-7af09b68ba38,4,intake_upload,Hero and square uploaded to intake prefix,merchandising,none,pending,0 files in intake
+OAS-AS-BKL-0025,Coconut Durum,f58e0a78-53a9-400b-8768-7af09b68ba38,4,image_review,Image reviewer checklist passed (clarity product packaging watermark catalogue),merchandising_lead,intake_upload,pending,awaiting upload
+OAS-AS-BKL-0025,Coconut Durum,f58e0a78-53a9-400b-8768-7af09b68ba38,4,image_publish,Square published to live prefix and image_url linked,catalogue_admin,image_review,deferred,no direct product update in intake wave
+OAS-AS-BKL-0025,Coconut Durum,f58e0a78-53a9-400b-8768-7af09b68ba38,4,description_review,Description approval checklist signed,merchandising,none,pending,draft in CSV only
+OAS-AS-BKL-0025,Coconut Durum,f58e0a78-53a9-400b-8768-7af09b68ba38,4,description_publish,Description saved to products.description,catalogue_admin,description_review,deferred,governed write separate
+OAS-AS-BKL-0025,Coconut Durum,f58e0a78-53a9-400b-8768-7af09b68ba38,4,is_active_verify,products.is_active confirmed true,catalogue_admin,none,unverified,not in snapshot
+OAS-AS-BKL-0025,Coconut Durum,f58e0a78-53a9-400b-8768-7af09b68ba38,4,aliases_verify,Live product_aliases count re-verified,language_ops,none,ready,12 live rows
+OAS-AS-BKL-0025,Coconut Durum,f58e0a78-53a9-400b-8768-7af09b68ba38,4,resolver_verify,Resolver PASS on primary utterance,language_ops,none,ready,PASS
+OAS-AS-BKL-0025,Coconut Durum,f58e0a78-53a9-400b-8768-7af09b68ba38,4,staging_qa,Staging buyer preview QA,operations,"image_publish,description_publish,is_active_verify",pending,blocked on media
+OAS-AS-BKL-0025,Coconut Durum,f58e0a78-53a9-400b-8768-7af09b68ba38,4,visibility_flip,Per-SKU visible_in_catalog activation,catalogue_admin,all_prior_steps,do_not_activate,no bulk publish
+OAS-AS-BKL-0007,Cashew Finger,2390ea3d-19ba-43bb-8624-d6b033153c2f,5,intake_upload,Hero and square uploaded to intake prefix,merchandising,none,pending,0 files in intake
+OAS-AS-BKL-0007,Cashew Finger,2390ea3d-19ba-43bb-8624-d6b033153c2f,5,image_review,Image reviewer checklist passed (clarity product packaging watermark catalogue),merchandising_lead,intake_upload,pending,awaiting upload
+OAS-AS-BKL-0007,Cashew Finger,2390ea3d-19ba-43bb-8624-d6b033153c2f,5,image_publish,Square published to live prefix and image_url linked,catalogue_admin,image_review,deferred,no direct product update in intake wave
+OAS-AS-BKL-0007,Cashew Finger,2390ea3d-19ba-43bb-8624-d6b033153c2f,5,description_review,Description approval checklist signed,merchandising,none,pending,draft in CSV only
+OAS-AS-BKL-0007,Cashew Finger,2390ea3d-19ba-43bb-8624-d6b033153c2f,5,description_publish,Description saved to products.description,catalogue_admin,description_review,deferred,governed write separate
+OAS-AS-BKL-0007,Cashew Finger,2390ea3d-19ba-43bb-8624-d6b033153c2f,5,is_active_verify,products.is_active confirmed true,catalogue_admin,none,unverified,not in snapshot
+OAS-AS-BKL-0007,Cashew Finger,2390ea3d-19ba-43bb-8624-d6b033153c2f,5,aliases_verify,Live product_aliases count re-verified,language_ops,none,ready,11 live rows
+OAS-AS-BKL-0007,Cashew Finger,2390ea3d-19ba-43bb-8624-d6b033153c2f,5,resolver_verify,Resolver PASS on primary utterance,language_ops,none,ready,PASS
+OAS-AS-BKL-0007,Cashew Finger,2390ea3d-19ba-43bb-8624-d6b033153c2f,5,staging_qa,Staging buyer preview QA,operations,"image_publish,description_publish,is_active_verify",pending,blocked on media
+OAS-AS-BKL-0007,Cashew Finger,2390ea3d-19ba-43bb-8624-d6b033153c2f,5,visibility_flip,Per-SKU visible_in_catalog activation,catalogue_admin,all_prior_steps,do_not_activate,no bulk publish
