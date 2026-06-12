@@ -11,6 +11,9 @@ import {
   runResolverCoverage,
 } from "../src/lib/language-wave/index.ts";
 import { BATCH001_PRIMARY_ALIASES } from "../src/lib/language-wave/batch001PrimaryAliases.ts";
+import type { ResolverCoverageRow } from "../src/lib/language-wave/types.ts";
+
+type ResolverStatus = "PASS" | "CLARIFY" | "FAIL";
 
 const ROOT = join(fileURLToPath(import.meta.url), "..", "..");
 const PORTAL = process.env.B2B_PORTAL_URL || "https://b2b.oasisbaklawa.com";
@@ -60,7 +63,7 @@ interface First5Row {
   liveAliasCount: number;
   primaryAlias: string;
   whatsappKeyword: string;
-  resolverStatus: "PASS" | "CLARIFY";
+  resolverStatus: ResolverStatus;
   resolverPass: boolean;
   categoryOk: boolean;
   packOk: boolean;
@@ -78,6 +81,33 @@ function csvEscape(v: string | number | boolean): string {
   return s;
 }
 
+function resolverStatusFromCoverage(resolver: ResolverCoverageRow | undefined): ResolverStatus {
+  if (!resolver) return "FAIL";
+  if (resolver.resolved) return "PASS";
+  if (resolver.clarification_required) return "CLARIFY";
+  return "FAIL";
+}
+
+function resolverGuidance(row: First5Row): string {
+  if (row.resolverStatus === "PASS") {
+    return `Primary utterance resolves to the expected product (\`${row.sku}\`). Buyer search and discovery appear healthy for this SKU.`;
+  }
+  if (row.resolverStatus === "CLARIFY") {
+    return `Resolver requires clarification before reliable product identification. Human review or alias expansion is required — resolver confidence is insufficient for unattended buyer discovery.`;
+  }
+  return `Resolver failed simulation and should be treated as blocked. The primary utterance does not reliably identify \`${row.sku}\`; language ops must remediate before activation.`;
+}
+
+function resolverActivationStep(row: First5Row): string {
+  if (row.resolverStatus === "PASS") {
+    return "Resolver remains **PASS**";
+  }
+  if (row.resolverStatus === "CLARIFY") {
+    return "Resolver **CLARIFY** — human review or alias expansion required before activation";
+  }
+  return "Resolver **FAIL** — blocked until language ops remediation";
+}
+
 function buildRow(sku: (typeof FIRST5_SKUS)[number]): First5Row {
   const product = batch001ProductBySku(sku)!;
   const snap = snapBySku.get(sku);
@@ -91,7 +121,8 @@ function buildRow(sku: (typeof FIRST5_SKUS)[number]): First5Row {
   const liveAliasCount = snap?.table_alias_count ?? 0;
   const hasImage = snap?.has_image ?? false;
   const visibleInCatalog = snap?.visible_in_catalog ?? false;
-  const resolverPass = resolver?.resolved ?? false;
+  const resolverStatus = resolverStatusFromCoverage(resolver);
+  const resolverPass = resolverStatus === "PASS";
 
   const gates = [
     visibleInCatalog,
@@ -123,7 +154,7 @@ function buildRow(sku: (typeof FIRST5_SKUS)[number]): First5Row {
     liveAliasCount,
     primaryAlias: BATCH001_PRIMARY_ALIASES[sku] ?? product.name,
     whatsappKeyword: BATCH001_RESOLVER_UTTERANCES[sku] ?? "",
-    resolverStatus: resolverPass ? "PASS" : "CLARIFY",
+    resolverStatus,
     resolverPass,
     categoryOk,
     packOk,
@@ -225,9 +256,17 @@ for (const r of rows) {
       status = "ready";
       notes = `${r.liveAliasCount} live rows in snapshot`;
     }
-    if (id === "resolver_pass" && r.resolverPass) {
-      status = "ready";
-      notes = "PASS";
+    if (id === "resolver_pass") {
+      if (r.resolverStatus === "PASS") {
+        status = "ready";
+        notes = "PASS";
+      } else if (r.resolverStatus === "CLARIFY") {
+        status = "blocked";
+        notes = "CLARIFY — clarification required";
+      } else {
+        status = "blocked";
+        notes = "FAIL — resolver blocked";
+      }
     }
     if (id === "hero_image_uploaded" || id === "catalogue_image_uploaded") {
       status = r.hasImage ? "ready" : "blocked";
@@ -328,7 +367,7 @@ ${r.missingAliases === "none (live aliases present)" ? "None — live alias cove
 
 ### Resolver status
 
-**${r.resolverStatus}** — primary utterance resolves to correct productId in simulation.
+**${r.resolverStatus}** — ${resolverGuidance(r)}
 
 ### Product URL
 
@@ -340,7 +379,7 @@ ${r.url}
 2. Description draft approved and saved to \`products.description\`
 3. \`is_active = true\` confirmed by catalogue admin
 4. Live alias count re-verified (${r.liveAliasCount} rows)
-5. Resolver remains **PASS**
+5. ${resolverActivationStep(r)}
 6. Pilot QA on preview environment
 7. **Then** single-SKU \`visible_in_catalog\` flip (not bulk)
 

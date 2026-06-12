@@ -68,7 +68,7 @@ None — live alias coverage present in Central snapshot.
 
 ### Resolver status
 
-**PASS** — primary utterance resolves to correct productId in simulation.
+**PASS** — Primary utterance resolves to the expected product (`OAS-AS-BKL-0024`). Buyer search and discovery appear healthy for this SKU.
 
 ### Product URL
 
@@ -139,7 +139,7 @@ None — live alias coverage present in Central snapshot.
 
 ### Resolver status
 
-**PASS** — primary utterance resolves to correct productId in simulation.
+**PASS** — Primary utterance resolves to the expected product (`OAS-AS-BKL-0020`). Buyer search and discovery appear healthy for this SKU.
 
 ### Product URL
 
@@ -210,7 +210,7 @@ None — live alias coverage present in Central snapshot.
 
 ### Resolver status
 
-**PASS** — primary utterance resolves to correct productId in simulation.
+**PASS** — Primary utterance resolves to the expected product (`OAS-AS-BKL-0001`). Buyer search and discovery appear healthy for this SKU.
 
 ### Product URL
 
@@ -281,7 +281,7 @@ None — live alias coverage present in Central snapshot.
 
 ### Resolver status
 
-**PASS** — primary utterance resolves to correct productId in simulation.
+**PASS** — Primary utterance resolves to the expected product (`OAS-AS-BKL-0025`). Buyer search and discovery appear healthy for this SKU.
 
 ### Product URL
 
@@ -352,7 +352,7 @@ None — live alias coverage present in Central snapshot.
 
 ### Resolver status
 
-**PASS** — primary utterance resolves to correct productId in simulation.
+**PASS** — Primary utterance resolves to the expected product (`OAS-AS-BKL-0007`). Buyer search and discovery appear healthy for this SKU.
 
 ### Product URL
 
