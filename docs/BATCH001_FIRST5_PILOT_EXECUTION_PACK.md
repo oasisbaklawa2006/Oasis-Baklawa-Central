@@ -10,7 +10,7 @@
 |--------|------:|
 | Average readiness (9 gates) | **56%** |
 | Pilot ready (all gates) | **0 / 5** |
-| Images required | **10 required** + **5 optional** detail (15 assets total) |
+| Images required | **10 required** + **5 optional** detail (15 assets outstanding) |
 | Description drafts prepared | **5 / 5** |
 | Alias gaps (live) | **0 / 5** |
 | **Buyer preview** | **NO-GO** |

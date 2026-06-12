@@ -139,7 +139,14 @@ const avgReadiness = Math.round(
   rows.reduce((s, r) => s + r.readinessPct, 0) / rows.length,
 );
 const pilotReadyCount = rows.filter((r) => r.pilotReady).length;
+const aliasGapCount = rows.filter((r) => r.liveAliasCount === 0).length;
+const missingImageCount = rows.filter((r) => !r.hasImage).length;
+const requiredImagesMissing = missingImageCount * 2;
 const goNoGo = pilotReadyCount === rows.length ? "GO" : "NO-GO";
+
+function requiredImageStatus(hasImage: boolean): string {
+  return hasImage ? "ready" : "missing";
+}
 
 mkdirSync(DATA, { recursive: true });
 
@@ -149,9 +156,11 @@ const mediaHeader =
 const mediaLines = [mediaHeader];
 for (const r of rows) {
   const base = r.sku.toLowerCase().replace(/-/g, "_");
+  const heroStatus = requiredImageStatus(r.hasImage);
+  const squareStatus = requiredImageStatus(r.hasImage);
   const assets = [
-    ["hero", "16:9", "1600x900", `${base}_hero.jpg`, "missing"],
-    ["catalogue_square", "1:1", "1200x1200", `${base}_catalogue_sq.jpg`, "missing"],
+    ["hero", "16:9", "1600x900", `${base}_hero.jpg`, heroStatus],
+    ["catalogue_square", "1:1", "1200x1200", `${base}_catalogue_sq.jpg`, squareStatus],
     ["detail_optional", "4:3", "1600x1200", `${base}_detail.jpg`, "optional_missing"],
   ] as const;
   for (const [type, aspect, res, file, status] of assets) {
@@ -259,9 +268,9 @@ const md = `# Batch 001 First 5 SKU Pilot Execution Pack
 |--------|------:|
 | Average readiness (9 gates) | **${avgReadiness}%** |
 | Pilot ready (all gates) | **${pilotReadyCount} / ${rows.length}** |
-| Images required | **${rows.length * 2} required** + **${rows.length} optional** detail (${rows.length * 3} assets total) |
+| Images required | **${requiredImagesMissing} required** + **${rows.length} optional** detail (${requiredImagesMissing + rows.length} assets outstanding) |
 | Description drafts prepared | **${rows.length} / ${rows.length}** |
-| Alias gaps (live) | **0 / ${rows.length}** |
+| Alias gaps (live) | **${aliasGapCount} / ${rows.length}** |
 | **Buyer preview** | **${goNoGo}** |
 
 ## Deliverables
@@ -295,8 +304,8 @@ ${rows
 
 | Asset | Aspect | Min size | Filename | Status |
 |-------|--------|----------|----------|--------|
-| Hero image | 16:9 | 1600×900 | \`${r.sku.toLowerCase().replace(/-/g, "_")}_hero.jpg\` | **Required — missing** |
-| Square catalogue image | 1:1 | 1200×1200 | \`${r.sku.toLowerCase().replace(/-/g, "_")}_catalogue_sq.jpg\` | **Required — missing** |
+| Hero image | 16:9 | 1600×900 | \`${r.sku.toLowerCase().replace(/-/g, "_")}_hero.jpg\` | **Required — ${requiredImageStatus(r.hasImage)}** |
+| Square catalogue image | 1:1 | 1200×1200 | \`${r.sku.toLowerCase().replace(/-/g, "_")}_catalogue_sq.jpg\` | **Required — ${requiredImageStatus(r.hasImage)}** |
 | Detail image (optional) | 4:3 | 1600×1200 | \`${r.sku.toLowerCase().replace(/-/g, "_")}_detail.jpg\` | Optional |
 
 ### Buyer-facing description (draft)
