@@ -58,6 +58,8 @@ interface First5Row {
   visibleInCatalog: boolean;
   isActiveVerified: boolean;
   hasImage: boolean;
+  hasHeroImage: boolean;
+  hasSquareImage: boolean;
   hasDescriptionInDb: boolean;
   descriptionDraft: string;
   liveAliasCount: number;
@@ -98,6 +100,51 @@ function resolverGuidance(row: First5Row): string {
   return `Resolver failed simulation and should be treated as blocked. The primary utterance does not reliably identify \`${row.sku}\`; language ops must remediate before activation.`;
 }
 
+type RequiredAssetType = "hero" | "catalogue_square";
+
+function requiredAssetStatus(row: First5Row, assetType: RequiredAssetType): string {
+  if (assetType === "hero") {
+    if (row.hasHeroImage) return "ready";
+    if (row.hasImage) return "ready_from_generic_image";
+    return "missing";
+  }
+  if (row.hasSquareImage) return "ready";
+  if (row.hasImage) return "needs_square_crop_review";
+  return "missing";
+}
+
+function requiredAssetMarkdownLabel(status: string): string {
+  switch (status) {
+    case "ready":
+      return "ready";
+    case "ready_from_generic_image":
+      return "ready from generic image (hero crop pending)";
+    case "needs_square_crop_review":
+      return "needs square crop review";
+    default:
+      return "missing";
+  }
+}
+
+function assetActivationGate(assetStatus: string): { status: string; notes: string } {
+  switch (assetStatus) {
+    case "ready":
+      return { status: "ready", notes: "dedicated asset present" };
+    case "ready_from_generic_image":
+      return {
+        status: "blocked",
+        notes: "generic image_url only — dedicated hero asset required",
+      };
+    case "needs_square_crop_review":
+      return {
+        status: "blocked",
+        notes: "generic image_url only — square crop review required",
+      };
+    default:
+      return { status: "blocked", notes: "image_url missing" };
+  }
+}
+
 function resolverActivationStep(row: First5Row): string {
   if (row.resolverStatus === "PASS") {
     return "Resolver remains **PASS**";
@@ -120,6 +167,8 @@ function buildRow(sku: (typeof FIRST5_SKUS)[number]): First5Row {
   );
   const liveAliasCount = snap?.table_alias_count ?? 0;
   const hasImage = snap?.has_image ?? false;
+  const hasHeroImage = false;
+  const hasSquareImage = false;
   const visibleInCatalog = snap?.visible_in_catalog ?? false;
   const resolverStatus = resolverStatusFromCoverage(resolver);
   const resolverPass = resolverStatus === "PASS";
@@ -149,6 +198,8 @@ function buildRow(sku: (typeof FIRST5_SKUS)[number]): First5Row {
     visibleInCatalog,
     isActiveVerified: IS_ACTIVE_IN_SNAPSHOT,
     hasImage,
+    hasHeroImage,
+    hasSquareImage,
     hasDescriptionInDb: DESCRIPTION_IN_DB,
     descriptionDraft: DESCRIPTION_DRAFTS[sku],
     liveAliasCount,
@@ -171,13 +222,12 @@ const avgReadiness = Math.round(
 );
 const pilotReadyCount = rows.filter((r) => r.pilotReady).length;
 const aliasGapCount = rows.filter((r) => r.liveAliasCount === 0).length;
-const missingImageCount = rows.filter((r) => !r.hasImage).length;
-const requiredImagesMissing = missingImageCount * 2;
+const requiredImagesMissing = rows.reduce((sum, row) => {
+  const heroOutstanding = requiredAssetStatus(row, "hero") !== "ready";
+  const squareOutstanding = requiredAssetStatus(row, "catalogue_square") !== "ready";
+  return sum + (heroOutstanding ? 1 : 0) + (squareOutstanding ? 1 : 0);
+}, 0);
 const goNoGo = pilotReadyCount === rows.length ? "GO" : "NO-GO";
-
-function requiredImageStatus(hasImage: boolean): string {
-  return hasImage ? "ready" : "missing";
-}
 
 mkdirSync(DATA, { recursive: true });
 
@@ -187,8 +237,8 @@ const mediaHeader =
 const mediaLines = [mediaHeader];
 for (const r of rows) {
   const base = r.sku.toLowerCase().replace(/-/g, "_");
-  const heroStatus = requiredImageStatus(r.hasImage);
-  const squareStatus = requiredImageStatus(r.hasImage);
+  const heroStatus = requiredAssetStatus(r, "hero");
+  const squareStatus = requiredAssetStatus(r, "catalogue_square");
   const assets = [
     ["hero", "16:9", "1600x900", `${base}_hero.jpg`, heroStatus],
     ["catalogue_square", "1:1", "1200x1200", `${base}_catalogue_sq.jpg`, squareStatus],
@@ -252,9 +302,14 @@ for (const r of rows) {
   for (const [id, label, owner] of preconditions) {
     let status = "pending";
     let notes = "";
-    if (id === "aliases_verified" && r.liveAliasCount > 0) {
-      status = "ready";
-      notes = `${r.liveAliasCount} live rows in snapshot`;
+    if (id === "aliases_verified") {
+      if (r.liveAliasCount > 0) {
+        status = "ready";
+        notes = `${r.liveAliasCount} live alias rows`;
+      } else {
+        status = "blocked";
+        notes = "0 live alias rows — alias approval required";
+      }
     }
     if (id === "resolver_pass") {
       if (r.resolverStatus === "PASS") {
@@ -268,9 +323,15 @@ for (const r of rows) {
         notes = "FAIL — resolver blocked";
       }
     }
-    if (id === "hero_image_uploaded" || id === "catalogue_image_uploaded") {
-      status = r.hasImage ? "ready" : "blocked";
-      notes = r.hasImage ? "image_url present" : "image_url missing";
+    if (id === "hero_image_uploaded") {
+      const gate = assetActivationGate(requiredAssetStatus(r, "hero"));
+      status = gate.status;
+      notes = gate.notes;
+    }
+    if (id === "catalogue_image_uploaded") {
+      const gate = assetActivationGate(requiredAssetStatus(r, "catalogue_square"));
+      status = gate.status;
+      notes = gate.notes;
     }
     if (id === "description_approved") {
       status = "draft_ready";
@@ -343,8 +404,8 @@ ${rows
 
 | Asset | Aspect | Min size | Filename | Status |
 |-------|--------|----------|----------|--------|
-| Hero image | 16:9 | 1600×900 | \`${r.sku.toLowerCase().replace(/-/g, "_")}_hero.jpg\` | **Required — ${requiredImageStatus(r.hasImage)}** |
-| Square catalogue image | 1:1 | 1200×1200 | \`${r.sku.toLowerCase().replace(/-/g, "_")}_catalogue_sq.jpg\` | **Required — ${requiredImageStatus(r.hasImage)}** |
+| Hero image | 16:9 | 1600×900 | \`${r.sku.toLowerCase().replace(/-/g, "_")}_hero.jpg\` | **Required — ${requiredAssetMarkdownLabel(requiredAssetStatus(r, "hero"))}** |
+| Square catalogue image | 1:1 | 1200×1200 | \`${r.sku.toLowerCase().replace(/-/g, "_")}_catalogue_sq.jpg\` | **Required — ${requiredAssetMarkdownLabel(requiredAssetStatus(r, "catalogue_square"))}** |
 | Detail image (optional) | 4:3 | 1600×1200 | \`${r.sku.toLowerCase().replace(/-/g, "_")}_detail.jpg\` | Optional |
 
 ### Buyer-facing description (draft)
