@@ -1,0 +1,16 @@
+sku,product_name,product_id,asset_type,aspect_ratio,min_resolution_px,filename_convention,current_status,owner
+OAS-AS-BKL-0024,Mor Pistachio Durum,cea65af8-129c-4838-988f-30955fa5bc22,hero,16:9,1600x900,oas_as_bkl_0024_hero.jpg,missing,merchandising
+OAS-AS-BKL-0024,Mor Pistachio Durum,cea65af8-129c-4838-988f-30955fa5bc22,catalogue_square,1:1,1200x1200,oas_as_bkl_0024_catalogue_sq.jpg,missing,merchandising
+OAS-AS-BKL-0024,Mor Pistachio Durum,cea65af8-129c-4838-988f-30955fa5bc22,detail_optional,4:3,1600x1200,oas_as_bkl_0024_detail.jpg,optional_missing,merchandising
+OAS-AS-BKL-0020,Tart Cashew,b0aee1c4-4502-4a15-9880-e2c01378c0b5,hero,16:9,1600x900,oas_as_bkl_0020_hero.jpg,missing,merchandising
+OAS-AS-BKL-0020,Tart Cashew,b0aee1c4-4502-4a15-9880-e2c01378c0b5,catalogue_square,1:1,1200x1200,oas_as_bkl_0020_catalogue_sq.jpg,missing,merchandising
+OAS-AS-BKL-0020,Tart Cashew,b0aee1c4-4502-4a15-9880-e2c01378c0b5,detail_optional,4:3,1600x1200,oas_as_bkl_0020_detail.jpg,optional_missing,merchandising
+OAS-AS-BKL-0001,Cashew Kitta,c7c0c5aa-1d2f-4088-88f1-1e5aacd321a0,hero,16:9,1600x900,oas_as_bkl_0001_hero.jpg,missing,merchandising
+OAS-AS-BKL-0001,Cashew Kitta,c7c0c5aa-1d2f-4088-88f1-1e5aacd321a0,catalogue_square,1:1,1200x1200,oas_as_bkl_0001_catalogue_sq.jpg,missing,merchandising
+OAS-AS-BKL-0001,Cashew Kitta,c7c0c5aa-1d2f-4088-88f1-1e5aacd321a0,detail_optional,4:3,1600x1200,oas_as_bkl_0001_detail.jpg,optional_missing,merchandising
+OAS-AS-BKL-0025,Coconut Durum,f58e0a78-53a9-400b-8768-7af09b68ba38,hero,16:9,1600x900,oas_as_bkl_0025_hero.jpg,missing,merchandising
+OAS-AS-BKL-0025,Coconut Durum,f58e0a78-53a9-400b-8768-7af09b68ba38,catalogue_square,1:1,1200x1200,oas_as_bkl_0025_catalogue_sq.jpg,missing,merchandising
+OAS-AS-BKL-0025,Coconut Durum,f58e0a78-53a9-400b-8768-7af09b68ba38,detail_optional,4:3,1600x1200,oas_as_bkl_0025_detail.jpg,optional_missing,merchandising
+OAS-AS-BKL-0007,Cashew Finger,2390ea3d-19ba-43bb-8624-d6b033153c2f,hero,16:9,1600x900,oas_as_bkl_0007_hero.jpg,missing,merchandising
+OAS-AS-BKL-0007,Cashew Finger,2390ea3d-19ba-43bb-8624-d6b033153c2f,catalogue_square,1:1,1200x1200,oas_as_bkl_0007_catalogue_sq.jpg,missing,merchandising
+OAS-AS-BKL-0007,Cashew Finger,2390ea3d-19ba-43bb-8624-d6b033153c2f,detail_optional,4:3,1600x1200,oas_as_bkl_0007_detail.jpg,optional_missing,merchandising
