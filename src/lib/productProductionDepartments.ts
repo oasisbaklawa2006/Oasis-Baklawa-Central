@@ -30,6 +30,7 @@ const LEGACY_LABEL_TO_VALUE: Record<string, ProductProductionDepartment> = {
   "seasoned nuts": "seasoned_nuts_mixes",
   "seasoned nuts & mixes": "seasoned_nuts_mixes",
   "nuts & mixes": "seasoned_nuts_mixes",
+  "nuts roasting": "seasoned_nuts_mixes",
 };
 
 export function isAllowedProductProductionDepartment(
@@ -55,4 +56,15 @@ export function productProductionDepartmentLabel(value: string | null | undefine
     return PRODUCT_PRODUCTION_DEPARTMENTS.find((department) => department.value === normalized)?.label ?? normalized;
   }
   return value;
+}
+
+/** Canonical comparison for Factory TV / production routing filters vs product rows. */
+export function productionDepartmentMatchesFilter(
+  filter: string | null | undefined,
+  productDepartment: string | null | undefined,
+): boolean {
+  const filterCanonical = normalizeProductProductionDepartment(filter);
+  const productCanonical = normalizeProductProductionDepartment(productDepartment);
+  if (!filterCanonical || !productCanonical) return false;
+  return filterCanonical === productCanonical;
 }

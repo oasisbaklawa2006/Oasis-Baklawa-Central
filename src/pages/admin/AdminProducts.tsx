@@ -101,7 +101,8 @@ const GST_RATES = [0, 5, 12, 18, 28];
 const DIETARY_OPTIONS = ["100% Eggless", "Contains Nuts", "Vegan", "Gluten-Free", "Sugar-Free", "No Preservatives"];
 const STORAGE_OPTIONS = ["ambient", "refrigerated", "frozen"];
 
-const EMPTY_FORM = {
+export const EMPTY_FORM = {
+  name: "",
   sku: "",
   category: CATEGORIES[0],
   sub_category: "",
