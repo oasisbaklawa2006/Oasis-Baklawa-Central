@@ -25,6 +25,12 @@ import {
   Trash2,
   Search,
 } from "lucide-react";
+import {
+  isAllowedProductProductionDepartment,
+  normalizeProductProductionDepartment,
+  PRODUCT_PRODUCTION_DEPARTMENTS,
+  productProductionDepartmentLabel,
+} from "@/lib/productProductionDepartments";
 
 interface ProductTagItem {
   id: string;
@@ -95,28 +101,7 @@ const GST_RATES = [0, 5, 12, 18, 28];
 const DIETARY_OPTIONS = ["100% Eggless", "Contains Nuts", "Vegan", "Gluten-Free", "Sugar-Free", "No Preservatives"];
 const STORAGE_OPTIONS = ["ambient", "refrigerated", "frozen"];
 
-const TARGET_DEPARTMENTS = [
-  "Arabic Sweets",
-  "Chocolates",
-  "Bakery",
-  "Dragees",
-  "Fusion Sweets",
-  "Seasoned Nuts",
-  "3rd Party Store",
-  "Packing & Assembly",
-];
-
-const PRODUCTION_DEPARTMENTS = [
-  "Bakery Department",
-  "Arabic Sweets Department",
-  "Confectionery & Chocolates Department",
-  "Fusion Sweets Department",
-  "Packaging Assembly Department",
-  "Nuts Roasting and Coating Department",
-  "Packing Material Department",
-];
-
-const EMPTY_FORM = {
+export const EMPTY_FORM = {
   name: "",
   sku: "",
   category: CATEGORIES[0],
@@ -468,7 +453,7 @@ const AdminProducts = () => {
         category: product.category || CATEGORIES[0],
         sub_category: product.sub_category || "",
         department: product.department || "",
-        production_department: product.production_department || "",
+        production_department: normalizeProductProductionDepartment(product.production_department) ?? "",
         price_per_kg: product.price_per_kg?.toString() || "",
         pack_size: product.pack_size || "",
         carton_type: product.carton_type || "",
@@ -595,6 +580,11 @@ const AdminProducts = () => {
   const handleSaveProduct = async () => {
     if (!formData.name || !formData.wholesale_price) return toast.error("Name and B2B Base Price (₹) are required.");
     if (!formData.production_department) return toast.error("Target Department is mandatory for order routing.");
+    if (!isAllowedProductProductionDepartment(formData.production_department)) {
+      return toast.error(
+        "Target Department must be a valid production department. Re-select from the list before saving.",
+      );
+    }
     if (formData.is_active) {
       if (!formData.hsn_code || !formData.hsn_code.trim()) return toast.error("HSN Code is mandatory for Active products.");
       if (!formData.gst_percentage && formData.gst_percentage !== "0") return toast.error("GST Rate is mandatory for Active products.");
@@ -882,7 +872,7 @@ const AdminProducts = () => {
                   )}
                   {product.production_department && (
                     <span className="absolute top-2 left-2 bg-primary/90 text-primary-foreground text-[9px] font-bold px-2 py-0.5 rounded">
-                      {product.production_department}
+                      {productProductionDepartmentLabel(product.production_department)}
                     </span>
                   )}
                 </div>
@@ -1063,9 +1053,9 @@ const AdminProducts = () => {
                         className="w-full bg-destructive/5 border border-destructive/30 rounded-lg p-2.5 text-sm font-semibold outline-none focus:ring-1 focus:ring-destructive"
                       >
                         <option value="">— MUST SELECT —</option>
-                        {TARGET_DEPARTMENTS.map((dept) => (
-                          <option key={dept} value={dept}>
-                            {dept}
+                        {PRODUCT_PRODUCTION_DEPARTMENTS.map((dept) => (
+                          <option key={dept.value} value={dept.value}>
+                            {dept.label}
                           </option>
                         ))}
                       </select>
@@ -1212,8 +1202,8 @@ const AdminProducts = () => {
                                   className={`w-full border rounded-md p-2 text-xs outline-none focus:ring-1 focus:ring-purple-500 ${comp.component_product_id ? "bg-green-50 dark:bg-green-950/20 border-green-300 dark:border-green-800 font-semibold" : "bg-background border-border"}`}
                                 >
                                   <option value="">—</option>
-                                  {TARGET_DEPARTMENTS.map((d) => (
-                                    <option key={d} value={d}>{d}</option>
+                                  {PRODUCT_PRODUCTION_DEPARTMENTS.map((d) => (
+                                    <option key={d.value} value={d.value}>{d.label}</option>
                                   ))}
                                 </select>
                               </div>

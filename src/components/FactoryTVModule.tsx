@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Loader2, RefreshCw, Clock, Package, AlertTriangle, Zap } from "lucide-react";
 import { getPackDescription, getPrimaryPackWeightKg } from "@/utils/pricing";
+import { productionDepartmentMatchesFilter } from "@/lib/productProductionDepartments";
 
 interface UrgentJob {
   id: string;
@@ -92,12 +93,11 @@ const FactoryTVModule = ({ category, departmentFilter, title }: FactoryTVModuleP
           ...item,
           product: productMap.get(item.product_id) ?? null,
         }))
-        .filter(
-          (item: TVOrderItem) => {
-            const routingDepartment = item.product?.production_department || item.product?.department || "";
-            return routingDepartment.toLowerCase().includes(departmentFilter.toLowerCase());
-          }
-        );
+        .filter((item: TVOrderItem) => {
+            const routingDepartment =
+              item.product?.production_department || item.product?.department || "";
+            return productionDepartmentMatchesFilter(departmentFilter, routingDepartment);
+          });
 
       if (filteredItems.length > 0) {
         enrichedOrders.push({ ...order, order_items: filteredItems });
