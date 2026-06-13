@@ -42,8 +42,10 @@ jobs:
       - name: Production build
         run: npm run build
 
+      # Install browser binaries only. `--with-deps` runs apt against runner mirrors
+      # (including packages.microsoft.com) and can fail with transient 403s unrelated to app code.
       - name: Install Playwright browsers
-        run: npx playwright install --with-deps
+        run: npx playwright install chromium
 
       # Golden Pipeline QA needs secrets; fallback keeps a deterministic public-URL screenshot smoke when secrets are absent.
       - name: Playwright Golden QA or visual smoke
