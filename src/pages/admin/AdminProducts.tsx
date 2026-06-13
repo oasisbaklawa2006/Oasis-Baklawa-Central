@@ -46,6 +46,7 @@ import {
   isPlaceholderNutritionFacts,
   nutritionReviewStatusFromFacts,
   shouldApplyLoadedProduct,
+  shouldReleaseLoadingProductGuard,
   shouldSkipUrlProductRestore,
 } from "@/lib/adminProductFormState";
 import {
@@ -327,7 +328,14 @@ const AdminProducts = () => {
         toast.error(err.message || "Failed to load product");
       }
     } finally {
-      if (loadingProductIdRef.current === productId) {
+      if (
+        shouldReleaseLoadingProductGuard({
+          generation,
+          currentGeneration: loadGenerationRef.current,
+          productId,
+          loadingProductId: loadingProductIdRef.current,
+        })
+      ) {
         loadingProductIdRef.current = null;
       }
       if (shouldApplyLoadedProduct(generation, loadGenerationRef.current)) {

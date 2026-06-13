@@ -6,6 +6,7 @@ import {
   isPlaceholderNutritionFacts,
   nutritionReviewStatusFromFacts,
   shouldApplyLoadedProduct,
+  shouldReleaseLoadingProductGuard,
   shouldSkipUrlProductRestore,
 } from "@/lib/adminProductFormState";
 import { PLACEHOLDER_NUTRITION_TEMPLATE } from "@/lib/productNutritionPlaceholder";
@@ -50,6 +51,33 @@ describe("adminProductFormState", () => {
   it("ignores stale async load completions", () => {
     expect(shouldApplyLoadedProduct(1, 1)).toBe(true);
     expect(shouldApplyLoadedProduct(1, 2)).toBe(false);
+  });
+
+  it("only active generation releases the loading product guard", () => {
+    expect(
+      shouldReleaseLoadingProductGuard({
+        generation: 2,
+        currentGeneration: 2,
+        productId: "abc",
+        loadingProductId: "abc",
+      }),
+    ).toBe(true);
+    expect(
+      shouldReleaseLoadingProductGuard({
+        generation: 1,
+        currentGeneration: 2,
+        productId: "abc",
+        loadingProductId: "abc",
+      }),
+    ).toBe(false);
+    expect(
+      shouldReleaseLoadingProductGuard({
+        generation: 2,
+        currentGeneration: 2,
+        productId: "abc",
+        loadingProductId: "xyz",
+      }),
+    ).toBe(false);
   });
 
   it("skips URL restore when product already loading or loaded", () => {

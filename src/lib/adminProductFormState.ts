@@ -65,3 +65,15 @@ export function shouldSkipUrlProductRestore(args: {
 export function shouldApplyLoadedProduct(generation: number, currentGeneration: number): boolean {
   return generation === currentGeneration;
 }
+
+/** Only the active generation may clear the in-flight product load guard. */
+export function shouldReleaseLoadingProductGuard(args: {
+  generation: number;
+  currentGeneration: number;
+  productId: string;
+  loadingProductId: string | null;
+}): boolean {
+  return (
+    args.currentGeneration === args.generation && args.loadingProductId === args.productId
+  );
+}
