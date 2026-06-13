@@ -41,6 +41,15 @@ import {
   mergeSelectedAliases,
 } from "@/lib/productAliasSuggestions";
 import {
+  applyCartonTypeFromPacks,
+  isFormDirty,
+  isPlaceholderNutritionFacts,
+  nutritionReviewStatusFromFacts,
+  shouldApplyLoadedProduct,
+  shouldReleaseLoadingProductGuard,
+  shouldSkipUrlProductRestore,
+} from "@/lib/adminProductFormState";
+import {
   NUTRITION_QA_WARNING,
   PLACEHOLDER_NUTRITION_TEMPLATE,
   type NutritionReviewStatus,
@@ -177,6 +186,8 @@ const AdminProducts = () => {
   const [saveError, setSaveError] = useState<string | null>(null);
   const [isDirty, setIsDirty] = useState(false);
   const formBaselineRef = useRef<string>("");
+  const loadingProductIdRef = useRef<string | null>(null);
+  const loadGenerationRef = useRef(0);
   const [uploadingImage, setUploadingImage] = useState(false);
   const [suggestedAliases, setSuggestedAliases] = useState<string[]>([]);
   const [rejectedAliases, setRejectedAliases] = useState<string[]>([]);
@@ -234,7 +245,15 @@ const AdminProducts = () => {
     setIsDirty(false);
   }, []);
 
-  const loadBom = async (productId: string) => {
+  const updateFormData = useCallback((updater: (prev: typeof EMPTY_FORM) => typeof EMPTY_FORM) => {
+    setFormData((prev: typeof EMPTY_FORM) => {
+      const next = updater(prev);
+      setIsDirty(isFormDirty(next, formBaselineRef.current));
+      return next;
+    });
+  }, []);
+
+  const loadBom = async (productId: string, applyState = true) => {
     const { data } = await supabase
       .from("product_bom")
       .select("*")
@@ -249,22 +268,23 @@ const AdminProducts = () => {
       source_department: d.source_department || "",
       unit_cost: 0,
     }));
-    setBomComponents(components);
+    if (applyState) setBomComponents(components);
     return components;
   };
 
   const loadProductIntoForm = useCallback(async (productId: string) => {
+    const generation = ++loadGenerationRef.current;
+    loadingProductIdRef.current = productId;
     setPanelLoading(true);
     try {
       const { data, error } = await supabase.from("products").select("*").eq("id", productId).single();
       if (error) throw error;
-      const product = data as Product;
-      setEditingProduct(product);
 
+      const product = data as Product;
       const baseForm = buildAdminProductFormFromRow(product as unknown as Record<string, unknown>, {
         defaultCategory: CATEGORIES[0],
       });
-      const components = await loadBom(productId);
+      const components = await loadBom(productId, false);
       const { data: varData } = await (supabase as any)
         .from("product_variants")
         .select("*")
@@ -278,38 +298,70 @@ const AdminProducts = () => {
         sku: v.sku || "",
         is_active: v.is_active,
       }));
+
+      if (!shouldApplyLoadedProduct(generation, loadGenerationRef.current)) return;
+
+      setEditingProduct(product);
+      setBomComponents(components);
       setProductVariants(loadedVariants);
 
+      const cartonFields = applyCartonTypeFromPacks({
+        packs_per_master_carton: String(baseForm.packs_per_master_carton ?? ""),
+        carton_type: String(baseForm.carton_type ?? ""),
+      });
       const nextForm = {
         ...baseForm,
+        ...cartonFields,
         has_bom: components.length > 0,
         enable_variants: loadedVariants.length > 0,
-      };
+      } as typeof EMPTY_FORM;
       setFormData(nextForm);
       markFormBaseline(nextForm);
       setSuggestedAliases([]);
       setRejectedAliases([]);
       setSelectedSuggestedAliases([]);
-      setNutritionReviewStatus("manual");
+      setNutritionReviewStatus(nutritionReviewStatusFromFacts(nextForm.nutrition_facts));
       setSaveStatus("idle");
       setSaveError(null);
     } catch (err: any) {
-      toast.error(err.message || "Failed to load product");
+      if (shouldApplyLoadedProduct(generation, loadGenerationRef.current)) {
+        toast.error(err.message || "Failed to load product");
+      }
     } finally {
-      setPanelLoading(false);
+      if (
+        shouldReleaseLoadingProductGuard({
+          generation,
+          currentGeneration: loadGenerationRef.current,
+          productId,
+          loadingProductId: loadingProductIdRef.current,
+        })
+      ) {
+        loadingProductIdRef.current = null;
+      }
+      if (shouldApplyLoadedProduct(generation, loadGenerationRef.current)) {
+        setPanelLoading(false);
+      }
     }
   }, [markFormBaseline]);
 
   // Restore edit panel from URL after list load / refresh
   useEffect(() => {
     const productId = searchParams.get("productId");
-    if (!productId || loading) return;
-    if (isPanelOpen && editingProduct?.id === productId) return;
-    const exists = products.some((p) => p.id === productId);
-    if (!exists) return;
+    const exists = Boolean(productId && products.some((p) => p.id === productId));
+    if (
+      shouldSkipUrlProductRestore({
+        productId,
+        loading,
+        productExists: exists,
+        editingProductId: editingProduct?.id ?? null,
+        loadingProductId: loadingProductIdRef.current,
+      })
+    ) {
+      return;
+    }
     setIsPanelOpen(true);
-    void loadProductIntoForm(productId);
-  }, [searchParams, products, loading, isPanelOpen, editingProduct?.id, loadProductIntoForm]);
+    void loadProductIntoForm(productId!);
+  }, [searchParams, products, loading, editingProduct?.id, loadProductIntoForm]);
 
   useEffect(() => {
     if (!isPanelOpen) return;
@@ -377,33 +429,20 @@ const AdminProducts = () => {
     }
   }, [formData.name, formData.net_weight_grams, editingProduct]);
 
-  // AUTO-GENERATE CARTON TYPE
-  useEffect(() => {
-    const packs = Number(formData.packs_per_master_carton);
-    if (packs > 0) {
-      let autoCarton = `${packs} Box`;
-      if (packs <= 4) autoCarton = `Small Master (${packs} Box)`;
-      else if (packs <= 6) autoCarton = `Medium Master (${packs} Box)`;
-      else if (packs <= 9) autoCarton = `Large Master (${packs} Box)`;
-      else if (packs >= 12) autoCarton = `Jumbo Master (${packs} Box)`;
-      setFormData((prev: any) => ({ ...prev, carton_type: autoCarton }));
-    } else {
-      setFormData((prev: any) => ({ ...prev, carton_type: "" }));
-    }
-  }, [formData.packs_per_master_carton]);
-
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
-    setFormData((prev: any) => {
-      const next = { ...prev, [name]: value };
-      setIsDirty(JSON.stringify(next) !== formBaselineRef.current);
+    updateFormData((prev) => {
+      let next = { ...prev, [name]: value };
+      if (name === "packs_per_master_carton") {
+        next = applyCartonTypeFromPacks(next);
+      }
       return next;
     });
     if (name === "nutrition_facts") setNutritionReviewStatus("manual");
   };
 
   const handleToggleDietaryTag = (tag: string) => {
-    setFormData((prev: any) => ({
+    updateFormData((prev) => ({
       ...prev,
       dietary_tags: prev.dietary_tags.includes(tag)
         ? prev.dietary_tags.filter((t: string) => t !== tag)
@@ -416,7 +455,7 @@ const AdminProducts = () => {
     if (!formData.name) return toast.error("Enter Product Name first.");
     setIsAiLoading("desc");
     await new Promise((r) => setTimeout(r, 1500));
-    setFormData((prev: any) => ({
+    updateFormData((prev) => ({
       ...prev,
       description: `A premium, handcrafted ${formData.name} made with the finest ingredients. Perfect for luxury gifting and high-end retail, maintaining authentic flavors and a crisp texture. Delivered in standard wholesale packaging ensuring maximum freshness.`,
     }));
@@ -440,17 +479,13 @@ const AdminProducts = () => {
       if (error) throw error;
       if (data?.error) throw new Error(data.error);
 
-      setFormData((prev: any) => {
-        const next = {
-          ...prev,
-          allergen_warnings: data.allergen_warnings || prev.allergen_warnings,
-          hsn_code: data.hsn_code || prev.hsn_code,
-          gst_percentage: data.gst_percentage?.toString() || prev.gst_percentage,
-          ingredients: data.ingredients || prev.ingredients,
-        };
-        setIsDirty(JSON.stringify(next) !== formBaselineRef.current);
-        return next;
-      });
+      updateFormData((prev) => ({
+        ...prev,
+        allergen_warnings: data.allergen_warnings || prev.allergen_warnings,
+        hsn_code: data.hsn_code || prev.hsn_code,
+        gst_percentage: data.gst_percentage?.toString() || prev.gst_percentage,
+        ingredients: data.ingredients || prev.ingredients,
+      }));
       toast.success("AI generated HSN, GST, allergens & ingredients — review before save.", { icon: "⚡" });
     } catch (err: any) {
       console.error("AI generation error:", err);
@@ -461,11 +496,7 @@ const AdminProducts = () => {
   };
 
   const handlePlaceholderNutrition = () => {
-    setFormData((prev: any) => {
-      const next = { ...prev, nutrition_facts: PLACEHOLDER_NUTRITION_TEMPLATE };
-      setIsDirty(JSON.stringify(next) !== formBaselineRef.current);
-      return next;
-    });
+    updateFormData((prev) => ({ ...prev, nutrition_facts: PLACEHOLDER_NUTRITION_TEMPLATE }));
     setNutritionReviewStatus("requires_qa_fssai_review");
     toast.message("Placeholder nutrition template applied — requires QA/FSSAI review.", { icon: "⚠️" });
   };
@@ -573,14 +604,10 @@ const AdminProducts = () => {
     if (selectedSuggestedAliases.length === 0) {
       return toast.error("Select at least one suggested alias to apply.");
     }
-    setFormData((prev: any) => {
-      const next = {
-        ...prev,
-        aliases: mergeSelectedAliases(prev.aliases || "", selectedSuggestedAliases),
-      };
-      setIsDirty(JSON.stringify(next) !== formBaselineRef.current);
-      return next;
-    });
+    updateFormData((prev) => ({
+      ...prev,
+      aliases: mergeSelectedAliases(prev.aliases || "", selectedSuggestedAliases),
+    }));
     setSuggestedAliases([]);
     setRejectedAliases([]);
     setSelectedSuggestedAliases([]);
@@ -597,11 +624,7 @@ const AdminProducts = () => {
       const { error: uploadError } = await supabase.storage.from("product-images").upload(fileName, file);
       if (uploadError) throw uploadError;
       const { data: publicUrlData } = supabase.storage.from("product-images").getPublicUrl(fileName);
-      setFormData((prev: any) => {
-        const next = { ...prev, image_url: publicUrlData.publicUrl };
-        setIsDirty(JSON.stringify(next) !== formBaselineRef.current);
-        return next;
-      });
+      updateFormData((prev) => ({ ...prev, image_url: publicUrlData.publicUrl }));
       toast.success("Image uploaded successfully!");
     } catch (error: any) {
       toast.error(error.message || "Failed to upload image");
@@ -1086,13 +1109,7 @@ const AdminProducts = () => {
                         <img src={formData.image_url} alt="Hero preview" className="w-full h-full object-cover" />
                         <button
                           type="button"
-                          onClick={() =>
-                            setFormData((prev: any) => {
-                              const next = { ...prev, image_url: "" };
-                              setIsDirty(JSON.stringify(next) !== formBaselineRef.current);
-                              return next;
-                            })
-                          }
+                          onClick={() => updateFormData((prev) => ({ ...prev, image_url: "" }))}
                           className="absolute top-1 right-1 bg-black/60 text-white rounded-full p-0.5 hover:bg-black/80"
                         >
                           <X size={10} />
@@ -1243,7 +1260,9 @@ const AdminProducts = () => {
                         type="checkbox"
                         id="bom_only"
                         checked={!formData.visible_in_catalog}
-                        onChange={(e) => setFormData((prev: any) => ({ ...prev, visible_in_catalog: !e.target.checked }))}
+                        onChange={(e) =>
+                          updateFormData((prev) => ({ ...prev, visible_in_catalog: !e.target.checked }))
+                        }
                         className="w-4 h-4 rounded border-border text-amber-600 focus:ring-amber-500"
                       />
                       <label htmlFor="bom_only" className="text-xs font-semibold text-foreground cursor-pointer">
@@ -1270,7 +1289,7 @@ const AdminProducts = () => {
                       <label className="text-xs font-semibold text-foreground">Enable BOM Blast</label>
                       <button
                         type="button"
-                        onClick={() => setFormData((prev: any) => ({ ...prev, has_bom: !prev.has_bom }))}
+                        onClick={() => updateFormData((prev) => ({ ...prev, has_bom: !prev.has_bom }))}
                         className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${formData.has_bom ? "bg-purple-500" : "bg-muted"}`}
                       >
                         <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${formData.has_bom ? "translate-x-6" : "translate-x-1"}`} />
@@ -1885,7 +1904,7 @@ const AdminProducts = () => {
                     <label className="text-xs font-semibold text-foreground">Enable Variants</label>
                     <button
                       type="button"
-                      onClick={() => setFormData((prev: any) => ({ ...prev, enable_variants: !prev.enable_variants }))}
+                      onClick={() => updateFormData((prev) => ({ ...prev, enable_variants: !prev.enable_variants }))}
                       className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${formData.enable_variants ? "bg-blue-500" : "bg-muted"}`}
                     >
                       <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${formData.enable_variants ? "translate-x-6" : "translate-x-1"}`} />
@@ -2057,7 +2076,7 @@ const AdminProducts = () => {
                     type="checkbox"
                     id="is_active"
                     checked={formData.is_active}
-                    onChange={(e) => setFormData({ ...formData, is_active: e.target.checked })}
+                    onChange={(e) => updateFormData((prev) => ({ ...prev, is_active: e.target.checked }))}
                     className="w-4 h-4 rounded border-border text-[#C5A059] focus:ring-[#C5A059]"
                   />
                   <label htmlFor="is_active" className="text-sm font-semibold text-foreground cursor-pointer">
