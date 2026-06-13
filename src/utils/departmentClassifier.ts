@@ -12,10 +12,10 @@ export type TriadFlow = "FLOW_FGS" | "FLOW_ASSEMBLY" | "FLOW_3PCS";
 const FGS_DEPARTMENTS = [
   "arabic sweets", "arabic", "arabic_sweets",
   "bakery",
-  "chocolate", "chocolates",
+  "chocolate", "chocolates", "chocolates_confectionery",
   "dragees",
   "fusion sweets", "fusion", "fusion_sweets",
-  "nuts", "nuts_mixes", "seasoned nuts", "nuts roasting", "seasoned nuts & mixes",
+  "nuts", "nuts_mixes", "seasoned_nuts_mixes", "seasoned nuts", "nuts roasting", "seasoned nuts & mixes",
 ];
 
 // Assembly departments
@@ -31,12 +31,14 @@ export const DEPT_TO_JOB_KEY: Record<string, string> = {
   "bakery": "bakery",
   "chocolate": "chocolate",
   "chocolates": "chocolate",
+  "chocolates_confectionery": "chocolate",
   "dragees": "dragees",
   "fusion sweets": "fusion_sweets",
   "fusion": "fusion_sweets",
   "fusion_sweets": "fusion_sweets",
   "nuts": "nuts_mixes",
   "nuts_mixes": "nuts_mixes",
+  "seasoned_nuts_mixes": "nuts_mixes",
   "seasoned nuts": "nuts_mixes",
   "nuts roasting": "nuts_mixes",
   "seasoned nuts & mixes": "nuts_mixes",
