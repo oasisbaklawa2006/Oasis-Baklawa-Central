@@ -1,4 +1,5 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import VariantManager, { type ProductVariant } from "@/components/admin/VariantManager";
 import { supabase } from "@/integrations/supabase/client";
 import { motion, AnimatePresence } from "framer-motion";
@@ -31,6 +32,19 @@ import {
   PRODUCT_PRODUCTION_DEPARTMENTS,
   productProductionDepartmentLabel,
 } from "@/lib/productProductionDepartments";
+import {
+  buildAdminProductFormFromRow,
+  mapNumericFieldsToPayload,
+} from "@/lib/adminProductFormMapping";
+import {
+  filterAndDedupeAliasSuggestions,
+  mergeSelectedAliases,
+} from "@/lib/productAliasSuggestions";
+import {
+  NUTRITION_QA_WARNING,
+  PLACEHOLDER_NUTRITION_TEMPLATE,
+  type NutritionReviewStatus,
+} from "@/lib/productNutritionPlaceholder";
 
 interface ProductTagItem {
   id: string;
@@ -143,18 +157,31 @@ export const EMPTY_FORM = {
   gross_weight_kg: "",
   bom_summary: "",
   // Intelligence & Search (parser/SO math)
-  aliases: "" as string, // comma-separated in UI; stored as text[]
+  aliases: "" as string,
   grams_per_piece: "",
   weight_per_box_kg: "",
+  primary_pack_weight_kg: "",
+  pcs_per_kg: "",
+  pcs_per_primary_pack: "",
 };
 
 const AdminProducts = () => {
+  const [searchParams, setSearchParams] = useSearchParams();
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [isPanelOpen, setIsPanelOpen] = useState(false);
+  const [panelLoading, setPanelLoading] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [saving, setSaving] = useState(false);
+  const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const [isDirty, setIsDirty] = useState(false);
+  const formBaselineRef = useRef<string>("");
   const [uploadingImage, setUploadingImage] = useState(false);
+  const [suggestedAliases, setSuggestedAliases] = useState<string[]>([]);
+  const [rejectedAliases, setRejectedAliases] = useState<string[]>([]);
+  const [selectedSuggestedAliases, setSelectedSuggestedAliases] = useState<string[]>([]);
+  const [nutritionReviewStatus, setNutritionReviewStatus] = useState<NutritionReviewStatus>("manual");
 
   const [isAiLoading, setIsAiLoading] = useState<string | null>(null);
   const [formData, setFormData] = useState<any>({ ...EMPTY_FORM });
@@ -191,6 +218,109 @@ const AdminProducts = () => {
     fetchProducts();
     fetchTags();
   }, []);
+
+  const setProductIdInUrl = useCallback(
+    (productId: string | null) => {
+      const next = new URLSearchParams(searchParams);
+      if (productId) next.set("productId", productId);
+      else next.delete("productId");
+      setSearchParams(next, { replace: true });
+    },
+    [searchParams, setSearchParams],
+  );
+
+  const markFormBaseline = useCallback((data: Record<string, unknown>) => {
+    formBaselineRef.current = JSON.stringify(data);
+    setIsDirty(false);
+  }, []);
+
+  const loadBom = async (productId: string) => {
+    const { data } = await supabase
+      .from("product_bom")
+      .select("*")
+      .eq("product_id", productId)
+      .order("created_at");
+    const components = (data || []).map((d: any) => ({
+      id: d.id,
+      component_product_id: d.component_product_id,
+      component_name: d.component_name || "",
+      quantity_per_unit: d.quantity_per_unit || 1,
+      uom: d.source_department ? "Gms" : "Pcs",
+      source_department: d.source_department || "",
+      unit_cost: 0,
+    }));
+    setBomComponents(components);
+    return components;
+  };
+
+  const loadProductIntoForm = useCallback(async (productId: string) => {
+    setPanelLoading(true);
+    try {
+      const { data, error } = await supabase.from("products").select("*").eq("id", productId).single();
+      if (error) throw error;
+      const product = data as Product;
+      setEditingProduct(product);
+
+      const baseForm = buildAdminProductFormFromRow(product as unknown as Record<string, unknown>, {
+        defaultCategory: CATEGORIES[0],
+      });
+      const components = await loadBom(productId);
+      const { data: varData } = await (supabase as any)
+        .from("product_variants")
+        .select("*")
+        .eq("product_id", productId)
+        .order("created_at");
+      const loadedVariants = (varData || []).map((v: any) => ({
+        id: v.id,
+        variant_name: v.variant_name,
+        price: v.price,
+        moq: v.moq,
+        sku: v.sku || "",
+        is_active: v.is_active,
+      }));
+      setProductVariants(loadedVariants);
+
+      const nextForm = {
+        ...baseForm,
+        has_bom: components.length > 0,
+        enable_variants: loadedVariants.length > 0,
+      };
+      setFormData(nextForm);
+      markFormBaseline(nextForm);
+      setSuggestedAliases([]);
+      setRejectedAliases([]);
+      setSelectedSuggestedAliases([]);
+      setNutritionReviewStatus("manual");
+      setSaveStatus("idle");
+      setSaveError(null);
+    } catch (err: any) {
+      toast.error(err.message || "Failed to load product");
+    } finally {
+      setPanelLoading(false);
+    }
+  }, [markFormBaseline]);
+
+  // Restore edit panel from URL after list load / refresh
+  useEffect(() => {
+    const productId = searchParams.get("productId");
+    if (!productId || loading) return;
+    if (isPanelOpen && editingProduct?.id === productId) return;
+    const exists = products.some((p) => p.id === productId);
+    if (!exists) return;
+    setIsPanelOpen(true);
+    void loadProductIntoForm(productId);
+  }, [searchParams, products, loading, isPanelOpen, editingProduct?.id, loadProductIntoForm]);
+
+  useEffect(() => {
+    if (!isPanelOpen) return;
+    const onBeforeUnload = (event: BeforeUnloadEvent) => {
+      if (!isDirty) return;
+      event.preventDefault();
+      event.returnValue = "";
+    };
+    window.addEventListener("beforeunload", onBeforeUnload);
+    return () => window.removeEventListener("beforeunload", onBeforeUnload);
+  }, [isPanelOpen, isDirty]);
 
   // When filter tag changes, fetch product IDs for that tag
   useEffect(() => {
@@ -264,7 +394,12 @@ const AdminProducts = () => {
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
-    setFormData((prev: any) => ({ ...prev, [name]: value }));
+    setFormData((prev: any) => {
+      const next = { ...prev, [name]: value };
+      setIsDirty(JSON.stringify(next) !== formBaselineRef.current);
+      return next;
+    });
+    if (name === "nutrition_facts") setNutritionReviewStatus("manual");
   };
 
   const handleToggleDietaryTag = (tag: string) => {
@@ -289,7 +424,7 @@ const AdminProducts = () => {
     setIsAiLoading(null);
   };
 
-  // REAL AI: Generate Nutrition, Allergens, HSN, GST, Ingredients
+  // AI compliance attributes (HSN/GST/allergens/ingredients) — nutrition excluded from auto-truth.
   const handleAiFullGenerate = async () => {
     if (!formData.name) return toast.error("Enter Product Name first.");
     setIsAiLoading("full");
@@ -305,21 +440,34 @@ const AdminProducts = () => {
       if (error) throw error;
       if (data?.error) throw new Error(data.error);
 
-      setFormData((prev: any) => ({
-        ...prev,
-        nutrition_facts: data.nutrition_facts || prev.nutrition_facts,
-        allergen_warnings: data.allergen_warnings || prev.allergen_warnings,
-        hsn_code: data.hsn_code || prev.hsn_code,
-        gst_percentage: data.gst_percentage?.toString() || prev.gst_percentage,
-        ingredients: data.ingredients || prev.ingredients,
-      }));
-      toast.success("AI attributes generated: Nutrition, Allergens, HSN, GST & Ingredients!", { icon: "⚡" });
+      setFormData((prev: any) => {
+        const next = {
+          ...prev,
+          allergen_warnings: data.allergen_warnings || prev.allergen_warnings,
+          hsn_code: data.hsn_code || prev.hsn_code,
+          gst_percentage: data.gst_percentage?.toString() || prev.gst_percentage,
+          ingredients: data.ingredients || prev.ingredients,
+        };
+        setIsDirty(JSON.stringify(next) !== formBaselineRef.current);
+        return next;
+      });
+      toast.success("AI generated HSN, GST, allergens & ingredients — review before save.", { icon: "⚡" });
     } catch (err: any) {
       console.error("AI generation error:", err);
       toast.error(err.message || "AI generation failed. Try again.");
     } finally {
       setIsAiLoading(null);
     }
+  };
+
+  const handlePlaceholderNutrition = () => {
+    setFormData((prev: any) => {
+      const next = { ...prev, nutrition_facts: PLACEHOLDER_NUTRITION_TEMPLATE };
+      setIsDirty(JSON.stringify(next) !== formBaselineRef.current);
+      return next;
+    });
+    setNutritionReviewStatus("requires_qa_fssai_review");
+    toast.message("Placeholder nutrition template applied — requires QA/FSSAI review.", { icon: "⚠️" });
   };
 
   // AI ALIAS SUGGESTIONS — uses oasis-ai-chat to propose B2B nicknames for the SKU.
@@ -380,7 +528,7 @@ const AdminProducts = () => {
 
       const cleaned = raw
         .split(/[,\n]/)
-        .map((s) => s.replace(/^[\s"\-•*\d.]+|["\s]+$/g, "").trim().toLowerCase())
+        .map((s) => s.replace(/^[\s"\-•*\d.]+|["\s]+$/g, "").trim())
         .filter((s) => s && s.length <= 40);
 
       if (cleaned.length === 0) {
@@ -388,10 +536,19 @@ const AdminProducts = () => {
         return;
       }
 
-      const existing = (formData.aliases || "").split(",").map((s: string) => s.trim().toLowerCase()).filter(Boolean);
-      const merged = Array.from(new Set([...existing, ...cleaned]));
-      setFormData((prev: any) => ({ ...prev, aliases: merged.join(", ") }));
-      toast.success(`Suggested ${cleaned.length} aliases — review & save.`, { icon: "✨" });
+      const existing = (formData.aliases || "")
+        .split(",")
+        .map((s: string) => s.trim().toLowerCase())
+        .filter(Boolean);
+      const { accepted, rejected } = filterAndDedupeAliasSuggestions(cleaned, productName, existing);
+      setSuggestedAliases(accepted);
+      setRejectedAliases(rejected);
+      setSelectedSuggestedAliases(accepted);
+      if (accepted.length === 0) {
+        toast.error("No safe alias suggestions — refine product name or add aliases manually.");
+        return;
+      }
+      toast.message(`AI suggested ${accepted.length} aliases — review before saving.`, { icon: "✨" });
     } catch (err: any) {
       clearTimeout(timeoutId);
       console.error("AI aliases error:", err);
@@ -406,6 +563,30 @@ const AdminProducts = () => {
     }
   };
 
+  const toggleSuggestedAlias = (alias: string) => {
+    setSelectedSuggestedAliases((prev) =>
+      prev.includes(alias) ? prev.filter((a) => a !== alias) : [...prev, alias],
+    );
+  };
+
+  const applySelectedSuggestedAliases = () => {
+    if (selectedSuggestedAliases.length === 0) {
+      return toast.error("Select at least one suggested alias to apply.");
+    }
+    setFormData((prev: any) => {
+      const next = {
+        ...prev,
+        aliases: mergeSelectedAliases(prev.aliases || "", selectedSuggestedAliases),
+      };
+      setIsDirty(JSON.stringify(next) !== formBaselineRef.current);
+      return next;
+    });
+    setSuggestedAliases([]);
+    setRejectedAliases([]);
+    setSelectedSuggestedAliases([]);
+    toast.success("Selected aliases added — save product to persist.");
+  };
+
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     try {
       if (!e.target.files || e.target.files.length === 0) return;
@@ -416,7 +597,11 @@ const AdminProducts = () => {
       const { error: uploadError } = await supabase.storage.from("product-images").upload(fileName, file);
       if (uploadError) throw uploadError;
       const { data: publicUrlData } = supabase.storage.from("product-images").getPublicUrl(fileName);
-      setFormData((prev: any) => ({ ...prev, image_url: publicUrlData.publicUrl }));
+      setFormData((prev: any) => {
+        const next = { ...prev, image_url: publicUrlData.publicUrl };
+        setIsDirty(JSON.stringify(next) !== formBaselineRef.current);
+        return next;
+      });
       toast.success("Image uploaded successfully!");
     } catch (error: any) {
       toast.error(error.message || "Failed to upload image");
@@ -425,107 +610,44 @@ const AdminProducts = () => {
     }
   };
 
-  const loadBom = async (productId: string) => {
-    const { data } = await supabase
-      .from("product_bom")
-      .select("*")
-      .eq("product_id", productId)
-      .order("created_at");
-    const components = (data || []).map((d: any) => ({
-        id: d.id,
-        component_product_id: d.component_product_id,
-        component_name: d.component_name || "",
-        quantity_per_unit: d.quantity_per_unit || 1,
-        uom: d.source_department ? "Gms" : "Pcs",
-        source_department: d.source_department || "",
-        unit_cost: 0,
-      }));
-    setBomComponents(components);
-    return components;
-  };
-
-  const openPanel = async (product?: Product) => {
+  const openPanel = (product?: Product) => {
     if (product) {
+      setIsPanelOpen(true);
       setEditingProduct(product);
-      setFormData({
-        name: product.name || "",
-        sku: product.sku || "",
-        category: product.category || CATEGORIES[0],
-        sub_category: product.sub_category || "",
-        department: product.department || "",
-        production_department: normalizeProductProductionDepartment(product.production_department) ?? "",
-        price_per_kg: product.price_per_kg?.toString() || "",
-        pack_size: product.pack_size || "",
-        carton_type: product.carton_type || "",
-        storage_type: product.storage_type || "ambient",
-        description: product.description || "",
-        shelf_life: product.shelf_life || "",
-        image_url: product.image_url || "",
-        is_active: product.is_active ?? true,
-        visible_in_catalog: (product as any).visible_in_catalog ?? true,
-        mrp: product.mrp?.toString() || "",
-        mrp_per_pc: product.mrp_per_pc?.toString() || "",
-        wholesale_price: product.wholesale_price?.toString() || "",
-        weight_per_pc_grams: product.weight_per_pc_grams?.toString() || "",
-        net_weight_grams: product.net_weight_grams?.toString() || "",
-        moq: product.moq?.toString() || "1",
-        packs_per_master_carton: product.packs_per_master_carton?.toString() || "",
-        hsn_code: product.hsn_code || "19059090",
-        gst_percentage: product.gst_percentage?.toString() || "18",
-        dietary_tags: product.dietary_tags || ["100% Eggless"],
-        uom: product.uom || "Kg",
-        settlement_unit: product.settlement_unit || "KG",
-        private_label_moq: product.private_label_moq?.toString() || "",
-        private_label_price: product.private_label_price?.toString() || "",
-        nutrition_facts: product.nutrition_facts || "",
-        allergen_warnings: product.allergen_warnings || "",
-        ingredients: product.ingredients || "",
-        has_bom: false,
-        enable_variants: false,
-        product_family: (product as any).product_family || "bulk_sweets",
-        dimensions: (product as any).dimensions || "",
-        material: (product as any).material || "",
-        gross_weight_kg: (product as any).gross_weight_kg?.toString() || "",
-        bom_summary: (product as any).bom_summary || "",
-        aliases: Array.isArray((product as any).aliases) ? (product as any).aliases.join(", ") : "",
-        grams_per_piece: (product as any).grams_per_piece?.toString() || "",
-        weight_per_box_kg: (product as any).weight_per_box_kg?.toString() || "",
-      });
-      const components = await loadBom(product.id);
-      // Load variants
-      const { data: varData } = await (supabase as any)
-        .from("product_variants")
-        .select("*")
-        .eq("product_id", product.id)
-        .order("created_at");
-      const loadedVariants = (varData || []).map((v: any) => ({
-        id: v.id,
-        variant_name: v.variant_name,
-        price: v.price,
-        moq: v.moq,
-        sku: v.sku || "",
-        is_active: v.is_active,
-      }));
-      setProductVariants(loadedVariants);
-      setFormData((prev: any) => ({
-        ...prev,
-        has_bom: components.length > 0,
-        enable_variants: loadedVariants.length > 0,
-      }));
-    } else {
-      setEditingProduct(null);
-      setFormData({ ...EMPTY_FORM });
-      setBomComponents([]);
-      setProductVariants([]);
+      setProductIdInUrl(product.id);
+      setSaveStatus("idle");
+      setSaveError(null);
+      void loadProductIntoForm(product.id);
+      return;
     }
+
+    setEditingProduct(null);
+    const blank = { ...EMPTY_FORM };
+    setFormData(blank);
+    markFormBaseline(blank);
+    setBomComponents([]);
+    setProductVariants([]);
+    setSuggestedAliases([]);
+    setRejectedAliases([]);
+    setSelectedSuggestedAliases([]);
+    setNutritionReviewStatus("manual");
+    setProductIdInUrl(null);
     setIsPanelOpen(true);
   };
 
   const closePanel = () => {
+    if (isDirty && !window.confirm("You have unsaved product changes. Close without saving?")) {
+      return;
+    }
     setIsPanelOpen(false);
+    setProductIdInUrl(null);
+    setSaveStatus("idle");
+    setSaveError(null);
+    setIsDirty(false);
     setTimeout(() => {
       setEditingProduct(null);
       setBomComponents([]);
+      setPanelLoading(false);
     }, 300);
   };
 
@@ -601,7 +723,10 @@ const AdminProducts = () => {
       }
     }
     setSaving(true);
+    setSaveStatus("saving");
+    setSaveError(null);
 
+    const numericPayload = mapNumericFieldsToPayload(formData);
     const payload: any = {
       name: formData.name,
       sku: formData.sku || null,
@@ -619,34 +744,22 @@ const AdminProducts = () => {
       is_active: formData.is_active,
       visible_in_catalog: formData.visible_in_catalog ?? true,
       shelf_life: formData.shelf_life || null,
-      price_per_kg: parseFloat(formData.price_per_kg) || null,
-      mrp: parseFloat(formData.mrp) || null,
-      mrp_per_pc: parseFloat(formData.mrp_per_pc) || null,
-      wholesale_price: parseFloat(formData.wholesale_price) || null,
-      weight_per_pc_grams: parseFloat(formData.weight_per_pc_grams) || null,
-      net_weight_grams: parseFloat(formData.net_weight_grams) || null,
-      moq: parseInt(formData.moq) || 1,
-      packs_per_master_carton: parseInt(formData.packs_per_master_carton) || null,
-      gst_percentage: parseInt(formData.gst_percentage) || 0,
+      ...numericPayload,
+      base_price: numericPayload.wholesale_price,
+      price_b2b: numericPayload.wholesale_price,
       uom: formData.uom || "Kg",
       settlement_unit: formData.settlement_unit || "KG",
-      base_price: parseFloat(formData.wholesale_price) || null,
-      price_b2b: parseFloat(formData.wholesale_price) || null,
-      private_label_moq: parseInt(formData.private_label_moq) || null,
-      private_label_price: parseFloat(formData.private_label_price) || null,
       nutrition_facts: formData.nutrition_facts || null,
       allergen_warnings: formData.allergen_warnings || null,
       ingredients: formData.ingredients || null,
       product_family: formData.product_family || null,
       dimensions: formData.dimensions || null,
       material: formData.material || null,
-      gross_weight_kg: parseFloat(formData.gross_weight_kg) || null,
       bom_summary: formData.bom_summary || null,
-      aliases: typeof formData.aliases === "string" && formData.aliases.trim()
-        ? formData.aliases.split(",").map((s: string) => s.trim()).filter(Boolean)
-        : [],
-      grams_per_piece: parseFloat(formData.grams_per_piece) || null,
-      weight_per_box_kg: parseFloat(formData.weight_per_box_kg) || null,
+      aliases:
+        typeof formData.aliases === "string" && formData.aliases.trim()
+          ? formData.aliases.split(",").map((s: string) => s.trim()).filter(Boolean)
+          : [],
     };
 
     try {
@@ -659,7 +772,10 @@ const AdminProducts = () => {
         const { data: newProd, error } = await (supabase as any).from("products").insert([payload]).select("id").single();
         if (error) throw error;
         productId = newProd.id;
+        setProductIdInUrl(productId);
       }
+
+      if (!productId) throw new Error("Save succeeded but product id is missing.");
 
       // Save BOM if applicable
       if (productId && formData.has_bom) {
@@ -705,12 +821,15 @@ const AdminProducts = () => {
         }
       }
 
-      await supabase.auth.getSession();
       await fetchProducts();
-      toast.success(editingProduct ? "Product updated successfully" : "New product added to catalog!");
-      closePanel();
+      await loadProductIntoForm(productId);
+      setSaveStatus("saved");
+      toast.success(editingProduct ? "Product saved successfully" : "New product added to catalog!");
     } catch (err: any) {
-      toast.error(err.message || "Failed to save product");
+      const message = err?.message || err?.details || "Failed to save product";
+      setSaveStatus("error");
+      setSaveError(message);
+      toast.error(`Save failed: ${message}`);
     } finally {
       setSaving(false);
     }
@@ -905,7 +1024,11 @@ const AdminProducts = () => {
                       <Tag size={10} /> Tags
                     </button>
                     <button
-                      onClick={() => openPanel(product)}
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        openPanel(product);
+                      }}
                       className="flex-1 text-[10px] font-semibold bg-muted hover:bg-muted/80 text-foreground py-1.5 rounded-md flex items-center justify-center gap-1 transition-colors"
                     >
                       <Edit2 size={10} /> Edit
@@ -945,7 +1068,12 @@ const AdminProducts = () => {
                 </button>
               </div>
 
-              <div className="flex-1 overflow-y-auto p-6 space-y-8">
+              <div className="flex-1 overflow-y-auto p-6 space-y-8 relative">
+                {panelLoading && (
+                  <div className="absolute inset-0 z-10 bg-background/70 flex items-center justify-center">
+                    <Loader2 size={28} className="animate-spin text-[#C5A059]" />
+                  </div>
+                )}
                 {/* 1. IDENTITY & VISUALS + DEPARTMENTAL LOCK */}
                 <section className="space-y-4">
                   <h3 className="text-xs font-bold text-muted-foreground uppercase tracking-widest border-b border-border pb-2 flex items-center gap-2">
@@ -955,10 +1083,16 @@ const AdminProducts = () => {
                   <div className="mt-2 flex items-center gap-4">
                     {formData.image_url ? (
                       <div className="relative w-16 h-16 rounded-lg overflow-hidden border border-border flex-shrink-0 bg-muted/30">
-                        <img src={formData.image_url} alt="Preview" className="w-full h-full object-cover" />
+                        <img src={formData.image_url} alt="Hero preview" className="w-full h-full object-cover" />
                         <button
                           type="button"
-                          onClick={() => setFormData((prev: any) => ({ ...prev, image_url: "" }))}
+                          onClick={() =>
+                            setFormData((prev: any) => {
+                              const next = { ...prev, image_url: "" };
+                              setIsDirty(JSON.stringify(next) !== formBaselineRef.current);
+                              return next;
+                            })
+                          }
                           className="absolute top-1 right-1 bg-black/60 text-white rounded-full p-0.5 hover:bg-black/80"
                         >
                           <X size={10} />
@@ -970,6 +1104,17 @@ const AdminProducts = () => {
                       </div>
                     )}
                     <div className="flex-1 space-y-2">
+                      <label className="block text-[10px] font-semibold text-muted-foreground uppercase">
+                        Hero image (catalogue primary)
+                      </label>
+                      <input
+                        type="url"
+                        name="image_url"
+                        value={formData.image_url}
+                        onChange={handleInputChange}
+                        placeholder="https://… or upload below"
+                        className="w-full bg-background border border-border rounded-lg px-3 py-2 text-xs outline-none focus:ring-1 focus:ring-[#C5A059]"
+                      />
                       <label
                         className={`flex flex-1 items-center justify-center gap-2 px-3 py-2 rounded-lg border border-border bg-background cursor-pointer hover:bg-muted/50 text-xs font-semibold ${uploadingImage ? "opacity-50 pointer-events-none" : ""}`}
                       >
@@ -987,6 +1132,9 @@ const AdminProducts = () => {
                           disabled={uploadingImage}
                         />
                       </label>
+                      <p className="text-[10px] text-amber-700 dark:text-amber-400">
+                        Square, detail, packaging & lifestyle images require a future media schema — only hero `image_url` is persisted today.
+                      </p>
                     </div>
                   </div>
 
@@ -1621,7 +1769,15 @@ const AdminProducts = () => {
                     ) : (
                       <Zap size={16} />
                     )}
-                    {isAiLoading === "full" ? "Generating AI Attributes..." : "⚡ Generate AI Details (Nutrition, Allergens, HSN, GST)"}
+                    {isAiLoading === "full" ? "Generating AI Attributes..." : "⚡ Generate AI Details (Allergens, HSN, GST, Ingredients)"}
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={handlePlaceholderNutrition}
+                    className="w-full flex items-center justify-center gap-2 py-2.5 rounded-lg font-semibold text-xs border border-amber-500/40 text-amber-800 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/20 hover:bg-amber-100/80 transition-colors"
+                  >
+                    Use standard placeholder nutrition template (Requires FSSAI/QA review)
                   </button>
 
                   <div className="grid grid-cols-2 gap-4">
@@ -1703,13 +1859,18 @@ const AdminProducts = () => {
                       <label className="block text-[10px] font-semibold text-muted-foreground uppercase tracking-wide mb-1.5">
                         FSSAI Nutrition Panel
                       </label>
+                      {nutritionReviewStatus === "requires_qa_fssai_review" && (
+                        <p className="text-[10px] text-amber-700 dark:text-amber-400 mb-2 font-semibold">
+                          {NUTRITION_QA_WARNING}
+                        </p>
+                      )}
                       <textarea
                         name="nutrition_facts"
                         rows={5}
                         value={formData.nutrition_facts}
                         onChange={handleInputChange}
                         className="w-full bg-background border border-border rounded-lg p-2.5 text-xs font-mono outline-none focus:ring-1 focus:ring-green-600 resize-none"
-                        placeholder="Nutrition details per 100g..."
+                        placeholder="Nutrition details per 100g — enter verified values or use placeholder template above."
                       />
                     </div>
                   </div>
@@ -1770,8 +1931,43 @@ const AdminProducts = () => {
                       className="w-full bg-background border border-border rounded-lg p-2.5 text-xs outline-none focus:ring-1 focus:ring-[#C5A059] resize-none"
                     />
                     <p className="text-[10px] text-muted-foreground mt-1">
-                      Comma-separated. Used by the WhatsApp/AI parser to match this SKU from informal customer text.
+                      Comma-separated saved aliases. AI suggestions are shown below for review — they are not saved until you apply and save.
                     </p>
+                    {suggestedAliases.length > 0 && (
+                      <div className="mt-3 rounded-lg border border-[#C5A059]/30 bg-[#C5A059]/5 p-3 space-y-2">
+                        <p className="text-[10px] font-bold text-[#C5A059] uppercase">
+                          AI suggested aliases — review before saving
+                        </p>
+                        <div className="flex flex-wrap gap-2">
+                          {suggestedAliases.map((alias) => (
+                            <label
+                              key={alias}
+                              className="inline-flex items-center gap-1.5 px-2 py-1 rounded-md bg-background border border-border text-[10px] font-semibold cursor-pointer"
+                            >
+                              <input
+                                type="checkbox"
+                                checked={selectedSuggestedAliases.includes(alias)}
+                                onChange={() => toggleSuggestedAlias(alias)}
+                              />
+                              {alias}
+                            </label>
+                          ))}
+                        </div>
+                        {rejectedAliases.length > 0 && (
+                          <p className="text-[10px] text-muted-foreground">
+                            Filtered unsafe/generic duplicates: {rejectedAliases.slice(0, 6).join(", ")}
+                            {rejectedAliases.length > 6 ? "…" : ""}
+                          </p>
+                        )}
+                        <button
+                          type="button"
+                          onClick={applySelectedSuggestedAliases}
+                          className="text-[10px] font-bold text-[#C5A059] hover:underline"
+                        >
+                          Apply selected aliases to product
+                        </button>
+                      </div>
+                    )}
                   </div>
 
                   {/* Unit Math — mandatory when settling by KG (food families) */}
@@ -1805,6 +2001,48 @@ const AdminProducts = () => {
                           className="w-full bg-blue-50 dark:bg-blue-950/20 border border-blue-300 dark:border-blue-800 rounded-lg p-2.5 text-sm font-semibold outline-none focus:ring-1 focus:ring-blue-500"
                         />
                       </div>
+                      <div>
+                        <label className="block text-[10px] font-bold text-blue-600 uppercase mb-1.5">
+                          Primary pack weight (kg)
+                        </label>
+                        <input
+                          type="number"
+                          step="0.001"
+                          name="primary_pack_weight_kg"
+                          placeholder="e.g. 0.5"
+                          value={formData.primary_pack_weight_kg}
+                          onChange={handleInputChange}
+                          className="w-full bg-blue-50 dark:bg-blue-950/20 border border-blue-300 dark:border-blue-800 rounded-lg p-2.5 text-sm font-semibold outline-none focus:ring-1 focus:ring-blue-500"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[10px] font-bold text-blue-600 uppercase mb-1.5">
+                          Pcs per kg
+                        </label>
+                        <input
+                          type="number"
+                          step="0.01"
+                          name="pcs_per_kg"
+                          placeholder="e.g. 45"
+                          value={formData.pcs_per_kg}
+                          onChange={handleInputChange}
+                          className="w-full bg-blue-50 dark:bg-blue-950/20 border border-blue-300 dark:border-blue-800 rounded-lg p-2.5 text-sm font-semibold outline-none focus:ring-1 focus:ring-blue-500"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[10px] font-bold text-blue-600 uppercase mb-1.5">
+                          Pcs per primary pack
+                        </label>
+                        <input
+                          type="number"
+                          step="0.01"
+                          name="pcs_per_primary_pack"
+                          placeholder="e.g. 12"
+                          value={formData.pcs_per_primary_pack}
+                          onChange={handleInputChange}
+                          className="w-full bg-blue-50 dark:bg-blue-950/20 border border-blue-300 dark:border-blue-800 rounded-lg p-2.5 text-sm font-semibold outline-none focus:ring-1 focus:ring-blue-500"
+                        />
+                      </div>
                       <p className="col-span-2 text-[10px] text-muted-foreground -mt-1">
                         Used by the AI Draft SO engine to convert "2 box" or "10 pcs" into total kilograms automatically.
                         {formData.settlement_unit === "KG" && " Required when Settlement Unit is Weight (KG)."}
@@ -1829,21 +2067,37 @@ const AdminProducts = () => {
               </div>
 
               {/* Panel Footer */}
-              <div className="p-6 border-t border-border bg-card flex justify-end gap-3 shrink-0">
+              <div className="p-6 border-t border-border bg-card flex flex-col gap-2 shrink-0">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="text-xs">
+                    {saveStatus === "saving" && <span className="text-muted-foreground">Saving…</span>}
+                    {saveStatus === "saved" && <span className="text-emerald-600 font-semibold">Saved successfully</span>}
+                    {saveStatus === "error" && (
+                      <span className="text-destructive font-semibold">Save failed: {saveError}</span>
+                    )}
+                    {isDirty && saveStatus === "idle" && (
+                      <span className="text-amber-600">Unsaved changes</span>
+                    )}
+                  </div>
+                  <div className="flex justify-end gap-3">
                 <button
+                  type="button"
                   onClick={closePanel}
                   className="px-5 py-2.5 rounded-lg font-semibold text-sm text-muted-foreground hover:bg-muted transition-colors"
                 >
                   Cancel
                 </button>
                 <button
+                  type="button"
                   onClick={handleSaveProduct}
-                  disabled={saving || uploadingImage}
+                  disabled={saving || uploadingImage || panelLoading}
                   className="px-6 py-2.5 rounded-lg font-bold text-sm bg-[#C5A059] text-white hover:bg-[#B38F48] transition-colors shadow-sm flex items-center gap-2 active:scale-[0.97] disabled:opacity-50"
                 >
-                  {saving && <Loader2 size={14} className="animate-spin" />}{" "}
-                  {editingProduct ? "Save Changes" : "Publish Product"}
+                  {saving && <Loader2 size={14} className="animate-spin" />}
+                  {saving ? "Saving…" : editingProduct ? "Save Changes" : "Publish Product"}
                 </button>
+                  </div>
+                </div>
               </div>
             </motion.div>
           </>
