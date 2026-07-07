@@ -525,7 +525,7 @@ const App = () => (
                     <Route path="dispatch-tv" element={<DispatchTV />} />
                     <Route path="target-vs-actual" element={<TargetVsActual />} />
                     <Route path="3pcs-store" element={<ThirdPartyStore />} />
-                    <Route path="verification" element={<VerificationWarRoom />} />
+                    <Route path="verification" element={<Navigate to="/admin/cmd-war-room" replace />} />
                     <Route path="announcements" element={<AdminAnnouncements />} />
                   </Route>
                   </Route>
