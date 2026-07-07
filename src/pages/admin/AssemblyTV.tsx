@@ -4,8 +4,8 @@ export default function AssemblyTV() {
   return (
     <ComingSoonOverlay
       moduleName="Assembly TV"
-      returnTo="/admin/display-management"
-      returnLabel="Back to Display Management"
+      returnTo="/admin/cmd-war-room"
+      returnLabel="Back to CMD War Room"
     />
   );
 }
