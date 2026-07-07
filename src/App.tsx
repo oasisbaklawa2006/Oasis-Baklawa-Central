@@ -1,6 +1,6 @@
 import { lazy, Suspense } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Outlet, Route, Routes } from "react-router-dom";
+import { BrowserRouter, Outlet, Route, Routes, useLocation } from "react-router-dom";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -171,11 +171,14 @@ const AuthSpinner = () => (
  * instead of bubbling to the app-root ErrorBoundary, so the admin sidebar/nav
  * (rendered by AdminLayout, an ancestor of this boundary) stays usable.
  */
-const AdminRouteBoundary = () => (
-  <ErrorBoundary fallbackTitle="This admin screen crashed">
-    <Outlet />
-  </ErrorBoundary>
-);
+const AdminRouteBoundary = () => {
+  const location = useLocation();
+  return (
+    <ErrorBoundary key={location.pathname + location.search} fallbackTitle="This admin screen crashed">
+      <Outlet />
+    </ErrorBoundary>
+  );
+};
 
 /**
  * Decide where an authenticated user with no resolved buyer role should land.
