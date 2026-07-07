@@ -115,7 +115,7 @@ const AdminHelpSidebar = () => {
               animate={{ x: 0 }}
               exit={{ x: "100%" }}
               transition={{ type: "spring", damping: 28, stiffness: 300 }}
-              className="fixed right-0 top-0 bottom-0 z-[180] w-full max-w-sm overflow-y-auto"
+              className="fixed right-0 top-0 bottom-0 z-[170] w-full max-w-sm overflow-y-auto"
               style={{ backgroundColor: "#111111", borderLeft: "1px solid rgba(196,160,82,0.15)" }}
             >
               {/* Header */}
