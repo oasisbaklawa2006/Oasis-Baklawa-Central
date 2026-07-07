@@ -759,21 +759,27 @@ const AdminAccountsRelease = () => {
               </div>
             </div>
 
-            {/* Document Print Actions */}
+            {/* Document Print Actions — not yet enabled, buttons stay disabled until wired */}
             <div className="border border-border rounded-lg p-3 space-y-2">
               <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Shipping Documents</p>
               <div className="grid grid-cols-3 gap-2">
-                <button onClick={() => toast.info("Consignee Sticker print — coming soon")}
-                  className="px-3 py-2 rounded-lg bg-muted text-foreground text-xs font-medium hover:bg-muted/80 transition-colors text-center">
-                  Consignee Sticker
+                <button
+                  disabled
+                  title="Consignee Sticker printing is not enabled yet"
+                  className="px-3 py-2 rounded-lg bg-muted text-muted-foreground text-xs font-medium text-center cursor-not-allowed opacity-60">
+                  Print unavailable — Consignee Sticker
                 </button>
-                <button onClick={() => toast.info("Packing List print — coming soon")}
-                  className="px-3 py-2 rounded-lg bg-muted text-foreground text-xs font-medium hover:bg-muted/80 transition-colors text-center">
-                  Packing List
+                <button
+                  disabled
+                  title="Packing List printing is not enabled yet"
+                  className="px-3 py-2 rounded-lg bg-muted text-muted-foreground text-xs font-medium text-center cursor-not-allowed opacity-60">
+                  Print unavailable — Packing List
                 </button>
-                <button onClick={() => toast.info("Export Invoice print — coming soon")}
-                  className="px-3 py-2 rounded-lg bg-muted text-foreground text-xs font-medium hover:bg-muted/80 transition-colors text-center">
-                  Export Invoice
+                <button
+                  disabled
+                  title="Export Invoice printing is not enabled yet"
+                  className="px-3 py-2 rounded-lg bg-muted text-muted-foreground text-xs font-medium text-center cursor-not-allowed opacity-60">
+                  Print unavailable — Export Invoice
                 </button>
               </div>
             </div>

@@ -1072,13 +1072,23 @@ const AdminOrders = () => {
                       </div>
                     )}
 
-                    {/* Placeholder print buttons */}
+                    {/* Print actions not yet enabled — buttons stay disabled until wired */}
                     <div className="flex gap-2">
-                      <Button variant="outline" className="flex-1 text-xs" onClick={() => toast.info("Final Tax Invoice generation coming soon")}>
-                        <Printer size={12} className="mr-1" /> Print Final Invoice
+                      <Button
+                        variant="outline"
+                        className="flex-1 text-xs"
+                        disabled
+                        title="Final Tax Invoice printing is not enabled yet"
+                      >
+                        <Printer size={12} className="mr-1" /> Print unavailable — Final Invoice
                       </Button>
-                      <Button variant="outline" className="flex-1 text-xs" onClick={() => toast.info("Packing List print coming soon")}>
-                        <ClipboardList size={12} className="mr-1" /> Print Packing List
+                      <Button
+                        variant="outline"
+                        className="flex-1 text-xs"
+                        disabled
+                        title="Packing List printing is not enabled yet"
+                      >
+                        <ClipboardList size={12} className="mr-1" /> Print unavailable — Packing List
                       </Button>
                     </div>
                   </div>
