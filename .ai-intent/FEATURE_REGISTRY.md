@@ -163,7 +163,7 @@ A feature is not complete just because a screen exists. Mark BUILT_VALIDATED onl
 | Secret inventory without values | All repos | BUILT_VALIDATED | Template exists | Maintain |
 | Secret rotation | All repos / Supabase | NOT_BUILT | Pending final go-live | Rotate later |
 | Audit log governance | Oasis Central / AI Studio | PARTIAL | Some audit tables exist | Expand |
-| Admin UI phase gate | Oasis Central | PARTIAL | Phase 1 closeout warning exists | Validate before Phase 2 |
+| Admin UI phase gate | Oasis Central | PARTIAL | Phase 1 admin closeout audit complete; 7 hygiene PRs merged (#204-#210): coming-soon print button cleanup, stub/preview route labeling, TV/display default-landing fix, scoped ErrorBoundary coverage, retired-route hard redirect. Hygiene done — functional/E2E validation still not captured, so this stays PARTIAL, not BUILT_VALIDATED. | See `.ai-intent/PHASE1_REMAINING_BUILD_EXTRACTION.md` for the live remaining-build queue before Phase 2 |
 | Error monitoring | Oasis Central / AI Studio | PARTIAL | Manual diagnosis used | Build dashboard later |
 | Edge function deployment runbooks | All repos | BUILT_VALIDATED | Runbooks exist | Maintain |
 
