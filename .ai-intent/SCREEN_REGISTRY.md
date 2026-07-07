@@ -117,11 +117,11 @@ Docs-only reconciliation pass. Parsed the live route tree in `src/App.tsx` (the 
 | 90 | Central | /admin/order-management | Order Management | Golden Pipeline | BUILT_NEEDS_EVIDENCE | OrderManagement | Not enumerated | RoleProtectedRoute: ADMIN_STAFF_ROLES | staff/admin | Reconciliation 2026-07-07 |
 | 91 | Central | /admin/central-pool | Central Order Pool | Golden Pipeline | BUILT_NEEDS_EVIDENCE | CentralOrderPool | Not enumerated | RoleProtectedRoute: ADMIN_STAFF_ROLES | staff/admin | Reconciliation 2026-07-07 |
 | 92 | Central | /admin/cmd-war-room | CMD War Room | Monitoring | BUILT_NEEDS_EVIDENCE | CMDWarRoom | Not enumerated | RoleProtectedRoute: ADMIN_STAFF_ROLES | staff/admin | Reconciliation 2026-07-07 |
-| 93 | Central | /admin/inventory-command-center | Inventory Command Center | Inventory | BUILT_NEEDS_EVIDENCE | InventoryCommandCenter | Not enumerated | RoleProtectedRoute: ADMIN_STAFF_ROLES | staff/admin | Reconciliation 2026-07-07 |
+| 93 | Central | /admin/inventory-command-center | Inventory Command Center | Inventory | PARTIAL | InventoryCommandCenter | Not enumerated — all 4 feed inputs are hardcoded literals, no live signal source wired (see PHASE1_REMAINING_BUILD_EXTRACTION.md) | RoleProtectedRoute: ADMIN_STAFF_ROLES | staff/admin | Post-Hygiene Status Alignment 2026-07-07 |
 | 94 | Central | /admin/carton-explorer | Carton Explorer | Inventory | BUILT_NEEDS_EVIDENCE | CartonExplorer | Not enumerated | RoleProtectedRoute: ADMIN_STAFF_ROLES | staff/admin | Reconciliation 2026-07-07 |
 | 95 | Central | /admin/reservation-board | Reservation Board | Inventory | BUILT_NEEDS_EVIDENCE | ReservationBoard | Not enumerated | RoleProtectedRoute: ADMIN_STAFF_ROLES | staff/admin | Reconciliation 2026-07-07 |
-| 96 | Central | /admin/inventory-risk-board | Inventory Risk Board | Inventory | BUILT_NEEDS_EVIDENCE | InventoryRiskBoard | Not enumerated | RoleProtectedRoute: ADMIN_STAFF_ROLES | staff/admin | Reconciliation 2026-07-07 |
-| 97 | Central | /admin/scan-timeline | Scan Timeline | Tracking | BUILT_NEEDS_EVIDENCE | ScanTimeline | Not enumerated | RoleProtectedRoute: ADMIN_STAFF_ROLES | staff/admin | Reconciliation 2026-07-07 |
+| 96 | Central | /admin/inventory-risk-board | Inventory Risk Board | Inventory | PARTIAL | InventoryRiskBoard | Not enumerated — risk flags are hardcoded literals, no live signal source wired (see PHASE1_REMAINING_BUILD_EXTRACTION.md) | RoleProtectedRoute: ADMIN_STAFF_ROLES | staff/admin | Post-Hygiene Status Alignment 2026-07-07 |
+| 97 | Central | /admin/scan-timeline | Scan Timeline | Tracking | PARTIAL | ScanTimeline | Not enumerated — UI shell + derivation engine (src/lib/barcode/) exist; screen's own comment confirms "no real scan feed connected yet" | RoleProtectedRoute: ADMIN_STAFF_ROLES | staff/admin | Post-Hygiene Status Alignment 2026-07-07 |
 | 98 | Central | /admin/assembly-tasks | Assembly Management | Production | BUILT_NEEDS_EVIDENCE | AssemblyManagement | Not enumerated | RoleProtectedRoute: ADMIN_STAFF_ROLES | staff/admin | Reconciliation 2026-07-07 |
 | 99 | Central | /admin/assembly-tv | Assembly TV | TV/Display | BUILT_NEEDS_EVIDENCE | AssemblyTV | Not enumerated | RoleProtectedRoute: ADMIN_STAFF_ROLES | staff/admin | Reconciliation 2026-07-07 |
 | 100 | Central | /admin/ready-goods | Ready Goods Store | Warehouse | BUILT_NEEDS_EVIDENCE | ReadyGoodsStore | Not enumerated | RoleProtectedRoute: ADMIN_STAFF_ROLES | staff/admin | Reconciliation 2026-07-07 |
@@ -154,7 +154,7 @@ Docs-only reconciliation pass. Parsed the live route tree in `src/App.tsx` (the 
 | 127 | Central | /admin/dispatch-tv | Dispatch TV | TV/Display | BUILT_NEEDS_EVIDENCE | DispatchTV | Not enumerated | RoleProtectedRoute: ADMIN_STAFF_ROLES | staff/admin | Reconciliation 2026-07-07 |
 | 128 | Central | /admin/target-vs-actual | Target vs Actual | Monitoring | BUILT_NEEDS_EVIDENCE | TargetVsActual | Not enumerated | RoleProtectedRoute: ADMIN_STAFF_ROLES | staff/admin | Reconciliation 2026-07-07 |
 | 129 | Central | /admin/3pcs-store | Third Party Goods Store | Warehouse | BUILT_NEEDS_EVIDENCE | ThirdPartyStore | Not enumerated | RoleProtectedRoute: ADMIN_STAFF_ROLES | staff/admin | Reconciliation 2026-07-07 |
-| 130 | Central | /admin/verification | Verification War Room | Monitoring | BUILT_NEEDS_EVIDENCE | VerificationWarRoom | Not enumerated | RoleProtectedRoute: ADMIN_STAFF_ROLES | staff/admin | Reconciliation 2026-07-07 |
+| 130 | Central | /admin/verification | Verification War Room (retired) | Monitoring | N/A — legacy redirect | Navigate → /admin/cmd-war-room (PR #210, 2026-07-07) | N/A — no longer renders a screen | RoleProtectedRoute: ADMIN_STAFF_ROLES | staff/admin | Post-Hygiene Status Alignment 2026-07-07 |
 | 131 | Central | /admin/announcements | Announcements | Admin Ops | BUILT_NEEDS_EVIDENCE | AdminAnnouncements | Not enumerated | RoleProtectedRoute: ADMIN_STAFF_ROLES | staff/admin | Reconciliation 2026-07-07 |
 
 ### Reverse-drift notes
@@ -182,3 +182,11 @@ Registry rows (from the original 62-screen table, #7-25) whose recorded `/admin/
 - #24 `/admin/reports` (Reports)
 
 These reverse-drift rows are noted only; the original table (#1-62) was left untouched per the docs-only, append-only scope of this reconciliation.
+
+## Post-Hygiene Status Alignment - 2026-07-07
+
+Seven hygiene PRs (#204-#210) merged since the reconciliation above. This note keeps registry rows honest without re-litigating the full table:
+
+- Row **#130** (`/admin/verification`) updated: the route no longer renders `VerificationWarRoom` — PR #210 replaced it with a hard `<Navigate to="/admin/cmd-war-room" replace />`, matching the other legacy-redirect routes already excluded from this table's route count. `VerificationWarRoom.tsx` still exists in the repo but is unreachable via routing.
+- Rows **#93**, **#96**, **#97** (`InventoryCommandCenter`, `InventoryRiskBoard`, `ScanTimeline`) downgraded from `BUILT_NEEDS_EVIDENCE` to `PARTIAL`: direct code reading confirms all three use hardcoded/no-feed inputs by design, not live data. Labeling on the screens themselves was already corrected in PR #206 ("Internal preview — not connected to live data" badges); this is the matching registry correction.
+- No row in this table is marked `BUILT_VALIDATED` as a result of this alignment pass — hygiene/labeling PRs improve honesty and safety, not functional completeness. See `PHASE1_REMAINING_BUILD_EXTRACTION.md` for the current remaining-build queue and `PHASE1_ADMIN_CLOSEOUT_AUDIT_AND_BUILD_QUEUE.md`'s own "Post-Hygiene Status Alignment" section for which original audit findings are now closed.

@@ -192,3 +192,29 @@ The single safest next implementation PR after this audit is **Batch 1 — Comin
 ## Files Changed By This Audit
 
 Only `.ai-intent/PHASE1_ADMIN_CLOSEOUT_AUDIT_AND_BUILD_QUEUE.md` was created. No other file was modified. Nothing was committed or pushed.
+
+---
+
+## Post-Hygiene Status Alignment - 2026-07-07
+
+Seven PRs have merged since this audit was written. This section closes out which findings above are resolved, so a future AI engine reading this file does not re-attempt already-completed work. The tables above are left as the original historical record and are **not** rewritten.
+
+**Closed — do not re-open without new evidence:**
+
+- **P0 #1** (Display Management embeds `AssemblyTV`/`DispatchTV` stub tabs as a dead end) — closed by PR #206 ("(Soon)" tab labels + working return links) and its Bugbot follow-up (return links corrected to point at `/admin/cmd-war-room` instead of back into the same stub-embedding screen).
+- **P0 #2** (`VerificationWarRoom` registry mismatch / retired screen still fully rendered) — closed by PR #206 (Retired badge) and fully closed by PR #210 (`/admin/verification` is now a hard `<Navigate>` redirect, matching the existing legacy-redirect pattern).
+- **P0 #3** (single global `ErrorBoundary`, no scoped admin coverage) — closed by PR #208 (scoped `AdminRouteBoundary` wrapping all `/admin` child routes) and its Bugbot follow-up (boundary now resets on navigation instead of sticking on `hasError`).
+- **P1 #1-#3** (six dead-end "coming soon" print buttons in `AdminOrders.tsx`, `AdminAccountsRelease.tsx`, `OrderManagement.tsx`) — closed by PR #205.
+- **P1 #4** (labeling only — `InventoryRiskBoard`/`InventoryCommandCenter` badges not disclosing static data) — labeling closed by PR #206; the underlying real-data-wiring work itself is **still open**, tracked in `PHASE1_REMAINING_BUILD_EXTRACTION.md`.
+- Registry status for `InventoryCommandCenter`, `InventoryRiskBoard`, `ScanTimeline` — corrected from `BUILT_NEEDS_EVIDENCE` to `PARTIAL` directly in `SCREEN_REGISTRY.md` in this same alignment pass (was P1 #5 here).
+- Legacy redirect for `/admin/verification` — same PR #210 fix noted under P0 #2.
+
+**Still open — see `PHASE1_REMAINING_BUILD_EXTRACTION.md` for the live, actionable queue:**
+
+- P1 #6 (mobile/responsive spot-check for `TargetVsActual.tsx`, `OrderManagement.tsx`).
+- All "Screens That Need Real Build" items (real data wiring for `AssemblyTV`, `DispatchTV`, `InventoryRiskBoard`, `InventoryCommandCenter`, `ScanTimeline`).
+- All P2 items (production nav duplication, `ThirdPartyStore`/`LabelCommandCenter` evidence, CartonExplorer nav grouping).
+- E2E evidence capture for the 5-screen governance-board family.
+- The genuinely `NOT_BUILT` phantom Central features (Gatekeeper, Billing, Payment Variances, Tickets, Reports) — net-new feature planning, not a hygiene fix.
+
+No item in this section is marked `BUILT_VALIDATED` — these are hygiene/labeling/redirect closures, not functional-completeness proofs. The **Final Recommendation** above (Batch 1 — print button cleanup) is now done; the current recommended next PR lives in `PHASE1_REMAINING_BUILD_EXTRACTION.md`'s own "Recommended Next Implementation PR" section.
