@@ -96,12 +96,12 @@ const AdminLayout = () => {
     {
       title: t("Operations"),
       items: [
-        { to: "/admin/inventory-command-center", icon: Warehouse, label: "Inventory command center", end: false, moduleKey: "inventory" },
-        { to: "/admin/carton-explorer", icon: Box, label: "Carton explorer", end: false, moduleKey: "inventory" },
+        { to: "/admin/inventory-command-center", icon: Warehouse, label: "Inventory command center (preview)", end: false, moduleKey: "inventory" },
+        { to: "/admin/carton-explorer", icon: Box, label: "Carton explorer (preview)", end: false, moduleKey: "inventory" },
         { to: "/admin/reservation-board", icon: ListOrdered, label: "Reservation board (audit)", end: false, moduleKey: "inventory_audit" },
         { to: "/admin/stock-finalization", icon: PackageMinus, label: "Stock finalization (audit)", end: false, moduleKey: "inventory_audit" },
-        { to: "/admin/inventory-risk-board", icon: AlertOctagon, label: "Inventory risk board", end: false, moduleKey: "inventory" },
-        { to: "/admin/scan-timeline", icon: ScanBarcode, label: "Scan timeline", end: false, moduleKey: "inventory" },
+        { to: "/admin/inventory-risk-board", icon: AlertOctagon, label: "Inventory risk board (preview)", end: false, moduleKey: "inventory" },
+        { to: "/admin/scan-timeline", icon: ScanBarcode, label: "Scan timeline (preview)", end: false, moduleKey: "inventory" },
         // Central Pool fully removed from sidebar — War Room is the only active track.
         // Route remains accessible via direct URL for read-only DB log auditing.
         { to: "/admin/order-management", icon: ClipboardList, label: t("Order Pipeline"), moduleKey: "orders" },

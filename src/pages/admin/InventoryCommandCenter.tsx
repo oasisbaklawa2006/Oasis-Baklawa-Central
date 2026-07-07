@@ -42,7 +42,7 @@ export default function InventoryCommandCenter() {
         <Warehouse className="h-7 w-7 text-primary" aria-hidden />
         <h1 className="text-xl font-bold tracking-tight">Inventory command center</h1>
         <Badge variant="outline" className="text-[10px] uppercase">
-          Projections only
+          Internal preview — not connected to live data
         </Badge>
       </header>
       <Card>

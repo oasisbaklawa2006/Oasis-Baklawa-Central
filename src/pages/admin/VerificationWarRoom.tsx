@@ -1,5 +1,6 @@
 import { Link } from "react-router-dom";
 import { Ghost, ArrowRight } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
 
 /**
  * VerificationWarRoom is retired.
@@ -15,7 +16,10 @@ const VerificationWarRoom = () => (
     <div className="w-16 h-16 rounded-2xl bg-muted flex items-center justify-center">
       <Ghost size={28} className="text-muted-foreground" />
     </div>
-    <div className="max-w-md">
+    <div className="max-w-md space-y-2">
+      <Badge variant="outline" className="text-[10px] uppercase">
+        Retired — use CMD War Room
+      </Badge>
       <h2 className="text-xl font-semibold text-foreground mb-2">
         Shadow Client Verification Has Moved
       </h2>

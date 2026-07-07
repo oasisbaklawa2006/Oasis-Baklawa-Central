@@ -26,7 +26,7 @@ export default function ScanTimeline() {
         <ScanLine className="h-7 w-7 text-primary" aria-hidden />
         <h1 className="text-xl font-bold tracking-tight">Scan timeline</h1>
         <Badge variant="outline" className="text-[10px] uppercase">
-          Feed pending
+          Not connected to live data — feed pending
         </Badge>
       </header>
 
