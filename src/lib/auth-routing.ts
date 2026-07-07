@@ -40,8 +40,12 @@ const STAFF_ROLE_DESTINATIONS: Record<string, string> = {
   PROD_NUTS:                "/tv/nuts",
 
   // TV wall display accounts (read-only, no timeout)
-  TV_DISPLAY:               "/admin/assembly-tv",   // default; overridden per-account below
-  TV_ASSEMBLY:              "/admin/assembly-tv",
+  // /admin/assembly-tv and /admin/dispatch-tv are non-operational Coming Soon
+  // stubs — do not default-land any role there. TV_READY is the one built,
+  // live TV wall (/admin/rgs-tv), so TV_DISPLAY/TV_ASSEMBLY land on the CMD
+  // War Room hub instead until an assembly/dispatch TV wall is built.
+  TV_DISPLAY:               "/admin/cmd-war-room",
+  TV_ASSEMBLY:              "/admin/cmd-war-room",
   TV_READY:                 "/admin/rgs-tv",
 
   // Store / Warehouse
