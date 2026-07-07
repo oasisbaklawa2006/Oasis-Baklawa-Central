@@ -1,6 +1,6 @@
 import { lazy, Suspense } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Route, Routes } from "react-router-dom";
+import { BrowserRouter, Outlet, Route, Routes, useLocation } from "react-router-dom";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -165,6 +165,22 @@ const AuthSpinner = () => (
 );
 
 /**
+ * Scoped crash containment for /admin child routes. A pathless layout route
+ * (no `path`, so no route/URL change) sitting between AdminLayout's <Outlet />
+ * and each individual admin screen — a crash inside one screen is caught here
+ * instead of bubbling to the app-root ErrorBoundary, so the admin sidebar/nav
+ * (rendered by AdminLayout, an ancestor of this boundary) stays usable.
+ */
+const AdminRouteBoundary = () => {
+  const location = useLocation();
+  return (
+    <ErrorBoundary key={location.pathname + location.search} fallbackTitle="This admin screen crashed">
+      <Outlet />
+    </ErrorBoundary>
+  );
+};
+
+/**
  * Decide where an authenticated user with no resolved buyer role should land.
  * - Pending applicant (b2b application exists OR profile.status pending OR role='PENDING') → /approval-pending
  * - Fresh lead (auth.users only, zero portal records) → /register
@@ -309,6 +325,7 @@ const App = () => (
                       </ProtectedRoute>
                     }
                   >
+                  <Route element={<AdminRouteBoundary />}>
                     <Route index element={<AdminDashboard />} />
                     {/* Legacy bookmarks from older audits / docs */}
                     <Route path="customers" element={<Navigate to="/admin/clients" replace />} />
@@ -510,6 +527,7 @@ const App = () => (
                     <Route path="3pcs-store" element={<ThirdPartyStore />} />
                     <Route path="verification" element={<VerificationWarRoom />} />
                     <Route path="announcements" element={<AdminAnnouncements />} />
+                  </Route>
                   </Route>
                   <Route
                     path="/sales/dashboard"
