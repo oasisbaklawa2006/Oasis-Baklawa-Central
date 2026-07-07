@@ -35,7 +35,7 @@ export default function InventoryRiskBoard() {
         <AlertOctagon className="h-7 w-7 text-primary" aria-hidden />
         <h1 className="text-xl font-bold tracking-tight">Inventory risk board</h1>
         <Badge variant="outline" className="text-[10px] uppercase">
-          Variance + execution
+          Internal preview — not connected to live data
         </Badge>
       </header>
       <p className="text-xs text-muted-foreground">

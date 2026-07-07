@@ -45,8 +45,14 @@ const DisplayManagement = () => {
         <h2 className="text-sm font-semibold text-foreground mb-3">Operations TV Walls</h2>
         <Tabs value={tab} onValueChange={setTab}>
           <TabsList className="w-full">
-            <TabsTrigger value="assembly" className="flex-1">Assembly TV</TabsTrigger>
-            <TabsTrigger value="dispatch" className="flex-1">Dispatch TV</TabsTrigger>
+            <TabsTrigger value="assembly" className="flex-1 gap-1">
+              Assembly TV
+              <span className="text-[9px] font-semibold uppercase tracking-wide text-amber-600">(Soon)</span>
+            </TabsTrigger>
+            <TabsTrigger value="dispatch" className="flex-1 gap-1">
+              Dispatch TV
+              <span className="text-[9px] font-semibold uppercase tracking-wide text-amber-600">(Soon)</span>
+            </TabsTrigger>
             <TabsTrigger value="rgs" className="flex-1">RGS TV</TabsTrigger>
           </TabsList>
           <Suspense fallback={<Spin />}>
