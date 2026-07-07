@@ -502,8 +502,13 @@ const OrderManagement = () => {
                 </tbody>
               </table>
             )}
-            <Button variant="outline" className="w-full mt-4 gap-2" onClick={() => toast.info("Print functionality coming soon")}>
-              <Printer size={14} /> Print Packing Slip
+            <Button
+              variant="outline"
+              className="w-full mt-4 gap-2"
+              disabled
+              title="Packing Slip printing is not enabled yet"
+            >
+              <Printer size={14} /> Print unavailable — Packing Slip
             </Button>
           </div>
         </SheetContent>
