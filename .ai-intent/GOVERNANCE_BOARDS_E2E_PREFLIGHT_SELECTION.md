@@ -45,8 +45,13 @@ Read-only templates only. No secrets, no service-role keys, no destructive SQL �
 
 ```sql
 -- Step 1: Browse recent orders to find a candidate — id, status, customer, date.
--- Prefer orders NOT already at a late pipeline status (dispatched / cleared_for_dispatch
--- with existing lineage) so the full 5-board sequence can be walked from a clean state.
+-- orders.status returned here is the AUTHORITATIVE first gate: reject any candidate
+-- whose status is already dispatched, finalized, closed, cancelled, completed, or any
+-- other status meaning dispatch/stock finalization has already happened (see Stop
+-- Conditions below). Do not rely on Step 6's dispatch_release_lineage check alone —
+-- an order can have orders.status = 'dispatched' with zero lineage rows (e.g. legacy
+-- data, a status set outside this governed flow), and orders.status still disqualifies
+-- it even then.
 select
   o.id,
   o.order_number,
@@ -98,10 +103,12 @@ from dispatch_completion_evidence
 where order_id = '<ORDER_ID>'
 order by created_at desc;
 
--- Step 6: Dispatch finalization status — lineage rows and current order status together.
--- If any row here already shows next_status = 'dispatched', this order has already
--- been through finalization and is NOT a clean candidate for a fresh walkthrough
--- (see Stop Conditions below).
+-- Step 6: Dispatch finalization lineage — SUPPORTING evidence only, not the primary
+-- gate. orders.status from Step 1 is authoritative; this query corroborates it. If any
+-- row here shows next_status = 'dispatched', that further confirms the order should be
+-- rejected — but the ABSENCE of a lineage row here does NOT mean the order is clean.
+-- orders.status can already be 'dispatched'/'finalized'/'closed'/'cancelled'/'completed'
+-- with zero rows in this table; always re-check the Step 1 orders.status value first.
 -- replace <ORDER_ID> after candidate selection
 select id, order_id, release_type, next_status, gate_reference, completion_reference, transporter_reference, created_at
 from dispatch_release_lineage
@@ -148,6 +155,7 @@ Blank until a human fills it in. No mutation may be executed against the selecte
 | Field | Value |
 |---|---|
 | selected_order_id | |
+| selected_order current `orders.status` (from Step 1 query, recorded before any board is opened) | |
 | selected_by | |
 | approval_time | |
 | approved screens | |
@@ -155,7 +163,7 @@ Blank until a human fills it in. No mutation may be executed against the selecte
 | explicitly approved status mutation (Dispatch Finalization — `orders.status → dispatched`): yes/no | |
 | explicitly approved stock persistence (Stock Finalization — real balance deduction): yes/no | |
 
-Per the runbook's Mutation Permission Gates: the three append-only approvals may be covered by a single upfront "yes," but the status-mutation and stock-persistence approvals must each be their own explicit "yes," confirmed at the time that specific action is about to run — not assumed from the append-only approval alone.
+The `orders.status` value recorded above must not already be `dispatched`, `finalized`, `closed`, `cancelled`, `completed`, or otherwise unsuitable per the Stop Conditions below — approval must not be granted if it is. Per the runbook's Mutation Permission Gates: the three append-only approvals may be covered by a single upfront "yes," but the status-mutation and stock-persistence approvals must each be their own explicit "yes," confirmed at the time that specific action is about to run — not assumed from the append-only approval alone.
 
 ---
 
@@ -206,7 +214,7 @@ Stop immediately, do not proceed to the next board or the next action, and repor
 
 - **Wrong customer/order** — the order visible in the UI does not match the `selected_order_id` recorded in the Human Approval Gate.
 - **Real customer order selected** — evidence surfaces (e.g. a recognizable real `business_name`, a real-looking order value, or any other signal) that the selected order is not actually internal/test data.
-- **Status already dispatched/finalized** — the Candidate Order Selection Step 6 query shows an existing `next_status = 'dispatched'` row for this order before Dispatch Finalization has even been opened; this order is not a clean candidate.
+- **`orders.status` already dispatched, finalized, closed, cancelled, completed, or otherwise unsuitable** — the Candidate Order Selection **Step 1** query's `o.status` value for this order is already one of `dispatched`, `finalized` (or any finalization-equivalent status), `closed`, `cancelled`, `completed`, or any other status indicating dispatch/stock finalization has already happened or that testing should not proceed — checked **before Dispatch Readiness is even opened**, not just before Dispatch Finalization. `orders.status` is authoritative here: reject the candidate on this basis alone, even if the Step 6 `dispatch_release_lineage` query returns zero rows. A missing lineage row is not evidence the order is clean — it only means this particular governed flow didn't produce the status change; `orders.status` may have been set some other way (legacy data, manual correction, a different workflow) and still disqualifies the order. Step 6's lineage rows, when present, are corroborating evidence only.
 - **Stock already deducted** — the Step 7 query shows existing `stock_consumption_lineage` rows for this order before Stock Finalization has been opened.
 - **Finance/commercial signal missing before Dispatch Completion** — Dispatch Completion's Step 2 (attest) button is disabled and the prerequisite checklist shows "Finance commercially released" as unmet, after Finance Governance's Step 2 has already been completed and confirmed via the database query. This indicates a real gap between the UI and the data, not a sequencing mistake, and must be reported rather than worked around.
 - **Any unexpected mutation** — any table changes that were not the direct, intended result of the specific button just clicked (e.g. an unrelated row appears in an unrelated table, or a second order's data changes).
