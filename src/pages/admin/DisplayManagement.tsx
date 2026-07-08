@@ -47,7 +47,7 @@ const DisplayManagement = () => {
           <TabsList className="w-full">
             <TabsTrigger value="assembly" className="flex-1 gap-1">
               Assembly TV
-              <span className="text-[9px] font-semibold uppercase tracking-wide text-amber-600">(Soon)</span>
+              <span className="text-[9px] font-semibold uppercase tracking-wide text-amber-600">(Preview)</span>
             </TabsTrigger>
             <TabsTrigger value="dispatch" className="flex-1 gap-1">
               Dispatch TV
