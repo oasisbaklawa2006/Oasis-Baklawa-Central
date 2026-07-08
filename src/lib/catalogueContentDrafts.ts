@@ -69,6 +69,19 @@ function hasNumber(value: number | null | undefined): boolean {
 
 const MISSING_FIELD = (field: string) => `Add missing field first: ${field}.`;
 
+interface DisplayPrice {
+  /** Clearly distinguishes an actual B2B/wholesale price from an MRP fallback — never conflate the two. */
+  label: "B2B price" | "MRP";
+  amount: number;
+}
+
+/** Shared price fallback for any draft block: prefer a positive wholesale_price, else a positive mrp. */
+function getDisplayPrice(p: DraftProductInput): DisplayPrice | null {
+  if (hasNumber(p.wholesale_price)) return { label: "B2B price", amount: p.wholesale_price! };
+  if (hasNumber(p.mrp)) return { label: "MRP", amount: p.mrp! };
+  return null;
+}
+
 function catalogueTitle(p: DraftProductInput): string {
   if (!hasText(p.name)) return MISSING_FIELD("Product Name");
   const packSuffix = hasText(p.pack_size) ? ` (${p.pack_size})` : "";
@@ -125,17 +138,19 @@ function exportCatalogueCopy(p: DraftProductInput): string {
 
 function whatsappMessage(p: DraftProductInput): string {
   if (!hasText(p.name)) return MISSING_FIELD("Product Name");
-  if (!hasNumber(p.wholesale_price) && !hasNumber(p.mrp)) {
+  const price = getDisplayPrice(p);
+  if (!price) {
     return `Hi! We have *${p.name}* available. ${MISSING_FIELD("a price (MRP or B2B Base)")} Reply to know more.`;
   }
-  const priceLine = hasNumber(p.wholesale_price) ? `B2B price ₹${p.wholesale_price}${hasText(p.uom) ? `/${p.uom}` : ""}` : `MRP ₹${p.mrp}`;
-  return `Hi! We have *${p.name}* available — ${priceLine}. Reply to place your order.`;
+  const uomPart = price.label === "B2B price" && hasText(p.uom) ? `/${p.uom}` : "";
+  return `Hi! We have *${p.name}* available — ${price.label} ₹${price.amount}${uomPart}. Reply to place your order.`;
 }
 
 function hindiDescription(p: DraftProductInput): string {
   if (!hasText(p.name)) return MISSING_FIELD("Product Name");
   const category = hasText(p.category) ? p.category : "उत्पाद";
-  const priceLine = hasNumber(p.wholesale_price) ? ` कीमत ₹${p.wholesale_price} है।` : "";
+  const price = getDisplayPrice(p);
+  const priceLine = price ? ` ${price.label === "B2B price" ? "B2B कीमत" : "MRP"} ₹${price.amount} है।` : "";
   return `${p.name} अब उपलब्ध है (${category})।${priceLine} अधिक जानकारी के लिए संपर्क करें।\n(सरल हिंदी ड्राफ्ट — प्रमाणित अनुवाद नहीं है, भेजने से पहले जाँच लें।)`;
 }
 
