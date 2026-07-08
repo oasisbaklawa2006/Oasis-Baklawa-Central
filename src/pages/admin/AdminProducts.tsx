@@ -212,6 +212,7 @@ const AdminProducts = () => {
   const [savingTags, setSavingTags] = useState(false);
   const [filterTag, setFilterTag] = useState<string>("");
   const [catalogueSearch, setCatalogueSearch] = useState<string>("");
+  const catalogueSearchQuery = catalogueSearch.trim();
   const [taggedProductIds, setTaggedProductIds] = useState<string[]>([]);
   const possibleDuplicateNames = useMemo(() => {
     const typed = (formData?.name || "").trim().toLowerCase();
@@ -228,14 +229,14 @@ const AdminProducts = () => {
   }, [formData?.name, products, editingProduct]);
   const visibleProducts = useMemo(() => {
     const tagFiltered = filterTag ? products.filter((p) => taggedProductIds.includes(p.id)) : products;
-    const q = catalogueSearch.trim().toLowerCase();
+    const q = catalogueSearchQuery.toLowerCase();
     if (!q) return tagFiltered;
     return tagFiltered.filter((p) =>
       (p.name || "").toLowerCase().includes(q) ||
       (p.sku || "").toLowerCase().includes(q) ||
       (p.category || "").toLowerCase().includes(q)
     );
-  }, [products, filterTag, taggedProductIds, catalogueSearch]);
+  }, [products, filterTag, taggedProductIds, catalogueSearchQuery]);
 
   const fetchProducts = async () => {
     setLoading(true);
@@ -1014,7 +1015,7 @@ const AdminProducts = () => {
               )}
             </div>
           )}
-          {catalogueSearch && (
+          {catalogueSearchQuery && (
             <span className="text-xs text-muted-foreground">{visibleProducts.length} match(es)</span>
           )}
         </div>
@@ -1025,7 +1026,7 @@ const AdminProducts = () => {
             <Package size={40} className="mx-auto text-muted-foreground/40" />
             <p className="text-lg font-semibold text-foreground mt-4">No products found</p>
             <p className="text-sm text-muted-foreground mt-1">
-              {catalogueSearch ? "No products match your search." : filterTag ? "No products with this tag." : "Your catalog is currently empty."}
+              {catalogueSearchQuery ? "No products match your search." : filterTag ? "No products with this tag." : "Your catalog is currently empty."}
             </p>
           </div>
         ) : (
