@@ -14,7 +14,8 @@
     "test:watch": "vitest",
     "test:ui-ux-audit": "playwright test tests/ui-ux-audit.spec.ts --project=mobile-safari-size --project=desktop-chrome-size",
     "test:ux-audit": "playwright test -c playwright.ux-audit.config.ts",
-    "test:ux-audit:report": "node scripts/merge-ux-audit-report.mjs"
+    "test:ux-audit:report": "node scripts/merge-ux-audit-report.mjs",
+    "check:boundaries": "bash scripts/check-repo-boundaries.sh"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",
