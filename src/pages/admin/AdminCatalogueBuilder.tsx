@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
 import {
   Wand2,
   Search,
@@ -11,22 +12,32 @@ import {
   AlertCircle,
   XCircle,
   ExternalLink,
+  RotateCcw,
+  Copy,
+  FileText,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import {
   computeCatalogueReadiness,
   type ReadinessResult,
   type ReadinessState,
 } from "@/lib/catalogueReadinessScore";
+import {
+  DRAFT_BLOCK_META,
+  generateCatalogueDrafts,
+  type DraftBlocks,
+} from "@/lib/catalogueContentDrafts";
 
 interface CatalogueBuilderProduct {
   id: string;
   name: string | null;
   sku: string | null;
   category: string | null;
+  sub_category: string | null;
   production_department: string | null;
   uom: string | null;
   settlement_unit: string | null;
@@ -38,6 +49,17 @@ interface CatalogueBuilderProduct {
   shelf_life: string | null;
   storage_type: string | null;
   description: string | null;
+  mrp: number | null;
+  wholesale_price: number | null;
+  pack_size: string | null;
+  net_weight_grams: number | null;
+  weight_per_pc_grams: number | null;
+  moq: number | null;
+  dietary_tags: string[] | null;
+  allergen_warnings: string | null;
+  ingredients: string | null;
+  hsn_code: string | null;
+  gst_percentage: number | null;
 }
 
 const STATE_TEXT_COLOR: Record<ReadinessState, string> = {
@@ -86,7 +108,7 @@ export default function AdminCatalogueBuilder() {
       const { data, error: queryError } = await supabase
         .from("products")
         .select(
-          "id, name, sku, category, production_department, uom, settlement_unit, carton_type, packs_per_master_carton, image_url, is_active, visible_in_catalog, shelf_life, storage_type, description",
+          "id, name, sku, category, sub_category, production_department, uom, settlement_unit, carton_type, packs_per_master_carton, image_url, is_active, visible_in_catalog, shelf_life, storage_type, description, mrp, wholesale_price, pack_size, net_weight_grams, weight_per_pc_grams, moq, dietary_tags, allergen_warnings, ingredients, hsn_code, gst_percentage",
         )
         .order("name", { ascending: true });
       if (cancelled) return;
@@ -121,6 +143,34 @@ export default function AdminCatalogueBuilder() {
     () => (selected ? computeCatalogueReadiness(selected) : null),
     [selected],
   );
+
+  // Draft text lives only in local component state — it is never sent to Supabase or read back into
+  // the product record. Regenerated from product data whenever the selected product changes.
+  const [drafts, setDrafts] = useState<DraftBlocks | null>(null);
+
+  useEffect(() => {
+    setDrafts(selected ? generateCatalogueDrafts(selected) : null);
+  }, [selected]);
+
+  const resetDraftsFromProduct = () => {
+    if (!selected) return;
+    setDrafts(generateCatalogueDrafts(selected));
+    toast.success("Draft reset from current product data.");
+  };
+
+  const updateDraftBlock = (key: keyof DraftBlocks, value: string) => {
+    setDrafts((prev) => (prev ? { ...prev, [key]: value } : prev));
+  };
+
+  const copyDraftBlock = async (key: keyof DraftBlocks, label: string) => {
+    const text = drafts?.[key] ?? "";
+    try {
+      await navigator.clipboard.writeText(text);
+      toast.success(`${label} copied.`);
+    } catch {
+      toast.error("Could not copy — your browser blocked clipboard access.");
+    }
+  };
 
   return (
     <div className="p-4 sm:p-6 max-w-6xl mx-auto space-y-5">
@@ -284,6 +334,54 @@ export default function AdminCatalogueBuilder() {
                         </div>
                       );
                     })}
+                  </CardContent>
+                </Card>
+              )}
+
+              {drafts && (
+                <Card>
+                  <CardHeader className="pb-3">
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                      <CardTitle className="text-sm flex items-center gap-2">
+                        <FileText size={14} /> Content Draft Studio
+                      </CardTitle>
+                      <Button type="button" size="sm" variant="outline" onClick={resetDraftsFromProduct}>
+                        <RotateCcw size={12} className="mr-1.5" /> Reset draft from product data
+                      </Button>
+                    </div>
+                    <CardDescription className="text-[11px]">
+                      Generated locally from this product's current fields — no external AI call in this preview.
+                    </CardDescription>
+                    <div className="mt-2 flex items-center gap-2 rounded-lg border border-amber-400/40 bg-amber-500/10 p-2.5 text-[11px] font-semibold text-amber-800 dark:text-amber-300">
+                      <AlertTriangle size={14} className="shrink-0" />
+                      Draft only — does not update live product data.
+                    </div>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    {DRAFT_BLOCK_META.map((block) => (
+                      <div key={block.key} className="space-y-1.5">
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <div>
+                            <label className="text-xs font-semibold text-foreground">{block.label}</label>
+                            <p className="text-[10px] text-muted-foreground">{block.hint}</p>
+                          </div>
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => copyDraftBlock(block.key, block.label)}
+                          >
+                            <Copy size={12} className="mr-1.5" /> Copy
+                          </Button>
+                        </div>
+                        <Textarea
+                          value={drafts[block.key]}
+                          onChange={(e) => updateDraftBlock(block.key, e.target.value)}
+                          rows={block.key === "long_description" ? 4 : 2}
+                          className="text-xs"
+                        />
+                      </div>
+                    ))}
                   </CardContent>
                 </Card>
               )}
