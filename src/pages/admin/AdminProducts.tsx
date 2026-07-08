@@ -1224,6 +1224,10 @@ const AdminProducts = () => {
                           disabled={uploadingImage}
                         />
                       </label>
+                      <p className="text-[10px] text-muted-foreground">
+                        This is the one image shown on the catalogue list and buyer-facing views. A square or near-square
+                        photo works best. Leave blank to show a placeholder icon until an image is added.
+                      </p>
                       <p className="text-[10px] text-amber-700 dark:text-amber-400">
                         Square, detail, packaging & lifestyle images require a future media schema — only hero `image_url` is persisted today.
                       </p>
@@ -1274,6 +1278,7 @@ const AdminProducts = () => {
                           </option>
                         ))}
                       </select>
+                      <p className="text-[9px] text-muted-foreground mt-1">Broad catalogue grouping buyers browse by.</p>
                     </div>
                     <div>
                       <label className="block text-[10px] font-semibold text-muted-foreground uppercase tracking-wide mb-1.5">
@@ -1354,6 +1359,10 @@ const AdminProducts = () => {
                         {formData.visible_in_catalog ? "Visible to buyers" : "Hidden — internal only"}
                       </span>
                     </div>
+                    <p className="col-span-2 text-[9px] text-muted-foreground -mt-2">
+                      For catalogue visibility only — the product stays usable internally (e.g. as a BOM component).
+                      To take the SKU fully out of use everywhere, turn off "Product is Active" at the bottom of this form instead.
+                    </p>
                   </div>
                 </section>
 
@@ -1361,7 +1370,8 @@ const AdminProducts = () => {
                 {isBomCategory && (
                   <section className="space-y-4">
                     <h3 className="text-xs font-bold text-muted-foreground uppercase tracking-widest border-b border-border pb-2 flex items-center gap-2">
-                      <Layers size={14} className="text-purple-500" /> 3. Operations & BOM Breakdown
+                      <Layers size={14} className="text-purple-500" /> Operations & BOM Breakdown
+                      <span className="ml-auto text-[9px] font-semibold normal-case tracking-normal text-purple-500">Shown for BOM-tracked categories</span>
                     </h3>
                     <p className="text-[10px] text-muted-foreground">
                       Define the components that make up this {formData.category}. Each component will be routed to its source department by the Diverter.
@@ -1529,6 +1539,9 @@ const AdminProducts = () => {
                         <option value="Piece">Piece</option>
                         <option value="Box">Box</option>
                       </select>
+                      <p className="text-[9px] text-muted-foreground mt-1">
+                        Buyer-facing price label unit (e.g. ₹/Kg). See Settlement Unit for how downstream operations settle this line.
+                      </p>
                     </div>
 
                     {/* PILLAR 3: SETTLEMENT UNIT */}
@@ -1737,6 +1750,7 @@ const AdminProducts = () => {
                         readOnly
                         className="w-full bg-muted/30 border border-border rounded-lg p-2.5 text-sm text-muted-foreground outline-none"
                       />
+                      <p className="text-[9px] text-muted-foreground mt-1">Calculated from Packs / Carton — not directly editable.</p>
                     </div>
 
                     <div className="col-span-2">
@@ -1819,7 +1833,8 @@ const AdminProducts = () => {
                 {formData.category === "Ready packs" && (
                   <section className="space-y-4">
                     <h3 className="text-xs font-bold text-muted-foreground uppercase tracking-widest border-b border-border pb-2 flex items-center gap-2">
-                      <Package size={14} className="text-[#C5A059]" /> 3. Private Label Config
+                      <Package size={14} className="text-[#C5A059]" /> Private Label Config
+                      <span className="ml-auto text-[9px] font-semibold normal-case tracking-normal text-[#C5A059]">Shown for Ready Packs</span>
                     </h3>
                     <div className="grid grid-cols-2 gap-4">
                       <div>
@@ -1855,7 +1870,7 @@ const AdminProducts = () => {
                 {/* 4. FOOD COMPLIANCE + PILLAR 4: AI ATTRIBUTE GENERATOR */}
                 <section className="space-y-4">
                   <h3 className="text-xs font-bold text-muted-foreground uppercase tracking-widest border-b border-border pb-2 flex items-center gap-2">
-                    <Leaf size={14} className="text-green-600" /> 4. Food Compliance & AI Attributes
+                    <Leaf size={14} className="text-green-600" /> 3. Food Compliance & AI Attributes
                   </h3>
 
                   {/* AI Generate All Button */}
@@ -1980,7 +1995,7 @@ const AdminProducts = () => {
                 {/* 5. PRODUCT VARIANTS */}
                 <section className="space-y-4">
                   <h3 className="text-xs font-bold text-muted-foreground uppercase tracking-widest border-b border-border pb-2 flex items-center gap-2">
-                    <Layers size={14} className="text-blue-500" /> 5. Product Variants
+                    <Layers size={14} className="text-blue-500" /> 4. Product Variants
                   </h3>
                   <div className="flex items-center gap-3 mb-2">
                     <label className="text-xs font-semibold text-foreground">Enable Variants</label>
@@ -1998,10 +2013,10 @@ const AdminProducts = () => {
                   )}
                 </section>
 
-                {/* 6. INTELLIGENCE & SEARCH — aliases + unit math for parser/SO */}
+                {/* 5. INTELLIGENCE & SEARCH — aliases + unit math for parser/SO */}
                 <section className="space-y-4">
                   <h3 className="text-xs font-bold text-muted-foreground uppercase tracking-widest border-b border-border pb-2 flex items-center gap-2">
-                    <Sparkles size={14} className="text-[#C5A059]" /> 6. Intelligence & Search
+                    <Sparkles size={14} className="text-[#C5A059]" /> 5. Intelligence & Search
                   </h3>
 
                   <div>
@@ -2153,17 +2168,23 @@ const AdminProducts = () => {
                 </section>
 
                 {/* Active Toggle */}
-                <div className="flex items-center gap-3 bg-muted/20 p-4 rounded-xl border border-border mt-4">
-                  <input
-                    type="checkbox"
-                    id="is_active"
-                    checked={formData.is_active}
-                    onChange={(e) => updateFormData((prev) => ({ ...prev, is_active: e.target.checked }))}
-                    className="w-4 h-4 rounded border-border text-[#C5A059] focus:ring-[#C5A059]"
-                  />
-                  <label htmlFor="is_active" className="text-sm font-semibold text-foreground cursor-pointer">
-                    Product is Active (Visible to Buyers)
-                  </label>
+                <div className="bg-muted/20 p-4 rounded-xl border border-border mt-4">
+                  <div className="flex items-center gap-3">
+                    <input
+                      type="checkbox"
+                      id="is_active"
+                      checked={formData.is_active}
+                      onChange={(e) => updateFormData((prev) => ({ ...prev, is_active: e.target.checked }))}
+                      className="w-4 h-4 rounded border-border text-[#C5A059] focus:ring-[#C5A059]"
+                    />
+                    <label htmlFor="is_active" className="text-sm font-semibold text-foreground cursor-pointer">
+                      Product is Active (Visible to Buyers)
+                    </label>
+                  </div>
+                  <p className="text-[9px] text-muted-foreground mt-1.5">
+                    Master on/off switch for this SKU everywhere (search, orders, catalogues). This is different from the
+                    "Internal BOM Use Only" toggle in section 1, which only hides a still-active SKU from the storefront.
+                  </p>
                 </div>
               </div>
 
