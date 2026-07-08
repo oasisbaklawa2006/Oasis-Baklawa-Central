@@ -215,22 +215,24 @@ const AdminProducts = () => {
   const catalogueSearchQuery = catalogueSearch.trim();
   const [taggedProductIds, setTaggedProductIds] = useState<string[]>([]);
   const possibleDuplicateNames = useMemo(() => {
-    if (panelLoading) return [];
+    // Advisory only. Hide during save/load so the panel never compares stale formData
+    // against freshly refreshed products. Exclude only the actual edited product id;
+    // do not suppress matches by SKU because shared/duplicated SKU is itself a warning signal.
+    if (saving || panelLoading) return [];
+
     const typed = (formData?.name || "").trim().toLowerCase();
-    const currentSku = (formData?.sku || "").trim().toLowerCase();
     if (typed.length < 3) return [];
+
     return products
       .filter((p) => p.id !== editingProduct?.id)
       .filter((p) => {
-        const existingSku = (p.sku || "").trim().toLowerCase();
-        if (currentSku && existingSku === currentSku) return false;
         const existing = (p.name || "").trim().toLowerCase();
         if (!existing) return false;
         return existing.includes(typed) || typed.includes(existing);
       })
       .map((p) => p.name)
       .slice(0, 3);
-  }, [panelLoading, formData?.name, formData?.sku, products, editingProduct]);
+  }, [saving, panelLoading, formData?.name, products, editingProduct]);
   const visibleProducts = useMemo(() => {
     const tagFiltered = filterTag ? products.filter((p) => taggedProductIds.includes(p.id)) : products;
     const q = catalogueSearchQuery.toLowerCase();
