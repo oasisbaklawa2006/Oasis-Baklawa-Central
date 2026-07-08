@@ -145,16 +145,25 @@ function buildPackaging(p: ReadinessProductInput): ReadinessCategory {
       label: "Packaging / Carton",
       state: "missing",
       detail: "No carton type or packs-per-carton set.",
-      nextAction: "Set Packs / Carton so carton type can be calculated.",
+      nextAction: "Fill in both Carton Type and Packs / Carton.",
     };
   }
-  if (!hasCarton || !hasPacks) {
+  if (!hasCarton) {
     return {
       key: "packaging",
       label: "Packaging / Carton",
       state: "warn",
-      detail: hasCarton ? "Carton type is set, but Packs / Carton is blank." : "Packs / Carton is set, but Carton Type has not been calculated yet.",
-      nextAction: "Fill in Packs / Carton so Carton Type auto-calculates.",
+      detail: "Packs / Carton is set, but Carton Type has not been calculated yet.",
+      nextAction: "Fill in Carton Type.",
+    };
+  }
+  if (!hasPacks) {
+    return {
+      key: "packaging",
+      label: "Packaging / Carton",
+      state: "warn",
+      detail: "Carton type is set, but Packs / Carton is blank.",
+      nextAction: "Fill in Packs / Carton.",
     };
   }
   return {
@@ -248,7 +257,11 @@ export function computeCatalogueReadiness(product: ReadinessProductInput): Readi
   const score = possible > 0 ? Math.round((earned / possible) * 100) : 0;
 
   const hasMissing = categories.some((c) => c.state === "missing");
-  const overallLabel: ReadinessResult["overallLabel"] = hasMissing ? "Not ready" : score >= 90 ? "Catalogue-ready" : "Needs attention";
+  const allPass = categories.every((c) => c.state === "pass");
+  // "Catalogue-ready" requires both the score threshold AND every category passing —
+  // a single warn category (e.g. hidden-from-storefront visibility) must never be labelled ready.
+  const overallLabel: ReadinessResult["overallLabel"] =
+    allPass && score >= 90 ? "Catalogue-ready" : hasMissing ? "Not ready" : "Needs attention";
 
   return { score, overallLabel, categories };
 }
