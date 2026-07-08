@@ -80,6 +80,7 @@ const AdminNotifications = lazy(() => import("./pages/admin/AdminNotifications.t
 const CMDWarRoom = lazy(() => import("./pages/admin/CMDWarRoom.tsx"));
 const AdminMerchandising = lazy(() => import("./pages/admin/AdminMerchandising.tsx"));
 const AdminCatalogueSyncStatus = lazy(() => import("./pages/admin/AdminCatalogueSyncStatus.tsx"));
+const AdminCatalogueBuilder = lazy(() => import("./pages/admin/AdminCatalogueBuilder.tsx"));
 const ApprovalInbox = lazy(() => import("./pages/admin/ApprovalInbox.tsx"));
 const OrderManagement = lazy(() => import("./pages/admin/OrderManagement.tsx"));
 const CentralOrderPool = lazy(() => import("./pages/admin/CentralOrderPool.tsx"));
@@ -366,6 +367,7 @@ const App = () => (
                     <Route path="merchandising" element={<AdminMerchandising />} />
                     <Route path="catalogue-sync" element={<AdminCatalogueSyncStatus />} />
                     <Route path="catalogue-approvals" element={<ApprovalInbox />} />
+                    <Route path="catalogue-builder" element={<AdminCatalogueBuilder />} />
                     <Route path="order-management" element={<OrderManagement />} />
                     <Route path="central-pool" element={<CentralOrderPool />} />
                     <Route path="cmd-war-room" element={<CMDWarRoom />} />
