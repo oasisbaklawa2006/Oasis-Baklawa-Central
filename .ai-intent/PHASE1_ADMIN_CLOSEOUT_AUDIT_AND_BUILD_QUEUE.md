@@ -218,3 +218,50 @@ Seven PRs have merged since this audit was written. This section closes out whic
 - The genuinely `NOT_BUILT` phantom Central features (Gatekeeper, Billing, Payment Variances, Tickets, Reports) — net-new feature planning, not a hygiene fix.
 
 No item in this section is marked `BUILT_VALIDATED` — these are hygiene/labeling/redirect closures, not functional-completeness proofs. The **Final Recommendation** above (Batch 1 — print button cleanup) is now done; the current recommended next PR lives in `PHASE1_REMAINING_BUILD_EXTRACTION.md`'s own "Recommended Next Implementation PR" section.
+
+---
+
+## Final Preface Closeout — 2026-07-08
+
+**1. Preface / Phase-1 route hygiene is closed.**
+
+**2. Completed in Preface closeout:**
+- Handover docs installed across repos.
+- Central admin route registry reconciled.
+- Help sidebar modal z-index issue fixed.
+- Retired `/admin/verification` route redirected.
+- Scoped admin route error boundaries added.
+- Governance boards honestly classified as `BUILT_NEEDS_EVIDENCE`, not `BUILT_VALIDATED`.
+- `InventoryRiskBoard` received live read-only reservation signal.
+- `AssemblyTV` converted from Coming Soon to read-only preview.
+- `DispatchTV` converted from Coming Soon to read-only preview.
+
+**3. Explicitly not completed / intentionally deferred:**
+- Governance boards not E2E validated because no suitable full test order exists.
+- No draft-to-live Sales Order promotion added.
+- No invoice mutation added.
+- No stock mutation added.
+- No dispatch finalization mutation added from TV walls.
+- No WhatsApp bridge enablement.
+- No WhatsApp backfill.
+- No cron/backfill work.
+- Remaining product/catalogue UX issues move to build phase.
+- Remaining admin module stubs move to later scoped build PRs only.
+
+**4. Build-phase operating rules, frozen:**
+- One PR at a time.
+- Every PR must have a narrow purpose.
+- Every PR must state allowed files.
+- Every PR must state forbidden mutations.
+- No Cursor "Fix All".
+- No broad audits unless explicitly requested.
+- No docs-only loop except final checkpoints.
+- Bugbot medium/high finding means do not merge.
+- Release Quality Gate must pass before merge.
+- No SQL/migration unless the task explicitly requires schema work.
+- No Supabase writes in read-only views.
+- No invoice/dispatch/stock/finance mutation unless the PR is specifically scoped and governed for that mutation.
+- Stop after two failed fix attempts and ask for human direction.
+
+**5. Next phase recommendation:**
+Start build phase with Product Catalogue UX because product creation has already been observed as confusing, duplicate-prone, and operationally risky. Governance-board E2E validation should wait until a suitable test order exists.
