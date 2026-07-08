@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { AlertOctagon, Loader2 } from "lucide-react";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { OperationalTimeline } from "@/components/admin/OperationalTimeline";
@@ -13,6 +14,10 @@ import { RESERVATION_STATUSES } from "@/lib/inventory-reservations/reservationTy
 // Event id emitted by buildInventoryOsOperationalFeed only when a real (loaded) reservation count is fed in.
 const RESERVATION_QUEUE_EVENT_ID = "inv-os:variance:inv-risk:reservation-queue";
 const OPEN_RESERVATION_STATUSES = RESERVATION_STATUSES.filter(isReservationOpen);
+// The generated Supabase Database type doesn't include inventory_reservations in its table union yet
+// (same gap other read paths work around, e.g. useDepartmentExecutionBoard.ts). Narrowly escape typing
+// for this one read-only count query only — do not widen this cast to any other call in this file.
+const reservationsDb = supabase as unknown as SupabaseClient;
 
 export default function InventoryRiskBoard() {
   // null = not yet successfully loaded (loading or error) — never treated as a real "0 signals" result.
@@ -25,7 +30,7 @@ export default function InventoryRiskBoard() {
     async function loadOpenReservationCount() {
       setReservationSignalLoading(true);
       setReservationSignalError(null);
-      const { count, error } = await supabase
+      const { count, error } = await reservationsDb
         .from("inventory_reservations")
         .select("id", { count: "exact", head: true })
         .in("reservation_status", OPEN_RESERVATION_STATUSES);
