@@ -283,7 +283,7 @@ export default function BOMDemandEngine() {
           </p>
 
           {requirements.length === 0 && (
-            <p className="text-xs text-muted-foreground italic">No BOM data found. Add BOMs to products in the Catalogue Builder.</p>
+            <p className="text-xs text-muted-foreground italic">No BOM data found. Add BOMs to products in Product Admin.</p>
           )}
 
           <div className="space-y-1.5 max-h-60 overflow-y-auto">

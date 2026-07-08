@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Link, useSearchParams } from "react-router-dom";
+import { useSearchParams } from "react-router-dom";
 import VariantManager, { type ProductVariant } from "@/components/admin/VariantManager";
 import { supabase } from "@/integrations/supabase/client";
 import { motion, AnimatePresence } from "framer-motion";
@@ -988,12 +988,6 @@ const AdminProducts = () => {
             <p className="text-sm text-muted-foreground mt-1">Manage wholesale inventory, logistics, and pricing.</p>
           </div>
           <div className="flex items-center gap-2">
-            <Link
-              to="/admin/catalogue-builder"
-              className="flex items-center gap-2 border border-border text-foreground px-4 py-2.5 rounded-lg font-semibold text-sm hover:bg-muted/50 transition-colors"
-            >
-              <Wand2 size={16} /> Catalogue Builder
-            </Link>
             <button
               onClick={() => openPanel()}
               className="flex items-center gap-2 bg-[#C5A059] text-white px-5 py-2.5 rounded-lg font-semibold text-sm hover:bg-[#B38F48] transition-colors shadow-sm active:scale-[0.97]"
