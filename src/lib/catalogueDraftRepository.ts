@@ -1,0 +1,139 @@
+/**
+ * Persistence for catalogue AI-Studio drafts (PR #225). Talks only to
+ * catalogue_ai_studio_drafts / catalogue_ai_studio_draft_audit_log — never touches `products`.
+ */
+import { supabase } from "@/integrations/supabase/client";
+import type {
+  CatalogueDraftAuditRow,
+  CatalogueDraftContentKey,
+  CatalogueDraftRow,
+} from "@/lib/catalogueDraftTypes";
+
+export async function fetchLatestDraft(productId: string): Promise<CatalogueDraftRow | null> {
+  const { data, error } = await supabase
+    .from("catalogue_ai_studio_drafts")
+    .select("*")
+    .eq("product_id", productId)
+    .order("version_number", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (error) throw new Error(error.message);
+  return data;
+}
+
+export async function fetchDraftAuditLog(draftId: string): Promise<CatalogueDraftAuditRow[]> {
+  const { data, error } = await supabase
+    .from("catalogue_ai_studio_draft_audit_log")
+    .select("*")
+    .eq("draft_id", draftId)
+    .order("created_at", { ascending: false });
+  if (error) throw new Error(error.message);
+  return data ?? [];
+}
+
+async function insertAudit(
+  draftId: string,
+  action: string,
+  fromStatus: string | null,
+  toStatus: string | null,
+  actorId: string | null,
+): Promise<void> {
+  const { error } = await supabase.from("catalogue_ai_studio_draft_audit_log").insert({
+    draft_id: draftId,
+    action,
+    from_status: fromStatus,
+    to_status: toStatus,
+    actor_id: actorId,
+  });
+  if (error) throw new Error(error.message);
+}
+
+/**
+ * Updates the current open DRAFT for this product, or starts the next version if the latest
+ * draft is APPROVED/REJECTED (or none exists yet). Never touches a DRAFT belonging to another product.
+ */
+export async function saveDraft(params: {
+  productId: string;
+  content: Record<CatalogueDraftContentKey, string>;
+  actorId: string | null;
+}): Promise<CatalogueDraftRow> {
+  const latest = await fetchLatestDraft(params.productId);
+
+  if (latest && latest.status === "DRAFT") {
+    const { data, error } = await supabase
+      .from("catalogue_ai_studio_drafts")
+      .update({ ...params.content })
+      .eq("id", latest.id)
+      .select("*")
+      .single();
+    if (error) throw new Error(error.message);
+    await insertAudit(data.id, "SAVE_DRAFT", "DRAFT", "DRAFT", params.actorId);
+    return data;
+  }
+
+  const nextVersion = latest ? latest.version_number + 1 : 1;
+  const { data, error } = await supabase
+    .from("catalogue_ai_studio_drafts")
+    .insert({
+      product_id: params.productId,
+      version_number: nextVersion,
+      status: "DRAFT",
+      created_by: params.actorId,
+      ...params.content,
+    })
+    .select("*")
+    .single();
+  if (error) throw new Error(error.message);
+  await insertAudit(data.id, latest ? "CREATE_NEW_VERSION" : "CREATE_DRAFT", latest?.status ?? null, "DRAFT", params.actorId);
+  return data;
+}
+
+export async function submitDraftForReview(draftId: string, actorId: string | null): Promise<CatalogueDraftRow> {
+  const { data, error } = await supabase
+    .from("catalogue_ai_studio_drafts")
+    .update({ status: "UNDER_REVIEW" })
+    .eq("id", draftId)
+    .select("*")
+    .single();
+  if (error) throw new Error(error.message);
+  await insertAudit(draftId, "SUBMIT_FOR_REVIEW", "DRAFT", "UNDER_REVIEW", actorId);
+  return data;
+}
+
+export async function approveDraft(draftId: string, actorId: string | null): Promise<CatalogueDraftRow> {
+  const { data, error } = await supabase
+    .from("catalogue_ai_studio_drafts")
+    .update({
+      status: "APPROVED",
+      reviewed_by: actorId,
+      reviewed_at: new Date().toISOString(),
+      rejection_reason: null,
+    })
+    .eq("id", draftId)
+    .select("*")
+    .single();
+  if (error) throw new Error(error.message);
+  await insertAudit(draftId, "APPROVE", "UNDER_REVIEW", "APPROVED", actorId);
+  return data;
+}
+
+export async function rejectDraft(
+  draftId: string,
+  actorId: string | null,
+  reason: string,
+): Promise<CatalogueDraftRow> {
+  const { data, error } = await supabase
+    .from("catalogue_ai_studio_drafts")
+    .update({
+      status: "REJECTED",
+      reviewed_by: actorId,
+      reviewed_at: new Date().toISOString(),
+      rejection_reason: reason,
+    })
+    .eq("id", draftId)
+    .select("*")
+    .single();
+  if (error) throw new Error(error.message);
+  await insertAudit(draftId, "REJECT", "UNDER_REVIEW", "REJECTED", actorId);
+  return data;
+}

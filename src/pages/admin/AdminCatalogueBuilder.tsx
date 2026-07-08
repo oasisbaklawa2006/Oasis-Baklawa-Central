@@ -15,12 +15,17 @@ import {
   RotateCcw,
   Copy,
   FileText,
+  Save,
+  History,
+  ShieldCheck,
+  Ban,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { useAuth } from "@/hooks/useAuth";
 import {
   computeCatalogueReadiness,
   type ReadinessResult,
@@ -31,6 +36,55 @@ import {
   generateCatalogueDrafts,
   type DraftBlocks,
 } from "@/lib/catalogueContentDrafts";
+import type {
+  CatalogueDraftAuditRow,
+  CatalogueDraftContentKey,
+  CatalogueDraftRow,
+  CatalogueDraftStatus,
+} from "@/lib/catalogueDraftTypes";
+import {
+  approveDraft,
+  fetchDraftAuditLog,
+  fetchLatestDraft,
+  rejectDraft,
+  saveDraft,
+  submitDraftForReview,
+} from "@/lib/catalogueDraftRepository";
+import { STATUS_LABEL, canApprove, canReject, canSubmitForReview } from "@/lib/catalogueDraftWorkflow";
+
+/** DraftBlocks (editor state) <-> catalogue_ai_studio_drafts row — only the column name differs. */
+function mapContentToRow(drafts: DraftBlocks): Record<CatalogueDraftContentKey, string> {
+  return {
+    catalogue_title: drafts.catalogue_title,
+    short_description: drafts.short_description,
+    long_description: drafts.long_description,
+    b2b_sales_copy: drafts.b2b_sales_copy,
+    export_catalogue_copy: drafts.export_catalogue_copy,
+    whatsapp_product_message: drafts.whatsapp_message,
+    hindi_description: drafts.hindi_description,
+    storage_shelf_life_copy: drafts.storage_shelf_life_copy,
+  };
+}
+
+function mapRowToContent(row: CatalogueDraftRow): DraftBlocks {
+  return {
+    catalogue_title: row.catalogue_title,
+    short_description: row.short_description,
+    long_description: row.long_description,
+    b2b_sales_copy: row.b2b_sales_copy,
+    export_catalogue_copy: row.export_catalogue_copy,
+    whatsapp_message: row.whatsapp_product_message,
+    hindi_description: row.hindi_description,
+    storage_shelf_life_copy: row.storage_shelf_life_copy,
+  };
+}
+
+const DRAFT_STATUS_BADGE_CLASS: Record<CatalogueDraftStatus, string> = {
+  DRAFT: "bg-muted text-muted-foreground border-border",
+  UNDER_REVIEW: "bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-400/40",
+  APPROVED: "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-400/40",
+  REJECTED: "bg-destructive/10 text-destructive border-destructive/40",
+};
 
 interface CatalogueBuilderProduct {
   id: string;
@@ -93,6 +147,7 @@ const OVERALL_BADGE_CLASS: Record<ReadinessResult["overallLabel"], string> = {
 };
 
 export default function AdminCatalogueBuilder() {
+  const { user } = useAuth();
   const [products, setProducts] = useState<CatalogueBuilderProduct[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -190,6 +245,133 @@ export default function AdminCatalogueBuilder() {
       toast.success(`${label} copied.`);
     } catch {
       toast.error("Could not copy — your browser blocked clipboard access.");
+    }
+  };
+
+  // Persisted draft governance (PR #225): load-only on product switch — text areas above still
+  // start from a fresh local draft; "Load Latest Draft" is the explicit action that pulls this in.
+  const [persistedDraft, setPersistedDraft] = useState<CatalogueDraftRow | null>(null);
+  const [auditLog, setAuditLog] = useState<CatalogueDraftAuditRow[]>([]);
+  const [draftBusy, setDraftBusy] = useState(false);
+  const [rejectReasonOpen, setRejectReasonOpen] = useState(false);
+  const [rejectReason, setRejectReason] = useState("");
+
+  useEffect(() => {
+    let cancelled = false;
+    setPersistedDraft(null);
+    setAuditLog([]);
+    setRejectReasonOpen(false);
+    setRejectReason("");
+    if (!selected) return;
+    fetchLatestDraft(selected.id)
+      .then((row) => {
+        if (cancelled) return;
+        setPersistedDraft(row);
+        if (row) return fetchDraftAuditLog(row.id).then((log) => !cancelled && setAuditLog(log));
+      })
+      .catch((err) => {
+        if (!cancelled) toast.error(err instanceof Error ? err.message : "Could not load saved draft.");
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [selected]);
+
+  const refreshAuditLog = async (draftId: string) => {
+    try {
+      setAuditLog(await fetchDraftAuditLog(draftId));
+    } catch {
+      // History is a convenience view — a refresh failure here should not block the workflow action.
+    }
+  };
+
+  // Locked only while UNDER_REVIEW: a reviewer must approve/reject before content can change again.
+  // DRAFT/APPROVED/REJECTED all stay editable — saving from APPROVED/REJECTED starts the next version.
+  const textLocked = persistedDraft?.status === "UNDER_REVIEW";
+
+  const handleSaveDraft = async () => {
+    if (!selected || !drafts) return;
+    setDraftBusy(true);
+    try {
+      const row = await saveDraft({
+        productId: selected.id,
+        content: mapContentToRow(drafts),
+        actorId: user?.id ?? null,
+      });
+      setPersistedDraft(row);
+      await refreshAuditLog(row.id);
+      toast.success(`Draft saved — v${row.version_number} (${STATUS_LABEL[row.status as CatalogueDraftStatus]}).`);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Could not save draft.");
+    } finally {
+      setDraftBusy(false);
+    }
+  };
+
+  const handleLoadLatestDraft = async () => {
+    if (!selected) return;
+    setDraftBusy(true);
+    try {
+      const row = await fetchLatestDraft(selected.id);
+      if (!row) {
+        toast.error("No saved draft yet for this product.");
+        return;
+      }
+      setPersistedDraft(row);
+      setDraftState({ productId: selected.id, drafts: mapRowToContent(row) });
+      await refreshAuditLog(row.id);
+      toast.success(`Loaded v${row.version_number} (${STATUS_LABEL[row.status as CatalogueDraftStatus]}).`);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Could not load draft.");
+    } finally {
+      setDraftBusy(false);
+    }
+  };
+
+  const handleSubmitForReview = async () => {
+    if (!persistedDraft) return;
+    setDraftBusy(true);
+    try {
+      const row = await submitDraftForReview(persistedDraft.id, user?.id ?? null);
+      setPersistedDraft(row);
+      await refreshAuditLog(row.id);
+      toast.success("Submitted for review.");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Could not submit for review.");
+    } finally {
+      setDraftBusy(false);
+    }
+  };
+
+  const handleApprove = async () => {
+    if (!persistedDraft) return;
+    setDraftBusy(true);
+    try {
+      const row = await approveDraft(persistedDraft.id, user?.id ?? null);
+      setPersistedDraft(row);
+      await refreshAuditLog(row.id);
+      toast.success("Draft approved.");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Could not approve draft.");
+    } finally {
+      setDraftBusy(false);
+    }
+  };
+
+  const handleReject = async () => {
+    if (!persistedDraft || !rejectReason.trim()) return;
+    setDraftBusy(true);
+    try {
+      const row = await rejectDraft(persistedDraft.id, user?.id ?? null, rejectReason.trim());
+      setPersistedDraft(row);
+      await refreshAuditLog(row.id);
+      setRejectReasonOpen(false);
+      setRejectReason("");
+      toast.success("Draft rejected.");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Could not reject draft.");
+    } finally {
+      setDraftBusy(false);
     }
   };
 
@@ -366,9 +548,16 @@ export default function AdminCatalogueBuilder() {
                       <CardTitle className="text-sm flex items-center gap-2">
                         <FileText size={14} /> Content Draft Studio
                       </CardTitle>
-                      <Button type="button" size="sm" variant="outline" onClick={resetDraftsFromProduct}>
-                        <RotateCcw size={12} className="mr-1.5" /> Reset draft from product data
-                      </Button>
+                      <div className="flex items-center gap-2">
+                        {persistedDraft && (
+                          <Badge variant="outline" className={`text-[9px] uppercase ${DRAFT_STATUS_BADGE_CLASS[persistedDraft.status as CatalogueDraftStatus]}`}>
+                            {STATUS_LABEL[persistedDraft.status as CatalogueDraftStatus]} · v{persistedDraft.version_number}
+                          </Badge>
+                        )}
+                        <Button type="button" size="sm" variant="outline" onClick={resetDraftsFromProduct}>
+                          <RotateCcw size={12} className="mr-1.5" /> Reset draft from product data
+                        </Button>
+                      </div>
                     </div>
                     <CardDescription className="text-[11px]">
                       Generated locally from this product's current fields — no external AI call in this preview.
@@ -377,6 +566,57 @@ export default function AdminCatalogueBuilder() {
                       <AlertTriangle size={14} className="shrink-0" />
                       Draft only — does not update live product data.
                     </div>
+
+                    <div className="mt-3 flex flex-wrap items-center gap-2">
+                      <Button type="button" size="sm" disabled={draftBusy || textLocked} onClick={handleSaveDraft}>
+                        <Save size={12} className="mr-1.5" /> Save Draft
+                      </Button>
+                      <Button type="button" size="sm" variant="outline" disabled={draftBusy} onClick={handleLoadLatestDraft}>
+                        <History size={12} className="mr-1.5" /> Load Latest Draft
+                      </Button>
+                      {persistedDraft && canSubmitForReview(persistedDraft.status as CatalogueDraftStatus) && (
+                        <Button type="button" size="sm" variant="outline" disabled={draftBusy} onClick={handleSubmitForReview}>
+                          Submit for Review
+                        </Button>
+                      )}
+                      {persistedDraft && canApprove(persistedDraft.status as CatalogueDraftStatus) && (
+                        <Button type="button" size="sm" variant="outline" disabled={draftBusy} onClick={handleApprove}>
+                          <ShieldCheck size={12} className="mr-1.5" /> Approve
+                        </Button>
+                      )}
+                      {persistedDraft && canReject(persistedDraft.status as CatalogueDraftStatus) && !rejectReasonOpen && (
+                        <Button type="button" size="sm" variant="outline" disabled={draftBusy} onClick={() => setRejectReasonOpen(true)}>
+                          <Ban size={12} className="mr-1.5" /> Reject
+                        </Button>
+                      )}
+                    </div>
+
+                    {rejectReasonOpen && (
+                      <div className="mt-2 space-y-2 rounded-lg border border-destructive/40 bg-destructive/5 p-3">
+                        <label className="text-[11px] font-semibold text-foreground">Rejection reason</label>
+                        <Textarea
+                          value={rejectReason}
+                          onChange={(e) => setRejectReason(e.target.value)}
+                          rows={2}
+                          className="text-xs"
+                          placeholder="Explain what needs to change before resubmission…"
+                        />
+                        <div className="flex items-center gap-2">
+                          <Button type="button" size="sm" variant="destructive" disabled={draftBusy || !rejectReason.trim()} onClick={handleReject}>
+                            Confirm Reject
+                          </Button>
+                          <Button type="button" size="sm" variant="ghost" disabled={draftBusy} onClick={() => { setRejectReasonOpen(false); setRejectReason(""); }}>
+                            Cancel
+                          </Button>
+                        </div>
+                      </div>
+                    )}
+
+                    {textLocked && (
+                      <p className="mt-2 text-[11px] text-muted-foreground">
+                        Under review — approve or reject before editing again.
+                      </p>
+                    )}
                   </CardHeader>
                   <CardContent className="space-y-4">
                     {DRAFT_BLOCK_META.map((block) => (
@@ -400,9 +640,40 @@ export default function AdminCatalogueBuilder() {
                           onChange={(e) => updateDraftBlock(block.key, e.target.value)}
                           rows={block.key === "long_description" ? 4 : 2}
                           className="text-xs"
+                          disabled={textLocked}
                         />
                       </div>
                     ))}
+                  </CardContent>
+                </Card>
+              )}
+
+              {persistedDraft && (
+                <Card>
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-sm flex items-center gap-2">
+                      <History size={14} /> History / audit
+                    </CardTitle>
+                    <CardDescription className="text-[11px]">
+                      Draft workflow actions for v{persistedDraft.version_number}, most recent first.
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    {auditLog.length === 0 ? (
+                      <p className="text-xs text-muted-foreground py-2">No actions recorded yet.</p>
+                    ) : (
+                      <div className="space-y-1.5">
+                        {auditLog.map((entry) => (
+                          <div key={entry.id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border px-3 py-2 text-[11px]">
+                            <span className="font-semibold text-foreground">{entry.action}</span>
+                            <span className="text-muted-foreground">
+                              {entry.from_status ?? "—"} → {entry.to_status ?? "—"}
+                            </span>
+                            <span className="text-muted-foreground">{new Date(entry.created_at).toLocaleString()}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </CardContent>
                 </Card>
               )}
