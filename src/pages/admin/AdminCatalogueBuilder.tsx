@@ -145,21 +145,42 @@ export default function AdminCatalogueBuilder() {
   );
 
   // Draft text lives only in local component state — it is never sent to Supabase or read back into
-  // the product record. Regenerated from product data whenever the selected product changes.
-  const [drafts, setDrafts] = useState<DraftBlocks | null>(null);
+  // the product record. Keyed by productId so a product switch can never render or copy the previous
+  // product's drafts: `drafts` below is computed synchronously during render (not via a delayed effect),
+  // so it is always correct for `selected` even in the same render pass where selectedId just changed.
+  const [draftState, setDraftState] = useState<{ productId: string; drafts: DraftBlocks } | null>(null);
 
+  const drafts: DraftBlocks | null = useMemo(() => {
+    if (!selected) return null;
+    if (draftState && draftState.productId === selected.id) return draftState.drafts;
+    return generateCatalogueDrafts(selected);
+  }, [selected, draftState]);
+
+  // Keeps edits persisted once the freshly-generated draft for a newly selected product has been
+  // committed to state. Not required for correctness (the memo above already guarantees that), only
+  // so `updateDraftBlock` has a stable base to merge into after the first render of a new selection.
   useEffect(() => {
-    setDrafts(selected ? generateCatalogueDrafts(selected) : null);
+    if (!selected) {
+      setDraftState(null);
+      return;
+    }
+    setDraftState((prev) =>
+      prev && prev.productId === selected.id ? prev : { productId: selected.id, drafts: generateCatalogueDrafts(selected) },
+    );
   }, [selected]);
 
   const resetDraftsFromProduct = () => {
     if (!selected) return;
-    setDrafts(generateCatalogueDrafts(selected));
+    setDraftState({ productId: selected.id, drafts: generateCatalogueDrafts(selected) });
     toast.success("Draft reset from current product data.");
   };
 
   const updateDraftBlock = (key: keyof DraftBlocks, value: string) => {
-    setDrafts((prev) => (prev ? { ...prev, [key]: value } : prev));
+    if (!selected) return;
+    setDraftState((prev) => {
+      const base = prev && prev.productId === selected.id ? prev.drafts : generateCatalogueDrafts(selected);
+      return { productId: selected.id, drafts: { ...base, [key]: value } };
+    });
   };
 
   const copyDraftBlock = async (key: keyof DraftBlocks, label: string) => {
