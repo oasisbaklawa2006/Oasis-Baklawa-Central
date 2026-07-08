@@ -154,11 +154,23 @@ function hindiDescription(p: DraftProductInput): string {
   return `${p.name} अब उपलब्ध है (${category})।${priceLine} अधिक जानकारी के लिए संपर्क करें।\n(सरल हिंदी ड्राफ्ट — प्रमाणित अनुवाद नहीं है, भेजने से पहले जाँच लें।)`;
 }
 
+/**
+ * shelf_life is free display text elsewhere in the app (e.g. "90", "90 days", "6 months",
+ * "3 months domestic / 9 months export") — never blindly append a unit to an already-worded value.
+ * Only a purely numeric value gets "days" appended; anything else is trimmed and returned as-is.
+ */
+function formatShelfLifeText(value: string | null | undefined): string {
+  if (!hasText(value)) return "Shelf life to be confirmed.";
+  const trimmed = value!.trim();
+  if (/^\d+(\.\d+)?$/.test(trimmed)) return `${trimmed} days`;
+  return trimmed;
+}
+
 function storageShelfLifeCopy(p: DraftProductInput): string {
   if (!hasText(p.shelf_life) && !hasText(p.storage_type)) {
     return MISSING_FIELD("Shelf Life and Storage Type");
   }
-  const shelf = hasText(p.shelf_life) ? `Shelf life: ${p.shelf_life} days.` : MISSING_FIELD("Shelf Life");
+  const shelf = hasText(p.shelf_life) ? `Shelf life: ${formatShelfLifeText(p.shelf_life)}.` : MISSING_FIELD("Shelf Life");
   const storage = hasText(p.storage_type) ? `Store ${p.storage_type}.` : MISSING_FIELD("Storage Type");
   return `${shelf} ${storage}`;
 }
