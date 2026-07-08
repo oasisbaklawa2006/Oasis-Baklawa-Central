@@ -16,6 +16,8 @@ const UNDER_REVIEW_BLOCKED_MESSAGE =
 
 const STATUS_CHANGED_MESSAGE = "Draft status changed. Reload and try again.";
 
+const SAVE_CONFLICT_MESSAGE = "Another draft was saved for this product. Reload latest draft and try again.";
+
 export async function fetchLatestDraft(productId: string): Promise<CatalogueDraftRow | null> {
   const { data, error } = await supabase
     .from("catalogue_ai_studio_drafts")
@@ -98,7 +100,13 @@ export async function saveDraft(params: {
     .select("*")
     .single();
   if (error) {
-    if (error.code === UNIQUE_VIOLATION) throw new Error(UNDER_REVIEW_BLOCKED_MESSAGE);
+    if (error.code === UNIQUE_VIOLATION) {
+      // Re-check what actually exists now — a concurrent submit-for-review and a concurrent
+      // first-save/version conflict are different situations and must not share one message.
+      const recheck = await fetchLatestDraft(params.productId).catch(() => null);
+      if (recheck && recheck.status === "UNDER_REVIEW") throw new Error(UNDER_REVIEW_BLOCKED_MESSAGE);
+      throw new Error(SAVE_CONFLICT_MESSAGE);
+    }
     throw new Error(error.message);
   }
   await insertAudit(data.id, latest ? "CREATE_NEW_VERSION" : "CREATE_DRAFT", latest?.status ?? null, "DRAFT", params.actorId);

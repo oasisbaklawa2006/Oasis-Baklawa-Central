@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -211,19 +211,6 @@ export default function AdminCatalogueBuilder() {
     return generateCatalogueDrafts(selected);
   }, [selected, draftState]);
 
-  // Keeps edits persisted once the freshly-generated draft for a newly selected product has been
-  // committed to state. Not required for correctness (the memo above already guarantees that), only
-  // so `updateDraftBlock` has a stable base to merge into after the first render of a new selection.
-  useEffect(() => {
-    if (!selected) {
-      setDraftState(null);
-      return;
-    }
-    setDraftState((prev) =>
-      prev && prev.productId === selected.id ? prev : { productId: selected.id, drafts: generateCatalogueDrafts(selected) },
-    );
-  }, [selected]);
-
   const resetDraftsFromProduct = () => {
     if (!selected) return;
     setDraftState({ productId: selected.id, drafts: generateCatalogueDrafts(selected) });
@@ -248,10 +235,7 @@ export default function AdminCatalogueBuilder() {
     }
   };
 
-  // Persisted draft governance (PR #225). On product switch, the latest saved draft (if any) is
-  // fetched AND hydrated straight into the editor (`draftState`) so the operator, and every workflow
-  // button below, is always looking at the same content that is actually in the database — never a
-  // stale locally-generated draft that merely happens to share the product id.
+  // Persisted draft governance (PR #225).
   const [persistedDraft, setPersistedDraft] = useState<CatalogueDraftRow | null>(null);
   const [auditLog, setAuditLog] = useState<CatalogueDraftAuditRow[]>([]);
   const [draftLoading, setDraftLoading] = useState(false);
@@ -259,30 +243,51 @@ export default function AdminCatalogueBuilder() {
   const [rejectReasonOpen, setRejectReasonOpen] = useState(false);
   const [rejectReason, setRejectReason] = useState("");
 
+  // Always holds the product id that is actually on screen right now, read synchronously by every
+  // in-flight async handler/effect callback below — never the stale product id closed over when that
+  // async call started. This is what lets us discard a response that arrives after the operator has
+  // already moved on to a different product, instead of applying it to the wrong one.
+  const selectedIdRef = useRef<string | null>(null);
+  useEffect(() => {
+    selectedIdRef.current = selected?.id ?? null;
+  }, [selected]);
+
+  // One product-switch effect owns the entire transition: it clears the previous product's persisted
+  // draft/audit/reject state and seeds a fresh generated draft immediately, then fetches and hydrates
+  // the real saved draft (if any). No separate effect is left that could apply stale state out of order.
   useEffect(() => {
     let cancelled = false;
+    if (!selected) {
+      setPersistedDraft(null);
+      setAuditLog([]);
+      setRejectReasonOpen(false);
+      setRejectReason("");
+      setDraftState(null);
+      setDraftLoading(false);
+      return;
+    }
+    const productId = selected.id;
     setPersistedDraft(null);
     setAuditLog([]);
     setRejectReasonOpen(false);
     setRejectReason("");
-    if (!selected) {
-      setDraftLoading(false);
-      return;
-    }
+    setDraftState({ productId, drafts: generateCatalogueDrafts(selected) });
     setDraftLoading(true);
-    const productId = selected.id;
+
     fetchLatestDraft(productId)
       .then(async (row) => {
-        if (cancelled) return;
+        if (cancelled || selectedIdRef.current !== productId) return;
         setPersistedDraft(row);
         if (row) {
           setDraftState({ productId, drafts: mapRowToContent(row) });
           const log = await fetchDraftAuditLog(row.id);
-          if (!cancelled) setAuditLog(log);
+          if (!cancelled && selectedIdRef.current === productId) setAuditLog(log);
         }
       })
       .catch((err) => {
-        if (!cancelled) toast.error(err instanceof Error ? err.message : "Could not load saved draft.");
+        if (!cancelled && selectedIdRef.current === productId) {
+          toast.error(err instanceof Error ? err.message : "Could not load saved draft.");
+        }
       })
       .finally(() => {
         if (!cancelled) setDraftLoading(false);
@@ -300,28 +305,41 @@ export default function AdminCatalogueBuilder() {
     }
   };
 
+  // The single source of truth every badge/button/handler below reads: persistedDraft is only ever
+  // treated as "the current draft" when it, the hydrated editor state, AND the selected product all
+  // agree on the same product id. Any mismatch (a stale fetch mid-switch, a race on the ref) collapses
+  // this to null, which disables every workflow action rather than risk acting on the wrong draft.
+  const currentPersistedDraft: CatalogueDraftRow | null =
+    persistedDraft && selected && draftState &&
+    persistedDraft.product_id === selected.id &&
+    draftState.productId === selected.id
+      ? persistedDraft
+      : null;
+
   // Locked only while UNDER_REVIEW: a reviewer must approve/reject before content can change again.
   // DRAFT/APPROVED/REJECTED all stay editable — saving from APPROVED/REJECTED starts the next version.
-  const textLocked = persistedDraft?.status === "UNDER_REVIEW";
-  // While the persisted draft is still being fetched/hydrated, no workflow action may act — it would
-  // otherwise be able to act on a draft the operator has not actually seen yet.
+  const textLocked = currentPersistedDraft?.status === "UNDER_REVIEW";
+  // While the persisted draft is still being fetched/hydrated, no workflow action or edit may occur —
+  // it would otherwise be able to act on / overwrite a draft the operator has not actually seen yet.
   const workflowDisabled = draftBusy || draftLoading;
 
   const handleSaveDraft = async () => {
     if (!selected || !drafts) return;
+    const productId = selected.id;
     setDraftBusy(true);
     try {
       const row = await saveDraft({
-        productId: selected.id,
+        productId,
         content: mapContentToRow(drafts),
         actorId: user?.id ?? null,
       });
+      if (selectedIdRef.current !== productId) return;
       setPersistedDraft(row);
-      setDraftState({ productId: selected.id, drafts: mapRowToContent(row) });
+      setDraftState({ productId, drafts: mapRowToContent(row) });
       await refreshAuditLog(row.id);
       toast.success(`Draft saved — v${row.version_number} (${STATUS_LABEL[row.status as CatalogueDraftStatus]}).`);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Could not save draft.");
+      if (selectedIdRef.current === productId) toast.error(err instanceof Error ? err.message : "Could not save draft.");
     } finally {
       setDraftBusy(false);
     }
@@ -329,76 +347,100 @@ export default function AdminCatalogueBuilder() {
 
   const handleLoadLatestDraft = async () => {
     if (!selected) return;
+    const productId = selected.id;
     setDraftBusy(true);
     try {
-      const row = await fetchLatestDraft(selected.id);
+      const row = await fetchLatestDraft(productId);
+      if (selectedIdRef.current !== productId) return;
       if (!row) {
         toast.error("No saved draft yet for this product.");
         return;
       }
       setPersistedDraft(row);
-      setDraftState({ productId: selected.id, drafts: mapRowToContent(row) });
+      setDraftState({ productId, drafts: mapRowToContent(row) });
       await refreshAuditLog(row.id);
       toast.success(`Loaded v${row.version_number} (${STATUS_LABEL[row.status as CatalogueDraftStatus]}).`);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Could not load draft.");
+      if (selectedIdRef.current === productId) toast.error(err instanceof Error ? err.message : "Could not load draft.");
     } finally {
       setDraftBusy(false);
     }
   };
 
   // Always persists exactly what is currently visible in the editor into the DRAFT row first, then
-  // transitions that same saved row to UNDER_REVIEW — never submits stale database content.
+  // transitions that same saved row to UNDER_REVIEW — never submits stale database content, and never
+  // acts against a product the operator has since navigated away from.
   const handleSubmitForReview = async () => {
-    if (!selected || !drafts || !persistedDraft) return;
+    if (!selected || !drafts) return;
+    if (!currentPersistedDraft || draftLoading) {
+      toast.error("Draft is still loading. Please wait.");
+      return;
+    }
+    const productId = selected.id;
     setDraftBusy(true);
     try {
       const saved = await saveDraft({
-        productId: selected.id,
+        productId,
         content: mapContentToRow(drafts),
         actorId: user?.id ?? null,
       });
+      if (selectedIdRef.current !== productId) return;
       const row = await submitDraftForReview(saved.id, user?.id ?? null);
+      if (selectedIdRef.current !== productId) return;
       setPersistedDraft(row);
-      setDraftState({ productId: selected.id, drafts: mapRowToContent(row) });
+      setDraftState({ productId, drafts: mapRowToContent(row) });
       await refreshAuditLog(row.id);
       toast.success("Submitted for review.");
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Could not submit for review.");
+      if (selectedIdRef.current === productId) toast.error(err instanceof Error ? err.message : "Could not submit for review.");
     } finally {
       setDraftBusy(false);
     }
   };
 
   const handleApprove = async () => {
-    if (!selected || !persistedDraft) return;
+    if (!selected) return;
+    if (!currentPersistedDraft || draftLoading) {
+      toast.error("Draft is still loading. Please wait.");
+      return;
+    }
+    const productId = selected.id;
+    const draftId = currentPersistedDraft.id;
     setDraftBusy(true);
     try {
-      const row = await approveDraft(persistedDraft.id, user?.id ?? null);
+      const row = await approveDraft(draftId, user?.id ?? null);
+      if (selectedIdRef.current !== productId) return;
       setPersistedDraft(row);
-      setDraftState({ productId: selected.id, drafts: mapRowToContent(row) });
+      setDraftState({ productId, drafts: mapRowToContent(row) });
       await refreshAuditLog(row.id);
       toast.success("Draft approved.");
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Could not approve draft.");
+      if (selectedIdRef.current === productId) toast.error(err instanceof Error ? err.message : "Could not approve draft.");
     } finally {
       setDraftBusy(false);
     }
   };
 
   const handleReject = async () => {
-    if (!selected || !persistedDraft || !rejectReason.trim()) return;
+    if (!selected || !rejectReason.trim()) return;
+    if (!currentPersistedDraft || draftLoading) {
+      toast.error("Draft is still loading. Please wait.");
+      return;
+    }
+    const productId = selected.id;
+    const draftId = currentPersistedDraft.id;
     setDraftBusy(true);
     try {
-      const row = await rejectDraft(persistedDraft.id, user?.id ?? null, rejectReason.trim());
+      const row = await rejectDraft(draftId, user?.id ?? null, rejectReason.trim());
+      if (selectedIdRef.current !== productId) return;
       setPersistedDraft(row);
-      setDraftState({ productId: selected.id, drafts: mapRowToContent(row) });
+      setDraftState({ productId, drafts: mapRowToContent(row) });
       await refreshAuditLog(row.id);
       setRejectReasonOpen(false);
       setRejectReason("");
       toast.success("Draft rejected.");
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Could not reject draft.");
+      if (selectedIdRef.current === productId) toast.error(err instanceof Error ? err.message : "Could not reject draft.");
     } finally {
       setDraftBusy(false);
     }
@@ -578,12 +620,12 @@ export default function AdminCatalogueBuilder() {
                         <FileText size={14} /> Content Draft Studio
                       </CardTitle>
                       <div className="flex items-center gap-2">
-                        {persistedDraft && (
-                          <Badge variant="outline" className={`text-[9px] uppercase ${DRAFT_STATUS_BADGE_CLASS[persistedDraft.status as CatalogueDraftStatus]}`}>
-                            {STATUS_LABEL[persistedDraft.status as CatalogueDraftStatus]} · v{persistedDraft.version_number}
+                        {currentPersistedDraft && (
+                          <Badge variant="outline" className={`text-[9px] uppercase ${DRAFT_STATUS_BADGE_CLASS[currentPersistedDraft.status as CatalogueDraftStatus]}`}>
+                            {STATUS_LABEL[currentPersistedDraft.status as CatalogueDraftStatus]} · v{currentPersistedDraft.version_number}
                           </Badge>
                         )}
-                        <Button type="button" size="sm" variant="outline" onClick={resetDraftsFromProduct}>
+                        <Button type="button" size="sm" variant="outline" disabled={draftLoading} onClick={resetDraftsFromProduct}>
                           <RotateCcw size={12} className="mr-1.5" /> Reset draft from product data
                         </Button>
                       </div>
@@ -603,17 +645,17 @@ export default function AdminCatalogueBuilder() {
                       <Button type="button" size="sm" variant="outline" disabled={workflowDisabled} onClick={handleLoadLatestDraft}>
                         <History size={12} className="mr-1.5" /> Load Latest Draft
                       </Button>
-                      {persistedDraft && canSubmitForReview(persistedDraft.status as CatalogueDraftStatus) && (
+                      {currentPersistedDraft && canSubmitForReview(currentPersistedDraft.status as CatalogueDraftStatus) && (
                         <Button type="button" size="sm" variant="outline" disabled={workflowDisabled} onClick={handleSubmitForReview}>
                           Submit for Review
                         </Button>
                       )}
-                      {persistedDraft && canApprove(persistedDraft.status as CatalogueDraftStatus) && (
+                      {currentPersistedDraft && canApprove(currentPersistedDraft.status as CatalogueDraftStatus) && (
                         <Button type="button" size="sm" variant="outline" disabled={workflowDisabled} onClick={handleApprove}>
                           <ShieldCheck size={12} className="mr-1.5" /> Approve
                         </Button>
                       )}
-                      {persistedDraft && canReject(persistedDraft.status as CatalogueDraftStatus) && !rejectReasonOpen && (
+                      {currentPersistedDraft && canReject(currentPersistedDraft.status as CatalogueDraftStatus) && !rejectReasonOpen && (
                         <Button type="button" size="sm" variant="outline" disabled={workflowDisabled} onClick={() => setRejectReasonOpen(true)}>
                           <Ban size={12} className="mr-1.5" /> Reject
                         </Button>
@@ -668,6 +710,7 @@ export default function AdminCatalogueBuilder() {
                             type="button"
                             size="sm"
                             variant="ghost"
+                            disabled={draftLoading}
                             onClick={() => copyDraftBlock(block.key, block.label)}
                           >
                             <Copy size={12} className="mr-1.5" /> Copy
@@ -678,7 +721,7 @@ export default function AdminCatalogueBuilder() {
                           onChange={(e) => updateDraftBlock(block.key, e.target.value)}
                           rows={block.key === "long_description" ? 4 : 2}
                           className="text-xs"
-                          disabled={textLocked}
+                          disabled={textLocked || draftLoading}
                         />
                       </div>
                     ))}
@@ -686,14 +729,14 @@ export default function AdminCatalogueBuilder() {
                 </Card>
               )}
 
-              {persistedDraft && (
+              {currentPersistedDraft && (
                 <Card>
                   <CardHeader className="pb-3">
                     <CardTitle className="text-sm flex items-center gap-2">
                       <History size={14} /> History / audit
                     </CardTitle>
                     <CardDescription className="text-[11px]">
-                      Draft workflow actions for v{persistedDraft.version_number}, most recent first.
+                      Draft workflow actions for v{currentPersistedDraft.version_number}, most recent first.
                     </CardDescription>
                   </CardHeader>
                   <CardContent>
