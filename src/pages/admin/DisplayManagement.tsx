@@ -51,7 +51,7 @@ const DisplayManagement = () => {
             </TabsTrigger>
             <TabsTrigger value="dispatch" className="flex-1 gap-1">
               Dispatch TV
-              <span className="text-[9px] font-semibold uppercase tracking-wide text-amber-600">(Soon)</span>
+              <span className="text-[9px] font-semibold uppercase tracking-wide text-amber-600">(Preview)</span>
             </TabsTrigger>
             <TabsTrigger value="rgs" className="flex-1">RGS TV</TabsTrigger>
           </TabsList>
