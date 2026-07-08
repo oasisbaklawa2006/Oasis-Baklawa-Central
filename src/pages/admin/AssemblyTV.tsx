@@ -15,6 +15,7 @@ interface AssemblyTVItem {
   department: string | null;
   task_type: string | null;
   product?: { name: string; sku: string | null; production_department: string | null } | null;
+  order?: { id: string } | null;
 }
 
 const REFRESH_MS = 30000;
@@ -31,15 +32,18 @@ export default function AssemblyTV() {
         supabase
           .from("order_items")
           .select(
-            "id, order_id, quantity, actual_packed_qty, production_status, department, task_type, product:products(name, sku, production_department)",
+            "id, order_id, quantity, actual_packed_qty, production_status, department, task_type, product:products(name, sku, production_department), order:orders(id)",
           )
-          .in("production_status", ["pending", "in_progress", "partial_ready", "completed"])
-          .limit(200),
+          .in("production_status", ["pending", "in_progress", "partial_ready", "completed"]),
       );
       if (queryError) throw queryError;
-      const assemblyOnly = ((data as any[]) || []).filter(
-        (item) => resolveOrderItemFlow(item) === "FLOW_ASSEMBLY",
-      ) as AssemblyTVItem[];
+      // No row cap before classification — capping first (e.g. limit(200)) can silently truncate assembly
+      // rows out of an unrelated slice of the active queue. Same valid-order join rule as
+      // AssemblyManagement.tsx: drop orphan order_items with no matching order row instead of rendering them.
+      const assemblyOnly = ((data as any[]) || []).filter((item) => {
+        if (!item.order) return false;
+        return resolveOrderItemFlow(item) === "FLOW_ASSEMBLY";
+      }) as AssemblyTVItem[];
       setItems(assemblyOnly);
       setError(null);
     } catch (err) {
