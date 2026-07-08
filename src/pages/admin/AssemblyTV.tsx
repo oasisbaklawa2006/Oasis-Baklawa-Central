@@ -21,7 +21,7 @@ interface AssemblyTVItem {
 
 const REFRESH_MS = 30000;
 const TV_DISPLAY_LIMIT = 200;
-const ASSEMBLY_DEPARTMENTS = ["packing & assembly", "assembly", "hampers", "gifts", "packing_assembly"];
+const ASSEMBLY_DEPARTMENTS = ["Packing & Assembly", "Assembly", "Hampers", "Gifts", "packing_assembly"];
 const ACTIVE_ASSEMBLY_STATUSES = ["pending", "in_progress", "partial_ready", "completed"];
 
 export default function AssemblyTV() {
