@@ -67,14 +67,15 @@ export default function AssemblyTV() {
       // Server-side filters narrow to active assembly candidates before the TV display cap.
       // The resolver remains a final safety check because the canonical flow also considers
       // product production_department and task/dept edge cases. Inner order join prevents SO#N/A orphans.
-      const assemblyOnly = (((data as any[]) || []) as AssemblyTVItem[]).filter(
+      const candidateRows = (((data as any[]) || []) as AssemblyTVItem[]);
+      const assemblyOnly = candidateRows.filter(
         (item) => item.order && resolveOrderItemFlow(item) === "FLOW_ASSEMBLY",
       );
 
       setItems(assemblyOnly);
       setCoverageWarning(
-        assemblyOnly.length >= TV_DISPLAY_LIMIT
-          ? `Showing latest ${TV_DISPLAY_LIMIT} assembly rows. Use Assembly Management for full queue reconciliation.`
+        candidateRows.length >= TV_DISPLAY_LIMIT
+          ? `Showing ${assemblyOnly.length} assembly rows from the latest ${TV_DISPLAY_LIMIT} matching candidates. Use Assembly Management for full queue reconciliation.`
           : null,
       );
       setError(null);
