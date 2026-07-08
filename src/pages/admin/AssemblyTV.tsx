@@ -9,6 +9,7 @@ import { withTimeout, isQueryTimeoutError } from "@/lib/query-timeout";
 interface AssemblyTVItem {
   id: string;
   order_id: string | null;
+  product_id: string | null;
   quantity: number;
   actual_packed_qty: number | null;
   production_status: string | null;
@@ -19,37 +20,69 @@ interface AssemblyTVItem {
 }
 
 const REFRESH_MS = 30000;
+const TV_DISPLAY_LIMIT = 200;
+const ASSEMBLY_DEPARTMENTS = ["packing & assembly", "assembly", "hampers", "gifts", "packing_assembly"];
+const ACTIVE_ASSEMBLY_STATUSES = ["pending", "in_progress", "partial_ready", "completed"];
 
 export default function AssemblyTV() {
   const [items, setItems] = useState<AssemblyTVItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [coverageWarning, setCoverageWarning] = useState<string | null>(null);
   const [now, setNow] = useState(new Date());
 
   const fetchData = useCallback(async () => {
     try {
-      const { data, error: queryError } = await withTimeout(
+      const { data: assemblyProducts, error: productError } = await withTimeout(
         supabase
-          .from("order_items")
-          .select(
-            "id, order_id, quantity, actual_packed_qty, production_status, department, task_type, product:products(name, sku, production_department), order:orders(id)",
-          )
-          .in("production_status", ["pending", "in_progress", "partial_ready", "completed"]),
+          .from("products")
+          .select("id")
+          .in("production_department", ASSEMBLY_DEPARTMENTS),
       );
+
+      if (productError) throw productError;
+
+      const assemblyProductIds = ((assemblyProducts as Array<{ id: string }> | null) ?? [])
+        .map((product) => product.id)
+        .filter(Boolean);
+
+      const orderItemQuery = supabase
+        .from("order_items")
+        .select(
+          "id, order_id, product_id, quantity, actual_packed_qty, production_status, department, task_type, product:products(name, sku, production_department), order:orders!inner(id)",
+        )
+        .in("production_status", ACTIVE_ASSEMBLY_STATUSES)
+        .order("id", { ascending: false })
+        .limit(TV_DISPLAY_LIMIT);
+
+      const assemblyFilters = [
+        `department.in.(${ASSEMBLY_DEPARTMENTS.map((department) => `"${department}"`).join(",")})`,
+        ...(assemblyProductIds.length > 0 ? [`product_id.in.(${assemblyProductIds.join(",")})`] : []),
+      ];
+
+      const { data, error: queryError } = await withTimeout(orderItemQuery.or(assemblyFilters.join(",")));
+
       if (queryError) throw queryError;
-      // No row cap before classification — capping first (e.g. limit(200)) can silently truncate assembly
-      // rows out of an unrelated slice of the active queue. Same valid-order join rule as
-      // AssemblyManagement.tsx: drop orphan order_items with no matching order row instead of rendering them.
-      const assemblyOnly = ((data as any[]) || []).filter((item) => {
-        if (!item.order) return false;
-        return resolveOrderItemFlow(item) === "FLOW_ASSEMBLY";
-      }) as AssemblyTVItem[];
+
+      // Server-side filters narrow to active assembly candidates before the TV display cap.
+      // The resolver remains a final safety check because the canonical flow also considers
+      // product production_department and task/dept edge cases. Inner order join prevents SO#N/A orphans.
+      const assemblyOnly = (((data as any[]) || []) as AssemblyTVItem[]).filter(
+        (item) => item.order && resolveOrderItemFlow(item) === "FLOW_ASSEMBLY",
+      );
+
       setItems(assemblyOnly);
+      setCoverageWarning(
+        assemblyOnly.length >= TV_DISPLAY_LIMIT
+          ? `Showing latest ${TV_DISPLAY_LIMIT} assembly rows. Use Assembly Management for full queue reconciliation.`
+          : null,
+      );
       setError(null);
     } catch (err) {
       // Clear the queue on a failed refresh — this is an operator TV wall, so a stale board showing the
       // last successful load while the error banner says the fetch failed would be actively misleading.
       setItems([]);
+      setCoverageWarning(null);
       setError(
         isQueryTimeoutError(err)
           ? "Query timed out"
@@ -139,6 +172,13 @@ export default function AssemblyTV() {
         <div className="mb-4 flex items-center gap-2 rounded-xl border border-red-500/40 bg-red-950/40 p-3 text-red-200">
           <AlertTriangle size={18} />
           <span>Failed to load assembly queue: {error}</span>
+        </div>
+      )}
+
+      {coverageWarning && !error && (
+        <div className="mb-4 flex items-center gap-2 rounded-xl border border-amber-500/40 bg-amber-950/40 p-3 text-amber-100">
+          <AlertTriangle size={18} />
+          <span>{coverageWarning}</span>
         </div>
       )}
 
