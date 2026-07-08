@@ -47,6 +47,9 @@ export default function AssemblyTV() {
       setItems(assemblyOnly);
       setError(null);
     } catch (err) {
+      // Clear the queue on a failed refresh — this is an operator TV wall, so a stale board showing the
+      // last successful load while the error banner says the fetch failed would be actively misleading.
+      setItems([]);
       setError(
         isQueryTimeoutError(err)
           ? "Query timed out"
