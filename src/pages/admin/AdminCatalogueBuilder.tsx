@@ -248,10 +248,13 @@ export default function AdminCatalogueBuilder() {
     }
   };
 
-  // Persisted draft governance (PR #225): load-only on product switch — text areas above still
-  // start from a fresh local draft; "Load Latest Draft" is the explicit action that pulls this in.
+  // Persisted draft governance (PR #225). On product switch, the latest saved draft (if any) is
+  // fetched AND hydrated straight into the editor (`draftState`) so the operator, and every workflow
+  // button below, is always looking at the same content that is actually in the database — never a
+  // stale locally-generated draft that merely happens to share the product id.
   const [persistedDraft, setPersistedDraft] = useState<CatalogueDraftRow | null>(null);
   const [auditLog, setAuditLog] = useState<CatalogueDraftAuditRow[]>([]);
+  const [draftLoading, setDraftLoading] = useState(false);
   const [draftBusy, setDraftBusy] = useState(false);
   const [rejectReasonOpen, setRejectReasonOpen] = useState(false);
   const [rejectReason, setRejectReason] = useState("");
@@ -262,15 +265,27 @@ export default function AdminCatalogueBuilder() {
     setAuditLog([]);
     setRejectReasonOpen(false);
     setRejectReason("");
-    if (!selected) return;
-    fetchLatestDraft(selected.id)
-      .then((row) => {
+    if (!selected) {
+      setDraftLoading(false);
+      return;
+    }
+    setDraftLoading(true);
+    const productId = selected.id;
+    fetchLatestDraft(productId)
+      .then(async (row) => {
         if (cancelled) return;
         setPersistedDraft(row);
-        if (row) return fetchDraftAuditLog(row.id).then((log) => !cancelled && setAuditLog(log));
+        if (row) {
+          setDraftState({ productId, drafts: mapRowToContent(row) });
+          const log = await fetchDraftAuditLog(row.id);
+          if (!cancelled) setAuditLog(log);
+        }
       })
       .catch((err) => {
         if (!cancelled) toast.error(err instanceof Error ? err.message : "Could not load saved draft.");
+      })
+      .finally(() => {
+        if (!cancelled) setDraftLoading(false);
       });
     return () => {
       cancelled = true;
@@ -288,6 +303,9 @@ export default function AdminCatalogueBuilder() {
   // Locked only while UNDER_REVIEW: a reviewer must approve/reject before content can change again.
   // DRAFT/APPROVED/REJECTED all stay editable — saving from APPROVED/REJECTED starts the next version.
   const textLocked = persistedDraft?.status === "UNDER_REVIEW";
+  // While the persisted draft is still being fetched/hydrated, no workflow action may act — it would
+  // otherwise be able to act on a draft the operator has not actually seen yet.
+  const workflowDisabled = draftBusy || draftLoading;
 
   const handleSaveDraft = async () => {
     if (!selected || !drafts) return;
@@ -299,6 +317,7 @@ export default function AdminCatalogueBuilder() {
         actorId: user?.id ?? null,
       });
       setPersistedDraft(row);
+      setDraftState({ productId: selected.id, drafts: mapRowToContent(row) });
       await refreshAuditLog(row.id);
       toast.success(`Draft saved — v${row.version_number} (${STATUS_LABEL[row.status as CatalogueDraftStatus]}).`);
     } catch (err) {
@@ -328,12 +347,20 @@ export default function AdminCatalogueBuilder() {
     }
   };
 
+  // Always persists exactly what is currently visible in the editor into the DRAFT row first, then
+  // transitions that same saved row to UNDER_REVIEW — never submits stale database content.
   const handleSubmitForReview = async () => {
-    if (!persistedDraft) return;
+    if (!selected || !drafts || !persistedDraft) return;
     setDraftBusy(true);
     try {
-      const row = await submitDraftForReview(persistedDraft.id, user?.id ?? null);
+      const saved = await saveDraft({
+        productId: selected.id,
+        content: mapContentToRow(drafts),
+        actorId: user?.id ?? null,
+      });
+      const row = await submitDraftForReview(saved.id, user?.id ?? null);
       setPersistedDraft(row);
+      setDraftState({ productId: selected.id, drafts: mapRowToContent(row) });
       await refreshAuditLog(row.id);
       toast.success("Submitted for review.");
     } catch (err) {
@@ -344,11 +371,12 @@ export default function AdminCatalogueBuilder() {
   };
 
   const handleApprove = async () => {
-    if (!persistedDraft) return;
+    if (!selected || !persistedDraft) return;
     setDraftBusy(true);
     try {
       const row = await approveDraft(persistedDraft.id, user?.id ?? null);
       setPersistedDraft(row);
+      setDraftState({ productId: selected.id, drafts: mapRowToContent(row) });
       await refreshAuditLog(row.id);
       toast.success("Draft approved.");
     } catch (err) {
@@ -359,11 +387,12 @@ export default function AdminCatalogueBuilder() {
   };
 
   const handleReject = async () => {
-    if (!persistedDraft || !rejectReason.trim()) return;
+    if (!selected || !persistedDraft || !rejectReason.trim()) return;
     setDraftBusy(true);
     try {
       const row = await rejectDraft(persistedDraft.id, user?.id ?? null, rejectReason.trim());
       setPersistedDraft(row);
+      setDraftState({ productId: selected.id, drafts: mapRowToContent(row) });
       await refreshAuditLog(row.id);
       setRejectReasonOpen(false);
       setRejectReason("");
@@ -568,28 +597,37 @@ export default function AdminCatalogueBuilder() {
                     </div>
 
                     <div className="mt-3 flex flex-wrap items-center gap-2">
-                      <Button type="button" size="sm" disabled={draftBusy || textLocked} onClick={handleSaveDraft}>
+                      <Button type="button" size="sm" disabled={workflowDisabled || textLocked} onClick={handleSaveDraft}>
                         <Save size={12} className="mr-1.5" /> Save Draft
                       </Button>
-                      <Button type="button" size="sm" variant="outline" disabled={draftBusy} onClick={handleLoadLatestDraft}>
+                      <Button type="button" size="sm" variant="outline" disabled={workflowDisabled} onClick={handleLoadLatestDraft}>
                         <History size={12} className="mr-1.5" /> Load Latest Draft
                       </Button>
                       {persistedDraft && canSubmitForReview(persistedDraft.status as CatalogueDraftStatus) && (
-                        <Button type="button" size="sm" variant="outline" disabled={draftBusy} onClick={handleSubmitForReview}>
+                        <Button type="button" size="sm" variant="outline" disabled={workflowDisabled} onClick={handleSubmitForReview}>
                           Submit for Review
                         </Button>
                       )}
                       {persistedDraft && canApprove(persistedDraft.status as CatalogueDraftStatus) && (
-                        <Button type="button" size="sm" variant="outline" disabled={draftBusy} onClick={handleApprove}>
+                        <Button type="button" size="sm" variant="outline" disabled={workflowDisabled} onClick={handleApprove}>
                           <ShieldCheck size={12} className="mr-1.5" /> Approve
                         </Button>
                       )}
                       {persistedDraft && canReject(persistedDraft.status as CatalogueDraftStatus) && !rejectReasonOpen && (
-                        <Button type="button" size="sm" variant="outline" disabled={draftBusy} onClick={() => setRejectReasonOpen(true)}>
+                        <Button type="button" size="sm" variant="outline" disabled={workflowDisabled} onClick={() => setRejectReasonOpen(true)}>
                           <Ban size={12} className="mr-1.5" /> Reject
                         </Button>
                       )}
+                      {draftLoading && (
+                        <span className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+                          <Loader2 size={12} className="animate-spin" /> Loading saved draft…
+                        </span>
+                      )}
                     </div>
+
+                    <p className="mt-2 text-[10px] text-muted-foreground">
+                      Workflow actions use the currently displayed saved draft.
+                    </p>
 
                     {rejectReasonOpen && (
                       <div className="mt-2 space-y-2 rounded-lg border border-destructive/40 bg-destructive/5 p-3">
@@ -602,10 +640,10 @@ export default function AdminCatalogueBuilder() {
                           placeholder="Explain what needs to change before resubmission…"
                         />
                         <div className="flex items-center gap-2">
-                          <Button type="button" size="sm" variant="destructive" disabled={draftBusy || !rejectReason.trim()} onClick={handleReject}>
+                          <Button type="button" size="sm" variant="destructive" disabled={workflowDisabled || !rejectReason.trim()} onClick={handleReject}>
                             Confirm Reject
                           </Button>
-                          <Button type="button" size="sm" variant="ghost" disabled={draftBusy} onClick={() => { setRejectReasonOpen(false); setRejectReason(""); }}>
+                          <Button type="button" size="sm" variant="ghost" disabled={workflowDisabled} onClick={() => { setRejectReasonOpen(false); setRejectReason(""); }}>
                             Cancel
                           </Button>
                         </div>

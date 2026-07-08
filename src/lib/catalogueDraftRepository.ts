@@ -9,6 +9,13 @@ import type {
   CatalogueDraftRow,
 } from "@/lib/catalogueDraftTypes";
 
+const UNIQUE_VIOLATION = "23505";
+
+const UNDER_REVIEW_BLOCKED_MESSAGE =
+  "This draft is under review. Reject it or create a new version after review before editing.";
+
+const STATUS_CHANGED_MESSAGE = "Draft status changed. Reload and try again.";
+
 export async function fetchLatestDraft(productId: string): Promise<CatalogueDraftRow | null> {
   const { data, error } = await supabase
     .from("catalogue_ai_studio_drafts")
@@ -51,6 +58,7 @@ async function insertAudit(
 /**
  * Updates the current open DRAFT for this product, or starts the next version if the latest
  * draft is APPROVED/REJECTED (or none exists yet). Never touches a DRAFT belonging to another product.
+ * Refuses outright while the latest draft is UNDER_REVIEW — a reviewer must act first.
  */
 export async function saveDraft(params: {
   productId: string;
@@ -59,14 +67,20 @@ export async function saveDraft(params: {
 }): Promise<CatalogueDraftRow> {
   const latest = await fetchLatestDraft(params.productId);
 
+  if (latest && latest.status === "UNDER_REVIEW") {
+    throw new Error(UNDER_REVIEW_BLOCKED_MESSAGE);
+  }
+
   if (latest && latest.status === "DRAFT") {
     const { data, error } = await supabase
       .from("catalogue_ai_studio_drafts")
       .update({ ...params.content })
       .eq("id", latest.id)
+      .eq("status", "DRAFT")
       .select("*")
-      .single();
+      .maybeSingle();
     if (error) throw new Error(error.message);
+    if (!data) throw new Error(STATUS_CHANGED_MESSAGE);
     await insertAudit(data.id, "SAVE_DRAFT", "DRAFT", "DRAFT", params.actorId);
     return data;
   }
@@ -83,7 +97,10 @@ export async function saveDraft(params: {
     })
     .select("*")
     .single();
-  if (error) throw new Error(error.message);
+  if (error) {
+    if (error.code === UNIQUE_VIOLATION) throw new Error(UNDER_REVIEW_BLOCKED_MESSAGE);
+    throw new Error(error.message);
+  }
   await insertAudit(data.id, latest ? "CREATE_NEW_VERSION" : "CREATE_DRAFT", latest?.status ?? null, "DRAFT", params.actorId);
   return data;
 }
@@ -93,9 +110,11 @@ export async function submitDraftForReview(draftId: string, actorId: string | nu
     .from("catalogue_ai_studio_drafts")
     .update({ status: "UNDER_REVIEW" })
     .eq("id", draftId)
+    .eq("status", "DRAFT")
     .select("*")
-    .single();
+    .maybeSingle();
   if (error) throw new Error(error.message);
+  if (!data) throw new Error(STATUS_CHANGED_MESSAGE);
   await insertAudit(draftId, "SUBMIT_FOR_REVIEW", "DRAFT", "UNDER_REVIEW", actorId);
   return data;
 }
@@ -110,9 +129,11 @@ export async function approveDraft(draftId: string, actorId: string | null): Pro
       rejection_reason: null,
     })
     .eq("id", draftId)
+    .eq("status", "UNDER_REVIEW")
     .select("*")
-    .single();
+    .maybeSingle();
   if (error) throw new Error(error.message);
+  if (!data) throw new Error(STATUS_CHANGED_MESSAGE);
   await insertAudit(draftId, "APPROVE", "UNDER_REVIEW", "APPROVED", actorId);
   return data;
 }
@@ -131,9 +152,11 @@ export async function rejectDraft(
       rejection_reason: reason,
     })
     .eq("id", draftId)
+    .eq("status", "UNDER_REVIEW")
     .select("*")
-    .single();
+    .maybeSingle();
   if (error) throw new Error(error.message);
+  if (!data) throw new Error(STATUS_CHANGED_MESSAGE);
   await insertAudit(draftId, "REJECT", "UNDER_REVIEW", "REJECTED", actorId);
   return data;
 }
