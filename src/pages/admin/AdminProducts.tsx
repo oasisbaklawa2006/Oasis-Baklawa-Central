@@ -215,6 +215,7 @@ const AdminProducts = () => {
   const catalogueSearchQuery = catalogueSearch.trim();
   const [taggedProductIds, setTaggedProductIds] = useState<string[]>([]);
   const possibleDuplicateNames = useMemo(() => {
+    if (panelLoading) return [];
     const typed = (formData?.name || "").trim().toLowerCase();
     const currentSku = (formData?.sku || "").trim().toLowerCase();
     if (typed.length < 3) return [];
@@ -229,7 +230,7 @@ const AdminProducts = () => {
       })
       .map((p) => p.name)
       .slice(0, 3);
-  }, [formData?.name, formData?.sku, products, editingProduct]);
+  }, [panelLoading, formData?.name, formData?.sku, products, editingProduct]);
   const visibleProducts = useMemo(() => {
     const tagFiltered = filterTag ? products.filter((p) => taggedProductIds.includes(p.id)) : products;
     const q = catalogueSearchQuery.toLowerCase();
