@@ -8,10 +8,15 @@ import { buildInventoryOsOperationalFeed } from "@/lib/operational-events/invent
 import { buildExecutionOperationalFeed } from "@/lib/operational-events/executionOperationalFeed";
 import { supabase } from "@/integrations/supabase/client";
 import { isReservationOpen } from "@/lib/inventory-reservations/reservationLifecycle";
-import type { ReservationStatus } from "@/lib/inventory-reservations/reservationTypes";
+import { RESERVATION_STATUSES } from "@/lib/inventory-reservations/reservationTypes";
+
+// Event id emitted by buildInventoryOsOperationalFeed only when a real (loaded) reservation count is fed in.
+const RESERVATION_QUEUE_EVENT_ID = "inv-os:variance:inv-risk:reservation-queue";
+const OPEN_RESERVATION_STATUSES = RESERVATION_STATUSES.filter(isReservationOpen);
 
 export default function InventoryRiskBoard() {
-  const [openReservationSignals, setOpenReservationSignals] = useState(0);
+  // null = not yet successfully loaded (loading or error) — never treated as a real "0 signals" result.
+  const [openReservationSignals, setOpenReservationSignals] = useState<number | null>(null);
   const [reservationSignalLoading, setReservationSignalLoading] = useState(true);
   const [reservationSignalError, setReservationSignalError] = useState<string | null>(null);
 
@@ -20,17 +25,24 @@ export default function InventoryRiskBoard() {
     async function loadOpenReservationCount() {
       setReservationSignalLoading(true);
       setReservationSignalError(null);
-      const { data, error } = await supabase.from("inventory_reservations").select("reservation_status");
+      const { count, error } = await supabase
+        .from("inventory_reservations")
+        .select("id", { count: "exact", head: true })
+        .in("reservation_status", OPEN_RESERVATION_STATUSES);
       if (cancelled) return;
       if (error) {
+        setOpenReservationSignals(null);
         setReservationSignalError(error.message);
         setReservationSignalLoading(false);
         return;
       }
-      const openCount = (data ?? []).filter((row) =>
-        isReservationOpen(row.reservation_status as ReservationStatus),
-      ).length;
-      setOpenReservationSignals(openCount);
+      if (count === null) {
+        setOpenReservationSignals(null);
+        setReservationSignalError("Reservation count unavailable.");
+        setReservationSignalLoading(false);
+        return;
+      }
+      setOpenReservationSignals(count);
       setReservationSignalLoading(false);
     }
     void loadOpenReservationCount();
@@ -39,30 +51,33 @@ export default function InventoryRiskBoard() {
     };
   }, []);
 
-  const events = useMemo(
-    () =>
-      dedupeOperationalEventsById(
-        mergeOperationalEventFeeds([
-          buildInventoryOsOperationalFeed({
-            risk: {
-              shelfTruthUnknown: true,
-              openReservationSignals: reservationSignalLoading ? 0 : openReservationSignals,
-              reconciliationBacklogHint: false,
-            },
-          }),
-          buildExecutionOperationalFeed({
-            satisfaction: {
-              financeVerified: false,
-              productionReady: true,
-              packingComplete: false,
-              barcodeReady: false,
-              dispatchLabelReady: false,
-            },
-          }),
-        ]),
-      ),
-    [openReservationSignals, reservationSignalLoading],
-  );
+  const reservationSignalReady = !reservationSignalLoading && !reservationSignalError && openReservationSignals !== null;
+
+  const events = useMemo(() => {
+    const merged = dedupeOperationalEventsById(
+      mergeOperationalEventFeeds([
+        buildInventoryOsOperationalFeed({
+          risk: {
+            shelfTruthUnknown: true,
+            // Only a successfully-loaded count is ever a real signal; otherwise feed 0 but strip its derived
+            // event below so an unresolved/failed fetch can never be mistaken for a confirmed "no risk" result.
+            openReservationSignals: reservationSignalReady ? (openReservationSignals as number) : 0,
+            reconciliationBacklogHint: false,
+          },
+        }),
+        buildExecutionOperationalFeed({
+          satisfaction: {
+            financeVerified: false,
+            productionReady: true,
+            packingComplete: false,
+            barcodeReady: false,
+            dispatchLabelReady: false,
+          },
+        }),
+      ]),
+    );
+    return reservationSignalReady ? merged : merged.filter((event) => event.id !== RESERVATION_QUEUE_EVENT_ID);
+  }, [openReservationSignals, reservationSignalReady]);
 
   return (
     <div className="mx-auto max-w-5xl space-y-6 p-4 pb-24">
@@ -88,8 +103,8 @@ export default function InventoryRiskBoard() {
         </CardHeader>
         <CardContent className="text-sm">
           {reservationSignalError ? (
-            <p className="text-destructive">Failed to load reservation signal: {reservationSignalError}</p>
-          ) : reservationSignalLoading ? (
+            <p className="text-destructive">Reservation signal unavailable: {reservationSignalError}</p>
+          ) : reservationSignalLoading || openReservationSignals === null ? (
             <p className="text-muted-foreground">Loading open reservation count…</p>
           ) : (
             <p>
