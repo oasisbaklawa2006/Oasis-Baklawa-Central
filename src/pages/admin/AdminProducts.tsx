@@ -776,6 +776,32 @@ const AdminProducts = () => {
         return toast.error("Kg per Box is mandatory when Settlement Unit is Weight (KG).");
       }
     }
+
+    // EXACT DUPLICATE GUARD: normalized exact match only (advisory fuzzy warning is separate,
+    // non-blocking). Excludes the product currently being edited so unchanged self-saves pass.
+    const normalizedName = (formData.name || "").trim().toLowerCase();
+    const normalizedSku = (formData.sku || "").trim().toLowerCase();
+
+    const exactNameDuplicate = products.find(
+      (p) => p.id !== editingProduct?.id && (p.name || "").trim().toLowerCase() === normalizedName,
+    );
+    if (exactNameDuplicate) {
+      return toast.error(
+        `Name already in use by "${exactNameDuplicate.name}". Rename this product or edit the existing one instead.`,
+      );
+    }
+
+    if (normalizedSku) {
+      const exactSkuDuplicate = products.find(
+        (p) => p.id !== editingProduct?.id && (p.sku || "").trim().toLowerCase() === normalizedSku,
+      );
+      if (exactSkuDuplicate) {
+        return toast.error(
+          `SKU "${formData.sku}" already belongs to "${exactSkuDuplicate.name}". Adjust the name slightly to regenerate a different SKU, or edit the existing product.`,
+        );
+      }
+    }
+
     setSaving(true);
     setSaveStatus("saving");
     setSaveError(null);
