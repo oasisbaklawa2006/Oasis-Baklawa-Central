@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import VariantManager, { type ProductVariant } from "@/components/admin/VariantManager";
 import { supabase } from "@/integrations/supabase/client";
@@ -211,7 +211,38 @@ const AdminProducts = () => {
   const [selectedTagIds, setSelectedTagIds] = useState<string[]>([]);
   const [savingTags, setSavingTags] = useState(false);
   const [filterTag, setFilterTag] = useState<string>("");
+  const [catalogueSearch, setCatalogueSearch] = useState<string>("");
+  const catalogueSearchQuery = catalogueSearch.trim();
   const [taggedProductIds, setTaggedProductIds] = useState<string[]>([]);
+  const possibleDuplicateNames = useMemo(() => {
+    // Advisory only. Hide during save/load so the panel never compares stale formData
+    // against freshly refreshed products. Exclude only the actual edited product id;
+    // do not suppress matches by SKU because shared/duplicated SKU is itself a warning signal.
+    if (saving || panelLoading) return [];
+
+    const typed = (formData?.name || "").trim().toLowerCase();
+    if (typed.length < 3) return [];
+
+    return products
+      .filter((p) => p.id !== editingProduct?.id)
+      .filter((p) => {
+        const existing = (p.name || "").trim().toLowerCase();
+        if (!existing) return false;
+        return existing.includes(typed) || typed.includes(existing);
+      })
+      .map((p) => p.name)
+      .slice(0, 3);
+  }, [saving, panelLoading, formData?.name, products, editingProduct]);
+  const visibleProducts = useMemo(() => {
+    const tagFiltered = filterTag ? products.filter((p) => taggedProductIds.includes(p.id)) : products;
+    const q = catalogueSearchQuery.toLowerCase();
+    if (!q) return tagFiltered;
+    return tagFiltered.filter((p) =>
+      (p.name || "").toLowerCase().includes(q) ||
+      (p.sku || "").toLowerCase().includes(q) ||
+      (p.category || "").toLowerCase().includes(q)
+    );
+  }, [products, filterTag, taggedProductIds, catalogueSearchQuery]);
 
   const fetchProducts = async () => {
     setLoading(true);
@@ -960,36 +991,53 @@ const AdminProducts = () => {
           ))}
         </div>
 
-        {/* Filter by Tag */}
-        {allTags.length > 0 && (
-          <div className="flex items-center gap-3">
-            <Filter size={16} className="text-muted-foreground" />
-            <select
-              value={filterTag}
-              onChange={e => setFilterTag(e.target.value)}
-              className="bg-card border border-border rounded-lg px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-[#C5A059]"
-            >
-              <option value="">All Products</option>
-              {allTags.map(tag => (
-                <option key={tag.id} value={tag.id}>{tag.tag_label}</option>
-              ))}
-            </select>
-            {filterTag && (
-              <span className="text-xs text-muted-foreground">{taggedProductIds.length} product(s)</span>
-            )}
+        {/* Search + Filter by Tag */}
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="relative flex-1 min-w-[220px] max-w-sm">
+            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+            <input
+              type="text"
+              value={catalogueSearch}
+              onChange={(e) => setCatalogueSearch(e.target.value)}
+              placeholder="Search by name, SKU, or category..."
+              className="w-full bg-card border border-border rounded-lg pl-8 pr-3 py-2 text-sm outline-none focus:ring-1 focus:ring-[#C5A059]"
+            />
           </div>
-        )}
+          {allTags.length > 0 && (
+            <div className="flex items-center gap-3">
+              <Filter size={16} className="text-muted-foreground" />
+              <select
+                value={filterTag}
+                onChange={e => setFilterTag(e.target.value)}
+                className="bg-card border border-border rounded-lg px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-[#C5A059]"
+              >
+                <option value="">All Products</option>
+                {allTags.map(tag => (
+                  <option key={tag.id} value={tag.id}>{tag.tag_label}</option>
+                ))}
+              </select>
+              {filterTag && (
+                <span className="text-xs text-muted-foreground">{taggedProductIds.length} product(s)</span>
+              )}
+            </div>
+          )}
+          {catalogueSearchQuery && (
+            <span className="text-xs text-muted-foreground">{visibleProducts.length} match(es)</span>
+          )}
+        </div>
 
         {/* Product Grid */}
-        {(filterTag ? products.filter(p => taggedProductIds.includes(p.id)) : products).length === 0 ? (
+        {visibleProducts.length === 0 ? (
           <div className="text-center py-20">
             <Package size={40} className="mx-auto text-muted-foreground/40" />
             <p className="text-lg font-semibold text-foreground mt-4">No products found</p>
-            <p className="text-sm text-muted-foreground mt-1">{filterTag ? "No products with this tag." : "Your catalog is currently empty."}</p>
+            <p className="text-sm text-muted-foreground mt-1">
+              {catalogueSearchQuery ? "No products match your search." : filterTag ? "No products with this tag." : "Your catalog is currently empty."}
+            </p>
           </div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
-            {(filterTag ? products.filter(p => taggedProductIds.includes(p.id)) : products).map((product, i) => (
+            {visibleProducts.map((product, i) => (
               <motion.div
                 key={product.id}
                 initial={{ opacity: 0, y: 16 }}
@@ -1103,6 +1151,7 @@ const AdminProducts = () => {
                     <ImageIcon size={14} className="text-[#C5A059]" /> 1. Identity & Department Lock
                   </h3>
 
+                  <p className="text-[10px] font-semibold text-muted-foreground/70 uppercase tracking-wide">Media / Hero Image</p>
                   <div className="mt-2 flex items-center gap-4">
                     {formData.image_url ? (
                       <div className="relative w-16 h-16 rounded-lg overflow-hidden border border-border flex-shrink-0 bg-muted/30">
@@ -1155,7 +1204,8 @@ const AdminProducts = () => {
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-2 gap-4 mt-4">
+                  <p className="text-[10px] font-semibold text-muted-foreground/70 uppercase tracking-wide mt-4">Product Identity &amp; SKU</p>
+                  <div className="grid grid-cols-2 gap-4 mt-2">
                     <div className="col-span-2">
                       <label className="block text-xs font-semibold text-muted-foreground mb-1.5">Product Name *</label>
                       <input
@@ -1164,6 +1214,11 @@ const AdminProducts = () => {
                         onChange={handleInputChange}
                         className="w-full bg-background border border-border rounded-lg p-2.5 text-sm outline-none focus:ring-1 focus:ring-[#C5A059]"
                       />
+                      {possibleDuplicateNames.length > 0 && (
+                        <p className="text-[10px] text-amber-700 dark:text-amber-400 mt-1">
+                          Similar existing product{possibleDuplicateNames.length > 1 ? "s" : ""}: {possibleDuplicateNames.join(", ")}. This is advisory only — you can still save.
+                        </p>
+                      )}
                     </div>
                     <div>
                       <label className="block text-[10px] font-semibold text-muted-foreground uppercase tracking-wide mb-1.5 flex justify-between">
@@ -1175,6 +1230,7 @@ const AdminProducts = () => {
                         readOnly
                         className="w-full bg-muted/30 border border-border rounded-lg p-2.5 text-sm text-foreground outline-none"
                       />
+                      <p className="text-[9px] text-muted-foreground mt-1">Short, operator-readable, stable — not a description.</p>
                     </div>
                     <div>
                       <label className="block text-[10px] font-semibold text-muted-foreground uppercase tracking-wide mb-1.5">
