@@ -33,11 +33,12 @@ describe("WhatsApp zero-loss identity triad migration", () => {
     expect(normalized).toContain("nullif(btrim(identity_resolution_note), '') is not null");
   });
 
-  it("hydrates durable inbound identity metadata without unsafe UUID casts", () => {
+  it("hydrates durable inbound identity metadata only after UUID-shape validation", () => {
     expect(normalized).toContain("hydrate_whatsapp_business_intake_identity_triad");
     expect(normalized).toContain("before insert on public.whatsapp_business_intakes");
-    expect(normalized).toContain("submitting_sender_contact_id')::uuid");
-    expect(normalized).toContain("original_communicator_contact_id')::uuid");
+    expect(normalized).toContain("submitter_contact_text::uuid");
+    expect(normalized).toContain("original_contact_text::uuid");
+    expect(normalized).toContain("customer_text::uuid");
     expect(normalized).toContain("~* '^[0-9a-f]{8}-");
   });
 
