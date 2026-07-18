@@ -46,8 +46,11 @@ describe("WhatsApp zero-loss lifecycle actions migration", () => {
     expect(sql).toContain("terminal WhatsApp business intake cannot be transitioned");
   });
 
-  it("requires retained ownership and actionable pending work", () => {
+  it("requires retained ownership and an effective next action for pending work", () => {
     expect(sql).toContain("an active intake must retain an owner");
+    expect(sql).toContain("effective_next_action := coalesce(");
+    expect(sql).toContain("nullif(btrim(p_next_action), '')");
+    expect(sql).toContain("nullif(btrim(current_row.next_action), '')");
     expect(sql).toContain("next action is required for an active intake");
     expect(sql).toContain("target_disposition := 'ACTIVE_PENDING'");
   });
@@ -65,6 +68,8 @@ describe("WhatsApp zero-loss lifecycle actions migration", () => {
     expect(sql).toContain("'EXPLICITLY_CLOSED'");
     expect(sql).toContain("'from_lifecycle_state'");
     expect(sql).toContain("'to_lifecycle_state'");
+    expect(sql).toContain("'previous_next_action'");
+    expect(sql).toContain("'next_action'");
     expect(sql).toContain("'closure_reason'");
   });
 
