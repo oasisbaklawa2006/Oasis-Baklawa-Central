@@ -34,12 +34,18 @@ function json(body: Record<string, unknown>, status: number): Response {
   });
 }
 
+function canonicalizePhone(value: string): string | null {
+  const digits = value.replace(/[^0-9]/g, "");
+  const canonical = digits.length === 10 ? `91${digits}` : digits;
+  return canonical.length >= 10 && canonical.length <= 15 ? canonical : null;
+}
+
 async function sendOperatorReply(
   supabaseAdmin: AdminClient,
   payload: {
     packetId: string;
     contactId: string;
-    phoneNumber: string;
+    requestedPhoneNumber: string;
     message: string;
   },
 ): Promise<{ success: boolean; message_id?: string; error?: string }> {
@@ -57,7 +63,14 @@ async function sendOperatorReply(
     .select("id, phone_number")
     .eq("id", payload.contactId)
     .maybeSingle();
-  if (contactError || !contact || contact.phone_number !== payload.phoneNumber) {
+  const storedPhoneNumber =
+    typeof contact?.phone_number === "string" ? canonicalizePhone(contact.phone_number) : null;
+  if (
+    contactError ||
+    !contact ||
+    !storedPhoneNumber ||
+    storedPhoneNumber !== payload.requestedPhoneNumber
+  ) {
     return { success: false, error: "Contact and phone number do not match" };
   }
 
@@ -96,7 +109,7 @@ async function sendOperatorReply(
       apikey: serviceKey,
     },
     body: JSON.stringify({
-      to: payload.phoneNumber,
+      to: storedPhoneNumber,
       message: payload.message,
       order_id: null,
       company_id: null,
@@ -160,13 +173,8 @@ serve(async (req) => {
     }
 
     const message = payload.message.trim();
-    const phoneNumber = payload.phone_number.replace(/[^0-9]/g, "");
-    if (
-      !message ||
-      message.length > MAX_MESSAGE_LENGTH ||
-      phoneNumber.length < 10 ||
-      phoneNumber.length > 15
-    ) {
+    const requestedPhoneNumber = canonicalizePhone(payload.phone_number);
+    if (!message || message.length > MAX_MESSAGE_LENGTH || !requestedPhoneNumber) {
       return json({ success: false, error: "Invalid phone number or message" }, 400);
     }
 
@@ -182,7 +190,7 @@ serve(async (req) => {
     const result = await sendOperatorReply(supabaseAdmin, {
       packetId: payload.packet_id,
       contactId: payload.contact_id,
-      phoneNumber,
+      requestedPhoneNumber,
       message,
     });
 
