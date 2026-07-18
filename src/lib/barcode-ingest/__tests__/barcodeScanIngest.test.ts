@@ -128,6 +128,7 @@ describe("barcodeScanIngest", () => {
   it("maps invalid signature auth failures to HTTP 401", async () => {
     const result = await verifyHmacSignature({
       body: "{}",
+      idempotencyKey: "idem-invalid-signature",
       signatureHeader: "deadbeef".repeat(8),
       secret: "test-secret",
     });
