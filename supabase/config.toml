@@ -40,7 +40,7 @@ verify_jwt = false
 verify_jwt = true
 
 [functions.send-whatsapp-automation]
-verify_jwt = false
+verify_jwt = true
 
 [functions.whatsapp-operator-reply]
 verify_jwt = true
