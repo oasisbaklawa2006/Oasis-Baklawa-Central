@@ -130,8 +130,7 @@ async function sendViaMSG91(phone: string, fullMessage: string): Promise<SendRes
   }
 }
 
-async function sendWithFallback(phone: string, message: string): Promise<SendResult> {
-  const fullMessage = message + CTA_FOOTER;
+async function sendWithFallback(phone: string, fullMessage: string): Promise<SendResult> {
   let lastError: SendResult = {
     success: false,
     provider: "unknown",
@@ -177,8 +176,9 @@ serve(async (req) => {
     }
 
     const message = payload.message.trim();
+    const fullMessage = message + CTA_FOOTER;
     const apiPhone = normalizePhone(payload.to);
-    if (!apiPhone || !message || message.length > MAX_MESSAGE_LENGTH) {
+    if (!apiPhone || !message || fullMessage.length > MAX_MESSAGE_LENGTH) {
       return json({ error: "Invalid phone number or message" }, 400);
     }
 
@@ -188,7 +188,7 @@ serve(async (req) => {
       auth: { persistSession: false },
     });
 
-    const result = await sendWithFallback(apiPhone, message);
+    const result = await sendWithFallback(apiPhone, fullMessage);
     await supabaseAdmin.from("debug_webhooks").insert({
       direction: "outbound",
       raw_payload: {
