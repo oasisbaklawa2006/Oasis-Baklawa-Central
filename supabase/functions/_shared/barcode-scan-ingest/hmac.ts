@@ -57,7 +57,7 @@ export interface HmacVerificationResult {
 
 export async function verifyHmacSignature(input: {
   body: string;
-  idempotencyKey: string;
+  idempotencyKey?: string;
   signatureHeader: string | null | undefined;
   secret: string | null | undefined;
 }): Promise<HmacVerificationResult> {
@@ -68,7 +68,7 @@ export async function verifyHmacSignature(input: {
     return { ok: false, reason: "signature_missing" };
   }
 
-  const idempotencyKey = input.idempotencyKey.trim();
+  const idempotencyKey = input.idempotencyKey?.trim() ?? "";
   if (!idempotencyKey) {
     return { ok: false, reason: "missing_idempotency_key" };
   }
