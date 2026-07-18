@@ -51,6 +51,7 @@ serve(async (req) => {
 
   const hmac = await verifyHmacSignature({
     body: rawBody,
+    idempotencyKey: headers.idempotencyKey,
     signatureHeader: headers.signature,
     secret,
   });
@@ -62,7 +63,9 @@ serve(async (req) => {
         ? "Server signing secret is not configured"
         : reason === "signature_missing"
           ? "X-Oasis-Signature is required"
-          : "Invalid HMAC signature";
+          : reason === "missing_idempotency_key"
+            ? "X-Idempotency-Key is required"
+            : "Invalid HMAC signature";
     return jsonResponse({ ok: false, reason, message }, resolveIngestHttpStatus(reason));
   }
 
