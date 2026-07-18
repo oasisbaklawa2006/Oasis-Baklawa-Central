@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  buildBarcodeScanSignedMessage,
   computeHmacSha256Hex,
   constantTimeEqual,
   resolveIngestHttpStatus,
@@ -9,23 +10,26 @@ import {
 
 describe("hmac", () => {
   const secret = "test-signing-secret";
+  const idempotencyKey = "scan:order-1:carton-1";
   const body = JSON.stringify({
     source_app: "barcode_app",
     order_id: "11111111-1111-4111-8111-111111111111",
     order_number: "SO-2026-000136",
   });
+  const signedMessage = buildBarcodeScanSignedMessage(idempotencyKey, body);
 
   it("computes deterministic HMAC-SHA256 hex", async () => {
-    const first = await computeHmacSha256Hex(body, secret);
-    const second = await computeHmacSha256Hex(body, secret);
+    const first = await computeHmacSha256Hex(signedMessage, secret);
+    const second = await computeHmacSha256Hex(signedMessage, secret);
     expect(first).toMatch(/^[0-9a-f]{64}$/i);
     expect(first).toBe(second);
   });
 
   it("verifies valid signature", async () => {
-    const signature = await computeHmacSha256Hex(body, secret);
+    const signature = await computeHmacSha256Hex(signedMessage, secret);
     const result = await verifyHmacSignature({
       body,
+      idempotencyKey,
       signatureHeader: signature,
       secret,
     });
@@ -33,18 +37,31 @@ describe("hmac", () => {
   });
 
   it("accepts sha256= prefixed signature header", async () => {
-    const signature = await computeHmacSha256Hex(body, secret);
+    const signature = await computeHmacSha256Hex(signedMessage, secret);
     const result = await verifyHmacSignature({
       body,
+      idempotencyKey,
       signatureHeader: `sha256=${signature}`,
       secret,
     });
     expect(result.ok).toBe(true);
   });
 
+  it("rejects a signature replayed with a different idempotency key", async () => {
+    const signature = await computeHmacSha256Hex(signedMessage, secret);
+    const result = await verifyHmacSignature({
+      body,
+      idempotencyKey: "scan:order-1:carton-2",
+      signatureHeader: signature,
+      secret,
+    });
+    expect(result).toEqual({ ok: false, reason: "signature_invalid" });
+  });
+
   it("rejects bad signature", async () => {
     const result = await verifyHmacSignature({
       body,
+      idempotencyKey,
       signatureHeader: "deadbeef".repeat(8),
       secret,
     });
@@ -55,6 +72,7 @@ describe("hmac", () => {
   it("rejects missing signature", async () => {
     const result = await verifyHmacSignature({
       body,
+      idempotencyKey,
       signatureHeader: "",
       secret,
     });
@@ -65,10 +83,21 @@ describe("hmac", () => {
   it("rejects missing secret", async () => {
     const result = await verifyHmacSignature({
       body,
+      idempotencyKey,
       signatureHeader: "abc123",
       secret: null,
     });
     expect(result).toEqual({ ok: false, reason: "signing_secret_missing" });
+  });
+
+  it("rejects missing idempotency key", async () => {
+    const result = await verifyHmacSignature({
+      body,
+      idempotencyKey: "",
+      signatureHeader: "abc123",
+      secret,
+    });
+    expect(result).toEqual({ ok: false, reason: "missing_idempotency_key" });
   });
 
   it("resolves primary secret before alias", () => {
