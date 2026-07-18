@@ -57,8 +57,7 @@ export interface HmacVerificationResult {
 
 export async function verifyHmacSignature(input: {
   body: string;
-  idempotencyKey?: string;
-  requireIdempotencyKey?: boolean;
+  idempotencyKey: string;
   signatureHeader: string | null | undefined;
   secret: string | null | undefined;
 }): Promise<HmacVerificationResult> {
@@ -69,15 +68,13 @@ export async function verifyHmacSignature(input: {
     return { ok: false, reason: "signature_missing" };
   }
 
-  const idempotencyKey = input.idempotencyKey?.trim() ?? "";
-  if (input.requireIdempotencyKey && !idempotencyKey) {
+  const idempotencyKey = input.idempotencyKey.trim();
+  if (!idempotencyKey) {
     return { ok: false, reason: "missing_idempotency_key" };
   }
 
   const provided = normalizeSignatureHeader(input.signatureHeader);
-  const signedMessage = idempotencyKey
-    ? buildBarcodeScanSignedMessage(idempotencyKey, input.body)
-    : input.body;
+  const signedMessage = buildBarcodeScanSignedMessage(idempotencyKey, input.body);
   const expected = await computeHmacSha256Hex(signedMessage, input.secret);
   if (!constantTimeEqual(provided.toLowerCase(), expected.toLowerCase())) {
     return { ok: false, reason: "signature_invalid" };
