@@ -81,12 +81,16 @@ begin
     target_disposition := 'EXPLICITLY_CLOSED';
     effective_next_action := null;
   else
-    if nullif(btrim(p_next_action), '') is null then
+    effective_next_action := coalesce(
+      nullif(btrim(p_next_action), ''),
+      nullif(btrim(current_row.next_action), '')
+    );
+
+    if effective_next_action is null then
       raise exception 'next action is required for an active intake' using errcode = '23514';
     end if;
 
     target_disposition := 'ACTIVE_PENDING';
-    effective_next_action := btrim(p_next_action);
   end if;
 
   update public.whatsapp_business_intakes
@@ -122,6 +126,7 @@ begin
       'assigned_user_id', effective_assigned_user_id,
       'previous_assigned_team', current_row.assigned_team,
       'assigned_team', effective_assigned_team,
+      'previous_next_action', current_row.next_action,
       'next_action', effective_next_action,
       'sla_due_at', case when target_disposition = 'ACTIVE_PENDING' then p_sla_due_at else null end,
       'closure_reason', case when target_disposition = 'EXPLICITLY_CLOSED' then btrim(p_closure_reason) else null end
@@ -137,4 +142,4 @@ revoke all on function public.transition_whatsapp_business_intake(uuid, text, te
 grant execute on function public.transition_whatsapp_business_intake(uuid, text, text, text, uuid, text, timestamptz) to authenticated;
 
 comment on function public.transition_whatsapp_business_intake(uuid, text, text, text, uuid, text, timestamptz) is
-  'Race-safe governed lifecycle transition for B2B WhatsApp intakes. Requires ownership and next action for pending work, requires reason and actor for explicit closure, appends an audit event, and cannot create or convert executable orders.';
+  'Race-safe governed lifecycle transition for B2B WhatsApp intakes. Retains the current next action when the caller omits a replacement, requires ownership and an effective next action for pending work, requires reason and actor for explicit closure, appends an audit event, and cannot create or convert executable orders.';
