@@ -41,7 +41,6 @@ async function sendOperatorReply(
     contactId: string;
     phoneNumber: string;
     message: string;
-    operatorId: string | null;
   },
 ): Promise<{ success: boolean; message_id?: string; error?: string }> {
   const { data: packet, error: packetError } = await supabaseAdmin
@@ -119,17 +118,6 @@ async function sendOperatorReply(
       })
       .eq("id", messageId);
 
-    await supabaseAdmin.from("whatsapp_override_log").insert({
-      packet_id: payload.packetId,
-      action_type: "operator_reply_sent",
-      actor_id: payload.operatorId,
-      details: {
-        outbound_message_id: messageId,
-        contact_id: payload.contactId,
-        provider: sendResult.provider ?? null,
-      },
-    });
-
     return { success: true, message_id: messageId };
   }
 
@@ -196,7 +184,6 @@ serve(async (req) => {
       contactId: payload.contact_id,
       phoneNumber,
       message,
-      operatorId: authorization.caller.userId,
     });
 
     return json(result, result.success ? 200 : 400);
