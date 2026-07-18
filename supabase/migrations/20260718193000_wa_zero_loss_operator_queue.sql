@@ -1,5 +1,7 @@
 -- WhatsApp B2B zero-loss operator queue.
 -- Canonical authority:
+--   branch: docs/whatsapp-intent-zero-loss-governance
+--   commit: d8000bad8bed157ed8f44a02a59d4677ca32c1b8
 --   docs/WHATSAPP_CANONICAL_INTENT_AND_ZERO_LOSS_GOVERNANCE.md
 --   docs/WHATSAPP_B2B_DOMAIN_BOUNDARY_AND_APP_PLACEMENT.md
 -- Foundation migrations:
@@ -9,6 +11,25 @@
 -- Scope: expose a read-only, RLS-preserving operator queue over governed intake
 -- records and their durable source messages. This migration adds no lifecycle
 -- writes and never creates executable orders.
+
+-- Preserve source evidence for governed intakes even before packet stitching.
+-- Access remains restricted to authenticated inbox readers and only to messages
+-- already referenced by the governed zero-loss intake ledger.
+drop policy if exists whatsapp_messages_governed_intake_reader_select
+  on public.whatsapp_messages;
+create policy whatsapp_messages_governed_intake_reader_select
+  on public.whatsapp_messages
+  for select
+  to authenticated
+  using (
+    public.is_whatsapp_inbox_reader(auth.uid())
+    and exists (
+      select 1
+      from public.whatsapp_business_intakes i
+      where i.source_message_id = whatsapp_messages.id
+        and i.business_domain = 'B2B'
+    )
+  );
 
 create or replace view public.whatsapp_business_intake_operator_queue
 with (security_invoker = true)
