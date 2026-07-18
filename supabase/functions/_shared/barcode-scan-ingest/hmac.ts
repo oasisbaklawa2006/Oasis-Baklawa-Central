@@ -12,7 +12,11 @@ export function resolveSigningSecret(env: {
   return alias || null;
 }
 
-export async function computeHmacSha256Hex(body: string, secret: string): Promise<string> {
+export function buildBarcodeScanSignedMessage(idempotencyKey: string, body: string): string {
+  return `${idempotencyKey.trim()}\n${body}`;
+}
+
+export async function computeHmacSha256Hex(message: string, secret: string): Promise<string> {
   const key = await crypto.subtle.importKey(
     "raw",
     encoder.encode(secret),
@@ -20,7 +24,7 @@ export async function computeHmacSha256Hex(body: string, secret: string): Promis
     false,
     ["sign"],
   );
-  const signature = await crypto.subtle.sign("HMAC", key, encoder.encode(body));
+  const signature = await crypto.subtle.sign("HMAC", key, encoder.encode(message));
   return Array.from(new Uint8Array(signature))
     .map((byte) => byte.toString(16).padStart(2, "0"))
     .join("");
@@ -53,6 +57,7 @@ export interface HmacVerificationResult {
 
 export async function verifyHmacSignature(input: {
   body: string;
+  idempotencyKey: string;
   signatureHeader: string | null | undefined;
   secret: string | null | undefined;
 }): Promise<HmacVerificationResult> {
@@ -63,8 +68,14 @@ export async function verifyHmacSignature(input: {
     return { ok: false, reason: "signature_missing" };
   }
 
+  const idempotencyKey = input.idempotencyKey.trim();
+  if (!idempotencyKey) {
+    return { ok: false, reason: "missing_idempotency_key" };
+  }
+
   const provided = normalizeSignatureHeader(input.signatureHeader);
-  const expected = await computeHmacSha256Hex(input.body, input.secret);
+  const signedMessage = buildBarcodeScanSignedMessage(idempotencyKey, input.body);
+  const expected = await computeHmacSha256Hex(signedMessage, input.secret);
   if (!constantTimeEqual(provided.toLowerCase(), expected.toLowerCase())) {
     return { ok: false, reason: "signature_invalid" };
   }
