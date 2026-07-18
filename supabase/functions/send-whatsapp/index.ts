@@ -1,11 +1,10 @@
-// supabase/functions/send-whatsapp/index.ts
-// Enhanced: Click2API primary + MSG91 fallback with provider abstraction
-
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js@2.45.0";
+import { requireInternalStaff } from "../_shared/requireInternalStaff.ts";
 
 const PORTAL_URL = Deno.env.get("B2B_PORTAL_URL") || "https://b2b.oasisbaklawa.com";
 const CTA_FOOTER = `\n\nPlease login to your B2B Portal to track your 10-point artisan journey:\n${PORTAL_URL}`;
+const MAX_MESSAGE_LENGTH = 4_000;
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -14,71 +13,74 @@ const corsHeaders = {
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
-// Provider endpoints
-const CLICK2API_BASE_URL = "https://crm.click2api.in";
-const CLICK2API_SEND_ENDPOINT = `${CLICK2API_BASE_URL}/api/v1/messages`;
-const MSG91_WHATSAPP_ENDPOINT = "https://control.msg91.com/api/v5/whatsapp/whatsapp-outbound-message/bulk/";
+const CLICK2API_SEND_ENDPOINT = "https://crm.click2api.in/api/v1/messages";
+const MSG91_WHATSAPP_ENDPOINT =
+  "https://control.msg91.com/api/v5/whatsapp/whatsapp-outbound-message/bulk/";
 
-interface SendResult {
+type SendResult = {
   success: boolean;
   provider: string;
   messageId?: string;
   error?: string;
   status?: number;
+};
+
+type SendPayload = {
+  to?: unknown;
+  message?: unknown;
+  company_id?: unknown;
+  order_id?: unknown;
+};
+
+function json(body: Record<string, unknown>, status: number): Response {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { ...corsHeaders, "Content-Type": "application/json" },
+  });
 }
 
-// Click2API Provider
-async function sendViaClick2API(
-  phone: string,
-  message: string,
-  fullMessage: string
-): Promise<SendResult> {
+function normalizePhone(value: string): string | null {
+  const digits = value.replace(/[^0-9]/g, "");
+  const normalized = digits.length === 10 ? `91${digits}` : digits;
+  return normalized.length >= 10 && normalized.length <= 15 ? normalized : null;
+}
+
+async function sendViaClick2API(phone: string, fullMessage: string): Promise<SendResult> {
   try {
     const apiKey = Deno.env.get("CLICK2API_API_KEY");
     const accessToken = Deno.env.get("CLICK2API_ACCESS_TOKEN");
-
     if (!apiKey) {
-      return {
-        success: false,
-        provider: "click2api",
-        error: "CLICK2API_API_KEY not configured",
-      };
+      return { success: false, provider: "click2api", error: "CLICK2API_API_KEY not configured" };
     }
 
-    const requestBody = {
-      messaging_product: "whatsapp",
-      to: phone,
-      type: "text",
-      text: { body: fullMessage },
-    };
-
-    const apiRes = await fetch(CLICK2API_SEND_ENDPOINT, {
+    const response = await fetch(CLICK2API_SEND_ENDPOINT, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "apikey": apiKey,
-        ...(accessToken ? { "Authorization": `Bearer ${accessToken}` } : {}),
+        apikey: apiKey,
+        ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
       },
-      body: JSON.stringify(requestBody),
+      body: JSON.stringify({
+        messaging_product: "whatsapp",
+        to: phone,
+        type: "text",
+        text: { body: fullMessage },
+      }),
     });
-
-    const apiData = await apiRes.json().catch(() => ({}));
-
-    if (apiRes.ok) {
-      return {
-        success: true,
-        provider: "click2api",
-        messageId: apiData?.message_id || apiData?.id,
-        status: apiRes.status,
-      };
-    } else {
-      return {
-        success: false,
-        provider: "click2api",
-        error: apiData?.message || `HTTP ${apiRes.status}`,
-        status: apiRes.status,
-      };
-    }
+    const data = await response.json().catch(() => ({}));
+    return response.ok
+      ? {
+          success: true,
+          provider: "click2api",
+          messageId: data?.message_id || data?.id,
+          status: response.status,
+        }
+      : {
+          success: false,
+          provider: "click2api",
+          error: data?.message || `HTTP ${response.status}`,
+          status: response.status,
+        };
   } catch (error) {
     return {
       success: false,
@@ -88,60 +90,37 @@ async function sendViaClick2API(
   }
 }
 
-// MSG91 Fallback Provider
-async function sendViaMSG91(
-  phone: string,
-  message: string,
-  fullMessage: string
-): Promise<SendResult> {
+async function sendViaMSG91(phone: string, fullMessage: string): Promise<SendResult> {
   try {
     const authKey = Deno.env.get("MSG91_AUTH_KEY");
     const senderId = Deno.env.get("MSG91_SENDER_ID") || "OASBKL";
-
     if (!authKey) {
-      return {
-        success: false,
-        provider: "msg91",
-        error: "MSG91_AUTH_KEY not configured",
-      };
+      return { success: false, provider: "msg91", error: "MSG91_AUTH_KEY not configured" };
     }
 
-    const requestBody = {
-      integrated_number: senderId,
-      content_type: "text",
-      payload: {
-        to: phone,
-        type: "text",
-        text: { body: fullMessage },
-      },
-    };
-
-    const apiRes = await fetch(MSG91_WHATSAPP_ENDPOINT, {
+    const response = await fetch(MSG91_WHATSAPP_ENDPOINT, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "authkey": authKey,
-      },
-      body: JSON.stringify(requestBody),
+      headers: { "Content-Type": "application/json", authkey: authKey },
+      body: JSON.stringify({
+        integrated_number: senderId,
+        content_type: "text",
+        payload: { to: phone, type: "text", text: { body: fullMessage } },
+      }),
     });
-
-    const apiData = await apiRes.json().catch(() => ({}));
-
-    if (apiRes.ok) {
-      return {
-        success: true,
-        provider: "msg91",
-        messageId: apiData?.request_id || apiData?.id,
-        status: apiRes.status,
-      };
-    } else {
-      return {
-        success: false,
-        provider: "msg91",
-        error: apiData?.message || `HTTP ${apiRes.status}`,
-        status: apiRes.status,
-      };
-    }
+    const data = await response.json().catch(() => ({}));
+    return response.ok
+      ? {
+          success: true,
+          provider: "msg91",
+          messageId: data?.request_id || data?.id,
+          status: response.status,
+        }
+      : {
+          success: false,
+          provider: "msg91",
+          error: data?.message || `HTTP ${response.status}`,
+          status: response.status,
+        };
   } catch (error) {
     return {
       success: false,
@@ -151,92 +130,65 @@ async function sendViaMSG91(
   }
 }
 
-// Send with fallback: Click2API → MSG91
-async function sendWithFallback(
-  phone: string,
-  message: string,
-  maxRetries: number = 2
-): Promise<SendResult> {
-  const fullMessage = message + CTA_FOOTER;
-  let lastError: SendResult | null = null;
+async function sendWithFallback(phone: string, fullMessage: string): Promise<SendResult> {
+  let lastError: SendResult = {
+    success: false,
+    provider: "unknown",
+    error: "All providers failed",
+  };
 
-  // Try Click2API (primary)
-  for (let i = 0; i < maxRetries; i++) {
-    const result = await sendViaClick2API(phone, message, fullMessage);
-    if (result.success) {
-      console.log(`[Click2API] Success for ${phone}: ${result.messageId}`);
-      return result;
-    }
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    const result = await sendViaClick2API(phone, fullMessage);
+    if (result.success) return result;
     lastError = result;
-    console.warn(
-      `[Click2API attempt ${i + 1}/${maxRetries}] Failed: ${result.error}`
-    );
-    if (i < maxRetries - 1) {
-      await new Promise((resolve) => setTimeout(resolve, 1000 * (i + 1)));
-    }
+    if (attempt === 0) await new Promise((resolve) => setTimeout(resolve, 1_000));
   }
 
-  console.warn(`[Click2API failed, trying MSG91 fallback]`);
-
-  // Fallback to MSG91
-  for (let i = 0; i < maxRetries; i++) {
-    const result = await sendViaMSG91(phone, message, fullMessage);
-    if (result.success) {
-      console.log(`[MSG91 fallback] Success for ${phone}: ${result.messageId}`);
-      return result;
-    }
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    const result = await sendViaMSG91(phone, fullMessage);
+    if (result.success) return result;
     lastError = result;
-    console.warn(`[MSG91 attempt ${i + 1}/${maxRetries}] Failed: ${result.error}`);
-    if (i < maxRetries - 1) {
-      await new Promise((resolve) => setTimeout(resolve, 1000 * (i + 1)));
-    }
+    if (attempt === 0) await new Promise((resolve) => setTimeout(resolve, 1_000));
   }
 
-  console.error(
-    `[All providers failed] Last error: ${lastError?.error || "Unknown"}`
-  );
-  return (
-    lastError || {
-      success: false,
-      provider: "unknown",
-      error: "All providers failed",
-    }
-  );
+  return lastError;
 }
 
 serve(async (req) => {
-  if (req.method === "OPTIONS") {
-    return new Response(null, { headers: corsHeaders });
+  if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
+  if (req.method !== "POST") return json({ error: "Method not allowed" }, 405);
+
+  const authorization = await requireInternalStaff(req);
+  if (!authorization.ok) {
+    return json({ error: authorization.error }, authorization.status);
+  }
+
+  const supabaseUrl = Deno.env.get("SUPABASE_URL");
+  const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+  if (!supabaseUrl || !serviceRoleKey) {
+    return json({ error: "Supabase service is not configured" }, 500);
   }
 
   try {
-    const supabaseAdmin = createClient(
-      Deno.env.get("SUPABASE_URL")!,
-      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
-    );
-
-    const { to, message, company_id, order_id } = await req.json();
-
-    if (!to || !message) {
-      return new Response(
-        JSON.stringify({ error: "to and message are required" }),
-        {
-          status: 400,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        }
-      );
+    const payload = (await req.json()) as SendPayload;
+    if (typeof payload.to !== "string" || typeof payload.message !== "string") {
+      return json({ error: "to and message are required" }, 400);
     }
 
-    // Normalize phone
-    const digitsOnly = to.replace(/[^0-9]/g, "");
-    const apiPhone = digitsOnly.length === 10 ? `91${digitsOnly}` : digitsOnly;
+    const message = payload.message.trim();
+    const fullMessage = message + CTA_FOOTER;
+    const apiPhone = normalizePhone(payload.to);
+    if (!apiPhone || !message || fullMessage.length > MAX_MESSAGE_LENGTH) {
+      return json({ error: "Invalid phone number or message" }, 400);
+    }
 
-    console.log(`[send-whatsapp] Sending to: ${apiPhone}`);
+    const companyId = typeof payload.company_id === "string" ? payload.company_id : null;
+    const orderId = typeof payload.order_id === "string" ? payload.order_id : null;
+    const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey, {
+      auth: { persistSession: false },
+    });
 
-    // Send with fallback
-    const result = await sendWithFallback(apiPhone, message);
-
-    // Log to debug_webhooks (same as before)
+    const result = await sendWithFallback(apiPhone, fullMessage);
     await supabaseAdmin.from("debug_webhooks").insert({
       direction: "outbound",
       raw_payload: {
@@ -245,19 +197,20 @@ serve(async (req) => {
         messageId: result.messageId,
         error: result.error,
         phone: apiPhone,
+        caller_kind: authorization.caller.kind,
+        caller_user_id: authorization.caller.userId,
       },
       phone_number: apiPhone,
       error_message: result.success ? null : result.error,
       processed: result.success,
     });
 
-    // Log errors to audit_logs
     if (!result.success) {
       await supabaseAdmin.from("audit_logs").insert({
         action_type: "whatsapp_api_error",
         module_name: "whatsapp",
         entity_name: "send-whatsapp",
-        entity_id: order_id || null,
+        entity_id: orderId,
         risk_level: "high",
         reason: `${result.provider} failed: ${result.error}`,
         new_value: {
@@ -265,47 +218,39 @@ serve(async (req) => {
           provider: result.provider,
           status: result.status,
           error: result.error,
+          caller_user_id: authorization.caller.userId,
         },
       });
     }
 
-    // Log to client_interactions
-    if (company_id) {
+    if (companyId) {
       await supabaseAdmin.from("client_interactions").insert({
-        company_id,
-        executive_id: null,
+        company_id: companyId,
+        executive_id: authorization.caller.userId,
         interaction_type: "whatsapp",
         notes: `[AUTO] ${message.substring(0, 500)}`,
         outcome: result.success ? "delivered" : "failed",
       });
     }
 
-    // Log to whatsapp_messages for Sprint C
-    if (order_id) {
+    if (orderId) {
       try {
-        // Find or create contact
         let contact = await supabaseAdmin
           .from("whatsapp_contacts")
           .select("id")
           .eq("phone_number", apiPhone)
           .maybeSingle();
-
         if (!contact.data) {
-          const newContact = await supabaseAdmin
+          contact = await supabaseAdmin
             .from("whatsapp_contacts")
-            .insert({
-              phone_number: apiPhone,
-              wa_contact_id: apiPhone,
-            })
+            .insert({ phone_number: apiPhone, wa_contact_id: apiPhone })
             .select("id")
             .single();
-          contact = newContact;
         }
-
         if (contact.data?.id) {
           await supabaseAdmin.from("whatsapp_messages").insert({
             contact_id: contact.data.id,
-            order_id: order_id,
+            order_id: orderId,
             direction: "outbound",
             message_type: "text",
             content: message,
@@ -316,45 +261,25 @@ serve(async (req) => {
             failure_reason: result.error || null,
           });
         }
-      } catch (e) {
-        console.warn("[send-whatsapp] Failed to log to whatsapp_messages:", e);
+      } catch (error) {
+        console.warn("[send-whatsapp] message logging failed:", error);
       }
     }
 
     if (!result.success) {
-      console.error(
-        `[send-whatsapp] Error: ${result.provider} - ${result.error}`
-      );
-      return new Response(
-        JSON.stringify({
-          error: result.error,
-          provider: result.provider,
-          status: result.status,
-        }),
-        {
-          status: result.status || 500,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        }
+      return json(
+        { error: result.error || "WhatsApp send failed", provider: result.provider, status: result.status },
+        result.status && result.status >= 400 ? result.status : 502,
       );
     }
 
-    return new Response(
-      JSON.stringify({
-        success: true,
-        provider: result.provider,
-        messageId: result.messageId,
-      }),
-      {
-        status: 200,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      }
+    return json(
+      { success: true, provider: result.provider, messageId: result.messageId },
+      200,
     );
-  } catch (e) {
-    const message = e instanceof Error ? e.message : "Unexpected error";
-    console.error("[send-whatsapp] Fatal error:", message);
-    return new Response(JSON.stringify({ error: message }), {
-      status: 500,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Unexpected error";
+    console.error("[send-whatsapp] fatal error:", message);
+    return json({ error: "Unable to send WhatsApp message" }, 500);
   }
 });

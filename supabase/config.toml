@@ -37,13 +37,13 @@ verify_jwt = false
 verify_jwt = false
 
 [functions.send-whatsapp]
-verify_jwt = false
+verify_jwt = true
 
 [functions.send-whatsapp-automation]
-verify_jwt = false
+verify_jwt = true
 
 [functions.whatsapp-operator-reply]
-verify_jwt = false
+verify_jwt = true
 
 [functions.whatsapp-identify-sender]
 verify_jwt = false

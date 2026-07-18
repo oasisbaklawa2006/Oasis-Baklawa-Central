@@ -1,9 +1,6 @@
-// supabase/functions/whatsapp-operator-reply/index.ts
-// TOOL 1 Phase 2: Operator reply handler
-// Sends operator-written message to customer via WhatsApp (delegates to send-whatsapp).
-
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient, type SupabaseClient } from "npm:@supabase/supabase-js@2.45.0";
+import { requireInternalStaff } from "../_shared/requireInternalStaff.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -12,200 +9,194 @@ const corsHeaders = {
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
+const MAX_MESSAGE_LENGTH = 4_000;
 type AdminClient = SupabaseClient;
 
-interface ReplyPayload {
-  packet_id: string;
-  contact_id: string;
-  phone_number: string;
-  message: string;
-  operator_id?: string;
-}
+type ReplyPayload = {
+  packet_id?: unknown;
+  contact_id?: unknown;
+  phone_number?: unknown;
+  message?: unknown;
+};
 
-interface SendWhatsAppSuccess {
-  success: true;
+type SendWhatsAppResult = {
+  success?: boolean;
   provider?: string;
   messageId?: string;
+  error?: string;
+  status?: number;
+};
+
+function json(body: Record<string, unknown>, status: number): Response {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { ...corsHeaders, "Content-Type": "application/json" },
+  });
 }
 
-interface SendWhatsAppFailure {
-  success?: false;
-  error?: string;
-  provider?: string;
-  status?: number;
+function canonicalizePhone(value: string): string | null {
+  const digits = value.replace(/[^0-9]/g, "");
+  const canonical = digits.length === 10 ? `91${digits}` : digits;
+  return canonical.length >= 10 && canonical.length <= 15 ? canonical : null;
 }
 
 async function sendOperatorReply(
   supabaseAdmin: AdminClient,
-  payload: ReplyPayload,
+  payload: {
+    packetId: string;
+    contactId: string;
+    requestedPhoneNumber: string;
+    message: string;
+  },
 ): Promise<{ success: boolean; message_id?: string; error?: string }> {
-  try {
-    if (payload.operator_id) {
-      console.log("[whatsapp-operator-reply] operator_id:", payload.operator_id);
-    }
+  const { data: packet, error: packetError } = await supabaseAdmin
+    .from("whatsapp_message_packets")
+    .select("id, contact_id")
+    .eq("id", payload.packetId)
+    .maybeSingle();
+  if (packetError || !packet || packet.contact_id !== payload.contactId) {
+    return { success: false, error: "Packet and contact do not match" };
+  }
 
-    const { data: messageData, error: messageError } = await supabaseAdmin
-      .from("whatsapp_messages")
-      .insert({
-        contact_id: payload.contact_id,
-        packet_id: payload.packet_id,
-        direction: "outbound",
-        message_type: "text",
-        content: payload.message,
-        provider: "operator_reply",
-        provider_message_id: null,
-        status: "pending",
-        message_timestamp: new Date().toISOString(),
-        is_raw: false,
-      })
-      .select("id")
-      .single();
+  const { data: contact, error: contactError } = await supabaseAdmin
+    .from("whatsapp_contacts")
+    .select("id, phone_number")
+    .eq("id", payload.contactId)
+    .maybeSingle();
+  const storedPhoneNumber =
+    typeof contact?.phone_number === "string" ? canonicalizePhone(contact.phone_number) : null;
+  if (
+    contactError ||
+    !contact ||
+    !storedPhoneNumber ||
+    storedPhoneNumber !== payload.requestedPhoneNumber
+  ) {
+    return { success: false, error: "Contact and phone number do not match" };
+  }
 
-    if (messageError || !messageData) {
-      throw new Error(
-        `Failed to create message record: ${messageError?.message ?? "no row"}`,
-      );
-    }
+  const { data: messageData, error: messageError } = await supabaseAdmin
+    .from("whatsapp_messages")
+    .insert({
+      contact_id: payload.contactId,
+      packet_id: payload.packetId,
+      direction: "outbound",
+      message_type: "text",
+      content: payload.message,
+      provider: "operator_reply",
+      provider_message_id: null,
+      status: "pending",
+      message_timestamp: new Date().toISOString(),
+      is_raw: false,
+    })
+    .select("id")
+    .single();
 
-    const messageId = messageData.id as string;
-    const supabaseUrl = Deno.env.get("SUPABASE_URL")!.replace(/\/$/, "");
-    const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+  if (messageError || !messageData) {
+    return {
+      success: false,
+      error: `Failed to create message record: ${messageError?.message ?? "no row"}`,
+    };
+  }
 
-    const sendWhatsAppResponse = await fetch(
-      `${supabaseUrl}/functions/v1/send-whatsapp`,
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${serviceKey}`,
-        },
-        body: JSON.stringify({
-          to: payload.phone_number,
-          message: payload.message,
-          order_id: null,
-          company_id: null,
-        }),
-      },
-    );
+  const messageId = String(messageData.id);
+  const supabaseUrl = Deno.env.get("SUPABASE_URL")!.replace(/\/$/, "");
+  const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+  const response = await fetch(`${supabaseUrl}/functions/v1/send-whatsapp`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${serviceKey}`,
+      apikey: serviceKey,
+    },
+    body: JSON.stringify({
+      to: storedPhoneNumber,
+      message: payload.message,
+      order_id: null,
+      company_id: null,
+    }),
+  });
 
-    let sendResult: SendWhatsAppSuccess | SendWhatsAppFailure = {};
-    try {
-      sendResult = (await sendWhatsAppResponse.json()) as
-        | SendWhatsAppSuccess
-        | SendWhatsAppFailure;
-    } catch {
-      sendResult = { error: "Invalid JSON from send-whatsapp" };
-    }
+  const sendResult = (await response.json().catch(() => ({
+    error: "Invalid JSON from send-whatsapp",
+  }))) as SendWhatsAppResult;
 
-    const ok =
-      sendWhatsAppResponse.ok &&
-      (sendResult as SendWhatsAppSuccess).success === true;
-
-    if (ok) {
-      const sr = sendResult as SendWhatsAppSuccess;
-      const extId = sr.messageId != null ? String(sr.messageId) : null;
-      const provider = sr.provider ?? "click2api";
-
-      await supabaseAdmin
-        .from("whatsapp_messages")
-        .update({
-          status: "delivered",
-          provider_message_id: extId,
-          provider,
-          failure_reason: null,
-        })
-        .eq("id", messageId);
-
-      return {
-        success: true,
-        message_id: messageId,
-      };
-    }
-
-    const err =
-      (sendResult as SendWhatsAppFailure).error ||
-      `send-whatsapp failed (HTTP ${sendWhatsAppResponse.status})`;
-
+  if (response.ok && sendResult.success === true) {
     await supabaseAdmin
       .from("whatsapp_messages")
       .update({
-        status: "failed",
-        failure_reason: err,
+        status: "delivered",
+        provider_message_id: sendResult.messageId ? String(sendResult.messageId) : null,
+        provider: sendResult.provider ?? "click2api",
+        failure_reason: null,
       })
       .eq("id", messageId);
 
-    return {
-      success: false,
-      error: err,
-    };
-  } catch (error) {
-    console.error("[whatsapp-operator-reply] Error:", error);
-    return {
-      success: false,
-      error: error instanceof Error ? error.message : "Unknown error",
-    };
+    return { success: true, message_id: messageId };
   }
+
+  const error = sendResult.error || `send-whatsapp failed (HTTP ${response.status})`;
+  await supabaseAdmin
+    .from("whatsapp_messages")
+    .update({ status: "failed", failure_reason: error })
+    .eq("id", messageId);
+
+  return { success: false, error };
 }
 
 serve(async (req) => {
-  if (req.method === "OPTIONS") {
-    return new Response(null, { headers: corsHeaders });
-  }
+  if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
+  if (req.method !== "POST") return json({ error: "Method not allowed" }, 405);
 
-  if (req.method !== "POST") {
-    return new Response(JSON.stringify({ error: "Method not allowed" }), {
-      status: 405,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+  const authorization = await requireInternalStaff(req);
+  if (!authorization.ok) {
+    return json({ success: false, error: authorization.error }, authorization.status);
+  }
+  if (authorization.caller.kind !== "staff" || !authorization.caller.userId) {
+    return json({ success: false, error: "A staff user session is required" }, 403);
   }
 
   try {
     const payload = (await req.json()) as ReplyPayload;
-
     if (
-      !payload.packet_id ||
-      !payload.contact_id ||
-      !payload.phone_number ||
-      !payload.message?.trim()
+      typeof payload.packet_id !== "string" ||
+      typeof payload.contact_id !== "string" ||
+      typeof payload.phone_number !== "string" ||
+      typeof payload.message !== "string"
     ) {
-      return new Response(
-        JSON.stringify({
-          success: false,
-          error:
-            "Missing required fields: packet_id, contact_id, phone_number, message",
-        }),
+      return json(
         {
-          status: 400,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
+          success: false,
+          error: "Missing required fields: packet_id, contact_id, phone_number, message",
         },
+        400,
       );
     }
 
-    const supabaseAdmin = createClient(
-      Deno.env.get("SUPABASE_URL")!,
-      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
-    );
+    const message = payload.message.trim();
+    const requestedPhoneNumber = canonicalizePhone(payload.phone_number);
+    if (!message || message.length > MAX_MESSAGE_LENGTH || !requestedPhoneNumber) {
+      return json({ success: false, error: "Invalid phone number or message" }, 400);
+    }
 
+    const supabaseUrl = Deno.env.get("SUPABASE_URL");
+    const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+    if (!supabaseUrl || !serviceRoleKey) {
+      return json({ success: false, error: "Supabase service is not configured" }, 500);
+    }
+
+    const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey, {
+      auth: { persistSession: false },
+    });
     const result = await sendOperatorReply(supabaseAdmin, {
-      ...payload,
-      message: payload.message.trim(),
+      packetId: payload.packet_id,
+      contactId: payload.contact_id,
+      requestedPhoneNumber,
+      message,
     });
 
-    return new Response(JSON.stringify(result), {
-      status: result.success ? 200 : 400,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+    return json(result, result.success ? 200 : 400);
   } catch (error) {
-    console.error("[whatsapp-operator-reply] Error:", error);
-    return new Response(
-      JSON.stringify({
-        success: false,
-        error: error instanceof Error ? error.message : "Unknown error",
-      }),
-      {
-        status: 500,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      },
-    );
+    console.error("[whatsapp-operator-reply] error:", error);
+    return json({ success: false, error: "Unable to send operator reply" }, 500);
   }
 });
