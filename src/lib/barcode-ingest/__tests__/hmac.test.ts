@@ -90,10 +90,11 @@ describe("hmac", () => {
     expect(result).toEqual({ ok: false, reason: "signing_secret_missing" });
   });
 
-  it("rejects missing idempotency key", async () => {
+  it("rejects missing idempotency key when the ingress contract requires it", async () => {
     const result = await verifyHmacSignature({
       body,
       idempotencyKey: "",
+      requireIdempotencyKey: true,
       signatureHeader: "abc123",
       secret,
     });
