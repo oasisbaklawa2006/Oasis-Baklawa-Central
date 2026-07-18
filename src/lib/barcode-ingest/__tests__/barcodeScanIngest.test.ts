@@ -49,9 +49,7 @@ function createMockDb(options?: {
   return {
     findOrderById: vi.fn(async () => resolvedOrder ?? null),
     findScanByIdempotencyKey: vi.fn(async () => options?.existingScan ?? null),
-    insertScan: vi.fn(async (row) => {
-      return options?.onInsert?.(row) ?? { id: "scan-new-001" };
-    }),
+    insertScan: vi.fn(async (row) => options?.onInsert?.(row) ?? { id: "scan-new-001" }),
   };
 }
 
@@ -65,7 +63,6 @@ describe("barcodeScanIngest", () => {
       submittedAt: "2026-06-02T12:00:00.000Z",
       db,
     });
-
     expect(result).toEqual({
       ok: true,
       scan_id: "scan-new-001",
@@ -97,16 +94,10 @@ describe("barcodeScanIngest", () => {
       submittedAt: "2026-06-02T12:00:00.000Z",
       db,
     });
-
     expect(result.ok).toBe(true);
-    if (result.ok && "scan_id" in result) {
-      expect(result.scan_id).toBe("scan-new-001");
-    }
+    if (result.ok && "scan_id" in result) expect(result.scan_id).toBe("scan-new-001");
     expect(db.insertScan).toHaveBeenCalledWith(
-      expect.objectContaining({
-        scan_type: "carton",
-        verification_type: "identity_match",
-      }),
+      expect.objectContaining({ scan_type: "carton", verification_type: "identity_match" }),
     );
   });
 
@@ -128,6 +119,7 @@ describe("barcodeScanIngest", () => {
   it("maps invalid signature auth failures to HTTP 401", async () => {
     const result = await verifyHmacSignature({
       body: "{}",
+      idempotencyKey: "idem-invalid-signature",
       signatureHeader: "deadbeef".repeat(8),
       secret: "test-secret",
     });
@@ -146,21 +138,13 @@ describe("barcodeScanIngest", () => {
       submittedAt: "2026-06-02T12:00:00.000Z",
       db,
     });
-
-    expect(result).toEqual({
-      ok: true,
-      duplicate: true,
-      message: "Scan already recorded",
-    });
+    expect(result).toEqual({ ok: true, duplicate: true, message: "Scan already recorded" });
     expect(db.insertScan).not.toHaveBeenCalled();
   });
 
   it("rejects barcode mismatch", () => {
     const error = validateBarcodeScanBusinessRules(
-      basePayload({
-        barcode_value: "CTN-SO-2026-000999",
-        expected_barcode: BARCODE,
-      }),
+      basePayload({ barcode_value: "CTN-SO-2026-000999", expected_barcode: BARCODE }),
     );
     expect(error?.reason).toBe("invalid_barcode");
   });
@@ -174,7 +158,6 @@ describe("barcodeScanIngest", () => {
       submittedAt: "2026-06-02T12:00:00.000Z",
       db,
     });
-
     expect(result).toEqual({
       ok: false,
       reason: "invalid_barcode",
@@ -184,9 +167,7 @@ describe("barcodeScanIngest", () => {
   });
 
   it("rejects persisted order_number mismatch", async () => {
-    const db = createMockDb({
-      order: { id: ORDER_ID, order_number: "SO-2026-000001" },
-    });
+    const db = createMockDb({ order: { id: ORDER_ID, order_number: "SO-2026-000001" } });
     const result = await processBarcodeScanIngest({
       headers: baseHeaders({ idempotencyKey: "idem-persisted-mismatch" }),
       payload: basePayload(),
@@ -194,7 +175,6 @@ describe("barcodeScanIngest", () => {
       submittedAt: "2026-06-02T12:00:00.000Z",
       db,
     });
-
     expect(result).toEqual({
       ok: false,
       reason: "order_number_mismatch",
@@ -214,9 +194,7 @@ describe("barcodeScanIngest", () => {
 
   it("rejects unverified payload", () => {
     const error = validateBarcodeScanBusinessRules(
-      basePayload({
-        verification_status: "scanned" as BarcodeScanPayload["verification_status"],
-      }),
+      basePayload({ verification_status: "scanned" as BarcodeScanPayload["verification_status"] }),
     );
     expect(error?.reason).toBe("unverified_payload");
   });
@@ -235,7 +213,6 @@ describe("barcodeScanIngest", () => {
       submittedAt: "2026-06-02T12:00:00.000Z",
       db,
     });
-
     expect(result).toEqual({
       ok: false,
       reason: "order_not_found",
