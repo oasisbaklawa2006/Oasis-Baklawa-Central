@@ -52,6 +52,7 @@ serve(async (req) => {
   const hmac = await verifyHmacSignature({
     body: rawBody,
     idempotencyKey: headers.idempotencyKey,
+    requireIdempotencyKey: true,
     signatureHeader: headers.signature,
     secret,
   });
