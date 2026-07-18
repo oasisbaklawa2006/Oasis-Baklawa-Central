@@ -77,11 +77,18 @@ begin
       'capture_source', 'whatsapp_messages_after_insert_trigger',
       'message_type', new.message_type,
       'contact_id', new.contact_id,
-      'captured_at', now()
+      'captured_at', now(),
+      'identity_triad', jsonb_build_object(
+        'submitting_sender_contact_id', new.contact_id,
+        'submitting_sender_state', case when new.contact_id is null then 'MISSING' else 'CONFIRMED' end,
+        'original_communicator_contact_id', new.contact_id,
+        'original_communicator_state', case when new.contact_id is null then 'MISSING' else 'INFERRED_FROM_DIRECT_INBOUND' end,
+        'commercial_customer_id', null,
+        'commercial_customer_state', 'UNRESOLVED'
+      )
     )
   )
-  on conflict (source_message_id) where source_message_id is not null
-  do nothing
+  on conflict do nothing
   returning id into created_intake_id;
 
   if created_intake_id is not null then
@@ -99,7 +106,15 @@ begin
         'provider_message_id', new.provider_message_id,
         'intake_kind', inferred_kind,
         'lifecycle_state', inferred_state,
-        'assigned_team', 'WHATSAPP_INTAKE'
+        'assigned_team', 'WHATSAPP_INTAKE',
+        'identity_triad', jsonb_build_object(
+          'submitting_sender_contact_id', new.contact_id,
+          'submitting_sender_state', case when new.contact_id is null then 'MISSING' else 'CONFIRMED' end,
+          'original_communicator_contact_id', new.contact_id,
+          'original_communicator_state', case when new.contact_id is null then 'MISSING' else 'INFERRED_FROM_DIRECT_INBOUND' end,
+          'commercial_customer_id', null,
+          'commercial_customer_state', 'UNRESOLVED'
+        )
       )
     );
   end if;
