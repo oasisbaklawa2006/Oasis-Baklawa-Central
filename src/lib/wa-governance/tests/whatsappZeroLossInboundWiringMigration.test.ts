@@ -18,10 +18,10 @@ describe("WhatsApp zero-loss inbound wiring migration", () => {
     expect(sql).toContain("20260718173000_wa_zero_loss_intake_foundation.sql");
   });
 
-  it("enforces exactly one intake per durable source message", () => {
+  it("enforces exactly one intake per durable source message and tolerates any unique duplicate", () => {
     expect(sql).toContain("whatsapp_business_intakes_source_message_unique");
-    expect(sql).toContain("on conflict (source_message_id) where source_message_id is not null");
-    expect(sql).toContain("do nothing");
+    expect(sql).toContain("on conflict do nothing");
+    expect(sql).not.toContain("on conflict (source_message_id)");
   });
 
   it("captures only inbound whatsapp_messages rows", () => {
@@ -34,6 +34,15 @@ describe("WhatsApp zero-loss inbound wiring migration", () => {
     expect(sql).toContain("'WHATSAPP_INTAKE'");
     expect(sql).toContain("inferred_next_action");
     expect(sql).toContain("'ACCOUNTED'");
+  });
+
+  it("persists the identity triad without inventing a commercial customer", () => {
+    expect(sql).toContain("'identity_triad'");
+    expect(sql).toContain("'submitting_sender_contact_id', new.contact_id");
+    expect(sql).toContain("'original_communicator_contact_id', new.contact_id");
+    expect(sql).toContain("'original_communicator_state'");
+    expect(sql).toContain("'commercial_customer_id', null");
+    expect(sql).toContain("'commercial_customer_state', 'UNRESOLVED'");
   });
 
   it("treats order-like text as a potential order", () => {
