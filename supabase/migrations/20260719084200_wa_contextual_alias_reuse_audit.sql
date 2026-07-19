@@ -78,6 +78,11 @@ begin
 
   normalized_value := lower(regexp_replace(btrim(p_alias_text), '\s+', ' ', 'g'));
 
+  select count(*) into open_clarification_count
+  from public.whatsapp_business_intake_clarifications
+  where intake_id = p_intake_id
+    and status = 'OPEN';
+
   select * into existing_row
   from public.whatsapp_contextual_aliases
   where alias_kind = p_alias_kind
@@ -169,9 +174,59 @@ begin
   return alias_id;
 exception
   when unique_violation then
-    raise exception 'a live contextual alias proposal already exists' using errcode = '23505';
+    select * into existing_row
+    from public.whatsapp_contextual_aliases
+    where alias_kind = p_alias_kind
+      and context_type = p_context_type
+      and context_key = btrim(p_context_key)
+      and normalized_alias = normalized_value
+      and status in ('PENDING', 'APPROVED')
+    for update;
+
+    if not found then
+      raise;
+    end if;
+
+    if existing_row.target_entity_id <> p_target_entity_id then
+      raise exception 'contextual alias already maps to a different target' using errcode = '23505';
+    end if;
+
+    insert into public.whatsapp_business_intake_audit_log (
+      intake_id, event_type, actor_user_id, event_data
+    ) values (
+      p_intake_id,
+      case when existing_row.status = 'APPROVED' then 'CONTEXTUAL_ALIAS_REUSED' else 'CONTEXTUAL_ALIAS_LINKED_PENDING' end,
+      actor_id,
+      jsonb_build_object(
+        'alias_id', existing_row.id,
+        'originating_intake_id', existing_row.intake_id,
+        'alias_status', existing_row.status,
+        'alias_kind', existing_row.alias_kind,
+        'context_type', existing_row.context_type,
+        'context_key', existing_row.context_key,
+        'normalized_alias', existing_row.normalized_alias,
+        'target_entity_id', existing_row.target_entity_id,
+        'current_intake_evidence', p_proposal_evidence,
+        'race_recovered', true
+      )
+    );
+
+    if existing_row.status = 'PENDING' then
+      update public.whatsapp_business_intakes
+      set disposition = 'ACTIVE_PENDING',
+          next_action = case
+            when open_clarification_count > 0 then intake_row.next_action
+            else 'Track linked contextual alias review before any governed reuse.'
+          end,
+          sla_due_at = least(coalesce(sla_due_at, existing_row.due_at), existing_row.due_at),
+          reconciliation_status = 'ACCOUNTED',
+          reconciliation_issue = null
+      where id = p_intake_id;
+    end if;
+
+    return existing_row.id;
 end;
 $$;
 
 comment on function public.propose_whatsapp_contextual_alias(uuid, text, text, text, text, uuid, jsonb, uuid, text, timestamptz) is
-  'Authorized contextual alias proposal with parent locking, contextual collision denial, and current-intake audit linkage for every same-target idempotent reuse.';
+  'Authorized contextual alias proposal with parent locking, contextual collision denial, clarification-preserving next action, and race-safe current-intake audit linkage for every same-target idempotent reuse.';
