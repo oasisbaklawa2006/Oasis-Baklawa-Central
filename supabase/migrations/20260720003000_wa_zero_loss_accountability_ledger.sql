@@ -112,8 +112,9 @@ as $$
       when 'NEXT_ACTION_MISSING' then 2
       when 'CONVERSION_LINEAGE_MISSING' then 3
       when 'CLOSURE_EVIDENCE_MISSING' then 4
-      when 'OVERDUE' then 5
-      else 6
+      when 'SLA_MISSING' then 5
+      when 'OVERDUE' then 6
+      else 7
     end,
     sla_due_at nulls last,
     updated_at asc,
