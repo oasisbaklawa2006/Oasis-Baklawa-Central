@@ -27,6 +27,20 @@ describe("WhatsApp contextual alias reuse audit", () => {
     expect(sql).toContain("open_clarification_count > 0 then intake_row.next_action");
   });
 
+  it("populates clarification state before preserving the existing next action", () => {
+    expect(sql).toContain("select count(*) into open_clarification_count");
+    expect(sql).toContain("from public.whatsapp_business_intake_clarifications");
+    expect(sql).toContain("and status = 'open'");
+  });
+
+  it("recovers same-target unique races without losing current-intake evidence", () => {
+    expect(sql).toContain("when unique_violation then");
+    expect(sql.match(/select \* into existing_row/g)).toHaveLength(2);
+    expect(sql).toContain("if not found then\n      raise;");
+    expect(sql).toContain("'race_recovered', true");
+    expect(sql).toContain("return existing_row.id;");
+  });
+
   it("retains authorization, parent locking, and no downstream truth writes", () => {
     expect(sql).toContain("public.is_whatsapp_inbox_reader(actor_id)");
     expect(sql).toContain("security definer");
