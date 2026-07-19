@@ -4,29 +4,25 @@ begin read only;
 set local statement_timeout = '30s';
 set local lock_timeout = '3s';
 
-create temporary table expected_objects(
-  object_name text primary key,
-  object_kind text not null
-) on commit drop;
-
-insert into expected_objects(object_name, object_kind) values
-  ('public.whatsapp_business_intakes', 'relation'),
-  ('public.whatsapp_business_intake_audit', 'relation'),
-  ('public.whatsapp_business_intake_reconciliation', 'relation'),
-  ('public.whatsapp_business_intake_reconciliation_exceptions', 'relation'),
-  ('public.whatsapp_business_intake_reconciliation_control', 'relation'),
-  ('public.whatsapp_shift_reconciliation_readiness', 'relation'),
-  ('public.whatsapp_operator_cockpit', 'relation'),
-  ('public.whatsapp_manager_drilldown', 'relation'),
-  ('public.transition_whatsapp_business_intake', 'function'),
-  ('public.escalate_whatsapp_business_intake', 'function'),
-  ('public.prepare_whatsapp_shift_reconciliation', 'function'),
-  ('public.signoff_whatsapp_shift_reconciliation', 'function');
-
 do $$
 declare
   missing text;
 begin
+  with expected_objects(object_name, object_kind) as (
+    values
+      ('public.whatsapp_business_intakes', 'relation'),
+      ('public.whatsapp_business_intake_audit', 'relation'),
+      ('public.whatsapp_business_intake_reconciliation', 'relation'),
+      ('public.whatsapp_business_intake_reconciliation_exceptions', 'relation'),
+      ('public.whatsapp_business_intake_reconciliation_control', 'relation'),
+      ('public.whatsapp_shift_reconciliation_readiness', 'relation'),
+      ('public.whatsapp_operator_cockpit', 'relation'),
+      ('public.whatsapp_manager_drilldown', 'relation'),
+      ('public.transition_whatsapp_business_intake', 'function'),
+      ('public.escalate_whatsapp_business_intake', 'function'),
+      ('public.prepare_whatsapp_shift_reconciliation', 'function'),
+      ('public.signoff_whatsapp_shift_reconciliation', 'function')
+  )
   select string_agg(e.object_name, ', ' order by e.object_name)
     into missing
   from expected_objects e
