@@ -54,33 +54,26 @@ Record returned row counts or SQLSTATE/message for every row in this matrix. Do 
 
 ## UAT-14 protected-write snapshot
 
-Create a temporary snapshot table in the UAT session. The relation list is exhaustive for this programme boundary; adapt only a physical table name that is demonstrably different in the deployed schema and record that mapping in the evidence.
+The relation list is exhaustive for this programme boundary. Before execution, map any differently named deployed physical table and record the mapping in the evidence. The preflight must return eight non-null `regclass` values; a missing relation is a failed entry criterion, not a skipped check.
 
 ```sql
-create temporary table uat_protected_relation_snapshot as
-with protected(rel) as (
+with protected(name) as (
   values
-    ('public.orders'::regclass),
-    ('public.order_items'::regclass),
-    ('public.payments'::regclass),
-    ('public.invoices'::regclass),
-    ('public.inventory'::regclass),
-    ('public.dispatch'::regclass),
-    ('public.customers'::regclass),
-    ('public.products'::regclass)
+    ('public.orders'),
+    ('public.order_items'),
+    ('public.payments'),
+    ('public.invoices'),
+    ('public.inventory'),
+    ('public.dispatch'),
+    ('public.customers'),
+    ('public.products')
 )
-select
-  rel,
-  coalesce(s.n_tup_ins, 0) as n_tup_ins,
-  coalesce(s.n_tup_upd, 0) as n_tup_upd,
-  coalesce(s.n_tup_del, 0) as n_tup_del,
-  pg_relation_size(rel) as relation_bytes,
-  (select count(*) from pg_catalog.pg_visible_in_snapshot(txid_current_snapshot(), xmin)) as visible_row_marker
-from protected p
-left join pg_stat_all_tables s on s.relid = p.rel;
+select name, to_regclass(name) as relation
+from protected
+order by name;
 ```
 
-Because generic SQL cannot dynamically `count(*)` or hash arbitrary relations without dynamic execution, run this audited helper in the isolated UAT database to capture an exact row fingerprint before and after each scenario:
+Create this temporary helper in the isolated UAT database:
 
 ```sql
 create or replace function pg_temp.protected_relation_fingerprint(p_rel regclass)
@@ -89,25 +82,87 @@ language plpgsql
 as $$
 begin
   return query execute format(
-    'select count(*)::bigint, md5(coalesce(string_agg(md5(t::text), '''' order by md5(t::text)), '''')) from %s t',
+    'select count(*)::bigint,
+            md5(coalesce(string_agg(md5(t::text), '''' order by md5(t::text)), ''''))
+       from %s t',
     p_rel
   );
 end;
 $$;
-
-select p.rel,
-       f.row_count,
-       f.row_hash,
-       coalesce(s.n_tup_ins, 0) as n_tup_ins,
-       coalesce(s.n_tup_upd, 0) as n_tup_upd,
-       coalesce(s.n_tup_del, 0) as n_tup_del
-from uat_protected_relation_snapshot p
-cross join lateral pg_temp.protected_relation_fingerprint(p.rel) f
-left join pg_stat_all_tables s on s.relid = p.rel
-order by p.rel::text;
 ```
 
-Capture this result immediately before and after every UAT scenario. Force statistics visibility with `select pg_stat_clear_snapshot();` before each capture. A pass requires identical `row_count`, `row_hash`, `n_tup_ins`, `n_tup_upd` and `n_tup_del` for all eight relations. Any delta is a protected-boundary failure, even when the final row count returns to its original value.
+Capture the **before** snapshot immediately before each scenario:
+
+```sql
+drop table if exists uat_protected_before;
+select pg_stat_clear_snapshot();
+
+create temporary table uat_protected_before as
+with protected(name, rel) as (
+  values
+    ('orders', 'public.orders'::regclass),
+    ('order_items', 'public.order_items'::regclass),
+    ('payments', 'public.payments'::regclass),
+    ('invoices', 'public.invoices'::regclass),
+    ('inventory', 'public.inventory'::regclass),
+    ('dispatch', 'public.dispatch'::regclass),
+    ('customers', 'public.customers'::regclass),
+    ('products', 'public.products'::regclass)
+)
+select
+  p.name,
+  p.rel,
+  f.row_count,
+  f.row_hash,
+  coalesce(s.n_tup_ins, 0) as n_tup_ins,
+  coalesce(s.n_tup_upd, 0) as n_tup_upd,
+  coalesce(s.n_tup_del, 0) as n_tup_del
+from protected p
+cross join lateral pg_temp.protected_relation_fingerprint(p.rel) f
+left join pg_stat_all_tables s on s.relid = p.rel;
+```
+
+Capture and compare the **after** snapshot after the scenario commits:
+
+```sql
+select pg_stat_clear_snapshot();
+
+with protected(name, rel) as (
+  values
+    ('orders', 'public.orders'::regclass),
+    ('order_items', 'public.order_items'::regclass),
+    ('payments', 'public.payments'::regclass),
+    ('invoices', 'public.invoices'::regclass),
+    ('inventory', 'public.inventory'::regclass),
+    ('dispatch', 'public.dispatch'::regclass),
+    ('customers', 'public.customers'::regclass),
+    ('products', 'public.products'::regclass)
+), after_snapshot as (
+  select
+    p.name,
+    p.rel,
+    f.row_count,
+    f.row_hash,
+    coalesce(s.n_tup_ins, 0) as n_tup_ins,
+    coalesce(s.n_tup_upd, 0) as n_tup_upd,
+    coalesce(s.n_tup_del, 0) as n_tup_del
+  from protected p
+  cross join lateral pg_temp.protected_relation_fingerprint(p.rel) f
+  left join pg_stat_all_tables s on s.relid = p.rel
+)
+select
+  a.name,
+  b.row_count = a.row_count as row_count_unchanged,
+  b.row_hash = a.row_hash as row_hash_unchanged,
+  b.n_tup_ins = a.n_tup_ins as inserts_unchanged,
+  b.n_tup_upd = a.n_tup_upd as updates_unchanged,
+  b.n_tup_del = a.n_tup_del as deletes_unchanged
+from after_snapshot a
+join uat_protected_before b using (name)
+order by a.name;
+```
+
+A pass requires all five comparison columns to be `true` for all eight relations. The row hash detects changed content even when row counts are restored; PostgreSQL statistics counters expose transient insert/update/delete activity. Any delta is a protected-boundary failure.
 
 ## Stress checks
 
