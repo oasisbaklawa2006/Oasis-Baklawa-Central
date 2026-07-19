@@ -84,11 +84,15 @@ jobs:
         run: npm run typecheck
 
       - name: ESLint changed TypeScript files
-        if: steps.changes.outputs.app == 'true' || steps.changes.outputs.tooling == 'true'
+        if: steps.changes.outputs.app == 'true' || steps.changes.outputs.tooling == 'true' || steps.changes.outputs.tests == 'true'
         shell: bash
         run: |
           set -euo pipefail
-          mapfile -t FILES < <(grep -E '\.(ts|tsx)$' /tmp/changed-files.txt || true)
+          mapfile -t FILES < <(grep -E '\.(ts|tsx)$' /tmp/changed-files.txt | while IFS= read -r file; do
+            if [ -f "$file" ]; then
+              printf '%s\n' "$file"
+            fi
+          done)
           if [ "${#FILES[@]}" -eq 0 ]; then
             echo "No changed TypeScript files to lint."
             exit 0
@@ -105,7 +109,7 @@ jobs:
 
       - name: Install Chromium
         if: steps.changes.outputs.ui == 'true'
-        run: npx playwright install chromium
+        run: npx playwright install --with-deps chromium
 
       - name: Start PR build locally
         if: steps.changes.outputs.ui == 'true'
