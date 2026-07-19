@@ -18,7 +18,7 @@ describe("WhatsApp clarification RPC security hardening", () => {
     expect(sql).toContain(
       "alter function public.answer_whatsapp_business_intake_clarification(uuid, text, jsonb)",
     );
-    expect(sql.match(/security definer/g)).toHaveLength(2);
+    expect(sql.match(/security definer/g) ?? []).toHaveLength(2);
     expect(sql).toContain("direct table mutation remains unavailable");
   });
 });
