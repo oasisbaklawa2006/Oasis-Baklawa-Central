@@ -20,12 +20,15 @@ declare
   intent_row public.whatsapp_business_intake_intents%rowtype;
   remaining_open_count bigint;
   remaining_due_at timestamptz;
+  open_clarification_count bigint;
+  open_clarification_due_at timestamptz;
+  combined_open_due_at timestamptz;
 begin
   if actor_id is null or not public.is_whatsapp_inbox_reader(actor_id) then
     raise exception 'not authorized to transition routed WhatsApp business intents' using errcode = '42501';
   end if;
 
-  if p_target_status not in ('RESOLVED', 'EXPLICITLY_CLOSED') then
+  if p_target_status is null or p_target_status not in ('RESOLVED', 'EXPLICITLY_CLOSED') then
     raise exception 'unsupported routed intent terminal status: %', p_target_status using errcode = '22023';
   end if;
 
@@ -90,14 +93,22 @@ begin
   from public.whatsapp_business_intake_intents
   where intake_id = discovered_intake_id and status = 'OPEN';
 
+  select count(*), min(due_at)
+  into open_clarification_count, open_clarification_due_at
+  from public.whatsapp_business_intake_clarifications
+  where intake_id = discovered_intake_id and status = 'OPEN';
+
+  combined_open_due_at := least(remaining_due_at, open_clarification_due_at);
+
   if intake_row.disposition = 'ACTIVE_PENDING' then
     update public.whatsapp_business_intakes
     set next_action = case
+          when open_clarification_count > 0 then intake_row.next_action
           when remaining_open_count > 0
             then 'Progress every remaining routed business intent; none may remain unowned or silently terminal.'
           else 'Review completed routed intents and continue governed intake resolution.'
         end,
-        sla_due_at = remaining_due_at,
+        sla_due_at = combined_open_due_at,
         reconciliation_status = 'ACCOUNTED',
         reconciliation_issue = null
     where id = discovered_intake_id;
@@ -121,7 +132,10 @@ begin
       'outcome_evidence', case when p_target_status = 'RESOLVED' then p_outcome_evidence else null end,
       'closure_reason', case when p_target_status = 'EXPLICITLY_CLOSED' then btrim(p_closure_reason) else null end,
       'remaining_open_intent_count', remaining_open_count,
-      'remaining_due_at', remaining_due_at
+      'remaining_due_at', remaining_due_at,
+      'open_clarification_count', open_clarification_count,
+      'open_clarification_due_at', open_clarification_due_at,
+      'combined_open_due_at', combined_open_due_at
     )
   );
 
