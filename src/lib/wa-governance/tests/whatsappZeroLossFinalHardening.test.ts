@@ -84,7 +84,7 @@ describe('WhatsApp zero-loss final hardening', () => {
       objectDefinition(intake, 'view', 'whatsapp_business_intake_reconciliation'),
       objectDefinition(reconciliation, 'view', 'whatsapp_business_intake_reconciliation_exceptions'),
       objectDefinition(reconciliation, 'view', 'whatsapp_business_intake_reconciliation_control'),
-      objectDefinition(reconciliation, 'view', 'whatsapp_shift_reconciliation_readiness'),
+      objectDefinition(escalation, 'view', 'whatsapp_shift_reconciliation_readiness'),
       objectDefinition(cockpit, 'view', 'whatsapp_operator_cockpit'),
       objectDefinition(cockpit, 'view', 'whatsapp_manager_drilldown'),
     ];
