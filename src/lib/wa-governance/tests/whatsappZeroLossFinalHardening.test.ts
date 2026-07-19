@@ -38,7 +38,7 @@ describe('WhatsApp zero-loss final hardening', () => {
 
   it('implements canonical accounting and explicit reconciliation exceptions', () => {
     const accountingView = objectDefinition(intake, 'view', 'whatsapp_business_intake_reconciliation');
-    expect(accountingView).toContain("count(*)::bigint as potential_received");
+    expect(accountingView).toContain('count(*)::bigint as potential_received');
     expect(accountingView).toContain("count(*) filter (where disposition = 'converted')::bigint as converted");
     expect(accountingView).toContain("count(*) filter (where disposition = 'active_pending')::bigint as active_pending");
     expect(accountingView).toContain("count(*) filter (where disposition = 'explicitly_closed')::bigint as explicitly_closed");
@@ -54,17 +54,22 @@ describe('WhatsApp zero-loss final hardening', () => {
     expect(exceptionView).toContain('closed_state_mismatch');
   });
 
-  it('closes superseded escalations and enforces clean shift sign-off in the intended functions', () => {
+  it('closes superseded escalations and enforces the shift equation and clean sign-off at their actual definitions', () => {
     const escalateFunction = objectDefinition(escalation, 'function', 'escalate_whatsapp_business_intake');
-    expect(escalateFunction).toMatch(/update public\.whatsapp_business_intake_escalations[\s\S]*set resolved_at = now\(\)/);
+    expect(escalateFunction).toMatch(/update public\.whatsapp_business_intake_escalations[\s\S]*set resolved_by_user_id = v_actor,[\s\S]*resolved_at = now\(\)/);
     expect(escalateFunction).toContain("resolution_note = 'superseded by a newer escalation'");
-    expect(escalateFunction).toContain('where intake_id = p_intake_id');
-    expect(escalateFunction).toContain('and resolved_at is null');
+    expect(escalateFunction).toContain('where intake_id = p_intake_id and resolved_at is null');
+
+    const escalationSql = stripSqlComments(escalation);
+    expect(escalationSql).toMatch(
+      /constraint whatsapp_shift_equation check \( potential_received = converted \+ active_pending \+ explicitly_closed \)/,
+    );
+    expect(escalationSql).toMatch(
+      /constraint whatsapp_shift_clean_signoff check \( signoff_status <> 'signed_off' or \(unaccounted_potential_orders = 0 and open_escalations = 0\) \)/,
+    );
 
     const signoffFunction = objectDefinition(escalation, 'function', 'signoff_whatsapp_shift_reconciliation');
-    expect(signoffFunction).toContain('potential_received = converted + active_pending + explicitly_closed');
-    expect(signoffFunction).toContain('unaccounted_potential_orders = 0');
-    expect(signoffFunction).toContain('open_escalations = 0');
+    expect(signoffFunction).toContain("if p_signoff_status = 'signed_off' and (v_unaccounted <> 0 or v_open_escalations <> 0) then");
     expect(signoffFunction).toContain('shift is not clean for sign-off');
     expect(signoffFunction).toContain('preparer cannot self-certify shift reconciliation');
   });
