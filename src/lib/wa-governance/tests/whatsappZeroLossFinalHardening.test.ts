@@ -71,7 +71,9 @@ describe('WhatsApp zero-loss final hardening', () => {
 
   it('binds every exposed read object to security-invoker and inbox-reader authorization', () => {
     const intakePolicy = stripSqlComments(intake);
-    expect(intakePolicy).toMatch(/create policy whatsapp_business_intakes_inbox_reader_select[\s\S]*using \(public\.is_whatsapp_inbox_reader\(auth\.uid\(\)\)\)/);
+    expect(intakePolicy).toMatch(
+      /create policy whatsapp_business_intakes_inbox_reader_select[\s\S]{0,240}?using \(public\.is_whatsapp_inbox_reader\(auth\.uid\(\)\)\)/,
+    );
 
     const exposedViews = [
       objectDefinition(intake, 'view', 'whatsapp_business_intake_reconciliation'),
@@ -99,8 +101,9 @@ describe('WhatsApp zero-loss final hardening', () => {
       expect(fn).not.toContain('security definer');
     }
 
-    expect(cockpit).toContain('public.is_whatsapp_inbox_reader(auth.uid())');
-    expect(cockpit).toContain('order by c.priority_rank, c.sla_due_at nulls last, c.created_at');
+    const cockpitFunction = exposedFunctions[2];
+    expect(cockpitFunction).toContain('public.is_whatsapp_inbox_reader(auth.uid())');
+    expect(cockpitFunction).toContain('order by c.priority_rank, c.sla_due_at nulls last, c.created_at');
   });
 
   it('rejects direct and indirect protected downstream write spellings and requires executable snapshots', () => {
