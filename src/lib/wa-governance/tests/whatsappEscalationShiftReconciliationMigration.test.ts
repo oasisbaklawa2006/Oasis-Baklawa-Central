@@ -16,7 +16,8 @@ describe("WhatsApp escalation and shift reconciliation", () => {
     expect(sql).toContain("escalated_by_user_id");
   });
 
-  it("transfers active-pending ownership and appends audit evidence", () => {
+  it("transfers only to authorized owners and appends audit evidence", () => {
+    expect(sql).toContain("public.is_whatsapp_inbox_reader(p_to_owner_user_id)");
     expect(sql).toContain("where id = p_intake_id and disposition = 'active_pending'");
     expect(sql).toContain("set escalation_owner_user_id = p_to_owner_user_id");
     expect(sql).toContain("assigned_user_id = p_to_owner_user_id");
@@ -24,18 +25,35 @@ describe("WhatsApp escalation and shift reconciliation", () => {
     expect(sql).toContain("whatsapp_business_intake_audit_log");
   });
 
-  it("requires a balanced zero-loss equation and clean supervisor sign-off", () => {
-    expect(sql).toContain("potential_received = converted + active_pending + explicitly_closed");
-    expect(sql).toContain("signoff_status <> 'signed_off' or (unaccounted_potential_orders = 0 and open_escalations = 0)");
-    expect(sql).toContain("supervisor_user_id is not null");
-    expect(sql).toContain("nullif(btrim(supervisor_note), '') is not null");
+  it("derives shift accounting from live reconciliation data", () => {
+    expect(sql).toContain("create or replace function public.prepare_whatsapp_shift_reconciliation");
+    expect(sql).toContain("from public.whatsapp_business_intake_reconciliation");
+    expect(sql).toContain("from public.whatsapp_business_intake_escalations");
+    expect(sql).toContain("on conflict (shift_key) do update");
+    expect(sql).toContain("signed reconciliation cannot be replaced");
   });
 
-  it("preserves authorization and RLS boundaries", () => {
+  it("enforces separation of duties and clean sign-off", () => {
+    expect(sql).toContain("create or replace function public.signoff_whatsapp_shift_reconciliation");
+    expect(sql).toContain("supervisor_user_id is null or supervisor_user_id <> prepared_by_user_id");
+    expect(sql).toContain("preparer cannot self-certify shift reconciliation");
+    expect(sql).toContain("shift is not clean for sign-off");
+    expect(sql).toContain("potential_received = converted + active_pending + explicitly_closed");
+    expect(sql).toContain("signoff_status <> 'signed_off' or (unaccounted_potential_orders = 0 and open_escalations = 0)");
+  });
+
+  it("preserves read RLS while making governed tables function-write-only", () => {
     expect(sql).toContain("enable row level security");
     expect(sql).toContain("public.is_whatsapp_inbox_reader(auth.uid())");
-    expect(sql).toContain("security invoker");
+    expect(sql).not.toContain("whatsapp_intake_escalations_reader_insert");
+    expect(sql).not.toContain("whatsapp_intake_escalations_reader_update");
+    expect(sql).not.toContain("whatsapp_shift_reconciliation_reader_insert");
+    expect(sql).not.toContain("whatsapp_shift_reconciliation_reader_update");
+    expect(sql).toContain("security definer");
+    expect(sql).toContain("set search_path = public, pg_temp");
     expect(sql).toContain("revoke all on function public.escalate_whatsapp_business_intake");
+    expect(sql).toContain("revoke all on function public.prepare_whatsapp_shift_reconciliation");
+    expect(sql).toContain("revoke all on function public.signoff_whatsapp_shift_reconciliation");
     expect(sql).toContain("with (security_invoker = true)");
   });
 
