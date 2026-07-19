@@ -17,6 +17,8 @@ describe("WhatsApp contextual alias parent reconciliation", () => {
     expect(sql).toContain("from public.whatsapp_business_intake_intents");
     expect(sql).toContain("from public.whatsapp_business_intake_clarifications");
     expect(sql).toContain("min(due_at)");
+    expect(sql).toContain("p_target_status is null");
+    expect(sql).toContain("open_clarification_count > 0 then intake_row.next_action");
     expect(sql).toContain(
       "continue every remaining governed intake work item; none may be silently lost.",
     );
