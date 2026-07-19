@@ -27,12 +27,18 @@ do $$
 declare
   missing text;
 begin
-  select string_agg(object_name, ', ' order by object_name)
+  select string_agg(e.object_name, ', ' order by e.object_name)
     into missing
-  from expected_objects
-  where case object_kind
-    when 'relation' then to_regclass(object_name) is null
-    when 'function' then to_regproc(object_name) is null
+  from expected_objects e
+  where case e.object_kind
+    when 'relation' then to_regclass(e.object_name) is null
+    when 'function' then not exists (
+      select 1
+      from pg_proc p
+      join pg_namespace n on n.oid = p.pronamespace
+      where n.nspname = split_part(e.object_name, '.', 1)
+        and p.proname = split_part(e.object_name, '.', 2)
+    )
     else true
   end;
 
