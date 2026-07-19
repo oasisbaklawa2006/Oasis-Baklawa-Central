@@ -24,6 +24,7 @@ describe("WhatsApp contextual alias reuse audit", () => {
     expect(sql).toContain("contextual alias already maps to a different target");
     expect(sql).toContain("track linked contextual alias review before any governed reuse.");
     expect(sql).toContain("least(coalesce(sla_due_at, existing_row.due_at), existing_row.due_at)");
+    expect(sql).toContain("open_clarification_count > 0 then intake_row.next_action");
   });
 
   it("retains authorization, parent locking, and no downstream truth writes", () => {
