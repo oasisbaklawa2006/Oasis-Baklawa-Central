@@ -37,13 +37,6 @@ alter table public.whatsapp_business_intake_escalations enable row level securit
 create policy whatsapp_intake_escalations_reader_select
 on public.whatsapp_business_intake_escalations for select to authenticated
 using (public.is_whatsapp_inbox_reader(auth.uid()));
-create policy whatsapp_intake_escalations_reader_insert
-on public.whatsapp_business_intake_escalations for insert to authenticated
-with check (public.is_whatsapp_inbox_reader(auth.uid()));
-create policy whatsapp_intake_escalations_reader_update
-on public.whatsapp_business_intake_escalations for update to authenticated
-using (public.is_whatsapp_inbox_reader(auth.uid()))
-with check (public.is_whatsapp_inbox_reader(auth.uid()));
 
 create or replace function public.escalate_whatsapp_business_intake(
   p_intake_id uuid,
@@ -53,8 +46,8 @@ create or replace function public.escalate_whatsapp_business_intake(
 )
 returns uuid
 language plpgsql
-security invoker
-set search_path = public
+security definer
+set search_path = public, pg_temp
 as $$
 declare
   v_actor uuid := auth.uid();
@@ -63,6 +56,9 @@ declare
 begin
   if not public.is_whatsapp_inbox_reader(v_actor) then
     raise exception 'not authorized';
+  end if;
+  if not public.is_whatsapp_inbox_reader(p_to_owner_user_id) then
+    raise exception 'target owner is not authorized';
   end if;
   if p_severity not in ('WARNING','OVERDUE','BREACH') then
     raise exception 'invalid escalation severity';
@@ -140,6 +136,9 @@ create table public.whatsapp_shift_reconciliations (
   ),
   constraint whatsapp_shift_clean_signoff check (
     signoff_status <> 'SIGNED_OFF' or (unaccounted_potential_orders = 0 and open_escalations = 0)
+  ),
+  constraint whatsapp_shift_separation_of_duties check (
+    supervisor_user_id is null or supervisor_user_id <> prepared_by_user_id
   )
 );
 
@@ -147,13 +146,150 @@ alter table public.whatsapp_shift_reconciliations enable row level security;
 create policy whatsapp_shift_reconciliation_reader_select
 on public.whatsapp_shift_reconciliations for select to authenticated
 using (public.is_whatsapp_inbox_reader(auth.uid()));
-create policy whatsapp_shift_reconciliation_reader_insert
-on public.whatsapp_shift_reconciliations for insert to authenticated
-with check (public.is_whatsapp_inbox_reader(auth.uid()));
-create policy whatsapp_shift_reconciliation_reader_update
-on public.whatsapp_shift_reconciliations for update to authenticated
-using (public.is_whatsapp_inbox_reader(auth.uid()))
-with check (public.is_whatsapp_inbox_reader(auth.uid()));
+
+create or replace function public.prepare_whatsapp_shift_reconciliation(
+  p_shift_key text,
+  p_shift_started_at timestamptz,
+  p_shift_ended_at timestamptz
+)
+returns uuid
+language plpgsql
+security definer
+set search_path = public, pg_temp
+as $$
+declare
+  v_actor uuid := auth.uid();
+  v_reconciliation_id uuid;
+  v_potential_received bigint;
+  v_converted bigint;
+  v_active_pending bigint;
+  v_explicitly_closed bigint;
+  v_unaccounted bigint;
+  v_open_escalations bigint;
+begin
+  if not public.is_whatsapp_inbox_reader(v_actor) then
+    raise exception 'not authorized';
+  end if;
+  if nullif(btrim(p_shift_key), '') is null then
+    raise exception 'shift key is required';
+  end if;
+  if p_shift_ended_at <= p_shift_started_at then
+    raise exception 'shift end must be after shift start';
+  end if;
+
+  select potential_received, converted, active_pending, explicitly_closed, unaccounted_potential_orders
+  into v_potential_received, v_converted, v_active_pending, v_explicitly_closed, v_unaccounted
+  from public.whatsapp_business_intake_reconciliation;
+
+  select count(*)::bigint into v_open_escalations
+  from public.whatsapp_business_intake_escalations
+  where resolved_at is null;
+
+  insert into public.whatsapp_shift_reconciliations(
+    shift_key, shift_started_at, shift_ended_at, prepared_by_user_id,
+    potential_received, converted, active_pending, explicitly_closed,
+    unaccounted_potential_orders, open_escalations
+  ) values (
+    btrim(p_shift_key), p_shift_started_at, p_shift_ended_at, v_actor,
+    v_potential_received, v_converted, v_active_pending, v_explicitly_closed,
+    v_unaccounted, v_open_escalations
+  )
+  on conflict (shift_key) do update
+  set shift_started_at = excluded.shift_started_at,
+      shift_ended_at = excluded.shift_ended_at,
+      prepared_by_user_id = excluded.prepared_by_user_id,
+      prepared_at = now(),
+      potential_received = excluded.potential_received,
+      converted = excluded.converted,
+      active_pending = excluded.active_pending,
+      explicitly_closed = excluded.explicitly_closed,
+      unaccounted_potential_orders = excluded.unaccounted_potential_orders,
+      open_escalations = excluded.open_escalations,
+      signoff_status = 'PENDING',
+      supervisor_user_id = null,
+      supervisor_note = null,
+      signed_off_at = null
+  where public.whatsapp_shift_reconciliations.signoff_status = 'PENDING'
+  returning id into v_reconciliation_id;
+
+  if v_reconciliation_id is null then
+    raise exception 'signed reconciliation cannot be replaced';
+  end if;
+
+  return v_reconciliation_id;
+end;
+$$;
+
+create or replace function public.signoff_whatsapp_shift_reconciliation(
+  p_reconciliation_id uuid,
+  p_signoff_status text,
+  p_supervisor_note text
+)
+returns void
+language plpgsql
+security definer
+set search_path = public, pg_temp
+as $$
+declare
+  v_actor uuid := auth.uid();
+  v_prepared_by uuid;
+  v_potential_received bigint;
+  v_converted bigint;
+  v_active_pending bigint;
+  v_explicitly_closed bigint;
+  v_unaccounted bigint;
+  v_open_escalations bigint;
+begin
+  if not public.is_whatsapp_inbox_reader(v_actor) then
+    raise exception 'not authorized';
+  end if;
+  if p_signoff_status not in ('SIGNED_OFF','REJECTED') then
+    raise exception 'invalid signoff status';
+  end if;
+  if nullif(btrim(p_supervisor_note), '') is null then
+    raise exception 'supervisor note is required';
+  end if;
+
+  select prepared_by_user_id into v_prepared_by
+  from public.whatsapp_shift_reconciliations
+  where id = p_reconciliation_id and signoff_status = 'PENDING'
+  for update;
+  if not found then raise exception 'pending reconciliation not found'; end if;
+  if v_prepared_by = v_actor then
+    raise exception 'preparer cannot self-certify shift reconciliation';
+  end if;
+
+  select potential_received, converted, active_pending, explicitly_closed, unaccounted_potential_orders
+  into v_potential_received, v_converted, v_active_pending, v_explicitly_closed, v_unaccounted
+  from public.whatsapp_business_intake_reconciliation;
+
+  select count(*)::bigint into v_open_escalations
+  from public.whatsapp_business_intake_escalations
+  where resolved_at is null;
+
+  if p_signoff_status = 'SIGNED_OFF' and (v_unaccounted <> 0 or v_open_escalations <> 0) then
+    raise exception 'shift is not clean for sign-off';
+  end if;
+
+  update public.whatsapp_shift_reconciliations
+  set potential_received = v_potential_received,
+      converted = v_converted,
+      active_pending = v_active_pending,
+      explicitly_closed = v_explicitly_closed,
+      unaccounted_potential_orders = v_unaccounted,
+      open_escalations = v_open_escalations,
+      signoff_status = p_signoff_status,
+      supervisor_user_id = v_actor,
+      supervisor_note = btrim(p_supervisor_note),
+      signed_off_at = now()
+  where id = p_reconciliation_id;
+end;
+$$;
+
+revoke all on function public.prepare_whatsapp_shift_reconciliation(text,timestamptz,timestamptz) from public, anon;
+grant execute on function public.prepare_whatsapp_shift_reconciliation(text,timestamptz,timestamptz) to authenticated;
+revoke all on function public.signoff_whatsapp_shift_reconciliation(uuid,text,text) from public, anon;
+grant execute on function public.signoff_whatsapp_shift_reconciliation(uuid,text,text) to authenticated;
 
 create or replace view public.whatsapp_shift_reconciliation_readiness
 with (security_invoker = true)
@@ -174,6 +310,6 @@ revoke all on public.whatsapp_shift_reconciliation_readiness from public, anon;
 grant select on public.whatsapp_shift_reconciliation_readiness to authenticated;
 
 comment on table public.whatsapp_business_intake_escalations is
-  'Governed, auditable escalation and ownership-transfer ledger for active WhatsApp B2B intakes.';
+  'Governed, auditable escalation and ownership-transfer ledger for active WhatsApp B2B intakes. Writes are function-only.';
 comment on table public.whatsapp_shift_reconciliations is
-  'Shift-level zero-loss snapshot requiring clean accounting and no open escalations before supervisor sign-off.';
+  'Function-derived shift-level zero-loss snapshot requiring separation of duties, clean accounting, and no open escalations before supervisor sign-off.';
