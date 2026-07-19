@@ -12,10 +12,9 @@ const sql = readFileSync(
 
 describe("WhatsApp clarification answer RPC authority hardening", () => {
   it("restores only the governed answer function as security definer", () => {
-    expect(sql).toContain(
-      "alter function public.answer_whatsapp_business_intake_clarification(uuid, text, jsonb)",
+    expect(sql).toMatch(
+      /alter\s+function\s+public\.answer_whatsapp_business_intake_clarification\(uuid,\s*text,\s*jsonb\)\s+security\s+definer\s*;/,
     );
-    expect(sql).toContain("security definer");
     expect(sql).not.toContain("grant update on public.whatsapp_business_intake_clarifications");
     expect(sql).not.toContain("grant insert on public.whatsapp_business_intake_clarifications");
     expect(sql).not.toContain("grant delete on public.whatsapp_business_intake_clarifications");
