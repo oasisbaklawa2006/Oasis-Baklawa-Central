@@ -150,18 +150,31 @@ grant execute on function public.get_whatsapp_business_intake_reconciliation_exc
 create or replace view public.whatsapp_business_intake_reconciliation_control
 with (security_invoker = true)
 as
+with per_intake_exception as (
+  select
+    intake_id,
+    min(
+      case exception_class
+        when 'BREACH' then 0
+        when 'OVERDUE' then 1
+        else 2
+      end
+    ) as severity_rank
+  from public.whatsapp_business_intake_reconciliation_exceptions
+  group by intake_id
+)
 select
   r.potential_received,
   r.converted,
   r.active_pending,
   r.explicitly_closed,
   r.unaccounted_potential_orders,
-  count(distinct e.intake_id) filter (where e.exception_class = 'BREACH')::bigint as derived_breach_intakes,
-  count(distinct e.intake_id) filter (where e.exception_class = 'OVERDUE')::bigint as overdue_intakes,
-  count(distinct e.intake_id) filter (where e.exception_class = 'CONTROL_GAP')::bigint as control_gap_intakes,
-  count(distinct e.intake_id)::bigint as total_exception_intakes
+  count(*) filter (where e.severity_rank = 0)::bigint as derived_breach_intakes,
+  count(*) filter (where e.severity_rank = 1)::bigint as overdue_intakes,
+  count(*) filter (where e.severity_rank = 2)::bigint as control_gap_intakes,
+  count(e.intake_id)::bigint as total_exception_intakes
 from public.whatsapp_business_intake_reconciliation r
-left join public.whatsapp_business_intake_reconciliation_exceptions e on true
+left join per_intake_exception e on true
 group by
   r.potential_received,
   r.converted,
@@ -176,4 +189,4 @@ grant select on public.whatsapp_business_intake_reconciliation_control to authen
 comment on view public.whatsapp_business_intake_reconciliation_exceptions is
   'RLS-preserving exception queue deriving zero-loss breaches, overdue work, and control gaps from governed B2B WhatsApp intakes without downstream operational writes.';
 comment on view public.whatsapp_business_intake_reconciliation_control is
-  'Programme control summary combining the canonical disposition equation with derived breach, overdue, and control-gap intake counts.';
+  'Programme control summary combining the canonical disposition equation with one highest-severity exception class per intake so class counts remain additive.';
