@@ -42,6 +42,9 @@ begin
     raise exception 'preparer cannot self-certify shift reconciliation';
   end if;
 
+  -- Bound contention and deadlock waits without changing the caller's session.
+  perform set_config('lock_timeout', '5s', true);
+
   -- Block concurrent source-table mutations until sign-off commits. SHARE mode
   -- permits concurrent readers but conflicts with the ROW EXCLUSIVE lock taken
   -- by INSERT/UPDATE/DELETE, making the following source snapshot stable.
