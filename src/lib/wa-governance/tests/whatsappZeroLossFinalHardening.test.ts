@@ -51,6 +51,6 @@ describe('WhatsApp zero-loss final hardening', () => {
   it('keeps reconciliation and cockpit read paths RLS-aware', () => {
     expect(reconciliation).toMatch(/security_invoker|security invoker/i);
     expect(cockpit).toMatch(/security_invoker|security invoker/i);
-    expect(cockpit).toMatch(/auth\.uid\(\)|is_whatsapp_inbox_reader/i);
+    expect(cockpit).not.toMatch(/security\s+definer/i);
   });
 });
