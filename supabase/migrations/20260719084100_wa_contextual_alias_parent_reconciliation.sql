@@ -18,6 +18,7 @@ declare
   intake_row public.whatsapp_business_intakes%rowtype;
   alias_row public.whatsapp_contextual_aliases%rowtype;
   remaining_alias_count bigint;
+  open_clarification_count bigint;
   remaining_governed_work_count bigint;
   remaining_due_at timestamptz;
 begin
@@ -25,7 +26,7 @@ begin
     raise exception 'not authorized to decide WhatsApp contextual aliases' using errcode = '42501';
   end if;
 
-  if p_target_status not in ('APPROVED', 'REJECTED') then
+  if p_target_status is null or p_target_status not in ('APPROVED', 'REJECTED') then
     raise exception 'unsupported contextual alias decision: %', p_target_status using errcode = '22023';
   end if;
 
@@ -82,6 +83,10 @@ begin
   from public.whatsapp_contextual_aliases
   where intake_id = discovered_intake_id and status = 'PENDING';
 
+  select count(*) into open_clarification_count
+  from public.whatsapp_business_intake_clarifications
+  where intake_id = discovered_intake_id and status = 'OPEN';
+
   select count(*), min(due_at)
   into remaining_governed_work_count, remaining_due_at
   from (
@@ -101,6 +106,7 @@ begin
   if intake_row.disposition = 'ACTIVE_PENDING' then
     update public.whatsapp_business_intakes
     set next_action = case
+          when open_clarification_count > 0 then intake_row.next_action
           when remaining_alias_count > 0 then 'Review every remaining contextual alias proposal before governed reuse.'
           when remaining_governed_work_count > 0 then 'Continue every remaining governed intake work item; none may be silently lost.'
           else 'Review completed governed work and continue intake resolution.'
@@ -129,6 +135,7 @@ begin
       'decision_evidence', case when p_target_status = 'APPROVED' then p_decision_evidence else null end,
       'rejection_reason', case when p_target_status = 'REJECTED' then btrim(p_rejection_reason) else null end,
       'remaining_pending_alias_count', remaining_alias_count,
+      'open_clarification_count', open_clarification_count,
       'remaining_governed_work_count', remaining_governed_work_count,
       'remaining_due_at', remaining_due_at
     )
