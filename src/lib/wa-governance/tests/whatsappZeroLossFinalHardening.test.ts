@@ -42,7 +42,7 @@ describe('WhatsApp zero-loss final hardening', () => {
     expect(accountingView).toContain("count(*) filter (where disposition = 'converted')::bigint as converted");
     expect(accountingView).toContain("count(*) filter (where disposition = 'active_pending')::bigint as active_pending");
     expect(accountingView).toContain("count(*) filter (where disposition = 'explicitly_closed')::bigint as explicitly_closed");
-    expect(accountingView).toContain("from public.whatsapp_business_intakes");
+    expect(accountingView).toContain('from public.whatsapp_business_intakes');
 
     const exceptionView = objectDefinition(
       reconciliation,
@@ -102,7 +102,7 @@ describe('WhatsApp zero-loss final hardening', () => {
     }
 
     const cockpitFunction = exposedFunctions[2];
-    expect(cockpitFunction).toContain('public.is_whatsapp_inbox_reader(auth.uid())');
+    expect(cockpitFunction).toContain('from public.whatsapp_operator_cockpit c');
     expect(cockpitFunction).toContain('order by c.priority_rank, c.sla_due_at nulls last, c.created_at');
   });
 
