@@ -11,8 +11,12 @@ const sql = readFileSync(
 ).toLowerCase();
 
 describe("WhatsApp formal clarification due-time hardening", () => {
-  it("requires a durable due time at both schema and RPC boundaries", () => {
-    expect(sql).toContain("alter column due_at set not null");
+  it("backfills legacy nulls before requiring due time at schema and RPC boundaries", () => {
+    expect(sql).toContain("set due_at = coalesce(created_at, now()) + interval '4 hours'");
+    expect(sql).toContain("where due_at is null");
+    expect(sql.indexOf("where due_at is null")).toBeLessThan(
+      sql.indexOf("alter column due_at set not null"),
+    );
     expect(sql).toContain("if p_due_at is null then");
     expect(sql).toContain("clarification due time is required");
   });
