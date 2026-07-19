@@ -68,8 +68,8 @@ select
   array_agg(p.message_id order by p.created_at, p.message_id) as source_message_ids,
   array_agg(i.id order by p.created_at, p.message_id)
     filter (where i.id is not null) as intake_ids,
-  string_agg(nullif(btrim(p.content), ''), E'\n' order by p.created_at, p.message_id)
-    filter (where nullif(btrim(p.content), '') is not null) as reconstructed_text,
+  string_agg(p.content, E'\n' order by p.created_at, p.message_id)
+    filter (where p.content is not null) as reconstructed_text,
   bool_or(p.media_url is not null or p.message_type in ('image', 'document', 'audio', 'video')) as contains_media,
   bool_or(i.intake_kind in ('POTENTIAL_ORDER', 'ORDER', 'UNRESOLVED_RISK')) as contains_order_or_risk,
   bool_or(i.reconciliation_status = 'UNACCOUNTED') as contains_unaccounted_intake,
