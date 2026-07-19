@@ -12,7 +12,9 @@ const sql = readFileSync(
 
 describe("WhatsApp routed intent governed lifecycle", () => {
   it("allows only explicit terminal outcomes with mandatory evidence", () => {
-    expect(sql).toContain("p_target_status not in ('resolved', 'explicitly_closed')");
+    expect(sql).toContain(
+      "p_target_status is null or p_target_status not in ('resolved', 'explicitly_closed')",
+    );
     expect(sql).toContain("non-empty outcome evidence is required");
     expect(sql).toContain("closure reason is required");
     expect(sql).toContain("routed whatsapp business intent is already terminal");
@@ -38,6 +40,15 @@ describe("WhatsApp routed intent governed lifecycle", () => {
     expect(sql).toContain("business_intent_explicitly_closed");
     expect(sql).toContain("remaining_open_intent_count");
     expect(sql).toContain("review completed routed intents and continue governed intake resolution.");
+  });
+
+  it("reconciles routed intents with simultaneous open clarification work", () => {
+    expect(sql).toContain("from public.whatsapp_business_intake_clarifications");
+    expect(sql).toContain("open_clarification_count > 0 then intake_row.next_action");
+    expect(sql).toContain(
+      "combined_open_due_at := least(remaining_due_at, open_clarification_due_at)",
+    );
+    expect(sql).toContain("'open_clarification_count', open_clarification_count");
   });
 
   it("contains no downstream truth writes", () => {

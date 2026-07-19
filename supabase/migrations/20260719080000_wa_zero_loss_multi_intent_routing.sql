@@ -106,6 +106,8 @@ declare
   routed_intent_id uuid;
   effective_assigned_user_id uuid;
   effective_assigned_team text;
+  open_clarification_count bigint;
+  open_clarification_due_at timestamptz;
 begin
   if actor_id is null or not public.is_whatsapp_inbox_reader(actor_id) then
     raise exception 'not authorized to route WhatsApp business intents' using errcode = '42501';
@@ -179,10 +181,18 @@ begin
   )
   returning id into routed_intent_id;
 
+  select count(*), min(due_at)
+  into open_clarification_count, open_clarification_due_at
+  from public.whatsapp_business_intake_clarifications
+  where intake_id = p_intake_id and status = 'OPEN';
+
   update public.whatsapp_business_intakes
   set disposition = 'ACTIVE_PENDING',
-      next_action = 'Progress every routed business intent; none may remain unowned or silently terminal.',
-      sla_due_at = least(coalesce(sla_due_at, p_due_at), p_due_at),
+      next_action = case
+        when open_clarification_count > 0 then intake_row.next_action
+        else 'Progress every routed business intent; none may remain unowned or silently terminal.'
+      end,
+      sla_due_at = least(intake_row.sla_due_at, p_due_at, open_clarification_due_at),
       reconciliation_status = 'ACCOUNTED',
       reconciliation_issue = null
   where id = p_intake_id;

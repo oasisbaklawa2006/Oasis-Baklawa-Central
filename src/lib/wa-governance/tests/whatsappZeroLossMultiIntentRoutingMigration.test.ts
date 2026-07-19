@@ -43,6 +43,14 @@ describe("WhatsApp zero-loss multi-intent routing", () => {
     expect(sql).toContain("none may remain unowned or silently terminal");
   });
 
+  it("preserves clarification-led parent work while combining SLA deadlines", () => {
+    expect(sql).toContain("from public.whatsapp_business_intake_clarifications");
+    expect(sql).toContain("open_clarification_count > 0 then intake_row.next_action");
+    expect(sql).toContain(
+      "least(intake_row.sla_due_at, p_due_at, open_clarification_due_at)",
+    );
+  });
+
   it("denies direct mutation and contains no downstream truth writes", () => {
     expect(sql).toContain(
       "revoke insert, update, delete, truncate on public.whatsapp_business_intake_intents from authenticated",
