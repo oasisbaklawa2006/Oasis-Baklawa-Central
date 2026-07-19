@@ -1,6 +1,9 @@
 -- Formal clarification closure and evidence hardening.
 
 alter table public.whatsapp_business_intake_clarifications
+  add constraint whatsapp_intake_clarification_evidence_terminal_shape check (
+    status = 'ANSWERED' or answer_evidence is null
+  ),
   add constraint whatsapp_intake_clarification_answer_evidence_required check (
     status <> 'ANSWERED' or (
       answer_evidence is not null and
