@@ -7,6 +7,10 @@ on:
     branches: [main]
   workflow_dispatch:
 
+concurrency:
+  group: release-quality-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 jobs:
   quality-gate:
     name: Typecheck, unit test, production build, and Playwright smoke
@@ -16,66 +20,126 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Classify changed paths
+        id: changes
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          ZERO_SHA="0000000000000000000000000000000000000000"
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            BASE_SHA="${{ github.event.pull_request.base.sha }}"
+          elif [ "${{ github.event_name }}" = "push" ]; then
+            BASE_SHA="${{ github.event.before }}"
+            if [ "$BASE_SHA" = "$ZERO_SHA" ]; then
+              BASE_SHA="$(git hash-object -t tree /dev/null)"
+            fi
+          elif git rev-parse HEAD^ >/dev/null 2>&1; then
+            BASE_SHA="HEAD^"
+          else
+            BASE_SHA="$(git hash-object -t tree /dev/null)"
+          fi
+
+          git diff --name-only "$BASE_SHA" HEAD > /tmp/changed-files.txt
+          cat /tmp/changed-files.txt
+
+          has_match() {
+            grep -Eq "$1" /tmp/changed-files.txt
+          }
+
+          APP=false
+          UI=false
+          MIGRATION=false
+          TOOLING=false
+          TESTS=false
+
+          has_match '^(src/|public/|index.html$|vite\.config\.|tsconfig|package\.json$|package-lock\.json$)' && APP=true || true
+          has_match '^(src/.*\.(tsx|css)$|public/|tests/.*\.(spec|test)\.(ts|tsx)$|playwright.*\.ts$)' && UI=true || true
+          has_match '^(supabase/migrations/|supabase/uat/)' && MIGRATION=true || true
+          has_match '^(\.github/workflows/|scripts/|eslint\.config\.|package\.json$|package-lock\.json$)' && TOOLING=true || true
+          has_match '(^|/)(tests?|__tests__)/|\.(spec|test)\.(ts|tsx)$' && TESTS=true || true
+
+          echo "app=$APP" >> "$GITHUB_OUTPUT"
+          echo "ui=$UI" >> "$GITHUB_OUTPUT"
+          echo "migration=$MIGRATION" >> "$GITHUB_OUTPUT"
+          echo "tooling=$TOOLING" >> "$GITHUB_OUTPUT"
+          echo "tests=$TESTS" >> "$GITHUB_OUTPUT"
 
       - name: Setup Node
+        if: steps.changes.outputs.app == 'true' || steps.changes.outputs.ui == 'true' || steps.changes.outputs.migration == 'true' || steps.changes.outputs.tooling == 'true' || steps.changes.outputs.tests == 'true'
         uses: actions/setup-node@v4
         with:
           node-version: 20
           cache: npm
 
       - name: Install dependencies
+        if: steps.changes.outputs.app == 'true' || steps.changes.outputs.ui == 'true' || steps.changes.outputs.migration == 'true' || steps.changes.outputs.tooling == 'true' || steps.changes.outputs.tests == 'true'
         run: npm ci
 
-      # `eslint .` hits legacy debt + fixture trees (e.g. `.eslint-compare`) and fails the whole gate.
-      # Typecheck catches real TS compile issues without blocking merges on ESLint backlog.
       - name: Typecheck
+        if: steps.changes.outputs.app == 'true' || steps.changes.outputs.tooling == 'true'
         run: npm run typecheck
 
-      # Keep ESLint visibility without failing the Release Quality Gate.
-      - name: ESLint (informational — known lint debt)
-        run: npm run lint
-        continue-on-error: true
+      - name: ESLint changed TypeScript files
+        if: steps.changes.outputs.app == 'true' || steps.changes.outputs.tooling == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          mapfile -t FILES < <(grep -E '\.(ts|tsx)$' /tmp/changed-files.txt || true)
+          if [ "${#FILES[@]}" -eq 0 ]; then
+            echo "No changed TypeScript files to lint."
+            exit 0
+          fi
+          npx eslint "${FILES[@]}"
 
-      - name: Unit tests
+      - name: Unit and migration contract tests
+        if: steps.changes.outputs.app == 'true' || steps.changes.outputs.migration == 'true' || steps.changes.outputs.tooling == 'true' || steps.changes.outputs.tests == 'true'
         run: npm run test
 
       - name: Production build
+        if: steps.changes.outputs.app == 'true' || steps.changes.outputs.ui == 'true' || steps.changes.outputs.tooling == 'true'
         run: npm run build
 
-      # Install browser binaries only. `--with-deps` runs apt against runner mirrors
-      # (including packages.microsoft.com) and can fail with transient 403s unrelated to app code.
-      - name: Install Playwright browsers
+      - name: Install Chromium
+        if: steps.changes.outputs.ui == 'true'
         run: npx playwright install chromium
 
-      # Golden Pipeline QA needs secrets; fallback keeps a deterministic public-URL screenshot smoke when secrets are absent.
-      - name: Playwright Golden QA or visual smoke
-        env:
-          APP_URL: https://b2b.oasisbaklawa.com
-          TEST_PREVIEW_URL: https://b2b.oasisbaklawa.com
-          TEST_BUYER_EMAIL: ${{ secrets.TEST_BUYER_EMAIL }}
-          TEST_BUYER_PASSWORD: ${{ secrets.TEST_BUYER_PASSWORD }}
-          TEST_FINANCE_EMAIL: ${{ secrets.TEST_FINANCE_EMAIL }}
-          TEST_FINANCE_PASSWORD: ${{ secrets.TEST_FINANCE_PASSWORD }}
-          TEST_SALES_EMAIL: ${{ secrets.TEST_SALES_EMAIL }}
-          TEST_SALES_PASSWORD: ${{ secrets.TEST_SALES_PASSWORD }}
+      - name: Start PR build locally
+        if: steps.changes.outputs.ui == 'true'
+        shell: bash
         run: |
-          set -e
-          if \
-            [ -n "${TEST_BUYER_EMAIL:-}" ] && [ -n "${TEST_BUYER_PASSWORD:-}" ] && \
-            [ -n "${TEST_FINANCE_EMAIL:-}" ] && [ -n "${TEST_FINANCE_PASSWORD:-}" ] && \
-            [ -n "${TEST_SALES_EMAIL:-}" ] && [ -n "${TEST_SALES_PASSWORD:-}" ]; \
-          then
-            echo "::notice::Running Golden Pipeline QA (desktop-chrome-size) against production portal"
-            npx playwright test tests/golden-pipeline-qa.spec.ts --project=desktop-chrome-size --trace=on
-          else
-            echo "::notice::Golden Pipeline TEST_* secrets incomplete — skipping Golden QA; running visual-audit screenshot smoke instead"
-            npx playwright test tests/visual-audit.spec.ts --project=desktop-chrome-size --trace=on
-          fi
+          set -euo pipefail
+          nohup npm run preview -- --host 127.0.0.1 --port 4173 > /tmp/vite-preview.log 2>&1 &
+          for attempt in {1..30}; do
+            if curl --fail --silent http://127.0.0.1:4173 >/dev/null; then
+              exit 0
+            fi
+            sleep 1
+          done
+          cat /tmp/vite-preview.log
+          exit 1
+
+      - name: Playwright PR smoke
+        if: steps.changes.outputs.ui == 'true'
+        env:
+          APP_URL: http://127.0.0.1:4173
+          TEST_PREVIEW_URL: http://127.0.0.1:4173
+        run: npx playwright test tests/visual-audit.spec.ts --project=desktop-chrome-size --trace=on
+
+      - name: Docs-only fast pass
+        if: steps.changes.outputs.app != 'true' && steps.changes.outputs.ui != 'true' && steps.changes.outputs.migration != 'true' && steps.changes.outputs.tooling != 'true' && steps.changes.outputs.tests != 'true'
+        run: echo "Documentation-only or metadata-only change; expensive application checks skipped."
 
       - name: Upload Playwright report
         uses: actions/upload-artifact@v4
-        if: always()
+        if: ${{ !cancelled() && steps.changes.outputs.ui == 'true' }}
         with:
-          name: playwright-report
-          path: playwright-report/
+          name: playwright-report-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            playwright-report/
+            test-results/
+          if-no-files-found: ignore
           retention-days: 7
