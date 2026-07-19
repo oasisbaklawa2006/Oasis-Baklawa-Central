@@ -11,7 +11,9 @@ const sql = readFileSync(
 ).toLowerCase();
 
 describe("WhatsApp formal clarification closure hardening", () => {
-  it("rejects empty answer evidence", () => {
+  it("enforces evidence only for answered clarifications", () => {
+    expect(sql).toContain("whatsapp_intake_clarification_evidence_terminal_shape");
+    expect(sql).toContain("status = 'answered' or answer_evidence is null");
     expect(sql).toContain("whatsapp_intake_clarification_answer_evidence_required");
     expect(sql).toContain("answer_evidence <> '{}'::jsonb");
     expect(sql).toContain("answer_evidence <> 'null'::jsonb");
