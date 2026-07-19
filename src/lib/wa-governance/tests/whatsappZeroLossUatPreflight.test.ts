@@ -12,6 +12,7 @@ describe('Issue 232 zero-loss UAT preflight', () => {
   it('fails closed unless an isolated read-only execution is explicitly confirmed', () => {
     expect(runner).toContain('UAT_DATABASE_URL');
     expect(runner).toContain('UAT_DATABASE_CONFIRM=ISSUE_232_ISOLATED_READ_ONLY');
+    expect(runner).toContain("tr '[:upper:]' '[:lower:]'");
     expect(runner).toContain('tcxvcatsqqertcnycuop');
     expect(runner).toContain('--set=ON_ERROR_STOP=1');
     expect(runner).toContain('--no-psqlrc');
@@ -22,6 +23,7 @@ describe('Issue 232 zero-loss UAT preflight', () => {
     expect(sql).toContain("set local statement_timeout = '30s'");
     expect(sql).toContain("set local lock_timeout = '3s'");
     expect(sql).toContain('rollback;');
+    expect(sql).not.toContain('create temporary table');
     expect(sql).not.toMatch(/\b(insert|update|delete|merge|truncate|copy)\s+(into\s+|from\s+)?public\./);
   });
 
@@ -31,6 +33,7 @@ describe('Issue 232 zero-loss UAT preflight', () => {
       'public.whatsapp_business_intake_audit',
       'public.whatsapp_business_intake_reconciliation',
       'public.whatsapp_business_intake_reconciliation_exceptions',
+      'public.whatsapp_business_intake_reconciliation_control',
       'public.whatsapp_shift_reconciliation_readiness',
       'public.whatsapp_operator_cockpit',
       'public.whatsapp_manager_drilldown',
