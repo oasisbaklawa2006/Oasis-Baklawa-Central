@@ -26,6 +26,7 @@ declare
   effective_assigned_team text;
   existing_row public.whatsapp_contextual_aliases%rowtype;
   alias_id uuid;
+  open_clarification_count bigint;
 begin
   if actor_id is null or not public.is_whatsapp_inbox_reader(actor_id) then
     raise exception 'not authorized to propose WhatsApp contextual aliases' using errcode = '42501';
@@ -113,7 +114,10 @@ begin
     if existing_row.status = 'PENDING' then
       update public.whatsapp_business_intakes
       set disposition = 'ACTIVE_PENDING',
-          next_action = 'Track linked contextual alias review before any governed reuse.',
+          next_action = case
+            when open_clarification_count > 0 then intake_row.next_action
+            else 'Track linked contextual alias review before any governed reuse.'
+          end,
           sla_due_at = least(coalesce(sla_due_at, existing_row.due_at), existing_row.due_at),
           reconciliation_status = 'ACCOUNTED',
           reconciliation_issue = null
@@ -135,7 +139,10 @@ begin
 
   update public.whatsapp_business_intakes
   set disposition = 'ACTIVE_PENDING',
-      next_action = 'Review contextual alias proposal before any governed reuse.',
+      next_action = case
+        when open_clarification_count > 0 then intake_row.next_action
+        else 'Review contextual alias proposal before any governed reuse.'
+      end,
       sla_due_at = least(coalesce(sla_due_at, p_due_at), p_due_at),
       reconciliation_status = 'ACCOUNTED',
       reconciliation_issue = null
