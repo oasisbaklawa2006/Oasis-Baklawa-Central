@@ -9,7 +9,8 @@ if [[ "${UAT_DATABASE_CONFIRM}" != "ISSUE_232_ISOLATED_READ_ONLY" ]]; then
   exit 2
 fi
 
-if [[ "${UAT_DATABASE_URL}" == *"tcxvcatsqqertcnycuop"* ]]; then
+database_url_lower="$(printf '%s' "${UAT_DATABASE_URL}" | tr '[:upper:]' '[:lower:]')"
+if [[ "${database_url_lower}" == *"tcxvcatsqqertcnycuop"* ]]; then
   echo "Refusing to run against the known production Supabase project" >&2
   exit 3
 fi
