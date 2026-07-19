@@ -35,11 +35,15 @@ describe("WhatsApp zero-loss reconciliation exceptions", () => {
     expect(sql).toContain("grant execute on function public.get_whatsapp_business_intake_reconciliation_exceptions() to authenticated");
   });
 
-  it("provides deterministic operator ordering and programme counts", () => {
+  it("provides deterministic operator ordering and additive programme counts", () => {
     expect(sql).toContain("case exception_class when 'breach' then 0 when 'overdue' then 1 else 2 end");
     expect(sql).toContain("sla_due_at nulls last");
-    expect(sql).toContain("derived_breach_intakes");
-    expect(sql).toContain("total_exception_intakes");
+    expect(sql).toContain("with per_intake_exception as");
+    expect(sql).toContain("min(");
+    expect(sql).toContain("group by intake_id");
+    expect(sql).toContain("count(*) filter (where e.severity_rank = 0)");
+    expect(sql).toContain("count(e.intake_id)::bigint as total_exception_intakes");
+    expect(sql).not.toContain("count(distinct e.intake_id) filter");
   });
 
   it("does not write operational or intake truth", () => {
