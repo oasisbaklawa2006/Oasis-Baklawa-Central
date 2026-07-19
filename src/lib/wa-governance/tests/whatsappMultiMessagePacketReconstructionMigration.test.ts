@@ -27,10 +27,12 @@ describe("WhatsApp multi-message packet reconstruction migration", () => {
     expect(migration).toContain("every_message_governed");
   });
 
-  it("reconstructs text in source order and surfaces packet-level risk", () => {
+  it("reconstructs text losslessly in source order and surfaces packet-level risk", () => {
     expect(migration).toContain(
-      "string_agg(nullif(btrim(p.content), ''), E'\\n' order by p.created_at, p.message_id)",
+      "string_agg(p.content, E'\\n' order by p.created_at, p.message_id)",
     );
+    expect(migration).toContain("filter (where p.content is not null)");
+    expect(migration).not.toContain("btrim(p.content)");
     expect(migration).toContain("contains_order_or_risk");
     expect(migration).toContain("contains_unaccounted_intake");
     expect(migration).toContain("message_count > 1");
