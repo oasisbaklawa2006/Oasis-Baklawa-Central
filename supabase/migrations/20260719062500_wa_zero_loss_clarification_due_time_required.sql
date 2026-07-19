@@ -1,6 +1,14 @@
 -- Require every formal clarification to remain time-bound and visible in the operator queue.
 -- This hardening follows the initial clarification workflow migrations in the same PR.
 
+-- Earlier migrations in this tranche allowed a nullable due time. An environment
+-- may therefore contain rows created between migration applications. Preserve
+-- those rows as visible overdue work instead of letting SET NOT NULL abort the
+-- deployment. Four hours is the explicit conservative default for legacy rows.
+update public.whatsapp_business_intake_clarifications
+set due_at = coalesce(created_at, now()) + interval '4 hours'
+where due_at is null;
+
 alter table public.whatsapp_business_intake_clarifications
   alter column due_at set not null;
 
