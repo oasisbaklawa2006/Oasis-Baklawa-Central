@@ -18,6 +18,20 @@ function functionBody(sql: string): string {
 describe('WhatsApp atomic shift sign-off migration', () => {
   const body = functionBody(migration);
 
+  it('bounds lock acquisition transaction-locally before locking source tables', () => {
+    const timeout = body.indexOf("perform set_config('lock_timeout', '5s', true)");
+    const intakeLock = body.indexOf(
+      'lock table public.whatsapp_business_intakes in share mode',
+    );
+    const escalationLock = body.indexOf(
+      'lock table public.whatsapp_business_intake_escalations in share mode',
+    );
+
+    expect(timeout).toBeGreaterThanOrEqual(0);
+    expect(intakeLock).toBeGreaterThan(timeout);
+    expect(escalationLock).toBeGreaterThan(timeout);
+  });
+
   it('locks both mutable source tables before reading reconciliation state', () => {
     const intakeLock = body.indexOf(
       'lock table public.whatsapp_business_intakes in share mode',
