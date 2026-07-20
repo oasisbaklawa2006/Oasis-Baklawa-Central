@@ -22,6 +22,13 @@ describe("WhatsApp accountability reconciliation exception register migration", 
     expect(sql).toContain("where cardinality(e.exception_codes) > 0");
   });
 
+  it("treats null and unsupported non-governed dispositions as illegal", () => {
+    expect(sql).toContain("c.effective_disposition is null");
+    expect(sql).toContain(
+      "c.effective_disposition not in ('ACTIVE_PENDING', 'EXPLICITLY_CLOSED')",
+    );
+  });
+
   it("preserves source lineage and deterministic bounded ordering", () => {
     for (const field of [
       "e.item_source",
