@@ -59,6 +59,14 @@ describe("WhatsApp authorized-channel accountability queue migration", () => {
     expect(sql).toContain("q.source_message_id asc");
   });
 
+  it("ranks every unresolved current exception ahead of closed evidence", () => {
+    expect(sql).toContain("when e.disposition = 'ACTIVE_PENDING' then 80");
+    expect(sql).toMatch(
+      /when e\.disposition = 'ACTIVE_PENDING' then 80\s+else 90\s+end as priority_rank/i,
+    );
+    expect(sql).toContain("when h.effective_disposition <> 'ACTIVE_PENDING' then 90");
+  });
+
   it("bounds result size and rejects invalid limits", () => {
     expect(sql).toContain("result_limit integer default 200");
     expect(sql).toContain("result_limit < 1 or result_limit > 1000");
