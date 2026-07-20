@@ -39,3 +39,9 @@ audit-artifacts/playwright-report.json
 # Supabase CLI local link artifacts (do not commit)
 supabase/.temp/
 
+# Local environment files (never commit secrets/keys)
+.env
+.env.local
+.env.production
+.env.*.local
+
