@@ -80,14 +80,10 @@ begin
 end;
 $$;
 
-drop trigger if exists trg_whatsapp_authorized_business_channels_updated_at
-  on public.whatsapp_authorized_business_channels;
 create trigger trg_whatsapp_authorized_business_channels_updated_at
 before update on public.whatsapp_authorized_business_channels
 for each row execute function public.set_whatsapp_channel_governance_updated_at();
 
-drop trigger if exists trg_whatsapp_channel_intake_exceptions_updated_at
-  on public.whatsapp_channel_intake_exceptions;
 create trigger trg_whatsapp_channel_intake_exceptions_updated_at
 before update on public.whatsapp_channel_intake_exceptions
 for each row execute function public.set_whatsapp_channel_governance_updated_at();
@@ -121,6 +117,7 @@ set search_path = pg_catalog, public
 as $$
 declare
   normalized_content text := lower(coalesce(new.content, ''));
+  normalized_provider text := coalesce(nullif(btrim(new.provider), ''), 'whatsapp');
   inferred_kind text;
   inferred_state text;
   inferred_next_action text;
@@ -144,7 +141,7 @@ begin
     select exists (
       select 1
       from public.whatsapp_authorized_business_channels c
-      where c.provider = coalesce(nullif(btrim(new.provider), ''), 'whatsapp')
+      where c.provider = normalized_provider
         and c.receiver_channel_id = receiver_channel_id
         and c.business_domain = 'B2B'
         and c.is_active
@@ -163,7 +160,7 @@ begin
     ) values (
       new.id,
       new.provider_message_id,
-      coalesce(nullif(btrim(new.provider), ''), 'whatsapp'),
+      normalized_provider,
       receiver_channel_id,
       case
         when receiver_channel_id is null then 'RECEIVER_ID_MISSING'
