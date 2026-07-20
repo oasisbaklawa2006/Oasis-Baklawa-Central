@@ -26,6 +26,7 @@ select
   case
     when e.disposition = 'ACTIVE_PENDING' and e.authorization_state = 'RECEIVER_ID_MISSING' then 10
     when e.disposition = 'ACTIVE_PENDING' and e.authorization_state = 'CHANNEL_UNAUTHORIZED' then 20
+    when e.disposition = 'ACTIVE_PENDING' then 80
     else 90
   end as priority_rank
 from public.whatsapp_channel_intake_exceptions e
