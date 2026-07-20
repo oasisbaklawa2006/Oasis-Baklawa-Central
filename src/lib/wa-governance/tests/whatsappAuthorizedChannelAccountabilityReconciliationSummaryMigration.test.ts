@@ -53,6 +53,7 @@ describe("WhatsApp authorized-channel accountability reconciliation summary migr
 
   it("does not mutate source, order, finance, inventory, invoice, or dispatch truth", () => {
     for (const table of [
+      "whatsapp_authorized_channel_accountability_queue",
       "whatsapp_messages",
       "whatsapp_business_intakes",
       "orders",
@@ -66,6 +67,10 @@ describe("WhatsApp authorized-channel accountability reconciliation summary migr
       expect(sql).not.toMatch(new RegExp(`insert\\s+into\\s+(?:public\\.)?${table}`, "i"));
       expect(sql).not.toMatch(new RegExp(`update\\s+(?:public\\.)?${table}`, "i"));
       expect(sql).not.toMatch(new RegExp(`delete\\s+from\\s+(?:public\\.)?${table}`, "i"));
+      expect(sql).not.toMatch(
+        new RegExp(`truncate\\s+(?:table\\s+)?(?:public\\.)?${table}`, "i"),
+      );
+      expect(sql).not.toMatch(new RegExp(`merge\\s+into\\s+(?:public\\.)?${table}`, "i"));
     }
   });
 });
