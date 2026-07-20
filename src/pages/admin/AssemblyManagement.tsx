@@ -337,8 +337,8 @@ export default function AssemblyManagement() {
 
       {/* === NUMERIC KEYPAD MODAL === */}
       {keypadOpen && (
-        <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4" onClick={() => setKeypadOpen(false)}>
-          <div className="bg-background rounded-2xl p-6 w-full max-w-xs shadow-2xl" onClick={e => e.stopPropagation()}>
+        <div className="fixed inset-0 z-[180] bg-black/60 flex items-center justify-center p-4" onClick={() => setKeypadOpen(false)}>
+          <div className="z-[190] bg-background rounded-2xl p-6 w-full max-w-xs shadow-2xl" onClick={e => e.stopPropagation()}>
             <h3 className="text-lg font-bold text-foreground mb-1">Enter Partial Qty</h3>
             <p className="text-xs text-muted-foreground mb-4">Max: {keypadMax} units</p>
 
@@ -367,8 +367,8 @@ export default function AssemblyManagement() {
 
       {/* === PRODUCTION QTY MODAL (TOUCH KEYPAD) === */}
       {prodQtyOpen && (
-        <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4" onClick={() => setProdQtyOpen(false)}>
-          <div className="bg-background rounded-2xl p-6 w-full max-w-xs shadow-2xl" onClick={e => e.stopPropagation()}>
+        <div className="fixed inset-0 z-[180] bg-black/60 flex items-center justify-center p-4" onClick={() => setProdQtyOpen(false)}>
+          <div className="z-[190] bg-background rounded-2xl p-6 w-full max-w-xs shadow-2xl" onClick={e => e.stopPropagation()}>
             <h3 className="text-lg font-bold text-foreground mb-1">Material Request Qty</h3>
             <p className="text-xs text-muted-foreground mb-4">{prodQtyProduct}</p>
 
