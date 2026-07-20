@@ -31,7 +31,8 @@ describe("WhatsApp accountability reconciliation parity migration", () => {
     expect(sql).toContain(
       "effective_disposition not in ('ACTIVE_PENDING', 'EXPLICITLY_CLOSED')",
     );
-    expect(sql).toContain("not is_governed_accounted");
+    expect(sql).toContain("is_governed_accounted is not true");
+    expect(sql).not.toContain("where not is_governed_accounted");
   });
 
   it("counts each pending ownership or action breach once", () => {
