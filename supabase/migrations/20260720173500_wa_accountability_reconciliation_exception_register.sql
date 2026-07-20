@@ -61,7 +61,10 @@ begin
       array_remove(array[
         case
           when not c.is_governed_accounted
-            and c.effective_disposition not in ('ACTIVE_PENDING', 'EXPLICITLY_CLOSED')
+            and (
+              c.effective_disposition is null
+              or c.effective_disposition not in ('ACTIVE_PENDING', 'EXPLICITLY_CLOSED')
+            )
           then 'ILLEGAL_DISPOSITION'
         end,
         case
@@ -120,6 +123,6 @@ revoke all on function public.get_whatsapp_authorized_channel_accountability_rec
 grant execute on function public.get_whatsapp_authorized_channel_accountability_reconciliation_exceptions(interval, integer) to authenticated;
 
 comment on function public.get_whatsapp_authorized_channel_accountability_reconciliation_exceptions(interval, integer) is
-  'Read-only Issue #232 register returning each unique queue row that has an illegal disposition, missing pending ownership/action, or a genuine explicit closure without recorded reason.';
+  'Read-only Issue #232 register returning each unique queue row that has a null or illegal disposition, missing pending ownership/action, or a genuine explicit closure without recorded reason.';
 
 commit;
