@@ -29,7 +29,10 @@ describe("WhatsApp historical evidence forward-repair register migration", () =>
     ]) {
       expect(sql).toContain(code);
     }
-    expect(sql).toContain("q.evidence is null or q.evidence = '{}'::jsonb");
+    expect(sql).toContain(
+      "(q.evidence - 'resolution_id' - 'resolution_evidence' - 'resolved_by') = '{}'::jsonb",
+    );
+    expect(sql).not.toContain("q.evidence = '{}'::jsonb then 'MISSING_EVIDENCE'");
     expect(sql).toContain("q.existing_intake_id is null");
   });
 
