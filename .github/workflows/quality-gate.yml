@@ -57,7 +57,7 @@ jobs:
           TESTS=false
 
           has_match '^(src/|public/|index.html$|vite\.config\.|tsconfig|package\.json$|package-lock\.json$)' && APP=true || true
-          has_match '^(src/.*\.(tsx|css)$|public/|tests/.*\.(spec|test)\.(ts|tsx)$|playwright.*\.ts$)' && UI=true || true
+          has_match '^(src/|public/|tests/.*\.(spec|test)\.(ts|tsx)$|playwright.*\.ts$)' && UI=true || true
           has_match '^(supabase/migrations/|supabase/uat/)' && MIGRATION=true || true
           has_match '^(\.github/workflows/|scripts/|eslint\.config\.|package\.json$|package-lock\.json$)' && TOOLING=true || true
           has_match '(^|/)(tests?|__tests__)/|\.(spec|test)\.(ts|tsx)$' && TESTS=true || true
