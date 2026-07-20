@@ -45,7 +45,11 @@ begin
       count(*) filter (where priority_rank <= 20)::bigint as critical_count,
       count(*) filter (where nullif(btrim(assigned_team), '') is null)::bigint as unowned_count,
       count(*) filter (where nullif(btrim(effective_next_action), '') is null)::bigint as actionless_count,
-      count(*) filter (where detected_at <= statement_timestamp() - stale_after)::bigint as stale_count
+      count(*) filter (where detected_at <= statement_timestamp() - stale_after)::bigint as stale_count,
+      count(*) filter (
+        where nullif(btrim(assigned_team), '') is null
+           or nullif(btrim(effective_next_action), '') is null
+      )::bigint as invariant_breach_count
     from pending
   )
   select
@@ -54,8 +58,8 @@ begin
     c.unowned_count,
     c.actionless_count,
     c.stale_count,
-    (c.unowned_count + c.actionless_count)::bigint as invariant_breach_count,
-    (c.unowned_count + c.actionless_count) = 0 as metric_is_zero
+    c.invariant_breach_count,
+    c.invariant_breach_count = 0 as metric_is_zero
   from counts c;
 end;
 $$;
