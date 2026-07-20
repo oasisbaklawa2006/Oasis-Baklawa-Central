@@ -13,12 +13,18 @@ function readMigration(): string {
 describe("WhatsApp authorized-channel accountability reconciliation summary migration", () => {
   const sql = readMigration();
 
-  it("balances every accountability item into a legal terminal or pending disposition", () => {
+  it("balances every accountability item into governed, pending, or explicitly closed", () => {
     expect(sql).toContain("whatsapp_authorized_channel_accountability_queue");
+    expect(sql).toContain("q.accountability_state = 'AUTHORIZED_ACCOUNTED'");
     expect(sql).toContain("effective_disposition = 'ACTIVE_PENDING'");
     expect(sql).toContain("effective_disposition = 'EXPLICITLY_CLOSED'");
-    expect(sql).toContain("c.received - c.active_pending - c.explicitly_closed");
-    expect(sql).toContain("c.received = c.active_pending + c.explicitly_closed");
+    expect(sql).toContain("c.received = c.governed_accounted + c.active_pending + c.explicitly_closed");
+  });
+
+  it("does not misclassify governed historical items as reasonless closures", () => {
+    expect(sql).toContain("and not is_governed_accounted");
+    expect(sql).toContain("governed_accounted_count");
+    expect(sql).toContain("closure_without_reason_count");
   });
 
   it("counts each pending accountability breach once even when both obligations are missing", () => {
