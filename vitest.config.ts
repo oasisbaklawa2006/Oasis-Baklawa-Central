@@ -11,6 +11,13 @@ export default defineConfig({
     include: ["src/**/*.{test,spec}.{ts,tsx}"],
     // Playwright specs (e.g. visual-audit) use @playwright/test, not Vitest.
     exclude: ["src/test/tests/**"],
+    // Dummy values so modules that construct the Supabase client at import
+    // time (e.g. src/integrations/supabase/client.ts) don't throw during
+    // test collection. Not a real project - never used to reach a live backend.
+    env: {
+      VITE_SUPABASE_URL: "https://test-project.supabase.co",
+      VITE_SUPABASE_PUBLISHABLE_KEY: "test-anon-key",
+    },
   },
   resolve: {
     alias: { "@": path.resolve(__dirname, "./src") },
