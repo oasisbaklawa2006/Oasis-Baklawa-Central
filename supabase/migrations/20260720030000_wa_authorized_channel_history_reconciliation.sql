@@ -1,7 +1,7 @@
 -- Issue #232 authorized-channel historical reconciliation.
 -- Runs only after the official B2B receiver allow-list is populated.
 -- Historical whatsapp_messages and whatsapp_business_intakes remain immutable;
--- this migration adds append-only reconciliation evidence only.
+-- this migration adds append-only reconciliation and resolution evidence only.
 
 create table public.whatsapp_authorized_channel_history_reconciliation (
   id uuid primary key default gen_random_uuid(),
@@ -29,12 +29,25 @@ create table public.whatsapp_authorized_channel_history_reconciliation (
   unique (source_message_id)
 );
 
+create table public.whatsapp_authorized_channel_history_resolution (
+  id uuid primary key default gen_random_uuid(),
+  reconciliation_id uuid not null unique
+    references public.whatsapp_authorized_channel_history_reconciliation(id) on delete restrict,
+  resolution_reason text not null check (length(btrim(resolution_reason)) > 0),
+  resolution_evidence jsonb not null default '{}'::jsonb,
+  resolved_by uuid null references auth.users(id) on delete set null,
+  resolved_at timestamptz not null default now()
+);
+
 create index whatsapp_authorized_channel_history_reconciliation_active_idx
   on public.whatsapp_authorized_channel_history_reconciliation(
     disposition,
     reconciliation_state,
     reconciled_at
   );
+
+create index whatsapp_authorized_channel_history_resolution_resolved_at_idx
+  on public.whatsapp_authorized_channel_history_resolution(resolved_at);
 
 create or replace function public.prevent_whatsapp_authorized_channel_history_reconciliation_mutation()
 returns trigger
@@ -47,21 +60,79 @@ begin
 end;
 $$;
 
+create or replace function public.prevent_whatsapp_authorized_channel_history_resolution_mutation()
+returns trigger
+language plpgsql
+security invoker
+set search_path = pg_catalog, public
+as $$
+begin
+  raise exception 'whatsapp_authorized_channel_history_resolution is append-only';
+end;
+$$;
+
 create trigger trg_whatsapp_authorized_channel_history_reconciliation_no_mutation
 before update or delete on public.whatsapp_authorized_channel_history_reconciliation
 for each row execute function public.prevent_whatsapp_authorized_channel_history_reconciliation_mutation();
 
+create trigger trg_whatsapp_authorized_channel_history_resolution_no_mutation
+before update or delete on public.whatsapp_authorized_channel_history_resolution
+for each row execute function public.prevent_whatsapp_authorized_channel_history_resolution_mutation();
+
 alter table public.whatsapp_authorized_channel_history_reconciliation enable row level security;
+alter table public.whatsapp_authorized_channel_history_resolution enable row level security;
 
 create policy whatsapp_authorized_channel_history_reconciliation_inbox_reader_select
 on public.whatsapp_authorized_channel_history_reconciliation
 for select to authenticated
 using (public.is_whatsapp_inbox_reader(auth.uid()));
 
+create policy whatsapp_authorized_channel_history_resolution_inbox_reader_select
+on public.whatsapp_authorized_channel_history_resolution
+for select to authenticated
+using (public.is_whatsapp_inbox_reader(auth.uid()));
+
 grant select on public.whatsapp_authorized_channel_history_reconciliation to authenticated;
+grant select on public.whatsapp_authorized_channel_history_resolution to authenticated;
 revoke insert, update, delete, truncate
   on public.whatsapp_authorized_channel_history_reconciliation
   from public, anon, authenticated;
+revoke insert, update, delete, truncate
+  on public.whatsapp_authorized_channel_history_resolution
+  from public, anon, authenticated;
+
+create view public.whatsapp_authorized_channel_history_accountability
+with (security_invoker = true)
+as
+select
+  r.id,
+  r.source_message_id,
+  r.existing_intake_id,
+  r.provider_message_id,
+  r.provider,
+  r.receiver_channel_id,
+  r.reconciliation_state,
+  case
+    when resolution.id is not null then 'EXPLICITLY_CLOSED'
+    else r.disposition
+  end as effective_disposition,
+  r.assigned_team,
+  case
+    when resolution.id is not null then 'No further action; append-only resolution evidence recorded.'
+    else r.next_action
+  end as effective_next_action,
+  r.evidence,
+  r.reconciled_at,
+  resolution.id as resolution_id,
+  resolution.resolution_reason,
+  resolution.resolution_evidence,
+  resolution.resolved_by,
+  resolution.resolved_at
+from public.whatsapp_authorized_channel_history_reconciliation r
+left join public.whatsapp_authorized_channel_history_resolution resolution
+  on resolution.reconciliation_id = r.id;
+
+grant select on public.whatsapp_authorized_channel_history_accountability to authenticated;
 
 create or replace function public.reconcile_whatsapp_authorized_channel_history()
 returns table (
@@ -172,12 +243,77 @@ begin
 end;
 $$;
 
+create or replace function public.close_whatsapp_authorized_channel_history_item(
+  target_source_message_id uuid,
+  closure_reason text,
+  closure_evidence jsonb default '{}'::jsonb,
+  closure_actor uuid default null
+)
+returns uuid
+language plpgsql
+security definer
+set search_path = pg_catalog, public
+as $$
+declare
+  target_reconciliation_id uuid;
+  resolution_id uuid;
+begin
+  if closure_reason is null or length(btrim(closure_reason)) = 0 then
+    raise exception 'A recorded closure reason is required';
+  end if;
+
+  select r.id
+  into target_reconciliation_id
+  from public.whatsapp_authorized_channel_history_reconciliation r
+  where r.source_message_id = target_source_message_id
+    and r.disposition = 'ACTIVE_PENDING';
+
+  if target_reconciliation_id is null then
+    raise exception 'No active historical reconciliation item exists for source message %', target_source_message_id;
+  end if;
+
+  insert into public.whatsapp_authorized_channel_history_resolution (
+    reconciliation_id,
+    resolution_reason,
+    resolution_evidence,
+    resolved_by
+  ) values (
+    target_reconciliation_id,
+    btrim(closure_reason),
+    coalesce(closure_evidence, '{}'::jsonb),
+    closure_actor
+  )
+  on conflict (reconciliation_id) do nothing
+  returning id into resolution_id;
+
+  if resolution_id is null then
+    select existing.id
+    into resolution_id
+    from public.whatsapp_authorized_channel_history_resolution existing
+    where existing.reconciliation_id = target_reconciliation_id;
+  end if;
+
+  return resolution_id;
+end;
+$$;
+
 revoke all on function public.reconcile_whatsapp_authorized_channel_history() from public;
 revoke all on function public.reconcile_whatsapp_authorized_channel_history() from anon;
 revoke all on function public.reconcile_whatsapp_authorized_channel_history() from authenticated;
 grant execute on function public.reconcile_whatsapp_authorized_channel_history() to service_role;
 
+revoke all on function public.close_whatsapp_authorized_channel_history_item(uuid, text, jsonb, uuid) from public;
+revoke all on function public.close_whatsapp_authorized_channel_history_item(uuid, text, jsonb, uuid) from anon;
+revoke all on function public.close_whatsapp_authorized_channel_history_item(uuid, text, jsonb, uuid) from authenticated;
+grant execute on function public.close_whatsapp_authorized_channel_history_item(uuid, text, jsonb, uuid) to service_role;
+
 comment on table public.whatsapp_authorized_channel_history_reconciliation is
   'Append-only Issue #232 evidence for historical durable-message authorization and capture reconciliation. Source messages and historical intakes are never rewritten.';
+comment on table public.whatsapp_authorized_channel_history_resolution is
+  'Append-only explicit closure evidence for remediated historical authorized-channel reconciliation items.';
+comment on view public.whatsapp_authorized_channel_history_accountability is
+  'Current accountability projection combining immutable reconciliation evidence with append-only explicit closure evidence.';
 comment on function public.reconcile_whatsapp_authorized_channel_history() is
   'Idempotently classifies all durable inbound WhatsApp history against the populated official B2B receiver allow-list and exposes every gap or conflict as owned reconciliation work.';
+comment on function public.close_whatsapp_authorized_channel_history_item(uuid, text, jsonb, uuid) is
+  'Idempotently records an explicit reasoned closure for a remediated ACTIVE_PENDING historical reconciliation item without mutating prior evidence.';
