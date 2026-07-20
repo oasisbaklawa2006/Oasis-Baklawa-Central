@@ -69,7 +69,8 @@ begin
     q.priority_rank asc,
     (q.detected_at <= statement_timestamp() - stale_after) desc,
     q.detected_at asc,
-    q.source_message_id asc
+    q.item_source asc,
+    q.source_record_id asc
   limit result_limit;
 end;
 $$;
