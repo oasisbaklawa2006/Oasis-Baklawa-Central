@@ -43,7 +43,11 @@ begin
         case when nullif(btrim(q.provider_message_id), '') is null then 'MISSING_PROVIDER_MESSAGE_ID' end,
         case when nullif(btrim(q.receiver_channel_id), '') is null then 'MISSING_RECEIVER_CHANNEL_ID' end,
         case when q.accountability_state is null then 'MISSING_ACCOUNTABILITY_STATE' end,
-        case when q.evidence is null or q.evidence = '{}'::jsonb then 'MISSING_EVIDENCE' end,
+        case
+          when q.evidence is null
+            or (q.evidence - 'resolution_id' - 'resolution_evidence' - 'resolved_by') = '{}'::jsonb
+          then 'MISSING_EVIDENCE'
+        end,
         case
           when q.existing_intake_id is null
             and q.effective_disposition = 'EXPLICITLY_CLOSED'
