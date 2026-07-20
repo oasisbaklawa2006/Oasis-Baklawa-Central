@@ -48,19 +48,19 @@ begin
   ), counts as (
     select
       count(*) filter (
-        where not is_governed_accounted
+        where is_governed_accounted is not true
           and (
             effective_disposition is null
             or effective_disposition not in ('ACTIVE_PENDING', 'EXPLICITLY_CLOSED')
           )
       )::bigint as illegal_disposition_count,
       count(*) filter (
-        where not is_governed_accounted
+        where is_governed_accounted is not true
           and effective_disposition = 'ACTIVE_PENDING'
           and (missing_owner or missing_next_action)
       )::bigint as unique_pending_breach_count,
       count(*) filter (
-        where not is_governed_accounted
+        where is_governed_accounted is not true
           and effective_disposition = 'EXPLICITLY_CLOSED'
           and missing_closure_reason
       )::bigint as closure_reason_breach_count
@@ -94,6 +94,6 @@ revoke all on function public.get_whatsapp_authorized_channel_accountability_rec
 grant execute on function public.get_whatsapp_authorized_channel_accountability_reconciliation_parity() to authenticated;
 
 comment on function public.get_whatsapp_authorized_channel_accountability_reconciliation_parity() is
-  'Read-only Issue #232 parity preflight proving aggregate reconciliation counts agree with independently classified row-level accountability exceptions.';
+  'Read-only Issue #232 parity preflight proving aggregate reconciliation counts agree with independently classified row-level accountability exceptions, including null-safe non-governed classification.';
 
 commit;
