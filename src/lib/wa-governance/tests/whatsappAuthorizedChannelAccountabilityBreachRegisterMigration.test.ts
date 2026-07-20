@@ -43,6 +43,9 @@ describe("WhatsApp authorized-channel accountability breach register migration",
     expect(sql).toContain("q.detected_at <= statement_timestamp() - stale_after as is_stale");
     expect(sql).toContain("q.priority_rank asc");
     expect(sql).toContain("q.detected_at asc");
+    expect(sql).toContain("q.item_source asc");
+    expect(sql).toContain("q.source_record_id asc");
+    expect(sql).not.toContain("q.source_message_id asc");
     expect(sql).toContain("limit result_limit");
   });
 
