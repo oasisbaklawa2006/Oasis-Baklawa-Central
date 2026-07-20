@@ -565,8 +565,8 @@ export default function ReadyGoodsStore() {
 
       {/* === NUMERIC KEYPAD MODAL === */}
       {keypadOpen && (
-        <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4" onClick={() => setKeypadOpen(false)}>
-          <div className="bg-background rounded-2xl p-6 w-full max-w-xs shadow-2xl" onClick={e => e.stopPropagation()}>
+        <div className="fixed inset-0 z-[180] bg-black/60 flex items-center justify-center p-4" onClick={() => setKeypadOpen(false)}>
+          <div className="z-[190] bg-background rounded-2xl p-6 w-full max-w-xs shadow-2xl" onClick={e => e.stopPropagation()}>
             <h3 className="text-lg font-bold text-foreground mb-1">Available Qty</h3>
             <p className="text-xs text-muted-foreground mb-1">{keypadItemName}</p>
             <p className="text-xs text-muted-foreground mb-4">Total Required: {keypadMax}</p>
