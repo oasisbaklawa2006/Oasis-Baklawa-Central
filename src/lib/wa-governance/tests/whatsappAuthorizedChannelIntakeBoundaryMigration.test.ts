@@ -25,6 +25,14 @@ describe("WhatsApp authorized-channel intake boundary migration", () => {
     expect(sql).toContain("where dw.wamid = new.provider_message_id");
   });
 
+  it("normalizes the provider once and reuses the canonical value", () => {
+    expect(sql).toContain(
+      "normalized_provider text := coalesce(nullif(btrim(new.provider), ''), 'whatsapp')",
+    );
+    expect(sql).toContain("where c.provider = normalized_provider");
+    expect(sql).toContain("normalized_provider,\n      receiver_channel_id");
+  });
+
   it("fails closed without silently losing missing or unauthorized channels", () => {
     expect(sql).toContain("whatsapp_channel_intake_exceptions");
     expect(sql).toContain("'RECEIVER_ID_MISSING'");
