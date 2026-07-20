@@ -55,9 +55,23 @@ describe("WhatsApp authorized-channel history reconciliation migration", () => {
     expect(sql).toContain("'WHATSAPP_CHANNEL_GOVERNANCE'");
     expect(sql).toContain("next_action text not null");
     expect(sql).toContain("public.is_whatsapp_inbox_reader(auth.uid())");
+    expect(sql).toContain("whatsapp_authorized_channel_history_accountability");
+    expect(sql).toContain("effective_disposition");
+    expect(sql).toContain("effective_next_action");
   });
 
-  it("restricts reconciliation execution to the protected service boundary", () => {
+  it("supports explicit reasoned closure without mutating reconciliation evidence", () => {
+    expect(sql).toContain("whatsapp_authorized_channel_history_resolution");
+    expect(sql).toContain("resolution_reason text not null");
+    expect(sql).toContain("length(btrim(resolution_reason)) > 0");
+    expect(sql).toContain("close_whatsapp_authorized_channel_history_item");
+    expect(sql).toContain("A recorded closure reason is required");
+    expect(sql).toContain("on conflict (reconciliation_id) do nothing");
+    expect(sql).toContain("when resolution.id is not null then 'EXPLICITLY_CLOSED'");
+    expect(sql).toContain("whatsapp_authorized_channel_history_resolution is append-only");
+  });
+
+  it("restricts reconciliation and closure execution to the protected service boundary", () => {
     expect(sql).toContain(
       "revoke all on function public.reconcile_whatsapp_authorized_channel_history() from public",
     );
@@ -69,6 +83,12 @@ describe("WhatsApp authorized-channel history reconciliation migration", () => {
     );
     expect(sql).toContain(
       "grant execute on function public.reconcile_whatsapp_authorized_channel_history() to service_role",
+    );
+    expect(sql).toContain(
+      "revoke all on function public.close_whatsapp_authorized_channel_history_item(uuid, text, jsonb, uuid) from authenticated",
+    );
+    expect(sql).toContain(
+      "grant execute on function public.close_whatsapp_authorized_channel_history_item(uuid, text, jsonb, uuid) to service_role",
     );
   });
 
