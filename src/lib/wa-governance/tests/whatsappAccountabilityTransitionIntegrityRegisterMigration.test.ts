@@ -32,8 +32,19 @@ describe("WhatsApp accountability transition integrity register migration", () =
       expect(sql).toContain(code);
     }
     expect(sql).toContain("q.effective_disposition is null");
-    expect(sql).toContain("q.accountability_state is distinct from 'AUTHORIZED_ACCOUNTED'");
     expect(sql).toContain("q.effective_disposition is distinct from 'EXPLICITLY_CLOSED'");
+  });
+
+  it("requires closure evidence even when the item is already governed-accounted", () => {
+    expect(sql).toMatch(
+      /q\.effective_disposition = 'EXPLICITLY_CLOSED'\s+and q\.resolved_at is null/,
+    );
+    expect(sql).toMatch(
+      /q\.effective_disposition = 'EXPLICITLY_CLOSED'\s+and nullif\(btrim\(q\.closure_reason\), ''\) is null/,
+    );
+    expect(sql).not.toMatch(
+      /q\.effective_disposition = 'EXPLICITLY_CLOSED'\s+and q\.accountability_state is distinct from 'AUTHORIZED_ACCOUNTED'/,
+    );
   });
 
   it("preserves ownership, next action, closure, resolution, evidence, and source lineage", () => {
