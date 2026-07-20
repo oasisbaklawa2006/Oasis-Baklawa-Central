@@ -25,10 +25,13 @@ describe("WhatsApp authorized-channel accountability preflight migration", () =>
     expect(sql).toContain("detected_at <= statement_timestamp() - stale_after");
   });
 
-  it("defines the programme breach metric from missing ownership or next action", () => {
+  it("counts each breached record once when ownership or next action is missing", () => {
     expect(sql).toContain("invariant_breach_count");
-    expect(sql).toContain("metric_is_zero");
-    expect(sql).toContain("(c.unowned_count + c.actionless_count) = 0");
+    expect(sql).toMatch(
+      /count\(\*\) filter \(\s*where nullif\(btrim\(assigned_team\), ''\) is null\s*or nullif\(btrim\(effective_next_action\), ''\) is null\s*\)::bigint as invariant_breach_count/s,
+    );
+    expect(sql).toContain("c.invariant_breach_count = 0 as metric_is_zero");
+    expect(sql).not.toContain("c.unowned_count + c.actionless_count");
   });
 
   it("rejects invalid stale thresholds and restricts reads to inbox readers", () => {
