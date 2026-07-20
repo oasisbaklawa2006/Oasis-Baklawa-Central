@@ -59,13 +59,11 @@ begin
         end,
         case
           when q.effective_disposition = 'EXPLICITLY_CLOSED'
-            and q.accountability_state is distinct from 'AUTHORIZED_ACCOUNTED'
             and q.resolved_at is null
           then 'CLOSED_WITHOUT_RESOLVED_AT'
         end,
         case
           when q.effective_disposition = 'EXPLICITLY_CLOSED'
-            and q.accountability_state is distinct from 'AUTHORIZED_ACCOUNTED'
             and nullif(btrim(q.closure_reason), '') is null
           then 'CLOSED_WITHOUT_REASON'
         end,
