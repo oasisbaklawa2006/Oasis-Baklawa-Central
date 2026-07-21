@@ -18,16 +18,26 @@ describe("WhatsApp zero-loss shift certification migration", () => {
     expect(sql).toContain("s.zero_loss_operations_clear as zero_loss_certified");
   });
 
-  it("emits explicit certified and attention-required states", () => {
+  it("emits explicit states and timestamps successful certification only", () => {
     expect(sql).toContain("CERTIFIED_ZERO_LOSS");
     expect(sql).toContain("NOT_CERTIFIED_ATTENTION_REQUIRED");
-    expect(sql).toContain("statement_timestamp() as certified_at");
+    expect(sql).toContain("when s.zero_loss_operations_clear then statement_timestamp()");
+    expect(sql).toContain("else null");
+    expect(sql).not.toContain("statement_timestamp() as certified_at");
   });
 
   it("fails closed for invalid thresholds and unauthorized callers", () => {
     expect(sql).toContain("stale_after is null or stale_after <= interval '0 seconds'");
     expect(sql).toContain("public.is_whatsapp_inbox_reader(auth.uid())");
-    expect(sql).toContain("grant execute on function public.get_whatsapp_zero_loss_shift_certification(interval) to authenticated");
+    expect(sql).toContain(
+      "revoke all on function public.get_whatsapp_zero_loss_shift_certification(interval) from public",
+    );
+    expect(sql).toContain(
+      "revoke all on function public.get_whatsapp_zero_loss_shift_certification(interval) from anon",
+    );
+    expect(sql).toContain(
+      "grant execute on function public.get_whatsapp_zero_loss_shift_certification(interval) to authenticated",
+    );
   });
 
   it("does not mutate operational truth", () => {
@@ -43,7 +53,9 @@ describe("WhatsApp zero-loss shift certification migration", () => {
       "inventory",
     ]) {
       for (const verb of ["insert\\s+into", "update", "delete\\s+from", "truncate", "merge\\s+into"]) {
-        expect(sql).not.toMatch(new RegExp(`${verb}\\s+(?:public\\.)?${table}`, "i"));
+        expect(sql).not.toMatch(
+          new RegExp(`${verb}\\s+(?:only\\s+)?(?:public\\.)?${table}\\b`, "i"),
+        );
       }
     }
   });
