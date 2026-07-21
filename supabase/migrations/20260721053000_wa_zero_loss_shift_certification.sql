@@ -37,7 +37,10 @@ begin
 
   return query
   select
-    statement_timestamp() as certified_at,
+    case
+      when s.zero_loss_operations_clear then statement_timestamp()
+      else null
+    end as certified_at,
     s.accountability_item_count,
     s.active_pending_count,
     s.explicit_closed_count,
