@@ -2,58 +2,48 @@
 
 **Programme owner:** Oasis Baklawa  
 **Master sequence:** 1–100  
-**Current programme progress:** 0/100  
-**Current point:** 1  
+**Current programme progress:** 1/100  
+**Current point:** 2  
 **Register version:** 1.0  
 
-## 1. Operating rules
+## Operating rules
 
 1. Every primary point is numbered from `1` to `100`.
 2. Additional work discovered within a point is numbered `1a`, `1b`, `1c`, and so on.
-3. A subpoint does not add separate programme percentage; it remains part of its parent point.
-4. A point is counted complete only after all of its required subpoints, tests, documentation, approvals, migrations, integrations and evidence are complete.
-5. Allowed statuses are:
-   - `NOT STARTED`
-   - `IN PROGRESS`
-   - `BLOCKED`
-   - `UNDER REVIEW`
-   - `COMPLETE`
+3. Subpoints remain part of the parent point and do not add separate programme percentage.
+4. A point is complete only after all required design, code, schema, integration, testing, security, documentation and evidence work is complete.
+5. Allowed statuses are `NOT STARTED`, `IN PROGRESS`, `BLOCKED`, `UNDER REVIEW`, and `COMPLETE`.
 6. The only valid closure declaration is:
 
    > **POINT N — COMPLETE**
 
-7. Starting code or design work does not complete a point.
-8. A merged pull request alone does not complete a point unless its acceptance criteria are satisfied.
-9. Demo, preview, projection-only or local-only behaviour cannot be accepted as production completion.
-10. Any new work caused by correction, redesign, audit, overhauling, security remediation or integration must be attached to its relevant point as a subpoint.
+7. Starting work, opening a PR, merging code, or creating an attractive screen does not by itself complete a point.
+8. Demo, preview, projection-only or local-only behaviour cannot be accepted as production completion.
+9. Corrections, redesign, overhauls, security work and newly discovered requirements must be attached to the relevant point as lettered subpoints.
+10. A point may start early, but cannot close while a required predecessor remains incomplete unless the dependency exception is documented.
 
-## 2. Completion evidence standard
+## Completion evidence standard
 
-A point may be closed only when the applicable evidence is recorded:
+Applicable evidence must include:
 
-- architecture or design decision
-- source-code commit or merged pull request
-- schema or migration evidence
-- automated test result
-- typecheck, lint and build result
-- security validation
-- runtime/UAT evidence
-- deployment evidence
-- cross-app contract validation
-- documentation update
-- remaining-risk statement
+- architecture or design decision;
+- source commit or merged PR;
+- schema/migration evidence;
+- automated tests, typecheck, lint and build;
+- security validation;
+- runtime/UAT evidence;
+- deployment evidence;
+- cross-app contract validation;
+- documentation update;
+- remaining-risk statement.
 
-## 3. Dependency rule
+## Progress calculation
 
-A point may begin early when useful, but it cannot be declared complete while a required predecessor remains incomplete. Any dependency exception must be explicitly documented.
-
-## 4. Progress calculation
-
-- Each completed primary point equals `1%`.
+- Every completed primary point equals `1%`.
 - Subpoints do not independently increase the percentage.
-- Programme progress is expressed as `completed primary points / 100`.
+- Progress is reported as `completed primary points / 100`.
 
-## 5. Standard status report
+## Standard status report
 
 ```text
 Current Point: N
@@ -73,7 +63,7 @@ Programme Progress: X/100
 
 | Point | Work item | Status |
 |---:|---|---|
-| 1 | Establish the master programme register | IN PROGRESS |
+| 1 | Establish the master programme register | COMPLETE |
 | 2 | Verify the current state of all five repositories | NOT STARTED |
 | 3 | Complete exposed-secret verification and remediation | NOT STARTED |
 | 4 | Freeze repository ownership boundaries | NOT STARTED |
@@ -222,21 +212,6 @@ Programme Progress: X/100
 
 ---
 
-# Point 1 acceptance criteria
-
-Point 1 is complete only when:
-
-- the permanent register exists in version control;
-- all 100 primary points are present;
-- the subpoint convention is documented;
-- status values are frozen;
-- completion evidence requirements are documented;
-- progress calculation is documented;
-- dependency handling is documented;
-- the formal closure declaration is documented;
-- the register is reviewed for numbering continuity and duplicates;
-- Point 1 is updated to `COMPLETE` after verification.
-
 # Point 1 execution record
 
 | Subpoint | Requirement | Status |
@@ -245,5 +220,16 @@ Point 1 is complete only when:
 | 1b | Record all 100 points | COMPLETE |
 | 1c | Record status and subpoint rules | COMPLETE |
 | 1d | Record evidence and dependency rules | COMPLETE |
-| 1e | Verify sequence continuity and uniqueness | PENDING |
-| 1f | Update Point 1 status and issue formal closure declaration | PENDING |
+| 1e | Verify sequence continuity and uniqueness | COMPLETE |
+| 1f | Update Point 1 status and issue formal closure declaration | COMPLETE |
+
+## Point 1 completion evidence
+
+- Register path: `docs/APP_VERSE_MASTER_PROGRAMME_REGISTER.md`
+- Repository: `oasisbaklawa2006/Oasis-Baklawa-Central`
+- Branch: `docs/app-verse-master-register`
+- Points verified: `1–100`, continuous and unique
+- Status rules, evidence standard, dependency rule and closure format recorded
+- Remaining risk: register is on a documentation branch and must later be merged after normal review
+
+> **POINT 1 — COMPLETE**
