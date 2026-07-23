@@ -2,9 +2,10 @@
 
 **Programme owner:** Oasis Baklawa  
 **Master sequence:** 1–100  
-**Current programme progress:** 1/100  
-**Current point:** 2  
-**Register version:** 1.0  
+**Current programme progress:** 2/100  
+**Current point:** 3  
+**Register version:** 1.1  
+**Controlled soft-launch gate:** `SL-1`, immediately after Point 98 subject to recorded launch criteria
 
 ## Operating rules
 
@@ -21,6 +22,8 @@
 8. Demo, preview, projection-only or local-only behaviour cannot be accepted as production completion.
 9. Corrections, redesign, overhauls, security work and newly discovered requirements must be attached to the relevant point as lettered subpoints.
 10. A point may start early, but cannot close while a required predecessor remains incomplete unless the dependency exception is documented.
+11. Existing verified work is credited as baseline and must not be rebuilt merely because a programme point is broadly worded.
+12. Duplicate modules must have one canonical winner; competing implementations are migrated, frozen, redirected, archived or deleted only after parity and dependency proof.
 
 ## Completion evidence standard
 
@@ -64,7 +67,7 @@ Programme Progress: X/100
 | Point | Work item | Status |
 |---:|---|---|
 | 1 | Establish the master programme register | COMPLETE |
-| 2 | Verify the current state of all five repositories | NOT STARTED |
+| 2 | Verify the current state of all five repositories | COMPLETE |
 | 3 | Complete exposed-secret verification and remediation | NOT STARTED |
 | 4 | Freeze repository ownership boundaries | NOT STARTED |
 | 5 | Freeze the canonical application authority map | NOT STARTED |
@@ -188,6 +191,12 @@ Programme Progress: X/100
 | 98 | Complete Dispatch Readiness, Loading, Finalisation and Gate Release | NOT STARTED |
 | 99 | Embed Trace into Central PC, mobile, handheld and Smart TV surfaces | NOT STARTED |
 
+### Controlled soft-launch marker
+
+> **SL-1 — CONTROLLED REAL-CUSTOMER SOFT LAUNCH ELIGIBLE AFTER POINT 98**
+
+SL-1 additionally requires the launch-critical customer-app minimum, approved AI Studio product publication, WhatsApp zero-loss acceptance, security/permissions UAT, backups/rollback, and no demo/preview interface acting as production authority. Point 99 and Point 100 continue after soft launch toward complete integration and formal launch.
+
 ## Phase G — Customer App and final launch
 
 | Point | Work item | Status |
@@ -233,3 +242,33 @@ Programme Progress: X/100
 - Remaining risk: register is on a documentation branch and must later be merged after normal review
 
 > **POINT 1 — COMPLETE**
+
+---
+
+# Point 2 execution record
+
+| Subpoint | Requirement | Status |
+|---|---|---|
+| 2a | Confirm five authoritative repositories | COMPLETE |
+| 2b | Review current PR direction, maturity and blockers | COMPLETE |
+| 2c | Reconcile pending work against already completed work | COMPLETE |
+| 2d | Identify duplicated and parallel modules | COMPLETE |
+| 2e | Select canonical winners and retirement treatment | COMPLETE |
+| 2f | Define safe duplicate-deletion policy | COMPLETE |
+| 2g | Mark controlled soft-launch stage | COMPLETE |
+| 2h | Record evidence limitations and re-verification rule | COMPLETE |
+
+## Point 2 completion evidence
+
+- Detailed report: `docs/APP_VERSE_POINT_2_REPOSITORY_STATE_AND_DEDUPLICATION_2026-07-23.md`
+- Five repositories verified: Central, AI Studio, Trace, Customer App and Supabase Core
+- Existing completed work credited so broad later points cannot trigger needless rebuilds
+- Canonical duplicate-selection register documented
+- Customer app winner: Expo/React Native implementation; Vite implementation retained only as temporary reference
+- Live Central WhatsApp lane selected; 47 undeployed parallel migrations remain quarantined/reference-only
+- AI Studio selected for product/editorial truth; Central selected for operational truth; Trace selected for physical evidence; Core selected for governed contracts
+- Duplicate deletion gated by parity, dependency proof, UAT and rollback evidence
+- Controlled soft-launch marker frozen as `SL-1`, immediately after Point 98 subject to launch criteria
+- Remaining risk: open/draft PRs and production deployment state must be reverified at their execution points
+
+> **POINT 2 — COMPLETE**
