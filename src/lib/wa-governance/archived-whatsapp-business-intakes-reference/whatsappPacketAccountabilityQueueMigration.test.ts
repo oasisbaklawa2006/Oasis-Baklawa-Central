@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
 const migration = readFileSync(
-  "supabase/migrations/20260720022000_wa_packet_accountability_queue.sql",
+  "supabase/archived-migrations/whatsapp-business-intakes-undelivered/20260720022000_wa_packet_accountability_queue.sql",
   "utf8",
 );
 
