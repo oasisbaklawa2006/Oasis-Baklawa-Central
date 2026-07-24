@@ -5,7 +5,7 @@ import { describe, expect, it } from "vitest";
 const sql = readFileSync(
   resolve(
     process.cwd(),
-    "supabase/migrations/20260719084100_wa_contextual_alias_parent_reconciliation.sql",
+    "supabase/archived-migrations/whatsapp-business-intakes-undelivered/20260719084100_wa_contextual_alias_parent_reconciliation.sql",
   ),
   "utf8",
 ).toLowerCase();
