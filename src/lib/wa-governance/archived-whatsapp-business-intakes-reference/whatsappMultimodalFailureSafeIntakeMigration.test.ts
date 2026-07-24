@@ -3,7 +3,7 @@ import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 
 const sql = readFileSync(
-  resolve(process.cwd(), "supabase/migrations/20260719090000_wa_multimodal_failure_safe_intake.sql"),
+  resolve(process.cwd(), "supabase/archived-migrations/whatsapp-business-intakes-undelivered/20260719090000_wa_multimodal_failure_safe_intake.sql"),
   "utf8",
 ).toLowerCase();
 
