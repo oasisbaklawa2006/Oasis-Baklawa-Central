@@ -2,7 +2,10 @@ import { describe, expect, it } from 'vitest';
 import fs from 'node:fs';
 import path from 'node:path';
 
-const migrationsDir = path.resolve(process.cwd(), 'supabase/migrations');
+const migrationsDir = path.resolve(
+  process.cwd(),
+  'supabase/archived-migrations/whatsapp-business-intakes-undelivered',
+);
 const uatPath = path.resolve(process.cwd(), 'docs/WHATSAPP_ZERO_LOSS_FINAL_UAT.md');
 
 function readMigration(fragment: string): string {
