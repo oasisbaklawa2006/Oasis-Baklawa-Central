@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 
 const migrationPath = resolve(
   process.cwd(),
-  "supabase/migrations/20260719040000_wa_zero_loss_identity_triad.sql",
+  "supabase/archived-migrations/whatsapp-business-intakes-undelivered/20260719040000_wa_zero_loss_identity_triad.sql",
 );
 const sql = readFileSync(migrationPath, "utf8");
 const normalized = sql.toLowerCase();
