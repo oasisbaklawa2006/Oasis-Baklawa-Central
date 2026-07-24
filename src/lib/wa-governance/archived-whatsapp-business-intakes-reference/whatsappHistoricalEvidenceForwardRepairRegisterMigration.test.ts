@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 
 const REPO_ROOT = join(import.meta.dirname, "../../../..");
 const MIGRATION_PATH =
-  "supabase/migrations/20260720214500_wa_historical_evidence_forward_repair_register.sql";
+  "supabase/archived-migrations/whatsapp-business-intakes-undelivered/20260720214500_wa_historical_evidence_forward_repair_register.sql";
 
 function readMigration(): string {
   return readFileSync(join(REPO_ROOT, MIGRATION_PATH), "utf8");
