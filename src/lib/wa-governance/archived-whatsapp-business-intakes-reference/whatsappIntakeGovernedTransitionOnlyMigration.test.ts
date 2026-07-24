@@ -4,7 +4,7 @@ import path from 'node:path';
 
 const migrationPath = path.resolve(
   process.cwd(),
-  'supabase/migrations/20260719213000_wa_intake_governed_transition_only.sql',
+  'supabase/archived-migrations/whatsapp-business-intakes-undelivered/20260719213000_wa_intake_governed_transition_only.sql',
 );
 const sql = fs.readFileSync(migrationPath, 'utf8').toLowerCase();
 
