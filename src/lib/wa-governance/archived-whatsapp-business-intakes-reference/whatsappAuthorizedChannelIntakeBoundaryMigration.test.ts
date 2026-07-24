@@ -3,7 +3,7 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
 const REPO_ROOT = join(import.meta.dirname, "../../../..");
-const MIGRATION_PATH = "supabase/migrations/20260720023000_wa_authorized_channel_intake_boundary.sql";
+const MIGRATION_PATH = "supabase/archived-migrations/whatsapp-business-intakes-undelivered/20260720023000_wa_authorized_channel_intake_boundary.sql";
 
 function readMigration(): string {
   return readFileSync(join(REPO_ROOT, MIGRATION_PATH), "utf8");
