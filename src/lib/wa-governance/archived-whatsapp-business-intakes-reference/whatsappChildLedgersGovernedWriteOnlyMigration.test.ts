@@ -4,7 +4,7 @@ import path from 'node:path';
 
 const migrationPath = path.resolve(
   process.cwd(),
-  'supabase/migrations/20260719222500_wa_child_ledgers_governed_write_only.sql',
+  'supabase/archived-migrations/whatsapp-business-intakes-undelivered/20260719222500_wa_child_ledgers_governed_write_only.sql',
 );
 const sql = fs.readFileSync(migrationPath, 'utf8').toLowerCase();
 
