@@ -3,7 +3,7 @@ import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 const migration = readFileSync(
-  join(process.cwd(), 'supabase/migrations/20260719162500_wa_atomic_shift_signoff.sql'),
+  join(process.cwd(), 'supabase/archived-migrations/whatsapp-business-intakes-undelivered/20260719162500_wa_atomic_shift_signoff.sql'),
   'utf8',
 );
 
