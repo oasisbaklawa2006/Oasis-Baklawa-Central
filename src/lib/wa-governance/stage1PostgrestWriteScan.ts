@@ -31,6 +31,12 @@ export type OrderTableMutationHit = {
 };
 
 const FORBIDDEN_METHOD_SET = new Set<string>(FORBIDDEN_POSTGREST_WRITE_METHODS);
+const PROTECTED_WHATSAPP_COMMERCIAL_TABLES = new Set([
+  "orders",
+  "order_items",
+  "companies",
+  "customers",
+]);
 
 function scriptKindForFile(fileName: string): ts.ScriptKind {
   return fileName.endsWith(".tsx") ? ts.ScriptKind.TSX : ts.ScriptKind.TS;
@@ -128,6 +134,38 @@ export function scanOrderTableMutations(
       if (method != null && method !== "rpc") {
         const table = getFromTableForMutationCall(node);
         if (table === "orders") {
+          const { line, character } = source.getLineAndCharacterOfPosition(node.getStart(source));
+          hits.push({ method, table, line: line + 1, column: character + 1 });
+        }
+      }
+    }
+    ts.forEachChild(node, visit);
+  };
+
+  visit(source);
+  return hits;
+}
+
+/** Detect direct mutations of commercial tables forbidden to WhatsApp paths. */
+export function scanProtectedWhatsappCommercialMutations(
+  sourceText: string,
+  fileName = "scan.ts",
+): OrderTableMutationHit[] {
+  const source = ts.createSourceFile(
+    fileName,
+    sourceText,
+    ts.ScriptTarget.Latest,
+    true,
+    scriptKindForFile(fileName),
+  );
+  const hits: OrderTableMutationHit[] = [];
+
+  const visit = (node: ts.Node): void => {
+    if (ts.isCallExpression(node)) {
+      const method = forbiddenMethodFromCall(node);
+      if (method != null && method !== "rpc") {
+        const table = getFromTableForMutationCall(node);
+        if (table != null && PROTECTED_WHATSAPP_COMMERCIAL_TABLES.has(table)) {
           const { line, character } = source.getLineAndCharacterOfPosition(node.getStart(source));
           hits.push({ method, table, line: line + 1, column: character + 1 });
         }

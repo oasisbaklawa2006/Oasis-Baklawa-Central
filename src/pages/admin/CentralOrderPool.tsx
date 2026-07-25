@@ -115,74 +115,9 @@ export default function CentralOrderPool() {
     id ? companies.find((c) => c.id === id)?.business_name || "—" : null;
 
   const handleConfirm = async (order: SuggestedOrder, assignCompanyId: string | null) => {
-    if (!assignCompanyId) {
-      toast.error("Assign a client before confirming.");
-      return;
-    }
-    if (!order.extracted_items || order.extracted_items.length === 0) {
-      toast.error("No items extracted — cannot promote to order.");
-      return;
-    }
-    setActingId(order.id);
-    try {
-      // Create draft order
-      const { data: newOrder, error: orderErr } = await supabase
-        .from("orders")
-        .insert({
-          company_id: assignCompanyId,
-          status: "submitted",
-          requested_dispatch_date: order.extracted_delivery_date || null,
-        })
-        .select("id")
-        .single();
-      if (orderErr || !newOrder) throw orderErr || new Error("Order create failed");
-
-      // Match items to products by name (best-effort)
-      const names = order.extracted_items.map((i) => i.product_name);
-      const { data: products } = await supabase
-        .from("products")
-        .select("id, name")
-        .in("name", names);
-
-      const itemRows = order.extracted_items
-        .map((i) => {
-          const p = (products as { id: string; name: string }[] | null)?.find(
-            (pr) => pr.name.toLowerCase() === i.product_name.toLowerCase(),
-          );
-          if (!p) return null;
-          return {
-            order_id: (newOrder as any).id,
-            product_id: p.id,
-            quantity: i.quantity || 1,
-            notes: i.notes || null,
-          };
-        })
-        .filter(Boolean);
-
-      if (itemRows.length > 0) {
-        await supabase.from("order_items").insert(itemRows as any);
-      }
-
-      const { data: u } = await supabase.auth.getUser();
-      await supabase
-        .from("suggested_orders")
-        .update({
-          status: "confirmed",
-          matched_company_id: assignCompanyId,
-          promoted_order_id: (newOrder as any).id,
-          reviewed_by: u.user?.id || null,
-          reviewed_at: new Date().toISOString(),
-        })
-        .eq("id", order.id);
-
-      toast.success(
-        `Order #${(newOrder as any).id.slice(0, 8).toUpperCase()} created with ${itemRows.length}/${order.extracted_items.length} items.`,
-      );
-    } catch (e) {
-      console.error(e);
-      toast.error("Failed to confirm suggestion.");
-    }
-    setActingId(null);
+    void order;
+    void assignCompanyId;
+    toast.error("Central Pool promotion is retired. Review this intake in Operator Inbox.");
   };
 
   const handleReject = async (order: SuggestedOrder) => {
