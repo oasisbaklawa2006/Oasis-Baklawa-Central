@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any -- Legacy retired parser payloads remain untyped until the reusable extraction adapter is migrated behind canonical intake. */
 // Banyan Central Parser
 // Triggered every 30s by pg_cron. Finds senders whose latest buffered message is >60s old,
 // bundles their messages, runs Vision+Text AI, matches to companies / shadow_clients,
