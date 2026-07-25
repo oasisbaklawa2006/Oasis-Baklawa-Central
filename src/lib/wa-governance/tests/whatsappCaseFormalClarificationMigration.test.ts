@@ -11,6 +11,7 @@ const migration = readFileSync(
 );
 
 describe("canonical WhatsApp formal clarification migration", () => {
+  // Gate 9 must fail closed: unresolved meaning never advances commercial work.
   it("records each unresolved field and a targeted question", () => {
     expect(migration).toContain("create table public.whatsapp_case_clarifications");
     expect(migration).toContain("field_name text not null");
