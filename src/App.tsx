@@ -77,7 +77,6 @@ const ManageLogistics = lazy(() => import("./pages/ManageLogistics.tsx"));
 const SalesDashboard = lazy(() => import("./pages/sales/SalesDashboard.tsx"));
 const SalesPerformanceHub = lazy(() => import("./pages/admin/SalesPerformanceHub.tsx"));
 const AdminNotifications = lazy(() => import("./pages/admin/AdminNotifications.tsx"));
-const CMDWarRoom = lazy(() => import("./pages/admin/CMDWarRoom.tsx"));
 const AdminMerchandising = lazy(() => import("./pages/admin/AdminMerchandising.tsx"));
 const AdminCatalogueSyncStatus = lazy(() => import("./pages/admin/AdminCatalogueSyncStatus.tsx"));
 const ApprovalInbox = lazy(() => import("./pages/admin/ApprovalInbox.tsx"));
@@ -210,7 +209,7 @@ const RootGate = () => {
 
   // Admin express bypass — skip heavy bootstrap waits for known admin identities
   if (user && isAdminExpressUser(user)) {
-    return <Navigate to="/admin/cmd-war-room" replace />;
+    return <Navigate to="/admin/execution-command-center" replace />;
   }
 
   if (authLoading || (user && !profileReady)) {
@@ -243,7 +242,7 @@ const StorefrontGate = ({ children }: { children: React.ReactNode }) => {
   }
 
   if (user && isAdminExpressUser(user)) {
-    return <Navigate to="/admin/cmd-war-room" replace />;
+    return <Navigate to="/admin/execution-command-center" replace />;
   }
 
   if (!user) {
@@ -367,7 +366,7 @@ const App = () => (
                     <Route path="catalogue-approvals" element={<ApprovalInbox />} />
                     <Route path="order-management" element={<OrderManagement />} />
                     <Route path="central-pool" element={<Navigate to="/admin/operator-inbox" replace />} />
-                    <Route path="cmd-war-room" element={<CMDWarRoom />} />
+                    <Route path="cmd-war-room" element={<Navigate to="/admin/operator-inbox" replace />} />
                     <Route path="inventory-command-center" element={<InventoryCommandCenter />} />
                     <Route path="carton-explorer" element={<CartonExplorer />} />
                     <Route path="reservation-board" element={<ReservationBoard />} />
@@ -524,7 +523,7 @@ const App = () => (
                     <Route path="dispatch-tv" element={<DispatchTV />} />
                     <Route path="target-vs-actual" element={<TargetVsActual />} />
                     <Route path="3pcs-store" element={<ThirdPartyStore />} />
-                    <Route path="verification" element={<Navigate to="/admin/cmd-war-room" replace />} />
+                    <Route path="verification" element={<Navigate to="/admin/execution-command-center" replace />} />
                     <Route path="announcements" element={<AdminAnnouncements />} />
                   </Route>
                   </Route>
