@@ -79,7 +79,6 @@ const AdminLayout = () => {
       title: "Command",
       items: [
         { to: "/admin", icon: LayoutDashboard, label: "Executive Dashboard", end: true, moduleKey: "dashboard" },
-        { to: "/admin/cmd-war-room", icon: Monitor, label: "War Room", end: false, moduleKey: "cmd_war_room" },
         { to: "/admin/execution-command-center", icon: Gauge, label: "Execution CMD", end: false, moduleKey: "cmd_war_room" },
         { to: "/admin/execution/production", icon: LayoutGrid, label: "Production board", end: false, moduleKey: "production" },
         { to: "/admin/execution/assembly", icon: LayoutGrid, label: "Assembly board", end: false, moduleKey: "production" },
