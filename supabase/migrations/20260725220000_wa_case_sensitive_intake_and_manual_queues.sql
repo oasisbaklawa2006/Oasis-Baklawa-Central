@@ -47,7 +47,23 @@ create table public.whatsapp_case_restricted_evidence (
   correlation_key text not null,
   created_at timestamptz not null default statement_timestamp(),
   constraint whatsapp_case_restricted_evidence_hash_unique unique (case_id, content_hash),
-  constraint whatsapp_case_restricted_evidence_correlation_unique unique (case_id, correlation_key)
+  constraint whatsapp_case_restricted_evidence_correlation_unique unique (case_id, correlation_key),
+  constraint whatsapp_case_restricted_evidence_review_shape check (
+    (
+      quarantine_status = 'QUARANTINED'
+      and reviewed_by is null and reviewed_at is null and release_reason is null
+    )
+    or (
+      quarantine_status in ('REVIEWED', 'RETAINED', 'LEGAL_HOLD')
+      and reviewed_by is not null and reviewed_at is not null
+      and release_reason is null
+    )
+    or (
+      quarantine_status = 'RELEASED'
+      and reviewed_by is not null and reviewed_at is not null
+      and length(btrim(release_reason)) > 0
+    )
+  )
 );
 
 create table public.whatsapp_case_payment_proofs (
@@ -78,7 +94,11 @@ create table public.whatsapp_case_payment_proofs (
       receipt_status = 'REJECTED' and length(btrim(rejection_reason)) > 0
       and verified_by is not null and verified_at is not null
     )
-    or receipt_status in ('RECEIVED', 'UNDER_REVIEW', 'DUPLICATE')
+    or (
+      receipt_status in ('RECEIVED', 'UNDER_REVIEW', 'DUPLICATE')
+      and verified_amount is null and verified_reference is null
+      and verified_by is null and verified_at is null
+    )
   )
 );
 
@@ -99,7 +119,14 @@ create table public.whatsapp_case_channel_migrations (
   constraint whatsapp_case_channel_migrations_correlation_unique unique (case_id, correlation_key),
   constraint whatsapp_case_channel_migrations_completion_shape check (
     (status = 'MIGRATED' and customer_ack_message_id is not null and migrated_at is not null)
-    or status <> 'MIGRATED'
+    or (
+      status = 'CUSTOMER_ACKNOWLEDGED'
+      and customer_ack_message_id is not null and migrated_at is null
+    )
+    or (
+      status in ('PROPOSED', 'INVITED', 'DECLINED')
+      and migrated_at is null
+    )
   )
 );
 
@@ -111,8 +138,9 @@ create index whatsapp_case_payment_proofs_queue_idx
 create or replace function public.guard_whatsapp_payment_proof()
 returns trigger language plpgsql set search_path = pg_catalog, public as $$
 begin
-  if new.receipt_status = 'RECEIVED' and (
-    new.verified_amount is not null or new.verified_by is not null or new.verified_at is not null
+  if new.receipt_status in ('RECEIVED', 'UNDER_REVIEW', 'DUPLICATE') and (
+    new.verified_amount is not null or new.verified_reference is not null
+    or new.verified_by is not null or new.verified_at is not null
   ) then
     raise exception 'payment proof receipt is not finance verification';
   end if;
@@ -133,6 +161,10 @@ $$;
 
 create trigger whatsapp_case_restricted_evidence_no_delete
   before delete on public.whatsapp_case_restricted_evidence
+  for each row execute function public.prevent_whatsapp_sensitive_evidence_delete();
+
+create trigger whatsapp_case_payment_proofs_no_delete
+  before delete on public.whatsapp_case_payment_proofs
   for each row execute function public.prevent_whatsapp_sensitive_evidence_delete();
 
 alter table public.whatsapp_case_manual_assignments enable row level security;

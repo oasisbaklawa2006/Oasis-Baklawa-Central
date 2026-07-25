@@ -9,6 +9,10 @@ const migration = readFileSync(
   ),
   "utf8",
 );
+const uat = readFileSync(
+  resolve(process.cwd(), "supabase/uat/wa_sensitive_intake_integrity.sql"),
+  "utf8",
+);
 
 describe("WhatsApp sensitive intake and manual queues", () => {
   it("keeps B2C and D2C messages active with owned manual follow-up", () => {
@@ -25,12 +29,17 @@ describe("WhatsApp sensitive intake and manual queues", () => {
     expect(migration).toContain("public_mask text not null");
     expect(migration).toContain("'FINANCE_ONLY', 'SECURITY_ONLY', 'LEGAL_ONLY'");
     expect(migration).toContain("restricted WhatsApp evidence cannot be deleted");
+    expect(migration).toContain("whatsapp_case_restricted_evidence_review_shape");
+    expect(migration).toContain("quarantine_status = 'RELEASED'");
+    expect(migration).toContain("length(btrim(release_reason)) > 0");
   });
 
   it("separates payment-proof receipt from finance verification", () => {
     expect(migration).toContain("create table public.whatsapp_case_payment_proofs");
     expect(migration).toContain("'RECEIVED', 'UNDER_REVIEW', 'VERIFIED'");
     expect(migration).toContain("payment proof receipt is not finance verification");
+    expect(migration).toContain("whatsapp_case_payment_proofs_no_delete");
+    expect(migration).toContain("new.verified_reference is not null");
     expect(migration).not.toMatch(/insert\s+into\s+public\.order_payments/i);
   });
 
@@ -38,6 +47,8 @@ describe("WhatsApp sensitive intake and manual queues", () => {
     expect(migration).toContain("create table public.whatsapp_case_channel_migrations");
     expect(migration).toContain("'CUSTOMER_ACKNOWLEDGED', 'MIGRATED'");
     expect(migration).toContain("customer_ack_message_id uuid");
+    expect(migration).toContain("status = 'CUSTOMER_ACKNOWLEDGED'");
+    expect(migration).toContain("customer_ack_message_id is not null");
   });
 
   it("does not expose restricted evidence through ordinary reader policy", () => {
@@ -45,5 +56,13 @@ describe("WhatsApp sensitive intake and manual queues", () => {
       /whatsapp_case_restricted_evidence[\s\S]{0,200}for select to authenticated/i,
     );
     expect(migration).not.toMatch(/for all to authenticated/i);
+  });
+
+  it("has behavioral database UAT for all corrected integrity boundaries", () => {
+    expect(uat).toContain("expected RELEASED evidence without review metadata to fail");
+    expect(uat).toContain("expected unverified payment proof with verification data to fail");
+    expect(uat).toContain("expected payment-proof deletion to fail");
+    expect(uat).toContain("expected acknowledgement without source message to fail");
+    expect(uat).toContain("rollback;");
   });
 });
