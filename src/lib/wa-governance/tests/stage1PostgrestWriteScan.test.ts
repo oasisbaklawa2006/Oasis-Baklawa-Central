@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   scanForbiddenPostgrestWrites,
   scanOrderTableMutations,
+  scanProtectedWhatsappCommercialMutations,
 } from "@/lib/wa-governance/stage1PostgrestWriteScan";
 
 describe("stage1PostgrestWriteScan", () => {
@@ -48,5 +49,26 @@ describe("stage1PostgrestWriteScan", () => {
 
     expect(scanForbiddenPostgrestWrites(source, "fixture.ts")).toEqual([]);
     expect(scanOrderTableMutations(source, "fixture.ts")).toEqual([]);
+  });
+
+  it("detects all protected WhatsApp commercial table mutations", () => {
+    const source = `
+      await supabase.from("orders").insert({ id: "o1" });
+      await supabase.from("order_items").upsert({ id: "i1" });
+      await supabase.from("companies").update({ name: "Acme" });
+      await supabase.from("customers").delete().eq("id", "c1");
+      await supabase.from("whatsapp_messages").insert({ id: "m1" });
+    `;
+
+    expect(
+      scanProtectedWhatsappCommercialMutations(source, "fixture.ts").map(
+        ({ table, method }) => `${table}:${method}`,
+      ),
+    ).toEqual([
+      "orders:insert",
+      "order_items:upsert",
+      "companies:update",
+      "customers:delete",
+    ]);
   });
 });

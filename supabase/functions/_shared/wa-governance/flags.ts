@@ -1,6 +1,10 @@
 /**
- * WhatsApp governance feature flags (PR-WA-02B).
- * Defaults are false — explicit env override required to enable risky paths.
+ * WhatsApp governance feature flags.
+ *
+ * The two legacy mutation paths are permanently retired. The environment
+ * variable names remain exported temporarily so deployment configuration can
+ * be cleaned up without breaking imports, but no environment value may
+ * re-enable either path.
  */
 
 export const WA_FLAG_ENV = {
@@ -20,11 +24,13 @@ export function parseEnvFlagTrue(value: string | undefined): boolean {
 }
 
 export function isWaWebhookAutoOrderWritesEnabled(getEnv: EnvGetter = defaultEnvGetter): boolean {
-  return parseEnvFlagTrue(getEnv(WA_FLAG_ENV.WEBHOOK_AUTO_ORDER_WRITES));
+  void getEnv;
+  return false;
 }
 
 export function isWaWebhookOwnerReassignmentEnabled(getEnv: EnvGetter = defaultEnvGetter): boolean {
-  return parseEnvFlagTrue(getEnv(WA_FLAG_ENV.WEBHOOK_OWNER_REASSIGNMENT));
+  void getEnv;
+  return false;
 }
 
 function defaultEnvGetter(name: string): string | undefined {

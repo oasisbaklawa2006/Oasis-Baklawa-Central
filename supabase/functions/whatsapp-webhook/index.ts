@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any, no-useless-escape -- Legacy provider payload/parsing code is retained only as thin ingress pending the typed canonical adapter migration. */
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient, type SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import {
@@ -1290,42 +1291,13 @@ serve(async (req) => {
       console.error("Context stitching failed:", stitchErr);
     }
 
-    // Strategy 4: SHADOW CLIENT CREATION
-    // hasOrderIntent: computed after classify + ORDER coercion (same keywords as ORDER_INTENT_KEYWORDS).
-
+    // Strategy 4 (retired): ingress must never create customers or companies.
+    // Unknown senders remain unresolved in the durable raw/canonical intake and
+    // are resolved by an authorised operator before any commercial promotion.
     if (!companyId && senderPhone && !senderIsStaffProxy) {
-      const shadowName = profileName ? `${profileName} (WhatsApp)` : `WhatsApp Lead ${phone91}`;
-
-      const { data: newCompany, error: compErr } = await supabaseAdmin
-        .from("companies")
-        .insert({
-          business_name: shadowName,
-          status: "shadow",
-          gst_number: `WA:${phone91}`,
-          price_tier: "B2B",
-        })
-        .select("id")
-        .single();
-
-      if (!compErr && newCompany) {
-        companyId = newCompany.id;
-        companyName = shadowName;
-        isShadowClient = true;
-        console.log(`Shadow client created: ${shadowName} (${companyId})`);
-
-        const { data: admins } = await supabaseAdmin
-          .from("users").select("id")
-          .in("role", ["admin", "super_admin", "ADMIN", "SUPER_ADMIN"])
-          .limit(5);
-        for (const admin of admins || []) {
-          await supabaseAdmin.from("notifications").insert({
-            user_id: admin.id,
-            type: "shadow_client",
-            message: `New Shadow Client: ${shadowName} (${phone91}). Verify and onboard in the Verification War Room.`,
-            is_read: false,
-          });
-        }
-      }
+      console.log(
+        `[WA-GOV] Unknown sender ${phone91} retained for canonical intake resolution; shadow company creation is retired`,
+      );
     }
     if (!companyId && senderIsStaffProxy) {
       console.log(`Proxy staff sender unresolved: ${sender.name || sender.userId} phone=${phone91} (shadow creation skipped)`);
@@ -1848,4 +1820,3 @@ serve(async (req) => {
     });
   }
 });
-
