@@ -15,10 +15,13 @@ describe("waFlags", () => {
     expect(isWaWebhookOwnerReassignmentEnabled(() => undefined)).toBe(false);
   });
 
-  it("enables flags only on explicit true values", () => {
+  it("cannot re-enable retired mutation paths through environment values", () => {
     const env = (name: string) =>
-      name === WA_FLAG_ENV.WEBHOOK_AUTO_ORDER_WRITES ? "true" : undefined;
-    expect(isWaWebhookAutoOrderWritesEnabled(env)).toBe(true);
+      name === WA_FLAG_ENV.WEBHOOK_AUTO_ORDER_WRITES ||
+      name === WA_FLAG_ENV.WEBHOOK_OWNER_REASSIGNMENT
+        ? "true"
+        : undefined;
+    expect(isWaWebhookAutoOrderWritesEnabled(env)).toBe(false);
     expect(isWaWebhookOwnerReassignmentEnabled(env)).toBe(false);
   });
 

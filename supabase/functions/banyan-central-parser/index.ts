@@ -197,6 +197,24 @@ function fuzzyMatchCompany(extractedName: string, companies: { id: string; busin
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
+  // WA_CANONICAL_RETIREMENT: this cron-backed pipeline previously created a
+  // parallel suggested_orders/customer lifecycle. Parsing helpers remain in
+  // this file for the later canonical-adapter migration, but execution is
+  // deliberately stopped until they write only to governed intake suggestions.
+  return new Response(
+    JSON.stringify({
+      ok: false,
+      retired: true,
+      canonical_path: "/admin/operator-inbox",
+      reason: "Banyan independent WhatsApp lifecycle is retired",
+    }),
+    {
+      status: 410,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    },
+  );
+
+  /* c8 ignore start -- retained, unreachable migration source */
   const supabaseAdmin = createClient(
     Deno.env.get("SUPABASE_URL")!,
     Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
@@ -418,4 +436,5 @@ serve(async (req) => {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
+  /* c8 ignore stop */
 });
