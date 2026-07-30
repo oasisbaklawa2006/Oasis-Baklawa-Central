@@ -1,26 +1,85 @@
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
+import { supabase } from "@/integrations/supabase/client";
+import { clearAuthCache } from "@/lib/auth-flow";
+
+function isInvalidRefreshTokenError(error: unknown) {
+  const candidate = error as { code?: string; message?: string } | null;
+  const blob = `${candidate?.code ?? ""} ${candidate?.message ?? ""}`.toLowerCase();
+  return blob.includes("refresh_token_not_found")
+    || blob.includes("invalid refresh token")
+    || blob.includes("refresh token not found");
+}
+
+function clearSupabaseAuthStorage() {
+  if (typeof window === "undefined") return;
+
+  for (const key of Object.keys(window.localStorage)) {
+    if (key.startsWith("sb-") && key.includes("auth-token")) {
+      window.localStorage.removeItem(key);
+    }
+  }
+
+  clearAuthCache();
+}
 
 /**
- * Detects auth-related errors in URL query/hash params (e.g. Supabase OAuth
- * callback failures) and surfaces a clear toast. Clears params after firing
- * so the toast doesn't repeat on subsequent renders.
+ * Surfaces OAuth callback failures and recovers from stale Supabase refresh
+ * tokens. Invalid refresh state is cleared once before returning to login.
  */
 export default function AuthErrorListener() {
   const location = useLocation();
   const navigate = useNavigate();
+  const recoveryStartedRef = useRef(false);
+
+  useEffect(() => {
+    let mounted = true;
+
+    void supabase.auth.getSession().then(async ({ error }) => {
+      if (!mounted || !error || !isInvalidRefreshTokenError(error) || recoveryStartedRef.current) return;
+
+      recoveryStartedRef.current = true;
+      clearSupabaseAuthStorage();
+
+      try {
+        await supabase.auth.signOut({ scope: "local" });
+      } catch {
+        // Local storage has already been cleared; remote sign-out is not required.
+      }
+
+      if (!mounted) return;
+      navigate("/login?reason=session_expired", { replace: true });
+    }).catch((error: unknown) => {
+      if (!mounted || !isInvalidRefreshTokenError(error) || recoveryStartedRef.current) return;
+      recoveryStartedRef.current = true;
+      clearSupabaseAuthStorage();
+      navigate("/login?reason=session_expired", { replace: true });
+    });
+
+    return () => {
+      mounted = false;
+    };
+  }, [navigate]);
 
   useEffect(() => {
     const search = new URLSearchParams(location.search);
     const hash = new URLSearchParams(
-      location.hash.startsWith("#") ? location.hash.slice(1) : location.hash
+      location.hash.startsWith("#") ? location.hash.slice(1) : location.hash,
     );
+
+    const reason = search.get("reason");
+    if (reason === "session_expired") {
+      toast.error("Your session expired. Please sign in again.", { duration: 6000 });
+      search.delete("reason");
+      const nextSearch = search.toString();
+      navigate(`${location.pathname}${nextSearch ? `?${nextSearch}` : ""}`, { replace: true });
+      return;
+    }
 
     const serverError = search.get("server_error") || hash.get("error");
     const errorCode = search.get("error_code") || hash.get("error_code");
-    const errorDescription =
-      search.get("error_description") || hash.get("error_description");
+    const errorDescription = search.get("error_description") || hash.get("error_description");
 
     if (!serverError && !errorCode && !errorDescription) return;
 
@@ -40,7 +99,6 @@ export default function AuthErrorListener() {
       duration: 8000,
     });
 
-    // Strip error params so the toast doesn't fire repeatedly
     navigate(location.pathname, { replace: true });
   }, [location, navigate]);
 
