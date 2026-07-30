@@ -50,10 +50,20 @@ export default function AuthErrorListener() {
 
       if (!mounted) return;
       navigate("/login?reason=session_expired", { replace: true });
-    }).catch((error: unknown) => {
+    }).catch(async (error: unknown) => {
       if (!mounted || !isInvalidRefreshTokenError(error) || recoveryStartedRef.current) return;
+
       recoveryStartedRef.current = true;
+
+      try {
+        await supabase.auth.signOut({ scope: "local" });
+      } catch {
+        // A stale refresh token can also make local sign-out reject.
+      }
+
       clearSupabaseAuthStorage();
+
+      if (!mounted) return;
       navigate("/login?reason=session_expired", { replace: true });
     });
 
