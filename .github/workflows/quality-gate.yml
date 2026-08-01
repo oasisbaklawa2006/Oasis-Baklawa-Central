@@ -13,7 +13,7 @@ concurrency:
 
 jobs:
   quality-gate:
-    name: Release Quality Gate
+    name: Typecheck, unit test, production build, and Playwright smoke
     runs-on: ubuntu-latest
     timeout-minutes: 30
 
