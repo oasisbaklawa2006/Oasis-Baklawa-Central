@@ -13,7 +13,7 @@ concurrency:
 
 jobs:
   check-boundaries:
-    name: Repo Ownership Boundaries
+    name: Enforce Catalogue AI-Studio repo ownership boundaries
     runs-on: ubuntu-latest
     timeout-minutes: 5
 
