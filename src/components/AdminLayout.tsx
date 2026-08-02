@@ -1,16 +1,13 @@
-import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
+import { NavLink, Outlet, useLocation } from "react-router-dom";
 import {
   LayoutDashboard, UserCheck, ClipboardList, Truck, DollarSign, LogOut, Menu, X, Loader2,
   Headphones, Users, Package, BarChart3, Scale, Globe, Settings, Shield, MessageCircle,
-  Factory, PackageCheck, Landmark, AlertCircle, Languages, Bell, Sparkles, Monitor, Activity, Megaphone, Store,
+  Factory, PackageCheck, Landmark, AlertCircle, Languages, Bell, Sparkles, Monitor, Megaphone, Store,
   ScanLine, CalendarDays, Warehouse, Box, ListOrdered, AlertOctagon, ScanBarcode, Network, Gauge, LayoutGrid, Search, PackageMinus,
-  Workflow,
-  Link2,
-  Inbox,
-  Brain,
-  ChevronDown,
+  Workflow, Link2, Inbox, Brain, ChevronDown,
 } from "lucide-react";
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { useLanguage } from "@/hooks/useLanguage";
 import { useApplicationBadge } from "@/hooks/useApplicationBadge";
@@ -21,14 +18,14 @@ import AdminHelpSidebar from "@/components/AdminHelpSidebar";
 import OnboardingOverlay from "@/components/OnboardingOverlay";
 import AppverseWorkspaceRail from "@/components/appverse/AppverseWorkspaceRail";
 import AppverseMobileNav from "@/components/appverse/AppverseMobileNav";
-import AppverseAdminHome from "@/pages/admin/AppverseAdminHome";
-import { getAllowedModulesForRole, hasModuleAccess } from "@/lib/appverse/roleAccess";
+import AppverseRoleHome from "@/components/appverse/AppverseRoleHome";
 import { signOutAndClearSession } from "@/utils/authSession";
 import { useAdminRealtimeToasts } from "@/hooks/useAdminRealtimeToasts";
 import { shouldHideAdvancedGovernanceNav } from "@/lib/golden-chain/operatorNavigation";
+import { getAllowedModulesForRole, hasModuleAccess, type AppVerseModuleKey } from "@/lib/appverse/roleAccess";
 
 interface NavItem {
-  to: string; icon: React.ElementType; label: string; end?: boolean; moduleKey: string;
+  to: string; icon: React.ElementType; label: string; end?: boolean; moduleKey: AppVerseModuleKey;
 }
 
 const AdminLayout = () => {
@@ -47,8 +44,8 @@ const AdminLayout = () => {
     {
       title: "Command",
       items: [
-        { to: "/admin", icon: LayoutDashboard, label: "Home", end: true, moduleKey: "dashboard" },
-        { to: "/admin/heartbeat", icon: Activity, label: "Executive overview", end: false, moduleKey: "dashboard" },
+        { to: "/admin", icon: LayoutDashboard, label: "App-Verse Home", end: true, moduleKey: "dashboard" },
+        { to: "/admin/heartbeat", icon: Gauge, label: "Executive Dashboard", end: false, moduleKey: "dashboard" },
         { to: "/admin/execution-command-center", icon: Gauge, label: "Execution CMD", end: false, moduleKey: "cmd_war_room" },
         { to: "/admin/execution/production", icon: LayoutGrid, label: "Production board", end: false, moduleKey: "production" },
         { to: "/admin/execution/assembly", icon: LayoutGrid, label: "Assembly board", end: false, moduleKey: "production" },
@@ -130,11 +127,11 @@ const AdminLayout = () => {
   }
 
   const allowedModules = getAllowedModulesForRole(role);
-  const hasAccess = (moduleKey: string) => hasModuleAccess(allowedModules, moduleKey);
+  const hasAccess = (moduleKey: AppVerseModuleKey) => hasModuleAccess(allowedModules, moduleKey);
   const hideAdvancedGovernance = shouldHideAdvancedGovernanceNav(role);
 
   const canAccessGoldenChainOperator = () =>
-    ["dispatch", "finance", "inventory"].some((moduleKey) => hasAccess(moduleKey));
+    (["dispatch", "finance", "inventory"] as AppVerseModuleKey[]).some((moduleKey) => hasAccess(moduleKey));
 
   const filteredSections = navSections
     .map((section) => ({
@@ -165,7 +162,7 @@ const AdminLayout = () => {
             <span className="block text-ui-h5 text-primary">App-Verse</span>
             <span className="block truncate text-[10px] uppercase tracking-[0.14em] text-muted-foreground">Central workspace</span>
           </div>
-          <button className="ml-auto lg:hidden" onClick={() => setSidebarOpen(false)}><X size={18} className="text-muted-foreground" /></button>
+          <button aria-label="Close navigation" className="ml-auto lg:hidden" onClick={() => setSidebarOpen(false)}><X size={18} className="text-muted-foreground" /></button>
         </div>
 
         <div className="flex-1 overflow-y-auto px-3 py-4">
@@ -173,12 +170,7 @@ const AdminLayout = () => {
           <AppverseWorkspaceRail allowedModules={allowedModules} onNavigate={() => setSidebarOpen(false)} />
 
           <div className="mt-5 border-t border-border/70 pt-3">
-            <button
-              type="button"
-              onClick={() => setShowAllTools((value) => !value)}
-              className="flex w-full items-center justify-between rounded-xl px-3 py-2 text-xs font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-              aria-expanded={showAllTools}
-            >
+            <button type="button" onClick={() => setShowAllTools((value) => !value)} className="flex w-full items-center justify-between rounded-xl px-3 py-2 text-xs font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground" aria-expanded={showAllTools}>
               <span>All tools</span>
               <ChevronDown size={14} className={`transition-transform ${showAllTools ? "rotate-180" : ""}`} />
             </button>
@@ -190,14 +182,11 @@ const AdminLayout = () => {
                     <p className="text-fine text-muted-foreground uppercase tracking-wider px-3 mb-1">{section.title}</p>
                     <div className="space-y-0.5">
                       {section.items.map((item) => (
-                        <NavLink key={item.to} to={item.to} end={item.end} onClick={() => setSidebarOpen(false)}
-                          className={({ isActive }) => `flex items-center gap-3 px-3 py-2 rounded-lg text-xs font-ui font-medium transition-colors ${isActive ? "text-primary bg-primary/10" : "text-muted-foreground hover:text-foreground hover:bg-muted"}`}>
+                        <NavLink key={item.to} to={item.to} end={item.end} onClick={() => setSidebarOpen(false)} className={({ isActive }) => `flex items-center gap-3 px-3 py-2 rounded-lg text-xs font-ui font-medium transition-colors ${isActive ? "text-primary bg-primary/10" : "text-muted-foreground hover:text-foreground hover:bg-muted"}`}>
                           <item.icon size={16} />
                           <span className="flex-1">{item.label}</span>
                           {item.moduleKey === "clients" && pendingApplications > 0 && (
-                            <span className="ml-auto bg-destructive text-destructive-foreground text-[10px] font-bold rounded-full min-w-[18px] h-[18px] flex items-center justify-center px-1">
-                              {pendingApplications}
-                            </span>
+                            <span className="ml-auto bg-destructive text-destructive-foreground text-[10px] font-bold rounded-full min-w-[18px] h-[18px] flex items-center justify-center px-1">{pendingApplications}</span>
                           )}
                         </NavLink>
                       ))}
@@ -212,41 +201,31 @@ const AdminLayout = () => {
         <div className="px-3 py-2 border-t border-border">
           <div className="flex items-center gap-2">
             <Languages size={14} className="text-muted-foreground" />
-            <button onClick={() => setLang(lang === "en" ? "hi" : "en")}
-              className="text-xs font-ui font-medium text-muted-foreground hover:text-primary transition-colors">
-              {lang === "en" ? "हिंदी" : "English"}
-            </button>
+            <button onClick={() => setLang(lang === "en" ? "hi" : "en")} className="text-xs font-ui font-medium text-muted-foreground hover:text-primary transition-colors">{lang === "en" ? "हिंदी" : "English"}</button>
           </div>
         </div>
 
         <div className="p-3 border-t border-border">
-          <button onClick={handleLogout} className="flex items-center gap-3 px-3 py-2 rounded-lg text-xs font-ui font-medium text-muted-foreground hover:text-destructive hover:bg-destructive/5 transition-colors w-full">
-            <LogOut size={16} />{t("Sign Out")}
-          </button>
+          <button onClick={handleLogout} className="flex items-center gap-3 px-3 py-2 rounded-lg text-xs font-ui font-medium text-muted-foreground hover:text-destructive hover:bg-destructive/5 transition-colors w-full"><LogOut size={16} />{t("Sign Out")}</button>
         </div>
       </aside>
 
       <div className="flex-1 flex flex-col min-h-screen min-w-0 max-w-full overflow-x-hidden">
         <header className="h-14 flex items-center px-5 border-b border-border bg-card lg:hidden">
-          <button onClick={() => setSidebarOpen(true)}><Menu size={20} className="text-primary" /></button>
+          <button aria-label="Open navigation" onClick={() => setSidebarOpen(true)}><Menu size={20} className="text-primary" /></button>
           <div className="ml-3">
             <span className="block text-ui-h5 text-primary">Oasis App-Verse</span>
             <span className="block text-[10px] text-muted-foreground">Role-based command view</span>
           </div>
         </header>
         <div className="hidden lg:flex items-center justify-end gap-3 px-5 h-7 bg-card/60 border-b border-border text-[10px] font-medium tracking-wide">
-          <span className="flex items-center gap-1.5 text-emerald-700">
-            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-            Security: OTP verification active
-          </span>
+          <span className="flex items-center gap-1.5 text-emerald-700"><span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />Security: OTP verification active</span>
           <span className="text-muted-foreground/50">|</span>
-          <span className="flex items-center gap-1.5 text-primary">
-            <Sparkles size={10} /> AI Engine: 0.98 Disciplined
-          </span>
+          <span className="flex items-center gap-1.5 text-primary"><Sparkles size={10} /> AI Engine: 0.98 Disciplined</span>
         </div>
         <PanicAlertBanner />
         <main className="flex-1 p-4 pb-24 sm:p-6 sm:pb-24 lg:pb-6 overflow-y-auto overflow-x-hidden max-w-full">
-          <AdminRouteGuard>{isAppverseHome ? <AppverseAdminHome /> : <Outlet />}</AdminRouteGuard>
+          <AdminRouteGuard>{isAppverseHome ? <AppverseRoleHome role={role} allowedModules={allowedModules} /> : <Outlet />}</AdminRouteGuard>
         </main>
       </div>
       <AppverseMobileNav allowedModules={allowedModules} />
