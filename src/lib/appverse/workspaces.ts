@@ -8,7 +8,7 @@ import {
   Truck,
   type LucideIcon,
 } from "lucide-react";
-import type { AppVerseGrantedModule, AppVerseModuleKey } from "./roleAccess";
+import type { AppVerseModuleKey } from "./roleAccess";
 
 export type AppVerseWorkspaceKey =
   | "home"
@@ -47,7 +47,7 @@ export function getWorkspaceForPath(pathname: string) {
   return candidates[0].workspace;
 }
 
-export function canAccessWorkspace(workspace: AppVerseWorkspace, allowedModules: AppVerseGrantedModule[]) {
+export function canAccessWorkspace(workspace: AppVerseWorkspace, allowedModules: readonly string[]) {
   if (allowedModules.includes("*")) return true;
   return workspace.moduleKeys.some((key) => allowedModules.includes(key));
 }
