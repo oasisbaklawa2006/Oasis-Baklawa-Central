@@ -37,7 +37,7 @@ export const APPVERSE_WORKSPACES: AppVerseWorkspace[] = [
     description: "Role-specific command view and work requiring attention.",
     icon: Gauge,
     landingPath: "/admin",
-    matchPrefixes: ["/admin", "/admin/execution-command-center"],
+    matchPrefixes: ["/admin"],
     moduleKeys: ["dashboard", "cmd_war_room"],
   },
   {
@@ -68,6 +68,7 @@ export const APPVERSE_WORKSPACES: AppVerseWorkspace[] = [
       "/admin/order-management",
       "/admin/accounts-release",
       "/admin/finance",
+      "/admin/finance-governance",
       "/admin/pricing",
       "/admin/moq",
       "/admin/currency",
@@ -82,6 +83,7 @@ export const APPVERSE_WORKSPACES: AppVerseWorkspace[] = [
     icon: Boxes,
     landingPath: "/admin/execution-command-center",
     matchPrefixes: [
+      "/admin/execution-command-center",
       "/admin/execution/",
       "/admin/live-work-queues",
       "/admin/inventory-command-center",
@@ -153,7 +155,12 @@ export const APPVERSE_WORKSPACES: AppVerseWorkspace[] = [
 export function getWorkspaceForPath(pathname: string) {
   const candidates = APPVERSE_WORKSPACES.flatMap((workspace) =>
     workspace.matchPrefixes.map((prefix) => ({ workspace, prefix })),
-  ).filter(({ prefix }) => pathname === prefix || pathname.startsWith(`${prefix}/`) || prefix.endsWith("/") && pathname.startsWith(prefix));
+  ).filter(
+    ({ prefix }) =>
+      pathname === prefix ||
+      pathname.startsWith(`${prefix}/`) ||
+      (prefix.endsWith("/") && pathname.startsWith(prefix)),
+  );
 
   if (candidates.length === 0) return APPVERSE_WORKSPACES[0];
 
