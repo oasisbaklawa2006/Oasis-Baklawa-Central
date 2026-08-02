@@ -1,4 +1,4 @@
-import { NavLink, Outlet } from "react-router-dom";
+import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import {
   LayoutDashboard, UserCheck, ClipboardList, Truck, DollarSign, LogOut, Menu, X, Loader2,
   Headphones, Users, Package, BarChart3, Scale, Globe, Settings, Shield, MessageCircle,
@@ -11,7 +11,6 @@ import {
   ChevronDown,
 } from "lucide-react";
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { useLanguage } from "@/hooks/useLanguage";
 import { useApplicationBadge } from "@/hooks/useApplicationBadge";
@@ -22,45 +21,11 @@ import AdminHelpSidebar from "@/components/AdminHelpSidebar";
 import OnboardingOverlay from "@/components/OnboardingOverlay";
 import AppverseWorkspaceRail from "@/components/appverse/AppverseWorkspaceRail";
 import AppverseMobileNav from "@/components/appverse/AppverseMobileNav";
+import AppverseAdminHome from "@/pages/admin/AppverseAdminHome";
+import { getAllowedModulesForRole, hasModuleAccess } from "@/lib/appverse/roleAccess";
 import { signOutAndClearSession } from "@/utils/authSession";
 import { useAdminRealtimeToasts } from "@/hooks/useAdminRealtimeToasts";
 import { shouldHideAdvancedGovernanceNav } from "@/lib/golden-chain/operatorNavigation";
-
-const ROLE_MODULE_ACCESS: Record<string, string[]> = {
-  SUPER_ADMIN: ["*"],
-  ADMIN: [
-    "dashboard", "cmd_war_room", "orders", "clients", "products", "pricing", "finance", "finance_audit",
-    "users", "moq", "currency", "support", "settings", "audit", "inventory", "inventory_audit", "packing",
-    "production", "accounts", "exceptions", "dispatch", "dispatch_audit",
-  ],
-  FINANCE_HEAD: ["dashboard", "cmd_war_room", "finance", "finance_audit", "accounts", "orders", "audit"],
-  FINANCE_EXEC: ["dashboard", "cmd_war_room", "finance", "finance_audit", "accounts", "orders"],
-  OPERATIONS_MANAGER: [
-    "dashboard", "cmd_war_room", "orders", "production", "packing", "dispatch", "dispatch_audit", "inventory",
-    "inventory_audit",
-  ],
-  PRODUCTION_MANAGER: ["dashboard", "orders", "production"],
-  HOD_ARABIC: ["dashboard", "production", "orders"],
-  HOD_FUSION: ["dashboard", "production", "orders"],
-  HOD_CHOCOLATE: ["dashboard", "production", "orders"],
-  HOD_BAKERY: ["dashboard", "production", "orders"],
-  HOD_NUTS: ["dashboard", "production", "orders"],
-  HOD_ASSEMBLY: ["dashboard", "production", "orders"],
-  HOD_DRAGEES: ["dashboard", "production", "orders"],
-  STORE_INCHARGE: ["dashboard", "cmd_war_room", "inventory", "orders", "production"],
-  DISPATCH_MANAGER: ["dashboard", "cmd_war_room", "packing", "dispatch", "orders", "inventory"],
-  DISPATCH_INCHARGE: ["dashboard", "cmd_war_room", "packing", "dispatch", "orders"],
-  SECURITY_CONTROL: ["dashboard", "packing"],
-  SALES_EXECUTIVE: [],
-  SUPPORT_EXECUTIVE: ["dashboard", "support", "exceptions", "orders"],
-  // Legacy compat
-  DISPATCH_HEAD: ["dashboard", "cmd_war_room", "packing", "dispatch", "orders", "inventory"],
-  ASSEMBLY_MANAGER: ["dashboard", "production", "orders"],
-  PACKING_SUPERVISOR: ["dashboard", "packing", "dispatch"],
-  STORE_READY_GOODS: ["dashboard", "cmd_war_room", "inventory", "orders", "production"],
-  RGS_ADMIN: ["dashboard", "cmd_war_room", "inventory", "orders", "production"],
-  CUSTOMER_USER: [],
-};
 
 interface NavItem {
   to: string; icon: React.ElementType; label: string; end?: boolean; moduleKey: string;
@@ -70,9 +35,9 @@ const AdminLayout = () => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [showAllTools, setShowAllTools] = useState(false);
   const { user, loading: authLoading, role: authRole } = useAuth();
-  // Single source of truth: normalized uppercase role from useAuth (RPC-backed)
   const role = authRole ? authRole.trim().toUpperCase() : null;
   const navigate = useNavigate();
+  const location = useLocation();
   const { t, lang, setLang } = useLanguage();
   const isAdmin = role === "SUPER_ADMIN" || role === "ADMIN";
   const pendingApplications = useApplicationBadge(isAdmin);
@@ -82,7 +47,8 @@ const AdminLayout = () => {
     {
       title: "Command",
       items: [
-        { to: "/admin", icon: LayoutDashboard, label: "Executive Dashboard", end: true, moduleKey: "dashboard" },
+        { to: "/admin", icon: LayoutDashboard, label: "Home", end: true, moduleKey: "dashboard" },
+        { to: "/admin/heartbeat", icon: Activity, label: "Executive overview", end: false, moduleKey: "dashboard" },
         { to: "/admin/execution-command-center", icon: Gauge, label: "Execution CMD", end: false, moduleKey: "cmd_war_room" },
         { to: "/admin/execution/production", icon: LayoutGrid, label: "Production board", end: false, moduleKey: "production" },
         { to: "/admin/execution/assembly", icon: LayoutGrid, label: "Assembly board", end: false, moduleKey: "production" },
@@ -105,8 +71,6 @@ const AdminLayout = () => {
         { to: "/admin/stock-finalization", icon: PackageMinus, label: "Stock finalization (audit)", end: false, moduleKey: "inventory_audit" },
         { to: "/admin/inventory-risk-board", icon: AlertOctagon, label: "Inventory risk board (preview)", end: false, moduleKey: "inventory" },
         { to: "/admin/scan-timeline", icon: ScanBarcode, label: "Scan timeline (preview)", end: false, moduleKey: "inventory" },
-        // Central Pool fully removed from sidebar — War Room is the only active track.
-        // Route remains accessible via direct URL for read-only DB log auditing.
         { to: "/admin/order-management", icon: ClipboardList, label: t("Order Pipeline"), moduleKey: "orders" },
         { to: "/admin/order-management?view=production", icon: Factory, label: t("Production"), moduleKey: "production" },
         { to: "/admin/order-management?view=packing", icon: PackageCheck, label: t("Packing & Dispatch"), moduleKey: "packing" },
@@ -161,20 +125,12 @@ const AdminLayout = () => {
 
   const handleLogout = async () => { await signOutAndClearSession(); navigate("/splash"); };
 
-  // Only block on initial Supabase auth check. If profile is slow, fall through
-  // with allowedModules=[] — useAuth has a 3s fallback that resolves role.
   if (authLoading) {
     return <div className="min-h-screen flex items-center justify-center bg-background"><Loader2 size={24} className="animate-spin text-primary" /></div>;
   }
 
-  // Default to [] so layout renders even if role is missing (no infinite loader).
-  const allowedModules: string[] = role ? (ROLE_MODULE_ACCESS[role] ?? []) : [];
-
-  const hasAccess = (moduleKey: string) => {
-    if (allowedModules.includes("*") || allowedModules.includes(moduleKey)) return true;
-    return false;
-  };
-
+  const allowedModules = getAllowedModulesForRole(role);
+  const hasAccess = (moduleKey: string) => hasModuleAccess(allowedModules, moduleKey);
   const hideAdvancedGovernance = shouldHideAdvancedGovernanceNav(role);
 
   const canAccessGoldenChainOperator = () =>
@@ -194,6 +150,8 @@ const AdminLayout = () => {
       }),
     }))
     .filter((section) => section.items.length > 0);
+
+  const isAppverseHome = location.pathname === "/admin" || location.pathname === "/admin/";
 
   return (
     <div className="appverse-shell min-h-screen flex bg-background max-w-[100vw] overflow-x-hidden">
@@ -251,7 +209,6 @@ const AdminLayout = () => {
           </div>
         </div>
 
-        {/* Language toggle */}
         <div className="px-3 py-2 border-t border-border">
           <div className="flex items-center gap-2">
             <Languages size={14} className="text-muted-foreground" />
@@ -277,7 +234,6 @@ const AdminLayout = () => {
             <span className="block text-[10px] text-muted-foreground">Role-based command view</span>
           </div>
         </header>
-        {/* System status strip — verification + AI engine signals */}
         <div className="hidden lg:flex items-center justify-end gap-3 px-5 h-7 bg-card/60 border-b border-border text-[10px] font-medium tracking-wide">
           <span className="flex items-center gap-1.5 text-emerald-700">
             <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
@@ -290,7 +246,7 @@ const AdminLayout = () => {
         </div>
         <PanicAlertBanner />
         <main className="flex-1 p-4 pb-24 sm:p-6 sm:pb-24 lg:pb-6 overflow-y-auto overflow-x-hidden max-w-full">
-          <AdminRouteGuard><Outlet /></AdminRouteGuard>
+          <AdminRouteGuard>{isAppverseHome ? <AppverseAdminHome /> : <Outlet />}</AdminRouteGuard>
         </main>
       </div>
       <AppverseMobileNav allowedModules={allowedModules} />
