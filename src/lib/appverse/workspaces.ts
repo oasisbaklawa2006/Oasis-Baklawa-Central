@@ -151,9 +151,14 @@ export const APPVERSE_WORKSPACES: AppVerseWorkspace[] = [
 ];
 
 export function getWorkspaceForPath(pathname: string) {
-  return APPVERSE_WORKSPACES.find((workspace) =>
-    workspace.matchPrefixes.some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`)),
-  ) ?? APPVERSE_WORKSPACES[0];
+  const candidates = APPVERSE_WORKSPACES.flatMap((workspace) =>
+    workspace.matchPrefixes.map((prefix) => ({ workspace, prefix })),
+  ).filter(({ prefix }) => pathname === prefix || pathname.startsWith(`${prefix}/`) || prefix.endsWith("/") && pathname.startsWith(prefix));
+
+  if (candidates.length === 0) return APPVERSE_WORKSPACES[0];
+
+  candidates.sort((a, b) => b.prefix.length - a.prefix.length);
+  return candidates[0].workspace;
 }
 
 export function canAccessWorkspace(
