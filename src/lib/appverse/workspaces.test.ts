@@ -11,14 +11,22 @@ describe("App-Verse workspace registry", () => {
     expect(APPVERSE_WORKSPACES).toHaveLength(7);
   });
 
+  it("resolves every workspace landing path back to itself", () => {
+    for (const workspace of APPVERSE_WORKSPACES) {
+      expect(getWorkspaceForPath(workspace.landingPath).key).toBe(workspace.key);
+    }
+  });
+
   it("maps operational routes into Operations", () => {
     expect(getWorkspaceForPath("/admin/execution/production").key).toBe("operations");
     expect(getWorkspaceForPath("/admin/dispatch-readiness").key).toBe("operations");
+    expect(getWorkspaceForPath("/admin/execution-command-center").key).toBe("operations");
   });
 
   it("maps customer and finance routes correctly", () => {
     expect(getWorkspaceForPath("/admin/clients").key).toBe("customers-sales");
     expect(getWorkspaceForPath("/admin/finance").key).toBe("orders-finance");
+    expect(getWorkspaceForPath("/admin/finance-governance").key).toBe("orders-finance");
   });
 
   it("preserves product and trace boundaries", () => {
