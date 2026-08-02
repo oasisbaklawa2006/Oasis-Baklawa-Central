@@ -76,7 +76,7 @@ const support: RoleHomeDefinition = {
 
 const production: RoleHomeDefinition = {
   title: "Production today",
-  subtitle: "Only the production work, blockers and order context relevant to this department.",
+  subtitle: "Only production work, blockers and relevant order context.",
   cards: [
     { key: "production", label: "Production board", kind: "queue", route: "/admin/execution/production", moduleKey: "production", priority: 1 },
     { key: "orders", label: "Order requirements", kind: "shortcut", route: "/admin/order-management?view=production", moduleKey: "orders", priority: 2 },
@@ -93,6 +93,28 @@ const store: RoleHomeDefinition = {
   ],
 };
 
+const catalogue: RoleHomeDefinition = {
+  title: "Catalogue work",
+  subtitle: "Product records, merchandising and catalogue publication work only.",
+  cards: [
+    { key: "products", label: "Products", kind: "queue", route: "/admin/products", moduleKey: "products", priority: 1 },
+    { key: "approvals", label: "Catalogue approvals", kind: "queue", route: "/admin/catalogue-approvals", moduleKey: "products", priority: 1 },
+    { key: "sync", label: "Catalogue sync", kind: "shortcut", route: "/admin/catalogue-sync", moduleKey: "products", priority: 2 },
+  ],
+};
+
+const gate: RoleHomeDefinition = {
+  title: "Gate control",
+  subtitle: "Physical gate actions and packing evidence only.",
+  cards: [{ key: "gate", label: "Security gate", kind: "queue", route: "/security-gate", moduleKey: "packing", priority: 1 }],
+};
+
+const displayOnly: RoleHomeDefinition = {
+  title: "Display mode",
+  subtitle: "This role is intended for operational display surfaces rather than command actions.",
+  cards: [],
+};
+
 const ROLE_HOME: Record<string, RoleHomeDefinition> = {
   SUPER_ADMIN: executive,
   ADMIN: executive,
@@ -107,19 +129,28 @@ const ROLE_HOME: Record<string, RoleHomeDefinition> = {
   HOD_NUTS: production,
   HOD_ASSEMBLY: production,
   HOD_DRAGEES: production,
+  ASSEMBLY_MANAGER: production,
+  PROD_ARABIC_SWEETS: production,
+  PROD_CHOCOLATE: production,
+  PROD_DRAGEES: production,
+  PROD_FUSION: production,
+  PROD_BAKERY: production,
+  PROD_NUTS: production,
   STORE_INCHARGE: store,
   STORE_READY_GOODS: store,
+  STORE_3RD_PARTY: store,
   RGS_ADMIN: store,
   DISPATCH_MANAGER: dispatch,
   DISPATCH_INCHARGE: dispatch,
   DISPATCH_HEAD: dispatch,
   PACKING_SUPERVISOR: dispatch,
   SUPPORT_EXECUTIVE: support,
-  SECURITY_CONTROL: {
-    title: "Gate control",
-    subtitle: "Packing evidence and physical gate actions only.",
-    cards: [{ key: "gate", label: "Security gate", kind: "queue", route: "/security-gate", moduleKey: "packing", priority: 1 }],
-  },
+  SECURITY_CONTROL: gate,
+  GATE_SECURITY: gate,
+  CATALOGUE_CONTRIBUTOR: catalogue,
+  TV_DISPLAY: displayOnly,
+  TV_ASSEMBLY: displayOnly,
+  TV_READY: displayOnly,
 };
 
 export function getRoleHomeDefinition(role: string | null | undefined): RoleHomeDefinition {
