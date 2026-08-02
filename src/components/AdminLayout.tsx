@@ -8,6 +8,7 @@ import {
   Link2,
   Inbox,
   Brain,
+  ChevronDown,
 } from "lucide-react";
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
@@ -19,6 +20,8 @@ import PanicAlertBanner from "@/components/PanicAlertBanner";
 import AdminRouteGuard from "@/components/AdminRouteGuard";
 import AdminHelpSidebar from "@/components/AdminHelpSidebar";
 import OnboardingOverlay from "@/components/OnboardingOverlay";
+import AppverseWorkspaceRail from "@/components/appverse/AppverseWorkspaceRail";
+import AppverseMobileNav from "@/components/appverse/AppverseMobileNav";
 import { signOutAndClearSession } from "@/utils/authSession";
 import { useAdminRealtimeToasts } from "@/hooks/useAdminRealtimeToasts";
 import { shouldHideAdvancedGovernanceNav } from "@/lib/golden-chain/operatorNavigation";
@@ -65,6 +68,7 @@ interface NavItem {
 
 const AdminLayout = () => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [showAllTools, setShowAllTools] = useState(false);
   const { user, loading: authLoading, role: authRole } = useAuth();
   // Single source of truth: normalized uppercase role from useAuth (RPC-backed)
   const role = authRole ? authRole.trim().toUpperCase() : null;
@@ -192,38 +196,60 @@ const AdminLayout = () => {
     .filter((section) => section.items.length > 0);
 
   return (
-    <div className="min-h-screen flex bg-background max-w-[100vw] overflow-x-hidden">
+    <div className="appverse-shell min-h-screen flex bg-background max-w-[100vw] overflow-x-hidden">
       {sidebarOpen && <div className="fixed inset-0 bg-black/30 z-40 lg:hidden" onClick={() => setSidebarOpen(false)} />}
 
-      <aside className={`fixed lg:static inset-y-0 left-0 z-50 w-64 flex flex-col bg-card border-r border-border transition-transform lg:translate-x-0 ${sidebarOpen ? "translate-x-0" : "-translate-x-full"}`}
+      <aside className={`fixed lg:static inset-y-0 left-0 z-50 w-72 flex flex-col bg-card border-r border-border transition-transform lg:translate-x-0 ${sidebarOpen ? "translate-x-0" : "-translate-x-full"}`}
         style={{ boxShadow: "2px 0 12px rgba(0,0,0,0.04)" }}>
         <div className="p-5 flex items-center gap-3 border-b border-border">
           <img src={logoImg} alt="Oasis" className="h-7 object-contain" />
-          <span className="text-ui-h5 text-primary">Admin</span>
+          <div className="min-w-0">
+            <span className="block text-ui-h5 text-primary">App-Verse</span>
+            <span className="block truncate text-[10px] uppercase tracking-[0.14em] text-muted-foreground">Central workspace</span>
+          </div>
           <button className="ml-auto lg:hidden" onClick={() => setSidebarOpen(false)}><X size={18} className="text-muted-foreground" /></button>
         </div>
 
-        <nav className="flex-1 py-3 px-3 overflow-y-auto space-y-4">
-          {filteredSections.map((section) => (
-            <div key={section.title}>
-              <p className="text-fine text-muted-foreground uppercase tracking-wider px-3 mb-1">{section.title}</p>
-              <div className="space-y-0.5">
-                {section.items.map((item) => (
-                  <NavLink key={item.to} to={item.to} end={item.end} onClick={() => setSidebarOpen(false)}
-                    className={({ isActive }) => `flex items-center gap-3 px-3 py-2 rounded-lg text-xs font-ui font-medium transition-colors ${isActive ? "text-primary bg-primary/10" : "text-muted-foreground hover:text-foreground hover:bg-muted"}`}>
-                    <item.icon size={16} />
-                    <span className="flex-1">{item.label}</span>
-                    {item.moduleKey === "clients" && pendingApplications > 0 && (
-                      <span className="ml-auto bg-destructive text-destructive-foreground text-[10px] font-bold rounded-full min-w-[18px] h-[18px] flex items-center justify-center px-1">
-                        {pendingApplications}
-                      </span>
-                    )}
-                  </NavLink>
+        <div className="flex-1 overflow-y-auto px-3 py-4">
+          <p className="mb-2 px-3 text-[10px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">Workspaces</p>
+          <AppverseWorkspaceRail allowedModules={allowedModules} onNavigate={() => setSidebarOpen(false)} />
+
+          <div className="mt-5 border-t border-border/70 pt-3">
+            <button
+              type="button"
+              onClick={() => setShowAllTools((value) => !value)}
+              className="flex w-full items-center justify-between rounded-xl px-3 py-2 text-xs font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+              aria-expanded={showAllTools}
+            >
+              <span>All tools</span>
+              <ChevronDown size={14} className={`transition-transform ${showAllTools ? "rotate-180" : ""}`} />
+            </button>
+
+            {showAllTools && (
+              <nav className="mt-3 space-y-4" aria-label="All permitted tools">
+                {filteredSections.map((section) => (
+                  <div key={section.title}>
+                    <p className="text-fine text-muted-foreground uppercase tracking-wider px-3 mb-1">{section.title}</p>
+                    <div className="space-y-0.5">
+                      {section.items.map((item) => (
+                        <NavLink key={item.to} to={item.to} end={item.end} onClick={() => setSidebarOpen(false)}
+                          className={({ isActive }) => `flex items-center gap-3 px-3 py-2 rounded-lg text-xs font-ui font-medium transition-colors ${isActive ? "text-primary bg-primary/10" : "text-muted-foreground hover:text-foreground hover:bg-muted"}`}>
+                          <item.icon size={16} />
+                          <span className="flex-1">{item.label}</span>
+                          {item.moduleKey === "clients" && pendingApplications > 0 && (
+                            <span className="ml-auto bg-destructive text-destructive-foreground text-[10px] font-bold rounded-full min-w-[18px] h-[18px] flex items-center justify-center px-1">
+                              {pendingApplications}
+                            </span>
+                          )}
+                        </NavLink>
+                      ))}
+                    </div>
+                  </div>
                 ))}
-              </div>
-            </div>
-          ))}
-        </nav>
+              </nav>
+            )}
+          </div>
+        </div>
 
         {/* Language toggle */}
         <div className="px-3 py-2 border-t border-border">
@@ -246,7 +272,10 @@ const AdminLayout = () => {
       <div className="flex-1 flex flex-col min-h-screen min-w-0 max-w-full overflow-x-hidden">
         <header className="h-14 flex items-center px-5 border-b border-border bg-card lg:hidden">
           <button onClick={() => setSidebarOpen(true)}><Menu size={20} className="text-primary" /></button>
-          <span className="ml-3 text-ui-h5 text-primary">Admin Panel</span>
+          <div className="ml-3">
+            <span className="block text-ui-h5 text-primary">Oasis App-Verse</span>
+            <span className="block text-[10px] text-muted-foreground">Role-based command view</span>
+          </div>
         </header>
         {/* System status strip — verification + AI engine signals */}
         <div className="hidden lg:flex items-center justify-end gap-3 px-5 h-7 bg-card/60 border-b border-border text-[10px] font-medium tracking-wide">
@@ -260,10 +289,11 @@ const AdminLayout = () => {
           </span>
         </div>
         <PanicAlertBanner />
-        <main className="flex-1 p-4 sm:p-6 overflow-y-auto overflow-x-hidden max-w-full">
+        <main className="flex-1 p-4 pb-24 sm:p-6 sm:pb-24 lg:pb-6 overflow-y-auto overflow-x-hidden max-w-full">
           <AdminRouteGuard><Outlet /></AdminRouteGuard>
         </main>
       </div>
+      <AppverseMobileNav allowedModules={allowedModules} />
       <AdminHelpSidebar />
       <OnboardingOverlay />
     </div>
