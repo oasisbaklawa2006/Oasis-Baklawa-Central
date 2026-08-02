@@ -1,4 +1,30 @@
-export const ROLE_MODULE_ACCESS: Record<string, string[]> = {
+export type AppVerseModuleKey =
+  | "dashboard"
+  | "cmd_war_room"
+  | "orders"
+  | "clients"
+  | "products"
+  | "pricing"
+  | "finance"
+  | "finance_audit"
+  | "users"
+  | "moq"
+  | "currency"
+  | "support"
+  | "settings"
+  | "audit"
+  | "inventory"
+  | "inventory_audit"
+  | "packing"
+  | "production"
+  | "accounts"
+  | "exceptions"
+  | "dispatch"
+  | "dispatch_audit";
+
+export type AppVerseGrantedModule = AppVerseModuleKey | "*";
+
+export const ROLE_MODULE_ACCESS: Record<string, AppVerseGrantedModule[]> = {
   SUPER_ADMIN: ["*"],
   ADMIN: [
     "dashboard", "cmd_war_room", "orders", "clients", "products", "pricing", "finance", "finance_audit",
@@ -49,12 +75,15 @@ export function normalizeAppverseRole(role: string | null | undefined) {
   return role?.trim().toUpperCase() ?? null;
 }
 
-export function getAllowedModulesForRole(role: string | null | undefined): string[] {
+export function getAllowedModulesForRole(role: string | null | undefined): AppVerseGrantedModule[] {
   const normalized = normalizeAppverseRole(role);
   if (!normalized) return [];
   return ROLE_MODULE_ACCESS[normalized] ?? [];
 }
 
-export function hasModuleAccess(allowedModules: string[], moduleKey: string) {
+export function hasModuleAccess(
+  allowedModules: AppVerseGrantedModule[],
+  moduleKey: AppVerseModuleKey,
+) {
   return allowedModules.includes("*") || allowedModules.includes(moduleKey);
 }
