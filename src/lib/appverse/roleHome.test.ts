@@ -13,6 +13,16 @@ describe("App-Verse role-aware Home model", () => {
     expect(cards.map((card) => card.key)).toEqual(["production", "orders"]);
   });
 
+  it("keeps shop-floor production roles out of executive home", () => {
+    const home = getRoleHomeDefinition("PROD_CHOCOLATE");
+    expect(home.title).toBe("Production today");
+  });
+
+  it("gives catalogue contributors catalogue-only work", () => {
+    const cards = getVisibleRoleHomeCards("CATALOGUE_CONTRIBUTOR", ["dashboard", "products"]);
+    expect(cards.map((card) => card.moduleKey)).toEqual(["products", "products", "products"]);
+  });
+
   it("does not surface cards outside the caller module set", () => {
     const cards = getVisibleRoleHomeCards("OPERATIONS_MANAGER", ["dashboard", "production"]);
     expect(cards.every((card) => ["dashboard", "production"].includes(card.moduleKey))).toBe(true);
@@ -23,9 +33,15 @@ describe("App-Verse role-aware Home model", () => {
     expect(cards.length).toBeGreaterThanOrEqual(6);
   });
 
-  it("keeps security control limited to the gate surface", () => {
-    const cards = getVisibleRoleHomeCards("SECURITY_CONTROL", ["dashboard", "packing"]);
-    expect(cards).toHaveLength(1);
-    expect(cards[0]?.route).toBe("/security-gate");
+  it("keeps security and gate roles limited to the gate surface", () => {
+    for (const role of ["SECURITY_CONTROL", "GATE_SECURITY"]) {
+      const cards = getVisibleRoleHomeCards(role, ["dashboard", "packing"]);
+      expect(cards).toHaveLength(1);
+      expect(cards[0]?.route).toBe("/security-gate");
+    }
+  });
+
+  it("keeps dedicated TV roles action-free", () => {
+    expect(getRoleHomeDefinition("TV_DISPLAY").cards).toEqual([]);
   });
 });
