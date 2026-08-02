@@ -82,8 +82,8 @@ export function getAllowedModulesForRole(role: string | null | undefined): AppVe
 }
 
 export function hasModuleAccess(
-  allowedModules: AppVerseGrantedModule[],
-  moduleKey: AppVerseModuleKey,
+  allowedModules: readonly string[],
+  moduleKey: string,
 ) {
   return allowedModules.includes("*") || allowedModules.includes(moduleKey);
 }
