@@ -96,7 +96,7 @@ export default function AppverseRoleHome({
         </div>
         {role && (
           <span className="w-fit rounded-full border border-[hsl(var(--appverse-gold)/0.3)] bg-[hsl(var(--appverse-premium))] px-3 py-1.5 text-[11px] font-medium uppercase tracking-[0.12em] text-[hsl(var(--appverse-espresso))]">
-            {role.replaceAll("_", " ")}
+            {role.replace(/_/g, " ")}
           </span>
         )}
       </header>
