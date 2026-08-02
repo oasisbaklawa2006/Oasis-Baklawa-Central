@@ -1,4 +1,4 @@
-import type { AppVerseGrantedModule, AppVerseModuleKey } from "./roleAccess";
+import type { AppVerseModuleKey } from "./roleAccess";
 
 export type RoleHomeCardKind = "metric" | "queue" | "alert" | "shortcut";
 
@@ -100,7 +100,7 @@ export function getRoleHomeDefinition(role: string | null | undefined): RoleHome
   return ROLE_HOME[role.trim().toUpperCase()] ?? executive;
 }
 
-export function getVisibleRoleHomeCards(role: string | null | undefined, allowedModules: AppVerseGrantedModule[]): RoleHomeCard[] {
+export function getVisibleRoleHomeCards(role: string | null | undefined, allowedModules: readonly string[]): RoleHomeCard[] {
   const definition = getRoleHomeDefinition(role);
   const hasAll = allowedModules.includes("*");
   return definition.cards.filter((card) => hasAll || allowedModules.includes(card.moduleKey)).sort((a, b) => a.priority - b.priority);
