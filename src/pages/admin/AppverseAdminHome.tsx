@@ -1,5 +1,6 @@
 import { Link } from "react-router-dom";
 import AppverseRoleHome from "@/components/appverse/AppverseRoleHome";
+import AppverseWave1Launchpad from "@/components/appverse/AppverseWave1Launchpad";
 import { useAuth } from "@/hooks/useAuth";
 import { getAllowedModulesForRole } from "@/lib/appverse/roleAccess";
 import { getInternalApps } from "@/lib/appverse/appRegistry";
@@ -16,6 +17,8 @@ export default function AppverseAdminHome() {
   return (
     <div className="space-y-8">
       <AppverseRoleHome role={role} allowedModules={allowedModules} />
+
+      <AppverseWave1Launchpad allowedModules={allowedModules} />
 
       {isExecutive && (
         <section className="rounded-2xl border border-border/80 bg-[hsl(var(--appverse-utility))] p-5">
