@@ -39,7 +39,7 @@ For each state provide:
 - Entry conditions.
 - Exit conditions.
 - Responsible actor/department.
-- Allowed actions.
+- Allowed actions. Each action must reference an Authority matrix action identifier, target state, and permitted transition.
 - Blocking reasons.
 - Frontend display label and semantic category.
 - Whether the state is actionable and by whom.
@@ -58,6 +58,7 @@ For each visible or executable action specify:
 - Success response contract.
 - Denial, conflict and retry behavior.
 - Idempotency requirement/key where applicable.
+- Target state and permitted transition, where the action changes lifecycle state.
 - Audit evidence required.
 - View authority.
 - Create authority.
@@ -84,6 +85,9 @@ Define:
 - Decision actor, timestamp, reason and approval reference.
 - Supporting evidence linked to the approval decision.
 - Lifecycle states: requested, pending, approved, rejected, expired or superseded.
+- Allowed lifecycle transitions for each decision, including the same Authority matrix action identifier, target state and permitted transition used by the corresponding state action.
+- Terminal-state rules: expired and superseded exceptions are closed and cannot be approved, edited, or progressed unless a separately authorised reopen action exists.
+- Reopen rules: define the stable backend action identifier, authority, preconditions, evidence, audit event, and target state for any permitted reopen path. If no reopen path exists, the frontend must present the exception as terminal and unavailable.
 
 ## Queue model
 
@@ -107,62 +111,3 @@ Only include fields necessary to identify, prioritise and act.
 ## Data shown in detail view
 
 Include full operational context, evidence and linked records.
-
-## Realtime/events
-
-For every emitted or consumed event specify:
-
-- Event name and purpose.
-- Payload schema/version.
-- Canonical entity key/correlation identifiers.
-- State/version/sequence field used to prevent regression.
-- Ordering guarantee or explicit lack of ordering.
-- Duplicate-delivery and idempotent-consumption behavior.
-- Reconnect/resubscribe behavior.
-- Resynchronization/source-of-truth refresh procedure after missed events.
-- Maximum acceptable staleness and stale-data UI behavior.
-- Refresh expectation.
-- Whether polling is acceptable and, if so, its interval/backoff constraints.
-
-Consumers must never allow delayed, duplicated or out-of-order updates to regress a record to an older authoritative state.
-
-## Audit requirements
-
-- Actor.
-- Timestamp.
-- Before/after values.
-- Reason.
-- Approval reference.
-- Evidence/attachments.
-
-## Device surfaces
-
-### Desktop
-
-Primary workflow and information density.
-
-### Mobile/handheld
-
-Actions that should be available on phone/scanner-class devices.
-
-### TV
-
-Read-only metrics/queues/alerts, if applicable.
-
-## Customer-facing projection
-
-State which fields/states can be shown externally and which must remain internal.
-
-## Frontend acceptance contract
-
-The frontend should not be considered final until:
-
-- Every visible action maps to a backend-authorised action.
-- Every status maps to a canonical backend state and defined frontend projection.
-- Every approval/override has a backend enforcement path.
-- Every queue has deterministic inclusion and exit rules.
-- Every record and field read has a server-side authorization decision based on view authority and visibility classification.
-- Sensitivity classification remains an additional restriction where applicable.
-- Every realtime/event consumer has defined ordering, duplicate, reconnect/resync and stale-state behavior.
-- Empty/loading/error/permission-denied/unknown-state states are defined.
-- Mobile/TV behaviour is specified where relevant.
