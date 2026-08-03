@@ -1,10 +1,16 @@
 import { useCallback, useEffect, useState, type ReactNode } from "react";
-import { AlertTriangle, Boxes, ClipboardCheck, Factory, PackageCheck, RefreshCw, Warehouse } from "lucide-react";
+import { AlertTriangle, ArrowRight, Boxes, ClipboardCheck, Factory, PackageCheck, RefreshCw, Warehouse } from "lucide-react";
+import { Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+
+// The Phase 2 relations are live; generated Database types are reconciled in a
+// separate schema-parity change. Keep this read boundary isolated until then.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const fulfilmentDb = supabase as unknown as { from: (relation: string) => any };
 
 type Store = { store_code: string; store_name: string; active: boolean };
 type Availability = { sku: string; store_code: string; item_class: string; available_for_b2b_qty: number; reserved_qty: number; unavailable_qty: number };
@@ -23,10 +29,10 @@ export default function InventoryCommandCenter() {
   const load = useCallback(async () => {
     setLoading(true); setError(null);
     const results = await Promise.all([
-      supabase.from("b2b_inventory_stores").select("store_code, store_name, active").eq("active", true).order("store_code"),
-      supabase.from("b2b_order_availability").select("sku, store_code, item_class, available_for_b2b_qty, reserved_qty, unavailable_qty").order("updated_at", { ascending: false }).limit(100),
-      supabase.from("b2b_inventory_receipts").select("receipt_number, receipt_source, destination_store_code, status, created_at").order("created_at", { ascending: false }).limit(8),
-      supabase.from("b2b_assembly_jobs").select("assembly_job_number, output_sku, planned_qty, accepted_qty, status, created_at").order("created_at", { ascending: false }).limit(8),
+      fulfilmentDb.from("b2b_inventory_stores").select("store_code, store_name, active").eq("active", true).order("store_code"),
+      fulfilmentDb.from("b2b_order_availability").select("sku, store_code, item_class, available_for_b2b_qty, reserved_qty, unavailable_qty").order("updated_at", { ascending: false }).limit(100),
+      fulfilmentDb.from("b2b_inventory_receipts").select("receipt_number, receipt_source, destination_store_code, status, created_at").order("created_at", { ascending: false }).limit(8),
+      fulfilmentDb.from("b2b_assembly_jobs").select("assembly_job_number, output_sku, planned_qty, accepted_qty, status, created_at").order("created_at", { ascending: false }).limit(8),
     ]);
     const failed = results.find((r) => r.error)?.error;
     if (failed) setError(failed.message);
@@ -44,7 +50,7 @@ export default function InventoryCommandCenter() {
         <div className="flex items-center gap-2">
         <Warehouse className="h-7 w-7 text-primary" aria-hidden />
         <div><h1 className="text-xl font-bold tracking-tight">B2B fulfilment command center</h1><p className="text-xs text-muted-foreground">Live operational read model · customer-order fulfilment only</p></div>
-        </div><Button size="sm" variant="outline" onClick={() => void load()} disabled={loading}><RefreshCw className={`mr-2 h-4 w-4 ${loading ? "animate-spin" : ""}`} />Refresh</Button>
+        </div><div className="flex gap-2"><Button size="sm" variant="outline" asChild><Link to="/admin/inventory-receiving">Receiving <ArrowRight className="ml-2 h-4 w-4" /></Link></Button><Button size="sm" variant="outline" onClick={() => void load()} disabled={loading}><RefreshCw className={`mr-2 h-4 w-4 ${loading ? "animate-spin" : ""}`} />Refresh</Button></div>
       </header>
       {error && <Card className="border-destructive/40"><CardContent className="flex items-center gap-2 p-4 text-sm text-destructive"><AlertTriangle className="h-4 w-4" />Live contract could not be read: {error}</CardContent></Card>}
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
@@ -68,5 +74,5 @@ function Metric({ icon: Icon, label, value, tone }: { icon: typeof Warehouse; la
   return <Card><CardContent className="flex items-center gap-3 p-4"><Icon className={`h-5 w-5 ${tone === "red" ? "text-destructive" : tone === "amber" ? "text-amber-600" : "text-primary"}`} /><div><p className="text-2xl font-bold">{value}</p><p className="text-xs text-muted-foreground">{label}</p></div></CardContent></Card>;
 }
 function DataCard({ title, icon: Icon, children }: { title: string; icon: typeof Warehouse; children: ReactNode }) { return <Card><CardHeader><CardTitle className="flex items-center gap-2 text-base"><Icon className="h-4 w-4 text-primary" />{title}</CardTitle></CardHeader><CardContent>{children}</CardContent></Card>; }
-function QueueRow({ label, detail, status }: { label: string; detail: string; status: string }) { return <div className="flex items-center justify-between gap-3 rounded-lg border p-3"><div><p className="text-sm font-medium">{label}</p><p className="text-xs text-muted-foreground">{detail}</p></div><Badge variant="outline" className="shrink-0 text-[10px] uppercase">{status.replaceAll("_", " ")}</Badge></div>; }
+function QueueRow({ label, detail, status }: { label: string; detail: string; status: string }) { return <div className="flex items-center justify-between gap-3 rounded-lg border p-3"><div><p className="text-sm font-medium">{label}</p><p className="text-xs text-muted-foreground">{detail}</p></div><Badge variant="outline" className="shrink-0 text-[10px] uppercase">{status.replace(/_/g, " ")}</Badge></div>; }
 function Empty({ text }: { text: string }) { return <p className="py-8 text-center text-sm text-muted-foreground">{text}</p>; }
