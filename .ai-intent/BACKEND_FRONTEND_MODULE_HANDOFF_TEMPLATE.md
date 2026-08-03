@@ -39,7 +39,7 @@ For each state provide:
 - Entry conditions.
 - Exit conditions.
 - Responsible actor/department.
-- Allowed actions. Each action must reference an Authority matrix action identifier, target state, and permitted transition.
+- Allowed actions. Each lifecycle-changing action must reference an Authority matrix action identifier, target state, and permitted transition. Mark non-transitioning actions as having no lifecycle transition.
 - Blocking reasons.
 - Frontend display label and semantic category.
 - Whether the state is actionable and by whom.
