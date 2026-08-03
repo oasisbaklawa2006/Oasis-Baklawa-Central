@@ -1,5 +1,6 @@
 import { ArrowRight, CircleDollarSign, Factory, MessagesSquare } from "lucide-react";
 import { Link } from "react-router-dom";
+import type { AppVerseGrantedModule } from "@/lib/appverse/roleAccess";
 import { getVisibleWave1Areas } from "@/lib/appverse/wave1";
 
 const ICONS = {
@@ -9,7 +10,7 @@ const ICONS = {
 } as const;
 
 type Props = {
-  allowedModules: string[];
+  allowedModules: readonly AppVerseGrantedModule[];
 };
 
 export default function AppverseWave1Launchpad({ allowedModules }: Props) {
