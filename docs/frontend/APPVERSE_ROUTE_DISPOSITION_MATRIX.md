@@ -33,6 +33,8 @@ Legend:
 | `/admin/sales-hub` | SPECIALIST | sales performance view |
 | `/admin/central-pool` | CONSOLIDATE | compatibility alias |
 | `/admin/cmd-war-room` | CONSOLIDATE | compatibility alias |
+| `/admin/customers` | CONSOLIDATE | compatibility alias to `/admin/clients` |
+| `/admin/crm` | CONSOLIDATE | compatibility alias to `/admin/clients` |
 
 ## Orders / Finance
 
@@ -47,6 +49,8 @@ Legend:
 | `/admin/pricing` | KEEP | pricing configuration/specialist work |
 | `/admin/moq` | KEEP | MOQ policy/configuration |
 | `/admin/currency` | KEEP | currency configuration |
+| `/admin/finance/payments` | CONSOLIDATE | compatibility alias to `/admin/finance` |
+| `/admin/finance/invoices` | CONSOLIDATE | compatibility alias to `/admin/finance` |
 
 ## Operations / Production / Stores
 
@@ -70,6 +74,7 @@ Legend:
 | `/admin/store-coordination` | SIMPLIFY | store transfer/coordination work |
 | `/admin/stock-finalization` | BLOCKED-BY-BACKEND | controlled stock finalization action |
 | `/admin/assembly-tasks` | CONSOLIDATE | compatibility route to assembly execution model |
+| `/admin/assembly` | CONSOLIDATE | compatibility alias to `/admin/assembly-tasks` |
 | `/admin/production` | CONSOLIDATE | legacy/general production view |
 | `/admin/operations` | CONSOLIDATE | legacy/general operations view |
 | `/admin/inventory` | CONSOLIDATE | legacy/general inventory view |
@@ -87,8 +92,8 @@ Legend:
 | `/admin/dispatch-completion` | SIMPLIFY | completion evidence/action |
 | `/admin/dispatch-finalization` | BLOCKED-BY-BACKEND | final authority/action contract |
 | `/admin/dispatch-mgmt` | CONSOLIDATE | legacy/manager dispatch surface |
-| `/admin/packing-dispatch` | CONSOLIDATE | legacy combined packing/dispatch surface |
-| `/admin/dispatch` | CONSOLIDATE | compatibility/general dispatch route |
+| `/admin/packing-dispatch` | CONSOLIDATE | canonical packing/dispatch surface; `/admin/dispatch` redirects here |
+| `/admin/dispatch` | CONSOLIDATE | compatibility alias to `/admin/packing-dispatch` |
 | `/security-gate` | SIMPLIFY | dedicated gate/physical handover surface |
 | `/admin/golden-chain-operator` | BLOCKED-BY-BACKEND | sequential cross-domain operator action |
 
@@ -109,6 +114,7 @@ Central should expose trace context and evidence; specialist Trace application a
 | Route | Disposition | Target role/use |
 |---|---|---|
 | `/admin/users` | KEEP | user/role administration |
+| `/admin/roles` | CONSOLIDATE | compatibility alias to `/admin/users` |
 | `/admin/settings` | KEEP | settings |
 | `/admin/audit` | SPECIALIST | audit trails |
 | `/admin/notifications` | KEEP | notification management |

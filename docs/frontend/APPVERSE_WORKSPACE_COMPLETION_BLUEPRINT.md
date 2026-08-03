@@ -2,7 +2,7 @@
 
 Status: implementation-independent planning baseline
 
-This document is intentionally independent of PR #319. It is derived from the currently registered `main` routes and the approved App-Verse product direction. It does not change schema, RLS, Edge Functions, authentication, production authority, or route behavior.
+This document is derived from the currently registered `main` routes and the approved App-Verse product direction. It complements `.ai-intent/APPVERSE_WAVE1_UX_CONTRACT.md` (Wave 1 interaction contract) and does not change schema, RLS, Edge Functions, authentication, production authority, or route behavior.
 
 ## Governing rule
 
@@ -190,16 +190,8 @@ Each screen must eventually be classified as one of:
 - LINK-OUT: authority belongs to AI Studio or Trace; Central provides context/deep link only.
 - BLOCKED-BY-BACKEND: visual structure can be designed but write behavior waits for schema/contract finalization.
 
-## Stop condition before implementation dependency on #319
+## Stop condition before shell-dependent implementation
 
 Work may proceed independently through inventory, UX specification, screen-state definitions, component contracts, data-source placeholders and device matrices.
 
-Implementation must pause once a change needs any of the following from PR #319:
-- the App-Verse workspace rail,
-- role-aware Home registry,
-- shared App-Verse route authority,
-- App-Verse theme scope,
-- App-Verse application registry,
-- or the new `/admin` Home composition.
-
-At that point PR #319 must be merged/rebased into the implementation branch first.
+Shell-dependent implementation may proceed now that PRs #319, #321, and #322 are merged on `main`. Any future branch that predates that baseline must rebase before changing workspace rail, role-aware Home registry, shared route authority, theme scope, application registry, or `/admin` Home composition.

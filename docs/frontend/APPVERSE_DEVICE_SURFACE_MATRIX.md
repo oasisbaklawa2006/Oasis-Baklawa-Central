@@ -29,7 +29,7 @@ Best for:
 
 Design rules:
 - one task per screen
-- touch target minimum suitable for fast operational use
+- touch target minimum 44×44px (use 48×48px on handheld/gloved surfaces)
 - no desktop table shrunk to mobile
 - queue -> detail -> action flow
 - bottom navigation where appropriate
@@ -46,7 +46,7 @@ Best for:
 
 Design rules:
 - one task per screen
-- touch target minimum suitable for gloved/fast operational use
+- touch target minimum 48×48px for gloved/fast operational use
 - no desktop table shrunk to handheld
 - queue -> detail -> action flow
 - persistent contextual action dock where appropriate
@@ -122,4 +122,4 @@ No execution control should imply success solely because the UI accepted a tap; 
 
 ## Implementation dependency
 
-This matrix can be finalized independently. Actual App-Verse mobile navigation and role-specific surface integration should begin only after PR #319 is merged/rebased because those components own the canonical role/workspace presentation layer.
+This matrix can be finalized independently. App-Verse mobile navigation and role-specific surface integration now depend on the landed shell baseline (PRs #319, #321, #322): workspace rail, role-aware Home registry, shared route authority, theme scope, application registry, and `/admin` Home composition.
