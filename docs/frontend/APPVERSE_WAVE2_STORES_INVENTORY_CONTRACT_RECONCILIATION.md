@@ -4,6 +4,8 @@ Status: **IN PROGRESS** — Wave 2 coding blocked until Phase A criteria are com
 
 Wave 1 is frozen at baseline `717b66eb` (see `.ai-intent/APPVERSE_WAVE1_BASELINE.md`). This document is the only active pre-Wave-2 workstream.
 
+**Last contract review:** `main` @ `144e9d8d` (2026-08-03) — repository evidence audit for Phase A handoffs. Both modules remain **Draft**; not eligible for sign-off.
+
 ## Purpose
 
 Reconcile backend truth for Stores/Inventory modules before any Wave 2 frontend implementation. Frontend must not invent operational behaviour for these surfaces.
@@ -14,8 +16,8 @@ Use `.ai-intent/BACKEND_FRONTEND_MODULE_HANDOFF_TEMPLATE.md` for each module sig
 
 | Module | Canonical route(s) | Disposition | Handoff status | Owner |
 |---|---|---|---|---|
-| Inventory command center | `/admin/inventory-command-center` | SIMPLIFY | **Draft** — [handoff](handoffs/PHASE_A_INVENTORY_COMMAND_CENTER_HANDOFF.md) | Backend thread |
-| Store coordination | `/admin/store-coordination` | SIMPLIFY | **Draft** — [handoff](handoffs/PHASE_A_STORE_COORDINATION_HANDOFF.md) | Backend thread |
+| Inventory command center | `/admin/inventory-command-center` | SIMPLIFY | **Draft** — [handoff](handoffs/PHASE_A_INVENTORY_COMMAND_CENTER_HANDOFF.md) (10 blockers) | Backend thread |
+| Store coordination | `/admin/store-coordination` | SIMPLIFY | **Draft** — [handoff](handoffs/PHASE_A_STORE_COORDINATION_HANDOFF.md) (10 blockers) | Backend thread |
 | Third-party store | `/admin/3pcs-store` | SIMPLIFY | **Not started** | Backend thread |
 | Reservation board | `/admin/reservation-board` | SPECIALIST | **Not started** | Backend thread |
 | Inventory risk board | `/admin/inventory-risk-board` | SPECIALIST | **Not started** | Backend thread |
@@ -23,26 +25,30 @@ Use `.ai-intent/BACKEND_FRONTEND_MODULE_HANDOFF_TEMPLATE.md` for each module sig
 
 ## Reconciliation checklist (per module)
 
-Copy into each module's handoff record when complete:
+| Item | ICC | Store coordination |
+|---|---|---|
+| Canonical entities and identifiers documented | ✅ (with gaps marked) | ✅ (with gaps marked) |
+| Source-of-truth tables/views/RPCs named | ✅ verified + gaps | ✅ verified + gaps |
+| Role and permission boundaries defined | ⚠️ REVIEW-BACKEND (RLS vs app matrix) | ⚠️ REVIEW-BACKEND |
+| State machine with frontend projection | ⚠️ 4A DB states documented; ICC not wired | ⚠️ local drafts only; DB states separate |
+| Authority matrix action identifiers | ✅ app-layer IDs documented | ⚠️ reads only; writes BLOCKED |
+| Exceptions, overrides, escalation paths | ⚠️ partial | ⚠️ partial |
+| Audit evidence requirements specified | ⚠️ append-only ledgers named | ⚠️ BLOCKED for mutations |
+| Data freshness / realtime expectations stated | ⚠️ REVIEW-BACKEND | ⚠️ REVIEW-BACKEND |
+| Mobile/handheld requirements identified | ⬜ deferred to Wave 2 UX | ⬜ deferred to Wave 2 UX |
+| Unknown-state fallback defined | ✅ fail-safe rule stated | ✅ confidence + error paths |
 
-- [ ] Canonical entities and identifiers documented
-- [ ] Source-of-truth tables/views/RPCs named
-- [ ] Role and permission boundaries defined
-- [ ] State machine with frontend projection for every canonical state
-- [ ] Authority matrix action identifiers for every primary operator action
-- [ ] Exceptions, overrides, and escalation paths defined
-- [ ] Audit evidence requirements specified
-- [ ] Data freshness / realtime expectations stated
-- [ ] Mobile/handheld requirements identified (if applicable)
-- [ ] Unknown-state fallback defined (fail-safe, no coercion)
+Legend: ✅ = documented from repo evidence; ⚠️ = partial / needs backend closure; ⬜ = not yet applicable.
 
 ## Open questions (must resolve before Wave 2 UI freeze)
 
-1. Which view/RPC is authoritative for **shortage** vs **reservation** vs **available-to-promise**?
-2. What is the terminal state model for **store transfers** and who may approve exceptions?
-3. Which actions on **stock finalization** require dual control or audit reason capture?
-4. How do reservation board and inventory risk board relate to the command center — filtered lenses or separate domains?
-5. What is the 3PCS store-specific stock rule set vs standard store coordination?
+| # | Question | Finding (repo evidence) | Classification |
+|---|---|---|---|
+| 1 | Shortage vs reservation vs ATP authority? | ATP formula in `reservationAvailability.ts`; balances in `inventory_stock_balances`; no view/RPC | **BLOCKED-BY-BACKEND** |
+| 2 | Store transfer terminal states and approvers? | `store_requisitions` table exists, unwired; no state enum in migrations | **REVIEW-BACKEND** |
+| 3 | Stock finalization dual-control / audit? | `stockAuthorityGuard.ts` requires reasons; golden-chain prerequisites documented | **BLOCKED-BY-BACKEND** (excluded from Phase A) |
+| 4 | Reservation/risk board vs command center? | Specialist routes; 4A tables serve reservation board | **REVIEW-BACKEND** |
+| 5 | 3PCS store rule set vs standard coordination? | `/admin/3pcs-store` is Phase B; not audited here | Phase B |
 
 ## Gate criteria
 
@@ -54,7 +60,7 @@ Only **inventory command center** and **store coordination** may enter Wave 2 im
 |---|---|
 | Inventory command center handoff — AS-IS documented, gaps resolved, **signed off** | 🔄 [Draft](handoffs/PHASE_A_INVENTORY_COMMAND_CENTER_HANDOFF.md) |
 | Store coordination handoff — AS-IS documented, gaps resolved, **signed off** | 🔄 [Draft](handoffs/PHASE_A_STORE_COORDINATION_HANDOFF.md) |
-| `BLOCKED-BY-BACKEND` routes (incl. `/admin/stock-finalization`) excluded from Wave 2 write UI | ⬜ |
+| `BLOCKED-BY-BACKEND` routes (incl. `/admin/stock-finalization`) excluded from Wave 2 write UI | ✅ Documented — excluded in both handoffs §12/§15 |
 | Backend thread sign-off for both Phase A modules recorded below | ⬜ |
 | Wave 1 baseline tests green on `main` | ✅ (frozen at `717b66eb`) |
 
@@ -75,12 +81,27 @@ Wave 2 **coding** may start after Phase A only. Phase B must complete before Wav
 
 | Module | Handoff doc / PR | Signed off by | Date | Notes |
 |---|---|---|---|---|
-| Inventory command center | [PHASE_A_INVENTORY_COMMAND_CENTER_HANDOFF.md](handoffs/PHASE_A_INVENTORY_COMMAND_CENTER_HANDOFF.md) | — | — | Phase A — draft |
-| Store coordination | [PHASE_A_STORE_COORDINATION_HANDOFF.md](handoffs/PHASE_A_STORE_COORDINATION_HANDOFF.md) | — | — | Phase A — draft |
+| Inventory command center | [PHASE_A_INVENTORY_COMMAND_CENTER_HANDOFF.md](handoffs/PHASE_A_INVENTORY_COMMAND_CENTER_HANDOFF.md) | — | — | Phase A — **Draft** (not eligible) |
+| Store coordination | [PHASE_A_STORE_COORDINATION_HANDOFF.md](handoffs/PHASE_A_STORE_COORDINATION_HANDOFF.md) | — | — | Phase A — **Draft** (not eligible) |
 | Third-party store | — | — | — | Phase B |
 | Reservation board | — | — | — | Phase B |
 | Inventory risk board | — | — | — | Phase B |
 | Stock finalization | — | — | — | Blocked until backend contract frozen |
+
+## Verified backend inventory (repo evidence summary)
+
+| Capability | Verified in repo | Wired to admin UI (AS-IS) |
+|---|---|---|
+| `factory_inventory` read | ✅ types + RLS | Store coordination (`/admin/store-coordination`) |
+| Phase 4A reservations (`inventory_reservations`, allocations, movements) | ✅ migrations | Reservation board (`/admin/reservation-board` via `ReservationGovernancePanel`) — **not** ICC or store coordination |
+| Phase 4G stock balances + consumption lineage | ✅ migrations | Stock finalization board (`/admin/stock-finalization`; BLOCKED writes for Wave 2) |
+| ATP formula (code) | ✅ `reservationAvailability.ts` | Reservation board context only (not ICC / store coordination) |
+| Outlet registry | Static `DEFAULT_RETAIL_OUTLETS` only | Store coordination |
+| Per-outlet shelf stock | ❌ | ❌ |
+| Inventory business RPCs | ❌ | ❌ |
+| SQL views for inventory/ATP | ❌ | ❌ |
+
+**Cross-cutting REVIEW-BACKEND:** Phase 4 tables missing from `types.ts`; `is_internal_staff()` role list vs `inventoryAuthorityMatrix.ts` mismatch; migration remote-apply status per `docs/MIGRATION_DRIFT_VERIFICATION_PACK.md`.
 
 ## After Phase A gate opens
 
