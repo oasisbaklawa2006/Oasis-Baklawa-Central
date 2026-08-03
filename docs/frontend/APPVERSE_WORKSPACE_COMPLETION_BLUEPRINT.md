@@ -27,6 +27,11 @@ The seven App-Verse workspaces are presentation containers only and must not bec
 
 ## Existing route consolidation matrix
 
+`docs/frontend/APPVERSE_ROUTE_DISPOSITION_MATRIX.md` is the authoritative disposition source. The sections below group routes for planning narrative only. Where a route is marked CONSOLIDATE, SPECIALIST, or BLOCKED-BY-BACKEND in the disposition matrix, it is not a daily primary navigation surface even if it remains operationally important.
+
+Disposition labels used in both documents:
+- KEEP, SIMPLIFY, CONSOLIDATE, SPECIALIST, LINK-OUT, BLOCKED-BY-BACKEND
+
 ### Home
 
 Primary destination: `/admin`
@@ -37,38 +42,43 @@ Home must become role-first rather than a universal executive dashboard. It shou
 
 ### Customers & Sales
 
-Primary surfaces:
+Primary canonical surfaces (KEEP / SIMPLIFY):
 - `/admin/clients`
 - `/admin/operator-inbox`
 - `/admin/support`
-- `/admin/exceptions`
 - `/admin/customer-timeline-preview`
 - `/admin/operational-search`
-- `/admin/sales-hub`
 
-Compatibility routes:
+Specialist / exception surfaces:
+- `/admin/exceptions` (SPECIALIST)
+- `/admin/sales-hub` (SPECIALIST)
+
+Compatibility routes (CONSOLIDATE):
 - `/admin/customers` -> clients
 - `/admin/crm` -> clients
 - `/admin/central-pool` -> operator inbox
 - `/admin/cmd-war-room` -> operator inbox
 - `/admin/whatsapp` -> operator inbox
+- `/admin/approvals` -> customer/access approval mode within customer context
 
 UX target: one customer context, one attention queue, one communication timeline, one support/exception flow. Do not duplicate the same customer state across separate competing screens.
 
 ### Orders & Finance
 
-Primary surfaces:
+Primary canonical surfaces (KEEP / SIMPLIFY):
 - `/admin/order-management`
-- `/admin/orders`
 - `/admin/accounts-release`
 - `/admin/finance`
-- `/admin/finance-board`
-- `/admin/finance-governance`
 - `/admin/pricing`
 - `/admin/moq`
 - `/admin/currency`
 
-Compatibility routes:
+Specialist surfaces:
+- `/admin/finance-board` (SPECIALIST)
+- `/admin/finance-governance` (SPECIALIST)
+
+Compatibility routes (CONSOLIDATE):
+- `/admin/orders` -> legacy/general order list compatibility
 - `/admin/finance/payments` -> finance
 - `/admin/finance/invoices` -> finance
 
@@ -76,11 +86,8 @@ UX target: the order is the central object. Commercial status, advance, invoice,
 
 ### Operations
 
-Primary surfaces:
+Primary canonical surfaces (KEEP / SIMPLIFY):
 - `/admin/execution-command-center`
-- `/admin/live-work-queues`
-- `/admin/execution-risk`
-- `/admin/execution-bottlenecks`
 - `/admin/execution/production`
 - `/admin/execution/assembly`
 - `/admin/execution/ready-goods`
@@ -88,19 +95,26 @@ Primary surfaces:
 - `/admin/execution/third-party`
 - `/admin/execution/retail`
 - `/admin/inventory-command-center`
-- `/admin/reservation-board`
-- `/admin/inventory-risk-board`
-- `/admin/ready-goods`
 - `/admin/store-coordination`
-- `/admin/stock-finalization`
-- `/admin/assembly-tasks`
-
-Legacy/general routes retained until replacement is certified:
-- `/admin/production`
-- `/admin/operations`
-- `/admin/inventory`
-- `/admin/department`
 - `/admin/3pcs-store`
+
+Specialist surfaces:
+- `/admin/execution-risk` (SPECIALIST)
+- `/admin/execution-bottlenecks` (SPECIALIST)
+- `/admin/reservation-board` (SPECIALIST)
+- `/admin/inventory-risk-board` (SPECIALIST)
+
+Compatibility / consolidated routes:
+- `/admin/live-work-queues` (CONSOLIDATE -> command center queue lens)
+- `/admin/ready-goods` (CONSOLIDATE)
+- `/admin/assembly-tasks` (CONSOLIDATE)
+- `/admin/production` (CONSOLIDATE)
+- `/admin/operations` (CONSOLIDATE)
+- `/admin/inventory` (CONSOLIDATE)
+- `/admin/department` (CONSOLIDATE)
+
+Blocked-by-backend write surfaces:
+- `/admin/stock-finalization` (BLOCKED-BY-BACKEND)
 
 UX target: execution-first. Each operational role sees current work, blockers, shortages, overdue actions and the next valid transition. Management sees cross-department bottlenecks; operators see only the work they can execute.
 
@@ -116,34 +130,39 @@ UX target: Central shows operational product context and publication/sync status
 
 ### Trace & Dispatch
 
-Primary surfaces:
+Primary canonical surfaces (KEEP / SIMPLIFY):
 - `/admin/scan-timeline`
 - `/admin/carton-explorer`
 - `/admin/label-command-center`
 - `/admin/dispatch-readiness`
 - `/admin/dispatch-completion`
-- `/admin/dispatch-finalization`
-- `/admin/dispatch-mgmt`
 - `/security-gate`
 
-Related execution surfaces:
-- `/admin/execution/dispatch`
-- `/admin/packing-dispatch`
-- `/admin/dispatch`
+Blocked-by-backend write surfaces:
+- `/admin/dispatch-finalization` (BLOCKED-BY-BACKEND)
+- `/admin/golden-chain-operator` (BLOCKED-BY-BACKEND)
+
+Compatibility / consolidated routes:
+- `/admin/dispatch-mgmt` (CONSOLIDATE)
+- `/admin/packing-dispatch` (CONSOLIDATE)
+- `/admin/dispatch` (CONSOLIDATE)
+- `/admin/execution/dispatch` (SIMPLIFY canonical execution board; listed under Operations)
 
 UX target: one physical chain from packed goods -> labels/cartons -> readiness -> handover -> gate -> dispatch completion. Trace remains the specialist traceability application; Central should link to evidence rather than duplicate trace internals.
 
 ### Governance
 
-Primary surfaces:
+Primary canonical surfaces (KEEP):
 - `/admin/users`
 - `/admin/settings`
-- `/admin/audit`
 - `/admin/notifications`
 - `/admin/announcements`
 - `/admin/display-management`
 - `/admin/logistics`
-- `/admin/entity-graph-explorer`
+
+Specialist surfaces:
+- `/admin/audit` (SPECIALIST)
+- `/admin/entity-graph-explorer` (SPECIALIST)
 
 UX target: infrequent administrative functions stay out of daily navigation. Governance should be search/drill-down oriented, with dangerous actions separated from ordinary settings.
 

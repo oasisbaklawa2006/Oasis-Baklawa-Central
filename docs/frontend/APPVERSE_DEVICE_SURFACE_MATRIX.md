@@ -19,21 +19,35 @@ Design rules:
 - keyboard/search friendly
 - support large monitors without creating empty KPI walls
 
-## Mobile / handheld
+## Mobile (phone)
+
+Best for:
+- manager quick review on the move
+- WhatsApp/support operator continuation
+- short approvals with minimal context
+- lightweight queue monitoring
+
+Design rules:
+- one task per screen
+- touch target minimum suitable for fast operational use
+- no desktop table shrunk to mobile
+- queue -> detail -> action flow
+- bottom navigation where appropriate
+- camera actions available but secondary to queue/action flow
+
+## Handheld (scanner / shop-floor device)
 
 Best for:
 - production execution
 - stores actions
 - packing and dispatch
 - barcode/QR interactions
-- manager quick review
-- WhatsApp/support operator continuation
-- approvals requiring short context and a clear decision
+- evidence capture at point of work
 
 Design rules:
 - one task per screen
-- touch target minimum suitable for gloved/fast operational use where relevant
-- no desktop table shrunk to mobile
+- touch target minimum suitable for gloved/fast operational use
+- no desktop table shrunk to handheld
 - queue -> detail -> action flow
 - persistent contextual action dock where appropriate
 - camera/scanner actions visually dominant where the workflow requires them
@@ -76,21 +90,21 @@ TV design rules:
 
 ## Surface-by-role matrix
 
-| Role family | Desktop | Mobile/handheld | TV |
-|---|---|---|---|
-| CMD / executive | Primary command + deep drill | Compact exception/approval view | Optional enterprise summary only |
-| Finance | Primary | Approval/verification companion | Not default |
-| Operations manager | Primary | Strong companion | Department/plant summary |
-| Production HOD | Strong | Primary execution companion | Primary ambient board |
-| Shop-floor production | Limited | Primary | Primary ambient board |
-| Stores | Strong | Primary execution | Ready-goods/material status where useful |
-| Packing | Strong | Primary | Packing/dispatch readiness |
-| Dispatch | Strong | Primary | Primary dispatch wall |
-| Gate/security | Limited | Primary | Optional gate status |
-| WhatsApp/support operator | Primary | Strong companion | Not default |
-| Support manager | Primary | Compact monitoring | Optional SLA board |
-| Catalogue contributor | Primary | Secondary | Not default |
-| Governance/admin | Primary | Limited | Not default |
+| Role family | Desktop | Mobile (phone) | Handheld (scanner) | TV |
+|---|---|---|---|---|
+| CMD / executive | Primary command + deep drill | Compact exception/approval view | Limited | Optional enterprise summary only |
+| Finance | Primary | Approval/verification companion | Limited | Not default |
+| Operations manager | Primary | Strong companion | Execution companion | Department/plant summary |
+| Production HOD | Strong | Monitoring companion | Primary execution companion | Primary ambient board |
+| Shop-floor production | Limited | Limited | Primary | Primary ambient board |
+| Stores | Strong | Monitoring companion | Primary execution | Ready-goods/material status where useful |
+| Packing | Strong | Limited | Primary execution | Packing/dispatch readiness |
+| Dispatch | Strong | Limited | Primary execution | Primary dispatch wall |
+| Gate/security | Limited | Limited | Primary | Optional gate status |
+| WhatsApp/support operator | Primary | Strong companion | Limited | Not default |
+| Support manager | Primary | Compact monitoring | Limited | Optional SLA board |
+| Catalogue contributor | Primary | Secondary | Limited | Not default |
+| Governance/admin | Primary | Limited | Limited | Not default |
 
 ## Responsive implementation rule
 

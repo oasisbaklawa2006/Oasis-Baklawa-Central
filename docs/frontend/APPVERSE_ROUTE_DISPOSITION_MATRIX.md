@@ -8,7 +8,7 @@ Legend:
 - CONSOLIDATE = move daily use into a stronger canonical surface; retain compatibility route until certified
 - SPECIALIST = deep tool, not daily primary navigation
 - LINK-OUT = context/deep link to another App-Verse application authority
-- REVIEW-BACKEND = final action model waits for backend schema/contract confirmation
+- BLOCKED-BY-BACKEND = final action model waits for backend schema/contract confirmation
 
 ## Home / command
 
@@ -68,7 +68,7 @@ Legend:
 | `/admin/inventory-risk-board` | SPECIALIST | shortage/risk analysis |
 | `/admin/ready-goods` | CONSOLIDATE | compatibility/details behind ready-goods execution |
 | `/admin/store-coordination` | SIMPLIFY | store transfer/coordination work |
-| `/admin/stock-finalization` | REVIEW-BACKEND | controlled stock finalization action |
+| `/admin/stock-finalization` | BLOCKED-BY-BACKEND | controlled stock finalization action |
 | `/admin/assembly-tasks` | CONSOLIDATE | compatibility route to assembly execution model |
 | `/admin/production` | CONSOLIDATE | legacy/general production view |
 | `/admin/operations` | CONSOLIDATE | legacy/general operations view |
@@ -85,12 +85,12 @@ Legend:
 | `/admin/label-command-center` | KEEP | labels/identifiers |
 | `/admin/dispatch-readiness` | SIMPLIFY | readiness decision/action queue |
 | `/admin/dispatch-completion` | SIMPLIFY | completion evidence/action |
-| `/admin/dispatch-finalization` | REVIEW-BACKEND | final authority/action contract |
+| `/admin/dispatch-finalization` | BLOCKED-BY-BACKEND | final authority/action contract |
 | `/admin/dispatch-mgmt` | CONSOLIDATE | legacy/manager dispatch surface |
 | `/admin/packing-dispatch` | CONSOLIDATE | legacy combined packing/dispatch surface |
 | `/admin/dispatch` | CONSOLIDATE | compatibility/general dispatch route |
 | `/security-gate` | SIMPLIFY | dedicated gate/physical handover surface |
-| `/admin/golden-chain-operator` | REVIEW-BACKEND | sequential cross-domain operator action |
+| `/admin/golden-chain-operator` | BLOCKED-BY-BACKEND | sequential cross-domain operator action |
 
 Central should expose trace context and evidence; specialist Trace application authority must not be duplicated in Central.
 
