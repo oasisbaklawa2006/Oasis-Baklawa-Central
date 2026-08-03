@@ -24,14 +24,16 @@ Mount the reviewed App-Verse navigation foundation into the existing Central Adm
 
 ## Wave 1 completion (2026-08-03)
 
-Wave 1 is complete on `main` when:
+Wave 1 is **frozen** at commit `6b18bc68` (PR #324). See `.ai-intent/APPVERSE_WAVE1_BASELINE.md` for the authoritative baseline, validation record, protected manifest, and change policy.
 
-- Role-aware Home cards filter by module authority (`roleHome.ts`).
-- Wave 1 launchpad surfaces Orders & Finance, Operations & Production, and WhatsApp & Support by permission (`wave1.ts`).
-- Shell, mobile nav, and compatibility `All tools` drawer remain unchanged in authority scope.
-- Release Quality Gate is green.
+Wave 1 delivers:
 
-Wave 2 planning is deferred until backend handoff templates are completed for the next workspace clusters.
+- Role-aware Home cards filtered by module authority (`roleHome.ts`).
+- Wave 1 launchpad for Orders & Finance, Operations & Production, and WhatsApp & Support (`wave1.ts`).
+- `/admin` composition via `AppverseAdminHome`.
+- Invariant tests in `wave1Baseline.test.ts` — must remain green.
+
+Wave 2 is blocked until Stores/Inventory backend contracts are reconciled (`docs/frontend/APPVERSE_WAVE2_STORES_INVENTORY_CONTRACT_RECONCILIATION.md`).
 
 ## Acceptance gate
 
