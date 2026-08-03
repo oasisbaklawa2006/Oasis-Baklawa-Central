@@ -79,6 +79,11 @@ Define:
 - Approval authority.
 - Escalation rule.
 - Customer-visible impact.
+- Requested value and proposed value, where applicable.
+- Approval status and decision outcome.
+- Decision actor, timestamp, reason and approval reference.
+- Supporting evidence linked to the approval decision.
+- Lifecycle states: requested, pending, approved, rejected, expired or superseded.
 
 ## Queue model
 
@@ -90,6 +95,10 @@ Define the operational queues users actually work from:
 - SLA/ageing rule.
 - Primary action.
 - Exit condition.
+- Current owner or assignee.
+- Claim, assignment and reassignment rules.
+- Escalation owner.
+- Ownership-change audit requirements.
 
 ## Data shown in list view
 
@@ -152,7 +161,8 @@ The frontend should not be considered final until:
 - Every status maps to a canonical backend state and defined frontend projection.
 - Every approval/override has a backend enforcement path.
 - Every queue has deterministic inclusion and exit rules.
-- Every sensitive record has server-side access control.
+- Every record and field read has a server-side authorization decision based on view authority and visibility classification.
+- Sensitivity classification remains an additional restriction where applicable.
 - Every realtime/event consumer has defined ordering, duplicate, reconnect/resync and stale-state behavior.
 - Empty/loading/error/permission-denied/unknown-state states are defined.
 - Mobile/TV behaviour is specified where relevant.
