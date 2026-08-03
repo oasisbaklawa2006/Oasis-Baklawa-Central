@@ -2,7 +2,7 @@
 
 Status: **IN PROGRESS** — Wave 2 coding blocked until Phase A criteria are complete. Phase B modules remain blocked until their own handoffs finish.
 
-Wave 1 is frozen at commit `6b18bc68` (see `.ai-intent/APPVERSE_WAVE1_BASELINE.md`). This document is the only active pre-Wave-2 workstream.
+Wave 1 is frozen at baseline `717b66eb` (see `.ai-intent/APPVERSE_WAVE1_BASELINE.md`). This document is the only active pre-Wave-2 workstream.
 
 ## Purpose
 
@@ -14,8 +14,8 @@ Use `.ai-intent/BACKEND_FRONTEND_MODULE_HANDOFF_TEMPLATE.md` for each module sig
 
 | Module | Canonical route(s) | Disposition | Handoff status | Owner |
 |---|---|---|---|---|
-| Inventory command center | `/admin/inventory-command-center` | SIMPLIFY | **Not started** | Backend thread |
-| Store coordination | `/admin/store-coordination` | SIMPLIFY | **Not started** | Backend thread |
+| Inventory command center | `/admin/inventory-command-center` | SIMPLIFY | **Draft** — [handoff](handoffs/PHASE_A_INVENTORY_COMMAND_CENTER_HANDOFF.md) | Backend thread |
+| Store coordination | `/admin/store-coordination` | SIMPLIFY | **Draft** — [handoff](handoffs/PHASE_A_STORE_COORDINATION_HANDOFF.md) | Backend thread |
 | Third-party store | `/admin/3pcs-store` | SIMPLIFY | **Not started** | Backend thread |
 | Reservation board | `/admin/reservation-board` | SPECIALIST | **Not started** | Backend thread |
 | Inventory risk board | `/admin/inventory-risk-board` | SPECIALIST | **Not started** | Backend thread |
@@ -48,15 +48,19 @@ Copy into each module's handoff record when complete:
 
 ### Phase A — Wave 2 primary surfaces (required before any Wave 2 coding)
 
+Only **inventory command center** and **store coordination** may enter Wave 2 implementation. All Phase B modules remain blocked.
+
 | Criterion | Status |
 |---|---|
-| Inventory command center handoff template **complete** | ⬜ |
-| Store coordination handoff template **complete** | ⬜ |
-| `BLOCKED-BY-BACKEND` routes explicitly excluded from Wave 2 write UI | ⬜ |
-| Backend thread sign-off for Phase A modules recorded below | ⬜ |
-| Wave 1 baseline tests green on `main` | ✅ (frozen at `6b18bc68`) |
+| Inventory command center handoff — AS-IS documented, gaps resolved, **signed off** | 🔄 [Draft](handoffs/PHASE_A_INVENTORY_COMMAND_CENTER_HANDOFF.md) |
+| Store coordination handoff — AS-IS documented, gaps resolved, **signed off** | 🔄 [Draft](handoffs/PHASE_A_STORE_COORDINATION_HANDOFF.md) |
+| `BLOCKED-BY-BACKEND` routes (incl. `/admin/stock-finalization`) excluded from Wave 2 write UI | ⬜ |
+| Backend thread sign-off for both Phase A modules recorded below | ⬜ |
+| Wave 1 baseline tests green on `main` | ✅ (frozen at `717b66eb`) |
 
-### Phase B — specialist and blocked modules (required before Wave 2 UAT sign-off)
+**Policy:** Wave 2 coding may start only when **every** Phase A criterion is complete. Draft handoffs document current code reality; sign-off requires backend closure of all open questions.
+
+### Phase B — specialist modules (required before Wave 2 UAT sign-off)
 
 | Criterion | Status |
 |---|---|
@@ -71,8 +75,8 @@ Wave 2 **coding** may start after Phase A only. Phase B must complete before Wav
 
 | Module | Handoff doc / PR | Signed off by | Date | Notes |
 |---|---|---|---|---|
-| Inventory command center | — | — | — | Phase A |
-| Store coordination | — | — | — | Phase A |
+| Inventory command center | [PHASE_A_INVENTORY_COMMAND_CENTER_HANDOFF.md](handoffs/PHASE_A_INVENTORY_COMMAND_CENTER_HANDOFF.md) | — | — | Phase A — draft |
+| Store coordination | [PHASE_A_STORE_COORDINATION_HANDOFF.md](handoffs/PHASE_A_STORE_COORDINATION_HANDOFF.md) | — | — | Phase A — draft |
 | Third-party store | — | — | — | Phase B |
 | Reservation board | — | — | — | Phase B |
 | Inventory risk board | — | — | — | Phase B |
