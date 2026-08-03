@@ -60,6 +60,8 @@ Only **inventory command center** and **store coordination** may enter Wave 2 im
 
 **Policy:** Wave 2 coding may start only when **every** Phase A criterion is complete. Draft handoffs document current code reality; sign-off requires backend closure of all open questions.
 
+### Phase B — specialist modules (required before Wave 2 UAT sign-off)
+
 | Criterion | Status |
 |---|---|
 | Third-party store handoff template **complete** | ⬜ |

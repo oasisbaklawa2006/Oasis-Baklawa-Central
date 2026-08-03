@@ -39,8 +39,8 @@ Coordinate retail outlet visibility, reservation intent, factory follow-up, and 
 
 | Entity | Identifier | Source (current/proposed) | Status |
 |---|---|---|---|
-| Product | `product_id`, `sku`, `default_store` | `products` | ✅ Read today |
-| Factory inventory row | `product_id`, `quantity`, `last_updated` | `factory_inventory` | ✅ Read today — **not shelf stock** |
+| Product | `products.id` → `productId`, `sku`, `default_store` | `products` (via `factory_inventory` join) | ✅ Read today |
+| Factory inventory row | `factory_inventory.product_id`, `quantity`, `last_updated` | `factory_inventory` | ✅ Read today — **not shelf stock** |
 | Retail outlet | `outletId`, `outletName` | `DEFAULT_RETAIL_OUTLETS` (static) | ⬜ Needs DB/registry authority |
 | Reservation | `id`, customer, store, product, status | Local draft only | ⬜ **No persistence** |
 | Factory follow-up | `id`, store, product, urgency | Local draft only | ⬜ **No persistence** |
@@ -107,4 +107,4 @@ Backend must supply full state machines with frontend projections before Wave 2 
 | Backend owner | — | — | ⬜ |
 | Frontend owner | — | — | ⬜ |
 
-**Sign-off recorded in:** `docs/frontend/APPVERSE_WAVE2_STORES_INVENTORY_CONTRACT_RECONCILIATION.md`
+**Sign-off recorded in:** [`../APPVERSE_WAVE2_STORES_INVENTORY_CONTRACT_RECONCILIATION.md`](../APPVERSE_WAVE2_STORES_INVENTORY_CONTRACT_RECONCILIATION.md)

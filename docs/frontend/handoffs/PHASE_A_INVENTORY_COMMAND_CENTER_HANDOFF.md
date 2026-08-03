@@ -88,4 +88,4 @@ No write controls may be designed until action identifiers and RPC contracts are
 | Backend owner | — | — | ⬜ |
 | Frontend owner | — | — | ⬜ |
 
-**Sign-off recorded in:** `docs/frontend/APPVERSE_WAVE2_STORES_INVENTORY_CONTRACT_RECONCILIATION.md`
+**Sign-off recorded in:** [`../APPVERSE_WAVE2_STORES_INVENTORY_CONTRACT_RECONCILIATION.md`](../APPVERSE_WAVE2_STORES_INVENTORY_CONTRACT_RECONCILIATION.md)
