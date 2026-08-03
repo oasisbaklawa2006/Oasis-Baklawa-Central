@@ -44,26 +44,49 @@ Copy into each module's handoff record when complete:
 4. How do reservation board and inventory risk board relate to the command center — filtered lenses or separate domains?
 5. What is the 3PCS store-specific stock rule set vs standard store coordination?
 
-## Gate criteria (Wave 2 coding may start when)
+## Gate criteria
+
+### Phase A — Wave 2 primary surfaces (required before any Wave 2 coding)
 
 | Criterion | Status |
 |---|---|
 | Inventory command center handoff template **complete** | ⬜ |
 | Store coordination handoff template **complete** | ⬜ |
 | `BLOCKED-BY-BACKEND` routes explicitly excluded from Wave 2 write UI | ⬜ |
-| Backend thread sign-off recorded in this document | ⬜ |
+| Backend thread sign-off for Phase A modules recorded below | ⬜ |
 | Wave 1 baseline tests green on `main` | ✅ (frozen at `6b18bc68`) |
+
+### Phase B — specialist and blocked modules (required before Wave 2 UAT sign-off)
+
+| Criterion | Status |
+|---|---|
+| Third-party store handoff template **complete** | ⬜ |
+| Reservation board handoff template **complete** | ⬜ |
+| Inventory risk board handoff template **complete** | ⬜ |
+| Stock finalization contract frozen or remains explicitly blocked | ⬜ |
+
+Wave 2 **coding** may start after Phase A only. Phase B must complete before Wave 2 release certification.
 
 ## Sign-off record
 
 | Module | Handoff doc / PR | Signed off by | Date | Notes |
 |---|---|---|---|---|
-| Inventory command center | — | — | — | |
-| Store coordination | — | — | — | |
-| Third-party store | — | — | — | |
+| Inventory command center | — | — | — | Phase A |
+| Store coordination | — | — | — | Phase A |
+| Third-party store | — | — | — | Phase B |
+| Reservation board | — | — | — | Phase B |
+| Inventory risk board | — | — | — | Phase B |
+| Stock finalization | — | — | — | Blocked until backend contract frozen |
 
-## After gate opens
+## After Phase A gate opens
 
 1. Draft `.ai-intent/APPVERSE_WAVE2_UX_CONTRACT.md` (presentation only).
 2. Add `src/lib/appverse/wave2.ts` following the `wave1.ts` pattern.
 3. Extend launchpad additively; do not modify Wave 1 invariants without baseline evidence.
+
+## Wave 2 clusters (post Stores/Inventory)
+
+After Stores/Inventory Phase A/B complete, reconcile backend contracts for:
+
+- Dispatch / Trace management surfaces (Wave 1 shell already includes `trace-dispatch` container)
+- Governance management surfaces (Wave 1 shell already includes `governance` container)

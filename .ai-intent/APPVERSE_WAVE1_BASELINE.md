@@ -37,7 +37,7 @@ Wave 1 is one tranche of the larger App-Verse programme. It delivers:
 4. **Admin Home composition** — `/admin` renders `AppverseAdminHome` (Home + launchpad + executive link + app registry + TV surfaces).
 5. **Planning docs** — route disposition matrix, device surface matrix, priority UX spec, workspace completion blueprint.
 
-Wave 1 does **not** include Stores/Inventory simplification, Dispatch/Trace chain unification, or Governance workspace — those are Wave 2+.
+Wave 1 does **not** include Stores/Inventory simplification, Dispatch/Trace chain unification, or **Governance management surfaces** (users, audit, settings drill-down). The Wave 1 shell includes a `governance` **workspace container** in navigation only; Wave 2 delivers the management-surface simplification inside that container.
 
 ## Protected implementation manifest
 
@@ -83,13 +83,16 @@ Changes to these files require baseline evidence (see Change policy below):
 
 ## Frozen behavioural invariants
 
-Encoded in `src/lib/appverse/wave1Baseline.ts` and enforced by `wave1Baseline.test.ts`:
+**Encoded in `wave1Baseline.ts` and enforced by `wave1Baseline.test.ts`:**
 
 - Exactly **3** Wave 1 launchpad areas with keys `orders-finance`, `operations-production`, `whatsapp-support`.
 - Launchpad landing paths: `/admin/order-management`, `/admin/execution-command-center`, `/admin/operator-inbox`.
-- Exactly **7** App-Verse workspace containers; Home anchored at `/admin`.
-- Module authority filtering must never expand permissions beyond `roleAccess.ts`.
-- No route deletion in Wave 1; compatibility aliases remain functional.
+- Exactly **7** App-Verse workspace containers (including `governance` as a navigation container); Home anchored at `/admin`.
+
+**Enforced by existing tests elsewhere (not duplicated in `wave1Baseline.test.ts`):**
+
+- Module authority filtering must never expand permissions beyond `roleAccess.ts` — see `roleAccess.test.ts`, `roleHome.test.ts`, `workspaces.test.ts`.
+- Compatibility route aliases remain registered in `App.tsx` — disposition matrix is authoritative; route removal requires disposition update and UAT.
 
 ## Change policy (mandatory)
 
@@ -117,9 +120,9 @@ Tracker: `docs/frontend/APPVERSE_WAVE2_STORES_INVENTORY_CONTRACT_RECONCILIATION.
 
 Wave 2 clusters (after Stores/Inventory contracts stable):
 
-- Stores / Inventory
-- Dispatch / Trace
-- Governance / management surfaces
+- Stores / Inventory management surfaces
+- Dispatch / Trace management surfaces (Wave 1 `trace-dispatch` container exists)
+- Governance management surfaces (Wave 1 `governance` container exists)
 
 Do not open Wave 2 coding until the Stores/Inventory reconciliation tracker shows **Ready** for inventory command center and store coordination.
 
