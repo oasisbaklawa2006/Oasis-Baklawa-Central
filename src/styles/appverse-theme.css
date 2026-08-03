@@ -1,0 +1,60 @@
+.appverse-shell {
+  /* Oasis App-Verse neutral premium base */
+  --background: 60 16% 93%; /* #EFEFE9 */
+  --foreground: 24 24% 17%; /* espresso-charcoal */
+
+  --card: 46 43% 90%; /* #F1ECDC */
+  --card-foreground: 24 24% 17%;
+
+  --popover: 0 0% 97%; /* #F8F8F8 */
+  --popover-foreground: 24 24% 17%;
+
+  --primary: 42 44% 52%; /* restrained antique gold */
+  --primary-foreground: 36 28% 10%;
+
+  --secondary: 78 10% 56%; /* olive grey */
+  --secondary-foreground: 24 24% 14%;
+
+  --muted: 0 0% 97%; /* #F8F8F8 */
+  --muted-foreground: 24 10% 39%;
+
+  --accent: 46 43% 90%;
+  --accent-foreground: 24 24% 17%;
+
+  --destructive: 15 50% 49%;
+  --destructive-foreground: 0 0% 100%;
+
+  --border: 40 16% 83%;
+  --input: 40 16% 83%;
+  --ring: 42 44% 52%;
+
+  --appverse-premium: 46 43% 90%;
+  --appverse-espresso: 24 24% 17%;
+  --appverse-gold: 42 44% 52%;
+  --appverse-olive: 78 10% 42%;
+  --appverse-utility: 0 0% 97%;
+
+  --radius: 0.875rem;
+  --card-shadow: 0 8px 28px rgba(59, 49, 39, 0.055);
+  --nav-shadow: 0 8px 28px rgba(59, 49, 39, 0.045);
+  --fab-shadow: 0 8px 24px rgba(59, 49, 39, 0.08);
+
+  --font-body: 'Hanken Grotesk', 'Lato', 'Jost', sans-serif;
+  --font-ui: 'Hanken Grotesk', 'Lato', sans-serif;
+  --font-number: 'DM Sans', 'Hanken Grotesk', 'Lato', sans-serif;
+  --font-display: 'Libre Caslon Text', 'Playfair Display', 'Georgia', serif;
+  --font-serif: 'Libre Caslon Text', 'Cormorant Garamond', 'Georgia', serif;
+
+  --sidebar-background: 0 0% 97%;
+  --sidebar-foreground: 24 24% 17%;
+  --sidebar-primary: 42 44% 52%;
+  --sidebar-primary-foreground: 24 24% 12%;
+  --sidebar-accent: 46 43% 90%;
+  --sidebar-accent-foreground: 24 24% 17%;
+  --sidebar-border: 40 16% 83%;
+  --sidebar-ring: 42 44% 52%;
+}
+
+.appverse-surface-base { background: #EFEFE9; }
+.appverse-surface-warm { background: #F1ECDC; }
+.appverse-surface-neutral { background: #F8F8F8; }

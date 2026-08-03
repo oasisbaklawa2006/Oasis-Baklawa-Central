@@ -1,19 +1,21 @@
 import { Navigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
-import { hasAdminModuleAccess } from "@/lib/auth/adminModuleAccess";
+import {
+  getAllowedModulesForRole,
+  hasModuleAccess,
+  type AppVerseModuleKey,
+} from "@/lib/appverse/roleAccess";
 
 interface AdminModuleRouteProps {
-  moduleKey: string;
+  moduleKey: AppVerseModuleKey;
   children: React.ReactNode;
 }
 
-/**
- * Router-level guard for admin modules (e.g. cmd_war_room).
- * Complements ProtectedRoute + RoleProtectedRoute — blocks direct URL access without module permission.
- */
+/** Router-level guard for explicit admin module routes. */
 export default function AdminModuleRoute({ moduleKey, children }: AdminModuleRouteProps) {
   const { role } = useAuth();
-  if (!hasAdminModuleAccess(role, moduleKey)) {
+  const allowedModules = getAllowedModulesForRole(role);
+  if (!hasModuleAccess(allowedModules, moduleKey)) {
     return <Navigate to="/admin" replace />;
   }
   return <>{children}</>;
