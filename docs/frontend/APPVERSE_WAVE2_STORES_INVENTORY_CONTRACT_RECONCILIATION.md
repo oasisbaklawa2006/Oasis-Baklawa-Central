@@ -90,12 +90,12 @@ Wave 2 **coding** may start after Phase A only. Phase B must complete before Wav
 
 ## Verified backend inventory (repo evidence summary)
 
-| Capability | Verified in repo | Wired to Phase A UI |
+| Capability | Verified in repo | Wired to admin UI (AS-IS) |
 |---|---|---|
-| `factory_inventory` read | ✅ types + RLS | Store coordination only |
-| Phase 4A reservations (`inventory_reservations`, allocations, movements) | ✅ migrations | Reservation board (not ICC / store coord) |
-| Phase 4G stock balances + consumption lineage | ✅ migrations | Stock finalization board (BLOCKED writes for Wave 2) |
-| ATP formula (code) | ✅ `reservationAvailability.ts` | Neither Phase A surface |
+| `factory_inventory` read | ✅ types + RLS | Store coordination (`/admin/store-coordination`) |
+| Phase 4A reservations (`inventory_reservations`, allocations, movements) | ✅ migrations | Reservation board (`/admin/reservation-board` via `ReservationGovernancePanel`) — **not** ICC or store coordination |
+| Phase 4G stock balances + consumption lineage | ✅ migrations | Stock finalization board (`/admin/stock-finalization`; BLOCKED writes for Wave 2) |
+| ATP formula (code) | ✅ `reservationAvailability.ts` | Reservation board context only (not ICC / store coordination) |
 | Outlet registry | Static `DEFAULT_RETAIL_OUTLETS` only | Store coordination |
 | Per-outlet shelf stock | ❌ | ❌ |
 | Inventory business RPCs | ❌ | ❌ |

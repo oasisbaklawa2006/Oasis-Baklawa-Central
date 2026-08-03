@@ -232,10 +232,10 @@ Append-only ledgers for stock impact: `inventory_movements`, `stock_consumption_
 
 | Aspect | Store coordination | Inventory command center |
 |---|---|---|
-| Factory snapshot read | ✅ wired | ❌ not wired |
-| Governed reservations | Local drafts only | Specialist board + 4A tables |
-| ATP / shortage | Not available | Not available |
-| Intended relationship | **REVIEW-BACKEND** — sibling surfaces or parent/child? |
+| Factory snapshot read | ✅ wired (`factory_inventory`) | ❌ not wired |
+| Governed reservations | Local drafts only | `/admin/reservation-board` reads/writes 4A tables; ICC not wired |
+| ATP / shortage | Not available on either Phase A surface | Not available on ICC; reservation board has per-SKU snapshot only |
+| Intended relationship | Sibling surface — factory snapshot primary feed | Sibling surface — governed inventory feeds elsewhere — **REVIEW-BACKEND** confirm parent/child |
 
 ---
 
