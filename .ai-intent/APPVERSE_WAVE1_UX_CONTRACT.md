@@ -147,6 +147,15 @@ Every state-based screen should visibly distinguish:
 
 Colours must never be the sole carrier of meaning; labels/icons are required.
 
+Every canonical backend state must also provide a frontend projection contract containing:
+
+- Display label and semantic category.
+- Whether the state is actionable and by whom.
+- Relative precedence when multiple conditions are present.
+- Blocking/attention semantics.
+- Customer-visible projection, if any.
+- Unknown-state fallback. Unknown or unmapped states must render as `Status unavailable`/diagnostic-safe UI and must never be coerced into a normal, completed or customer-safe state.
+
 ## Approval and exception interaction
 
 Where backend authority requires approval, the frontend must expose:
@@ -164,14 +173,14 @@ The frontend must not simulate approval by hiding or enabling a button locally.
 
 ## Detail-page rule
 
-A user should be able to reach the underlying order/customer/payment/message/scan/audit context in three clicks or fewer from a role Home or primary queue.
+A user should be able to reach the underlying order/customer/payment/message/scan/audit context in no more than three intentional interactions from a role Home or primary queue. An intentional interaction means one activation of a visible navigation/action control by mouse, touch, keyboard or remote-control focus/confirm. Focus traversal itself does not count as an interaction. Equivalent desktop, mobile/handheld, keyboard-only and TV remote paths must preserve the same three-or-fewer activation limit where detail access is supported.
 
 ## Backend synchronization checkpoints
 
 Detailed screen implementation for a module should not be frozen until the backend thread provides:
 
 1. Canonical entities/fields.
-2. State machine.
+2. State machine and frontend projection for every canonical state.
 3. Role/action authority.
 4. Approval/exception rules.
 5. Required audit evidence.
