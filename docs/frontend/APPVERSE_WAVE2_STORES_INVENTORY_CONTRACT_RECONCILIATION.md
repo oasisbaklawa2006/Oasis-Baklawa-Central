@@ -1,6 +1,6 @@
 # Wave 2 Gate: Stores / Inventory Backend Contract Reconciliation
 
-Status: **IN PROGRESS** — Wave 2 coding blocked until this tracker is **Ready**.
+Status: **IN PROGRESS** — Wave 2 coding blocked until Phase A criteria are complete. Phase B modules remain blocked until their own handoffs finish.
 
 Wave 1 is frozen at commit `6b18bc68` (see `.ai-intent/APPVERSE_WAVE1_BASELINE.md`). This document is the only active pre-Wave-2 workstream.
 
