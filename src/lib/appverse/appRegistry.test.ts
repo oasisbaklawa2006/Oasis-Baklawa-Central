@@ -1,0 +1,28 @@
+import { describe, expect, it } from "vitest";
+import { APPVERSE_APPS, getInternalApps } from "./appRegistry";
+import { APPVERSE_TV_SURFACES, getTvSurfacesForRole } from "./tvSurfaces";
+
+describe("App-Verse application registry", () => {
+  it("keeps Central, AI Studio and Trace as the internal application set", () => {
+    expect(getInternalApps().map((app) => app.key)).toEqual(["central", "ai-studio", "trace"]);
+  });
+
+  it("keeps the buyer application explicitly customer-facing", () => {
+    const buyer = APPVERSE_APPS.find((app) => app.key === "buyer");
+    expect(buyer?.surface).toBe("customer");
+  });
+});
+
+describe("App-Verse TV registry", () => {
+  it("registers existing production and operational TV surfaces", () => {
+    expect(APPVERSE_TV_SURFACES.length).toBeGreaterThanOrEqual(9);
+  });
+
+  it("limits HOD views to their relevant line", () => {
+    expect(getTvSurfacesForRole("HOD_BAKERY").map((surface) => surface.route)).toEqual(["/tv/bakery"]);
+  });
+
+  it("allows administrators to inspect every display surface", () => {
+    expect(getTvSurfacesForRole("ADMIN")).toHaveLength(APPVERSE_TV_SURFACES.length);
+  });
+});
