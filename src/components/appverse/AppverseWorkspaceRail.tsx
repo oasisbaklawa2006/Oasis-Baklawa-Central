@@ -4,9 +4,10 @@ import {
   canAccessWorkspace,
   getWorkspaceForPath,
 } from "@/lib/appverse/workspaces";
+import type { AppVerseGrantedModule } from "@/lib/appverse/roleAccess";
 
 type AppverseWorkspaceRailProps = {
-  allowedModules: string[];
+  allowedModules: readonly AppVerseGrantedModule[];
   onNavigate?: () => void;
 };
 

@@ -18,7 +18,7 @@ import AdminHelpSidebar from "@/components/AdminHelpSidebar";
 import OnboardingOverlay from "@/components/OnboardingOverlay";
 import AppverseWorkspaceRail from "@/components/appverse/AppverseWorkspaceRail";
 import AppverseMobileNav from "@/components/appverse/AppverseMobileNav";
-import AppverseRoleHome from "@/components/appverse/AppverseRoleHome";
+import AppverseAdminHome from "@/pages/admin/AppverseAdminHome";
 import { signOutAndClearSession } from "@/utils/authSession";
 import { useAdminRealtimeToasts } from "@/hooks/useAdminRealtimeToasts";
 import { shouldHideAdvancedGovernanceNav } from "@/lib/golden-chain/operatorNavigation";
@@ -225,7 +225,7 @@ const AdminLayout = () => {
         </div>
         <PanicAlertBanner />
         <main className="flex-1 p-4 pb-24 sm:p-6 sm:pb-24 lg:pb-6 overflow-y-auto overflow-x-hidden max-w-full">
-          <AdminRouteGuard>{isAppverseHome ? <AppverseRoleHome role={role} allowedModules={allowedModules} /> : <Outlet />}</AdminRouteGuard>
+          <AdminRouteGuard>{isAppverseHome ? <AppverseAdminHome /> : <Outlet />}</AdminRouteGuard>
         </main>
       </div>
       <AppverseMobileNav allowedModules={allowedModules} />

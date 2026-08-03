@@ -1,5 +1,6 @@
 import { ArrowRight, BellRing, ListChecks, MoveUpRight, Sparkles } from "lucide-react";
 import { useNavigate } from "react-router-dom";
+import type { AppVerseGrantedModule } from "@/lib/appverse/roleAccess";
 import {
   getRoleHomeDefinition,
   getVisibleRoleHomeCards,
@@ -8,7 +9,7 @@ import {
 
 type AppverseRoleHomeProps = {
   role: string | null | undefined;
-  allowedModules: string[];
+  allowedModules: readonly AppVerseGrantedModule[];
   userName?: string | null;
 };
 

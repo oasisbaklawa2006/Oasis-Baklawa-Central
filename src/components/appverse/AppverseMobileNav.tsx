@@ -5,8 +5,9 @@ import {
   getWorkspaceForPath,
   type AppVerseWorkspace,
 } from "@/lib/appverse/workspaces";
+import type { AppVerseGrantedModule } from "@/lib/appverse/roleAccess";
 
-type AppverseMobileNavProps = { allowedModules: string[] };
+type AppverseMobileNavProps = { allowedModules: readonly AppVerseGrantedModule[] };
 
 function scoreWorkspace(workspace: AppVerseWorkspace) {
   const preferredOrder = ["home", "customers-sales", "orders-finance", "operations", "products-catalogue", "trace-dispatch", "governance"];

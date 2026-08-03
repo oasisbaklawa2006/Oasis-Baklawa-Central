@@ -19,7 +19,19 @@ Mount the reviewed App-Verse navigation foundation into the existing Central Adm
 - `AdminLayout` mounts `AppverseWorkspaceRail` as primary desktop navigation.
 - Existing detailed navigation is retained behind an explicit `All tools` compatibility drawer.
 - `AppverseMobileNav` is mounted for handheld/mobile layouts.
+- `/admin` renders `AppverseAdminHome`: role-aware Home, Wave 1 launchpad, executive deep link, internal app registry, and role-filtered TV surfaces.
 - Existing Panic Alert, help sidebar, onboarding overlay, language toggle, session logout, route guard, realtime toasts, and application badge behavior are preserved.
+
+## Wave 1 completion (2026-08-03)
+
+Wave 1 is complete on `main` when:
+
+- Role-aware Home cards filter by module authority (`roleHome.ts`).
+- Wave 1 launchpad surfaces Orders & Finance, Operations & Production, and WhatsApp & Support by permission (`wave1.ts`).
+- Shell, mobile nav, and compatibility `All tools` drawer remain unchanged in authority scope.
+- Release Quality Gate is green.
+
+Wave 2 planning is deferred until backend handoff templates are completed for the next workspace clusters.
 
 ## Acceptance gate
 
