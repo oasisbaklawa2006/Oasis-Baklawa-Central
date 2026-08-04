@@ -133,7 +133,7 @@ export default function AssemblyManagement() {
       <header className="flex flex-wrap items-center justify-between gap-3 border-b border-border pb-4">
         <div>
           <h1 className="text-xl font-bold tracking-tight">Packing & Assembly operations</h1>
-          <p className="text-xs text-muted-foreground">Order-linked jobs · dual-source readiness · output reconciliation</p>
+          <p className="text-xs text-muted-foreground">Latest 100 order-linked jobs · source readiness · output reconciliation</p>
         </div>
         <Button size="sm" variant="outline" onClick={() => void load()} disabled={loading}>
           <RefreshCw className={`mr-2 h-4 w-4 ${loading ? "animate-spin" : ""}`} />Refresh
@@ -192,8 +192,8 @@ export default function AssemblyManagement() {
               <section className="space-y-3">
                 <div className="flex flex-wrap items-center justify-between gap-2"><h2 className="text-sm font-semibold">Dual-source material readiness</h2><p className="text-[11px] text-muted-foreground">RGS = canonical Finished Goods store record</p></div>
                 <div className="grid gap-3 sm:grid-cols-2">
-                  <SourceReadiness title="Food / RGS" sourceCodes={["FINISHED_GOODS"]} components={selectedComponents} />
-                  <SourceReadiness title="Packaging & outsourced / 3PGS" sourceCodes={["3PGS"]} components={selectedComponents} />
+                  <SourceReadiness title="Food / production sources" sourceCodes={["FINISHED_GOODS", "B2B_RAW"]} components={selectedComponents} />
+                  <SourceReadiness title="Packaging & assembly sources" sourceCodes={["3PGS", "PACKING_ASSEMBLY"]} components={selectedComponents} />
                 </div>
               </section>
 
