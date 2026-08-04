@@ -55,6 +55,7 @@ BEGIN
   FOR v_line IN SELECT value FROM jsonb_array_elements(p_lines) LOOP
     v_line_id := (v_line->>'line_id')::uuid;
     v_received_qty := (v_line->>'received_qty')::numeric;
+    IF v_received_qty IS NULL THEN RAISE EXCEPTION 'Received quantity is required'; END IF;
     IF v_received_qty < 0 THEN RAISE EXCEPTION 'Received quantity cannot be negative'; END IF;
 
     UPDATE public.b2b_inventory_receipt_lines
@@ -140,6 +141,12 @@ BEGIN
     v_damaged := (v_line->>'damaged_qty')::numeric;
     v_rejected := (v_line->>'rejected_qty')::numeric;
     v_expected_version := (v_line->>'expected_balance_version')::integer;
+    IF v_accepted IS NULL OR v_damaged IS NULL OR v_rejected IS NULL THEN
+      RAISE EXCEPTION 'Accepted, damaged, and rejected quantities are required for receipt line %', v_db_line.id;
+    END IF;
+    IF v_expected_version IS NULL THEN
+      RAISE EXCEPTION 'An expected balance version is required for receipt line %', v_db_line.id;
+    END IF;
     IF least(v_accepted, v_damaged, v_rejected) < 0
        OR v_accepted + v_damaged + v_rejected <> v_db_line.received_qty THEN
       RAISE EXCEPTION 'Every received unit must be accepted, damaged, or rejected';
@@ -167,6 +174,9 @@ BEGIN
         WHERE product_id = v_db_line.product_id AND sku = v_db_line.sku
           AND location_code = v_receipt.destination_store_code
           AND version = v_expected_version;
+        IF NOT FOUND THEN
+          RAISE EXCEPTION 'Stock balance update did not apply for receipt line %', v_db_line.id USING ERRCODE = '40001';
+        END IF;
       ELSE
         IF v_expected_version <> 0 THEN
           RAISE EXCEPTION 'Stock balance does not exist at expected version %', v_expected_version USING ERRCODE = '40001';
