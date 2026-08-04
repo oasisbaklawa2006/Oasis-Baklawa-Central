@@ -1,403 +1,247 @@
-import { useEffect, useState, useCallback } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import {
+  AlertTriangle,
+  Boxes,
+  CheckCircle2,
+  Clock3,
+  PackageCheck,
+  RefreshCw,
+  Scale,
+  ShieldCheck,
+} from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
-import { toast } from "sonner";
-import { useAuth } from "@/hooks/useAuth";
-import { Loader2, Package, Play, CheckCircle2, Clock, Send, Hash, Camera, Upload } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Input } from "@/components/ui/input";
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import StagnancyBadge from "@/components/StagnancyBadge";
-import BOMDemandEngine from "@/components/assembly/BOMDemandEngine";
-import { resolveOrderItemFlow } from "@/lib/triad-order-items";
-import { withTimeout } from "@/lib/query-timeout";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Progress } from "@/components/ui/progress";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
-interface AssemblyTask {
+// Temporary typed boundary for live Phase 2 relations pending regenerated
+// project-wide Supabase definitions.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const fulfilmentDb = supabase as unknown as { from: (relation: string) => any };
+
+type AssemblyJob = {
   id: string;
-  order_id: string | null;
-  product_id: string | null;
-  quantity: number;
-  actual_packed_qty: number | null;
-  production_status: string | null;
-  department: string | null;
-  pack_size: string | null;
-  carton_type: string | null;
-  notes: string | null;
-  product?: { name: string; image_url: string | null; sku: string | null } | null;
-  order?: { id: string; created_at: string | null; company?: { business_name: string } | null } | null;
-}
-
-interface ProductOption {
-  id: string;
-  name: string;
-  image_url: string | null;
-  sku: string | null;
-}
-
-const statusColor: Record<string, string> = {
-  pending: "bg-amber-500/20 text-amber-700 border-amber-400/40",
-  in_progress: "bg-blue-500/20 text-blue-700 border-blue-400/40",
-  partial_ready: "bg-purple-500/20 text-purple-700 border-purple-400/40",
-  completed: "bg-emerald-500/20 text-emerald-700 border-emerald-400/40",
+  assembly_job_number: string;
+  order_id: string;
+  output_product_id: string;
+  output_sku: string;
+  planned_qty: number;
+  completed_qty: number;
+  accepted_qty: number;
+  rejected_qty: number;
+  wasted_qty: number;
+  status: string;
+  correlation_id: string;
+  started_at: string | null;
+  completed_at: string | null;
+  created_at: string;
 };
 
+type AssemblyComponent = {
+  id: string;
+  assembly_job_id: string;
+  product_id: string;
+  sku: string;
+  source_store_code: string;
+  required_qty: number;
+  reserved_qty: number;
+  issued_qty: number;
+  consumed_qty: number;
+  wasted_qty: number;
+  returned_qty: number;
+};
+
+type Product = { id: string; name: string; image_url: string | null };
+type QueueFilter = "active" | "exceptions" | "completed" | "all";
+
+const terminalStatuses = new Set(["accepted", "rejected", "cancelled"]);
+const riskStatuses = new Set(["rejected", "partially_accepted"]);
+
+/** Live P&A evidence. Governed transitions and custody posting remain server-controlled. */
 export default function AssemblyManagement() {
-  const { user } = useAuth();
-  const [tasks, setTasks] = useState<AssemblyTask[]>([]);
+  const [jobs, setJobs] = useState<AssemblyJob[]>([]);
+  const [components, setComponents] = useState<AssemblyComponent[]>([]);
+  const [products, setProducts] = useState<Record<string, Product>>({});
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [filter, setFilter] = useState<QueueFilter>("active");
   const [loading, setLoading] = useState(true);
-  const [acting, setActing] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
-  // Numeric keypad modal state
-  const [keypadOpen, setKeypadOpen] = useState(false);
-  const [keypadTaskId, setKeypadTaskId] = useState<string | null>(null);
-  const [keypadValue, setKeypadValue] = useState("");
-  const [keypadMax, setKeypadMax] = useState(0);
+  const load = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    const [jobResult, componentResult] = await Promise.all([
+      fulfilmentDb
+        .from("b2b_assembly_jobs")
+        .select("id, assembly_job_number, order_id, output_product_id, output_sku, planned_qty, completed_qty, accepted_qty, rejected_qty, wasted_qty, status, correlation_id, started_at, completed_at, created_at")
+        .order("created_at", { ascending: false })
+        .limit(100),
+      fulfilmentDb
+        .from("b2b_assembly_components")
+        .select("id, assembly_job_id, product_id, sku, source_store_code, required_qty, reserved_qty, issued_qty, consumed_qty, wasted_qty, returned_qty")
+        .limit(1000),
+    ]);
 
-  // Daily production entry state
-  const [products, setProducts] = useState<ProductOption[]>([]);
-  const [selectedProductId, setSelectedProductId] = useState<string | null>(null);
-  const [prodQty, setProdQty] = useState("");
-  const [wastageQty, setWastageQty] = useState("");
-  const [submittingProd, setSubmittingProd] = useState(false);
-
-  const fetchTasks = useCallback(async () => {
-    try {
-      const { data: allItems } = await withTimeout(
-        supabase
-          .from("order_items")
-          .select("*, product:products(name, image_url, sku, production_department), order:orders(id, created_at, status, company:companies(business_name))")
-          .in("production_status", ["pending", "in_progress", "partial_ready"])
-          .limit(200)
-      );
-
-      const assemblyOnly = ((allItems as any[]) || []).filter((item) => {
-        if (!item.order) return false;
-        return resolveOrderItemFlow(item) === "FLOW_ASSEMBLY";
-      });
-
-      setTasks(assemblyOnly);
-    } catch (err) {
-      console.error("[Assembly] fetch failed", err);
-      setTasks([]);
-    } finally {
+    const failed = jobResult.error ?? componentResult.error;
+    if (failed) {
+      setError(failed.message);
+      setJobs([]);
+      setComponents([]);
+      setProducts({});
       setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => { fetchTasks(); }, [fetchTasks]);
-
-  useEffect(() => {
-    const loadProducts = async () => {
-      const { data } = await supabase
-        .from("products")
-        .select("id, name, image_url, sku, production_department, category:categories(name)")
-        .eq("is_active", true)
-        .order("name")
-        .limit(200);
-      const assemblyKeywords = ["gift", "hamper", "packing", "assembly", "platter", "box set", "combo"];
-      const filtered = ((data as any[]) || []).filter((p: any) => {
-        const catName = (p.category?.name || "").toLowerCase();
-        const prodName = (p.name || "").toLowerCase();
-        const prodDept = (p.production_department || "").toLowerCase();
-        return assemblyKeywords.some(kw => catName.includes(kw) || prodName.includes(kw)) ||
-               ["packing & assembly", "assembly", "hampers", "gifts"].includes(prodDept);
-      });
-      setProducts(filtered.length > 0 ? filtered : ((data as ProductOption[]) || []).slice(0, 50));
-    };
-    loadProducts();
-  }, []);
-
-  const updateStatus = async (taskId: string, newStatus: string) => {
-    setActing(taskId);
-    const updateData: any = { production_status: newStatus };
-    if (newStatus === "completed") {
-      const task = tasks.find(t => t.id === taskId);
-      updateData.actual_packed_qty = task?.quantity || 0;
-    }
-    await supabase.from("order_items").update(updateData).eq("id", taskId);
-    toast.success(`Task → ${newStatus.replace("_", " ").toUpperCase()}`);
-    fetchTasks();
-    setActing(null);
-  };
-
-  const openKeypad = (task: AssemblyTask) => {
-    setKeypadTaskId(task.id);
-    setKeypadMax(task.quantity);
-    setKeypadValue("");
-    setKeypadOpen(true);
-  };
-
-  const submitPartialQty = async () => {
-    if (!keypadTaskId) return;
-    const qty = parseInt(keypadValue);
-    if (isNaN(qty) || qty <= 0 || qty > keypadMax) {
-      toast.error(`Enter a valid quantity (1-${keypadMax})`);
       return;
     }
-    setActing(keypadTaskId);
-    await supabase.from("order_items").update({
-      production_status: "partial_ready",
-      actual_packed_qty: qty,
-    }).eq("id", keypadTaskId);
-    toast.success(`Partial Ready: ${qty}/${keypadMax} units`);
-    setKeypadOpen(false);
-    fetchTasks();
-    setActing(null);
-  };
 
-  const handleKeypadPress = (digit: string) => {
-    if (digit === "DEL") {
-      setKeypadValue(v => v.slice(0, -1));
-    } else if (digit === "CLR") {
-      setKeypadValue("");
-    } else {
-      setKeypadValue(v => v + digit);
-    }
-  };
+    const nextJobs = (jobResult.data ?? []) as AssemblyJob[];
+    const nextComponents = (componentResult.data ?? []) as AssemblyComponent[];
+    const productIds = [...new Set([
+      ...nextJobs.map((job) => job.output_product_id),
+      ...nextComponents.map((component) => component.product_id),
+    ].filter(Boolean))];
+    const productResult = productIds.length
+      ? await supabase.from("products").select("id, name, image_url").in("id", productIds)
+      : { data: [], error: null };
 
-  // Production Order Qty Modal state
-  const [prodQtyOpen, setProdQtyOpen] = useState(false);
-  const [prodQtyTaskId, setProdQtyTaskId] = useState<string | null>(null);
-  const [prodQtyValue, setProdQtyValue] = useState("");
-  const [prodQtyProduct, setProdQtyProduct] = useState("");
+    if (productResult.error) setError(productResult.error.message);
+    setJobs(nextJobs);
+    setComponents(nextComponents);
+    setProducts(Object.fromEntries(((productResult.data ?? []) as Product[]).map((product) => [product.id, product])));
+    setSelectedId((current) => current && nextJobs.some((job) => job.id === current) ? current : nextJobs[0]?.id ?? null);
+    setLoading(false);
+  }, []);
 
-  const openProdQtyModal = (task: AssemblyTask) => {
-    setProdQtyTaskId(task.id);
-    setProdQtyProduct(task.product?.name || "Unknown");
-    setProdQtyValue("");
-    setProdQtyOpen(true);
-  };
+  useEffect(() => { void load(); }, [load]);
 
-  const sendMaterialRequest = async () => {
-    if (!prodQtyTaskId) return;
-    const qty = parseInt(prodQtyValue);
-    if (isNaN(qty) || qty <= 0) { toast.error("Enter a valid quantity"); return; }
-    const task = tasks.find(t => t.id === prodQtyTaskId);
-    setActing(prodQtyTaskId);
-    await supabase.from("audit_logs").insert([{
-      action_type: "MATERIAL_REQUEST",
-      module_name: "Assembly",
-      entity_name: "order_items",
-      entity_id: prodQtyTaskId,
-      actor_id: user?.id || null,
-      new_value: { product: task?.product?.name, qty, order_id: task?.order_id } as any,
-      risk_level: "high",
-    }]);
-    toast.success(`🚨 Material Request: ${qty}x ${prodQtyProduct} sent to RGS/3PGS`);
-    setProdQtyOpen(false);
-    setActing(null);
-  };
+  const componentJobIdsWithRisk = useMemo(() => new Set(
+    components.filter(hasMaterialRisk).map((component) => component.assembly_job_id),
+  ), [components]);
+  const exceptionJobIds = useMemo(() => new Set(jobs
+    .filter((job) => riskStatuses.has(job.status) || Number(job.rejected_qty) > 0 || Number(job.wasted_qty) > 0 || componentJobIdsWithRisk.has(job.id))
+    .map((job) => job.id)), [componentJobIdsWithRisk, jobs]);
 
-  const submitDailyProduction = async () => {
-    if (!selectedProductId || !prodQty) {
-      toast.error("Select a product and enter quantity");
-      return;
-    }
-    setSubmittingProd(true);
-    await supabase.from("daily_production_logs").insert({
-      product_id: selectedProductId,
-      produced_qty: parseInt(prodQty) || 0,
-      wastage_qty: parseInt(wastageQty) || 0,
-      department: "Packing & Assembly",
-      logged_by: user?.id || null,
-    });
-    toast.success("✅ Production logged to RGS Stock");
-    setSelectedProductId(null);
-    setProdQty("");
-    setWastageQty("");
-    setSubmittingProd(false);
-  };
-
-  if (loading) return <div className="flex items-center justify-center py-20"><Loader2 className="animate-spin text-primary" size={28} /></div>;
+  const visibleJobs = jobs.filter((job) => {
+    if (filter === "active") return !terminalStatuses.has(job.status);
+    if (filter === "exceptions") return exceptionJobIds.has(job.id);
+    if (filter === "completed") return job.status === "accepted";
+    return true;
+  });
+  const selected = jobs.find((job) => job.id === selectedId) ?? null;
+  const selectedComponents = components.filter((component) => component.assembly_job_id === selectedId);
+  const activeCount = jobs.filter((job) => !terminalStatuses.has(job.status)).length;
+  const materialReadyCount = jobs.filter((job) => {
+    const rows = components.filter((component) => component.assembly_job_id === job.id);
+    return rows.length > 0 && rows.every((component) => Number(component.reserved_qty) >= Number(component.required_qty));
+  }).length;
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <h1 className="text-xl font-bold text-foreground">Assembly Handheld</h1>
-        <Badge variant="outline" className="text-xs">{tasks.length} Active Tasks</Badge>
+    <div className="mx-auto max-w-7xl space-y-6 p-4 pb-24">
+      <header className="flex flex-wrap items-center justify-between gap-3 border-b border-border pb-4">
+        <div>
+          <h1 className="text-xl font-bold tracking-tight">Packing & Assembly operations</h1>
+          <p className="text-xs text-muted-foreground">Order-linked jobs · dual-source readiness · output reconciliation</p>
+        </div>
+        <Button size="sm" variant="outline" onClick={() => void load()} disabled={loading}>
+          <RefreshCw className={`mr-2 h-4 w-4 ${loading ? "animate-spin" : ""}`} />Refresh
+        </Button>
+      </header>
+
+      {error && <Card className="border-destructive/40"><CardContent className="flex items-center gap-2 p-4 text-sm text-destructive"><AlertTriangle className="h-4 w-4" />P&amp;A contract could not be read: {error}</CardContent></Card>}
+
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <Metric icon={Clock3} label="Active jobs" value={activeCount} tone={activeCount ? "amber" : "olive"} />
+        <Metric icon={Boxes} label="Materials reserved" value={materialReadyCount} tone="olive" />
+        <Metric icon={AlertTriangle} label="Jobs with exceptions" value={exceptionJobIds.size} tone={exceptionJobIds.size ? "red" : "olive"} />
+        <Metric icon={CheckCircle2} label="Accepted output" value={jobs.filter((job) => job.status === "accepted").length} tone="olive" />
       </div>
 
-      <Tabs defaultValue="tasks" className="w-full">
-        <TabsList className="w-full">
-          <TabsTrigger value="tasks" className="flex-1">Task Cards</TabsTrigger>
-          <TabsTrigger value="bom" className="flex-1">BOM Demand</TabsTrigger>
-          <TabsTrigger value="production" className="flex-1">Daily Production</TabsTrigger>
-        </TabsList>
+      <Card className="border-amber-200 bg-amber-50/40">
+        <CardContent className="flex gap-3 p-4 text-sm">
+          <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-amber-700" />
+          <div><p className="font-semibold">Read-only operational evidence</p><p className="text-muted-foreground">Job creation, material issue/acceptance, QC decisions, output handover and job close require governed transactional workflows. This screen does not silently edit stock or order status.</p></div>
+        </CardContent>
+      </Card>
 
-        {/* === TAB 1: TASK CARDS === */}
-        <TabsContent value="tasks">
-          {tasks.length === 0 && (
-            <Card><CardContent className="py-12 text-center text-muted-foreground">No assembly tasks pending.</CardContent></Card>
-          )}
+      <div className="grid gap-4 lg:grid-cols-[minmax(300px,0.8fr)_minmax(0,1.7fr)]">
+        <Card>
+          <CardHeader className="space-y-3">
+            <CardTitle className="text-base">P&amp;A job queue</CardTitle>
+            <div className="flex flex-wrap gap-2">
+              {(["active", "exceptions", "completed", "all"] as const).map((value) => <Button key={value} size="sm" variant={filter === value ? "default" : "outline"} onClick={() => setFilter(value)} className="capitalize">{value}</Button>)}
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            {visibleJobs.map((job) => {
+              const output = products[job.output_product_id];
+              const progress = percentage(job.completed_qty, job.planned_qty);
+              return <button key={job.id} type="button" onClick={() => setSelectedId(job.id)} className={`w-full rounded-lg border p-3 text-left transition-colors ${selectedId === job.id ? "border-primary bg-primary/5" : "hover:bg-muted/40"}`}>
+                <div className="flex items-start justify-between gap-2"><div className="min-w-0"><p className="truncate text-sm font-semibold">{output?.name ?? job.output_sku}</p><p className="mt-1 text-[11px] font-mono text-muted-foreground">{job.assembly_job_number} · SO#{shortRef(job.order_id)}</p></div><StatusBadge status={job.status} /></div>
+                <Progress value={progress} className="mt-3 h-1.5" />
+                <div className="mt-2 flex items-center justify-between text-[11px] text-muted-foreground"><span>{formatQty(job.completed_qty)} / {formatQty(job.planned_qty)} completed</span>{exceptionJobIds.has(job.id) && <span className="font-semibold text-destructive">Exception</span>}</div>
+              </button>;
+            })}
+            {!loading && !visibleJobs.length && <Empty text="No P&A jobs match this queue." />}
+          </CardContent>
+        </Card>
 
-          <div className="grid gap-3">
-            {tasks.map(task => (
-              <Card key={task.id} className="overflow-hidden border-l-4" style={{ borderLeftColor: task.production_status === "pending" ? "hsl(var(--chart-4))" : task.production_status === "in_progress" ? "hsl(var(--chart-1))" : "hsl(var(--chart-3))" }}>
-                <CardContent className="p-4">
-                  <div className="flex gap-3">
-                    <div className="w-16 h-16 rounded-lg bg-muted flex items-center justify-center overflow-hidden shrink-0">
-                      {task.product?.image_url ? (
-                        <img src={task.product.image_url} alt={task.product.name} className="w-full h-full object-cover" />
-                      ) : (
-                        <Package size={24} className="text-muted-foreground" />
-                      )}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="font-semibold text-sm text-foreground truncate">{task.product?.name || "Unknown Product"}</p>
-                      <p className="text-[11px] text-muted-foreground font-mono">SKU: {task.product?.sku || "N/A"} · SO#{task.order_id?.slice(0, 8).toUpperCase()}</p>
-                      <div className="flex items-center gap-2 mt-1 flex-wrap">
-                        <span className="text-xs font-bold text-foreground">Qty: {task.quantity}</span>
-                        <span className="text-[10px] text-muted-foreground">Ready: {task.actual_packed_qty ?? 0}</span>
-                        <Badge className={`text-[10px] px-1.5 py-0 border ${statusColor[task.production_status || "pending"]}`}>
-                          {(task.production_status || "pending").replace("_", " ")}
-                        </Badge>
-                        <StagnancyBadge createdAt={task.order?.created_at || null} />
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="flex gap-2 mt-3 flex-wrap">
-                    {task.production_status === "pending" && (
-                      <Button size="sm" className="flex-1 text-xs" onClick={() => updateStatus(task.id, "in_progress")} disabled={acting === task.id}>
-                        <Play size={14} className="mr-1" /> Start Work
-                      </Button>
-                    )}
-                    {task.production_status === "in_progress" && (
-                      <>
-                        <Button size="sm" variant="outline" className="flex-1 text-xs" onClick={() => openKeypad(task)} disabled={acting === task.id}>
-                          <Hash size={14} className="mr-1" /> Partial Ready
-                        </Button>
-                        <Button size="sm" className="flex-1 text-xs" onClick={() => updateStatus(task.id, "completed")} disabled={acting === task.id}>
-                          <CheckCircle2 size={14} className="mr-1" /> Full Ready
-                        </Button>
-                      </>
-                    )}
-                    {task.production_status === "partial_ready" && (
-                      <Button size="sm" className="flex-1 text-xs" onClick={() => updateStatus(task.id, "completed")} disabled={acting === task.id}>
-                        <CheckCircle2 size={14} className="mr-1" /> Full Ready
-                      </Button>
-                    )}
-                    <Button size="sm" variant="destructive" className="text-xs" onClick={() => openProdQtyModal(task)} disabled={acting === task.id}>
-                      <Send size={14} className="mr-1" /> Request Material
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-        </TabsContent>
-
-        {/* === TAB 2: BOM DEMAND ENGINE === */}
-        <TabsContent value="bom">
-          <BOMDemandEngine />
-        </TabsContent>
-
-        {/* === TAB 3: DAILY PRODUCTION ENTRY === */}
-        <TabsContent value="production">
-          <Card>
-            <CardContent className="p-4 space-y-4">
-              <h2 className="text-lg font-bold text-foreground flex items-center gap-2"><Camera size={20} /> Daily Production Entry</h2>
-              <p className="text-xs text-muted-foreground">Select product, enter produced qty, and submit to RGS stock.</p>
-
-              {/* Photo-grid product selector */}
-              <div className="grid grid-cols-3 gap-2 max-h-60 overflow-y-auto">
-                {products.map(p => (
-                  <button
-                    key={p.id}
-                    onClick={() => setSelectedProductId(p.id)}
-                    className={`rounded-lg border-2 p-1 transition-all ${selectedProductId === p.id ? "border-primary bg-primary/10" : "border-muted bg-background hover:border-primary/40"}`}
-                  >
-                    <div className="w-full aspect-square rounded bg-muted flex items-center justify-center overflow-hidden">
-                      {p.image_url ? <img src={p.image_url} alt={p.name} className="w-full h-full object-cover" /> : <Package size={20} className="text-muted-foreground" />}
-                    </div>
-                    <p className="text-[10px] text-foreground truncate mt-1 font-medium">{p.name}</p>
-                  </button>
-                ))}
+        <Card>
+          <CardHeader><CardTitle className="flex items-center gap-2 text-base"><PackageCheck className="h-4 w-4 text-primary" />Job detail</CardTitle></CardHeader>
+          <CardContent>
+            {selected ? <div className="space-y-5">
+              <div className="grid gap-3 rounded-lg border bg-muted/20 p-4 sm:grid-cols-2 lg:grid-cols-4">
+                <Detail label="Job" value={selected.assembly_job_number} />
+                <Detail label="Output" value={products[selected.output_product_id]?.name ?? selected.output_sku} />
+                <Detail label="Customer order" value={`SO#${shortRef(selected.order_id)}`} />
+                <Detail label="Correlation" value={selected.correlation_id} mono />
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="text-xs font-medium text-foreground">Produced Qty</label>
-                  <Input type="number" value={prodQty} onChange={e => setProdQty(e.target.value)} placeholder="0" />
+              <section className="space-y-3">
+                <div className="flex flex-wrap items-center justify-between gap-2"><h2 className="text-sm font-semibold">Dual-source material readiness</h2><p className="text-[11px] text-muted-foreground">RGS = canonical Finished Goods store record</p></div>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <SourceReadiness title="Food / RGS" sourceCodes={["FINISHED_GOODS"]} components={selectedComponents} />
+                  <SourceReadiness title="Packaging & outsourced / 3PGS" sourceCodes={["3PGS"]} components={selectedComponents} />
                 </div>
-                <div>
-                  <label className="text-xs font-medium text-foreground">Wastage Qty</label>
-                  <Input type="number" value={wastageQty} onChange={e => setWastageQty(e.target.value)} placeholder="0" />
+              </section>
+
+              <section className="space-y-3">
+                <h2 className="text-sm font-semibold">Component reconciliation</h2>
+                <div className="overflow-x-auto"><Table><TableHeader><TableRow><TableHead>Component</TableHead><TableHead>Source</TableHead><TableHead className="text-right">Required</TableHead><TableHead className="text-right">Reserved</TableHead><TableHead className="text-right">Issued</TableHead><TableHead className="text-right">Consumed</TableHead><TableHead className="text-right">Waste / return</TableHead><TableHead>State</TableHead></TableRow></TableHeader><TableBody>{selectedComponents.map((component) => <TableRow key={component.id}><TableCell><p className="font-medium">{products[component.product_id]?.name ?? component.sku}</p><p className="text-[11px] text-muted-foreground">{component.sku}</p></TableCell><TableCell>{sourceLabel(component.source_store_code)}</TableCell><TableCell className="text-right">{formatQty(component.required_qty)}</TableCell><TableCell className="text-right">{formatQty(component.reserved_qty)}</TableCell><TableCell className="text-right">{formatQty(component.issued_qty)}</TableCell><TableCell className="text-right">{formatQty(component.consumed_qty)}</TableCell><TableCell className="text-right">{formatQty(Number(component.wasted_qty) + Number(component.returned_qty))}</TableCell><TableCell>{hasMaterialRisk(component) ? <Badge variant="destructive">Short</Badge> : <Badge variant="outline">Accounted</Badge>}</TableCell></TableRow>)}</TableBody></Table></div>
+                {!selectedComponents.length && <Empty text="No component lines have been recorded for this job." />}
+              </section>
+
+              <section className="space-y-3">
+                <h2 className="text-sm font-semibold">Output truth</h2>
+                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+                  <Quantity label="Planned" value={selected.planned_qty} />
+                  <Quantity label="Completed" value={selected.completed_qty} />
+                  <Quantity label="Accepted" value={selected.accepted_qty} good />
+                  <Quantity label="Rejected" value={selected.rejected_qty} risk={Number(selected.rejected_qty) > 0} />
+                  <Quantity label="Wasted" value={selected.wasted_qty} risk={Number(selected.wasted_qty) > 0} />
                 </div>
-              </div>
-
-              <Button className="w-full" onClick={submitDailyProduction} disabled={submittingProd || !selectedProductId}>
-                <Upload size={16} className="mr-2" /> Submit to Stock
-              </Button>
-            </CardContent>
-          </Card>
-        </TabsContent>
-      </Tabs>
-
-      {/* === NUMERIC KEYPAD MODAL === */}
-      {keypadOpen && (
-        <div className="fixed inset-0 z-[180] bg-black/60 flex items-center justify-center p-4" onClick={() => setKeypadOpen(false)}>
-          <div className="z-[190] bg-background rounded-2xl p-6 w-full max-w-xs shadow-2xl" onClick={e => e.stopPropagation()}>
-            <h3 className="text-lg font-bold text-foreground mb-1">Enter Partial Qty</h3>
-            <p className="text-xs text-muted-foreground mb-4">Max: {keypadMax} units</p>
-
-            <div className="bg-muted rounded-xl p-4 text-center mb-4">
-              <span className="text-4xl font-mono font-bold text-foreground">{keypadValue || "0"}</span>
-            </div>
-
-            <div className="grid grid-cols-3 gap-2 mb-4">
-              {["1","2","3","4","5","6","7","8","9","CLR","0","DEL"].map(d => (
-                <button key={d} onClick={() => handleKeypadPress(d)}
-                  className={`py-3 rounded-xl font-bold text-lg transition-colors ${d === "CLR" || d === "DEL" ? "bg-destructive/10 text-destructive hover:bg-destructive/20" : "bg-muted hover:bg-muted/80 text-foreground"}`}>
-                  {d}
-                </button>
-              ))}
-            </div>
-
-            <div className="flex gap-2">
-              <Button variant="outline" className="flex-1" onClick={() => setKeypadOpen(false)}>Cancel</Button>
-              <Button className="flex-1" onClick={submitPartialQty} disabled={acting !== null}>
-                <CheckCircle2 size={16} className="mr-1" /> Confirm
-              </Button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* === PRODUCTION QTY MODAL (TOUCH KEYPAD) === */}
-      {prodQtyOpen && (
-        <div className="fixed inset-0 z-[180] bg-black/60 flex items-center justify-center p-4" onClick={() => setProdQtyOpen(false)}>
-          <div className="z-[190] bg-background rounded-2xl p-6 w-full max-w-xs shadow-2xl" onClick={e => e.stopPropagation()}>
-            <h3 className="text-lg font-bold text-foreground mb-1">Material Request Qty</h3>
-            <p className="text-xs text-muted-foreground mb-4">{prodQtyProduct}</p>
-
-            <div className="bg-muted rounded-xl p-4 text-center mb-4">
-              <span className="text-4xl font-mono font-bold text-foreground">{prodQtyValue || "0"}</span>
-            </div>
-
-            <div className="grid grid-cols-3 gap-2 mb-4">
-              {["1","2","3","4","5","6","7","8","9","CLR","0","DEL"].map(d => (
-                <button key={d} onClick={() => {
-                  if (d === "DEL") setProdQtyValue(v => v.slice(0, -1));
-                  else if (d === "CLR") setProdQtyValue("");
-                  else setProdQtyValue(v => v + d);
-                }}
-                  className={`py-4 rounded-xl font-bold text-xl transition-colors ${d === "CLR" || d === "DEL" ? "bg-destructive/10 text-destructive hover:bg-destructive/20" : "bg-muted hover:bg-muted/80 text-foreground"}`}>
-                  {d}
-                </button>
-              ))}
-            </div>
-
-            <div className="flex gap-2">
-              <Button variant="outline" className="flex-1" onClick={() => setProdQtyOpen(false)}>Cancel</Button>
-              <Button className="flex-1" variant="destructive" onClick={sendMaterialRequest} disabled={acting !== null}>
-                <Send size={16} className="mr-1" /> Send Request
-              </Button>
-            </div>
-          </div>
-        </div>
-      )}
+              </section>
+            </div> : <Empty text="Select a P&A job to inspect its material and output evidence." />}
+          </CardContent>
+        </Card>
+      </div>
     </div>
   );
 }
+
+function hasMaterialRisk(component: AssemblyComponent) {
+  const required = Number(component.required_qty);
+  const reserved = Number(component.reserved_qty);
+  const issued = Number(component.issued_qty);
+  const accounted = Number(component.consumed_qty) + Number(component.wasted_qty) + Number(component.returned_qty);
+  return reserved < required || issued > 0 && accounted < issued;
+}
+function sourceLabel(code: string) { return code === "FINISHED_GOODS" ? "RGS / Finished Goods" : code === "3PGS" ? "3PGS" : code.replace(/_/g, " "); }
+function shortRef(value: string) { return value.slice(0, 8).toUpperCase(); }
+function formatQty(value: number) { return Number(value).toLocaleString("en-IN", { maximumFractionDigits: 3 }); }
+function percentage(value: number, total: number) { return Number(total) > 0 ? Math.min(100, Math.round(Number(value) / Number(total) * 100)) : 0; }
+function StatusBadge({ status }: { status: string }) { return <Badge variant={status === "rejected" ? "destructive" : "outline"} className="shrink-0 text-[10px] uppercase">{status.replace(/_/g, " ")}</Badge>; }
+function Detail({ label, value, mono = false }: { label: string; value: string; mono?: boolean }) { return <div><p className="text-[11px] uppercase tracking-wide text-muted-foreground">{label}</p><p className={`mt-1 break-words text-sm font-semibold ${mono ? "font-mono text-xs" : ""}`}>{value}</p></div>; }
+function Quantity({ label, value, good = false, risk = false }: { label: string; value: number; good?: boolean; risk?: boolean }) { return <div className={`rounded-lg border p-3 ${risk ? "border-destructive/30 bg-destructive/5" : good ? "border-emerald-200 bg-emerald-50/40" : "bg-muted/20"}`}><p className="text-[11px] uppercase tracking-wide text-muted-foreground">{label}</p><p className="mt-1 text-lg font-bold">{formatQty(value)}</p></div>; }
+function SourceReadiness({ title, sourceCodes, components }: { title: string; sourceCodes: string[]; components: AssemblyComponent[] }) { const rows = components.filter((component) => sourceCodes.includes(component.source_store_code)); const required = rows.reduce((sum, row) => sum + Number(row.required_qty), 0); const reserved = rows.reduce((sum, row) => sum + Number(row.reserved_qty), 0); const pct = percentage(reserved, required); return <div className="rounded-lg border p-4"><div className="flex items-center justify-between gap-2"><p className="text-sm font-semibold">{title}</p><Badge variant={required > 0 && reserved >= required ? "outline" : "secondary"}>{required === 0 ? "Not required" : reserved >= required ? "Reserved" : "Short"}</Badge></div><Progress value={pct} className="mt-3 h-2" /><div className="mt-2 flex items-center justify-between text-xs text-muted-foreground"><span>{rows.length} component{rows.length === 1 ? "" : "s"}</span><span>{formatQty(reserved)} / {formatQty(required)}</span></div></div>; }
+function Metric({ icon: Icon, label, value, tone }: { icon: typeof Scale; label: string; value: number; tone: "olive" | "red" | "amber" }) { return <Card><CardContent className="flex items-center gap-3 p-4"><Icon className={`h-5 w-5 ${tone === "red" ? "text-destructive" : tone === "amber" ? "text-amber-600" : "text-primary"}`} /><div><p className="text-2xl font-bold">{value}</p><p className="text-xs text-muted-foreground">{label}</p></div></CardContent></Card>; }
+function Empty({ text }: { text: string }) { return <p className="py-10 text-center text-sm text-muted-foreground">{text}</p>; }
