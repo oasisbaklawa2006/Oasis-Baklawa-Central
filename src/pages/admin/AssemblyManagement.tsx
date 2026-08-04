@@ -31,7 +31,6 @@ type AssemblyJob = {
   completed_qty: number;
   accepted_qty: number;
   rejected_qty: number;
-  wasted_qty: number;
   status: string;
   correlation_id: string;
   started_at: string | null;
@@ -72,44 +71,38 @@ export default function AssemblyManagement() {
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
-    const [jobResult, componentResult] = await Promise.all([
-      fulfilmentDb
+    try {
+      const jobResult = await fulfilmentDb
         .from("b2b_assembly_jobs")
-        .select("id, assembly_job_number, order_id, output_product_id, output_sku, planned_qty, completed_qty, accepted_qty, rejected_qty, wasted_qty, status, correlation_id, started_at, completed_at, created_at")
+        .select("id, assembly_job_number, order_id, output_product_id, output_sku, planned_qty, completed_qty, accepted_qty, rejected_qty, status, correlation_id, started_at, completed_at, created_at")
         .order("created_at", { ascending: false })
-        .limit(100),
-      fulfilmentDb
-        .from("b2b_assembly_components")
-        .select("id, assembly_job_id, product_id, sku, source_store_code, required_qty, reserved_qty, issued_qty, consumed_qty, wasted_qty, returned_qty")
-        .limit(1000),
-    ]);
+        .limit(100);
+      if (jobResult.error) throw jobResult.error;
 
-    const failed = jobResult.error ?? componentResult.error;
-    if (failed) {
-      setError(failed.message);
+      const nextJobs = (jobResult.data ?? []) as AssemblyJob[];
+      const nextComponents = await loadComponentsForJobs(nextJobs.map((job) => job.id));
+      const productIds = [...new Set([
+        ...nextJobs.map((job) => job.output_product_id),
+        ...nextComponents.map((component) => component.product_id),
+      ].filter(Boolean))];
+      const productResult = productIds.length
+        ? await supabase.from("products").select("id, name, image_url").in("id", productIds)
+        : { data: [], error: null };
+      if (productResult.error) throw productResult.error;
+
+      setJobs(nextJobs);
+      setComponents(nextComponents);
+      setProducts(Object.fromEntries(((productResult.data ?? []) as Product[]).map((product) => [product.id, product])));
+      setSelectedId((current) => current && nextJobs.some((job) => job.id === current) ? current : nextJobs[0]?.id ?? null);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Unexpected P&A data error");
       setJobs([]);
       setComponents([]);
       setProducts({});
+      setSelectedId(null);
+    } finally {
       setLoading(false);
-      return;
     }
-
-    const nextJobs = (jobResult.data ?? []) as AssemblyJob[];
-    const nextComponents = (componentResult.data ?? []) as AssemblyComponent[];
-    const productIds = [...new Set([
-      ...nextJobs.map((job) => job.output_product_id),
-      ...nextComponents.map((component) => component.product_id),
-    ].filter(Boolean))];
-    const productResult = productIds.length
-      ? await supabase.from("products").select("id, name, image_url").in("id", productIds)
-      : { data: [], error: null };
-
-    if (productResult.error) setError(productResult.error.message);
-    setJobs(nextJobs);
-    setComponents(nextComponents);
-    setProducts(Object.fromEntries(((productResult.data ?? []) as Product[]).map((product) => [product.id, product])));
-    setSelectedId((current) => current && nextJobs.some((job) => job.id === current) ? current : nextJobs[0]?.id ?? null);
-    setLoading(false);
   }, []);
 
   useEffect(() => { void load(); }, [load]);
@@ -118,7 +111,7 @@ export default function AssemblyManagement() {
     components.filter(hasMaterialRisk).map((component) => component.assembly_job_id),
   ), [components]);
   const exceptionJobIds = useMemo(() => new Set(jobs
-    .filter((job) => riskStatuses.has(job.status) || Number(job.rejected_qty) > 0 || Number(job.wasted_qty) > 0 || componentJobIdsWithRisk.has(job.id))
+    .filter((job) => riskStatuses.has(job.status) || Number(job.rejected_qty) > 0 || componentJobIdsWithRisk.has(job.id))
     .map((job) => job.id)), [componentJobIdsWithRisk, jobs]);
 
   const visibleJobs = jobs.filter((job) => {
@@ -212,12 +205,11 @@ export default function AssemblyManagement() {
 
               <section className="space-y-3">
                 <h2 className="text-sm font-semibold">Output truth</h2>
-                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
                   <Quantity label="Planned" value={selected.planned_qty} />
                   <Quantity label="Completed" value={selected.completed_qty} />
                   <Quantity label="Accepted" value={selected.accepted_qty} good />
                   <Quantity label="Rejected" value={selected.rejected_qty} risk={Number(selected.rejected_qty) > 0} />
-                  <Quantity label="Wasted" value={selected.wasted_qty} risk={Number(selected.wasted_qty) > 0} />
                 </div>
               </section>
             </div> : <Empty text="Select a P&A job to inspect its material and output evidence." />}
@@ -226,6 +218,25 @@ export default function AssemblyManagement() {
       </div>
     </div>
   );
+}
+
+async function loadComponentsForJobs(jobIds: string[]) {
+  if (!jobIds.length) return [] as AssemblyComponent[];
+  const rows: AssemblyComponent[] = [];
+  const pageSize = 1000;
+  for (let offset = 0; ; offset += pageSize) {
+    const result = await fulfilmentDb
+      .from("b2b_assembly_components")
+      .select("id, assembly_job_id, product_id, sku, source_store_code, required_qty, reserved_qty, issued_qty, consumed_qty, wasted_qty, returned_qty")
+      .in("assembly_job_id", jobIds)
+      .order("assembly_job_id", { ascending: true })
+      .order("id", { ascending: true })
+      .range(offset, offset + pageSize - 1);
+    if (result.error) throw result.error;
+    const page = (result.data ?? []) as AssemblyComponent[];
+    rows.push(...page);
+    if (page.length < pageSize) return rows;
+  }
 }
 
 function hasMaterialRisk(component: AssemblyComponent) {
