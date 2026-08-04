@@ -1,9 +1,11 @@
 import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 
+const testDirectory = dirname(fileURLToPath(import.meta.url));
 const sql = readFileSync(
-  resolve(process.cwd(), "supabase/migrations/20260805120000_phase3_inventory_receiving_actions.sql"),
+  resolve(testDirectory, "../../../../supabase/migrations/20260805120000_phase3_inventory_receiving_actions.sql"),
   "utf8",
 );
 
@@ -36,6 +38,8 @@ describe("Phase 3 governed inventory receiving actions", () => {
     expect(sql).toContain("version = version + 1");
     expect(sql).toContain("INSERT INTO public.inventory_movements");
     expect(sql).toContain("'receiving_action', 'accepted'");
+    expect(sql).toContain("An expected balance version is required");
+    expect(sql).toContain("Stock balance update did not apply");
   });
 
   it("uses a fixed privileged search path and explicit function privileges", () => {
