@@ -89,7 +89,7 @@ export default function ReadyGoodsStore() {
         operationsDb.from("order_items")
           .select("id, order_id, product_id, quantity, actual_packed_qty, production_status, department, order:orders!inner(id, status, created_at, company:companies(business_name)), product:products(id, name, sku, production_department)")
           .in("order.status", activeOrderStatuses)
-          .order("created_at", { ascending: true })
+          .order("orders(created_at)", { ascending: true })
           .limit(500),
         operationsDb.from("production_jobs")
           .select("id, order_item_id, order_id, product_id, department, assigned_qty, produced_qty, batch_number, priority, stage, status, created_at")
@@ -123,14 +123,20 @@ export default function ReadyGoodsStore() {
   useEffect(() => { void load(); }, [load]);
 
   const states = useMemo(() => {
-    const availableByProduct = new Map(availability.map((row) => [row.product_id, Number(row.available_for_b2b_qty)]));
+    const availableByProduct = availability.reduce((totals, row) => {
+      totals.set(row.product_id, (totals.get(row.product_id) ?? 0) + Number(row.available_for_b2b_qty));
+      return totals;
+    }, new Map<string, number>());
     const remainingByProduct = new Map(availableByProduct);
     return demand.map((row): DemandState => {
       const requestedQty = Math.max(Number(row.quantity) - Number(row.actual_packed_qty ?? 0), 0);
       const remaining = row.product_id ? remainingByProduct.get(row.product_id) ?? 0 : 0;
       const allocated = Math.min(remaining, requestedQty);
       if (row.product_id) remainingByProduct.set(row.product_id, Math.max(remaining - allocated, 0));
-      const rowJobs = jobs.filter((job) => job.order_item_id === row.id || job.order_id === row.order_id && job.product_id === row.product_id);
+      const rowJobs = jobs.filter((job) =>
+        job.order_item_id === row.id ||
+        (job.product_id != null && row.product_id != null && job.order_id === row.order_id && job.product_id === row.product_id),
+      );
       return {
         ...row,
         sku: row.product?.sku ?? "SKU not assigned",
@@ -187,7 +193,7 @@ export default function ReadyGoodsStore() {
         <Card>
           <CardHeader className="space-y-3">
             <CardTitle className="text-base">RGS demand queue</CardTitle>
-            <div className="flex flex-wrap gap-2">{(["shortages", "production", "receipts", "all"] as const).map((value) => <Button key={value} size="sm" variant={filter === value ? "default" : "outline"} onClick={() => setFilter(value)} className="capitalize">{value}</Button>)}</div>
+            <div className="flex flex-wrap gap-2">{(["shortages", "production", "receipts", "all"] as const).map((value) => <Button key={value} size="sm" variant={filter === value ? "default" : "outline"} aria-pressed={filter === value} onClick={() => setFilter(value)} className="capitalize">{value}</Button>)}</div>
           </CardHeader>
           <CardContent className="space-y-2">
             {filtered.map((row) => <button key={row.id} type="button" onClick={() => setSelectedId(row.id)} className={`w-full rounded-lg border p-3 text-left transition-colors ${selectedId === row.id ? "border-primary bg-primary/5" : "hover:bg-muted/40"}`}>
