@@ -23,6 +23,7 @@ export default function InventoryCommandCenter() {
   const [availability, setAvailability] = useState<Availability[]>([]);
   const [receipts, setReceipts] = useState<Receipt[]>([]);
   const [assembly, setAssembly] = useState<Assembly[]>([]);
+  const [metrics, setMetrics] = useState({ shortage: 0, openReceipts: 0, openAssembly: 0 });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -33,16 +34,18 @@ export default function InventoryCommandCenter() {
       fulfilmentDb.from("b2b_order_availability").select("sku, store_code, item_class, available_for_b2b_qty, reserved_qty, unavailable_qty").order("updated_at", { ascending: false }).limit(100),
       fulfilmentDb.from("b2b_inventory_receipts").select("receipt_number, receipt_source, destination_store_code, status, created_at").order("created_at", { ascending: false }).limit(8),
       fulfilmentDb.from("b2b_assembly_jobs").select("assembly_job_number, output_sku, planned_qty, accepted_qty, status, created_at").order("created_at", { ascending: false }).limit(8),
+      fulfilmentDb.from("b2b_order_availability").select("sku", { count: "exact", head: true }).lte("available_for_b2b_qty", 0),
+      fulfilmentDb.from("b2b_inventory_receipts").select("id", { count: "exact", head: true }).not("status", "in", "(accepted,rejected,cancelled)"),
+      fulfilmentDb.from("b2b_assembly_jobs").select("id", { count: "exact", head: true }).not("status", "in", "(accepted,rejected,cancelled)"),
     ]);
     const failed = results.find((r) => r.error)?.error;
     if (failed) setError(failed.message);
     setStores((results[0].data ?? []) as Store[]); setAvailability((results[1].data ?? []) as Availability[]);
     setReceipts((results[2].data ?? []) as Receipt[]); setAssembly((results[3].data ?? []) as Assembly[]); setLoading(false);
+    setMetrics({ shortage: results[4].count ?? 0, openReceipts: results[5].count ?? 0, openAssembly: results[6].count ?? 0 });
   }, []);
   useEffect(() => { void load(); }, [load]);
-  const shortage = availability.filter((x) => Number(x.available_for_b2b_qty) <= 0).length;
-  const openReceipts = receipts.filter((x) => !["accepted", "rejected", "cancelled"].includes(x.status)).length;
-  const openAssembly = assembly.filter((x) => !["accepted", "rejected", "cancelled"].includes(x.status)).length;
+  const { shortage, openReceipts, openAssembly } = metrics;
 
   return (
     <div className="mx-auto max-w-5xl space-y-6 p-4 pb-24">
