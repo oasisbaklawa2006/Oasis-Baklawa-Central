@@ -54,17 +54,23 @@ export default function InventoryReceiving() {
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
-    const [receiptResult, lineResult] = await Promise.all([
-      fulfilmentDb.from("b2b_inventory_receipts").select("id, receipt_number, receipt_source, destination_store_code, source_document_type, source_document_reference, status, received_at, created_at").order("created_at", { ascending: false }).limit(100),
-      fulfilmentDb.from("b2b_inventory_receipt_lines").select("id, receipt_id, sku, supplier_batch_lot, oasis_batch_lot, expiry_date, expected_qty, received_qty, accepted_qty, damaged_qty, rejected_qty, shortage_qty, excess_qty").order("created_at", { ascending: true }).limit(500),
-    ]);
-    const failed = receiptResult.error ?? lineResult.error;
-    if (failed) setError(failed.message);
-    const nextReceipts = (receiptResult.data ?? []) as Receipt[];
-    setReceipts(nextReceipts);
-    setLines((lineResult.data ?? []) as ReceiptLine[]);
-    setSelectedId((current) => current && nextReceipts.some((receipt) => receipt.id === current) ? current : nextReceipts[0]?.id ?? null);
-    setLoading(false);
+    try {
+      const receiptResult = await fulfilmentDb.from("b2b_inventory_receipts").select("id, receipt_number, receipt_source, destination_store_code, source_document_type, source_document_reference, status, received_at, created_at").order("created_at", { ascending: false }).limit(100);
+      if (receiptResult.error) throw receiptResult.error;
+      const nextReceipts = (receiptResult.data ?? []) as Receipt[];
+      const lineResult = nextReceipts.length
+        ? await fulfilmentDb.from("b2b_inventory_receipt_lines").select("id, receipt_id, sku, supplier_batch_lot, oasis_batch_lot, expiry_date, expected_qty, received_qty, accepted_qty, damaged_qty, rejected_qty, shortage_qty, excess_qty").in("receipt_id", nextReceipts.map((receipt) => receipt.id)).order("created_at", { ascending: true })
+        : { data: [], error: null };
+      if (lineResult.error) throw lineResult.error;
+      setReceipts(nextReceipts);
+      setLines((lineResult.data ?? []) as ReceiptLine[]);
+      setSelectedId((current) => current && nextReceipts.some((receipt) => receipt.id === current) ? current : nextReceipts[0]?.id ?? null);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Unexpected receiving data error");
+      setReceipts([]); setLines([]); setSelectedId(null);
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
   useEffect(() => { void load(); }, [load]);
@@ -125,7 +131,7 @@ export default function InventoryReceiving() {
                 <Detail label="Source document" value={`${selected.source_document_type}: ${selected.source_document_reference}`} />
                 <Detail label="Accepted quantity" value={formatQty(acceptedQty)} />
               </div>
-              <div className="overflow-x-auto"><Table><TableHeader><TableRow><TableHead>SKU / provenance</TableHead><TableHead className="text-right">Expected</TableHead><TableHead className="text-right">Received</TableHead><TableHead className="text-right">Accepted</TableHead><TableHead className="text-right">Damaged / rejected</TableHead><TableHead>Variance</TableHead></TableRow></TableHeader><TableBody>{selectedLines.map((line) => <TableRow key={line.id}><TableCell><p className="font-medium">{line.sku}</p><p className="text-[11px] text-muted-foreground">{line.supplier_batch_lot ? `Supplier lot ${line.supplier_batch_lot}` : line.oasis_batch_lot ? `Oasis lot ${line.oasis_batch_lot}` : "Lot not recorded"}{line.expiry_date ? ` · Exp ${line.expiry_date}` : ""}</p></TableCell><TableCell className="text-right">{formatQty(line.expected_qty)}</TableCell><TableCell className="text-right">{formatQty(line.received_qty)}</TableCell><TableCell className="text-right font-medium">{formatQty(line.accepted_qty)}</TableCell><TableCell className="text-right">{formatQty(Number(line.damaged_qty) + Number(line.rejected_qty))}</TableCell><TableCell>{hasVariance(line) ? <Badge variant="destructive">{Number(line.shortage_qty) > 0 ? `${formatQty(line.shortage_qty)} short` : `${formatQty(line.excess_qty)} excess`}</Badge> : <Badge variant="outline">Matched</Badge>}</TableCell></TableRow>)}</TableBody></Table></div>
+              <div className="overflow-x-auto"><Table><TableHeader><TableRow><TableHead>SKU / provenance</TableHead><TableHead className="text-right">Expected</TableHead><TableHead className="text-right">Received</TableHead><TableHead className="text-right">Accepted</TableHead><TableHead className="text-right">Damaged / rejected</TableHead><TableHead>Variance</TableHead></TableRow></TableHeader><TableBody>{selectedLines.map((line) => <TableRow key={line.id}><TableCell><p className="font-medium">{line.sku}</p><p className="text-[11px] text-muted-foreground">{line.supplier_batch_lot ? `Supplier lot ${line.supplier_batch_lot}` : line.oasis_batch_lot ? `Oasis lot ${line.oasis_batch_lot}` : "Lot not recorded"}{line.expiry_date ? ` · Exp ${line.expiry_date}` : ""}</p></TableCell><TableCell className="text-right">{formatQty(line.expected_qty)}</TableCell><TableCell className="text-right">{formatQty(line.received_qty)}</TableCell><TableCell className="text-right font-medium">{formatQty(line.accepted_qty)}</TableCell><TableCell className="text-right">{formatQty(Number(line.damaged_qty) + Number(line.rejected_qty))}</TableCell><TableCell>{hasVariance(line) ? <div className="flex flex-wrap gap-1">{Number(line.shortage_qty) > 0 && <Badge variant="destructive">{formatQty(line.shortage_qty)} short</Badge>}{Number(line.excess_qty) > 0 && <Badge variant="secondary">{formatQty(line.excess_qty)} excess</Badge>}{Number(line.damaged_qty) > 0 && <Badge variant="destructive">{formatQty(line.damaged_qty)} damaged</Badge>}{Number(line.rejected_qty) > 0 && <Badge variant="destructive">{formatQty(line.rejected_qty)} rejected</Badge>}</div> : <Badge variant="outline">Matched</Badge>}</TableCell></TableRow>)}</TableBody></Table></div>
               {!selectedLines.length && <Empty text="No receipt lines have been recorded." />}
             </div> : <Empty text="Select a receipt to inspect inward evidence." />}
           </CardContent>
