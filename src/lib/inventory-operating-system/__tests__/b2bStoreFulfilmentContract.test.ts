@@ -19,9 +19,9 @@ const reservationSql = readFileSync(
 
 describe("Central v1 B2B store fulfilment contract", () => {
   it("defines exactly the four authorised store identities", () => {
-    for (const code of ["B2B_RAW", "FINISHED_GOODS", "3PGS", "PACKING_ASSEMBLY"]) {
-      expect(sql).toContain(`'${code}'`);
-    }
+    expect(sql).toContain(
+      "store_code IN ('B2B_RAW', 'FINISHED_GOODS', '3PGS', 'PACKING_ASSEMBLY')",
+    );
     expect(sql).toContain("b2b_inventory_stores_code_type_pair_check");
     expect(sql).not.toMatch(/outlet_stock|website_order|retail_reservation/i);
   });

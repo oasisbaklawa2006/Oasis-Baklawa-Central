@@ -56,6 +56,9 @@ CREATE TABLE IF NOT EXISTS public.b2b_inventory_item_profiles (
   may_issue_to_production boolean NOT NULL DEFAULT false,
   may_issue_to_assembly boolean NOT NULL DEFAULT false,
   provenance_required boolean NOT NULL DEFAULT false,
+  -- Supplier master is not yet canonical in Central. Add an ON DELETE RESTRICT
+  -- foreign key when that governed master is introduced; until then this UUID
+  -- is external provenance and must be validated by the write RPC.
   supplier_id uuid NULL,
   branding_status text NULL,
   metadata jsonb NOT NULL DEFAULT '{}'::jsonb,
@@ -97,6 +100,7 @@ CREATE TABLE IF NOT EXISTS public.b2b_inventory_receipts (
   destination_store_code text NOT NULL REFERENCES public.b2b_inventory_stores (store_code),
   source_document_type text NOT NULL,
   source_document_reference text NOT NULL,
+  -- Same deferred supplier-master dependency as b2b_inventory_item_profiles.
   supplier_id uuid NULL,
   production_job_id uuid NULL REFERENCES public.production_jobs (id) ON DELETE RESTRICT,
   status text NOT NULL DEFAULT 'expected',
@@ -139,7 +143,7 @@ CREATE TABLE IF NOT EXISTS public.b2b_inventory_receipt_lines (
   notes text NULL,
   created_at timestamptz NOT NULL DEFAULT now(),
   CONSTRAINT b2b_inventory_receipt_lines_reconcile_check CHECK (
-    accepted_qty + damaged_qty + rejected_qty <= received_qty + 0.0001
+    accepted_qty + damaged_qty + rejected_qty <= received_qty
   )
 );
 
@@ -148,7 +152,8 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_b2b_inventory_receipt_lines_identity
     receipt_id,
     product_id,
     sku,
-    coalesce(supplier_batch_lot, '')
+    coalesce(supplier_batch_lot, ''),
+    coalesce(oasis_batch_lot, '')
   );
 
 CREATE TABLE IF NOT EXISTS public.b2b_assembly_jobs (
@@ -174,7 +179,7 @@ CREATE TABLE IF NOT EXISTS public.b2b_assembly_jobs (
     status IN ('planned', 'materials_reserved', 'issued', 'in_progress', 'qc_pending', 'accepted', 'partially_accepted', 'rejected', 'cancelled')
   ),
   CONSTRAINT b2b_assembly_jobs_output_check CHECK (
-    accepted_qty + rejected_qty <= completed_qty + 0.0001
+    accepted_qty + rejected_qty <= completed_qty
   )
 );
 
@@ -196,7 +201,7 @@ CREATE TABLE IF NOT EXISTS public.b2b_assembly_components (
   created_at timestamptz NOT NULL DEFAULT now(),
   CONSTRAINT b2b_assembly_components_unique UNIQUE (assembly_job_id, product_id, sku, source_store_code),
   CONSTRAINT b2b_assembly_components_issue_check CHECK (
-    consumed_qty + wasted_qty + returned_qty <= issued_qty + 0.0001
+    consumed_qty + wasted_qty + returned_qty <= issued_qty
   )
 );
 
