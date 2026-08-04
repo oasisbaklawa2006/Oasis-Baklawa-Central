@@ -98,6 +98,7 @@ DECLARE
   v_rejected numeric;
   v_expected_version integer;
   v_current_version integer;
+  v_balance record;
   v_movement_type text;
   v_total_accepted numeric := 0;
   v_total_unaccepted numeric := 0;
@@ -144,7 +145,7 @@ BEGIN
     IF v_accepted IS NULL OR v_damaged IS NULL OR v_rejected IS NULL THEN
       RAISE EXCEPTION 'Accepted, damaged, and rejected quantities are required for receipt line %', v_db_line.id;
     END IF;
-    IF v_expected_version IS NULL THEN
+    IF v_accepted > 0 AND v_expected_version IS NULL THEN
       RAISE EXCEPTION 'An expected balance version is required for receipt line %', v_db_line.id;
     END IF;
     IF least(v_accepted, v_damaged, v_rejected) < 0
@@ -156,41 +157,90 @@ BEGIN
     SET accepted_qty = v_accepted, damaged_qty = v_damaged, rejected_qty = v_rejected
     WHERE id = v_db_line.id;
 
-    IF v_accepted > 0 THEN
-      SELECT version INTO v_current_version
-      FROM public.inventory_stock_balances
-      WHERE product_id = v_db_line.product_id AND sku = v_db_line.sku
-        AND location_code = v_receipt.destination_store_code
-      FOR UPDATE;
+    v_total_accepted := v_total_accepted + v_accepted;
+    v_total_unaccepted := v_total_unaccepted + v_damaged + v_rejected;
+  END LOOP;
 
-      IF FOUND THEN
-        IF v_current_version <> v_expected_version THEN
-          RAISE EXCEPTION 'Stale stock balance version for receipt line %', v_db_line.id USING ERRCODE = '40001';
-        END IF;
-        UPDATE public.inventory_stock_balances
-        SET available_qty = available_qty + v_accepted,
-            version = version + 1,
-            updated_at = now()
-        WHERE product_id = v_db_line.product_id AND sku = v_db_line.sku
-          AND location_code = v_receipt.destination_store_code
-          AND version = v_expected_version;
-        IF NOT FOUND THEN
-          RAISE EXCEPTION 'Stock balance update did not apply for receipt line %', v_db_line.id USING ERRCODE = '40001';
-        END IF;
-      ELSE
-        IF v_expected_version <> 0 THEN
-          RAISE EXCEPTION 'Stock balance does not exist at expected version %', v_expected_version USING ERRCODE = '40001';
-        END IF;
-        INSERT INTO public.inventory_stock_balances (product_id, sku, location_code, available_qty)
-        VALUES (v_db_line.product_id, v_db_line.sku, v_receipt.destination_store_code, v_accepted);
+  -- A receipt can contain several batches for the same stock balance. Apply
+  -- their accepted quantity once per balance identity so one line cannot make
+  -- a sibling line's optimistic-lock version stale.
+  FOR v_balance IN
+    SELECT
+      receipt_line.product_id,
+      receipt_line.sku,
+      sum((payload.value->>'accepted_qty')::numeric) AS accepted_qty,
+      min((payload.value->>'expected_balance_version')::integer) AS expected_version,
+      count(DISTINCT (payload.value->>'expected_balance_version')::integer) AS version_count
+    FROM jsonb_array_elements(p_lines) AS payload(value)
+    JOIN public.b2b_inventory_receipt_lines AS receipt_line
+      ON receipt_line.id = (payload.value->>'line_id')::uuid
+     AND receipt_line.receipt_id = p_receipt_id
+    WHERE (payload.value->>'accepted_qty')::numeric > 0
+    GROUP BY receipt_line.product_id, receipt_line.sku
+    ORDER BY receipt_line.product_id, receipt_line.sku
+  LOOP
+    IF v_balance.version_count <> 1 THEN
+      RAISE EXCEPTION 'All accepted lines for stock balance % / % must use the same expected version',
+        v_balance.product_id, v_balance.sku USING ERRCODE = '40001';
+    END IF;
+
+    -- Serialize both the existing-row and first-insert paths for this identity.
+    PERFORM pg_catalog.pg_advisory_xact_lock(
+      pg_catalog.hashtextextended(
+        v_balance.product_id::text || ':' || v_balance.sku || ':' || v_receipt.destination_store_code,
+        0
+      )
+    );
+
+    SELECT version INTO v_current_version
+    FROM public.inventory_stock_balances
+    WHERE product_id = v_balance.product_id
+      AND sku = v_balance.sku
+      AND location_code = v_receipt.destination_store_code
+    FOR UPDATE;
+
+    IF FOUND THEN
+      IF v_current_version <> v_balance.expected_version THEN
+        RAISE EXCEPTION 'Stale stock balance version for % / %', v_balance.product_id, v_balance.sku
+          USING ERRCODE = '40001';
       END IF;
+      UPDATE public.inventory_stock_balances
+      SET available_qty = available_qty + v_balance.accepted_qty,
+          version = version + 1,
+          updated_at = now()
+      WHERE product_id = v_balance.product_id
+        AND sku = v_balance.sku
+        AND location_code = v_receipt.destination_store_code
+        AND version = v_balance.expected_version;
+      IF NOT FOUND THEN
+        RAISE EXCEPTION 'Stock balance update did not apply for % / %', v_balance.product_id, v_balance.sku
+          USING ERRCODE = '40001';
+      END IF;
+    ELSE
+      IF v_balance.expected_version <> 0 THEN
+        RAISE EXCEPTION 'Stock balance does not exist at expected version %', v_balance.expected_version
+          USING ERRCODE = '40001';
+      END IF;
+      INSERT INTO public.inventory_stock_balances (product_id, sku, location_code, available_qty)
+      VALUES (v_balance.product_id, v_balance.sku, v_receipt.destination_store_code, v_balance.accepted_qty);
+    END IF;
+  END LOOP;
 
-      v_movement_type := CASE v_receipt.receipt_source
-        WHEN 'supplier' THEN 'supplier_receipt_accepted'
-        WHEN 'production' THEN 'production_receipt_accepted'
-        WHEN 'opening_balance' THEN 'opening_balance_accepted'
-        WHEN 'return_from_assembly' THEN 'returned_from_assembly'
-      END;
+  -- Preserve batch-level provenance in the append-only ledger even though the
+  -- materialized balance is updated at the aggregated SKU/location level.
+  v_movement_type := CASE v_receipt.receipt_source
+    WHEN 'supplier' THEN 'supplier_receipt_accepted'
+    WHEN 'production' THEN 'production_receipt_accepted'
+    WHEN 'opening_balance' THEN 'opening_balance_accepted'
+    WHEN 'return_from_assembly' THEN 'returned_from_assembly'
+  END;
+  FOR v_line IN SELECT value FROM jsonb_array_elements(p_lines) LOOP
+    v_accepted := (v_line->>'accepted_qty')::numeric;
+    IF v_accepted > 0 THEN
+      SELECT * INTO v_db_line
+      FROM public.b2b_inventory_receipt_lines
+      WHERE id = (v_line->>'line_id')::uuid AND receipt_id = p_receipt_id;
+
       INSERT INTO public.inventory_movements (
         movement_type, product_id, sku, quantity, destination_location, actor_id,
         reason_code, correlation_id, source_document_type, source_document_reference,
@@ -204,8 +254,6 @@ BEGIN
         jsonb_build_object('receiving_action', 'accepted', 'receipt_id', p_receipt_id, 'receipt_line_id', v_db_line.id)
       );
     END IF;
-    v_total_accepted := v_total_accepted + v_accepted;
-    v_total_unaccepted := v_total_unaccepted + v_damaged + v_rejected;
   END LOOP;
 
   UPDATE public.b2b_inventory_receipts
