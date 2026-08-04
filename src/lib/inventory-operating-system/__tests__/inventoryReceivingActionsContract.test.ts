@@ -40,6 +40,10 @@ describe("Phase 3 governed inventory receiving actions", () => {
     expect(sql).toContain("'receiving_action', 'accepted'");
     expect(sql).toContain("An expected balance version is required");
     expect(sql).toContain("Stock balance update did not apply");
+    expect(sql).toContain("sum((payload.value->>'accepted_qty')::numeric)");
+    expect(sql).toContain("All accepted lines for stock balance");
+    expect(sql).toContain("pg_catalog.pg_advisory_xact_lock");
+    expect(sql).toMatch(/IF v_accepted > 0 AND v_expected_version IS NULL THEN/);
   });
 
   it("uses a fixed privileged search path and explicit function privileges", () => {
