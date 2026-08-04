@@ -123,6 +123,40 @@ BEGIN
 END;
 $$;
 
+CREATE OR REPLACE FUNCTION public.protect_b2b_return_receipt_evidence()
+RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+  IF OLD.cartons_conditionally_received > 0 AND (
+    NEW.cartons_conditionally_received < OLD.cartons_conditionally_received
+    OR jsonb_array_length(NEW.gate_evidence_refs) = 0
+    OR NEW.unloading_authorised_by IS NULL
+    OR NEW.quarantine_location IS NULL
+    OR (
+      NEW.transporter_ack_ref IS NULL
+      AND NOT (NEW.transporter_ack_refused AND NEW.refusal_witness_ref IS NOT NULL)
+    )
+  ) THEN
+    RAISE EXCEPTION 'Conditional-return receipt evidence is retained once goods enter quarantine';
+  END IF;
+  RETURN NEW;
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION public.prevent_b2b_return_decision_update()
+RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+  RAISE EXCEPTION 'Return-arrival decisions are immutable; add a superseding decision';
+END;
+$$;
+
+CREATE OR REPLACE TRIGGER protect_conditional_receipt_evidence
+  BEFORE UPDATE ON public.b2b_return_arrival_cases
+  FOR EACH ROW EXECUTE FUNCTION public.protect_b2b_return_receipt_evidence();
+
+CREATE OR REPLACE TRIGGER prevent_decision_update
+  BEFORE UPDATE ON public.b2b_return_arrival_decisions
+  FOR EACH ROW EXECUTE FUNCTION public.prevent_b2b_return_decision_update();
+
 DO $$
 DECLARE relation_name text;
 BEGIN
@@ -142,6 +176,9 @@ $$;
 
 -- Read is role-scoped. Mutations remain server/RPC-controlled until the
 -- governed gate, QA, commercial and finance commands are introduced.
+DROP POLICY IF EXISTS "Authorised staff read return arrivals" ON public.b2b_return_arrival_cases;
+DROP POLICY IF EXISTS "Authorised staff read return items" ON public.b2b_return_arrival_items;
+DROP POLICY IF EXISTS "Authorised staff read return decisions" ON public.b2b_return_arrival_decisions;
 CREATE POLICY "Authorised staff read return arrivals"
   ON public.b2b_return_arrival_cases FOR SELECT TO authenticated
   USING (public.is_internal_staff(auth.uid()));

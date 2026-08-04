@@ -29,7 +29,8 @@ export default function InventoryCommandCenter() {
 
   const load = useCallback(async () => {
     setLoading(true); setError(null);
-    const results = await Promise.all([
+    try {
+      const results = await Promise.all([
       fulfilmentDb.from("b2b_inventory_stores").select("store_code, store_name, active").eq("active", true).order("store_code"),
       fulfilmentDb.from("b2b_order_availability").select("sku, store_code, item_class, available_for_b2b_qty, reserved_qty, unavailable_qty").order("updated_at", { ascending: false }).limit(100),
       fulfilmentDb.from("b2b_inventory_receipts").select("receipt_number, receipt_source, destination_store_code, status, created_at").order("created_at", { ascending: false }).limit(8),
@@ -37,12 +38,17 @@ export default function InventoryCommandCenter() {
       fulfilmentDb.from("b2b_order_availability").select("sku", { count: "exact", head: true }).lte("available_for_b2b_qty", 0),
       fulfilmentDb.from("b2b_inventory_receipts").select("id", { count: "exact", head: true }).not("status", "in", "(accepted,rejected,cancelled)"),
       fulfilmentDb.from("b2b_assembly_jobs").select("id", { count: "exact", head: true }).not("status", "in", "(accepted,rejected,cancelled)"),
-    ]);
-    const failed = results.find((r) => r.error)?.error;
-    if (failed) setError(failed.message);
-    setStores((results[0].data ?? []) as Store[]); setAvailability((results[1].data ?? []) as Availability[]);
-    setReceipts((results[2].data ?? []) as Receipt[]); setAssembly((results[3].data ?? []) as Assembly[]); setLoading(false);
-    setMetrics({ shortage: results[4].count ?? 0, openReceipts: results[5].count ?? 0, openAssembly: results[6].count ?? 0 });
+      ]);
+      const failed = results.find((result) => result.error)?.error;
+      if (failed) setError(failed.message);
+      setStores((results[0].data ?? []) as Store[]); setAvailability((results[1].data ?? []) as Availability[]);
+      setReceipts((results[2].data ?? []) as Receipt[]); setAssembly((results[3].data ?? []) as Assembly[]);
+      setMetrics({ shortage: results[4].count ?? 0, openReceipts: results[5].count ?? 0, openAssembly: results[6].count ?? 0 });
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Failed to load B2B fulfilment data.");
+    } finally {
+      setLoading(false);
+    }
   }, []);
   useEffect(() => { void load(); }, [load]);
   const { shortage, openReceipts, openAssembly } = metrics;

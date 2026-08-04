@@ -1,9 +1,10 @@
 import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 
 const sql = readFileSync(
-  resolve(process.cwd(), "supabase/migrations/20260804123000_b2b_unannounced_return_arrival.sql"),
+  resolve(dirname(fileURLToPath(import.meta.url)), "../../../../supabase/migrations/20260804123000_b2b_unannounced_return_arrival.sql"),
   "utf8",
 );
 
@@ -30,6 +31,9 @@ describe("unannounced B2B return-arrival contract", () => {
 
   it("retains evidence and denies anonymous access", () => {
     expect(sql).toContain("prevent_b2b_return_arrival_delete");
+    expect(sql).toContain("protect_b2b_return_receipt_evidence");
+    expect(sql).toContain("prevent_b2b_return_decision_update");
+    expect(sql).toContain("add a superseding decision");
     expect(sql).toContain("ENABLE ROW LEVEL SECURITY");
     expect(sql).toContain("REVOKE ALL ON TABLE public.%I FROM anon");
   });

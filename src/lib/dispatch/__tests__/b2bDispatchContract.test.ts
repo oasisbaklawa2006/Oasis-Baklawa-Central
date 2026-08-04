@@ -1,9 +1,10 @@
 import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 
 const sql = readFileSync(
-  resolve(process.cwd(), "supabase/migrations/20260804103000_b2b_dispatch_contract.sql"),
+  resolve(dirname(fileURLToPath(import.meta.url)), "../../../../supabase/migrations/20260804103000_b2b_dispatch_contract.sql"),
   "utf8",
 );
 
@@ -21,6 +22,8 @@ describe("B2B Dispatch approved handover contract", () => {
     expect(sql).toContain("original_order_qty");
     expect(sql).toContain("protect_b2b_dispatch_line_identity");
     expect(sql).toContain("create a superseding consignment line");
+    expect(sql).toContain("allocation_consignment.status <> 'cancelled'");
+    expect(sql).toMatch(/validate_b2b_dispatch_line_allocation\(\)[\s\S]*?SECURITY DEFINER[\s\S]*?SET search_path = public/);
   });
 
   it("calculates residual from physical dispatch and authorised closure", () => {
@@ -66,7 +69,16 @@ describe("B2B Dispatch approved handover contract", () => {
     expect(sql).toContain("can_verify_b2b_dispatch_finance");
     expect(sql).toContain("REVOKE ALL ON FUNCTION public.can_manage_b2b_dispatch(uuid) FROM PUBLIC, anon, authenticated");
     expect(sql).toContain("GRANT EXECUTE ON FUNCTION public.can_manage_b2b_dispatch(uuid) TO authenticated");
+    expect(sql).toContain("AND actor_id = auth.uid()");
+    expect(sql).toContain("AND upper(actor_role) = upper(public.get_user_role(auth.uid()))");
+    expect(sql).toContain("AND (authority_id IS NULL OR authority_id = auth.uid())");
     expect(sql).not.toMatch(/'CUSTOMER'|'BUYER'|'OUTLET_MANAGER'/);
+  });
+
+  it("is rerunnable and maintains operational timestamps", () => {
+    expect(sql).toContain("CREATE OR REPLACE TRIGGER trg_b2b_dispatch_consignment_transition");
+    expect(sql).toContain("DROP POLICY IF EXISTS \"Dispatch operators maintain consignments\"");
+    expect(sql).toContain("touch_b2b_dispatch_updated_at");
   });
 
   it("models dispatch-visible QC without transferring upstream ownership", () => {

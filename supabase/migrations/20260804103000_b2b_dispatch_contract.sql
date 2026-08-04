@@ -145,7 +145,7 @@ CREATE TABLE IF NOT EXISTS public.b2b_dispatch_handoff_lines (
   discrepancy_reason text NULL,
   created_at timestamptz NOT NULL DEFAULT now(),
   CONSTRAINT b2b_dispatch_handoff_line_identity
-    UNIQUE (handoff_id, order_item_id, product_code, batch_lot),
+    UNIQUE NULLS NOT DISTINCT (handoff_id, order_item_id, product_code, batch_lot),
   CONSTRAINT b2b_dispatch_handoff_line_reconcile_check CHECK (
     accepted_qty + held_qty + rejected_qty <= physically_received_qty + 0.0001
   )
@@ -451,6 +451,12 @@ CREATE INDEX IF NOT EXISTS idx_b2b_dispatch_events_order_time
   ON public.b2b_dispatch_events (order_id, server_event_at DESC);
 CREATE INDEX IF NOT EXISTS idx_b2b_dispatch_exceptions_queue
   ON public.b2b_dispatch_exceptions (status, severity, resolution_due_at);
+CREATE INDEX IF NOT EXISTS idx_b2b_dispatch_consignment_lines_order_item
+  ON public.b2b_dispatch_consignment_lines (order_item_id);
+CREATE INDEX IF NOT EXISTS idx_b2b_dispatch_releases_consignment
+  ON public.b2b_dispatch_releases (consignment_id);
+CREATE INDEX IF NOT EXISTS idx_b2b_dispatch_exceptions_consignment
+  ON public.b2b_dispatch_exceptions (consignment_id);
 
 -- =============================================================================
 -- F. Guardrails: retained records, immutable identity, forward-only states
@@ -486,6 +492,8 @@ $$;
 CREATE OR REPLACE FUNCTION public.validate_b2b_dispatch_line_allocation()
 RETURNS trigger
 LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
 AS $$
 DECLARE
   item_order_id uuid;
@@ -519,8 +527,11 @@ BEGIN
   SELECT coalesce(sum(line.selected_qty), 0::numeric)
     INTO allocated_qty
   FROM public.b2b_dispatch_consignment_lines line
+  JOIN public.b2b_dispatch_consignments allocation_consignment
+    ON allocation_consignment.id = line.consignment_id
   WHERE line.order_item_id = NEW.order_item_id
-    AND line.id IS DISTINCT FROM NEW.id;
+    AND line.id IS DISTINCT FROM NEW.id
+    AND allocation_consignment.status <> 'cancelled';
 
   IF allocated_qty + NEW.selected_qty > item_order_qty + 0.0001 THEN
     RAISE EXCEPTION 'B2B consignments cannot allocate more than the Sales Order line quantity';
@@ -565,13 +576,13 @@ BEGIN
 END;
 $$;
 
-CREATE TRIGGER trg_b2b_dispatch_consignment_transition
+CREATE OR REPLACE TRIGGER trg_b2b_dispatch_consignment_transition
   BEFORE UPDATE OF status ON public.b2b_dispatch_consignments
   FOR EACH ROW EXECUTE FUNCTION public.validate_b2b_dispatch_consignment_transition();
-CREATE TRIGGER trg_b2b_dispatch_line_identity
+CREATE OR REPLACE TRIGGER trg_b2b_dispatch_line_identity
   BEFORE UPDATE ON public.b2b_dispatch_consignment_lines
   FOR EACH ROW EXECUTE FUNCTION public.protect_b2b_dispatch_line_identity();
-CREATE TRIGGER trg_b2b_dispatch_line_allocation
+CREATE OR REPLACE TRIGGER trg_b2b_dispatch_line_allocation
   BEFORE INSERT OR UPDATE ON public.b2b_dispatch_consignment_lines
   FOR EACH ROW EXECUTE FUNCTION public.validate_b2b_dispatch_line_allocation();
 
@@ -587,7 +598,7 @@ BEGIN
     'b2b_dispatch_releases', 'b2b_dispatch_shipments', 'b2b_dispatch_load_scans',
     'b2b_dispatch_residual_closures', 'b2b_dispatch_exceptions', 'b2b_dispatch_events'
   ] LOOP
-    EXECUTE format('CREATE TRIGGER %I BEFORE DELETE ON public.%I FOR EACH ROW EXECUTE FUNCTION public.prevent_b2b_dispatch_delete()',
+    EXECUTE format('CREATE OR REPLACE TRIGGER %I BEFORE DELETE ON public.%I FOR EACH ROW EXECUTE FUNCTION public.prevent_b2b_dispatch_delete()',
       'trg_' || relation_name || '_no_delete', relation_name);
   END LOOP;
 END;
@@ -603,19 +614,45 @@ BEGIN
 END;
 $$;
 
-CREATE TRIGGER trg_b2b_dispatch_events_no_update
+CREATE OR REPLACE FUNCTION public.touch_b2b_dispatch_updated_at()
+RETURNS trigger
+LANGUAGE plpgsql
+AS $$
+BEGIN
+  NEW.updated_at = now();
+  RETURN NEW;
+END;
+$$;
+
+DO $$
+DECLARE relation_name text;
+BEGIN
+  FOREACH relation_name IN ARRAY ARRAY[
+    'b2b_dispatch_consignments', 'b2b_dispatch_consignment_lines',
+    'b2b_dispatch_handoffs', 'b2b_dispatch_cartons',
+    'b2b_dispatch_shipments', 'b2b_dispatch_exceptions'
+  ] LOOP
+    EXECUTE format(
+      'CREATE OR REPLACE TRIGGER %I BEFORE UPDATE ON public.%I FOR EACH ROW EXECUTE FUNCTION public.touch_b2b_dispatch_updated_at()',
+      'trg_' || relation_name || '_touch_updated_at', relation_name
+    );
+  END LOOP;
+END;
+$$;
+
+CREATE OR REPLACE TRIGGER trg_b2b_dispatch_events_no_update
   BEFORE UPDATE ON public.b2b_dispatch_events
   FOR EACH ROW EXECUTE FUNCTION public.prevent_b2b_dispatch_append_only_update();
-CREATE TRIGGER trg_b2b_dispatch_quality_checks_no_update
+CREATE OR REPLACE TRIGGER trg_b2b_dispatch_quality_checks_no_update
   BEFORE UPDATE ON public.b2b_dispatch_quality_checks
   FOR EACH ROW EXECUTE FUNCTION public.prevent_b2b_dispatch_append_only_update();
-CREATE TRIGGER trg_b2b_dispatch_product_scan_events_no_update
+CREATE OR REPLACE TRIGGER trg_b2b_dispatch_product_scan_events_no_update
   BEFORE UPDATE ON public.b2b_dispatch_product_scan_events
   FOR EACH ROW EXECUTE FUNCTION public.prevent_b2b_dispatch_append_only_update();
-CREATE TRIGGER trg_b2b_dispatch_load_scans_no_update
+CREATE OR REPLACE TRIGGER trg_b2b_dispatch_load_scans_no_update
   BEFORE UPDATE ON public.b2b_dispatch_load_scans
   FOR EACH ROW EXECUTE FUNCTION public.prevent_b2b_dispatch_append_only_update();
-CREATE TRIGGER trg_b2b_dispatch_residual_closures_no_update
+CREATE OR REPLACE TRIGGER trg_b2b_dispatch_residual_closures_no_update
   BEFORE UPDATE ON public.b2b_dispatch_residual_closures
   FOR EACH ROW EXECUTE FUNCTION public.prevent_b2b_dispatch_append_only_update();
 
@@ -749,6 +786,7 @@ REVOKE ALL ON FUNCTION public.protect_b2b_dispatch_line_identity() FROM PUBLIC, 
 REVOKE ALL ON FUNCTION public.validate_b2b_dispatch_line_allocation() FROM PUBLIC, anon, authenticated;
 REVOKE ALL ON FUNCTION public.validate_b2b_dispatch_consignment_transition() FROM PUBLIC, anon, authenticated;
 REVOKE ALL ON FUNCTION public.prevent_b2b_dispatch_append_only_update() FROM PUBLIC, anon, authenticated;
+REVOKE ALL ON FUNCTION public.touch_b2b_dispatch_updated_at() FROM PUBLIC, anon, authenticated;
 
 DO $$
 DECLARE relation_name text;
@@ -763,6 +801,8 @@ BEGIN
   ] LOOP
     EXECUTE format('ALTER TABLE public.%I ENABLE ROW LEVEL SECURITY', relation_name);
     EXECUTE format('REVOKE ALL ON public.%I FROM anon', relation_name);
+    EXECUTE format('DROP POLICY IF EXISTS %I ON public.%I',
+      'Internal staff read ' || relation_name, relation_name);
     EXECUTE format(
       'CREATE POLICY %I ON public.%I FOR SELECT TO authenticated USING (public.is_internal_staff(auth.uid()))',
       'Internal staff read ' || relation_name, relation_name
@@ -770,6 +810,22 @@ BEGIN
   END LOOP;
 END;
 $$;
+
+DROP POLICY IF EXISTS "Dispatch operators maintain consignments" ON public.b2b_dispatch_consignments;
+DROP POLICY IF EXISTS "Dispatch operators maintain consignment lines" ON public.b2b_dispatch_consignment_lines;
+DROP POLICY IF EXISTS "Dispatch operators maintain handoffs" ON public.b2b_dispatch_handoffs;
+DROP POLICY IF EXISTS "Dispatch operators maintain handoff lines" ON public.b2b_dispatch_handoff_lines;
+DROP POLICY IF EXISTS "Dispatch operators maintain cartons" ON public.b2b_dispatch_cartons;
+DROP POLICY IF EXISTS "Dispatch operators maintain carton items" ON public.b2b_dispatch_carton_items;
+DROP POLICY IF EXISTS "Dispatch operators record product scan events" ON public.b2b_dispatch_product_scan_events;
+DROP POLICY IF EXISTS "Dispatch operators record quality checks" ON public.b2b_dispatch_quality_checks;
+DROP POLICY IF EXISTS "Dispatch operators maintain packing list versions" ON public.b2b_dispatch_packing_list_versions;
+DROP POLICY IF EXISTS "Finance verifies dispatch releases" ON public.b2b_dispatch_releases;
+DROP POLICY IF EXISTS "Dispatch operators maintain shipments" ON public.b2b_dispatch_shipments;
+DROP POLICY IF EXISTS "Dispatch operators record load scans" ON public.b2b_dispatch_load_scans;
+DROP POLICY IF EXISTS "Management closes residuals" ON public.b2b_dispatch_residual_closures;
+DROP POLICY IF EXISTS "Dispatch operators maintain exceptions" ON public.b2b_dispatch_exceptions;
+DROP POLICY IF EXISTS "Dispatch operators record events" ON public.b2b_dispatch_events;
 
 CREATE POLICY "Dispatch operators maintain consignments"
   ON public.b2b_dispatch_consignments FOR ALL TO authenticated
@@ -797,34 +853,42 @@ CREATE POLICY "Dispatch operators maintain carton items"
   WITH CHECK (public.can_manage_b2b_dispatch(auth.uid()));
 CREATE POLICY "Dispatch operators record product scan events"
   ON public.b2b_dispatch_product_scan_events FOR INSERT TO authenticated
-  WITH CHECK (public.can_manage_b2b_dispatch(auth.uid()));
+  WITH CHECK (public.can_manage_b2b_dispatch(auth.uid()) AND scanned_by = auth.uid());
 CREATE POLICY "Dispatch operators record quality checks"
   ON public.b2b_dispatch_quality_checks FOR INSERT TO authenticated
-  WITH CHECK (public.can_manage_b2b_dispatch(auth.uid()));
+  WITH CHECK (public.can_manage_b2b_dispatch(auth.uid()) AND checked_by = auth.uid());
 CREATE POLICY "Dispatch operators maintain packing list versions"
   ON public.b2b_dispatch_packing_list_versions FOR ALL TO authenticated
   USING (public.can_manage_b2b_dispatch(auth.uid()) OR public.can_verify_b2b_dispatch_finance(auth.uid()))
   WITH CHECK (public.can_manage_b2b_dispatch(auth.uid()) OR public.can_verify_b2b_dispatch_finance(auth.uid()));
 CREATE POLICY "Finance verifies dispatch releases"
   ON public.b2b_dispatch_releases FOR INSERT TO authenticated
-  WITH CHECK (public.can_verify_b2b_dispatch_finance(auth.uid()));
+  WITH CHECK (public.can_verify_b2b_dispatch_finance(auth.uid()) AND released_by = auth.uid());
 CREATE POLICY "Dispatch operators maintain shipments"
   ON public.b2b_dispatch_shipments FOR ALL TO authenticated
   USING (public.can_manage_b2b_dispatch(auth.uid()))
   WITH CHECK (public.can_manage_b2b_dispatch(auth.uid()));
 CREATE POLICY "Dispatch operators record load scans"
   ON public.b2b_dispatch_load_scans FOR INSERT TO authenticated
-  WITH CHECK (public.can_manage_b2b_dispatch(auth.uid()));
+  WITH CHECK (public.can_manage_b2b_dispatch(auth.uid()) AND scanned_by = auth.uid());
 CREATE POLICY "Management closes residuals"
   ON public.b2b_dispatch_residual_closures FOR INSERT TO authenticated
-  WITH CHECK (upper(public.get_user_role(auth.uid())) = ANY (ARRAY['SUPER_ADMIN', 'ADMIN', 'CMD', 'MD', 'OPERATIONS_MANAGER']));
+  WITH CHECK (
+    upper(public.get_user_role(auth.uid())) = ANY (ARRAY['SUPER_ADMIN', 'ADMIN', 'CMD', 'MD', 'OPERATIONS_MANAGER'])
+    AND approved_by = auth.uid()
+  );
 CREATE POLICY "Dispatch operators maintain exceptions"
   ON public.b2b_dispatch_exceptions FOR ALL TO authenticated
   USING (public.can_manage_b2b_dispatch(auth.uid()))
   WITH CHECK (public.can_manage_b2b_dispatch(auth.uid()));
 CREATE POLICY "Dispatch operators record events"
   ON public.b2b_dispatch_events FOR INSERT TO authenticated
-  WITH CHECK (public.can_manage_b2b_dispatch(auth.uid()) OR public.can_verify_b2b_dispatch_finance(auth.uid()));
+  WITH CHECK (
+    (public.can_manage_b2b_dispatch(auth.uid()) OR public.can_verify_b2b_dispatch_finance(auth.uid()))
+    AND actor_id = auth.uid()
+    AND upper(actor_role) = upper(public.get_user_role(auth.uid()))
+    AND (authority_id IS NULL OR authority_id = auth.uid())
+  );
 
 REVOKE ALL ON public.b2b_dispatch_so_line_fulfilment FROM anon;
 REVOKE ALL ON public.b2b_dispatch_command_queue FROM anon;
