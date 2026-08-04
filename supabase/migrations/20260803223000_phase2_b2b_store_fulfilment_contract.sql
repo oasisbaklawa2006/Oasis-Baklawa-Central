@@ -232,7 +232,10 @@ ALTER TABLE public.inventory_movements
       'assembly_output_accepted', 'dispatch_issue_confirmed',
       'correction_in', 'correction_out'
     )
-  );
+  ) NOT VALID;
+
+ALTER TABLE public.inventory_movements
+  VALIDATE CONSTRAINT inventory_movements_type_check;
 
 ALTER TABLE public.inventory_movements
   DROP CONSTRAINT IF EXISTS inventory_movements_physical_source_check;
@@ -250,7 +253,13 @@ ALTER TABLE public.inventory_movements
       source_document_type IS NOT NULL
       AND nullif(btrim(source_document_reference), '') IS NOT NULL
     )
-  );
+  ) NOT VALID;
+
+-- Deliberately leave this constraint NOT VALID for legacy rows. It still
+-- governs every new/updated row immediately. A controlled deployment must
+-- identify and backfill trustworthy source evidence before separately running:
+-- ALTER TABLE public.inventory_movements
+--   VALIDATE CONSTRAINT inventory_movements_physical_source_check;
 
 -- State changes are forward-only. Corrections are new ledger movements, not
 -- deletion or reopening of accepted operational evidence.
