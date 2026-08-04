@@ -101,6 +101,7 @@ const LabelCommandCenter = lazy(() => import("./pages/admin/LabelCommandCenter.t
 const CustomerTimelinePreview = lazy(() => import("./pages/admin/CustomerTimelinePreview.tsx"));
 const OperationalGlobalSearch = lazy(() => import("./pages/admin/OperationalGlobalSearch.tsx"));
 const InventoryCommandCenter = lazy(() => import("./pages/admin/InventoryCommandCenter.tsx"));
+const InventoryReceiving = lazy(() => import("./pages/admin/InventoryReceiving.tsx"));
 const CartonExplorer = lazy(() => import("./pages/admin/CartonExplorer.tsx"));
 const ReservationBoard = lazy(() => import("./pages/admin/ReservationBoard.tsx"));
 const InventoryRiskBoard = lazy(() => import("./pages/admin/InventoryRiskBoard.tsx"));
@@ -368,6 +369,7 @@ const App = () => (
                     <Route path="central-pool" element={<Navigate to="/admin/operator-inbox" replace />} />
                     <Route path="cmd-war-room" element={<Navigate to="/admin/operator-inbox" replace />} />
                     <Route path="inventory-command-center" element={<InventoryCommandCenter />} />
+                    <Route path="inventory-receiving" element={<InventoryReceiving />} />
                     <Route path="carton-explorer" element={<CartonExplorer />} />
                     <Route path="reservation-board" element={<ReservationBoard />} />
                     <Route path="inventory-risk-board" element={<InventoryRiskBoard />} />

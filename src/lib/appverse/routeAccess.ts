@@ -46,6 +46,7 @@ const ADMIN_ROUTE_MODULES: Array<{ prefix: string; moduleKey: AppVerseModuleKey 
   { prefix: "/admin/assembly", moduleKey: "production" },
   { prefix: "/admin/operations", moduleKey: "production" },
   { prefix: "/admin/inventory-command-center", moduleKey: "inventory" },
+  { prefix: "/admin/inventory-receiving", moduleKey: "inventory" },
   { prefix: "/admin/carton-explorer", moduleKey: "inventory" },
   { prefix: "/admin/inventory-risk-board", moduleKey: "inventory" },
   { prefix: "/admin/scan-timeline", moduleKey: "inventory" },
