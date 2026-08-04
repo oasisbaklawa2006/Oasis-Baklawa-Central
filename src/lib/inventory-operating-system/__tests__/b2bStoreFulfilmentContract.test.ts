@@ -5,7 +5,7 @@ import { describe, expect, it } from "vitest";
 const sql = readFileSync(
   resolve(
     process.cwd(),
-    "supabase/migrations/20260803223000_phase2_b2b_store_fulfilment_contract.sql",
+    "supabase/migrations/20260803194132_phase2_b2b_store_fulfilment_contract.sql",
   ),
   "utf8",
 );
