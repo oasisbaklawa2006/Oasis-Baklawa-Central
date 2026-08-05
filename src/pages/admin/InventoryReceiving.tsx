@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { AlertTriangle, ArrowLeft, CheckCircle2, ClipboardList, PackageSearch, RefreshCw, Scale, Truck } from "lucide-react";
+import { AlertTriangle, ArrowLeft, CheckCircle2, ClipboardList, MapPin, PackageSearch, RefreshCw, ScanBarcode, Scale, Truck } from "lucide-react";
 import { Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Badge } from "@/components/ui/badge";
@@ -10,7 +10,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 // Temporary typed boundary for live Phase 2 relations pending regenerated
 // project-wide Supabase definitions.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-const fulfilmentDb = supabase as unknown as { from: (relation: string) => any };
+const fulfilmentDb = supabase as unknown as { from: (relation: string) => any; rpc: (name: string, args: Record<string, unknown>) => Promise<{ data: unknown; error: { message: string } | null }> };
 
 type Receipt = {
   id: string;
@@ -39,6 +39,8 @@ type ReceiptLine = {
   shortage_qty: number;
   excess_qty: number;
 };
+type PutawayTask = { id: string; receipt_line_id: string; bin_id: string; disposition: string; allocated_qty: number; placed_qty: number; status: string; b2b_inventory_bins: { bin_code: string; store_code: string; zone_code: string; rack_code: string; shelf_code: string } | null };
+type Grn = { receipt_id: string; grn_number: string; status: string; finalised_at: string | null };
 
 const terminalStatuses = new Set(["accepted", "rejected", "cancelled"]);
 
@@ -46,6 +48,8 @@ const terminalStatuses = new Set(["accepted", "rejected", "cancelled"]);
 export default function InventoryReceiving() {
   const [receipts, setReceipts] = useState<Receipt[]>([]);
   const [lines, setLines] = useState<ReceiptLine[]>([]);
+  const [tasks, setTasks] = useState<PutawayTask[]>([]);
+  const [grns, setGrns] = useState<Grn[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [filter, setFilter] = useState<"open" | "all" | "exceptions">("open");
   const [loading, setLoading] = useState(true);
@@ -62,12 +66,27 @@ export default function InventoryReceiving() {
         ? await fulfilmentDb.from("b2b_inventory_receipt_lines").select("id, receipt_id, sku, supplier_batch_lot, oasis_batch_lot, expiry_date, expected_qty, received_qty, accepted_qty, damaged_qty, rejected_qty, shortage_qty, excess_qty").in("receipt_id", nextReceipts.map((receipt) => receipt.id)).order("created_at", { ascending: true })
         : { data: [], error: null };
       if (lineResult.error) throw lineResult.error;
+      const receiptIds = nextReceipts.map((receipt) => receipt.id);
+      const nextLines = (lineResult.data ?? []) as ReceiptLine[];
+      const lineIds = nextLines.map((line) => line.id);
+      const [taskResult, grnResult] = await Promise.all([
+        lineIds.length
+          ? fulfilmentDb.from("b2b_inventory_putaway_tasks").select("id, receipt_line_id, bin_id, disposition, allocated_qty, placed_qty, status, b2b_inventory_bins(bin_code, store_code, zone_code, rack_code, shelf_code)").in("receipt_line_id", lineIds).order("created_at", { ascending: true })
+          : { data: [], error: null },
+        receiptIds.length
+          ? fulfilmentDb.from("b2b_inventory_grns").select("receipt_id, grn_number, status, finalised_at").in("receipt_id", receiptIds).order("created_at", { ascending: false })
+          : { data: [], error: null },
+      ]);
+      if (taskResult.error) throw taskResult.error;
+      if (grnResult.error) throw grnResult.error;
       setReceipts(nextReceipts);
-      setLines((lineResult.data ?? []) as ReceiptLine[]);
+      setLines(nextLines);
+      setTasks((taskResult.data ?? []) as PutawayTask[]);
+      setGrns((grnResult.data ?? []) as Grn[]);
       setSelectedId((current) => current && nextReceipts.some((receipt) => receipt.id === current) ? current : nextReceipts[0]?.id ?? null);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Unexpected receiving data error");
-      setReceipts([]); setLines([]); setSelectedId(null);
+      setReceipts([]); setLines([]); setTasks([]); setGrns([]); setSelectedId(null);
     } finally {
       setLoading(false);
     }
@@ -86,6 +105,8 @@ export default function InventoryReceiving() {
   const openCount = receipts.filter((receipt) => !terminalStatuses.has(receipt.status)).length;
   const exceptionCount = exceptionReceiptIds.size;
   const acceptedQty = selectedLines.reduce((total, line) => total + Number(line.accepted_qty), 0);
+  const selectedTasks = tasks.filter((task) => selectedLines.some((line) => line.id === task.receipt_line_id));
+  const selectedGrn = grns.find((grn) => grn.receipt_id === selectedId) ?? null;
 
   return (
     <div className="mx-auto max-w-7xl space-y-6 p-4 pb-24">
@@ -105,8 +126,8 @@ export default function InventoryReceiving() {
         <Metric icon={CheckCircle2} label="Accepted receipts" value={receipts.filter((receipt) => receipt.status === "accepted").length} tone="olive" />
       </div>
 
-      <Card className="border-amber-200 bg-amber-50/40">
-        <CardContent className="flex gap-3 p-4 text-sm"><ClipboardList className="mt-0.5 h-4 w-4 shrink-0 text-amber-700" /><div><p className="font-semibold">Read-only operational evidence</p><p className="text-muted-foreground">Acceptance, rejection and stock posting require a transactional server workflow. This view intentionally cannot mutate inventory.</p></div></CardContent>
+      <Card className="border-primary/30 bg-primary/5">
+        <CardContent className="flex gap-3 p-4 text-sm"><ClipboardList className="mt-0.5 h-4 w-4 shrink-0 text-primary" /><div><p className="font-semibold">Governed Phase 4 workflow</p><p className="text-muted-foreground">Put-away scans and GRN finalisation run only through authenticated transactional RPCs. Direct stock and GRN writes remain blocked.</p></div></CardContent>
       </Card>
 
       <div className="grid gap-4 lg:grid-cols-[minmax(300px,0.85fr)_minmax(0,1.65fr)]">
@@ -132,6 +153,7 @@ export default function InventoryReceiving() {
                 <Detail label="Accepted quantity" value={formatQty(acceptedQty)} />
               </div>
               <div className="overflow-x-auto"><Table><TableHeader><TableRow><TableHead>SKU / provenance</TableHead><TableHead className="text-right">Expected</TableHead><TableHead className="text-right">Received</TableHead><TableHead className="text-right">Accepted</TableHead><TableHead className="text-right">Damaged / rejected</TableHead><TableHead>Variance</TableHead></TableRow></TableHeader><TableBody>{selectedLines.map((line) => <TableRow key={line.id}><TableCell><p className="font-medium">{line.sku}</p><p className="text-[11px] text-muted-foreground">{line.supplier_batch_lot ? `Supplier lot ${line.supplier_batch_lot}` : line.oasis_batch_lot ? `Oasis lot ${line.oasis_batch_lot}` : "Lot not recorded"}{line.expiry_date ? ` · Exp ${line.expiry_date}` : ""}</p></TableCell><TableCell className="text-right">{formatQty(line.expected_qty)}</TableCell><TableCell className="text-right">{formatQty(line.received_qty)}</TableCell><TableCell className="text-right font-medium">{formatQty(line.accepted_qty)}</TableCell><TableCell className="text-right">{formatQty(Number(line.damaged_qty) + Number(line.rejected_qty))}</TableCell><TableCell>{hasVariance(line) ? <div className="flex flex-wrap gap-1">{Number(line.shortage_qty) > 0 && <Badge variant="destructive">{formatQty(line.shortage_qty)} short</Badge>}{Number(line.excess_qty) > 0 && <Badge variant="secondary">{formatQty(line.excess_qty)} excess</Badge>}{Number(line.damaged_qty) > 0 && <Badge variant="destructive">{formatQty(line.damaged_qty)} damaged</Badge>}{Number(line.rejected_qty) > 0 && <Badge variant="destructive">{formatQty(line.rejected_qty)} rejected</Badge>}</div> : <Badge variant="outline">Matched</Badge>}</TableCell></TableRow>)}</TableBody></Table></div>
+              <Phase4Panel key={selected.id} receipt={selected} tasks={selectedTasks} grn={selectedGrn} reload={load} />
               {!selectedLines.length && <Empty text="No receipt lines have been recorded." />}
             </div> : <Empty text="Select a receipt to inspect inward evidence." />}
           </CardContent>
@@ -139,6 +161,30 @@ export default function InventoryReceiving() {
       </div>
     </div>
   );
+}
+
+function Phase4Panel({ receipt, tasks, grn, reload }: { receipt: Receipt; tasks: PutawayTask[]; grn: Grn | null; reload: () => Promise<void> }) {
+  const [scanByTask, setScanByTask] = useState<Record<string, string>>({}); const [busy, setBusy] = useState<string | null>(null); const [actionError, setActionError] = useState<string | null>(null);
+  const confirmTask = async (task: PutawayTask) => {
+    setBusy(task.id); setActionError(null);
+    try {
+      const { error } = await fulfilmentDb.rpc("confirm_b2b_inventory_putaway", { p_task_id: task.id, p_bin_code: (scanByTask[task.id] ?? "").trim(), p_quantity: Number(task.allocated_qty) - Number(task.placed_qty), p_correlation_id: `putaway:${task.id}:${Date.now()}` });
+      if (error) setActionError(error.message);
+      else { setScanByTask((current) => ({ ...current, [task.id]: "" })); await reload(); }
+    } catch (cause) { setActionError(cause instanceof Error ? cause.message : "Put-away confirmation failed"); }
+    finally { setBusy(null); }
+  };
+  const finalise = async () => {
+    setBusy("grn"); setActionError(null);
+    try {
+      const number = `GRN-${receipt.receipt_number}`;
+      const { error } = await fulfilmentDb.rpc("finalise_b2b_inventory_grn", { p_receipt_id: receipt.id, p_grn_number: number, p_correlation_id: `grn:${receipt.id}` });
+      if (error) setActionError(error.message); else await reload();
+    } catch (cause) { setActionError(cause instanceof Error ? cause.message : "GRN finalisation failed"); }
+    finally { setBusy(null); }
+  };
+  const complete = tasks.length > 0 && tasks.every((task) => task.status === "completed");
+  return <section className="space-y-3 rounded-lg border border-primary/20 bg-primary/[0.03] p-4"><div className="flex flex-wrap items-center justify-between gap-2"><div><h2 className="flex items-center gap-2 text-sm font-semibold"><MapPin className="h-4 w-4 text-primary" />Put-away & GRN</h2><p className="text-xs text-muted-foreground">Scan the allocated bin to confirm physical placement.</p></div>{grn ? <Badge className="bg-primary">{grn.grn_number} · {grn.status}</Badge> : <Badge variant="outline">GRN pending</Badge>}</div>{actionError && <p className="rounded border border-destructive/30 bg-destructive/5 p-2 text-xs text-destructive">{actionError}</p>}<div className="space-y-2">{tasks.map((task) => <div key={task.id} className="grid gap-2 rounded-md border bg-background p-3 sm:grid-cols-[1fr_180px_auto]"><div><p className="text-sm font-medium">{task.disposition.replace(/_/g," ")} · {formatQty(task.placed_qty)}/{formatQty(task.allocated_qty)}</p><p className="text-xs text-muted-foreground">{task.b2b_inventory_bins ? `${task.b2b_inventory_bins.store_code} / ${task.b2b_inventory_bins.zone_code} / ${task.b2b_inventory_bins.rack_code} / ${task.b2b_inventory_bins.shelf_code} / ${task.b2b_inventory_bins.bin_code}` : "Bin unavailable"}</p></div>{task.status !== "completed" ? <><label className="flex items-center gap-2 rounded border px-2"><ScanBarcode className="h-4 w-4" /><input className="min-w-0 flex-1 bg-transparent py-2 text-sm outline-none" value={scanByTask[task.id] ?? ""} onChange={(event) => setScanByTask((current) => ({ ...current, [task.id]: event.target.value }))} placeholder="Scan bin code" aria-label="Scanned bin code" /></label><Button size="sm" disabled={!(scanByTask[task.id] ?? "").trim() || busy !== null} onClick={() => void confirmTask(task)}>{busy === task.id ? "Confirming…" : "Confirm"}</Button></> : <div className="sm:col-span-2 flex items-center justify-end gap-1 text-xs font-medium text-primary"><CheckCircle2 className="h-4 w-4" />Placed</div>}</div>)}{!tasks.length && <p className="py-4 text-center text-xs text-muted-foreground">No put-away allocation has been issued yet.</p>}</div>{!grn && <div className="flex justify-end"><Button size="sm" disabled={!complete || busy !== null} onClick={() => void finalise()}>{busy === "grn" ? "Finalising…" : "Finalise GRN"}</Button></div>}</section>;
 }
 
 function hasVariance(line: ReceiptLine) { return Number(line.shortage_qty) > 0 || Number(line.excess_qty) > 0 || Number(line.damaged_qty) > 0 || Number(line.rejected_qty) > 0; }
