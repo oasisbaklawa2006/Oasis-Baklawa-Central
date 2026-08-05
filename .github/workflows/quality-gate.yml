@@ -68,6 +68,18 @@ jobs:
           echo "tooling=$TOOLING" >> "$GITHUB_OUTPUT"
           echo "tests=$TESTS" >> "$GITHUB_OUTPUT"
 
+      - name: Enforce canonical Supabase migration ownership
+        if: github.event_name == 'pull_request'
+        shell: bash
+        run: |
+          set -euo pipefail
+          if grep -Eq '^supabase/migrations/' /tmp/changed-files.txt; then
+            echo 'BOUNDARY VIOLATION: active Supabase migrations are owned exclusively by oasisbaklawa2006/oasis-supabase-core.' >&2
+            echo 'Move the reviewed migration and database tests to Core; Central may consume the resulting contract only.' >&2
+            exit 1
+          fi
+          echo 'Canonical Supabase migration ownership passed.'
+
       - name: Setup Node
         if: steps.changes.outputs.app == 'true' || steps.changes.outputs.ui == 'true' || steps.changes.outputs.migration == 'true' || steps.changes.outputs.tooling == 'true' || steps.changes.outputs.tests == 'true'
         uses: actions/setup-node@v4
