@@ -1,6 +1,6 @@
 begin;
 
-select plan(8);
+select plan(9);
 
 set local request.jwt.claim.sub = '10000000-0000-0000-0000-000000000001';
 set local request.jwt.claim.role = 'authenticated';
@@ -23,6 +23,41 @@ values (
   'PHASE3-RECEIVING-TEST',
   'test',
   '0000'
+);
+
+insert into public.b2b_inventory_receipts (
+  id, receipt_number, receipt_source, destination_store_code,
+  source_document_type, source_document_reference, correlation_id
+)
+values (
+  '30000000-0000-0000-0000-000000000003',
+  'PHASE3-RECEIPT-003',
+  'opening_balance',
+  'FINISHED_GOODS',
+  'opening_balance_sheet',
+  'PHASE3-TEST-003',
+  'phase3-test-003'
+);
+
+select lives_ok(
+  $$ insert into public.b2b_inventory_receipt_lines (
+       id, receipt_id, product_id, sku, expected_qty
+     ) values
+       (
+         '40000000-0000-0000-0000-000000000004',
+         '30000000-0000-0000-0000-000000000003',
+         '20000000-0000-0000-0000-000000000001',
+         'PHASE3-RECEIVING-TEST',
+         1
+       ),
+       (
+         '40000000-0000-0000-0000-000000000005',
+         '30000000-0000-0000-0000-000000000003',
+         '20000000-0000-0000-0000-000000000001',
+         'PHASE3-RECEIVING-TEST',
+         1
+       ) $$,
+  'allows repeated product and SKU lines while both batch identities are unknown'
 );
 
 insert into public.b2b_inventory_receipts (

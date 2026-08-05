@@ -5,7 +5,7 @@ import { describe, expect, it } from "vitest";
 const sql = readFileSync(
   resolve(
     process.cwd(),
-    "supabase/migrations/20260803223000_phase2_b2b_store_fulfilment_contract.sql",
+    "supabase/migrations/20260803194132_phase2_b2b_store_fulfilment_contract.sql",
   ),
   "utf8",
 );
@@ -34,7 +34,7 @@ describe("Central v1 B2B store fulfilment contract", () => {
 
   it("requires source evidence for every physical ledger movement", () => {
     expect(sql).toContain("inventory_movements_physical_source_check");
-    expect(sql).toContain("source_document_type IS NOT NULL");
+    expect(sql).toContain("nullif(btrim(source_document_type), '') IS NOT NULL");
     expect(sql).toContain("source_document_reference");
     expect(reservationSql).toContain("prevent_inventory_movement_mutation");
   });
