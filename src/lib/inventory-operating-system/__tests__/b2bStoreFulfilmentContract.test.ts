@@ -34,7 +34,7 @@ describe("Central v1 B2B store fulfilment contract", () => {
 
   it("requires source evidence for every physical ledger movement", () => {
     expect(sql).toContain("inventory_movements_physical_source_check");
-    expect(sql).toContain("source_document_type IS NOT NULL");
+    expect(sql).toContain("nullif(btrim(source_document_type), '') IS NOT NULL");
     expect(sql).toContain("source_document_reference");
     expect(reservationSql).toContain("prevent_inventory_movement_mutation");
   });
