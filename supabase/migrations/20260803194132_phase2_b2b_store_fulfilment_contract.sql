@@ -104,8 +104,8 @@ CREATE TABLE IF NOT EXISTS public.b2b_inventory_receipts (
   supplier_id uuid NULL,
   production_job_id uuid NULL REFERENCES public.production_jobs (id) ON DELETE RESTRICT,
   status text NOT NULL DEFAULT 'expected',
-  received_by uuid NULL,
-  accepted_by uuid NULL,
+  received_by uuid NULL REFERENCES public.users (id) ON DELETE RESTRICT,
+  accepted_by uuid NULL REFERENCES public.users (id) ON DELETE RESTRICT,
   received_at timestamptz NULL,
   accepted_at timestamptz NULL,
   correlation_id text NOT NULL,
@@ -147,14 +147,17 @@ CREATE TABLE IF NOT EXISTS public.b2b_inventory_receipt_lines (
   )
 );
 
-CREATE UNIQUE INDEX IF NOT EXISTS idx_b2b_inventory_receipt_lines_identity
+CREATE UNIQUE INDEX IF NOT EXISTS idx_b2b_receipt_lines_supplier_batch
   ON public.b2b_inventory_receipt_lines (
-    receipt_id,
-    product_id,
-    sku,
-    coalesce(supplier_batch_lot, ''),
-    coalesce(oasis_batch_lot, '')
-  );
+    receipt_id, product_id, sku, supplier_batch_lot
+  )
+  WHERE supplier_batch_lot IS NOT NULL;
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_b2b_receipt_lines_oasis_batch
+  ON public.b2b_inventory_receipt_lines (
+    receipt_id, product_id, sku, oasis_batch_lot
+  )
+  WHERE oasis_batch_lot IS NOT NULL;
 
 CREATE TABLE IF NOT EXISTS public.b2b_assembly_jobs (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -167,9 +170,9 @@ CREATE TABLE IF NOT EXISTS public.b2b_assembly_jobs (
   accepted_qty numeric NOT NULL DEFAULT 0 CHECK (accepted_qty >= 0),
   rejected_qty numeric NOT NULL DEFAULT 0 CHECK (rejected_qty >= 0),
   status text NOT NULL DEFAULT 'planned',
-  started_by uuid NULL,
-  completed_by uuid NULL,
-  qc_accepted_by uuid NULL,
+  started_by uuid NULL REFERENCES public.users (id) ON DELETE RESTRICT,
+  completed_by uuid NULL REFERENCES public.users (id) ON DELETE RESTRICT,
+  qc_accepted_by uuid NULL REFERENCES public.users (id) ON DELETE RESTRICT,
   correlation_id text NOT NULL,
   started_at timestamptz NULL,
   completed_at timestamptz NULL,
@@ -234,8 +237,6 @@ ALTER TABLE public.inventory_movements
     )
   ) NOT VALID;
 
-ALTER TABLE public.inventory_movements
-  VALIDATE CONSTRAINT inventory_movements_type_check;
 
 ALTER TABLE public.inventory_movements
   DROP CONSTRAINT IF EXISTS inventory_movements_physical_source_check;
@@ -250,7 +251,7 @@ ALTER TABLE public.inventory_movements
       'correction_in', 'correction_out'
     )
     OR (
-      source_document_type IS NOT NULL
+      nullif(btrim(source_document_type), '') IS NOT NULL
       AND nullif(btrim(source_document_reference), '') IS NOT NULL
     )
   ) NOT VALID;
@@ -308,10 +309,12 @@ BEGIN
 END;
 $$;
 
+DROP TRIGGER IF EXISTS trg_b2b_receipt_transition ON public.b2b_inventory_receipts;
 CREATE TRIGGER trg_b2b_receipt_transition
   BEFORE UPDATE OF status ON public.b2b_inventory_receipts
   FOR EACH ROW EXECUTE FUNCTION public.validate_b2b_receipt_transition();
 
+DROP TRIGGER IF EXISTS trg_b2b_assembly_transition ON public.b2b_assembly_jobs;
 CREATE TRIGGER trg_b2b_assembly_transition
   BEFORE UPDATE OF status ON public.b2b_assembly_jobs
   FOR EACH ROW EXECUTE FUNCTION public.validate_b2b_assembly_transition();
@@ -326,21 +329,27 @@ BEGIN
 END;
 $$;
 
+DROP TRIGGER IF EXISTS trg_b2b_stores_no_delete ON public.b2b_inventory_stores;
 CREATE TRIGGER trg_b2b_stores_no_delete
   BEFORE DELETE ON public.b2b_inventory_stores
   FOR EACH ROW EXECUTE FUNCTION public.prevent_b2b_fulfilment_delete();
+DROP TRIGGER IF EXISTS trg_b2b_item_profiles_no_delete ON public.b2b_inventory_item_profiles;
 CREATE TRIGGER trg_b2b_item_profiles_no_delete
   BEFORE DELETE ON public.b2b_inventory_item_profiles
   FOR EACH ROW EXECUTE FUNCTION public.prevent_b2b_fulfilment_delete();
+DROP TRIGGER IF EXISTS trg_b2b_receipts_no_delete ON public.b2b_inventory_receipts;
 CREATE TRIGGER trg_b2b_receipts_no_delete
   BEFORE DELETE ON public.b2b_inventory_receipts
   FOR EACH ROW EXECUTE FUNCTION public.prevent_b2b_fulfilment_delete();
+DROP TRIGGER IF EXISTS trg_b2b_receipt_lines_no_delete ON public.b2b_inventory_receipt_lines;
 CREATE TRIGGER trg_b2b_receipt_lines_no_delete
   BEFORE DELETE ON public.b2b_inventory_receipt_lines
   FOR EACH ROW EXECUTE FUNCTION public.prevent_b2b_fulfilment_delete();
+DROP TRIGGER IF EXISTS trg_b2b_assembly_jobs_no_delete ON public.b2b_assembly_jobs;
 CREATE TRIGGER trg_b2b_assembly_jobs_no_delete
   BEFORE DELETE ON public.b2b_assembly_jobs
   FOR EACH ROW EXECUTE FUNCTION public.prevent_b2b_fulfilment_delete();
+DROP TRIGGER IF EXISTS trg_b2b_assembly_components_no_delete ON public.b2b_assembly_components;
 CREATE TRIGGER trg_b2b_assembly_components_no_delete
   BEFORE DELETE ON public.b2b_assembly_components
   FOR EACH ROW EXECUTE FUNCTION public.prevent_b2b_fulfilment_delete();
@@ -426,6 +435,11 @@ AS $$
   );
 $$;
 
+REVOKE ALL ON FUNCTION public.can_manage_b2b_inventory(uuid) FROM PUBLIC, anon;
+REVOKE ALL ON FUNCTION public.can_receive_b2b_inventory(uuid) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.can_manage_b2b_inventory(uuid) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.can_receive_b2b_inventory(uuid) TO authenticated;
+
 ALTER TABLE public.b2b_inventory_stores ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.b2b_inventory_item_profiles ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.b2b_inventory_receipts ENABLE ROW LEVEL SECURITY;
@@ -433,49 +447,61 @@ ALTER TABLE public.b2b_inventory_receipt_lines ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.b2b_assembly_jobs ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.b2b_assembly_components ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "Internal staff read B2B stores" ON public.b2b_inventory_stores;
 CREATE POLICY "Internal staff read B2B stores"
   ON public.b2b_inventory_stores FOR SELECT TO authenticated
   USING (public.is_internal_staff(auth.uid()));
+DROP POLICY IF EXISTS "Inventory managers maintain B2B stores" ON public.b2b_inventory_stores;
 CREATE POLICY "Inventory managers maintain B2B stores"
   ON public.b2b_inventory_stores FOR ALL TO authenticated
   USING (public.can_manage_b2b_inventory(auth.uid()))
   WITH CHECK (public.can_manage_b2b_inventory(auth.uid()));
 
+DROP POLICY IF EXISTS "Internal staff read B2B item profiles" ON public.b2b_inventory_item_profiles;
 CREATE POLICY "Internal staff read B2B item profiles"
   ON public.b2b_inventory_item_profiles FOR SELECT TO authenticated
   USING (public.is_internal_staff(auth.uid()));
+DROP POLICY IF EXISTS "Inventory managers maintain B2B item profiles" ON public.b2b_inventory_item_profiles;
 CREATE POLICY "Inventory managers maintain B2B item profiles"
   ON public.b2b_inventory_item_profiles FOR ALL TO authenticated
   USING (public.can_manage_b2b_inventory(auth.uid()))
   WITH CHECK (public.can_manage_b2b_inventory(auth.uid()));
 
+DROP POLICY IF EXISTS "Internal staff read B2B receipts" ON public.b2b_inventory_receipts;
 CREATE POLICY "Internal staff read B2B receipts"
   ON public.b2b_inventory_receipts FOR SELECT TO authenticated
   USING (public.is_internal_staff(auth.uid()));
+DROP POLICY IF EXISTS "Inventory receivers maintain B2B receipts" ON public.b2b_inventory_receipts;
 CREATE POLICY "Inventory receivers maintain B2B receipts"
   ON public.b2b_inventory_receipts FOR ALL TO authenticated
   USING (public.can_receive_b2b_inventory(auth.uid()))
   WITH CHECK (public.can_receive_b2b_inventory(auth.uid()));
 
+DROP POLICY IF EXISTS "Internal staff read B2B receipt lines" ON public.b2b_inventory_receipt_lines;
 CREATE POLICY "Internal staff read B2B receipt lines"
   ON public.b2b_inventory_receipt_lines FOR SELECT TO authenticated
   USING (public.is_internal_staff(auth.uid()));
+DROP POLICY IF EXISTS "Inventory receivers maintain B2B receipt lines" ON public.b2b_inventory_receipt_lines;
 CREATE POLICY "Inventory receivers maintain B2B receipt lines"
   ON public.b2b_inventory_receipt_lines FOR ALL TO authenticated
   USING (public.can_receive_b2b_inventory(auth.uid()))
   WITH CHECK (public.can_receive_b2b_inventory(auth.uid()));
 
+DROP POLICY IF EXISTS "Internal staff read B2B assembly jobs" ON public.b2b_assembly_jobs;
 CREATE POLICY "Internal staff read B2B assembly jobs"
   ON public.b2b_assembly_jobs FOR SELECT TO authenticated
   USING (public.is_internal_staff(auth.uid()));
+DROP POLICY IF EXISTS "Assembly operators maintain B2B assembly jobs" ON public.b2b_assembly_jobs;
 CREATE POLICY "Assembly operators maintain B2B assembly jobs"
   ON public.b2b_assembly_jobs FOR ALL TO authenticated
   USING (public.can_manage_b2b_inventory(auth.uid()))
   WITH CHECK (public.can_manage_b2b_inventory(auth.uid()));
 
+DROP POLICY IF EXISTS "Internal staff read B2B assembly components" ON public.b2b_assembly_components;
 CREATE POLICY "Internal staff read B2B assembly components"
   ON public.b2b_assembly_components FOR SELECT TO authenticated
   USING (public.is_internal_staff(auth.uid()));
+DROP POLICY IF EXISTS "Assembly operators maintain B2B assembly components" ON public.b2b_assembly_components;
 CREATE POLICY "Assembly operators maintain B2B assembly components"
   ON public.b2b_assembly_components FOR ALL TO authenticated
   USING (public.can_manage_b2b_inventory(auth.uid()))
