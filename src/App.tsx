@@ -223,7 +223,6 @@ const App = () => (
             <LanguageProvider>
               <CurrencyProvider>
                 <AuthErrorListener />
-                <PremiumAnnouncementOverlay />
                 <Suspense fallback={<AuthSpinner />}>
                 <Routes>
                   <Route path="/splash" element={<Splash />} />
