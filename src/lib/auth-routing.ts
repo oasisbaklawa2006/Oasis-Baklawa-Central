@@ -119,7 +119,7 @@ export function getRoleDestination(role?: string | null): string {
   const dest = STAFF_ROLE_DESTINATIONS[r];
   if (dest) return dest;
 
-  if (CLIENT_ROLES.has(r)) return "/home";
+  if (CLIENT_ROLES.has(r)) return "/customer-app-redirect";
 
   // Unknown role — do NOT send to /admin
   return "/approval-pending";

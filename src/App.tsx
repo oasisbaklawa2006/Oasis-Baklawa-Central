@@ -25,10 +25,7 @@ import { getRoleDestination, isStaffRole, isStorefrontRole, normalizeRole } from
 
 // Lazy — split out of the main bundle
 const CompanyIntro = lazy(() => import("./pages/CompanyIntro.tsx"));
-const Catalogue = lazy(() => import("./pages/Catalogue.tsx"));
 const QuickOrder = lazy(() => import("./pages/QuickOrder.tsx"));
-const Orders = lazy(() => import("./pages/Orders.tsx"));
-const Cart = lazy(() => import("./pages/Cart.tsx"));
 const Dashboard = lazy(() => import("./pages/Dashboard.tsx"));
 const ProductDetail = lazy(() => import("./pages/ProductDetail.tsx"));
 const Account = lazy(() => import("./pages/Account.tsx"));
@@ -36,8 +33,6 @@ const Favorites = lazy(() => import("./pages/Favorites.tsx"));
 const Documents = lazy(() => import("./pages/Documents.tsx"));
 const Register = lazy(() => import("./pages/Register.tsx"));
 const Onboarding = lazy(() => import("./pages/Onboarding.tsx"));
-const BuyerPortal = lazy(() => import("./pages/BuyerPortal.tsx"));
-const Index = lazy(() => import("./pages/Index.tsx"));
 const ApprovalPending = lazy(() => import("./pages/ApprovalPending.tsx"));
 const WelcomeGate = lazy(() => import("./pages/WelcomeGate.tsx"));
 const OrderTracking = lazy(() => import("./pages/OrderTracking.tsx"));
@@ -269,6 +264,16 @@ const StorefrontGate = ({ children }: { children: React.ReactNode }) => {
   return <>{children}</>;
 };
 
+const CustomerAppRedirect = () => (
+  <div className="flex min-h-screen flex-col items-center justify-center gap-3 bg-background px-6 text-center">
+    <h1 className="text-xl font-bold">Oasis Baklawa</h1>
+    <p className="max-w-sm text-sm text-muted-foreground">
+      The customer catalogue, cart, and order experience has moved to the Oasis Baklawa mobile app. Please
+      continue there to browse, order, and track deliveries.
+    </p>
+  </div>
+);
+
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <ErrorBoundary fallbackTitle="Application connection interrupted">
@@ -289,18 +294,14 @@ const App = () => (
                   <Route path="/operations-controller" element={<ProtectedRoute><RoleProtectedRoute allowedRoles={[...ADMIN_STAFF_ROLES]}><OperationsController /></RoleProtectedRoute></ProtectedRoute>} />
                   <Route path="/security-gate" element={<ProtectedRoute><RoleProtectedRoute allowedRoles={["GATE_SECURITY", "SECURITY_CONTROL", "SUPER_ADMIN", "ADMIN"]}><AdminSecurityGate /></RoleProtectedRoute></ProtectedRoute>} />
                   <Route path="/" element={<RootGate />} />
-                  <Route path="/home" element={<StorefrontGate><Index /></StorefrontGate>} />
+                  <Route path="/customer-app-redirect" element={<CustomerAppRedirect />} />
                   <Route path="/welcome" element={<ProtectedRoute><WelcomeGate /></ProtectedRoute>} />
-                  <Route path="/catalogue" element={<StorefrontGate><Catalogue /></StorefrontGate>} />
                   <Route path="/quick-order" element={<StorefrontGate><QuickOrder /></StorefrontGate>} />
                   <Route path="/product/:id" element={<StorefrontGate><ProductDetail /></StorefrontGate>} />
                   <Route path="/login" element={<Login />} />
                   <Route path="/register" element={<Register />} />
                   <Route path="/onboarding" element={<Onboarding />} />
                   <Route path="/reset-password" element={<ResetPassword />} />
-                  <Route path="/buyer-portal" element={<ProtectedRoute><RoleProtectedRoute allowedRoles={ALL_BUYER_ROLES}><BuyerPortal /></RoleProtectedRoute></ProtectedRoute>} />
-                  <Route path="/cart" element={<ProtectedRoute><RoleProtectedRoute allowedRoles={ALL_BUYER_ROLES}><Cart /></RoleProtectedRoute></ProtectedRoute>} />
-                  <Route path="/orders" element={<ProtectedRoute><RoleProtectedRoute allowedRoles={ALL_BUYER_ROLES}><Orders /></RoleProtectedRoute></ProtectedRoute>} />
                   <Route path="/orders/:id" element={<ProtectedRoute><RoleProtectedRoute allowedRoles={ALL_BUYER_ROLES}><OrderTracking /></RoleProtectedRoute></ProtectedRoute>} />
                   <Route path="/dashboard" element={<ProtectedRoute><RoleProtectedRoute allowedRoles={ALL_BUYER_ROLES}><Dashboard /></RoleProtectedRoute></ProtectedRoute>} />
                   <Route path="/account" element={<ProtectedRoute><RoleProtectedRoute allowedRoles={ALL_BUYER_ROLES}><Account /></RoleProtectedRoute></ProtectedRoute>} />

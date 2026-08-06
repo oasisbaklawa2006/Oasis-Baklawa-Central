@@ -1,1 +1,7 @@
 SCHEMA FREEZE: Do not create or edit database migrations in this repo. Use @supabase/supabase-js with database.types.ts.
+
+ADMIN WEB SCOPE: This repo is the Admin Web / Operational Control Tower only
+(CMD War Room, Stores, Production KOT TVs, Security Gate, Finance, Dispatch).
+Customer-facing catalogue/cart/checkout/order-tracking screens belong in the
+Expo React Native app (oasis-baklawa), not here. Do not add customer
+storefront pages or routes to this repo.
