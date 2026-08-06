@@ -96,7 +96,7 @@ export default function AuthErrorListener() {
     const blob = `${serverError ?? ""} ${errorCode ?? ""} ${errorDescription ?? ""}`.toLowerCase();
     const isGoogleOAuth = blob.includes("google") || blob.includes("oauth") || blob.includes("provider");
 
-    if (isGoogleOAuth || location.pathname.startsWith("/welcome")) {
+    if (isGoogleOAuth) {
       toast.error("We couldn’t complete sign-in. Please use mobile verification or email, or contact support@oasisbaklawa.com.", {
         duration: 8000,
       });

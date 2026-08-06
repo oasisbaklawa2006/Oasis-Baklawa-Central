@@ -130,7 +130,7 @@ const TopNavBar = () => {
             {showMenu && (
               <div className="absolute right-0 top-10 w-44 bg-card rounded-xl shadow-card border border-border py-1 z-50">
                 <button
-                  onClick={() => { setShowMenu(false); navigate("/account"); }}
+                  onClick={() => { setShowMenu(false); navigate("/admin/settings"); }}
                   className="w-full text-left px-4 py-2.5 text-sm font-ui text-foreground hover:bg-primary/5 transition-colors flex items-center gap-2"
                 >
                   <User size={13} strokeWidth={1.5} /> {t("nav.myAccount")}

@@ -19,29 +19,11 @@ import ErrorBoundary from "./components/ErrorBoundary.tsx";
 import AuthErrorListener from "./components/AuthErrorListener.tsx";
 import RoleProtectedRoute from "@/components/RoleProtectedRoute";
 import AdminModuleRoute from "@/components/AdminModuleRoute";
-import PremiumAnnouncementOverlay from "@/components/PremiumAnnouncementOverlay";
 import { AuthProvider, useAuth } from "@/hooks/useAuth";
 import { getRoleDestination, isStaffRole, isStorefrontRole, normalizeRole } from "@/lib/auth-routing";
 
 // Lazy — split out of the main bundle
-const CompanyIntro = lazy(() => import("./pages/CompanyIntro.tsx"));
-const QuickOrder = lazy(() => import("./pages/QuickOrder.tsx"));
-const Dashboard = lazy(() => import("./pages/Dashboard.tsx"));
-const ProductDetail = lazy(() => import("./pages/ProductDetail.tsx"));
-const Account = lazy(() => import("./pages/Account.tsx"));
-const Favorites = lazy(() => import("./pages/Favorites.tsx"));
-const Documents = lazy(() => import("./pages/Documents.tsx"));
-const Register = lazy(() => import("./pages/Register.tsx"));
-const Onboarding = lazy(() => import("./pages/Onboarding.tsx"));
-const ApprovalPending = lazy(() => import("./pages/ApprovalPending.tsx"));
-const WelcomeGate = lazy(() => import("./pages/WelcomeGate.tsx"));
-const OrderTracking = lazy(() => import("./pages/OrderTracking.tsx"));
-const PublicOrderTracking = lazy(() => import("./pages/PublicOrderTracking.tsx"));
 const ResetPassword = lazy(() => import("./pages/ResetPassword.tsx"));
-const FAQ = lazy(() => import("./pages/FAQ.tsx"));
-const Privacy = lazy(() => import("./pages/Privacy.tsx"));
-const PublicTerms = lazy(() => import("./pages/PublicTerms.tsx"));
-const Shipping = lazy(() => import("./pages/Shipping.tsx"));
 
 const AdminLayout = lazy(() => import("./components/AdminLayout.tsx"));
 const AdminDashboard = lazy(() => import("./pages/admin/AdminDashboard.tsx"));
@@ -66,9 +48,6 @@ const OperationsController = lazy(() => import("./pages/admin/OperationsControll
 const AdminSecurityGate = lazy(() => import("./pages/admin/AdminSecurityGate.tsx"));
 const AdminInventory = lazy(() => import("./pages/admin/AdminInventory.tsx"));
 const AdminLogistics = lazy(() => import("./pages/admin/AdminLogistics.tsx"));
-const ManageUsers = lazy(() => import("./pages/ManageUsers.tsx"));
-const ManageAddresses = lazy(() => import("./pages/ManageAddresses.tsx"));
-const ManageLogistics = lazy(() => import("./pages/ManageLogistics.tsx"));
 const SalesDashboard = lazy(() => import("./pages/sales/SalesDashboard.tsx"));
 const SalesPerformanceHub = lazy(() => import("./pages/admin/SalesPerformanceHub.tsx"));
 const AdminNotifications = lazy(() => import("./pages/admin/AdminNotifications.tsx"));
@@ -142,11 +121,6 @@ const ADMIN_STAFF_ROLES = [
 
 const SALES_DASHBOARD_ROLES = [...ADMIN_ONLY_ROLES, "SALES_EXECUTIVE"];
 
-const ALL_BUYER_ROLES = [
-  "B2B_BUYER", "SPECIAL_BUYER", "HORECA_BUYER", "WHOLESALE_BUYER", "BULK_BUYER",
-  "BUYER", "CUSTOMER_USER", "CLIENT",
-];
-
 const queryClient = new QueryClient();
 
 const AuthSpinner = () => (
@@ -175,18 +149,17 @@ const AdminRouteBoundary = () => {
 };
 
 /**
- * Decide where an authenticated user with no resolved buyer role should land.
- * - Pending applicant (b2b application exists OR profile.status pending OR role='PENDING') → /approval-pending
- * - Fresh lead (auth.users only, zero portal records) → /register
+ * Decide where an authenticated user with no resolved staff role should land.
+ * Central is admin-only now — any account that isn't a recognized staff role
+ * (unresolved, pending, or a buyer/customer role) lands on the same
+ * customer-app-redirect gate rather than a dedicated onboarding flow.
  */
 function getUnresolvedDestination(_opts: {
   hasAppliedB2B: boolean;
   profileStatus: string | null;
   role: string | null;
-}): "/welcome" {
-  // Nuclear option: never auto-route unresolved users to /register or /approval-pending
-  // from the RootGate. Always park them at /welcome and let them choose.
-  return "/welcome";
+}): "/customer-app-redirect" {
+  return "/customer-app-redirect";
 }
 
 const ADMIN_EXPRESS_EMAILS = new Set(["admin@oasisbaklawa.com"]);
@@ -229,47 +202,12 @@ const RootGate = () => {
   return <Navigate to={getRoleDestination(normalizedRole)} replace />;
 };
 
-const StorefrontGate = ({ children }: { children: React.ReactNode }) => {
-  const { user, loading: authLoading, role, companyId, profileReady, hasAppliedB2B, profileStatus } = useAuth();
-  const normalizedRole = normalizeRole(role);
-
-  if (authLoading || (user && !profileReady)) {
-    return <AuthSpinner />;
-  }
-
-  if (user && isAdminExpressUser(user)) {
-    return <Navigate to="/admin/execution-command-center" replace />;
-  }
-
-  if (!user) {
-    return <Navigate to="/login" replace />;
-  }
-
-  if (normalizedRole && isStaffRole(normalizedRole)) {
-    return <Navigate to={getRoleDestination(normalizedRole)} replace />;
-  }
-
-  if (!normalizedRole) {
-    return <Navigate to={getUnresolvedDestination({ hasAppliedB2B, profileStatus, role: normalizedRole })} replace />;
-  }
-
-  if (!isStorefrontRole(normalizedRole)) {
-    return <Navigate to={getRoleDestination(normalizedRole)} replace />;
-  }
-
-  if (!companyId) {
-    return <Navigate to={getUnresolvedDestination({ hasAppliedB2B, profileStatus, role: normalizedRole })} replace />;
-  }
-
-  return <>{children}</>;
-};
-
 const CustomerAppRedirect = () => (
   <div className="flex min-h-screen flex-col items-center justify-center gap-3 bg-background px-6 text-center">
     <h1 className="text-xl font-bold">Oasis Baklawa</h1>
     <p className="max-w-sm text-sm text-muted-foreground">
-      The customer catalogue, cart, and order experience has moved to the Oasis Baklawa mobile app. Please
-      continue there to browse, order, and track deliveries.
+      This is the Oasis Baklawa Admin Web. Customers should continue in the Oasis Baklawa mobile app to browse,
+      order, and track deliveries. Staff without admin access should contact their administrator.
     </p>
   </div>
 );
@@ -289,32 +227,12 @@ const App = () => (
                 <Suspense fallback={<AuthSpinner />}>
                 <Routes>
                   <Route path="/splash" element={<Splash />} />
-                  <Route path="/intro" element={<CompanyIntro />} />
-                  <Route path="/track" element={<PublicOrderTracking />} />
                   <Route path="/operations-controller" element={<ProtectedRoute><RoleProtectedRoute allowedRoles={[...ADMIN_STAFF_ROLES]}><OperationsController /></RoleProtectedRoute></ProtectedRoute>} />
                   <Route path="/security-gate" element={<ProtectedRoute><RoleProtectedRoute allowedRoles={["GATE_SECURITY", "SECURITY_CONTROL", "SUPER_ADMIN", "ADMIN"]}><AdminSecurityGate /></RoleProtectedRoute></ProtectedRoute>} />
                   <Route path="/" element={<RootGate />} />
                   <Route path="/customer-app-redirect" element={<CustomerAppRedirect />} />
-                  <Route path="/welcome" element={<ProtectedRoute><WelcomeGate /></ProtectedRoute>} />
-                  <Route path="/quick-order" element={<StorefrontGate><QuickOrder /></StorefrontGate>} />
-                  <Route path="/product/:id" element={<StorefrontGate><ProductDetail /></StorefrontGate>} />
                   <Route path="/login" element={<Login />} />
-                  <Route path="/register" element={<Register />} />
-                  <Route path="/onboarding" element={<Onboarding />} />
                   <Route path="/reset-password" element={<ResetPassword />} />
-                  <Route path="/orders/:id" element={<ProtectedRoute><RoleProtectedRoute allowedRoles={ALL_BUYER_ROLES}><OrderTracking /></RoleProtectedRoute></ProtectedRoute>} />
-                  <Route path="/dashboard" element={<ProtectedRoute><RoleProtectedRoute allowedRoles={ALL_BUYER_ROLES}><Dashboard /></RoleProtectedRoute></ProtectedRoute>} />
-                  <Route path="/account" element={<ProtectedRoute><RoleProtectedRoute allowedRoles={ALL_BUYER_ROLES}><Account /></RoleProtectedRoute></ProtectedRoute>} />
-                  <Route path="/favorites" element={<ProtectedRoute><RoleProtectedRoute allowedRoles={ALL_BUYER_ROLES}><Favorites /></RoleProtectedRoute></ProtectedRoute>} />
-                  <Route path="/account/users" element={<ProtectedRoute><RoleProtectedRoute allowedRoles={ALL_BUYER_ROLES}><ManageUsers /></RoleProtectedRoute></ProtectedRoute>} />
-                  <Route path="/account/addresses" element={<ProtectedRoute><RoleProtectedRoute allowedRoles={ALL_BUYER_ROLES}><ManageAddresses /></RoleProtectedRoute></ProtectedRoute>} />
-                  <Route path="/account/logistics" element={<ProtectedRoute><RoleProtectedRoute allowedRoles={ALL_BUYER_ROLES}><ManageLogistics /></RoleProtectedRoute></ProtectedRoute>} />
-                  <Route path="/documents" element={<ProtectedRoute><RoleProtectedRoute allowedRoles={ALL_BUYER_ROLES}><Documents /></RoleProtectedRoute></ProtectedRoute>} />
-                  <Route path="/faq" element={<ProtectedRoute><FAQ /></ProtectedRoute>} />
-                  <Route path="/terms" element={<PublicTerms />} />
-                  <Route path="/privacy" element={<Privacy />} />
-                  <Route path="/shipping" element={<Shipping />} />
-                  <Route path="/approval-pending" element={<ProtectedRoute><ApprovalPending /></ProtectedRoute>} />
                   <Route
                     path="/admin"
                     element={
