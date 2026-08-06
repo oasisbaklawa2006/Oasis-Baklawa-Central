@@ -13,31 +13,20 @@ import { Loader2, CreditCard, Search, Building2, Wallet, IndianRupee, Phone, Mes
 import { toast } from "@/hooks/use-toast";
 import CreditRequestModal from "@/components/CreditRequestModal";
 import { format, startOfMonth } from "date-fns";
+import type { Database } from "@/integrations/supabase/types";
 
-interface SalesCompany {
-  id: string;
-  business_name: string;
-  gst_number: string | null;
-  status: string;
-  wallet_balance: number | null;
-  credit_limit: number | null;
-  current_balance: number | null;
-  allow_credit: boolean | null;
-  created_at: string;
-}
+type CompanyRow = Database["public"]["Tables"]["companies"]["Row"];
+type OrderRow = Database["public"]["Tables"]["orders"]["Row"];
+type ClientInteractionRow = Database["public"]["Tables"]["client_interactions"]["Row"];
 
-interface SalesOrder {
-  id: string;
-  company_id: string;
-  sales_order_value: number | null;
-  status: string;
-  created_at: string;
-}
+type SalesCompany = Pick<
+  CompanyRow,
+  "id" | "business_name" | "gst_number" | "status" | "wallet_balance" | "credit_limit" | "current_balance" | "allow_credit" | "created_at"
+>;
 
-interface SalesInteraction {
-  id: string;
-  company_id: string;
-}
+type SalesOrder = Pick<OrderRow, "id" | "company_id" | "sales_order_value" | "status" | "created_at">;
+
+type SalesInteraction = Pick<ClientInteractionRow, "id" | "company_id">;
 
 const SalesDashboard = () => {
   const { user, loading: authLoading } = useAuth();
