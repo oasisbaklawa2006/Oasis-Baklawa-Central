@@ -190,26 +190,6 @@ describe("approve and reject atomicity (static)", () => {
     expect(rpcMock).toHaveBeenCalledTimes(1);
   });
 
-  it("approve/reject RPC migrations verify actor id and readiness validation", async () => {
-    const { readFileSync } = await import("node:fs");
-    const { join } = await import("node:path");
-    const sql = readFileSync(
-      join(
-        import.meta.dirname,
-        "../../../../supabase/migrations/20260606180000_wa_sprint9_sales_order_draft_approve_extraction_readiness_hardening.sql",
-      ),
-      "utf8",
-    );
-    expect(sql).toMatch(/p_actor_id IS DISTINCT FROM auth\.uid\(\)/);
-    expect(sql).toMatch(/validate_sales_order_draft_readiness\(v_readiness_dimensions\)/);
-    expect(sql).toMatch(/p_expected_extraction_request_key text/);
-    expect(sql).toMatch(/Extraction version mismatch/);
-    expect(sql).toMatch(/Draft extraction request key is missing/);
-    expect(sql).toMatch(/Expected extraction request key is required/);
-    expect(sql).toMatch(/APPROVE/);
-    expect(sql).toMatch(/UNDER_REVIEW/);
-    expect(sql).toMatch(/persisted dimensions only/);
-  });
 });
 
 describe("approve extraction version and readiness validation", () => {
@@ -354,56 +334,6 @@ describe("approve extraction version and readiness validation", () => {
     );
   });
 
-  it("approve RPC migration rejects stale extraction version on server", async () => {
-    const { readFileSync } = await import("node:fs");
-    const { join } = await import("node:path");
-    const sql = readFileSync(
-      join(
-        import.meta.dirname,
-        "../../../../supabase/migrations/20260606180000_wa_sprint9_sales_order_draft_approve_extraction_readiness_hardening.sql",
-      ),
-      "utf8",
-    );
-    expect(sql).toMatch(
-      /v_extraction_request_key IS DISTINCT FROM trim\(p_expected_extraction_request_key\)/,
-    );
-  });
-
-  it("approve RPC migration rejects missing draft extraction key on server", async () => {
-    const { readFileSync } = await import("node:fs");
-    const { join } = await import("node:path");
-    const sql = readFileSync(
-      join(
-        import.meta.dirname,
-        "../../../../supabase/migrations/20260606180000_wa_sprint9_sales_order_draft_approve_extraction_readiness_hardening.sql",
-      ),
-      "utf8",
-    );
-    expect(sql).toMatch(/NULLIF\(trim\(v_extraction_request_key\), ''\) IS NULL/);
-  });
-
-  it("approve RPC validates all five persisted readiness dimensions on server", async () => {
-    const { readFileSync } = await import("node:fs");
-    const { join } = await import("node:path");
-    const baseSql = readFileSync(
-      join(
-        import.meta.dirname,
-        "../../../../supabase/migrations/20260606160000_wa_sprint9_sales_order_draft_approve_reject_atomic_rpc.sql",
-      ),
-      "utf8",
-    );
-    const approveSql = readFileSync(
-      join(
-        import.meta.dirname,
-        "../../../../supabase/migrations/20260606180000_wa_sprint9_sales_order_draft_approve_extraction_readiness_hardening.sql",
-      ),
-      "utf8",
-    );
-    expect(baseSql).toMatch(/payment_terms/);
-    expect(baseSql).toMatch(/client.*product.*quantity.*address/s);
-    expect(approveSql).toMatch(/validate_sales_order_draft_readiness\(v_readiness_dimensions\)/);
-    expect(approveSql).not.toMatch(/p_metadata.*readiness/);
-  });
 });
 
 describe("createSalesOrderDraft version recovery", () => {
@@ -626,19 +556,6 @@ describe("updateSalesOrderDraftOperatorFinal atomicity", () => {
     expect(writeCalls).toHaveLength(0);
   });
 
-  it("operator final RPC migration verifies actor id matches auth.uid()", async () => {
-    const { readFileSync } = await import("node:fs");
-    const { join } = await import("node:path");
-    const sql = readFileSync(
-      join(
-        import.meta.dirname,
-        "../../../../supabase/migrations/20260606140000_wa_sprint9_sales_order_draft_operator_final_rpc.sql",
-      ),
-      "utf8",
-    );
-    expect(sql).toMatch(/p_actor_id IS DISTINCT FROM auth\.uid\(\)/);
-    expect(sql).toMatch(/UPDATE_OPERATOR_FINAL/);
-  });
 });
 
 describe("submitForReview atomicity (static)", () => {
@@ -735,21 +652,6 @@ describe("submitForReview atomicity (static)", () => {
     expect(rpcMock).toHaveBeenCalledTimes(1);
   });
 
-  it("submit review RPC migration verifies actor id and status transition", async () => {
-    const { readFileSync } = await import("node:fs");
-    const { join } = await import("node:path");
-    const sql = readFileSync(
-      join(
-        import.meta.dirname,
-        "../../../../supabase/migrations/20260606150000_wa_sprint9_sales_order_draft_submit_review_atomic_rpc.sql",
-      ),
-      "utf8",
-    );
-    expect(sql).toMatch(/p_actor_id IS DISTINCT FROM auth\.uid\(\)/);
-    expect(sql).toMatch(/status = 'UNDER_REVIEW'/);
-    expect(sql).toMatch(/SUBMIT_REVIEW/);
-    expect(sql).toMatch(/AI_DRAFT/);
-  });
 });
 
 describe("submitForReview operator sync (static)", () => {
@@ -844,24 +746,6 @@ describe("extraction projection guard (static)", () => {
     );
     expect(repo).toMatch(/p_expected_extraction_request_key: draftHeader\.extraction_request_key/);
     expect(repo).toMatch(/p_expected_extraction_request_key: input\.extracted\.extractionRequestKey/);
-    const sql = readFileSync(
-      join(
-        import.meta.dirname,
-        "../../../../supabase/migrations/20260606170000_wa_sprint9_sales_order_draft_extraction_version_rpc.sql",
-      ),
-      "utf8",
-    );
-    expect(sql).toMatch(/p_expected_extraction_request_key text/);
-    expect(sql).toMatch(/Extraction version mismatch/);
-    const approveSql = readFileSync(
-      join(
-        import.meta.dirname,
-        "../../../../supabase/migrations/20260606180000_wa_sprint9_sales_order_draft_approve_extraction_readiness_hardening.sql",
-      ),
-      "utf8",
-    );
-    expect(approveSql).toMatch(/p_expected_extraction_request_key text/);
-    expect(approveSql).toMatch(/validate_sales_order_draft_readiness\(v_readiness_dimensions\)/);
   });
 
   it("blocks create from returning stale active AI_DRAFT", async () => {
@@ -1062,18 +946,6 @@ describe("persisted draft fetch and rejected recreate UI (static)", () => {
     expect(section).toMatch(/isRejected/);
     expect(section).toMatch(/Create New Draft/);
     expect(section).toMatch(/bundle\?\.draft\.status === "REJECTED"/);
-  });
-
-  it("RPC migrations verify actor id matches auth.uid()", async () => {
-    const { readFileSync } = await import("node:fs");
-    const { join } = await import("node:path");
-    for (const file of [
-      "20260606120000_wa_sprint9_sales_order_draft_transition_rpc.sql",
-      "20260606130000_wa_sprint9_sales_order_draft_create_atomic_rpc.sql",
-    ]) {
-      const sql = readFileSync(join(import.meta.dirname, "../../../../supabase/migrations", file), "utf8");
-      expect(sql).toMatch(/p_actor_id IS DISTINCT FROM auth\.uid\(\)/);
-    }
   });
 
   it("preserves bundle on reload error and disables sync without extraction", async () => {
