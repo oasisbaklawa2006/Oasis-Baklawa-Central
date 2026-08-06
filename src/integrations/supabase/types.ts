@@ -299,6 +299,1471 @@ export type Database = {
         }
         Relationships: []
       }
+      b2b_dispatch_consignments: {
+        Row: {
+          actual_departure_at: string | null
+          approved_by: string | null
+          committed_cutoff: string | null
+          consignment_number: string
+          correlation_id: string
+          created_at: string
+          created_by: string | null
+          customer_instruction_ref: string | null
+          destination_snapshot: Json
+          dispatch_mode: string
+          fragmentation_origin: string | null
+          fragmentation_reason: string | null
+          handling_instructions: Json
+          id: string
+          order_id: string
+          planned_departure_at: string | null
+          sequence_number: number
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          actual_departure_at?: string | null
+          approved_by?: string | null
+          committed_cutoff?: string | null
+          consignment_number: string
+          correlation_id: string
+          created_at?: string
+          created_by?: string | null
+          customer_instruction_ref?: string | null
+          destination_snapshot?: Json
+          dispatch_mode: string
+          fragmentation_origin?: string | null
+          fragmentation_reason?: string | null
+          handling_instructions?: Json
+          id?: string
+          order_id: string
+          planned_departure_at?: string | null
+          sequence_number: number
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          actual_departure_at?: string | null
+          approved_by?: string | null
+          committed_cutoff?: string | null
+          consignment_number?: string
+          correlation_id?: string
+          created_at?: string
+          created_by?: string | null
+          customer_instruction_ref?: string | null
+          destination_snapshot?: Json
+          dispatch_mode?: string
+          fragmentation_origin?: string | null
+          fragmentation_reason?: string | null
+          handling_instructions?: Json
+          id?: string
+          order_id?: string
+          planned_departure_at?: string | null
+          sequence_number?: number
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "b2b_dispatch_consignments_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      b2b_dispatch_consignment_lines: {
+        Row: {
+          accepted_ready_qty: number
+          consignment_id: string
+          created_at: string
+          delivered_qty: number
+          dispatched_qty: number
+          held_qty: number
+          id: string
+          loaded_qty: number
+          order_item_id: string
+          original_order_qty: number
+          packed_qty: number
+          product_code: string
+          product_id: string
+          rejected_qty: number
+          selected_qty: number
+          uom: string
+          updated_at: string
+        }
+        Insert: {
+          accepted_ready_qty?: number
+          consignment_id: string
+          created_at?: string
+          delivered_qty?: number
+          dispatched_qty?: number
+          held_qty?: number
+          id?: string
+          loaded_qty?: number
+          order_item_id: string
+          original_order_qty: number
+          packed_qty?: number
+          product_code: string
+          product_id: string
+          rejected_qty?: number
+          selected_qty: number
+          uom: string
+          updated_at?: string
+        }
+        Update: {
+          accepted_ready_qty?: number
+          consignment_id?: string
+          created_at?: string
+          delivered_qty?: number
+          dispatched_qty?: number
+          held_qty?: number
+          id?: string
+          loaded_qty?: number
+          order_item_id?: string
+          original_order_qty?: number
+          packed_qty?: number
+          product_code?: string
+          product_id?: string
+          rejected_qty?: number
+          selected_qty?: number
+          uom?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "b2b_dispatch_consignment_lines_consignment_id_fkey"
+            columns: ["consignment_id"]
+            isOneToOne: false
+            referencedRelation: "b2b_dispatch_command_queue"
+            referencedColumns: ["consignment_id"]
+          },
+          {
+            foreignKeyName: "b2b_dispatch_consignment_lines_consignment_id_fkey"
+            columns: ["consignment_id"]
+            isOneToOne: false
+            referencedRelation: "b2b_dispatch_consignments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "b2b_dispatch_consignment_lines_order_item_id_fkey"
+            columns: ["order_item_id"]
+            isOneToOne: false
+            referencedRelation: "b2b_dispatch_so_line_fulfilment"
+            referencedColumns: ["order_item_id"]
+          },
+          {
+            foreignKeyName: "b2b_dispatch_consignment_lines_order_item_id_fkey"
+            columns: ["order_item_id"]
+            isOneToOne: false
+            referencedRelation: "order_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "b2b_dispatch_consignment_lines_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      b2b_dispatch_handoffs: {
+        Row: {
+          consignment_id: string | null
+          correlation_id: string
+          created_at: string
+          declared_at: string
+          destination_location: string
+          handoff_number: string
+          id: string
+          issued_by: string | null
+          notes: string | null
+          order_id: string
+          received_at: string | null
+          received_by: string | null
+          source_department: string
+          source_location: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          consignment_id?: string | null
+          correlation_id: string
+          created_at?: string
+          declared_at?: string
+          destination_location?: string
+          handoff_number: string
+          id?: string
+          issued_by?: string | null
+          notes?: string | null
+          order_id: string
+          received_at?: string | null
+          received_by?: string | null
+          source_department: string
+          source_location: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          consignment_id?: string | null
+          correlation_id?: string
+          created_at?: string
+          declared_at?: string
+          destination_location?: string
+          handoff_number?: string
+          id?: string
+          issued_by?: string | null
+          notes?: string | null
+          order_id?: string
+          received_at?: string | null
+          received_by?: string | null
+          source_department?: string
+          source_location?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "b2b_dispatch_handoffs_consignment_id_fkey"
+            columns: ["consignment_id"]
+            isOneToOne: false
+            referencedRelation: "b2b_dispatch_command_queue"
+            referencedColumns: ["consignment_id"]
+          },
+          {
+            foreignKeyName: "b2b_dispatch_handoffs_consignment_id_fkey"
+            columns: ["consignment_id"]
+            isOneToOne: false
+            referencedRelation: "b2b_dispatch_consignments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "b2b_dispatch_handoffs_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      b2b_dispatch_handoff_lines: {
+        Row: {
+          accepted_qty: number
+          batch_lot: string | null
+          created_at: string
+          declared_qty: number
+          discrepancy_reason: string | null
+          expiry_date: string | null
+          handoff_id: string
+          held_qty: number
+          id: string
+          order_item_id: string
+          physically_received_qty: number
+          product_code: string
+          product_id: string
+          rejected_qty: number
+          uom: string
+        }
+        Insert: {
+          accepted_qty?: number
+          batch_lot?: string | null
+          created_at?: string
+          declared_qty: number
+          discrepancy_reason?: string | null
+          expiry_date?: string | null
+          handoff_id: string
+          held_qty?: number
+          id?: string
+          order_item_id: string
+          physically_received_qty?: number
+          product_code: string
+          product_id: string
+          rejected_qty?: number
+          uom: string
+        }
+        Update: {
+          accepted_qty?: number
+          batch_lot?: string | null
+          created_at?: string
+          declared_qty?: number
+          discrepancy_reason?: string | null
+          expiry_date?: string | null
+          handoff_id?: string
+          held_qty?: number
+          id?: string
+          order_item_id?: string
+          physically_received_qty?: number
+          product_code?: string
+          product_id?: string
+          rejected_qty?: number
+          uom?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "b2b_dispatch_handoff_lines_handoff_id_fkey"
+            columns: ["handoff_id"]
+            isOneToOne: false
+            referencedRelation: "b2b_dispatch_handoffs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "b2b_dispatch_handoff_lines_order_item_id_fkey"
+            columns: ["order_item_id"]
+            isOneToOne: false
+            referencedRelation: "b2b_dispatch_so_line_fulfilment"
+            referencedColumns: ["order_item_id"]
+          },
+          {
+            foreignKeyName: "b2b_dispatch_handoff_lines_order_item_id_fkey"
+            columns: ["order_item_id"]
+            isOneToOne: false
+            referencedRelation: "order_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "b2b_dispatch_handoff_lines_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      b2b_dispatch_cartons: {
+        Row: {
+          carton_code: string
+          carton_sequence: number
+          consignment_id: string
+          created_at: string
+          current_version: number
+          gross_weight: number | null
+          handling_labels: Json
+          id: string
+          locked_at: string | null
+          locked_by: string | null
+          net_weight: number | null
+          open_photo_ref: string | null
+          physical_location: string
+          reopen_count: number
+          seal_reference: string | null
+          status: string
+          updated_at: string
+          weight_uom: string
+        }
+        Insert: {
+          carton_code: string
+          carton_sequence: number
+          consignment_id: string
+          created_at?: string
+          current_version?: number
+          gross_weight?: number | null
+          handling_labels?: Json
+          id?: string
+          locked_at?: string | null
+          locked_by?: string | null
+          net_weight?: number | null
+          open_photo_ref?: string | null
+          physical_location?: string
+          reopen_count?: number
+          seal_reference?: string | null
+          status?: string
+          updated_at?: string
+          weight_uom?: string
+        }
+        Update: {
+          carton_code?: string
+          carton_sequence?: number
+          consignment_id?: string
+          created_at?: string
+          current_version?: number
+          gross_weight?: number | null
+          handling_labels?: Json
+          id?: string
+          locked_at?: string | null
+          locked_by?: string | null
+          net_weight?: number | null
+          open_photo_ref?: string | null
+          physical_location?: string
+          reopen_count?: number
+          seal_reference?: string | null
+          status?: string
+          updated_at?: string
+          weight_uom?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "b2b_dispatch_cartons_consignment_id_fkey"
+            columns: ["consignment_id"]
+            isOneToOne: false
+            referencedRelation: "b2b_dispatch_command_queue"
+            referencedColumns: ["consignment_id"]
+          },
+          {
+            foreignKeyName: "b2b_dispatch_cartons_consignment_id_fkey"
+            columns: ["consignment_id"]
+            isOneToOne: false
+            referencedRelation: "b2b_dispatch_consignments"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      b2b_dispatch_carton_items: {
+        Row: {
+          barcode_value: string
+          batch_lot: string
+          carton_id: string
+          consignment_line_id: string
+          created_at: string
+          expiry_date: string | null
+          id: string
+          order_item_id: string
+          product_code: string
+          product_id: string
+          quantity: number
+          scan_device_id: string | null
+          scan_status: string
+          scanned_at: string
+          scanned_by: string | null
+          uom: string
+        }
+        Insert: {
+          barcode_value: string
+          batch_lot: string
+          carton_id: string
+          consignment_line_id: string
+          created_at?: string
+          expiry_date?: string | null
+          id?: string
+          order_item_id: string
+          product_code: string
+          product_id: string
+          quantity: number
+          scan_device_id?: string | null
+          scan_status?: string
+          scanned_at?: string
+          scanned_by?: string | null
+          uom: string
+        }
+        Update: {
+          barcode_value?: string
+          batch_lot?: string
+          carton_id?: string
+          consignment_line_id?: string
+          created_at?: string
+          expiry_date?: string | null
+          id?: string
+          order_item_id?: string
+          product_code?: string
+          product_id?: string
+          quantity?: number
+          scan_device_id?: string | null
+          scan_status?: string
+          scanned_at?: string
+          scanned_by?: string | null
+          uom?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "b2b_dispatch_carton_items_carton_id_fkey"
+            columns: ["carton_id"]
+            isOneToOne: false
+            referencedRelation: "b2b_dispatch_cartons"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "b2b_dispatch_carton_items_consignment_line_id_fkey"
+            columns: ["consignment_line_id"]
+            isOneToOne: false
+            referencedRelation: "b2b_dispatch_consignment_lines"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "b2b_dispatch_carton_items_order_item_id_fkey"
+            columns: ["order_item_id"]
+            isOneToOne: false
+            referencedRelation: "b2b_dispatch_so_line_fulfilment"
+            referencedColumns: ["order_item_id"]
+          },
+          {
+            foreignKeyName: "b2b_dispatch_carton_items_order_item_id_fkey"
+            columns: ["order_item_id"]
+            isOneToOne: false
+            referencedRelation: "order_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "b2b_dispatch_carton_items_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      b2b_dispatch_product_scan_events: {
+        Row: {
+          barcode_value: string
+          carton_id: string
+          correlation_id: string
+          created_at: string
+          device_id: string | null
+          id: string
+          reason: string | null
+          resolved_batch_lot: string | null
+          resolved_product_id: string | null
+          scan_result: string
+          scanned_at: string
+          scanned_by: string | null
+        }
+        Insert: {
+          barcode_value: string
+          carton_id: string
+          correlation_id: string
+          created_at?: string
+          device_id?: string | null
+          id?: string
+          reason?: string | null
+          resolved_batch_lot?: string | null
+          resolved_product_id?: string | null
+          scan_result: string
+          scanned_at?: string
+          scanned_by?: string | null
+        }
+        Update: {
+          barcode_value?: string
+          carton_id?: string
+          correlation_id?: string
+          created_at?: string
+          device_id?: string | null
+          id?: string
+          reason?: string | null
+          resolved_batch_lot?: string | null
+          resolved_product_id?: string | null
+          scan_result?: string
+          scanned_at?: string
+          scanned_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "b2b_dispatch_product_scan_events_carton_id_fkey"
+            columns: ["carton_id"]
+            isOneToOne: false
+            referencedRelation: "b2b_dispatch_cartons"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "b2b_dispatch_product_scan_events_resolved_product_id_fkey"
+            columns: ["resolved_product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      b2b_dispatch_quality_checks: {
+        Row: {
+          carton_id: string | null
+          check_family: string
+          checked_at: string
+          checked_by: string | null
+          checklist_version: string
+          correlation_id: string
+          created_at: string
+          evidence_ref: string | null
+          exception_type: string | null
+          handoff_id: string | null
+          id: string
+          policy_snapshot: Json
+          responsible_source: string | null
+          result: string
+          sampled_qty: number | null
+          severity: string | null
+        }
+        Insert: {
+          carton_id?: string | null
+          check_family: string
+          checked_at?: string
+          checked_by?: string | null
+          checklist_version: string
+          correlation_id: string
+          created_at?: string
+          evidence_ref?: string | null
+          exception_type?: string | null
+          handoff_id?: string | null
+          id?: string
+          policy_snapshot?: Json
+          responsible_source?: string | null
+          result: string
+          sampled_qty?: number | null
+          severity?: string | null
+        }
+        Update: {
+          carton_id?: string | null
+          check_family?: string
+          checked_at?: string
+          checked_by?: string | null
+          checklist_version?: string
+          correlation_id?: string
+          created_at?: string
+          evidence_ref?: string | null
+          exception_type?: string | null
+          handoff_id?: string | null
+          id?: string
+          policy_snapshot?: Json
+          responsible_source?: string | null
+          result?: string
+          sampled_qty?: number | null
+          severity?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "b2b_dispatch_quality_checks_carton_id_fkey"
+            columns: ["carton_id"]
+            isOneToOne: false
+            referencedRelation: "b2b_dispatch_cartons"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "b2b_dispatch_quality_checks_handoff_id_fkey"
+            columns: ["handoff_id"]
+            isOneToOne: false
+            referencedRelation: "b2b_dispatch_handoffs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      b2b_dispatch_packing_list_versions: {
+        Row: {
+          consignment_id: string
+          correlation_id: string
+          document_ref: string | null
+          finance_check_state: string
+          generated_at: string
+          generated_by: string | null
+          id: string
+          physical_truth_snapshot: Json
+          status: string
+          submitted_to_finance_at: string | null
+          superseded_by: string | null
+          version_number: number
+        }
+        Insert: {
+          consignment_id: string
+          correlation_id: string
+          document_ref?: string | null
+          finance_check_state?: string
+          generated_at?: string
+          generated_by?: string | null
+          id?: string
+          physical_truth_snapshot?: Json
+          status?: string
+          submitted_to_finance_at?: string | null
+          superseded_by?: string | null
+          version_number: number
+        }
+        Update: {
+          consignment_id?: string
+          correlation_id?: string
+          document_ref?: string | null
+          finance_check_state?: string
+          generated_at?: string
+          generated_by?: string | null
+          id?: string
+          physical_truth_snapshot?: Json
+          status?: string
+          submitted_to_finance_at?: string | null
+          superseded_by?: string | null
+          version_number?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "b2b_dispatch_packing_list_versions_consignment_id_fkey"
+            columns: ["consignment_id"]
+            isOneToOne: false
+            referencedRelation: "b2b_dispatch_command_queue"
+            referencedColumns: ["consignment_id"]
+          },
+          {
+            foreignKeyName: "b2b_dispatch_packing_list_versions_consignment_id_fkey"
+            columns: ["consignment_id"]
+            isOneToOne: false
+            referencedRelation: "b2b_dispatch_consignments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "b2b_dispatch_packing_list_versions_superseded_by_fkey"
+            columns: ["superseded_by"]
+            isOneToOne: false
+            referencedRelation: "b2b_dispatch_packing_list_versions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      b2b_dispatch_releases: {
+        Row: {
+          consignment_id: string
+          correlation_id: string
+          created_at: string
+          expires_at: string | null
+          finance_evidence_ref: string | null
+          id: string
+          invoice_reference: string | null
+          packing_list_version_id: string
+          pi_reference: string | null
+          release_state: string
+          released_at: string | null
+          released_by: string | null
+        }
+        Insert: {
+          consignment_id: string
+          correlation_id: string
+          created_at?: string
+          expires_at?: string | null
+          finance_evidence_ref?: string | null
+          id?: string
+          invoice_reference?: string | null
+          packing_list_version_id: string
+          pi_reference?: string | null
+          release_state: string
+          released_at?: string | null
+          released_by?: string | null
+        }
+        Update: {
+          consignment_id?: string
+          correlation_id?: string
+          created_at?: string
+          expires_at?: string | null
+          finance_evidence_ref?: string | null
+          id?: string
+          invoice_reference?: string | null
+          packing_list_version_id?: string
+          pi_reference?: string | null
+          release_state?: string
+          released_at?: string | null
+          released_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "b2b_dispatch_releases_consignment_id_fkey"
+            columns: ["consignment_id"]
+            isOneToOne: false
+            referencedRelation: "b2b_dispatch_command_queue"
+            referencedColumns: ["consignment_id"]
+          },
+          {
+            foreignKeyName: "b2b_dispatch_releases_consignment_id_fkey"
+            columns: ["consignment_id"]
+            isOneToOne: false
+            referencedRelation: "b2b_dispatch_consignments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "b2b_dispatch_releases_packing_list_version_id_fkey"
+            columns: ["packing_list_version_id"]
+            isOneToOne: false
+            referencedRelation: "b2b_dispatch_packing_list_versions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      b2b_dispatch_shipments: {
+        Row: {
+          consignment_id: string
+          correlation_id: string
+          created_at: string
+          delivered_at: string | null
+          delivery_state: string
+          departed_at: string | null
+          driver_name: string | null
+          driver_phone: string | null
+          gate_arrival_ref: string | null
+          gate_exit_ref: string | null
+          id: string
+          loaded_at: string | null
+          loading_evidence_ref: string | null
+          pod_ref: string | null
+          shipment_number: string
+          tracking_lr_awb: string | null
+          transporter_ack_ref: string | null
+          transporter_name: string | null
+          updated_at: string
+          vehicle_number: string | null
+          vehicle_suitability_state: string
+        }
+        Insert: {
+          consignment_id: string
+          correlation_id: string
+          created_at?: string
+          delivered_at?: string | null
+          delivery_state?: string
+          departed_at?: string | null
+          driver_name?: string | null
+          driver_phone?: string | null
+          gate_arrival_ref?: string | null
+          gate_exit_ref?: string | null
+          id?: string
+          loaded_at?: string | null
+          loading_evidence_ref?: string | null
+          pod_ref?: string | null
+          shipment_number: string
+          tracking_lr_awb?: string | null
+          transporter_ack_ref?: string | null
+          transporter_name?: string | null
+          updated_at?: string
+          vehicle_number?: string | null
+          vehicle_suitability_state?: string
+        }
+        Update: {
+          consignment_id?: string
+          correlation_id?: string
+          created_at?: string
+          delivered_at?: string | null
+          delivery_state?: string
+          departed_at?: string | null
+          driver_name?: string | null
+          driver_phone?: string | null
+          gate_arrival_ref?: string | null
+          gate_exit_ref?: string | null
+          id?: string
+          loaded_at?: string | null
+          loading_evidence_ref?: string | null
+          pod_ref?: string | null
+          shipment_number?: string
+          tracking_lr_awb?: string | null
+          transporter_ack_ref?: string | null
+          transporter_name?: string | null
+          updated_at?: string
+          vehicle_number?: string | null
+          vehicle_suitability_state?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "b2b_dispatch_shipments_consignment_id_fkey"
+            columns: ["consignment_id"]
+            isOneToOne: true
+            referencedRelation: "b2b_dispatch_command_queue"
+            referencedColumns: ["consignment_id"]
+          },
+          {
+            foreignKeyName: "b2b_dispatch_shipments_consignment_id_fkey"
+            columns: ["consignment_id"]
+            isOneToOne: true
+            referencedRelation: "b2b_dispatch_consignments"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      b2b_dispatch_load_scans: {
+        Row: {
+          carton_id: string
+          correlation_id: string
+          created_at: string
+          device_id: string | null
+          id: string
+          scan_result: string
+          scanned_at: string
+          scanned_by: string | null
+          shipment_id: string
+        }
+        Insert: {
+          carton_id: string
+          correlation_id: string
+          created_at?: string
+          device_id?: string | null
+          id?: string
+          scan_result: string
+          scanned_at?: string
+          scanned_by?: string | null
+          shipment_id: string
+        }
+        Update: {
+          carton_id?: string
+          correlation_id?: string
+          created_at?: string
+          device_id?: string | null
+          id?: string
+          scan_result?: string
+          scanned_at?: string
+          scanned_by?: string | null
+          shipment_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "b2b_dispatch_load_scans_carton_id_fkey"
+            columns: ["carton_id"]
+            isOneToOne: false
+            referencedRelation: "b2b_dispatch_cartons"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "b2b_dispatch_load_scans_shipment_id_fkey"
+            columns: ["shipment_id"]
+            isOneToOne: false
+            referencedRelation: "b2b_dispatch_shipments"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      b2b_dispatch_residual_closures: {
+        Row: {
+          approved_at: string
+          approved_by: string
+          approved_closed_qty: number
+          correlation_id: string
+          created_at: string
+          customer_evidence_ref: string
+          finance_adjustment_ref: string
+          id: string
+          order_item_id: string
+          reason: string
+          requested_by: string | null
+        }
+        Insert: {
+          approved_at?: string
+          approved_by: string
+          approved_closed_qty: number
+          correlation_id: string
+          created_at?: string
+          customer_evidence_ref: string
+          finance_adjustment_ref: string
+          id?: string
+          order_item_id: string
+          reason: string
+          requested_by?: string | null
+        }
+        Update: {
+          approved_at?: string
+          approved_by?: string
+          approved_closed_qty?: number
+          correlation_id?: string
+          created_at?: string
+          customer_evidence_ref?: string
+          finance_adjustment_ref?: string
+          id?: string
+          order_item_id?: string
+          reason?: string
+          requested_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "b2b_dispatch_residual_closures_order_item_id_fkey"
+            columns: ["order_item_id"]
+            isOneToOne: false
+            referencedRelation: "b2b_dispatch_so_line_fulfilment"
+            referencedColumns: ["order_item_id"]
+          },
+          {
+            foreignKeyName: "b2b_dispatch_residual_closures_order_item_id_fkey"
+            columns: ["order_item_id"]
+            isOneToOne: false
+            referencedRelation: "order_items"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      b2b_dispatch_exceptions: {
+        Row: {
+          carton_id: string | null
+          commitment_effect: string | null
+          consignment_id: string | null
+          correlation_id: string
+          created_at: string
+          decision_authority: string | null
+          detected_at: string
+          evidence_ref: string
+          exception_type: string
+          final_disposition: string | null
+          id: string
+          order_id: string
+          owner_id: string | null
+          resolution_due_at: string | null
+          resolved_at: string | null
+          severity: string
+          source_department: string | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          carton_id?: string | null
+          commitment_effect?: string | null
+          consignment_id?: string | null
+          correlation_id: string
+          created_at?: string
+          decision_authority?: string | null
+          detected_at?: string
+          evidence_ref: string
+          exception_type: string
+          final_disposition?: string | null
+          id?: string
+          order_id: string
+          owner_id?: string | null
+          resolution_due_at?: string | null
+          resolved_at?: string | null
+          severity: string
+          source_department?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          carton_id?: string | null
+          commitment_effect?: string | null
+          consignment_id?: string | null
+          correlation_id?: string
+          created_at?: string
+          decision_authority?: string | null
+          detected_at?: string
+          evidence_ref?: string
+          exception_type?: string
+          final_disposition?: string | null
+          id?: string
+          order_id?: string
+          owner_id?: string | null
+          resolution_due_at?: string | null
+          resolved_at?: string | null
+          severity?: string
+          source_department?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "b2b_dispatch_exceptions_carton_id_fkey"
+            columns: ["carton_id"]
+            isOneToOne: false
+            referencedRelation: "b2b_dispatch_cartons"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "b2b_dispatch_exceptions_consignment_id_fkey"
+            columns: ["consignment_id"]
+            isOneToOne: false
+            referencedRelation: "b2b_dispatch_command_queue"
+            referencedColumns: ["consignment_id"]
+          },
+          {
+            foreignKeyName: "b2b_dispatch_exceptions_consignment_id_fkey"
+            columns: ["consignment_id"]
+            isOneToOne: false
+            referencedRelation: "b2b_dispatch_consignments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "b2b_dispatch_exceptions_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      b2b_dispatch_events: {
+        Row: {
+          actor_id: string | null
+          actor_role: string | null
+          authority_id: string | null
+          carton_id: string | null
+          consignment_id: string | null
+          correlation_id: string
+          created_at: string
+          custodian_id: string | null
+          device_event_at: string | null
+          device_id: string | null
+          document_version_id: string | null
+          event_type: string
+          evidence_refs: Json
+          id: string
+          location_code: string | null
+          metadata: Json
+          new_status: string | null
+          old_status: string | null
+          order_id: string
+          order_item_id: string | null
+          quantity: number | null
+          reason: string | null
+          server_event_at: string
+          shipment_id: string | null
+          source_record_id: string | null
+          source_record_type: string | null
+          uom: string | null
+        }
+        Insert: {
+          actor_id?: string | null
+          actor_role?: string | null
+          authority_id?: string | null
+          carton_id?: string | null
+          consignment_id?: string | null
+          correlation_id: string
+          created_at?: string
+          custodian_id?: string | null
+          device_event_at?: string | null
+          device_id?: string | null
+          document_version_id?: string | null
+          event_type: string
+          evidence_refs?: Json
+          id?: string
+          location_code?: string | null
+          metadata?: Json
+          new_status?: string | null
+          old_status?: string | null
+          order_id: string
+          order_item_id?: string | null
+          quantity?: number | null
+          reason?: string | null
+          server_event_at?: string
+          shipment_id?: string | null
+          source_record_id?: string | null
+          source_record_type?: string | null
+          uom?: string | null
+        }
+        Update: {
+          actor_id?: string | null
+          actor_role?: string | null
+          authority_id?: string | null
+          carton_id?: string | null
+          consignment_id?: string | null
+          correlation_id?: string
+          created_at?: string
+          custodian_id?: string | null
+          device_event_at?: string | null
+          device_id?: string | null
+          document_version_id?: string | null
+          event_type?: string
+          evidence_refs?: Json
+          id?: string
+          location_code?: string | null
+          metadata?: Json
+          new_status?: string | null
+          old_status?: string | null
+          order_id?: string
+          order_item_id?: string | null
+          quantity?: number | null
+          reason?: string | null
+          server_event_at?: string
+          shipment_id?: string | null
+          source_record_id?: string | null
+          source_record_type?: string | null
+          uom?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "b2b_dispatch_events_carton_id_fkey"
+            columns: ["carton_id"]
+            isOneToOne: false
+            referencedRelation: "b2b_dispatch_cartons"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "b2b_dispatch_events_consignment_id_fkey"
+            columns: ["consignment_id"]
+            isOneToOne: false
+            referencedRelation: "b2b_dispatch_command_queue"
+            referencedColumns: ["consignment_id"]
+          },
+          {
+            foreignKeyName: "b2b_dispatch_events_consignment_id_fkey"
+            columns: ["consignment_id"]
+            isOneToOne: false
+            referencedRelation: "b2b_dispatch_consignments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "b2b_dispatch_events_document_version_id_fkey"
+            columns: ["document_version_id"]
+            isOneToOne: false
+            referencedRelation: "b2b_dispatch_packing_list_versions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "b2b_dispatch_events_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "b2b_dispatch_events_order_item_id_fkey"
+            columns: ["order_item_id"]
+            isOneToOne: false
+            referencedRelation: "b2b_dispatch_so_line_fulfilment"
+            referencedColumns: ["order_item_id"]
+          },
+          {
+            foreignKeyName: "b2b_dispatch_events_order_item_id_fkey"
+            columns: ["order_item_id"]
+            isOneToOne: false
+            referencedRelation: "order_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "b2b_dispatch_events_shipment_id_fkey"
+            columns: ["shipment_id"]
+            isOneToOne: false
+            referencedRelation: "b2b_dispatch_shipments"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      b2b_return_arrival_cases: {
+        Row: {
+          arrival_state: string
+          arrived_at: string
+          cartons_conditionally_received: number
+          cartons_presented: number
+          case_number: string
+          client_owner_id: string | null
+          commercial_state: string
+          correlation_id: string
+          created_at: string
+          customer_id: string | null
+          driver_name: string | null
+          external_condition: string
+          final_decision_at: string | null
+          final_decision_by: string | null
+          final_disposition: string | null
+          finance_owner_id: string | null
+          gate_evidence_refs: Json
+          gate_recorded_by: string | null
+          id: string
+          inventory_state: string
+          operations_owner_id: string | null
+          order_id: string | null
+          original_consignment_id: string | null
+          qa_owner_id: string | null
+          quarantine_location: string | null
+          refusal_witness_ref: string | null
+          stated_reason: string | null
+          tracking_lr_awb: string | null
+          transporter_ack_ref: string | null
+          transporter_ack_refused: boolean
+          transporter_name: string | null
+          unloading_authorised_by: string | null
+          updated_at: string
+          vehicle_number: string | null
+        }
+        Insert: {
+          arrival_state?: string
+          arrived_at?: string
+          cartons_conditionally_received?: number
+          cartons_presented: number
+          case_number: string
+          client_owner_id?: string | null
+          commercial_state?: string
+          correlation_id: string
+          created_at?: string
+          customer_id?: string | null
+          driver_name?: string | null
+          external_condition: string
+          final_decision_at?: string | null
+          final_decision_by?: string | null
+          final_disposition?: string | null
+          finance_owner_id?: string | null
+          gate_evidence_refs?: Json
+          gate_recorded_by?: string | null
+          id?: string
+          inventory_state?: string
+          operations_owner_id?: string | null
+          order_id?: string | null
+          original_consignment_id?: string | null
+          qa_owner_id?: string | null
+          quarantine_location?: string | null
+          refusal_witness_ref?: string | null
+          stated_reason?: string | null
+          tracking_lr_awb?: string | null
+          transporter_ack_ref?: string | null
+          transporter_ack_refused?: boolean
+          transporter_name?: string | null
+          unloading_authorised_by?: string | null
+          updated_at?: string
+          vehicle_number?: string | null
+        }
+        Update: {
+          arrival_state?: string
+          arrived_at?: string
+          cartons_conditionally_received?: number
+          cartons_presented?: number
+          case_number?: string
+          client_owner_id?: string | null
+          commercial_state?: string
+          correlation_id?: string
+          created_at?: string
+          customer_id?: string | null
+          driver_name?: string | null
+          external_condition?: string
+          final_decision_at?: string | null
+          final_decision_by?: string | null
+          final_disposition?: string | null
+          finance_owner_id?: string | null
+          gate_evidence_refs?: Json
+          gate_recorded_by?: string | null
+          id?: string
+          inventory_state?: string
+          operations_owner_id?: string | null
+          order_id?: string | null
+          original_consignment_id?: string | null
+          qa_owner_id?: string | null
+          quarantine_location?: string | null
+          refusal_witness_ref?: string | null
+          stated_reason?: string | null
+          tracking_lr_awb?: string | null
+          transporter_ack_ref?: string | null
+          transporter_ack_refused?: boolean
+          transporter_name?: string | null
+          unloading_authorised_by?: string | null
+          updated_at?: string
+          vehicle_number?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "b2b_return_arrival_cases_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "b2b_return_arrival_cases_original_consignment_id_fkey"
+            columns: ["original_consignment_id"]
+            isOneToOne: false
+            referencedRelation: "b2b_dispatch_command_queue"
+            referencedColumns: ["consignment_id"]
+          },
+          {
+            foreignKeyName: "b2b_return_arrival_cases_original_consignment_id_fkey"
+            columns: ["original_consignment_id"]
+            isOneToOne: false
+            referencedRelation: "b2b_dispatch_consignments"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      b2b_return_arrival_items: {
+        Row: {
+          batch_lot: string | null
+          created_at: string
+          evidence_refs: Json
+          expiry_date: string | null
+          id: string
+          inspected_at: string | null
+          inspected_by: string | null
+          product_code: string | null
+          product_id: string | null
+          qa_findings: string | null
+          qa_state: string
+          quantity_presented: number
+          quantity_verified: number
+          return_case_id: string
+          seal_state: string | null
+          temperature_state: string | null
+        }
+        Insert: {
+          batch_lot?: string | null
+          created_at?: string
+          evidence_refs?: Json
+          expiry_date?: string | null
+          id?: string
+          inspected_at?: string | null
+          inspected_by?: string | null
+          product_code?: string | null
+          product_id?: string | null
+          qa_findings?: string | null
+          qa_state?: string
+          quantity_presented: number
+          quantity_verified?: number
+          return_case_id: string
+          seal_state?: string | null
+          temperature_state?: string | null
+        }
+        Update: {
+          batch_lot?: string | null
+          created_at?: string
+          evidence_refs?: Json
+          expiry_date?: string | null
+          id?: string
+          inspected_at?: string | null
+          inspected_by?: string | null
+          product_code?: string | null
+          product_id?: string | null
+          qa_findings?: string | null
+          qa_state?: string
+          quantity_presented?: number
+          quantity_verified?: number
+          return_case_id?: string
+          seal_state?: string | null
+          temperature_state?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "b2b_return_arrival_items_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "b2b_return_arrival_items_return_case_id_fkey"
+            columns: ["return_case_id"]
+            isOneToOne: false
+            referencedRelation: "b2b_return_arrival_cases"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      b2b_return_arrival_decisions: {
+        Row: {
+          authority_role: string
+          correlation_id: string
+          decided_at: string
+          decided_by: string
+          decision_reason: string
+          decision_type: string
+          evidence_refs: Json
+          id: string
+          return_case_id: string
+          supersedes_decision_id: string | null
+        }
+        Insert: {
+          authority_role: string
+          correlation_id: string
+          decided_at?: string
+          decided_by: string
+          decision_reason: string
+          decision_type: string
+          evidence_refs?: Json
+          id?: string
+          return_case_id: string
+          supersedes_decision_id?: string | null
+        }
+        Update: {
+          authority_role?: string
+          correlation_id?: string
+          decided_at?: string
+          decided_by?: string
+          decision_reason?: string
+          decision_type?: string
+          evidence_refs?: Json
+          id?: string
+          return_case_id?: string
+          supersedes_decision_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "b2b_return_arrival_decisions_return_case_id_fkey"
+            columns: ["return_case_id"]
+            isOneToOne: false
+            referencedRelation: "b2b_return_arrival_cases"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "b2b_return_arrival_decisions_supersedes_decision_id_fkey"
+            columns: ["supersedes_decision_id"]
+            isOneToOne: false
+            referencedRelation: "b2b_return_arrival_decisions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       bi_monthly_ledgers: {
         Row: {
           company_id: string
@@ -4115,6 +5580,65 @@ export type Database = {
       }
     }
     Views: {
+      b2b_dispatch_command_queue: {
+        Row: {
+          actual_departure_at: string | null
+          carton_count: number | null
+          committed_cutoff: string | null
+          consignment_id: string | null
+          consignment_number: string | null
+          delivery_state: string | null
+          dispatch_mode: string | null
+          dispatched_qty: number | null
+          fragmentation_origin: string | null
+          open_exception_count: number | null
+          order_id: string | null
+          packed_qty: number | null
+          planned_departure_at: string | null
+          release_state: string | null
+          selected_qty: number | null
+          sequence_number: number | null
+          status: string | null
+          transporter_name: string | null
+          vehicle_number: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "b2b_dispatch_consignments_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      b2b_dispatch_so_line_fulfilment: {
+        Row: {
+          approved_closed_qty: number | null
+          cumulative_dispatched_qty: number | null
+          order_id: string | null
+          order_item_id: string | null
+          original_order_qty: number | null
+          product_id: string | null
+          residual_qty: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "order_items_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "order_items_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       cmd_department_health: {
         Row: {
           department: string | null
