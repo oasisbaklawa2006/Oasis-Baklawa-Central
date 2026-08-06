@@ -1,1 +1,0 @@
-ALTER TABLE public.users ADD COLUMN IF NOT EXISTS is_sales_executive boolean NOT NULL DEFAULT false;
