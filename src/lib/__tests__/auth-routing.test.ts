@@ -32,7 +32,7 @@ describe("auth-routing", () => {
     expect(getRoleDestination("ADMIN")).toBe("/admin/cmd-war-room");
     expect(getRoleDestination("FINANCE_HEAD")).toBe("/admin/accounts-release");
     expect(getRoleDestination("HOD_CHOCOLATE")).toBe("/admin/production");
-    expect(getRoleDestination("B2B_BUYER")).toBe("/home");
+    expect(getRoleDestination("B2B_BUYER")).toBe("/customer-app-redirect");
     expect(getRoleDestination(null)).toBe("/approval-pending");
     expect(getRoleDestination("PENDING")).toBe("/approval-pending");
     expect(getRoleDestination("UNKNOWN_ROLE")).toBe("/approval-pending");
