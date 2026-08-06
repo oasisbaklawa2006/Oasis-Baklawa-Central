@@ -1,1 +1,0 @@
-ALTER TABLE public.auth_logs ADD COLUMN IF NOT EXISTS failure_reason text;

@@ -46,6 +46,10 @@ jobs:
           git diff --name-only "$BASE_SHA" HEAD > /tmp/changed-files.txt
           cat /tmp/changed-files.txt
 
+          # Added/modified/renamed files only (excludes deletions), so retiring
+          # migrations out of this repo doesn't itself trip the ownership check.
+          git diff --name-only --diff-filter=ACMR "$BASE_SHA" HEAD > /tmp/changed-files-non-deleted.txt
+
           has_match() {
             grep -Eq "$1" /tmp/changed-files.txt
           }
@@ -73,7 +77,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          if grep -Eq '^supabase/migrations/' /tmp/changed-files.txt; then
+          if grep -Eq '^supabase/migrations/' /tmp/changed-files-non-deleted.txt; then
             echo 'BOUNDARY VIOLATION: active Supabase migrations are owned exclusively by oasisbaklawa2006/oasis-supabase-core.' >&2
             echo 'Move the reviewed migration and database tests to Core; Central may consume the resulting contract only.' >&2
             exit 1

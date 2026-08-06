@@ -1,1 +1,0 @@
-ALTER TABLE public.users ADD COLUMN IF NOT EXISTS has_seen_tutorial boolean DEFAULT false;
