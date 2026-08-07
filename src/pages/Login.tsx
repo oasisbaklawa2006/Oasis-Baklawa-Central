@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import logoImg from "@/assets/logo-open.png";
-import { createAuthStateController, completeAuthLogin, getAuthUserMessage, readAuthCache, type AuthStatus } from "@/lib/auth-flow";
+import { createAuthStateController, completeAuthLogin, getAuthUserMessage, getPostLoginRedirectOnError, readAuthCache, type AuthStatus } from "@/lib/auth-flow";
 import { createAuthAttemptId, logAuthEvent, type AuthAttemptMethod } from "@/lib/auth-logging";
 import { normalizeIdentifier } from "@/lib/auth-identity";
 import { signOutAndClearSession } from "@/utils/authSession";
@@ -161,6 +161,25 @@ const Login = () => {
         setStatus: (next, meta) => updateStatus(next, meta),
       });
     } catch (error) {
+      const unresolvedDestination = getPostLoginRedirectOnError(error);
+      if (unresolvedDestination) {
+        logAuthEvent("REDIRECT_STARTED", {
+          attemptId: currentAttemptId,
+          method,
+          identifier: normalized.normalized,
+          result: "info",
+          details: { destination: unresolvedDestination, reason: "unresolved_account" },
+        });
+        navigate(unresolvedDestination, { replace: true });
+        logAuthEvent("REDIRECT_SUCCESS", {
+          attemptId: currentAttemptId,
+          method,
+          identifier: normalized.normalized,
+          result: "success",
+          details: { destination: unresolvedDestination },
+        });
+        return;
+      }
       const message = error instanceof Error ? error.message : "account_resolution_failed";
       throw new Error(`ACCOUNT_RESOLUTION_FAILED:${message}`);
     }

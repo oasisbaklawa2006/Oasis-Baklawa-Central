@@ -98,6 +98,19 @@ export function getAuthUserMessage(error: unknown) {
   return "Authentication failed. Please try again.";
 }
 
+// Unresolved-account error codes: the account exists but isn't staff-authorized
+// yet (no role, or pending approval). These are not authentication failures —
+// the correct outcome is the same customer-app gate an unresolved role hits
+// post-login (see getRoleDestination), not a stuck failure state on /login.
+const UNRESOLVED_ACCOUNT_REDIRECT_CODES = new Set(["ROLE_NOT_ASSIGNED", "ACCOUNT_PENDING"]);
+
+export function getPostLoginRedirectOnError(error: unknown): string | null {
+  if (error instanceof AuthFlowError && UNRESOLVED_ACCOUNT_REDIRECT_CODES.has(error.code)) {
+    return "/customer-app-redirect";
+  }
+  return null;
+}
+
 export function readAuthCache(): AuthCache | null {
   try {
     const raw = localStorage.getItem(AUTH_CACHE_KEY);
