@@ -98,6 +98,19 @@ export function getAuthUserMessage(error: unknown) {
   return "Authentication failed. Please try again.";
 }
 
+// Unresolved-account error codes: the account exists but isn't staff-authorized
+// yet (no role, or pending approval). These are not authentication failures —
+// the correct outcome is the same customer-app gate an unresolved role hits
+// post-login (see getRoleDestination), not a stuck failure state on /login.
+const UNRESOLVED_ACCOUNT_REDIRECT_CODES = new Set(["ROLE_NOT_ASSIGNED", "ACCOUNT_PENDING"]);
+
+export function getPostLoginRedirectOnError(error: unknown): string | null {
+  if (error instanceof AuthFlowError && UNRESOLVED_ACCOUNT_REDIRECT_CODES.has(error.code)) {
+    return "/customer-app-redirect";
+  }
+  return null;
+}
+
 export function readAuthCache(): AuthCache | null {
   try {
     const raw = localStorage.getItem(AUTH_CACHE_KEY);
@@ -110,13 +123,17 @@ export function readAuthCache(): AuthCache | null {
 export function writeAuthCache(data: AuthCache) {
   try {
     localStorage.setItem(AUTH_CACHE_KEY, JSON.stringify(data));
-  } catch {}
+  } catch {
+    // localStorage unavailable (private browsing, quota) — cache write is best-effort
+  }
 }
 
 export function clearAuthCache() {
   try {
     localStorage.removeItem(AUTH_CACHE_KEY);
-  } catch {}
+  } catch {
+    // localStorage unavailable — nothing to clear
+  }
 }
 
 export function createAuthStateController(initialStatus: AuthStatus = "idle") {
@@ -523,9 +540,7 @@ export async function completeAuthLogin(params: {
   setStatus("profile_loading", { result: "success", details: { userId: resolved.userId, profileStatus: resolved.profileStatus } });
   setStatus("role_loading", { result: "started", details: { role: resolved.role, companyId: resolved.companyId } });
 
-  const destination = isStorefrontRole(resolved.role) && resolved.companyId
-    ? "/welcome"
-    : getRoleDestination(resolved.role);
+  const destination = getRoleDestination(resolved.role);
 
   // INSTANT REDIRECT for internal staff: skip price-tier hop (not used by admin/staff dashboards).
   // Cache is written synchronously with priceTier=null; refreshed in background.

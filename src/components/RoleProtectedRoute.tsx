@@ -13,7 +13,7 @@ interface Props {
 
 export default function RoleProtectedRoute({ allowedRoles, children }: Props) {
   const location = useLocation();
-  const { user, loading: authLoading, role, profileReady, hasAppliedB2B, profileStatus } = useAuth();
+  const { user, loading: authLoading, role, profileReady } = useAuth();
   const [serverVerified, setServerVerified] = useState(false);
   const normalizedRole = normalizeRole(role);
 
@@ -92,10 +92,7 @@ export default function RoleProtectedRoute({ allowedRoles, children }: Props) {
   }
 
   if (!normalizedRole || normalizedRole === "PENDING") {
-    const status = profileStatus?.trim().toLowerCase() ?? null;
-    const isPendingApplicant =
-      hasAppliedB2B || status === "pending" || status === "approved" || status === "rejected" || normalizedRole === "PENDING";
-    return <Navigate to={isPendingApplicant ? "/approval-pending" : "/register"} replace />;
+    return <Navigate to="/customer-app-redirect" replace />;
   }
 
   if (!serverVerified) {

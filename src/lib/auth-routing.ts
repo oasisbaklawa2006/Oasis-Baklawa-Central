@@ -114,7 +114,7 @@ export function normalizeRole(role?: string | null): string | null {
 export function getRoleDestination(role?: string | null): string {
   const r = normalizeRole(role);
 
-  if (!r || r === "PENDING") return "/approval-pending";
+  if (!r || r === "PENDING") return "/customer-app-redirect";
 
   const dest = STAFF_ROLE_DESTINATIONS[r];
   if (dest) return dest;
@@ -122,7 +122,7 @@ export function getRoleDestination(role?: string | null): string {
   if (CLIENT_ROLES.has(r)) return "/customer-app-redirect";
 
   // Unknown role — do NOT send to /admin
-  return "/approval-pending";
+  return "/customer-app-redirect";
 }
 
 // ─── Path check ───────────────────────────────────────────────────────────────

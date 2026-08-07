@@ -3,12 +3,14 @@ import {
   AuthFlowError,
   createAuthStateController,
   getAuthUserMessage,
+  getPostLoginRedirectOnError,
   readAuthCache,
   writeAuthCache,
   clearAuthCache,
   AUTH_CACHE_KEY,
   type AuthStatus,
 } from "@/lib/auth-flow";
+import { getRoleDestination } from "@/lib/auth-routing";
 
 describe("auth-flow / state controller", () => {
   beforeEach(() => {
@@ -104,5 +106,44 @@ describe("auth-flow / errors", () => {
   it("getAuthUserMessage maps unknown errors safely", () => {
     expect(getAuthUserMessage(new Error("boom"))).toBe("boom");
     expect(getAuthUserMessage("nonsense")).toBe("Authentication failed. Please try again.");
+  });
+});
+
+// Invariant: an authenticated-but-unresolved account (no role assigned, or
+// pending approval) must never strand the user on a dead-end failure screen —
+// it converges on the same customer-app gate that RoleProtectedRoute and
+// getRoleDestination already use for unresolved/unknown roles. A genuine
+// authentication failure (bad OTP, network error, blocked account, etc.) must
+// remain a failure and must never be silently redirected.
+describe("auth-flow / post-login redirect for unresolved accounts", () => {
+  it("routes ROLE_NOT_ASSIGNED to the customer-app gate", () => {
+    const error = new AuthFlowError("ROLE_NOT_ASSIGNED", "Role not assigned. Please contact an administrator.");
+    expect(getPostLoginRedirectOnError(error)).toBe("/customer-app-redirect");
+  });
+
+  it("routes ACCOUNT_PENDING to the customer-app gate", () => {
+    const error = new AuthFlowError("ACCOUNT_PENDING", "Account pending approval.");
+    expect(getPostLoginRedirectOnError(error)).toBe("/customer-app-redirect");
+  });
+
+  it("matches the destination used for unresolved/unknown staff roles", () => {
+    expect(getPostLoginRedirectOnError(new AuthFlowError("ROLE_NOT_ASSIGNED", "x"))).toBe(getRoleDestination(null));
+    expect(getPostLoginRedirectOnError(new AuthFlowError("ACCOUNT_PENDING", "x"))).toBe(getRoleDestination("PENDING"));
+  });
+
+  it("never redirects a genuine authentication failure — it stays a failure", () => {
+    expect(getPostLoginRedirectOnError(new AuthFlowError("ACCOUNT_BLOCKED", "blocked"))).toBeNull();
+    expect(getPostLoginRedirectOnError(new AuthFlowError("NETWORK_ERROR", "network"))).toBeNull();
+    expect(getPostLoginRedirectOnError(new AuthFlowError("SESSION_CREATE_FAILED", "session"))).toBeNull();
+    expect(getPostLoginRedirectOnError(new AuthFlowError("DUPLICATE_IDENTITY", "dup"))).toBeNull();
+    expect(getPostLoginRedirectOnError(new Error("plain error"))).toBeNull();
+    expect(getPostLoginRedirectOnError("not an error")).toBeNull();
+  });
+
+  it("never resolves to a deleted Central customer route", () => {
+    const deletedRoutes = ["/welcome", "/approval-pending", "/home", "/catalogue", "/cart", "/orders", "/account"];
+    const destination = getPostLoginRedirectOnError(new AuthFlowError("ACCOUNT_PENDING", "x"));
+    expect(deletedRoutes).not.toContain(destination);
+    expect(destination).toBe("/customer-app-redirect");
   });
 });

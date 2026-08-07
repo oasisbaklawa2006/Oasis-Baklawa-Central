@@ -1,5 +1,4 @@
 import { useEffect, useState, useMemo } from "react";
-import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -10,23 +9,36 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Loader2, CreditCard, ShoppingCart, Search, Building2, Wallet, IndianRupee, Phone, MessageSquare, TrendingUp, Target, AlertCircle } from "lucide-react";
+import { Loader2, CreditCard, Search, Building2, Wallet, IndianRupee, Phone, MessageSquare, TrendingUp, Target, AlertCircle } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import CreditRequestModal from "@/components/CreditRequestModal";
 import { format, startOfMonth } from "date-fns";
+import type { Database } from "@/integrations/supabase/types";
+
+type CompanyRow = Database["public"]["Tables"]["companies"]["Row"];
+type OrderRow = Database["public"]["Tables"]["orders"]["Row"];
+type ClientInteractionRow = Database["public"]["Tables"]["client_interactions"]["Row"];
+
+type SalesCompany = Pick<
+  CompanyRow,
+  "id" | "business_name" | "gst_number" | "status" | "wallet_balance" | "credit_limit" | "current_balance" | "allow_credit" | "created_at"
+>;
+
+type SalesOrder = Pick<OrderRow, "id" | "company_id" | "sales_order_value" | "status" | "created_at">;
+
+type SalesInteraction = Pick<ClientInteractionRow, "id" | "company_id">;
 
 const SalesDashboard = () => {
   const { user, loading: authLoading } = useAuth();
-  const navigate = useNavigate();
-  const [companies, setCompanies] = useState<any[]>([]);
+  const [companies, setCompanies] = useState<SalesCompany[]>([]);
   const [dataLoading, setDataLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [creditModalOpen, setCreditModalOpen] = useState(false);
   const [selectedCompany, setSelectedCompany] = useState<{ id: string; business_name: string } | null>(null);
 
   // Live revenue data
-  const [monthOrders, setMonthOrders] = useState<any[]>([]);
-  const [interactions, setInteractions] = useState<any[]>([]);
+  const [monthOrders, setMonthOrders] = useState<SalesOrder[]>([]);
+  const [interactions, setInteractions] = useState<SalesInteraction[]>([]);
   const [overdueTasks, setOverdueTasks] = useState(0);
 
   // Log interaction modal
@@ -55,7 +67,7 @@ const SalesDashboard = () => {
       const companyList = comps || [];
       setCompanies(companyList);
 
-      const companyIds = companyList.map((c: any) => c.id);
+      const companyIds = companyList.map((c) => c.id);
       if (companyIds.length > 0) {
         const monthStart = startOfMonth(new Date()).toISOString();
 
@@ -134,7 +146,7 @@ const SalesDashboard = () => {
       setLogCompany("");
       // Refresh interactions count
       if (user) {
-        const companyIds = companies.map((c: any) => c.id);
+        const companyIds = companies.map((c) => c.id);
         const { data: ints } = await supabase
           .from("client_interactions")
           .select("id, company_id")
@@ -280,13 +292,6 @@ const SalesDashboard = () => {
                           <Button size="sm" variant="outline" className="h-8 text-xs gap-1.5"
                             onClick={() => { setSelectedCompany({ id: c.id, business_name: c.business_name }); setCreditModalOpen(true); }}>
                             <CreditCard size={13} /> Request Credit
-                          </Button>
-                          <Button size="sm" variant="ghost" className="h-8 text-xs gap-1.5"
-                            onClick={() => {
-                              localStorage.setItem("impersonated_client", JSON.stringify({ company_id: c.id, business_name: c.business_name }));
-                              navigate("/");
-                            }}>
-                            <ShoppingCart size={13} /> Place Order
                           </Button>
                         </div>
                       </TableCell>
