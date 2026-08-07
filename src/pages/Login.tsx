@@ -43,6 +43,9 @@ function firstNonEmptyString(...values: unknown[]) {
   return null;
 }
 
+// MSG91 widget SDK payload shape is undocumented and varies by verification
+// channel (SMS/WhatsApp/voice); the callers below probe every known variant.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 function extractMsg91AccessToken(payload: any) {
   return firstNonEmptyString(
     typeof payload === "string" ? payload : null,
@@ -60,6 +63,7 @@ function extractMsg91AccessToken(payload: any) {
   );
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 function extractMsg91Phone(payload: any) {
   return firstNonEmptyString(
     payload?.mobile,
@@ -315,8 +319,8 @@ const Login = () => {
         window.history.replaceState({}, "", url.pathname);
         const identity = data.session.user.email || data.session.user.phone || data.session.user.id;
         await redirectAfterAuth(identity, "session_restore", data.session.user.id);
-      } catch (err: any) {
-        toast.error(err?.message || "Manual auth failed");
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : "Manual auth failed");
         setLoading(false);
       }
     })();
@@ -349,7 +353,9 @@ const Login = () => {
           "[id^='msg91'], [class*='msg91'], iframe[src*='msg91']",
         )
         .forEach((node) => node.parentElement?.removeChild(node));
-    } catch {}
+    } catch {
+      // DOM cleanup is best-effort — nothing to do if nodes are already gone.
+    }
   };
 
   const finalizeFailure = async (message: string, finalState: AuthStatus = "failed", shouldSignOut = false) => {
@@ -404,6 +410,7 @@ const Login = () => {
         "country-code": "91",
         "auto-country": false,
         captchaRenderId: "",
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         success: async (payload: any) => {
           // ── HARD GUARD #1: Stale attempt → ignore. ──
           if (attemptRef.current?.id !== attemptId) return;
@@ -525,6 +532,7 @@ const Login = () => {
             setActiveTab("email");
           }
         },
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         failure: async (error: any) => {
           if (attemptRef.current?.id !== attemptId) return;
           controllerRef.current.clearTimer(verificationTimer);
