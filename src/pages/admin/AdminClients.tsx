@@ -201,9 +201,9 @@ const AdminClients = () => {
         if (error) throw error;
         setApps((data as unknown as Application[]) ?? []);
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("Failed to fetch applications:", err);
-      const msg = err?.message || "Failed to load records.";
+      const msg = err instanceof Error ? err.message : "Failed to load records.";
       setListError(msg);
       toast.error("Failed to load records. Please try again.");
     } finally {
@@ -229,92 +229,39 @@ const AdminClients = () => {
     setActionLoading(app.id);
 
     try {
-      let companyId: string | null = null;
-      const approvedRole = "b2b_buyer";
+      const { data, error } = await supabase.rpc("approve_b2b_trade_application_v1", {
+        p_application_id: app.id,
+        p_assigned_price_tier: priceTier[app.id],
+        p_admin_notes: notes[app.id]?.trim() || null,
+      });
 
-      if (app.gst_number) {
-        const { data, error: companyLookupError } = await supabase
-          .from("companies")
-          .select("id")
-          .eq("gst_number", app.gst_number)
-          .maybeSingle();
+      if (error) throw error;
 
-        if (companyLookupError) throw companyLookupError;
-        if (data) companyId = data.id;
+      const approved = data?.[0];
+      if (!approved || approved.application_status !== "approved") {
+        throw new Error("Approval RPC did not return an approved application.");
       }
 
-      if (!companyId) {
-        const { data, error: businessLookupError } = await supabase
+      let accountManagerAssigned = true;
+
+      // Account-manager assignment is intentionally separate from the
+      // governance RPC because the current backend contract does not accept it.
+      if (accountManager[app.id] && approved.company_id) {
+        const { error: accountManagerError } = await supabase
           .from("companies")
-          .select("id")
-          .eq("business_name", app.business_name)
-          .maybeSingle();
+          .update({ account_manager_id: accountManager[app.id] })
+          .eq("id", approved.company_id);
 
-        if (businessLookupError) throw businessLookupError;
-        if (data) companyId = data.id;
-      }
-
-      if (!companyId) {
-        const { data, error: companyCreateError } = await supabase
-          .from("companies")
-          .insert({ business_name: app.business_name, gst_number: app.gst_number })
-          .select()
-          .single();
-
-        if (companyCreateError) throw companyCreateError;
-        companyId = data?.id ?? null;
-      }
-
-      // Write price_tier and account_manager_id to the company row.
-      // This is the canonical slab assignment that the storefront reads.
-      if (companyId) {
-        const companyUpdate: Record<string, string | null> = {
-          price_tier: priceTier[app.id],
-        };
-        if (accountManager[app.id]) {
-          companyUpdate.account_manager_id = accountManager[app.id];
+        if (accountManagerError) {
+          console.error("[AdminClients] Account manager assignment failed:", accountManagerError);
+          accountManagerAssigned = false;
+          toast.warning("Client approved, but account manager assignment failed.");
         }
-        const { error: companyTierError } = await supabase
-          .from("companies")
-          .update(companyUpdate as Parameters<ReturnType<typeof supabase.from>["update"]>[0])
-          .eq("id", companyId);
-        if (companyTierError) throw companyTierError;
       }
 
-      const [applicationUpdate, userUpdate, profileSync] = await Promise.all([
-        supabase
-          .from("b2b_applications")
-          .update({
-            status: "approved",
-            admin_notes: notes[app.id] || null,
-            assigned_price_tier: priceTier[app.id],
-            reviewed_at: new Date().toISOString(),
-            reviewed_by: user?.id ?? null,
-          })
-          .eq("id", app.id),
-        app.user_id && companyId
-          ? supabase.from("users").update({ role: approvedRole, company_id: companyId }).eq("id", app.user_id)
-          : Promise.resolve({ error: null }),
-        app.user_id && companyId
-          ? supabase.from("profiles").upsert(
-              {
-                id: app.user_id,
-                role: approvedRole,
-                company_id: companyId,
-                is_approved: true,
-                status: "approved",
-                price_tier: priceTier[app.id],
-              },
-              { onConflict: "id" },
-            )
-          : Promise.resolve({ error: null }),
-      ]);
-
-      if (applicationUpdate.error) throw applicationUpdate.error;
-      if (userUpdate.error) throw userUpdate.error;
-      if (profileSync.error) throw profileSync.error;
-
-      toast.success(`${app.business_name} approved`);
+      if (accountManagerAssigned) {
+        toast.success(`${app.business_name} approved`);
+      }
 
       notifyEvent({
         event: "approval_granted",
@@ -336,26 +283,37 @@ const AdminClients = () => {
   };
 
   const handleReject = async (app: Application) => {
-    setActionLoading(app.id);
-    const { error } = await supabase
-      .from("b2b_applications")
-      .update({
-        status: "rejected",
-        rejection_reason: rejectionReason[app.id] || null,
-        admin_notes: notes[app.id] || null,
-        reviewed_at: new Date().toISOString(),
-        reviewed_by: user?.id ?? null,
-      })
-      .eq("id", app.id);
+    const reason = rejectionReason[app.id]?.trim();
 
-    if (!error) {
+    if (!reason) {
+      toast.error("Rejection reason is required.");
+      return;
+    }
+
+    setActionLoading(app.id);
+
+    try {
+      const { data, error } = await supabase.rpc("reject_b2b_trade_application_v1", {
+        p_application_id: app.id,
+        p_rejection_reason: reason,
+      });
+
+      if (error) throw error;
+
+      const rejected = data?.[0];
+      if (!rejected || rejected.application_status !== "rejected") {
+        throw new Error("Rejection RPC did not return a rejected application.");
+      }
+
       toast.success(`${app.business_name} rejected`);
       setSheetOpen(false);
       fetchApps(tab);
-    } else {
+    } catch (error) {
+      console.error("[AdminClients] Rejection failed:", error);
       toast.error("Failed to reject application.");
+    } finally {
+      setActionLoading(null);
     }
-    setActionLoading(null);
   };
 
   const handleRequestInfo = async (app: Application) => {
@@ -823,7 +781,7 @@ const AdminClients = () => {
 
                   <div className="rounded-lg border border-border bg-card/80 p-3">
                     <label htmlFor={`reject-reason-${selectedApp.id}`} className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                      Rejection reason (optional, saved if you reject)
+                      Rejection reason (required)
                     </label>
                     <textarea
                       id={`reject-reason-${selectedApp.id}`}
@@ -857,7 +815,7 @@ const AdminClients = () => {
                         type="button"
                         variant="outline"
                         onClick={() => void handleReject(selectedApp)}
-                        disabled={actionLoading === selectedApp.id}
+                        disabled={actionLoading === selectedApp.id || !rejectionReason[selectedApp.id]?.trim()}
                         className="min-h-12 touch-manipulation border-destructive/50 font-semibold text-destructive hover:bg-destructive/10 sm:min-w-[7rem]"
                         aria-label="Reject application"
                       >
@@ -979,7 +937,14 @@ const DetailRow = ({ icon: Icon, label, value }: { icon: React.ElementType; labe
   </div>
 );
 
-const PortalInviteSection = ({ app, invite, onSendInvite, sending }: any) => (
+interface PortalInviteSectionProps {
+  app: Application;
+  invite: PortalInvite | undefined;
+  onSendInvite: (app: Application) => void | Promise<void>;
+  sending: boolean;
+}
+
+const PortalInviteSection = ({ app, invite, onSendInvite, sending }: PortalInviteSectionProps) => (
   <div className="space-y-3">
     <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Portal Access</h4>
     {invite ? (

@@ -5661,6 +5661,28 @@ export type Database = {
       }
       is_admin: { Args: never; Returns: boolean }
       is_internal_staff: { Args: { _user_id: string }; Returns: boolean }
+      approve_b2b_trade_application_v1: {
+        Args: {
+          p_application_id: string
+          p_assigned_price_tier?: string | null
+          p_admin_notes?: string | null
+        }
+        Returns: {
+          application_id: string
+          application_status: string
+          company_id: string
+        }[]
+      }
+      reject_b2b_trade_application_v1: {
+        Args: {
+          p_application_id: string
+          p_rejection_reason: string
+        }
+        Returns: {
+          application_id: string
+          application_status: string
+        }[]
+      }
       is_staff_role: { Args: { _role: string }; Returns: boolean }
       log_cart_failure: {
         Args: {
