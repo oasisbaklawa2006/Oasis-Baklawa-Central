@@ -242,6 +242,8 @@ const AdminClients = () => {
         throw new Error("Approval RPC did not return an approved application.");
       }
 
+      let accountManagerAssigned = true;
+
       // Account-manager assignment is intentionally separate from the
       // governance RPC because the current backend contract does not accept it.
       if (accountManager[app.id] && approved.company_id) {
@@ -252,11 +254,14 @@ const AdminClients = () => {
 
         if (accountManagerError) {
           console.error("[AdminClients] Account manager assignment failed:", accountManagerError);
+          accountManagerAssigned = false;
           toast.warning("Client approved, but account manager assignment failed.");
         }
       }
 
-      toast.success(`${app.business_name} approved`);
+      if (accountManagerAssigned) {
+        toast.success(`${app.business_name} approved`);
+      }
 
       notifyEvent({
         event: "approval_granted",
@@ -776,7 +781,7 @@ const AdminClients = () => {
 
                   <div className="rounded-lg border border-border bg-card/80 p-3">
                     <label htmlFor={`reject-reason-${selectedApp.id}`} className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                      Rejection reason (optional, saved if you reject)
+                      Rejection reason (required)
                     </label>
                     <textarea
                       id={`reject-reason-${selectedApp.id}`}
@@ -810,7 +815,7 @@ const AdminClients = () => {
                         type="button"
                         variant="outline"
                         onClick={() => void handleReject(selectedApp)}
-                        disabled={actionLoading === selectedApp.id}
+                        disabled={actionLoading === selectedApp.id || !rejectionReason[selectedApp.id]?.trim()}
                         className="min-h-12 touch-manipulation border-destructive/50 font-semibold text-destructive hover:bg-destructive/10 sm:min-w-[7rem]"
                         aria-label="Reject application"
                       >
