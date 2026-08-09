@@ -14,6 +14,7 @@ import { formatSalesOrderLabel } from "@/utils/orderSoLabel";
 import { getPackedReadyBlockers, type PackedReadyBlocker } from "@/utils/packedReadyGate";
 import {
   clearOrderForDispatch,
+  confirmPrepaidOrderAwaitingAdvance,
   releaseOrderToInProduction,
   releaseOrderToPackedReady,
 } from "@/lib/order-authority/orderAuthorityClient";
@@ -299,13 +300,55 @@ const OrderManagement = () => {
       }
     }
 
-    const governedStatus = new Set(["in_production", "packed_ready", "cleared_for_dispatch"]);
+    const governedStatus = new Set(["in_production", "packed_ready", "cleared_for_dispatch", "awaiting_advance"]);
     if (!governedStatus.has(effectiveNext)) {
       toast.error(
         `Transition to ${effectiveNext.replace(/_/g, " ")} is not available via direct status update — use the governed finance/operations workflow.`,
       );
       setActionLoading(null);
       return;
+    }
+
+    if (effectiveNext === "awaiting_advance" && currentOrder?.status === "submitted") {
+      try {
+        await confirmPrepaidOrderAwaitingAdvance(orderId);
+        if (currentOrder.company_id) {
+          const { data: comp } = await supabase
+            .from("companies")
+            .select("business_name, phone")
+            .eq("id", currentOrder.company_id)
+            .maybeSingle();
+          const orderRef = formatSalesOrderLabel({
+            id: orderId,
+            order_number: currentOrder?.order_number,
+          });
+          const phone = (comp as { phone?: string } | null)?.phone;
+          const businessName = (comp as { business_name?: string } | null)?.business_name || "Valued Customer";
+          if (phone) {
+            await supabase.functions.invoke("send-whatsapp", {
+              body: {
+                to: phone,
+                message:
+                  `Dear ${businessName},\n\n` +
+                  `Your order ${orderRef} has been confirmed and is awaiting advance payment.\n\n` +
+                  `Please remit the advance via UPI / NEFT / RTGS to the bank details shared by your Sales Executive, or reply to this message for assistance.\n\n` +
+                  `Once payment is verified, your order will move into production.\n\n` +
+                  `— Team Oasis Baklawa`,
+                company_id: currentOrder.company_id,
+                order_id: orderId,
+              },
+            }).catch(() => {});
+          }
+        }
+        toast.success("Order confirmed — awaiting advance payment");
+        setActionLoading(null);
+        fetchOrders();
+        return;
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : "Order confirmation denied");
+        setActionLoading(null);
+        return;
+      }
     }
 
     if (effectiveNext === "in_production") {

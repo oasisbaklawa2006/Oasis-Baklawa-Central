@@ -17,7 +17,7 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { FinanceReleaseChips } from "@/components/admin/FinanceReleaseChips";
-import { clearOrderForDispatch, releaseOrderToManufacturing } from "@/lib/order-authority/orderAuthorityClient";
+import { clearOrderForDispatch, releaseOrderToManufacturing, recordOrderFullyPaid } from "@/lib/order-authority/orderAuthorityClient";
 import {
   canReleaseOrderToDispatch,
   deriveFinanceReleaseState,
@@ -417,9 +417,8 @@ const AdminAccountsRelease = () => {
       } else if (action === "request_balance") {
         toast.success(`Balance of ${format(total - advPaid)} requested`);
       } else if (action === "mark_fully_paid") {
-        toast.error("Mark fully paid requires a governed finance RPC — use Finance Release Board.");
-        setActing(null);
-        return;
+        await recordOrderFullyPaid(order.id);
+        toast.success("Fully paid");
       }
       await supabase.from("audit_logs").insert({ action_type: `finance_${action}`, module_name: "Finance", entity_name: "order", entity_id: order.id, actor_id: user?.id });
       fetchOrders();

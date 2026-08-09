@@ -123,6 +123,30 @@ export async function rejectOrderFinanceReview(
   return result;
 }
 
+export async function confirmPrepaidOrderAwaitingAdvance(orderId: string): Promise<AuthorityRpcResult> {
+  const { data, error } = await authorityRpc("confirm_prepaid_order_awaiting_advance_v1", {
+    p_order_id: orderId,
+  });
+  if (error) throw new Error(error.message);
+  const result = data as AuthorityRpcResult;
+  if (!result?.ok) {
+    throw new Error(formatBlockers(blockersFromResult(result)) || "Order confirmation denied");
+  }
+  return result;
+}
+
+export async function recordOrderFullyPaid(orderId: string): Promise<AuthorityRpcResult> {
+  const { data, error } = await authorityRpc("record_order_fully_paid_v1", {
+    p_order_id: orderId,
+  });
+  if (error) throw new Error(error.message);
+  const result = data as AuthorityRpcResult;
+  if (!result?.ok) {
+    throw new Error(formatBlockers(blockersFromResult(result)) || "Full payment recording denied");
+  }
+  return result;
+}
+
 export type GateReleaseResult = {
   ok: boolean;
   carton_id?: string;

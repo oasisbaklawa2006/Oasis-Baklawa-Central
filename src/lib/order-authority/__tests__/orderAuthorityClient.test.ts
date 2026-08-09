@@ -16,6 +16,8 @@ import {
   releaseOrderToManufacturing,
   releaseOrderToPackedReady,
   rejectOrderFinanceReview,
+  confirmPrepaidOrderAwaitingAdvance,
+  recordOrderFullyPaid,
 } from "../orderAuthorityClient";
 
 describe("orderAuthorityClient", () => {
@@ -71,6 +73,18 @@ describe("orderAuthorityClient", () => {
       p_order_id: "o1",
       p_rejection_reason: "blurry receipt",
     });
+  });
+
+  it("calls prepaid confirm RPC", async () => {
+    rpcMock.mockResolvedValue({ data: { ok: true, status: "awaiting_advance" }, error: null });
+    await confirmPrepaidOrderAwaitingAdvance("o1");
+    expect(rpcMock).toHaveBeenCalledWith("confirm_prepaid_order_awaiting_advance_v1", { p_order_id: "o1" });
+  });
+
+  it("calls record fully paid RPC", async () => {
+    rpcMock.mockResolvedValue({ data: { ok: true, payment_status: "paid" }, error: null });
+    await recordOrderFullyPaid("o1");
+    expect(rpcMock).toHaveBeenCalledWith("record_order_fully_paid_v1", { p_order_id: "o1" });
   });
 
   it("calls gate release RPC with scan evidence id", async () => {
