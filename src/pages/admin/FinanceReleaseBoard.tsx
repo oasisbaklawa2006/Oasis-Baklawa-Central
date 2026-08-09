@@ -2,6 +2,11 @@ import { useCallback, useEffect, useRef, useState, type ReactNode } from "react"
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { normalizeRole } from "@/lib/auth-routing";
+import {
+  releaseOrderToInProduction,
+  updateOrderFinanceVerification,
+  rejectOrderFinanceReview,
+} from "@/lib/order-authority/orderAuthorityClient";
 import { toast } from "sonner";
 import { Loader2, ShieldAlert, Receipt, Hammer, Truck, Package, RefreshCw } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -206,28 +211,14 @@ const FinanceReleaseBoard = () => {
     if (!reviewOrder || !user) return;
     setActingId(reviewOrder.id);
     try {
-      const patch =
-        kind === "verify"
-          ? {
-              payment_status: "verified_advance",
-              finance_verified_by: user.id,
-              finance_verified_at: isoNow(),
-              payment_rejection_reason: null,
-            }
-          : {
-              payment_status: "on_credit",
-              finance_verified_by: user.id,
-              finance_verified_at: isoNow(),
-              payment_rejection_reason: null,
-            };
-      const { error } = await supabase.from("orders").update(patch).eq("id", reviewOrder.id);
-      if (error) throw error;
+      const paymentStatus = kind === "verify" ? "verified_advance" : "on_credit";
+      await updateOrderFinanceVerification(reviewOrder.id, paymentStatus);
       toast.success(kind === "verify" ? "Payment verified." : "Credit approved.");
       setReviewOrder(null);
       await loadBoard();
     } catch (e) {
       console.error("[FinanceReleaseBoard]", e);
-      toast.error("Could not update order.");
+      toast.error(e instanceof Error ? e.message : "Could not update order.");
     } finally {
       setActingId(null);
     }
@@ -242,25 +233,7 @@ const FinanceReleaseBoard = () => {
     }
     setActingId(reviewOrder.id);
     try {
-      const { error } = await supabase
-        .from("orders")
-        .update({
-          payment_status: "awaiting_receipt",
-          payment_rejection_reason: trimmed,
-        })
-        .eq("id", reviewOrder.id);
-
-      if (error) throw error;
-
-      await supabase.from("audit_logs").insert({
-        action_type: "finance_board_reject",
-        module_name: "finance_release_board",
-        entity_name: "orders",
-        entity_id: reviewOrder.id,
-        actor_id: user.id,
-        reason: trimmed,
-      });
-
+      await rejectOrderFinanceReview(reviewOrder.id, trimmed);
       toast.success("Buyer asked to update payment receipt.");
       setReviewOrder(null);
       await loadBoard();
@@ -279,8 +252,7 @@ const FinanceReleaseBoard = () => {
     pushFloorInFlightRef.current = order.id;
     setActingId(order.id);
     try {
-      const { error } = await supabase.from("orders").update({ status: "in_production" }).eq("id", order.id);
-      if (error) throw error;
+      await releaseOrderToInProduction(order.id, order.payment_status);
       toast.success("Released to factory floor.");
       setPushConfirm(null);
       await loadBoard();

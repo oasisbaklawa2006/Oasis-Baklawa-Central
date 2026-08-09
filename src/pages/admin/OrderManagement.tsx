@@ -13,9 +13,11 @@ import { shouldIgnoreOrderRegression } from "@/utils/orderStatus";
 import { formatSalesOrderLabel } from "@/utils/orderSoLabel";
 import { getPackedReadyBlockers, type PackedReadyBlocker } from "@/utils/packedReadyGate";
 import {
-  deriveFinanceReleaseState,
-  getClearedForDispatchTransitionBlockers,
-} from "@/utils/financeReleaseState";
+  clearOrderForDispatch,
+  releaseOrderToInProduction,
+  releaseOrderToPackedReady,
+} from "@/lib/order-authority/orderAuthorityClient";
+import { deriveFinanceReleaseState } from "@/utils/financeReleaseState";
 import { FinanceReleaseChips } from "@/components/admin/FinanceReleaseChips";
 
 const STATUS_FLOW = [
@@ -207,41 +209,28 @@ const OrderManagement = () => {
     }
 
     if (nextStatus === "cleared_for_dispatch") {
-      const clearanceBlockers = getClearedForDispatchTransitionBlockers({
-        status: currentOrder?.status ?? "",
-        payment_status: currentOrder?.payment_status ?? null,
-        advance_paid: currentOrder?.advance_paid ?? null,
-        advance_required: currentOrder?.advance_required ?? null,
-        sales_order_value: currentOrder?.sales_order_value ?? null,
-      });
-      if (clearanceBlockers.length > 0) {
-        toast.error(clearanceBlockers.join("; "));
+      try {
+        await clearOrderForDispatch(orderId);
+        toast.success(`Status updated to ${nextStatus.replace(/_/g, " ")}`);
+        setActionLoading(null);
+        fetchOrders();
+        return;
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : "Dispatch clearance denied");
         setActionLoading(null);
         return;
       }
     }
 
     if (nextStatus === "packed_ready") {
-      const [{ data: oi }, { data: reqs }] = await Promise.all([
-        supabase.from("order_items").select("quantity, actual_packed_qty, production_status").eq("order_id", orderId),
-        supabase
-          .from("store_requisitions")
-          .select("status, store_requisition_items(requested_qty, fulfilled_qty)")
-          .eq("order_id", orderId),
-      ]);
-      const gateBlockers = getPackedReadyBlockers({
-        order: {
-          status: currentOrder?.status ?? "",
-          payment_status: currentOrder?.payment_status ?? null,
-          advance_paid: currentOrder?.advance_paid ?? null,
-          advance_required: currentOrder?.advance_required ?? null,
-          sales_order_value: currentOrder?.sales_order_value ?? null,
-        },
-        items: (oi as { quantity: number; actual_packed_qty: number | null; production_status: string | null }[]) || [],
-        requisitions: (reqs as { status: string | null; store_requisition_items?: { requested_qty: number; fulfilled_qty: number | null }[] }[]) || [],
-      });
-      if (gateBlockers.length > 0) {
-        toast.error(gateBlockers.map((b) => b.message).join("; "));
+      try {
+        await releaseOrderToPackedReady(orderId);
+        toast.success(`Status updated to ${nextStatus.replace(/_/g, " ")}`);
+        setActionLoading(null);
+        fetchOrders();
+        return;
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : "Packed ready transition denied");
         setActionLoading(null);
         return;
       }
@@ -269,72 +258,71 @@ const OrderManagement = () => {
       }
     }
 
-    const { error } = await supabase.from("orders").update({ status: effectiveNext }).eq("id", orderId);
-    if (error) {
-      toast.error("Failed to update status");
+    if (creditFastTracked && effectiveNext === "in_production") {
+      try {
+        await releaseOrderToInProduction(orderId, "on_credit");
+        if (currentOrder?.company_id) {
+          const { data: comp } = await supabase
+            .from("companies")
+            .select("business_name, phone")
+            .eq("id", currentOrder.company_id)
+            .maybeSingle();
+          const orderRef = formatSalesOrderLabel({
+            id: orderId,
+            order_number: currentOrder?.order_number,
+          });
+          const phone = (comp as { phone?: string } | null)?.phone;
+          const businessName = (comp as { business_name?: string } | null)?.business_name || "Valued Customer";
+          if (phone) {
+            await supabase.functions.invoke("send-whatsapp", {
+              body: {
+                to: phone,
+                message:
+                  `Dear ${businessName},\n\n` +
+                  `Thank you for your order ${orderRef}. As a valued credit-account partner, your order has been confirmed and moved directly into production.\n\n` +
+                  `Track your 10-point artisan journey on the B2B portal.\n\n` +
+                  `— Team Oasis Baklawa`,
+                company_id: currentOrder.company_id,
+                order_id: orderId,
+              },
+            }).catch(() => {});
+          }
+        }
+        toast.success("Credit customer fast-tracked to production");
+        setActionLoading(null);
+        fetchOrders();
+        return;
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : "Production release denied");
+        setActionLoading(null);
+        return;
+      }
+    }
+
+    const governedStatus = new Set(["in_production", "packed_ready", "cleared_for_dispatch"]);
+    if (!governedStatus.has(effectiveNext)) {
+      toast.error(
+        `Transition to ${effectiveNext.replace(/_/g, " ")} is not available via direct status update — use the governed finance/operations workflow.`,
+      );
       setActionLoading(null);
       return;
     }
 
-    await supabase.from("order_status_history").insert({
-      order_id: orderId,
-      old_status: currentOrder?.status ?? null,
-      new_status: effectiveNext,
-    });
-
-    // Trigger payment-terms-aware notifications
-    if (currentOrder?.status === "submitted" && nextStatus === "confirmed" && currentOrder.company_id) {
-      const { data: comp } = await supabase
-        .from("companies")
-        .select("business_name, phone, payment_terms")
-        .eq("id", currentOrder.company_id)
-        .maybeSingle();
-      const orderRef = formatSalesOrderLabel({
-        id: orderId,
-        order_number: currentOrder?.order_number,
-      });
-      const phone = (comp as any)?.phone;
-      const businessName = (comp as any)?.business_name || "Valued Customer";
-
-      if (creditFastTracked) {
-        if (phone) {
-          await supabase.functions.invoke("send-whatsapp", {
-            body: {
-              to: phone,
-              message:
-                `Dear ${businessName},\n\n` +
-                `Thank you for your order ${orderRef}. As a valued credit-account partner, your order has been confirmed and moved directly into production.\n\n` +
-                `Track your 10-point artisan journey on the B2B portal.\n\n` +
-                `— Team Oasis Baklawa`,
-              company_id: currentOrder.company_id,
-              order_id: orderId,
-            },
-          }).catch(() => {});
-        }
-      } else {
-        if (phone) {
-          await supabase.functions.invoke("send-whatsapp", {
-            body: {
-              to: phone,
-              message:
-                `Dear ${businessName},\n\n` +
-                `Your order ${orderRef} has been confirmed and is awaiting advance payment.\n\n` +
-                `Please remit the advance via UPI / NEFT / RTGS to the bank details shared by your Sales Executive, or reply to this message for assistance.\n\n` +
-                `Once payment is verified, your order will move into production.\n\n` +
-                `— Team Oasis Baklawa`,
-              company_id: currentOrder.company_id,
-              order_id: orderId,
-            },
-          }).catch(() => {});
-        }
+    if (effectiveNext === "in_production") {
+      try {
+        await releaseOrderToInProduction(orderId, currentOrder?.payment_status);
+        toast.success(`Status updated to ${effectiveNext.replace(/_/g, " ")}`);
+        setActionLoading(null);
+        fetchOrders();
+        return;
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : "Production release denied");
+        setActionLoading(null);
+        return;
       }
     }
 
-    toast.success(
-      creditFastTracked
-        ? "Credit client — fast-tracked to Production"
-        : `Order moved to ${getStatusInfo(effectiveNext).label}`,
-    );
+    toast.error("Unsupported status transition on this screen.");
     setActionLoading(null);
   };
 

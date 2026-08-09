@@ -1,5 +1,6 @@
 import { useEffect, useState, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { releaseOrderToManufacturing } from "@/lib/order-authority/orderAuthorityClient";
 import { toast } from "sonner";
 import {
   Loader2,
@@ -517,10 +518,7 @@ const AdminFinance = () => {
         setActing(null);
         return;
       }
-      await supabase
-        .from("orders")
-        .update({ payment_status: "verified_advance", status: "manufacturing" })
-        .eq("id", orderId);
+      await releaseOrderToManufacturing(orderId, "verified_advance");
       toast.success("Advance verified — order moved to Manufacturing.");
       fetchOrders();
     } catch (err) {
@@ -595,27 +593,12 @@ const AdminFinance = () => {
         created_by: user?.id ?? null,
       });
 
-      // CRITICAL: Re-insert the live sales_order_value to prevent it from being wiped
-      await supabase.from("orders").update({
-        advance_paid: amount,
-        status: "manufacturing",
-        payment_status: "verified_advance",
-        sales_order_value: liveSOValue,
-      }).eq("id", financialEntry.orderId);
-      await supabase.from("order_status_history").insert({
-        order_id: financialEntry.orderId,
-        old_status: liveOrder.status,
-        new_status: "manufacturing",
-        changed_by: user?.id ?? null,
-      });
-      await supabase.from("audit_logs").insert({
-        action_type: "finance_verify_advance",
-        module_name: "Finance",
-        entity_name: "order",
-        entity_id: financialEntry.orderId,
-        actor_id: user?.id,
-        new_value: { amount, mode: financialEntry.paymentMode, utr: financialEntry.utrReference },
-      });
+      await releaseOrderToManufacturing(
+        financialEntry.orderId,
+        "verified_advance",
+        amount,
+        liveSOValue,
+      );
 
       // AUTO-DIVERTER + BOM BLAST: Route items by category, explode hampers
       try {
@@ -715,10 +698,7 @@ const AdminFinance = () => {
         setSavingShortTerm(false);
         return;
       }
-      await supabase.from("orders").update({
-        status: "manufacturing",
-        payment_status: "short_term_credit",
-      }).eq("id", shortTermTarget.id);
+      await releaseOrderToManufacturing(shortTermTarget.id, "short_term_credit");
       await supabase.from("credit_requests").insert({
         company_id: shortTermTarget.company_id,
         requested_by: user?.id,

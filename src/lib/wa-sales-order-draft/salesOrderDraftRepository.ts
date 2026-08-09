@@ -194,7 +194,7 @@ export async function approveSalesOrderDraft(
     actionLabel: "approve for SO",
   });
 
-  const { data: draftId, error } = await supabase.rpc("approve_sales_order_draft_for_so_atomic", {
+  const { data, error } = await supabase.rpc("approve_sales_order_draft_for_so_atomic", {
     p_draft_id: input.draftId,
     p_expected_extraction_request_key: input.extracted.extractionRequestKey,
     p_actor_id: input.actor.id,
@@ -207,7 +207,10 @@ export async function approveSalesOrderDraft(
 
   if (error) throw new Error(error.message);
 
-  const reloaded = await fetchSalesOrderDraftById(draftId ?? input.draftId);
+  const row = Array.isArray(data) ? data[0] : data;
+  const resolvedDraftId = (row as { draft_id?: string } | null)?.draft_id ?? input.draftId;
+
+  const reloaded = await fetchSalesOrderDraftById(resolvedDraftId);
   if (!reloaded) throw new Error("Failed to reload approved draft.");
   return reloaded;
 }

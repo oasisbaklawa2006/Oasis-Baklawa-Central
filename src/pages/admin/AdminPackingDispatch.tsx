@@ -15,6 +15,7 @@ import {
   blockLegacyDispatchStatusMutation,
 } from "@/lib/dispatch-finalization/legacyDispatchGuard";
 import { getPackedReadyBlockers } from "@/utils/packedReadyGate";
+import { clearOrderForDispatch } from "@/lib/order-authority/orderAuthorityClient";
 import {
   canReleaseOrderToDispatch,
   deriveFinanceReleaseState,
@@ -175,20 +176,11 @@ const AdminPackingDispatch = () => {
 
     setUpdating(order.id);
     try {
-      const { error } = await supabase
-        .from("orders")
-        .update({ status: "cleared_for_dispatch" })
-        .eq("id", order.id)
-        .eq("status", "packed_ready");
-      if (error) {
-        toast.error(error.message || "Could not advance order to dispatch ready.");
-        return;
-      }
-      await supabase
-        .from("order_status_history")
-        .insert({ order_id: order.id, old_status: "packed_ready", new_status: "cleared_for_dispatch" });
+      await clearOrderForDispatch(order.id);
       toast.success(`Moved to ${t("Dispatch Ready")}`);
       fetchOrders();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Could not advance order to dispatch ready.");
     } finally {
       setUpdating(null);
     }

@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/useAuth";
+import { releaseCartonAtDispatchGate } from "@/lib/order-authority/orderAuthorityClient";
 
 interface ScannedCarton {
   id: string;
@@ -31,7 +32,7 @@ interface InwardAdvice {
 }
 
 const AdminSecurityGate = () => {
-  const { role } = useAuth();
+  const { role, user } = useAuth();
   const isSuperAdmin = role?.toUpperCase() === "SUPER_ADMIN";
   const [activeTab, setActiveTab] = useState<"scanner" | "inward">("scanner");
 
@@ -220,11 +221,30 @@ const AdminSecurityGate = () => {
         if (!check3) failures.push(`E-Way Bill: MISSING (Order > ₹${ewayThreshold.toLocaleString("en-IN")})`);
 
         if (failures.length === 0) {
-          // ALL PASS — GREEN RELEASE
-          await (supabase as any)
-            .from("dispatch_cartons")
-            .update({ status: "physically_dispatched", scanned_out_at: new Date().toISOString() })
-            .eq("id", carton.id);
+          const { data: scanRow, error: scanErr } = await (supabase as any)
+            .from("operational_scan_records")
+            .insert({
+              scan_type: "carton",
+              verification_type: "gate_check",
+              entity_type: "dispatch_carton",
+              entity_id: carton.id,
+              order_id: carton.order_id,
+              barcode_value: barcode,
+              expected_barcode: carton.barcode_string,
+              verification_status: "verified",
+              scan_source: "admin_security_gate",
+              actor_id: user?.id ?? null,
+              actor_role: role ?? null,
+              correlation_id: `gate:${carton.id}:${Date.now()}`,
+            })
+            .select("id")
+            .single();
+
+          if (scanErr || !scanRow?.id) {
+            throw new Error(scanErr?.message || "Could not record scan evidence");
+          }
+
+          await releaseCartonAtDispatchGate(carton.id, String(scanRow.id));
 
           // Check if all cartons for this order are dispatched
           if (carton.order_id) {
@@ -282,16 +302,6 @@ const AdminSecurityGate = () => {
           addToHistory(barcode, companyName, "error", `BLOCKED: ${failures.join("; ")}`);
           playAudio("error");
 
-          await supabase.from("audit_logs").insert({
-            action_type: "SECURITY_GATE_3POINT_FAIL",
-            module_name: "SecurityGate",
-            entity_name: "dispatch_cartons",
-            entity_id: carton.id,
-            actor_id: (await supabase.auth.getUser()).data.user?.id || null,
-            reason: failures.join("; "),
-            risk_level: "high",
-            new_value: { check_status: check1, check_invoice: check2, check_eway: check3, order_value: orderValue } as any,
-          });
         }
       }
     } catch (err) {

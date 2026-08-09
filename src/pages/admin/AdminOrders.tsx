@@ -1,5 +1,6 @@
 import { useEffect, useState, useRef, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { clearOrderForDispatch, releaseOrderToInProduction, releaseOrderToManufacturing, releaseOrderToPackedReady } from "@/lib/order-authority/orderAuthorityClient";
 import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "sonner";
 import { ArrowRight, Loader2, X, FileText, CheckCircle2, Truck, Printer, Package, ClipboardList, LayoutList, Camera } from "lucide-react";
@@ -164,58 +165,38 @@ const AdminOrders = () => {
       return;
     }
 
-    if (next === "packed_ready") {
-      const [{ data: oi }, { data: reqs }] = await Promise.all([
-        supabase.from("order_items").select("quantity, actual_packed_qty, production_status").eq("order_id", order.id),
-        supabase
-          .from("store_requisitions")
-          .select("status, store_requisition_items(requested_qty, fulfilled_qty)")
-          .eq("order_id", order.id),
-      ]);
-      const gateBlockers = getPackedReadyBlockers({
-        order: {
-          status: order.status,
-          payment_status: order.payment_status ?? null,
-          advance_paid: order.advance_paid ?? null,
-          advance_required: order.advance_required ?? null,
-          sales_order_value: order.sales_order_value ?? null,
-        },
-        items:
-          (oi as { quantity: number; actual_packed_qty: number | null; production_status: string | null }[]) || [],
-        requisitions:
-          (reqs as {
-            status: string | null;
-            store_requisition_items?: { requested_qty: number; fulfilled_qty: number | null }[];
-          }[]) || [],
-      });
-      if (gateBlockers.length > 0) {
-        toast.error(gateBlockers.map((b) => b.message).join("; "));
-        return;
-      }
+    const governedNext = new Set(["in_production", "packed_ready", "cleared_for_dispatch"]);
+    if (!governedNext.has(next)) {
+      toast.error(
+        `Advance to ${STATUS_LABELS[next as OrderStatus]} is not available from this screen — use the governed finance/operations workflow.`,
+      );
+      return;
     }
 
     setUpdating(order.id);
 
-    const { error } = await supabase.from("orders").update({ status: next }).eq("id", order.id);
+    try {
+      if (next === "packed_ready") {
+        await releaseOrderToPackedReady(order.id);
+      } else if (next === "cleared_for_dispatch") {
+        await clearOrderForDispatch(order.id);
+      } else if (next === "in_production") {
+        await releaseOrderToInProduction(order.id, order.payment_status);
+      }
 
-    if (error) {
-      toast.error("Failed to update status");
-    } else {
       toast.success(`Moved to ${STATUS_LABELS[next as OrderStatus]}`);
 
-      // Milestone notifications (key events only)
       const ref = order.id.slice(0, 8).toUpperCase();
       if (next === "approved") notifyOrderConfirmed(order.id, ref).catch(() => {});
       else if (next === "delivered") notifyOrderDelivered(order.id, ref).catch(() => {});
 
-      // Auto-split when advancing to in_production — lazy fetch items first
       if (next === "in_production") {
         const { data: freshItems } = await supabase
           .from("order_items")
           .select("id, quantity, product_id, actual_packed_qty")
           .eq("order_id", order.id);
         if (freshItems && freshItems.length > 0) {
-          const items: OrderItem[] = (freshItems as any[]).map(oi => ({
+          const items: OrderItem[] = (freshItems as any[]).map((oi) => ({
             id: oi.id,
             quantity: oi.quantity,
             actual_packed_qty: oi.actual_packed_qty ?? null,
@@ -226,6 +207,8 @@ const AdminOrders = () => {
       }
 
       await fetchOrders();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Failed to update status");
     }
     setUpdating(null);
   };

@@ -17,6 +17,7 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { FinanceReleaseChips } from "@/components/admin/FinanceReleaseChips";
+import { clearOrderForDispatch, releaseOrderToManufacturing } from "@/lib/order-authority/orderAuthorityClient";
 import {
   canReleaseOrderToDispatch,
   deriveFinanceReleaseState,
@@ -285,8 +286,9 @@ const AdminAccountsRelease = () => {
           risk_level: "high",
         });
       } else if (walletDiff < 0 && dplValue > 0) {
-        // DPL > SO → Flag payment pending
-        await supabase.from("orders").update({ payment_status: "balance_due" }).eq("id", orderId);
+        toast.warning(
+          "DPL exceeds SO value — record balance due via Finance Release Board (direct payment_status update disabled).",
+        );
         await supabase.from("audit_logs").insert({
           action_type: "wallet_debit_dpl_variance",
           module_name: "Finance",
@@ -404,22 +406,20 @@ const AdminAccountsRelease = () => {
     const advPaid = order.advance_paid ?? 0;
     try {
       if (action === "request_advance") {
-        const amt = Math.round(total * 0.5);
-        await supabase.from("orders").update({ advance_required: amt }).eq("id", order.id);
-        toast.success(`50% advance of ${format(amt)} requested`);
+        toast.error("Setting advance requirement requires a governed finance RPC — use Finance Release Board.");
+        setActing(null);
+        return;
       } else if (action === "mark_advance_paid") {
         const advReq = order.advance_required ?? 0;
         await supabase.from("order_payments").insert({ order_id: order.id, company_id: order.company_id, payment_type: "advance", amount: advReq, created_by: user?.id ?? null });
-        await supabase.from("orders").update({ advance_paid: advReq, status: "manufacturing", payment_status: "advance_paid" }).eq("id", order.id);
-        await supabase.from("order_status_history").insert({ order_id: order.id, old_status: order.status, new_status: "manufacturing" });
+        await releaseOrderToManufacturing(order.id, "advance_paid", advReq, total);
         toast.success("Advance paid — released to Production");
       } else if (action === "request_balance") {
         toast.success(`Balance of ${format(total - advPaid)} requested`);
       } else if (action === "mark_fully_paid") {
-        const due = total - advPaid;
-        await supabase.from("order_payments").insert({ order_id: order.id, company_id: order.company_id, payment_type: "balance", amount: due, created_by: user?.id ?? null });
-        await supabase.from("orders").update({ payment_status: "paid", closed_at: new Date().toISOString() }).eq("id", order.id);
-        toast.success("Fully paid");
+        toast.error("Mark fully paid requires a governed finance RPC — use Finance Release Board.");
+        setActing(null);
+        return;
       }
       await supabase.from("audit_logs").insert({ action_type: `finance_${action}`, module_name: "Finance", entity_name: "order", entity_id: order.id, actor_id: user?.id });
       fetchOrders();
@@ -438,19 +438,11 @@ const AdminAccountsRelease = () => {
       if (walletDiff >= 0 && order.company_id) {
         // Auto-deduct from wallet
         await supabase.from("companies").update({ wallet_balance: walletDiff }).eq("id", order.company_id);
-        await supabase.from("orders").update({ payment_cleared: true, payment_status: "paid", document_stage: "PI" }).eq("id", order.id);
-        await supabase.from("audit_logs").insert({
-          action_type: "PI_WALLET_AUTO_DEDUCT", module_name: "Finance",
-          entity_name: "orders", entity_id: order.id, actor_id: user?.id,
-          new_value: { pi_total: piTotal, wallet_before: walletBalance, wallet_after: walletDiff } as any,
-          risk_level: "normal",
-        });
-        toast.success(`PI Generated — ₹${piTotal.toLocaleString("en-IN")} auto-deducted from wallet`);
+        toast.error("Wallet PI auto-settlement requires governed finance RPC — payment fields cannot be updated directly.");
       } else {
         // Payment pending
         const balanceDue = Math.abs(walletDiff);
-        await supabase.from("orders").update({ payment_status: "balance_due", document_stage: "PI" }).eq("id", order.id);
-        toast.warning(`PI Generated — Payment Pending: ₹${balanceDue.toLocaleString("en-IN")}`);
+        toast.warning(`PI wallet shortfall ₹${balanceDue.toLocaleString("en-IN")} — use Finance Release Board to record payment.`);
 
         // Auto-send WhatsApp PI notification to client
         if (order.company_id) {
@@ -509,15 +501,13 @@ const AdminAccountsRelease = () => {
       toast.error(getFinanceReleaseBlockers(trace).map((b) => b.message).join("; "));
       return;
     }
-    await supabase.from("orders").update({ status: "cleared_for_dispatch" }).eq("id", order.id);
-    await supabase.from("order_status_history").insert({ order_id: order.id, old_status: order.status, new_status: "cleared_for_dispatch" });
-    await supabase.from("audit_logs").insert({
-      action_type: "MASTER_BARCODE_RELEASED", module_name: "Finance",
-      entity_name: "orders", entity_id: order.id, actor_id: user?.id,
-      risk_level: "normal",
-    });
-    toast.success("Master Barcode Released — Order cleared for dispatch");
-    fetchOrders();
+    try {
+      await clearOrderForDispatch(order.id);
+      toast.success("Master Barcode Released — Order cleared for dispatch");
+      fetchOrders();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Dispatch clearance denied");
+    }
   };
 
   // Summary counts

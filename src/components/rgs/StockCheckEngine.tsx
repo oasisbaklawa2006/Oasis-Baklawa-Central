@@ -11,6 +11,7 @@ import StagnancyBadge from "@/components/StagnancyBadge";
 import { mapToJobDept, isOrderFullyReady } from "@/utils/departmentClassifier";
 import { isQueryTimeoutError, withTimeout } from "@/lib/query-timeout";
 import { resolveOrderItemFlow } from "@/lib/triad-order-items";
+import { releaseOrderToPackedReady } from "@/lib/order-authority/orderAuthorityClient";
 import { getPackedReadyBlockers, type PackedReadyGateInput, type PackedReadyGateOrder } from "@/utils/packedReadyGate";
 
 interface StockItem {
@@ -182,11 +183,7 @@ export default function StockCheckEngine() {
         autoPostedRef.current.add(itemKey);
       }
 
-      // Move order to 'manufacturing' — NEVER regress to draft/submitted
-      const LOCKED_STATUSES = ["manufacturing", "packed_ready", "dispatched", "delivered", "closed"];
-      if (!LOCKED_STATUSES.includes(order.status)) {
-        await withTimeout(supabase.from("orders").update({ status: "manufacturing" }).eq("id", order.id));
-      }
+      // Production jobs only — order status advances via governed RPCs (not auto-bumped here).
     }
   }, []);
 
@@ -251,7 +248,7 @@ export default function StockCheckEngine() {
         if (gate.length > 0) {
           toast.error(gate.map((b) => b.message).join("; "));
         } else {
-          await supabase.from("orders").update({ status: "packed_ready" }).eq("id", order.id);
+          await releaseOrderToPackedReady(order.id);
           toast.success("✅ All 3 flows complete → Ready for Shipping");
         }
       }
