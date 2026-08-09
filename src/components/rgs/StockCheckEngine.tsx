@@ -70,12 +70,13 @@ export default function StockCheckEngine() {
       if (itemsResponse.error) throw itemsResponse.error;
 
       const sm: Record<string, number> = {};
-      (((inventoryResponse.data as any[]) || []) as any[]).forEach((r) => {
+      const inventoryRows = (inventoryResponse.data ?? []) as Array<{ product_id?: string | null; quantity?: number | null }>;
+      inventoryRows.forEach((r) => {
         if (r.product_id) sm[r.product_id] = (sm[r.product_id] || 0) + (Number(r.quantity) || 0);
       });
 
       const grouped = new Map<string, OrderWithStock>();
-      (((itemsResponse.data as any[]) || []) as StockItem[])
+      ((itemsResponse.data ?? []) as StockItem[])
         .filter((item) => item.order && ["in_production", "manufacturing", "partial_ready", "approved", "confirmed"].includes(item.order.status))
         .filter((item) => resolveOrderItemFlow(item) === "FLOW_FGS")
         .forEach((item) => {

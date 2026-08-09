@@ -32,6 +32,60 @@ interface InwardAdvice {
   item_count: number;
 }
 
+interface GateScanCompany {
+  business_name?: string | null;
+  gst_number?: string | null;
+  registered_address?: string | null;
+}
+
+interface GateScanOrder {
+  status?: string | null;
+  company?: GateScanCompany | null;
+  payment_status?: string | null;
+  payment_cleared?: boolean | null;
+  eway_bill_number?: string | null;
+  eway_bill_url?: string | null;
+  sales_order_value?: number | null;
+  final_invoice_url?: string | null;
+}
+
+interface GateScanCarton {
+  id: string;
+  status: string | null;
+  box_number: number | null;
+  total_boxes: number | null;
+  order_id: string | null;
+  barcode_string?: string;
+  orders?: GateScanOrder | null;
+}
+
+interface InwardCompanyRow {
+  id: string;
+  business_name: string;
+}
+
+interface InwardExecRow {
+  id: string;
+  full_name?: string | null;
+  name?: string | null;
+}
+
+interface InwardMaterialItemRow {
+  advice_id: string;
+}
+
+type ScanRecordClient = {
+  from: (table: string) => {
+    insert: (row: Record<string, unknown>) => {
+      select: (columns: string) => {
+        single: () => Promise<{ data: { id: string } | null; error: { message: string } | null }>;
+      };
+    };
+  };
+};
+
+const scanDb = supabase as unknown as ScanRecordClient;
+
 const AdminSecurityGate = () => {
   const { role, user } = useAuth();
   const isSuperAdmin = role?.toUpperCase() === "SUPER_ADMIN";
@@ -100,13 +154,13 @@ const AdminSecurityGate = () => {
     ]);
 
     const companyMap: Record<string, string> = {};
-    (companies || []).forEach((c: any) => { companyMap[c.id] = c.business_name; });
+    (companies ?? []).forEach((c: InwardCompanyRow) => { companyMap[c.id] = c.business_name; });
     const execMap: Record<string, string> = {};
-    (execs || []).forEach((e: any) => { execMap[e.id] = e.full_name || e.name || e.id.slice(0, 8); });
+    (execs ?? []).forEach((e: InwardExecRow) => { execMap[e.id] = e.full_name || e.name || e.id.slice(0, 8); });
 
     // Count items per advice
     const itemCountMap: Record<string, number> = {};
-    (items || []).forEach((it: any) => {
+    (items ?? []).forEach((it: InwardMaterialItemRow) => {
       itemCountMap[it.advice_id] = (itemCountMap[it.advice_id] || 0) + 1;
     });
 
@@ -180,14 +234,15 @@ const AdminSecurityGate = () => {
     setIsProcessing(true);
 
     try {
-      const { data: carton, error } = await (supabase as any)
+      const { data: cartonData, error } = await supabase
         .from("dispatch_cartons")
         .select(
-          `id, status, box_number, total_boxes, order_id,
+          `id, status, box_number, total_boxes, order_id, barcode_string,
           orders ( status, company:companies(business_name, gst_number, registered_address), payment_status, payment_cleared, eway_bill_number, eway_bill_url, sales_order_value, final_invoice_url )`
         )
         .eq("barcode_string", barcode)
         .single();
+      const carton = cartonData as GateScanCarton | null;
 
       const companyName = carton?.orders?.company?.business_name || "Unknown Company";
 
@@ -221,7 +276,7 @@ const AdminSecurityGate = () => {
         if (!check3) failures.push(`E-Way Bill: MISSING (Order > ₹${ewayThreshold.toLocaleString("en-IN")})`);
 
         if (failures.length === 0) {
-          const { data: scanRow, error: scanErr } = await (supabase as any)
+          const { data: scanRow, error: scanErr } = await scanDb
             .from("operational_scan_records")
             .insert({
               scan_type: "carton",
@@ -252,7 +307,9 @@ const AdminSecurityGate = () => {
               .from("dispatch_cartons")
               .select("id, status")
               .eq("order_id", carton.order_id);
-            const allDispatched = (allCartons || []).every((c: any) => c.status === "physically_dispatched" || c.id === carton.id);
+            const allDispatched = (allCartons ?? []).every(
+              (c) => c.status === "physically_dispatched" || c.id === carton.id,
+            );
             if (allDispatched) {
               const { data: dispRows } = await supabase
                 .from("dispatches")
@@ -321,7 +378,10 @@ const AdminSecurityGate = () => {
 
   const playAudio = (type: "success" | "error") => {
     try {
-      const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
+      const webkitAudio = (window as Window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+      const AudioCtx = window.AudioContext ?? webkitAudio;
+      if (!AudioCtx) return;
+      const ctx = new AudioCtx();
       const osc = ctx.createOscillator();
       const gain = ctx.createGain();
       osc.connect(gain);
@@ -339,7 +399,9 @@ const AdminSecurityGate = () => {
         osc.start();
         osc.stop(ctx.currentTime + 0.5);
       }
-    } catch (e) {}
+    } catch {
+      // Web Audio unavailable in this browser context
+    }
   };
 
   // UI Theme based on state

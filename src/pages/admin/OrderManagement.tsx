@@ -113,7 +113,7 @@ const OrderManagement = () => {
       console.error("OrderManagement fetch error:", error);
       toast.error("Failed to load orders");
     } else {
-      setOrders((data as any[]) ?? []);
+      setOrders((data as OrderRow[]) ?? []);
     }
     setLoading(false);
   }, []);
@@ -250,7 +250,7 @@ const OrderManagement = () => {
         .select("id, business_name, phone, payment_terms")
         .eq("id", currentOrder.company_id || "")
         .maybeSingle();
-      const terms = (comp as any)?.payment_terms || "prepaid";
+      const terms = comp?.payment_terms || "prepaid";
       if (terms === "credit") {
         effectiveNext = "in_production";
         creditFastTracked = true;
@@ -376,7 +376,7 @@ const OrderManagement = () => {
       .from("order_items")
       .select("id, quantity, pack_size, product:products(name)")
       .eq("order_id", orderId);
-    setOrderItems((data as any[]) ?? []);
+    setOrderItems((data as OrderItem[]) ?? []);
     setItemsLoading(false);
   };
 
@@ -424,7 +424,7 @@ const OrderManagement = () => {
             )}
             {displayOrders.map((order) => {
               const info = getStatusInfo(order.status);
-              const companyName = (order.company as any)?.business_name ?? "—";
+              const companyName = order.company?.business_name ?? "—";
               const packingGate = packingBlockersByOrder[order.id];
               const packingGateBlocked =
                 order.status === "packing" &&
@@ -543,7 +543,7 @@ const OrderManagement = () => {
                 <tbody>
                   {orderItems.map((item) => (
                     <tr key={item.id} className="border-b border-border last:border-0">
-                      <td className="py-2 text-foreground">{(item.product as any)?.name ?? "—"}</td>
+                      <td className="py-2 text-foreground">{item.product?.name ?? "—"}</td>
                       <td className="py-2 text-right font-mono text-foreground">{item.quantity}</td>
                       <td className="py-2 text-right text-muted-foreground">{item.pack_size ?? "—"}</td>
                     </tr>

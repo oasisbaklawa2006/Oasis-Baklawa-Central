@@ -95,6 +95,59 @@ interface ScrutinyRecord {
   item_count: number;
 }
 
+interface DplLineItem {
+  quantity: number;
+  actual_packed_qty?: number | null;
+  product?: { price_per_kg?: number | null } | null;
+}
+
+interface InwardAdviceRow {
+  id: string;
+  company_id: string | null;
+  sales_exec_id: string | null;
+  reason: string | null;
+  expected_value: number | null;
+  accompanying_docs: string | null;
+  created_at: string | null;
+  status: string | null;
+}
+
+interface CompanyNameRow {
+  id: string;
+  business_name: string;
+}
+
+interface UserNameRow {
+  id: string;
+  full_name: string | null;
+  name: string | null;
+}
+
+interface InwardMaterialItemRow {
+  advice_id: string;
+}
+
+interface FinanceBomOrderItem {
+  id: string;
+  quantity: number;
+  product_id: string | null;
+  product?: {
+    name?: string | null;
+    production_department?: string | null;
+    category?: { name?: string | null } | null;
+    product_bom?: ScrutinyBomComponent[] | null;
+  } | null;
+}
+
+interface ScrutinyBomComponent {
+  component_product_id?: string | null;
+  component_name?: string | null;
+  quantity_per_unit?: number | null;
+  source_department?: string | null;
+  quantity?: number | null;
+  product?: { name?: string | null; price_per_kg?: number | null } | null;
+}
+
 const FAULT_OPTIONS = ["Sales Error", "Manufacturing Defect", "Logistics Damage"];
 const DEPT_OPTIONS = ["Bakery", "Arabic Sweets", "Chocolate", "Dragees", "Fusion", "Nuts", "Packing"];
 
@@ -157,7 +210,7 @@ const AdminFinance = () => {
   const [invoiceUploaded, setInvoiceUploaded] = useState(false);
 
   // DPL Reconciliation state
-  const [dplData, setDplData] = useState<{ soValue: number; dplValue: number; items: any[] } | null>(null);
+  const [dplData, setDplData] = useState<{ soValue: number; dplValue: number; items: DplLineItem[] } | null>(null);
 
   // Returns Settlement State
   const [returnCreditValues, setReturnCreditValues] = useState<Record<string, string>>({});
@@ -220,7 +273,7 @@ const AdminFinance = () => {
       // Initialize credit values and approvals
       const cv: Record<string, string> = {};
       const ap: Record<string, boolean> = {};
-      (data as any[]).forEach((r) => {
+      (data as ReturnRecord[]).forEach((r) => {
         cv[r.id] = r.final_credit_value?.toString() || "";
         ap[r.id] = r.admin_approval || false;
       });
@@ -241,24 +294,24 @@ const AdminFinance = () => {
       return;
     }
 
-    const companyIds = [...new Set(advices.map((a: any) => a.company_id).filter(Boolean))] as string[];
-    const execIds = [...new Set(advices.map((a: any) => a.sales_exec_id).filter(Boolean))] as string[];
+    const companyIds = [...new Set(advices.map((a) => a.company_id).filter(Boolean))] as string[];
+    const execIds = [...new Set(advices.map((a) => a.sales_exec_id).filter(Boolean))] as string[];
 
     const [{ data: companies }, { data: execs }, { data: items }] = await Promise.all([
       companyIds.length > 0 ? supabase.from("companies").select("id, business_name").in("id", companyIds) : { data: [] },
       execIds.length > 0 ? supabase.from("users").select("id, full_name, name").in("id", execIds) : { data: [] },
-      supabase.from("inward_material_items").select("advice_id").in("advice_id", advices.map((a: any) => a.id)),
+      supabase.from("inward_material_items").select("advice_id").in("advice_id", advices.map((a) => a.id)),
     ]);
 
     const companyMap: Record<string, string> = {};
-    (companies || []).forEach((c: any) => { companyMap[c.id] = c.business_name; });
+    (companies ?? []).forEach((c: CompanyNameRow) => { companyMap[c.id] = c.business_name; });
     const execMap: Record<string, string> = {};
-    (execs || []).forEach((e: any) => { execMap[e.id] = e.full_name || e.name || "—"; });
+    (execs ?? []).forEach((e: UserNameRow) => { execMap[e.id] = e.full_name || e.name || "—"; });
     const itemCountMap: Record<string, number> = {};
-    (items || []).forEach((it: any) => { itemCountMap[it.advice_id] = (itemCountMap[it.advice_id] || 0) + 1; });
+    (items ?? []).forEach((it: InwardMaterialItemRow) => { itemCountMap[it.advice_id] = (itemCountMap[it.advice_id] || 0) + 1; });
 
     setScrutinyRecords(
-      advices.map((a: any) => ({
+      advices.map((a: InwardAdviceRow) => ({
         id: a.id,
         company_id: a.company_id,
         company_name: a.company_id ? companyMap[a.company_id] || "Unknown" : "Unknown",
@@ -407,7 +460,7 @@ const AdminFinance = () => {
     const results: SalesExecPayout[] = [];
     for (const exec of execs) {
       const { data: comps } = await supabase.from("companies").select("id").eq("account_manager_id", exec.id);
-      const compIds = (comps || []).map((c: any) => c.id);
+      const compIds = (comps ?? []).map((c) => c.id);
       let earned = 0;
       if (compIds.length > 0) {
         const { data: ords } = await supabase
@@ -415,14 +468,14 @@ const AdminFinance = () => {
           .select("sales_order_value")
           .in("company_id", compIds)
           .eq("status", "delivered");
-        const totalDelivered = (ords || []).reduce((s: number, o: any) => s + (o.sales_order_value || 0), 0);
+        const totalDelivered = (ords ?? []).reduce((s, o) => s + (o.sales_order_value || 0), 0);
         earned = totalDelivered * ((exec.commission_rate_percentage || 0) / 100);
       }
       const { data: payouts } = await supabase
         .from("commission_payouts")
         .select("amount_paid")
         .eq("executive_id", exec.id);
-      const totalPaid = (payouts || []).reduce((s: number, p: any) => s + (p.amount_paid || 0), 0);
+      const totalPaid = (payouts ?? []).reduce((s, p) => s + (p.amount_paid || 0), 0);
       results.push({ ...exec, earned, paid: totalPaid });
     }
     setSalesExecPayouts(results);
@@ -458,14 +511,12 @@ const AdminFinance = () => {
     setPayoutActing(null);
   };
 
-  const fetchAll = async () => {
-    setLoading(true);
-    await Promise.all([fetchOrders(), fetchCreditRequests(), fetchReturns(), fetchScrutiny(), fetchCommissionPayouts()]);
-    setLoading(false);
-  };
-
   useEffect(() => {
-    fetchAll();
+    void (async () => {
+      setLoading(true);
+      await Promise.all([fetchOrders(), fetchCreditRequests(), fetchReturns(), fetchScrutiny(), fetchCommissionPayouts()]);
+      setLoading(false);
+    })();
   }, []);
 
   useEffect(() => {
@@ -607,7 +658,7 @@ const AdminFinance = () => {
           .select("id, quantity, product_id, product:products(name, production_department, category:categories(name), product_bom(component_product_id, component_name, quantity_per_unit, source_department))")
           .eq("order_id", financialEntry.orderId);
         if (items) {
-          for (const item of items as any[]) {
+          for (const item of items as FinanceBomOrderItem[]) {
             const catName = (item.product?.category?.name || "").toLowerCase().trim();
             const prodName = (item.product?.name || "").toLowerCase().trim();
             const mappedDepartment = (item.product?.production_department || "").trim();
@@ -631,7 +682,7 @@ const AdminFinance = () => {
                   parent_product: item.product?.name,
                   target_department: dept,
                   qty: item.quantity,
-                  components: bomComponents.map((component: any) => ({
+                  components: bomComponents.map((component) => ({
                     component_product_id: component.component_product_id,
                     component_name: component.component_name,
                     quantity_per_unit: component.quantity_per_unit,
@@ -731,9 +782,10 @@ const AdminFinance = () => {
       .select("product_id, quantity, actual_packed_qty, product:products(name, price_per_kg)")
       .eq("order_id", orderId);
     if (!items) return;
-    const soVal = (items as any[]).reduce((s, i) => s + (i.quantity * (i.product?.price_per_kg || 0)), 0);
-    const dplVal = (items as any[]).reduce((s, i) => s + ((i.actual_packed_qty ?? i.quantity) * (i.product?.price_per_kg || 0)), 0);
-    setDplData({ soValue: soVal, dplValue: dplVal, items: items as any[] });
+    const lineItems = (items ?? []) as DplLineItem[];
+    const soVal = lineItems.reduce((s, i) => s + (i.quantity * (i.product?.price_per_kg || 0)), 0);
+    const dplVal = lineItems.reduce((s, i) => s + ((i.actual_packed_qty ?? i.quantity) * (i.product?.price_per_kg || 0)), 0);
+    setDplData({ soValue: soVal, dplValue: dplVal, items: lineItems });
   };
 
   // Credit limit hard lock check
@@ -825,7 +877,7 @@ const AdminFinance = () => {
     }
     setActing(ret.id);
     try {
-      const companyId = (ret.order as any)?.company_id;
+      const companyId = ret.order?.company_id;
       const productValue = (ret.product?.base_price || 0) * ret.quantity_returned;
       const lossAmount = productValue - creditValue;
 
@@ -843,7 +895,7 @@ const AdminFinance = () => {
 
       // Credit company wallet
       if (companyId) {
-        const currentBalance = (ret.order as any)?.company?.wallet_balance || 0;
+        const currentBalance = ret.order?.company?.wallet_balance || 0;
         await supabase
           .from("companies")
           .update({ wallet_balance: currentBalance + creditValue })
@@ -1305,7 +1357,7 @@ const AdminFinance = () => {
                       <div className="border-b border-slate-100 pb-3 mb-3">
                         <p className="font-black text-slate-900 text-lg">{ret.product?.name || "Unknown Product"}</p>
                         <p className="text-xs text-slate-400 mt-0.5">
-                          {(ret.order as any)?.company?.business_name || "Unknown Company"} • {ret.quantity_returned} units returned
+                          {ret.order?.company?.business_name || "Unknown Company"} • {ret.quantity_returned} units returned
                         </p>
                         {ret.reason && <p className="text-xs text-slate-500 italic mt-1">"{ret.reason}"</p>}
                       </div>
@@ -1736,7 +1788,13 @@ const AdminFinance = () => {
                               entity_name: "companies",
                               entity_id: docOrder.company_id,
                               actor_id: user?.id || null,
-                              new_value: { credit_amount: creditAmt, new_balance: newBal, order_id: docOrder.id, so_value: dplData.soValue, dpl_value: dplData.dplValue } as any,
+                              new_value: {
+                                credit_amount: creditAmt,
+                                new_balance: newBal,
+                                order_id: docOrder.id,
+                                so_value: dplData.soValue,
+                                dpl_value: dplData.dplValue,
+                              },
                               risk_level: "high",
                             }]);
                             toast.success(`✅ ₹${creditAmt.toLocaleString("en-IN")} credited to client wallet`);

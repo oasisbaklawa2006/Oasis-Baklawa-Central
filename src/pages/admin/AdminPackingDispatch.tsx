@@ -26,6 +26,16 @@ import { FinanceReleaseChips } from "@/components/admin/FinanceReleaseChips";
 
 const PACKS_PER_CARTON = 9;
 
+type LooseTableClient = {
+  from: (table: string) => {
+    update: (values: Record<string, unknown>) => {
+      eq: (column: string, value: string) => Promise<{ error: { message: string } | null }>;
+    };
+  };
+};
+
+const looseDb = supabase as unknown as LooseTableClient;
+
 type StoreReqRow = {
   order_id: string;
   status: string | null;
@@ -209,7 +219,7 @@ const AdminPackingDispatch = () => {
 
     const items = (data as unknown as OrderItem[]) ?? [];
     setModalItems(items.map(it => {
-      const prod = it.product as any;
+      const prod = it.product;
       const unitPrice = prod?.price_per_kg ?? prod?.base_price ?? 0;
       const packWeight = prod?.primary_pack_weight_kg ?? 1;
       const originalWeight = it.quantity * packWeight;
@@ -243,7 +253,7 @@ const AdminPackingDispatch = () => {
   const updateItemQty = (idx: number, newQty: number) => {
     setModalItems(prev => {
       const updated = [...prev];
-      const packWeight = (updated[idx].product as any)?.primary_pack_weight_kg ?? 1;
+      const packWeight = updated[idx].product?.primary_pack_weight_kg ?? 1;
       const newWeight = newQty * packWeight;
       updated[idx] = {
         ...updated[idx],
@@ -328,7 +338,7 @@ const AdminPackingDispatch = () => {
 
       // 3. Update order_items with final weights
       for (const item of modalItems) {
-        await (supabase.from("order_items").update as any)({
+        await looseDb.from("order_items").update({
           actual_packed_qty: item.packed_qty,
           final_weight_kg: item.final_weight_kg,
         }).eq("id", item.id);
@@ -365,7 +375,7 @@ const AdminPackingDispatch = () => {
           type: txType,
           amount: Math.abs(varianceAmount),
           reference: `weight_variance:${selectedOrder.id}`,
-        } as any);
+        });
 
         // Also log to audit_logs for traceability
         await supabase.from("audit_logs").insert({
@@ -375,8 +385,17 @@ const AdminPackingDispatch = () => {
           entity_name: "orders",
           reason: desc,
           risk_level: Math.abs(varianceAmount) > 5000 ? "high" : "normal",
-          new_value: { finalInvoiceTotal, originalInvoiceTotal, varianceAmount, items: modalItems.map(i => ({ id: i.id, original_weight: i.original_weight_kg, final_weight: i.final_weight_kg })) },
-        } as any);
+          new_value: {
+            finalInvoiceTotal,
+            originalInvoiceTotal,
+            varianceAmount,
+            items: modalItems.map((i) => ({
+              id: i.id,
+              original_weight: i.original_weight_kg,
+              final_weight: i.final_weight_kg,
+            })),
+          },
+        });
       }
 
       setSubmitting(false);
@@ -736,7 +755,7 @@ const AdminPackingDispatch = () => {
                             <div key={item.id} className="space-y-2 rounded-xl border border-border bg-muted/30 p-3">
                               <div className="flex items-center justify-between gap-2">
                                 <div className="min-w-0">
-                                  <p className="text-ui-h5 break-words text-foreground">{(item.product as any)?.name ?? "Unknown"}</p>
+                                  <p className="text-ui-h5 break-words text-foreground">{item.product?.name ?? "Unknown"}</p>
                                   <p className="text-fine text-muted-foreground">
                                     {item.pack_size ?? "—"} · {item.carton_type ?? "—"} · ₹{item.unit_price.toFixed(2)}/kg
                                   </p>

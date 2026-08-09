@@ -73,7 +73,7 @@ interface OrderItem {
   product_id: string | null;
   pack_size?: string | null;
   carton_type?: string | null;
-  products?: { name: string; hsn_code?: string; gst_rate?: number; gst_percentage?: number; price_per_kg?: number; primary_pack_weight_kg?: number; category?: string; [key: string]: any } | null;
+  products?: { name: string; hsn_code?: string; gst_rate?: number; gst_percentage?: number; price_per_kg?: number; primary_pack_weight_kg?: number; category?: string; [key: string]: unknown } | null;
   product?: { name: string } | null;
 }
 
@@ -94,6 +94,13 @@ interface OrderCard {
   order_items?: OrderItem[];
 }
 
+interface StoreRequisitionRow {
+  id: string;
+  status: string | null;
+  target_store?: string;
+  store_requisition_items?: { requested_qty: number; fulfilled_qty: number | null }[];
+}
+
 const AdminOrders = () => {
   const [orders, setOrders] = useState<OrderCard[]>([]);
   const [loading, setLoading] = useState(true);
@@ -110,7 +117,7 @@ const AdminOrders = () => {
   const [packingSaving, setPackingSaving] = useState(false);
 
   // Auto-splitter state
-  const [requisitions, setRequisitions] = useState<any[]>([]);
+  const [requisitions, setRequisitions] = useState<StoreRequisitionRow[]>([]);
   const [reqLoading, setReqLoading] = useState(false);
   const [splitting, setSplitting] = useState(false);
 
@@ -196,7 +203,7 @@ const AdminOrders = () => {
           .select("id, quantity, product_id, actual_packed_qty")
           .eq("order_id", order.id);
         if (freshItems && freshItems.length > 0) {
-          const items: OrderItem[] = (freshItems as any[]).map((oi) => ({
+          const items: OrderItem[] = (freshItems ?? []).map((oi) => ({
             id: oi.id,
             quantity: oi.quantity,
             actual_packed_qty: oi.actual_packed_qty ?? null,
@@ -235,7 +242,7 @@ const AdminOrders = () => {
         .in("id", productIds);
 
       const storeMap: Record<string, string> = {};
-      (products ?? []).forEach((p: any) => {
+      (products ?? []).forEach((p) => {
         storeMap[p.id] = p.default_store || "ready_goods";
       });
 
@@ -278,8 +285,8 @@ const AdminOrders = () => {
 
       toast.success("Order auto-split & routed to stores!");
       await fetchRequisitions(orderId);
-    } catch (err: any) {
-      toast.error(err.message || "Auto-split failed");
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : "Auto-split failed");
     }
     setSplitting(false);
   };
@@ -356,8 +363,8 @@ const AdminOrders = () => {
       const { data: urlData } = supabase.storage.from("receipts").getPublicUrl(path);
       setCapturedPhotoUrl(urlData.publicUrl);
       toast.success("Packing proof uploaded");
-    } catch (err: any) {
-      toast.error(err.message || "Photo upload failed");
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : "Photo upload failed");
     } finally {
       setUploadingPhoto(false);
       if (fileInputRef.current) fileInputRef.current.value = "";
@@ -422,8 +429,8 @@ const AdminOrders = () => {
       setSelectedOrder(prev => prev ? { ...prev, status: "packed_ready" } : prev);
       setCapturedPhotoUrl("");
       await fetchOrders();
-    } catch (err: any) {
-      toast.error(err.message || "Failed to save packing list");
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : "Failed to save packing list");
     }
     setPackingSaving(false);
   };
@@ -497,7 +504,7 @@ const AdminOrders = () => {
       }
 
       // Use actual_packed_qty for PI (falls back to quantity)
-      const cartItems = (items || []).map((item: any) => ({
+      const cartItems = (items ?? []).map((item) => ({
         id: item.id,
         quantity: item.actual_packed_qty ?? item.quantity,
         product: item.products,
@@ -505,8 +512,8 @@ const AdminOrders = () => {
 
       generateProFormaInvoice(cartItems, companyDetails, null);
       toast.success("Proforma Invoice PDF generated");
-    } catch (err: any) {
-      toast.error(err.message || "Failed to generate invoice");
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : "Failed to generate invoice");
     }
   };
 
@@ -795,7 +802,7 @@ const AdminOrders = () => {
                       </div>
                     ) : (
                       <div className="space-y-2">
-                        {requisitions.map((req: any) => {
+                        {requisitions.map((req) => {
                           const itemCount = req.store_requisition_items?.length ?? 0;
                           const storeLabel: Record<string, string> = {
                             ready_goods: "Ready Goods Store",

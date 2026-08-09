@@ -199,8 +199,8 @@ const AdminAccountsRelease = () => {
       }
 
       // Store packed items for invoice generation
-      const packedItems = packedData.map((pl: any) => ({
-        product_id: pl.product_id,
+      const packedItems = packedData.map((pl) => ({
+        product_id: String(pl.product_id ?? ""),
         packed_quantity: Number(pl.packed_quantity),
       }));
 
@@ -254,15 +254,18 @@ const AdminAccountsRelease = () => {
       // Calculate actual packed value from packing list + product prices
       let dplValue = 0;
       if (packedItems.length > 0) {
-        const productIds = packedItems.map((p: any) => p.product_id).filter(Boolean);
+        const productIds = packedItems.map((p) => p.product_id).filter(Boolean);
         if (productIds.length > 0) {
           const { data: products } = await supabase
             .from("products")
             .select("id, price_per_kg")
             .in("id", productIds);
           const priceMap: Record<string, number> = {};
-          (products || []).forEach((p: any) => { priceMap[p.id] = Number(p.price_per_kg || 0); });
-          dplValue = packedItems.reduce((sum: number, item: any) => sum + (item.packed_quantity * (priceMap[item.product_id] || 0)), 0);
+          (products ?? []).forEach((p) => { priceMap[p.id] = Number(p.price_per_kg || 0); });
+          dplValue = packedItems.reduce(
+            (sum, item) => sum + (item.packed_quantity * (priceMap[item.product_id] || 0)),
+            0,
+          );
         }
       }
 
@@ -431,7 +434,7 @@ const AdminAccountsRelease = () => {
     setGeneratingPi(order.id);
     try {
       const piTotal = order.sales_order_value ?? 0;
-      const walletBalance = (order.company as any)?.wallet_balance ?? 0;
+      const walletBalance = order.company?.wallet_balance ?? 0;
       const walletDiff = walletBalance - piTotal;
 
       if (walletDiff >= 0 && order.company_id) {
@@ -450,7 +453,7 @@ const AdminAccountsRelease = () => {
           if (phone) {
             sendWhatsAppMessage({
               to: phone,
-              message: `💰 Payment Request — Oasis Baklawa\n\nDear ${(order.company as any)?.business_name || "Customer"},\nOrder ${order.id.slice(0, 8).toUpperCase()}: Balance Due ₹${balanceDue.toLocaleString("en-IN")}.\n\nPlease clear payment to release dispatch.\n— Team Oasis Baklawa`,
+              message: `💰 Payment Request — Oasis Baklawa\n\nDear ${order.company?.business_name || "Customer"},\nOrder ${order.id.slice(0, 8).toUpperCase()}: Balance Due ₹${balanceDue.toLocaleString("en-IN")}.\n\nPlease clear payment to release dispatch.\n— Team Oasis Baklawa`,
               companyId: order.company_id,
               orderId: order.id,
             }).catch(console.error);
@@ -625,7 +628,7 @@ const AdminAccountsRelease = () => {
                         {/* Wallet deficit alert */}
                         {(order.status === "awaiting_payment" || order.status === "awaiting_final_payment") && !order.payment_cleared && (
                           (() => {
-                            const walletBal = (order.company as any)?.wallet_balance ?? 0;
+                            const walletBal = order.company?.wallet_balance ?? 0;
                             const piTotal = order.sales_order_value ?? 0;
                             const deficit = piTotal - walletBal;
                             return deficit > 0 ? (
