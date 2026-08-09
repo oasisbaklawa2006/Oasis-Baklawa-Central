@@ -12,7 +12,10 @@ import StagnancyBadge from "@/components/StagnancyBadge";
 import { shouldIgnoreOrderRegression } from "@/utils/orderStatus";
 import { formatSalesOrderLabel } from "@/utils/orderSoLabel";
 import { getPackedReadyBlockers, type PackedReadyBlocker } from "@/utils/packedReadyGate";
-import { deriveFinanceReleaseState } from "@/utils/financeReleaseState";
+import {
+  deriveFinanceReleaseState,
+  getClearedForDispatchTransitionBlockers,
+} from "@/utils/financeReleaseState";
 import { FinanceReleaseChips } from "@/components/admin/FinanceReleaseChips";
 
 const STATUS_FLOW = [
@@ -201,6 +204,21 @@ const OrderManagement = () => {
       toast.error("Locked order status cannot move backward.");
       setActionLoading(null);
       return;
+    }
+
+    if (nextStatus === "cleared_for_dispatch") {
+      const clearanceBlockers = getClearedForDispatchTransitionBlockers({
+        status: currentOrder?.status ?? "",
+        payment_status: currentOrder?.payment_status ?? null,
+        advance_paid: currentOrder?.advance_paid ?? null,
+        advance_required: currentOrder?.advance_required ?? null,
+        sales_order_value: currentOrder?.sales_order_value ?? null,
+      });
+      if (clearanceBlockers.length > 0) {
+        toast.error(clearanceBlockers.join("; "));
+        setActionLoading(null);
+        return;
+      }
     }
 
     if (nextStatus === "packed_ready") {

@@ -504,6 +504,11 @@ const AdminAccountsRelease = () => {
   };
 
   const handleReleaseMasterBarcode = async (order: FinanceOrder) => {
+    const trace = financeTraceInput(order);
+    if (!canReleaseOrderToDispatch(trace)) {
+      toast.error(getFinanceReleaseBlockers(trace).map((b) => b.message).join("; "));
+      return;
+    }
     await supabase.from("orders").update({ status: "cleared_for_dispatch" }).eq("id", order.id);
     await supabase.from("order_status_history").insert({ order_id: order.id, old_status: order.status, new_status: "cleared_for_dispatch" });
     await supabase.from("audit_logs").insert({

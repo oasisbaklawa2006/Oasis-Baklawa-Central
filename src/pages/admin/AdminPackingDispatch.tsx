@@ -19,6 +19,7 @@ import {
   canReleaseOrderToDispatch,
   deriveFinanceReleaseState,
   getFinanceReleaseBlockers,
+  getPackedReadyToClearedDispatchBlockers,
 } from "@/utils/financeReleaseState";
 import { FinanceReleaseChips } from "@/components/admin/FinanceReleaseChips";
 
@@ -158,12 +159,39 @@ const AdminPackingDispatch = () => {
   const displayed = tab === "packing" ? packingOrders : tab === "dispatch_ready" ? dispatchReady : blockedOrders;
 
   const handleAdvanceToPacking = async (order: DispatchOrder) => {
+    if (updating === order.id) return;
+
+    const clearanceBlockers = getPackedReadyToClearedDispatchBlockers({
+      status: order.status,
+      payment_status: order.payment_status,
+      advance_paid: order.advance_paid,
+      advance_required: order.advance_required,
+      sales_order_value: order.sales_order_value,
+    });
+    if (clearanceBlockers.length > 0) {
+      toast.error(clearanceBlockers.join("; "));
+      return;
+    }
+
     setUpdating(order.id);
-    await supabase.from("orders").update({ status: "cleared_for_dispatch" }).eq("id", order.id);
-    await supabase.from("order_status_history").insert({ order_id: order.id, old_status: "packed_ready", new_status: "cleared_for_dispatch" });
-    toast.success(`Moved to ${t("Dispatch Ready")}`);
-    setUpdating(null);
-    fetchOrders();
+    try {
+      const { error } = await supabase
+        .from("orders")
+        .update({ status: "cleared_for_dispatch" })
+        .eq("id", order.id)
+        .eq("status", "packed_ready");
+      if (error) {
+        toast.error(error.message || "Could not advance order to dispatch ready.");
+        return;
+      }
+      await supabase
+        .from("order_status_history")
+        .insert({ order_id: order.id, old_status: "packed_ready", new_status: "cleared_for_dispatch" });
+      toast.success(`Moved to ${t("Dispatch Ready")}`);
+      fetchOrders();
+    } finally {
+      setUpdating(null);
+    }
   };
 
   const openDispatchModal = async (order: DispatchOrder) => {
