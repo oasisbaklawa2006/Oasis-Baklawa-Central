@@ -193,6 +193,9 @@ const AdminProducts = () => {
   const [rejectedAliases, setRejectedAliases] = useState<string[]>([]);
   const [selectedSuggestedAliases, setSelectedSuggestedAliases] = useState<string[]>([]);
   const [nutritionReviewStatus, setNutritionReviewStatus] = useState<NutritionReviewStatus>("manual");
+  // Point 27, Finding 3: AI-generated allergen/ingredient/HSN/GST data (handleAiFullGenerate)
+  // must not silently become saved product truth - require explicit human review before save.
+  const [aiComplianceUnreviewed, setAiComplianceUnreviewed] = useState(false);
 
   const [isAiLoading, setIsAiLoading] = useState<string | null>(null);
   const [formData, setFormData] = useState<any>({ ...EMPTY_FORM });
@@ -352,6 +355,7 @@ const AdminProducts = () => {
       setRejectedAliases([]);
       setSelectedSuggestedAliases([]);
       setNutritionReviewStatus(nutritionReviewStatusFromFacts(nextForm.nutrition_facts));
+      setAiComplianceUnreviewed(false);
       setSaveStatus("idle");
       setSaveError(null);
     } catch (err: any) {
@@ -470,6 +474,9 @@ const AdminProducts = () => {
       return next;
     });
     if (name === "nutrition_facts") setNutritionReviewStatus("manual");
+    if (name === "allergen_warnings" || name === "ingredients" || name === "hsn_code" || name === "gst_percentage") {
+      setAiComplianceUnreviewed(false);
+    }
   };
 
   const handleToggleDietaryTag = (tag: string) => {
@@ -517,6 +524,7 @@ const AdminProducts = () => {
         gst_percentage: data.gst_percentage?.toString() || prev.gst_percentage,
         ingredients: data.ingredients || prev.ingredients,
       }));
+      setAiComplianceUnreviewed(true);
       toast.success("AI generated HSN, GST, allergens & ingredients — review before save.", { icon: "⚡" });
     } catch (err: any) {
       console.error("AI generation error:", err);
@@ -685,6 +693,7 @@ const AdminProducts = () => {
     setRejectedAliases([]);
     setSelectedSuggestedAliases([]);
     setNutritionReviewStatus("manual");
+    setAiComplianceUnreviewed(false);
     setProductIdInUrl(null);
     setIsPanelOpen(true);
   };
@@ -754,6 +763,11 @@ const AdminProducts = () => {
   };
 
   const handleSaveProduct = async () => {
+    if (aiComplianceUnreviewed) {
+      return toast.error(
+        "AI-generated allergen, ingredient, HSN, and GST data must be reviewed before saving. Use \"Mark as reviewed\" in the Food Compliance section once you've verified it.",
+      );
+    }
     if (!formData.name || !formData.wholesale_price) return toast.error("Name and B2B Base Price (₹) are required.");
     if (!formData.production_department) return toast.error("Target Department is mandatory for order routing.");
     if (!isAllowedProductProductionDepartment(formData.production_department)) {
@@ -1889,6 +1903,25 @@ const AdminProducts = () => {
                     )}
                     {isAiLoading === "full" ? "Generating AI Attributes..." : "⚡ Generate AI Details (Allergens, HSN, GST, Ingredients)"}
                   </button>
+
+                  {aiComplianceUnreviewed && (
+                    <div className="flex items-center justify-between gap-3 rounded-lg border border-destructive/40 bg-destructive/5 p-3">
+                      <p className="text-xs text-destructive font-medium">
+                        ⚠️ AI-generated allergen/ingredient/HSN/GST data is unreviewed and cannot be
+                        saved yet.
+                      </p>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setAiComplianceUnreviewed(false);
+                          toast.message("AI-generated compliance data marked as reviewed.", { icon: "✅" });
+                        }}
+                        className="shrink-0 rounded-md border border-destructive/40 px-3 py-1.5 text-xs font-semibold text-destructive hover:bg-destructive/10 transition-colors"
+                      >
+                        Mark as reviewed
+                      </button>
+                    </div>
+                  )}
 
                   <button
                     type="button"
