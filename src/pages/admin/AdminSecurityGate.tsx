@@ -8,6 +8,14 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/useAuth";
+import { deriveCompanyDestinationStateLabel, ewayThresholdForDestinationState } from "@/utils/companyDestinationState";
+import { releaseCartonAtDispatchGate } from "@/lib/order-authority/orderAuthorityClient";
+import {
+  GATE_SCAN_POST_RELEASE_STATUS,
+  GATE_SCAN_PRE_RELEASE_STATUS,
+  GATE_SCAN_RELEASE_DENIED_STATUS,
+  gateScanCorrelationId,
+} from "@/utils/gateScanEvidence";
 
 interface ScannedCarton {
   id: string;
@@ -30,8 +38,65 @@ interface InwardAdvice {
   item_count: number;
 }
 
+interface GateScanCompany {
+  business_name?: string | null;
+  gst_number?: string | null;
+  registered_address?: string | null;
+}
+
+interface GateScanOrder {
+  status?: string | null;
+  company?: GateScanCompany | null;
+  payment_status?: string | null;
+  payment_cleared?: boolean | null;
+  eway_bill_number?: string | null;
+  eway_bill_url?: string | null;
+  sales_order_value?: number | null;
+  final_invoice_url?: string | null;
+}
+
+interface GateScanCarton {
+  id: string;
+  status: string | null;
+  box_number: number | null;
+  total_boxes: number | null;
+  order_id: string | null;
+  barcode_string?: string;
+  orders?: GateScanOrder | null;
+}
+
+interface InwardCompanyRow {
+  id: string;
+  business_name: string;
+}
+
+interface InwardExecRow {
+  id: string;
+  full_name?: string | null;
+  name?: string | null;
+}
+
+interface InwardMaterialItemRow {
+  advice_id: string;
+}
+
+type ScanRecordClient = {
+  from: (table: string) => {
+    insert: (row: Record<string, unknown>) => {
+      select: (columns: string) => {
+        single: () => Promise<{ data: { id: string } | null; error: { message: string } | null }>;
+      };
+    };
+    update: (row: Record<string, unknown>) => {
+      eq: (column: string, value: string) => Promise<{ error: { message: string } | null }>;
+    };
+  };
+};
+
+const scanDb = supabase as unknown as ScanRecordClient;
+
 const AdminSecurityGate = () => {
-  const { role } = useAuth();
+  const { role, user } = useAuth();
   const isSuperAdmin = role?.toUpperCase() === "SUPER_ADMIN";
   const [activeTab, setActiveTab] = useState<"scanner" | "inward">("scanner");
 
@@ -98,13 +163,13 @@ const AdminSecurityGate = () => {
     ]);
 
     const companyMap: Record<string, string> = {};
-    (companies || []).forEach((c: any) => { companyMap[c.id] = c.business_name; });
+    (companies ?? []).forEach((c: InwardCompanyRow) => { companyMap[c.id] = c.business_name; });
     const execMap: Record<string, string> = {};
-    (execs || []).forEach((e: any) => { execMap[e.id] = e.full_name || e.name || e.id.slice(0, 8); });
+    (execs ?? []).forEach((e: InwardExecRow) => { execMap[e.id] = e.full_name || e.name || e.id.slice(0, 8); });
 
     // Count items per advice
     const itemCountMap: Record<string, number> = {};
-    (items || []).forEach((it: any) => {
+    (items ?? []).forEach((it: InwardMaterialItemRow) => {
       itemCountMap[it.advice_id] = (itemCountMap[it.advice_id] || 0) + 1;
     });
 
@@ -178,14 +243,15 @@ const AdminSecurityGate = () => {
     setIsProcessing(true);
 
     try {
-      const { data: carton, error } = await (supabase as any)
+      const { data: cartonData, error } = await supabase
         .from("dispatch_cartons")
         .select(
-          `id, status, box_number, total_boxes, order_id,
-          orders ( status, company:companies(business_name, state), payment_status, payment_cleared, eway_bill_number, eway_bill_url, sales_order_value, final_invoice_url )`
+          `id, status, box_number, total_boxes, order_id, barcode_string,
+          orders ( status, company:companies(business_name, gst_number, registered_address), payment_status, payment_cleared, eway_bill_number, eway_bill_url, sales_order_value, final_invoice_url )`
         )
         .eq("barcode_string", barcode)
         .single();
+      const carton = cartonData as GateScanCarton | null;
 
       const companyName = carton?.orders?.company?.business_name || "Unknown Company";
 
@@ -204,9 +270,8 @@ const AdminSecurityGate = () => {
         const orderStatus = carton.orders?.status || "";
         const hasInvoice = !!carton.orders?.final_invoice_url;
         const orderValue = Number(carton.orders?.sales_order_value) || 0;
-        const destState = (carton.orders?.company?.state || "").trim().toLowerCase();
-        const isIntrastate = destState === "delhi" || destState === "new delhi";
-        const ewayThreshold = isIntrastate ? 100000 : 50000;
+        const destState = deriveCompanyDestinationStateLabel(carton.orders?.company);
+        const ewayThreshold = ewayThresholdForDestinationState(destState);
         const needsEway = orderValue > ewayThreshold;
         const hasEway = !!carton.orders?.eway_bill_number;
 
@@ -220,11 +285,56 @@ const AdminSecurityGate = () => {
         if (!check3) failures.push(`E-Way Bill: MISSING (Order > ₹${ewayThreshold.toLocaleString("en-IN")})`);
 
         if (failures.length === 0) {
-          // ALL PASS — GREEN RELEASE
-          await (supabase as any)
-            .from("dispatch_cartons")
-            .update({ status: "physically_dispatched", scanned_out_at: new Date().toISOString() })
-            .eq("id", carton.id);
+          const correlationId = gateScanCorrelationId(carton.id, barcode);
+          const { data: scanRow, error: scanErr } = await scanDb
+            .from("operational_scan_records")
+            .insert({
+              scan_type: "carton",
+              verification_type: "gate_check",
+              entity_type: "dispatch_carton",
+              entity_id: carton.id,
+              order_id: carton.order_id,
+              barcode_value: barcode,
+              expected_barcode: carton.barcode_string,
+              verification_status: GATE_SCAN_PRE_RELEASE_STATUS,
+              scan_source: "admin_security_gate",
+              actor_id: user?.id ?? null,
+              actor_role: role ?? null,
+              correlation_id: correlationId,
+            })
+            .select("id")
+            .single();
+
+          if (scanErr || !scanRow?.id) {
+            throw new Error(scanErr?.message || "Could not record scan evidence");
+          }
+
+          const scanId = String(scanRow.id);
+          try {
+            await releaseCartonAtDispatchGate(carton.id, scanId);
+            const { error: verifyErr } = await scanDb
+              .from("operational_scan_records")
+              .update({ verification_status: GATE_SCAN_POST_RELEASE_STATUS })
+              .eq("id", scanId);
+            if (verifyErr) {
+              throw new Error(verifyErr.message);
+            }
+          } catch (releaseErr) {
+            const reason =
+              releaseErr instanceof Error ? releaseErr.message : "Gate release denied";
+            await scanDb
+              .from("operational_scan_records")
+              .update({
+                verification_status: GATE_SCAN_RELEASE_DENIED_STATUS,
+                mismatch_reason: reason,
+              })
+              .eq("id", scanId);
+            setScreenState("error");
+            setLastMessage(`🚨 BLOCKED — ${reason}`);
+            addToHistory(barcode, companyName, "error", `BLOCKED: ${reason}`);
+            playAudio("error");
+            return;
+          }
 
           // Check if all cartons for this order are dispatched
           if (carton.order_id) {
@@ -232,7 +342,9 @@ const AdminSecurityGate = () => {
               .from("dispatch_cartons")
               .select("id, status")
               .eq("order_id", carton.order_id);
-            const allDispatched = (allCartons || []).every((c: any) => c.status === "physically_dispatched" || c.id === carton.id);
+            const allDispatched = (allCartons ?? []).every(
+              (c) => c.status === "physically_dispatched" || c.id === carton.id,
+            );
             if (allDispatched) {
               const { data: dispRows } = await supabase
                 .from("dispatches")
@@ -282,16 +394,6 @@ const AdminSecurityGate = () => {
           addToHistory(barcode, companyName, "error", `BLOCKED: ${failures.join("; ")}`);
           playAudio("error");
 
-          await supabase.from("audit_logs").insert({
-            action_type: "SECURITY_GATE_3POINT_FAIL",
-            module_name: "SecurityGate",
-            entity_name: "dispatch_cartons",
-            entity_id: carton.id,
-            actor_id: (await supabase.auth.getUser()).data.user?.id || null,
-            reason: failures.join("; "),
-            risk_level: "high",
-            new_value: { check_status: check1, check_invoice: check2, check_eway: check3, order_value: orderValue } as any,
-          });
         }
       }
     } catch (err) {
@@ -311,7 +413,10 @@ const AdminSecurityGate = () => {
 
   const playAudio = (type: "success" | "error") => {
     try {
-      const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
+      const webkitAudio = (window as Window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+      const AudioCtx = window.AudioContext ?? webkitAudio;
+      if (!AudioCtx) return;
+      const ctx = new AudioCtx();
       const osc = ctx.createOscillator();
       const gain = ctx.createGain();
       osc.connect(gain);
@@ -329,7 +434,9 @@ const AdminSecurityGate = () => {
         osc.start();
         osc.stop(ctx.currentTime + 0.5);
       }
-    } catch (e) {}
+    } catch {
+      // Web Audio unavailable in this browser context
+    }
   };
 
   // UI Theme based on state

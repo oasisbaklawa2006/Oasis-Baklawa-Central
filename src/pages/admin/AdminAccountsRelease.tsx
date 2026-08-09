@@ -18,6 +18,15 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { FinanceReleaseChips } from "@/components/admin/FinanceReleaseChips";
 import {
+  clearOrderForDispatch,
+  releaseOrderToManufacturing,
+  recordOrderFullyPaid,
+} from "@/lib/order-authority/orderAuthorityClient";
+import {
+  isWalletPiAutoSettleEligible,
+  WALLET_PI_FAIL_CLOSED_MESSAGE,
+} from "@/utils/walletPiSettlement";
+import {
   canReleaseOrderToDispatch,
   deriveFinanceReleaseState,
   getFinanceReleaseBlockers,
@@ -198,8 +207,8 @@ const AdminAccountsRelease = () => {
       }
 
       // Store packed items for invoice generation
-      const packedItems = packedData.map((pl: any) => ({
-        product_id: pl.product_id,
+      const packedItems = packedData.map((pl) => ({
+        product_id: String(pl.product_id ?? ""),
         packed_quantity: Number(pl.packed_quantity),
       }));
 
@@ -253,15 +262,18 @@ const AdminAccountsRelease = () => {
       // Calculate actual packed value from packing list + product prices
       let dplValue = 0;
       if (packedItems.length > 0) {
-        const productIds = packedItems.map((p: any) => p.product_id).filter(Boolean);
+        const productIds = packedItems.map((p) => p.product_id).filter(Boolean);
         if (productIds.length > 0) {
           const { data: products } = await supabase
             .from("products")
             .select("id, price_per_kg")
             .in("id", productIds);
           const priceMap: Record<string, number> = {};
-          (products || []).forEach((p: any) => { priceMap[p.id] = Number(p.price_per_kg || 0); });
-          dplValue = packedItems.reduce((sum: number, item: any) => sum + (item.packed_quantity * (priceMap[item.product_id] || 0)), 0);
+          (products ?? []).forEach((p) => { priceMap[p.id] = Number(p.price_per_kg || 0); });
+          dplValue = packedItems.reduce(
+            (sum, item) => sum + (item.packed_quantity * (priceMap[item.product_id] || 0)),
+            0,
+          );
         }
       }
 
@@ -285,8 +297,9 @@ const AdminAccountsRelease = () => {
           risk_level: "high",
         });
       } else if (walletDiff < 0 && dplValue > 0) {
-        // DPL > SO → Flag payment pending
-        await supabase.from("orders").update({ payment_status: "balance_due" }).eq("id", orderId);
+        toast.warning(
+          "DPL exceeds SO value — record balance due via Finance Release Board (direct payment_status update disabled).",
+        );
         await supabase.from("audit_logs").insert({
           action_type: "wallet_debit_dpl_variance",
           module_name: "Finance",
@@ -404,21 +417,18 @@ const AdminAccountsRelease = () => {
     const advPaid = order.advance_paid ?? 0;
     try {
       if (action === "request_advance") {
-        const amt = Math.round(total * 0.5);
-        await supabase.from("orders").update({ advance_required: amt }).eq("id", order.id);
-        toast.success(`50% advance of ${format(amt)} requested`);
+        toast.error("Setting advance requirement requires a governed finance RPC — use Finance Release Board.");
+        setActing(null);
+        return;
       } else if (action === "mark_advance_paid") {
         const advReq = order.advance_required ?? 0;
         await supabase.from("order_payments").insert({ order_id: order.id, company_id: order.company_id, payment_type: "advance", amount: advReq, created_by: user?.id ?? null });
-        await supabase.from("orders").update({ advance_paid: advReq, status: "manufacturing", payment_status: "advance_paid" }).eq("id", order.id);
-        await supabase.from("order_status_history").insert({ order_id: order.id, old_status: order.status, new_status: "manufacturing" });
+        await releaseOrderToManufacturing(order.id, "advance_paid", advReq, total);
         toast.success("Advance paid — released to Production");
       } else if (action === "request_balance") {
         toast.success(`Balance of ${format(total - advPaid)} requested`);
       } else if (action === "mark_fully_paid") {
-        const due = total - advPaid;
-        await supabase.from("order_payments").insert({ order_id: order.id, company_id: order.company_id, payment_type: "balance", amount: due, created_by: user?.id ?? null });
-        await supabase.from("orders").update({ payment_status: "paid", closed_at: new Date().toISOString() }).eq("id", order.id);
+        await recordOrderFullyPaid(order.id);
         toast.success("Fully paid");
       }
       await supabase.from("audit_logs").insert({ action_type: `finance_${action}`, module_name: "Finance", entity_name: "order", entity_id: order.id, actor_id: user?.id });
@@ -432,25 +442,15 @@ const AdminAccountsRelease = () => {
     setGeneratingPi(order.id);
     try {
       const piTotal = order.sales_order_value ?? 0;
-      const walletBalance = (order.company as any)?.wallet_balance ?? 0;
+      const walletBalance = order.company?.wallet_balance ?? 0;
       const walletDiff = walletBalance - piTotal;
 
-      if (walletDiff >= 0 && order.company_id) {
-        // Auto-deduct from wallet
-        await supabase.from("companies").update({ wallet_balance: walletDiff }).eq("id", order.company_id);
-        await supabase.from("orders").update({ payment_cleared: true, payment_status: "paid", document_stage: "PI" }).eq("id", order.id);
-        await supabase.from("audit_logs").insert({
-          action_type: "PI_WALLET_AUTO_DEDUCT", module_name: "Finance",
-          entity_name: "orders", entity_id: order.id, actor_id: user?.id,
-          new_value: { pi_total: piTotal, wallet_before: walletBalance, wallet_after: walletDiff } as any,
-          risk_level: "normal",
-        });
-        toast.success(`PI Generated — ₹${piTotal.toLocaleString("en-IN")} auto-deducted from wallet`);
+      if (isWalletPiAutoSettleEligible(walletBalance, piTotal) && order.company_id) {
+        toast.error(WALLET_PI_FAIL_CLOSED_MESSAGE);
       } else {
         // Payment pending
         const balanceDue = Math.abs(walletDiff);
-        await supabase.from("orders").update({ payment_status: "balance_due", document_stage: "PI" }).eq("id", order.id);
-        toast.warning(`PI Generated — Payment Pending: ₹${balanceDue.toLocaleString("en-IN")}`);
+        toast.warning(`PI wallet shortfall ₹${balanceDue.toLocaleString("en-IN")} — use Finance Release Board to record payment.`);
 
         // Auto-send WhatsApp PI notification to client
         if (order.company_id) {
@@ -459,15 +459,13 @@ const AdminAccountsRelease = () => {
           if (phone) {
             sendWhatsAppMessage({
               to: phone,
-              message: `💰 Payment Request — Oasis Baklawa\n\nDear ${(order.company as any)?.business_name || "Customer"},\nOrder ${order.id.slice(0, 8).toUpperCase()}: Balance Due ₹${balanceDue.toLocaleString("en-IN")}.\n\nPlease clear payment to release dispatch.\n— Team Oasis Baklawa`,
+              message: `💰 Payment Request — Oasis Baklawa\n\nDear ${order.company?.business_name || "Customer"},\nOrder ${order.id.slice(0, 8).toUpperCase()}: Balance Due ₹${balanceDue.toLocaleString("en-IN")}.\n\nPlease clear payment to release dispatch.\n— Team Oasis Baklawa`,
               companyId: order.company_id,
               orderId: order.id,
             }).catch(console.error);
           }
         }
       }
-      // Keep PI history aligned with canonical OrderManagement payment-stage vocabulary.
-      await supabase.from("order_status_history").insert({ order_id: order.id, old_status: order.status, new_status: "awaiting_final_payment" });
       fetchOrders();
     } catch { toast.error("PI generation failed"); }
     setGeneratingPi(null);
@@ -504,15 +502,18 @@ const AdminAccountsRelease = () => {
   };
 
   const handleReleaseMasterBarcode = async (order: FinanceOrder) => {
-    await supabase.from("orders").update({ status: "cleared_for_dispatch" }).eq("id", order.id);
-    await supabase.from("order_status_history").insert({ order_id: order.id, old_status: order.status, new_status: "cleared_for_dispatch" });
-    await supabase.from("audit_logs").insert({
-      action_type: "MASTER_BARCODE_RELEASED", module_name: "Finance",
-      entity_name: "orders", entity_id: order.id, actor_id: user?.id,
-      risk_level: "normal",
-    });
-    toast.success("Master Barcode Released — Order cleared for dispatch");
-    fetchOrders();
+    const trace = financeTraceInput(order);
+    if (!canReleaseOrderToDispatch(trace)) {
+      toast.error(getFinanceReleaseBlockers(trace).map((b) => b.message).join("; "));
+      return;
+    }
+    try {
+      await clearOrderForDispatch(order.id);
+      toast.success("Master Barcode Released — Order cleared for dispatch");
+      fetchOrders();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Dispatch clearance denied");
+    }
   };
 
   // Summary counts
@@ -631,7 +632,7 @@ const AdminAccountsRelease = () => {
                         {/* Wallet deficit alert */}
                         {(order.status === "awaiting_payment" || order.status === "awaiting_final_payment") && !order.payment_cleared && (
                           (() => {
-                            const walletBal = (order.company as any)?.wallet_balance ?? 0;
+                            const walletBal = order.company?.wallet_balance ?? 0;
                             const piTotal = order.sales_order_value ?? 0;
                             const deficit = piTotal - walletBal;
                             return deficit > 0 ? (

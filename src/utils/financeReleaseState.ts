@@ -173,6 +173,62 @@ export function canReleaseOrderToDispatch(order: OrderTraceInputs): boolean {
   return !dispatchFinanceHold(order);
 }
 
+/** Shared finance clearance for any transition into cleared_for_dispatch. */
+function getDispatchClearanceBlockers(order: OrderTraceInputs): string[] {
+  const financeBlockers = getFinanceReleaseBlockers(order);
+  if (!canReleaseOrderToDispatch(order)) {
+    return financeBlockers.length > 0
+      ? financeBlockers.map((b) => b.message)
+      : ["Finance clearance required before moving to dispatch ready."];
+  }
+
+  const total = order.sales_order_value ?? 0;
+  const paymentStatus = (order.payment_status ?? "").trim();
+  if (total > 0 && !paymentStatus) {
+    return [
+      "Payment status unknown — verify finance release before advancing to dispatch ready.",
+    ];
+  }
+
+  return [];
+}
+
+const CLEARED_FOR_DISPATCH_FROM_STATUSES = new Set(["packed_ready", "awaiting_final_payment"]);
+
+/**
+ * Client guard for transitions into cleared_for_dispatch (Order Management, Packing & Dispatch).
+ * Reuses canonical finance release derivation — no independent eligibility rules.
+ */
+export function getClearedForDispatchTransitionBlockers(
+  order: OrderTraceInputs & { status: string },
+): string[] {
+  const st = norm(order.status);
+  if (!CLEARED_FOR_DISPATCH_FROM_STATUSES.has(st)) {
+    return [`Cannot clear for dispatch from status ${order.status}.`];
+  }
+  return getDispatchClearanceBlockers(order);
+}
+
+/**
+ * Client guard for packed_ready → cleared_for_dispatch (Packing & Dispatch "dispatch ready" queue).
+ * Reuses canonical finance release derivation — no independent eligibility rules.
+ */
+export function getPackedReadyToClearedDispatchBlockers(
+  order: OrderTraceInputs & { status: string },
+): string[] {
+  const st = norm(order.status);
+  if (st !== "packed_ready") {
+    return ["Order must be packed_ready before moving to dispatch ready."];
+  }
+  return getDispatchClearanceBlockers(order);
+}
+
+export function canAdvancePackedReadyToClearedDispatch(
+  order: OrderTraceInputs & { status: string },
+): boolean {
+  return getPackedReadyToClearedDispatchBlockers(order).length === 0;
+}
+
 /**
  * Guard existing verify-advance mutations. Non-empty ⇒ cancel and show messages (toast).
  * Does not replace ₹0 / credit-lock checks in AdminFinance — combine there.
