@@ -21,10 +21,33 @@ function parseRpcAction(value: unknown): CatalogueApprovalRpcAction | undefined 
 export const CATALOGUE_APPROVAL_MESSAGES = {
   tagApproved: "Tag approved",
   aliasApproved: "Alias approved",
+  pricingApproved: "Pricing rule approved",
+  moqApproved: "MOQ rule approved",
   rejected: "Rejected",
   mappingNotFinalized: "Mapping not finalized yet",
   notAuthorized: "Not authorized",
   approvalFailed: (reason: string) => `Approval failed: ${reason}`,
+} as const;
+
+const APPROVED_KIND_BY_DRAFT_KIND: Record<CatalogueDraftKind, CatalogueApprovalOutcome["kind"]> = {
+  tag: "tag_approved",
+  alias: "alias_approved",
+  pricing: "pricing_approved",
+  moq: "moq_approved",
+};
+
+const APPROVED_MESSAGE_BY_DRAFT_KIND: Record<CatalogueDraftKind, string> = {
+  tag: CATALOGUE_APPROVAL_MESSAGES.tagApproved,
+  alias: CATALOGUE_APPROVAL_MESSAGES.aliasApproved,
+  pricing: CATALOGUE_APPROVAL_MESSAGES.pricingApproved,
+  moq: CATALOGUE_APPROVAL_MESSAGES.moqApproved,
+};
+
+const CLIENT_ERROR_ACTION_BY_DRAFT_KIND = {
+  tag: "tag_error",
+  alias: "alias_error",
+  pricing: "pricing_error",
+  moq: "moq_error",
 } as const;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -63,12 +86,9 @@ export function outcomeFromRpcResult(
 ): CatalogueApprovalOutcome {
   if (rpc.ok && rpc.action === "approved") {
     return {
-      kind: kind === "tag" ? "tag_approved" : "alias_approved",
+      kind: APPROVED_KIND_BY_DRAFT_KIND[kind],
       success: true,
-      message:
-        kind === "tag"
-          ? CATALOGUE_APPROVAL_MESSAGES.tagApproved
-          : CATALOGUE_APPROVAL_MESSAGES.aliasApproved,
+      message: APPROVED_MESSAGE_BY_DRAFT_KIND[kind],
       rpc,
     };
   }
@@ -112,7 +132,7 @@ export function outcomeFromSupabaseError(
       message: CATALOGUE_APPROVAL_MESSAGES.notAuthorized,
     };
   }
-  const action = kind === "tag" ? "tag_error" : "alias_error";
+  const action = CLIENT_ERROR_ACTION_BY_DRAFT_KIND[kind];
   return {
     kind: "failed",
     success: false,

@@ -77,4 +77,39 @@ describe("catalogue approval RPC parsing", () => {
     const aliasOutcome = outcomeFromSupabaseError("connection reset", "alias");
     expect(aliasOutcome.rpc?.action).toBe("alias_error");
   });
+
+  // Point 27, Finding 2: pricing/moq approval is Central-only authority.
+  it("pricing approval success", () => {
+    const rpc = parseCatalogueApprovalRpcResult({
+      ok: true,
+      action: "approved",
+      draft_table: "catalogue_pricing_drafts",
+      draft_id: "d-4",
+    });
+    const outcome = outcomeFromRpcResult("pricing", rpc);
+    expect(outcome.success).toBe(true);
+    expect(outcome.kind).toBe("pricing_approved");
+    expect(outcome.message).toBe(CATALOGUE_APPROVAL_MESSAGES.pricingApproved);
+  });
+
+  it("moq approval success", () => {
+    const rpc = parseCatalogueApprovalRpcResult({
+      ok: true,
+      action: "approved",
+      draft_table: "catalogue_moq_drafts",
+      draft_id: "d-5",
+    });
+    const outcome = outcomeFromRpcResult("moq", rpc);
+    expect(outcome.success).toBe(true);
+    expect(outcome.kind).toBe("moq_approved");
+    expect(outcome.message).toBe(CATALOGUE_APPROVAL_MESSAGES.moqApproved);
+  });
+
+  it("supabase error uses kind-specific client action for pricing/moq", () => {
+    const pricingOutcome = outcomeFromSupabaseError("connection reset", "pricing");
+    expect(pricingOutcome.rpc?.action).toBe("pricing_error");
+
+    const moqOutcome = outcomeFromSupabaseError("connection reset", "moq");
+    expect(moqOutcome.rpc?.action).toBe("moq_error");
+  });
 });
