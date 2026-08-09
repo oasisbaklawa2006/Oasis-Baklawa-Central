@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/useAuth";
+import { deriveCompanyDestinationStateLabel, ewayThresholdForDestinationState } from "@/utils/companyDestinationState";
 import { releaseCartonAtDispatchGate } from "@/lib/order-authority/orderAuthorityClient";
 
 interface ScannedCarton {
@@ -183,7 +184,7 @@ const AdminSecurityGate = () => {
         .from("dispatch_cartons")
         .select(
           `id, status, box_number, total_boxes, order_id,
-          orders ( status, company:companies(business_name, state), payment_status, payment_cleared, eway_bill_number, eway_bill_url, sales_order_value, final_invoice_url )`
+          orders ( status, company:companies(business_name, gst_number, registered_address), payment_status, payment_cleared, eway_bill_number, eway_bill_url, sales_order_value, final_invoice_url )`
         )
         .eq("barcode_string", barcode)
         .single();
@@ -205,9 +206,8 @@ const AdminSecurityGate = () => {
         const orderStatus = carton.orders?.status || "";
         const hasInvoice = !!carton.orders?.final_invoice_url;
         const orderValue = Number(carton.orders?.sales_order_value) || 0;
-        const destState = (carton.orders?.company?.state || "").trim().toLowerCase();
-        const isIntrastate = destState === "delhi" || destState === "new delhi";
-        const ewayThreshold = isIntrastate ? 100000 : 50000;
+        const destState = deriveCompanyDestinationStateLabel(carton.orders?.company);
+        const ewayThreshold = ewayThresholdForDestinationState(destState);
         const needsEway = orderValue > ewayThreshold;
         const hasEway = !!carton.orders?.eway_bill_number;
 
