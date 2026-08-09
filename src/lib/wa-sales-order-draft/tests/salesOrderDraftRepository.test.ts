@@ -280,7 +280,15 @@ describe("approve extraction version and readiness validation", () => {
   });
 
   it("valid persisted readiness approves via atomic RPC", async () => {
-    rpcMock.mockResolvedValue({ data: "draft-1", error: null });
+    rpcMock.mockResolvedValue({
+      data: [{
+        draft_id: "draft-1",
+        promoted_order_id: "order-1",
+        order_number: "SO-1001",
+        already_promoted: false,
+      }],
+      error: null,
+    });
 
     const { approveSalesOrderDraft } = await import(
       "@/lib/wa-sales-order-draft/salesOrderDraftRepository"
@@ -334,6 +342,129 @@ describe("approve extraction version and readiness validation", () => {
     );
   });
 
+  it.each([
+    ["empty", []],
+    ["multiple rows", [{ draft_id: "draft-1" }, { draft_id: "draft-1" }]],
+    ["missing order id", [{ draft_id: "draft-1", order_number: "SO-1001", already_promoted: false }]],
+  ])("fails safely on malformed %s promotion response", async (_label, data) => {
+    rpcMock.mockResolvedValue({ data, error: null });
+    const { approveSalesOrderDraft } = await import(
+      "@/lib/wa-sales-order-draft/salesOrderDraftRepository"
+    );
+    const { extractedFixture } = await import("./fixtures/extractedDraftFixture");
+    fromMock.mockImplementation((table: string) =>
+      table === "sales_order_drafts" ? draftHeaderChainMock() : chainMock({ data: [], error: null }),
+    );
+
+    await expect(approveSalesOrderDraft({
+      draftId: "draft-1",
+      extracted: extractedFixture,
+      actor: { id: "user-1", name: "Approver" },
+    })).rejects.toThrow("Malformed sales-order promotion response");
+  });
+
+  it("uses the canonical draft and promoted order identifiers for first and idempotent promotion responses", async () => {
+    const results = [
+      [{ draft_id: "draft-1", promoted_order_id: "order-1", order_number: "SO-1001", already_promoted: false }],
+      [{ draft_id: "draft-1", promoted_order_id: "order-1", order_number: "SO-1001", already_promoted: true }],
+    ];
+    const { approveSalesOrderDraft } = await import(
+      "@/lib/wa-sales-order-draft/salesOrderDraftRepository"
+    );
+    const { extractedFixture } = await import("./fixtures/extractedDraftFixture");
+    fromMock.mockImplementation((table: string) => table === "sales_order_drafts"
+      ? {
+          select: vi.fn().mockImplementation((fields: string) => ({
+            eq: vi.fn().mockReturnValue({
+              maybeSingle: vi.fn().mockResolvedValue({ data: fields === "id, status, extraction_request_key"
+                ? { id: "draft-1", status: "UNDER_REVIEW", extraction_request_key: "key-1" }
+                : { id: "draft-1", status: "APPROVED_FOR_SO", extraction_request_key: "key-1", readiness_dimensions: extractedFixture.readiness.dimensions, ai_draft_snapshot: extractedFixture, operator_final_snapshot: {} }, error: null }),
+            }),
+          })),
+        }
+      : chainMock({ data: [], error: null }));
+    for (const data of results) {
+      rpcMock.mockResolvedValueOnce({ data, error: null });
+      await approveSalesOrderDraft({ draftId: "draft-1", extracted: extractedFixture, actor: { id: "user-1", name: "Approver" } });
+    }
+    expect(rpcMock).toHaveBeenCalledTimes(2);
+  });
+
+  it("rejects promotion response when draft_id does not match the requested draft", async () => {
+    rpcMock.mockResolvedValue({
+      data: [{
+        draft_id: "other-draft",
+        promoted_order_id: "order-1",
+        order_number: "SO-1001",
+        already_promoted: false,
+      }],
+      error: null,
+    });
+
+    const { approveSalesOrderDraft } = await import(
+      "@/lib/wa-sales-order-draft/salesOrderDraftRepository"
+    );
+    const { extractedFixture } = await import("./fixtures/extractedDraftFixture");
+    fromMock.mockImplementation((table: string) =>
+      table === "sales_order_drafts" ? draftHeaderChainMock() : chainMock({ data: [], error: null }),
+    );
+
+    await expect(
+      approveSalesOrderDraft({
+        draftId: "draft-1",
+        extracted: extractedFixture,
+        actor: { id: "user-1", name: "Approver" },
+      }),
+    ).rejects.toThrow("Sales-order promotion response referenced the wrong draft.");
+
+    expect(rpcMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("propagates server extraction-key validation errors from approve RPC", async () => {
+    rpcMock.mockResolvedValue({
+      data: null,
+      error: { message: "Extraction version mismatch for draft draft-1" },
+    });
+
+    const { approveSalesOrderDraft } = await import(
+      "@/lib/wa-sales-order-draft/salesOrderDraftRepository"
+    );
+    const { extractedFixture } = await import("./fixtures/extractedDraftFixture");
+
+    await expect(
+      approveSalesOrderDraft({
+        draftId: "draft-1",
+        extracted: extractedFixture,
+        actor: { id: "user-1", name: "Approver" },
+      }),
+    ).rejects.toThrow("Extraction version mismatch for draft draft-1");
+
+    expect(rpcMock).toHaveBeenCalledWith(
+      "approve_sales_order_draft_for_so_atomic",
+      expect.objectContaining({
+        p_draft_id: "draft-1",
+        p_expected_extraction_request_key: "key-1",
+      }),
+    );
+    expect(rpcMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not embed readiness dimensions in approve RPC metadata", async () => {
+    const { readFileSync } = await import("node:fs");
+    const { join } = await import("node:path");
+    const repo = readFileSync(
+      join(import.meta.dirname, "../salesOrderDraftRepository.ts"),
+      "utf8",
+    );
+    const approveStart = repo.indexOf("export async function approveSalesOrderDraft");
+    const approveEnd = repo.indexOf("export async function rejectSalesOrderDraft");
+    const approveBlock = repo.slice(approveStart, approveEnd);
+    expect(approveBlock).toMatch(/rpc\("approve_sales_order_draft_for_so_atomic"/);
+    expect(approveBlock).toMatch(/p_metadata:/);
+    expect(approveBlock).not.toMatch(/p_readiness/);
+    expect(approveBlock).not.toMatch(/readiness_dimensions/);
+    expect(approveBlock).not.toMatch(/readiness_overall/);
+  });
 });
 
 describe("createSalesOrderDraft version recovery", () => {

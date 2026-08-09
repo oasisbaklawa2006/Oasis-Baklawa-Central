@@ -5768,7 +5768,12 @@ export type Database = {
           p_review_notes?: string | null
           p_metadata?: Json
         }
-        Returns: string
+        Returns: {
+          draft_id: string
+          promoted_order_id: string
+          order_number: string
+          already_promoted: boolean
+        }[]
       }
       reject_sales_order_draft_atomic: {
         Args: {
