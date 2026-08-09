@@ -280,7 +280,15 @@ describe("approve extraction version and readiness validation", () => {
   });
 
   it("valid persisted readiness approves via atomic RPC", async () => {
-    rpcMock.mockResolvedValue({ data: "draft-1", error: null });
+    rpcMock.mockResolvedValue({
+      data: [{
+        draft_id: "draft-1",
+        promoted_order_id: "order-1",
+        order_number: "SO-1001",
+        already_promoted: false,
+      }],
+      error: null,
+    });
 
     const { approveSalesOrderDraft } = await import(
       "@/lib/wa-sales-order-draft/salesOrderDraftRepository"
@@ -334,6 +342,104 @@ describe("approve extraction version and readiness validation", () => {
     );
   });
 
+  it.each([
+    ["empty", []],
+    ["multiple rows", [{ draft_id: "draft-1" }, { draft_id: "draft-1" }]],
+    ["missing order id", [{ draft_id: "draft-1", order_number: "SO-1001", already_promoted: false }]],
+  ])("fails safely on malformed %s promotion response", async (_label, data) => {
+    rpcMock.mockResolvedValue({ data, error: null });
+    const { approveSalesOrderDraft } = await import(
+      "@/lib/wa-sales-order-draft/salesOrderDraftRepository"
+    );
+    const { extractedFixture } = await import("./fixtures/extractedDraftFixture");
+    fromMock.mockImplementation((table: string) =>
+      table === "sales_order_drafts" ? draftHeaderChainMock() : chainMock({ data: [], error: null }),
+    );
+
+    await expect(approveSalesOrderDraft({
+      draftId: "draft-1",
+      extracted: extractedFixture,
+      actor: { id: "user-1", name: "Approver" },
+    })).rejects.toThrow("Malformed sales-order promotion response");
+  });
+
+  it("uses the canonical draft and promoted order identifiers for first and idempotent promotion responses", async () => {
+    const results = [
+      [{ draft_id: "draft-1", promoted_order_id: "order-1", order_number: "SO-1001", already_promoted: false }],
+      [{ draft_id: "draft-1", promoted_order_id: "order-1", order_number: "SO-1001", already_promoted: true }],
+    ];
+    const { approveSalesOrderDraft } = await import(
+      "@/lib/wa-sales-order-draft/salesOrderDraftRepository"
+    );
+    const { extractedFixture } = await import("./fixtures/extractedDraftFixture");
+    fromMock.mockImplementation((table: string) => table === "sales_order_drafts"
+      ? {
+          select: vi.fn().mockImplementation((fields: string) => ({
+            eq: vi.fn().mockReturnValue({
+              maybeSingle: vi.fn().mockResolvedValue({ data: fields === "id, status, extraction_request_key"
+                ? { id: "draft-1", status: "UNDER_REVIEW", extraction_request_key: "key-1" }
+                : { id: "draft-1", status: "APPROVED_FOR_SO", extraction_request_key: "key-1", readiness_dimensions: extractedFixture.readiness.dimensions, ai_draft_snapshot: extractedFixture, operator_final_snapshot: {} }, error: null }),
+            }),
+          })),
+        }
+      : chainMock({ data: [], error: null }));
+    for (const data of results) {
+      rpcMock.mockResolvedValueOnce({ data, error: null });
+      await approveSalesOrderDraft({ draftId: "draft-1", extracted: extractedFixture, actor: { id: "user-1", name: "Approver" } });
+    }
+    expect(rpcMock).toHaveBeenCalledTimes(2);
+  });
+
+  it("approve RPC migration rejects stale extraction version on server", async () => {
+    const { readFileSync } = await import("node:fs");
+    const { join } = await import("node:path");
+    const sql = readFileSync(
+      join(
+        import.meta.dirname,
+        "../../../../supabase/migrations/20260606180000_wa_sprint9_sales_order_draft_approve_extraction_readiness_hardening.sql",
+      ),
+      "utf8",
+    );
+    expect(sql).toMatch(
+      /v_extraction_request_key IS DISTINCT FROM trim\(p_expected_extraction_request_key\)/,
+    );
+  });
+
+  it("approve RPC migration rejects missing draft extraction key on server", async () => {
+    const { readFileSync } = await import("node:fs");
+    const { join } = await import("node:path");
+    const sql = readFileSync(
+      join(
+        import.meta.dirname,
+        "../../../../supabase/migrations/20260606180000_wa_sprint9_sales_order_draft_approve_extraction_readiness_hardening.sql",
+      ),
+      "utf8",
+    );
+    expect(sql).toMatch(/NULLIF\(trim\(v_extraction_request_key\), ''\) IS NULL/);
+  });
+
+  it("approve RPC validates all five persisted readiness dimensions on server", async () => {
+    const { readFileSync } = await import("node:fs");
+    const { join } = await import("node:path");
+    const baseSql = readFileSync(
+      join(
+        import.meta.dirname,
+        "../../../../supabase/migrations/20260606160000_wa_sprint9_sales_order_draft_approve_reject_atomic_rpc.sql",
+      ),
+      "utf8",
+    );
+    const approveSql = readFileSync(
+      join(
+        import.meta.dirname,
+        "../../../../supabase/migrations/20260606180000_wa_sprint9_sales_order_draft_approve_extraction_readiness_hardening.sql",
+      ),
+      "utf8",
+    );
+    expect(baseSql).toMatch(/payment_terms/);
+    expect(baseSql).toMatch(/client.*product.*quantity.*address/s);
+    expect(approveSql).toMatch(/validate_sales_order_draft_readiness\(v_readiness_dimensions\)/);
+    expect(approveSql).not.toMatch(/p_metadata.*readiness/);
+  });
 });
 
 describe("createSalesOrderDraft version recovery", () => {

@@ -194,7 +194,7 @@ export async function approveSalesOrderDraft(
     actionLabel: "approve for SO",
   });
 
-  const { data, error } = await supabase.rpc("approve_sales_order_draft_for_so_atomic", {
+  const { data: promotionRows, error } = await supabase.rpc("approve_sales_order_draft_for_so_atomic", {
     p_draft_id: input.draftId,
     p_expected_extraction_request_key: input.extracted.extractionRequestKey,
     p_actor_id: input.actor.id,
@@ -206,11 +206,23 @@ export async function approveSalesOrderDraft(
   });
 
   if (error) throw new Error(error.message);
+  const promotion = Array.isArray(promotionRows) && promotionRows.length === 1
+    ? promotionRows[0]
+    : null;
+  if (
+    !promotion ||
+    typeof promotion.draft_id !== "string" ||
+    typeof promotion.promoted_order_id !== "string" ||
+    typeof promotion.order_number !== "string" ||
+    typeof promotion.already_promoted !== "boolean"
+  ) {
+    throw new Error("Malformed sales-order promotion response.");
+  }
+  if (promotion.draft_id !== input.draftId) {
+    throw new Error("Sales-order promotion response referenced the wrong draft.");
+  }
 
-  const row = Array.isArray(data) ? data[0] : data;
-  const resolvedDraftId = (row as { draft_id?: string } | null)?.draft_id ?? input.draftId;
-
-  const reloaded = await fetchSalesOrderDraftById(resolvedDraftId);
+  const reloaded = await fetchSalesOrderDraftById(promotion.draft_id);
   if (!reloaded) throw new Error("Failed to reload approved draft.");
   return reloaded;
 }
