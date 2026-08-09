@@ -124,6 +124,15 @@ const GST_RATES = [0, 5, 12, 18, 28];
 const DIETARY_OPTIONS = ["100% Eggless", "Contains Nuts", "Vegan", "Gluten-Free", "Sugar-Free", "No Preservatives"];
 const STORAGE_OPTIONS = ["ambient", "refrigerated", "frozen"];
 
+const MAX_PRODUCT_IMAGE_BYTES = 10485760;
+const ALLOWED_PRODUCT_IMAGE_MIME_TYPES = [
+  "image/jpeg",
+  "image/png",
+  "image/webp",
+  "image/gif",
+  "image/avif",
+];
+
 export const EMPTY_FORM = {
   name: "",
   sku: "",
@@ -657,6 +666,17 @@ const AdminProducts = () => {
     try {
       if (!e.target.files || e.target.files.length === 0) return;
       const file = e.target.files[0];
+      // Mirrors the product-images storage bucket's server-side enforcement (Core migration
+      // 20260809211500_enforce_product_images_bucket_limits.sql) so the operator gets immediate
+      // feedback instead of a storage rejection after the upload has already started.
+      if (file.size > MAX_PRODUCT_IMAGE_BYTES) {
+        return toast.error(
+          `"${file.name}" is too large (max ${Math.floor(MAX_PRODUCT_IMAGE_BYTES / (1024 * 1024))}MB).`,
+        );
+      }
+      if (file.type && !ALLOWED_PRODUCT_IMAGE_MIME_TYPES.includes(file.type)) {
+        return toast.error(`"${file.name}" has an unsupported file type (${file.type}).`);
+      }
       setUploadingImage(true);
       const fileExt = file.name.split(".").pop();
       const fileName = `${Math.random().toString(36).substring(2)}-${Date.now()}.${fileExt}`;

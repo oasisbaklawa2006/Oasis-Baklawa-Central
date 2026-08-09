@@ -29,3 +29,28 @@ describe("AdminProducts AI compliance review gate", () => {
     expect(source).toContain("Mark as reviewed");
   });
 });
+
+// Point 27, Phase 12: handleImageUpload must reject an oversized or wrong-type
+// file client-side before calling storage, mirroring the product-images
+// bucket's server-side enforcement (Core migration
+// 20260809211500_enforce_product_images_bucket_limits.sql).
+describe("AdminProducts image upload validation", () => {
+  const source = readFileSync(join(__dirname, "../AdminProducts.tsx"), "utf8");
+
+  it("rejects an oversized file before uploading to storage", () => {
+    const uploadFnStart = source.indexOf("const handleImageUpload = async");
+    expect(uploadFnStart).toBeGreaterThan(-1);
+    const storageCallIndex = source.indexOf("supabase.storage", uploadFnStart);
+    const sizeCheckIndex = source.indexOf("MAX_PRODUCT_IMAGE_BYTES", uploadFnStart);
+    expect(sizeCheckIndex).toBeGreaterThan(-1);
+    expect(sizeCheckIndex).toBeLessThan(storageCallIndex);
+  });
+
+  it("rejects a disallowed MIME type before uploading to storage", () => {
+    const uploadFnStart = source.indexOf("const handleImageUpload = async");
+    const storageCallIndex = source.indexOf("supabase.storage", uploadFnStart);
+    const typeCheckIndex = source.indexOf("ALLOWED_PRODUCT_IMAGE_MIME_TYPES", uploadFnStart);
+    expect(typeCheckIndex).toBeGreaterThan(-1);
+    expect(typeCheckIndex).toBeLessThan(storageCallIndex);
+  });
+});
