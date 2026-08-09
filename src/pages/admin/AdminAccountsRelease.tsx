@@ -17,7 +17,15 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { FinanceReleaseChips } from "@/components/admin/FinanceReleaseChips";
-import { clearOrderForDispatch, releaseOrderToManufacturing, recordOrderFullyPaid } from "@/lib/order-authority/orderAuthorityClient";
+import {
+  clearOrderForDispatch,
+  releaseOrderToManufacturing,
+  recordOrderFullyPaid,
+} from "@/lib/order-authority/orderAuthorityClient";
+import {
+  isWalletPiAutoSettleEligible,
+  WALLET_PI_FAIL_CLOSED_MESSAGE,
+} from "@/utils/walletPiSettlement";
 import {
   canReleaseOrderToDispatch,
   deriveFinanceReleaseState,
@@ -437,10 +445,8 @@ const AdminAccountsRelease = () => {
       const walletBalance = order.company?.wallet_balance ?? 0;
       const walletDiff = walletBalance - piTotal;
 
-      if (walletDiff >= 0 && order.company_id) {
-        // Auto-deduct from wallet
-        await supabase.from("companies").update({ wallet_balance: walletDiff }).eq("id", order.company_id);
-        toast.error("Wallet PI auto-settlement requires governed finance RPC — payment fields cannot be updated directly.");
+      if (isWalletPiAutoSettleEligible(walletBalance, piTotal) && order.company_id) {
+        toast.error(WALLET_PI_FAIL_CLOSED_MESSAGE);
       } else {
         // Payment pending
         const balanceDue = Math.abs(walletDiff);
@@ -460,8 +466,6 @@ const AdminAccountsRelease = () => {
           }
         }
       }
-      // Keep PI history aligned with canonical OrderManagement payment-stage vocabulary.
-      await supabase.from("order_status_history").insert({ order_id: order.id, old_status: order.status, new_status: "awaiting_final_payment" });
       fetchOrders();
     } catch { toast.error("PI generation failed"); }
     setGeneratingPi(null);

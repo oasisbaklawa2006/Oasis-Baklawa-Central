@@ -20,6 +20,11 @@ import {
 } from "@/lib/order-authority/orderAuthorityClient";
 import { deriveFinanceReleaseState } from "@/utils/financeReleaseState";
 import { FinanceReleaseChips } from "@/components/admin/FinanceReleaseChips";
+import {
+  governedOrderActionDisabledReason,
+  GOVERNED_DIRECT_STATUSES,
+  isGovernedOrderActionAvailable,
+} from "@/utils/governedOrderActions";
 
 const STATUS_FLOW = [
   { status: "submitted", label: "Order Placed", action: "Confirm Order", next: "confirmed", color: "bg-amber-100 text-amber-800 border-amber-200" },
@@ -300,7 +305,7 @@ const OrderManagement = () => {
       }
     }
 
-    const governedStatus = new Set(["in_production", "packed_ready", "cleared_for_dispatch", "awaiting_advance"]);
+    const governedStatus = GOVERNED_DIRECT_STATUSES;
     if (!governedStatus.has(effectiveNext)) {
       toast.error(
         `Transition to ${effectiveNext.replace(/_/g, " ")} is not available via direct status update — use the governed finance/operations workflow.`,
@@ -429,6 +434,10 @@ const OrderManagement = () => {
               const packingGateBlocked =
                 order.status === "packing" &&
                 (packingGate === undefined || packingGate.length > 0);
+              const actionUnavailable = info.next ? !isGovernedOrderActionAvailable(order.status, info.next) : false;
+              const actionDisabledReason = info.next
+                ? governedOrderActionDisabledReason(order.status, info.next)
+                : "";
               return (
                 <tr key={order.id} className="border-b border-border last:border-0 hover:bg-muted/30 transition-colors">
                   <td className="px-4 py-3 font-mono text-xs text-foreground">
@@ -482,7 +491,12 @@ const OrderManagement = () => {
                       <Button
                         size="sm"
                         variant="default"
-                        disabled={actionLoading === order.id || (info.next === "packed_ready" && packingGateBlocked)}
+                        disabled={
+                          actionLoading === order.id
+                          || packingGateBlocked
+                          || actionUnavailable
+                        }
+                        title={actionUnavailable ? actionDisabledReason : undefined}
                         onClick={(e) => { e.stopPropagation(); handleAction(order.id, info.next!); }}
                         className="text-xs gap-1"
                       >

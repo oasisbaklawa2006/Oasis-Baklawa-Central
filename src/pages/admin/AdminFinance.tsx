@@ -514,8 +514,11 @@ const AdminFinance = () => {
   useEffect(() => {
     void (async () => {
       setLoading(true);
-      await Promise.all([fetchOrders(), fetchCreditRequests(), fetchReturns(), fetchScrutiny(), fetchCommissionPayouts()]);
-      setLoading(false);
+      try {
+        await Promise.all([fetchOrders(), fetchCreditRequests(), fetchReturns(), fetchScrutiny(), fetchCommissionPayouts()]);
+      } finally {
+        setLoading(false);
+      }
     })();
   }, []);
 

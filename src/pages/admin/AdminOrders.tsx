@@ -415,15 +415,7 @@ const AdminOrders = () => {
         attachment_type: "packing_proof",
       });
 
-      // Move order to packed_ready
-      await supabase
-        .from("orders")
-        .update({ status: "packed_ready" })
-        .eq("id", selectedOrder.id);
-
-      await supabase
-        .from("order_status_history")
-        .insert({ order_id: selectedOrder.id, old_status: selectedOrder.status, new_status: "packed_ready" });
+      await releaseOrderToPackedReady(selectedOrder.id);
 
       toast.success("Packing list saved — Order marked Packed Ready");
       setSelectedOrder(prev => prev ? { ...prev, status: "packed_ready" } : prev);

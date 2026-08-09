@@ -99,4 +99,38 @@ describe("orderAuthorityClient", () => {
       p_scan_evidence_id: "scan-1",
     });
   });
+
+  it("invokes rpc with the Supabase client as receiver", async () => {
+    rpcMock.mockImplementation(function (
+      this: { rpc: typeof rpcMock },
+      fn: string,
+      args?: Record<string, unknown>,
+    ) {
+      expect(this).toBeDefined();
+      expect(this.rpc).toBe(rpcMock);
+      return Promise.resolve({
+        data: { ok: true, order_id: "o1", new_status: "cleared_for_dispatch" },
+        error: null,
+      });
+    });
+
+    await clearOrderForDispatch("o1");
+    expect(rpcMock).toHaveBeenCalledWith("clear_order_for_dispatch_v1", { p_order_id: "o1" });
+  });
+
+  it("documents that detached rpc breaks receiver-dependent clients", async () => {
+    const client = {
+      rest: {
+        rpc: vi.fn().mockResolvedValue({ data: { ok: true }, error: null }),
+      },
+      rpc(fn: string, args?: Record<string, unknown>) {
+        return this.rest.rpc(fn, args);
+      },
+    };
+    const detached = client.rpc;
+    expect(() => detached("release_order_to_packed_ready_v1", { p_order_id: "o1" })).toThrow();
+    await expect(
+      client.rpc.call(client, "release_order_to_packed_ready_v1", { p_order_id: "o1" }),
+    ).resolves.toEqual({ data: { ok: true }, error: null });
+  });
 });

@@ -10,6 +10,12 @@ import { toast } from "sonner";
 import { useAuth } from "@/hooks/useAuth";
 import { deriveCompanyDestinationStateLabel, ewayThresholdForDestinationState } from "@/utils/companyDestinationState";
 import { releaseCartonAtDispatchGate } from "@/lib/order-authority/orderAuthorityClient";
+import {
+  GATE_SCAN_POST_RELEASE_STATUS,
+  GATE_SCAN_PRE_RELEASE_STATUS,
+  GATE_SCAN_RELEASE_DENIED_STATUS,
+  gateScanCorrelationId,
+} from "@/utils/gateScanEvidence";
 
 interface ScannedCarton {
   id: string;
@@ -80,6 +86,9 @@ type ScanRecordClient = {
       select: (columns: string) => {
         single: () => Promise<{ data: { id: string } | null; error: { message: string } | null }>;
       };
+    };
+    update: (row: Record<string, unknown>) => {
+      eq: (column: string, value: string) => Promise<{ error: { message: string } | null }>;
     };
   };
 };
@@ -276,6 +285,7 @@ const AdminSecurityGate = () => {
         if (!check3) failures.push(`E-Way Bill: MISSING (Order > ₹${ewayThreshold.toLocaleString("en-IN")})`);
 
         if (failures.length === 0) {
+          const correlationId = gateScanCorrelationId(carton.id, barcode);
           const { data: scanRow, error: scanErr } = await scanDb
             .from("operational_scan_records")
             .insert({
@@ -286,11 +296,11 @@ const AdminSecurityGate = () => {
               order_id: carton.order_id,
               barcode_value: barcode,
               expected_barcode: carton.barcode_string,
-              verification_status: "verified",
+              verification_status: GATE_SCAN_PRE_RELEASE_STATUS,
               scan_source: "admin_security_gate",
               actor_id: user?.id ?? null,
               actor_role: role ?? null,
-              correlation_id: `gate:${carton.id}:${Date.now()}`,
+              correlation_id: correlationId,
             })
             .select("id")
             .single();
@@ -299,7 +309,32 @@ const AdminSecurityGate = () => {
             throw new Error(scanErr?.message || "Could not record scan evidence");
           }
 
-          await releaseCartonAtDispatchGate(carton.id, String(scanRow.id));
+          const scanId = String(scanRow.id);
+          try {
+            await releaseCartonAtDispatchGate(carton.id, scanId);
+            const { error: verifyErr } = await scanDb
+              .from("operational_scan_records")
+              .update({ verification_status: GATE_SCAN_POST_RELEASE_STATUS })
+              .eq("id", scanId);
+            if (verifyErr) {
+              throw new Error(verifyErr.message);
+            }
+          } catch (releaseErr) {
+            const reason =
+              releaseErr instanceof Error ? releaseErr.message : "Gate release denied";
+            await scanDb
+              .from("operational_scan_records")
+              .update({
+                verification_status: GATE_SCAN_RELEASE_DENIED_STATUS,
+                mismatch_reason: reason,
+              })
+              .eq("id", scanId);
+            setScreenState("error");
+            setLastMessage(`🚨 BLOCKED — ${reason}`);
+            addToHistory(barcode, companyName, "error", `BLOCKED: ${reason}`);
+            playAudio("error");
+            return;
+          }
 
           // Check if all cartons for this order are dispatched
           if (carton.order_id) {

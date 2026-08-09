@@ -239,7 +239,7 @@ const FinanceReleaseBoard = () => {
       await loadBoard();
     } catch (e) {
       console.error("[FinanceReleaseBoard]", e);
-      toast.error("Could not reject.");
+      toast.error(e instanceof Error ? e.message : "Could not reject.");
     } finally {
       setActingId(null);
     }
@@ -258,7 +258,7 @@ const FinanceReleaseBoard = () => {
       await loadBoard();
     } catch (e) {
       console.error("[FinanceReleaseBoard]", e);
-      toast.error("Could not release order.");
+      toast.error(e instanceof Error ? e.message : "Could not release order.");
     } finally {
       setActingId(null);
       pushFloorInFlightRef.current = null;

@@ -1,10 +1,16 @@
 import { supabase } from "@/integrations/supabase/client";
 
+type RpcResult = { data: unknown; error: { message: string } | null };
+
 type RpcClient = {
-  rpc: (fn: string, args?: Record<string, unknown>) => Promise<{ data: unknown; error: { message: string } | null }>;
+  rpc: (fn: string, args?: Record<string, unknown>) => Promise<RpcResult>;
 };
 
-const authorityRpc = (supabase as unknown as RpcClient).rpc;
+/** Preserve SupabaseClient receiver — detached `.rpc` breaks `this.rest` binding. */
+function authorityRpc(fn: string, args?: Record<string, unknown>): Promise<RpcResult> {
+  const rpc = (supabase as unknown as RpcClient).rpc;
+  return rpc.call(supabase, fn, args);
+}
 
 export type AuthorityBlocker = {
   code?: string;
