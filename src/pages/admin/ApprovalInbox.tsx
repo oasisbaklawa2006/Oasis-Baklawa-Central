@@ -4,6 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import {
   createCatalogueApprovalService,
   type CatalogueApprovalOutcome,
+  type CatalogueDraftKind,
   type CatalogueDraftView,
 } from "@/lib/catalogue-approval";
 import { Badge } from "@/components/ui/badge";
@@ -54,10 +55,41 @@ function DraftAliasCells({ draft }: { draft: Extract<CatalogueDraftView, { kind:
   );
 }
 
+function DraftPricingCells({ draft }: { draft: Extract<CatalogueDraftView, { kind: "pricing" }> }) {
+  return (
+    <>
+      <TableCell className="font-mono text-xs">{draft.product_id ?? "—"}</TableCell>
+      <TableCell>{draft.price_channel ?? "—"}</TableCell>
+      <TableCell>{draft.price_type ?? "—"}</TableCell>
+      <TableCell>
+        {draft.calculated_price != null ? `${draft.calculated_price} ${draft.currency ?? "INR"}` : "—"}
+      </TableCell>
+    </>
+  );
+}
+
+function DraftMoqCells({ draft }: { draft: Extract<CatalogueDraftView, { kind: "moq" }> }) {
+  return (
+    <>
+      <TableCell className="font-mono text-xs">{draft.product_id ?? "—"}</TableCell>
+      <TableCell>{draft.channel ?? "—"}</TableCell>
+      <TableCell>
+        {draft.moq_applicable === false
+          ? "Disabled"
+          : draft.moq_value != null
+            ? `${draft.moq_value} ${draft.moq_uom ?? ""}`
+            : "—"}
+      </TableCell>
+    </>
+  );
+}
+
 export default function ApprovalInbox() {
   const approval = useMemo(() => createCatalogueApprovalService(supabase), []);
   const [tagDrafts, setTagDrafts] = useState<CatalogueDraftView[]>([]);
   const [aliasDrafts, setAliasDrafts] = useState<CatalogueDraftView[]>([]);
+  const [pricingDrafts, setPricingDrafts] = useState<CatalogueDraftView[]>([]);
+  const [moqDrafts, setMoqDrafts] = useState<CatalogueDraftView[]>([]);
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [rejectReason, setRejectReason] = useState("Does not meet catalogue standards");
@@ -65,12 +97,16 @@ export default function ApprovalInbox() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const [tags, aliases] = await Promise.all([
+      const [tags, aliases, pricing, moq] = await Promise.all([
         approval.listPendingTagDrafts(),
         approval.listPendingAliasDrafts(),
+        approval.listPendingPricingDrafts(),
+        approval.listPendingMoqDrafts(),
       ]);
       setTagDrafts(tags);
       setAliasDrafts(aliases);
+      setPricingDrafts(pricing);
+      setMoqDrafts(moq);
     } catch (err) {
       const message = err instanceof Error ? err.message : "Failed to load approval inbox";
       toast.error(message);
@@ -99,8 +135,30 @@ export default function ApprovalInbox() {
     }
   }
 
+  const APPROVE_BY_KIND: Record<CatalogueDraftKind, (draftId: string) => Promise<CatalogueApprovalOutcome>> = {
+    tag: (draftId) => approval.approveTagDraft(draftId),
+    alias: (draftId) => approval.approveAliasDraft(draftId),
+    pricing: (draftId) => approval.approvePricingDraft(draftId),
+    moq: (draftId) => approval.approveMoqDraft(draftId),
+  };
+  const REJECT_BY_KIND: Record<
+    CatalogueDraftKind,
+    (draftId: string, reason: string) => Promise<CatalogueApprovalOutcome>
+  > = {
+    tag: (draftId, reason) => approval.rejectTagDraft(draftId, reason),
+    alias: (draftId, reason) => approval.rejectAliasDraft(draftId, reason),
+    pricing: (draftId, reason) => approval.rejectPricingDraft(draftId, reason),
+    moq: (draftId, reason) => approval.rejectMoqDraft(draftId, reason),
+  };
+  const TARGET_TABLE_LABEL: Record<CatalogueDraftKind, string> = {
+    tag: "public.product_tags",
+    alias: "public.product_aliases",
+    pricing: "public.product_pricing_rules",
+    moq: "public.product_moq_rules",
+  };
+
   function renderDraftTable(
-    kind: "tag" | "alias",
+    kind: CatalogueDraftKind,
     drafts: CatalogueDraftView[],
   ) {
     if (loading) {
@@ -116,8 +174,7 @@ export default function ApprovalInbox() {
       return (
         <p className="py-8 text-sm text-muted-foreground">
           No pending {kind} drafts. Approvals write to{" "}
-          <span className="font-mono">public.product_{kind === "tag" ? "tags" : "aliases"}</span>{" "}
-          via Central RPC.
+          <span className="font-mono">{TARGET_TABLE_LABEL[kind]}</span> via Central RPC.
         </p>
       );
     }
@@ -127,17 +184,33 @@ export default function ApprovalInbox() {
         <TableHeader>
           <TableRow>
             <TableHead>Operation</TableHead>
-            {kind === "tag" ? (
+            {kind === "tag" && (
               <>
                 <TableHead>tag_key</TableHead>
                 <TableHead>tag_label</TableHead>
                 <TableHead>is_active</TableHead>
               </>
-            ) : (
+            )}
+            {kind === "alias" && (
               <>
                 <TableHead>alias_text</TableHead>
                 <TableHead>canonical_name</TableHead>
                 <TableHead>product_id</TableHead>
+              </>
+            )}
+            {kind === "pricing" && (
+              <>
+                <TableHead>product_id</TableHead>
+                <TableHead>channel</TableHead>
+                <TableHead>price_type</TableHead>
+                <TableHead>price</TableHead>
+              </>
+            )}
+            {kind === "moq" && (
+              <>
+                <TableHead>product_id</TableHead>
+                <TableHead>channel</TableHead>
+                <TableHead>moq</TableHead>
               </>
             )}
             <TableHead>Submitted</TableHead>
@@ -150,11 +223,10 @@ export default function ApprovalInbox() {
               <TableCell>
                 <Badge variant="outline">{draft.operation}</Badge>
               </TableCell>
-              {draft.kind === "tag" ? (
-                <DraftTagCells draft={draft} />
-              ) : (
-                <DraftAliasCells draft={draft} />
-              )}
+              {draft.kind === "tag" && <DraftTagCells draft={draft} />}
+              {draft.kind === "alias" && <DraftAliasCells draft={draft} />}
+              {draft.kind === "pricing" && <DraftPricingCells draft={draft} />}
+              {draft.kind === "moq" && <DraftMoqCells draft={draft} />}
               <TableCell className="text-xs text-muted-foreground">
                 {draft.submitted_at
                   ? new Date(draft.submitted_at).toLocaleString()
@@ -165,11 +237,7 @@ export default function ApprovalInbox() {
                   size="sm"
                   disabled={busyId === draft.draftId}
                   onClick={() =>
-                    void runAction(draft.draftId, () =>
-                      kind === "tag"
-                        ? approval.approveTagDraft(draft.draftId)
-                        : approval.approveAliasDraft(draft.draftId),
-                    )
+                    void runAction(draft.draftId, () => APPROVE_BY_KIND[kind](draft.draftId))
                   }
                 >
                   {busyId === draft.draftId ? (
@@ -185,9 +253,7 @@ export default function ApprovalInbox() {
                   disabled={busyId === draft.draftId}
                   onClick={() =>
                     void runAction(draft.draftId, () =>
-                      kind === "tag"
-                        ? approval.rejectTagDraft(draft.draftId, rejectReason)
-                        : approval.rejectAliasDraft(draft.draftId, rejectReason),
+                      REJECT_BY_KIND[kind](draft.draftId, rejectReason),
                     )
                   }
                 >
@@ -211,12 +277,9 @@ export default function ApprovalInbox() {
             Catalogue Approval Inbox
           </h1>
           <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
-            Review tag and alias drafts from the AI Catalogue Builder. Approved tags map to{" "}
-            <span className="font-mono">public.product_tags</span>; aliases map to{" "}
-            <span className="font-mono">public.product_aliases</span> (fields{" "}
-            <span className="font-mono">alias_text</span>,{" "}
-            <span className="font-mono">canonical_name</span>,{" "}
-            <span className="font-mono">product_id</span>).
+            Review tag, alias, pricing, and MOQ drafts submitted from AI Studio. Pricing and MOQ
+            are Central/Core-governed commercial authority — AI Studio can only propose changes
+            here; approval or rejection in Central is the only way they take effect.
           </p>
         </div>
         <Button variant="outline" onClick={() => void load()} disabled={loading}>
@@ -252,6 +315,14 @@ export default function ApprovalInbox() {
             Alias drafts
             <Badge variant="secondary">{aliasDrafts.length}</Badge>
           </TabsTrigger>
+          <TabsTrigger value="pricing">
+            Pricing drafts
+            <Badge variant="secondary">{pricingDrafts.length}</Badge>
+          </TabsTrigger>
+          <TabsTrigger value="moq">
+            MOQ drafts
+            <Badge variant="secondary">{moqDrafts.length}</Badge>
+          </TabsTrigger>
         </TabsList>
         <TabsContent value="tags" className="mt-4">
           <Card>
@@ -261,6 +332,16 @@ export default function ApprovalInbox() {
         <TabsContent value="aliases" className="mt-4">
           <Card>
             <CardContent className="pt-6">{renderDraftTable("alias", aliasDrafts)}</CardContent>
+          </Card>
+        </TabsContent>
+        <TabsContent value="pricing" className="mt-4">
+          <Card>
+            <CardContent className="pt-6">{renderDraftTable("pricing", pricingDrafts)}</CardContent>
+          </Card>
+        </TabsContent>
+        <TabsContent value="moq" className="mt-4">
+          <Card>
+            <CardContent className="pt-6">{renderDraftTable("moq", moqDrafts)}</CardContent>
           </Card>
         </TabsContent>
       </Tabs>

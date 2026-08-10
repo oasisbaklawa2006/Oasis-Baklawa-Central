@@ -15,17 +15,22 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 function mockClient(handlers: {
   tagDrafts?: unknown[];
   aliasDrafts?: unknown[];
+  pricingDrafts?: unknown[];
+  moqDrafts?: unknown[];
   rpc?: (name: string, args: Record<string, unknown>) => Promise<{ data: unknown; error: null }>;
 }) {
+  const draftsByTable: Record<string, unknown[]> = {
+    catalogue_tag_drafts: handlers.tagDrafts ?? [],
+    catalogue_alias_drafts: handlers.aliasDrafts ?? [],
+    catalogue_pricing_drafts: handlers.pricingDrafts ?? [],
+    catalogue_moq_drafts: handlers.moqDrafts ?? [],
+  };
   const from = vi.fn((table: string) => {
     const chain = {
       select: vi.fn().mockReturnThis(),
       eq: vi.fn().mockReturnThis(),
       order: vi.fn().mockResolvedValue({
-        data:
-          table === "catalogue_tag_drafts"
-            ? (handlers.tagDrafts ?? [])
-            : (handlers.aliasDrafts ?? []),
+        data: draftsByTable[table] ?? [],
         error: null,
       }),
     };
@@ -127,6 +132,87 @@ describe("catalogue approval service", () => {
     expect(outcome.kind).toBe("alias_approved");
   });
 
+  it("lists pricing drafts using product_pricing_rules field names (Point 27, Finding 2)", async () => {
+    const service = createCatalogueApprovalService(
+      mockClient({
+        pricingDrafts: [
+          {
+            id: "p1",
+            operation: "create",
+            status: "pending_approval",
+            submitted_at: "2026-08-01T00:00:00Z",
+            target_record_id: null,
+            payload: {
+              scope: "product_pricing_rule",
+              product_id: "prod-uuid",
+              price_channel: "b2b",
+              price_type: "fixed_price",
+              calculated_price: 450,
+              currency: "INR",
+            },
+          },
+        ],
+      }),
+    );
+
+    const rows = await service.listPendingPricingDrafts();
+    expect(rows).toHaveLength(1);
+    expect(rows[0].kind).toBe("pricing");
+    if (rows[0].kind === "pricing") {
+      expect(rows[0].product_id).toBe("prod-uuid");
+      expect(rows[0].price_channel).toBe("b2b");
+      expect(rows[0].calculated_price).toBe(450);
+    }
+  });
+
+  it("lists moq drafts using product_moq_rules field names (Point 27, Finding 2)", async () => {
+    const service = createCatalogueApprovalService(
+      mockClient({
+        moqDrafts: [
+          {
+            id: "m1",
+            operation: "create",
+            status: "pending_approval",
+            submitted_at: "2026-08-01T00:00:00Z",
+            target_record_id: null,
+            payload: {
+              scope: "product_moq_rule",
+              product_id: "prod-uuid",
+              channel: "distributor",
+              moq_applicable: true,
+              moq_value: 5,
+              moq_uom: "kg",
+            },
+          },
+        ],
+      }),
+    );
+
+    const rows = await service.listPendingMoqDrafts();
+    expect(rows[0].kind).toBe("moq");
+    if (rows[0].kind === "moq") {
+      expect(rows[0].channel).toBe("distributor");
+      expect(rows[0].moq_value).toBe(5);
+      expect(rows[0].moq_uom).toBe("kg");
+    }
+  });
+
+  it("calls approve_catalogue_pricing_draft / approve_catalogue_moq_draft RPCs", async () => {
+    const rpc = vi.fn().mockResolvedValue({
+      data: { ok: true, action: "approved" },
+      error: null,
+    });
+    const service = createCatalogueApprovalService(mockClient({ rpc }));
+
+    const pricingOutcome = await service.approvePricingDraft("draft-3");
+    expect(rpc).toHaveBeenCalledWith("approve_catalogue_pricing_draft", { draft_id: "draft-3" });
+    expect(pricingOutcome.kind).toBe("pricing_approved");
+
+    const moqOutcome = await service.approveMoqDraft("draft-4");
+    expect(rpc).toHaveBeenCalledWith("approve_catalogue_moq_draft", { draft_id: "draft-4" });
+    expect(moqOutcome.kind).toBe("moq_approved");
+  });
+
   it("does not treat ok:false approve as success", async () => {
     const service = createCatalogueApprovalService(
       mockClient({
@@ -185,13 +271,17 @@ describe("catalogue approval service", () => {
 });
 
 describe("CatalogueApprovalService contract", () => {
-  it("exposes tag and alias approve/reject methods", () => {
+  it("exposes tag, alias, pricing, and moq approve/reject methods", () => {
     const service: CatalogueApprovalService = createCatalogueApprovalService(
       mockClient({}),
     );
     expect(typeof service.approveTagDraft).toBe("function");
     expect(typeof service.approveAliasDraft).toBe("function");
+    expect(typeof service.approvePricingDraft).toBe("function");
+    expect(typeof service.approveMoqDraft).toBe("function");
     expect(typeof service.rejectTagDraft).toBe("function");
     expect(typeof service.rejectAliasDraft).toBe("function");
+    expect(typeof service.rejectPricingDraft).toBe("function");
+    expect(typeof service.rejectMoqDraft).toBe("function");
   });
 });

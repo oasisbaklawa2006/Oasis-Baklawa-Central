@@ -13,6 +13,8 @@ export {
 export {
   parseAliasDraftView,
   parseCatalogueDraftView,
+  parseMoqDraftView,
+  parsePricingDraftView,
   parseTagDraftView,
 } from "./parseCatalogueApprovalPayload";
 export type {
@@ -24,6 +26,8 @@ export type {
   CatalogueApprovalRpcResult,
   CatalogueDraftKind,
   CatalogueDraftView,
+  CatalogueMoqDraftView,
+  CataloguePricingDraftView,
   CatalogueTagDraftView,
 } from "./catalogueApprovalTypes";
 export {

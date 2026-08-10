@@ -17,27 +17,35 @@ import {
 
 type CentralSupabase = SupabaseClient<Database>;
 
-const TAG_DRAFT_SELECT =
-  "id, operation, status, payload, submitted_at, target_record_id";
-const ALIAS_DRAFT_SELECT = TAG_DRAFT_SELECT;
+const DRAFT_SELECT = "id, operation, status, payload, submitted_at, target_record_id";
 
 const APPROVE_RPC_BY_KIND = {
   tag: "approve_catalogue_tag_draft",
   alias: "approve_catalogue_alias_draft",
+  pricing: "approve_catalogue_pricing_draft",
+  moq: "approve_catalogue_moq_draft",
 } as const;
 
 const REJECT_RPC_BY_KIND = {
   tag: "reject_catalogue_tag_draft",
   alias: "reject_catalogue_alias_draft",
+  pricing: "reject_catalogue_pricing_draft",
+  moq: "reject_catalogue_moq_draft",
 } as const;
 
 export interface CatalogueApprovalService {
   listPendingTagDrafts(): Promise<CatalogueDraftView[]>;
   listPendingAliasDrafts(): Promise<CatalogueDraftView[]>;
+  listPendingPricingDrafts(): Promise<CatalogueDraftView[]>;
+  listPendingMoqDrafts(): Promise<CatalogueDraftView[]>;
   approveTagDraft(draftId: string): Promise<CatalogueApprovalOutcome>;
   approveAliasDraft(draftId: string): Promise<CatalogueApprovalOutcome>;
+  approvePricingDraft(draftId: string): Promise<CatalogueApprovalOutcome>;
+  approveMoqDraft(draftId: string): Promise<CatalogueApprovalOutcome>;
   rejectTagDraft(draftId: string, reason: string): Promise<CatalogueApprovalOutcome>;
   rejectAliasDraft(draftId: string, reason: string): Promise<CatalogueApprovalOutcome>;
+  rejectPricingDraft(draftId: string, reason: string): Promise<CatalogueApprovalOutcome>;
+  rejectMoqDraft(draftId: string, reason: string): Promise<CatalogueApprovalOutcome>;
 }
 
 export function createCatalogueApprovalService(
@@ -45,10 +53,9 @@ export function createCatalogueApprovalService(
 ): CatalogueApprovalService {
   async function listPending(kind: CatalogueDraftKind): Promise<CatalogueDraftView[]> {
     const table = CATALOGUE_DRAFT_TABLE_BY_KIND[kind];
-    const select = kind === "tag" ? TAG_DRAFT_SELECT : ALIAS_DRAFT_SELECT;
     const { data, error } = await client
       .from(table)
-      .select(select)
+      .select(DRAFT_SELECT)
       .eq("status", PENDING_CATALOGUE_DRAFT_STATUS)
       .order("submitted_at", { ascending: false });
 
@@ -96,10 +103,16 @@ export function createCatalogueApprovalService(
   return {
     listPendingTagDrafts: () => listPending("tag"),
     listPendingAliasDrafts: () => listPending("alias"),
+    listPendingPricingDrafts: () => listPending("pricing"),
+    listPendingMoqDrafts: () => listPending("moq"),
     approveTagDraft: (draftId) => callApprove("tag", draftId),
     approveAliasDraft: (draftId) => callApprove("alias", draftId),
+    approvePricingDraft: (draftId) => callApprove("pricing", draftId),
+    approveMoqDraft: (draftId) => callApprove("moq", draftId),
     rejectTagDraft: (draftId, reason) => callReject("tag", draftId, reason),
     rejectAliasDraft: (draftId, reason) => callReject("alias", draftId, reason),
+    rejectPricingDraft: (draftId, reason) => callReject("pricing", draftId, reason),
+    rejectMoqDraft: (draftId, reason) => callReject("moq", draftId, reason),
   };
 }
 

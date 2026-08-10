@@ -124,6 +124,15 @@ const GST_RATES = [0, 5, 12, 18, 28];
 const DIETARY_OPTIONS = ["100% Eggless", "Contains Nuts", "Vegan", "Gluten-Free", "Sugar-Free", "No Preservatives"];
 const STORAGE_OPTIONS = ["ambient", "refrigerated", "frozen"];
 
+const MAX_PRODUCT_IMAGE_BYTES = 10485760;
+const ALLOWED_PRODUCT_IMAGE_MIME_TYPES = [
+  "image/jpeg",
+  "image/png",
+  "image/webp",
+  "image/gif",
+  "image/avif",
+];
+
 export const EMPTY_FORM = {
   name: "",
   sku: "",
@@ -193,9 +202,12 @@ const AdminProducts = () => {
   const [rejectedAliases, setRejectedAliases] = useState<string[]>([]);
   const [selectedSuggestedAliases, setSelectedSuggestedAliases] = useState<string[]>([]);
   const [nutritionReviewStatus, setNutritionReviewStatus] = useState<NutritionReviewStatus>("manual");
+  // Point 27, Finding 3: AI-generated allergen/ingredient/HSN/GST data (handleAiFullGenerate)
+  // must not silently become saved product truth - require explicit human review before save.
+  const [aiComplianceUnreviewed, setAiComplianceUnreviewed] = useState(false);
 
   const [isAiLoading, setIsAiLoading] = useState<string | null>(null);
-  const [formData, setFormData] = useState<any>({ ...EMPTY_FORM });
+  const [formData, setFormData] = useState<typeof EMPTY_FORM>({ ...EMPTY_FORM });
 
   // BOM state
   const [bomComponents, setBomComponents] = useState<BomComponent[]>([]);
@@ -290,13 +302,13 @@ const AdminProducts = () => {
       .select("*")
       .eq("product_id", productId)
       .order("created_at");
-    const components = (data || []).map((d: any) => ({
-      id: d.id,
-      component_product_id: d.component_product_id,
-      component_name: d.component_name || "",
-      quantity_per_unit: d.quantity_per_unit || 1,
+    const components = (data || []).map((d: Record<string, unknown>) => ({
+      id: d.id as string,
+      component_product_id: d.component_product_id as string | null,
+      component_name: (d.component_name as string) || "",
+      quantity_per_unit: (d.quantity_per_unit as number) || 1,
       uom: d.source_department ? "Gms" : "Pcs",
-      source_department: d.source_department || "",
+      source_department: (d.source_department as string) || "",
       unit_cost: 0,
     }));
     if (applyState) setBomComponents(components);
@@ -316,12 +328,12 @@ const AdminProducts = () => {
         defaultCategory: CATEGORIES[0],
       });
       const components = await loadBom(productId, false);
-      const { data: varData } = await (supabase as any)
+      const { data: varData } = await supabase
         .from("product_variants")
         .select("*")
         .eq("product_id", productId)
         .order("created_at");
-      const loadedVariants = (varData || []).map((v: any) => ({
+      const loadedVariants = (varData || []).map((v) => ({
         id: v.id,
         variant_name: v.variant_name,
         price: v.price,
@@ -352,11 +364,12 @@ const AdminProducts = () => {
       setRejectedAliases([]);
       setSelectedSuggestedAliases([]);
       setNutritionReviewStatus(nutritionReviewStatusFromFacts(nextForm.nutrition_facts));
+      setAiComplianceUnreviewed(false);
       setSaveStatus("idle");
       setSaveError(null);
-    } catch (err: any) {
+    } catch (err) {
       if (shouldApplyLoadedProduct(generation, loadGenerationRef.current)) {
-        toast.error(err.message || "Failed to load product");
+        toast.error(err instanceof Error ? err.message : "Failed to load product");
       }
     } finally {
       if (
@@ -456,7 +469,7 @@ const AdminProducts = () => {
         .substring(0, 3)
         .toUpperCase()
         .replace(/[^A-Z]/g, "X");
-      setFormData((prev: any) => ({ ...prev, sku: `OAS-${prefix}-${prev.net_weight_grams}` }));
+      setFormData((prev: typeof EMPTY_FORM) => ({ ...prev, sku: `OAS-${prefix}-${prev.net_weight_grams}` }));
     }
   }, [formData.name, formData.net_weight_grams, editingProduct]);
 
@@ -470,6 +483,9 @@ const AdminProducts = () => {
       return next;
     });
     if (name === "nutrition_facts") setNutritionReviewStatus("manual");
+    if (name === "allergen_warnings" || name === "ingredients" || name === "hsn_code" || name === "gst_percentage") {
+      setAiComplianceUnreviewed(false);
+    }
   };
 
   const handleToggleDietaryTag = (tag: string) => {
@@ -517,10 +533,11 @@ const AdminProducts = () => {
         gst_percentage: data.gst_percentage?.toString() || prev.gst_percentage,
         ingredients: data.ingredients || prev.ingredients,
       }));
+      setAiComplianceUnreviewed(true);
       toast.success("AI generated HSN, GST, allergens & ingredients — review before save.", { icon: "⚡" });
-    } catch (err: any) {
+    } catch (err) {
       console.error("AI generation error:", err);
-      toast.error(err.message || "AI generation failed. Try again.");
+      toast.error(err instanceof Error ? err.message : "AI generation failed. Try again.");
     } finally {
       setIsAiLoading(null);
     }
@@ -545,8 +562,8 @@ const AdminProducts = () => {
     try {
       const prompt = `Suggest 8 common B2B nicknames for ${productName}${formData.category ? ` in ${formData.category}` : ""}. Return only a comma-separated list.`;
 
-      const SUPABASE_URL = (import.meta as any).env?.VITE_SUPABASE_URL;
-      const SUPABASE_KEY = (import.meta as any).env?.VITE_SUPABASE_PUBLISHABLE_KEY;
+      const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
+      const SUPABASE_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
       const { data: sessionData } = await supabase.auth.getSession();
       const authToken = sessionData?.session?.access_token || SUPABASE_KEY;
 
@@ -611,10 +628,10 @@ const AdminProducts = () => {
         return;
       }
       toast.message(`AI suggested ${accepted.length} aliases — review before saving.`, { icon: "✨" });
-    } catch (err: any) {
+    } catch (err) {
       clearTimeout(timeoutId);
       console.error("AI aliases error:", err);
-      if (err?.name === "AbortError") {
+      if (err instanceof Error && err.name === "AbortError") {
         toast.error("AI is busy. Please type common nicknames (e.g. Kitta, Pyramid) manually for now.");
       } else {
         toast.error("AI is busy. Please type common nicknames (e.g. Kitta, Pyramid) manually for now.");
@@ -649,6 +666,17 @@ const AdminProducts = () => {
     try {
       if (!e.target.files || e.target.files.length === 0) return;
       const file = e.target.files[0];
+      // Mirrors the product-images storage bucket's server-side enforcement (Core migration
+      // 20260809211500_enforce_product_images_bucket_limits.sql) so the operator gets immediate
+      // feedback instead of a storage rejection after the upload has already started.
+      if (file.size > MAX_PRODUCT_IMAGE_BYTES) {
+        return toast.error(
+          `"${file.name}" is too large (max ${Math.floor(MAX_PRODUCT_IMAGE_BYTES / (1024 * 1024))}MB).`,
+        );
+      }
+      if (file.type && !ALLOWED_PRODUCT_IMAGE_MIME_TYPES.includes(file.type)) {
+        return toast.error(`"${file.name}" has an unsupported file type (${file.type}).`);
+      }
       setUploadingImage(true);
       const fileExt = file.name.split(".").pop();
       const fileName = `${Math.random().toString(36).substring(2)}-${Date.now()}.${fileExt}`;
@@ -657,8 +685,8 @@ const AdminProducts = () => {
       const { data: publicUrlData } = supabase.storage.from("product-images").getPublicUrl(fileName);
       updateFormData((prev) => ({ ...prev, image_url: publicUrlData.publicUrl }));
       toast.success("Image uploaded successfully!");
-    } catch (error: any) {
-      toast.error(error.message || "Failed to upload image");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to upload image");
     } finally {
       setUploadingImage(false);
     }
@@ -685,6 +713,7 @@ const AdminProducts = () => {
     setRejectedAliases([]);
     setSelectedSuggestedAliases([]);
     setNutritionReviewStatus("manual");
+    setAiComplianceUnreviewed(false);
     setProductIdInUrl(null);
     setIsPanelOpen(true);
   };
@@ -743,7 +772,7 @@ const AdminProducts = () => {
     setBomSearchResults([]);
     setBomSearchingIdx(null);
   };
-  const updateBomComponent = (index: number, field: keyof BomComponent, value: any) => {
+  const updateBomComponent = (index: number, field: keyof BomComponent, value: BomComponent[keyof BomComponent]) => {
     setBomComponents((prev) =>
       prev.map((c, i) => (i === index ? { ...c, [field]: value } : c))
     );
@@ -754,6 +783,11 @@ const AdminProducts = () => {
   };
 
   const handleSaveProduct = async () => {
+    if (aiComplianceUnreviewed) {
+      return toast.error(
+        "AI-generated allergen, ingredient, HSN, and GST data must be reviewed before saving. Use \"Mark as reviewed\" in the Food Compliance section once you've verified it.",
+      );
+    }
     if (!formData.name || !formData.wholesale_price) return toast.error("Name and B2B Base Price (₹) are required.");
     if (!formData.production_department) return toast.error("Target Department is mandatory for order routing.");
     if (!isAllowedProductProductionDepartment(formData.production_department)) {
@@ -807,7 +841,7 @@ const AdminProducts = () => {
     setSaveError(null);
 
     const numericPayload = mapNumericFieldsToPayload(formData);
-    const payload: any = {
+    const payload: Record<string, unknown> = {
       name: formData.name,
       sku: formData.sku || null,
       category: formData.category || null,
@@ -846,9 +880,14 @@ const AdminProducts = () => {
       let productId = editingProduct?.id;
 
       if (editingProduct) {
+        // payload is assembled from loosely-typed form state, not the strict generated Insert/Update
+        // shape (e.g. nullable sku/category vs. required string) — a form-model refactor to make this
+        // safely strict is out of scope here.
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const { error } = await (supabase as any).from("products").update(payload).eq("id", editingProduct.id);
         if (error) throw error;
       } else {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const { data: newProd, error } = await (supabase as any).from("products").insert([payload]).select("id").single();
         if (error) throw error;
         productId = newProd.id;
@@ -883,7 +922,7 @@ const AdminProducts = () => {
 
       // Save Variants
       if (productId) {
-        await (supabase as any).from("product_variants").delete().eq("product_id", productId);
+        await supabase.from("product_variants").delete().eq("product_id", productId);
         if (formData.enable_variants && productVariants.length > 0) {
           const variantRows = productVariants
             .filter((v: ProductVariant) => v.variant_name.trim())
@@ -896,7 +935,7 @@ const AdminProducts = () => {
               is_active: v.is_active ?? true,
             }));
           if (variantRows.length > 0) {
-            await (supabase as any).from("product_variants").insert(variantRows);
+            await supabase.from("product_variants").insert(variantRows);
           }
         }
       }
@@ -905,8 +944,11 @@ const AdminProducts = () => {
       await loadProductIntoForm(productId);
       setSaveStatus("saved");
       toast.success(editingProduct ? "Product saved successfully" : "New product added to catalog!");
-    } catch (err: any) {
-      const message = err?.message || err?.details || "Failed to save product";
+    } catch (err) {
+      const message =
+        (err as { message?: string; details?: string } | null)?.message ||
+        (err as { message?: string; details?: string } | null)?.details ||
+        "Failed to save product";
       setSaveStatus("error");
       setSaveError(message);
       toast.error(`Save failed: ${message}`);
@@ -1424,7 +1466,7 @@ const AdminProducts = () => {
                                       >
                                         <span className="font-medium text-foreground truncate">{p.name}</span>
                                         <span className="text-[9px] text-muted-foreground ml-2 shrink-0">
-                                          ₹{(p as any).wholesale_price || 0} • {(p as any).production_department || "No Dept"}
+                                          ₹{p.wholesale_price || 0} • {p.production_department || "No Dept"}
                                         </span>
                                       </button>
                                     ))}
@@ -1889,6 +1931,25 @@ const AdminProducts = () => {
                     )}
                     {isAiLoading === "full" ? "Generating AI Attributes..." : "⚡ Generate AI Details (Allergens, HSN, GST, Ingredients)"}
                   </button>
+
+                  {aiComplianceUnreviewed && (
+                    <div className="flex items-center justify-between gap-3 rounded-lg border border-destructive/40 bg-destructive/5 p-3">
+                      <p className="text-xs text-destructive font-medium">
+                        ⚠️ AI-generated allergen/ingredient/HSN/GST data is unreviewed and cannot be
+                        saved yet.
+                      </p>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setAiComplianceUnreviewed(false);
+                          toast.message("AI-generated compliance data marked as reviewed.", { icon: "✅" });
+                        }}
+                        className="shrink-0 rounded-md border border-destructive/40 px-3 py-1.5 text-xs font-semibold text-destructive hover:bg-destructive/10 transition-colors"
+                      >
+                        Mark as reviewed
+                      </button>
+                    </div>
+                  )}
 
                   <button
                     type="button"

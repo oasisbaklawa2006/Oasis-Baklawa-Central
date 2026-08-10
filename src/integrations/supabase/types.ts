@@ -2088,6 +2088,108 @@ export type Database = {
         }
         Relationships: []
       }
+      catalogue_moq_drafts: {
+        Row: {
+          created_at: string
+          id: string
+          operation: string
+          payload: Json
+          reviewed_at: string | null
+          reviewed_by: string | null
+          review_notes: string | null
+          source_app: string
+          status: string
+          submitted_at: string | null
+          submitted_by: string | null
+          target_record_id: string | null
+          target_table: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          operation: string
+          payload?: Json
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          review_notes?: string | null
+          source_app?: string
+          status?: string
+          submitted_at?: string | null
+          submitted_by?: string | null
+          target_record_id?: string | null
+          target_table?: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          operation?: string
+          payload?: Json
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          review_notes?: string | null
+          source_app?: string
+          status?: string
+          submitted_at?: string | null
+          submitted_by?: string | null
+          target_record_id?: string | null
+          target_table?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      catalogue_pricing_drafts: {
+        Row: {
+          created_at: string
+          id: string
+          operation: string
+          payload: Json
+          reviewed_at: string | null
+          reviewed_by: string | null
+          review_notes: string | null
+          source_app: string
+          status: string
+          submitted_at: string | null
+          submitted_by: string | null
+          target_record_id: string | null
+          target_table: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          operation: string
+          payload?: Json
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          review_notes?: string | null
+          source_app?: string
+          status?: string
+          submitted_at?: string | null
+          submitted_by?: string | null
+          target_record_id?: string | null
+          target_table?: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          operation?: string
+          payload?: Json
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          review_notes?: string | null
+          source_app?: string
+          status?: string
+          submitted_at?: string | null
+          submitted_by?: string | null
+          target_record_id?: string | null
+          target_table?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       companies: {
         Row: {
           account_manager_id: string | null
@@ -5702,6 +5804,16 @@ export type Database = {
         Returns: Json
       }
       reject_catalogue_alias_draft: {
+        Args: { draft_id: string; reason: string }
+        Returns: Json
+      }
+      approve_catalogue_pricing_draft: { Args: { draft_id: string }; Returns: Json }
+      approve_catalogue_moq_draft: { Args: { draft_id: string }; Returns: Json }
+      reject_catalogue_pricing_draft: {
+        Args: { draft_id: string; reason: string }
+        Returns: Json
+      }
+      reject_catalogue_moq_draft: {
         Args: { draft_id: string; reason: string }
         Returns: Json
       }
