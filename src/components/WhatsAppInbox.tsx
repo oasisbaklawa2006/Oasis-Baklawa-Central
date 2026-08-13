@@ -90,6 +90,7 @@ import {
 import { useOperatorInboxDraftOrderExtraction } from "@/components/whatsapp/useOperatorInboxDraftOrderExtraction";
 import { useOperatorInboxSalesOrderDraft } from "@/components/whatsapp/useOperatorInboxSalesOrderDraft";
 import { buildWhatsAppOperationalFeed, normalizeWhatsAppEvents } from "@/lib/operational-events";
+import { Wa1PotentialOrderQueueStrip } from "@/components/whatsapp/Wa1PotentialOrderQueueStrip";
 
 const REALTIME_CHANNEL = "whatsapp-inbox-packets";
 const PACKET_FETCH_LIMIT = 1000;
@@ -830,6 +831,7 @@ export function WhatsAppInbox() {
       <div className="sr-only" aria-live="polite" aria-atomic="true">
         {selectionAnnouncement}
       </div>
+      <Wa1PotentialOrderQueueStrip />
       {showObservabilityStrip ? (
         <OperatorInboxObservabilityPanel
           snapshot={observability.snapshot}
