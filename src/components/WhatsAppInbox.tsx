@@ -151,6 +151,11 @@ interface GovernedPotentialOrder {
   owner_id: string | null;
 }
 
+interface GovernedEvidenceLink {
+  potential_order_id: string;
+  provider_message_id: string;
+}
+
 export function WhatsAppInbox() {
   const { user } = useAuth();
   const whatsappAuthority = useWhatsAppPermissions();
@@ -163,6 +168,7 @@ export function WhatsAppInbox() {
   const [refreshError, setRefreshError] = useState<string | null>(null);
   const [replyText, setReplyText] = useState("");
   const [potentialOrders, setPotentialOrders] = useState<GovernedPotentialOrder[]>([]);
+  const [evidenceLinks, setEvidenceLinks] = useState<GovernedEvidenceLink[]>([]);
   const replyIdempotencyRef = useRef<{ signature: string; key: string } | null>(null);
   const [replySending, setReplySending] = useState(false);
   const [classifyLoading, setClassifyLoading] = useState(false);
@@ -350,8 +356,7 @@ export function WhatsAppInbox() {
         setLoading(true);
       }
 
-      const [{ data: packetsData, error: packetsError }, { data: potentialData, error: potentialError }] = await Promise.all([
-        supabase
+      const { data: packetsData, error: packetsError } = await supabase
         // whatsapp_* tables not in generated Database types yet
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         .from("whatsapp_message_packets" as any)
@@ -373,26 +378,46 @@ export function WhatsAppInbox() {
         )
         .eq("status", "open")
         .order("last_message_at", { ascending: false })
-        .limit(PACKET_FETCH_LIMIT),
-        // Core WA authority table is not yet represented in Central's generated frontend schema.
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        (supabase as any)
-          .from("whatsapp_potential_orders")
-          .select("id,provider_message_id,state,queue,next_action,next_action_due_at,owner_id")
-          .eq("disposition", "ACTIVE_PENDING")
-          .order("next_action_due_at", { ascending: true })
-          .limit(PACKET_FETCH_LIMIT),
-      ]);
+        .limit(PACKET_FETCH_LIMIT);
 
       if (packetsError) throw packetsError;
-      if (potentialError) throw potentialError;
-      setPotentialOrders((potentialData ?? []) as GovernedPotentialOrder[]);
 
       const rows = (packetsData ?? []) as unknown as OperatorInboxPacket[];
       const ids = rows.map((r) => r.id);
       const { byPacket: messagesByPacket, errors: batchMessageErrors } = await fetchMessagesForPacketIdsBatch(ids);
-      if (batchMessageErrors.length > 0) {
-        setMessagesBatchWarnings(batchMessageErrors);
+      const providerMessageIds = Array.from(
+        new Set(
+          Array.from(messagesByPacket.values())
+            .flat()
+            .map((message) => message.provider_message_id)
+            .filter((value): value is string => Boolean(value)),
+        ),
+      );
+
+      let potentialData: unknown[] = [];
+      let potentialError: { message: string } | null = null;
+      let evidenceData: unknown[] = [];
+      let evidenceError: { message: string } | null = null;
+      if (providerMessageIds.length > 0) {
+        const [potentialResult, evidenceResult] = await Promise.all([
+          // Core WA authority table is not yet represented in Central's generated frontend schema.
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          (supabase as any)
+            .from("whatsapp_potential_orders")
+            .select("id,provider_message_id,state,queue,next_action,next_action_due_at,owner_id")
+            .eq("disposition", "ACTIVE_PENDING")
+            .in("provider_message_id", providerMessageIds),
+          // Core WA evidence table is not yet represented in Central's generated frontend schema.
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          (supabase as any)
+            .from("whatsapp_commercial_evidence")
+            .select("potential_order_id,provider_message_id")
+            .in("provider_message_id", providerMessageIds),
+        ]);
+        potentialData = (potentialResult.data ?? []) as unknown[];
+        potentialError = potentialResult.error;
+        evidenceData = (evidenceResult.data ?? []) as unknown[];
+        evidenceError = evidenceResult.error;
       }
 
       const enrichedPackets = rows.map((packet) => {
@@ -409,8 +434,16 @@ export function WhatsAppInbox() {
 
       if (gen !== inboxLoadGenerationRef.current) return;
 
-      if (batchMessageErrors.length > 0) {
-        setMessagesBatchWarnings(batchMessageErrors);
+      const governanceWarnings = [
+        potentialError ? `Governed potential-order context unavailable: ${potentialError.message}` : null,
+        evidenceError ? `Governed evidence links unavailable: ${evidenceError.message}` : null,
+      ].filter((warning): warning is string => Boolean(warning));
+
+      setPotentialOrders(potentialData as GovernedPotentialOrder[]);
+      setEvidenceLinks(evidenceData as GovernedEvidenceLink[]);
+
+      if (batchMessageErrors.length > 0 || governanceWarnings.length > 0) {
+        setMessagesBatchWarnings([...batchMessageErrors, ...governanceWarnings]);
       }
 
       setPackets(enrichedPackets);
@@ -451,8 +484,15 @@ export function WhatsAppInbox() {
         .map((message) => message.provider_message_id)
         .filter((value): value is string => Boolean(value)),
     );
-    return potentialOrders.find((potential) => providerIds.has(potential.provider_message_id)) ?? null;
-  }, [potentialOrders, selectedPacket]);
+    const linkedPotentialIds = new Set(
+      evidenceLinks
+        .filter((evidence) => providerIds.has(evidence.provider_message_id))
+        .map((evidence) => evidence.potential_order_id),
+    );
+    return potentialOrders.find(
+      (potential) => providerIds.has(potential.provider_message_id) || linkedPotentialIds.has(potential.id),
+    ) ?? null;
+  }, [evidenceLinks, potentialOrders, selectedPacket]);
 
   const handleSendReply = useCallback(async () => {
     const trimmed = replyText.trim();
@@ -1570,6 +1610,11 @@ export function WhatsAppInbox() {
                       <p>
                         {selectedPotentialOrder.state.replace(/_/g, " ")} · {selectedPotentialOrder.queue}
                         {selectedPotentialOrder.owner_id ? " · assigned" : " · explicitly unassigned"}
+                      </p>
+                      <p className="mt-1">
+                        Next action due: {selectedPotentialOrder.next_action_due_at
+                          ? new Date(selectedPotentialOrder.next_action_due_at).toLocaleString()
+                          : "not scheduled"}
                       </p>
                     </div>
                   ) : null}
