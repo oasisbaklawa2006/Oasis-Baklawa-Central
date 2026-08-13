@@ -1057,8 +1057,22 @@ serve(async (req) => {
     // Guard: skip outgoing echoes or status updates
     const direction: string = (payload?.direction as string) || (payload?.statuses ? "status" : "");
     if (direction === "outgoing" || direction === "sent" || direction === "status") {
-      if (payload?.statuses) {
-        console.log("Status update received, skipping:", JSON.stringify(payload.statuses).substring(0, 200));
+      if (Array.isArray(payload?.statuses)) {
+        for (const statusEvent of payload.statuses) {
+          const providerMessageId = String(statusEvent?.id ?? statusEvent?.message_id ?? "").trim();
+          const providerStatus = String(statusEvent?.status ?? "").trim().toUpperCase();
+          if (!providerMessageId || !["ACCEPTED", "DELIVERED", "READ"].includes(providerStatus)) continue;
+          const { error: statusError } = await supabaseAdmin.rpc("record_whatsapp_operator_reply_status", {
+            p_reply_id: statusEvent?.metadata?.reply_id ?? null,
+            p_provider: "click2api",
+            p_provider_message_id: providerMessageId,
+            p_status: providerStatus,
+            p_evidence: { provider_timestamp: statusEvent?.timestamp ?? null },
+          });
+          if (statusError && !statusError.message.includes("WA5_STATUS_BOUNDARY_OR_REGRESSION")) {
+            console.error("Governed outbound status reconciliation failed", statusError.message);
+          }
+        }
       }
       return new Response(JSON.stringify({ ok: true, skipped: "outgoing/status" }), {
         status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },

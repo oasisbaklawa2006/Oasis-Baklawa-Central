@@ -1,202 +1,59 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { createClient, type SupabaseClient } from "npm:@supabase/supabase-js@2.45.0";
+import { createClient } from "npm:@supabase/supabase-js@2.95.0";
 import { requireInternalStaff } from "../_shared/requireInternalStaff.ts";
 
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers":
-    "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
-  "Access-Control-Allow-Methods": "POST, OPTIONS",
-};
-
-const MAX_MESSAGE_LENGTH = 4_000;
-type AdminClient = SupabaseClient;
-
-type ReplyPayload = {
-  packet_id?: unknown;
-  contact_id?: unknown;
-  phone_number?: unknown;
-  message?: unknown;
-};
-
-type SendWhatsAppResult = {
-  success?: boolean;
-  provider?: string;
-  messageId?: string;
-  error?: string;
-  status?: number;
-};
-
-function json(body: Record<string, unknown>, status: number): Response {
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: { ...corsHeaders, "Content-Type": "application/json" },
-  });
-}
-
-function canonicalizePhone(value: string): string | null {
-  const digits = value.replace(/[^0-9]/g, "");
-  const canonical = digits.length === 10 ? `91${digits}` : digits;
-  return canonical.length >= 10 && canonical.length <= 15 ? canonical : null;
-}
-
-async function sendOperatorReply(
-  supabaseAdmin: AdminClient,
-  payload: {
-    packetId: string;
-    contactId: string;
-    requestedPhoneNumber: string;
-    message: string;
-  },
-): Promise<{ success: boolean; message_id?: string; error?: string }> {
-  const { data: packet, error: packetError } = await supabaseAdmin
-    .from("whatsapp_message_packets")
-    .select("id, contact_id")
-    .eq("id", payload.packetId)
-    .maybeSingle();
-  if (packetError || !packet || packet.contact_id !== payload.contactId) {
-    return { success: false, error: "Packet and contact do not match" };
-  }
-
-  const { data: contact, error: contactError } = await supabaseAdmin
-    .from("whatsapp_contacts")
-    .select("id, phone_number")
-    .eq("id", payload.contactId)
-    .maybeSingle();
-  const storedPhoneNumber =
-    typeof contact?.phone_number === "string" ? canonicalizePhone(contact.phone_number) : null;
-  if (
-    contactError ||
-    !contact ||
-    !storedPhoneNumber ||
-    storedPhoneNumber !== payload.requestedPhoneNumber
-  ) {
-    return { success: false, error: "Contact and phone number do not match" };
-  }
-
-  const { data: messageData, error: messageError } = await supabaseAdmin
-    .from("whatsapp_messages")
-    .insert({
-      contact_id: payload.contactId,
-      packet_id: payload.packetId,
-      direction: "outbound",
-      message_type: "text",
-      content: payload.message,
-      provider: "operator_reply",
-      provider_message_id: null,
-      status: "pending",
-      message_timestamp: new Date().toISOString(),
-      is_raw: false,
-    })
-    .select("id")
-    .single();
-
-  if (messageError || !messageData) {
-    return {
-      success: false,
-      error: `Failed to create message record: ${messageError?.message ?? "no row"}`,
-    };
-  }
-
-  const messageId = String(messageData.id);
-  const supabaseUrl = Deno.env.get("SUPABASE_URL")!.replace(/\/$/, "");
-  const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-  const response = await fetch(`${supabaseUrl}/functions/v1/send-whatsapp`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${serviceKey}`,
-      apikey: serviceKey,
-    },
-    body: JSON.stringify({
-      to: storedPhoneNumber,
-      message: payload.message,
-      order_id: null,
-      company_id: null,
-    }),
-  });
-
-  const sendResult = (await response.json().catch(() => ({
-    error: "Invalid JSON from send-whatsapp",
-  }))) as SendWhatsAppResult;
-
-  if (response.ok && sendResult.success === true) {
-    await supabaseAdmin
-      .from("whatsapp_messages")
-      .update({
-        status: "delivered",
-        provider_message_id: sendResult.messageId ? String(sendResult.messageId) : null,
-        provider: sendResult.provider ?? "click2api",
-        failure_reason: null,
-      })
-      .eq("id", messageId);
-
-    return { success: true, message_id: messageId };
-  }
-
-  const error = sendResult.error || `send-whatsapp failed (HTTP ${response.status})`;
-  await supabaseAdmin
-    .from("whatsapp_messages")
-    .update({ status: "failed", failure_reason: error })
-    .eq("id", messageId);
-
-  return { success: false, error };
-}
+const headers = { "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type", "Content-Type": "application/json" };
+const endpoint = "https://crm.click2api.in/api/v1/messages";
+const reply = (body: Record<string, unknown>, status: number) => new Response(JSON.stringify(body), { status, headers });
 
 serve(async (req) => {
-  if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
-  if (req.method !== "POST") return json({ error: "Method not allowed" }, 405);
-
+  if (req.method === "OPTIONS") return new Response(null, { headers });
+  if (req.method !== "POST") return reply({ success: false, error: "Method not allowed" }, 405);
   const authorization = await requireInternalStaff(req);
-  if (!authorization.ok) {
-    return json({ success: false, error: authorization.error }, authorization.status);
-  }
-  if (authorization.caller.kind !== "staff" || !authorization.caller.userId) {
-    return json({ success: false, error: "A staff user session is required" }, 403);
-  }
-
+  if (!authorization.ok || authorization.caller.kind !== "staff") return reply({ success: false, error: authorization.ok ? "Staff session required" : authorization.error }, authorization.ok ? 403 : authorization.status);
+  const authHeader = req.headers.get("Authorization");
+  const url = Deno.env.get("SUPABASE_URL");
+  const anonKey = Deno.env.get("SUPABASE_ANON_KEY");
+  const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+  if (!authHeader || !url || !anonKey || !serviceKey) return reply({ success: false, error: "Service configuration unavailable" }, 500);
   try {
-    const payload = (await req.json()) as ReplyPayload;
-    if (
-      typeof payload.packet_id !== "string" ||
-      typeof payload.contact_id !== "string" ||
-      typeof payload.phone_number !== "string" ||
-      typeof payload.message !== "string"
-    ) {
-      return json(
-        {
-          success: false,
-          error: "Missing required fields: packet_id, contact_id, phone_number, message",
-        },
-        400,
-      );
+    const body = await req.json();
+    if (![body.packet_id, body.contact_id, body.phone_number, body.message, body.idempotency_key].every((v) => typeof v === "string" && v.trim())) return reply({ success: false, error: "packet_id, contact_id, phone_number, message and idempotency_key are required" }, 400);
+    const userClient = createClient(url, anonKey, { global: { headers: { Authorization: authHeader } }, auth: { persistSession: false } });
+    const admin = createClient(url, serviceKey, { auth: { persistSession: false } });
+    const queued = await userClient.rpc("enqueue_whatsapp_operator_reply", { p_packet_id: body.packet_id, p_contact_id: body.contact_id, p_recipient_phone: body.phone_number, p_message_body: body.message, p_idempotency_key: body.idempotency_key, p_potential_order_id: body.potential_order_id ?? null, p_clarification_task_id: body.clarification_task_id ?? null, p_message_type: body.template_name ? "TEMPLATE" : "TEXT", p_template_name: body.template_name ?? null, p_template_language: body.template_language ?? null, p_media_reference: null, p_disclosure_scope: body.disclosure_scope ?? [] });
+    if (queued.error || !queued.data?.id) return reply({ success: false, error: queued.error?.message ?? "Core enqueue failed" }, 403);
+    if (["ACCEPTED", "DELIVERED", "READ"].includes(queued.data.status)) return reply({ success: true, reply_id: queued.data.id, status: queued.data.status }, 200);
+    if (queued.data.status === "ACCEPTANCE_UNKNOWN") return reply({ success: false, reply_id: queued.data.id, status: queued.data.status, error: "Provider acceptance is being reconciled; retry suppressed" }, 202);
+    const claimed = await admin.rpc("claim_whatsapp_operator_reply", { p_worker_id: `operator-edge:${authorization.caller.userId}`, p_reply_id: queued.data.id, p_lease_seconds: 60 });
+    if (claimed.error || !claimed.data?.lease_token) return reply({ success: false, reply_id: queued.data.id, error: "Reply already processing or not retryable" }, 409);
+    const apiKey = Deno.env.get("CLICK2API_API_KEY");
+    const token = Deno.env.get("CLICK2API_ACCESS_TOKEN");
+    if (!apiKey) {
+      await admin.rpc("fail_whatsapp_operator_reply", { p_reply_id: claimed.data.id, p_lease_token: claimed.data.lease_token, p_error_code: "PROVIDER_NOT_CONFIGURED", p_error_detail: "CLICK2API_API_KEY absent", p_acceptance_unknown: false });
+      return reply({ success: false, reply_id: claimed.data.id, error: "WhatsApp provider unavailable" }, 503);
     }
-
-    const message = payload.message.trim();
-    const requestedPhoneNumber = canonicalizePhone(payload.phone_number);
-    if (!message || message.length > MAX_MESSAGE_LENGTH || !requestedPhoneNumber) {
-      return json({ success: false, error: "Invalid phone number or message" }, 400);
+    let providerResponse: Response;
+    try {
+      const providerPayload = claimed.data.message_type === "TEMPLATE"
+        ? { messaging_product: "whatsapp", to: claimed.data.recipient_phone_e164.replace(/^\+/, ""), type: "template", template: { name: claimed.data.template_name, language: { code: claimed.data.template_language } } }
+        : { messaging_product: "whatsapp", to: claimed.data.recipient_phone_e164.replace(/^\+/, ""), type: "text", text: { body: claimed.data.message_body } };
+      providerResponse = await fetch(endpoint, { method: "POST", signal: AbortSignal.timeout(20_000), headers: { "Content-Type": "application/json", apikey: apiKey, ...(token ? { Authorization: `Bearer ${token}` } : {}) }, body: JSON.stringify(providerPayload) });
+    } catch (error) {
+      await admin.rpc("fail_whatsapp_operator_reply", { p_reply_id: claimed.data.id, p_lease_token: claimed.data.lease_token, p_error_code: "NETWORK_TIMEOUT", p_error_detail: error instanceof Error ? error.message : String(error), p_acceptance_unknown: true });
+      return reply({ success: false, reply_id: claimed.data.id, status: "ACCEPTANCE_UNKNOWN", error: "Provider acceptance unknown; duplicate retry suppressed" }, 202);
     }
-
-    const supabaseUrl = Deno.env.get("SUPABASE_URL");
-    const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
-    if (!supabaseUrl || !serviceRoleKey) {
-      return json({ success: false, error: "Supabase service is not configured" }, 500);
+    const providerBody = await providerResponse.json().catch(() => ({}));
+    const providerId = providerBody.message_id ?? providerBody.id;
+    if (providerResponse.ok && providerId) {
+      const completed = await admin.rpc("complete_whatsapp_operator_reply", { p_reply_id: claimed.data.id, p_lease_token: claimed.data.lease_token, p_provider: "click2api", p_provider_message_id: String(providerId) });
+      if (completed.error) return reply({ success: false, reply_id: claimed.data.id, error: "Provider accepted; local reconciliation pending" }, 202);
+      return reply({ success: true, reply_id: claimed.data.id, provider_message_id: providerId, status: "ACCEPTED" }, 200);
     }
-
-    const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey, {
-      auth: { persistSession: false },
-    });
-    const result = await sendOperatorReply(supabaseAdmin, {
-      packetId: payload.packet_id,
-      contactId: payload.contact_id,
-      requestedPhoneNumber,
-      message,
-    });
-
-    return json(result, result.success ? 200 : 400);
+    await admin.rpc("fail_whatsapp_operator_reply", { p_reply_id: claimed.data.id, p_lease_token: claimed.data.lease_token, p_error_code: `HTTP_${providerResponse.status}`, p_error_detail: providerBody.message ?? "Provider rejected request", p_acceptance_unknown: false });
+    return reply({ success: false, reply_id: claimed.data.id, error: "Provider rejected reply" }, 502);
   } catch (error) {
-    console.error("[whatsapp-operator-reply] error:", error);
-    return json({ success: false, error: "Unable to send operator reply" }, 500);
+    console.error("[whatsapp-operator-reply]", error instanceof Error ? error.message : "unknown error");
+    return reply({ success: false, error: "Unable to process operator reply" }, 500);
   }
 });
