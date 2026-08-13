@@ -411,11 +411,8 @@ export function WhatsAppInbox() {
       }
     } finally {
       if (gen === inboxLoadGenerationRef.current) {
-        if (silent) {
-          setIsRefreshing(false);
-        } else {
-          setLoading(false);
-        }
+        setIsRefreshing(false);
+        setLoading(false);
       }
     }
   }, []);
