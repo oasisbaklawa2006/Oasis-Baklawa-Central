@@ -131,4 +131,24 @@ describe("operator inbox Stage-1 guardrails", () => {
       "send-whatsapp-automation",
     );
   });
+
+  it("operator replies consume the Core-governed retry-safe contract", () => {
+    const edge = readRepoFile("supabase/functions/whatsapp-operator-reply/index.ts");
+    const inbox = readRepoSource(REPO_ROOT, WHATSAPP_INBOX_INVOKE_SCAN_FILE);
+    expect(edge).toContain('rpc("enqueue_whatsapp_operator_reply"');
+    expect(edge).toContain('rpc("claim_whatsapp_operator_reply"');
+    expect(edge).toContain('rpc("complete_whatsapp_operator_reply"');
+    expect(edge).toContain('rpc("fail_whatsapp_operator_reply"');
+    expect(edge).toContain("p_acceptance_unknown: true");
+    expect(edge).not.toMatch(/console\.(log|error).*CLICK2API_(API_KEY|ACCESS_TOKEN)/);
+    expect(inbox).toContain('whatsappAuthority.has("wa.reply.send")');
+    expect(inbox).toContain("idempotency_key: replyIdempotencyRef.current.key");
+    expect(inbox).not.toContain("operator_id:");
+  });
+
+  it("provider status callbacks reconcile the Core outbox", () => {
+    const webhook = readRepoFile("supabase/functions/whatsapp-webhook/index.ts");
+    expect(webhook).toContain('rpc("record_whatsapp_operator_reply_status"');
+    expect(webhook).toContain('["ACCEPTED", "DELIVERED", "READ"]');
+  });
 });
