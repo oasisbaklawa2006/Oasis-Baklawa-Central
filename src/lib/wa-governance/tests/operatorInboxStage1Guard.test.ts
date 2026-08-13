@@ -154,9 +154,17 @@ describe("operator inbox Stage-1 guardrails", () => {
 
   it("WhatsApp ingress authenticates handshakes and POSTs without logging secrets or payloads", () => {
     const webhook = readRepoFile("supabase/functions/whatsapp-webhook/index.ts");
+    const click2ApiAuth = readRepoFile("supabase/functions/_shared/click2apiWebhookAuth.ts");
     expect(webhook).toContain('Deno.env.get("WHATSAPP_WEBHOOK_VERIFY_TOKEN")');
     expect(webhook).toContain('Deno.env.get("WHATSAPP_WEBHOOK_SECRET")');
-    expect(webhook).toContain('req.headers.get("x-webhook-secret")');
+    expect(webhook).toContain("authenticateClick2ApiWebhook(");
+    expect(click2ApiAuth).toContain('request.headers.get("x-webhook-secret")');
+    expect(click2ApiAuth).toContain('searchParams.get("echo")');
+    expect(webhook).toContain('.from("whatsapp_inbound_messages")');
+    expect(webhook).toContain('rpc("capture_whatsapp_potential_order"');
+    expect(webhook).toContain("commercial_eligible: input.orderLike");
+    expect(webhook.indexOf("ensureCorePotentialCapture(supabaseAdmin")).toBeLessThan(webhook.indexOf("WAMID IDEMPOTENCY GUARD"));
+    expect(webhook).toContain('status: 503');
     expect(webhook).toContain('status: 401');
     expect(webhook).toContain('status: 403');
     expect(webhook).not.toContain("Handshake Token Candidates");
