@@ -143,7 +143,18 @@ describe("operator inbox Stage-1 guardrails", () => {
     expect(edge).not.toMatch(/console\.(log|error).*CLICK2API_(API_KEY|ACCESS_TOKEN)/);
     expect(inbox).toContain('whatsappAuthority.has("wa.reply.send")');
     expect(inbox).toContain("idempotency_key: replyIdempotencyRef.current.key");
+    expect(inbox).toContain("potential_order_id: selectedPotentialOrder?.id ?? null");
+    expect(inbox).toContain("Governed action:");
     expect(inbox).not.toContain("operator_id:");
+  });
+
+  it("System Settings never hydrates or writes WhatsApp secrets in browser state", () => {
+    const settings = readRepoFile("src/pages/admin/AdminSettings.tsx");
+    expect(settings).not.toContain('from("whatsapp_config")');
+    expect(settings).not.toContain("api_key");
+    expect(settings).not.toContain("webhook_secret");
+    expect(settings).not.toContain('functions.invoke("send-whatsapp"');
+    expect(settings).toContain("Secrets are server-managed");
   });
 
   it("provider status callbacks reconcile the Core outbox", () => {
