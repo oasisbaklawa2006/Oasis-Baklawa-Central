@@ -15,7 +15,7 @@ export interface Message {
   packet_id?: string | null;
 }
 
-/** Packet row shape for the operator inbox (read-only UI). */
+/** Packet row shape for the operator inbox; mutations use governed Edge/Core contracts only. */
 export interface OperatorInboxPacket {
   id: string;
   contact_id: string;
