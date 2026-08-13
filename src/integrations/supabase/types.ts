@@ -5647,6 +5647,54 @@ export type Database = {
         }
         Relationships: []
       }
+      whatsapp_commercial_packets: {
+        Row: {
+          conversation_key: string
+          created_at: string
+          first_received_at: string
+          id: string
+          last_received_at: string
+          merged_into_packet_id: string | null
+          potential_order_id: string
+          processing_state: string
+          sender_key: string
+          split_from_packet_id: string | null
+          status: string
+          updated_at: string
+          version: number
+        }
+        Insert: {
+          conversation_key: string
+          created_at?: string
+          first_received_at: string
+          id?: string
+          last_received_at: string
+          merged_into_packet_id?: string | null
+          potential_order_id: string
+          processing_state?: string
+          sender_key: string
+          split_from_packet_id?: string | null
+          status?: string
+          updated_at?: string
+          version?: number
+        }
+        Update: {
+          conversation_key?: string
+          created_at?: string
+          first_received_at?: string
+          id?: string
+          last_received_at?: string
+          merged_into_packet_id?: string | null
+          potential_order_id?: string
+          processing_state?: string
+          sender_key?: string
+          split_from_packet_id?: string | null
+          status?: string
+          updated_at?: string
+          version?: number
+        }
+        Relationships: []
+      }
       whatsapp_config: {
         Row: {
           api_key: string

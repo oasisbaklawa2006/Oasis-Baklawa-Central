@@ -92,6 +92,7 @@ import { useOperatorInboxSalesOrderDraft } from "@/components/whatsapp/useOperat
 import { buildWhatsAppOperationalFeed, normalizeWhatsAppEvents } from "@/lib/operational-events";
 import { Wa1PotentialOrderQueueStrip } from "@/components/whatsapp/Wa1PotentialOrderQueueStrip";
 import { Wa3ClarificationQueueStrip } from "@/components/whatsapp/Wa3ClarificationQueueStrip";
+import { Wa4EvidenceQueueStrip } from "@/components/whatsapp/Wa4EvidenceQueueStrip";
 import { useWhatsAppPermissions } from "@/hooks/useWhatsAppPermissions";
 
 const REALTIME_CHANNEL = "whatsapp-inbox-packets";
@@ -834,6 +835,7 @@ export function WhatsAppInbox() {
       </div>
       <Wa1PotentialOrderQueueStrip />
       <Wa3ClarificationQueueStrip />
+      <Wa4EvidenceQueueStrip />
       {showObservabilityStrip ? (
         <OperatorInboxObservabilityPanel
           snapshot={observability.snapshot}
