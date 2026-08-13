@@ -84,13 +84,28 @@ async function ensureCorePotentialCapture(
   }
 
   if (!input.orderLike) return;
-  const { error: captureError } = await supabaseAdmin.rpc("capture_whatsapp_potential_order", {
+  const { data: potentialOrder, error: captureError } = await supabaseAdmin.rpc("capture_whatsapp_potential_order", {
     p_source_message_id: sourceMessageId,
     p_order_like: true,
     p_interpretation_failed: false,
     p_evidence: { ingress: "click2api", authentication: "verified", capture_contract: "wa1" },
   });
   if (captureError) throw new Error(`WA1_CORE_POTENTIAL_CAPTURE_FAILED: ${captureError.message}`);
+  if (!potentialOrder?.id) throw new Error("WA1_CORE_POTENTIAL_CAPTURE_FAILED: missing authority row");
+
+  const hasMedia = input.messageType.toLowerCase() !== "text";
+  const { error: evidenceError } = await supabaseAdmin.rpc("capture_whatsapp_commercial_fragment_for_potential", {
+    p_potential_order_id: potentialOrder.id,
+    p_source_message_id: sourceMessageId,
+    p_media_count: hasMedia ? 1 : 0,
+    p_interpretation_failed: hasMedia,
+    p_evidence: {
+      ingress: "click2api",
+      authentication: "verified",
+      fail_open_media_review: hasMedia,
+    },
+  });
+  if (evidenceError) throw new Error(`WA4_CORE_EVIDENCE_CAPTURE_FAILED: ${evidenceError.message}`);
 }
 
 // ── PHONE HELPERS ──
