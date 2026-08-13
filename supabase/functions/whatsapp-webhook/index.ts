@@ -26,6 +26,13 @@ const HELD_ORDER_MAX_AGE_MS = 72 * 60 * 60 * 1000;
 const FOLLOWUP_PARSE_MAX_CHARS = 280;
 const CONFIRM_FOLLOWUP_MAX_CHARS = 80;
 
+function secretMatches(received: string | null, expected: string | undefined): boolean {
+  if (!received || !expected || received.length !== expected.length) return false;
+  let difference = 0;
+  for (let index = 0; index < received.length; index += 1) difference |= received.charCodeAt(index) ^ expected.charCodeAt(index);
+  return difference === 0;
+}
+
 /** Substrings that indicate order-ish commerce intent when paired with classifier output (see handler). */
 const ORDER_INTENT_KEYWORDS = [
   "need", "order", "send", "want", "box", "boxes", "carton", "cartons",
@@ -826,23 +833,23 @@ serve(async (req) => {
   if (req.method === "GET") {
     const url = new URL(req.url);
     const queryEntries = Array.from(url.searchParams.entries());
-    console.log(`Handshake Query Params: ${JSON.stringify(queryEntries)}`);
     const challengeParamNames = ["challange", "challenge", "hub.challenge", "hub_challenge"];
     const tokenParamNames = ["echo", "hub.verify_token", "verify_token"];
     const challengeEntry = queryEntries.find(([key]) => challengeParamNames.includes(key.toLowerCase()));
-    const tokenEntries = queryEntries.filter(([key]) => tokenParamNames.includes(key.toLowerCase()));
-    if (tokenEntries.length > 0) {
-      console.log(`Handshake Token Candidates: [${tokenEntries.map(([k, v]) => `${k}=${v}`).join(", ")}]`);
-    }
-    if (challengeEntry) {
-      console.log(`Handshake Successful: Responding to [${challengeEntry[0]}] with value [${challengeEntry[1]}]`);
+    const tokenEntry = queryEntries.find(([key]) => tokenParamNames.includes(key.toLowerCase()));
+    if (challengeEntry && secretMatches(tokenEntry?.[1] ?? null, Deno.env.get("WHATSAPP_WEBHOOK_VERIFY_TOKEN"))) {
       return new Response(challengeEntry[1], { status: 200, headers: { "Content-Type": "text/plain; charset=utf-8" } });
     }
-    return new Response("Oasis OS Webhook Active", { status: 200, headers: { "Content-Type": "text/plain; charset=utf-8" } });
+    return new Response("Webhook verification failed", { status: 403, headers: { "Content-Type": "text/plain; charset=utf-8" } });
   }
 
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
+  }
+
+  const webhookSecret = req.headers.get("x-webhook-secret") ?? req.headers.get("x-click2api-signature");
+  if (!secretMatches(webhookSecret, Deno.env.get("WHATSAPP_WEBHOOK_SECRET"))) {
+    return new Response(JSON.stringify({ ok: false, error: "Unauthorized webhook" }), { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } });
   }
 
   const supabaseAdmin = createClient(
@@ -855,7 +862,7 @@ serve(async (req) => {
     const waOwnerReassignmentEnabled = isWaWebhookOwnerReassignmentEnabled((k) => Deno.env.get(k));
 
     const payload = await req.json();
-    console.log("Incoming WhatsApp webhook:", JSON.stringify(payload).substring(0, 1000));
+    console.log("Incoming authenticated WhatsApp webhook", { hasStatuses: Array.isArray(payload?.statuses), direction: payload?.direction ?? "inbound" });
 
     const { senderPhone, messageBody, messageType, mediaUrl, mediaMime, messageId, profileName, timestampSec } =
       extractPayloadFields(payload);

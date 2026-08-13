@@ -151,4 +151,15 @@ describe("operator inbox Stage-1 guardrails", () => {
     expect(webhook).toContain('rpc("record_whatsapp_operator_reply_status"');
     expect(webhook).toContain('["ACCEPTED", "DELIVERED", "READ"]');
   });
+
+  it("WhatsApp ingress authenticates handshakes and POSTs without logging secrets or payloads", () => {
+    const webhook = readRepoFile("supabase/functions/whatsapp-webhook/index.ts");
+    expect(webhook).toContain('Deno.env.get("WHATSAPP_WEBHOOK_VERIFY_TOKEN")');
+    expect(webhook).toContain('Deno.env.get("WHATSAPP_WEBHOOK_SECRET")');
+    expect(webhook).toContain('req.headers.get("x-webhook-secret")');
+    expect(webhook).toContain('status: 401');
+    expect(webhook).toContain('status: 403');
+    expect(webhook).not.toContain("Handshake Token Candidates");
+    expect(webhook).not.toContain('console.log("Incoming WhatsApp webhook:", JSON.stringify(payload)');
+  });
 });
