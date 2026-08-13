@@ -18,6 +18,7 @@ import NotFound from "./pages/NotFound.tsx";
 import ErrorBoundary from "./components/ErrorBoundary.tsx";
 import AuthErrorListener from "./components/AuthErrorListener.tsx";
 import RoleProtectedRoute from "@/components/RoleProtectedRoute";
+import { WhatsAppPermissionRoute } from "@/components/WhatsAppPermissionRoute";
 import AdminModuleRoute from "@/components/AdminModuleRoute";
 import { AuthProvider, useAuth } from "@/hooks/useAuth";
 import { getRoleDestination, isStaffRole, isStorefrontRole, normalizeRole } from "@/lib/auth-routing";
@@ -269,8 +270,8 @@ const App = () => (
                     <Route path="moq" element={<AdminMOQ />} />
                     <Route path="currency" element={<AdminCurrency />} />
                     <Route path="support" element={<AdminSupport />} />
-                    <Route path="operator-inbox" element={<OperatorInbox />} />
-                    <Route path="whatsapp" element={<OperatorInbox />} />
+                    <Route path="operator-inbox" element={<WhatsAppPermissionRoute permission="wa.intake.read"><OperatorInbox /></WhatsAppPermissionRoute>} />
+                    <Route path="whatsapp" element={<WhatsAppPermissionRoute permission="wa.intake.read"><OperatorInbox /></WhatsAppPermissionRoute>} />
                     <Route path="settings" element={<AdminSettings />} />
                     <Route path="audit" element={<AdminAudit />} />
                     <Route path="department" element={<AdminDepartment />} />

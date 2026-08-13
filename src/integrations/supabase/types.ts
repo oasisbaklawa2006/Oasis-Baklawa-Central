@@ -5765,6 +5765,8 @@ export type Database = {
       }
     }
     Functions: {
+      get_my_whatsapp_permissions: { Args: never; Returns: string[] }
+      has_whatsapp_permission: { Args: { p_permission_key: string }; Returns: boolean }
       get_user_role: { Args: { _user_id: string }; Returns: string }
       increment_announcement_counter: {
         Args: { ann_id: string; counter_name: string }
