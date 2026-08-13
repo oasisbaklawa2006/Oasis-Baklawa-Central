@@ -152,6 +152,7 @@ export function WhatsAppInbox() {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [refreshError, setRefreshError] = useState<string | null>(null);
   const [replyText, setReplyText] = useState("");
+  const replyIdempotencyRef = useRef<{ signature: string; key: string } | null>(null);
   const [replySending, setReplySending] = useState(false);
   const [classifyLoading, setClassifyLoading] = useState(false);
   const [routeLoading, setRouteLoading] = useState(false);
@@ -424,6 +425,10 @@ export function WhatsAppInbox() {
   const handleSendReply = useCallback(async () => {
     const trimmed = replyText.trim();
     if (!trimmed || !selectedPacket) return;
+    if (!whatsappAuthority.has("wa.reply.send")) {
+      alert("You do not have permission to send WhatsApp replies.");
+      return;
+    }
 
     const digits = String(selectedPacket.phone_number ?? "").replace(/\D/g, "");
     if (digits.length < 10) {
@@ -433,13 +438,17 @@ export function WhatsAppInbox() {
 
     setReplySending(true);
     try {
+      const signature = `${selectedPacket.id}:${selectedPacket.contact_id}:${trimmed}`;
+      if (replyIdempotencyRef.current?.signature !== signature) {
+        replyIdempotencyRef.current = { signature, key: crypto.randomUUID() };
+      }
       const { data, error: invokeError } = await supabase.functions.invoke("whatsapp-operator-reply", {
         body: {
           packet_id: selectedPacket.id,
           contact_id: selectedPacket.contact_id,
           phone_number: selectedPacket.phone_number,
           message: trimmed,
-          operator_id: user?.id,
+          idempotency_key: replyIdempotencyRef.current.key,
         },
       });
 
@@ -451,6 +460,7 @@ export function WhatsAppInbox() {
       const result = data as { success?: boolean; error?: string } | null;
       if (result?.success) {
         setReplyText("");
+        replyIdempotencyRef.current = null;
         await loadPackets({ silent: true });
       } else {
         alert(`Failed to send: ${result?.error ?? "Unknown error"}`);
@@ -461,7 +471,7 @@ export function WhatsAppInbox() {
     } finally {
       setReplySending(false);
     }
-  }, [replyText, selectedPacket, user?.id, loadPackets]);
+  }, [replyText, selectedPacket, loadPackets, whatsappAuthority]);
 
   const handleClassifyIntent = useCallback(async () => {
     if (!selectedPacket) return;
@@ -1533,14 +1543,14 @@ export function WhatsAppInbox() {
                         }
                       }}
                       placeholder="Type a reply..."
-                      disabled={replySending}
+                      disabled={replySending || !whatsappAuthority.has("wa.reply.send")}
                       aria-label="Operator reply message draft"
                       className="flex-1 rounded-full border border-gray-300 bg-white px-4 py-2 focus:border-green-500 focus:outline-none focus-visible:ring-2 focus-visible:ring-green-600 focus-visible:ring-offset-2 disabled:bg-gray-100"
                     />
                     <button
                       type="button"
                       onClick={() => void handleSendReply()}
-                      disabled={replySending || !replyText.trim()}
+                      disabled={replySending || !replyText.trim() || !whatsappAuthority.has("wa.reply.send")}
                       aria-label="Send WhatsApp reply"
                       className="rounded-full bg-green-500 px-6 py-2 font-medium text-white transition hover:bg-green-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-700 focus-visible:ring-offset-2 disabled:bg-gray-300"
                     >
