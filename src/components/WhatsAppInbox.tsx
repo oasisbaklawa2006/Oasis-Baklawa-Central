@@ -410,11 +410,12 @@ export function WhatsAppInbox() {
         console.error("Inbox error:", err);
       }
     } finally {
-      if (gen !== inboxLoadGenerationRef.current) return;
-      if (silent) {
-        setIsRefreshing(false);
-      } else {
-        setLoading(false);
+      if (gen === inboxLoadGenerationRef.current) {
+        if (silent) {
+          setIsRefreshing(false);
+        } else {
+          setLoading(false);
+        }
       }
     }
   }, []);
