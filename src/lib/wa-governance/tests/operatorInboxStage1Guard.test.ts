@@ -162,6 +162,8 @@ describe("operator inbox Stage-1 guardrails", () => {
     expect(click2ApiAuth).toContain('searchParams.get("echo")');
     expect(webhook).toContain('.from("whatsapp_inbound_messages")');
     expect(webhook).toContain('rpc("capture_whatsapp_potential_order"');
+    expect(webhook).toContain('rpc("capture_whatsapp_commercial_fragment_for_potential"');
+    expect(webhook).toContain("p_interpretation_failed: hasMedia");
     expect(webhook).toContain("commercial_eligible: input.orderLike");
     expect(webhook.indexOf("ensureCorePotentialCapture(supabaseAdmin")).toBeLessThan(webhook.indexOf("WAMID IDEMPOTENCY GUARD"));
     expect(webhook).toContain('status: 503');
