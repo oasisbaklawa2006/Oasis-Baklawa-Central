@@ -567,6 +567,24 @@ describe("createSalesOrderDraft version recovery", () => {
       if (table === "sales_order_draft_lines" || table === "sales_order_draft_audit_log") {
         return chainMock({ data: [], error: null });
       }
+      if (table === "whatsapp_messages") {
+        const query = {
+          eq: vi.fn(),
+          not: vi.fn().mockResolvedValue({ data: [{ provider_message_id: "wamid-1" }], error: null }),
+        };
+        query.eq.mockReturnValue(query);
+        return { select: vi.fn().mockReturnValue(query) };
+      }
+      if (table === "whatsapp_potential_orders") {
+        const query = {
+          in: vi.fn(),
+          eq: vi.fn(),
+          limit: vi.fn().mockResolvedValue({ data: [{ id: "potential-1" }], error: null }),
+        };
+        query.in.mockReturnValue(query);
+        query.eq.mockReturnValue(query);
+        return { select: vi.fn().mockReturnValue(query) };
+      }
       return chainMock({ data: [], error: null });
     });
 
@@ -583,6 +601,10 @@ describe("createSalesOrderDraft version recovery", () => {
 
     expect(bundle.draft.id).toBe("draft-2");
     expect(rpcMock).toHaveBeenCalledWith("create_sales_order_draft_atomic", expect.any(Object));
+    expect(rpcMock).toHaveBeenCalledWith("link_whatsapp_potential_order_draft", {
+      p_potential_order_id: "potential-1",
+      p_draft_id: "draft-2",
+    });
   });
 });
 

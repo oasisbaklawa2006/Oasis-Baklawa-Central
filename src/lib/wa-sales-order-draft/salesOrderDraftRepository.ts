@@ -99,9 +99,13 @@ export async function createSalesOrderDraft(
     ) {
       throw new Error(STALE_EXTRACTION_DRAFT_MESSAGE);
     } else {
+      const potentialOrderId = await resolvePotentialOrderForPacket(input.extracted.packetId);
+      await linkPotentialOrderDraft(potentialOrderId, existing.draft.id);
       return existing;
     }
   }
+
+  const potentialOrderId = await resolvePotentialOrderForPacket(input.extracted.packetId);
 
   const { data: draftId, error: createError } = await supabase.rpc("create_sales_order_draft_atomic", {
     p_header: buildDraftHeaderRpcPayload(input) as Json,
@@ -129,6 +133,7 @@ export async function createSalesOrderDraft(
           throw new Error(STALE_EXTRACTION_DRAFT_MESSAGE);
         }
         if (retryBundle.draft.status !== "REJECTED") {
+          await linkPotentialOrderDraft(potentialOrderId, retryBundle.draft.id);
           return retryBundle;
         }
       }
@@ -137,6 +142,7 @@ export async function createSalesOrderDraft(
   }
 
   if (draftId) {
+    await linkPotentialOrderDraft(potentialOrderId, draftId);
     const byId = await fetchSalesOrderDraftById(draftId);
     if (byId) return byId;
   }
@@ -144,6 +150,38 @@ export async function createSalesOrderDraft(
   const bundle = await fetchSalesOrderDraftByPacket(input.extracted.packetId);
   if (!bundle) throw new Error("Failed to reload created sales order draft.");
   return bundle;
+}
+
+type Wa3QueryResult = { data: Record<string, string>[] | null; error: { message: string } | null };
+type Wa3FilterQuery = PromiseLike<Wa3QueryResult> & {
+  eq(column: string, value: string): Wa3FilterQuery;
+  not(column: string, operator: "is", value: null): Wa3FilterQuery;
+  in(column: string, values: string[]): Wa3FilterQuery;
+  limit(count: number): Wa3FilterQuery;
+};
+type Wa3LinkReadClient = {
+  from(table: string): { select(columns: string): Wa3FilterQuery };
+  rpc(name: "link_whatsapp_potential_order_draft", args: { p_potential_order_id: string; p_draft_id: string }): PromiseLike<{ error: { message: string } | null }>;
+};
+
+async function resolvePotentialOrderForPacket(packetId: string): Promise<string> {
+  const client = supabase as unknown as Wa3LinkReadClient;
+  const { data: messages, error: messageError } = await client.from("whatsapp_messages")
+    .select("provider_message_id").eq("packet_id", packetId).eq("direction", "inbound").not("provider_message_id", "is", null);
+  if (messageError) throw new Error(messageError.message);
+  const providerIds = [...new Set((messages ?? []).map((row: { provider_message_id: string }) => row.provider_message_id).filter(Boolean))];
+  if (providerIds.length === 0) throw new Error("Core zero-loss intake linkage is unavailable for this packet.");
+  const { data: potentials, error: potentialError } = await client.from("whatsapp_potential_orders")
+    .select("id").in("provider_message_id", providerIds).eq("disposition", "ACTIVE_PENDING").limit(2);
+  if (potentialError) throw new Error(potentialError.message);
+  if (potentials?.length !== 1) throw new Error("Exactly one governed potential order must match this WhatsApp packet before draft creation.");
+  return potentials[0].id;
+}
+
+async function linkPotentialOrderDraft(potentialOrderId: string, draftId: string): Promise<void> {
+  const client = supabase as unknown as Wa3LinkReadClient;
+  const { error } = await client.rpc("link_whatsapp_potential_order_draft", { p_potential_order_id: potentialOrderId, p_draft_id: draftId });
+  if (error) throw new Error(error.message);
 }
 
 export async function submitSalesOrderDraftForReviewWithOperatorSync(
