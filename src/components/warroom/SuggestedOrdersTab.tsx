@@ -172,6 +172,10 @@ export default function SuggestedOrdersTab({ activeCompanies }: Props) {
     setPromoting(row.id);
     try {
       const items = parseItems(row.extracted_items);
+      if (items.length === 0) {
+        toast.error("Clarification required: no complete order lines were extracted.");
+        return;
+      }
       const unresolved = items.filter((item) => item.quantity == null || item.quantity <= 0 || !item.unit);
       if (unresolved.length > 0) {
         toast.error("Clarification required: confirm quantity and unit for every item before creating a draft.");
