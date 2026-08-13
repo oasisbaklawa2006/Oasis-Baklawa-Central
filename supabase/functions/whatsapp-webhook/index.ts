@@ -94,12 +94,13 @@ async function aiParseOrder(
   aliases: { alias_text: string; canonical_name: string; product_id?: string | null }[]
 ): Promise<{
   items: { productId: string; productName: string; quantity: number; confidence: number }[];
+  hadIncompleteItems: boolean;
   businessInfo: { name?: string; address?: string; gst?: string; city?: string } | null;
 }> {
   const apiKey = Deno.env.get("LOVABLE_API_KEY");
   if (!apiKey) {
     console.log("LOVABLE_API_KEY not set, falling back to rule-based parsing");
-    return { items: [], businessInfo: null };
+    return { items: [], businessInfo: null, hadIncompleteItems: false };
   }
 
   const productList = products.slice(0, 100).map((p) => `${p.name} (SKU: ${p.sku || "N/A"})`).join("\n");
@@ -118,14 +119,14 @@ MESSAGE:
 
 Return JSON ONLY:
 {
-  "items": [{"product_name": "exact catalog name", "quantity": number, "confidence": 0.0-1.0}],
+  "items": [{"product_name": "exact catalog name", "quantity": number or null, "confidence": 0.0-1.0}],
   "business_info": {"name": "if mentioned", "address": "if mentioned", "gst": "GST number if mentioned", "city": "if mentioned"} or null
 }
 
 Rules:
 - Match misspelled/abbreviated product names to the closest catalog item
 - Use aliases mapping when possible
-- If quantity is unclear, default to 1 with confidence 0.5
+- If quantity is unclear, return null. Never invent a quantity.
 - confidence: 1.0 = exact match, 0.7+ = high, 0.4-0.7 = medium, <0.4 = low
 - Extract any business details (name, address, GST) from the message`;
 
@@ -146,14 +147,16 @@ Rules:
 
     if (!res.ok) {
       console.error(`AI Gateway error: ${res.status}`);
-      return { items: [], businessInfo: null };
+      return { items: [], businessInfo: null, hadIncompleteItems: true };
     }
 
     const data = await res.json();
     const content = data.choices?.[0]?.message?.content || "{}";
     const parsed = JSON.parse(content);
 
-    const mappedItems = (parsed.items || []).map((item: any) => {
+    const parsedItems = Array.isArray(parsed.items) ? parsed.items : [];
+    let hadIncompleteItems = false;
+    const mappedItems = parsedItems.map((item: any) => {
       const match = products.find(
         (p) => p.name.toLowerCase() === (item.product_name || "").toLowerCase()
       ) || products.find(
@@ -162,15 +165,18 @@ Rules:
         (p) => (item.product_name || "").toLowerCase().includes(p.name.toLowerCase())
       );
 
-      return match
-        ? { productId: match.id, productName: match.name, quantity: item.quantity || 1, confidence: item.confidence || 0.5 }
+      const quantity = typeof item.quantity === "number" ? item.quantity : null;
+      const valid = Boolean(match) && quantity !== null && Number.isFinite(quantity) && quantity > 0;
+      if (!valid) hadIncompleteItems = true;
+      return valid && match
+        ? { productId: match.id, productName: match.name, quantity, confidence: Number(item.confidence) || 0.5 }
         : null;
     }).filter(Boolean);
 
-    return { items: mappedItems, businessInfo: parsed.business_info || null };
+    return { items: mappedItems, businessInfo: parsed.business_info || null, hadIncompleteItems };
   } catch (e) {
     console.error("AI parse error:", e);
-    return { items: [], businessInfo: null };
+    return { items: [], businessInfo: null, hadIncompleteItems: true };
   }
 }
 
@@ -215,7 +221,7 @@ function aliasMatchProduct(
   return bestProduct;
 }
 
-function parseQuantity(text: string): number {
+function parseQuantity(text: string): number | null {
   const patterns = [
     /(\d+)\s*(?:box|boxes|carton|cartons|pcs|pieces|kg|packs?)/i,
     /(?:need|send|want|order)\s*(\d+)/i,
@@ -223,9 +229,12 @@ function parseQuantity(text: string): number {
   ];
   for (const pat of patterns) {
     const m = text.match(pat);
-    if (m) return parseInt(m[1], 10);
+    if (m) {
+      const quantity = parseInt(m[1], 10);
+      return Number.isFinite(quantity) && quantity > 0 ? quantity : null;
+    }
   }
-  return 1;
+  return null;
 }
 
 // ── RULE-BASED INTENT CLASSIFICATION ──
@@ -1490,27 +1499,30 @@ serve(async (req) => {
       if (!skipNewOrderPipeline) {
         const aiResult = await aiParseOrder(messageBody, products, aliases);
         let orderItems: ParsedOrderItem[] = aiResult.items;
+        let hasIncompleteOrderEvidence = aiResult.hadIncompleteItems;
 
         if (orderItems.length === 0) {
           const matched = aliasMatchProduct(messageBody, products, aliases);
           const qty = parseQuantity(messageBody);
           console.log(`Rule-based match: ${matched ? matched.name : "NONE"}, qty: ${qty}`);
-          if (matched) {
+          if (matched && qty !== null && Number.isFinite(qty) && qty > 0) {
             orderItems = [{ productId: matched.id, productName: matched.name, quantity: qty, confidence: 0.7 }];
+          } else if (matched) {
+            hasIncompleteOrderEvidence = true;
           }
         }
 
         if (documentParseResult && documentParseResult.items.length > 0) {
           for (const docItem of documentParseResult.items) {
             const matched = aliasMatchProduct(docItem.name, products, aliases);
-            if (matched && !orderItems.find((oi) => oi.productId === matched.id)) {
+            if (matched && Number.isFinite(docItem.qty) && docItem.qty > 0 && !orderItems.find((oi) => oi.productId === matched.id)) {
               orderItems.push({
                 productId: matched.id,
                 productName: matched.name,
                 quantity: docItem.qty,
                 confidence: 0.8,
               });
-            }
+            } else if (matched) hasIncompleteOrderEvidence = true;
           }
         }
 
@@ -1647,7 +1659,7 @@ serve(async (req) => {
               outcome: existingHeld?.id ? "clarification_hold_updated" : "clarification_hold",
             });
           }
-        } else if (orderItems.length > 0 || hasOrderIntent) {
+        } else if (orderItems.length > 0 && !hasIncompleteOrderEvidence) {
           console.log(`Creating draft order for ${companyId}, items: ${orderItems.length}`);
           const { data: draftOrder, error: orderErr } = await supabaseAdmin
             .from("orders")

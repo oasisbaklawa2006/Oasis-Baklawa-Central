@@ -91,6 +91,7 @@ import { useOperatorInboxDraftOrderExtraction } from "@/components/whatsapp/useO
 import { useOperatorInboxSalesOrderDraft } from "@/components/whatsapp/useOperatorInboxSalesOrderDraft";
 import { buildWhatsAppOperationalFeed, normalizeWhatsAppEvents } from "@/lib/operational-events";
 import { Wa1PotentialOrderQueueStrip } from "@/components/whatsapp/Wa1PotentialOrderQueueStrip";
+import { Wa3ClarificationQueueStrip } from "@/components/whatsapp/Wa3ClarificationQueueStrip";
 import { useWhatsAppPermissions } from "@/hooks/useWhatsAppPermissions";
 
 const REALTIME_CHANNEL = "whatsapp-inbox-packets";
@@ -832,6 +833,7 @@ export function WhatsAppInbox() {
         {selectionAnnouncement}
       </div>
       <Wa1PotentialOrderQueueStrip />
+      <Wa3ClarificationQueueStrip />
       {showObservabilityStrip ? (
         <OperatorInboxObservabilityPanel
           snapshot={observability.snapshot}

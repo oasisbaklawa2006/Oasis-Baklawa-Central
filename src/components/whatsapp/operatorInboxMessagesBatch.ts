@@ -35,7 +35,7 @@ export async function fetchMessagesForPacketIdsBatch(
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         .from("whatsapp_messages" as any)
         .select(
-          "id, content, message_type, direction, created_at, packet_sequence, status, provider, packet_id",
+          "id, content, message_type, direction, created_at, packet_sequence, status, provider, provider_message_id, packet_id",
         )
         .in("packet_id", chunk)
         .order("created_at", { ascending: true })
