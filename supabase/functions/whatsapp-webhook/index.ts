@@ -5,6 +5,7 @@ import {
   isWaWebhookAutoOrderWritesEnabled,
   isWaWebhookOwnerReassignmentEnabled,
 } from "../_shared/wa-governance/flags.ts";
+import { authenticateClick2ApiWebhook, matchesWebhookToken } from "../_shared/click2apiWebhookAuth.ts";
 
 /** Service-role client from `createClient` — schema-generic, matches runtime usage in this edge function. */
 type SupabaseAdminClient = SupabaseClient;
@@ -26,18 +27,86 @@ const HELD_ORDER_MAX_AGE_MS = 72 * 60 * 60 * 1000;
 const FOLLOWUP_PARSE_MAX_CHARS = 280;
 const CONFIRM_FOLLOWUP_MAX_CHARS = 80;
 
-function secretMatches(received: string | null, expected: string | undefined): boolean {
-  if (!received || !expected || received.length !== expected.length) return false;
-  let difference = 0;
-  for (let index = 0; index < received.length; index += 1) difference |= received.charCodeAt(index) ^ expected.charCodeAt(index);
-  return difference === 0;
-}
-
 /** Substrings that indicate order-ish commerce intent when paired with classifier output (see handler). */
 const ORDER_INTENT_KEYWORDS = [
   "need", "order", "send", "want", "box", "boxes", "carton", "cartons",
   "kg", "pcs", "pieces", "rate", "price", "quote",
 ];
+
+function isPotentialCommercialIntake(messageBody: string, mediaUrl: string): boolean {
+  if (mediaUrl) return true;
+  const normalized = messageBody.toLowerCase();
+  return ORDER_INTENT_KEYWORDS.some((keyword) => normalized.includes(keyword));
+}
+
+async function ensureCorePotentialCapture(
+  supabaseAdmin: SupabaseAdminClient,
+  input: {
+    providerMessageId: string;
+    senderPhone: string;
+    senderName: string;
+    messageBody: string;
+    messageType: string;
+    receivedAt: string;
+    rawPayload: unknown;
+    orderLike: boolean;
+  },
+): Promise<void> {
+  const { data: sourceMessage, error: sourceError } = await supabaseAdmin
+    .from("whatsapp_inbound_messages")
+    .upsert({
+      provider_message_id: input.providerMessageId,
+      sender_phone: input.senderPhone,
+      sender_name: input.senderName || null,
+      message_body: input.messageBody,
+      message_type: input.messageType || "text",
+      received_at: input.receivedAt,
+      raw_payload: {
+        ...(input.rawPayload && typeof input.rawPayload === "object" ? input.rawPayload : {}),
+        commercial_eligible: input.orderLike,
+      },
+      resolver_status: "pending",
+    }, { onConflict: "provider_message_id", ignoreDuplicates: true })
+    .select("id")
+    .maybeSingle();
+
+  if (sourceError) throw new Error(`WA1_CORE_SOURCE_CAPTURE_FAILED: ${sourceError.message}`);
+
+  let sourceMessageId = sourceMessage?.id;
+  if (!sourceMessageId) {
+    const { data: existing, error: existingError } = await supabaseAdmin
+      .from("whatsapp_inbound_messages")
+      .select("id")
+      .eq("provider_message_id", input.providerMessageId)
+      .single();
+    if (existingError || !existing?.id) throw new Error(`WA1_CORE_SOURCE_LOOKUP_FAILED: ${existingError?.message ?? "missing row"}`);
+    sourceMessageId = existing.id;
+  }
+
+  if (!input.orderLike) return;
+  const { data: potentialOrder, error: captureError } = await supabaseAdmin.rpc("capture_whatsapp_potential_order", {
+    p_source_message_id: sourceMessageId,
+    p_order_like: true,
+    p_interpretation_failed: false,
+    p_evidence: { ingress: "click2api", authentication: "verified", capture_contract: "wa1" },
+  });
+  if (captureError) throw new Error(`WA1_CORE_POTENTIAL_CAPTURE_FAILED: ${captureError.message}`);
+  if (!potentialOrder?.id) throw new Error("WA1_CORE_POTENTIAL_CAPTURE_FAILED: missing authority row");
+
+  const hasMedia = input.messageType.toLowerCase() !== "text";
+  const { error: evidenceError } = await supabaseAdmin.rpc("capture_whatsapp_commercial_fragment_for_potential", {
+    p_potential_order_id: potentialOrder.id,
+    p_source_message_id: sourceMessageId,
+    p_media_count: hasMedia ? 1 : 0,
+    p_interpretation_failed: hasMedia,
+    p_evidence: {
+      ingress: "click2api",
+      authentication: "verified",
+      fail_open_media_review: hasMedia,
+    },
+  });
+  if (evidenceError) throw new Error(`WA4_CORE_EVIDENCE_CAPTURE_FAILED: ${evidenceError.message}`);
+}
 
 // ── PHONE HELPERS ──
 function normalizePhone(raw: string): string {
@@ -837,7 +906,7 @@ serve(async (req) => {
     const tokenParamNames = ["echo", "hub.verify_token", "verify_token"];
     const challengeEntry = queryEntries.find(([key]) => challengeParamNames.includes(key.toLowerCase()));
     const tokenEntry = queryEntries.find(([key]) => tokenParamNames.includes(key.toLowerCase()));
-    if (challengeEntry && secretMatches(tokenEntry?.[1] ?? null, Deno.env.get("WHATSAPP_WEBHOOK_VERIFY_TOKEN"))) {
+    if (challengeEntry && matchesWebhookToken(tokenEntry?.[1] ?? null, Deno.env.get("WHATSAPP_WEBHOOK_VERIFY_TOKEN"))) {
       return new Response(challengeEntry[1], { status: 200, headers: { "Content-Type": "text/plain; charset=utf-8" } });
     }
     return new Response("Webhook verification failed", { status: 403, headers: { "Content-Type": "text/plain; charset=utf-8" } });
@@ -847,8 +916,12 @@ serve(async (req) => {
     return new Response(null, { headers: corsHeaders });
   }
 
-  const webhookSecret = req.headers.get("x-webhook-secret") ?? req.headers.get("x-click2api-signature");
-  if (!secretMatches(webhookSecret, Deno.env.get("WHATSAPP_WEBHOOK_SECRET"))) {
+  const webhookAuth = authenticateClick2ApiWebhook(
+    req,
+    Deno.env.get("WHATSAPP_WEBHOOK_SECRET"),
+    Deno.env.get("WHATSAPP_WEBHOOK_VERIFY_TOKEN"),
+  );
+  if (!webhookAuth.authenticated) {
     return new Response(JSON.stringify({ ok: false, error: "Unauthorized webhook" }), { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } });
   }
 
@@ -862,7 +935,7 @@ serve(async (req) => {
     const waOwnerReassignmentEnabled = isWaWebhookOwnerReassignmentEnabled((k) => Deno.env.get(k));
 
     const payload = await req.json();
-    console.log("Incoming authenticated WhatsApp webhook", { hasStatuses: Array.isArray(payload?.statuses), direction: payload?.direction ?? "inbound" });
+    console.log("Incoming authenticated WhatsApp webhook", { authSource: webhookAuth.source, hasStatuses: Array.isArray(payload?.statuses), direction: payload?.direction ?? "inbound" });
 
     const { senderPhone, messageBody, messageType, mediaUrl, mediaMime, messageId, profileName, timestampSec } =
       extractPayloadFields(payload);
@@ -888,6 +961,41 @@ serve(async (req) => {
       } catch (_) { /* best-effort log */ }
       return new Response(JSON.stringify({ ok: true, discarded: isNoise ? messageType : "empty" }), {
         status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    if (!messageId) {
+      return new Response(JSON.stringify({ ok: false, error: "Provider message ID required" }), {
+        status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    try {
+      const timestampMs = Number(timestampSec) * 1000;
+      const receivedAt = timestampSec != null &&
+          Number.isFinite(timestampMs) &&
+          Math.abs(timestampMs) <= 8.64e15
+        ? new Date(timestampMs).toISOString()
+        : new Date().toISOString();
+      await ensureCorePotentialCapture(supabaseAdmin, {
+        providerMessageId: messageId,
+        senderPhone: phone91,
+        senderName: profileName,
+        messageBody,
+        messageType,
+        receivedAt,
+        rawPayload: payload,
+        orderLike: isPotentialCommercialIntake(messageBody, mediaUrl),
+      });
+    } catch (captureError) {
+      const detail = captureError instanceof Error ? captureError.message : "WA1_CORE_CAPTURE_FAILED";
+      console.error("Core-authoritative WhatsApp capture failed", detail);
+      await supabaseAdmin.from("debug_webhooks").insert({
+        direction: "inbound", raw_payload: payload, phone_number: phone91 || null,
+        wamid: messageId, processed: false, error_message: detail,
+      });
+      return new Response(JSON.stringify({ ok: false, error: "Durable intake unavailable" }), {
+        status: 503, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
