@@ -28,6 +28,7 @@ function readRepoFile(pathFromRoot: string): string {
 }
 
 describe("operator inbox Stage-1 guardrails", () => {
+  // Keep the governed context assertions tied to the packet-scoped, stale-load-safe query contract.
   const inboxPostgrestWriteScanFiles = collectInboxPostgrestWriteScanFiles(REPO_ROOT);
 
   it("documents the PostgREST write scan paths", () => {
