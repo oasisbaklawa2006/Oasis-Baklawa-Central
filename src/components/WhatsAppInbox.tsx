@@ -91,6 +91,7 @@ import { useOperatorInboxDraftOrderExtraction } from "@/components/whatsapp/useO
 import { useOperatorInboxSalesOrderDraft } from "@/components/whatsapp/useOperatorInboxSalesOrderDraft";
 import { buildWhatsAppOperationalFeed, normalizeWhatsAppEvents } from "@/lib/operational-events";
 import { Wa1PotentialOrderQueueStrip } from "@/components/whatsapp/Wa1PotentialOrderQueueStrip";
+import { useWhatsAppPermissions } from "@/hooks/useWhatsAppPermissions";
 
 const REALTIME_CHANNEL = "whatsapp-inbox-packets";
 const PACKET_FETCH_LIMIT = 1000;
@@ -140,6 +141,7 @@ interface RouteSuggestion {
 
 export function WhatsAppInbox() {
   const { user } = useAuth();
+  const whatsappAuthority = useWhatsAppPermissions();
   const [packets, setPackets] = useState<OperatorInboxPacket[]>([]);
   const [selectedPacket, setSelectedPacket] = useState<OperatorInboxPacket | null>(null);
   const selectedPacketIdRef = useRef<string | null>(null);
@@ -1641,6 +1643,8 @@ export function WhatsAppInbox() {
                       }
                       draftHook={salesOrderDraftHook}
                       extractionReady={draftOrderExtractionState.status === "ready"}
+                      canManageDraft={whatsappAuthority.has("wa.draft.manage")}
+                      canPromoteDraft={whatsappAuthority.has("wa.draft.promote")}
                     />
                     {showAiPreviewPanel ? (
                       <OperatorInboxLocalAiPreviewPanel messages={selectedPacket.messages ?? []} />

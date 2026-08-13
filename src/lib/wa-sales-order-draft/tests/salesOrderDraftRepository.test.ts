@@ -967,7 +967,9 @@ describe("extraction projection guard (static)", () => {
       "utf8",
     );
     expect(section).toMatch(/!extractionReady \|\| !extracted/);
-    expect(section).toMatch(/disabled=\{actionPending \|\| !canApproveDraft \|\| !extractionReady\}/);
+    expect(section).toMatch(
+      /disabled=\{!canManageDraft \|\| !canPromoteDraft \|\| actionPending \|\| !canApproveDraft \|\| !extractionReady\}/,
+    );
     expect(hook).toMatch(/canApproveDraft/);
     expect(hook).toMatch(/approveExtractionReady = Boolean\(extracted\)/);
   });

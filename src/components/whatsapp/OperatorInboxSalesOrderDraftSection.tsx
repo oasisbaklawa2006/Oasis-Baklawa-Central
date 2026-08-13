@@ -29,10 +29,14 @@ export const OperatorInboxSalesOrderDraftSection = memo(function OperatorInboxSa
   extracted,
   draftHook,
   extractionReady,
+  canManageDraft,
+  canPromoteDraft,
 }: {
   extracted: ExtractedDraftOrder | null;
   draftHook: DraftHookReturn;
   extractionReady: boolean;
+  canManageDraft: boolean;
+  canPromoteDraft: boolean;
 }) {
   const [rejectReason, setRejectReason] = useState("");
   const [reviewNotes, setReviewNotes] = useState("");
@@ -90,6 +94,7 @@ export const OperatorInboxSalesOrderDraftSection = memo(function OperatorInboxSa
       </div>
 
       <p className="text-[11px] leading-snug text-indigo-900/90">{GOVERNANCE_BANNER}</p>
+      {!canManageDraft ? <p className="mt-2 text-[11px] text-amber-900" role="status">Read-only: Core has not granted <code>wa.draft.manage</code>.</p> : null}
 
       {isPersistedDraftLoading ? (
         <div className="mt-2 flex items-center gap-2 text-sm text-indigo-900">
@@ -132,7 +137,7 @@ export const OperatorInboxSalesOrderDraftSection = memo(function OperatorInboxSa
             type="button"
             size="sm"
             className="h-8 text-xs"
-            disabled={!canCreateDraft || actionPending}
+            disabled={!canManageDraft || !canCreateDraft || actionPending}
             onClick={() => void createDraft()}
           >
             {actionPending ? (
@@ -185,7 +190,7 @@ export const OperatorInboxSalesOrderDraftSection = memo(function OperatorInboxSa
               placeholder="Review notes (optional)…"
               className="min-h-[56px] text-xs"
               aria-label="Sales order draft review notes"
-              disabled={isTerminal || actionPending}
+              disabled={!canManageDraft || isTerminal || actionPending}
             />
             {bundle.draft.status === "AI_DRAFT" || bundle.draft.status === "UNDER_REVIEW" ? (
               <Input
@@ -194,7 +199,7 @@ export const OperatorInboxSalesOrderDraftSection = memo(function OperatorInboxSa
                 placeholder="Rejection reason (required to reject)…"
                 className="h-8 text-xs"
                 aria-label="Sales order draft rejection reason"
-                disabled={actionPending}
+                disabled={!canManageDraft || actionPending}
               />
             ) : null}
           </div>
@@ -208,7 +213,7 @@ export const OperatorInboxSalesOrderDraftSection = memo(function OperatorInboxSa
                     size="sm"
                     variant="outline"
                     className="h-8 text-xs"
-                    disabled={actionPending || !extracted || extractionProjectionStale}
+                    disabled={!canManageDraft || actionPending || !extracted || extractionProjectionStale}
                     onClick={() => void syncOperatorFinal()}
                   >
                     <ArrowRightLeft className="mr-1 h-3 w-3" aria-hidden />
@@ -218,7 +223,7 @@ export const OperatorInboxSalesOrderDraftSection = memo(function OperatorInboxSa
                     type="button"
                     size="sm"
                     className="h-8 text-xs"
-                    disabled={actionPending || !extracted || extractionProjectionStale}
+                    disabled={!canManageDraft || actionPending || !extracted || extractionProjectionStale}
                     onClick={() => void submitForReview()}
                   >
                     <Send className="mr-1 h-3 w-3" aria-hidden />
@@ -229,7 +234,7 @@ export const OperatorInboxSalesOrderDraftSection = memo(function OperatorInboxSa
                     size="sm"
                     variant="destructive"
                     className="h-8 text-xs"
-                    disabled={actionPending || !rejectReason.trim()}
+                    disabled={!canManageDraft || actionPending || !rejectReason.trim()}
                     onClick={() => void rejectDraft(rejectReason, reviewNotes || undefined)}
                   >
                     <XCircle className="mr-1 h-3 w-3" aria-hidden />
@@ -254,7 +259,7 @@ export const OperatorInboxSalesOrderDraftSection = memo(function OperatorInboxSa
                     type="button"
                     size="sm"
                     className="h-8 text-xs border-emerald-300 text-emerald-900 hover:bg-emerald-50"
-                    disabled={actionPending || !canApproveDraft || !extractionReady}
+                    disabled={!canManageDraft || !canPromoteDraft || actionPending || !canApproveDraft || !extractionReady}
                     onClick={() => void approveDraft(reviewNotes || undefined)}
                   >
                     <CheckCircle2 className="mr-1 h-3 w-3" aria-hidden />
@@ -265,7 +270,7 @@ export const OperatorInboxSalesOrderDraftSection = memo(function OperatorInboxSa
                     size="sm"
                     variant="destructive"
                     className="h-8 text-xs"
-                    disabled={actionPending || !rejectReason.trim()}
+                    disabled={!canManageDraft || actionPending || !rejectReason.trim()}
                     onClick={() => void rejectDraft(rejectReason, reviewNotes || undefined)}
                   >
                     <XCircle className="mr-1 h-3 w-3" aria-hidden />
@@ -288,7 +293,7 @@ export const OperatorInboxSalesOrderDraftSection = memo(function OperatorInboxSa
                 type="button"
                 size="sm"
                 className="h-8 text-xs"
-                disabled={!canCreateDraft || actionPending}
+                disabled={!canManageDraft || !canCreateDraft || actionPending}
                 onClick={() => void createDraft()}
               >
                 {actionPending ? (
