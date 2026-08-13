@@ -141,6 +141,16 @@ interface RouteSuggestion {
   metadata: Record<string, unknown>;
 }
 
+interface GovernedPotentialOrder {
+  id: string;
+  provider_message_id: string;
+  state: string;
+  queue: string;
+  next_action: string;
+  next_action_due_at: string;
+  owner_id: string | null;
+}
+
 export function WhatsAppInbox() {
   const { user } = useAuth();
   const whatsappAuthority = useWhatsAppPermissions();
@@ -152,6 +162,7 @@ export function WhatsAppInbox() {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [refreshError, setRefreshError] = useState<string | null>(null);
   const [replyText, setReplyText] = useState("");
+  const [potentialOrders, setPotentialOrders] = useState<GovernedPotentialOrder[]>([]);
   const replyIdempotencyRef = useRef<{ signature: string; key: string } | null>(null);
   const [replySending, setReplySending] = useState(false);
   const [classifyLoading, setClassifyLoading] = useState(false);
@@ -339,7 +350,8 @@ export function WhatsAppInbox() {
         setLoading(true);
       }
 
-      const { data: packetsData, error: packetsError } = await supabase
+      const [{ data: packetsData, error: packetsError }, { data: potentialData, error: potentialError }] = await Promise.all([
+        supabase
         // whatsapp_* tables not in generated Database types yet
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         .from("whatsapp_message_packets" as any)
@@ -361,9 +373,20 @@ export function WhatsAppInbox() {
         )
         .eq("status", "open")
         .order("last_message_at", { ascending: false })
-        .limit(PACKET_FETCH_LIMIT);
+        .limit(PACKET_FETCH_LIMIT),
+        // Core WA authority table is not yet represented in Central's generated frontend schema.
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (supabase as any)
+          .from("whatsapp_potential_orders")
+          .select("id,provider_message_id,state,queue,next_action,next_action_due_at,owner_id")
+          .eq("disposition", "ACTIVE_PENDING")
+          .order("next_action_due_at", { ascending: true })
+          .limit(PACKET_FETCH_LIMIT),
+      ]);
 
       if (packetsError) throw packetsError;
+      if (potentialError) throw potentialError;
+      setPotentialOrders((potentialData ?? []) as GovernedPotentialOrder[]);
 
       const rows = (packetsData ?? []) as unknown as OperatorInboxPacket[];
       const ids = rows.map((r) => r.id);
@@ -422,6 +445,15 @@ export function WhatsAppInbox() {
     }
   }, []);
 
+  const selectedPotentialOrder = useMemo(() => {
+    const providerIds = new Set(
+      (selectedPacket?.messages ?? [])
+        .map((message) => message.provider_message_id)
+        .filter((value): value is string => Boolean(value)),
+    );
+    return potentialOrders.find((potential) => providerIds.has(potential.provider_message_id)) ?? null;
+  }, [potentialOrders, selectedPacket]);
+
   const handleSendReply = useCallback(async () => {
     const trimmed = replyText.trim();
     if (!trimmed || !selectedPacket) return;
@@ -449,6 +481,7 @@ export function WhatsAppInbox() {
           phone_number: selectedPacket.phone_number,
           message: trimmed,
           idempotency_key: replyIdempotencyRef.current.key,
+          potential_order_id: selectedPotentialOrder?.id ?? null,
         },
       });
 
@@ -471,7 +504,7 @@ export function WhatsAppInbox() {
     } finally {
       setReplySending(false);
     }
-  }, [replyText, selectedPacket, loadPackets, whatsappAuthority]);
+  }, [replyText, selectedPacket, selectedPotentialOrder, loadPackets, whatsappAuthority]);
 
   const handleClassifyIntent = useCallback(async () => {
     if (!selectedPacket) return;
@@ -889,7 +922,7 @@ export function WhatsAppInbox() {
               {pinnedIds.length > 0 ? ` · ${pinnedIds.length} pinned` : ""}
             </p>
             <p className="text-[11px] text-gray-400">
-              Same read-only inbox: <span className="font-mono text-gray-500">/admin/whatsapp</span> (URL alias).
+              Governed operator inbox: <span className="font-mono text-gray-500">/admin/whatsapp</span> (URL alias).
             </p>
             <p className="mt-1 text-[11px] text-gray-500">
               Shortcuts: <kbd className="rounded border bg-gray-100 px-1">/</kbd>, <kbd className="rounded border bg-gray-100 px-1">Esc</kbd>,{" "}
@@ -1531,6 +1564,15 @@ export function WhatsAppInbox() {
                 </div>
 
                 <div className="shrink-0 border-t border-gray-200 bg-gray-50 p-4">
+                  {selectedPotentialOrder ? (
+                    <div className="mb-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-950">
+                      <p className="font-semibold">Governed action: {selectedPotentialOrder.next_action.replace(/_/g, " ")}</p>
+                      <p>
+                        {selectedPotentialOrder.state.replace(/_/g, " ")} · {selectedPotentialOrder.queue}
+                        {selectedPotentialOrder.owner_id ? " · assigned" : " · explicitly unassigned"}
+                      </p>
+                    </div>
+                  ) : null}
                   <div className="flex gap-2">
                     <input
                       type="text"
@@ -1542,7 +1584,7 @@ export function WhatsAppInbox() {
                           void handleSendReply();
                         }
                       }}
-                      placeholder="Type a reply..."
+                      placeholder={whatsappAuthority.has("wa.reply.send") ? "Type governed clarification…" : "Reply requires wa.reply.send permission"}
                       disabled={replySending || !whatsappAuthority.has("wa.reply.send")}
                       aria-label="Operator reply message draft"
                       className="flex-1 rounded-full border border-gray-300 bg-white px-4 py-2 focus:border-green-500 focus:outline-none focus-visible:ring-2 focus-visible:ring-green-600 focus-visible:ring-offset-2 disabled:bg-gray-100"
