@@ -1,10 +1,11 @@
 export type Click2ApiAuthSource = "header" | "query";
 
 function constantTimeEqual(received: string | null, expected: string | undefined): boolean {
-  if (!received || !expected || received.length !== expected.length) return false;
-  let difference = 0;
-  for (let index = 0; index < received.length; index += 1) {
-    difference |= received.charCodeAt(index) ^ expected.charCodeAt(index);
+  if (!expected) return false;
+  const candidate = received ?? "";
+  let difference = candidate.length ^ expected.length;
+  for (let index = 0; index < expected.length; index += 1) {
+    difference |= (candidate.charCodeAt(index) || 0) ^ expected.charCodeAt(index);
   }
   return difference === 0;
 }
