@@ -172,11 +172,16 @@ export default function SuggestedOrdersTab({ activeCompanies }: Props) {
     setPromoting(row.id);
     try {
       const items = parseItems(row.extracted_items);
+      const unresolved = items.filter((item) => item.quantity == null || item.quantity <= 0 || !item.unit);
+      if (unresolved.length > 0) {
+        toast.error("Clarification required: confirm quantity and unit for every item before creating a draft.");
+        return;
+      }
       const skuItems = items.map((i) => ({
         name: i.product_name,
-        quantity: i.quantity ?? 1,
-        unit: i.unit ?? null,
-        confidence: i.quantity == null ? 0.3 : (row.ai_confidence ?? 0.5),
+        quantity: i.quantity,
+        unit: i.unit,
+        confidence: row.ai_confidence ?? 0.5,
       }));
 
       const { data, error } = await supabase.functions.invoke("admin-create-draft", {

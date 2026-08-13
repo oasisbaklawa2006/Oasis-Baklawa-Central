@@ -125,7 +125,7 @@ Return JSON ONLY:
 Rules:
 - Match misspelled/abbreviated product names to the closest catalog item
 - Use aliases mapping when possible
-- If quantity is unclear, default to 1 with confidence 0.5
+- If quantity is unclear, return null. Never invent a quantity.
 - confidence: 1.0 = exact match, 0.7+ = high, 0.4-0.7 = medium, <0.4 = low
 - Extract any business details (name, address, GST) from the message`;
 
@@ -162,8 +162,9 @@ Rules:
         (p) => (item.product_name || "").toLowerCase().includes(p.name.toLowerCase())
       );
 
-      return match
-        ? { productId: match.id, productName: match.name, quantity: item.quantity || 1, confidence: item.confidence || 0.5 }
+      const quantity = Number(item.quantity);
+      return match && Number.isFinite(quantity) && quantity > 0
+        ? { productId: match.id, productName: match.name, quantity, confidence: Number(item.confidence) || 0.5 }
         : null;
     }).filter(Boolean);
 
@@ -215,7 +216,7 @@ function aliasMatchProduct(
   return bestProduct;
 }
 
-function parseQuantity(text: string): number {
+function parseQuantity(text: string): number | null {
   const patterns = [
     /(\d+)\s*(?:box|boxes|carton|cartons|pcs|pieces|kg|packs?)/i,
     /(?:need|send|want|order)\s*(\d+)/i,
@@ -225,7 +226,7 @@ function parseQuantity(text: string): number {
     const m = text.match(pat);
     if (m) return parseInt(m[1], 10);
   }
-  return 1;
+  return null;
 }
 
 // ── RULE-BASED INTENT CLASSIFICATION ──
@@ -1495,7 +1496,7 @@ serve(async (req) => {
           const matched = aliasMatchProduct(messageBody, products, aliases);
           const qty = parseQuantity(messageBody);
           console.log(`Rule-based match: ${matched ? matched.name : "NONE"}, qty: ${qty}`);
-          if (matched) {
+          if (matched && qty !== null) {
             orderItems = [{ productId: matched.id, productName: matched.name, quantity: qty, confidence: 0.7 }];
           }
         }
@@ -1647,7 +1648,7 @@ serve(async (req) => {
               outcome: existingHeld?.id ? "clarification_hold_updated" : "clarification_hold",
             });
           }
-        } else if (orderItems.length > 0 || hasOrderIntent) {
+        } else if (orderItems.length > 0) {
           console.log(`Creating draft order for ${companyId}, items: ${orderItems.length}`);
           const { data: draftOrder, error: orderErr } = await supabaseAdmin
             .from("orders")
