@@ -14,6 +14,19 @@ describe("Click2API webhook authentication", () => {
     expect(authenticateClick2ApiWebhook(request, secret)).toEqual({ authenticated: true, source: "header" });
   });
 
+  it("accepts the alternate Click2API signature header", () => {
+    const request = new Request("https://example.test/whatsapp-webhook", {
+      method: "POST",
+      headers: { "x-click2api-signature": secret },
+    });
+    expect(authenticateClick2ApiWebhook(request, secret)).toEqual({ authenticated: true, source: "header" });
+  });
+
+  it("rejects wrong-length tokens", () => {
+    const request = new Request("https://example.test/whatsapp-webhook?echo=short", { method: "POST" });
+    expect(authenticateClick2ApiWebhook(request, "different-header-secret", secret).authenticated).toBe(false);
+  });
+
   it("rejects invalid authentication", () => {
     const request = new Request("https://example.test/whatsapp-webhook?echo=wrong", { method: "POST" });
     expect(authenticateClick2ApiWebhook(request, secret).authenticated).toBe(false);
