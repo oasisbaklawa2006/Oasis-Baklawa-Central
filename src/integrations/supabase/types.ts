@@ -5750,6 +5750,19 @@ export type Database = {
         }
         Relationships: []
       }
+      whatsapp_potential_order_reconciliation: {
+        Row: {
+          active_pending: number | null
+          at_risk_escalated: number | null
+          converted: number | null
+          explicitly_closed: number | null
+          failed_interpretation: number | null
+          potential_received: number | null
+          unaccounted_potential_orders: number | null
+          unassigned: number | null
+        }
+        Relationships: []
+      }
     }
     Functions: {
       get_user_role: { Args: { _user_id: string }; Returns: string }
