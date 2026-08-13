@@ -956,8 +956,11 @@ serve(async (req) => {
     }
 
     try {
-      const receivedAt = timestampSec != null && Number.isFinite(Number(timestampSec))
-        ? new Date(Number(timestampSec) * 1000).toISOString()
+      const timestampMs = Number(timestampSec) * 1000;
+      const receivedAt = timestampSec != null &&
+          Number.isFinite(timestampMs) &&
+          Math.abs(timestampMs) <= 8.64e15
+        ? new Date(timestampMs).toISOString()
         : new Date().toISOString();
       await ensureCorePotentialCapture(supabaseAdmin, {
         providerMessageId: messageId,
