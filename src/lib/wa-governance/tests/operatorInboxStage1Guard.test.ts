@@ -144,17 +144,21 @@ describe("operator inbox Stage-1 guardrails", () => {
     expect(inbox).toContain('whatsappAuthority.has("wa.reply.send")');
     expect(inbox).toContain("idempotency_key: replyIdempotencyRef.current.key");
     expect(inbox).toContain("potential_order_id: selectedPotentialOrder?.id ?? null");
+    expect(inbox).toContain('.from("whatsapp_commercial_evidence")');
     expect(inbox).toContain("Governed action:");
+    expect(inbox).toContain('.in("provider_message_id", providerMessageIds)');
+    expect(inbox.indexOf("setPotentialOrders(potentialData")).toBeGreaterThan(inbox.indexOf("if (gen !== inboxLoadGenerationRef.current) return;"));
+    expect(inbox).toContain("Governed potential-order context unavailable:");
     expect(inbox).not.toContain("operator_id:");
   });
 
   it("System Settings never hydrates or writes WhatsApp secrets in browser state", () => {
     const settings = readRepoFile("src/pages/admin/AdminSettings.tsx");
-    expect(settings).not.toContain('from("whatsapp_config")');
-    expect(settings).not.toContain("api_key");
-    expect(settings).not.toContain("webhook_secret");
-    expect(settings).not.toContain('functions.invoke("send-whatsapp"');
-    expect(settings).toContain("Secrets are server-managed");
+    expect(settings).not.toMatch(/whatsapp_config/);
+    expect(settings).not.toMatch(/\bapi_key\b/);
+    expect(settings).not.toMatch(/\bwebhook_secret\b/);
+    expect(settings).not.toMatch(/functions\.invoke\s*\(\s*["'`]send-whatsapp["'`]/);
+    expect(settings).toMatch(/data-testid=["']whatsapp-secrets-server-managed["']/);
   });
 
   it("provider status callbacks reconcile the Core outbox", () => {
