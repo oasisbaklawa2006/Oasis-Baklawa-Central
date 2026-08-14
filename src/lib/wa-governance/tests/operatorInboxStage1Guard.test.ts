@@ -155,6 +155,7 @@ describe("operator inbox Stage-1 guardrails", () => {
     expect(inbox).toContain("Governed reply disabled:");
     expect(inbox).toContain("if (governedContextError)");
     expect(inbox).toMatch(/disabled=.*governedContextError/);
+    expect(inbox).toContain("whatsappAuthority, governedContextError]);");
     expect(inbox).not.toContain("operator_id:");
   });
 
