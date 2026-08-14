@@ -395,29 +395,25 @@ export function WhatsAppInbox() {
         ),
       );
 
-      let potentialData: unknown[] = [];
+      let potentialData: GovernedPotentialOrder[] = [];
       let potentialError: { message: string } | null = null;
-      let evidenceData: unknown[] = [];
+      let evidenceData: GovernedEvidenceLink[] = [];
       let evidenceError: { message: string } | null = null;
       if (providerMessageIds.length > 0) {
         const [potentialResult, evidenceResult] = await Promise.all([
-          // Core WA authority table is not yet represented in Central's generated frontend schema.
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          (supabase as any)
+          supabase
             .from("whatsapp_potential_orders")
             .select("id,provider_message_id,state,queue,next_action,next_action_due_at,owner_id")
             .eq("disposition", "ACTIVE_PENDING")
             .in("provider_message_id", providerMessageIds),
-          // Core WA evidence table is not yet represented in Central's generated frontend schema.
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          (supabase as any)
+          supabase
             .from("whatsapp_commercial_evidence")
             .select("potential_order_id,provider_message_id")
             .in("provider_message_id", providerMessageIds),
         ]);
-        potentialData = (potentialResult.data ?? []) as unknown[];
+        potentialData = potentialResult.data ?? [];
         potentialError = potentialResult.error;
-        evidenceData = (evidenceResult.data ?? []) as unknown[];
+        evidenceData = evidenceResult.data ?? [];
         evidenceError = evidenceResult.error;
       }
 
@@ -436,13 +432,16 @@ export function WhatsAppInbox() {
       if (gen !== inboxLoadGenerationRef.current) return;
 
       const governanceWarnings = [
+        ...batchMessageErrors.map(
+          (messageError) => `Governed context unavailable because message history is incomplete: ${messageError}`,
+        ),
         potentialError ? `Governed potential-order context unavailable: ${potentialError.message}` : null,
         evidenceError ? `Governed evidence links unavailable: ${evidenceError.message}` : null,
       ].filter((warning): warning is string => Boolean(warning));
 
       setGovernedContextError(governanceWarnings.length > 0 ? governanceWarnings.join(" ") : null);
-      setPotentialOrders(potentialData as GovernedPotentialOrder[]);
-      setEvidenceLinks(evidenceData as GovernedEvidenceLink[]);
+      setPotentialOrders(potentialData);
+      setEvidenceLinks(evidenceData);
 
       if (batchMessageErrors.length > 0 || governanceWarnings.length > 0) {
         setMessagesBatchWarnings([...batchMessageErrors, ...governanceWarnings]);
