@@ -150,6 +150,10 @@ describe("operator inbox Stage-1 guardrails", () => {
     expect(inbox).toContain('.in("provider_message_id", providerMessageIds)');
     expect(inbox.indexOf("setPotentialOrders(potentialData")).toBeGreaterThan(inbox.indexOf("if (gen !== inboxLoadGenerationRef.current) return;"));
     expect(inbox).toContain("Governed potential-order context unavailable:");
+    expect(inbox).toContain("governedContextError");
+    expect(inbox).toContain("Governed reply disabled:");
+    expect(inbox).toContain("if (governedContextError)");
+    expect(inbox).toMatch(/disabled=.*governedContextError/);
     expect(inbox).not.toContain("operator_id:");
   });
 
