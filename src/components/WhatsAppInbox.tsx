@@ -549,7 +549,7 @@ export function WhatsAppInbox() {
     } finally {
       setReplySending(false);
     }
-  }, [replyText, selectedPacket, selectedPotentialOrder, loadPackets, whatsappAuthority]);
+  }, [replyText, selectedPacket, selectedPotentialOrder, loadPackets, whatsappAuthority, governedContextError]);
 
   const handleClassifyIntent = useCallback(async () => {
     if (!selectedPacket) return;
