@@ -169,6 +169,7 @@ export function WhatsAppInbox() {
   const [replyText, setReplyText] = useState("");
   const [potentialOrders, setPotentialOrders] = useState<GovernedPotentialOrder[]>([]);
   const [evidenceLinks, setEvidenceLinks] = useState<GovernedEvidenceLink[]>([]);
+  const [governedContextError, setGovernedContextError] = useState<string | null>(null);
   const replyIdempotencyRef = useRef<{ signature: string; key: string } | null>(null);
   const [replySending, setReplySending] = useState(false);
   const [classifyLoading, setClassifyLoading] = useState(false);
@@ -439,6 +440,7 @@ export function WhatsAppInbox() {
         evidenceError ? `Governed evidence links unavailable: ${evidenceError.message}` : null,
       ].filter((warning): warning is string => Boolean(warning));
 
+      setGovernedContextError(governanceWarnings.length > 0 ? governanceWarnings.join(" ") : null);
       setPotentialOrders(potentialData as GovernedPotentialOrder[]);
       setEvidenceLinks(evidenceData as GovernedEvidenceLink[]);
 
@@ -499,6 +501,10 @@ export function WhatsAppInbox() {
     if (!trimmed || !selectedPacket) return;
     if (!whatsappAuthority.has("wa.reply.send")) {
       alert("You do not have permission to send WhatsApp replies.");
+      return;
+    }
+    if (governedContextError) {
+      alert(`Governed reply disabled: ${governedContextError}`);
       return;
     }
 
@@ -1604,6 +1610,11 @@ export function WhatsAppInbox() {
                 </div>
 
                 <div className="shrink-0 border-t border-gray-200 bg-gray-50 p-4">
+                  {governedContextError ? (
+                    <div className="mb-2 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-950" role="alert">
+                      Governed reply disabled: {governedContextError}
+                    </div>
+                  ) : null}
                   {selectedPotentialOrder ? (
                     <div className="mb-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-950">
                       <p className="font-semibold">Governed action: {selectedPotentialOrder.next_action.replace(/_/g, " ")}</p>
@@ -1629,15 +1640,19 @@ export function WhatsAppInbox() {
                           void handleSendReply();
                         }
                       }}
-                      placeholder={whatsappAuthority.has("wa.reply.send") ? "Type governed clarification…" : "Reply requires wa.reply.send permission"}
-                      disabled={replySending || !whatsappAuthority.has("wa.reply.send")}
+                      placeholder={governedContextError
+                        ? "Reply disabled until governed context is available"
+                        : whatsappAuthority.has("wa.reply.send")
+                          ? "Type governed clarification…"
+                          : "Reply requires wa.reply.send permission"}
+                      disabled={replySending || Boolean(governedContextError) || !whatsappAuthority.has("wa.reply.send")}
                       aria-label="Operator reply message draft"
                       className="flex-1 rounded-full border border-gray-300 bg-white px-4 py-2 focus:border-green-500 focus:outline-none focus-visible:ring-2 focus-visible:ring-green-600 focus-visible:ring-offset-2 disabled:bg-gray-100"
                     />
                     <button
                       type="button"
                       onClick={() => void handleSendReply()}
-                      disabled={replySending || !replyText.trim() || !whatsappAuthority.has("wa.reply.send")}
+                      disabled={replySending || Boolean(governedContextError) || !replyText.trim() || !whatsappAuthority.has("wa.reply.send")}
                       aria-label="Send WhatsApp reply"
                       className="rounded-full bg-green-500 px-6 py-2 font-medium text-white transition hover:bg-green-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-700 focus-visible:ring-offset-2 disabled:bg-gray-300"
                     >
