@@ -5745,6 +5745,7 @@ export type Database = {
       }
       whatsapp_potential_orders: {
         Row: {
+          disposition: string
           id: string
           next_action: string
           next_action_due_at: string
@@ -5754,6 +5755,7 @@ export type Database = {
           state: string
         }
         Insert: {
+          disposition?: string
           id?: string
           next_action?: string
           next_action_due_at?: string
@@ -5763,6 +5765,7 @@ export type Database = {
           state?: string
         }
         Update: {
+          disposition?: string
           id?: string
           next_action?: string
           next_action_due_at?: string
