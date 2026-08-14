@@ -141,6 +141,21 @@ interface RouteSuggestion {
   metadata: Record<string, unknown>;
 }
 
+interface GovernedPotentialOrder {
+  id: string;
+  provider_message_id: string;
+  state: string;
+  queue: string;
+  next_action: string;
+  next_action_due_at: string;
+  owner_id: string | null;
+}
+
+interface GovernedEvidenceLink {
+  potential_order_id: string;
+  provider_message_id: string;
+}
+
 export function WhatsAppInbox() {
   const { user } = useAuth();
   const whatsappAuthority = useWhatsAppPermissions();
@@ -152,6 +167,9 @@ export function WhatsAppInbox() {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [refreshError, setRefreshError] = useState<string | null>(null);
   const [replyText, setReplyText] = useState("");
+  const [potentialOrders, setPotentialOrders] = useState<GovernedPotentialOrder[]>([]);
+  const [evidenceLinks, setEvidenceLinks] = useState<GovernedEvidenceLink[]>([]);
+  const [governedContextError, setGovernedContextError] = useState<string | null>(null);
   const replyIdempotencyRef = useRef<{ signature: string; key: string } | null>(null);
   const [replySending, setReplySending] = useState(false);
   const [classifyLoading, setClassifyLoading] = useState(false);
@@ -368,8 +386,35 @@ export function WhatsAppInbox() {
       const rows = (packetsData ?? []) as unknown as OperatorInboxPacket[];
       const ids = rows.map((r) => r.id);
       const { byPacket: messagesByPacket, errors: batchMessageErrors } = await fetchMessagesForPacketIdsBatch(ids);
-      if (batchMessageErrors.length > 0) {
-        setMessagesBatchWarnings(batchMessageErrors);
+      const providerMessageIds = Array.from(
+        new Set(
+          Array.from(messagesByPacket.values())
+            .flat()
+            .map((message) => message.provider_message_id)
+            .filter((value): value is string => Boolean(value)),
+        ),
+      );
+
+      let potentialData: GovernedPotentialOrder[] = [];
+      let potentialError: { message: string } | null = null;
+      let evidenceData: GovernedEvidenceLink[] = [];
+      let evidenceError: { message: string } | null = null;
+      if (providerMessageIds.length > 0) {
+        const [potentialResult, evidenceResult] = await Promise.all([
+          supabase
+            .from("whatsapp_potential_orders")
+            .select("id,provider_message_id,state,queue,next_action,next_action_due_at,owner_id")
+            .eq("disposition", "ACTIVE_PENDING")
+            .in("provider_message_id", providerMessageIds),
+          supabase
+            .from("whatsapp_commercial_evidence")
+            .select("potential_order_id,provider_message_id")
+            .in("provider_message_id", providerMessageIds),
+        ]);
+        potentialData = potentialResult.data ?? [];
+        potentialError = potentialResult.error;
+        evidenceData = evidenceResult.data ?? [];
+        evidenceError = evidenceResult.error;
       }
 
       const enrichedPackets = rows.map((packet) => {
@@ -386,8 +431,20 @@ export function WhatsAppInbox() {
 
       if (gen !== inboxLoadGenerationRef.current) return;
 
-      if (batchMessageErrors.length > 0) {
-        setMessagesBatchWarnings(batchMessageErrors);
+      const governanceWarnings = [
+        ...batchMessageErrors.map(
+          (messageError) => `Governed context unavailable because message history is incomplete: ${messageError}`,
+        ),
+        potentialError ? `Governed potential-order context unavailable: ${potentialError.message}` : null,
+        evidenceError ? `Governed evidence links unavailable: ${evidenceError.message}` : null,
+      ].filter((warning): warning is string => Boolean(warning));
+
+      setGovernedContextError(governanceWarnings.length > 0 ? governanceWarnings.join(" ") : null);
+      setPotentialOrders(potentialData);
+      setEvidenceLinks(evidenceData);
+
+      if (batchMessageErrors.length > 0 || governanceWarnings.length > 0) {
+        setMessagesBatchWarnings([...batchMessageErrors, ...governanceWarnings]);
       }
 
       setPackets(enrichedPackets);
@@ -422,11 +479,31 @@ export function WhatsAppInbox() {
     }
   }, []);
 
+  const selectedPotentialOrder = useMemo(() => {
+    const providerIds = new Set(
+      (selectedPacket?.messages ?? [])
+        .map((message) => message.provider_message_id)
+        .filter((value): value is string => Boolean(value)),
+    );
+    const linkedPotentialIds = new Set(
+      evidenceLinks
+        .filter((evidence) => providerIds.has(evidence.provider_message_id))
+        .map((evidence) => evidence.potential_order_id),
+    );
+    return potentialOrders.find(
+      (potential) => providerIds.has(potential.provider_message_id) || linkedPotentialIds.has(potential.id),
+    ) ?? null;
+  }, [evidenceLinks, potentialOrders, selectedPacket]);
+
   const handleSendReply = useCallback(async () => {
     const trimmed = replyText.trim();
     if (!trimmed || !selectedPacket) return;
     if (!whatsappAuthority.has("wa.reply.send")) {
       alert("You do not have permission to send WhatsApp replies.");
+      return;
+    }
+    if (governedContextError) {
+      alert(`Governed reply disabled: ${governedContextError}`);
       return;
     }
 
@@ -449,6 +526,7 @@ export function WhatsAppInbox() {
           phone_number: selectedPacket.phone_number,
           message: trimmed,
           idempotency_key: replyIdempotencyRef.current.key,
+          potential_order_id: selectedPotentialOrder?.id ?? null,
         },
       });
 
@@ -471,7 +549,7 @@ export function WhatsAppInbox() {
     } finally {
       setReplySending(false);
     }
-  }, [replyText, selectedPacket, loadPackets, whatsappAuthority]);
+  }, [replyText, selectedPacket, selectedPotentialOrder, loadPackets, whatsappAuthority, governedContextError]);
 
   const handleClassifyIntent = useCallback(async () => {
     if (!selectedPacket) return;
@@ -889,7 +967,7 @@ export function WhatsAppInbox() {
               {pinnedIds.length > 0 ? ` · ${pinnedIds.length} pinned` : ""}
             </p>
             <p className="text-[11px] text-gray-400">
-              Same read-only inbox: <span className="font-mono text-gray-500">/admin/whatsapp</span> (URL alias).
+              Governed operator inbox: <span className="font-mono text-gray-500">/admin/whatsapp</span> (URL alias).
             </p>
             <p className="mt-1 text-[11px] text-gray-500">
               Shortcuts: <kbd className="rounded border bg-gray-100 px-1">/</kbd>, <kbd className="rounded border bg-gray-100 px-1">Esc</kbd>,{" "}
@@ -1531,6 +1609,25 @@ export function WhatsAppInbox() {
                 </div>
 
                 <div className="shrink-0 border-t border-gray-200 bg-gray-50 p-4">
+                  {governedContextError ? (
+                    <div className="mb-2 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-950" role="alert">
+                      Governed reply disabled: {governedContextError}
+                    </div>
+                  ) : null}
+                  {selectedPotentialOrder ? (
+                    <div className="mb-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-950">
+                      <p className="font-semibold">Governed action: {selectedPotentialOrder.next_action.replace(/_/g, " ")}</p>
+                      <p>
+                        {selectedPotentialOrder.state.replace(/_/g, " ")} · {selectedPotentialOrder.queue}
+                        {selectedPotentialOrder.owner_id ? " · assigned" : " · explicitly unassigned"}
+                      </p>
+                      <p className="mt-1">
+                        Next action due: {selectedPotentialOrder.next_action_due_at
+                          ? new Date(selectedPotentialOrder.next_action_due_at).toLocaleString()
+                          : "not scheduled"}
+                      </p>
+                    </div>
+                  ) : null}
                   <div className="flex gap-2">
                     <input
                       type="text"
@@ -1542,15 +1639,19 @@ export function WhatsAppInbox() {
                           void handleSendReply();
                         }
                       }}
-                      placeholder="Type a reply..."
-                      disabled={replySending || !whatsappAuthority.has("wa.reply.send")}
+                      placeholder={governedContextError
+                        ? "Reply disabled until governed context is available"
+                        : whatsappAuthority.has("wa.reply.send")
+                          ? "Type governed clarification…"
+                          : "Reply requires wa.reply.send permission"}
+                      disabled={replySending || Boolean(governedContextError) || !whatsappAuthority.has("wa.reply.send")}
                       aria-label="Operator reply message draft"
                       className="flex-1 rounded-full border border-gray-300 bg-white px-4 py-2 focus:border-green-500 focus:outline-none focus-visible:ring-2 focus-visible:ring-green-600 focus-visible:ring-offset-2 disabled:bg-gray-100"
                     />
                     <button
                       type="button"
                       onClick={() => void handleSendReply()}
-                      disabled={replySending || !replyText.trim() || !whatsappAuthority.has("wa.reply.send")}
+                      disabled={replySending || Boolean(governedContextError) || !replyText.trim() || !whatsappAuthority.has("wa.reply.send")}
                       aria-label="Send WhatsApp reply"
                       className="rounded-full bg-green-500 px-6 py-2 font-medium text-white transition hover:bg-green-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-700 focus-visible:ring-offset-2 disabled:bg-gray-300"
                     >

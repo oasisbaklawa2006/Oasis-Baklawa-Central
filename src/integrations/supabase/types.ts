@@ -5647,6 +5647,21 @@ export type Database = {
         }
         Relationships: []
       }
+      whatsapp_commercial_evidence: {
+        Row: {
+          potential_order_id: string
+          provider_message_id: string
+        }
+        Insert: {
+          potential_order_id: string
+          provider_message_id: string
+        }
+        Update: {
+          potential_order_id?: string
+          provider_message_id?: string
+        }
+        Relationships: []
+      }
       whatsapp_commercial_packets: {
         Row: {
           conversation_key: string
@@ -5725,6 +5740,39 @@ export type Database = {
           is_active?: boolean | null
           updated_at?: string | null
           webhook_secret?: string | null
+        }
+        Relationships: []
+      }
+      whatsapp_potential_orders: {
+        Row: {
+          disposition: string
+          id: string
+          next_action: string
+          next_action_due_at: string
+          owner_id: string | null
+          provider_message_id: string | null
+          queue: string
+          state: string
+        }
+        Insert: {
+          disposition?: string
+          id?: string
+          next_action?: string
+          next_action_due_at?: string
+          owner_id?: string | null
+          provider_message_id?: string | null
+          queue?: string
+          state?: string
+        }
+        Update: {
+          disposition?: string
+          id?: string
+          next_action?: string
+          next_action_due_at?: string
+          owner_id?: string | null
+          provider_message_id?: string | null
+          queue?: string
+          state?: string
         }
         Relationships: []
       }

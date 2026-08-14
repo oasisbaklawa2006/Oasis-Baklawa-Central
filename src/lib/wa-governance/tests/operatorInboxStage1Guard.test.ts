@@ -28,6 +28,7 @@ function readRepoFile(pathFromRoot: string): string {
 }
 
 describe("operator inbox Stage-1 guardrails", () => {
+  // Keep the governed context assertions tied to the packet-scoped, stale-load-safe query contract.
   const inboxPostgrestWriteScanFiles = collectInboxPostgrestWriteScanFiles(REPO_ROOT);
 
   it("documents the PostgREST write scan paths", () => {
@@ -143,7 +144,28 @@ describe("operator inbox Stage-1 guardrails", () => {
     expect(edge).not.toMatch(/console\.(log|error).*CLICK2API_(API_KEY|ACCESS_TOKEN)/);
     expect(inbox).toContain('whatsappAuthority.has("wa.reply.send")');
     expect(inbox).toContain("idempotency_key: replyIdempotencyRef.current.key");
+    expect(inbox).toContain("potential_order_id: selectedPotentialOrder?.id ?? null");
+    expect(inbox).toContain('.from("whatsapp_commercial_evidence")');
+    expect(inbox).toContain("Governed action:");
+    expect(inbox).toContain('.in("provider_message_id", providerMessageIds)');
+    expect(inbox.indexOf("setPotentialOrders(potentialData")).toBeGreaterThan(inbox.indexOf("if (gen !== inboxLoadGenerationRef.current) return;"));
+    expect(inbox).toContain("Governed context unavailable because message history is incomplete:");
+    expect(inbox).toContain("Governed potential-order context unavailable:");
+    expect(inbox).toContain("governedContextError");
+    expect(inbox).toContain("Governed reply disabled:");
+    expect(inbox).toContain("if (governedContextError)");
+    expect(inbox).toMatch(/disabled=.*governedContextError/);
+    expect(inbox).toContain("whatsappAuthority, governedContextError]);");
     expect(inbox).not.toContain("operator_id:");
+  });
+
+  it("System Settings never hydrates or writes WhatsApp secrets in browser state", () => {
+    const settings = readRepoFile("src/pages/admin/AdminSettings.tsx");
+    expect(settings).not.toMatch(/whatsapp_config/);
+    expect(settings).not.toMatch(/\bapi_key\b/);
+    expect(settings).not.toMatch(/\bwebhook_secret\b/);
+    expect(settings).not.toMatch(/functions\.invoke\s*\(\s*["'`]send-whatsapp["'`]/);
+    expect(settings).toMatch(/data-testid=["']whatsapp-secrets-server-managed["']/);
   });
 
   it("provider status callbacks reconcile the Core outbox", () => {
