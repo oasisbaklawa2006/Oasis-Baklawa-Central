@@ -175,3 +175,19 @@ html, body, #root {
 @media (max-width: 767px) {
   html, body { touch-action: pan-y; }
 }
+
+/*
+ * WhatsApp operator inbox narrow-layout guard.
+ * The inbox list pane is intentionally height-bounded on tablet/mobile. Keep the
+ * large local filter/control panel independently scrollable so it cannot consume
+ * the entire pane and hide the virtualized conversation list beneath it.
+ */
+@media (max-width: 1023px) {
+  #operator-inbox-filter-panel {
+    max-height: min(22dvh, 17rem);
+    flex-shrink: 0;
+    overflow-y: auto;
+    overscroll-behavior-y: contain;
+    -webkit-overflow-scrolling: touch;
+  }
+}
