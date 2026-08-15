@@ -34,6 +34,17 @@ import {
   packetMatchesBulkFilters,
   type OperatorInboxBulkFilters,
 } from "@/components/whatsapp/operatorInboxBulkFilter";
+import {
+  OPERATOR_INBOX_INITIAL_PACKET_LIMIT,
+  OPERATOR_INBOX_LOAD_TIMEOUT_MS,
+  OPERATOR_INBOX_PACKET_PAGE_SIZE,
+  fetchOpenPacketsPage,
+  mergeAppendUniqueByKey,
+  mergeAppendUniqueById,
+  withTimeout,
+  type GovernedEvidenceLink,
+  type GovernedPotentialOrder,
+} from "@/components/whatsapp/operatorInboxPacketsLoader";
 import { fetchMessagesForPacketIdsBatch } from "@/components/whatsapp/operatorInboxMessagesBatch";
 import {
   loadOperatorInboxUiState,
@@ -96,7 +107,6 @@ import { Wa4EvidenceQueueStrip } from "@/components/whatsapp/Wa4EvidenceQueueStr
 import { useWhatsAppPermissions } from "@/hooks/useWhatsAppPermissions";
 
 const REALTIME_CHANNEL = "whatsapp-inbox-packets";
-const PACKET_FETCH_LIMIT = 1000;
 const REALTIME_RELOAD_DEBOUNCE_MS = 480;
 
 function isTypingSurfaceForEsc(el: HTMLElement | null): boolean {
@@ -139,21 +149,6 @@ interface RouteSuggestion {
   action: string;
   reason: string;
   metadata: Record<string, unknown>;
-}
-
-interface GovernedPotentialOrder {
-  id: string;
-  provider_message_id: string;
-  state: string;
-  queue: string;
-  next_action: string;
-  next_action_due_at: string;
-  owner_id: string | null;
-}
-
-interface GovernedEvidenceLink {
-  potential_order_id: string;
-  provider_message_id: string;
 }
 
 export function WhatsAppInbox() {
@@ -258,6 +253,10 @@ export function WhatsAppInbox() {
   });
   const packetListVirtualRef = useRef<OperatorInboxVirtualizedPacketListHandle>(null);
   const [messagesBatchWarnings, setMessagesBatchWarnings] = useState<string[]>([]);
+  /** True once the bounded initial/paginated window may not hold all open packets. */
+  const [hasMorePackets, setHasMorePackets] = useState(false);
+  const [loadingMorePackets, setLoadingMorePackets] = useState(false);
+  const [loadMoreError, setLoadMoreError] = useState<string | null>(null);
   const inboxLoadGenerationRef = useRef(0);
   const listScrollRef = useRef<HTMLDivElement | null>(null);
   const filterInputRef = useRef<HTMLInputElement | null>(null);
@@ -345,11 +344,20 @@ export function WhatsAppInbox() {
     setSuggestionsError(null);
   }, [selectedPacket?.id]);
 
+  /**
+   * Bounded, recent-first initial/refresh load. Fetches only the newest
+   * OPERATOR_INBOX_INITIAL_PACKET_LIMIT open packets so the UI becomes usable
+   * promptly; older conversations remain reachable via `loadMorePackets`.
+   * A stalled Supabase dependency cannot hang the skeleton forever — every
+   * step is wrapped in `withTimeout`, so a failure always reaches the
+   * catch/finally below and exits loading.
+   */
   const loadPackets = useCallback(async (opts?: { silent?: boolean }) => {
     const silent = Boolean(opts?.silent);
     const gen = ++inboxLoadGenerationRef.current;
     try {
       setMessagesBatchWarnings([]);
+      setLoadMoreError(null);
       if (silent) {
         setIsRefreshing(true);
         setRefreshError(null);
@@ -357,35 +365,17 @@ export function WhatsAppInbox() {
         setLoading(true);
       }
 
-      const { data: packetsData, error: packetsError } = await supabase
-        // whatsapp_* tables not in generated Database types yet
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        .from("whatsapp_message_packets" as any)
-        .select(
-          `
-          id,
-          contact_id,
-          fragment_count,
-          status,
-          first_message_at,
-          last_message_at,
-          stitched_content,
-          whatsapp_contacts (
-            phone_number,
-            customer_name,
-            wa_contact_id
-          )
-        `,
-        )
-        .eq("status", "open")
-        .order("last_message_at", { ascending: false })
-        .limit(PACKET_FETCH_LIMIT);
-
-      if (packetsError) throw packetsError;
-
-      const rows = (packetsData ?? []) as unknown as OperatorInboxPacket[];
+      const rows = await withTimeout(
+        fetchOpenPacketsPage(0, OPERATOR_INBOX_INITIAL_PACKET_LIMIT),
+        OPERATOR_INBOX_LOAD_TIMEOUT_MS,
+        "Timed out loading the inbox packet list. The server may be slow or unavailable.",
+      );
       const ids = rows.map((r) => r.id);
-      const { byPacket: messagesByPacket, errors: batchMessageErrors } = await fetchMessagesForPacketIdsBatch(ids);
+      const { byPacket: messagesByPacket, errors: batchMessageErrors } = await withTimeout(
+        fetchMessagesForPacketIdsBatch(ids),
+        OPERATOR_INBOX_LOAD_TIMEOUT_MS,
+        "Timed out loading governed conversation context.",
+      );
       const providerMessageIds = Array.from(
         new Set(
           Array.from(messagesByPacket.values())
@@ -400,17 +390,21 @@ export function WhatsAppInbox() {
       let evidenceData: GovernedEvidenceLink[] = [];
       let evidenceError: { message: string } | null = null;
       if (providerMessageIds.length > 0) {
-        const [potentialResult, evidenceResult] = await Promise.all([
-          supabase
-            .from("whatsapp_potential_orders")
-            .select("id,provider_message_id,state,queue,next_action,next_action_due_at,owner_id")
-            .eq("disposition", "ACTIVE_PENDING")
-            .in("provider_message_id", providerMessageIds),
-          supabase
-            .from("whatsapp_commercial_evidence")
-            .select("potential_order_id,provider_message_id")
-            .in("provider_message_id", providerMessageIds),
-        ]);
+        const [potentialResult, evidenceResult] = await withTimeout(
+          Promise.all([
+            supabase
+              .from("whatsapp_potential_orders")
+              .select("id,provider_message_id,state,queue,next_action,next_action_due_at,owner_id")
+              .eq("disposition", "ACTIVE_PENDING")
+              .in("provider_message_id", providerMessageIds),
+            supabase
+              .from("whatsapp_commercial_evidence")
+              .select("potential_order_id,provider_message_id")
+              .in("provider_message_id", providerMessageIds),
+          ]),
+          OPERATOR_INBOX_LOAD_TIMEOUT_MS,
+          "Timed out loading governed potential-order and evidence context.",
+        );
         potentialData = potentialResult.data ?? [];
         potentialError = potentialResult.error;
         evidenceData = evidenceResult.data ?? [];
@@ -448,6 +442,7 @@ export function WhatsAppInbox() {
       }
 
       setPackets(enrichedPackets);
+      setHasMorePackets(rows.length === OPERATOR_INBOX_INITIAL_PACKET_LIMIT);
 
       const prevId = selectedPacketIdRef.current;
       let nextSelected: OperatorInboxPacket | null = null;
@@ -478,6 +473,112 @@ export function WhatsAppInbox() {
       }
     }
   }, []);
+
+  /**
+   * Explicit, controlled pagination for older open conversations beyond the
+   * bounded initial window. Never silently claims all history is loaded:
+   * `hasMorePackets` only clears once a page comes back short of a full page.
+   */
+  const loadMorePackets = useCallback(async () => {
+    if (loadingMorePackets || !hasMorePackets) return;
+    const gen = inboxLoadGenerationRef.current;
+    setLoadingMorePackets(true);
+    setLoadMoreError(null);
+    try {
+      const offset = packets.length;
+      const moreRows = await withTimeout(
+        fetchOpenPacketsPage(offset, OPERATOR_INBOX_PACKET_PAGE_SIZE),
+        OPERATOR_INBOX_LOAD_TIMEOUT_MS,
+        "Timed out loading more conversations.",
+      );
+      const moreIds = moreRows.map((r) => r.id);
+      const { byPacket: moreMessagesByPacket, errors: moreBatchMessageErrors } = await withTimeout(
+        fetchMessagesForPacketIdsBatch(moreIds),
+        OPERATOR_INBOX_LOAD_TIMEOUT_MS,
+        "Timed out loading governed context for more conversations.",
+      );
+      const moreProviderMessageIds = Array.from(
+        new Set(
+          Array.from(moreMessagesByPacket.values())
+            .flat()
+            .map((message) => message.provider_message_id)
+            .filter((value): value is string => Boolean(value)),
+        ),
+      );
+
+      let morePotentialData: GovernedPotentialOrder[] = [];
+      let morePotentialError: { message: string } | null = null;
+      let moreEvidenceData: GovernedEvidenceLink[] = [];
+      let moreEvidenceError: { message: string } | null = null;
+      if (moreProviderMessageIds.length > 0) {
+        const [morePotentialResult, moreEvidenceResult] = await withTimeout(
+          Promise.all([
+            supabase
+              .from("whatsapp_potential_orders")
+              .select("id,provider_message_id,state,queue,next_action,next_action_due_at,owner_id")
+              .eq("disposition", "ACTIVE_PENDING")
+              .in("provider_message_id", moreProviderMessageIds),
+            supabase
+              .from("whatsapp_commercial_evidence")
+              .select("potential_order_id,provider_message_id")
+              .in("provider_message_id", moreProviderMessageIds),
+          ]),
+          OPERATOR_INBOX_LOAD_TIMEOUT_MS,
+          "Timed out loading governed potential-order and evidence context for more conversations.",
+        );
+        morePotentialData = morePotentialResult.data ?? [];
+        morePotentialError = morePotentialResult.error;
+        moreEvidenceData = moreEvidenceResult.data ?? [];
+        moreEvidenceError = moreEvidenceResult.error;
+      }
+
+      const moreEnrichedPackets = moreRows.map((packet) => {
+        const contact = packet.whatsapp_contacts;
+        const messages = moreMessagesByPacket.get(packet.id) ?? [];
+        return {
+          ...packet,
+          messages,
+          customer_name: contact?.customer_name ?? "Unknown",
+          phone_number: contact?.phone_number ?? "---",
+          wa_contact_id: contact?.wa_contact_id ?? null,
+        };
+      });
+
+      if (gen !== inboxLoadGenerationRef.current) return;
+
+      const moreGovernanceWarnings = [
+        ...moreBatchMessageErrors.map(
+          (messageError) => `Governed context unavailable because message history is incomplete: ${messageError}`,
+        ),
+        morePotentialError ? `Governed potential-order context unavailable: ${morePotentialError.message}` : null,
+        moreEvidenceError ? `Governed evidence links unavailable: ${moreEvidenceError.message}` : null,
+      ].filter((warning): warning is string => Boolean(warning));
+
+      setPackets((prev) => mergeAppendUniqueById(prev, moreEnrichedPackets));
+      setPotentialOrders((prev) => mergeAppendUniqueById(prev, morePotentialData));
+      setEvidenceLinks((prev) =>
+        mergeAppendUniqueByKey(
+          prev,
+          moreEvidenceData,
+          (link: GovernedEvidenceLink) => `${link.potential_order_id}:${link.provider_message_id}`,
+        ),
+      );
+
+      if (moreGovernanceWarnings.length > 0) {
+        setMessagesBatchWarnings((prev) => [...prev, ...moreGovernanceWarnings]);
+        setGovernedContextError((prev) => (prev ? `${prev} ${moreGovernanceWarnings.join(" ")}` : moreGovernanceWarnings.join(" ")));
+      }
+
+      setHasMorePackets(moreRows.length === OPERATOR_INBOX_PACKET_PAGE_SIZE);
+    } catch (err) {
+      if (gen !== inboxLoadGenerationRef.current) return;
+      setLoadMoreError(err instanceof Error ? err.message : "Failed to load more conversations");
+    } finally {
+      // Always clear the busy flag, even if a concurrent refresh superseded this
+      // generation — otherwise "Load more" stays stuck disabled forever.
+      setLoadingMorePackets(false);
+    }
+  }, [packets.length, hasMorePackets, loadingMorePackets]);
 
   const selectedPotentialOrder = useMemo(() => {
     const providerIds = new Set(
@@ -965,6 +1066,7 @@ export function WhatsAppInbox() {
             <p className="text-sm text-gray-500" aria-describedby="operator-inbox-heading">
               {orderedPackets.length} shown · {packets.length} loaded (open)
               {pinnedIds.length > 0 ? ` · ${pinnedIds.length} pinned` : ""}
+              {hasMorePackets ? " · more available" : ""}
             </p>
             <p className="text-[11px] text-gray-400">
               Governed operator inbox: <span className="font-mono text-gray-500">/admin/whatsapp</span> (URL alias).
@@ -1357,6 +1459,38 @@ export function WhatsAppInbox() {
                 onPin={togglePin}
                 compact={compactMode}
               />
+            </div>
+          ) : null}
+
+          {!error && hasMorePackets ? (
+            <div className="shrink-0 border-t border-gray-200 bg-white p-3 text-center">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => void loadMorePackets()}
+                disabled={loadingMorePackets}
+                aria-busy={loadingMorePackets}
+                aria-label="Load older open conversations"
+              >
+                {loadingMorePackets ? "Loading more…" : "Load more conversations"}
+              </Button>
+              {loadMoreError ? (
+                <p className="mt-2 text-xs text-red-600" role="alert">
+                  {loadMoreError}{" "}
+                  <button
+                    type="button"
+                    className="font-medium underline underline-offset-2"
+                    onClick={() => void loadMorePackets()}
+                  >
+                    Retry
+                  </button>
+                </p>
+              ) : (
+                <p className="mt-1 text-[11px] text-gray-500">
+                  Showing the {packets.length} most recent open conversations. Older conversations are not loaded yet.
+                </p>
+              )}
             </div>
           ) : null}
         </div>
