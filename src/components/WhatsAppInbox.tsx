@@ -15,6 +15,8 @@ import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { cn } from "@/lib/utils";
 import type { OperatorInboxPacket } from "@/components/whatsapp/operatorInboxTypes";
 import {
+  deriveMessageMediaStatus,
+  findEvidenceForMessage,
   groupMessagesByDayWithGapMarkers,
   inferLocalIntentFromText,
   inferPacketHealth,
@@ -399,7 +401,7 @@ export function WhatsAppInbox() {
               .in("provider_message_id", providerMessageIds),
             supabase
               .from("whatsapp_commercial_evidence")
-              .select("potential_order_id,provider_message_id")
+              .select("potential_order_id,provider_message_id,evidence_kind,media_count,processing_state")
               .in("provider_message_id", providerMessageIds),
           ]),
           OPERATOR_INBOX_LOAD_TIMEOUT_MS,
@@ -520,7 +522,7 @@ export function WhatsAppInbox() {
               .in("provider_message_id", moreProviderMessageIds),
             supabase
               .from("whatsapp_commercial_evidence")
-              .select("potential_order_id,provider_message_id")
+              .select("potential_order_id,provider_message_id,evidence_kind,media_count,processing_state")
               .in("provider_message_id", moreProviderMessageIds),
           ]),
           OPERATOR_INBOX_LOAD_TIMEOUT_MS,
@@ -991,11 +993,17 @@ export function WhatsAppInbox() {
     });
   }, []);
 
+  /**
+   * On desktop, default the read-only insights aside open (plenty of room). On
+   * narrow/mobile, default it COLLAPSED so the governed reply composer — the
+   * primary operator action — is immediately visible after selecting a
+   * conversation, instead of being pushed off-screen below a tall, non-scrollable
+   * insights stack. The user's own expand/collapse choice always wins.
+   */
   useEffect(() => {
-    if (!insightsAsideUserCollapsed) {
-      setInsightsAsideExpanded(true);
-    }
-  }, [selectedPacket?.id, insightsAsideUserCollapsed]);
+    if (insightsAsideUserCollapsed) return;
+    setInsightsAsideExpanded(!isNarrow);
+  }, [selectedPacket?.id, insightsAsideUserCollapsed, isNarrow]);
 
   useEffect(() => {
     packetListVirtualRef.current?.remeasureAll();
@@ -1714,15 +1722,47 @@ export function WhatsAppInbox() {
                                         #{msg.packet_sequence}
                                       </Badge>
                                     ) : null}
-                                    {messageHasAttachmentHint(msg) ? (
-                                      <span
-                                        className="inline-flex h-5 items-center rounded border border-dashed border-current/40 px-1 text-[10px] opacity-90"
-                                        title="Possible attachment or media (heuristic)"
-                                      >
-                                        <Paperclip className="h-3 w-3" aria-hidden />
-                                        <span className="sr-only">Attachment hint</span>
-                                      </span>
-                                    ) : null}
+                                    {(() => {
+                                      const evidence = findEvidenceForMessage(
+                                        evidenceLinks,
+                                        msg.provider_message_id,
+                                      );
+                                      const mediaStatus = deriveMessageMediaStatus(evidence);
+                                      if (mediaStatus !== "none") {
+                                        const mediaBadgeMeta: Record<
+                                          Exclude<typeof mediaStatus, "none">,
+                                          { label: string; className: string }
+                                        > = {
+                                          available: { label: "Media available", className: "border-emerald-400/60 bg-emerald-500/10 text-emerald-800" },
+                                          processing: { label: "Media processing", className: "border-amber-400/60 bg-amber-500/10 text-amber-800" },
+                                          failed: { label: "Media failed", className: "border-red-400/60 bg-red-500/10 text-red-800" },
+                                          unreadable: { label: "Media unreadable", className: "border-red-400/60 bg-red-500/10 text-red-800" },
+                                        };
+                                        const meta = mediaBadgeMeta[mediaStatus];
+                                        return (
+                                          <span
+                                            className={`inline-flex h-5 items-center gap-1 rounded border px-1 text-[10px] font-medium ${meta.className} ${msg.direction === "outbound" ? "bg-white/20 text-white" : ""}`}
+                                            title={`Packet-scoped media status: ${meta.label} (${evidence?.media_count ?? 0} item${(evidence?.media_count ?? 0) === 1 ? "" : "s"})`}
+                                            data-media-status={mediaStatus}
+                                          >
+                                            <Paperclip className="h-3 w-3" aria-hidden />
+                                            {meta.label}
+                                          </span>
+                                        );
+                                      }
+                                      if (messageHasAttachmentHint(msg)) {
+                                        return (
+                                          <span
+                                            className="inline-flex h-5 items-center rounded border border-dashed border-current/40 px-1 text-[10px] opacity-90"
+                                            title="Possible attachment or media (heuristic — governed evidence not yet available)"
+                                          >
+                                            <Paperclip className="h-3 w-3" aria-hidden />
+                                            <span className="sr-only">Attachment hint</span>
+                                          </span>
+                                        );
+                                      }
+                                      return null;
+                                    })()}
                                   </div>
                                   <p className="whitespace-pre-wrap text-sm">{msg.content ?? ""}</p>
                                   <p className="mt-1 text-xs opacity-70">
@@ -1742,7 +1782,10 @@ export function WhatsAppInbox() {
                   )}
                 </div>
 
-                <div className="shrink-0 border-t border-gray-200 bg-gray-50 p-4">
+                <div
+                  data-operator-inbox-reply-composer
+                  className="sticky bottom-0 z-10 shrink-0 border-t border-gray-200 bg-gray-50 p-4"
+                >
                   {governedContextError ? (
                     <div className="mb-2 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-950" role="alert">
                       Governed reply disabled: {governedContextError}
@@ -1814,7 +1857,7 @@ export function WhatsAppInbox() {
                 <aside
                   data-operator-inbox-local-insights
                   tabIndex={-1}
-                  className="w-full shrink-0 border-t border-gray-200 bg-slate-50/60 p-4 outline-none lg:sticky lg:top-0 lg:z-10 lg:max-h-[min(100dvh,100%)] lg:w-80 lg:self-start lg:overflow-y-auto lg:overscroll-y-contain lg:border-l lg:border-t-0"
+                  className="max-h-[45vh] w-full shrink-0 overflow-y-auto overscroll-y-contain border-t border-gray-200 bg-slate-50/60 p-4 outline-none lg:sticky lg:top-0 lg:z-10 lg:max-h-[min(100dvh,100%)] lg:w-80 lg:self-start lg:overflow-y-auto lg:overscroll-y-contain lg:border-l lg:border-t-0"
                 >
                   <div className="mb-3 flex items-center justify-between gap-2">
                     <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-600">Read-only insights</h3>

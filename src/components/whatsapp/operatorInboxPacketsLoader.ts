@@ -27,9 +27,27 @@ export interface GovernedPotentialOrder {
   owner_id: string | null;
 }
 
+/** Canonical WA-4 commercial-evidence media processing states (whatsapp_commercial_evidence.processing_state). */
+export type GovernedEvidenceProcessingState =
+  | "PENDING"
+  | "PROCESSING"
+  | "SUCCEEDED"
+  | "UNSUPPORTED"
+  | "CORRUPT"
+  | "UNREADABLE"
+  | "TIMED_OUT"
+  | "FAILED";
+
+export type GovernedEvidenceKind = "TEXT" | "IMAGE" | "DOCUMENT" | "VIDEO" | "AUDIO" | "OTHER";
+
 export interface GovernedEvidenceLink {
   potential_order_id: string;
   provider_message_id: string;
+  /** Loosely typed `string` (matching the generated Supabase row type) — see GovernedEvidenceKind for the canonical values. */
+  evidence_kind: string;
+  media_count: number;
+  /** Loosely typed `string` (matching the generated Supabase row type) — see GovernedEvidenceProcessingState for the canonical values. */
+  processing_state: string;
 }
 
 /** Rejects with `message` if `promise` has not settled within `ms`. Never leaves a caller hung. */

@@ -4,6 +4,7 @@
  */
 
 import type { Message } from "./operatorInboxTypes";
+import type { GovernedEvidenceLink, GovernedEvidenceProcessingState } from "./operatorInboxPacketsLoader";
 
 export type DayGroupedMessages = { dayKey: string; dayLabel: string; messages: Message[] };
 
@@ -151,6 +152,41 @@ export function messageHasAttachmentHint(m: Message): boolean {
   const c = (m.content ?? "").trim();
   if (!c) return false;
   return /\bhttps?:\/\//i.test(c);
+}
+
+/**
+ * Packet-level (never global) media presence/status for a single message, derived
+ * from the governed `whatsapp_commercial_evidence` row already fetched for this
+ * packet's own provider_message_ids — never a raw storage URL, never a global count.
+ * "none" covers both text-only messages (media_count === 0) and messages the
+ * operator inbox has no governed evidence context for yet.
+ */
+export type MessageMediaStatus = "available" | "processing" | "failed" | "unreadable" | "none";
+
+const MEDIA_PROCESSING_STATE_TO_STATUS: Record<GovernedEvidenceProcessingState, MessageMediaStatus> = {
+  SUCCEEDED: "available",
+  PENDING: "processing",
+  PROCESSING: "processing",
+  FAILED: "failed",
+  TIMED_OUT: "failed",
+  CORRUPT: "unreadable",
+  UNREADABLE: "unreadable",
+  UNSUPPORTED: "unreadable",
+};
+
+export function deriveMessageMediaStatus(
+  evidence: GovernedEvidenceLink | null | undefined,
+): MessageMediaStatus {
+  if (!evidence || evidence.media_count <= 0) return "none";
+  return MEDIA_PROCESSING_STATE_TO_STATUS[evidence.processing_state] ?? "processing";
+}
+
+export function findEvidenceForMessage(
+  evidenceLinks: GovernedEvidenceLink[],
+  providerMessageId: string | null | undefined,
+): GovernedEvidenceLink | null {
+  if (!providerMessageId) return null;
+  return evidenceLinks.find((e) => e.provider_message_id === providerMessageId) ?? null;
 }
 
 /** Local intent bucket for sidebar / row coloring (keyword + stitched text). */
