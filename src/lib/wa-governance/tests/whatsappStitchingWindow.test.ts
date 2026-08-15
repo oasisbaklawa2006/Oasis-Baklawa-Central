@@ -75,6 +75,20 @@ describe("groupMessagesByStitchingWindow", () => {
     expect(result.groups[1].messages.map((m) => m.id)).toEqual(["m3"]);
   });
 
+  it("keeps a rolling chain in one group even when its total span exceeds the window (gap is measured against the running last message, not the group's start)", () => {
+    const messages = [
+      msg("m1", "contact-1", "2026-08-15T10:00:00Z"),
+      msg("m2", "contact-1", "2026-08-15T10:04:00Z"),
+      msg("m3", "contact-1", "2026-08-15T10:08:00Z"),
+      msg("m4", "contact-1", "2026-08-15T10:12:00Z"),
+    ];
+
+    const [result] = groupMessagesByStitchingWindow(messages, 300);
+    expect(result.groups).toHaveLength(1);
+    expect(result.groups[0].first_message_at).toBe("2026-08-15T10:00:00Z");
+    expect(result.groups[0].last_message_at).toBe("2026-08-15T10:12:00Z");
+  });
+
   it("is idempotent/duplicate-safe at the grouping layer: re-processing the same input yields the same groups", () => {
     const messages = [
       msg("m1", "contact-1", "2026-08-15T10:00:00Z"),

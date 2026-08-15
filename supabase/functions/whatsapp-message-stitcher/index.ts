@@ -105,14 +105,22 @@ async function findAlreadyStitchedPacketsByProviderMessageId(
     .in("provider_message_id", providerMessageIds)
     .not("packet_id", "is", null);
 
-  if (error || !data) return result;
+  // A query FAILURE must never be treated the same as a genuine "no duplicates
+  // found" empty result — silently treating an error as "nothing already
+  // stitched" would let a real retry slip through as a brand-new primary
+  // message and be double-counted. Abort the run instead; the next invocation
+  // retries from a consistent state.
+  if (error) {
+    throw new Error(`Failed to look up already-stitched duplicates: ${error.message}`);
+  }
 
-  for (const row of data as { provider_message_id: string | null; packet_id: string | null }[]) {
-    if (!row.provider_message_id || !row.packet_id) continue;
+  for (const row of (data ?? []) as { provider_message_id: string | null; packet_id: string | null }[]) {
+    const providerMessageId = row.provider_message_id?.trim();
+    if (!providerMessageId || !row.packet_id) continue;
     // First-write-wins if there is somehow more than one stitched row for the
     // same provider_message_id — never overwrite an already-resolved mapping.
-    if (!result.has(row.provider_message_id)) {
-      result.set(row.provider_message_id, row.packet_id);
+    if (!result.has(providerMessageId)) {
+      result.set(providerMessageId, row.packet_id);
     }
   }
 
@@ -164,13 +172,20 @@ async function findAppendableOpenPacket(
     .limit(1)
     .maybeSingle();
 
-  if (error || !data) return null;
+  if (error) {
+    // Fail safe to "no appendable packet" (a new packet gets created) rather than
+    // aborting the whole run over one contact's lookup — worst case is one extra
+    // packet, never lost or duplicated data. Still logged so it's observable.
+    console.warn(`[whatsapp-message-stitcher] open-packet lookup failed for contact ${contactId}:`, error.message);
+    return null;
+  }
+  if (!data) return null;
 
   if (!isWithinAppendWindow(data.last_message_at as string, earliestNewMessageAt, windowSeconds)) {
     return null;
   }
 
-  return data as unknown as ExistingOpenPacket;
+  return data as ExistingOpenPacket;
 }
 
 /**
@@ -201,6 +216,10 @@ async function tryAppendToExistingPacket(
     })
     .eq("id", packet.id)
     .eq("fragment_count", packet.fragment_count)
+    // A concurrent process could close this packet between the read in
+    // findAppendableOpenPacket and this update; without this predicate the CAS
+    // would still "succeed" and silently reopen a packet callers assume is final.
+    .eq("status", "open")
     .select("id")
     .maybeSingle();
 
@@ -218,6 +237,26 @@ async function tryAppendToExistingPacket(
       })
       .eq("id", group.messages[i].id);
     if (fragErr) {
+      // The packet-level CAS above already committed the inflated fragment_count
+      // and merged text. A mid-loop failure here must not leave that claim
+      // standing against messages that never actually got linked — that would
+      // both corrupt the packet's counters and cause the unlinked messages to be
+      // double-stitched on the next run. Best-effort compensating rollback:
+      // restore the packet to its pre-append state, then surface the error.
+      const { error: rollbackErr } = await supabaseAdmin
+        .from("whatsapp_message_packets")
+        .update({
+          stitched_content: packet.stitched_content,
+          fragment_count: packet.fragment_count,
+          last_message_at: packet.last_message_at,
+        })
+        .eq("id", packet.id);
+      if (rollbackErr) {
+        console.error(
+          `[whatsapp-message-stitcher] rollback of packet ${packet.id} after partial append failure also failed:`,
+          rollbackErr.message,
+        );
+      }
       throw new Error(`Failed to link appended fragment ${group.messages[i].id}: ${fragErr.message}`);
     }
     if (group.messages[i].provider_message_id) {
@@ -282,6 +321,30 @@ async function insertNewPacket(
         "[whatsapp-message-stitcher] fragment update failed:",
         updateErr.message,
       );
+      // The packet was inserted claiming all `group.messages.length` fragments,
+      // but only `linked` of them are actually connected. Correct fragment_count
+      // (and the stitched text) down to what's really linked so the count is
+      // never inflated — the remaining, still-unlinked messages stay
+      // packet_id: null and get picked up (and correctly sequence-continued)
+      // by a later run, self-healing rather than being lost or double-counted.
+      const linkedMessages = group.messages.slice(0, linked);
+      const { error: correctionErr } = await supabaseAdmin
+        .from("whatsapp_message_packets")
+        .update({
+          fragment_count: linked,
+          stitched_content: {
+            summary: `${linked} messages stitched`,
+            text: stitchedTextFor(linkedMessages),
+          },
+          last_message_at: linked > 0 ? linkedMessages[linked - 1].created_at : group.first_message_at,
+        })
+        .eq("id", row.id);
+      if (correctionErr) {
+        console.error(
+          `[whatsapp-message-stitcher] fragment_count correction for packet ${row.id} also failed:`,
+          correctionErr.message,
+        );
+      }
       throw new Error(updateErr.message);
     }
     if (group.messages[i].provider_message_id) {
@@ -379,23 +442,27 @@ serve(async (req) => {
     // row whose provider_message_id was already stitched into a packet in an
     // EARLIER invocation. Resolve those immediately — link to the same packet,
     // never grouped as a new fragment or a new packet.
+    // Trimmed once here and reused everywhere below — partitionDuplicateProviderMessages
+    // also keys on the trimmed value, so an inconsistently-untrimmed lookup here
+    // could miss a real duplicate and double-count it as a new primary message.
+    const providerKeyOf = (m: UnstitchedMessage): string | null => m.provider_message_id?.trim() || null;
     const candidateProviderMessageIds = unstitched
-      .map((m) => m.provider_message_id)
-      .filter((id): id is string => Boolean(id?.trim()));
+      .map(providerKeyOf)
+      .filter((id): id is string => id !== null);
     const alreadyStitched = await findAlreadyStitchedPacketsByProviderMessageId(
       supabaseAdmin,
       candidateProviderMessageIds,
     );
-    const crossRunDuplicates = unstitched.filter(
-      (m) => m.provider_message_id && alreadyStitched.has(m.provider_message_id),
-    );
-    const remaining = unstitched.filter(
-      (m) => !m.provider_message_id || !alreadyStitched.has(m.provider_message_id),
-    );
+    const isCrossRunDuplicate = (m: UnstitchedMessage): boolean => {
+      const key = providerKeyOf(m);
+      return key !== null && alreadyStitched.has(key);
+    };
+    const crossRunDuplicates = unstitched.filter(isCrossRunDuplicate);
+    const remaining = unstitched.filter((m) => !isCrossRunDuplicate(m));
 
     let duplicatesLinked = 0;
     for (const duplicate of crossRunDuplicates) {
-      const targetPacketId = alreadyStitched.get(duplicate.provider_message_id as string)!;
+      const targetPacketId = alreadyStitched.get(providerKeyOf(duplicate) as string)!;
       await linkDuplicateMessageToPacket(supabaseAdmin, duplicate, targetPacketId);
       duplicatesLinked += 1;
     }

@@ -101,6 +101,17 @@ describe("quantityResolutionSignals", () => {
       const signals = extractQuantityResolutionTextSignals(phrase);
       expect(signals.matches).toHaveLength(0);
     });
+
+    it("does not treat colon- or hyphen-separated order/client-code references as quantities", () => {
+      for (const text of [
+        "order number: 12345",
+        "order number-12345",
+        "client code: 12345",
+        "client code-12345",
+      ]) {
+        expect(extractQuantityResolutionTextSignals(text).matches).toHaveLength(0);
+      }
+    });
   });
 
   it("regression: a bare number starting the NEXT line is not attributed to an unrelated keyword on the previous line", () => {
