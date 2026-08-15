@@ -75,7 +75,10 @@ export async function fetchOpenPacketsPage(offset: number, limit: number): Promi
     `,
     )
     .eq("status", "open")
+    // Secondary tiebreaker: `last_message_at` alone isn't unique, and offset-based
+    // pagination over a non-unique sort key can skip or duplicate rows across pages.
     .order("last_message_at", { ascending: false })
+    .order("id", { ascending: false })
     .range(offset, offset + limit - 1);
 
   if (error) throw error;

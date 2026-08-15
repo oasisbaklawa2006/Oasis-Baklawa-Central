@@ -23,10 +23,17 @@ import type { OperatorInboxPacket } from "./operatorInboxTypes";
 /** Minimal chainable query-builder stub mirroring the Supabase fluent API used here. */
 function packetsChain(result: { data: unknown; error: { message: string } | null }) {
   const range = vi.fn().mockResolvedValue(result);
-  const order = vi.fn().mockReturnValue({ range });
-  const eq = vi.fn().mockReturnValue({ order });
+  const orderCalls: unknown[][] = [];
+  const orderChain: { order: ReturnType<typeof vi.fn>; range: typeof range } = {
+    order: vi.fn((...args: unknown[]) => {
+      orderCalls.push(args);
+      return orderChain;
+    }),
+    range,
+  };
+  const eq = vi.fn().mockReturnValue(orderChain);
   const select = vi.fn().mockReturnValue({ eq });
-  return { select, eq, order, range };
+  return { select, eq, order: orderChain.order, range, orderCalls };
 }
 
 function makePacketRow(id: string, lastMessageAt: string): OperatorInboxPacket {
@@ -55,7 +62,12 @@ describe("fetchOpenPacketsPage", () => {
 
     expect(fromMock).toHaveBeenCalledWith("whatsapp_message_packets");
     expect(chain.eq).toHaveBeenCalledWith("status", "open");
-    expect(chain.order).toHaveBeenCalledWith("last_message_at", { ascending: false });
+    // last_message_at alone isn't unique — a secondary `id` tiebreaker keeps offset
+    // pagination deterministic so ties don't skip or duplicate packets across pages.
+    expect(chain.orderCalls).toEqual([
+      ["last_message_at", { ascending: false }],
+      ["id", { ascending: false }],
+    ]);
     // Bounded: an explicit upper bound is always passed, never an unbounded fetch.
     expect(chain.range).toHaveBeenCalledWith(0, OPERATOR_INBOX_INITIAL_PACKET_LIMIT - 1);
   });
@@ -120,6 +132,27 @@ describe("pagination merge helpers — no silent duplication or reordering", () 
     const prev = [{ id: "a" }, { id: "b" }];
     const additions = [{ id: "b" }, { id: "c" }];
     expect(mergeAppendUniqueById(prev, additions)).toEqual([{ id: "a" }, { id: "b" }, { id: "c" }]);
+  });
+
+  it("regression: a deterministic (last_message_at, id) tiebreaker prevents skipped packets across tied-timestamp pages", () => {
+    // Without a unique tiebreaker, offset pagination over rows sharing the same
+    // last_message_at can reshuffle between requests, so page two can overlap
+    // page one and page three's offset (based on loaded.length) skips a row
+    // that never got fetched. Ordering by (last_message_at desc, id desc) makes
+    // the server-side ordering stable, so consecutive `offset` pages never overlap.
+    const pageOne = ["e", "d", "c"].map((id) => ({ id }));
+    const pageTwo = ["b", "a"].map((id) => ({ id })); // deterministic: strictly continues past "c"
+
+    let loaded = mergeAppendUniqueById([], pageOne);
+    expect(loaded.map((p) => p.id)).toEqual(["e", "d", "c"]);
+
+    const offsetForPageTwo = loaded.length;
+    expect(offsetForPageTwo).toBe(3);
+
+    loaded = mergeAppendUniqueById(loaded, pageTwo);
+    expect(loaded.map((p) => p.id)).toEqual(["e", "d", "c", "b", "a"]);
+    // Every id sharing the tied timestamp is present exactly once — none skipped, none duplicated.
+    expect(new Set(loaded.map((p) => p.id)).size).toBe(loaded.length);
   });
 
   it("mergeAppendUniqueByKey dedups composite-keyed governed rows (e.g. evidence links)", () => {

@@ -52,6 +52,23 @@ describe("operator inbox bounded initial load guardrails", () => {
     expect(finallyBlock).toContain("setError(msg);");
   });
 
+  it("regression: loadMorePackets always clears its busy flag, even when a refresh supersedes its generation", () => {
+    const inbox = readRepoSource(REPO_ROOT, WHATSAPP_INBOX_INVOKE_SCAN_FILE);
+    const loadMoreStart = inbox.indexOf("const loadMorePackets = useCallback");
+    const loadMoreEnd = inbox.indexOf(
+      "}, [packets.length, hasMorePackets, loadingMorePackets]);",
+      loadMoreStart,
+    );
+    const loadMoreBody = inbox.slice(loadMoreStart, loadMoreEnd);
+    const finallyIndex = loadMoreBody.lastIndexOf("finally {");
+    const finallyBlock = loadMoreBody.slice(finallyIndex);
+    // A silent refresh (loadPackets) can bump inboxLoadGenerationRef.current while
+    // loadMorePackets is still in flight. The busy flag must clear unconditionally —
+    // gating it on the (now stale) generation leaves "Load more" stuck forever.
+    expect(finallyBlock).toContain("setLoadingMorePackets(false);");
+    expect(finallyBlock).not.toMatch(/if \(gen === inboxLoadGenerationRef\.current\)\s*\{\s*setLoadingMorePackets/);
+  });
+
   it("governed context failures fail closed in both the initial load and pagination, never fail open", () => {
     const inbox = readRepoSource(REPO_ROOT, WHATSAPP_INBOX_INVOKE_SCAN_FILE);
 

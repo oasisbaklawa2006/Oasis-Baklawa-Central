@@ -574,9 +574,9 @@ export function WhatsAppInbox() {
       if (gen !== inboxLoadGenerationRef.current) return;
       setLoadMoreError(err instanceof Error ? err.message : "Failed to load more conversations");
     } finally {
-      if (gen === inboxLoadGenerationRef.current) {
-        setLoadingMorePackets(false);
-      }
+      // Always clear the busy flag, even if a concurrent refresh superseded this
+      // generation — otherwise "Load more" stays stuck disabled forever.
+      setLoadingMorePackets(false);
     }
   }, [packets.length, hasMorePackets, loadingMorePackets]);
 
