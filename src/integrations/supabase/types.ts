@@ -5651,14 +5651,23 @@ export type Database = {
         Row: {
           potential_order_id: string
           provider_message_id: string
+          evidence_kind: string
+          media_count: number
+          processing_state: string
         }
         Insert: {
           potential_order_id: string
           provider_message_id: string
+          evidence_kind?: string
+          media_count?: number
+          processing_state?: string
         }
         Update: {
           potential_order_id?: string
           provider_message_id?: string
+          evidence_kind?: string
+          media_count?: number
+          processing_state?: string
         }
         Relationships: []
       }

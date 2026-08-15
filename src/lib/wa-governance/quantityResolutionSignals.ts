@@ -14,11 +14,25 @@ const QTY_PRODUCT_UNIT_PATTERN =
 const QTY_UNIT_THEN_PRODUCT_PATTERN =
   /\b(\d+(?:\.\d+)?)\s+(cartons?|carton|ctns?|ctn|cases?|case|boxes?|box|packs?|pack)\s+([A-Za-z][A-Za-z\s-]{2,40})\b/gi;
 
-const WEIGHT_ORDER_PATTERN =
-  /\b(?:need|send|want|order|qty|quantity)\s+(?:me\s+)?(\d+(?:\.\d+)?)\s*(kg|kgs|kilograms?|gm|gms|grams?|g)\b/gi;
+/**
+ * Horizontal whitespace only (never `\n`). The trigger keyword and the digit it
+ * governs must sit on the same line/sentence fragment — with a bare `\s+` gap, an
+ * unrelated bare number starting the NEXT line of a multi-fragment message (e.g. a
+ * follow-up "1 more thing" typed after "...my order") was misread as an explicit
+ * quantity for the earlier, unrelated keyword. Reproduces the physically observed
+ * "quantity=1 at 78%" hint on the non-order message "When will I receive my order".
+ */
+const KEYWORD_GAP = "[ \\t]+";
 
-const EXPLICIT_QTY_ONLY_PATTERN =
-  /\b(?:need|send|want|order|qty|quantity)\s+(?:me\s+)?(\d+(?:\.\d+)?)\b(?!\s*(?:\/|\d))(?!\s+(?:[A-Za-z][A-Za-z\s-]{0,40}\s+)?(?:boxes?|box|tins?|tin|trays?|tray|pcs?|pc|pieces?|piece|cartons?|carton|ctns?|ctn|cases?|case|units?|unit|packs?|pack|kg|kgs|gm|gms|grams?|g)\b)(?:\s*(?:please|confirm|total|only|[,.!]|$))?/gi;
+const WEIGHT_ORDER_PATTERN = new RegExp(
+  `\\b(?:need|send|want|order|qty|quantity)${KEYWORD_GAP}(?:me${KEYWORD_GAP})?(\\d+(?:\\.\\d+)?)\\s*(kg|kgs|kilograms?|gm|gms|grams?|g)\\b`,
+  "gi",
+);
+
+const EXPLICIT_QTY_ONLY_PATTERN = new RegExp(
+  `\\b(?:need|send|want|order|qty|quantity)${KEYWORD_GAP}(?:me${KEYWORD_GAP})?(\\d+(?:\\.\\d+)?)\\b(?!\\s*(?:\\/|\\d))(?!\\s+(?:[A-Za-z][A-Za-z\\s-]{0,40}\\s+)?(?:boxes?|box|tins?|tin|trays?|tray|pcs?|pc|pieces?|piece|cartons?|carton|ctns?|ctn|cases?|case|units?|unit|packs?|pack|kg|kgs|gm|gms|grams?|g)\\b)(?:\\s*(?:please|confirm|total|only|[,.!]|$))?`,
+  "gi",
+);
 
 const DOZEN_PATTERN = /\b(\d+(?:\.\d+)?)\s+dozen\b/gi;
 const HALF_DOZEN_PATTERN = /\bhalf\s+dozen\b/gi;
@@ -29,8 +43,8 @@ const EXCLUDED_SPAN_PATTERNS = [
   /\b[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}\b/gi,
   /\bSO[-\s#][0-9A-Z-]{4,18}\b/gi,
   /\bORD(?:ER)?[-\s#][0-9A-Z-]{4,18}\b/gi,
-  /\border\s*(?:#|no\.?|number)\s*[:\-]?\s*[0-9A-Z-]{4,18}\b/gi,
-  /\b(?:client\s*code|code)\s*[:\-]?\s*\d{3,8}\b/gi,
+  /\border\s*(?:#|no\.?|number)\s*[:-]?\s*[0-9A-Z-]{4,18}\b/gi,
+  /\b(?:client\s*code|code)\s*[:-]?\s*\d{3,8}\b/gi,
 ] as const;
 
 const UNIT_NORMALIZATION: Record<string, string> = {
