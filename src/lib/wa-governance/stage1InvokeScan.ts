@@ -9,11 +9,13 @@ export const ALLOWED_WHATSAPP_INBOX_INVOKE_SLUGS = [
 ] as const;
 
 export const ALLOWED_WA_GOVERNANCE_FETCH_INVOKE_SLUGS = ["whatsapp-identify-sender"] as const;
+export const ALLOWED_WA_CONTENT_INTERPRET_INVOKE_SLUGS = ["whatsapp-content-interpret"] as const;
 
 /** Per-file literal slug allowlist for inbox-tree invoke guard tests. */
 export const INBOX_TREE_INVOKE_ALLOWLIST_BY_FILE: Readonly<Record<string, readonly string[]>> = {
   [WHATSAPP_INBOX_INVOKE_SCAN_FILE]: ALLOWED_WHATSAPP_INBOX_INVOKE_SLUGS,
   "src/lib/wa-governance/fetchSenderIdentity.ts": ALLOWED_WA_GOVERNANCE_FETCH_INVOKE_SLUGS,
+  "src/lib/wa-governance/packetContentInterpretation.ts": ALLOWED_WA_CONTENT_INTERPRET_INVOKE_SLUGS,
 };
 
 export type FunctionsInvokeDynamicReason =
