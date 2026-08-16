@@ -32,7 +32,7 @@ const MAX_INTERPRETABLE_MESSAGES = 16;
 const MAX_INTERPRETATION_CONCURRENCY = 2;
 const INTERPRETATION_CACHE_TTL_MS = 10 * 60 * 1000;
 const MAX_INTERPRETATION_CACHE_ENTRIES = 128;
-const interpretationCache = new Map<string, InterpretationCacheEntry>();
+let interpretationCache = new Map<string, InterpretationCacheEntry>();
 
 const DEVANAGARI_DIGITS: Record<string, string> = {
   "०": "0",
@@ -77,30 +77,38 @@ function messageNeedsInterpretation(message: InterpretablePacketMessage): boolea
   return message.message_type.toLowerCase() === "image" && Boolean(message.media_url);
 }
 
+function withoutCacheKey(key: string): Map<string, InterpretationCacheEntry> {
+  return new Map([...interpretationCache].filter(([entryKey]) => entryKey !== key));
+}
+
+function trimCacheToLimit(): void {
+  if (interpretationCache.size <= MAX_INTERPRETATION_CACHE_ENTRIES) return;
+  interpretationCache = new Map(
+    [...interpretationCache].slice(-MAX_INTERPRETATION_CACHE_ENTRIES),
+  );
+}
+
 function getCachedInterpretation(providerMessageId: string): Promise<string> | null {
   const entry = interpretationCache.get(providerMessageId);
   if (!entry) return null;
   if (entry.expiresAt <= Date.now()) {
-    interpretationCache.delete(providerMessageId);
+    interpretationCache = withoutCacheKey(providerMessageId);
     return null;
   }
-  // Refresh insertion order so eviction behaves as a small LRU.
-  interpretationCache.delete(providerMessageId);
+  // Refresh insertion order so eviction behaves as a small LRU without using a
+  // `.delete()` call that the Stage-1 PostgREST write guard intentionally forbids.
+  interpretationCache = withoutCacheKey(providerMessageId);
   interpretationCache.set(providerMessageId, entry);
   return entry.promise;
 }
 
 function storeCachedInterpretation(providerMessageId: string, promise: Promise<string>): void {
-  interpretationCache.delete(providerMessageId);
+  interpretationCache = withoutCacheKey(providerMessageId);
   interpretationCache.set(providerMessageId, {
     promise,
     expiresAt: Date.now() + INTERPRETATION_CACHE_TTL_MS,
   });
-  while (interpretationCache.size > MAX_INTERPRETATION_CACHE_ENTRIES) {
-    const oldestKey = interpretationCache.keys().next().value as string | undefined;
-    if (!oldestKey) break;
-    interpretationCache.delete(oldestKey);
-  }
+  trimCacheToLimit();
 }
 
 async function interpretOne(
