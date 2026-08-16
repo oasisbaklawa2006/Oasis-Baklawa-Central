@@ -39,24 +39,64 @@ export function useOperatorInboxDraftOrderExtraction(
   productResolutionState: OperatorInboxProductResolutionState,
   quantityResolutionState: OperatorInboxQuantityResolutionState,
 ): { state: OperatorInboxDraftOrderExtractionState; requestKey: string | null } {
+  const packetMessages = useMemo(() => {
+    if (!selectedPacket) return [];
+    return (selectedPacket.messages ?? []).filter(
+      (message) => message.packet_id == null || message.packet_id === selectedPacket.id,
+    );
+  }, [selectedPacket?.id, selectedPacket?.messages]);
+
+  const hasCrossPacketMessages = useMemo(() => {
+    if (!selectedPacket) return false;
+    return (selectedPacket.messages ?? []).some(
+      (message) => message.packet_id != null && message.packet_id !== selectedPacket.id,
+    );
+  }, [selectedPacket?.id, selectedPacket?.messages]);
+
+  const hasDuplicateProviderIdentities = useMemo(() => {
+    const seen = new Set<string>();
+    for (const message of packetMessages) {
+      const providerMessageId = message.provider_message_id;
+      if (providerMessageId == null || providerMessageId === "") continue;
+      if (seen.has(providerMessageId)) return true;
+      seen.add(providerMessageId);
+    }
+    return false;
+  }, [packetMessages]);
+
+  const hasInvalidPacketAuthority = hasCrossPacketMessages || hasDuplicateProviderIdentities;
+
   const stitchedPlainText = useMemo(() => {
-    if (!selectedPacket) return "";
+    if (!selectedPacket || hasInvalidPacketAuthority) return "";
     return packetStitchedPlainText(selectedPacket.stitched_content);
-  }, [selectedPacket?.stitched_content]);
+  }, [selectedPacket?.stitched_content, hasInvalidPacketAuthority]);
 
   const sourceText = useMemo(() => {
-    const inbound = (selectedPacket?.messages ?? [])
+    if (hasInvalidPacketAuthority) return "";
+    const inbound = packetMessages
       .filter((m) => m.direction === "inbound")
+      .slice()
+      .sort((a, b) => {
+        const aSequence = a.packet_sequence;
+        const bSequence = b.packet_sequence;
+        if (typeof aSequence === "number" && typeof bSequence === "number" && aSequence !== bSequence) {
+          return aSequence - bSequence;
+        }
+        const aTime = new Date(a.created_at).getTime();
+        const bTime = new Date(b.created_at).getTime();
+        if (Number.isFinite(aTime) && Number.isFinite(bTime) && aTime !== bTime) return aTime - bTime;
+        return a.id.localeCompare(b.id);
+      })
       .map((m) => m.content ?? "")
       .join("\n");
     return (inbound || stitchedPlainText).slice(0, 12000);
-  }, [selectedPacket?.messages, stitchedPlainText]);
+  }, [packetMessages, stitchedPlainText, hasInvalidPacketAuthority]);
 
   const requestKey = useMemo(() => {
-    if (!selectedPacket) return null;
+    if (!selectedPacket || hasInvalidPacketAuthority) return null;
     return buildDraftOrderExtractionRequestKey({
       packetId: selectedPacket.id,
-      contentFingerprint: buildPacketContentFingerprint(selectedPacket.messages, stitchedPlainText),
+      contentFingerprint: buildPacketContentFingerprint(packetMessages, stitchedPlainText),
       clientResolutionState,
       productResolutionState,
       quantityResolutionState,
@@ -64,8 +104,9 @@ export function useOperatorInboxDraftOrderExtraction(
     });
   }, [
     selectedPacket?.id,
-    selectedPacket?.messages,
+    packetMessages,
     stitchedPlainText,
+    hasInvalidPacketAuthority,
     clientResolutionState,
     productResolutionState,
     quantityResolutionState,
@@ -73,77 +114,31 @@ export function useOperatorInboxDraftOrderExtraction(
   ]);
 
   const state = useMemo((): OperatorInboxDraftOrderExtractionState => {
-    if (!selectedPacket || !requestKey) return { status: "idle" };
+    if (!selectedPacket || hasInvalidPacketAuthority || !requestKey) return { status: "idle" };
 
-    if (isDraftOrderExtractionUpstreamLoading({
-      clientResolutionState,
-      productResolutionState,
-      quantityResolutionState,
-    })) {
-      return {
-        status: "loading",
-        requestKey,
-        draft: buildPendingDraftOrder({
-          packetId: selectedPacket.id,
-          extractionRequestKey: requestKey,
-          sourceText,
-          status: "upstream_loading",
-        }),
-      };
+    if (isDraftOrderExtractionUpstreamLoading({ clientResolutionState, productResolutionState, quantityResolutionState })) {
+      return { status: "loading", requestKey, draft: buildPendingDraftOrder({ packetId: selectedPacket.id, extractionRequestKey: requestKey, sourceText, status: "upstream_loading" }) };
     }
 
-    const upstreamError = firstUpstreamErrorMessage({
-      clientResolutionState,
-      productResolutionState,
-      quantityResolutionState,
-    });
+    const upstreamError = firstUpstreamErrorMessage({ clientResolutionState, productResolutionState, quantityResolutionState });
     if (upstreamError) {
-      return {
-        status: "error",
-        requestKey,
-        message: upstreamError,
-        draft: buildPendingDraftOrder({
-          packetId: selectedPacket.id,
-          extractionRequestKey: requestKey,
-          sourceText,
-          status: "upstream_error",
-          upstreamErrorMessage: upstreamError,
-        }),
-      };
+      return { status: "error", requestKey, message: upstreamError, draft: buildPendingDraftOrder({ packetId: selectedPacket.id, extractionRequestKey: requestKey, sourceText, status: "upstream_error", upstreamErrorMessage: upstreamError }) };
     }
 
-    if (!isDraftOrderExtractionUpstreamReady({
-      clientResolutionState,
-      productResolutionState,
-      quantityResolutionState,
-    })) {
-      return { status: "idle" };
-    }
+    if (!isDraftOrderExtractionUpstreamReady({ clientResolutionState, productResolutionState, quantityResolutionState })) return { status: "idle" };
 
     const draft = extractDraftOrderFromResolution({
       packetId: selectedPacket.id,
       extractionRequestKey: requestKey,
       sourceText,
-      client:
-        clientResolutionState.status === "ready" ? clientResolutionState.result : null,
-      product:
-        productResolutionState.status === "ready" ? productResolutionState.result : null,
-      quantity:
-        quantityResolutionState.status === "ready" ? quantityResolutionState.result : null,
-      senderIdentity:
-        senderIdentityState.status === "ready" ? senderIdentityState.identity : null,
+      client: clientResolutionState.status === "ready" ? clientResolutionState.result : null,
+      product: productResolutionState.status === "ready" ? productResolutionState.result : null,
+      quantity: quantityResolutionState.status === "ready" ? quantityResolutionState.result : null,
+      senderIdentity: senderIdentityState.status === "ready" ? senderIdentityState.identity : null,
     });
 
     return { status: "ready", requestKey, draft };
-  }, [
-    selectedPacket,
-    requestKey,
-    sourceText,
-    clientResolutionState,
-    productResolutionState,
-    quantityResolutionState,
-    senderIdentityState,
-  ]);
+  }, [selectedPacket, hasInvalidPacketAuthority, requestKey, sourceText, clientResolutionState, productResolutionState, quantityResolutionState, senderIdentityState]);
 
   return { state, requestKey };
 }
