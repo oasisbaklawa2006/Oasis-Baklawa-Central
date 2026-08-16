@@ -28,7 +28,7 @@ function normalizeWords(value: string): string[] {
 }
 
 function directProductHintMatchesCatalogue(productHint: string | null, productName: string): boolean {
-  if (!productHint.trim?.() || !productName.trim()) return false;
+  if (!productHint?.trim() || !productName.trim()) return false;
   const hintWords = normalizeWords(productHint);
   const productWords = new Set(normalizeWords(productName));
   if (hintWords.length === 0 || productWords.size === 0) return false;
