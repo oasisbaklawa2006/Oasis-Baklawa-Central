@@ -168,7 +168,7 @@ export function WhatsAppInbox() {
   const [evidenceLinks, setEvidenceLinks] = useState<GovernedEvidenceLink[]>([]);
   const [governedContextError, setGovernedContextError] = useState<string | null>(null);
   const replyIdempotencyRef = useRef<{ signature: string; key: string } | null>(null);
-  const [replySending, setReplySending] = useState(false);
+  const [replySending, setReplySending] = useState(false);\n  const [replyFeedback, setReplyFeedback] = useState<{ tone: "success" | "pending" | "error"; message: string } | null>(null);
   const [classifyLoading, setClassifyLoading] = useState(false);
   const [routeLoading, setRouteLoading] = useState(false);
   const [intentResult, setIntentResult] = useState<IntentSuggestion | null>(null);
@@ -636,21 +636,53 @@ export function WhatsAppInbox() {
       });
 
       if (invokeError) {
-        alert(`Failed to send: ${invokeError.message}`);
+        const idempotencyKey = replyIdempotencyRef.current.key;
+        const { data: outbox } = await supabase
+          .from("whatsapp_operator_reply_outbox")
+          .select("status, last_error_code")
+          .eq("idempotency_key", idempotencyKey)
+          .maybeSingle();
+        const acceptedDespiteTransportError =
+          outbox?.status === "ACCEPTED" ||
+          outbox?.status === "DELIVERED" ||
+          outbox?.status === "READ" ||
+          outbox?.status === "ACCEPTANCE_UNKNOWN" ||
+          (outbox?.status === "FAILED_RETRYABLE" && outbox?.last_error_code === "HTTP_200");
+        if (acceptedDespiteTransportError) {
+          setReplyText("");
+          setReplyFeedback({
+            tone: "pending",
+            message: "Reply was accepted or queued by WhatsApp. Delivery reconciliation is pending; do not resend.",
+          });
+          await loadPackets({ silent: true });
+          return;
+        }
+        setReplyFeedback({ tone: "error", message: `Reply was not accepted: ${invokeError.message}` });
         return;
       }
 
-      const result = data as { success?: boolean; error?: string } | null;
+      const result = data as { success?: boolean; status?: string; error?: string } | null;
       if (result?.success) {
         setReplyText("");
         replyIdempotencyRef.current = null;
+        setReplyFeedback({ tone: "success", message: "Reply accepted by WhatsApp." });
+        await loadPackets({ silent: true });
+      } else if (result?.status === "ACCEPTANCE_UNKNOWN") {
+        setReplyText("");
+        setReplyFeedback({
+          tone: "pending",
+          message: "Reply submitted; provider acceptance is being reconciled. Do not resend.",
+        });
         await loadPackets({ silent: true });
       } else {
-        alert(`Failed to send: ${result?.error ?? "Unknown error"}`);
+        setReplyFeedback({ tone: "error", message: `Reply was not accepted: ${result?.error ?? "Unknown error"}` });
       }
     } catch (err) {
       console.error("Reply error:", err);
-      alert("Failed to send reply");
+      setReplyFeedback({
+        tone: "error",
+        message: err instanceof Error ? err.message : "Failed to send reply",
+      });
     } finally {
       setReplySending(false);
     }
@@ -1868,6 +1900,19 @@ export function WhatsAppInbox() {
                       {replySending ? "Sending..." : "Send"}
                     </button>
                   </div>
+                  {replyFeedback ? (
+                    <p
+                      role="status"
+                      className={cn(
+                        "mt-2 rounded-md border px-3 py-2 text-xs font-medium",
+                        replyFeedback.tone === "success" && "border-emerald-200 bg-emerald-50 text-emerald-900",
+                        replyFeedback.tone === "pending" && "border-amber-200 bg-amber-50 text-amber-950",
+                        replyFeedback.tone === "error" && "border-red-200 bg-red-50 text-red-900",
+                      )}
+                    >
+                      {replyFeedback.message}
+                    </p>
+                  ) : null}
                 </div>
               </div>
 
