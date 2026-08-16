@@ -47,6 +47,14 @@ serve(async (req) => {
     if (error) throw new Error(`Failed to find unstitched messages: ${error.message}`);
 
     const unstitched = (data ?? []) as UnstitchedMessage[];
+    const invalidContactRows = unstitched.filter((message) =>
+      typeof message.contact_id !== "string" || message.contact_id.trim().length === 0
+    );
+    if (invalidContactRows.length > 0) {
+      const invalidIds = invalidContactRows.map((message) => message.id).join(", ");
+      throw new Error(`Unstitched inbound messages missing contact authority: ${invalidIds}`);
+    }
+
     const groupsByContact = groupMessagesByStitchingWindow(unstitched, windowSeconds);
     let groupsProcessed = 0;
     let fragmentsLinked = 0;
