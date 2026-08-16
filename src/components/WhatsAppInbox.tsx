@@ -168,7 +168,8 @@ export function WhatsAppInbox() {
   const [evidenceLinks, setEvidenceLinks] = useState<GovernedEvidenceLink[]>([]);
   const [governedContextError, setGovernedContextError] = useState<string | null>(null);
   const replyIdempotencyRef = useRef<{ signature: string; key: string } | null>(null);
-  const [replySending, setReplySending] = useState(false);\n  const [replyFeedback, setReplyFeedback] = useState<{ tone: "success" | "pending" | "error"; message: string } | null>(null);
+  const [replySending, setReplySending] = useState(false);
+  const [replyFeedback, setReplyFeedback] = useState<{ tone: "success" | "pending" | "error"; message: string } | null>(null);
   const [classifyLoading, setClassifyLoading] = useState(false);
   const [routeLoading, setRouteLoading] = useState(false);
   const [intentResult, setIntentResult] = useState<IntentSuggestion | null>(null);
