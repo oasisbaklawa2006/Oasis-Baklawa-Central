@@ -181,8 +181,10 @@ export function WhatsAppInbox() {
   const [uiHydrated, setUiHydrated] = useState(false);
   const [isNarrow, setIsNarrow] = useState(false);
   const [compactMode, setCompactMode] = useState(false);
-  const [showObservabilityStrip, setShowObservabilityStrip] = useState(true);
-  const [showAiPreviewPanel, setShowAiPreviewPanel] = useState(true);
+  /** Progressive disclosure: observability/AI-preview default OFF so the primary
+   * conversation workflow is not dominated by secondary/diagnostic content. */
+  const [showObservabilityStrip, setShowObservabilityStrip] = useState(false);
+  const [showAiPreviewPanel, setShowAiPreviewPanel] = useState(false);
   /** Collapsible read-only insights column (Esc when open; respects user collapse). */
   const [insightsAsideExpanded, setInsightsAsideExpanded] = useState(true);
   /** When true, do not auto-expand insights on packet change until user clicks Show. */
@@ -775,6 +777,27 @@ export function WhatsAppInbox() {
     return lags.length % 2 ? lags[mid]! : (lags[mid - 1]! + lags[mid]!) / 2;
   }, [packets]);
 
+  /**
+   * Full packet-wide searchable text, independent of sender identity. Covers
+   * the complete stitched/message text (not just the truncated list preview)
+   * plus a locally decoded intent/product hint, so unknown-sender packets
+   * (no name, no known phone) remain discoverable by what was actually said —
+   * e.g. searching "invoice" or "baklawa" finds the packet even when the
+   * contact name is "Unknown". No new data authority: this only reshapes
+   * data already loaded into the bounded packet/message window.
+   */
+  const packetSearchIndex = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const p of packets) {
+      const stitched = packetStitchedPlainText(p.stitched_content);
+      const messagesText = (p.messages ?? []).map((m) => m.content ?? "").join(" ");
+      const combinedText = `${stitched}\n${messagesText}`;
+      const decodedHint = inferLocalIntentFromText(combinedText).label;
+      map.set(p.id, `${combinedText}\n${decodedHint}`.toLowerCase());
+    }
+    return map;
+  }, [packets]);
+
   const filteredPackets = useMemo(() => {
     const q = filterQuery.trim().toLowerCase();
     return packets.filter((p) => {
@@ -782,13 +805,15 @@ export function WhatsAppInbox() {
       if (unansweredOnly && !isLastMessageInboundUnanswered(p.messages ?? [])) return false;
       if (!q) return true;
       const preview = operatorInboxPacketPreviewSummary(p).toLowerCase();
+      const fullText = packetSearchIndex.get(p.id) ?? "";
       return (
         (p.customer_name ?? "").toLowerCase().includes(q) ||
         (p.phone_number ?? "").toLowerCase().includes(q) ||
-        preview.includes(q)
+        preview.includes(q) ||
+        fullText.includes(q)
       );
     });
-  }, [packets, filterQuery, unansweredOnly, bulkFilters]);
+  }, [packets, filterQuery, unansweredOnly, bulkFilters, packetSearchIndex]);
 
   const orderedPackets = useMemo(() => {
     const pinSet = new Set(pinnedIds);
@@ -1030,9 +1055,22 @@ export function WhatsAppInbox() {
       <div className="sr-only" aria-live="polite" aria-atomic="true">
         {selectionAnnouncement}
       </div>
-      <Wa1PotentialOrderQueueStrip />
-      <Wa3ClarificationQueueStrip />
-      <Wa4EvidenceQueueStrip />
+      {/*
+        Governance accountability strips are secondary to the primary
+        conversation workflow — collapsed by default (progressive disclosure)
+        so they never dominate the top of the operator screen, while staying
+        one click away for supervisors/audit.
+      */}
+      <details className="border-b border-amber-100 bg-amber-50/60 px-4 py-1.5 text-xs text-amber-900">
+        <summary className="cursor-pointer font-medium outline-none focus-visible:ring-2 focus-visible:ring-amber-600 focus-visible:ring-offset-1">
+          Governance queues (WA‑1 / WA‑3 / WA‑4)
+        </summary>
+        <div className="mt-1.5 -mx-4 space-y-0">
+          <Wa1PotentialOrderQueueStrip />
+          <Wa3ClarificationQueueStrip />
+          <Wa4EvidenceQueueStrip />
+        </div>
+      </details>
       {showObservabilityStrip ? (
         <OperatorInboxObservabilityPanel
           snapshot={observability.snapshot}
@@ -1041,12 +1079,18 @@ export function WhatsAppInbox() {
         />
       ) : null}
       <div className={cn("relative z-0 flex min-h-0 flex-1 isolate", isNarrow ? "flex-col" : "flex-row")}>
+        {/*
+          Narrow/mobile: list -> conversation flow. Once a packet is selected the
+          list is not rendered at all (not merely height-capped) so the operator
+          never scrolls through a stacked three-zone page — selecting a
+          conversation prioritizes the thread, with an explicit Back to inbox
+          action below. Desktop/tablet keeps both zones visible side by side.
+        */}
+        {!isNarrow || !selectedPacket ? (
         <div
           className={cn(
             "flex min-h-0 flex-col overflow-hidden border-gray-300 bg-white lg:border-r",
-            "w-full max-w-none lg:max-w-md",
-            isNarrow &&
-              "max-h-[min(46vh,26rem)] shrink-0 border-b border-gray-200 lg:max-h-none lg:shrink lg:border-b-0",
+            isNarrow ? "w-full flex-1" : "w-full max-w-none lg:max-w-md",
           )}
         >
           <div
@@ -1110,11 +1154,11 @@ export function WhatsAppInbox() {
               <Input
                 ref={filterInputRef}
                 type="search"
-                placeholder="Search name, phone, preview…"
+                placeholder="Search name, phone, message text, product…"
                 value={filterQuery}
                 onChange={(e) => setFilterQuery(e.target.value)}
                 className="h-9 text-sm"
-                aria-label="Filter packets by name, phone, or preview text"
+                aria-label="Filter packets by name, phone, message text, or decoded product/order hint — finds unknown-sender packets too"
                 autoComplete="off"
               />
               <div className="flex items-center gap-2">
@@ -1502,6 +1546,7 @@ export function WhatsAppInbox() {
             </div>
           ) : null}
         </div>
+        ) : null}
 
         {selectedPacket ? (
           <div
@@ -1520,17 +1565,18 @@ export function WhatsAppInbox() {
                     type="button"
                     variant="ghost"
                     size="sm"
+                    data-operator-inbox-back-to-list
                     className="mb-2 -ml-2 h-10 px-2 text-gray-800 lg:hidden"
                     onClick={() => {
-                      document.getElementById("operator-inbox-heading")?.scrollIntoView({
-                        behavior: "smooth",
-                        block: "start",
-                      });
-                      window.setTimeout(() => listScrollRef.current?.focus(), 350);
+                      // Real list -> conversation back navigation: unmount the
+                      // conversation and remount the (now full-height) list, do
+                      // not merely scroll within a stacked page.
+                      setSelectedPacket(null);
+                      window.setTimeout(() => listScrollRef.current?.focus(), 50);
                     }}
                   >
                     <ArrowLeft className="mr-1 h-4 w-4 shrink-0" aria-hidden />
-                    Scroll to packet list
+                    Back to inbox
                   </Button>
                 ) : null}
                 <div className="flex flex-wrap items-start justify-between gap-2">
@@ -1562,19 +1608,6 @@ export function WhatsAppInbox() {
                     messages={selectedPacket.messages ?? []}
                   />
                 </div>
-                <OperatorInboxSenderIdentityPanel state={senderIdentityState} />
-                <OperatorInboxClientResolutionPanel
-                  state={clientResolutionState}
-                  requestKey={clientResolutionRequestKey}
-                />
-                <OperatorInboxProductResolutionPanel
-                  state={productResolutionState}
-                  requestKey={productResolutionRequestKey}
-                />
-                <OperatorInboxQuantityResolutionPanel
-                  state={quantityResolutionState}
-                  requestKey={quantityResolutionRequestKey}
-                />
               </div>
             </div>
 
@@ -1850,7 +1883,7 @@ export function WhatsAppInbox() {
                       setInsightsAsideExpanded(true);
                     }}
                   >
-                    Show read-only insights
+                    Show Order Intelligence
                   </Button>
                 </div>
               ) : (
@@ -1860,7 +1893,7 @@ export function WhatsAppInbox() {
                   className="max-h-[45vh] w-full shrink-0 overflow-y-auto overscroll-y-contain border-t border-gray-200 bg-slate-50/60 p-4 outline-none lg:sticky lg:top-0 lg:z-10 lg:max-h-[min(100dvh,100%)] lg:w-80 lg:self-start lg:overflow-y-auto lg:overscroll-y-contain lg:border-l lg:border-t-0"
                 >
                   <div className="mb-3 flex items-center justify-between gap-2">
-                    <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-600">Read-only insights</h3>
+                    <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-600">Order Intelligence</h3>
                     <Button
                       type="button"
                       variant="ghost"
@@ -1875,8 +1908,85 @@ export function WhatsAppInbox() {
                     </Button>
                   </div>
                   <div className="space-y-4">
-                    <OperatorInboxOperationalContextPanel packet={selectedPacket} events={selectedOperationalEvents} />
-                    <OperatorInboxFailedMessagesReadOnlyPanel messages={selectedPacket.messages ?? []} />
+                    {/*
+                      Actionable extracted state first (client/product/quantity/
+                      draft), per the Order Intelligence contract. Confidence,
+                      provenance, and other diagnostic panels are progressively
+                      disclosed below via <details> so they never block reading
+                      or replying.
+                    */}
+                    <OperatorInboxDraftOrderPanel
+                      state={draftOrderExtractionState}
+                      requestKey={draftOrderExtractionRequestKey}
+                      packetId={selectedPacket.id}
+                      lineQuantities={draftOrderLineQuantities}
+                      onLineQuantityChange={handleDraftOrderLineQuantityChange}
+                      onLineQuantitiesReset={handleDraftOrderLineQuantitiesReset}
+                      quantityEditsLocked={
+                        salesOrderDraftHook.draftStatus === "UNDER_REVIEW" ||
+                        salesOrderDraftHook.draftStatus === "APPROVED_FOR_SO"
+                      }
+                    />
+                    <OperatorInboxSalesOrderDraftSection
+                      extracted={
+                        draftOrderExtractionState.status === "ready"
+                          ? draftOrderExtractionState.draft
+                          : null
+                      }
+                      draftHook={salesOrderDraftHook}
+                      extractionReady={draftOrderExtractionState.status === "ready"}
+                      canManageDraft={whatsappAuthority.has("wa.draft.manage")}
+                      canPromoteDraft={whatsappAuthority.has("wa.draft.promote")}
+                    />
+
+                    <details
+                      data-operator-inbox-confidence-provenance-details
+                      className="rounded-lg border border-gray-200 bg-white/70 p-3"
+                    >
+                      <summary className="cursor-pointer text-xs font-semibold uppercase tracking-wide text-gray-600 outline-none focus-visible:ring-2 focus-visible:ring-green-600 focus-visible:ring-offset-2">
+                        Confidence &amp; provenance details
+                      </summary>
+                      <div className="mt-3 space-y-3">
+                        <OperatorInboxSenderIdentityPanel state={senderIdentityState} />
+                        <OperatorInboxClientResolutionPanel
+                          state={clientResolutionState}
+                          requestKey={clientResolutionRequestKey}
+                        />
+                        <OperatorInboxProductResolutionPanel
+                          state={productResolutionState}
+                          requestKey={productResolutionRequestKey}
+                        />
+                        <OperatorInboxQuantityResolutionPanel
+                          state={quantityResolutionState}
+                          requestKey={quantityResolutionRequestKey}
+                        />
+                      </div>
+                    </details>
+
+                    <details className="rounded-lg border border-gray-200 bg-white/70 p-3">
+                      <summary className="cursor-pointer text-xs font-semibold uppercase tracking-wide text-gray-600 outline-none focus-visible:ring-2 focus-visible:ring-green-600 focus-visible:ring-offset-2">
+                        Observability, audit &amp; diagnostics
+                      </summary>
+                      <div className="mt-3 space-y-4">
+                        <OperatorInboxOperationalContextPanel packet={selectedPacket} events={selectedOperationalEvents} />
+                        <OperatorInboxFailedMessagesReadOnlyPanel messages={selectedPacket.messages ?? []} />
+                        <OperatorInboxCustomerActivitySummary messages={selectedPacket.messages ?? []} />
+                        <OperatorInboxLocalExplanationCards
+                          messages={selectedPacket.messages ?? []}
+                          lastMessageAtIso={selectedPacket.last_message_at}
+                        />
+                        <OperatorInboxLocalDraftPreview messages={selectedPacket.messages ?? []} />
+                        {showAiPreviewPanel ? (
+                          <OperatorInboxLocalAiPreviewPanel messages={selectedPacket.messages ?? []} />
+                        ) : (
+                          <p className="rounded-md border border-dashed border-slate-200 bg-white/60 p-2 text-[11px] text-slate-600">
+                            Local AI preview is off. Enable “Show local AI preview panel” in the list header to see
+                            keyword heuristics here.
+                          </p>
+                        )}
+                      </div>
+                    </details>
+
                     <section
                       className="rounded-lg border border-amber-200 bg-amber-50/50 p-3"
                       aria-labelledby="operator-inbox-local-note-heading"
@@ -1909,55 +2019,17 @@ export function WhatsAppInbox() {
                         Clear local note
                       </Button>
                     </section>
-                    <OperatorInboxCustomerActivitySummary messages={selectedPacket.messages ?? []} />
-                    <OperatorInboxLocalExplanationCards
-                      messages={selectedPacket.messages ?? []}
-                      lastMessageAtIso={selectedPacket.last_message_at}
-                    />
-                    <OperatorInboxLocalDraftPreview messages={selectedPacket.messages ?? []} />
-                    <OperatorInboxDraftOrderPanel
-                      state={draftOrderExtractionState}
-                      requestKey={draftOrderExtractionRequestKey}
-                      packetId={selectedPacket.id}
-                      lineQuantities={draftOrderLineQuantities}
-                      onLineQuantityChange={handleDraftOrderLineQuantityChange}
-                      onLineQuantitiesReset={handleDraftOrderLineQuantitiesReset}
-                      quantityEditsLocked={
-                        salesOrderDraftHook.draftStatus === "UNDER_REVIEW" ||
-                        salesOrderDraftHook.draftStatus === "APPROVED_FOR_SO"
-                      }
-                    />
-                    <OperatorInboxSalesOrderDraftSection
-                      extracted={
-                        draftOrderExtractionState.status === "ready"
-                          ? draftOrderExtractionState.draft
-                          : null
-                      }
-                      draftHook={salesOrderDraftHook}
-                      extractionReady={draftOrderExtractionState.status === "ready"}
-                      canManageDraft={whatsappAuthority.has("wa.draft.manage")}
-                      canPromoteDraft={whatsappAuthority.has("wa.draft.promote")}
-                    />
-                    {showAiPreviewPanel ? (
-                      <OperatorInboxLocalAiPreviewPanel messages={selectedPacket.messages ?? []} />
-                    ) : (
-                      <p className="rounded-md border border-dashed border-slate-200 bg-white/60 p-2 text-[11px] text-slate-600">
-                        Local AI preview is off. Enable “Show local AI preview panel” in the list header to see keyword
-                        heuristics here.
-                      </p>
-                    )}
                   </div>
                 </aside>
               )}
             </div>
           </div>
-        ) : (
+        ) : !isNarrow ? (
+          /* On narrow layouts the list already fills this space when nothing
+             is selected (list -> conversation flow) — no redundant empty pane. */
           <div
             id="operator-inbox-detail-region"
-            className={cn(
-              "flex min-h-0 flex-1 flex-col items-center justify-center bg-gray-50 p-6 text-center",
-              isNarrow && "min-h-[28vh] border-t border-gray-200 lg:min-h-0",
-            )}
+            className="flex min-h-0 flex-1 flex-col items-center justify-center bg-gray-50 p-6 text-center"
             role="status"
             aria-label="No conversation selected"
             tabIndex={-1}
@@ -1972,7 +2044,7 @@ export function WhatsAppInbox() {
               <p className="mt-2 max-w-sm text-sm text-gray-500">There are no open packets right now.</p>
             ) : null}
           </div>
-        )}
+        ) : null}
       </div>
     </div>
   );
