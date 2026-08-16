@@ -169,7 +169,7 @@ export function WhatsAppInbox() {
   const [governedContextError, setGovernedContextError] = useState<string | null>(null);
   const replyIdempotencyRef = useRef<{ signature: string; key: string } | null>(null);
   const [replySending, setReplySending] = useState(false);
-  const [replyFeedback, setReplyFeedback] = useState<{ tone: "success" | "pending" | "error"; message: string } | null>(null);
+  const [replyFeedback, setReplyFeedback] = useState<{ packetId: string; tone: "success" | "pending" | "error"; message: string } | null>(null);
   const [classifyLoading, setClassifyLoading] = useState(false);
   const [routeLoading, setRouteLoading] = useState(false);
   const [intentResult, setIntentResult] = useState<IntentSuggestion | null>(null);
@@ -347,6 +347,7 @@ export function WhatsAppInbox() {
     setIntentResult(null);
     setRouteResult(null);
     setSuggestionsError(null);
+    setReplyFeedback(null);
   }, [selectedPacket?.id]);
 
   /**
@@ -619,6 +620,11 @@ export function WhatsAppInbox() {
       return;
     }
 
+    const packetId = selectedPacket.id;
+    const clearDraftIfStillSelected = () => {
+      if (selectedPacketIdRef.current === packetId) setReplyText("");
+    };
+
     setReplySending(true);
     try {
       const signature = `${selectedPacket.id}:${selectedPacket.contact_id}:${trimmed}`;
@@ -638,6 +644,7 @@ export function WhatsAppInbox() {
 
       if (invokeError) {
         setReplyFeedback({
+          packetId,
           tone: "pending",
           message: `Send status could not be confirmed (${invokeError.message}). Do not resend; refresh to reconcile delivery.`,
         });
@@ -646,23 +653,25 @@ export function WhatsAppInbox() {
 
       const result = data as { success?: boolean; status?: string; error?: string } | null;
       if (result?.success) {
-        setReplyText("");
+        clearDraftIfStillSelected();
         replyIdempotencyRef.current = null;
-        setReplyFeedback({ tone: "success", message: "Reply accepted by WhatsApp." });
+        setReplyFeedback({ packetId, tone: "success", message: "Reply accepted by WhatsApp." });
         await loadPackets({ silent: true });
-      } else if (result?.status === "ACCEPTANCE_UNKNOWN") {
-        setReplyText("");
+      } else if (result?.status === "ACCEPTANCE_UNKNOWN" || result?.status === "RECONCILIATION_PENDING") {
+        clearDraftIfStillSelected();
         setReplyFeedback({
+          packetId,
           tone: "pending",
           message: "Reply submitted; provider acceptance is being reconciled. Do not resend.",
         });
         await loadPackets({ silent: true });
       } else {
-        setReplyFeedback({ tone: "error", message: `Reply was not accepted: ${result?.error ?? "Unknown error"}` });
+        setReplyFeedback({ packetId, tone: "error", message: `Reply was not accepted: ${result?.error ?? "Unknown error"}` });
       }
     } catch (err) {
       console.error("Reply error:", err);
       setReplyFeedback({
+        packetId,
         tone: "error",
         message: err instanceof Error ? err.message : "Failed to send reply",
       });
@@ -1883,7 +1892,7 @@ export function WhatsAppInbox() {
                       {replySending ? "Sending..." : "Send"}
                     </button>
                   </div>
-                  {replyFeedback ? (
+                  {replyFeedback && replyFeedback.packetId === selectedPacket?.id ? (
                     <p
                       role="status"
                       className={cn(
