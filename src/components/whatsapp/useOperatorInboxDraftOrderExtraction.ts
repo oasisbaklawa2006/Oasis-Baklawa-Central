@@ -41,9 +41,6 @@ export function useOperatorInboxDraftOrderExtraction(
 ): { state: OperatorInboxDraftOrderExtractionState; requestKey: string | null } {
   const packetMessages = useMemo(() => {
     if (!selectedPacket) return [];
-    // Legacy/test rows may omit packet_id because they are already nested under
-    // the selected packet. When packet_id is present it is authoritative: never
-    // permit a neighbouring packet's fragment into this decoder context.
     return (selectedPacket.messages ?? []).filter(
       (message) => message.packet_id == null || message.packet_id === selectedPacket.id,
     );
@@ -56,16 +53,26 @@ export function useOperatorInboxDraftOrderExtraction(
     );
   }, [selectedPacket?.id, selectedPacket?.messages]);
 
+  const hasDuplicateProviderIdentities = useMemo(() => {
+    const seen = new Set<string>();
+    for (const message of packetMessages) {
+      const providerMessageId = message.provider_message_id;
+      if (providerMessageId == null || providerMessageId === "") continue;
+      if (seen.has(providerMessageId)) return true;
+      seen.add(providerMessageId);
+    }
+    return false;
+  }, [packetMessages]);
+
+  const hasInvalidPacketAuthority = hasCrossPacketMessages || hasDuplicateProviderIdentities;
+
   const stitchedPlainText = useMemo(() => {
-    if (!selectedPacket) return "";
-    // If the loaded nested rows prove cross-packet contamination, do not fall
-    // back to stitched text: fail closed instead of risking mixed-order input.
-    if (hasCrossPacketMessages) return "";
+    if (!selectedPacket || hasInvalidPacketAuthority) return "";
     return packetStitchedPlainText(selectedPacket.stitched_content);
-  }, [selectedPacket?.stitched_content, hasCrossPacketMessages]);
+  }, [selectedPacket?.stitched_content, hasInvalidPacketAuthority]);
 
   const sourceText = useMemo(() => {
-    if (hasCrossPacketMessages) return "";
+    if (hasInvalidPacketAuthority) return "";
     const inbound = packetMessages
       .filter((m) => m.direction === "inbound")
       .slice()
@@ -83,10 +90,10 @@ export function useOperatorInboxDraftOrderExtraction(
       .map((m) => m.content ?? "")
       .join("\n");
     return (inbound || stitchedPlainText).slice(0, 12000);
-  }, [packetMessages, stitchedPlainText, hasCrossPacketMessages]);
+  }, [packetMessages, stitchedPlainText, hasInvalidPacketAuthority]);
 
   const requestKey = useMemo(() => {
-    if (!selectedPacket || hasCrossPacketMessages) return null;
+    if (!selectedPacket || hasInvalidPacketAuthority) return null;
     return buildDraftOrderExtractionRequestKey({
       packetId: selectedPacket.id,
       contentFingerprint: buildPacketContentFingerprint(packetMessages, stitchedPlainText),
@@ -99,7 +106,7 @@ export function useOperatorInboxDraftOrderExtraction(
     selectedPacket?.id,
     packetMessages,
     stitchedPlainText,
-    hasCrossPacketMessages,
+    hasInvalidPacketAuthority,
     clientResolutionState,
     productResolutionState,
     quantityResolutionState,
@@ -107,8 +114,7 @@ export function useOperatorInboxDraftOrderExtraction(
   ]);
 
   const state = useMemo((): OperatorInboxDraftOrderExtractionState => {
-    if (!selectedPacket || hasCrossPacketMessages) return { status: "idle" };
-    if (!requestKey) return { status: "idle" };
+    if (!selectedPacket || hasInvalidPacketAuthority || !requestKey) return { status: "idle" };
 
     if (isDraftOrderExtractionUpstreamLoading({ clientResolutionState, productResolutionState, quantityResolutionState })) {
       return { status: "loading", requestKey, draft: buildPendingDraftOrder({ packetId: selectedPacket.id, extractionRequestKey: requestKey, sourceText, status: "upstream_loading" }) };
@@ -132,7 +138,7 @@ export function useOperatorInboxDraftOrderExtraction(
     });
 
     return { status: "ready", requestKey, draft };
-  }, [selectedPacket, hasCrossPacketMessages, requestKey, sourceText, clientResolutionState, productResolutionState, quantityResolutionState, senderIdentityState]);
+  }, [selectedPacket, hasInvalidPacketAuthority, requestKey, sourceText, clientResolutionState, productResolutionState, quantityResolutionState, senderIdentityState]);
 
   return { state, requestKey };
 }
