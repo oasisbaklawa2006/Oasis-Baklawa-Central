@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { fetchProductResolution } from "@/lib/wa-governance/fetchProductResolution";
+import { interpretPacketContent } from "@/lib/wa-governance/packetContentInterpretation";
 import {
   buildProductResolutionFetchInput,
   buildProductResolutionRequestDescriptor,
@@ -82,7 +83,7 @@ export function useOperatorInboxProductResolution(
       selectedPacket?.messages
         ?.map(
           (message) =>
-            `${message.id}:${message.direction}:${message.content ?? ""}:${message.created_at ?? ""}`,
+            `${message.id}:${message.direction}:${message.content ?? ""}:${message.media_url ?? ""}:${message.created_at ?? ""}`,
         )
         .join("|") ?? "",
     ],
@@ -163,7 +164,10 @@ export function useOperatorInboxProductResolution(
       const clientState = clientResolutionStateRef.current;
 
       try {
-        const input = buildProductResolutionFetchInput(packet, stitched, clientState);
+        const interpreted = await interpretPacketContent(supabase, packet.messages);
+        if (cancelled || requestKeyRef.current !== requestKey) return;
+        const resolutionText = [stitched, interpreted].filter(Boolean).join("\n").slice(0, 12000);
+        const input = buildProductResolutionFetchInput(packet, resolutionText, clientState);
         const result = await fetchProductResolution(supabase, input);
         if (cancelled || requestKeyRef.current !== requestKey) return;
         storeCachedProductResolutionResult(resolvedResultCacheRef.current, requestKey, result);
