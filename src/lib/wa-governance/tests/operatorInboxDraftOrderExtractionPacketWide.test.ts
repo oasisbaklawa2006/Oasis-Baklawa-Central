@@ -61,6 +61,16 @@ describe("golden physical case: six-fragment/two-photo packet-wide interpretatio
     expect(result.current.requestKey).toBeNull();
   });
 
+  it("fails closed when two fragments repeat the same provider identity", () => {
+    const packet = buildSixFragmentTwoPhotoPacket();
+    packet.messages = packet.messages!.map((message, index) =>
+      index === 4 ? { ...message, provider_message_id: "p2" } : message,
+    );
+    const { result } = renderHook(() => useOperatorInboxDraftOrderExtraction(packet, readyIdentity, readyClient, readyProductUnresolved, readyQuantityUnresolved));
+    expect(result.current.state.status).toBe("idle");
+    expect(result.current.requestKey).toBeNull();
+  });
+
   it("preserves exactly six distinct provider identities with one packet membership each", () => {
     const packet = buildSixFragmentTwoPhotoPacket();
     const expected = ["p1", "p2", "p3", "p4", "p5", "p6"];
