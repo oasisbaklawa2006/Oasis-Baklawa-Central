@@ -4,6 +4,7 @@ import {
   fetchCatalogueQuantityProduct,
   resolveQuantityCandidates,
 } from "@/lib/wa-governance/fetchQuantityResolution";
+import { interpretPacketContent } from "@/lib/wa-governance/packetContentInterpretation";
 import {
   buildQuantityResolutionFetchInput,
   buildQuantityResolutionRequestDescriptor,
@@ -125,7 +126,7 @@ export function useOperatorInboxQuantityResolution(
       selectedPacket?.messages
         ?.map(
           (message) =>
-            `${message.id}:${message.direction}:${message.content ?? ""}:${message.created_at ?? ""}`,
+            `${message.id}:${message.direction}:${message.content ?? ""}:${message.media_url ?? ""}:${message.created_at ?? ""}`,
         )
         .join("|") ?? "",
     ],
@@ -226,9 +227,12 @@ export function useOperatorInboxQuantityResolution(
       const stitched = packetStitchedPlainText(packet.stitched_content);
 
       try {
+        const interpreted = await interpretPacketContent(supabase, packet.messages);
+        if (cancelled || requestKeyRef.current !== requestKey) return;
+        const resolutionText = [stitched, interpreted].filter(Boolean).join("\n").slice(0, 12000);
         const input = buildQuantityResolutionFetchInput(
           packet,
-          stitched,
+          resolutionText,
           productResolutionStateRef.current,
         );
         const catalogueProduct =
