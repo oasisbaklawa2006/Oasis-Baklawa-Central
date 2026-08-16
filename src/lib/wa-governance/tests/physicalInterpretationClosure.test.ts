@@ -1,7 +1,23 @@
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { describe, expect, it } from "vitest";
 import { resolveQuantityCandidates } from "../fetchQuantityResolution";
-import { normalizeHindiCommerceFallback } from "../packetContentInterpretation";
+import {
+  interpretPacketContent,
+  normalizeHindiCommerceFallback,
+  type InterpretablePacketMessage,
+} from "../packetContentInterpretation";
 import { extractProductResolutionTextSignals } from "../productResolutionSignals";
+
+function imageMessage(index: number, providerId = `provider-image-${index}`): InterpretablePacketMessage {
+  return {
+    id: `message-${index}`,
+    direction: "inbound",
+    content: "",
+    message_type: "image",
+    provider_message_id: providerId,
+    media_url: `https://media.example.test/${index}.jpg`,
+  };
+}
 
 describe("WhatsApp physical interpretation closure", () => {
   it("keeps direct weight syntax when the product is catalogue-backed", async () => {
@@ -49,5 +65,81 @@ describe("WhatsApp physical interpretation closure", () => {
     expect(normalizeHindiCommerceFallback("५ किलो पिरामिड चाहिए")).toBe("5 kg pyramid need");
     expect(normalizeHindiCommerceFallback("२ बॉक्स चॉकलेट भेजो")).toBe("2 box chocolate send");
     expect(normalizeHindiCommerceFallback("१० किलो फिंगर ऑर्डर")).toBe("10 kg finger order");
+  });
+
+  it("bounds concurrent interpreter invokes to two", async () => {
+    let active = 0;
+    let maxActive = 0;
+    let invokeCount = 0;
+    const fakeSupabase = {
+      functions: {
+        invoke: async () => {
+          invokeCount += 1;
+          active += 1;
+          maxActive = Math.max(maxActive, active);
+          await new Promise((resolve) => setTimeout(resolve, 5));
+          active -= 1;
+          return {
+            data: {
+              success: true,
+              interpretation: { normalized_text: "5 kg pyramid" },
+            },
+            error: null,
+          };
+        },
+      },
+    } as unknown as SupabaseClient;
+
+    const result = await interpretPacketContent(
+      fakeSupabase,
+      Array.from({ length: 5 }, (_, index) => imageMessage(index + 100)),
+    );
+
+    expect(invokeCount).toBe(5);
+    expect(maxActive).toBeLessThanOrEqual(2);
+    expect(result.split("\n")).toHaveLength(5);
+  });
+
+  it("reuses the bounded cache for the same provider identity", async () => {
+    let invokeCount = 0;
+    const fakeSupabase = {
+      functions: {
+        invoke: async () => {
+          invokeCount += 1;
+          return {
+            data: {
+              success: true,
+              interpretation: { normalized_text: "2 box chocolate" },
+            },
+            error: null,
+          };
+        },
+      },
+    } as unknown as SupabaseClient;
+
+    const message = imageMessage(201, "provider-cache-201");
+    expect(await interpretPacketContent(fakeSupabase, [message])).toBe("2 box chocolate");
+    expect(await interpretPacketContent(fakeSupabase, [message])).toBe("2 box chocolate");
+    expect(invokeCount).toBe(1);
+  });
+
+  it("fails closed before invoking when too many messages require interpretation", async () => {
+    let invokeCount = 0;
+    const fakeSupabase = {
+      functions: {
+        invoke: async () => {
+          invokeCount += 1;
+          return { data: null, error: null };
+        },
+      },
+    } as unknown as SupabaseClient;
+
+    await expect(
+      interpretPacketContent(
+        fakeSupabase,
+        Array.from({ length: 17 }, (_, index) => imageMessage(index + 300)),
+      ),
+    ).rejects.toThrow("INTERPRETATION_PACKET_TOO_LARGE");
+    expect(invokeCount).toBe(0);
   });
 });
