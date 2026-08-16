@@ -47,6 +47,22 @@ export function useOperatorInboxDraftOrderExtraction(
   const sourceText = useMemo(() => {
     const inbound = (selectedPacket?.messages ?? [])
       .filter((m) => m.direction === "inbound")
+      // Packet loaders normally return chronological messages, but extraction is
+      // an authority-sensitive boundary and must not depend on incidental query
+      // ordering. packet_sequence is authoritative when present; created_at is
+      // the deterministic fallback for legacy rows.
+      .slice()
+      .sort((a, b) => {
+        const aSequence = a.packet_sequence;
+        const bSequence = b.packet_sequence;
+        if (typeof aSequence === "number" && typeof bSequence === "number" && aSequence !== bSequence) {
+          return aSequence - bSequence;
+        }
+        const aTime = new Date(a.created_at).getTime();
+        const bTime = new Date(b.created_at).getTime();
+        if (Number.isFinite(aTime) && Number.isFinite(bTime) && aTime !== bTime) return aTime - bTime;
+        return a.id.localeCompare(b.id);
+      })
       .map((m) => m.content ?? "")
       .join("\n");
     return (inbound || stitchedPlainText).slice(0, 12000);
