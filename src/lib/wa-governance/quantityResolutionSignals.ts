@@ -25,7 +25,7 @@ const QTY_UNIT_THEN_PRODUCT_PATTERN =
 const KEYWORD_GAP = "[ \\t]+";
 
 const DIRECT_WEIGHT_PRODUCT_PATTERN =
-  /\\b(\\d+(?:\\.\\d+)?)\\s*(kg|kgs|kilograms?|gm|gms|grams?|g)[ \\t]+([A-Za-z][A-Za-z \\t-]{1,40})\\b/gi;
+  /\b(\d+(?:\.\d+)?)\s*(kg|kgs|kilograms?|gm|gms|grams?|g)[ \t]+([A-Za-z][A-Za-z \t-]{1,40})\b/gi;
 
 const WEIGHT_ORDER_PATTERN = new RegExp(
   `\\b(?:need|send|want|order|qty|quantity)${KEYWORD_GAP}(?:me${KEYWORD_GAP})?(\\d+(?:\\.\\d+)?)\\s*(kg|kgs|kilograms?|gm|gms|grams?|g)\\b`,
