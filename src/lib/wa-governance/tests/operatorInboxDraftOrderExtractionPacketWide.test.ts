@@ -12,16 +12,17 @@ import type { OperatorInboxQuantityResolutionState } from "@/lib/wa-governance/q
 /** Golden physical acceptance case (16 Aug 2026). */
 function buildSixFragmentTwoPhotoPacket(): OperatorInboxPacket {
   const base = Date.parse("2026-08-16T10:00:00.000Z");
+  const packetId = "packet-golden-1";
   const messages: Message[] = [
-    { id: "m1", content: "Hi, I need baklawa for a wedding", message_type: "text", direction: "inbound", created_at: new Date(base).toISOString(), packet_sequence: 1, provider_message_id: "p1" },
-    { id: "m2", content: "around 200 people coming", message_type: "text", direction: "inbound", created_at: new Date(base + 1000).toISOString(), packet_sequence: 2, provider_message_id: "p2" },
-    { id: "m3", content: "here is a photo of the tray we want", message_type: "image", direction: "inbound", created_at: new Date(base + 2000).toISOString(), packet_sequence: 3, provider_message_id: "p3" },
-    { id: "m4", content: "and one more angle", message_type: "image", direction: "inbound", created_at: new Date(base + 3000).toISOString(), packet_sequence: 4, provider_message_id: "p4" },
-    { id: "m5", content: "can you deliver by Friday", message_type: "text", direction: "inbound", created_at: new Date(base + 4000).toISOString(), packet_sequence: 5, provider_message_id: "p5" },
-    { id: "m6", content: "budget is flexible", message_type: "text", direction: "inbound", created_at: new Date(base + 5000).toISOString(), packet_sequence: 6, provider_message_id: "p6" },
+    { id: "m1", content: "Hi, I need baklawa for a wedding", message_type: "text", direction: "inbound", created_at: new Date(base).toISOString(), packet_sequence: 1, provider_message_id: "p1", packet_id: packetId },
+    { id: "m2", content: "around 200 people coming", message_type: "text", direction: "inbound", created_at: new Date(base + 1000).toISOString(), packet_sequence: 2, provider_message_id: "p2", packet_id: packetId },
+    { id: "m3", content: "here is a photo of the tray we want", message_type: "image", direction: "inbound", created_at: new Date(base + 2000).toISOString(), packet_sequence: 3, provider_message_id: "p3", packet_id: packetId },
+    { id: "m4", content: "and one more angle", message_type: "image", direction: "inbound", created_at: new Date(base + 3000).toISOString(), packet_sequence: 4, provider_message_id: "p4", packet_id: packetId },
+    { id: "m5", content: "can you deliver by Friday", message_type: "text", direction: "inbound", created_at: new Date(base + 4000).toISOString(), packet_sequence: 5, provider_message_id: "p5", packet_id: packetId },
+    { id: "m6", content: "budget is flexible", message_type: "text", direction: "inbound", created_at: new Date(base + 5000).toISOString(), packet_sequence: 6, provider_message_id: "p6", packet_id: packetId },
   ];
   return {
-    id: "packet-golden-1", contact_id: "contact-1", fragment_count: 6, status: "open",
+    id: packetId, contact_id: "contact-1", fragment_count: 6, status: "open",
     first_message_at: messages[0]!.created_at!, last_message_at: messages[5]!.created_at!,
     stitched_content: { text: messages.map((m) => m.content).join("\n") }, messages,
     customer_name: "Unknown", phone_number: "9999999999", wa_contact_id: null,
@@ -50,12 +51,23 @@ describe("golden physical case: six-fragment/two-photo packet-wide interpretatio
     ].join("\n"));
   });
 
+  it("fails closed when a selected packet is contaminated by a message assigned to another packet", () => {
+    const packet = buildSixFragmentTwoPhotoPacket();
+    packet.messages = packet.messages!.map((message, index) =>
+      index === 3 ? { ...message, packet_id: "packet-other" } : message,
+    );
+    const { result } = renderHook(() => useOperatorInboxDraftOrderExtraction(packet, readyIdentity, readyClient, readyProductUnresolved, readyQuantityUnresolved));
+    expect(result.current.state.status).toBe("idle");
+    expect(result.current.requestKey).toBeNull();
+  });
+
   it("preserves exactly six distinct provider identities with one packet membership each", () => {
     const packet = buildSixFragmentTwoPhotoPacket();
     const expected = ["p1", "p2", "p3", "p4", "p5", "p6"];
     const identities = packet.messages!.map((m) => m.provider_message_id);
     expect(identities).toEqual(expected);
     expect(new Set(identities).size).toBe(6);
+    expect(packet.messages!.map((m) => m.packet_id)).toEqual(Array(6).fill(packet.id));
     expect(packet.messages!.map((m) => m.packet_sequence)).toEqual([1, 2, 3, 4, 5, 6]);
     expect(packet.fragment_count).toBe(6);
   });
