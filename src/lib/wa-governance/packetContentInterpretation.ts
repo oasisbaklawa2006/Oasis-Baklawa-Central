@@ -22,8 +22,17 @@ type ContentInterpretationResponse = {
   };
 };
 
-const DEVANAGARI = /[\u0900-\u097F]/;
-const interpretationCache = new Map<string, Promise<string>>();
+type InterpretationCacheEntry = {
+  promise: Promise<string>;
+  expiresAt: number;
+};
+
+const DEVANAGARI = /[\u0900-\u097F]/u;
+const MAX_INTERPRETABLE_MESSAGES = 16;
+const MAX_INTERPRETATION_CONCURRENCY = 2;
+const INTERPRETATION_CACHE_TTL_MS = 10 * 60 * 1000;
+const MAX_INTERPRETATION_CACHE_ENTRIES = 128;
+const interpretationCache = new Map<string, InterpretationCacheEntry>();
 
 const DEVANAGARI_DIGITS: Record<string, string> = {
   "०": "0",
@@ -68,6 +77,32 @@ function messageNeedsInterpretation(message: InterpretablePacketMessage): boolea
   return message.message_type.toLowerCase() === "image" && Boolean(message.media_url);
 }
 
+function getCachedInterpretation(providerMessageId: string): Promise<string> | null {
+  const entry = interpretationCache.get(providerMessageId);
+  if (!entry) return null;
+  if (entry.expiresAt <= Date.now()) {
+    interpretationCache.delete(providerMessageId);
+    return null;
+  }
+  // Refresh insertion order so eviction behaves as a small LRU.
+  interpretationCache.delete(providerMessageId);
+  interpretationCache.set(providerMessageId, entry);
+  return entry.promise;
+}
+
+function storeCachedInterpretation(providerMessageId: string, promise: Promise<string>): void {
+  interpretationCache.delete(providerMessageId);
+  interpretationCache.set(providerMessageId, {
+    promise,
+    expiresAt: Date.now() + INTERPRETATION_CACHE_TTL_MS,
+  });
+  while (interpretationCache.size > MAX_INTERPRETATION_CACHE_ENTRIES) {
+    const oldestKey = interpretationCache.keys().next().value as string | undefined;
+    if (!oldestKey) break;
+    interpretationCache.delete(oldestKey);
+  }
+}
+
 async function interpretOne(
   supabase: SupabaseClient,
   message: InterpretablePacketMessage,
@@ -77,7 +112,7 @@ async function interpretOne(
   const fallback = DEVANAGARI.test(original) ? normalizeHindiCommerceFallback(original) : "";
   if (!providerMessageId || !messageNeedsInterpretation(message)) return fallback;
 
-  const existing = interpretationCache.get(providerMessageId);
+  const existing = getCachedInterpretation(providerMessageId);
   if (existing) return existing;
 
   const request = (async () => {
@@ -95,13 +130,35 @@ async function interpretOne(
     }
   })();
 
-  interpretationCache.set(providerMessageId, request);
+  storeCachedInterpretation(providerMessageId, request);
   return request;
+}
+
+async function interpretWithBoundedConcurrency(
+  supabase: SupabaseClient,
+  eligible: InterpretablePacketMessage[],
+): Promise<string[]> {
+  const results = new Array<string>(eligible.length).fill("");
+  let nextIndex = 0;
+
+  const worker = async (): Promise<void> => {
+    for (;;) {
+      const index = nextIndex;
+      nextIndex += 1;
+      if (index >= eligible.length) return;
+      results[index] = await interpretOne(supabase, eligible[index]);
+    }
+  };
+
+  const workerCount = Math.min(MAX_INTERPRETATION_CONCURRENCY, eligible.length);
+  await Promise.all(Array.from({ length: workerCount }, () => worker()));
+  return results;
 }
 
 /**
  * Returns only derived interpretation text. Original packet evidence stays untouched;
- * callers append this to their read-only resolution input.
+ * callers append this to their read-only resolution input. Oversized interpretation
+ * packets fail closed rather than silently dropping evidence that may contain a correction.
  */
 export async function interpretPacketContent(
   supabase: SupabaseClient,
@@ -109,7 +166,10 @@ export async function interpretPacketContent(
 ): Promise<string> {
   const eligible = (messages ?? []).filter(messageNeedsInterpretation);
   if (eligible.length === 0) return "";
+  if (eligible.length > MAX_INTERPRETABLE_MESSAGES) {
+    throw new Error("INTERPRETATION_PACKET_TOO_LARGE");
+  }
 
-  const interpreted = await Promise.all(eligible.map((message) => interpretOne(supabase, message)));
+  const interpreted = await interpretWithBoundedConcurrency(supabase, eligible);
   return interpreted.filter(Boolean).join("\n").slice(0, 12000);
 }
