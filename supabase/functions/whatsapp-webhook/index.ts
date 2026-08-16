@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any -- Click2API/Meta webhook payloads are untrusted multi-shape provider input normalized immediately by extractPayloadFields. */
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient, type SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import { authenticateClick2ApiWebhook, matchesWebhookToken } from "../_shared/click2apiWebhookAuth.ts";
