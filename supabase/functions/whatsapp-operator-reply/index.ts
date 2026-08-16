@@ -44,13 +44,13 @@ serve(async (req) => {
       return reply({ success: false, reply_id: claimed.data.id, status: "ACCEPTANCE_UNKNOWN", error: "Provider acceptance unknown; duplicate retry suppressed" }, 202);
     }
     const providerBody = await providerResponse.json().catch(() => ({}));
-    const providerId = providerBody.message_id ?? providerBody.id;
+    const providerId = providerBody.message_id ?? providerBody.id ?? providerBody.queue_id;
     if (providerResponse.ok && providerId) {
       const completed = await admin.rpc("complete_whatsapp_operator_reply", { p_reply_id: claimed.data.id, p_lease_token: claimed.data.lease_token, p_provider: "click2api", p_provider_message_id: String(providerId) });
       if (completed.error) return reply({ success: false, reply_id: claimed.data.id, error: "Provider accepted; local reconciliation pending" }, 202);
       return reply({ success: true, reply_id: claimed.data.id, provider_message_id: providerId, status: "ACCEPTED" }, 200);
     }
-    await admin.rpc("fail_whatsapp_operator_reply", { p_reply_id: claimed.data.id, p_lease_token: claimed.data.lease_token, p_error_code: `HTTP_${providerResponse.status}`, p_error_detail: providerBody.message ?? "Provider rejected request", p_acceptance_unknown: false });
+    await admin.rpc("fail_whatsapp_operator_reply", { p_reply_id: claimed.data.id, p_lease_token: claimed.data.lease_token, p_error_code: `HTTP_${providerResponse.status}`, p_error_detail: JSON.stringify(providerBody).slice(0, 2000) || "Provider rejected request", p_acceptance_unknown: false });
     return reply({ success: false, reply_id: claimed.data.id, error: "Provider rejected reply" }, 502);
   } catch (error) {
     console.error("[whatsapp-operator-reply]", error instanceof Error ? error.message : "unknown error");
