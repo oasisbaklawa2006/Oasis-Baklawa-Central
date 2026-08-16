@@ -39,18 +39,35 @@ export function useOperatorInboxDraftOrderExtraction(
   productResolutionState: OperatorInboxProductResolutionState,
   quantityResolutionState: OperatorInboxQuantityResolutionState,
 ): { state: OperatorInboxDraftOrderExtractionState; requestKey: string | null } {
+  const packetMessages = useMemo(() => {
+    if (!selectedPacket) return [];
+    // Legacy/test rows may omit packet_id because they are already nested under
+    // the selected packet. When packet_id is present it is authoritative: never
+    // permit a neighbouring packet's fragment into this decoder context.
+    return (selectedPacket.messages ?? []).filter(
+      (message) => message.packet_id == null || message.packet_id === selectedPacket.id,
+    );
+  }, [selectedPacket?.id, selectedPacket?.messages]);
+
+  const hasCrossPacketMessages = useMemo(() => {
+    if (!selectedPacket) return false;
+    return (selectedPacket.messages ?? []).some(
+      (message) => message.packet_id != null && message.packet_id !== selectedPacket.id,
+    );
+  }, [selectedPacket?.id, selectedPacket?.messages]);
+
   const stitchedPlainText = useMemo(() => {
     if (!selectedPacket) return "";
+    // If the loaded nested rows prove cross-packet contamination, do not fall
+    // back to stitched text: fail closed instead of risking mixed-order input.
+    if (hasCrossPacketMessages) return "";
     return packetStitchedPlainText(selectedPacket.stitched_content);
-  }, [selectedPacket?.stitched_content]);
+  }, [selectedPacket?.stitched_content, hasCrossPacketMessages]);
 
   const sourceText = useMemo(() => {
-    const inbound = (selectedPacket?.messages ?? [])
+    if (hasCrossPacketMessages) return "";
+    const inbound = packetMessages
       .filter((m) => m.direction === "inbound")
-      // Packet loaders normally return chronological messages, but extraction is
-      // an authority-sensitive boundary and must not depend on incidental query
-      // ordering. packet_sequence is authoritative when present; created_at is
-      // the deterministic fallback for legacy rows.
       .slice()
       .sort((a, b) => {
         const aSequence = a.packet_sequence;
@@ -66,13 +83,13 @@ export function useOperatorInboxDraftOrderExtraction(
       .map((m) => m.content ?? "")
       .join("\n");
     return (inbound || stitchedPlainText).slice(0, 12000);
-  }, [selectedPacket?.messages, stitchedPlainText]);
+  }, [packetMessages, stitchedPlainText, hasCrossPacketMessages]);
 
   const requestKey = useMemo(() => {
-    if (!selectedPacket) return null;
+    if (!selectedPacket || hasCrossPacketMessages) return null;
     return buildDraftOrderExtractionRequestKey({
       packetId: selectedPacket.id,
-      contentFingerprint: buildPacketContentFingerprint(selectedPacket.messages, stitchedPlainText),
+      contentFingerprint: buildPacketContentFingerprint(packetMessages, stitchedPlainText),
       clientResolutionState,
       productResolutionState,
       quantityResolutionState,
@@ -80,8 +97,9 @@ export function useOperatorInboxDraftOrderExtraction(
     });
   }, [
     selectedPacket?.id,
-    selectedPacket?.messages,
+    packetMessages,
     stitchedPlainText,
+    hasCrossPacketMessages,
     clientResolutionState,
     productResolutionState,
     quantityResolutionState,
@@ -89,77 +107,32 @@ export function useOperatorInboxDraftOrderExtraction(
   ]);
 
   const state = useMemo((): OperatorInboxDraftOrderExtractionState => {
-    if (!selectedPacket || !requestKey) return { status: "idle" };
+    if (!selectedPacket || hasCrossPacketMessages) return { status: "idle" };
+    if (!requestKey) return { status: "idle" };
 
-    if (isDraftOrderExtractionUpstreamLoading({
-      clientResolutionState,
-      productResolutionState,
-      quantityResolutionState,
-    })) {
-      return {
-        status: "loading",
-        requestKey,
-        draft: buildPendingDraftOrder({
-          packetId: selectedPacket.id,
-          extractionRequestKey: requestKey,
-          sourceText,
-          status: "upstream_loading",
-        }),
-      };
+    if (isDraftOrderExtractionUpstreamLoading({ clientResolutionState, productResolutionState, quantityResolutionState })) {
+      return { status: "loading", requestKey, draft: buildPendingDraftOrder({ packetId: selectedPacket.id, extractionRequestKey: requestKey, sourceText, status: "upstream_loading" }) };
     }
 
-    const upstreamError = firstUpstreamErrorMessage({
-      clientResolutionState,
-      productResolutionState,
-      quantityResolutionState,
-    });
+    const upstreamError = firstUpstreamErrorMessage({ clientResolutionState, productResolutionState, quantityResolutionState });
     if (upstreamError) {
-      return {
-        status: "error",
-        requestKey,
-        message: upstreamError,
-        draft: buildPendingDraftOrder({
-          packetId: selectedPacket.id,
-          extractionRequestKey: requestKey,
-          sourceText,
-          status: "upstream_error",
-          upstreamErrorMessage: upstreamError,
-        }),
-      };
+      return { status: "error", requestKey, message: upstreamError, draft: buildPendingDraftOrder({ packetId: selectedPacket.id, extractionRequestKey: requestKey, sourceText, status: "upstream_error", upstreamErrorMessage: upstreamError }) };
     }
 
-    if (!isDraftOrderExtractionUpstreamReady({
-      clientResolutionState,
-      productResolutionState,
-      quantityResolutionState,
-    })) {
-      return { status: "idle" };
-    }
+    if (!isDraftOrderExtractionUpstreamReady({ clientResolutionState, productResolutionState, quantityResolutionState })) return { status: "idle" };
 
     const draft = extractDraftOrderFromResolution({
       packetId: selectedPacket.id,
       extractionRequestKey: requestKey,
       sourceText,
-      client:
-        clientResolutionState.status === "ready" ? clientResolutionState.result : null,
-      product:
-        productResolutionState.status === "ready" ? productResolutionState.result : null,
-      quantity:
-        quantityResolutionState.status === "ready" ? quantityResolutionState.result : null,
-      senderIdentity:
-        senderIdentityState.status === "ready" ? senderIdentityState.identity : null,
+      client: clientResolutionState.status === "ready" ? clientResolutionState.result : null,
+      product: productResolutionState.status === "ready" ? productResolutionState.result : null,
+      quantity: quantityResolutionState.status === "ready" ? quantityResolutionState.result : null,
+      senderIdentity: senderIdentityState.status === "ready" ? senderIdentityState.identity : null,
     });
 
     return { status: "ready", requestKey, draft };
-  }, [
-    selectedPacket,
-    requestKey,
-    sourceText,
-    clientResolutionState,
-    productResolutionState,
-    quantityResolutionState,
-    senderIdentityState,
-  ]);
+  }, [selectedPacket, hasCrossPacketMessages, requestKey, sourceText, clientResolutionState, productResolutionState, quantityResolutionState, senderIdentityState]);
 
   return { state, requestKey };
 }
