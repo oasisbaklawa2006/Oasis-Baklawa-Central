@@ -637,28 +637,10 @@ export function WhatsAppInbox() {
       });
 
       if (invokeError) {
-        const idempotencyKey = replyIdempotencyRef.current.key;
-        const { data: outbox } = await supabase
-          .from("whatsapp_operator_reply_outbox")
-          .select("status, last_error_code")
-          .eq("idempotency_key", idempotencyKey)
-          .maybeSingle();
-        const acceptedDespiteTransportError =
-          outbox?.status === "ACCEPTED" ||
-          outbox?.status === "DELIVERED" ||
-          outbox?.status === "READ" ||
-          outbox?.status === "ACCEPTANCE_UNKNOWN" ||
-          (outbox?.status === "FAILED_RETRYABLE" && outbox?.last_error_code === "HTTP_200");
-        if (acceptedDespiteTransportError) {
-          setReplyText("");
-          setReplyFeedback({
-            tone: "pending",
-            message: "Reply was accepted or queued by WhatsApp. Delivery reconciliation is pending; do not resend.",
-          });
-          await loadPackets({ silent: true });
-          return;
-        }
-        setReplyFeedback({ tone: "error", message: `Reply was not accepted: ${invokeError.message}` });
+        setReplyFeedback({
+          tone: "pending",
+          message: `Send status could not be confirmed (${invokeError.message}). Do not resend; refresh to reconcile delivery.`,
+        });
         return;
       }
 
