@@ -205,7 +205,7 @@ export function extractQuantityResolutionTextSignals(
     pushMatch(matches, seen, excluded, {
       value,
       unit: normalizeQuantityUnit(rawUnit),
-      productHint: extractProductHintFromPhrase(productPhrase ?? "") ?? titleCaseHint(productPhrase ?? ""),
+      productHint: extractProductHintFromPhrase(productPhrase ?? ""),
       kind: "explicit_with_unit",
       sourceSpan: { start, end },
       rawText: match[0],
@@ -223,7 +223,7 @@ export function extractQuantityResolutionTextSignals(
     pushMatch(matches, seen, excluded, {
       value,
       unit: normalizeQuantityUnit(rawUnit),
-      productHint: extractProductHintFromPhrase(productPhrase ?? ""),
+      productHint: extractProductHintFromPhrase(productPhrase ?? "") ?? titleCaseHint(productPhrase ?? ""),
       kind: "explicit_with_unit",
       sourceSpan: { start, end },
       rawText: match[0],
