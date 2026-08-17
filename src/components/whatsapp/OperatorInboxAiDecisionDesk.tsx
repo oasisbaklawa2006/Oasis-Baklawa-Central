@@ -12,6 +12,7 @@ import {
   type WhatsAppCaseDecisionSnapshot,
 } from "@/lib/wa-governance/caseDecisionDesk";
 import { OperatorInboxCaseLifecycleActions } from "./OperatorInboxCaseLifecycleActions";
+import { OperatorInboxCommercialLayers } from "./OperatorInboxCommercialLayers";
 
 const DEPARTMENTS = [
   "SALES",
@@ -282,6 +283,14 @@ export function OperatorInboxAiDecisionDesk({
             </div>
           ) : null}
         </>
+      ) : null}
+
+      {snapshot && communicationCase ? (
+        <OperatorInboxCommercialLayers
+          packetId={packetId}
+          snapshot={snapshot}
+          onReload={() => reload(packetId)}
+        />
       ) : null}
 
       {snapshot && communicationCase ? (
