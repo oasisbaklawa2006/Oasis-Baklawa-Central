@@ -9,6 +9,50 @@ export type InterpretablePacketMessage = {
   media_url?: string | null;
 };
 
+export type PacketAiExplicitFact = {
+  provider_message_id: string;
+  kind: string;
+  value: string;
+};
+
+export type PacketAiOrderLine = {
+  product_name: string;
+  sku: string;
+  quantity: number | null;
+  unit: string;
+  status: "explicit" | "interpreted" | "unclear";
+  evidence_ids: string[];
+};
+
+export type PacketAiCorrection = {
+  provider_message_id: string;
+  supersedes: string;
+  replacement: string;
+};
+
+export type PacketAiConclusion = {
+  intent: "NEW_ORDER" | "AMENDMENT" | "ENQUIRY" | "COMPLAINT" | "FINANCE" | "OTHER" | "UNCLEAR";
+  summary: string;
+  explicit_facts: PacketAiExplicitFact[];
+  order_lines: PacketAiOrderLine[];
+  corrections: PacketAiCorrection[];
+  ambiguities: string[];
+  recommended_action: string;
+  human_review_required: boolean;
+};
+
+export type PacketContentInterpretation = {
+  normalizedText: string;
+  extractedText: string;
+  language: string;
+  confidence: number;
+  warnings: string[];
+  sourceKind: "text" | "image" | "audio" | "video" | "document" | "packet";
+  conclusion: PacketAiConclusion | null;
+  usedAi: boolean;
+  error?: string;
+};
+
 type ContentInterpretationResponse = {
   success?: boolean;
   error?: string;
@@ -18,20 +62,21 @@ type ContentInterpretationResponse = {
     language?: string;
     confidence?: number;
     warnings?: string[];
-    source_kind?: "text" | "image";
+    source_kind?: PacketContentInterpretation["sourceKind"];
+    conclusion?: PacketAiConclusion;
   };
 };
 
 type InterpretationCacheEntry = {
-  promise: Promise<string>;
+  promise: Promise<PacketContentInterpretation>;
   expiresAt: number;
 };
 
 const DEVANAGARI = /[\u0900-\u097F]/u;
 const MAX_INTERPRETABLE_MESSAGES = 16;
-const MAX_INTERPRETATION_CONCURRENCY = 2;
 const INTERPRETATION_CACHE_TTL_MS = 10 * 60 * 1000;
 const MAX_INTERPRETATION_CACHE_ENTRIES = 128;
+const MULTIMODAL_TYPES = new Set(["image", "audio", "video", "document"]);
 let interpretationCache = new Map<string, InterpretationCacheEntry>();
 
 const DEVANAGARI_DIGITS: Record<string, string> = {
@@ -61,6 +106,7 @@ const HINDI_COMMERCE_TERMS: Array<[RegExp, string]> = [
   [/चॉकलेट्स|चॉकलेट/gu, "chocolate"],
   [/बकलावा|बाकलावा|बक्लावा/gu, "baklawa"],
   [/पिस्ताचियो|पिस्ता/gu, "pistachio"],
+  [/काजू/gu, "kaju"],
 ];
 
 export function normalizeHindiCommerceFallback(value: string): string {
@@ -73,8 +119,9 @@ export function normalizeHindiCommerceFallback(value: string): string {
 
 function messageNeedsInterpretation(message: InterpretablePacketMessage): boolean {
   if (message.direction !== "inbound") return false;
-  if (DEVANAGARI.test(message.content ?? "")) return true;
-  return message.message_type.toLowerCase() === "image" && Boolean(message.media_url);
+  if (!message.provider_message_id?.trim()) return false;
+  if ((message.content ?? "").trim()) return true;
+  return MULTIMODAL_TYPES.has(message.message_type.toLowerCase());
 }
 
 function withoutCacheKey(key: string): Map<string, InterpretationCacheEntry> {
@@ -88,96 +135,162 @@ function trimCacheToLimit(): void {
   );
 }
 
-function getCachedInterpretation(providerMessageId: string): Promise<string> | null {
-  const entry = interpretationCache.get(providerMessageId);
+function getCachedInterpretation(key: string): Promise<PacketContentInterpretation> | null {
+  const entry = interpretationCache.get(key);
   if (!entry) return null;
   if (entry.expiresAt <= Date.now()) {
-    interpretationCache = withoutCacheKey(providerMessageId);
+    interpretationCache = withoutCacheKey(key);
     return null;
   }
-  // Refresh insertion order so eviction behaves as a small LRU without using a
-  // `.delete()` call that the Stage-1 PostgREST write guard intentionally forbids.
-  interpretationCache = withoutCacheKey(providerMessageId);
-  interpretationCache.set(providerMessageId, entry);
+  interpretationCache = withoutCacheKey(key);
+  interpretationCache.set(key, entry);
   return entry.promise;
 }
 
-function storeCachedInterpretation(providerMessageId: string, promise: Promise<string>): void {
-  interpretationCache = withoutCacheKey(providerMessageId);
-  interpretationCache.set(providerMessageId, {
+function storeCachedInterpretation(key: string, promise: Promise<PacketContentInterpretation>): void {
+  interpretationCache = withoutCacheKey(key);
+  interpretationCache.set(key, {
     promise,
     expiresAt: Date.now() + INTERPRETATION_CACHE_TTL_MS,
   });
   trimCacheToLimit();
 }
 
-async function interpretOne(
-  supabase: SupabaseClient,
-  message: InterpretablePacketMessage,
-): Promise<string> {
-  const providerMessageId = message.provider_message_id?.trim();
-  const original = message.content ?? "";
-  const fallback = DEVANAGARI.test(original) ? normalizeHindiCommerceFallback(original) : "";
-  if (!providerMessageId || !messageNeedsInterpretation(message)) return fallback;
-
-  const existing = getCachedInterpretation(providerMessageId);
-  if (existing) return existing;
-
-  const request = (async () => {
-    try {
-      const { data, error } = await supabase.functions.invoke("whatsapp-content-interpret", {
-        body: { provider_message_id: providerMessageId },
-      });
-      if (error) return fallback;
-      const response = data as ContentInterpretationResponse | null;
-      if (!response?.success) return fallback;
-      const normalized = response.interpretation?.normalized_text?.trim() ?? "";
-      return normalized || fallback;
-    } catch {
-      return fallback;
+function fallbackText(messages: InterpretablePacketMessage[]): string {
+  const lines: string[] = [];
+  for (const message of messages) {
+    if (message.direction !== "inbound") continue;
+    const original = (message.content ?? "").trim();
+    if (!original) continue;
+    lines.push(original);
+    if (DEVANAGARI.test(original)) {
+      const normalized = normalizeHindiCommerceFallback(original);
+      if (normalized && normalized !== original) lines.push(normalized);
     }
-  })();
-
-  storeCachedInterpretation(providerMessageId, request);
-  return request;
+  }
+  return lines.join("\n").slice(0, 12000);
 }
 
-async function interpretWithBoundedConcurrency(
+function fallbackInterpretation(
+  messages: InterpretablePacketMessage[],
+  error?: string,
+): PacketContentInterpretation {
+  const text = fallbackText(messages);
+  return {
+    normalizedText: text,
+    extractedText: text,
+    language: "fallback",
+    confidence: 0,
+    warnings: error ? [`AI interpretation unavailable: ${error}`] : [],
+    sourceKind: "packet",
+    conclusion: null,
+    usedAi: false,
+    ...(error ? { error } : {}),
+  };
+}
+
+function clampConfidence(value: unknown): number {
+  const n = Number(value);
+  return Number.isFinite(n) ? Math.max(0, Math.min(1, n)) : 0;
+}
+
+function normalizeConclusion(value: PacketAiConclusion | undefined): PacketAiConclusion | null {
+  if (!value || typeof value !== "object") return null;
+  return {
+    intent: value.intent ?? "UNCLEAR",
+    summary: typeof value.summary === "string" ? value.summary : "",
+    explicit_facts: Array.isArray(value.explicit_facts) ? value.explicit_facts : [],
+    order_lines: Array.isArray(value.order_lines) ? value.order_lines : [],
+    corrections: Array.isArray(value.corrections) ? value.corrections : [],
+    ambiguities: Array.isArray(value.ambiguities) ? value.ambiguities.filter((item): item is string => typeof item === "string") : [],
+    recommended_action: typeof value.recommended_action === "string" ? value.recommended_action : "",
+    human_review_required: value.human_review_required !== false,
+  };
+}
+
+function parseSuccessfulResponse(
+  response: ContentInterpretationResponse,
+  fallback: string,
+): PacketContentInterpretation {
+  const interpretation = response.interpretation;
+  if (!response.success || !interpretation) throw new Error(response.error || "INTERPRETATION_FAILED");
+  const normalizedText = interpretation.normalized_text?.trim() || fallback;
+  return {
+    normalizedText: normalizedText.slice(0, 12000),
+    extractedText: (interpretation.extracted_text?.trim() || fallback).slice(0, 12000),
+    language: interpretation.language?.trim() || "unknown",
+    confidence: clampConfidence(interpretation.confidence),
+    warnings: Array.isArray(interpretation.warnings)
+      ? interpretation.warnings.filter((item): item is string => typeof item === "string").slice(0, 24)
+      : [],
+    sourceKind: interpretation.source_kind ?? "packet",
+    conclusion: normalizeConclusion(interpretation.conclusion),
+    usedAi: true,
+  };
+}
+
+function packetCacheKey(eligible: InterpretablePacketMessage[]): string {
+  return eligible.map((message) => message.provider_message_id?.trim() ?? "").join("|");
+}
+
+async function requestPacketInterpretation(
   supabase: SupabaseClient,
   eligible: InterpretablePacketMessage[],
-): Promise<string[]> {
-  const results = new Array<string>(eligible.length).fill("");
-  let nextIndex = 0;
-
-  const worker = async (): Promise<void> => {
-    for (;;) {
-      const index = nextIndex;
-      nextIndex += 1;
-      if (index >= eligible.length) return;
-      results[index] = await interpretOne(supabase, eligible[index]);
-    }
-  };
-
-  const workerCount = Math.min(MAX_INTERPRETATION_CONCURRENCY, eligible.length);
-  await Promise.all(Array.from({ length: workerCount }, () => worker()));
-  return results;
+): Promise<PacketContentInterpretation> {
+  const providerMessageIds = eligible
+    .map((message) => message.provider_message_id?.trim())
+    .filter((id): id is string => Boolean(id));
+  const fallback = fallbackText(eligible);
+  const { data, error } = await supabase.functions.invoke("whatsapp-content-interpret", {
+    body: { provider_message_ids: providerMessageIds },
+  });
+  if (error) throw new Error(error.message || "INTERPRETATION_INVOKE_FAILED");
+  return parseSuccessfulResponse(data as ContentInterpretationResponse, fallback);
 }
 
 /**
- * Returns only derived interpretation text. Original packet evidence stays untouched;
- * callers append this to their read-only resolution input. Oversized interpretation
- * packets fail closed rather than silently dropping evidence that may contain a correction.
+ * Returns one AI interpretation for the whole chronological inbound packet. Every
+ * text message is eligible (English/Hindi/Hinglish/typos), along with image,
+ * audio, video and document evidence. Original evidence stays immutable.
  */
-export async function interpretPacketContent(
+export async function interpretPacketContentRich(
   supabase: SupabaseClient,
   messages: InterpretablePacketMessage[] | null | undefined,
-): Promise<string> {
+): Promise<PacketContentInterpretation> {
   const eligible = (messages ?? []).filter(messageNeedsInterpretation);
-  if (eligible.length === 0) return "";
+  if (eligible.length === 0) return fallbackInterpretation(messages ?? []);
   if (eligible.length > MAX_INTERPRETABLE_MESSAGES) {
     throw new Error("INTERPRETATION_PACKET_TOO_LARGE");
   }
 
-  const interpreted = await interpretWithBoundedConcurrency(supabase, eligible);
-  return interpreted.filter(Boolean).join("\n").slice(0, 12000);
+  const key = packetCacheKey(eligible);
+  const cached = getCachedInterpretation(key);
+  if (cached) {
+    try {
+      return await cached;
+    } catch (error) {
+      interpretationCache = withoutCacheKey(key);
+      const message = error instanceof Error ? error.message : "INTERPRETATION_FAILED";
+      return fallbackInterpretation(eligible, message);
+    }
+  }
+
+  const request = requestPacketInterpretation(supabase, eligible);
+  storeCachedInterpretation(key, request);
+  try {
+    return await request;
+  } catch (error) {
+    interpretationCache = withoutCacheKey(key);
+    const message = error instanceof Error ? error.message : "INTERPRETATION_FAILED";
+    return fallbackInterpretation(eligible, message);
+  }
+}
+
+/** Backward-compatible derived text accessor used by existing read-only resolvers. */
+export async function interpretPacketContent(
+  supabase: SupabaseClient,
+  messages: InterpretablePacketMessage[] | null | undefined,
+): Promise<string> {
+  const result = await interpretPacketContentRich(supabase, messages);
+  return result.normalizedText;
 }
