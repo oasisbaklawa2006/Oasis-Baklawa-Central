@@ -4,7 +4,6 @@ import {
   fetchCatalogueQuantityProduct,
   resolveQuantityCandidates,
 } from "@/lib/wa-governance/fetchQuantityResolution";
-import { interpretPacketContent } from "@/lib/wa-governance/packetContentInterpretation";
 import {
   buildQuantityResolutionFetchInput,
   buildQuantityResolutionRequestDescriptor,
@@ -33,45 +32,27 @@ export type { OperatorInboxQuantityResolutionState } from "@/lib/wa-governance/q
 
 const LOGICAL_REQUEST_KEY_CACHE_PREFIX = "|";
 
-/**
- * Synchronous warm-cache lookup by logical request key.
- * Composite cache keys are `${logicalRequestKey}|catalogue:...`; the catalogue
- * segment requires a product fetch to compute on first resolve, but revisits can
- * match the single stored entry without awaiting fetch.
- * Returns null when absent or ambiguous (multiple catalogue fingerprints).
- */
 export function findWarmCachedQuantityResolutionState(
   logicalRequestKey: string,
   cache: Map<string, QuantityResolutionResult>,
 ): Extract<OperatorInboxQuantityResolutionState, { status: "ready" }> | null {
   const prefix = `${logicalRequestKey}${LOGICAL_REQUEST_KEY_CACHE_PREFIX}`;
   let matched: QuantityResolutionResult | null = null;
-
   for (const [cacheKey, result] of cache.entries()) {
     if (!cacheKey.startsWith(prefix)) continue;
-    if (matched != null) {
-      return null;
-    }
+    if (matched != null) return null;
     matched = result;
   }
-
-  if (matched == null) {
-    return null;
-  }
-
-  return { status: "ready", requestKey: logicalRequestKey, result: matched };
+  return matched == null ? null : { status: "ready", requestKey: logicalRequestKey, result: matched };
 }
 
 function snapshotSenderIdentity(
   state: OperatorInboxSenderIdentityState,
 ): QuantityResolutionSenderIdentitySnapshot {
   switch (state.status) {
-    case "idle":
-      return { status: "idle" };
-    case "loading":
-      return { status: "loading" };
-    case "error":
-      return { status: "error" };
+    case "idle": return { status: "idle" };
+    case "loading": return { status: "loading" };
+    case "error": return { status: "error" };
     case "ready":
       return {
         status: "ready",
@@ -124,10 +105,7 @@ export function useOperatorInboxQuantityResolution(
     () => buildPacketMessagesFingerprint(selectedPacket?.messages),
     [
       selectedPacket?.messages
-        ?.map(
-          (message) =>
-            `${message.id}:${message.direction}:${message.content ?? ""}:${message.media_url ?? ""}:${message.created_at ?? ""}`,
-        )
+        ?.map((message) => `${message.id}:${message.direction}:${message.content ?? ""}:${message.media_url ?? ""}:${message.created_at ?? ""}`)
         .join("|") ?? "",
     ],
   );
@@ -141,12 +119,8 @@ export function useOperatorInboxQuantityResolution(
     () => clientResolutionBestMatchKey(clientResolutionState),
     [
       clientResolutionState.status,
-      clientResolutionState.status === "ready"
-        ? clientResolutionState.result.bestMatch?.companyId
-        : null,
-      clientResolutionState.status === "ready"
-        ? clientResolutionState.result.bestMatch?.companyName
-        : null,
+      clientResolutionState.status === "ready" ? clientResolutionState.result.bestMatch?.companyId : null,
+      clientResolutionState.status === "ready" ? clientResolutionState.result.bestMatch?.companyName : null,
     ],
   );
 
@@ -154,12 +128,8 @@ export function useOperatorInboxQuantityResolution(
     () => productResolutionBestMatchKey(productResolutionState),
     [
       productResolutionState.status,
-      productResolutionState.status === "ready"
-        ? productResolutionState.result.bestMatch?.productId
-        : null,
-      productResolutionState.status === "ready"
-        ? productResolutionState.result.bestMatch?.productName
-        : null,
+      productResolutionState.status === "ready" ? productResolutionState.result.bestMatch?.productId : null,
+      productResolutionState.status === "ready" ? productResolutionState.result.bestMatch?.productName : null,
     ],
   );
 
@@ -188,7 +158,6 @@ export function useOperatorInboxQuantityResolution(
     () => (descriptor ? buildQuantityResolutionRequestKey(descriptor) : null),
     [descriptor],
   );
-
   requestKeyRef.current = requestKey;
 
   useEffect(() => {
@@ -196,22 +165,12 @@ export function useOperatorInboxQuantityResolution(
       setState({ status: "idle" });
       return;
     }
-
-    if (
-      !isQuantityResolutionUpstreamReady(
-        descriptor.identity,
-        clientResolutionState,
-        productResolutionState,
-      )
-    ) {
+    if (!isQuantityResolutionUpstreamReady(descriptor.identity, clientResolutionState, productResolutionState)) {
       setState({ status: "loading", requestKey });
       return;
     }
 
-    const warmCache = findWarmCachedQuantityResolutionState(
-      requestKey,
-      resolvedResultCacheRef.current,
-    );
+    const warmCache = findWarmCachedQuantityResolutionState(requestKey, resolvedResultCacheRef.current);
     if (warmCache) {
       setState(warmCache);
       return;
@@ -223,40 +182,26 @@ export function useOperatorInboxQuantityResolution(
     void (async () => {
       const packet = packetRef.current;
       if (!packet) return;
-
       const stitched = packetStitchedPlainText(packet.stitched_content);
-
       try {
-        const interpreted = await interpretPacketContent(supabase, packet.messages);
-        if (cancelled || requestKeyRef.current !== requestKey) return;
+        // Quantity resolution consumes the already-computed packet interpretation
+        // carried by product resolution. It never launches a second browser AI job.
+        const interpreted = productResolutionStateRef.current.status === "ready"
+          ? productResolutionStateRef.current.result.aiInterpretation?.normalizedText ?? ""
+          : "";
         const resolutionText = [stitched, interpreted].filter(Boolean).join("\n").slice(0, 12000);
-        const input = buildQuantityResolutionFetchInput(
-          packet,
-          resolutionText,
-          productResolutionStateRef.current,
-        );
-        const catalogueProduct =
-          input.productId != null
-            ? await fetchCatalogueQuantityProduct(supabase, input.productId)
-            : null;
+        const input = buildQuantityResolutionFetchInput(packet, resolutionText, productResolutionStateRef.current);
+        const catalogueProduct = input.productId != null
+          ? await fetchCatalogueQuantityProduct(supabase, input.productId)
+          : null;
         const cacheKey = buildQuantityResolutionResultCacheKey(requestKey, catalogueProduct);
-
-        const cachedByCatalogue = getCachedQuantityResolutionState(
-          cacheKey,
-          requestKey,
-          resolvedResultCacheRef.current,
-        );
+        const cachedByCatalogue = getCachedQuantityResolutionState(cacheKey, requestKey, resolvedResultCacheRef.current);
         if (cachedByCatalogue) {
           if (cancelled || requestKeyRef.current !== requestKey) return;
           setState(cachedByCatalogue);
           return;
         }
-
-        const result = await resolveQuantityCandidates(
-          input,
-          supabase,
-          catalogueProduct,
-        );
+        const result = await resolveQuantityCandidates(input, supabase, catalogueProduct);
         if (cancelled || requestKeyRef.current !== requestKey) return;
         storeCachedQuantityResolutionResult(resolvedResultCacheRef.current, cacheKey, result);
         setState({ status: "ready", requestKey, result });
@@ -267,16 +212,11 @@ export function useOperatorInboxQuantityResolution(
       }
     })();
 
-    return () => {
-      cancelled = true;
-    };
+    return () => { cancelled = true; };
   }, [requestKey]);
 
   return useMemo(
-    () => ({
-      requestKey,
-      state: projectQuantityResolutionDisplayState(state, requestKey),
-    }),
+    () => ({ requestKey, state: projectQuantityResolutionDisplayState(state, requestKey) }),
     [state, requestKey],
   );
 }
