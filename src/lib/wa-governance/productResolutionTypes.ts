@@ -18,6 +18,9 @@ export interface ProductResolutionAiInterpretation {
   confidence: number;
   language: string;
   warnings: string[];
+  normalizedText: string;
+  extractedText: string;
+  source: "server" | "client-fallback";
   usedAi: boolean;
   error?: string;
 }
