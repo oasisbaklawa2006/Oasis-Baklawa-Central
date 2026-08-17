@@ -80,7 +80,7 @@ export default function JobExecutionTab({ jobs, userId, department, onRefresh }:
   };
 
   const handleAdvanceStage = async (job: ProductionJob) => {
-    const currentIdx = STAGE_ORDER.indexOf(job.stage as any);
+    const currentIdx = STAGE_ORDER.indexOf(job.stage);
     if (currentIdx >= STAGE_ORDER.length - 1) return;
     const nextStage = STAGE_ORDER[currentIdx + 1];
     setActing(job.id);
@@ -189,7 +189,7 @@ export default function JobExecutionTab({ jobs, userId, department, onRefresh }:
 
   // Detail view for a selected job
   if (selectedJob) {
-    const stageIdx = STAGE_ORDER.indexOf(selectedJob.stage as any);
+    const stageIdx = STAGE_ORDER.indexOf(selectedJob.stage);
     const pri = PRIORITY_STYLES[selectedJob.priority] || PRIORITY_STYLES.normal;
 
     return (
@@ -371,7 +371,7 @@ export default function JobExecutionTab({ jobs, userId, department, onRefresh }:
     <div className="space-y-3">
       {activeJobs.map((job) => {
         const pri = PRIORITY_STYLES[job.priority] || PRIORITY_STYLES.normal;
-        const stageIdx = STAGE_ORDER.indexOf(job.stage as any);
+        const stageIdx = STAGE_ORDER.indexOf(job.stage);
         const stagePercent = ((stageIdx + 1) / STAGE_ORDER.length) * 100;
 
         return (

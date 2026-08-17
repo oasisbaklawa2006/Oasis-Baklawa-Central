@@ -47,8 +47,9 @@ const OperationsController = () => {
       .eq("canonical_department", myDepartment)
       .in("status", ["pending", "accepted", "in_production", "paused", "completed"])
       .order("created_at", { ascending: true });
-    setJobs((data as any[]) || []);
-    const urgent = ((data as any[]) || []).filter((j: any) => j.priority === "urgent" || j.priority === "red");
+    const rows: ProductionJob[] = data ?? [];
+    setJobs(rows);
+    const urgent = rows.filter((j) => j.priority === "urgent" || j.priority === "red");
     setUrgentCount(urgent.length);
     setLoading(false);
   }, [myDepartment]);

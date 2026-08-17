@@ -29,7 +29,7 @@ export default function QuickEntryTab({ department, departmentLabel, userId }: P
         // carry the legacy production_department spelling (e.g. "arabic_sweets"
         // or "dragees"), so compare through the same canonical mapping the
         // server uses rather than a raw string match.
-        const filtered = (data as any[])
+        const filtered = data
           .filter((p) => canonicalDepartmentOf(p.production_department) === department)
           .map((p) => ({ id: p.id, name: p.name, image_url: p.image_url, sku: p.sku }));
         setProducts(filtered);
