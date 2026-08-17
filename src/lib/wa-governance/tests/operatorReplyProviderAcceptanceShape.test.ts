@@ -1,25 +1,31 @@
-import { readFileSync } from "node:fs";
-import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-
-const REPO_ROOT = join(import.meta.dirname, "../../../..");
-const REPLY_FUNCTION = join(REPO_ROOT, "supabase/functions/whatsapp-operator-reply/index.ts");
-
-function readReplyFunction(): string {
-  return readFileSync(REPLY_FUNCTION, "utf8");
-}
+import { selectClick2ApiProviderMessageId } from "../../../../supabase/functions/_shared/whatsappProviderAcceptance";
 
 describe("Click2API provider acceptance response shapes", () => {
-  it("accepts the nested queue_id shape observed during physical staging", () => {
-    const source = readReplyFunction();
-    expect(source).toContain("providerMessage.queue_id");
-    expect(source).toContain("providerBody?.message");
+  it("selects the nested queue_id shape observed during physical staging", () => {
+    const providerId = selectClick2ApiProviderMessageId({
+      messaging_channel: "whatsapp",
+      message: {
+        queue_id: "queue-physical-staging-1",
+        message_status: "queued",
+      },
+    });
+
+    expect(providerId).toBe("queue-physical-staging-1");
   });
 
-  it("retains support for the earlier top-level acceptance identifiers", () => {
-    const source = readReplyFunction();
-    expect(source).toContain("providerBody.message_id");
-    expect(source).toContain("providerBody.id");
-    expect(source).toContain("providerBody.queue_id");
+  it.each([
+    [{ message_id: "top-message" }, "top-message"],
+    [{ id: "top-id" }, "top-id"],
+    [{ queue_id: "top-queue" }, "top-queue"],
+    [{ message: { message_id: "nested-message" } }, "nested-message"],
+    [{ message: { id: "nested-id" } }, "nested-id"],
+  ])("retains support for provider acceptance shape %#", (payload, expected) => {
+    expect(selectClick2ApiProviderMessageId(payload)).toBe(expected);
+  });
+
+  it("fails closed when a successful-looking body contains no provider identifier", () => {
+    expect(selectClick2ApiProviderMessageId({ message: { message_status: "queued" } })).toBeNull();
+    expect(selectClick2ApiProviderMessageId(null)).toBeNull();
   });
 });
