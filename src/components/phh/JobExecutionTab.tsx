@@ -4,7 +4,8 @@ import { rgsGovernedRpc } from "@/lib/rgsGovernedRpc";
 import { toast } from "sonner";
 import { Loader2, Play, Pause, RotateCcw, Image as ImageIcon, AlertTriangle, Camera, Send, Lock, ChevronRight } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
-import { ProductionJob, STAGE_ORDER, STAGE_LABELS, PRIORITY_STYLES } from "./types";
+import { ProductionJob, STAGE_ORDER, STAGE_LABELS, PRIORITY_STYLES, DEPARTMENTS } from "./types";
+import { executionFieldsForDepartment } from "./departmentExecutionFields";
 
 interface Props {
   jobs: ProductionJob[];
@@ -25,8 +26,11 @@ export default function JobExecutionTab({ jobs, userId, department, onRefresh }:
   const [showIssueModal, setShowIssueModal] = useState(false);
   const [issueType, setIssueType] = useState("material");
   const [issueComment, setIssueComment] = useState("");
+  const [executionMetadata, setExecutionMetadata] = useState<Record<string, string>>({});
 
   const activeJobs = jobs.filter((j) => ["accepted", "in_production", "paused"].includes(j.status));
+  const executionFields = executionFieldsForDepartment(department);
+  const departmentLabel = DEPARTMENTS.find((d) => d.value === department)?.label ?? department;
 
   const handleStart = async (job: ProductionJob) => {
     setActing(job.id);
@@ -117,12 +121,21 @@ export default function JobExecutionTab({ jobs, userId, department, onRefresh }:
     // RGS acceptance, once the goods have actually been dispatched, received
     // and accepted. This job's role ends at "declared ready + dispatched";
     // it does not itself increase permanent RGS inventory.
+    const metadataPayload: Record<string, string | number> = {};
+    for (const field of executionFields) {
+      const raw = executionMetadata[field.key];
+      if (raw === undefined || raw === "") continue;
+      metadataPayload[field.key] = field.type === "number" ? Number(raw) : raw;
+    }
+
     const { error: outputError } = await rgsGovernedRpc.rpc("record_production_output", {
       p_job_id: job.id,
       p_produced_qty: produced,
       p_wasted_qty: wasted,
       p_batch_number: job.batch_number,
       p_correlation_id: crypto.randomUUID(),
+      p_notes: null,
+      p_execution_metadata: metadataPayload,
     });
     if (outputError) {
       toast.error(outputError.message || "Could not record output");
@@ -156,6 +169,7 @@ export default function JobExecutionTab({ jobs, userId, department, onRefresh }:
     setProducedQty("");
     setWastedQty("");
     setNetWeight("");
+    setExecutionMetadata({});
     onRefresh();
     setActing(null);
   };
@@ -288,6 +302,23 @@ export default function JobExecutionTab({ jobs, userId, department, onRefresh }:
               <input type="number" step="0.01" value={netWeight} onChange={(e) => setNetWeight(e.target.value)} placeholder="0.00"
                 className="w-full border border-slate-200 rounded-xl p-3 text-lg font-black outline-none focus:border-blue-400 mt-1" />
             </div>
+            {executionFields.length > 0 && (
+              <div className="space-y-2 rounded-xl bg-slate-50 p-3">
+                <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">{departmentLabel} details</p>
+                {executionFields.map((field) => (
+                  <div key={field.key}>
+                    <label className="text-[11px] font-bold text-slate-500 uppercase">{field.label}</label>
+                    <input
+                      type={field.type}
+                      value={executionMetadata[field.key] ?? ""}
+                      placeholder={field.placeholder}
+                      onChange={(e) => setExecutionMetadata((prev) => ({ ...prev, [field.key]: e.target.value }))}
+                      className="w-full border border-slate-200 rounded-lg p-2 text-sm outline-none focus:border-emerald-500 mt-1"
+                    />
+                  </div>
+                ))}
+              </div>
+            )}
             {producedQty && (
               <p className="text-xs font-bold text-slate-500">
                 Validation: {parseFloat(producedQty || "0") + parseFloat(wastedQty || "0")} / {selectedJob.assigned_qty} assigned
