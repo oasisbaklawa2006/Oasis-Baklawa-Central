@@ -49,9 +49,8 @@ describe("WhatsApp webhook is capture-only ingress", () => {
 
   it("does not regain direct live-order or legacy customer mutation authority", () => {
     const webhook = source();
-    expect(webhook).not.toContain('.from("orders").insert');
-    expect(webhook).not.toContain('.from("orders").update');
-    expect(webhook).not.toContain('.from("shadow_clients")');
-    expect(webhook).not.toContain('.from("client_interactions")');
+    expect(webhook).not.toMatch(/\.from\(\s*["']orders["']\s*\)[\s\S]{0,300}?\.(insert|update|upsert|delete)\s*\(/);
+    expect(webhook).not.toMatch(/\.from\(\s*["']shadow_clients["']\s*\)/);
+    expect(webhook).not.toMatch(/\.from\(\s*["']client_interactions["']\s*\)/);
   });
 });
