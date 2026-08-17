@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { Package, AlertTriangle, CheckCircle2, Clock, Loader2 } from "lucide-react";
+import { Package, AlertTriangle, CheckCircle2, Clock, Loader2, type LucideIcon } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Table, TableHeader, TableHead, TableBody, TableRow, TableCell } from "@/components/ui/table";
@@ -43,17 +43,24 @@ export default function ReadyGoodsTV() {
       .neq("department", "3PCS")
       .in("production_status", ["pending", "in_progress", "partial_ready", "completed"])
       .order("production_status", { ascending: true });
-    setItems((orderItems as any[]) || []);
+    setItems((orderItems ?? []) as TVItem[]);
 
-    const { data: invData } = await supabase
-      .from("factory_inventory")
-      .select("product_id, quantity, product:products(name, sku)")
-      .lt("quantity", 10);
-    setLowStock((invData || []).map((i: any) => ({
+    // Governed stock-on-hand (inventory_stock_balances), not the legacy
+    // factory_inventory table -- the same premature-posting table the RGS
+    // acceptance rework (oasis-supabase-core#83) moved this board's data of
+    // record away from.
+    type StockBalanceRow = { product_id: string; available_qty: number; product: { name: string; sku: string | null } | null };
+    const balancesDb = supabase as unknown as { from: (relation: string) => { select: (columns: string) => { eq: (col: string, val: string) => { lt: (col: string, val: number) => Promise<{ data: StockBalanceRow[] | null }> } } } };
+    const { data: invData } = await balancesDb
+      .from("inventory_stock_balances")
+      .select("product_id, available_qty, product:products(name, sku)")
+      .eq("location_code", "FINISHED_GOODS")
+      .lt("available_qty", 10);
+    setLowStock((invData ?? []).map((i) => ({
       id: i.product_id,
       name: i.product?.name || "?",
       sku: i.product?.sku || null,
-      computed_stock: i.quantity || 0,
+      computed_stock: i.available_qty || 0,
     })));
 
     setLoading(false);
@@ -84,7 +91,7 @@ export default function ReadyGoodsTV() {
 
   if (loading) return <div className="min-h-screen bg-black flex items-center justify-center"><Loader2 className="animate-spin text-emerald-400" size={48} /></div>;
 
-  const Column = ({ title, icon: Icon, items: colItems, color, blink }: { title: string; icon: any; items: TVItem[]; color: string; blink?: boolean }) => (
+  const Column = ({ title, icon: Icon, items: colItems, color, blink }: { title: string; icon: LucideIcon; items: TVItem[]; color: string; blink?: boolean }) => (
     <div className="flex flex-col h-full">
       <div className={`px-4 py-3 ${color} flex items-center gap-2 rounded-t-xl`}>
         <Icon size={24} />
