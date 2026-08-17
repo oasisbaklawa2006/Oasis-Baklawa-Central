@@ -1,12 +1,16 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { AlertTriangle, Factory, RefreshCw } from "lucide-react";
+import { AlertTriangle, Factory, PlusCircle, RefreshCw } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { rgsGovernedRpc } from "@/lib/rgsGovernedRpc";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+
+const nonB2bDemandSources = ["pna", "outlet", "internal"] as const;
 
 // Temporary typed boundary for live relations pending regenerated
 // project-wide Supabase definitions (matches the operationsDb pattern used
@@ -112,6 +116,45 @@ export default function RgsProductionDemandPlanner() {
     setActing(null);
   }, [load]);
 
+  const [raiseForm, setRaiseForm] = useState({ sku: "", qty: "", demandSourceType: "pna" as (typeof nonB2bDemandSources)[number], reference: "" });
+  const [raising, setRaising] = useState(false);
+
+  const handleRaiseDemand = useCallback(async () => {
+    const qty = Number(raiseForm.qty);
+    if (!raiseForm.sku.trim()) { toast.error("Enter a SKU"); return; }
+    if (!qty || qty <= 0) { toast.error("Enter a valid quantity"); return; }
+    setRaising(true);
+    try {
+      const { data: product, error: productError } = await planningDb
+        .from("products")
+        .select("id, sku")
+        .eq("sku", raiseForm.sku.trim())
+        .maybeSingle();
+      if (productError || !product) { toast.error(`No product found for SKU ${raiseForm.sku}`); return; }
+      const { error: rpcError } = await rgsGovernedRpc.rpc("reserve_rgs_stock", {
+        p_reservation_number: `RGS-${raiseForm.demandSourceType.toUpperCase()}-${Date.now().toString(36).toUpperCase()}`,
+        p_order_id: null,
+        p_product_id: product.id,
+        p_sku: product.sku,
+        p_requested_qty: qty,
+        p_source_department: raiseForm.demandSourceType.toUpperCase(),
+        p_correlation_id: crypto.randomUUID(),
+        p_priority: "normal",
+        p_location_code: "FINISHED_GOODS",
+        p_queue_item_id: null,
+        p_customer_id: null,
+        p_demand_source_type: raiseForm.demandSourceType,
+        p_demand_reference: raiseForm.reference.trim() || null,
+      });
+      if (rpcError) { toast.error(rpcError.message || "Could not raise demand"); return; }
+      toast.success(`Raised ${qty} ${product.sku} demand for ${raiseForm.demandSourceType}`);
+      setRaiseForm({ sku: "", qty: "", demandSourceType: raiseForm.demandSourceType, reference: "" });
+      void load();
+    } finally {
+      setRaising(false);
+    }
+  }, [raiseForm, load]);
+
   const totalShortage = skuDemand.reduce((sum, row) => sum + row.totalShortage, 0);
 
   return (
@@ -129,6 +172,20 @@ export default function RgsProductionDemandPlanner() {
       {error && <Card className="border-destructive/40"><CardContent className="flex items-center gap-2 p-4 text-sm text-destructive"><AlertTriangle className="h-4 w-4" />Demand could not be read: {error}</CardContent></Card>}
 
       <Card><CardContent className="flex items-center gap-3 p-4"><Factory className="h-5 w-5 text-primary" /><div><p className="text-2xl font-bold">{fmt(totalShortage)}</p><p className="text-xs text-muted-foreground">Total open shortage across {skuDemand.length} SKU{skuDemand.length === 1 ? "" : "s"}</p></div></CardContent></Card>
+
+      <Card>
+        <CardHeader><CardTitle className="flex items-center gap-2 text-base"><PlusCircle className="h-4 w-4 text-primary" />Raise P&amp;A / outlet / internal demand</CardTitle></CardHeader>
+        <CardContent className="flex flex-wrap items-center gap-2">
+          <Input placeholder="SKU" className="h-8 w-36 text-xs" value={raiseForm.sku} onChange={(e) => setRaiseForm((prev) => ({ ...prev, sku: e.target.value }))} />
+          <Input type="number" step="0.001" placeholder="Quantity" className="h-8 w-28 text-xs" value={raiseForm.qty} onChange={(e) => setRaiseForm((prev) => ({ ...prev, qty: e.target.value }))} />
+          <Select value={raiseForm.demandSourceType} onValueChange={(value) => setRaiseForm((prev) => ({ ...prev, demandSourceType: value as (typeof nonB2bDemandSources)[number] }))}>
+            <SelectTrigger className="h-8 w-28 text-xs"><SelectValue /></SelectTrigger>
+            <SelectContent>{nonB2bDemandSources.map((type) => <SelectItem key={type} value={type} className="uppercase">{type}</SelectItem>)}</SelectContent>
+          </Select>
+          <Input placeholder="Reference (plan id / outlet code / requisition #)" className="h-8 w-64 text-xs" value={raiseForm.reference} onChange={(e) => setRaiseForm((prev) => ({ ...prev, reference: e.target.value }))} />
+          <Button size="sm" disabled={raising} onClick={() => void handleRaiseDemand()}>{raising ? "Working…" : "Raise demand"}</Button>
+        </CardContent>
+      </Card>
 
       <Card>
         <CardHeader><CardTitle className="text-base">Consolidated demand by SKU</CardTitle></CardHeader>
