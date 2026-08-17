@@ -4,9 +4,14 @@ import { readRepoSource } from "@/lib/wa-governance/stage1PostgrestWriteScan";
 
 const REPO_ROOT = join(import.meta.dirname, "../../../..");
 const WEBHOOK_PATH = "supabase/functions/whatsapp-webhook/index.ts";
+const STITCHER_PATH = "supabase/functions/whatsapp-message-stitcher/index.ts";
 
 function source(): string {
   return readRepoSource(REPO_ROOT, WEBHOOK_PATH);
+}
+
+function stitcherSource(): string {
+  return readRepoSource(REPO_ROOT, STITCHER_PATH);
 }
 
 describe("WhatsApp webhook is capture-only ingress", () => {
@@ -34,6 +39,24 @@ describe("WhatsApp webhook is capture-only ingress", () => {
     expect(webhook).toContain('.from("whatsapp_messages")');
     expect(webhook).toContain('whatsapp-message-stitcher');
     expect(webhook).toContain('duplicate_wamid');
+  });
+
+  it("provider retries re-kick already-stitched packet processing instead of returning before recovery", () => {
+    const webhook = source();
+    const stitcher = stitcherSource();
+
+    expect(webhook).toContain("triggerMessageStitcherNonBlocking(fields.messageId)");
+    expect(webhook).toContain("provider_message_id: providerMessageId");
+    expect(webhook).not.toContain('return json({ ok: true, discarded: "duplicate_wamid" })');
+
+    expect(stitcher).toContain("resolveRecoveryPacketId");
+    expect(stitcher).toContain("body.provider_message_id");
+    expect(stitcher).toContain("if (recoveryPacketId) packetIds.add(recoveryPacketId)");
+    expect(stitcher).toContain("for (const packetId of packetIds)");
+    expect(stitcher).toContain("syncCommercialEvidenceForPacket(admin, packetId)");
+    expect(stitcher.indexOf("syncCommercialEvidenceForPacket(admin, packetId)")).toBeLessThan(
+      stitcher.indexOf("runAiWorkersBounded(supabaseUrl, serviceKey, packetIdList)"),
+    );
   });
 
   it("treats image audio video and document messages as zero-loss evidence even without text", () => {
