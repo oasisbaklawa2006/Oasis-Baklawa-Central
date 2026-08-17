@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { fetchProductResolution } from "@/lib/wa-governance/fetchProductResolution";
 import { interpretPacketContentRich } from "@/lib/wa-governance/packetContentInterpretation";
+import { fetchLatestPacketAiInterpretation } from "@/lib/wa-governance/packetAiInterpretationPersistence";
 import {
   buildProductResolutionFetchInput,
   buildProductResolutionRequestDescriptor,
@@ -28,12 +29,9 @@ function snapshotSenderIdentity(
   state: OperatorInboxSenderIdentityState,
 ): ProductResolutionSenderIdentitySnapshot {
   switch (state.status) {
-    case "idle":
-      return { status: "idle" };
-    case "loading":
-      return { status: "loading" };
-    case "error":
-      return { status: "error" };
+    case "idle": return { status: "idle" };
+    case "loading": return { status: "loading" };
+    case "error": return { status: "error" };
     case "ready":
       return {
         status: "ready",
@@ -59,8 +57,6 @@ export function useOperatorInboxProductResolution(
   const [state, setState] = useState<OperatorInboxProductResolutionState>({ status: "idle" });
   const packetRef = useRef(selectedPacket);
   packetRef.current = selectedPacket;
-  const senderIdentityStateRef = useRef(senderIdentityState);
-  senderIdentityStateRef.current = senderIdentityState;
   const clientResolutionStateRef = useRef(clientResolutionState);
   clientResolutionStateRef.current = clientResolutionState;
   const requestKeyRef = useRef<string | null>(null);
@@ -80,10 +76,7 @@ export function useOperatorInboxProductResolution(
     () => buildPacketMessagesFingerprint(selectedPacket?.messages),
     [
       selectedPacket?.messages
-        ?.map(
-          (message) =>
-            `${message.id}:${message.direction}:${message.content ?? ""}:${message.media_url ?? ""}:${message.created_at ?? ""}`,
-        )
+        ?.map((message) => `${message.id}:${message.direction}:${message.content ?? ""}:${message.media_url ?? ""}:${message.created_at ?? ""}`)
         .join("|") ?? "",
     ],
   );
@@ -97,12 +90,8 @@ export function useOperatorInboxProductResolution(
     () => clientResolutionBestMatchKey(clientResolutionState),
     [
       clientResolutionState.status,
-      clientResolutionState.status === "ready"
-        ? clientResolutionState.result.bestMatch?.companyId
-        : null,
-      clientResolutionState.status === "ready"
-        ? clientResolutionState.result.bestMatch?.companyName
-        : null,
+      clientResolutionState.status === "ready" ? clientResolutionState.result.bestMatch?.companyId : null,
+      clientResolutionState.status === "ready" ? clientResolutionState.result.bestMatch?.companyName : null,
     ],
   );
 
@@ -127,7 +116,6 @@ export function useOperatorInboxProductResolution(
     () => (descriptor ? buildProductResolutionRequestKey(descriptor) : null),
     [descriptor],
   );
-
   requestKeyRef.current = requestKey;
 
   useEffect(() => {
@@ -136,10 +124,7 @@ export function useOperatorInboxProductResolution(
       return;
     }
 
-    const cachedState = getCachedProductResolutionState(
-      requestKey,
-      resolvedResultCacheRef.current,
-    );
+    const cachedState = getCachedProductResolutionState(requestKey, resolvedResultCacheRef.current);
     if (cachedState) {
       setState(cachedState);
       return;
@@ -151,18 +136,17 @@ export function useOperatorInboxProductResolution(
     void (async () => {
       const packet = packetRef.current;
       if (!packet) return;
-
       const stitched = packetStitchedPlainText(packet.stitched_content);
       const clientState = clientResolutionStateRef.current;
 
       try {
-        // AI interpretation must be packet-first. Unknown/new senders are valid B2B
-        // evidence and must not be blocked merely because identity/client matching is
-        // still pending. The request key includes those upstream states, so the
-        // read-only product resolution refreshes automatically when richer context
-        // becomes available without granting the AI any execution authority.
-        const interpretation = await interpretPacketContentRich(supabase, packet.messages);
+        // Server-computed packet intelligence is primary. Browser invocation remains
+        // a read-only compatibility fallback for historical packets that predate the
+        // automatic worker; UI availability is never the processing authority.
+        const persisted = await fetchLatestPacketAiInterpretation(supabase, packet.id);
+        const interpretation = persisted ?? await interpretPacketContentRich(supabase, packet.messages);
         if (cancelled || requestKeyRef.current !== requestKey) return;
+
         const resolutionText = [stitched, interpretation.normalizedText]
           .filter(Boolean)
           .join("\n")
@@ -170,6 +154,7 @@ export function useOperatorInboxProductResolution(
         const input = buildProductResolutionFetchInput(packet, resolutionText, clientState);
         const productResult = await fetchProductResolution(supabase, input);
         if (cancelled || requestKeyRef.current !== requestKey) return;
+
         const result: ProductResolutionResult = {
           ...productResult,
           aiInterpretation: {
@@ -177,6 +162,9 @@ export function useOperatorInboxProductResolution(
             confidence: interpretation.confidence,
             language: interpretation.language,
             warnings: interpretation.warnings,
+            normalizedText: interpretation.normalizedText,
+            extractedText: interpretation.extractedText,
+            source: persisted ? "server" : "client-fallback",
             usedAi: interpretation.usedAi,
             ...(interpretation.error ? { error: interpretation.error } : {}),
           },
@@ -190,16 +178,11 @@ export function useOperatorInboxProductResolution(
       }
     })();
 
-    return () => {
-      cancelled = true;
-    };
+    return () => { cancelled = true; };
   }, [requestKey]);
 
   return useMemo(
-    () => ({
-      requestKey,
-      state: projectProductResolutionDisplayState(state, requestKey),
-    }),
+    () => ({ requestKey, state: projectProductResolutionDisplayState(state, requestKey) }),
     [state, requestKey],
   );
 }
