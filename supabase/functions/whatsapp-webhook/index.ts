@@ -217,7 +217,7 @@ async function findOrCreateWhatsappContact(
     .from("whatsapp_contacts")
     .upsert(
       { phone_number: phoneDigits },
-      { onConflict: "phone_number", ignoreDuplicates: true },
+      { onConflict: "phone_number" },
     )
     .select("id")
     .maybeSingle();
