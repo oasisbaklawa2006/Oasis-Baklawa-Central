@@ -30,13 +30,50 @@ export type PacketAiCorrection = {
   replacement: string;
 };
 
+export type PacketAiIntent =
+  | "NEW_ORDER"
+  | "AMENDMENT"
+  | "CANCELLATION"
+  | "ENQUIRY"
+  | "COMPLAINT"
+  | "PAYMENT_ADVICE"
+  | "ACCOUNT_QUERY"
+  | "DELIVERY_QUERY"
+  | "SPECIFICATION_QUERY"
+  | "FINANCE" // legacy persisted compatibility
+  | "OTHER"
+  | "UNCLEAR";
+
+export type PacketAiDepartment =
+  | "SALES"
+  | "FINANCE"
+  | "QUALITY"
+  | "DISPATCH"
+  | "LOGISTICS"
+  | "PRODUCTION"
+  | "PACKAGING"
+  | "OPERATIONS"
+  | "CUSTOMER_SERVICE";
+
+export type PacketAiReplyClearance =
+  | "SAFE_TO_SEND_AUTOMATICALLY"
+  | "EMPLOYEE_REVIEW_REQUIRED"
+  | "SUBJECT_EXPERT_REVIEW_REQUIRED"
+  | "MANAGEMENT_APPROVAL_REQUIRED"
+  | "BLOCKED_INACCURATE_OR_UNSUPPORTED"
+  | "CLARIFICATION_REQUIRED";
+
 export type PacketAiConclusion = {
-  intent: "NEW_ORDER" | "AMENDMENT" | "ENQUIRY" | "COMPLAINT" | "FINANCE" | "OTHER" | "UNCLEAR";
+  intent: PacketAiIntent;
   summary: string;
   explicit_facts: PacketAiExplicitFact[];
   order_lines: PacketAiOrderLine[];
   corrections: PacketAiCorrection[];
   ambiguities: string[];
+  primary_department: PacketAiDepartment | null;
+  contributor_departments: PacketAiDepartment[];
+  reply_clearance: PacketAiReplyClearance | null;
+  draft_reply: string;
   recommended_action: string;
   human_review_required: boolean;
 };
@@ -77,8 +114,19 @@ const MAX_INTERPRETABLE_MESSAGES = 16;
 const INTERPRETATION_CACHE_TTL_MS = 10 * 60 * 1000;
 const MAX_INTERPRETATION_CACHE_ENTRIES = 128;
 const MULTIMODAL_TYPES = new Set(["image", "audio", "video", "document"]);
-const AI_INTENTS = new Set<PacketAiConclusion["intent"]>([
-  "NEW_ORDER", "AMENDMENT", "ENQUIRY", "COMPLAINT", "FINANCE", "OTHER", "UNCLEAR",
+const AI_INTENTS = new Set<PacketAiIntent>([
+  "NEW_ORDER", "AMENDMENT", "CANCELLATION", "ENQUIRY", "COMPLAINT",
+  "PAYMENT_ADVICE", "ACCOUNT_QUERY", "DELIVERY_QUERY", "SPECIFICATION_QUERY",
+  "FINANCE", "OTHER", "UNCLEAR",
+]);
+const AI_DEPARTMENTS = new Set<PacketAiDepartment>([
+  "SALES", "FINANCE", "QUALITY", "DISPATCH", "LOGISTICS", "PRODUCTION",
+  "PACKAGING", "OPERATIONS", "CUSTOMER_SERVICE",
+]);
+const AI_REPLY_CLEARANCES = new Set<PacketAiReplyClearance>([
+  "SAFE_TO_SEND_AUTOMATICALLY", "EMPLOYEE_REVIEW_REQUIRED",
+  "SUBJECT_EXPERT_REVIEW_REQUIRED", "MANAGEMENT_APPROVAL_REQUIRED",
+  "BLOCKED_INACCURATE_OR_UNSUPPORTED", "CLARIFICATION_REQUIRED",
 ]);
 const AI_LINE_STATUSES = new Set<PacketAiOrderLine["status"]>(["explicit", "interpreted", "unclear"]);
 let interpretationCache = new Map<string, InterpretationCacheEntry>();
@@ -196,6 +244,23 @@ function stringList(value: unknown, maxItems = 32): string[] {
     : [];
 }
 
+function normalizeDepartment(value: unknown): PacketAiDepartment | null {
+  const normalized = boundedString(value, 80)?.toUpperCase() as PacketAiDepartment | undefined;
+  return normalized && AI_DEPARTMENTS.has(normalized) ? normalized : null;
+}
+
+function normalizeDepartments(value: unknown): PacketAiDepartment[] {
+  const departments = stringList(value, 12)
+    .map((item) => normalizeDepartment(item))
+    .filter((item): item is PacketAiDepartment => item !== null);
+  return [...new Set(departments)];
+}
+
+function normalizeReplyClearance(value: unknown): PacketAiReplyClearance | null {
+  const normalized = boundedString(value, 80)?.toUpperCase() as PacketAiReplyClearance | undefined;
+  return normalized && AI_REPLY_CLEARANCES.has(normalized) ? normalized : null;
+}
+
 function normalizeExplicitFact(value: unknown): PacketAiExplicitFact | null {
   const obj = record(value);
   if (!obj) return null;
@@ -240,9 +305,9 @@ function normalizeCorrection(value: unknown): PacketAiCorrection | null {
 export function normalizeConclusion(value: unknown): PacketAiConclusion | null {
   const obj = record(value);
   if (!obj) return null;
-  const rawIntent = boundedString(obj.intent, 40) ?? "UNCLEAR";
-  const intent = AI_INTENTS.has(rawIntent as PacketAiConclusion["intent"])
-    ? rawIntent as PacketAiConclusion["intent"]
+  const rawIntent = (boundedString(obj.intent, 40) ?? "UNCLEAR").toUpperCase();
+  const intent = AI_INTENTS.has(rawIntent as PacketAiIntent)
+    ? rawIntent as PacketAiIntent
     : "UNCLEAR";
   return {
     intent,
@@ -257,8 +322,12 @@ export function normalizeConclusion(value: unknown): PacketAiConclusion | null {
       ? obj.corrections.map(normalizeCorrection).filter((item): item is PacketAiCorrection => item !== null).slice(0, 32)
       : [],
     ambiguities: stringList(obj.ambiguities, 32).map((item) => item.slice(0, 2000)),
+    primary_department: normalizeDepartment(obj.primary_department),
+    contributor_departments: normalizeDepartments(obj.contributor_departments),
+    reply_clearance: normalizeReplyClearance(obj.reply_clearance),
+    draft_reply: boundedString(obj.draft_reply, 4000) ?? "",
     recommended_action: boundedString(obj.recommended_action, 4000) ?? "",
-    human_review_required: obj.human_review_required !== false,
+    human_review_required: true,
   };
 }
 
