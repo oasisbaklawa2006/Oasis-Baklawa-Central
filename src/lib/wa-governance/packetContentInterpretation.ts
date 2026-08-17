@@ -63,7 +63,7 @@ type ContentInterpretationResponse = {
     confidence?: number;
     warnings?: string[];
     source_kind?: PacketContentInterpretation["sourceKind"];
-    conclusion?: PacketAiConclusion;
+    conclusion?: unknown;
   };
 };
 
@@ -77,19 +77,15 @@ const MAX_INTERPRETABLE_MESSAGES = 16;
 const INTERPRETATION_CACHE_TTL_MS = 10 * 60 * 1000;
 const MAX_INTERPRETATION_CACHE_ENTRIES = 128;
 const MULTIMODAL_TYPES = new Set(["image", "audio", "video", "document"]);
+const AI_INTENTS = new Set<PacketAiConclusion["intent"]>([
+  "NEW_ORDER", "AMENDMENT", "ENQUIRY", "COMPLAINT", "FINANCE", "OTHER", "UNCLEAR",
+]);
+const AI_LINE_STATUSES = new Set<PacketAiOrderLine["status"]>(["explicit", "interpreted", "unclear"]);
 let interpretationCache = new Map<string, InterpretationCacheEntry>();
 
 const DEVANAGARI_DIGITS: Record<string, string> = {
-  "०": "0",
-  "१": "1",
-  "२": "2",
-  "३": "3",
-  "४": "4",
-  "५": "5",
-  "६": "6",
-  "७": "7",
-  "८": "8",
-  "९": "9",
+  "०": "0", "१": "1", "२": "2", "३": "3", "४": "4",
+  "५": "5", "६": "6", "७": "7", "८": "8", "९": "9",
 };
 
 const HINDI_COMMERCE_TERMS: Array<[RegExp, string]> = [
@@ -111,9 +107,7 @@ const HINDI_COMMERCE_TERMS: Array<[RegExp, string]> = [
 
 export function normalizeHindiCommerceFallback(value: string): string {
   let normalized = value.replace(/[०-९]/gu, (digit) => DEVANAGARI_DIGITS[digit] ?? digit);
-  for (const [pattern, replacement] of HINDI_COMMERCE_TERMS) {
-    normalized = normalized.replace(pattern, replacement);
-  }
+  for (const [pattern, replacement] of HINDI_COMMERCE_TERMS) normalized = normalized.replace(pattern, replacement);
   return normalized.replace(/\s+/g, " ").trim();
 }
 
@@ -130,9 +124,7 @@ function withoutCacheKey(key: string): Map<string, InterpretationCacheEntry> {
 
 function trimCacheToLimit(): void {
   if (interpretationCache.size <= MAX_INTERPRETATION_CACHE_ENTRIES) return;
-  interpretationCache = new Map(
-    [...interpretationCache].slice(-MAX_INTERPRETATION_CACHE_ENTRIES),
-  );
+  interpretationCache = new Map([...interpretationCache].slice(-MAX_INTERPRETATION_CACHE_ENTRIES));
 }
 
 function getCachedInterpretation(key: string): Promise<PacketContentInterpretation> | null {
@@ -149,10 +141,7 @@ function getCachedInterpretation(key: string): Promise<PacketContentInterpretati
 
 function storeCachedInterpretation(key: string, promise: Promise<PacketContentInterpretation>): void {
   interpretationCache = withoutCacheKey(key);
-  interpretationCache.set(key, {
-    promise,
-    expiresAt: Date.now() + INTERPRETATION_CACHE_TTL_MS,
-  });
+  interpretationCache.set(key, { promise, expiresAt: Date.now() + INTERPRETATION_CACHE_TTL_MS });
   trimCacheToLimit();
 }
 
@@ -171,10 +160,7 @@ function fallbackText(messages: InterpretablePacketMessage[]): string {
   return lines.join("\n").slice(0, 12000);
 }
 
-function fallbackInterpretation(
-  messages: InterpretablePacketMessage[],
-  error?: string,
-): PacketContentInterpretation {
+function fallbackInterpretation(messages: InterpretablePacketMessage[], error?: string): PacketContentInterpretation {
   const text = fallbackText(messages);
   return {
     normalizedText: text,
@@ -194,36 +180,100 @@ function clampConfidence(value: unknown): number {
   return Number.isFinite(n) ? Math.max(0, Math.min(1, n)) : 0;
 }
 
-function normalizeConclusion(value: PacketAiConclusion | undefined): PacketAiConclusion | null {
-  if (!value || typeof value !== "object") return null;
+function record(value: unknown): Record<string, unknown> | null {
+  return value != null && typeof value === "object" && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : null;
+}
+
+function boundedString(value: unknown, max = 4000): string | null {
+  return typeof value === "string" ? value.trim().slice(0, max) : null;
+}
+
+function stringList(value: unknown, maxItems = 32): string[] {
+  return Array.isArray(value)
+    ? value.filter((item): item is string => typeof item === "string").map((item) => item.trim()).filter(Boolean).slice(0, maxItems)
+    : [];
+}
+
+function normalizeExplicitFact(value: unknown): PacketAiExplicitFact | null {
+  const obj = record(value);
+  if (!obj) return null;
+  const providerMessageId = boundedString(obj.provider_message_id, 240);
+  const kind = boundedString(obj.kind, 120);
+  const factValue = boundedString(obj.value, 2000);
+  if (!providerMessageId || !kind || !factValue) return null;
+  return { provider_message_id: providerMessageId, kind, value: factValue };
+}
+
+function normalizeOrderLine(value: unknown): PacketAiOrderLine | null {
+  const obj = record(value);
+  if (!obj) return null;
+  const productName = boundedString(obj.product_name, 500);
+  const sku = boundedString(obj.sku, 200) ?? "";
+  const unit = boundedString(obj.unit, 80) ?? "";
+  const status = boundedString(obj.status, 40);
+  const quantity = obj.quantity == null ? null : Number(obj.quantity);
+  const evidenceIds = stringList(obj.evidence_ids, 32).map((id) => id.slice(0, 240));
+  if (!productName || !status || !AI_LINE_STATUSES.has(status as PacketAiOrderLine["status"])) return null;
+  if (quantity !== null && (!Number.isFinite(quantity) || quantity < 0)) return null;
   return {
-    intent: value.intent ?? "UNCLEAR",
-    summary: typeof value.summary === "string" ? value.summary : "",
-    explicit_facts: Array.isArray(value.explicit_facts) ? value.explicit_facts : [],
-    order_lines: Array.isArray(value.order_lines) ? value.order_lines : [],
-    corrections: Array.isArray(value.corrections) ? value.corrections : [],
-    ambiguities: Array.isArray(value.ambiguities) ? value.ambiguities.filter((item): item is string => typeof item === "string") : [],
-    recommended_action: typeof value.recommended_action === "string" ? value.recommended_action : "",
-    human_review_required: value.human_review_required !== false,
+    product_name: productName,
+    sku,
+    quantity,
+    unit,
+    status: status as PacketAiOrderLine["status"],
+    evidence_ids: evidenceIds,
   };
 }
 
-function parseSuccessfulResponse(
-  response: ContentInterpretationResponse,
-  fallback: string,
-): PacketContentInterpretation {
+function normalizeCorrection(value: unknown): PacketAiCorrection | null {
+  const obj = record(value);
+  if (!obj) return null;
+  const providerMessageId = boundedString(obj.provider_message_id, 240);
+  const supersedes = boundedString(obj.supersedes, 2000);
+  const replacement = boundedString(obj.replacement, 2000);
+  if (!providerMessageId || !supersedes || !replacement) return null;
+  return { provider_message_id: providerMessageId, supersedes, replacement };
+}
+
+export function normalizeConclusion(value: unknown): PacketAiConclusion | null {
+  const obj = record(value);
+  if (!obj) return null;
+  const rawIntent = boundedString(obj.intent, 40) ?? "UNCLEAR";
+  const intent = AI_INTENTS.has(rawIntent as PacketAiConclusion["intent"])
+    ? rawIntent as PacketAiConclusion["intent"]
+    : "UNCLEAR";
+  return {
+    intent,
+    summary: boundedString(obj.summary, 4000) ?? "",
+    explicit_facts: Array.isArray(obj.explicit_facts)
+      ? obj.explicit_facts.map(normalizeExplicitFact).filter((item): item is PacketAiExplicitFact => item !== null).slice(0, 64)
+      : [],
+    order_lines: Array.isArray(obj.order_lines)
+      ? obj.order_lines.map(normalizeOrderLine).filter((item): item is PacketAiOrderLine => item !== null).slice(0, 64)
+      : [],
+    corrections: Array.isArray(obj.corrections)
+      ? obj.corrections.map(normalizeCorrection).filter((item): item is PacketAiCorrection => item !== null).slice(0, 32)
+      : [],
+    ambiguities: stringList(obj.ambiguities, 32).map((item) => item.slice(0, 2000)),
+    recommended_action: boundedString(obj.recommended_action, 4000) ?? "",
+    human_review_required: obj.human_review_required !== false,
+  };
+}
+
+function parseSuccessfulResponse(response: ContentInterpretationResponse, fallback: string): PacketContentInterpretation {
   const interpretation = response.interpretation;
   if (!response.success || !interpretation) throw new Error(response.error || "INTERPRETATION_FAILED");
   const normalizedText = interpretation.normalized_text?.trim() || fallback;
+  const sourceKind = interpretation.source_kind;
   return {
     normalizedText: normalizedText.slice(0, 12000),
     extractedText: (interpretation.extracted_text?.trim() || fallback).slice(0, 12000),
     language: interpretation.language?.trim() || "unknown",
     confidence: clampConfidence(interpretation.confidence),
-    warnings: Array.isArray(interpretation.warnings)
-      ? interpretation.warnings.filter((item): item is string => typeof item === "string").slice(0, 24)
-      : [],
-    sourceKind: interpretation.source_kind ?? "packet",
+    warnings: stringList(interpretation.warnings, 24),
+    sourceKind: sourceKind && ["text", "image", "audio", "video", "document", "packet"].includes(sourceKind) ? sourceKind : "packet",
     conclusion: normalizeConclusion(interpretation.conclusion),
     usedAi: true,
   };
@@ -248,20 +298,14 @@ async function requestPacketInterpretation(
   return parseSuccessfulResponse(data as ContentInterpretationResponse, fallback);
 }
 
-/**
- * Returns one AI interpretation for the whole chronological inbound packet. Every
- * text message is eligible (English/Hindi/Hinglish/typos), along with image,
- * audio, video and document evidence. Original evidence stays immutable.
- */
+/** Returns one AI interpretation for the whole chronological inbound packet. */
 export async function interpretPacketContentRich(
   supabase: SupabaseClient,
   messages: InterpretablePacketMessage[] | null | undefined,
 ): Promise<PacketContentInterpretation> {
   const eligible = (messages ?? []).filter(messageNeedsInterpretation);
   if (eligible.length === 0) return fallbackInterpretation(messages ?? []);
-  if (eligible.length > MAX_INTERPRETABLE_MESSAGES) {
-    throw new Error("INTERPRETATION_PACKET_TOO_LARGE");
-  }
+  if (eligible.length > MAX_INTERPRETABLE_MESSAGES) throw new Error("INTERPRETATION_PACKET_TOO_LARGE");
 
   const key = packetCacheKey(eligible);
   const cached = getCachedInterpretation(key);
