@@ -1,3 +1,5 @@
+import type { PacketAiConclusion } from "./packetContentInterpretation";
+
 export type ProductResolutionConfidenceBand =
   | "auto_highlight"
   | "suggested"
@@ -11,10 +13,20 @@ export interface ProductResolutionCandidate {
   reasons: string[];
 }
 
+export interface ProductResolutionAiInterpretation {
+  conclusion: PacketAiConclusion | null;
+  confidence: number;
+  language: string;
+  warnings: string[];
+  usedAi: boolean;
+  error?: string;
+}
+
 export interface ProductResolutionResult {
   candidateProducts: ProductResolutionCandidate[];
   bestMatch: ProductResolutionCandidate | null;
   band: ProductResolutionConfidenceBand;
+  aiInterpretation?: ProductResolutionAiInterpretation;
 }
 
 export interface ProductResolutionInput {
