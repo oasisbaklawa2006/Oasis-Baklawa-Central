@@ -75,6 +75,7 @@ const AdminLayout = () => {
         { to: "/admin/exceptions", icon: AlertCircle, label: t("Exceptions"), moduleKey: "exceptions" },
         { to: "/admin/assembly-tasks", icon: PackageCheck, label: "Assembly", moduleKey: "production" },
         { to: "/admin/ready-goods", icon: Package, label: "Ready Goods", moduleKey: "inventory" },
+        { to: "/admin/production-demand-planner", icon: Factory, label: "Production demand planner", moduleKey: "production" },
         { to: "/admin/ready-goods-stock", icon: Boxes, label: "RGS ready stock", moduleKey: "inventory" },
         { to: "/admin/ready-goods-day-close", icon: CalendarCheck2, label: "RGS day closing", moduleKey: "inventory_audit" },
         { to: "/admin/ready-goods-reports", icon: ScrollText, label: "RGS reports & audit", moduleKey: "inventory_audit" },

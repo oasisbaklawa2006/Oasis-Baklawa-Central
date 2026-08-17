@@ -64,6 +64,7 @@ const ReadyGoodsTV = lazy(() => import("./pages/admin/ReadyGoodsTV.tsx"));
 const RgsDayClose = lazy(() => import("./pages/admin/RgsDayClose.tsx"));
 const RgsReports = lazy(() => import("./pages/admin/RgsReports.tsx"));
 const RgsStockPosition = lazy(() => import("./pages/admin/RgsStockPosition.tsx"));
+const RgsProductionDemandPlanner = lazy(() => import("./pages/admin/RgsProductionDemandPlanner.tsx"));
 const DispatchManagement = lazy(() => import("./pages/admin/DispatchManagement.tsx"));
 const DispatchTV = lazy(() => import("./pages/admin/DispatchTV.tsx"));
 const DisplayManagement = lazy(() => import("./pages/admin/DisplayManagement.tsx"));
@@ -302,6 +303,7 @@ const App = () => (
                     <Route path="ready-goods-day-close" element={<RgsDayClose />} />
                     <Route path="ready-goods-reports" element={<RgsReports />} />
                     <Route path="ready-goods-stock" element={<RgsStockPosition />} />
+                    <Route path="production-demand-planner" element={<RgsProductionDemandPlanner />} />
                     <Route path="store-coordination" element={<StoreCoordination />} />
                     <Route path="label-command-center" element={<LabelCommandCenter />} />
                     <Route
