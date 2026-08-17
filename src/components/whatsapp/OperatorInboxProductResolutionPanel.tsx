@@ -78,7 +78,7 @@ function AiConclusionCard({ interpretation }: { interpretation: ProductResolutio
           AI B2B conclusion
         </div>
         <span className="rounded-full border border-emerald-200 bg-white px-2 py-0.5 text-[11px] font-medium text-emerald-900">
-          {conclusion.intent.replaceAll("_", " ")}
+          {conclusion.intent.replace(/_/g, " ")}
         </span>
         <span className="text-[11px] text-gray-500">
           AI confidence {Math.round(interpretation.confidence * 100)}%
