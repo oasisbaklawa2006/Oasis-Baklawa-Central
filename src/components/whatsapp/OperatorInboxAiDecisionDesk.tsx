@@ -46,41 +46,49 @@ export function OperatorInboxAiDecisionDesk({
   const [nextAction, setNextAction] = useState(conclusion?.recommended_action ?? "");
   const [dueAt, setDueAt] = useState("");
   const idempotencyKeyRef = useRef<string | null>(null);
+  const activePacketIdRef = useRef(packetId);
+  activePacketIdRef.current = packetId;
 
   useEffect(() => {
     setTeam(conclusion?.primary_department ?? "");
     setNextAction(conclusion?.recommended_action ?? "");
     setDueAt("");
     setFeedback(null);
+    setSaving(false);
     idempotencyKeyRef.current = null;
   }, [packetId, conclusion?.primary_department, conclusion?.recommended_action]);
 
-  const reload = async () => {
+  const reload = async (targetPacketId = packetId) => {
+    if (activePacketIdRef.current !== targetPacketId) return;
     setLoading(true);
     setError(null);
     try {
-      setSnapshot(await fetchWhatsAppCaseDecisionSnapshot(supabase, packetId));
+      const nextSnapshot = await fetchWhatsAppCaseDecisionSnapshot(supabase, targetPacketId);
+      if (activePacketIdRef.current !== targetPacketId) return;
+      setSnapshot(nextSnapshot);
     } catch (caught) {
+      if (activePacketIdRef.current !== targetPacketId) return;
       setSnapshot(null);
       setError(caught instanceof Error ? caught.message : "Could not load governed communication case");
     } finally {
-      setLoading(false);
+      if (activePacketIdRef.current === targetPacketId) setLoading(false);
     }
   };
 
   useEffect(() => {
     let cancelled = false;
+    setSnapshot(null);
     setLoading(true);
     setError(null);
     void fetchWhatsAppCaseDecisionSnapshot(supabase, packetId)
-      .then((value) => { if (!cancelled) setSnapshot(value); })
+      .then((value) => { if (!cancelled && activePacketIdRef.current === packetId) setSnapshot(value); })
       .catch((caught) => {
-        if (!cancelled) {
+        if (!cancelled && activePacketIdRef.current === packetId) {
           setSnapshot(null);
           setError(caught instanceof Error ? caught.message : "Could not load governed communication case");
         }
       })
-      .finally(() => { if (!cancelled) setLoading(false); });
+      .finally(() => { if (!cancelled && activePacketIdRef.current === packetId) setLoading(false); });
     return () => { cancelled = true; };
   }, [packetId]);
 
@@ -94,26 +102,31 @@ export function OperatorInboxAiDecisionDesk({
 
   const acceptRouting = async () => {
     if (!communicationCase || !team || !nextAction.trim() || !dueAt || !mayAcceptRouting) return;
+    const targetPacketId = packetId;
+    const targetCaseId = communicationCase.id;
     setSaving(true);
     setError(null);
     setFeedback(null);
     try {
-      const key = idempotencyKeyRef.current ?? newCaseRoutingIdempotencyKey(communicationCase.id);
+      const key = idempotencyKeyRef.current ?? newCaseRoutingIdempotencyKey(targetCaseId);
       idempotencyKeyRef.current = key;
       await acceptWhatsAppAiRouting(supabase, {
-        caseId: communicationCase.id,
+        caseId: targetCaseId,
         accountableTeam: team,
         nextAction,
         dueAt: new Date(dueAt).toISOString(),
         contributorDepartments,
         idempotencyKey: key,
       });
+      if (activePacketIdRef.current !== targetPacketId) return;
       setFeedback("AI routing accepted by authorised operator. Accountability and department tasks are now governed.");
-      await reload();
+      await reload(targetPacketId);
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "Could not accept AI routing");
+      if (activePacketIdRef.current === targetPacketId) {
+        setError(caught instanceof Error ? caught.message : "Could not accept AI routing");
+      }
     } finally {
-      setSaving(false);
+      if (activePacketIdRef.current === targetPacketId) setSaving(false);
     }
   };
 
