@@ -52,11 +52,10 @@ describe("WhatsApp canonical safety boundary", () => {
     );
   });
 
-  it("keeps webhook ingress from creating shadow companies", () => {
+  it("keeps webhook ingress incapable of creating shadow companies", () => {
     const webhook = readRepoFile("supabase/functions/whatsapp-webhook/index.ts");
-    expect(webhook).toContain("shadow company creation is retired");
-    expect(webhook).not.toMatch(
-      /const shadowName[\s\S]*?from\("companies"\)[\s\S]*?\.insert\(/,
-    );
+    expect(webhook).not.toContain("shadowName");
+    expect(webhook).not.toMatch(/\.from\(["']companies["']\)/);
+    expect(webhook).not.toMatch(/from\(["']companies["']\)[\s\S]*?\.insert\(/);
   });
 });
