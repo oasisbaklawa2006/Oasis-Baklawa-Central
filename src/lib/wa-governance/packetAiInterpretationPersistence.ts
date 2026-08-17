@@ -1,7 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type {
-  PacketAiConclusion,
-  PacketContentInterpretation,
+import {
+  normalizeConclusion,
+  type PacketContentInterpretation,
 } from "./packetContentInterpretation";
 
 type PersistedRow = {
@@ -17,30 +17,13 @@ function asRecord(value: unknown): Record<string, unknown> {
 
 function stringArray(value: unknown): string[] {
   return Array.isArray(value)
-    ? value.filter((item): item is string => typeof item === "string").slice(0, 24)
+    ? value.filter((item): item is string => typeof item === "string").map((item) => item.trim()).filter(Boolean).slice(0, 24)
     : [];
 }
 
 function confidence(value: unknown): number {
   const n = Number(value);
   return Number.isFinite(n) ? Math.max(0, Math.min(1, n)) : 0;
-}
-
-function conclusion(value: unknown): PacketAiConclusion | null {
-  const obj = asRecord(value);
-  if (Object.keys(obj).length === 0) return null;
-  const intent = typeof obj.intent === "string" ? obj.intent : "UNCLEAR";
-  const allowed = new Set(["NEW_ORDER", "AMENDMENT", "ENQUIRY", "COMPLAINT", "FINANCE", "OTHER", "UNCLEAR"]);
-  return {
-    intent: (allowed.has(intent) ? intent : "UNCLEAR") as PacketAiConclusion["intent"],
-    summary: typeof obj.summary === "string" ? obj.summary : "",
-    explicit_facts: Array.isArray(obj.explicit_facts) ? obj.explicit_facts as PacketAiConclusion["explicit_facts"] : [],
-    order_lines: Array.isArray(obj.order_lines) ? obj.order_lines as PacketAiConclusion["order_lines"] : [],
-    corrections: Array.isArray(obj.corrections) ? obj.corrections as PacketAiConclusion["corrections"] : [],
-    ambiguities: stringArray(obj.ambiguities),
-    recommended_action: typeof obj.recommended_action === "string" ? obj.recommended_action : "",
-    human_review_required: obj.human_review_required !== false,
-  };
 }
 
 export function parsePersistedPacketInterpretation(value: unknown): PacketContentInterpretation | null {
@@ -51,11 +34,11 @@ export function parsePersistedPacketInterpretation(value: unknown): PacketConten
   return {
     normalizedText: normalizedText.slice(0, 12000),
     extractedText: extractedText.slice(0, 12000),
-    language: typeof obj.language === "string" ? obj.language : "unknown",
+    language: typeof obj.language === "string" ? obj.language.trim().slice(0, 120) : "unknown",
     confidence: confidence(obj.confidence),
     warnings: stringArray(obj.warnings),
     sourceKind: "packet",
-    conclusion: conclusion(obj.conclusion),
+    conclusion: normalizeConclusion(obj.conclusion),
     usedAi: true,
   };
 }
