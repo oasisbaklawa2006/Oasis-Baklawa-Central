@@ -7,7 +7,6 @@ import {
   buildProductResolutionRequestDescriptor,
   buildProductResolutionRequestKey,
   buildPacketMessagesFingerprint,
-  isProductResolutionUpstreamReady,
   projectProductResolutionDisplayState,
   type OperatorInboxProductResolutionState,
   type ProductResolutionSenderIdentitySnapshot,
@@ -137,13 +136,6 @@ export function useOperatorInboxProductResolution(
       return;
     }
 
-    if (
-      !isProductResolutionUpstreamReady(descriptor.identity, clientResolutionStateRef.current)
-    ) {
-      setState({ status: "loading", requestKey });
-      return;
-    }
-
     const cachedState = getCachedProductResolutionState(
       requestKey,
       resolvedResultCacheRef.current,
@@ -164,6 +156,11 @@ export function useOperatorInboxProductResolution(
       const clientState = clientResolutionStateRef.current;
 
       try {
+        // AI interpretation must be packet-first. Unknown/new senders are valid B2B
+        // evidence and must not be blocked merely because identity/client matching is
+        // still pending. The request key includes those upstream states, so the
+        // read-only product resolution refreshes automatically when richer context
+        // becomes available without granting the AI any execution authority.
         const interpretation = await interpretPacketContentRich(supabase, packet.messages);
         if (cancelled || requestKeyRef.current !== requestKey) return;
         const resolutionText = [stitched, interpretation.normalizedText]
