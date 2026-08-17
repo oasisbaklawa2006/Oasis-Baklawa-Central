@@ -17,7 +17,7 @@ export function OperatorInboxProductResolutionPanel({ state, requestKey = null }
       <div className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-gray-600">
         <Package className="h-3.5 w-3.5 shrink-0" aria-hidden />
         Product resolution
-        <span className="font-normal normal-case text-gray-400">· catalogue matching is read-only · decisions use governed Core RPCs</span>
+        <span className="font-normal normal-case text-gray-400">· catalogue matching is read-only · catalogue resolution is not persisted · decisions use governed Core RPCs</span>
       </div>
       {state.status === "loading" ? <div className="flex items-center gap-2 text-sm text-gray-600"><Loader2 className="h-4 w-4 animate-spin text-green-700" aria-hidden />Loading server AI conclusion and resolving likely products…</div> : null}
       {state.status === "error" ? <p className="text-sm text-amber-800" role="alert">{state.message}</p> : null}
