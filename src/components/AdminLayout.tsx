@@ -3,8 +3,8 @@ import {
   LayoutDashboard, UserCheck, ClipboardList, Truck, DollarSign, LogOut, Menu, X, Loader2,
   Headphones, Users, Package, BarChart3, Scale, Globe, Settings, Shield, MessageCircle,
   Factory, PackageCheck, Landmark, AlertCircle, Languages, Bell, Sparkles, Monitor, Megaphone, Store,
-  ScanLine, CalendarDays, Warehouse, Box, ListOrdered, AlertOctagon, ScanBarcode, Network, Gauge, LayoutGrid, Search, PackageMinus,
-  Workflow, Link2, Inbox, Brain, ChevronDown,
+  ScanLine, CalendarDays, Warehouse, Box, Boxes, ListOrdered, AlertOctagon, ScanBarcode, Network, Gauge, LayoutGrid, Search, PackageMinus,
+  Workflow, Link2, Inbox, Brain, ChevronDown, CalendarCheck2, ScrollText,
 } from "lucide-react";
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
@@ -75,6 +75,10 @@ const AdminLayout = () => {
         { to: "/admin/exceptions", icon: AlertCircle, label: t("Exceptions"), moduleKey: "exceptions" },
         { to: "/admin/assembly-tasks", icon: PackageCheck, label: "Assembly", moduleKey: "production" },
         { to: "/admin/ready-goods", icon: Package, label: "Ready Goods", moduleKey: "inventory" },
+        { to: "/admin/production-demand-planner", icon: Factory, label: "Production demand planner", moduleKey: "production" },
+        { to: "/admin/ready-goods-stock", icon: Boxes, label: "RGS ready stock", moduleKey: "inventory" },
+        { to: "/admin/ready-goods-day-close", icon: CalendarCheck2, label: "RGS day closing", moduleKey: "inventory_audit" },
+        { to: "/admin/ready-goods-reports", icon: ScrollText, label: "RGS reports & audit", moduleKey: "inventory_audit" },
         { to: "/admin/store-coordination", icon: Store, label: "Store coordination", moduleKey: "orders" },
         { to: "/admin/label-command-center", icon: ScanLine, label: "Label command center", moduleKey: "orders" },
         { to: "/admin/customer-timeline-preview", icon: CalendarDays, label: "Customer timeline preview", moduleKey: "cmd_war_room" },

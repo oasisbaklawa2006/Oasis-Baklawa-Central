@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { AlertTriangle, Factory, PackageCheck, RefreshCw, ShieldCheck, Warehouse } from "lucide-react";
+import { AlertTriangle, Factory, PackageCheck, RefreshCw, ShieldCheck, Truck, Warehouse } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { rgsGovernedRpc } from "@/lib/rgsGovernedRpc";
 import { toast } from "sonner";
@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
 // Temporary typed boundary for live Phase 2 relations pending regenerated
@@ -64,14 +65,42 @@ type Transfer = {
   rgs_notified: boolean | null;
   created_at: string | null;
 };
+type Reservation = {
+  id: string;
+  order_id: string | null;
+  product_id: string | null;
+  sku: string;
+  requested_qty: number;
+  reserved_qty: number;
+  fulfilled_qty: number;
+  released_qty: number;
+  reservation_status: string;
+  location_code: string;
+  created_at: string | null;
+};
+type IssueEvent = {
+  id: string;
+  reservation_id: string;
+  product_id: string | null;
+  sku: string;
+  issued_qty: number;
+  acknowledged_qty: number | null;
+  status: string;
+  destination_type: string;
+  destination_reference: string | null;
+  source_location: string;
+  issued_at: string | null;
+};
 type DemandState = Demand & {
   sku: string;
   requestedQty: number;
   availableQty: number;
   shortageQty: number;
   jobs: ProductionJob[];
+  reservations: Reservation[];
 };
 type QueueFilter = "shortages" | "production" | "receipts" | "all";
+const destinationTypes = ["b2b", "pna", "outlet", "internal"] as const;
 
 type GovernedRpcError = { message: string } | null;
 async function callGovernedRpc(fn: string, args: Record<string, unknown>): Promise<GovernedRpcError> {
@@ -88,6 +117,8 @@ export default function ReadyGoodsStore() {
   const [demand, setDemand] = useState<Demand[]>([]);
   const [jobs, setJobs] = useState<ProductionJob[]>([]);
   const [transfers, setTransfers] = useState<Transfer[]>([]);
+  const [reservations, setReservations] = useState<Reservation[]>([]);
+  const [issueEvents, setIssueEvents] = useState<IssueEvent[]>([]);
   const [filter, setFilter] = useState<QueueFilter>("shortages");
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -97,7 +128,7 @@ export default function ReadyGoodsStore() {
     setLoading(true);
     setError(null);
     try {
-      const [availabilityResult, demandResult, jobsResult, transfersResult] = await Promise.all([
+      const [availabilityResult, demandResult, jobsResult, transfersResult, reservationsResult, issueEventsResult] = await Promise.all([
         operationsDb.from("b2b_order_availability")
           .select("product_id, sku, store_code, available_for_b2b_qty, reserved_qty, unavailable_qty, updated_at")
           .eq("store_code", "FINISHED_GOODS")
@@ -115,14 +146,25 @@ export default function ReadyGoodsStore() {
           .select("id, job_id, product_id, quantity, declared_qty, received_qty, accepted_qty, rejected_qty, hold_qty, status, batch_number, rgs_notified, created_at")
           .order("created_at", { ascending: false })
           .limit(500),
+        operationsDb.from("inventory_reservations")
+          .select("id, order_id, product_id, sku, requested_qty, reserved_qty, fulfilled_qty, released_qty, reservation_status, location_code, created_at")
+          .order("created_at", { ascending: false })
+          .limit(500),
+        operationsDb.from("rgs_issue_events")
+          .select("id, reservation_id, product_id, sku, issued_qty, acknowledged_qty, status, destination_type, destination_reference, source_location, issued_at")
+          .order("issued_at", { ascending: false })
+          .limit(500),
       ]);
-      const failed = availabilityResult.error ?? demandResult.error ?? jobsResult.error ?? transfersResult.error;
+      const failed = availabilityResult.error ?? demandResult.error ?? jobsResult.error ?? transfersResult.error
+        ?? reservationsResult.error ?? issueEventsResult.error;
       if (failed) throw failed;
       const nextDemand = (demandResult.data ?? []) as Demand[];
       setAvailability((availabilityResult.data ?? []) as Availability[]);
       setDemand(nextDemand);
       setJobs((jobsResult.data ?? []) as ProductionJob[]);
       setTransfers((transfersResult.data ?? []) as Transfer[]);
+      setReservations((reservationsResult.data ?? []) as Reservation[]);
+      setIssueEvents((issueEventsResult.data ?? []) as IssueEvent[]);
       setSelectedId((current) => current && nextDemand.some((row) => row.id === current) ? current : nextDemand[0]?.id ?? null);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Unexpected RGS data error");
@@ -130,6 +172,8 @@ export default function ReadyGoodsStore() {
       setDemand([]);
       setJobs([]);
       setTransfers([]);
+      setReservations([]);
+      setIssueEvents([]);
       setSelectedId(null);
     } finally {
       setLoading(false);
@@ -141,6 +185,9 @@ export default function ReadyGoodsStore() {
   const [acting, setActing] = useState<string | null>(null);
   const [receiptQtyById, setReceiptQtyById] = useState<Record<string, string>>({});
   const [acceptQtyById, setAcceptQtyById] = useState<Record<string, { accepted: string; rejected: string; hold: string }>>({});
+  const [pickQtyById, setPickQtyById] = useState<Record<string, string>>({});
+  const [issueById, setIssueById] = useState<Record<string, { qty: string; destinationType: string; destinationRef: string }>>({});
+  const [ackQtyById, setAckQtyById] = useState<Record<string, string>>({});
 
   const handleAllocateAndRouteShortage = useCallback(async (row: DemandState) => {
     if (!row.product_id) { toast.error("Demand line has no product mapped"); return; }
@@ -235,6 +282,52 @@ export default function ReadyGoodsStore() {
     }
   }, [acceptQtyById, load]);
 
+  const handlePickReservation = useCallback(async (reservation: Reservation) => {
+    const qty = Number(pickQtyById[reservation.id]);
+    if (!qty || qty <= 0) { toast.error("Enter a valid pick quantity"); return; }
+    setActing(reservation.id);
+    const error = await callGovernedRpc("pick_rgs_reservation", {
+      p_reservation_id: reservation.id,
+      p_pick_qty: qty,
+      p_correlation_id: crypto.randomUUID(),
+    });
+    if (error) toast.error(error.message || "Could not record pick");
+    else { toast.success(`Picked ${qty} ${reservation.sku}`); void load(); }
+    setActing(null);
+  }, [pickQtyById, load]);
+
+  const handleIssueStock = useCallback(async (reservation: Reservation) => {
+    const entry = issueById[reservation.id];
+    const qty = Number(entry?.qty ?? 0);
+    const destinationType = entry?.destinationType ?? "b2b";
+    if (!qty || qty <= 0) { toast.error("Enter a valid issue quantity"); return; }
+    setActing(reservation.id);
+    const error = await callGovernedRpc("issue_rgs_stock", {
+      p_reservation_id: reservation.id,
+      p_issue_qty: qty,
+      p_destination_type: destinationType,
+      p_destination_reference: entry?.destinationRef || null,
+      p_correlation_id: crypto.randomUUID(),
+    });
+    if (error) toast.error(error.message || "Could not issue stock");
+    else { toast.success(`Issued ${qty} ${reservation.sku} to ${destinationType}`); void load(); }
+    setActing(null);
+  }, [issueById, load]);
+
+  const handleAcknowledgeIssue = useCallback(async (issue: IssueEvent) => {
+    const qty = Number(ackQtyById[issue.id] ?? issue.issued_qty);
+    if (!qty || qty < 0) { toast.error("Enter a valid acknowledged quantity"); return; }
+    setActing(issue.id);
+    const error = await callGovernedRpc("acknowledge_rgs_issue", {
+      p_issue_id: issue.id,
+      p_acknowledged_qty: qty,
+      p_correlation_id: crypto.randomUUID(),
+    });
+    if (error) toast.error(error.message || "Could not acknowledge handover");
+    else { toast.success(`Handover acknowledged for ${issue.sku}`); void load(); }
+    setActing(null);
+  }, [ackQtyById, load]);
+
   const states = useMemo(() => {
     const availableByProduct = availability.reduce((totals, row) => {
       totals.set(row.product_id, (totals.get(row.product_id) ?? 0) + Number(row.available_for_b2b_qty));
@@ -250,6 +343,9 @@ export default function ReadyGoodsStore() {
         job.order_item_id === row.id ||
         (job.product_id != null && row.product_id != null && job.order_id === row.order_id && job.product_id === row.product_id),
       );
+      const rowReservations = reservations.filter((reservation) =>
+        reservation.order_id === row.order_id && reservation.product_id != null && reservation.product_id === row.product_id,
+      );
       return {
         ...row,
         sku: row.product?.sku ?? "SKU not assigned",
@@ -257,9 +353,10 @@ export default function ReadyGoodsStore() {
         availableQty: allocated,
         shortageQty: Math.max(requestedQty - allocated, 0),
         jobs: rowJobs,
+        reservations: rowReservations,
       };
     });
-  }, [availability, demand, jobs]);
+  }, [availability, demand, jobs, reservations]);
 
   const filtered = states.filter((row) => {
     if (filter === "shortages") return row.shortageQty > 0;
@@ -270,6 +367,9 @@ export default function ReadyGoodsStore() {
   const selected = states.find((row) => row.id === selectedId) ?? null;
   const selectedTransfers = selected
     ? transfers.filter((transfer) => selected.jobs.some((job) => job.id === transfer.job_id))
+    : [];
+  const selectedIssueEvents = selected
+    ? issueEvents.filter((issue) => selected.reservations.some((reservation) => reservation.id === issue.reservation_id))
     : [];
   const shortageCount = states.filter((row) => row.shortageQty > 0).length;
   const openProductionCount = jobs.filter((job) => openJobStatuses.has(job.status)).length;
@@ -387,6 +487,82 @@ export default function ReadyGoodsStore() {
                   ))}
                 </div>
                 {!selectedTransfers.length && <Empty text="No Production-to-RGS transfer evidence is linked to this demand." />}
+              </section>
+
+              <section className="space-y-3">
+                <h2 className="text-sm font-semibold">Picking &amp; issue</h2>
+                <div className="space-y-2">
+                  {selected.reservations.map((reservation) => (
+                    <div key={reservation.id} className="rounded-lg border p-3 text-sm">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <div className="flex items-center gap-3">
+                          <span className="font-mono text-xs">{shortRef(reservation.id)}</span>
+                          <Badge variant="outline" className="text-[10px] uppercase">{reservation.reservation_status.replace(/_/g, " ")}</Badge>
+                          <span className="text-xs text-muted-foreground">
+                            reserved {formatQty(reservation.reserved_qty)} · fulfilled {formatQty(reservation.fulfilled_qty)} of {formatQty(reservation.requested_qty)}
+                          </span>
+                        </div>
+                      </div>
+                      {reservation.reserved_qty > 0 && (
+                        <div className="mt-2 flex flex-wrap items-center gap-2">
+                          <Input type="number" step="0.001" placeholder="Pick qty" className="h-8 w-28 text-xs"
+                            value={pickQtyById[reservation.id] ?? ""}
+                            onChange={(e) => setPickQtyById((prev) => ({ ...prev, [reservation.id]: e.target.value }))} />
+                          <Button size="sm" variant="outline" disabled={acting === reservation.id} onClick={() => void handlePickReservation(reservation)}>
+                            {acting === reservation.id ? "Working…" : "Record pick"}
+                          </Button>
+                          <Input type="number" step="0.001" placeholder="Issue qty" className="h-8 w-28 text-xs"
+                            value={issueById[reservation.id]?.qty ?? ""}
+                            onChange={(e) => setIssueById((prev) => ({ ...prev, [reservation.id]: { qty: e.target.value, destinationType: prev[reservation.id]?.destinationType ?? "b2b", destinationRef: prev[reservation.id]?.destinationRef ?? "" } }))} />
+                          <Select value={issueById[reservation.id]?.destinationType ?? "b2b"}
+                            onValueChange={(value) => setIssueById((prev) => ({ ...prev, [reservation.id]: { qty: prev[reservation.id]?.qty ?? "", destinationType: value, destinationRef: prev[reservation.id]?.destinationRef ?? "" } }))}>
+                            <SelectTrigger className="h-8 w-28 text-xs"><SelectValue /></SelectTrigger>
+                            <SelectContent>{destinationTypes.map((type) => <SelectItem key={type} value={type} className="uppercase">{type}</SelectItem>)}</SelectContent>
+                          </Select>
+                          <Input placeholder="Destination ref" className="h-8 w-32 text-xs"
+                            value={issueById[reservation.id]?.destinationRef ?? ""}
+                            onChange={(e) => setIssueById((prev) => ({ ...prev, [reservation.id]: { qty: prev[reservation.id]?.qty ?? "", destinationType: prev[reservation.id]?.destinationType ?? "b2b", destinationRef: e.target.value } }))} />
+                          <Button size="sm" disabled={acting === reservation.id} onClick={() => void handleIssueStock(reservation)}>
+                            {acting === reservation.id ? "Working…" : "Issue stock"}
+                          </Button>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+                {!selected.reservations.length && <Empty text="No RGS stock reservation exists yet for this demand." />}
+              </section>
+
+              <section className="space-y-3">
+                <h2 className="flex items-center gap-2 text-sm font-semibold"><Truck className="h-4 w-4 text-primary" />Handover acknowledgement</h2>
+                <div className="space-y-2">
+                  {selectedIssueEvents.map((issue) => (
+                    <div key={issue.id} className="rounded-lg border p-3 text-sm">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <div className="flex items-center gap-3">
+                          <span className="font-mono text-xs">{shortRef(issue.id)}</span>
+                          <Badge variant={issue.status === "variance" ? "destructive" : "outline"} className="text-[10px] uppercase">{issue.status}</Badge>
+                          <span className="text-xs text-muted-foreground">
+                            issued {formatQty(issue.issued_qty)} to {issue.destination_type}
+                            {issue.destination_reference && ` (${issue.destination_reference})`}
+                            {issue.acknowledged_qty != null && ` · acknowledged ${formatQty(issue.acknowledged_qty)}`}
+                          </span>
+                        </div>
+                      </div>
+                      {issue.status === "issued" && (
+                        <div className="mt-2 flex items-center gap-2">
+                          <Input type="number" step="0.001" placeholder={`Ack qty (${issue.issued_qty})`} className="h-8 w-32 text-xs"
+                            value={ackQtyById[issue.id] ?? ""}
+                            onChange={(e) => setAckQtyById((prev) => ({ ...prev, [issue.id]: e.target.value }))} />
+                          <Button size="sm" disabled={acting === issue.id} onClick={() => void handleAcknowledgeIssue(issue)}>
+                            {acting === issue.id ? "Working…" : "Acknowledge handover"}
+                          </Button>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+                {!selectedIssueEvents.length && <Empty text="No stock has been issued out of RGS for this demand yet." />}
               </section>
             </div> : <Empty text="Select an RGS demand line to inspect its availability and production evidence." />}
           </CardContent>
