@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { rgsGovernedRpc } from "@/lib/rgsGovernedRpc";
 import { toast } from "sonner";
 import { Loader2, Image as ImageIcon, CheckCircle2, XCircle, AlertTriangle, Flame, Clock } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
@@ -21,12 +21,17 @@ export default function JobIntakeTab({ jobs, userId, onRefresh }: Props) {
   const handleAccept = async (jobId: string) => {
     setActing(jobId);
     const batchNum = `B-${Date.now().toString(36).toUpperCase()}`;
-    await supabase
-      .from("production_jobs")
-      .update({ status: "accepted", assigned_to: userId, batch_number: batchNum, updated_at: new Date().toISOString() })
-      .eq("id", jobId);
-    toast.success("Job Accepted ✅");
-    onRefresh();
+    const { error } = await rgsGovernedRpc.rpc("accept_production_job", {
+      p_job_id: jobId,
+      p_batch_number: batchNum,
+      p_correlation_id: crypto.randomUUID(),
+    });
+    if (error) {
+      toast.error(error.message || "Could not accept job");
+    } else {
+      toast.success("Job Accepted ✅");
+      onRefresh();
+    }
     setActing(null);
   };
 
@@ -36,14 +41,19 @@ export default function JobIntakeTab({ jobs, userId, onRefresh }: Props) {
       return;
     }
     setActing(rejectJobId);
-    await supabase
-      .from("production_jobs")
-      .update({ status: "rejected", rejection_reason: rejectReason, updated_at: new Date().toISOString() })
-      .eq("id", rejectJobId);
-    toast.success("Job Rejected");
-    setRejectJobId(null);
-    setRejectReason("");
-    onRefresh();
+    const { error } = await rgsGovernedRpc.rpc("reject_production_job", {
+      p_job_id: rejectJobId,
+      p_rejection_reason: rejectReason,
+      p_correlation_id: crypto.randomUUID(),
+    });
+    if (error) {
+      toast.error(error.message || "Could not reject job");
+    } else {
+      toast.success("Job Rejected");
+      setRejectJobId(null);
+      setRejectReason("");
+      onRefresh();
+    }
     setActing(null);
   };
 

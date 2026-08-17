@@ -1,8 +1,9 @@
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { rgsGovernedRpc } from "@/lib/rgsGovernedRpc";
 import { toast } from "sonner";
 import { Loader2, Image as ImageIcon, Store } from "lucide-react";
-import { DepartmentProduct } from "./types";
+import { DepartmentProduct, canonicalDepartmentOf } from "./types";
 
 interface Props {
   department: string;
@@ -24,8 +25,12 @@ export default function QuickEntryTab({ department, departmentLabel, userId }: P
         .select("id, name, image_url, sku, production_department")
         .eq("is_active", true);
       if (data) {
+        // department is a canonical code (e.g. "ARABIC_SWEETS"); products still
+        // carry the legacy production_department spelling (e.g. "arabic_sweets"
+        // or "dragees"), so compare through the same canonical mapping the
+        // server uses rather than a raw string match.
         const filtered = (data as any[])
-          .filter((p) => (p.production_department || "").toLowerCase() === department)
+          .filter((p) => canonicalDepartmentOf(p.production_department) === department)
           .map((p) => ({ id: p.id, name: p.name, image_url: p.image_url, sku: p.sku }));
         setProducts(filtered);
         const initQ: Record<string, number> = {};
@@ -54,10 +59,8 @@ export default function QuickEntryTab({ department, departmentLabel, userId }: P
       .filter(([, qty]) => qty > 0)
       .map(([productId, qty]) => ({
         product_id: productId,
-        department,
         produced_qty: qty,
-        wastage_qty: wastage[productId] || 0,
-        logged_by: userId || null,
+        wasted_qty: wastage[productId] || 0,
       }));
 
     if (rows.length === 0) {
@@ -70,46 +73,32 @@ export default function QuickEntryTab({ department, departmentLabel, userId }: P
     // Auto-generate batch ID
     const batchId = `B-${department.slice(0, 3).toUpperCase()}-${Date.now().toString(36).toUpperCase()}`;
 
-    const { error } = await supabase.from("daily_production_logs").insert(rows);
-    if (error) {
-      toast.error("Failed: " + error.message);
-      setSubmitting(false);
-      return;
-    }
-
-    // Push to RGS (factory_inventory) + create RGS transfer records
+    // Each row goes through the same governed job -> output -> ready ->
+    // dispatch lifecycle as routed shortage demand (quick_log_production_to_rgs),
+    // not a direct write. RGS stock is not posted here -- only RGS acceptance
+    // of the physical dispatch posts permanent stock.
+    let failed = 0;
     for (const row of rows) {
-      const { data: inv } = await supabase
-        .from("factory_inventory")
-        .select("id, quantity")
-        .eq("product_id", row.product_id)
-        .maybeSingle();
-
-      if (inv) {
-        await supabase.from("factory_inventory").update({
-          quantity: (Number(inv.quantity) || 0) + row.produced_qty,
-          last_updated: new Date().toISOString(),
-        }).eq("id", inv.id);
-      } else {
-        await supabase.from("factory_inventory").insert({
-          product_id: row.product_id,
-          quantity: row.produced_qty,
-        });
-      }
-
-      // Create RGS transfer record
-      await supabase.from("production_rgs_transfers").insert({
-        job_id: row.product_id,
-        product_id: row.product_id,
-        quantity: row.produced_qty,
-        batch_number: batchId,
-        transferred_by: userId,
-        rgs_notified: true,
+      const { error } = await rgsGovernedRpc.rpc("quick_log_production_to_rgs", {
+        p_product_id: row.product_id,
+        p_department: department,
+        p_produced_qty: row.produced_qty,
+        p_wasted_qty: row.wasted_qty,
+        p_correlation_id: crypto.randomUUID(),
+        p_batch_number: batchId,
       });
+      if (error) {
+        failed += 1;
+        toast.error(`${products.find((p) => p.id === row.product_id)?.name ?? row.product_id}: ${error.message}`);
+      }
     }
 
     const total = rows.reduce((s, r) => s + r.produced_qty, 0);
-    toast.success(`${total} units → RGS (Batch: ${batchId}) ✅`);
+    if (failed === 0) {
+      toast.success(`${total} units dispatched to RGS for acceptance (Batch: ${batchId}) ✅`);
+    } else if (failed < rows.length) {
+      toast.warning(`${rows.length - failed}/${rows.length} products logged; ${failed} failed (see errors above)`);
+    }
     const resetQ: Record<string, number> = {};
     const resetW: Record<string, number> = {};
     products.forEach((p) => { resetQ[p.id] = 0; resetW[p.id] = 0; });

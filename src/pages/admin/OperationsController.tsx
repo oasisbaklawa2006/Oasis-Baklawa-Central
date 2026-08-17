@@ -9,6 +9,13 @@ import JobExecutionTab from "@/components/phh/JobExecutionTab";
 import QuickEntryTab from "@/components/phh/QuickEntryTab";
 import { ProductionJob, HOD_DEPARTMENT_MAP, DEPARTMENTS } from "@/components/phh/types";
 
+// Temporary typed boundary: canonical_department is a governed column added
+// by oasis-supabase-core's 20260817090000 taxonomy migration, pending
+// regenerated project-wide Supabase definitions (same pattern as
+// ReadyGoodsStore.tsx's operationsDb).
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const productionJobsDb = supabase as unknown as { from: (relation: string) => any };
+
 const getDepartmentForRole = (role?: string | null) => {
   const n = normalizeRole(role);
   return n ? HOD_DEPARTMENT_MAP[n] ?? null : null;
@@ -18,7 +25,7 @@ const OperationsController = () => {
   const { user, role } = useAuth();
   const roleDepartment = getDepartmentForRole(role);
   const [loading, setLoading] = useState(true);
-  const [myDepartment, setMyDepartment] = useState(roleDepartment ?? "arabic_sweets");
+  const [myDepartment, setMyDepartment] = useState(roleDepartment ?? "ARABIC_SWEETS");
   const [activeTab, setActiveTab] = useState<"intake" | "execution" | "quick_entry">("intake");
   const [jobs, setJobs] = useState<ProductionJob[]>([]);
   const [urgentCount, setUrgentCount] = useState(0);
@@ -29,10 +36,15 @@ const OperationsController = () => {
   const deptLabel = DEPARTMENTS.find((d) => d.value === myDepartment)?.label || myDepartment;
 
   const fetchJobs = useCallback(async () => {
-    const { data } = await supabase
+    const { data } = await productionJobsDb
       .from("production_jobs")
       .select("*, product:products(name, image_url, sku), order:orders(id, created_at, status)")
-      .eq("department", myDepartment)
+      // canonical_department is trigger-maintained server-side (see
+      // canonical_production_department() in oasis-supabase-core) and
+      // normalises every legacy department spelling a job's raw `department`
+      // column might carry, so this queue is complete regardless of which
+      // spelling created the job.
+      .eq("canonical_department", myDepartment)
       .in("status", ["pending", "accepted", "in_production", "paused", "completed"])
       .order("created_at", { ascending: true });
     setJobs((data as any[]) || []);
