@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { PACKET_AI_DEPARTMENTS, type PacketAiDepartment } from "@/lib/wa-governance/packetContentInterpretation";
 
 export type WhatsAppCaseSnapshot = {
   id: string;
@@ -30,6 +31,8 @@ export type AcceptAiRoutingInput = {
   contributorDepartments: string[];
   idempotencyKey: string;
 };
+
+const PACKET_AI_DEPARTMENT_SET = new Set<PacketAiDepartment>(PACKET_AI_DEPARTMENTS);
 
 function record(value: unknown): Record<string, unknown> | null {
   return value != null && typeof value === "object" && !Array.isArray(value)
@@ -87,7 +90,8 @@ export async function fetchWhatsAppCaseDecisionSnapshot(
     p_packet_id: packetId,
   });
   if (error) throw new Error(error.message || "CASE_SNAPSHOT_FAILED");
-  const root = record(data) ?? {};
+  const root = record(data) ?? record(Array.isArray(data) ? data[0] : null);
+  if (!root) throw new Error("CASE_SNAPSHOT_SHAPE_UNEXPECTED");
   return {
     packetId,
     communicationCase: parseCase(root.case),
@@ -109,10 +113,15 @@ export async function acceptWhatsAppAiRouting(
   if (!input.caseId || !team || !nextAction || !dueAt || !idempotencyKey) {
     throw new Error("CASE_ROUTING_FIELDS_REQUIRED");
   }
+  if (!Number.isFinite(Date.parse(dueAt))) throw new Error("CASE_ROUTING_DUE_AT_INVALID");
+  if (!PACKET_AI_DEPARTMENT_SET.has(team as PacketAiDepartment)) throw new Error("CASE_ROUTING_TEAM_INVALID");
+
   const contributors = [...new Set(
     input.contributorDepartments
       .map((department) => department.trim().toUpperCase())
-      .filter((department) => department && department !== team),
+      .filter((department): department is PacketAiDepartment =>
+        PACKET_AI_DEPARTMENT_SET.has(department as PacketAiDepartment) && department !== team
+      ),
   )].slice(0, 12);
 
   const { data, error } = await rpcInvoker(supabase)("whatsapp_accept_ai_case_routing", {
@@ -124,7 +133,9 @@ export async function acceptWhatsAppAiRouting(
     p_idempotency_key: idempotencyKey,
   });
   if (error) throw new Error(error.message || "CASE_ROUTING_ACCEPT_FAILED");
-  return record(data) ?? {};
+  const result = record(data) ?? record(Array.isArray(data) ? data[0] : null);
+  if (!result) throw new Error("CASE_ROUTING_ACCEPT_SHAPE_UNEXPECTED");
+  return result;
 }
 
 export function newCaseRoutingIdempotencyKey(caseId: string): string {
