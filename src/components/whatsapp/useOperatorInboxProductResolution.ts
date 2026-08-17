@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { fetchProductResolution } from "@/lib/wa-governance/fetchProductResolution";
-import { interpretPacketContent } from "@/lib/wa-governance/packetContentInterpretation";
+import { interpretPacketContentRich } from "@/lib/wa-governance/packetContentInterpretation";
 import {
   buildProductResolutionFetchInput,
   buildProductResolutionRequestDescriptor,
@@ -164,12 +164,26 @@ export function useOperatorInboxProductResolution(
       const clientState = clientResolutionStateRef.current;
 
       try {
-        const interpreted = await interpretPacketContent(supabase, packet.messages);
+        const interpretation = await interpretPacketContentRich(supabase, packet.messages);
         if (cancelled || requestKeyRef.current !== requestKey) return;
-        const resolutionText = [stitched, interpreted].filter(Boolean).join("\n").slice(0, 12000);
+        const resolutionText = [stitched, interpretation.normalizedText]
+          .filter(Boolean)
+          .join("\n")
+          .slice(0, 12000);
         const input = buildProductResolutionFetchInput(packet, resolutionText, clientState);
-        const result = await fetchProductResolution(supabase, input);
+        const productResult = await fetchProductResolution(supabase, input);
         if (cancelled || requestKeyRef.current !== requestKey) return;
+        const result: ProductResolutionResult = {
+          ...productResult,
+          aiInterpretation: {
+            conclusion: interpretation.conclusion,
+            confidence: interpretation.confidence,
+            language: interpretation.language,
+            warnings: interpretation.warnings,
+            usedAi: interpretation.usedAi,
+            ...(interpretation.error ? { error: interpretation.error } : {}),
+          },
+        };
         storeCachedProductResolutionResult(resolvedResultCacheRef.current, requestKey, result);
         setState({ status: "ready", requestKey, result });
       } catch (e) {
