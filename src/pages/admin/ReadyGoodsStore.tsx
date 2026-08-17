@@ -1,9 +1,12 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { AlertTriangle, Factory, PackageCheck, RefreshCw, ShieldCheck, Warehouse } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { rgsGovernedRpc } from "@/lib/rgsGovernedRpc";
+import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
 // Temporary typed boundary for live Phase 2 relations pending regenerated
@@ -37,6 +40,7 @@ type ProductionJob = {
   order_id: string | null;
   product_id: string | null;
   department: string;
+  reservation_id: string | null;
   assigned_qty: number;
   produced_qty: number | null;
   batch_number: string | null;
@@ -50,6 +54,12 @@ type Transfer = {
   job_id: string;
   product_id: string | null;
   quantity: number;
+  declared_qty: number | null;
+  received_qty: number | null;
+  accepted_qty: number | null;
+  rejected_qty: number | null;
+  hold_qty: number | null;
+  status: string | null;
   batch_number: string | null;
   rgs_notified: boolean | null;
   created_at: string | null;
@@ -62,6 +72,12 @@ type DemandState = Demand & {
   jobs: ProductionJob[];
 };
 type QueueFilter = "shortages" | "production" | "receipts" | "all";
+
+type GovernedRpcError = { message: string } | null;
+async function callGovernedRpc(fn: string, args: Record<string, unknown>): Promise<GovernedRpcError> {
+  const { error } = await rgsGovernedRpc.rpc(fn, args);
+  return error;
+}
 
 const openJobStatuses = new Set(["pending", "accepted", "in_production", "paused"]);
 const activeOrderStatuses = ["approved", "in_production", "manufacturing", "partial_ready"];
@@ -92,11 +108,11 @@ export default function ReadyGoodsStore() {
           .order("orders(created_at)", { ascending: true })
           .limit(500),
         operationsDb.from("production_jobs")
-          .select("id, order_item_id, order_id, product_id, department, assigned_qty, produced_qty, batch_number, priority, stage, status, created_at")
+          .select("id, order_item_id, order_id, product_id, department, reservation_id, assigned_qty, produced_qty, batch_number, priority, stage, status, created_at")
           .order("created_at", { ascending: false })
           .limit(500),
         operationsDb.from("production_rgs_transfers")
-          .select("id, job_id, product_id, quantity, batch_number, rgs_notified, created_at")
+          .select("id, job_id, product_id, quantity, declared_qty, received_qty, accepted_qty, rejected_qty, hold_qty, status, batch_number, rgs_notified, created_at")
           .order("created_at", { ascending: false })
           .limit(500),
       ]);
@@ -121,6 +137,103 @@ export default function ReadyGoodsStore() {
   }, []);
 
   useEffect(() => { void load(); }, [load]);
+
+  const [acting, setActing] = useState<string | null>(null);
+  const [receiptQtyById, setReceiptQtyById] = useState<Record<string, string>>({});
+  const [acceptQtyById, setAcceptQtyById] = useState<Record<string, { accepted: string; rejected: string; hold: string }>>({});
+
+  const handleAllocateAndRouteShortage = useCallback(async (row: DemandState) => {
+    if (!row.product_id) { toast.error("Demand line has no product mapped"); return; }
+    setActing(row.id);
+    try {
+      const reserveArgs = {
+        p_reservation_number: `RGS-${row.id.slice(0, 8).toUpperCase()}`,
+        p_order_id: row.order_id,
+        p_product_id: row.product_id,
+        p_sku: row.sku,
+        p_requested_qty: row.requestedQty,
+        p_source_department: "B2B",
+        p_correlation_id: crypto.randomUUID(),
+        p_location_code: "FINISHED_GOODS",
+      };
+      const { data: reservation, error: reserveError } = await rgsGovernedRpc.rpc("reserve_rgs_stock", reserveArgs);
+      if (reserveError) { toast.error(reserveError.message || "Could not reserve stock"); return; }
+
+      const shortage = Number(reservation?.requested_qty ?? 0) - Number(reservation?.reserved_qty ?? 0)
+        - Number(reservation?.fulfilled_qty ?? 0) - Number(reservation?.released_qty ?? 0);
+      if (shortage <= 0) {
+        toast.success(`Reserved ${row.sku} in full from RGS stock`);
+        void load();
+        return;
+      }
+
+      const department = row.product?.production_department;
+      if (!department) {
+        toast.warning(`Reserved what was available; ${shortage} short with no production department mapped for ${row.sku}`);
+        void load();
+        return;
+      }
+      const shortageError = await callGovernedRpc("create_production_shortage_demand", {
+        p_reservation_id: reservation.id,
+        p_department: department,
+        p_priority: row.order?.status === "approved" ? "normal" : "urgent",
+        p_correlation_id: crypto.randomUUID(),
+      });
+      if (shortageError) { toast.error(shortageError.message || "Could not route shortage to production"); return; }
+      toast.success(`Reserved what was available; routed ${shortage} short of ${row.sku} to Production`);
+      void load();
+    } finally {
+      setActing(null);
+    }
+  }, [load]);
+
+  const handleRecordReceipt = useCallback(async (transfer: Transfer) => {
+    const qty = Number(receiptQtyById[transfer.id]);
+    if (!qty || qty < 0) { toast.error("Enter a valid received quantity"); return; }
+    setActing(transfer.id);
+    const error = await callGovernedRpc("record_rgs_receipt", {
+      p_transfer_id: transfer.id,
+      p_received_qty: qty,
+      p_correlation_id: crypto.randomUUID(),
+    });
+    if (error) toast.error(error.message || "Could not record receipt");
+    else { toast.success("Physical receipt recorded; awaiting acceptance"); void load(); }
+    setActing(null);
+  }, [receiptQtyById, load]);
+
+  const handleAcceptReceipt = useCallback(async (transfer: Transfer) => {
+    const entry = acceptQtyById[transfer.id];
+    const accepted = Number(entry?.accepted ?? 0);
+    const rejected = Number(entry?.rejected ?? 0);
+    const hold = Number(entry?.hold ?? 0);
+    if (accepted + rejected + hold !== Number(transfer.received_qty ?? 0)) {
+      toast.error(`Accepted + rejected + hold must equal the received quantity (${transfer.received_qty ?? 0})`);
+      return;
+    }
+    if (!transfer.product_id) { toast.error("Transfer has no product mapped"); return; }
+    setActing(transfer.id);
+    try {
+      const balanceDb = supabase as unknown as { from: (relation: string) => any }; // eslint-disable-line @typescript-eslint/no-explicit-any
+      const { data: balance } = await balanceDb
+        .from("inventory_stock_balances")
+        .select("version")
+        .eq("product_id", transfer.product_id)
+        .eq("location_code", "FINISHED_GOODS")
+        .maybeSingle();
+      const error = await callGovernedRpc("accept_rgs_production_receipt", {
+        p_transfer_id: transfer.id,
+        p_accepted_qty: accepted,
+        p_rejected_qty: rejected,
+        p_hold_qty: hold,
+        p_expected_balance_version: balance?.version ?? 0,
+        p_correlation_id: crypto.randomUUID(),
+      });
+      if (error) toast.error(error.message || "Could not accept receipt");
+      else { toast.success(`Accepted ${accepted} into RGS stock`); void load(); }
+    } finally {
+      setActing(null);
+    }
+  }, [acceptQtyById, load]);
 
   const states = useMemo(() => {
     const availableByProduct = availability.reduce((totals, row) => {
@@ -182,10 +295,10 @@ export default function ReadyGoodsStore() {
         <Metric icon={PackageCheck} label="Transfers awaiting acknowledgement" value={pendingAcceptanceCount} risk={pendingAcceptanceCount > 0} />
       </div>
 
-      <Card className="border-amber-200 bg-amber-50/40">
+      <Card className="border-emerald-200 bg-emerald-50/40">
         <CardContent className="flex gap-3 p-4 text-sm">
-          <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-amber-700" />
-          <div><p className="font-semibold">Read-only custody evidence</p><p className="text-muted-foreground">RGS maps to the canonical FINISHED_GOODS store. Production requests, stock allocation, receipt acceptance and custody posting remain disabled until governed transactional workflows are available.</p></div>
+          <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-emerald-700" />
+          <div><p className="font-semibold">Governed custody actions</p><p className="text-muted-foreground">Allocation, shortage routing, receipt recording and acceptance now post through oasis-supabase-core's governed RPCs. Every action is idempotent and only accepted quantity ever posts to permanent RGS stock.</p></div>
         </CardContent>
       </Card>
 
@@ -216,14 +329,63 @@ export default function ReadyGoodsStore() {
               </div>
 
               <section className="space-y-3">
-                <h2 className="text-sm font-semibold">Shortage routing and production correlation</h2>
+                <div className="flex items-center justify-between gap-2">
+                  <h2 className="text-sm font-semibold">Shortage routing and production correlation</h2>
+                  {selected.shortageQty > 0 && (
+                    <Button size="sm" disabled={acting === selected.id} onClick={() => void handleAllocateAndRouteShortage(selected)}>
+                      {acting === selected.id ? "Working…" : "Allocate & route shortage"}
+                    </Button>
+                  )}
+                </div>
                 <div className="overflow-x-auto"><Table><TableHeader><TableRow><TableHead>Job</TableHead><TableHead>Department</TableHead><TableHead>Status</TableHead><TableHead className="text-right">Assigned</TableHead><TableHead className="text-right">Produced</TableHead><TableHead>Batch</TableHead></TableRow></TableHeader><TableBody>{selected.jobs.map((job) => <TableRow key={job.id}><TableCell className="font-mono text-xs">{shortRef(job.id)}</TableCell><TableCell>{job.department}</TableCell><TableCell><StatusBadge status={job.status} /></TableCell><TableCell className="text-right">{formatQty(job.assigned_qty)}</TableCell><TableCell className="text-right">{formatQty(job.produced_qty ?? 0)}</TableCell><TableCell>{job.batch_number ?? "Pending"}</TableCell></TableRow>)}</TableBody></Table></div>
-                {!selected.jobs.length && <Empty text={selected.shortageQty > 0 ? "Shortage identified; no governed production job is linked yet." : "No production job is required for this demand."} />}
+                {!selected.jobs.length && <Empty text={selected.shortageQty > 0 ? "Shortage identified; use “Allocate & route shortage” to reserve available stock and send the exact remainder to Production." : "No production job is required for this demand."} />}
               </section>
 
               <section className="space-y-3">
                 <h2 className="text-sm font-semibold">Production-to-RGS receipt evidence</h2>
-                <div className="overflow-x-auto"><Table><TableHeader><TableRow><TableHead>Transfer</TableHead><TableHead>Production job</TableHead><TableHead className="text-right">Quantity</TableHead><TableHead>Batch</TableHead><TableHead>RGS acknowledgement</TableHead></TableRow></TableHeader><TableBody>{selectedTransfers.map((transfer) => <TableRow key={transfer.id}><TableCell className="font-mono text-xs">{shortRef(transfer.id)}</TableCell><TableCell className="font-mono text-xs">{shortRef(transfer.job_id)}</TableCell><TableCell className="text-right">{formatQty(transfer.quantity)}</TableCell><TableCell>{transfer.batch_number ?? "Not recorded"}</TableCell><TableCell>{transfer.rgs_notified ? <Badge variant="outline">Notified</Badge> : <Badge variant="secondary">Pending evidence</Badge>}</TableCell></TableRow>)}</TableBody></Table></div>
+                <div className="space-y-2">
+                  {selectedTransfers.map((transfer) => (
+                    <div key={transfer.id} className="rounded-lg border p-3 text-sm">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <div className="flex items-center gap-3">
+                          <span className="font-mono text-xs">{shortRef(transfer.id)}</span>
+                          <Badge variant="outline" className="text-[10px] uppercase">{transfer.status ?? "in_transit"}</Badge>
+                          <span className="text-xs text-muted-foreground">
+                            declared {formatQty(transfer.declared_qty ?? transfer.quantity)} · dispatched {formatQty(transfer.quantity)}
+                            {transfer.received_qty != null && ` · received ${formatQty(transfer.received_qty)}`}
+                            {transfer.accepted_qty != null && ` · accepted ${formatQty(transfer.accepted_qty)}`}
+                          </span>
+                        </div>
+                      </div>
+                      {transfer.status === "in_transit" && (
+                        <div className="mt-2 flex items-center gap-2">
+                          <Input type="number" step="0.001" placeholder="Received qty" className="h-8 w-32 text-xs"
+                            value={receiptQtyById[transfer.id] ?? ""}
+                            onChange={(e) => setReceiptQtyById((prev) => ({ ...prev, [transfer.id]: e.target.value }))} />
+                          <Button size="sm" variant="outline" disabled={acting === transfer.id} onClick={() => void handleRecordReceipt(transfer)}>
+                            {acting === transfer.id ? "Working…" : "Record receipt"}
+                          </Button>
+                        </div>
+                      )}
+                      {transfer.status === "received" && (
+                        <div className="mt-2 flex flex-wrap items-center gap-2">
+                          <Input type="number" step="0.001" placeholder="Accepted" className="h-8 w-24 text-xs"
+                            value={acceptQtyById[transfer.id]?.accepted ?? ""}
+                            onChange={(e) => setAcceptQtyById((prev) => ({ ...prev, [transfer.id]: { accepted: e.target.value, rejected: prev[transfer.id]?.rejected ?? "0", hold: prev[transfer.id]?.hold ?? "0" } }))} />
+                          <Input type="number" step="0.001" placeholder="Rejected" className="h-8 w-24 text-xs"
+                            value={acceptQtyById[transfer.id]?.rejected ?? ""}
+                            onChange={(e) => setAcceptQtyById((prev) => ({ ...prev, [transfer.id]: { accepted: prev[transfer.id]?.accepted ?? "0", rejected: e.target.value, hold: prev[transfer.id]?.hold ?? "0" } }))} />
+                          <Input type="number" step="0.001" placeholder="Hold" className="h-8 w-24 text-xs"
+                            value={acceptQtyById[transfer.id]?.hold ?? ""}
+                            onChange={(e) => setAcceptQtyById((prev) => ({ ...prev, [transfer.id]: { accepted: prev[transfer.id]?.accepted ?? "0", rejected: prev[transfer.id]?.rejected ?? "0", hold: e.target.value } }))} />
+                          <Button size="sm" disabled={acting === transfer.id} onClick={() => void handleAcceptReceipt(transfer)}>
+                            {acting === transfer.id ? "Working…" : "Accept into RGS stock"}
+                          </Button>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
                 {!selectedTransfers.length && <Empty text="No Production-to-RGS transfer evidence is linked to this demand." />}
               </section>
             </div> : <Empty text="Select an RGS demand line to inspect its availability and production evidence." />}
