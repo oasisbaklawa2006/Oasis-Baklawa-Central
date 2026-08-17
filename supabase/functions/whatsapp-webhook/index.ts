@@ -93,27 +93,11 @@ function extractPayloadFields(payload: any) {
     messageBody: stringBody(payload?.message) || stringBody(payload?.body) || stringBody(payload?.data?.body) || stringBody(payload?.text?.body) || stringBody(payload?.text),
     messageType: fallbackType,
     mediaUrl:
-      payload?.mediaUrl ||
-      payload?.media_url ||
-      payload?.data?.media_url ||
-      payload?.image?.url ||
-      payload?.document?.url ||
-      payload?.video?.url ||
-      payload?.audio?.url ||
-      payload?.data?.image?.url ||
-      payload?.data?.document?.url ||
-      payload?.data?.video?.url ||
-      payload?.data?.audio?.url ||
-      null,
+      payload?.mediaUrl || payload?.media_url || payload?.data?.media_url ||
+      payload?.image?.url || payload?.document?.url || payload?.video?.url || payload?.audio?.url ||
+      payload?.data?.image?.url || payload?.data?.document?.url || payload?.data?.video?.url || payload?.data?.audio?.url || null,
     mediaId:
-      payload?.mediaId ||
-      payload?.media_id ||
-      payload?.image?.id ||
-      payload?.document?.id ||
-      payload?.video?.id ||
-      payload?.audio?.id ||
-      payload?.data?.media_id ||
-      null,
+      payload?.mediaId || payload?.media_id || payload?.image?.id || payload?.document?.id || payload?.video?.id || payload?.audio?.id || payload?.data?.media_id || null,
     messageId: payload?.messageId || payload?.id || payload?.message_id || null,
     profileName: payload?.pushName || payload?.profileName || payload?.contact?.name || payload?.sender_name || null,
     timestampSec: payload?.timestamp ?? payload?.data?.timestamp ?? null,
@@ -209,9 +193,7 @@ async function reconcileProviderStatuses(
   for (const statusEvent of statuses) {
     const providerMessageId = String(statusEvent?.id ?? statusEvent?.message_id ?? "").trim();
     const providerStatus = String(statusEvent?.status ?? "").trim().toUpperCase();
-    if (!providerMessageId || !GOVERNED_PROVIDER_STATUSES.includes(providerStatus as typeof GOVERNED_PROVIDER_STATUSES[number])) {
-      continue;
-    }
+    if (!providerMessageId || !GOVERNED_PROVIDER_STATUSES.includes(providerStatus as typeof GOVERNED_PROVIDER_STATUSES[number])) continue;
     const { error: statusError } = await supabaseAdmin.rpc("record_whatsapp_operator_reply_status", {
       p_reply_id: statusEvent?.metadata?.reply_id ?? null,
       p_provider: "click2api",
@@ -230,23 +212,28 @@ async function findOrCreateWhatsappContact(
   phoneDigits: string,
 ): Promise<string | null> {
   if (!phoneDigits) return null;
+  // Staging schema confirms whatsapp_contacts.phone_number has a deployed UNIQUE
+  // constraint. Upsert on that exact key removes the select-then-insert race.
+  const upserted = await supabaseAdmin
+    .from("whatsapp_contacts")
+    .upsert(
+      { phone_number: phoneDigits, wa_contact_id: phoneDigits },
+      { onConflict: "phone_number" },
+    )
+    .select("id")
+    .maybeSingle();
+  if (upserted.data?.id) return upserted.data.id;
+
+  // Re-read handles a concurrent winner or a provider/PostgREST response that did
+  // not return a row even though the unique-key upsert completed.
   const existing = await supabaseAdmin
     .from("whatsapp_contacts")
     .select("id")
     .eq("phone_number", phoneDigits)
     .maybeSingle();
   if (existing.data?.id) return existing.data.id;
-
-  const created = await supabaseAdmin
-    .from("whatsapp_contacts")
-    .insert({ phone_number: phoneDigits, wa_contact_id: phoneDigits })
-    .select("id")
-    .single();
-  if (created.error) {
-    console.warn("[whatsapp-webhook] whatsapp_contacts insert failed", created.error.message);
-    return null;
-  }
-  return created.data?.id ?? null;
+  console.warn("[whatsapp-webhook] whatsapp_contacts upsert failed", upserted.error?.message ?? existing.error?.message ?? "missing contact id");
+  return null;
 }
 
 function triggerMessageStitcherNonBlocking(): void {
@@ -288,8 +275,14 @@ serve(async (req) => {
   if (!supabaseUrl || !serviceKey) return json({ ok: false, error: "Service configuration unavailable" }, 500);
   const admin = createClient(supabaseUrl, serviceKey);
 
+  let payload: unknown;
   try {
-    const payload = await req.json();
+    payload = await req.json();
+  } catch {
+    return json({ ok: false, error: "Malformed webhook payload" }, 400);
+  }
+
+  try {
     const fields = extractPayloadFields(payload);
     const mediaEvidence = hasMediaEvidence(fields);
 
@@ -302,9 +295,7 @@ serve(async (req) => {
         processed: true,
         discard_reason: "provider_status_evidence",
       });
-      if (!fields.messageBody && !mediaEvidence) {
-        return json({ ok: true, captured: "provider_status_evidence" });
-      }
+      if (!fields.messageBody && !mediaEvidence) return json({ ok: true, captured: "provider_status_evidence" });
     }
 
     const noiseTypes = new Set(["reaction", "unsupported", "system", "ephemeral", "sticker_reaction"]);
@@ -325,8 +316,11 @@ serve(async (req) => {
     if (!fields.messageId) return json({ ok: false, error: "Provider message ID required" }, 400);
 
     const phone91 = to91(fields.senderPhone);
-    const timestampMs = Number(fields.timestampSec) * 1000;
-    const receivedAt = fields.timestampSec != null && Number.isFinite(timestampMs) && Math.abs(timestampMs) <= 8.64e15
+    const timestampSec = fields.timestampSec != null && fields.timestampSec !== ""
+      ? Number(fields.timestampSec)
+      : NaN;
+    const timestampMs = timestampSec * 1000;
+    const receivedAt = Number.isFinite(timestampMs) && timestampSec > 0 && timestampMs <= 8.64e15
       ? new Date(timestampMs).toISOString()
       : new Date().toISOString();
     const commercialEligible = isPotentialCommercialIntake(fields.messageBody || "", mediaEvidence);
@@ -371,28 +365,30 @@ serve(async (req) => {
     });
 
     const contactId = await findOrCreateWhatsappContact(admin, phone91);
-    if (contactId) {
-      const tsSec = fields.timestampSec != null && fields.timestampSec !== "" ? Number(fields.timestampSec) : NaN;
-      const messageTimestamp = Number.isFinite(tsSec) && tsSec > 0 ? new Date(tsSec * 1000) : new Date();
-      const { error: messageError } = await admin.from("whatsapp_messages").insert({
-        contact_id: contactId,
-        order_id: null,
-        direction: "inbound",
-        message_type: fields.messageType || "text",
-        content: fields.messageBody || "",
-        media_url: fields.mediaUrl || null,
-        provider: "whatsapp",
-        provider_message_id: fields.messageId,
-        status: "received",
-        message_timestamp: messageTimestamp,
-        is_raw: true,
-        packet_id: null,
-      });
-      if (!messageError) triggerMessageStitcherNonBlocking();
-      else if (!String(messageError.message).toLowerCase().includes("duplicate")) {
-        console.warn("[whatsapp-webhook] whatsapp_messages insert failed", messageError.message);
-      }
-    }
+    if (!contactId) throw new Error("WHATSAPP_CONTACT_PERSISTENCE_FAILED");
+
+    const messageTimestamp = Number.isFinite(timestampSec) && timestampSec > 0
+      ? new Date(timestampSec * 1000)
+      : new Date();
+    const { error: messageError } = await admin.from("whatsapp_messages").insert({
+      contact_id: contactId,
+      order_id: null,
+      direction: "inbound",
+      message_type: fields.messageType || "text",
+      content: fields.messageBody || "",
+      media_url: fields.mediaUrl || null,
+      provider: "whatsapp",
+      provider_message_id: fields.messageId,
+      status: "received",
+      message_timestamp: messageTimestamp,
+      is_raw: true,
+      packet_id: null,
+    });
+    const messageDuplicate = Boolean(messageError && String(messageError.message).toLowerCase().includes("duplicate"));
+    if (messageError && !messageDuplicate) throw new Error(`WHATSAPP_MESSAGE_PERSISTENCE_FAILED: ${messageError.message}`);
+    // A duplicate can be a provider retry after an earlier non-blocking stitcher
+    // kick was lost. Re-kick safely; Core stitching and packet AI are idempotent.
+    triggerMessageStitcherNonBlocking();
 
     return json({
       ok: true,
