@@ -28,6 +28,13 @@ type SourceMessage = {
   message_type: string | null;
 };
 
+type StitcherRequest = {
+  windowSeconds?: number;
+  batchSize?: number;
+  providerMessageId?: string;
+  provider_message_id?: string;
+};
+
 const DEFAULT_WINDOW_SECONDS = 300;
 const DEFAULT_BATCH_SIZE = 100;
 const AI_WORKER_CONCURRENCY = 3;
@@ -106,6 +113,22 @@ async function syncCommercialEvidenceForPacket(
   return { linked, potentialOrderId };
 }
 
+async function resolveRecoveryPacketId(
+  admin: SupabaseClient,
+  providerMessageId: string,
+): Promise<string | null> {
+  const normalized = providerMessageId.trim();
+  if (!normalized) return null;
+  const { data, error } = await admin
+    .from("whatsapp_messages")
+    .select("packet_id")
+    .eq("provider_message_id", normalized)
+    .maybeSingle();
+  if (error) throw new Error(`Recovery packet lookup failed: ${error.message}`);
+  const packetId = String(data?.packet_id ?? "").trim();
+  return packetId || null;
+}
+
 async function invokePacketAiWorker(
   supabaseUrl: string,
   serviceKey: string,
@@ -168,9 +191,10 @@ serve(async (req) => {
   }
 
   try {
-    const body = await req.json().catch(() => ({})) as { windowSeconds?: number; batchSize?: number };
+    const body = await req.json().catch(() => ({})) as StitcherRequest;
     const windowSeconds = Math.min(3600, Math.max(30, Number(body.windowSeconds) || DEFAULT_WINDOW_SECONDS));
     const batchSize = Math.min(500, Math.max(1, Number(body.batchSize) || DEFAULT_BATCH_SIZE));
+    const recoveryProviderMessageId = String(body.providerMessageId ?? body.provider_message_id ?? "").trim();
     const admin = createClient(supabaseUrl, serviceKey);
 
     const { data, error } = await admin
@@ -196,7 +220,10 @@ serve(async (req) => {
     let groupsProcessed = 0;
     let fragmentsLinked = 0;
     let commercialFragmentsLinked = 0;
-    const packetIds: string[] = [];
+    const packetIds = new Set<string>();
+
+    const recoveryPacketId = await resolveRecoveryPacketId(admin, recoveryProviderMessageId);
+    if (recoveryPacketId) packetIds.add(recoveryPacketId);
 
     for (const contact of groupsByContact) {
       for (const group of contact.groups) {
@@ -209,17 +236,22 @@ serve(async (req) => {
         if (rpcError || !packetId) {
           throw new Error(`Core packet authority failed for contact ${contact.contact_id}: ${rpcError?.message ?? "missing packet id"}`);
         }
-        const id = String(packetId);
-        if (!packetIds.includes(id)) packetIds.push(id);
+        packetIds.add(String(packetId));
         groupsProcessed += 1;
         fragmentsLinked += group.messages.length;
-
-        const commercialSync = await syncCommercialEvidenceForPacket(admin, id);
-        commercialFragmentsLinked += commercialSync.linked;
       }
     }
 
-    const aiResults = await runAiWorkersBounded(supabaseUrl, serviceKey, packetIds);
+    // Reconcile packet-complete evidence after all stitching commits. This also
+    // makes an already-stitched packet explicitly retryable after a transient
+    // post-stitch failure when providerMessageId resolves to that packet.
+    for (const packetId of packetIds) {
+      const commercialSync = await syncCommercialEvidenceForPacket(admin, packetId);
+      commercialFragmentsLinked += commercialSync.linked;
+    }
+
+    const packetIdList = [...packetIds];
+    const aiResults = await runAiWorkersBounded(supabaseUrl, serviceKey, packetIdList);
     const aiFailures = aiResults.filter((result) => !result.ok);
     if (aiFailures.length > 0) {
       console.warn("[whatsapp-message-stitcher] packet AI failures", JSON.stringify(aiFailures));
@@ -232,7 +264,8 @@ serve(async (req) => {
       groupsProcessed,
       fragmentsLinked,
       commercialFragmentsLinked,
-      packetIds,
+      packetIds: packetIdList,
+      recoveryProviderMessageId: recoveryProviderMessageId || null,
       aiResults,
       config: { windowSeconds, batchSize, aiWorkerConcurrency: AI_WORKER_CONCURRENCY },
     }), { status: aiFailures.length === 0 ? 200 : 207, headers: { ...corsHeaders, "Content-Type": "application/json" } });
