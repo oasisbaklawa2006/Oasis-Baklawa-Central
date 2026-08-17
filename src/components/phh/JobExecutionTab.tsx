@@ -1,9 +1,11 @@
 import { useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { rgsGovernedRpc } from "@/lib/rgsGovernedRpc";
 import { toast } from "sonner";
 import { Loader2, Play, Pause, RotateCcw, Image as ImageIcon, AlertTriangle, Camera, Send, Lock, ChevronRight } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
-import { ProductionJob, STAGE_ORDER, STAGE_LABELS, PRIORITY_STYLES } from "./types";
+import { ProductionJob, STAGE_ORDER, STAGE_LABELS, PRIORITY_STYLES, DEPARTMENTS } from "./types";
+import { executionFieldsForDepartment } from "./departmentExecutionFields";
 
 interface Props {
   jobs: ProductionJob[];
@@ -24,76 +26,84 @@ export default function JobExecutionTab({ jobs, userId, department, onRefresh }:
   const [showIssueModal, setShowIssueModal] = useState(false);
   const [issueType, setIssueType] = useState("material");
   const [issueComment, setIssueComment] = useState("");
+  const [executionMetadata, setExecutionMetadata] = useState<Record<string, string>>({});
 
   const activeJobs = jobs.filter((j) => ["accepted", "in_production", "paused"].includes(j.status));
+  const executionFields = executionFieldsForDepartment(department);
+  const departmentLabel = DEPARTMENTS.find((d) => d.value === department)?.label ?? department;
 
   const handleStart = async (job: ProductionJob) => {
     setActing(job.id);
-    await supabase
-      .from("production_jobs")
-      .update({ status: "in_production", started_at: new Date().toISOString(), updated_at: new Date().toISOString() })
-      .eq("id", job.id);
-    toast.success("🏭 Production Started");
-    onRefresh();
+    const { error } = await rgsGovernedRpc.rpc("start_production_job", {
+      p_job_id: job.id,
+      p_correlation_id: crypto.randomUUID(),
+    });
+    if (error) {
+      toast.error(error.message || "Could not start production");
+    } else {
+      toast.success("🏭 Production Started");
+      onRefresh();
+    }
     setActing(null);
   };
 
   const handlePause = async () => {
     if (!selectedJob || !pauseReason) return;
     setActing(selectedJob.id);
-    await supabase.from("production_pauses").insert({
-      job_id: selectedJob.id,
-      reason: pauseReason,
-      comment: pauseComment || null,
-      paused_by: userId,
+    const { error } = await rgsGovernedRpc.rpc("pause_production_job", {
+      p_job_id: selectedJob.id,
+      p_reason: pauseReason,
+      p_comment: pauseComment || null,
+      p_correlation_id: crypto.randomUUID(),
     });
-    await supabase
-      .from("production_jobs")
-      .update({ status: "paused", updated_at: new Date().toISOString() })
-      .eq("id", selectedJob.id);
-    toast.success("⏸ Production Paused");
-    setShowPauseModal(false);
-    setPauseReason("");
-    setPauseComment("");
-    onRefresh();
+    if (error) {
+      toast.error(error.message || "Could not pause production");
+    } else {
+      toast.success("⏸ Production Paused");
+      setShowPauseModal(false);
+      setPauseReason("");
+      setPauseComment("");
+      onRefresh();
+    }
     setActing(null);
   };
 
   const handleResume = async (job: ProductionJob) => {
     setActing(job.id);
-    // Close open pause
-    await supabase
-      .from("production_pauses")
-      .update({ resumed_at: new Date().toISOString() })
-      .eq("job_id", job.id)
-      .is("resumed_at", null);
-    await supabase
-      .from("production_jobs")
-      .update({ status: "in_production", updated_at: new Date().toISOString() })
-      .eq("id", job.id);
-    toast.success("▶ Production Resumed");
-    onRefresh();
+    const { error } = await rgsGovernedRpc.rpc("resume_production_job", {
+      p_job_id: job.id,
+      p_correlation_id: crypto.randomUUID(),
+    });
+    if (error) {
+      toast.error(error.message || "Could not resume production");
+    } else {
+      toast.success("▶ Production Resumed");
+      onRefresh();
+    }
     setActing(null);
   };
 
   const handleAdvanceStage = async (job: ProductionJob) => {
-    const currentIdx = STAGE_ORDER.indexOf(job.stage as any);
+    const currentIdx = STAGE_ORDER.indexOf(job.stage);
     if (currentIdx >= STAGE_ORDER.length - 1) return;
     const nextStage = STAGE_ORDER[currentIdx + 1];
     setActing(job.id);
-    await supabase
-      .from("production_jobs")
-      .update({ stage: nextStage, updated_at: new Date().toISOString() })
-      .eq("id", job.id);
-    toast.success(`Stage → ${STAGE_LABELS[nextStage]}`);
-    onRefresh();
+    const { error } = await rgsGovernedRpc.rpc("advance_production_job_stage", {
+      p_job_id: job.id,
+      p_correlation_id: crypto.randomUUID(),
+    });
+    if (error) {
+      toast.error(error.message || "Could not advance stage");
+    } else {
+      toast.success(`Stage → ${STAGE_LABELS[nextStage]}`);
+      onRefresh();
+    }
     setActing(null);
   };
 
   const handleComplete = async (job: ProductionJob) => {
     const produced = parseFloat(producedQty) || 0;
     const wasted = parseFloat(wastedQty) || 0;
-    const weight = parseFloat(netWeight) || 0;
 
     if (produced <= 0) {
       toast.error("Enter produced quantity");
@@ -106,62 +116,60 @@ export default function JobExecutionTab({ jobs, userId, department, onRefresh }:
 
     setActing(job.id);
 
-    // Lock job
-    await supabase
-      .from("production_jobs")
-      .update({
-        status: "completed",
-        produced_qty: produced,
-        wasted_qty: wasted,
-        net_weight_per_unit: weight,
-        locked: true,
-        completed_at: new Date().toISOString(),
-        stage: "ready",
-        updated_at: new Date().toISOString(),
-      })
-      .eq("id", job.id);
-
-    // Transfer to RGS
-    await supabase.from("production_rgs_transfers").insert({
-      job_id: job.id,
-      product_id: job.product_id,
-      quantity: produced,
-      batch_number: job.batch_number,
-      transferred_by: userId,
-      rgs_notified: true,
-    });
-
-    // Update factory_inventory
-    if (job.product_id) {
-      const { data: inv } = await supabase
-        .from("factory_inventory")
-        .select("id, quantity")
-        .eq("product_id", job.product_id)
-        .maybeSingle();
-      if (inv) {
-        await supabase.from("factory_inventory").update({
-          quantity: (inv.quantity || 0) + produced,
-          last_updated: new Date().toISOString(),
-        }).eq("id", inv.id);
-      } else {
-        await supabase.from("factory_inventory").insert({ product_id: job.product_id, quantity: produced });
-      }
+    // Record output (append-only, idempotent by correlation id), then declare
+    // ready. RGS stock is NOT touched here -- accepted_qty only ever posts at
+    // RGS acceptance, once the goods have actually been dispatched, received
+    // and accepted. This job's role ends at "declared ready + dispatched";
+    // it does not itself increase permanent RGS inventory.
+    const metadataPayload: Record<string, string | number> = {};
+    for (const field of executionFields) {
+      const raw = executionMetadata[field.key];
+      if (raw === undefined || raw === "") continue;
+      metadataPayload[field.key] = field.type === "number" ? Number(raw) : raw;
     }
 
-    // Log to daily_production_logs
-    await supabase.from("daily_production_logs").insert({
-      product_id: job.product_id!,
-      produced_qty: produced,
-      wastage_qty: wasted,
-      department,
-      logged_by: userId,
+    const { error: outputError } = await rgsGovernedRpc.rpc("record_production_output", {
+      p_job_id: job.id,
+      p_produced_qty: produced,
+      p_wasted_qty: wasted,
+      p_batch_number: job.batch_number,
+      p_correlation_id: crypto.randomUUID(),
+      p_notes: null,
+      p_execution_metadata: metadataPayload,
     });
+    if (outputError) {
+      toast.error(outputError.message || "Could not record output");
+      setActing(null);
+      return;
+    }
 
-    toast.success("✅ Production Completed → Transferred to RGS");
+    const { error: readyError } = await rgsGovernedRpc.rpc("declare_production_ready", {
+      p_job_id: job.id,
+      p_correlation_id: crypto.randomUUID(),
+    });
+    if (readyError) {
+      toast.error(readyError.message || "Could not declare production ready");
+      setActing(null);
+      return;
+    }
+
+    const { error: dispatchError } = await rgsGovernedRpc.rpc("dispatch_production_to_rgs", {
+      p_job_id: job.id,
+      p_dispatched_qty: produced,
+      p_correlation_id: crypto.randomUUID(),
+    });
+    if (dispatchError) {
+      toast.error(dispatchError.message || "Could not dispatch to RGS");
+      setActing(null);
+      return;
+    }
+
+    toast.success("✅ Production Completed → Dispatched to RGS (pending physical receipt & acceptance)");
     setSelectedJob(null);
     setProducedQty("");
     setWastedQty("");
     setNetWeight("");
+    setExecutionMetadata({});
     onRefresh();
     setActing(null);
   };
@@ -195,7 +203,7 @@ export default function JobExecutionTab({ jobs, userId, department, onRefresh }:
 
   // Detail view for a selected job
   if (selectedJob) {
-    const stageIdx = STAGE_ORDER.indexOf(selectedJob.stage as any);
+    const stageIdx = STAGE_ORDER.indexOf(selectedJob.stage);
     const pri = PRIORITY_STYLES[selectedJob.priority] || PRIORITY_STYLES.normal;
 
     return (
@@ -294,6 +302,23 @@ export default function JobExecutionTab({ jobs, userId, department, onRefresh }:
               <input type="number" step="0.01" value={netWeight} onChange={(e) => setNetWeight(e.target.value)} placeholder="0.00"
                 className="w-full border border-slate-200 rounded-xl p-3 text-lg font-black outline-none focus:border-blue-400 mt-1" />
             </div>
+            {executionFields.length > 0 && (
+              <div className="space-y-2 rounded-xl bg-slate-50 p-3">
+                <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">{departmentLabel} details</p>
+                {executionFields.map((field) => (
+                  <div key={field.key}>
+                    <label className="text-[11px] font-bold text-slate-500 uppercase">{field.label}</label>
+                    <input
+                      type={field.type}
+                      value={executionMetadata[field.key] ?? ""}
+                      placeholder={field.placeholder}
+                      onChange={(e) => setExecutionMetadata((prev) => ({ ...prev, [field.key]: e.target.value }))}
+                      className="w-full border border-slate-200 rounded-lg p-2 text-sm outline-none focus:border-emerald-500 mt-1"
+                    />
+                  </div>
+                ))}
+              </div>
+            )}
             {producedQty && (
               <p className="text-xs font-bold text-slate-500">
                 Validation: {parseFloat(producedQty || "0") + parseFloat(wastedQty || "0")} / {selectedJob.assigned_qty} assigned
@@ -377,7 +402,7 @@ export default function JobExecutionTab({ jobs, userId, department, onRefresh }:
     <div className="space-y-3">
       {activeJobs.map((job) => {
         const pri = PRIORITY_STYLES[job.priority] || PRIORITY_STYLES.normal;
-        const stageIdx = STAGE_ORDER.indexOf(job.stage as any);
+        const stageIdx = STAGE_ORDER.indexOf(job.stage);
         const stagePercent = ((stageIdx + 1) / STAGE_ORDER.length) * 100;
 
         return (

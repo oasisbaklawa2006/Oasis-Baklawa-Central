@@ -54,22 +54,54 @@ export const PRIORITY_STYLES: Record<string, { bg: string; text: string; border:
   normal: { bg: "bg-slate-100", text: "text-slate-600", border: "border-slate-300", label: "NORMAL" },
 };
 
+// Canonical department codes from oasis-supabase-core's production_departments
+// master (see 20260817090000_rgs_department_taxonomy.sql). production_jobs
+// created via create_production_shortage_demand always use these codes;
+// the legacy lowercase strings (arabic_sweets, dragees, chocolate, ...) are
+// reconciled server-side by canonical_production_department() but a job's
+// own `department` column can carry either spelling historically, so PHH
+// queries by `canonical_department` (trigger-maintained on every row) rather
+// than by this raw string.
 export const HOD_DEPARTMENT_MAP: Record<string, string> = {
-  HOD_ARABIC: "arabic_sweets",
-  HOD_DRAGEES: "dragees",
-  HOD_FUSION: "fusion_sweets",
-  HOD_CHOCOLATE: "chocolate",
-  HOD_BAKERY: "bakery",
-  HOD_NUTS: "nuts_mixes",
+  HOD_ARABIC: "ARABIC_SWEETS",
+  HOD_DRAGEES: "CHOCOLATES_CONFECTIONERY",
+  HOD_FUSION: "FUSION_SWEETS",
+  HOD_CHOCOLATE: "CHOCOLATES_CONFECTIONERY",
+  HOD_BAKERY: "BAKERY_SEMI_PREPARED",
+  HOD_NUTS: "SEASONED_NUTS_MIXES",
+  HOD_DATES: "DATES",
   HOD_ASSEMBLY: "packing_assembly",
 };
 
+// Mirrors production_departments.legacy_values in
+// 20260817090000_rgs_department_taxonomy.sql. Client-side convenience only --
+// the server-side canonical_production_department() function is the
+// authority; this must stay in sync with it by hand.
+const LEGACY_TO_CANONICAL_DEPARTMENT: Record<string, string> = {
+  arabic_sweets: "ARABIC_SWEETS",
+  chocolates_confectionery: "CHOCOLATES_CONFECTIONERY",
+  dragees: "CHOCOLATES_CONFECTIONERY",
+  fusion_sweets: "FUSION_SWEETS",
+  seasoned_nuts_mixes: "SEASONED_NUTS_MIXES",
+  dates: "DATES",
+  bakery: "BAKERY_SEMI_PREPARED",
+  semi_prepared: "BAKERY_SEMI_PREPARED",
+};
+
+export function canonicalDepartmentOf(rawDepartment: string | null | undefined): string | null {
+  if (!rawDepartment) return null;
+  const key = rawDepartment.toLowerCase();
+  if (LEGACY_TO_CANONICAL_DEPARTMENT[key]) return LEGACY_TO_CANONICAL_DEPARTMENT[key];
+  const upper = rawDepartment.toUpperCase();
+  return DEPARTMENTS.some((d) => d.value === upper) ? upper : null;
+}
+
 export const DEPARTMENTS = [
-  { value: "arabic_sweets", label: "Arabic Sweets" },
-  { value: "dragees", label: "Dragees" },
-  { value: "fusion_sweets", label: "Fusion Sweets" },
-  { value: "chocolate", label: "Chocolate" },
-  { value: "bakery", label: "Bakery" },
-  { value: "nuts_mixes", label: "Nuts & Mixes" },
+  { value: "ARABIC_SWEETS", label: "Arabic Sweets" },
+  { value: "CHOCOLATES_CONFECTIONERY", label: "Chocolates & Confectionery" },
+  { value: "FUSION_SWEETS", label: "Fusion Sweets" },
+  { value: "SEASONED_NUTS_MIXES", label: "Seasoned Nuts & Mixes" },
+  { value: "DATES", label: "Dates" },
+  { value: "BAKERY_SEMI_PREPARED", label: "Bakery & Semi-Prepared" },
   { value: "packing_assembly", label: "Packing & Assembly" },
 ];
