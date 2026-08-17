@@ -6,19 +6,19 @@ const webhook = fs.readFileSync(path.resolve(process.cwd(), "supabase/functions/
 const suggested = fs.readFileSync(path.resolve(process.cwd(), "src/components/warroom/SuggestedOrdersTab.tsx"), "utf8");
 
 describe("WA-3 executable ambiguity guards", () => {
-  it("never defaults an unknown WhatsApp quantity to one", () => {
-    const parser = webhook.match(/function parseQuantity\([\s\S]*?\n}\n/)?.[0] ?? "";
-    const aiMapper = webhook.match(/const parsedItems[\s\S]*?return \{ items: mappedItems/)?.[0] ?? "";
-    expect(parser).toContain("quantity > 0 ? quantity : null");
-    expect(parser).toMatch(/return null;\s*}\s*$/);
-    expect(aiMapper).toContain('typeof item.quantity === "number"');
-    expect(aiMapper).not.toMatch(/Number\(item\.quantity\)/);
+  it("keeps quantity interpretation out of the capture-only webhook", () => {
+    expect(webhook).not.toContain("function parseQuantity");
+    expect(webhook).not.toContain("aiParseOrder");
     expect(webhook).not.toContain("default to 1");
+    expect(webhook).not.toMatch(/quantity\s*:\s*1\b/);
   });
 
-  it("does not create a direct draft solely from order intent without resolved lines", () => {
-    expect(webhook).not.toContain("orderItems.length > 0 || hasOrderIntent");
-    expect(webhook).toContain("orderItems.length > 0 && !hasIncompleteOrderEvidence");
+  it("capture-only webhook cannot create or promote a direct order draft", () => {
+    expect(webhook).not.toContain("orderItems");
+    expect(webhook).not.toContain("hasIncompleteOrderEvidence");
+    expect(webhook).not.toMatch(/\.from\(["']orders["']\)/);
+    expect(webhook).not.toMatch(/\.from\(["']sales_order_drafts["']\)/);
+    expect(webhook).not.toContain("admin-create-draft");
   });
 
   it("blocks suggested-order draft creation until quantity and unit are explicit", () => {
