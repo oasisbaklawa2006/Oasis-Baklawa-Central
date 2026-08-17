@@ -28,7 +28,6 @@ function readRepoFile(pathFromRoot: string): string {
 }
 
 describe("operator inbox Stage-1 guardrails", () => {
-  // Keep the governed context assertions tied to the packet-scoped, stale-load-safe query contract.
   const inboxPostgrestWriteScanFiles = collectInboxPostgrestWriteScanFiles(REPO_ROOT);
 
   it("documents the PostgREST write scan paths", () => {
@@ -42,23 +41,15 @@ describe("operator inbox Stage-1 guardrails", () => {
 
   it("inbox module trees including WhatsAppInbox.tsx have no forbidden PostgREST writes (AST)", () => {
     const violations: string[] = [];
-
     for (const file of inboxPostgrestWriteScanFiles) {
       const hits = scanRepoFileForForbiddenPostgrestWrites(REPO_ROOT, file);
-      if (hits.length > 0) {
-        violations.push(`${file}:${hits.map((hit) => `${hit.method}@${hit.line}`).join(",")}`);
-      }
+      if (hits.length > 0) violations.push(`${file}:${hits.map((hit) => `${hit.method}@${hit.line}`).join(",")}`);
     }
-
     expect(violations).toEqual([]);
   });
 
   it("inbox-tree invoke scan has no dynamic or unallowlisted slugs (AST)", () => {
-    expect(
-      findInboxTreeInvokeViolations(inboxPostgrestWriteScanFiles, (file) =>
-        readRepoSource(REPO_ROOT, file),
-      ),
-    ).toEqual([]);
+    expect(findInboxTreeInvokeViolations(inboxPostgrestWriteScanFiles, (file) => readRepoSource(REPO_ROOT, file))).toEqual([]);
   });
 
   it("WhatsAppInbox has no dynamic functions.invoke slugs (AST)", () => {
@@ -128,9 +119,7 @@ describe("operator inbox Stage-1 guardrails", () => {
     const inbox = readRepoSource(REPO_ROOT, WHATSAPP_INBOX_INVOKE_SCAN_FILE);
     expect(countFunctionsInvokeSlug(inbox, "whatsapp-operator-reply", WHATSAPP_INBOX_INVOKE_SCAN_FILE)).toBe(1);
     expect(inbox).toMatch(/handleSendReply/);
-    expect(scanFunctionsInvokeSlugs(inbox, WHATSAPP_INBOX_INVOKE_SCAN_FILE).map((hit) => hit.slug)).not.toContain(
-      "send-whatsapp-automation",
-    );
+    expect(scanFunctionsInvokeSlugs(inbox, WHATSAPP_INBOX_INVOKE_SCAN_FILE).map((hit) => hit.slug)).not.toContain("send-whatsapp-automation");
   });
 
   it("operator replies consume the Core-governed retry-safe contract", () => {
@@ -168,13 +157,15 @@ describe("operator inbox Stage-1 guardrails", () => {
     expect(settings).toMatch(/data-testid=["']whatsapp-secrets-server-managed["']/);
   });
 
-  it("provider status callbacks reconcile the Core outbox", () => {
+  it("provider status callbacks reconcile the Core outbox without customer-send authority", () => {
     const webhook = readRepoFile("supabase/functions/whatsapp-webhook/index.ts");
     expect(webhook).toContain('rpc("record_whatsapp_operator_reply_status"');
     expect(webhook).toContain('["ACCEPTED", "DELIVERED", "READ"]');
+    expect(webhook).not.toContain("sendReply(");
+    expect(webhook).not.toContain("api.click2api.in");
   });
 
-  it("WhatsApp ingress authenticates handshakes and POSTs without logging secrets or payloads", () => {
+  it("WhatsApp ingress authenticates and captures before WAMID dedupe without logging secrets or payloads", () => {
     const webhook = readRepoFile("supabase/functions/whatsapp-webhook/index.ts");
     const click2ApiAuth = readRepoFile("supabase/functions/_shared/click2apiWebhookAuth.ts");
     expect(webhook).toContain('Deno.env.get("WHATSAPP_WEBHOOK_VERIFY_TOKEN")');
@@ -187,9 +178,13 @@ describe("operator inbox Stage-1 guardrails", () => {
     expect(webhook).toContain('rpc("capture_whatsapp_commercial_fragment_for_potential"');
     expect(webhook).toContain("p_interpretation_failed: hasMedia");
     expect(webhook).toContain("commercial_eligible: input.orderLike");
-    expect(webhook.indexOf("ensureCorePotentialCapture(supabaseAdmin")).toBeLessThan(webhook.indexOf("WAMID IDEMPOTENCY GUARD"));
-    expect(webhook).toContain('status: 503');
-    expect(webhook).toContain('status: 401');
+    const captureIndex = webhook.indexOf("await ensureCorePotentialCapture(admin");
+    const dedupeIndex = webhook.indexOf("const { data: existingWamid }");
+    expect(captureIndex).toBeGreaterThan(-1);
+    expect(dedupeIndex).toBeGreaterThan(-1);
+    expect(captureIndex).toBeLessThan(dedupeIndex);
+    expect(webhook).toContain('json({ ok: false, error: "Durable intake unavailable" }, 503)');
+    expect(webhook).toContain('json({ ok: false, error: "Unauthorized webhook" }, 401)');
     expect(webhook).toContain('status: 403');
     expect(webhook).not.toContain("Handshake Token Candidates");
     expect(webhook).not.toContain('console.log("Incoming WhatsApp webhook:", JSON.stringify(payload)');

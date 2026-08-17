@@ -11,6 +11,8 @@ export interface Message {
   status?: string | null;
   provider?: string | null;
   provider_message_id?: string | null;
+  /** Provider/storage media reference; interpretation remains server-side. */
+  media_url?: string | null;
   /** Present when loading messages via batched `.in('packet_id', …)` selects. */
   packet_id?: string | null;
 }

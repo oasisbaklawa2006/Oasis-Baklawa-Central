@@ -13,6 +13,9 @@ const WEIGHT_PATTERN =
 const PIECE_COUNT_PATTERN = /\b(\d+)\s*(?:pc|pcs|piece|pieces)\b/gi;
 const QUANTITY_PATTERN =
   /\b(\d+(?:\.\d+)?)\s+(?:(?:[A-Za-z]+\s+){0,3})?(boxes?|box|pcs?|pieces?|cartons?|ctns?|cases?|units?|tins?|trays?|packs?|hampers?)\b/gi;
+const DIRECT_CATALOGUE_PRODUCT_PATTERN =
+  /\b\d+(?:\.\d+)?\s*(?:kg|kgs|kilograms?|gm|gms|grams?|g|boxes?|box|pcs?|pieces?|cartons?|ctns?|cases?|units?|tins?|trays?|packs?|hampers?)[ \t]+([\p{L}][\p{L}\p{N} &'/-]{1,72})/giu;
+const TRAILING_NON_PRODUCT_WORDS = /\b(?:please|pls|confirm|confirmed|thanks|thank you|urgent|urgently|today|tomorrow|send|need|order)\b.*$/i;
 
 function uniqueStrings(values: string[]): string[] {
   const seen = new Set<string>();
@@ -64,6 +67,23 @@ function extractProductPhraseCandidates(text: string): string[] {
     }
   }
   return phrases;
+}
+
+/**
+ * Direct quantity + phrase candidates are not trusted as product facts. They are
+ * only search hints; fetchProductResolution must still find an active product or
+ * approved alias before they can become a product result.
+ */
+function extractDirectCatalogueProductCandidates(text: string): string[] {
+  const candidates: string[] = [];
+  for (const match of text.matchAll(DIRECT_CATALOGUE_PRODUCT_PATTERN)) {
+    const phrase = (match[1] ?? "")
+      .replace(TRAILING_NON_PRODUCT_WORDS, "")
+      .trim()
+      .replace(/\s+/g, " ");
+    if (phrase.length >= 2 && !isPackagingAlias(phrase)) candidates.push(phrase);
+  }
+  return uniqueStrings(candidates);
 }
 
 function eligibleProductNameCandidate(term: string): boolean {
@@ -128,6 +148,7 @@ export function extractProductResolutionTextSignals(
   const identityKeywordHits = extractIdentityKeywordHits(combinedText);
   const quotedNames = extractQuotedProductNames(combinedText);
   const phraseCandidates = extractProductPhraseCandidates(combinedText);
+  const directCatalogueCandidates = extractDirectCatalogueProductCandidates(combinedText);
   const weight = extractWeightTokens(combinedText);
   const pieceCounts = extractPieceCountTokens(combinedText);
 
@@ -139,7 +160,10 @@ export function extractProductResolutionTextSignals(
 
   return {
     combinedText,
-    productNameCandidates: uniqueStrings(identityNameCandidates).slice(0, 10),
+    productNameCandidates: uniqueStrings([
+      ...directCatalogueCandidates,
+      ...identityNameCandidates,
+    ]).slice(0, 10),
     aliasCandidates: uniqueStrings(
       filterIdentityAliases([...identityKeywordHits, ...quotedNames, ...phraseCandidates]),
     ).slice(0, 12),

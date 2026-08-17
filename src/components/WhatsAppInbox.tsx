@@ -110,6 +110,8 @@ import { useWhatsAppPermissions } from "@/hooks/useWhatsAppPermissions";
 
 const REALTIME_CHANNEL = "whatsapp-inbox-packets";
 const REALTIME_RELOAD_DEBOUNCE_MS = 480;
+/** Bounds how long the composer spinner can be held on a slow/hung reply invoke before falling back to a packet-scoped pending state. */
+const REPLY_SEND_WATCHDOG_MS = 12000;
 
 function isTypingSurfaceForEsc(el: HTMLElement | null): boolean {
   if (!el) return false;
@@ -164,11 +166,15 @@ export function WhatsAppInbox() {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [refreshError, setRefreshError] = useState<string | null>(null);
   const [replyText, setReplyText] = useState("");
+  const replyTextRef = useRef("");
   const [potentialOrders, setPotentialOrders] = useState<GovernedPotentialOrder[]>([]);
   const [evidenceLinks, setEvidenceLinks] = useState<GovernedEvidenceLink[]>([]);
   const [governedContextError, setGovernedContextError] = useState<string | null>(null);
   const replyIdempotencyRef = useRef<{ signature: string; key: string } | null>(null);
   const [replySending, setReplySending] = useState(false);
+  const composerRef = useRef<HTMLDivElement | null>(null);
+  const [composerHeight, setComposerHeight] = useState(0);
+  const [replyFeedback, setReplyFeedback] = useState<{ packetId: string; tone: "success" | "pending" | "error"; message: string } | null>(null);
   const [classifyLoading, setClassifyLoading] = useState(false);
   const [routeLoading, setRouteLoading] = useState(false);
   const [intentResult, setIntentResult] = useState<IntentSuggestion | null>(null);
@@ -343,9 +349,33 @@ export function WhatsAppInbox() {
   }, [selectedPacket?.id]);
 
   useEffect(() => {
+    replyTextRef.current = replyText;
+  }, [replyText]);
+
+  /**
+   * Measures the composer's real rendered height (including governed-action
+   * and feedback banners, which grow/shrink it) so the message/context scroll
+   * area can reserve exactly that much space. A hard-coded padding value would
+   * go stale the moment a banner appears and let the sticky composer overlay
+   * the last visible message/context card on narrow viewports.
+   */
+  const hasSelectedPacket = Boolean(selectedPacket);
+  useEffect(() => {
+    const node = composerRef.current;
+    if (!node || typeof ResizeObserver === "undefined") return;
+    const observer = new ResizeObserver((entries) => {
+      const entry = entries[0];
+      if (entry) setComposerHeight(entry.borderBoxSize?.[0]?.blockSize ?? entry.contentRect.height);
+    });
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, [hasSelectedPacket]);
+
+  useEffect(() => {
     setIntentResult(null);
     setRouteResult(null);
     setSuggestionsError(null);
+    setReplyFeedback(null);
   }, [selectedPacket?.id]);
 
   /**
@@ -618,40 +648,107 @@ export function WhatsAppInbox() {
       return;
     }
 
-    setReplySending(true);
-    try {
-      const signature = `${selectedPacket.id}:${selectedPacket.contact_id}:${trimmed}`;
-      if (replyIdempotencyRef.current?.signature !== signature) {
-        replyIdempotencyRef.current = { signature, key: crypto.randomUUID() };
+    const packetId = selectedPacket.id;
+    // Guard against a late (post-watchdog) resolution clearing a *newer* unsent
+    // draft: only clear if the packet is still selected AND the draft still
+    // matches the exact text that was actually sent.
+    const clearDraftIfStillSelected = () => {
+      if (selectedPacketIdRef.current === packetId && replyTextRef.current.trim() === trimmed) {
+        setReplyText("");
       }
-      const { data, error: invokeError } = await supabase.functions.invoke("whatsapp-operator-reply", {
-        body: {
-          packet_id: selectedPacket.id,
-          contact_id: selectedPacket.contact_id,
-          phone_number: selectedPacket.phone_number,
-          message: trimmed,
-          idempotency_key: replyIdempotencyRef.current.key,
-          potential_order_id: selectedPotentialOrder?.id ?? null,
-        },
-      });
+    };
 
+    const signature = `${selectedPacket.id}:${selectedPacket.contact_id}:${trimmed}`;
+    if (replyIdempotencyRef.current?.signature !== signature) {
+      replyIdempotencyRef.current = { signature, key: crypto.randomUUID() };
+    }
+    const idempotencyKey = replyIdempotencyRef.current.key;
+    // Only clear the shared ref if it still points at *this* send's key — a later,
+    // still-in-flight watchdog resolution must never clobber a newer resend's key.
+    const clearIdempotencyIfUnchanged = () => {
+      if (replyIdempotencyRef.current?.key === idempotencyKey) replyIdempotencyRef.current = null;
+    };
+
+    const finalizeReplyResult = (data: unknown, invokeError: { message: string } | null) => {
       if (invokeError) {
-        alert(`Failed to send: ${invokeError.message}`);
+        setReplyFeedback({
+          packetId,
+          tone: "pending",
+          message: `Send status could not be confirmed (${invokeError.message}). Do not resend; delivery is being reconciled.`,
+        });
         return;
       }
-
-      const result = data as { success?: boolean; error?: string } | null;
+      const result = data as { success?: boolean; status?: string; error?: string } | null;
       if (result?.success) {
-        setReplyText("");
-        replyIdempotencyRef.current = null;
-        await loadPackets({ silent: true });
+        clearDraftIfStillSelected();
+        clearIdempotencyIfUnchanged();
+        setReplyFeedback({ packetId, tone: "success", message: "Reply accepted by WhatsApp." });
+        void loadPackets({ silent: true });
+      } else if (result?.status === "ACCEPTANCE_UNKNOWN" || result?.status === "RECONCILIATION_PENDING") {
+        clearDraftIfStillSelected();
+        setReplyFeedback({
+          packetId,
+          tone: "pending",
+          message: "Reply submitted; provider acceptance is being reconciled. Do not resend.",
+        });
+        void loadPackets({ silent: true });
       } else {
-        alert(`Failed to send: ${result?.error ?? "Unknown error"}`);
+        setReplyFeedback({ packetId, tone: "error", message: `Reply was not accepted: ${result?.error ?? "Unknown error"}` });
       }
+    };
+
+    setReplySending(true);
+    const invokePromise = supabase.functions.invoke("whatsapp-operator-reply", {
+      body: {
+        packet_id: selectedPacket.id,
+        contact_id: selectedPacket.contact_id,
+        phone_number: selectedPacket.phone_number,
+        message: trimmed,
+        idempotency_key: replyIdempotencyRef.current.key,
+        potential_order_id: selectedPotentialOrder?.id ?? null,
+      },
+    });
+
+    const watchdogTimeout = Symbol("reply-send-watchdog-timeout");
+    let watchdogTimer!: ReturnType<typeof setTimeout>;
+    const watchdogPromise = new Promise<typeof watchdogTimeout>((resolve) => {
+      watchdogTimer = setTimeout(() => resolve(watchdogTimeout), REPLY_SEND_WATCHDOG_MS);
+    });
+
+    try {
+      const raced = await Promise.race([invokePromise, watchdogPromise]);
+      if (raced === watchdogTimeout) {
+        // Stop the spinner and hand the composer back — the draft and idempotency
+        // key are preserved so a resend (if the operator chooses) is deduped
+        // server-side rather than creating a genuine duplicate message.
+        setReplyFeedback({
+          packetId,
+          tone: "pending",
+          message: "PENDING: Do not resend; delivery is being reconciled.",
+        });
+        void invokePromise.then(
+          ({ data, error: invokeError }) => finalizeReplyResult(data, invokeError),
+          (err) => {
+            setReplyFeedback({
+              packetId,
+              tone: "pending",
+              message: `Send status could not be confirmed (${err instanceof Error ? err.message : "unknown error"}). Do not resend; delivery is being reconciled.`,
+            });
+          },
+        );
+        return;
+      }
+      const { data, error: invokeError } = raced;
+      finalizeReplyResult(data, invokeError);
     } catch (err) {
       console.error("Reply error:", err);
-      alert("Failed to send reply");
+      setReplyFeedback({
+        packetId,
+        tone: "error",
+        message: err instanceof Error ? err.message : "Failed to send reply",
+      });
     } finally {
+      clearTimeout(watchdogTimer);
       setReplySending(false);
     }
   }, [replyText, selectedPacket, selectedPotentialOrder, loadPackets, whatsappAuthority, governedContextError]);
@@ -1687,7 +1784,10 @@ export function WhatsAppInbox() {
                   ) : null}
                 </div>
 
-                <div className="min-h-0 flex-1 space-y-6 overflow-y-auto overscroll-y-contain scroll-pt-2 scroll-pb-3 p-4">
+                <div
+                  className="min-h-0 flex-1 space-y-6 overflow-y-auto overscroll-y-contain scroll-pt-2 scroll-pb-3 p-4"
+                  style={isNarrow && composerHeight > 0 ? { paddingBottom: composerHeight + 16 } : undefined}
+                >
                   {selectedPacket.messages && selectedPacket.messages.length > 0 ? (
                     groupMessagesByDayWithGapMarkers(selectedPacket.messages).map((group) => (
                       <div key={group.dayKey}>
@@ -1816,6 +1916,7 @@ export function WhatsAppInbox() {
                 </div>
 
                 <div
+                  ref={composerRef}
                   data-operator-inbox-reply-composer
                   className="sticky bottom-0 z-10 shrink-0 border-t border-gray-200 bg-gray-50 p-4"
                 >
@@ -1868,6 +1969,19 @@ export function WhatsAppInbox() {
                       {replySending ? "Sending..." : "Send"}
                     </button>
                   </div>
+                  {replyFeedback && replyFeedback.packetId === selectedPacket?.id ? (
+                    <p
+                      role="status"
+                      className={cn(
+                        "mt-2 rounded-md border px-3 py-2 text-xs font-medium",
+                        replyFeedback.tone === "success" && "border-emerald-200 bg-emerald-50 text-emerald-900",
+                        replyFeedback.tone === "pending" && "border-amber-200 bg-amber-50 text-amber-950",
+                        replyFeedback.tone === "error" && "border-red-200 bg-red-50 text-red-900",
+                      )}
+                    >
+                      {replyFeedback.message}
+                    </p>
+                  ) : null}
                 </div>
               </div>
 

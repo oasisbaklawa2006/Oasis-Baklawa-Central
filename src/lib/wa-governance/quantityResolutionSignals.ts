@@ -24,6 +24,9 @@ const QTY_UNIT_THEN_PRODUCT_PATTERN =
  */
 const KEYWORD_GAP = "[ \\t]+";
 
+const DIRECT_WEIGHT_PRODUCT_PATTERN =
+  /\b(\d+(?:\.\d+)?)\s*(kg|kgs|kilograms?|gm|gms|grams?|g)[ \t]+([A-Za-z][A-Za-z \t-]{1,40})\b/gi;
+
 const WEIGHT_ORDER_PATTERN = new RegExp(
   `\\b(?:need|send|want|order|qty|quantity)${KEYWORD_GAP}(?:me${KEYWORD_GAP})?(\\d+(?:\\.\\d+)?)\\s*(kg|kgs|kilograms?|gm|gms|grams?|g)\\b`,
   "gi",
@@ -203,6 +206,24 @@ export function extractQuantityResolutionTextSignals(
       value,
       unit: normalizeQuantityUnit(rawUnit),
       productHint: extractProductHintFromPhrase(productPhrase ?? ""),
+      kind: "explicit_with_unit",
+      sourceSpan: { start, end },
+      rawText: match[0],
+    });
+  }
+
+  for (const match of combinedText.matchAll(DIRECT_WEIGHT_PRODUCT_PATTERN)) {
+    const value = Number.parseFloat(match[1]);
+    const rawUnit = match[2];
+    const productPhrase = match[3]?.trim();
+    if (!Number.isFinite(value) || !rawUnit || match.index == null) continue;
+
+    const start = match.index;
+    const end = start + match[0].length;
+    pushMatch(matches, seen, excluded, {
+      value,
+      unit: normalizeQuantityUnit(rawUnit),
+      productHint: extractProductHintFromPhrase(productPhrase ?? "") ?? titleCaseHint(productPhrase ?? ""),
       kind: "explicit_with_unit",
       sourceSpan: { start, end },
       rawText: match[0],

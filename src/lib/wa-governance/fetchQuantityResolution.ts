@@ -12,10 +12,42 @@ import type {
   QuantityResolutionEntry,
   QuantityResolutionInput,
   QuantityResolutionResult,
+  QuantityResolutionTextSignals,
 } from "./quantityResolutionTypes";
 
 const CATALOGUE_QUANTITY_SELECT =
   "id, weight_per_box_kg, grams_per_piece, category, sub_category, uom, packs_per_master_carton, packs_per_carton, pcs_per_master_carton, settlement_unit";
+const DIRECT_WEIGHT_WITH_PRODUCT = /^\s*\d+(?:\.\d+)?\s*(?:kg|kgs|kilograms?|gm|gms|grams?|g)[ \t]+/i;
+
+function normalizeWords(value: string): string[] {
+  return value
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, " ")
+    .split(/\s+/)
+    .filter((word) => word.length >= 3);
+}
+
+function directProductHintMatchesCatalogue(productHint: string | null, productName: string): boolean {
+  if (!productHint?.trim() || !productName.trim()) return false;
+  const hintWords = normalizeWords(productHint);
+  const productWords = new Set(normalizeWords(productName));
+  if (hintWords.length === 0 || productWords.size === 0) return false;
+  return hintWords.some((word) => productWords.has(word));
+}
+
+function requireCatalogueBackingForDirectWeights(
+  signals: QuantityResolutionTextSignals,
+  productBestMatchName: string | null | undefined,
+): QuantityResolutionTextSignals {
+  return {
+    ...signals,
+    matches: signals.matches.filter((match) => {
+      if (!DIRECT_WEIGHT_WITH_PRODUCT.test(match.rawText)) return true;
+      if (!productBestMatchName) return false;
+      return directProductHintMatchesCatalogue(match.productHint, productBestMatchName);
+    }),
+  };
+}
 
 function entryWithoutCatalogueNormalization(
   entry: QuantityResolutionEntry,
@@ -105,10 +137,11 @@ export async function resolveQuantityCandidates(
   supabase?: SupabaseClient | null,
   catalogueProduct?: CatalogueQuantityProduct | null,
 ): Promise<QuantityResolutionResult> {
-  const signals = extractQuantityResolutionTextSignals(
+  const rawSignals = extractQuantityResolutionTextSignals(
     input.messageText,
     input.stitchedPlainText,
   );
+  const signals = requireCatalogueBackingForDirectWeights(rawSignals, input.productBestMatchName);
   const scored = scoreQuantityResolutionCandidates({ signals });
 
   if (catalogueProduct !== undefined) {

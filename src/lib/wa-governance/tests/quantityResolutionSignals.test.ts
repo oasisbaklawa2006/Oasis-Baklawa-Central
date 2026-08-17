@@ -42,6 +42,20 @@ describe("quantityResolutionSignals", () => {
     );
   });
 
+  it("extracts direct weight-product lines from fragmented B2B orders", () => {
+    const signals = extractQuantityResolutionTextSignals(
+      "Hi I want to place an order\n5kg pyramid\n10 kg finger\n2 box chocolates",
+      "",
+    );
+    expect(signals.matches).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ value: 5, unit: "kg", productHint: "pyramid" }),
+        expect.objectContaining({ value: 10, unit: "kg", productHint: "finger" }),
+        expect.objectContaining({ value: 2, unit: "boxes" }),
+      ]),
+    );
+  });
+
   it("normalizes unit aliases", () => {
     expect(normalizeQuantityUnit("box")).toBe("boxes");
     expect(normalizeQuantityUnit("TIN")).toBe("tins");
