@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js@2.95.0";
 import { requireInternalStaff } from "../_shared/requireInternalStaff.ts";
+import { selectClick2ApiProviderMessageId } from "../_shared/whatsappProviderAcceptance.ts";
 
 const headers = { "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type", "Content-Type": "application/json" };
 const endpoint = "https://crm.click2api.in/api/v1/messages";
@@ -44,9 +45,8 @@ serve(async (req) => {
       return reply({ success: false, reply_id: claimed.data.id, status: "ACCEPTANCE_UNKNOWN", error: "Provider acceptance unknown; duplicate retry suppressed" }, 202);
     }
     const providerBody = await providerResponse.json().catch(() => ({}));
-    const providerMessage = providerBody?.message && typeof providerBody.message === "object" ? providerBody.message : {};
-    const providerId = providerBody.message_id ?? providerBody.id ?? providerBody.queue_id ?? providerMessage.message_id ?? providerMessage.id ?? providerMessage.queue_id;
-    if (providerResponse.ok && providerId) {
+    const providerId = selectClick2ApiProviderMessageId(providerBody);
+    if (providerResponse.ok && providerId != null) {
       const completed = await admin.rpc("complete_whatsapp_operator_reply", { p_reply_id: claimed.data.id, p_lease_token: claimed.data.lease_token, p_provider: "click2api", p_provider_message_id: String(providerId) });
       if (completed.error) return reply({ success: false, reply_id: claimed.data.id, status: "RECONCILIATION_PENDING", error: "Provider accepted; local reconciliation pending" }, 202);
       return reply({ success: true, reply_id: claimed.data.id, provider_message_id: providerId, status: "ACCEPTED" }, 200);
