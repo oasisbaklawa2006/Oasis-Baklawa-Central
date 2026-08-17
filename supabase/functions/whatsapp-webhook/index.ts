@@ -18,6 +18,7 @@ const ORDER_INTENT_KEYWORDS = [
 ];
 const DEVANAGARI_COMMERCE = /(किलो|केजी|किग्रा|बॉक्स|डिब्ब|कार्टन|पीस|ऑर्डर|भेज|डालना|चाहिए|मंगवा|मंगाना)/u;
 const GOVERNED_PROVIDER_STATUSES = ["ACCEPTED", "DELIVERED", "READ"] as const;
+const MEDIA_MESSAGE_TYPES = new Set(["image", "document", "video", "audio"]);
 
 function json(body: Record<string, unknown>, status = 200): Response {
   return new Response(JSON.stringify(body), { status, headers: corsHeaders });
@@ -28,6 +29,10 @@ function to91(raw: string): string {
   if (digits.length === 10) return `91${digits}`;
   if (digits.length === 12 && digits.startsWith("91")) return digits;
   return digits;
+}
+
+function stringBody(value: unknown): string {
+  return typeof value === "string" ? value : "";
 }
 
 function extractPayloadFields(payload: any) {
@@ -41,6 +46,7 @@ function extractPayloadFields(payload: any) {
       messageBody: msg?.text?.body || msg?.caption || media?.caption || "",
       messageType: msg?.type || "text",
       mediaUrl: media?.url || media?.link || null,
+      mediaId: media?.id || null,
       messageId: msg?.id || null,
       profileName: contact?.profile?.name || null,
       timestampSec: msg?.timestamp ?? null,
@@ -55,13 +61,25 @@ function extractPayloadFields(payload: any) {
     : null;
   if (m91) {
     const message = m91.message || {};
-    const media = message.media || message.image || message.document || message.video || null;
+    const media = message.media || message.image || message.document || message.video || message.audio || null;
+    const inferredMediaType = message.audio
+      ? "audio"
+      : message.video
+      ? "video"
+      : message.document
+      ? "document"
+      : message.image
+      ? "image"
+      : media
+      ? "image"
+      : "text";
     const text = message.text?.body || message.text || message.caption || media?.caption || m91.text || "";
     return {
       senderPhone: m91.mobile || m91.from || m91.sender || m91.contact?.wa_id || "",
       messageBody: typeof text === "string" ? text : (text?.body || ""),
-      messageType: message.type || m91.type || (media ? "image" : "text"),
+      messageType: message.type || m91.type || inferredMediaType,
       mediaUrl: media?.url || media?.link || media?.media_url || null,
+      mediaId: media?.id || media?.media_id || null,
       messageId: m91._id || m91.id || m91.message_id || message.id || null,
       profileName: m91.sender_name || m91.name || m91.contact?.profile?.name || null,
       timestampSec: m91.timestamp ?? message.timestamp ?? null,
@@ -69,11 +87,33 @@ function extractPayloadFields(payload: any) {
     };
   }
 
+  const fallbackType = payload?.messageType || payload?.type || payload?.data?.type || "text";
   return {
     senderPhone: payload?.from || payload?.sender || payload?.mobile || payload?.data?.from || payload?.contact?.wa_id || payload?.waId || "",
-    messageBody: payload?.message || payload?.body || payload?.data?.body || payload?.text?.body || payload?.text || "",
-    messageType: payload?.messageType || payload?.type || payload?.data?.type || "text",
-    mediaUrl: payload?.mediaUrl || payload?.media_url || payload?.data?.media_url || payload?.image?.url || payload?.document?.url || null,
+    messageBody: stringBody(payload?.message) || stringBody(payload?.body) || stringBody(payload?.data?.body) || stringBody(payload?.text?.body) || stringBody(payload?.text),
+    messageType: fallbackType,
+    mediaUrl:
+      payload?.mediaUrl ||
+      payload?.media_url ||
+      payload?.data?.media_url ||
+      payload?.image?.url ||
+      payload?.document?.url ||
+      payload?.video?.url ||
+      payload?.audio?.url ||
+      payload?.data?.image?.url ||
+      payload?.data?.document?.url ||
+      payload?.data?.video?.url ||
+      payload?.data?.audio?.url ||
+      null,
+    mediaId:
+      payload?.mediaId ||
+      payload?.media_id ||
+      payload?.image?.id ||
+      payload?.document?.id ||
+      payload?.video?.id ||
+      payload?.audio?.id ||
+      payload?.data?.media_id ||
+      null,
     messageId: payload?.messageId || payload?.id || payload?.message_id || null,
     profileName: payload?.pushName || payload?.profileName || payload?.contact?.name || payload?.sender_name || null,
     timestampSec: payload?.timestamp ?? payload?.data?.timestamp ?? null,
@@ -81,8 +121,12 @@ function extractPayloadFields(payload: any) {
   };
 }
 
-function isPotentialCommercialIntake(messageBody: string, mediaUrl: string | null): boolean {
-  if (mediaUrl) return true;
+function hasMediaEvidence(fields: { messageType: string; mediaUrl: string | null; mediaId: string | null }): boolean {
+  return Boolean(fields.mediaUrl || fields.mediaId || MEDIA_MESSAGE_TYPES.has(String(fields.messageType || "").toLowerCase()));
+}
+
+function isPotentialCommercialIntake(messageBody: string, mediaEvidence: boolean): boolean {
+  if (mediaEvidence) return true;
   const normalized = messageBody.toLowerCase();
   return ORDER_INTENT_KEYWORDS.some((keyword) => normalized.includes(keyword)) || DEVANAGARI_COMMERCE.test(messageBody);
 }
@@ -247,6 +291,7 @@ serve(async (req) => {
   try {
     const payload = await req.json();
     const fields = extractPayloadFields(payload);
+    const mediaEvidence = hasMediaEvidence(fields);
 
     if (fields.statuses.length > 0) {
       await reconcileProviderStatuses(admin, fields.statuses);
@@ -257,14 +302,14 @@ serve(async (req) => {
         processed: true,
         discard_reason: "provider_status_evidence",
       });
-      if (!fields.messageBody && !fields.mediaUrl) {
+      if (!fields.messageBody && !mediaEvidence) {
         return json({ ok: true, captured: "provider_status_evidence" });
       }
     }
 
     const noiseTypes = new Set(["reaction", "unsupported", "system", "ephemeral", "sticker_reaction"]);
     const isNoise = noiseTypes.has(String(fields.messageType || "").toLowerCase());
-    const isEmpty = !fields.messageBody && !fields.mediaUrl;
+    const isEmpty = !fields.messageBody && !mediaEvidence;
     if (isNoise || isEmpty) {
       await admin.from("debug_webhooks").insert({
         direction: "inbound",
@@ -284,6 +329,7 @@ serve(async (req) => {
     const receivedAt = fields.timestampSec != null && Number.isFinite(timestampMs) && Math.abs(timestampMs) <= 8.64e15
       ? new Date(timestampMs).toISOString()
       : new Date().toISOString();
+    const commercialEligible = isPotentialCommercialIntake(fields.messageBody || "", mediaEvidence);
 
     await ensureCorePotentialCapture(admin, {
       providerMessageId: fields.messageId,
@@ -293,7 +339,7 @@ serve(async (req) => {
       messageType: fields.messageType || "text",
       receivedAt,
       rawPayload: payload,
-      orderLike: isPotentialCommercialIntake(fields.messageBody || "", fields.mediaUrl),
+      orderLike: commercialEligible,
     });
 
     const { data: existingWamid } = await admin
@@ -321,7 +367,7 @@ serve(async (req) => {
       phone_number: phone91 || null,
       wamid: fields.messageId,
       processed: true,
-      message_intent: isPotentialCommercialIntake(fields.messageBody || "", fields.mediaUrl) ? "POTENTIAL_COMMERCIAL" : "OTHER",
+      message_intent: commercialEligible ? "POTENTIAL_COMMERCIAL" : "OTHER",
     });
 
     const contactId = await findOrCreateWhatsappContact(admin, phone91);
@@ -352,7 +398,7 @@ serve(async (req) => {
       ok: true,
       capture_only: true,
       provider_message_id: fields.messageId,
-      commercial_eligible: isPotentialCommercialIntake(fields.messageBody || "", fields.mediaUrl),
+      commercial_eligible: commercialEligible,
       outbound_sent: false,
     });
   } catch (error) {
