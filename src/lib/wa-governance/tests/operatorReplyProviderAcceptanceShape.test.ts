@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import { selectClick2ApiProviderMessageId } from "../../../../supabase/functions/_shared/whatsappProviderAcceptance";
 
@@ -27,5 +29,14 @@ describe("Click2API provider acceptance response shapes", () => {
   it("fails closed when a successful-looking body contains no provider identifier", () => {
     expect(selectClick2ApiProviderMessageId({ message: { message_status: "queued" } })).toBeNull();
     expect(selectClick2ApiProviderMessageId(null)).toBeNull();
+  });
+
+  it("is the selector consumed by the governed operator-reply edge function", () => {
+    const edge = readFileSync(
+      resolve(process.cwd(), "supabase/functions/whatsapp-operator-reply/index.ts"),
+      "utf8",
+    );
+    expect(edge).toContain('import { selectClick2ApiProviderMessageId } from "../_shared/whatsappProviderAcceptance.ts"');
+    expect(edge).toContain("const providerId = selectClick2ApiProviderMessageId(providerBody)");
   });
 });
