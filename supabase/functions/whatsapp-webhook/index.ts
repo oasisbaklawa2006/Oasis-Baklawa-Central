@@ -212,8 +212,6 @@ async function findOrCreateWhatsappContact(
   phoneDigits: string,
 ): Promise<string | null> {
   if (!phoneDigits) return null;
-  // Staging schema confirms whatsapp_contacts.phone_number has a deployed UNIQUE
-  // constraint. Upsert on that exact key removes the select-then-insert race.
   const upserted = await supabaseAdmin
     .from("whatsapp_contacts")
     .upsert(
@@ -224,8 +222,6 @@ async function findOrCreateWhatsappContact(
     .maybeSingle();
   if (upserted.data?.id) return upserted.data.id;
 
-  // Re-read handles a concurrent winner or a provider/PostgREST response that did
-  // not return a row even though the unique-key upsert completed.
   const existing = await supabaseAdmin
     .from("whatsapp_contacts")
     .select("id")
@@ -236,14 +232,14 @@ async function findOrCreateWhatsappContact(
   return null;
 }
 
-function triggerMessageStitcherNonBlocking(): void {
+function triggerMessageStitcherNonBlocking(providerMessageId: string): void {
   const baseUrl = Deno.env.get("SUPABASE_URL")?.replace(/\/$/, "");
   const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
   if (!baseUrl || !serviceKey) return;
   void fetch(`${baseUrl}/functions/v1/whatsapp-message-stitcher`, {
     method: "POST",
     headers: { "Content-Type": "application/json", "Authorization": `Bearer ${serviceKey}` },
-    body: JSON.stringify({ trigger: "webhook" }),
+    body: JSON.stringify({ trigger: "webhook", provider_message_id: providerMessageId }),
   }).catch((error) => console.warn("[whatsapp-webhook] stitcher call failed", String(error)));
 }
 
@@ -342,7 +338,8 @@ serve(async (req) => {
       .eq("wamid", fields.messageId)
       .limit(1)
       .maybeSingle();
-    if (existingWamid?.id) {
+    const duplicateWamid = Boolean(existingWamid?.id);
+    if (duplicateWamid) {
       await admin.from("debug_webhooks").insert({
         direction: "inbound",
         raw_payload: payload,
@@ -350,19 +347,18 @@ serve(async (req) => {
         wamid: fields.messageId,
         processed: true,
         discard_reason: "duplicate_wamid",
-        error_message: `Duplicate WhatsApp message ID — original webhook ${existingWamid.id}`,
+        error_message: `Duplicate WhatsApp message ID — original webhook ${existingWamid?.id}`,
       });
-      return json({ ok: true, discarded: "duplicate_wamid" });
+    } else {
+      await admin.from("debug_webhooks").insert({
+        direction: "inbound",
+        raw_payload: payload,
+        phone_number: phone91 || null,
+        wamid: fields.messageId,
+        processed: true,
+        message_intent: commercialEligible ? "POTENTIAL_COMMERCIAL" : "OTHER",
+      });
     }
-
-    await admin.from("debug_webhooks").insert({
-      direction: "inbound",
-      raw_payload: payload,
-      phone_number: phone91 || null,
-      wamid: fields.messageId,
-      processed: true,
-      message_intent: commercialEligible ? "POTENTIAL_COMMERCIAL" : "OTHER",
-    });
 
     const contactId = await findOrCreateWhatsappContact(admin, phone91);
     if (!contactId) throw new Error("WHATSAPP_CONTACT_PERSISTENCE_FAILED");
@@ -386,15 +382,17 @@ serve(async (req) => {
     });
     const messageDuplicate = Boolean(messageError && String(messageError.message).toLowerCase().includes("duplicate"));
     if (messageError && !messageDuplicate) throw new Error(`WHATSAPP_MESSAGE_PERSISTENCE_FAILED: ${messageError.message}`);
-    // A duplicate can be a provider retry after an earlier non-blocking stitcher
-    // kick was lost. Re-kick safely; Core stitching and packet AI are idempotent.
-    triggerMessageStitcherNonBlocking();
+
+    // Every delivery/retry re-kicks the idempotent packet pipeline using the
+    // provider ID, allowing recovery even when the message is already stitched.
+    triggerMessageStitcherNonBlocking(fields.messageId);
 
     return json({
       ok: true,
       capture_only: true,
       provider_message_id: fields.messageId,
       commercial_eligible: commercialEligible,
+      duplicate_wamid: duplicateWamid,
       outbound_sent: false,
     });
   } catch (error) {
