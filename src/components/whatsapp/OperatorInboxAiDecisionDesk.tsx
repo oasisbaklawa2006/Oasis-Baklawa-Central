@@ -13,6 +13,7 @@ import {
 } from "@/lib/wa-governance/caseDecisionDesk";
 import { OperatorInboxCaseLifecycleActions } from "./OperatorInboxCaseLifecycleActions";
 import { OperatorInboxCommercialLayers } from "./OperatorInboxCommercialLayers";
+import { OperatorInboxPaymentProofReview } from "./OperatorInboxPaymentProofReview";
 
 const DEPARTMENTS = [
   "SALES",
@@ -289,6 +290,14 @@ export function OperatorInboxAiDecisionDesk({
         <OperatorInboxCommercialLayers
           packetId={packetId}
           snapshot={snapshot}
+          onReload={() => reload(packetId)}
+        />
+      ) : null}
+
+      {snapshot && communicationCase ? (
+        <OperatorInboxPaymentProofReview
+          caseId={communicationCase.id}
+          packetId={packetId}
           onReload={() => reload(packetId)}
         />
       ) : null}
