@@ -157,6 +157,7 @@ export function useOperatorInboxProductResolution(
 
         const result: ProductResolutionResult = {
           ...productResult,
+          packetId: packet.id,
           aiInterpretation: {
             conclusion: interpretation.conclusion,
             confidence: interpretation.confidence,
