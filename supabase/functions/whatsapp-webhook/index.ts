@@ -17,6 +17,7 @@ const ORDER_INTENT_KEYWORDS = [
   "kg", "pcs", "pieces", "rate", "price", "quote",
 ];
 const DEVANAGARI_COMMERCE = /(किलो|केजी|किग्रा|बॉक्स|डिब्ब|कार्टन|पीस|ऑर्डर|भेज|डालना|चाहिए|मंगवा|मंगाना)/u;
+const GOVERNED_PROVIDER_STATUSES = ["ACCEPTED", "DELIVERED", "READ"] as const;
 
 function json(body: Record<string, unknown>, status = 200): Response {
   return new Response(JSON.stringify(body), { status, headers: corsHeaders });
@@ -157,6 +158,29 @@ async function ensureCorePotentialCapture(
   if (evidenceError) throw new Error(`WA4_CORE_EVIDENCE_CAPTURE_FAILED: ${evidenceError.message}`);
 }
 
+async function reconcileProviderStatuses(
+  supabaseAdmin: SupabaseAdminClient,
+  statuses: any[],
+): Promise<void> {
+  for (const statusEvent of statuses) {
+    const providerMessageId = String(statusEvent?.id ?? statusEvent?.message_id ?? "").trim();
+    const providerStatus = String(statusEvent?.status ?? "").trim().toUpperCase();
+    if (!providerMessageId || !GOVERNED_PROVIDER_STATUSES.includes(providerStatus as typeof GOVERNED_PROVIDER_STATUSES[number])) {
+      continue;
+    }
+    const { error: statusError } = await supabaseAdmin.rpc("record_whatsapp_operator_reply_status", {
+      p_reply_id: statusEvent?.metadata?.reply_id ?? null,
+      p_provider: "click2api",
+      p_provider_message_id: providerMessageId,
+      p_status: providerStatus,
+      p_evidence: { provider_timestamp: statusEvent?.timestamp ?? null },
+    });
+    if (statusError && !statusError.message.includes("WA5_STATUS_BOUNDARY_OR_REGRESSION")) {
+      console.error("Governed outbound status reconciliation failed", statusError.message);
+    }
+  }
+}
+
 async function findOrCreateWhatsappContact(
   supabaseAdmin: SupabaseAdminClient,
   phoneDigits: string,
@@ -224,7 +248,8 @@ serve(async (req) => {
     const payload = await req.json();
     const fields = extractPayloadFields(payload);
 
-    if (fields.statuses.length > 0 && !fields.messageId) {
+    if (fields.statuses.length > 0) {
+      await reconcileProviderStatuses(admin, fields.statuses);
       await admin.from("debug_webhooks").insert({
         direction: "inbound",
         raw_payload: payload,
@@ -232,7 +257,9 @@ serve(async (req) => {
         processed: true,
         discard_reason: "provider_status_evidence",
       });
-      return json({ ok: true, captured: "provider_status_evidence" });
+      if (!fields.messageBody && !fields.mediaUrl) {
+        return json({ ok: true, captured: "provider_status_evidence" });
+      }
     }
 
     const noiseTypes = new Set(["reaction", "unsupported", "system", "ephemeral", "sticker_reaction"]);
