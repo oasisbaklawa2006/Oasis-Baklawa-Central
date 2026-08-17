@@ -36,6 +36,17 @@ describe("WhatsApp webhook is capture-only ingress", () => {
     expect(webhook).toContain('duplicate_wamid');
   });
 
+  it("treats image audio video and document messages as zero-loss evidence even without text", () => {
+    const webhook = source();
+    expect(webhook).toContain('new Set(["image", "document", "video", "audio"])');
+    expect(webhook).toContain("message.audio");
+    expect(webhook).toContain("payload?.video?.url");
+    expect(webhook).toContain("payload?.audio?.url");
+    expect(webhook).toContain("mediaId:");
+    expect(webhook).toContain("hasMediaEvidence(fields)");
+    expect(webhook).toContain("!fields.messageBody && !mediaEvidence");
+  });
+
   it("does not regain direct live-order or legacy customer mutation authority", () => {
     const webhook = source();
     expect(webhook).not.toContain('.from("orders").insert');
