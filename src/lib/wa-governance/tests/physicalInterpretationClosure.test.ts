@@ -3,19 +3,69 @@ import { describe, expect, it } from "vitest";
 import { resolveQuantityCandidates } from "../fetchQuantityResolution";
 import {
   interpretPacketContent,
+  interpretPacketContentRich,
   normalizeHindiCommerceFallback,
   type InterpretablePacketMessage,
 } from "../packetContentInterpretation";
 import { extractProductResolutionTextSignals } from "../productResolutionSignals";
 
-function imageMessage(index: number, providerId = `provider-image-${index}`): InterpretablePacketMessage {
+function mediaMessage(
+  index: number,
+  messageType: "image" | "audio" | "video" | "document" = "image",
+  providerId = `provider-${messageType}-${index}`,
+): InterpretablePacketMessage {
   return {
     id: `message-${index}`,
     direction: "inbound",
     content: "",
-    message_type: "image",
+    message_type: messageType,
     provider_message_id: providerId,
-    media_url: `https://media.example.test/${index}.jpg`,
+    media_url: `https://media.example.test/${index}`,
+  };
+}
+
+function textMessage(index: number, content: string): InterpretablePacketMessage {
+  return {
+    id: `text-${index}`,
+    direction: "inbound",
+    content,
+    message_type: "text",
+    provider_message_id: `provider-text-${index}`,
+    media_url: null,
+  };
+}
+
+function successfulPacketResponse(normalizedText = "5 kg pyramid") {
+  return {
+    data: {
+      success: true,
+      interpretation: {
+        normalized_text: normalizedText,
+        extracted_text: normalizedText,
+        language: "Hindi/Hinglish/English",
+        confidence: 0.96,
+        warnings: [],
+        source_kind: "packet",
+        conclusion: {
+          intent: "NEW_ORDER",
+          summary: "Customer is placing a B2B order.",
+          explicit_facts: [],
+          order_lines: [{
+            product_name: "Pyramid",
+            sku: "",
+            quantity: 5,
+            unit: "kg",
+            status: "interpreted",
+            evidence_ids: ["provider-text-1"],
+          }],
+          corrections: [],
+          ambiguities: [],
+          recommended_action: "Human to confirm the interpreted line before commitment.",
+          human_review_required: true,
+        },
+      },
+    },
+    error: null,
   };
 }
 
@@ -65,62 +115,99 @@ describe("WhatsApp physical interpretation closure", () => {
     expect(normalizeHindiCommerceFallback("५ किलो पिरामिड चाहिए")).toBe("5 kg pyramid need");
     expect(normalizeHindiCommerceFallback("२ बॉक्स चॉकलेट भेजो")).toBe("2 box chocolate send");
     expect(normalizeHindiCommerceFallback("१० किलो फिंगर ऑर्डर")).toBe("10 kg finger order");
+    expect(normalizeHindiCommerceFallback("तीन किलो काजू पिरामिड भी डालना")).toContain("kg kaju pyramid");
   });
 
-  it("bounds concurrent interpreter invokes to two", async () => {
-    let active = 0;
-    let maxActive = 0;
+  it("sends the whole eligible packet to one governed AI invoke", async () => {
     let invokeCount = 0;
+    let capturedBody: unknown = null;
     const fakeSupabase = {
       functions: {
-        invoke: async () => {
+        invoke: async (_slug: string, options: { body: unknown }) => {
           invokeCount += 1;
-          active += 1;
-          maxActive = Math.max(maxActive, active);
-          await new Promise((resolve) => setTimeout(resolve, 5));
-          active -= 1;
-          return {
-            data: {
-              success: true,
-              interpretation: { normalized_text: "5 kg pyramid" },
-            },
-            error: null,
-          };
+          capturedBody = options.body;
+          return successfulPacketResponse("5 kg pyramid\n10 kg finger\n2 box chocolate");
         },
       },
     } as unknown as SupabaseClient;
 
-    const result = await interpretPacketContent(
+    const messages = [
+      textMessage(1, "snd 5 kg kaju pyramd same as lst tym"),
+      textMessage(2, "१० किलो फिंगर ऑर्डर"),
+      mediaMessage(3, "image"),
+      mediaMessage(4, "audio"),
+      mediaMessage(5, "video"),
+      mediaMessage(6, "document"),
+    ];
+
+    const result = await interpretPacketContentRich(fakeSupabase, messages);
+
+    expect(invokeCount).toBe(1);
+    expect(capturedBody).toEqual({
+      provider_message_ids: messages.map((message) => message.provider_message_id),
+    });
+    expect(result.usedAi).toBe(true);
+    expect(result.conclusion?.intent).toBe("NEW_ORDER");
+    expect(result.conclusion?.human_review_required).toBe(true);
+    expect(result.normalizedText).toContain("10 kg finger");
+  });
+
+  it("treats ordinary English and Roman Hinglish as AI-interpretable evidence", async () => {
+    let capturedBody: unknown = null;
+    const fakeSupabase = {
+      functions: {
+        invoke: async (_slug: string, options: { body: unknown }) => {
+          capturedBody = options.body;
+          return successfulPacketResponse("need 5 kg kaju pyramid");
+        },
+      },
+    } as unknown as SupabaseClient;
+
+    await interpretPacketContent(
       fakeSupabase,
-      Array.from({ length: 5 }, (_, index) => imageMessage(index + 100)),
+      [textMessage(21, "mujhe 5 kilo kaju pyramd bhej do")],
     );
 
-    expect(invokeCount).toBe(5);
-    expect(maxActive).toBeLessThanOrEqual(2);
-    expect(result.split("\n")).toHaveLength(5);
+    expect(capturedBody).toEqual({ provider_message_ids: ["provider-text-21"] });
   });
 
-  it("reuses the bounded cache for the same provider identity", async () => {
+  it("reuses one bounded packet cache for the same evidence identities", async () => {
     let invokeCount = 0;
     const fakeSupabase = {
       functions: {
         invoke: async () => {
           invokeCount += 1;
-          return {
-            data: {
-              success: true,
-              interpretation: { normalized_text: "2 box chocolate" },
-            },
-            error: null,
-          };
+          return successfulPacketResponse("2 box chocolate");
         },
       },
     } as unknown as SupabaseClient;
 
-    const message = imageMessage(201, "provider-cache-201");
-    expect(await interpretPacketContent(fakeSupabase, [message])).toBe("2 box chocolate");
-    expect(await interpretPacketContent(fakeSupabase, [message])).toBe("2 box chocolate");
+    const messages = [mediaMessage(201, "image", "provider-cache-201")];
+    expect(await interpretPacketContent(fakeSupabase, messages)).toBe("2 box chocolate");
+    expect(await interpretPacketContent(fakeSupabase, messages)).toBe("2 box chocolate");
     expect(invokeCount).toBe(1);
+  });
+
+  it("falls back to immutable source text when AI invocation fails", async () => {
+    const fakeSupabase = {
+      functions: {
+        invoke: async () => ({
+          data: null,
+          error: { message: "provider unavailable" },
+        }),
+      },
+    } as unknown as SupabaseClient;
+
+    const result = await interpretPacketContentRich(fakeSupabase, [
+      textMessage(401, "५ किलो पिरामिड चाहिए"),
+      textMessage(402, "and 10 kg finger"),
+    ]);
+
+    expect(result.usedAi).toBe(false);
+    expect(result.normalizedText).toContain("5 kg pyramid need");
+    expect(result.normalizedText).toContain("10 kg finger");
+    expect(result.conclusion).toBeNull();
+    expect(result.warnings.join(" ")).toContain("AI interpretation unavailable");
   });
 
   it("fails closed before invoking when too many messages require interpretation", async () => {
@@ -137,7 +224,7 @@ describe("WhatsApp physical interpretation closure", () => {
     await expect(
       interpretPacketContent(
         fakeSupabase,
-        Array.from({ length: 17 }, (_, index) => imageMessage(index + 300)),
+        Array.from({ length: 17 }, (_, index) => mediaMessage(index + 300)),
       ),
     ).rejects.toThrow("INTERPRETATION_PACKET_TOO_LARGE");
     expect(invokeCount).toBe(0);
