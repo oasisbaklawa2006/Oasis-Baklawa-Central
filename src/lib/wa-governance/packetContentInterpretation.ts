@@ -119,10 +119,11 @@ const AI_INTENTS = new Set<PacketAiIntent>([
   "PAYMENT_ADVICE", "ACCOUNT_QUERY", "DELIVERY_QUERY", "SPECIFICATION_QUERY",
   "FINANCE", "OTHER", "UNCLEAR",
 ]);
-const AI_DEPARTMENTS = new Set<PacketAiDepartment>([
+export const PACKET_AI_DEPARTMENTS = [
   "SALES", "FINANCE", "QUALITY", "DISPATCH", "LOGISTICS", "PRODUCTION",
   "PACKAGING", "OPERATIONS", "CUSTOMER_SERVICE",
-]);
+] as const satisfies readonly PacketAiDepartment[];
+const AI_DEPARTMENTS = new Set<PacketAiDepartment>(PACKET_AI_DEPARTMENTS);
 const AI_REPLY_CLEARANCES = new Set<PacketAiReplyClearance>([
   "SAFE_TO_SEND_AUTOMATICALLY", "EMPLOYEE_REVIEW_REQUIRED",
   "SUBJECT_EXPERT_REVIEW_REQUIRED", "MANAGEMENT_APPROVAL_REQUIRED",
@@ -278,7 +279,17 @@ function normalizeOrderLine(value: unknown): PacketAiOrderLine | null {
   const sku = boundedString(obj.sku, 200) ?? "";
   const unit = boundedString(obj.unit, 80) ?? "";
   const status = boundedString(obj.status, 40);
-  const quantity = obj.quantity == null ? null : Number(obj.quantity);
+  const rawQuantity = obj.quantity;
+  let quantity: number | null = null;
+  if (rawQuantity != null) {
+    if (typeof rawQuantity === "number") {
+      quantity = rawQuantity;
+    } else if (typeof rawQuantity === "string" && rawQuantity.trim()) {
+      quantity = Number(rawQuantity.trim());
+    } else {
+      return null;
+    }
+  }
   const evidenceIds = stringList(obj.evidence_ids, 32).map((id) => id.slice(0, 240));
   if (!productName || !status || !AI_LINE_STATUSES.has(status as PacketAiOrderLine["status"])) return null;
   if (quantity !== null && (!Number.isFinite(quantity) || quantity < 0)) return null;
