@@ -26,6 +26,8 @@ export interface ProductResolutionAiInterpretation {
 }
 
 export interface ProductResolutionResult {
+  /** Source packet retained so the embedded AI Decision Desk can load the governed case snapshot. */
+  packetId?: string;
   candidateProducts: ProductResolutionCandidate[];
   bestMatch: ProductResolutionCandidate | null;
   band: ProductResolutionConfidenceBand;
