@@ -4,6 +4,7 @@ import { createClient, type SupabaseClient } from "https://esm.sh/@supabase/supa
 import { authenticateClick2ApiWebhook, matchesWebhookToken } from "../_shared/click2apiWebhookAuth.ts";
 
 type SupabaseAdminClient = SupabaseClient;
+type EdgeRuntimeWithWaitUntil = { waitUntil?: (promise: Promise<unknown>) => void };
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -212,15 +213,15 @@ async function findOrCreateWhatsappContact(
   phoneDigits: string,
 ): Promise<string | null> {
   if (!phoneDigits) return null;
-  const upserted = await supabaseAdmin
+  const inserted = await supabaseAdmin
     .from("whatsapp_contacts")
     .upsert(
-      { phone_number: phoneDigits, wa_contact_id: phoneDigits },
-      { onConflict: "phone_number" },
+      { phone_number: phoneDigits },
+      { onConflict: "phone_number", ignoreDuplicates: true },
     )
     .select("id")
     .maybeSingle();
-  if (upserted.data?.id) return upserted.data.id;
+  if (inserted.data?.id) return inserted.data.id;
 
   const existing = await supabaseAdmin
     .from("whatsapp_contacts")
@@ -228,7 +229,7 @@ async function findOrCreateWhatsappContact(
     .eq("phone_number", phoneDigits)
     .maybeSingle();
   if (existing.data?.id) return existing.data.id;
-  console.warn("[whatsapp-webhook] whatsapp_contacts upsert failed", upserted.error?.message ?? existing.error?.message ?? "missing contact id");
+  console.warn("[whatsapp-webhook] whatsapp_contacts insert failed", inserted.error?.message ?? existing.error?.message ?? "missing contact id");
   return null;
 }
 
@@ -236,11 +237,15 @@ function triggerMessageStitcherNonBlocking(providerMessageId: string): void {
   const baseUrl = Deno.env.get("SUPABASE_URL")?.replace(/\/$/, "");
   const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
   if (!baseUrl || !serviceKey) return;
-  void fetch(`${baseUrl}/functions/v1/whatsapp-message-stitcher`, {
+  const pending = fetch(`${baseUrl}/functions/v1/whatsapp-message-stitcher`, {
     method: "POST",
     headers: { "Content-Type": "application/json", "Authorization": `Bearer ${serviceKey}` },
     body: JSON.stringify({ trigger: "webhook", provider_message_id: providerMessageId }),
+    signal: AbortSignal.timeout(10_000),
   }).catch((error) => console.warn("[whatsapp-webhook] stitcher call failed", String(error)));
+  const edgeRuntime = (globalThis as typeof globalThis & { EdgeRuntime?: EdgeRuntimeWithWaitUntil }).EdgeRuntime;
+  if (edgeRuntime?.waitUntil) edgeRuntime.waitUntil(pending);
+  else void pending;
 }
 
 serve(async (req) => {
@@ -363,9 +368,6 @@ serve(async (req) => {
     const contactId = await findOrCreateWhatsappContact(admin, phone91);
     if (!contactId) throw new Error("WHATSAPP_CONTACT_PERSISTENCE_FAILED");
 
-    const messageTimestamp = Number.isFinite(timestampSec) && timestampSec > 0
-      ? new Date(timestampSec * 1000)
-      : new Date();
     const { error: messageError } = await admin.from("whatsapp_messages").insert({
       contact_id: contactId,
       order_id: null,
@@ -376,7 +378,7 @@ serve(async (req) => {
       provider: "whatsapp",
       provider_message_id: fields.messageId,
       status: "received",
-      message_timestamp: messageTimestamp,
+      message_timestamp: receivedAt,
       is_raw: true,
       packet_id: null,
     });
