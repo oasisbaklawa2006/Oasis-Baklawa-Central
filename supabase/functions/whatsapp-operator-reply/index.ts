@@ -51,7 +51,17 @@ serve(async (req) => {
       if (completed.error) return reply({ success: false, reply_id: claimed.data.id, status: "RECONCILIATION_PENDING", error: "Provider accepted; local reconciliation pending" }, 202);
       return reply({ success: true, reply_id: claimed.data.id, provider_message_id: providerId, status: "ACCEPTED" }, 200);
     }
-    await admin.rpc("fail_whatsapp_operator_reply", { p_reply_id: claimed.data.id, p_lease_token: claimed.data.lease_token, p_error_code: `HTTP_${providerResponse.status}`, p_error_detail: JSON.stringify(providerBody).slice(0, 2000) || "Provider rejected request", p_acceptance_unknown: false });
+    const acceptanceUnknown = providerResponse.ok;
+    await admin.rpc("fail_whatsapp_operator_reply", {
+      p_reply_id: claimed.data.id,
+      p_lease_token: claimed.data.lease_token,
+      p_error_code: acceptanceUnknown ? `HTTP_${providerResponse.status}_NO_PROVIDER_ID` : `HTTP_${providerResponse.status}`,
+      p_error_detail: JSON.stringify(providerBody).slice(0, 2000) || "Provider rejected request",
+      p_acceptance_unknown: acceptanceUnknown,
+    });
+    if (acceptanceUnknown) {
+      return reply({ success: false, reply_id: claimed.data.id, status: "ACCEPTANCE_UNKNOWN", error: "Provider acceptance unknown; duplicate retry suppressed" }, 202);
+    }
     return reply({ success: false, reply_id: claimed.data.id, error: "Provider rejected reply" }, 502);
   } catch (error) {
     console.error("[whatsapp-operator-reply]", error instanceof Error ? error.message : "unknown error");
