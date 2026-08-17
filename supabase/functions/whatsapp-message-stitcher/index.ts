@@ -35,6 +35,8 @@ type StitcherRequest = {
   provider_message_id?: string;
 };
 
+type PacketFailure = { packetId: string; error: string };
+
 const DEFAULT_WINDOW_SECONDS = 300;
 const DEFAULT_BATCH_SIZE = 100;
 const AI_WORKER_CONCURRENCY = 3;
@@ -123,9 +125,12 @@ async function resolveRecoveryPacketId(
     .from("whatsapp_messages")
     .select("packet_id")
     .eq("provider_message_id", normalized)
-    .maybeSingle();
+    .not("packet_id", "is", null)
+    .order("created_at", { ascending: false })
+    .order("id", { ascending: false })
+    .limit(1);
   if (error) throw new Error(`Recovery packet lookup failed: ${error.message}`);
-  const packetId = String(data?.packet_id ?? "").trim();
+  const packetId = String(data?.[0]?.packet_id ?? "").trim();
   return packetId || null;
 }
 
@@ -245,9 +250,20 @@ serve(async (req) => {
     // Reconcile packet-complete evidence after all stitching commits. This also
     // makes an already-stitched packet explicitly retryable after a transient
     // post-stitch failure when providerMessageId resolves to that packet.
+    const commercialFailures: PacketFailure[] = [];
     for (const packetId of packetIds) {
-      const commercialSync = await syncCommercialEvidenceForPacket(admin, packetId);
-      commercialFragmentsLinked += commercialSync.linked;
+      try {
+        const commercialSync = await syncCommercialEvidenceForPacket(admin, packetId);
+        commercialFragmentsLinked += commercialSync.linked;
+      } catch (error) {
+        commercialFailures.push({
+          packetId,
+          error: error instanceof Error ? error.message : "COMMERCIAL_SYNC_FAILED",
+        });
+      }
+    }
+    if (commercialFailures.length > 0) {
+      console.warn("[whatsapp-message-stitcher] commercial sync failures", JSON.stringify(commercialFailures));
     }
 
     const packetIdList = [...packetIds];
@@ -257,18 +273,20 @@ serve(async (req) => {
       console.warn("[whatsapp-message-stitcher] packet AI failures", JSON.stringify(aiFailures));
     }
 
+    const hasFailures = commercialFailures.length > 0 || aiFailures.length > 0;
     return new Response(JSON.stringify({
-      success: aiFailures.length === 0,
-      ok: aiFailures.length === 0,
+      success: !hasFailures,
+      ok: !hasFailures,
       messagesProcessed: unstitched.length,
       groupsProcessed,
       fragmentsLinked,
       commercialFragmentsLinked,
+      commercialFailures,
       packetIds: packetIdList,
       recoveryProviderMessageId: recoveryProviderMessageId || null,
       aiResults,
       config: { windowSeconds, batchSize, aiWorkerConcurrency: AI_WORKER_CONCURRENCY },
-    }), { status: aiFailures.length === 0 ? 200 : 207, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    }), { status: hasFailures ? 207 : 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
   } catch (e) {
     const message = e instanceof Error ? e.message : "Unknown error";
     console.error("[whatsapp-message-stitcher]", message);
