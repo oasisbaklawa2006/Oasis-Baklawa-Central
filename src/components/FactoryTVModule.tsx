@@ -10,6 +10,7 @@ interface UrgentJob {
   assigned_qty: number;
   priority: string;
   created_at: string | null;
+  department: string | null;
   product?: { name: string; sku: string | null; image_url: string | null } | null;
 }
 
@@ -105,19 +106,21 @@ const FactoryTVModule = ({ category, departmentFilter, title }: FactoryTVModuleP
     }
 
     setOrders(enrichedOrders);
-    // Fetch urgent/red production jobs for this department
-    const deptKey = departmentFilter.toLowerCase().replace(/\s+/g, "_");
+    // Fetch urgent/red production jobs for this department only -- a TV must
+    // never show another department's urgent/blocked jobs (Central issue
+    // #368). Filtered client-side via the same TV-group matcher used for
+    // order items, since production_jobs.department can carry either the
+    // legacy raw spelling or the canonical code.
     const { data: jobData } = await supabase
       .from("production_jobs")
-      .select("id, product_id, assigned_qty, priority, created_at, product:products(name, sku, image_url)")
+      .select("id, product_id, assigned_qty, priority, created_at, department, product:products(name, sku, image_url)")
       .in("priority", ["urgent", "red"])
       .in("status", ["pending", "accepted", "in_production"])
       .order("created_at", { ascending: true });
 
-    const filteredJobs = ((jobData as any[]) || []).filter((j: any) => {
-      // Match department via product's production_department or the job department field
-      return true; // Show all urgent jobs on all TVs for cross-visibility
-    }) as UrgentJob[];
+    const filteredJobs = ((jobData as UrgentJob[]) || []).filter((j) =>
+      productionDepartmentMatchesFilter(departmentFilter, j.department),
+    );
     setUrgentJobs(filteredJobs);
 
     setLastRefresh(new Date());

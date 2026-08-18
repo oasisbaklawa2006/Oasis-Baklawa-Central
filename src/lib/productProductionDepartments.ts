@@ -42,6 +42,11 @@ const LEGACY_LABEL_TO_VALUE: Record<string, ProductProductionDepartment> = {
   "seasoned nuts & mixes": "seasoned_nuts_mixes",
   "nuts & mixes": "seasoned_nuts_mixes",
   "nuts roasting": "seasoned_nuts_mixes",
+  // production_jobs.department stores this exact spelling for Nuts jobs
+  // (see src/utils/departmentClassifier.ts's DEPT_TO_JOB_KEY) -- without this
+  // entry, normalizeProductProductionDepartment("nuts_mixes") returns null
+  // and every Nuts job silently fails department-match filters.
+  nuts_mixes: "seasoned_nuts_mixes",
   dates: "dates",
   "semi-prepared": "semi_prepared",
   "semi prepared": "semi_prepared",
