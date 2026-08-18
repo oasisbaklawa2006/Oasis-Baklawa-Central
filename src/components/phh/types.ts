@@ -62,30 +62,37 @@ export const PRIORITY_STYLES: Record<string, { bg: string; text: string; border:
 // own `department` column can carry either spelling historically, so PHH
 // queries by `canonical_department` (trigger-maintained on every row) rather
 // than by this raw string.
+// Corrected per Central issue #368 (owner's six-TV estate) by
+// oasis-supabase-core's 20260818090000_rgs_six_tv_department_correction.sql:
+// semi_prepared -> ARABIC_SWEETS (not Bakery), dates -> FUSION_SWEETS (not a
+// standalone Dates department), BAKERY_SEMI_PREPARED renamed to BAKERY
+// (bakery-only). HOD_DATES/HOD_DRAGEES remain real, distinct roles that
+// route into a shared department rather than owning one of their own.
 export const HOD_DEPARTMENT_MAP: Record<string, string> = {
   HOD_ARABIC: "ARABIC_SWEETS",
   HOD_DRAGEES: "CHOCOLATES_CONFECTIONERY",
   HOD_FUSION: "FUSION_SWEETS",
   HOD_CHOCOLATE: "CHOCOLATES_CONFECTIONERY",
-  HOD_BAKERY: "BAKERY_SEMI_PREPARED",
+  HOD_BAKERY: "BAKERY",
   HOD_NUTS: "SEASONED_NUTS_MIXES",
-  HOD_DATES: "DATES",
+  HOD_DATES: "FUSION_SWEETS",
   HOD_ASSEMBLY: "packing_assembly",
 };
 
 // Mirrors production_departments.legacy_values in
-// 20260817090000_rgs_department_taxonomy.sql. Client-side convenience only --
-// the server-side canonical_production_department() function is the
-// authority; this must stay in sync with it by hand.
+// 20260817090000_rgs_department_taxonomy.sql, corrected by
+// 20260818090000_rgs_six_tv_department_correction.sql. Client-side
+// convenience only -- the server-side canonical_production_department()
+// function is the authority; this must stay in sync with it by hand.
 const LEGACY_TO_CANONICAL_DEPARTMENT: Record<string, string> = {
   arabic_sweets: "ARABIC_SWEETS",
   chocolates_confectionery: "CHOCOLATES_CONFECTIONERY",
   dragees: "CHOCOLATES_CONFECTIONERY",
   fusion_sweets: "FUSION_SWEETS",
   seasoned_nuts_mixes: "SEASONED_NUTS_MIXES",
-  dates: "DATES",
-  bakery: "BAKERY_SEMI_PREPARED",
-  semi_prepared: "BAKERY_SEMI_PREPARED",
+  dates: "FUSION_SWEETS",
+  bakery: "BAKERY",
+  semi_prepared: "ARABIC_SWEETS",
 };
 
 export function canonicalDepartmentOf(rawDepartment: string | null | undefined): string | null {
@@ -101,7 +108,6 @@ export const DEPARTMENTS = [
   { value: "CHOCOLATES_CONFECTIONERY", label: "Chocolates & Confectionery" },
   { value: "FUSION_SWEETS", label: "Fusion Sweets" },
   { value: "SEASONED_NUTS_MIXES", label: "Seasoned Nuts & Mixes" },
-  { value: "DATES", label: "Dates" },
-  { value: "BAKERY_SEMI_PREPARED", label: "Bakery & Semi-Prepared" },
+  { value: "BAKERY", label: "Bakery" },
   { value: "packing_assembly", label: "Packing & Assembly" },
 ];
