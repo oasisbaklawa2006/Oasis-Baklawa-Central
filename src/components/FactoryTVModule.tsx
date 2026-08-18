@@ -43,6 +43,27 @@ interface TVOrder {
   order_items: TVOrderItem[];
 }
 
+// Shape returned by the initial orders fetch, before product details are
+// joined in and order_items are enriched into TVOrderItem's `product` shape.
+interface RawTVOrderItem {
+  id: string;
+  quantity: number;
+  pack_size: string | null;
+  carton_type: string | null;
+  production_status: string | null;
+  product_id: string | null;
+}
+
+interface RawTVOrder {
+  id: string;
+  status: string;
+  created_at: string | null;
+  company: { business_name: string } | null;
+  order_items: RawTVOrderItem[];
+}
+
+type TVProductRow = NonNullable<TVOrderItem["product"]> & { id: string };
+
 interface FactoryTVModuleProps {
   category: string;
   departmentFilter: string;
@@ -73,13 +94,13 @@ const FactoryTVModule = ({ category, departmentFilter, title }: FactoryTVModuleP
     }
 
     // Now fetch product details for items and filter by department
-    const allOrders = (data as unknown as TVOrder[]) ?? [];
+    const allOrders = (data as unknown as RawTVOrder[]) ?? [];
 
     // For each order, fetch its items' product details and filter
     const enrichedOrders: TVOrder[] = [];
 
     for (const order of allOrders) {
-      const itemIds = order.order_items?.map((i: any) => i.product_id).filter(Boolean) ?? [];
+      const itemIds = order.order_items?.map((i) => i.product_id).filter(Boolean) ?? [];
       if (itemIds.length === 0) continue;
 
       const { data: products } = await supabase
@@ -87,12 +108,12 @@ const FactoryTVModule = ({ category, departmentFilter, title }: FactoryTVModuleP
         .select("id, name, department, production_department, uom, net_weight_grams, avg_weight_per_pack, category, sub_category, packs_per_master_carton, pcs_per_master_carton, moq")
         .in("id", itemIds);
 
-      const productMap = new Map((products ?? []).map((p: any) => [p.id, p]));
+      const productMap = new Map((products as TVProductRow[] ?? []).map((p) => [p.id, p]));
 
       const filteredItems = order.order_items
-        .map((item: any) => ({
+        .map((item): TVOrderItem => ({
           ...item,
-          product: productMap.get(item.product_id) ?? null,
+          product: productMap.get(item.product_id ?? "") ?? null,
         }))
         .filter((item: TVOrderItem) => {
             const routingDepartment =
