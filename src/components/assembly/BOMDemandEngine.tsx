@@ -2,12 +2,13 @@ import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/useAuth";
-import { Loader2, Package, Send, Layers, Store, Truck, CheckCircle2 } from "lucide-react";
+import { Loader2, Package, Send, Layers, Store, Truck, CheckCircle2, AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { classifyFlow, mapToJobDept } from "@/utils/departmentClassifier";
 import { withTimeout } from "@/lib/query-timeout";
+import type { Json } from "@/integrations/supabase/types";
 
 interface BOMComponent {
   id: string;
@@ -46,59 +47,104 @@ export default function BOMDemandEngine() {
   const [bomMap, setBomMap] = useState<Record<string, BOMComponent[]>>({});
   const [stockMap, setStockMap] = useState<Record<string, number>>({});
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [acting, setActing] = useState<string | null>(null);
   const [handoverMap, setHandoverMap] = useState<Record<string, boolean>>({});
 
   const fetchData = useCallback(async () => {
-    const { data: taskData } = await supabase
-      .from("order_items")
-      .select("id, order_id, product_id, quantity, actual_packed_qty, production_status, product:products(name, image_url, sku)")
-      .in("department", ["Packing & Assembly", "Assembly", "Hampers", "Gifts"])
-      .in("production_status", ["pending", "in_progress", "partial_ready"])
-      .order("production_status", { ascending: true });
+    try {
+      // Build the full next snapshot in local variables and only commit it
+      // to state once every query has succeeded -- publishing tasks/BOM/
+      // stock/handover maps one at a time let a later query failure render
+      // fresh tasks against stale BOM or stock data and show wrong shortfalls.
+      const { data: taskData, error: taskError } = await withTimeout(
+        supabase
+          .from("order_items")
+          .select("id, order_id, product_id, quantity, actual_packed_qty, production_status, product:products(name, image_url, sku)")
+          .in("department", ["Packing & Assembly", "Assembly", "Hampers", "Gifts"])
+          .in("production_status", ["pending", "in_progress", "partial_ready"])
+          .order("production_status", { ascending: true })
+      );
+      if (taskError) throw taskError;
 
-    const typedTasks = (taskData as any[] || []) as AssemblyTask[];
-    setTasks(typedTasks);
+      const typedTasks = (taskData as unknown as AssemblyTask[]) || [];
 
-    // Fetch BOMs with component product details
-    const productIds = [...new Set(typedTasks.map(t => t.product_id).filter(Boolean))] as string[];
-    if (productIds.length > 0) {
-      const { data: bomData } = await supabase
-        .from("product_bom")
-        .select("id, product_id, component_name, component_product_id, quantity_per_unit, source_department, component_product:products!product_bom_component_product_id_fkey(name, image_url, sku, production_department)")
-        .in("product_id", productIds);
+      // Fetch BOMs with component product details
+      const productIds = [...new Set(typedTasks.map(t => t.product_id).filter(Boolean))] as string[];
+      let nextBomMap: Record<string, BOMComponent[]> = {};
+      let componentProductIds: string[] = [];
+      if (productIds.length > 0) {
+        const { data: bomData, error: bomError } = await withTimeout(
+          supabase
+            .from("product_bom")
+            .select("id, product_id, component_name, component_product_id, quantity_per_unit, source_department, component_product:products!product_bom_component_product_id_fkey(name, image_url, sku, production_department)")
+            .in("product_id", productIds)
+        );
+        if (bomError) throw bomError;
 
-      const map: Record<string, BOMComponent[]> = {};
-      (bomData || []).forEach((b: any) => {
-        if (!map[b.product_id]) map[b.product_id] = [];
-        map[b.product_id].push(b);
+        const typedBom = (bomData as unknown as (BOMComponent & { product_id: string })[]) || [];
+        const map: Record<string, BOMComponent[]> = {};
+        typedBom.forEach((b) => {
+          if (!map[b.product_id]) map[b.product_id] = [];
+          map[b.product_id].push(b);
+        });
+        nextBomMap = map;
+
+        componentProductIds = [...new Set(typedBom.map((b) => b.component_product_id).filter(Boolean))] as string[];
+      }
+
+      if (componentProductIds.length === 0) {
+        setTasks(typedTasks);
+        setBomMap(nextBomMap);
+        setStockMap({});
+        setHandoverMap({});
+        setError(null);
+        return;
+      }
+
+      // Fetch stock and handover status in parallel, both scoped to the
+      // components this batch of tasks actually needs -- fetching the whole
+      // inventory table or an unfiltered audit_logs page doesn't scale and
+      // can miss handovers for older active tasks once past the row cap.
+      const [
+        { data: inv, error: invError },
+        { data: handovers, error: handoverError },
+      ] = await withTimeout(
+        Promise.all([
+          supabase.from("factory_inventory").select("product_id, quantity").in("product_id", componentProductIds),
+          supabase
+            .from("audit_logs")
+            .select("entity_id")
+            .eq("action_type", "ASSEMBLY_HANDOVER")
+            .in("entity_id", componentProductIds),
+        ])
+      );
+      if (invError) throw invError;
+      if (handoverError) throw handoverError;
+
+      const sm: Record<string, number> = {};
+      (inv || []).forEach((r) => {
+        if (r.product_id) sm[r.product_id] = (sm[r.product_id] || 0) + (Number(r.quantity) || 0);
       });
-      setBomMap(map);
+
+      const hm: Record<string, boolean> = {};
+      (handovers || []).forEach((h) => {
+        if (h.entity_id) hm[h.entity_id] = true;
+      });
+
+      setTasks(typedTasks);
+      setBomMap(nextBomMap);
+      setStockMap(sm);
+      setHandoverMap(hm);
+      setError(null);
+    } catch (err) {
+      // Leave prior state in place rather than clearing it to an empty
+      // list -- silently switching to "No active assembly tasks" on a
+      // failed fetch would be actively misleading to the operator.
+      setError(err instanceof Error ? err.message : "Failed to load assembly demand data");
+    } finally {
+      setLoading(false);
     }
-
-    // Fetch stock
-    const { data: inv } = await supabase.from("factory_inventory").select("product_id, quantity");
-    const sm: Record<string, number> = {};
-    (inv || []).forEach((r) => {
-      if (r.product_id) sm[r.product_id] = (sm[r.product_id] || 0) + (Number(r.quantity) || 0);
-    });
-    setStockMap(sm);
-
-    // Check handover status from audit_logs
-    const { data: handovers } = await supabase
-      .from("audit_logs")
-      .select("entity_id")
-      .eq("action_type", "ASSEMBLY_HANDOVER")
-      .order("created_at", { ascending: false })
-      .limit(200);
-    
-    const hm: Record<string, boolean> = {};
-    (handovers || []).forEach((h: any) => {
-      if (h.entity_id) hm[h.entity_id] = true;
-    });
-    setHandoverMap(hm);
-
-    setLoading(false);
   }, []);
 
   useEffect(() => { fetchData(); }, [fetchData]);
@@ -232,7 +278,7 @@ export default function BOMDemandEngine() {
             source_department: item.sourceDepartment,
             source_order_ids: item.orderIds,
             priority: "urgent",
-          } as any,
+          } as Json,
           risk_level: "high",
         }));
         created++;
@@ -250,7 +296,7 @@ export default function BOMDemandEngine() {
           target,
           source_department: item.sourceDepartment,
           source_order_ids: item.orderIds,
-        } as any,
+        } as Json,
         risk_level: "high",
       }));
     }
@@ -261,6 +307,21 @@ export default function BOMDemandEngine() {
   };
 
   if (loading) return <div className="flex justify-center py-12"><Loader2 className="animate-spin text-primary" size={24} /></div>;
+
+  if (error) {
+    return (
+      <Card className="border-red-500/40 bg-red-950/10">
+        <CardContent className="py-8 text-center">
+          <AlertTriangle size={28} className="mx-auto mb-2 text-red-500" />
+          <p className="text-sm font-medium text-red-600">Failed to load assembly demand data</p>
+          <p className="mt-1 text-xs text-muted-foreground">{error}</p>
+          <Button size="sm" variant="outline" className="mt-3" onClick={() => { setLoading(true); fetchData(); }}>
+            Retry
+          </Button>
+        </CardContent>
+      </Card>
+    );
+  }
 
   if (tasks.length === 0) {
     return (
