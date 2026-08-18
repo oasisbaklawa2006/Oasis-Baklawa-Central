@@ -50,6 +50,7 @@ class MainActivity : AppCompatActivity() {
 
     private val retryHandler = Handler(Looper.getMainLooper())
     private var retryAttempt = 0
+    private var retryRunnable: Runnable? = null
     private var lastSuccessfulLoadAt: Long = 0L
 
     private val backPressTimestamps = ArrayDeque<Long>()
@@ -200,17 +201,18 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun scheduleRetry() {
-        retryHandler.removeCallbacksAndMessages(RETRY_TOKEN)
+        // Handler.postDelayed(Runnable, Object token, long) needs API 28;
+        // minSdk here is 24, so cancellation is done by keeping the Runnable
+        // reference and calling removeCallbacks(Runnable) instead of a token.
+        retryRunnable?.let { retryHandler.removeCallbacks(it) }
         val delayMs = minOf(MAX_RETRY_DELAY_MS, BASE_RETRY_DELAY_MS * (1L shl minOf(retryAttempt, 6)))
         retryAttempt += 1
-        retryHandler.postDelayed(
-            {
-                val url = deviceConfig.targetUrl() ?: return@postDelayed
-                webView.loadUrl(url)
-            },
-            RETRY_TOKEN,
-            delayMs,
-        )
+        val runnable = Runnable {
+            val url = deviceConfig.targetUrl() ?: return@Runnable
+            webView.loadUrl(url)
+        }
+        retryRunnable = runnable
+        retryHandler.postDelayed(runnable, delayMs)
     }
 
     private fun observeNetworkState() {
@@ -300,7 +302,6 @@ class MainActivity : AppCompatActivity() {
 
     companion object {
         private const val TAG = "MainActivity"
-        private const val RETRY_TOKEN = "retry"
         private const val BASE_RETRY_DELAY_MS = 2000L
         private const val MAX_RETRY_DELAY_MS = 60_000L
         private const val STALE_THRESHOLD_MS = 5 * 60_000L
