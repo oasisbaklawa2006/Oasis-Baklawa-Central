@@ -472,7 +472,7 @@ const App = () => (
                       Confectionery rather than giving it its own screen. FactoryTVModule's
                       departmentFilter matches by TV group (productProductionDepartments.ts),
                       so "Chocolates" already includes dragees-labelled jobs/products. */}
-                  <Route path="/tv/chocolate" element={<RoleProtectedRoute allowedRoles={["HOD_CHOCOLATE", "PROD_CHOCOLATE", "HOD_DRAGEES", "SUPER_ADMIN", "ADMIN"]}><FactoryTVModule category="Chocolate" departmentFilter="Chocolates" title="Chocolate Line" /></RoleProtectedRoute>} />
+                  <Route path="/tv/chocolate" element={<RoleProtectedRoute allowedRoles={["HOD_CHOCOLATE", "PROD_CHOCOLATE", "HOD_DRAGEES", "PROD_DRAGEES", "SUPER_ADMIN", "ADMIN"]}><FactoryTVModule category="Chocolate" departmentFilter="Chocolates" title="Chocolate Line" /></RoleProtectedRoute>} />
                   {/* Legacy standalone Dragees TV bookmark/kiosk config -- redirect rather
                       than leave an unreachable route (six-TV estate has no Dragees TV). */}
                   <Route path="/tv/dragees" element={<Navigate to="/tv/chocolate" replace />} />
@@ -491,7 +491,7 @@ const App = () => (
                       dedicated display. This route gives it the same top-level, chrome-free
                       pattern as /tv/arabic-sweets etc.; /admin/rgs-tv is left in place
                       unchanged for in-app admin navigation. */}
-                  <Route path="/tv/rgs" element={<RoleProtectedRoute allowedRoles={["STORE_READY_GOODS", "RGS_ADMIN", "SUPER_ADMIN", "ADMIN"]}><ReadyGoodsTV /></RoleProtectedRoute>} />
+                  <Route path="/tv/rgs" element={<RoleProtectedRoute allowedRoles={["STORE_READY_GOODS", "RGS_ADMIN", "TV_READY", "SUPER_ADMIN", "ADMIN"]}><ReadyGoodsTV /></RoleProtectedRoute>} />
                   <Route path="*" element={<NotFound />} />
                 </Routes>
                 </Suspense>

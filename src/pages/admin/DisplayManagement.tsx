@@ -14,13 +14,17 @@ const Spin = () => (
   </div>
 );
 
+// Dragees shares the Chocolate Line TV (no standalone screen); Ready Goods
+// is included here alongside the production lines since it also runs on a
+// chrome-free kiosk route now, matching the owner's six-TV estate (Central
+// issue #368).
 const FACTORY_TVS = [
   { to: "/tv/arabic-sweets", label: "Arabic Sweets Line" },
   { to: "/tv/chocolate", label: "Chocolate Line" },
-  { to: "/tv/dragees", label: "Dragees Line" },
   { to: "/tv/fusion", label: "Fusion Sweets Line" },
   { to: "/tv/bakery", label: "Bakery Line" },
   { to: "/tv/nuts", label: "Nuts & Dry Fruits Line" },
+  { to: "/tv/rgs", label: "Ready Goods TV" },
 ];
 
 const DisplayManagement = () => {
