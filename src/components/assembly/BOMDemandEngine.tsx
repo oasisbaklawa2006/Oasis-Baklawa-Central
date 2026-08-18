@@ -115,8 +115,20 @@ export default function BOMDemandEngine() {
           supabase
             .from("audit_logs")
             .select("entity_id")
-            .eq("action_type", "ASSEMBLY_HANDOVER")
-            .in("entity_id", componentProductIds),
+            // RGS logs its handover as ASSEMBLY_HANDOVER (InternalDemandSection.tsx);
+            // 3PCS logs the same handoff as 3PCS_HANDOVER_ASSEMBLY
+            // (ThirdPartyDemandSection.tsx). Both must count, or 3PCS-sourced
+            // components never show "Material Received" despite the handoff
+            // evidence existing.
+            .in("action_type", ["ASSEMBLY_HANDOVER", "3PCS_HANDOVER_ASSEMBLY"])
+            .in("entity_id", componentProductIds)
+            // Bounded to recent history so a component with many past
+            // handovers can't push this past PostgREST's row cap and evict
+            // other components' rows from the result, misreporting them as
+            // "not received." The tasks driving componentProductIds are
+            // always active (pending/in_progress/partial_ready), so any
+            // handover evidence relevant to them is recent.
+            .gte("created_at", new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString()),
         ])
       );
       if (invError) throw invError;
