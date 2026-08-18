@@ -22,6 +22,12 @@ export type ExecutionField = {
 // alongside Fusion Sweets' own fields), frozen/semi-finished/semi-prepared
 // fields moved from Bakery to ARABIC_SWEETS, and BAKERY (renamed from
 // BAKERY_SEMI_PREPARED) keeps only its bakery-only fields.
+//
+// The Dates fields keep their original key names (variety/grade/filling,
+// not date_variety/etc) on purpose: historical Dates jobs' p_execution_metadata
+// jsonb was written under the old standalone DATES department using these
+// exact keys, and there is no rekeying migration for that existing data.
+// Renaming the keys here would silently stop displaying it.
 export const DEPARTMENT_EXECUTION_FIELDS: Record<string, ExecutionField[]> = {
   ARABIC_SWEETS: [
     { key: "nut_variant", label: "Nut variant", type: "text", placeholder: "e.g. Pistachio" },
@@ -41,9 +47,9 @@ export const DEPARTMENT_EXECUTION_FIELDS: Record<string, ExecutionField[]> = {
     { key: "recipe_version", label: "Recipe version", type: "text" },
     { key: "cooking_stage", label: "Cooking stage", type: "text" },
     { key: "garnish", label: "Garnish", type: "text" },
-    { key: "date_variety", label: "Date variety (Dates jobs)", type: "text" },
-    { key: "date_grade", label: "Date grade", type: "text" },
-    { key: "date_filling", label: "Date filling", type: "text" },
+    { key: "variety", label: "Date variety (Dates jobs)", type: "text" },
+    { key: "grade", label: "Date grade", type: "text" },
+    { key: "filling", label: "Date filling", type: "text" },
   ],
   SEASONED_NUTS_MIXES: [
     { key: "roast_profile", label: "Roast profile", type: "text" },
