@@ -2,7 +2,7 @@
 <!--
   HTTPS-only production navigation. cleartextTrafficPermitted is left at its
   default (false) for the base config, and no domain-config overrides re-enable
-  it -- the WebView allowlist (see AllowlistPolicy.kt) is the second, independent
+  it: the WebView allowlist (see AllowlistPolicy.kt) is the second, independent
   layer that also rejects any non-Oasis / non-https navigation target.
 -->
 <network-security-config>
