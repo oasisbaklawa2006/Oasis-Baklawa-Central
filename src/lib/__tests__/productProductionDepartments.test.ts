@@ -12,9 +12,11 @@ describe("productProductionDepartments", () => {
       "arabic_sweets",
       "chocolates_confectionery",
       "bakery",
+      "semi_prepared",
       "dragees",
       "fusion_sweets",
       "seasoned_nuts_mixes",
+      "dates",
     ]);
   });
 
@@ -22,6 +24,8 @@ describe("productProductionDepartments", () => {
     expect(normalizeProductProductionDepartment("Arabic Sweets")).toBe("arabic_sweets");
     expect(normalizeProductProductionDepartment("Chocolates")).toBe("chocolates_confectionery");
     expect(normalizeProductProductionDepartment("Seasoned Nuts")).toBe("seasoned_nuts_mixes");
+    expect(normalizeProductProductionDepartment("Dates")).toBe("dates");
+    expect(normalizeProductProductionDepartment("Semi-Prepared")).toBe("semi_prepared");
   });
 
   it("rejects values removed from the live constraint", () => {
