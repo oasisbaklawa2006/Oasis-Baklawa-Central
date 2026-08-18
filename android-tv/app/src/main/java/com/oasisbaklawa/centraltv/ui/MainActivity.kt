@@ -88,6 +88,23 @@ class MainActivity : AppCompatActivity() {
         if (hasFocus) enterImmersiveMode()
     }
 
+    // launchMode="singleTask" means a re-provisioning `adb shell am start`
+    // against an already-running kiosk delivers here, not onCreate. Re-apply
+    // the extra and, if the assigned department actually changed, recreate()
+    // so every piece of onCreate's per-department setup (WebView config,
+    // network observer, governed-reauth schedule) is re-run cleanly rather
+    // than hand-maintaining a second partial-reinit path.
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        val previousDepartment = deviceConfig.department
+        applyProvisioningExtrasIfPresent()
+        if (deviceConfig.department != previousDepartment) {
+            Log.i(TAG, "Department reprovisioned: $previousDepartment -> ${deviceConfig.department}")
+            recreate()
+        }
+    }
+
     /**
      * First-boot provisioning: `adb shell am start -n
      * com.oasisbaklawa.centraltv/.ui.MainActivity --es oasis_tv_department RGS`

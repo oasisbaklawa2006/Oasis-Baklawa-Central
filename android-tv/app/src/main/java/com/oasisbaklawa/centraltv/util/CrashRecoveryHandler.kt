@@ -17,8 +17,6 @@ import kotlin.system.exitProcess
  */
 class CrashRecoveryHandler(private val appContext: Context) : Thread.UncaughtExceptionHandler {
 
-    private val defaultHandler: Thread.UncaughtExceptionHandler? = Thread.getDefaultUncaughtExceptionHandler()
-
     fun install() {
         Thread.setDefaultUncaughtExceptionHandler(this)
     }
@@ -44,7 +42,11 @@ class CrashRecoveryHandler(private val appContext: Context) : Thread.UncaughtExc
             )
         }.onFailure { Log.e(TAG, "Failed to schedule kiosk restart", it) }
 
-        defaultHandler?.uncaughtException(thread, throwable)
+        // Deliberately does not chain into the platform default handler: on
+        // an unattended kiosk device, that would surface the system's "app
+        // has stopped" crash dialog and sit there waiting for a tap nobody
+        // is there to give. The scheduled restart + immediate process exit
+        // is the entire recovery path.
         exitProcess(1)
     }
 
