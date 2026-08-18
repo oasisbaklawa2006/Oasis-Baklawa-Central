@@ -53,58 +53,89 @@ export default function BOMDemandEngine() {
 
   const fetchData = useCallback(async () => {
     try {
-      const { data: taskData, error: taskError } = await supabase
-        .from("order_items")
-        .select("id, order_id, product_id, quantity, actual_packed_qty, production_status, product:products(name, image_url, sku)")
-        .in("department", ["Packing & Assembly", "Assembly", "Hampers", "Gifts"])
-        .in("production_status", ["pending", "in_progress", "partial_ready"])
-        .order("production_status", { ascending: true });
+      // Build the full next snapshot in local variables and only commit it
+      // to state once every query has succeeded -- publishing tasks/BOM/
+      // stock/handover maps one at a time let a later query failure render
+      // fresh tasks against stale BOM or stock data and show wrong shortfalls.
+      const { data: taskData, error: taskError } = await withTimeout(
+        supabase
+          .from("order_items")
+          .select("id, order_id, product_id, quantity, actual_packed_qty, production_status, product:products(name, image_url, sku)")
+          .in("department", ["Packing & Assembly", "Assembly", "Hampers", "Gifts"])
+          .in("production_status", ["pending", "in_progress", "partial_ready"])
+          .order("production_status", { ascending: true })
+      );
       if (taskError) throw taskError;
 
       const typedTasks = (taskData as unknown as AssemblyTask[]) || [];
-      setTasks(typedTasks);
 
       // Fetch BOMs with component product details
       const productIds = [...new Set(typedTasks.map(t => t.product_id).filter(Boolean))] as string[];
+      let nextBomMap: Record<string, BOMComponent[]> = {};
+      let componentProductIds: string[] = [];
       if (productIds.length > 0) {
-        const { data: bomData, error: bomError } = await supabase
-          .from("product_bom")
-          .select("id, product_id, component_name, component_product_id, quantity_per_unit, source_department, component_product:products!product_bom_component_product_id_fkey(name, image_url, sku, production_department)")
-          .in("product_id", productIds);
+        const { data: bomData, error: bomError } = await withTimeout(
+          supabase
+            .from("product_bom")
+            .select("id, product_id, component_name, component_product_id, quantity_per_unit, source_department, component_product:products!product_bom_component_product_id_fkey(name, image_url, sku, production_department)")
+            .in("product_id", productIds)
+        );
         if (bomError) throw bomError;
 
+        const typedBom = (bomData as unknown as (BOMComponent & { product_id: string })[]) || [];
         const map: Record<string, BOMComponent[]> = {};
-        ((bomData as unknown as (BOMComponent & { product_id: string })[]) || []).forEach((b) => {
+        typedBom.forEach((b) => {
           if (!map[b.product_id]) map[b.product_id] = [];
           map[b.product_id].push(b);
         });
-        setBomMap(map);
+        nextBomMap = map;
+
+        componentProductIds = [...new Set(typedBom.map((b) => b.component_product_id).filter(Boolean))] as string[];
       }
 
-      // Fetch stock
-      const { data: inv, error: invError } = await supabase.from("factory_inventory").select("product_id, quantity");
+      if (componentProductIds.length === 0) {
+        setTasks(typedTasks);
+        setBomMap(nextBomMap);
+        setStockMap({});
+        setHandoverMap({});
+        setError(null);
+        return;
+      }
+
+      // Fetch stock and handover status in parallel, both scoped to the
+      // components this batch of tasks actually needs -- fetching the whole
+      // inventory table or an unfiltered audit_logs page doesn't scale and
+      // can miss handovers for older active tasks once past the row cap.
+      const [
+        { data: inv, error: invError },
+        { data: handovers, error: handoverError },
+      ] = await withTimeout(
+        Promise.all([
+          supabase.from("factory_inventory").select("product_id, quantity").in("product_id", componentProductIds),
+          supabase
+            .from("audit_logs")
+            .select("entity_id")
+            .eq("action_type", "ASSEMBLY_HANDOVER")
+            .in("entity_id", componentProductIds),
+        ])
+      );
       if (invError) throw invError;
+      if (handoverError) throw handoverError;
+
       const sm: Record<string, number> = {};
       (inv || []).forEach((r) => {
         if (r.product_id) sm[r.product_id] = (sm[r.product_id] || 0) + (Number(r.quantity) || 0);
       });
-      setStockMap(sm);
-
-      // Check handover status from audit_logs
-      const { data: handovers, error: handoverError } = await supabase
-        .from("audit_logs")
-        .select("entity_id")
-        .eq("action_type", "ASSEMBLY_HANDOVER")
-        .order("created_at", { ascending: false })
-        .limit(200);
-      if (handoverError) throw handoverError;
 
       const hm: Record<string, boolean> = {};
       (handovers || []).forEach((h) => {
         if (h.entity_id) hm[h.entity_id] = true;
       });
-      setHandoverMap(hm);
 
+      setTasks(typedTasks);
+      setBomMap(nextBomMap);
+      setStockMap(sm);
+      setHandoverMap(hm);
       setError(null);
     } catch (err) {
       // Leave prior state in place rather than clearing it to an empty
