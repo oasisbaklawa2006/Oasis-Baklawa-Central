@@ -45,6 +45,13 @@ describe("auth-routing", () => {
     expect(getRoleDestination("PROD_DRAGEES")).toBe("/tv/chocolate");
   });
 
+  it("folds Dates floor/HOD roles into the Fusion Sweets surfaces", () => {
+    expect(getRoleDestination("PROD_DATES")).toBe("/tv/fusion");
+    expect(getRoleDestination("HOD_DATES")).toBe("/admin/production");
+    expect(isStaffRole("PROD_DATES")).toBe(true);
+    expect(isStaffRole("HOD_DATES")).toBe(true);
+  });
+
   it("routes the Ready Goods TV account to the kiosk route, not /admin", () => {
     expect(getRoleDestination("TV_READY")).toBe("/tv/rgs");
   });

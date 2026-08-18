@@ -27,6 +27,9 @@ const STAFF_ROLE_DESTINATIONS: Record<string, string> = {
   HOD_FUSION:               "/admin/production",
   HOD_CHOCOLATE:            "/admin/production",
   HOD_DRAGEES:              "/admin/production",
+  // Dates has no standalone HOD desk -- it shares Fusion Sweets' handheld
+  // execution surface, per the owner's six-TV estate (Central issue #368).
+  HOD_DATES:                "/admin/production",
   HOD_BAKERY:               "/admin/production",
   HOD_NUTS:                 "/admin/production",
   HOD_ASSEMBLY:             "/admin/assembly-tasks",
@@ -34,6 +37,8 @@ const STAFF_ROLE_DESTINATIONS: Record<string, string> = {
   // Production floor TV screens
   PROD_ARABIC_SWEETS:       "/tv/arabic-sweets",
   PROD_FUSION:              "/tv/fusion",
+  // Dates is folded into the Fusion Sweets TV, not a standalone screen.
+  PROD_DATES:               "/tv/fusion",
   PROD_CHOCOLATE:           "/tv/chocolate",
   // Dragees is folded into the Chocolates & Confectionery TV, not a
   // standalone screen, per the owner's six-TV estate (Central issue #368).

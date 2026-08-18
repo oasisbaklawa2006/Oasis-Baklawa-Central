@@ -30,6 +30,12 @@ describe("App-Verse TV registry", () => {
     expect(getTvSurfacesForRole("HOD_DRAGEES").map((surface) => surface.route)).toEqual(["/tv/chocolate"]);
   });
 
+  it("folds Dates into the Fusion Sweets TV rather than a standalone screen", () => {
+    expect(APPVERSE_TV_SURFACES.some((surface) => surface.key === "dates")).toBe(false);
+    expect(getTvSurfacesForRole("HOD_DATES").map((surface) => surface.route)).toEqual(["/tv/fusion"]);
+    expect(getTvSurfacesForRole("PROD_DATES").map((surface) => surface.route)).toEqual(["/tv/fusion"]);
+  });
+
   it("routes Ready Goods to its chrome-free kiosk route, not the admin shell", () => {
     expect(getTvSurfacesForRole("TV_READY").map((surface) => surface.route)).toEqual(["/tv/rgs"]);
   });
