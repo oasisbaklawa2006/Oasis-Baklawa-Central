@@ -1,14 +1,21 @@
 /**
  * Canonical production_department values enforced by live DB
- * `products_production_department_check` on oasis-baklawa (tcxvcatsqqertcnycuop).
+ * `products_production_department_check` on oasis-baklawa (tcxvcatsqqertcnycuop),
+ * widened by oasis-supabase-core's 20260817090000_rgs_department_taxonomy.sql
+ * to add `dates` and `semi_prepared` alongside the original six. `dragees` and
+ * `semi_prepared` remain distinct raw values here (no existing data renamed)
+ * even though `canonical_production_department()` maps them under
+ * CHOCOLATES_CONFECTIONERY / BAKERY_SEMI_PREPARED for RGS/Production authority.
  */
 export const PRODUCT_PRODUCTION_DEPARTMENTS = [
   { value: "arabic_sweets", label: "Arabic Sweets" },
   { value: "chocolates_confectionery", label: "Chocolates & Confectionery" },
   { value: "bakery", label: "Bakery" },
+  { value: "semi_prepared", label: "Semi-Prepared" },
   { value: "dragees", label: "Dragees" },
   { value: "fusion_sweets", label: "Fusion Sweets" },
   { value: "seasoned_nuts_mixes", label: "Seasoned Nuts & Mixes" },
+  { value: "dates", label: "Dates" },
 ] as const;
 
 export type ProductProductionDepartment =
@@ -31,6 +38,10 @@ const LEGACY_LABEL_TO_VALUE: Record<string, ProductProductionDepartment> = {
   "seasoned nuts & mixes": "seasoned_nuts_mixes",
   "nuts & mixes": "seasoned_nuts_mixes",
   "nuts roasting": "seasoned_nuts_mixes",
+  dates: "dates",
+  "semi-prepared": "semi_prepared",
+  "semi prepared": "semi_prepared",
+  semi_prepared: "semi_prepared",
 };
 
 export function isAllowedProductProductionDepartment(
