@@ -47,12 +47,15 @@ const STAFF_ROLE_DESTINATIONS: Record<string, string> = {
   PROD_NUTS:                "/tv/nuts",
 
   // TV wall display accounts (read-only, no timeout)
-  // /admin/assembly-tv and /admin/dispatch-tv are non-operational Coming Soon
-  // stubs — do not default-land any role there, so TV_DISPLAY/TV_ASSEMBLY
-  // land on the CMD War Room hub instead until an assembly/dispatch TV wall
-  // is built. TV_READY is RGS's dedicated TV account and lands on the
-  // chrome-free kiosk route (/tv/rgs), matching the five production TVs'
-  // pattern rather than the full authenticated /admin shell.
+  // /admin/assembly-tv and /admin/dispatch-tv are real, working live boards
+  // (real Supabase queries, loading/error states) but both self-label as
+  // "internal preview, not yet evidence-validated" -- do not default-land
+  // any role there until that validation is done, so TV_DISPLAY/TV_ASSEMBLY
+  // land on the CMD War Room hub instead. TV_READY is RGS's dedicated TV
+  // account and lands on the chrome-free kiosk route (/tv/rgs), matching
+  // the five production TVs' pattern rather than the full authenticated
+  // /admin shell -- RGS's TV was evidence-validated as part of Central
+  // issue #368's Lane 1 closure, unlike assembly/dispatch.
   TV_DISPLAY:               "/admin/cmd-war-room",
   TV_ASSEMBLY:              "/admin/cmd-war-room",
   TV_READY:                 "/tv/rgs",
