@@ -6,7 +6,7 @@ import com.oasisbaklawa.centraltv.BuildConfig
 
 /**
  * One canonical entry per TV in the owner's six-TV estate (Central issue
- * #368). Route paths mirror Oasis-Baklawa-Central's src/App.tsx /tv/* routes
+ * #368). Route paths mirror Oasis-Baklawa-Central's src/App.tsx tv routes
  * exactly -- keep both in sync by hand, same discipline as the web client's
  * RAW_VALUE_TO_TV_GROUP / canonical_production_department() mirror.
  */
