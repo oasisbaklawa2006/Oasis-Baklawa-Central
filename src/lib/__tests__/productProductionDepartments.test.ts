@@ -35,6 +35,15 @@ describe("productProductionDepartments", () => {
     expect(isAllowedProductProductionDepartment("Arabic Sweets")).toBe(false);
   });
 
+  // src/utils/departmentClassifier.ts's DEPT_TO_JOB_KEY stores this exact
+  // spelling on production_jobs.department for Nuts jobs -- without this
+  // legacy entry, FactoryTVModule's department-scoped urgent-job filter
+  // would silently drop every Nuts urgent job instead of matching it.
+  it("normalizes the production_jobs department spelling for Nuts", () => {
+    expect(normalizeProductProductionDepartment("nuts_mixes")).toBe("seasoned_nuts_mixes");
+    expect(productionDepartmentMatchesFilter("Seasoned Nuts & Mixes", "nuts_mixes")).toBe(true);
+  });
+
   describe("productionDepartmentMatchesFilter", () => {
     it("matches legacy display label filter to canonical product value", () => {
       expect(productionDepartmentMatchesFilter("Arabic Sweets", "arabic_sweets")).toBe(true);

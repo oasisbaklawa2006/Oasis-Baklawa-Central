@@ -10,6 +10,7 @@ interface UrgentJob {
   assigned_qty: number;
   priority: string;
   created_at: string | null;
+  department: string | null;
   product?: { name: string; sku: string | null; image_url: string | null } | null;
 }
 
@@ -42,6 +43,27 @@ interface TVOrder {
   order_items: TVOrderItem[];
 }
 
+// Shape returned by the initial orders fetch, before product details are
+// joined in and order_items are enriched into TVOrderItem's `product` shape.
+interface RawTVOrderItem {
+  id: string;
+  quantity: number;
+  pack_size: string | null;
+  carton_type: string | null;
+  production_status: string | null;
+  product_id: string | null;
+}
+
+interface RawTVOrder {
+  id: string;
+  status: string;
+  created_at: string | null;
+  company: { business_name: string } | null;
+  order_items: RawTVOrderItem[];
+}
+
+type TVProductRow = NonNullable<TVOrderItem["product"]> & { id: string };
+
 interface FactoryTVModuleProps {
   category: string;
   departmentFilter: string;
@@ -72,13 +94,13 @@ const FactoryTVModule = ({ category, departmentFilter, title }: FactoryTVModuleP
     }
 
     // Now fetch product details for items and filter by department
-    const allOrders = (data as unknown as TVOrder[]) ?? [];
+    const allOrders = (data as unknown as RawTVOrder[]) ?? [];
 
     // For each order, fetch its items' product details and filter
     const enrichedOrders: TVOrder[] = [];
 
     for (const order of allOrders) {
-      const itemIds = order.order_items?.map((i: any) => i.product_id).filter(Boolean) ?? [];
+      const itemIds = order.order_items?.map((i) => i.product_id).filter(Boolean) ?? [];
       if (itemIds.length === 0) continue;
 
       const { data: products } = await supabase
@@ -86,12 +108,12 @@ const FactoryTVModule = ({ category, departmentFilter, title }: FactoryTVModuleP
         .select("id, name, department, production_department, uom, net_weight_grams, avg_weight_per_pack, category, sub_category, packs_per_master_carton, pcs_per_master_carton, moq")
         .in("id", itemIds);
 
-      const productMap = new Map((products ?? []).map((p: any) => [p.id, p]));
+      const productMap = new Map((products as TVProductRow[] ?? []).map((p) => [p.id, p]));
 
       const filteredItems = order.order_items
-        .map((item: any) => ({
+        .map((item): TVOrderItem => ({
           ...item,
-          product: productMap.get(item.product_id) ?? null,
+          product: productMap.get(item.product_id ?? "") ?? null,
         }))
         .filter((item: TVOrderItem) => {
             const routingDepartment =
@@ -105,19 +127,21 @@ const FactoryTVModule = ({ category, departmentFilter, title }: FactoryTVModuleP
     }
 
     setOrders(enrichedOrders);
-    // Fetch urgent/red production jobs for this department
-    const deptKey = departmentFilter.toLowerCase().replace(/\s+/g, "_");
+    // Fetch urgent/red production jobs for this department only -- a TV must
+    // never show another department's urgent/blocked jobs (Central issue
+    // #368). Filtered client-side via the same TV-group matcher used for
+    // order items, since production_jobs.department can carry either the
+    // legacy raw spelling or the canonical code.
     const { data: jobData } = await supabase
       .from("production_jobs")
-      .select("id, product_id, assigned_qty, priority, created_at, product:products(name, sku, image_url)")
+      .select("id, product_id, assigned_qty, priority, created_at, department, product:products(name, sku, image_url)")
       .in("priority", ["urgent", "red"])
       .in("status", ["pending", "accepted", "in_production"])
       .order("created_at", { ascending: true });
 
-    const filteredJobs = ((jobData as any[]) || []).filter((j: any) => {
-      // Match department via product's production_department or the job department field
-      return true; // Show all urgent jobs on all TVs for cross-visibility
-    }) as UrgentJob[];
+    const filteredJobs = ((jobData as UrgentJob[]) || []).filter((j) =>
+      productionDepartmentMatchesFilter(departmentFilter, j.department),
+    );
     setUrgentJobs(filteredJobs);
 
     setLastRefresh(new Date());
