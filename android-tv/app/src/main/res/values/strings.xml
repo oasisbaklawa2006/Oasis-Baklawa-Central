@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Oasis Central TV</string>
+    <string name="offline_title">Connection lost</string>
+    <string name="offline_body">Reconnecting to Oasis Central…</string>
+    <string name="stale_data_warning">Display may be showing stale data — reconnecting</string>
+    <string name="crash_recovery_message">Reloading the display…</string>
+    <string name="unassigned_department_title">This TV has no department assigned</string>
+    <string name="unassigned_department_body">Set oasis_tv_department in the device configuration (see DEPARTMENTS.md), then restart the app.</string>
+    <string name="auth_failed_title">Session unavailable</string>
+    <string name="auth_failed_body">This device\'s TV session could not be verified. The display will retry automatically; contact an administrator if this persists.</string>
+</resources>

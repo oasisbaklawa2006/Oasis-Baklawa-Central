@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- No device-admin policies are used: Device Owner status (an MDM/
+     `dpm set-device-owner` step, not this file) is what grants
+     setLockTaskPackages(); this app never wipes data, sets a password
+     policy, or disables camera/keyguard. -->
+<device-admin xmlns:android="http://schemas.android.com/apk/res/android">
+    <uses-policies />
+</device-admin>

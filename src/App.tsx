@@ -467,8 +467,15 @@ const App = () => (
                     }
                   />
                   <Route path="/tv/arabic-sweets" element={<RoleProtectedRoute allowedRoles={["HOD_ARABIC", "PROD_ARABIC", "SUPER_ADMIN", "ADMIN"]}><FactoryTVModule category="Arabic Sweets" departmentFilter="Arabic Sweets" title="Arabic Sweets Line" /></RoleProtectedRoute>} />
-                  <Route path="/tv/chocolate" element={<RoleProtectedRoute allowedRoles={["HOD_CHOCOLATE", "PROD_CHOCOLATE", "SUPER_ADMIN", "ADMIN"]}><FactoryTVModule category="Chocolate" departmentFilter="Chocolates" title="Chocolate Line" /></RoleProtectedRoute>} />
-                  <Route path="/tv/dragees" element={<RoleProtectedRoute allowedRoles={["HOD_DRAGEES", "PROD_CHOCOLATE", "SUPER_ADMIN", "ADMIN"]}><FactoryTVModule category="Dragees" departmentFilter="Dragees" title="Dragees Line" /></RoleProtectedRoute>} />
+                  {/* Chocolates & Confectionery TV also serves Dragees staff -- owner's
+                      six-TV estate (Central issue #368) folds Dragees into Chocolates &
+                      Confectionery rather than giving it its own screen. FactoryTVModule's
+                      departmentFilter matches by TV group (productProductionDepartments.ts),
+                      so "Chocolates" already includes dragees-labelled jobs/products. */}
+                  <Route path="/tv/chocolate" element={<RoleProtectedRoute allowedRoles={["HOD_CHOCOLATE", "PROD_CHOCOLATE", "HOD_DRAGEES", "SUPER_ADMIN", "ADMIN"]}><FactoryTVModule category="Chocolate" departmentFilter="Chocolates" title="Chocolate Line" /></RoleProtectedRoute>} />
+                  {/* Legacy standalone Dragees TV bookmark/kiosk config -- redirect rather
+                      than leave an unreachable route (six-TV estate has no Dragees TV). */}
+                  <Route path="/tv/dragees" element={<Navigate to="/tv/chocolate" replace />} />
                   {/* Fusion Sweets TV also serves Dates staff -- owner's six-TV estate
                       (Central issue #368) folds Dates into Fusion Sweets rather than
                       giving it its own screen. FactoryTVModule's departmentFilter
@@ -477,6 +484,14 @@ const App = () => (
                   <Route path="/tv/fusion" element={<RoleProtectedRoute allowedRoles={["HOD_FUSION", "PROD_FUSION", "HOD_DATES", "PROD_DATES", "SUPER_ADMIN", "ADMIN"]}><FactoryTVModule category="Fusion Sweets" departmentFilter="Fusion Sweets" title="Fusion Sweets Line" /></RoleProtectedRoute>} />
                   <Route path="/tv/bakery" element={<RoleProtectedRoute allowedRoles={["HOD_BAKERY", "PROD_BAKERY", "SUPER_ADMIN", "ADMIN"]}><FactoryTVModule category="Bakery" departmentFilter="Bakery" title="Bakery Line" /></RoleProtectedRoute>} />
                   <Route path="/tv/nuts" element={<RoleProtectedRoute allowedRoles={["HOD_NUTS", "PROD_NUTS", "SUPER_ADMIN", "ADMIN"]}><FactoryTVModule category="Seasoned Nuts" departmentFilter="Nuts Roasting" title="Nuts & Dry Fruits Line" /></RoleProtectedRoute>} />
+                  {/* RGS is the sixth TV in the owner's six-TV estate (Central issue #368),
+                      alongside the five production TVs above -- previously ReadyGoodsTV was
+                      only reachable inside the full authenticated /admin shell
+                      (/admin/rgs-tv), which is not kiosk-appropriate for a wall-mounted
+                      dedicated display. This route gives it the same top-level, chrome-free
+                      pattern as /tv/arabic-sweets etc.; /admin/rgs-tv is left in place
+                      unchanged for in-app admin navigation. */}
+                  <Route path="/tv/rgs" element={<RoleProtectedRoute allowedRoles={["STORE_READY_GOODS", "RGS_ADMIN", "SUPER_ADMIN", "ADMIN"]}><ReadyGoodsTV /></RoleProtectedRoute>} />
                   <Route path="*" element={<NotFound />} />
                 </Routes>
                 </Suspense>

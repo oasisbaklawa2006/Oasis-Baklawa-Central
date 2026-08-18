@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Android TV home-screen banner. Required 320x180dp (16:9). Vector-based so
+     no binary asset is committed; swap for a designed raster banner later
+     without touching any code (see DEPARTMENTS.md / brand asset follow-up). -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="320dp" android:height="180dp"
+    android:viewportWidth="320" android:viewportHeight="180">
+    <path android:fillColor="#0B0E14" android:pathData="M0,0h320v180h-320z" />
+    <path
+        android:fillColor="#00000000"
+        android:strokeColor="#C5A059"
+        android:strokeWidth="6"
+        android:pathData="M160,60 a30,30 0 1,0 0.1,0 z" />
+</vector>
