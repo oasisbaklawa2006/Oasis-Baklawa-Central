@@ -108,6 +108,14 @@ class MainActivity : AppCompatActivity() {
         unassignedOverlay.visibility = View.VISIBLE
     }
 
+    // JavaScript is required: the governed Central web app this WebView
+    // renders is a React SPA. The usual risk this flag carries -- an exposed
+    // native bridge letting page script escalate into the app -- doesn't
+    // apply here, because no @JavascriptInterface is ever added to this
+    // WebView; combined with AllowlistPolicy (single HTTPS origin, no
+    // external handoff) and no file/content access, script on the page can
+    // do nothing beyond what the loaded, already-governed web app itself
+    // allows a read-scoped TV session to do.
     @SuppressLint("SetJavaScriptEnabled")
     private fun configureWebView() {
         webView.settings.apply {
