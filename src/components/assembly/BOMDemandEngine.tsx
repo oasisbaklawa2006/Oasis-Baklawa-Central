@@ -115,7 +115,12 @@ export default function BOMDemandEngine() {
           supabase
             .from("audit_logs")
             .select("entity_id")
-            .eq("action_type", "ASSEMBLY_HANDOVER")
+            // RGS logs its handover as ASSEMBLY_HANDOVER (InternalDemandSection.tsx);
+            // 3PCS logs the same handoff as 3PCS_HANDOVER_ASSEMBLY
+            // (ThirdPartyDemandSection.tsx). Both must count, or 3PCS-sourced
+            // components never show "Material Received" despite the handoff
+            // evidence existing.
+            .in("action_type", ["ASSEMBLY_HANDOVER", "3PCS_HANDOVER_ASSEMBLY"])
             .in("entity_id", componentProductIds),
         ])
       );
