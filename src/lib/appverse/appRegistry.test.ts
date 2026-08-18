@@ -15,11 +15,29 @@ describe("App-Verse application registry", () => {
 
 describe("App-Verse TV registry", () => {
   it("registers existing production and operational TV surfaces", () => {
-    expect(APPVERSE_TV_SURFACES.length).toBeGreaterThanOrEqual(9);
+    // Owner's six-TV estate (Central issue #368): five production lines +
+    // Ready Goods, plus the two non-production-department Assembly/Dispatch
+    // preview TVs. Dragees has no entry of its own -- see next test.
+    expect(APPVERSE_TV_SURFACES.length).toBe(8);
   });
 
   it("limits HOD views to their relevant line", () => {
     expect(getTvSurfacesForRole("HOD_BAKERY").map((surface) => surface.route)).toEqual(["/tv/bakery"]);
+  });
+
+  it("folds Dragees into the Chocolates & Confectionery TV rather than a standalone screen", () => {
+    expect(APPVERSE_TV_SURFACES.some((surface) => surface.key === "dragees")).toBe(false);
+    expect(getTvSurfacesForRole("HOD_DRAGEES").map((surface) => surface.route)).toEqual(["/tv/chocolate"]);
+  });
+
+  it("folds Dates into the Fusion Sweets TV rather than a standalone screen", () => {
+    expect(APPVERSE_TV_SURFACES.some((surface) => surface.key === "dates")).toBe(false);
+    expect(getTvSurfacesForRole("HOD_DATES").map((surface) => surface.route)).toEqual(["/tv/fusion"]);
+    expect(getTvSurfacesForRole("PROD_DATES").map((surface) => surface.route)).toEqual(["/tv/fusion"]);
+  });
+
+  it("routes Ready Goods to its chrome-free kiosk route, not the admin shell", () => {
+    expect(getTvSurfacesForRole("TV_READY").map((surface) => surface.route)).toEqual(["/tv/rgs"]);
   });
 
   it("allows administrators to inspect every display surface", () => {

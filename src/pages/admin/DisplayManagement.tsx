@@ -3,6 +3,7 @@ import { useState } from "react";
 import { Monitor, Loader2 } from "lucide-react";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { lazy, Suspense } from "react";
+import { APPVERSE_TV_SURFACES } from "@/lib/appverse/tvSurfaces";
 
 const AssemblyTV = lazy(() => import("@/pages/admin/AssemblyTV"));
 const DispatchTV = lazy(() => import("@/pages/admin/DispatchTV"));
@@ -14,14 +15,13 @@ const Spin = () => (
   </div>
 );
 
-const FACTORY_TVS = [
-  { to: "/tv/arabic-sweets", label: "Arabic Sweets Line" },
-  { to: "/tv/chocolate", label: "Chocolate Line" },
-  { to: "/tv/dragees", label: "Dragees Line" },
-  { to: "/tv/fusion", label: "Fusion Sweets Line" },
-  { to: "/tv/bakery", label: "Bakery Line" },
-  { to: "/tv/nuts", label: "Nuts & Dry Fruits Line" },
-];
+// Derived from the single tvSurfaces.ts registry rather than a second
+// hardcoded list, so a taxonomy change (e.g. folding a role into another
+// TV) only needs updating in one place. Assembly and Dispatch are excluded
+// here since they're already shown as embedded preview tabs above.
+const FACTORY_TVS = APPVERSE_TV_SURFACES.filter(
+  (surface) => surface.key !== "assembly" && surface.key !== "dispatch",
+).map((surface) => ({ to: surface.route, label: surface.label }));
 
 const DisplayManagement = () => {
   const navigate = useNavigate();

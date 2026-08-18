@@ -38,6 +38,24 @@ describe("auth-routing", () => {
     expect(getRoleDestination("UNKNOWN_ROLE")).toBe("/customer-app-redirect");
   });
 
+  // Owner's six-TV estate (Central issue #368): Dragees has no standalone
+  // TV, and Ready Goods runs on its own chrome-free kiosk route rather than
+  // the full authenticated /admin shell.
+  it("folds Dragees floor roles into the Chocolate Line TV", () => {
+    expect(getRoleDestination("PROD_DRAGEES")).toBe("/tv/chocolate");
+  });
+
+  it("folds Dates floor/HOD roles into the Fusion Sweets surfaces", () => {
+    expect(getRoleDestination("PROD_DATES")).toBe("/tv/fusion");
+    expect(getRoleDestination("HOD_DATES")).toBe("/admin/production");
+    expect(isStaffRole("PROD_DATES")).toBe(true);
+    expect(isStaffRole("HOD_DATES")).toBe(true);
+  });
+
+  it("routes the Ready Goods TV account to the kiosk route, not /admin", () => {
+    expect(getRoleDestination("TV_READY")).toBe("/tv/rgs");
+  });
+
   it("respects nested paths within a role's destination", () => {
     expect(isPathWithinRoleDestination("/admin/cmd-war-room", "ADMIN")).toBe(true);
     expect(isPathWithinRoleDestination("/admin/cmd-war-room/foo", "ADMIN")).toBe(true);
