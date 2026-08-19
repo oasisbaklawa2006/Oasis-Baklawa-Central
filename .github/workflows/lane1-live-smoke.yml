@@ -171,64 +171,59 @@ jobs:
       - name: Install Playwright Browsers
         run: npx playwright install --with-deps chromium
 
-      - name: Run Lane 1 authenticated live smoke
-        run: npx playwright test tests/lane1-live-smoke.spec.ts --project=desktop-chrome-size
+      # Playwright's HTML reporter (the repo-wide default in
+      # playwright.config.ts) copies every attachment it's given --
+      # including error-context.md, an ARIA/accessibility snapshot Playwright
+      # writes on any test failure regardless of trace/screenshot/video
+      # settings, which includes the current value of every input on the
+      # page (the QA password, if a failure happens while the login form is
+      # still filled) -- into playwright-report/data/<content-hash>.md.
+      # Filename-pattern deletion cannot reliably catch that: the copy's
+      # name is a content hash, not "error-context". So this run does not
+      # use the HTML reporter at all -- JUnit XML has no attachment
+      # mechanism, only structured pass/fail/message text, which is exactly
+      # what our own diagnostic assertions already put in the failure
+      # message (route, HTTP status, RPC name -- never request bodies).
+      - name: Run Lane 1 authenticated live smoke (JUnit report only, no HTML reporter)
+        env:
+          PLAYWRIGHT_JUNIT_OUTPUT_NAME: lane1-live-smoke-junit.xml
+        run: npx playwright test tests/lane1-live-smoke.spec.ts --project=desktop-chrome-size --reporter=junit,list
 
-      # Playwright writes error-context.md (an ARIA/accessibility snapshot,
-      # independent of trace/screenshot/video settings) on any test failure
-      # as of Playwright 1.5x, and the HTML reporter copies it into
-      # playwright-report/data/. That snapshot includes the current value of
-      # every input on the page -- including the QA password, if a failure
-      # happens while the login form is still filled. Delete these before
-      # anything is asserted or uploaded; our own diagnostic assertions
-      # already carry everything needed to debug a failure (route, HTTP
-      # status, RPC name), so nothing useful is lost.
-      - name: Remove ARIA error-context snapshots (may contain filled password values)
-        if: always()
-        shell: bash
-        run: |
-          find test-results playwright-report -type f -iname '*error-context*' -delete 2>/dev/null || true
-
-      # tests/lane1-live-smoke.spec.ts sets trace/screenshot/video to "off"
-      # (overriding playwright.config.ts's repo-wide "on") and never calls
-      # storageState -- so no trace .zip, screenshot, video, or auth-state
-      # file should exist under test-results/, and no error-context.md
-      # should survive the deletion step above in either directory. This is
-      # a regression check, not a formality: it is what makes the "no
-      # credential-bearing artifacts" claim below true rather than merely
-      # intended.
-      - name: Assert no credential-bearing artifacts were produced
+      # Belt-and-suspenders on top of the reporter choice above: grep the
+      # actual report bytes for every live secret value byte-for-byte. This
+      # never prints a secret (grep -q is silent; only a boolean leaks) and
+      # catches any future regression -- a new fixture, a changed test, a
+      # Playwright version bump -- that reintroduces credential material
+      # into the one file this workflow publishes, whatever the mechanism.
+      - name: Assert the report contains no live secret value (defense in depth)
         if: always()
         shell: bash
         run: |
           set -euo pipefail
-          found=""
-          for dir in test-results playwright-report; do
-            [[ -d "$dir" ]] || continue
-            hit="$(find "$dir" -type f \( -iname '*.zip' -o -iname '*.png' -o -iname '*.jpg' -o -iname '*.jpeg' -o -iname '*.webm' -o -iname '*storage-state*' -o -iname '*auth*.json' -o -iname '*error-context*' \) )"
-            found+="$hit"
-          done
-          if [[ -n "$found" ]]; then
-            echo "::error::Found unexpected credential-bearing artifact file(s) -- refusing to upload:"
-            echo "$found"
-            exit 1
+          report="lane1-live-smoke-junit.xml"
+          if [[ ! -f "$report" ]]; then
+            echo "$report was not produced -- nothing to check or upload."
+            exit 0
           fi
-          echo "No trace/screenshot/video/storage-state/error-context files found -- confirmed clean."
+          for name in TEST_RGS_PASSWORD TEST_TV_RGS_PASSWORD TEST_PRODUCTION_PASSWORD TEST_TV_PRODUCTION_PASSWORD TEST_ADMIN_PASSWORD; do
+            value="${!name:-}"
+            [[ -n "$value" ]] || continue
+            if grep -qF -- "$value" "$report"; then
+              echo "::error::$report contains the literal value of \$$name -- refusing to upload a credential-bearing report."
+              exit 1
+            fi
+          done
+          echo "Confirmed: $report contains none of the QA secret values."
 
-      # Only the sanitized HTML report goes up. It contains test names,
-      # our own route/RPC diagnostic summaries (URLs and HTTP statuses,
-      # never request bodies or passwords), and pass/fail state -- no
-      # trace, screenshot, video, storage-state, or error-context file (see
-      # the deletion and assertion steps above, and
-      # tests/lane1-live-smoke.spec.ts's `test.use` trace/screenshot/video
-      # override). test-results/ is deliberately NOT uploaded even though
-      # the prior step found it clean, so a future regression that adds an
-      # attachment there fails closed by omission rather than being
-      # silently published.
-      - name: Upload Playwright HTML report (report only -- see notes above)
+      # Only the single JUnit XML file goes up -- never test-results/ or
+      # playwright-report/ (not produced at all, since the run above never
+      # invoked the html reporter), so there is no directory of
+      # attachments/snapshots to leak in the first place.
+      - name: Upload JUnit report
         uses: actions/upload-artifact@v4
         if: always()
         with:
           name: lane1-live-smoke-results
-          path: playwright-report/
+          path: lane1-live-smoke-junit.xml
+          if-no-files-found: warn
           retention-days: 14
