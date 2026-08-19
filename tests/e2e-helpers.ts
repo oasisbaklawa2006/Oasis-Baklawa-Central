@@ -85,6 +85,83 @@ export function requireFinanceMutationCredentials(): FinanceMutationCredentials 
   };
 }
 
+// ─── Lane 1 authenticated live-smoke credentials (Central issue #368) ─────────
+// Every QA identity is role-separated and read from CI secrets with no
+// defaults, matching the buyer/finance pattern above. A missing secret must
+// fail the specific test that needs it, not silently skip the suite.
+export type Lane1Role = "rgs" | "tvRgs" | "production" | "tvProduction" | "admin";
+
+const LANE1_ENV_PREFIX: Record<Lane1Role, string> = {
+  rgs: "TEST_RGS",
+  tvRgs: "TEST_TV_RGS",
+  production: "TEST_PRODUCTION",
+  tvProduction: "TEST_TV_PRODUCTION",
+  admin: "TEST_ADMIN",
+};
+
+export function requireLane1Credentials(role: Lane1Role): { email: string; password: string } {
+  const prefix = LANE1_ENV_PREFIX[role];
+  return {
+    email: requireEnv(`${prefix}_EMAIL`),
+    password: requireEnv(`${prefix}_PASSWORD`),
+  };
+}
+
+/** True only when both env vars for a role are present -- used to skip (not fail) optional roles like admin. */
+export function hasLane1Credentials(role: Lane1Role): boolean {
+  const prefix = LANE1_ENV_PREFIX[role];
+  return Boolean(process.env[`${prefix}_EMAIL`]?.trim() && process.env[`${prefix}_PASSWORD`]?.trim());
+}
+
+export type RouteDiagnostics = {
+  consoleErrors: string[];
+  consoleWarnings: string[];
+  failedRequests: { url: string; status: number }[];
+  rpcCalls: { url: string; status: number; fn: string }[];
+};
+
+/**
+ * Attaches console/network listeners for the duration of a route check.
+ * Call the returned `detach()` before asserting so late events aren't lost.
+ */
+export function attachRouteDiagnostics(page: Page): RouteDiagnostics & { detach: () => void } {
+  const diagnostics: RouteDiagnostics = {
+    consoleErrors: [],
+    consoleWarnings: [],
+    failedRequests: [],
+    rpcCalls: [],
+  };
+
+  const onConsole = (msg: { type: () => string; text: () => string }) => {
+    const t = msg.type();
+    if (t === "error") diagnostics.consoleErrors.push(msg.text());
+    if (t === "warning") diagnostics.consoleWarnings.push(msg.text());
+  };
+  const onResponse = (res: { url: () => string; status: () => number; request: () => { resourceType: () => string } }) => {
+    const url = res.url();
+    const status = res.status();
+    const rpcMatch = url.match(/\/rest\/v1\/rpc\/([a-z0-9_]+)/i);
+    if (rpcMatch) {
+      diagnostics.rpcCalls.push({ url: url.slice(0, 200), status, fn: rpcMatch[1] });
+    }
+    const rt = res.request().resourceType();
+    if (status >= 400 && ["document", "xhr", "fetch", "script", "stylesheet"].includes(rt)) {
+      diagnostics.failedRequests.push({ url: url.slice(0, 200), status });
+    }
+  };
+
+  page.on("console", onConsole);
+  page.on("response", onResponse);
+
+  return {
+    ...diagnostics,
+    detach: () => {
+      page.off("console", onConsole);
+      page.off("response", onResponse);
+    },
+  };
+}
+
 export async function login(page: Page, email: string, password: string) {
   await page.goto(`${getPreviewUrl()}/login`, { waitUntil: "domcontentloaded", timeout: 60000 });
 

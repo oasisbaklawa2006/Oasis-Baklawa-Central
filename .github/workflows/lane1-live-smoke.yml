@@ -1,0 +1,145 @@
+name: Lane 1 Authenticated Live Smoke
+
+# Central issue #368. Manual dispatch only -- this hits a real deployment
+# with real QA identities, distinct from the unauthenticated visual-audit
+# crawl in playwright.yml. See docs/LANE1_QA_ACCOUNT_MATRIX.md.
+on:
+  workflow_dispatch:
+    inputs:
+      preview_url:
+        description: 'Deployment to test (defaults to the TEST_PREVIEW_URL secret)'
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: lane1-live-smoke
+  cancel-in-progress: false
+
+jobs:
+  connectivity-guard:
+    name: Prove GitHub-hosted runner connectivity (fail closed)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      resolved_url: ${{ steps.probe.outputs.resolved_url }}
+    steps:
+      - name: Resolve target URL
+        id: target
+        shell: bash
+        run: |
+          set -euo pipefail
+          url="${{ inputs.preview_url }}"
+          if [[ -z "$url" ]]; then
+            url="${{ secrets.TEST_PREVIEW_URL }}"
+          fi
+          if [[ -z "$url" ]]; then
+            echo "::error::No target URL: pass preview_url as a workflow_dispatch input or set the TEST_PREVIEW_URL secret."
+            exit 1
+          fi
+          echo "url=$url" >> "$GITHUB_OUTPUT"
+
+      - name: DNS resolution and TLS/HTTP connectivity probe
+        id: probe
+        shell: bash
+        run: |
+          set -euo pipefail
+          url="${{ steps.target.outputs.url }}"
+          host="$(python3 -c "from urllib.parse import urlparse; print(urlparse('$url').hostname)")"
+
+          echo "== Target =="
+          echo "URL: $url"
+          echo "Host: $host"
+
+          echo "== DNS resolution =="
+          if ! getent hosts "$host"; then
+            echo "::error::CI_NETWORK_EGRESS_BLOCKED — DNS resolution failed for $host from the GitHub-hosted runner."
+            exit 1
+          fi
+
+          echo "== TLS + HTTP probe (headers only, no cookies/tokens ever logged) =="
+          # -sS: silent but show errors. -o /dev/null: discard body. -D -: dump
+          # response headers to stdout for the "final resolved host" record.
+          # --max-time bounds a hang so this job fails fast, not silently.
+          http_code="$(curl -sS -o /dev/null -D /tmp/probe-headers.txt -w '%{http_code}' --max-time 20 --resolve "$host:443:$(getent hosts "$host" | awk '{print $1}' | head -n1)" "$url" || echo "000")"
+
+          echo "HTTP status: $http_code"
+          echo "Final headers (redacted of any Set-Cookie/Authorization):"
+          grep -viE '^(set-cookie|authorization):' /tmp/probe-headers.txt || true
+
+          if [[ "$http_code" == "000" ]]; then
+            echo "::error::CI_NETWORK_EGRESS_BLOCKED — no HTTP response from $url within the timeout. This runner cannot reach the deployment; do not attempt to route around it, report it."
+            exit 1
+          fi
+          if [[ "$http_code" -ge 500 ]]; then
+            echo "::error::Target responded but with a server error ($http_code) -- deployment itself may be down, not a network policy issue."
+            exit 1
+          fi
+
+          echo "resolved_url=$url" >> "$GITHUB_OUTPUT"
+          echo "CONNECTIVITY PROVEN: $host reachable, HTTP $http_code, TLS handshake succeeded."
+
+  authenticated-smoke:
+    name: Lane 1 role-separated authenticated smoke
+    needs: connectivity-guard
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      TEST_PREVIEW_URL: ${{ needs.connectivity-guard.outputs.resolved_url }}
+      TEST_RGS_EMAIL: ${{ secrets.TEST_RGS_EMAIL }}
+      TEST_RGS_PASSWORD: ${{ secrets.TEST_RGS_PASSWORD }}
+      TEST_TV_RGS_EMAIL: ${{ secrets.TEST_TV_RGS_EMAIL }}
+      TEST_TV_RGS_PASSWORD: ${{ secrets.TEST_TV_RGS_PASSWORD }}
+      TEST_PRODUCTION_EMAIL: ${{ secrets.TEST_PRODUCTION_EMAIL }}
+      TEST_PRODUCTION_PASSWORD: ${{ secrets.TEST_PRODUCTION_PASSWORD }}
+      TEST_TV_PRODUCTION_EMAIL: ${{ secrets.TEST_TV_PRODUCTION_EMAIL }}
+      TEST_TV_PRODUCTION_PASSWORD: ${{ secrets.TEST_TV_PRODUCTION_PASSWORD }}
+      TEST_ADMIN_EMAIL: ${{ secrets.TEST_ADMIN_EMAIL }}
+      TEST_ADMIN_PASSWORD: ${{ secrets.TEST_ADMIN_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Assert required role secrets are present (fail clear, not silent skip)
+        shell: bash
+        run: |
+          set -euo pipefail
+          missing=()
+          for name in TEST_RGS_EMAIL TEST_RGS_PASSWORD TEST_TV_RGS_EMAIL TEST_TV_RGS_PASSWORD \
+                      TEST_PRODUCTION_EMAIL TEST_PRODUCTION_PASSWORD \
+                      TEST_TV_PRODUCTION_EMAIL TEST_TV_PRODUCTION_PASSWORD; do
+            if [[ -z "${!name:-}" ]]; then
+              missing+=("$name")
+            fi
+          done
+          if ((${#missing[@]} > 0)); then
+            echo "::error::Missing required secret(s): ${missing[*]}. See docs/LANE1_QA_ACCOUNT_MATRIX.md for provisioning steps. Refusing to silently skip the authenticated suite."
+            exit 1
+          fi
+          if [[ -z "${TEST_ADMIN_EMAIL:-}" ]]; then
+            echo "::notice::TEST_ADMIN_EMAIL/PASSWORD not set -- the six-TV cross-grouping sweep will be skipped (not failed). All role-specific tests still run."
+          fi
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Install Playwright Browsers
+        run: npx playwright install --with-deps chromium
+
+      - name: Run Lane 1 authenticated live smoke
+        run: npx playwright test tests/lane1-live-smoke.spec.ts --project=desktop-chrome-size
+
+      - name: Upload Playwright report, screenshots, traces
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: lane1-live-smoke-results
+          path: |
+            playwright-report/
+            test-results/
+          retention-days: 14
