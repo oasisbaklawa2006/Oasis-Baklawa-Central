@@ -26,27 +26,49 @@ jobs:
     outputs:
       resolved_url: ${{ steps.probe.outputs.resolved_url }}
     steps:
-      - name: Resolve target URL
+      - name: Resolve and validate target URL (fixed host allowlist -- fail closed)
         id: target
         shell: bash
+        env:
+          # Passed via env, never interpolated directly into the script body,
+          # so a crafted workflow_dispatch input cannot break out of the
+          # assignment and run arbitrary shell on the runner.
+          RAW_PREVIEW_URL: ${{ inputs.preview_url }}
+          RAW_SECRET_URL: ${{ secrets.TEST_PREVIEW_URL }}
         run: |
           set -euo pipefail
-          url="${{ inputs.preview_url }}"
+          url="$RAW_PREVIEW_URL"
           if [[ -z "$url" ]]; then
-            url="${{ secrets.TEST_PREVIEW_URL }}"
+            url="$RAW_SECRET_URL"
           fi
           if [[ -z "$url" ]]; then
             echo "::error::No target URL: pass preview_url as a workflow_dispatch input or set the TEST_PREVIEW_URL secret."
             exit 1
           fi
+
+          host="$(python3 -c "import sys, urllib.parse; print(urllib.parse.urlparse(sys.argv[1]).hostname or '')" "$url")"
+
+          # Fixed allowlist: the production host, or this Vercel team's own
+          # preview subdomain suffix. This suite authenticates with real QA
+          # passwords, so an attacker-controlled preview_url (any dispatcher
+          # with repo write, not just secret-admins, can supply one) must
+          # never be reachable -- it would exfiltrate the secrets to a host
+          # nobody here controls.
+          if [[ "$host" != "b2b.oasisbaklawa.com" && "$host" != *.oasisbaklawa2006-6222s-projects.vercel.app ]]; then
+            echo "::error::Target host \"$host\" is not on the allowlist (b2b.oasisbaklawa.com or *.oasisbaklawa2006-6222s-projects.vercel.app). Refusing to send live QA credentials to an unrecognized host."
+            exit 1
+          fi
+
           echo "url=$url" >> "$GITHUB_OUTPUT"
 
       - name: DNS resolution and TLS/HTTP connectivity probe
         id: probe
         shell: bash
+        env:
+          TARGET_URL: ${{ steps.target.outputs.url }}
         run: |
           set -euo pipefail
-          url="${{ steps.target.outputs.url }}"
+          url="$TARGET_URL"
           host="$(python3 -c "import sys, urllib.parse; print(urllib.parse.urlparse(sys.argv[1]).hostname)" "$url")"
 
           echo "== Target =="
@@ -134,7 +156,14 @@ jobs:
       - name: Run Lane 1 authenticated live smoke
         run: npx playwright test tests/lane1-live-smoke.spec.ts --project=desktop-chrome-size
 
-      - name: Upload Playwright report, screenshots, traces
+      # tests/lane1-live-smoke.spec.ts sets trace/screenshot/video to "off"
+      # (overriding playwright.config.ts's repo-wide "on") specifically
+      # because this suite authenticates with real QA passwords -- traces
+      # and videos capture request bodies and DOM state, and this repo is
+      # public, so those artifacts would otherwise leak live credentials to
+      # anyone who can download an Actions artifact. Only the text/HTML
+      # report (assertions, diagnostics, no auth payloads) is uploaded.
+      - name: Upload Playwright report (no traces/screenshots/video -- see note above)
         uses: actions/upload-artifact@v4
         if: always()
         with:

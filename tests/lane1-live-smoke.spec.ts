@@ -22,6 +22,14 @@ import {
   attachRouteDiagnostics,
 } from "./e2e-helpers";
 
+// This suite authenticates with real QA passwords against a real deployment.
+// playwright.config.ts sets trace/screenshot/video to "on" repo-wide, but
+// traces capture request bodies (the login POST includes the plaintext
+// password) and DOM snapshots -- and this repo is public, so those would
+// leak live credentials to anyone who downloads the CI artifact. Override
+// to "off" for this file only; other suites are unaffected.
+test.use({ trace: "off", screenshot: "off", video: "off" });
+
 const SIX_TV_PRODUCTION_ROUTES = [
   { label: "Bakery", route: "/tv/bakery" },
   { label: "Chocolate & Confectionery + Dragees", route: "/tv/chocolate" },
