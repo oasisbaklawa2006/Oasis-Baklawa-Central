@@ -46,6 +46,16 @@ jobs:
             exit 1
           fi
 
+          # A newline/CR in $url would let "echo url=$url >> $GITHUB_OUTPUT"
+          # below inject an extra "key=value" line (GITHUB_OUTPUT keeps the
+          # last assignment for a given name), overriding the resolved URL
+          # after the allowlist check below has already passed. Reject
+          # before doing anything else with it.
+          if [[ "$url" == *$'\n'* || "$url" == *$'\r'* ]]; then
+            echo "::error::Target URL contains a newline/carriage-return character; refusing (GITHUB_OUTPUT injection guard)."
+            exit 1
+          fi
+
           host="$(python3 -c "import sys, urllib.parse; print(urllib.parse.urlparse(sys.argv[1]).hostname or '')" "$url")"
 
           # Fixed allowlist: the production host, or this Vercel team's own
@@ -69,7 +79,21 @@ jobs:
         run: |
           set -euo pipefail
           url="$TARGET_URL"
-          host="$(python3 -c "import sys, urllib.parse; print(urllib.parse.urlparse(sys.argv[1]).hostname)" "$url")"
+
+          # Defense in depth: re-run the same guards as the "Resolve and
+          # validate target URL" step rather than trusting the prior job's
+          # output untouched.
+          if [[ "$url" == *$'\n'* || "$url" == *$'\r'* ]]; then
+            echo "::error::Target URL contains a newline/carriage-return character; refusing (GITHUB_OUTPUT injection guard)."
+            exit 1
+          fi
+
+          host="$(python3 -c "import sys, urllib.parse; print(urllib.parse.urlparse(sys.argv[1]).hostname or '')" "$url")"
+
+          if [[ "$host" != "b2b.oasisbaklawa.com" && "$host" != *.oasisbaklawa2006-6222s-projects.vercel.app ]]; then
+            echo "::error::Target host \"$host\" is not on the allowlist (b2b.oasisbaklawa.com or *.oasisbaklawa2006-6222s-projects.vercel.app). Refusing to send live QA credentials to an unrecognized host."
+            exit 1
+          fi
 
           echo "== Target =="
           echo "URL: $url"
