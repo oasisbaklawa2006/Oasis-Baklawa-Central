@@ -1,15 +1,17 @@
 name: Lane 1 Authenticated Live Smoke
 
-# Central issue #368. Manual dispatch only -- this hits a real deployment
-# with real QA identities, distinct from the unauthenticated visual-audit
-# crawl in playwright.yml. See docs/LANE1_QA_ACCOUNT_MATRIX.md.
+# Central issue #368. Manual dispatch only -- this hits the real production
+# deployment with real QA identities, distinct from the unauthenticated
+# visual-audit crawl in playwright.yml. See docs/LANE1_QA_ACCOUNT_MATRIX.md.
+#
+# This workflow intentionally has NO dispatcher-supplied target: production
+# QA credentials must never be sendable to a caller-chosen URL. The target
+# is always exactly https://b2b.oasisbaklawa.com, sourced only from the
+# TEST_PREVIEW_URL secret. If authenticated tests against preview
+# deployments are needed later, build a *separate* workflow with *separate*
+# non-production credentials -- never reuse these QA accounts there.
 on:
-  workflow_dispatch:
-    inputs:
-      preview_url:
-        description: 'Deployment to test (defaults to the TEST_PREVIEW_URL secret)'
-        required: false
-        type: string
+  workflow_dispatch: {}
 
 permissions:
   contents: read
@@ -23,49 +25,39 @@ jobs:
     name: Prove GitHub-hosted runner connectivity (fail closed)
     runs-on: ubuntu-latest
     timeout-minutes: 5
-    outputs:
-      resolved_url: ${{ steps.probe.outputs.resolved_url }}
     steps:
-      - name: Resolve and validate target URL (fixed host allowlist -- fail closed)
+      - name: Resolve and validate target URL (fixed host, no caller override)
         id: target
         shell: bash
         env:
-          # Passed via env, never interpolated directly into the script body,
-          # so a crafted workflow_dispatch input cannot break out of the
+          # Passed via env, never interpolated directly into the script
+          # body, so a crafted secret value cannot break out of the
           # assignment and run arbitrary shell on the runner.
-          RAW_PREVIEW_URL: ${{ inputs.preview_url }}
           RAW_SECRET_URL: ${{ secrets.TEST_PREVIEW_URL }}
         run: |
           set -euo pipefail
-          url="$RAW_PREVIEW_URL"
+          url="$RAW_SECRET_URL"
           if [[ -z "$url" ]]; then
-            url="$RAW_SECRET_URL"
-          fi
-          if [[ -z "$url" ]]; then
-            echo "::error::No target URL: pass preview_url as a workflow_dispatch input or set the TEST_PREVIEW_URL secret."
+            echo "::error::TEST_PREVIEW_URL secret is not set. This workflow has no caller-supplied override by design -- see the file header."
             exit 1
           fi
 
           # A newline/CR in $url would let "echo url=$url >> $GITHUB_OUTPUT"
           # below inject an extra "key=value" line (GITHUB_OUTPUT keeps the
-          # last assignment for a given name), overriding the resolved URL
-          # after the allowlist check below has already passed. Reject
-          # before doing anything else with it.
+          # last assignment for a given name). Reject before doing anything
+          # else with it.
           if [[ "$url" == *$'\n'* || "$url" == *$'\r'* ]]; then
-            echo "::error::Target URL contains a newline/carriage-return character; refusing (GITHUB_OUTPUT injection guard)."
+            echo "::error::TEST_PREVIEW_URL contains a newline/carriage-return character; refusing (GITHUB_OUTPUT injection guard)."
             exit 1
           fi
 
           host="$(python3 -c "import sys, urllib.parse; print(urllib.parse.urlparse(sys.argv[1]).hostname or '')" "$url")"
 
-          # Fixed allowlist: the production host, or this Vercel team's own
-          # preview subdomain suffix. This suite authenticates with real QA
-          # passwords, so an attacker-controlled preview_url (any dispatcher
-          # with repo write, not just secret-admins, can supply one) must
-          # never be reachable -- it would exfiltrate the secrets to a host
-          # nobody here controls.
-          if [[ "$host" != "b2b.oasisbaklawa.com" && "$host" != *.oasisbaklawa2006-6222s-projects.vercel.app ]]; then
-            echo "::error::Target host \"$host\" is not on the allowlist (b2b.oasisbaklawa.com or *.oasisbaklawa2006-6222s-projects.vercel.app). Refusing to send live QA credentials to an unrecognized host."
+          # Exact match only -- no wildcard, no subdomain, no preview host.
+          # This suite authenticates with real, production-role QA
+          # passwords; they must never be sent anywhere but production.
+          if [[ "$host" != "b2b.oasisbaklawa.com" ]]; then
+            echo "::error::TEST_PREVIEW_URL host \"$host\" is not b2b.oasisbaklawa.com. Refusing to send live QA credentials to any other host."
             exit 1
           fi
 
@@ -80,9 +72,8 @@ jobs:
           set -euo pipefail
           url="$TARGET_URL"
 
-          # Defense in depth: re-run the same guards as the "Resolve and
-          # validate target URL" step rather than trusting the prior job's
-          # output untouched.
+          # Defense in depth: re-run the same guards rather than trusting
+          # the prior step's output untouched.
           if [[ "$url" == *$'\n'* || "$url" == *$'\r'* ]]; then
             echo "::error::Target URL contains a newline/carriage-return character; refusing (GITHUB_OUTPUT injection guard)."
             exit 1
@@ -90,8 +81,8 @@ jobs:
 
           host="$(python3 -c "import sys, urllib.parse; print(urllib.parse.urlparse(sys.argv[1]).hostname or '')" "$url")"
 
-          if [[ "$host" != "b2b.oasisbaklawa.com" && "$host" != *.oasisbaklawa2006-6222s-projects.vercel.app ]]; then
-            echo "::error::Target host \"$host\" is not on the allowlist (b2b.oasisbaklawa.com or *.oasisbaklawa2006-6222s-projects.vercel.app). Refusing to send live QA credentials to an unrecognized host."
+          if [[ "$host" != "b2b.oasisbaklawa.com" ]]; then
+            echo "::error::Target host \"$host\" is not b2b.oasisbaklawa.com. Refusing to send live QA credentials to any other host."
             exit 1
           fi
 
@@ -124,7 +115,6 @@ jobs:
             exit 1
           fi
 
-          echo "resolved_url=$url" >> "$GITHUB_OUTPUT"
           echo "CONNECTIVITY PROVEN: $host reachable, HTTP $http_code, TLS handshake succeeded."
 
   authenticated-smoke:
@@ -133,7 +123,11 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     env:
-      TEST_PREVIEW_URL: ${{ needs.connectivity-guard.outputs.resolved_url }}
+      # Re-sourced directly from the secret (not the connectivity-guard
+      # job's output) so this job's target can never diverge from the one
+      # that was just validated -- there is exactly one place TEST_PREVIEW_URL
+      # is allowed to come from.
+      TEST_PREVIEW_URL: ${{ secrets.TEST_PREVIEW_URL }}
       TEST_RGS_EMAIL: ${{ secrets.TEST_RGS_EMAIL }}
       TEST_RGS_PASSWORD: ${{ secrets.TEST_RGS_PASSWORD }}
       TEST_TV_RGS_EMAIL: ${{ secrets.TEST_TV_RGS_EMAIL }}
@@ -152,7 +146,7 @@ jobs:
         run: |
           set -euo pipefail
           missing=()
-          for name in TEST_RGS_EMAIL TEST_RGS_PASSWORD TEST_TV_RGS_EMAIL TEST_TV_RGS_PASSWORD \
+          for name in TEST_PREVIEW_URL TEST_RGS_EMAIL TEST_RGS_PASSWORD TEST_TV_RGS_EMAIL TEST_TV_RGS_PASSWORD \
                       TEST_PRODUCTION_EMAIL TEST_PRODUCTION_PASSWORD \
                       TEST_TV_PRODUCTION_EMAIL TEST_TV_PRODUCTION_PASSWORD; do
             if [[ -z "${!name:-}" ]]; then
@@ -181,18 +175,41 @@ jobs:
         run: npx playwright test tests/lane1-live-smoke.spec.ts --project=desktop-chrome-size
 
       # tests/lane1-live-smoke.spec.ts sets trace/screenshot/video to "off"
-      # (overriding playwright.config.ts's repo-wide "on") specifically
-      # because this suite authenticates with real QA passwords -- traces
-      # and videos capture request bodies and DOM state, and this repo is
-      # public, so those artifacts would otherwise leak live credentials to
-      # anyone who can download an Actions artifact. Only the text/HTML
-      # report (assertions, diagnostics, no auth payloads) is uploaded.
-      - name: Upload Playwright report (no traces/screenshots/video -- see note above)
+      # (overriding playwright.config.ts's repo-wide "on") and never calls
+      # storageState -- so no trace .zip, screenshot, video, or auth-state
+      # file should exist under test-results/. This is a regression check,
+      # not a formality: it is what makes the "no credential-bearing
+      # artifacts" claim below true rather than merely intended.
+      - name: Assert no credential-bearing artifacts were produced
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ -d test-results ]]; then
+            found="$(find test-results -type f \( -iname '*.zip' -o -iname '*.png' -o -iname '*.jpg' -o -iname '*.jpeg' -o -iname '*.webm' -o -iname '*storage-state*' -o -iname '*auth*.json' \) )"
+            if [[ -n "$found" ]]; then
+              echo "::error::Found unexpected credential-bearing artifact file(s) under test-results/ -- refusing to upload:"
+              echo "$found"
+              exit 1
+            fi
+            echo "No trace/screenshot/video/storage-state files found under test-results/ -- confirmed clean."
+          else
+            echo "test-results/ was not created (no failures) -- nothing to check."
+          fi
+
+      # Only the sanitized HTML report goes up. It contains test names,
+      # our own route/RPC diagnostic summaries (URLs and HTTP statuses,
+      # never request bodies or passwords), and pass/fail state -- no
+      # trace, screenshot, video, or storage-state file (see the assertion
+      # step above, and tests/lane1-live-smoke.spec.ts's `test.use` trace/
+      # screenshot/video override). test-results/ is deliberately NOT
+      # uploaded even though the prior step found it clean, so a future
+      # regression that adds an attachment there fails closed by omission
+      # rather than being silently published.
+      - name: Upload Playwright HTML report (report only -- see notes above)
         uses: actions/upload-artifact@v4
         if: always()
         with:
           name: lane1-live-smoke-results
-          path: |
-            playwright-report/
-            test-results/
+          path: playwright-report/
           retention-days: 14
