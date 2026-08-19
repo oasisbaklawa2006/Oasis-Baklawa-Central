@@ -59,10 +59,17 @@ function assertNoHardFailures(d: {
 async function assertRouteRendersWithoutFailure(page: import("@playwright/test").Page, route: string) {
   const d = attachRouteDiagnostics(page);
   const resp = await page.goto(`${getPreviewUrl()}${route}`, { waitUntil: "domcontentloaded", timeout: 45_000 });
-  await page.waitForTimeout(2000); // let async data fetches settle
-  d.detach();
 
   expect(resp?.status() ?? 200, `Document response for ${route}`).toBeLessThan(500);
+
+  // Polls (with retries) until the spinner clears instead of a flat sleep --
+  // also doubles as the "let async data fetches settle" wait.
+  await expect(
+    page.locator("[class*='animate-spin']").first(),
+    `${route} must not be stuck on an infinite loader`,
+  ).toBeHidden({ timeout: 10_000 });
+
+  d.detach();
   assertNoHardFailures(d);
   return d;
 }
@@ -74,11 +81,6 @@ test.describe("Lane 1 live smoke — RGS role", () => {
 
     const d = await assertRouteRendersWithoutFailure(page, "/admin/ready-goods");
     expect(page.url(), "RGS account must land on the Ready Goods surface").toContain("/admin/ready-goods");
-
-    // Loading-state proof: the page must resolve to a real state (content,
-    // empty state, or an explicit error banner) rather than spin forever.
-    const spinnerStillVisible = await page.locator("[class*='animate-spin']").first().isVisible().catch(() => false);
-    expect(spinnerStillVisible, "Ready Goods surface must not be stuck on an infinite loader after 2s").toBe(false);
 
     // RPC wiring proof: the deployed JS bundle must reference every governed
     // RGS RPC by name (fails if a rename/refactor silently dropped one),
@@ -105,8 +107,7 @@ test.describe("Lane 1 live smoke — RGS role", () => {
 
     // Negative test: RGS_ADMIN must not gain unrelated production authority.
     await page.goto(`${getPreviewUrl()}/admin/cmd-war-room`, { waitUntil: "domcontentloaded", timeout: 45_000 });
-    await page.waitForTimeout(1500);
-    expect(page.url(), "RGS account must be bounced away from the CMD War Room (admin-only) surface").not.toContain("/admin/cmd-war-room");
+    await expect(page, "RGS account must be bounced away from the CMD War Room (admin-only) surface").not.toHaveURL(/\/admin\/cmd-war-room/, { timeout: 5_000 });
   });
 });
 
@@ -124,8 +125,7 @@ test.describe("Lane 1 live smoke — RGS TV role", () => {
     await login(page, email, password);
 
     await page.goto(`${getPreviewUrl()}/admin/ready-goods`, { waitUntil: "domcontentloaded", timeout: 45_000 });
-    await page.waitForTimeout(1500);
-    expect(page.url(), "TV_READY must not gain RGS mutation authority").not.toContain("/admin/ready-goods");
+    await expect(page, "TV_READY must not gain RGS mutation authority").not.toHaveURL(/\/admin\/ready-goods/, { timeout: 5_000 });
   });
 });
 
@@ -136,9 +136,6 @@ test.describe("Lane 1 live smoke — production role", () => {
 
     const d = await assertRouteRendersWithoutFailure(page, "/admin/execution/production");
     expect(page.url(), "Production account must reach the production execution board").toContain("/admin/execution/production");
-
-    const spinnerStillVisible = await page.locator("[class*='animate-spin']").first().isVisible().catch(() => false);
-    expect(spinnerStillVisible, "Production execution board must not be stuck on an infinite loader after 2s").toBe(false);
     void d;
   });
 
@@ -147,8 +144,7 @@ test.describe("Lane 1 live smoke — production role", () => {
     await login(page, email, password);
 
     await page.goto(`${getPreviewUrl()}/admin/ready-goods`, { waitUntil: "domcontentloaded", timeout: 45_000 });
-    await page.waitForTimeout(1500);
-    expect(page.url(), "Production account must not gain RGS-admin authority").not.toContain("/admin/ready-goods");
+    await expect(page, "Production account must not gain RGS-admin authority").not.toHaveURL(/\/admin\/ready-goods/, { timeout: 5_000 });
   });
 });
 
@@ -162,8 +158,7 @@ test.describe("Lane 1 live smoke — production TV role and six-TV grouping", ()
 
     // Negative: must not reach a *different* department's TV route.
     await page.goto(`${getPreviewUrl()}/tv/bakery`, { waitUntil: "domcontentloaded", timeout: 45_000 });
-    await page.waitForTimeout(1500);
-    expect(page.url(), "Production TV account must be department-scoped, not cross-department").not.toContain("/tv/bakery");
+    await expect(page, "Production TV account must be department-scoped, not cross-department").not.toHaveURL(/\/tv\/bakery/, { timeout: 5_000 });
   });
 
   for (const { label, route } of SIX_TV_PRODUCTION_ROUTES) {

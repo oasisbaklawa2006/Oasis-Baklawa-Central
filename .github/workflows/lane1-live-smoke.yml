@@ -47,7 +47,7 @@ jobs:
         run: |
           set -euo pipefail
           url="${{ steps.target.outputs.url }}"
-          host="$(python3 -c "from urllib.parse import urlparse; print(urlparse('$url').hostname)")"
+          host="$(python3 -c "import sys, urllib.parse; print(urllib.parse.urlparse(sys.argv[1]).hostname)" "$url")"
 
           echo "== Target =="
           echo "URL: $url"
