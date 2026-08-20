@@ -67,8 +67,8 @@ export async function reviewWhatsAppPaymentProof(
 
 export function newPaymentProofActionKey(prefix: string, caseId: string): string {
   const cryptoApi = globalThis.crypto;
-  const suffix = typeof cryptoApi?.randomUUID === "function"
-    ? cryptoApi.randomUUID()
-    : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
-  return `${prefix}:${caseId}:${suffix}`.slice(0, 160);
+  if (typeof cryptoApi?.randomUUID !== "function") {
+    throw new Error("SECURE_RANDOM_UNAVAILABLE");
+  }
+  return `${prefix}:${caseId}:${cryptoApi.randomUUID()}`.slice(0, 160);
 }
