@@ -341,8 +341,11 @@ export async function fetchWhatsAppLegacyRetirements(supabase:SupabaseClient):Pr
 export async function recordWhatsAppLegacyRetirement(supabase:SupabaseClient,input:{capabilityKey:string;legacySurface:string;disposition:string;canonicalDestination:string;evidence:Record<string,unknown>;}):Promise<Record<string, unknown>> { return rpcRecord(supabase,"whatsapp_record_legacy_retirement",{p_capability_key:required(input.capabilityKey,"RETIREMENT_CAPABILITY_REQUIRED",120),p_legacy_surface:required(input.legacySurface,"RETIREMENT_SURFACE_REQUIRED",500),p_disposition:input.disposition.trim().toUpperCase(),p_canonical_destination:required(input.canonicalDestination,"RETIREMENT_DESTINATION_REQUIRED",500),p_evidence:input.evidence}); }
 
 export function newCaseActionIdempotencyKey(scope:string,entityId:string):string {
-  const random=typeof crypto!=="undefined"&&"randomUUID" in crypto?crypto.randomUUID():`${Date.now()}-${Math.random().toString(36).slice(2)}`;
-  return `${scope}:${entityId}:${random}`.slice(0,160);
+  const cryptoApi = globalThis.crypto;
+  if (typeof cryptoApi?.randomUUID !== "function") {
+    throw new Error("SECURE_RANDOM_UNAVAILABLE");
+  }
+  return `${scope}:${entityId}:${cryptoApi.randomUUID()}`.slice(0, 160);
 }
 
 export function newCaseRoutingIdempotencyKey(caseId:string):string { return newCaseActionIdempotencyKey("operator-ai-routing",caseId); }
