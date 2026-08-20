@@ -120,7 +120,8 @@ export default function AssemblyManagement() {
   const [partialReasonDraft, setPartialReasonDraft] = useState("");
   const [handoverDraft, setHandoverDraft] = useState({ destinationType: "RGS" as string, destinationReference: "", qty: "", cartons: "", evidence: "" });
   const [ackDraft, setAckDraft] = useState<Record<string, { qty: string; evidence: string }>>({});
-  const [reconcileDraft, setReconcileDraft] = useState({ variance: "0", notes: "" });
+  const [reconcileDraft, setReconcileDraft] = useState({ notes: "" });
+  const [computedVariance, setComputedVariance] = useState<number | null>(null);
 
   const [handovers, setHandovers] = useState<AssemblyHandover[]>([]);
   const [requirements, setRequirements] = useState<Assembly3pgsRequirement[]>([]);
@@ -199,6 +200,22 @@ export default function AssemblyManagement() {
     })();
     return () => { cancelled = true; };
   }, [selectedId, acting]);
+
+  // Reconciliation variance is NEVER something this screen lets a user type
+  // in and submit -- it is always fetched fresh from the server's own
+  // compute_assembly_job_variance (the same computation reconcile_assembly_job
+  // uses internally), purely for display before reconciling.
+  useEffect(() => {
+    const job = jobs.find((candidate) => candidate.id === selectedId);
+    if (!job || job.status !== "reconciliation_pending") { setComputedVariance(null); return; }
+    let cancelled = false;
+    (async () => {
+      const result = await pnaAssemblyRpc.rpc("compute_assembly_job_variance", { p_assembly_job_id: job.id });
+      if (cancelled) return;
+      setComputedVariance(result.error ? null : Number(result.data));
+    })();
+    return () => { cancelled = true; };
+  }, [selectedId, acting, jobs]);
 
   const runAction = useCallback(async (label: string, fn: string, args: Record<string, unknown>) => {
     setActing(true);
@@ -289,16 +306,19 @@ export default function AssemblyManagement() {
   }, [ackDraft, runAction]);
 
   const handleReconcile = useCallback((jobId: string) => {
-    const variance = Number(reconcileDraft.variance || 0);
-    if (variance !== 0 && !reconcileDraft.notes.trim()) {
-      toast.error("A non-zero reconciliation variance requires explanatory notes");
+    // The variance itself is never sent -- reconcile_assembly_job derives it
+    // server-side. computedVariance here is only what was just fetched for
+    // display, used client-side purely to prompt for notes before the round
+    // trip; the RPC re-derives and enforces the real gate regardless.
+    if (computedVariance !== null && computedVariance !== 0 && !reconcileDraft.notes.trim()) {
+      toast.error(`A non-zero reconciliation variance (${computedVariance}) requires explanatory notes`);
       return Promise.resolve();
     }
     return runAction(
       "Job reconciled (Job Completed)", "reconcile_assembly_job",
-      { p_assembly_job_id: jobId, p_variance_qty: variance, p_notes: reconcileDraft.notes || null, p_correlation_id: crypto.randomUUID() },
+      { p_assembly_job_id: jobId, p_notes: reconcileDraft.notes || null, p_correlation_id: crypto.randomUUID() },
     );
-  }, [reconcileDraft, runAction]);
+  }, [computedVariance, reconcileDraft, runAction]);
 
   const handleClose = useCallback((jobId: string) => runAction(
     "Job closed", "close_assembly_job",
@@ -539,6 +559,7 @@ export default function AssemblyManagement() {
                 setAckDraft={setAckDraft}
                 reconcileDraft={reconcileDraft}
                 setReconcileDraft={setReconcileDraft}
+                computedVariance={computedVariance}
                 onReserve={() => handleReserve(selected.id)}
                 onAuthorizePartialIssue={() => handleAuthorizePartialIssue(selected.id)}
                 onIssue={() => handleIssue(selected.id)}
@@ -652,8 +673,9 @@ type LifecycleActionsProps = {
   setHandoverDraft: (value: { destinationType: string; destinationReference: string; qty: string; cartons: string; evidence: string }) => void;
   ackDraft: Record<string, { qty: string; evidence: string }>;
   setAckDraft: (value: Record<string, { qty: string; evidence: string }>) => void;
-  reconcileDraft: { variance: string; notes: string };
-  setReconcileDraft: (value: { variance: string; notes: string }) => void;
+  reconcileDraft: { notes: string };
+  setReconcileDraft: (value: { notes: string }) => void;
+  computedVariance: number | null;
   onReserve: () => void;
   onAuthorizePartialIssue: () => void;
   onIssue: () => void;
@@ -668,7 +690,7 @@ type LifecycleActionsProps = {
 function LifecycleActions({
   job, handovers, acting, completedQtyDraft, setCompletedQtyDraft, acceptDraft, setAcceptDraft,
   partialReasonDraft, setPartialReasonDraft, handoverDraft, setHandoverDraft, ackDraft, setAckDraft,
-  reconcileDraft, setReconcileDraft,
+  reconcileDraft, setReconcileDraft, computedVariance,
   onReserve, onAuthorizePartialIssue, onIssue, onComplete, onAccept, onInitiateHandover, onAcknowledgeHandover, onReconcile, onClose,
 }: LifecycleActionsProps) {
   if (job.status === "planned") {
@@ -731,10 +753,13 @@ function LifecycleActions({
     </div>;
   }
   if (job.status === "reconciliation_pending") {
+    const hasVariance = computedVariance !== null && computedVariance !== 0;
     return <ActionBar>
-      <Input className="h-8 w-20" placeholder="Variance" value={reconcileDraft.variance} onChange={(e) => setReconcileDraft({ ...reconcileDraft, variance: e.target.value })} />
-      <Textarea className="h-8 min-h-8 w-64 py-1.5 text-xs" placeholder="Notes (required if variance is non-zero: return/waste/rework/transfer)" value={reconcileDraft.notes} onChange={(e) => setReconcileDraft({ ...reconcileDraft, notes: e.target.value })} />
-      <Button size="sm" disabled={acting} onClick={onReconcile}>Reconcile (to Job Completed)</Button>
+      <div className={`flex h-8 items-center rounded-md border px-3 text-xs font-semibold ${computedVariance === null ? "text-muted-foreground" : hasVariance ? "border-destructive/40 bg-destructive/5 text-destructive" : "border-emerald-200 bg-emerald-50/40"}`}>
+        {computedVariance === null ? "Computing server variance…" : `Server-computed variance: ${formatQty(computedVariance)}`}
+      </div>
+      <Textarea className="h-8 min-h-8 w-64 py-1.5 text-xs" placeholder="Notes (required if the server-computed variance is non-zero: return/waste/rework/transfer)" value={reconcileDraft.notes} onChange={(e) => setReconcileDraft({ ...reconcileDraft, notes: e.target.value })} />
+      <Button size="sm" disabled={acting || computedVariance === null} onClick={onReconcile}>Reconcile (to Job Completed)</Button>
     </ActionBar>;
   }
   if (job.status === "job_completed") {
