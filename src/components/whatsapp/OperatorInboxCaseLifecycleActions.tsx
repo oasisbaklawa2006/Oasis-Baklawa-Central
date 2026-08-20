@@ -277,6 +277,29 @@ export function OperatorInboxCaseLifecycleActions({
     ? reconciliation.exceptions.filter((item): item is Record<string, unknown> => Boolean(item) && typeof item === "object" && !Array.isArray(item))
     : [];
   const openReconciliationExceptions = reconciliationExceptions.filter((item) => !value(item, "resolved_at"));
+  const unresolvedClosureItems: Record<string, unknown>[] = [
+    ...openClarifications.map((item) => ({
+      type: "CLARIFICATION",
+      id: value(item, "id"),
+      field_name: value(item, "field_name"),
+      status: value(item, "status") || "OPEN",
+    })),
+    ...activeTasks.map((item) => ({
+      type: "DEPARTMENT_TASK",
+      id: value(item, "id"),
+      department: value(item, "department"),
+      task_type: value(item, "task_type"),
+      status: value(item, "status") || "OPEN",
+    })),
+    ...activeEscalations.map((item) => ({
+      type: "ESCALATION",
+      id: value(item, "id"),
+      team: value(item, "escalated_to_team"),
+      level: item.escalation_level ?? null,
+      status: "OPEN",
+    })),
+  ];
+  const resolvedClosureBlocked = closureType === "RESOLVED" && unresolvedClosureItems.length > 0;
 
   const searchCompanies = async () => {
     setBusy("company-search"); setError(null); setFeedback(null);
@@ -391,7 +414,7 @@ export function OperatorInboxCaseLifecycleActions({
         <summary className="cursor-pointer px-3 py-2 text-xs font-semibold text-slate-800">7. Lifecycle milestone & closure</summary>
         <div className="border-t border-slate-100 p-3 text-xs">
           <p className="font-semibold">Record milestone</p><div className="mt-2 grid gap-2 sm:grid-cols-2"><label>Milestone<select className="mt-1 h-9 w-full rounded-md border border-input bg-background px-2" value={milestoneType} onChange={(event)=>setMilestoneType(event.target.value)}>{WHATSAPP_MILESTONES.map((item)=><option key={item}>{item}</option>)}</select></label><label>Customer relevance<select className="mt-1 h-9 w-full rounded-md border border-input bg-background px-2" value={milestoneRelevance} onChange={(event)=>setMilestoneRelevance(event.target.value as typeof milestoneRelevance)}><option>SILENT</option><option>OPTIONAL</option><option>REQUIRED</option></select></label></div><Input className="mt-2" value={milestoneNote} onChange={(event)=>setMilestoneNote(event.target.value)} placeholder="Verified milestone facts / note" /><Button type="button" size="sm" variant="outline" className="mt-2" disabled={busy!==null||!mayTriage||milestoneNote.trim().length<2} onClick={()=>void run("milestone",()=>recordWhatsAppCaseMilestone(supabase,{caseId,milestoneType,customerRelevance:milestoneRelevance,facts:{note:milestoneNote.trim(),packet_id:packetId},sourceEventKey:newCaseActionIdempotencyKey("milestone",caseId)}),"Lifecycle milestone appended; no customer message was sent automatically.")}>Record milestone</Button>
-          <div className="mt-4 border-t border-slate-100 pt-3"><p className="font-semibold">Close case</p><label className="mt-2 block">Closure type<select className="mt-1 h-9 w-full rounded-md border border-input bg-background px-2" value={closureType} onChange={(event)=>setClosureType(event.target.value as typeof closureType)}><option>RESOLVED</option><option>CANCELLED</option><option>DUPLICATE</option><option>NO_RESPONSE</option></select></label><label className="mt-2 block">Resolution summary<Textarea className="mt-1 min-h-20" value={closureSummary} onChange={(event)=>setClosureSummary(event.target.value)} /></label><label className="mt-2 flex items-center gap-2"><Checkbox checked={customerNotified} onCheckedChange={(checked)=>setCustomerNotified(checked===true)} />Customer was notified through a released CASE_CLOSURE decision</label>{customerNotified ? <select className="mt-2 h-9 w-full rounded-md border border-input bg-background px-2" value={closureDecisionId} onChange={(event)=>setClosureDecisionId(event.target.value)}><option value="">Choose released closure reply</option>{closureDecisions.map((item)=><option key={value(item,"id")} value={value(item,"id")}>{shortId(value(item,"id"))} · {value(item,"provider_status") || "provider pending"}</option>)}</select> : null}<Button type="button" size="sm" className="mt-3" disabled={busy!==null||!mayClose||closureSummary.trim().length<10||(customerNotified&&!closureDecisionId)} onClick={()=>void run("close-case",()=>closeWhatsAppCase(supabase,{caseId,closureType,resolutionSummary:closureSummary,unresolvedItems:[],customerNotified,closureOutboundDecisionId:customerNotified?closureDecisionId:null,idempotencyKey:newCaseActionIdempotencyKey("close-case",caseId)}),"Communication case closed under existing clarification/task/escalation guards.")}>Close case</Button></div>
+          <div className="mt-4 border-t border-slate-100 pt-3"><p className="font-semibold">Close case</p><label className="mt-2 block">Closure type<select className="mt-1 h-9 w-full rounded-md border border-input bg-background px-2" value={closureType} onChange={(event)=>setClosureType(event.target.value as typeof closureType)}><option>RESOLVED</option><option>CANCELLED</option><option>DUPLICATE</option><option>NO_RESPONSE</option></select></label>{unresolvedClosureItems.length > 0 ? <p className="mt-2 rounded border border-amber-200 bg-amber-50 p-2 text-amber-900">{unresolvedClosureItems.length} unresolved case item(s) remain. RESOLVED closure is blocked; non-resolved closure types will record these items in the immutable closure evidence.</p> : null}<label className="mt-2 block">Resolution summary<Textarea className="mt-1 min-h-20" value={closureSummary} onChange={(event)=>setClosureSummary(event.target.value)} /></label><label className="mt-2 flex items-center gap-2"><Checkbox checked={customerNotified} onCheckedChange={(checked)=>setCustomerNotified(checked===true)} />Customer was notified through a released CASE_CLOSURE decision</label>{customerNotified ? <select className="mt-2 h-9 w-full rounded-md border border-input bg-background px-2" value={closureDecisionId} onChange={(event)=>setClosureDecisionId(event.target.value)}><option value="">Choose released closure reply</option>{closureDecisions.map((item)=><option key={value(item,"id")} value={value(item,"id")}>{shortId(value(item,"id"))} · {value(item,"provider_status") || "provider pending"}</option>)}</select> : null}<Button type="button" size="sm" className="mt-3" disabled={busy!==null||!mayClose||closureSummary.trim().length<10||(customerNotified&&!closureDecisionId)||resolvedClosureBlocked} onClick={()=>void run("close-case",()=>closeWhatsAppCase(supabase,{caseId,closureType,resolutionSummary:closureSummary,unresolvedItems:unresolvedClosureItems,customerNotified,closureOutboundDecisionId:customerNotified?closureDecisionId:null,idempotencyKey:newCaseActionIdempotencyKey("close-case",caseId)}),"Communication case closed with unresolved work recorded in immutable closure evidence.")}>Close case</Button></div>
         </div>
       </details>
 
