@@ -11,6 +11,9 @@ import {
   newCaseRoutingIdempotencyKey,
   type WhatsAppCaseDecisionSnapshot,
 } from "@/lib/wa-governance/caseDecisionDesk";
+import { OperatorInboxCaseLifecycleActions } from "./OperatorInboxCaseLifecycleActions";
+import { OperatorInboxCommercialLayers } from "./OperatorInboxCommercialLayers";
+import { OperatorInboxPaymentProofReview } from "./OperatorInboxPaymentProofReview";
 
 const DEPARTMENTS = [
   "SALES",
@@ -281,6 +284,31 @@ export function OperatorInboxAiDecisionDesk({
             </div>
           ) : null}
         </>
+      ) : null}
+
+      {snapshot && communicationCase ? (
+        <OperatorInboxCommercialLayers
+          packetId={packetId}
+          snapshot={snapshot}
+          onReload={() => reload(packetId)}
+        />
+      ) : null}
+
+      {snapshot && communicationCase ? (
+        <OperatorInboxPaymentProofReview
+          caseId={communicationCase.id}
+          packetId={packetId}
+          onReload={() => reload(packetId)}
+        />
+      ) : null}
+
+      {snapshot && communicationCase ? (
+        <OperatorInboxCaseLifecycleActions
+          packetId={packetId}
+          snapshot={snapshot}
+          aiDraftReply={conclusion?.draft_reply ?? ""}
+          onReload={() => reload(packetId)}
+        />
       ) : null}
 
       {feedback ? <p className="mt-2 text-xs font-medium text-emerald-800">{feedback}</p> : null}

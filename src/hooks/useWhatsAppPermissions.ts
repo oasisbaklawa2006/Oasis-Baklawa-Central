@@ -10,6 +10,7 @@ export const WHATSAPP_PERMISSIONS = [
   "wa.draft.manage",
   "wa.draft.promote",
   "wa.reply.send",
+  "wa.disclosure.authorize",
 ] as const;
 
 export type WhatsAppPermission = (typeof WHATSAPP_PERMISSIONS)[number];

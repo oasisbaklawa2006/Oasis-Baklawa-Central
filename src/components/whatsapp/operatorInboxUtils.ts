@@ -338,17 +338,32 @@ export function summarizeCustomerActivity(messages: Message[]): CustomerActivity
 
 export type PacketHealth = "healthy" | "needs_reply" | "stale_open" | "operator_issue";
 
+const HARD_FAILED_OPERATOR_REPLY_STATUSES = new Set(["failed", "error"]);
+const PENDING_OPERATOR_REPLY_STATUSES = new Set([
+  "acceptance_unknown",
+  "reconciliation_pending",
+  "pending",
+  "queued",
+  "submitted",
+  "sent",
+  "delivered",
+]);
+
+/** Outbound operator_reply rows that are genuinely failed — not pending reconciliation. */
+export function isHardFailedOperatorReply(message: Message): boolean {
+  if (message.direction !== "outbound" || message.provider !== "operator_reply") return false;
+  const status = typeof message.status === "string" ? message.status.trim().toLowerCase() : "";
+  if (!status) return false;
+  if (PENDING_OPERATOR_REPLY_STATUSES.has(status)) return false;
+  return HARD_FAILED_OPERATOR_REPLY_STATUSES.has(status);
+}
+
 export function inferPacketHealth(
   lastMessageAtIso: string,
   messages: Message[],
 ): PacketHealth {
   const unanswered = isLastMessageInboundUnanswered(messages);
-  const failedOut = messages.some(
-    (m) =>
-      m.direction === "outbound" &&
-      m.provider === "operator_reply" &&
-      (m.status === "failed" || m.status === "error"),
-  );
+  const failedOut = messages.some((m) => isHardFailedOperatorReply(m));
   if (failedOut) return "operator_issue";
   const age = packetAgeBucket(lastMessageAtIso);
   if (unanswered && age === "stale") return "stale_open";
@@ -358,14 +373,7 @@ export function inferPacketHealth(
 
 /** Operator-reply send failures only — matches `inferPacketHealth` → `operator_issue` criteria (read-only panel). */
 export function selectFailedMessagesForReadOnlyPanel(messages: Message[]): Message[] {
-  return sortMessagesChronological(messages).filter((m) => {
-    if (m.direction !== "outbound") return false;
-    if (m.provider !== "operator_reply") return false;
-    const st = m.status;
-    if (typeof st !== "string") return false;
-    const x = st.trim().toLowerCase();
-    return x === "failed" || x === "error";
-  });
+  return sortMessagesChronological(messages).filter((m) => isHardFailedOperatorReply(m));
 }
 
 export function aggregateProviderCounts(
