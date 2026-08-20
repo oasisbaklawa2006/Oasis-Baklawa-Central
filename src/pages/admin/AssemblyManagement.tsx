@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import {
   AlertTriangle,
   Boxes,
@@ -9,10 +9,13 @@ import {
   Scale,
   ShieldCheck,
 } from "lucide-react";
+import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+import { pnaAssemblyRpc } from "@/lib/pnaAssemblyRpc";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
@@ -35,6 +38,8 @@ type AssemblyJob = {
   correlation_id: string;
   started_at: string | null;
   completed_at: string | null;
+  handed_over_at: string | null;
+  job_closed_at: string | null;
   created_at: string;
 };
 
@@ -67,6 +72,10 @@ export default function AssemblyManagement() {
   const [filter, setFilter] = useState<QueueFilter>("active");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [acting, setActing] = useState(false);
+  const [completedQtyDraft, setCompletedQtyDraft] = useState("");
+  const [acceptDraft, setAcceptDraft] = useState({ accepted: "", rejected: "" });
+  const [consumptionDraft, setConsumptionDraft] = useState<Record<string, { consumed: string; wasted: string; returned: string }>>({});
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -74,7 +83,7 @@ export default function AssemblyManagement() {
     try {
       const jobResult = await fulfilmentDb
         .from("b2b_assembly_jobs")
-        .select("id, assembly_job_number, order_id, output_product_id, output_sku, planned_qty, completed_qty, accepted_qty, rejected_qty, status, correlation_id, started_at, completed_at, created_at")
+        .select("id, assembly_job_number, order_id, output_product_id, output_sku, planned_qty, completed_qty, accepted_qty, rejected_qty, status, correlation_id, started_at, completed_at, handed_over_at, job_closed_at, created_at")
         .order("created_at", { ascending: false })
         .limit(100);
       if (jobResult.error) throw jobResult.error;
@@ -106,6 +115,67 @@ export default function AssemblyManagement() {
   }, []);
 
   useEffect(() => { void load(); }, [load]);
+
+  const runAction = useCallback(async (label: string, fn: string, args: Record<string, unknown>) => {
+    setActing(true);
+    try {
+      const { error: rpcError } = await pnaAssemblyRpc.rpc(fn, args);
+      if (rpcError) { toast.error(rpcError.message || `${label} failed`); return; }
+      toast.success(label);
+      await load();
+    } finally {
+      setActing(false);
+    }
+  }, [load]);
+
+  const handleReserve = useCallback((jobId: string) => runAction(
+    "Components reserved", "reserve_assembly_components",
+    { p_assembly_job_id: jobId, p_priority: "normal", p_correlation_id: crypto.randomUUID() },
+  ), [runAction]);
+
+  const handleIssue = useCallback((jobId: string) => runAction(
+    "Components issued", "issue_assembly_components",
+    { p_assembly_job_id: jobId, p_correlation_id: crypto.randomUUID() },
+  ), [runAction]);
+
+  const handleConsumption = useCallback((componentId: string) => {
+    const draft = consumptionDraft[componentId] ?? { consumed: "", wasted: "", returned: "" };
+    return runAction(
+      "Consumption recorded", "record_assembly_consumption",
+      {
+        p_component_id: componentId,
+        p_consumed_qty: Number(draft.consumed || 0),
+        p_wasted_qty: Number(draft.wasted || 0),
+        p_returned_qty: Number(draft.returned || 0),
+        p_correlation_id: crypto.randomUUID(),
+      },
+    );
+  }, [consumptionDraft, runAction]);
+
+  const handleComplete = useCallback((jobId: string) => runAction(
+    "Job marked completed", "complete_assembly_job",
+    { p_assembly_job_id: jobId, p_completed_qty: Number(completedQtyDraft || 0), p_correlation_id: crypto.randomUUID() },
+  ), [completedQtyDraft, runAction]);
+
+  const handleAccept = useCallback((jobId: string) => runAction(
+    "QC decision recorded", "accept_assembly_output",
+    {
+      p_assembly_job_id: jobId,
+      p_accepted_qty: Number(acceptDraft.accepted || 0),
+      p_rejected_qty: Number(acceptDraft.rejected || 0),
+      p_correlation_id: crypto.randomUUID(),
+    },
+  ), [acceptDraft, runAction]);
+
+  const handleHandover = useCallback((jobId: string) => runAction(
+    "Marked handed over", "mark_assembly_handed_over",
+    { p_assembly_job_id: jobId, p_correlation_id: crypto.randomUUID() },
+  ), [runAction]);
+
+  const handleClose = useCallback((jobId: string) => runAction(
+    "Job closed", "close_assembly_job",
+    { p_assembly_job_id: jobId, p_correlation_id: crypto.randomUUID() },
+  ), [runAction]);
 
   const componentJobIdsWithRisk = useMemo(() => new Set(
     components.filter(hasMaterialRisk).map((component) => component.assembly_job_id),
@@ -152,7 +222,7 @@ export default function AssemblyManagement() {
       <Card className="border-amber-200 bg-amber-50/40">
         <CardContent className="flex gap-3 p-4 text-sm">
           <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-amber-700" />
-          <div><p className="font-semibold">Read-only operational evidence</p><p className="text-muted-foreground">Job creation, material issue/acceptance, QC decisions, output handover and job close require governed transactional workflows. This screen does not silently edit stock or order status.</p></div>
+          <div><p className="font-semibold">Governed lifecycle actions only</p><p className="text-muted-foreground">Every action below calls a governed Core RPC (correlation-id idempotent, role-checked, forward-only transitions). This screen never writes stock or job rows directly.</p></div>
         </CardContent>
       </Card>
 
@@ -189,6 +259,21 @@ export default function AssemblyManagement() {
                 <Detail label="Correlation" value={selected.correlation_id} mono />
               </div>
 
+              <LifecycleActions
+                job={selected}
+                acting={acting}
+                completedQtyDraft={completedQtyDraft}
+                setCompletedQtyDraft={setCompletedQtyDraft}
+                acceptDraft={acceptDraft}
+                setAcceptDraft={setAcceptDraft}
+                onReserve={() => handleReserve(selected.id)}
+                onIssue={() => handleIssue(selected.id)}
+                onComplete={() => handleComplete(selected.id)}
+                onAccept={() => handleAccept(selected.id)}
+                onHandover={() => handleHandover(selected.id)}
+                onClose={() => handleClose(selected.id)}
+              />
+
               <section className="space-y-3">
                 <div className="flex flex-wrap items-center justify-between gap-2"><h2 className="text-sm font-semibold">Dual-source material readiness</h2><p className="text-[11px] text-muted-foreground">RGS = canonical Finished Goods store record</p></div>
                 <div className="grid gap-3 sm:grid-cols-2">
@@ -199,7 +284,20 @@ export default function AssemblyManagement() {
 
               <section className="space-y-3">
                 <h2 className="text-sm font-semibold">Component reconciliation</h2>
-                <div className="overflow-x-auto"><Table><TableHeader><TableRow><TableHead>Component</TableHead><TableHead>Source</TableHead><TableHead className="text-right">Required</TableHead><TableHead className="text-right">Reserved</TableHead><TableHead className="text-right">Issued</TableHead><TableHead className="text-right">Consumed</TableHead><TableHead className="text-right">Waste / return</TableHead><TableHead>State</TableHead></TableRow></TableHeader><TableBody>{selectedComponents.map((component) => <TableRow key={component.id}><TableCell><p className="font-medium">{products[component.product_id]?.name ?? component.sku}</p><p className="text-[11px] text-muted-foreground">{component.sku}</p></TableCell><TableCell>{sourceLabel(component.source_store_code)}</TableCell><TableCell className="text-right">{formatQty(component.required_qty)}</TableCell><TableCell className="text-right">{formatQty(component.reserved_qty)}</TableCell><TableCell className="text-right">{formatQty(component.issued_qty)}</TableCell><TableCell className="text-right">{formatQty(component.consumed_qty)}</TableCell><TableCell className="text-right">{formatQty(Number(component.wasted_qty) + Number(component.returned_qty))}</TableCell><TableCell>{hasMaterialRisk(component) ? <Badge variant="destructive">Short</Badge> : <Badge variant="outline">Accounted</Badge>}</TableCell></TableRow>)}</TableBody></Table></div>
+                <div className="overflow-x-auto"><Table><TableHeader><TableRow><TableHead>Component</TableHead><TableHead>Source</TableHead><TableHead className="text-right">Required</TableHead><TableHead className="text-right">Reserved</TableHead><TableHead className="text-right">Issued</TableHead><TableHead className="text-right">Consumed</TableHead><TableHead className="text-right">Waste / return</TableHead><TableHead>State</TableHead>{(selected.status === "issued" || selected.status === "in_progress") && <TableHead>Log consumption</TableHead>}</TableRow></TableHeader><TableBody>{selectedComponents.map((component) => {
+                  const draft = consumptionDraft[component.id] ?? { consumed: "", wasted: "", returned: "" };
+                  const setDraft = (patch: Partial<typeof draft>) => setConsumptionDraft((current) => ({ ...current, [component.id]: { ...draft, ...patch } }));
+                  return <TableRow key={component.id}><TableCell><p className="font-medium">{products[component.product_id]?.name ?? component.sku}</p><p className="text-[11px] text-muted-foreground">{component.sku}</p></TableCell><TableCell>{sourceLabel(component.source_store_code)}</TableCell><TableCell className="text-right">{formatQty(component.required_qty)}</TableCell><TableCell className="text-right">{formatQty(component.reserved_qty)}</TableCell><TableCell className="text-right">{formatQty(component.issued_qty)}</TableCell><TableCell className="text-right">{formatQty(component.consumed_qty)}</TableCell><TableCell className="text-right">{formatQty(Number(component.wasted_qty) + Number(component.returned_qty))}</TableCell><TableCell>{hasMaterialRisk(component) ? <Badge variant="destructive">Short</Badge> : <Badge variant="outline">Accounted</Badge>}</TableCell>
+                    {(selected.status === "issued" || selected.status === "in_progress") && <TableCell>
+                      <div className="flex items-center gap-1">
+                        <Input className="h-7 w-16 text-xs" placeholder="Used" value={draft.consumed} onChange={(e) => setDraft({ consumed: e.target.value })} />
+                        <Input className="h-7 w-16 text-xs" placeholder="Waste" value={draft.wasted} onChange={(e) => setDraft({ wasted: e.target.value })} />
+                        <Input className="h-7 w-16 text-xs" placeholder="Return" value={draft.returned} onChange={(e) => setDraft({ returned: e.target.value })} />
+                        <Button size="sm" variant="outline" className="h-7 px-2 text-xs" disabled={acting} onClick={() => void handleConsumption(component.id)}>Log</Button>
+                      </div>
+                    </TableCell>}
+                  </TableRow>;
+                })}</TableBody></Table></div>
                 {!selectedComponents.length && <Empty text="No component lines have been recorded for this job." />}
               </section>
 
@@ -254,5 +352,54 @@ function StatusBadge({ status }: { status: string }) { return <Badge variant={st
 function Detail({ label, value, mono = false }: { label: string; value: string; mono?: boolean }) { return <div><p className="text-[11px] uppercase tracking-wide text-muted-foreground">{label}</p><p className={`mt-1 break-words text-sm font-semibold ${mono ? "font-mono text-xs" : ""}`}>{value}</p></div>; }
 function Quantity({ label, value, good = false, risk = false }: { label: string; value: number; good?: boolean; risk?: boolean }) { return <div className={`rounded-lg border p-3 ${risk ? "border-destructive/30 bg-destructive/5" : good ? "border-emerald-200 bg-emerald-50/40" : "bg-muted/20"}`}><p className="text-[11px] uppercase tracking-wide text-muted-foreground">{label}</p><p className="mt-1 text-lg font-bold">{formatQty(value)}</p></div>; }
 function SourceReadiness({ title, sourceCodes, components }: { title: string; sourceCodes: string[]; components: AssemblyComponent[] }) { const rows = components.filter((component) => sourceCodes.includes(component.source_store_code)); const required = rows.reduce((sum, row) => sum + Number(row.required_qty), 0); const reserved = rows.reduce((sum, row) => sum + Number(row.reserved_qty), 0); const pct = percentage(reserved, required); return <div className="rounded-lg border p-4"><div className="flex items-center justify-between gap-2"><p className="text-sm font-semibold">{title}</p><Badge variant={required > 0 && reserved >= required ? "outline" : "secondary"}>{required === 0 ? "Not required" : reserved >= required ? "Reserved" : "Short"}</Badge></div><Progress value={pct} className="mt-3 h-2" /><div className="mt-2 flex items-center justify-between text-xs text-muted-foreground"><span>{rows.length} component{rows.length === 1 ? "" : "s"}</span><span>{formatQty(reserved)} / {formatQty(required)}</span></div></div>; }
+function LifecycleActions({
+  job, acting, completedQtyDraft, setCompletedQtyDraft, acceptDraft, setAcceptDraft,
+  onReserve, onIssue, onComplete, onAccept, onHandover, onClose,
+}: {
+  job: AssemblyJob;
+  acting: boolean;
+  completedQtyDraft: string;
+  setCompletedQtyDraft: (value: string) => void;
+  acceptDraft: { accepted: string; rejected: string };
+  setAcceptDraft: (value: { accepted: string; rejected: string }) => void;
+  onReserve: () => void;
+  onIssue: () => void;
+  onComplete: () => void;
+  onAccept: () => void;
+  onHandover: () => void;
+  onClose: () => void;
+}) {
+  if (job.status === "planned") {
+    return <ActionBar><Button size="sm" disabled={acting} onClick={onReserve}>Reserve components</Button></ActionBar>;
+  }
+  if (job.status === "materials_reserved") {
+    return <ActionBar><Button size="sm" disabled={acting} onClick={onIssue}>Issue components</Button></ActionBar>;
+  }
+  if (job.status === "issued" || job.status === "in_progress") {
+    return <ActionBar>
+      <Input className="h-8 w-28" placeholder="Completed qty" value={completedQtyDraft} onChange={(e) => setCompletedQtyDraft(e.target.value)} />
+      <Button size="sm" disabled={acting} onClick={onComplete}>Mark completed</Button>
+      <p className="text-[11px] text-muted-foreground">Log consumption per component in the table below first.</p>
+    </ActionBar>;
+  }
+  if (job.status === "qc_pending") {
+    return <ActionBar>
+      <Input className="h-8 w-24" placeholder="Accepted" value={acceptDraft.accepted} onChange={(e) => setAcceptDraft({ ...acceptDraft, accepted: e.target.value })} />
+      <Input className="h-8 w-24" placeholder="Rejected" value={acceptDraft.rejected} onChange={(e) => setAcceptDraft({ ...acceptDraft, rejected: e.target.value })} />
+      <Button size="sm" disabled={acting} onClick={onAccept}>Record QC decision</Button>
+    </ActionBar>;
+  }
+  if ((job.status === "accepted" || job.status === "partially_accepted") && !job.handed_over_at) {
+    return <ActionBar><Button size="sm" disabled={acting} onClick={onHandover}>Mark handed over to RGS/3PGS</Button></ActionBar>;
+  }
+  if (job.handed_over_at && !job.job_closed_at) {
+    return <ActionBar><Button size="sm" disabled={acting} onClick={onClose}>Close job</Button></ActionBar>;
+  }
+  if (job.status === "rejected" && !job.job_closed_at) {
+    return <ActionBar><Button size="sm" variant="destructive" disabled={acting} onClick={onClose}>Close rejected job</Button></ActionBar>;
+  }
+  return null;
+}
+function ActionBar({ children }: { children: ReactNode }) { return <div className="flex flex-wrap items-center gap-2 rounded-lg border bg-muted/20 p-3">{children}</div>; }
 function Metric({ icon: Icon, label, value, tone }: { icon: typeof Scale; label: string; value: number; tone: "olive" | "red" | "amber" }) { return <Card><CardContent className="flex items-center gap-3 p-4"><Icon className={`h-5 w-5 ${tone === "red" ? "text-destructive" : tone === "amber" ? "text-amber-600" : "text-primary"}`} /><div><p className="text-2xl font-bold">{value}</p><p className="text-xs text-muted-foreground">{label}</p></div></CardContent></Card>; }
 function Empty({ text }: { text: string }) { return <p className="py-10 text-center text-sm text-muted-foreground">{text}</p>; }
