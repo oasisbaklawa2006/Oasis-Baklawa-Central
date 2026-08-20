@@ -122,6 +122,7 @@ export default function AssemblyManagement() {
   const [ackDraft, setAckDraft] = useState<Record<string, { qty: string; evidence: string }>>({});
   const [reconcileDraft, setReconcileDraft] = useState({ notes: "" });
   const [computedVariance, setComputedVariance] = useState<number | null>(null);
+  const [varianceError, setVarianceError] = useState(false);
 
   const [handovers, setHandovers] = useState<AssemblyHandover[]>([]);
   const [requirements, setRequirements] = useState<Assembly3pgsRequirement[]>([]);
@@ -178,6 +179,17 @@ export default function AssemblyManagement() {
 
   useEffect(() => { void load(); }, [load]);
 
+  // Job-scoped drafts must never survive a job switch -- a stale quantity or
+  // justification typed for the previous job could otherwise be submitted
+  // against the newly-selected one.
+  useEffect(() => {
+    setCompletedQtyDraft("");
+    setAcceptDraft({ accepted: "", rejected: "" });
+    setPartialReasonDraft("");
+    setHandoverDraft({ destinationType: "RGS", destinationReference: "", qty: "", cartons: "", evidence: "" });
+    setReconcileDraft({ notes: "" });
+  }, [selectedId]);
+
   // Handovers/3PGS requirements are per-job evidence, loaded on selection and
   // refreshed after any action so a receiver-acknowledged handover or a
   // fulfilled 3PGS requirement shows up without a full reload.
@@ -212,17 +224,19 @@ export default function AssemblyManagement() {
     (async () => {
       const result = await pnaAssemblyRpc.rpc("compute_assembly_job_variance", { p_assembly_job_id: job.id });
       if (cancelled) return;
-      setComputedVariance(result.error ? null : Number(result.data));
+      if (result.error) { setComputedVariance(null); setVarianceError(true); }
+      else { setComputedVariance(Number(result.data)); setVarianceError(false); }
     })();
     return () => { cancelled = true; };
   }, [selectedId, acting, jobs]);
 
-  const runAction = useCallback(async (label: string, fn: string, args: Record<string, unknown>) => {
+  const runAction = useCallback(async (label: string, fn: string, args: Record<string, unknown>, onSuccess?: () => void) => {
     setActing(true);
     try {
       const { error: rpcError } = await pnaAssemblyRpc.rpc(fn, args);
       if (rpcError) { toast.error(rpcError.message || `${label} failed`); return; }
       toast.success(label);
+      onSuccess?.();
       await load();
     } finally {
       setActing(false);
@@ -239,6 +253,7 @@ export default function AssemblyManagement() {
     return runAction(
       "Partial issue authorised", "authorize_partial_assembly_issue",
       { p_assembly_job_id: jobId, p_reason: partialReasonDraft.trim(), p_correlation_id: crypto.randomUUID() },
+      () => setPartialReasonDraft(""),
     );
   }, [partialReasonDraft, runAction]);
 
@@ -249,59 +264,79 @@ export default function AssemblyManagement() {
 
   const handleConsumption = useCallback((componentId: string) => {
     const draft = consumptionDraft[componentId] ?? { consumed: "", wasted: "", returned: "" };
+    const consumed = Number(draft.consumed || 0);
+    const wasted = Number(draft.wasted || 0);
+    const returned = Number(draft.returned || 0);
+    if (![consumed, wasted, returned].every(Number.isFinite)) {
+      toast.error("Consumed, wasted, and returned quantities must be valid numbers");
+      return Promise.resolve();
+    }
     return runAction(
       "Consumption recorded", "record_assembly_consumption",
       {
         p_component_id: componentId,
-        p_consumed_qty: Number(draft.consumed || 0),
-        p_wasted_qty: Number(draft.wasted || 0),
-        p_returned_qty: Number(draft.returned || 0),
+        p_consumed_qty: consumed,
+        p_wasted_qty: wasted,
+        p_returned_qty: returned,
         p_correlation_id: crypto.randomUUID(),
       },
+      () => setConsumptionDraft((current) => { const next = { ...current }; delete next[componentId]; return next; }),
     );
   }, [consumptionDraft, runAction]);
 
-  const handleComplete = useCallback((jobId: string) => runAction(
-    "Sent to QC", "complete_assembly_job",
-    { p_assembly_job_id: jobId, p_completed_qty: Number(completedQtyDraft || 0), p_correlation_id: crypto.randomUUID() },
-  ), [completedQtyDraft, runAction]);
+  const handleComplete = useCallback((jobId: string) => {
+    const qty = Number(completedQtyDraft || 0);
+    if (!Number.isFinite(qty) || qty <= 0) { toast.error("A valid completed quantity is required"); return Promise.resolve(); }
+    return runAction(
+      "Sent to QC", "complete_assembly_job",
+      { p_assembly_job_id: jobId, p_completed_qty: qty, p_correlation_id: crypto.randomUUID() },
+      () => setCompletedQtyDraft(""),
+    );
+  }, [completedQtyDraft, runAction]);
 
-  const handleAccept = useCallback((jobId: string) => runAction(
-    "QC decision recorded", "accept_assembly_output",
-    {
-      p_assembly_job_id: jobId,
-      p_accepted_qty: Number(acceptDraft.accepted || 0),
-      p_rejected_qty: Number(acceptDraft.rejected || 0),
-      p_correlation_id: crypto.randomUUID(),
-    },
-  ), [acceptDraft, runAction]);
+  const handleAccept = useCallback((jobId: string) => {
+    const accepted = Number(acceptDraft.accepted || 0);
+    const rejected = Number(acceptDraft.rejected || 0);
+    if (!Number.isFinite(accepted) || !Number.isFinite(rejected) || accepted < 0 || rejected < 0) {
+      toast.error("Accepted and rejected quantities must be valid, non-negative numbers");
+      return Promise.resolve();
+    }
+    return runAction(
+      "QC decision recorded", "accept_assembly_output",
+      { p_assembly_job_id: jobId, p_accepted_qty: accepted, p_rejected_qty: rejected, p_correlation_id: crypto.randomUUID() },
+      () => setAcceptDraft({ accepted: "", rejected: "" }),
+    );
+  }, [acceptDraft, runAction]);
 
   const handleInitiateHandover = useCallback((jobId: string) => {
     if (!handoverDraft.destinationReference.trim()) { toast.error("A destination reference is required"); return Promise.resolve(); }
+    const qty = Number(handoverDraft.qty || 0);
+    if (!Number.isFinite(qty) || qty <= 0) { toast.error("A valid dispatched quantity is required"); return Promise.resolve(); }
+    const cartons = handoverDraft.cartons ? Number(handoverDraft.cartons) : null;
+    if (cartons !== null && !Number.isFinite(cartons)) { toast.error("Carton count must be a valid number"); return Promise.resolve(); }
     return runAction(
       "Handover dispatched", "initiate_assembly_handover",
       {
         p_assembly_job_id: jobId,
         p_destination_type: handoverDraft.destinationType,
         p_destination_reference: handoverDraft.destinationReference.trim(),
-        p_dispatched_qty: Number(handoverDraft.qty || 0),
-        p_carton_count: handoverDraft.cartons ? Number(handoverDraft.cartons) : null,
+        p_dispatched_qty: qty,
+        p_carton_count: cartons,
         p_evidence_reference: handoverDraft.evidence || null,
         p_correlation_id: crypto.randomUUID(),
       },
+      () => setHandoverDraft({ destinationType: "RGS", destinationReference: "", qty: "", cartons: "", evidence: "" }),
     );
   }, [handoverDraft, runAction]);
 
   const handleAcknowledgeHandover = useCallback((handoverId: string, defaultQty: number) => {
     const draft = ackDraft[handoverId] ?? { qty: String(defaultQty), evidence: "" };
+    const qty = Number(draft.qty || 0);
+    if (!Number.isFinite(qty) || qty <= 0) { toast.error("A valid received quantity is required"); return Promise.resolve(); }
     return runAction(
       "Handover acknowledged by receiver", "acknowledge_assembly_handover",
-      {
-        p_handover_id: handoverId,
-        p_received_qty: Number(draft.qty || 0),
-        p_evidence_reference: draft.evidence || null,
-        p_correlation_id: crypto.randomUUID(),
-      },
+      { p_handover_id: handoverId, p_received_qty: qty, p_evidence_reference: draft.evidence || null, p_correlation_id: crypto.randomUUID() },
+      () => setAckDraft((current) => { const next = { ...current }; delete next[handoverId]; return next; }),
     );
   }, [ackDraft, runAction]);
 
@@ -317,6 +352,7 @@ export default function AssemblyManagement() {
     return runAction(
       "Job reconciled (Job Completed)", "reconcile_assembly_job",
       { p_assembly_job_id: jobId, p_notes: reconcileDraft.notes || null, p_correlation_id: crypto.randomUUID() },
+      () => setReconcileDraft({ notes: "" }),
     );
   }, [computedVariance, reconcileDraft, runAction]);
 
@@ -347,7 +383,7 @@ export default function AssemblyManagement() {
   const handleCreateJob = useCallback(async () => {
     if (!orderLookup || !createOutputProductId) return;
     const plannedQty = Number(createPlannedQty || 0);
-    if (plannedQty <= 0) { toast.error("Planned quantity must be positive"); return; }
+    if (!Number.isFinite(plannedQty) || plannedQty <= 0) { toast.error("Planned quantity must be a positive number"); return; }
     if (createOutputLevel === "1B" && createJobPurpose.trim() !== "hamper") {
       toast.error("Level 1B output must have job purpose 'hamper'");
       return;
@@ -560,6 +596,7 @@ export default function AssemblyManagement() {
                 reconcileDraft={reconcileDraft}
                 setReconcileDraft={setReconcileDraft}
                 computedVariance={computedVariance}
+                varianceError={varianceError}
                 onReserve={() => handleReserve(selected.id)}
                 onAuthorizePartialIssue={() => handleAuthorizePartialIssue(selected.id)}
                 onIssue={() => handleIssue(selected.id)}
@@ -676,6 +713,7 @@ type LifecycleActionsProps = {
   reconcileDraft: { notes: string };
   setReconcileDraft: (value: { notes: string }) => void;
   computedVariance: number | null;
+  varianceError: boolean;
   onReserve: () => void;
   onAuthorizePartialIssue: () => void;
   onIssue: () => void;
@@ -690,7 +728,7 @@ type LifecycleActionsProps = {
 function LifecycleActions({
   job, handovers, acting, completedQtyDraft, setCompletedQtyDraft, acceptDraft, setAcceptDraft,
   partialReasonDraft, setPartialReasonDraft, handoverDraft, setHandoverDraft, ackDraft, setAckDraft,
-  reconcileDraft, setReconcileDraft, computedVariance,
+  reconcileDraft, setReconcileDraft, computedVariance, varianceError,
   onReserve, onAuthorizePartialIssue, onIssue, onComplete, onAccept, onInitiateHandover, onAcknowledgeHandover, onReconcile, onClose,
 }: LifecycleActionsProps) {
   if (job.status === "planned") {
@@ -755,8 +793,8 @@ function LifecycleActions({
   if (job.status === "reconciliation_pending") {
     const hasVariance = computedVariance !== null && computedVariance !== 0;
     return <ActionBar>
-      <div className={`flex h-8 items-center rounded-md border px-3 text-xs font-semibold ${computedVariance === null ? "text-muted-foreground" : hasVariance ? "border-destructive/40 bg-destructive/5 text-destructive" : "border-emerald-200 bg-emerald-50/40"}`}>
-        {computedVariance === null ? "Computing server variance…" : `Server-computed variance: ${formatQty(computedVariance)}`}
+      <div className={`flex h-8 items-center rounded-md border px-3 text-xs font-semibold ${computedVariance === null ? (varianceError ? "border-destructive/40 bg-destructive/5 text-destructive" : "text-muted-foreground") : hasVariance ? "border-destructive/40 bg-destructive/5 text-destructive" : "border-emerald-200 bg-emerald-50/40"}`}>
+        {computedVariance === null ? (varianceError ? "Variance unavailable -- retry before reconciling" : "Computing server variance…") : `Server-computed variance: ${formatQty(computedVariance)}`}
       </div>
       <Textarea className="h-8 min-h-8 w-64 py-1.5 text-xs" placeholder="Notes (required if the server-computed variance is non-zero: return/waste/rework/transfer)" value={reconcileDraft.notes} onChange={(e) => setReconcileDraft({ ...reconcileDraft, notes: e.target.value })} />
       <Button size="sm" disabled={acting || computedVariance === null} onClick={onReconcile}>Reconcile (to Job Completed)</Button>
