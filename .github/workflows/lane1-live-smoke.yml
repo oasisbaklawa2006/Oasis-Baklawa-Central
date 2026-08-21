@@ -1,0 +1,229 @@
+name: Lane 1 Authenticated Live Smoke
+
+# Central issue #368. Manual dispatch only -- this hits the real production
+# deployment with real QA identities, distinct from the unauthenticated
+# visual-audit crawl in playwright.yml. See docs/LANE1_QA_ACCOUNT_MATRIX.md.
+#
+# This workflow intentionally has NO dispatcher-supplied target: production
+# QA credentials must never be sendable to a caller-chosen URL. The target
+# is always exactly https://b2b.oasisbaklawa.com, sourced only from the
+# TEST_PREVIEW_URL secret. If authenticated tests against preview
+# deployments are needed later, build a *separate* workflow with *separate*
+# non-production credentials -- never reuse these QA accounts there.
+on:
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+concurrency:
+  group: lane1-live-smoke
+  cancel-in-progress: false
+
+jobs:
+  connectivity-guard:
+    name: Prove GitHub-hosted runner connectivity (fail closed)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Resolve and validate target URL (fixed host, no caller override)
+        id: target
+        shell: bash
+        env:
+          # Passed via env, never interpolated directly into the script
+          # body, so a crafted secret value cannot break out of the
+          # assignment and run arbitrary shell on the runner.
+          RAW_SECRET_URL: ${{ secrets.TEST_PREVIEW_URL }}
+        run: |
+          set -euo pipefail
+          url="$RAW_SECRET_URL"
+          if [[ -z "$url" ]]; then
+            echo "::error::TEST_PREVIEW_URL secret is not set. This workflow has no caller-supplied override by design -- see the file header."
+            exit 1
+          fi
+
+          # A newline/CR in $url would let "echo url=$url >> $GITHUB_OUTPUT"
+          # below inject an extra "key=value" line (GITHUB_OUTPUT keeps the
+          # last assignment for a given name). Reject before doing anything
+          # else with it.
+          if [[ "$url" == *$'\n'* || "$url" == *$'\r'* ]]; then
+            echo "::error::TEST_PREVIEW_URL contains a newline/carriage-return character; refusing (GITHUB_OUTPUT injection guard)."
+            exit 1
+          fi
+
+          host="$(python3 -c "import sys, urllib.parse; print(urllib.parse.urlparse(sys.argv[1]).hostname or '')" "$url")"
+
+          # Exact match only -- no wildcard, no subdomain, no preview host.
+          # This suite authenticates with real, production-role QA
+          # passwords; they must never be sent anywhere but production.
+          if [[ "$host" != "b2b.oasisbaklawa.com" ]]; then
+            echo "::error::TEST_PREVIEW_URL host \"$host\" is not b2b.oasisbaklawa.com. Refusing to send live QA credentials to any other host."
+            exit 1
+          fi
+
+          echo "url=$url" >> "$GITHUB_OUTPUT"
+
+      - name: DNS resolution and TLS/HTTP connectivity probe
+        id: probe
+        shell: bash
+        env:
+          TARGET_URL: ${{ steps.target.outputs.url }}
+        run: |
+          set -euo pipefail
+          url="$TARGET_URL"
+
+          # Defense in depth: re-run the same guards rather than trusting
+          # the prior step's output untouched.
+          if [[ "$url" == *$'\n'* || "$url" == *$'\r'* ]]; then
+            echo "::error::Target URL contains a newline/carriage-return character; refusing (GITHUB_OUTPUT injection guard)."
+            exit 1
+          fi
+
+          host="$(python3 -c "import sys, urllib.parse; print(urllib.parse.urlparse(sys.argv[1]).hostname or '')" "$url")"
+
+          if [[ "$host" != "b2b.oasisbaklawa.com" ]]; then
+            echo "::error::Target host \"$host\" is not b2b.oasisbaklawa.com. Refusing to send live QA credentials to any other host."
+            exit 1
+          fi
+
+          echo "== Target =="
+          echo "URL: $url"
+          echo "Host: $host"
+
+          echo "== DNS resolution =="
+          if ! getent hosts "$host"; then
+            echo "::error::CI_NETWORK_EGRESS_BLOCKED — DNS resolution failed for $host from the GitHub-hosted runner."
+            exit 1
+          fi
+
+          echo "== TLS + HTTP probe (headers only, no cookies/tokens ever logged) =="
+          # -sS: silent but show errors. -o /dev/null: discard body. -D -: dump
+          # response headers to stdout for the "final resolved host" record.
+          # --max-time bounds a hang so this job fails fast, not silently.
+          http_code="$(curl -sS -o /dev/null -D /tmp/probe-headers.txt -w '%{http_code}' --max-time 20 --resolve "$host:443:$(getent hosts "$host" | awk '{print $1}' | head -n1)" "$url" || echo "000")"
+
+          echo "HTTP status: $http_code"
+          echo "Final headers (redacted of any Set-Cookie/Authorization):"
+          grep -viE '^(set-cookie|authorization):' /tmp/probe-headers.txt || true
+
+          if [[ "$http_code" == "000" ]]; then
+            echo "::error::CI_NETWORK_EGRESS_BLOCKED — no HTTP response from $url within the timeout. This runner cannot reach the deployment; do not attempt to route around it, report it."
+            exit 1
+          fi
+          if [[ "$http_code" -ge 500 ]]; then
+            echo "::error::Target responded but with a server error ($http_code) -- deployment itself may be down, not a network policy issue."
+            exit 1
+          fi
+
+          echo "CONNECTIVITY PROVEN: $host reachable, HTTP $http_code, TLS handshake succeeded."
+
+  authenticated-smoke:
+    name: Lane 1 role-separated authenticated smoke
+    needs: connectivity-guard
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      # Re-sourced directly from the secret (not the connectivity-guard
+      # job's output) so this job's target can never diverge from the one
+      # that was just validated -- there is exactly one place TEST_PREVIEW_URL
+      # is allowed to come from.
+      TEST_PREVIEW_URL: ${{ secrets.TEST_PREVIEW_URL }}
+      TEST_RGS_EMAIL: ${{ secrets.TEST_RGS_EMAIL }}
+      TEST_RGS_PASSWORD: ${{ secrets.TEST_RGS_PASSWORD }}
+      TEST_TV_RGS_EMAIL: ${{ secrets.TEST_TV_RGS_EMAIL }}
+      TEST_TV_RGS_PASSWORD: ${{ secrets.TEST_TV_RGS_PASSWORD }}
+      TEST_PRODUCTION_EMAIL: ${{ secrets.TEST_PRODUCTION_EMAIL }}
+      TEST_PRODUCTION_PASSWORD: ${{ secrets.TEST_PRODUCTION_PASSWORD }}
+      TEST_TV_PRODUCTION_EMAIL: ${{ secrets.TEST_TV_PRODUCTION_EMAIL }}
+      TEST_TV_PRODUCTION_PASSWORD: ${{ secrets.TEST_TV_PRODUCTION_PASSWORD }}
+      TEST_ADMIN_EMAIL: ${{ secrets.TEST_ADMIN_EMAIL }}
+      TEST_ADMIN_PASSWORD: ${{ secrets.TEST_ADMIN_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Assert required role secrets are present (fail clear, not silent skip)
+        shell: bash
+        run: |
+          set -euo pipefail
+          missing=()
+          for name in TEST_PREVIEW_URL TEST_RGS_EMAIL TEST_RGS_PASSWORD TEST_TV_RGS_EMAIL TEST_TV_RGS_PASSWORD \
+                      TEST_PRODUCTION_EMAIL TEST_PRODUCTION_PASSWORD \
+                      TEST_TV_PRODUCTION_EMAIL TEST_TV_PRODUCTION_PASSWORD; do
+            if [[ -z "${!name:-}" ]]; then
+              missing+=("$name")
+            fi
+          done
+          if ((${#missing[@]} > 0)); then
+            echo "::error::Missing required secret(s): ${missing[*]}. See docs/LANE1_QA_ACCOUNT_MATRIX.md for provisioning steps. Refusing to silently skip the authenticated suite."
+            exit 1
+          fi
+          if [[ -z "${TEST_ADMIN_EMAIL:-}" ]]; then
+            echo "::notice::TEST_ADMIN_EMAIL/PASSWORD not set -- the six-TV cross-grouping sweep will be skipped (not failed). All role-specific tests still run."
+          fi
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Install Playwright Browsers
+        run: npx playwright install --with-deps chromium
+
+      # Playwright's HTML reporter (the repo-wide default in
+      # playwright.config.ts) copies every attachment it's given --
+      # including error-context.md, an ARIA/accessibility snapshot Playwright
+      # writes on any test failure regardless of trace/screenshot/video
+      # settings, which includes the current value of every input on the
+      # page (the QA password, if a failure happens while the login form is
+      # still filled) -- into playwright-report/data/<content-hash>.md.
+      # Filename-pattern deletion cannot reliably catch that: the copy's
+      # name is a content hash, not "error-context". So this run does not
+      # use the HTML reporter at all -- JUnit XML has no attachment
+      # mechanism, only structured pass/fail/message text, which is exactly
+      # what our own diagnostic assertions already put in the failure
+      # message (route, HTTP status, RPC name -- never request bodies).
+      - name: Run Lane 1 authenticated live smoke (JUnit report only, no HTML reporter)
+        env:
+          PLAYWRIGHT_JUNIT_OUTPUT_NAME: lane1-live-smoke-junit.xml
+        run: npx playwright test tests/lane1-live-smoke.spec.ts --project=desktop-chrome-size --reporter=junit,list
+
+      # Belt-and-suspenders on top of the reporter choice above: grep the
+      # actual report bytes for every live secret value byte-for-byte. This
+      # never prints a secret (grep -q is silent; only a boolean leaks) and
+      # catches any future regression -- a new fixture, a changed test, a
+      # Playwright version bump -- that reintroduces credential material
+      # into the one file this workflow publishes, whatever the mechanism.
+      - name: Assert the report contains no live secret value (defense in depth)
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          report="lane1-live-smoke-junit.xml"
+          if [[ ! -f "$report" ]]; then
+            echo "$report was not produced -- nothing to check or upload."
+            exit 0
+          fi
+          for name in TEST_RGS_PASSWORD TEST_TV_RGS_PASSWORD TEST_PRODUCTION_PASSWORD TEST_TV_PRODUCTION_PASSWORD TEST_ADMIN_PASSWORD; do
+            value="${!name:-}"
+            [[ -n "$value" ]] || continue
+            if grep -qF -- "$value" "$report"; then
+              echo "::error::$report contains the literal value of \$$name -- refusing to upload a credential-bearing report."
+              exit 1
+            fi
+          done
+          echo "Confirmed: $report contains none of the QA secret values."
+
+      # Only the single JUnit XML file goes up -- never test-results/ or
+      # playwright-report/ (not produced at all, since the run above never
+      # invoked the html reporter), so there is no directory of
+      # attachments/snapshots to leak in the first place.
+      - name: Upload JUnit report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: lane1-live-smoke-results
+          path: lane1-live-smoke-junit.xml
+          if-no-files-found: warn
+          retention-days: 14
