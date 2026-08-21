@@ -129,6 +129,18 @@ type AssemblyJobStatusRow = { id: string; status: string };
 type AssemblyJobPartialRow = { status: string; partial_issue_authorized: boolean };
 
 const TEST_PREVIEW_URL = process.env.TEST_PREVIEW_URL || "https://cursor-central-vercel.vercel.app";
+/** Production Supabase — Lane 2 proof must never authenticate or mutate this project. */
+const PRODUCTION_SUPABASE_PROJECT_REF = "tcxvcatsqqertcnycuop";
+/** Canonical staging Supabase for Lane 2 fixture matrix. */
+const STAGING_SUPABASE_PROJECT_REF = "aruyieslaxjhnamlstpx";
+
+function refuseProductionSupabaseUrl(url: string, label: string): void {
+  if (url.includes(PRODUCTION_SUPABASE_PROJECT_REF)) {
+    throw new Error(
+      `${label} points at production Supabase (${PRODUCTION_SUPABASE_PROJECT_REF}). Lane 2 proof requires staging (${STAGING_SUPABASE_PROJECT_REF}) only.`,
+    );
+  }
+}
 
 function requireEnv(name: string): string {
   const value = process.env[name];
@@ -214,6 +226,7 @@ test.describe("Lane 2 (P&A) end-to-end chain [STAGING-UAT-PENDING]", () => {
 
   test.beforeAll(() => {
     TEST_SUPABASE_URL = requireEnv("TEST_SUPABASE_URL");
+    refuseProductionSupabaseUrl(TEST_SUPABASE_URL, "TEST_SUPABASE_URL");
     TEST_SUPABASE_ANON_KEY = requireEnv("TEST_SUPABASE_ANON_KEY");
     ASSEMBLY_EMAIL = requireEnv("PNA_ASSEMBLY_EMAIL");
     ASSEMBLY_PASSWORD = requireEnv("PNA_ASSEMBLY_PASSWORD");

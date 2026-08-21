@@ -46,7 +46,28 @@ The test **creates assembly jobs** and mutates inventory through issue/consumpti
 (Case A). Case B leaves the job at `partially_reserved`. Use dedicated staging
 orders reserved for this proof; re-seed or replace after each full Case A run.
 
+## Vercel preview deployment mismatch (verified 2026-08-21)
+
+PR preview URLs under `*.oasisbaklawa2006-6222s-projects.vercel.app` currently
+bake **production** Supabase (`tcxvcatsqqertcnycuop`) into the client bundle.
+That host is non-production, but UI mutations would still hit production data.
+
+Before dispatching Lane 2 proof, either:
+
+1. Set Vercel **Preview** environment variables to staging
+   (`VITE_SUPABASE_URL` / `VITE_SUPABASE_PUBLISHABLE_KEY` for
+   `aruyieslaxjhnamlstpx`), redeploy the preview, **or**
+2. Supply `LANE2_TEST_PREVIEW_URL` / workflow `preview_url` pointing at a Central
+   deployment already wired to staging Supabase.
+
+The workflow and spec fail closed if `TEST_SUPABASE_URL` or the preview bundle
+detects production project `tcxvcatsqqertcnycuop`.
+
 ## Execution
 
 Manual dispatch only: **Lane 2 P&A Staging Proof** workflow
 (`.github/workflows/lane2-pna-staging-proof.yml`).
+
+The workflow file must exist on the branch you dispatch from (PR branch
+`lane2-pna-pr-d` until merged). GitHub Actions → select workflow → **Run
+workflow** → choose branch → optional `preview_url`.

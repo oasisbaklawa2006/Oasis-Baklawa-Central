@@ -20,6 +20,11 @@ on:
 permissions:
   contents: read
 
+# Fail closed: Lane 2 proof must never hit production Supabase or production host.
+env:
+  LANE2_PRODUCTION_SUPABASE_REF: tcxvcatsqqertcnycuop
+  LANE2_STAGING_SUPABASE_REF: aruyieslaxjhnamlstpx
+
 concurrency:
   group: lane2-pna-staging-proof
   cancel-in-progress: false
@@ -88,6 +93,32 @@ jobs:
             exit 1
           fi
 
+      - name: Refuse preview builds wired to production Supabase
+        shell: bash
+        env:
+          TARGET_URL: ${{ steps.target.outputs.url }}
+          PROD_REF: ${{ env.LANE2_PRODUCTION_SUPABASE_REF }}
+        run: |
+          set -euo pipefail
+          html="$(curl -sS --max-time 25 "$TARGET_URL")"
+          baked_ref="$(echo "$html" | grep -oE 'https://[a-z0-9]+\.supabase\.co' | head -1 | sed 's|https://||;s|\.supabase\.co||' || true)"
+          if [[ -z "$baked_ref" ]]; then
+            js_path="$(echo "$html" | grep -oE '/assets/index-[a-zA-Z0-9]+\.js' | head -1 || true)"
+            if [[ -n "$js_path" ]]; then
+              js="$(curl -sS --max-time 25 "${TARGET_URL%/}$js_path")"
+              baked_ref="$(echo "$js" | grep -oE 'https://[a-z0-9]+\.supabase\.co' | head -1 | sed 's|https://||;s|\.supabase\.co||' || true)"
+            fi
+          fi
+          if [[ -z "$baked_ref" ]]; then
+            echo "::warning::Could not detect baked Supabase project from preview bundle."
+            exit 0
+          fi
+          echo "Detected preview Supabase project ref: $baked_ref"
+          if [[ "$baked_ref" == "$PROD_REF" ]]; then
+            echo "::error::Preview is wired to production Supabase ($PROD_REF). Configure Vercel Preview env to staging ($LANE2_STAGING_SUPABASE_REF) or supply a staging Central URL. See docs/LANE2_PNA_STAGING_FIXTURE.md"
+            exit 1
+          fi
+
   lane2-pna-e2e:
     name: Lane 2 P&A end-to-end staging proof
     needs: connectivity-guard
@@ -129,6 +160,10 @@ jobs:
           fi
           if [[ "$PNA_ORDER_NUMBER" == "$PNA_3PGS_SHORTAGE_ORDER_NUMBER" ]]; then
             echo "::error::PNA_ORDER_NUMBER and PNA_3PGS_SHORTAGE_ORDER_NUMBER must differ."
+            exit 1
+          fi
+          if [[ "$TEST_SUPABASE_URL" == *"$LANE2_PRODUCTION_SUPABASE_REF"* ]]; then
+            echo "::error::TEST_SUPABASE_URL points at production ($LANE2_PRODUCTION_SUPABASE_REF). Lane 2 proof requires staging ($LANE2_STAGING_SUPABASE_REF)."
             exit 1
           fi
 
