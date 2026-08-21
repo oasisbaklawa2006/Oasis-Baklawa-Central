@@ -9,5 +9,5 @@ import { supabase } from "@/integrations/supabase/client";
  * generated types.
  */
 export const pnaAssemblyRpc = supabase as unknown as {
-  rpc: <T = unknown>(fn: string, args?: Record<string, unknown>) => Promise<{ data: T; error: { message: string } | null }>;
+  rpc: <T = unknown>(fn: string, args?: Record<string, unknown>) => Promise<{ data: T | null; error: { message: string } | null }>;
 };

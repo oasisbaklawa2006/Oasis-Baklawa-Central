@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import {
   AlertTriangle,
   Boxes,
@@ -126,6 +126,7 @@ export default function AssemblyManagement() {
 
   const [handovers, setHandovers] = useState<AssemblyHandover[]>([]);
   const [requirements, setRequirements] = useState<Assembly3pgsRequirement[]>([]);
+  const [evidenceError, setEvidenceError] = useState<string | null>(null);
 
   // Create-job-from-requirement panel (Level 0 decomposition off product_bom,
   // source store resolved off b2b_inventory_item_profiles -- a real requirement
@@ -194,7 +195,7 @@ export default function AssemblyManagement() {
   // refreshed after any action so a receiver-acknowledged handover or a
   // fulfilled 3PGS requirement shows up without a full reload.
   useEffect(() => {
-    if (!selectedId) { setHandovers([]); setRequirements([]); return; }
+    if (!selectedId) { setHandovers([]); setRequirements([]); setEvidenceError(null); return; }
     let cancelled = false;
     (async () => {
       const [handoverResult, requirementResult] = await Promise.all([
@@ -207,8 +208,13 @@ export default function AssemblyManagement() {
           .eq("assembly_job_id", selectedId),
       ]);
       if (cancelled) return;
-      setHandovers((handoverResult.data ?? []) as AssemblyHandover[]);
-      setRequirements((requirementResult.data ?? []) as Assembly3pgsRequirement[]);
+      // A failed query must never be silently displayed as "no evidence" --
+      // an empty handover/3PGS-requirement list means something different
+      // (genuinely none exist) than "the read failed".
+      const failure = handoverResult.error?.message ?? requirementResult.error?.message ?? null;
+      setEvidenceError(failure);
+      setHandovers(failure ? [] : (handoverResult.data ?? []) as AssemblyHandover[]);
+      setRequirements(failure ? [] : (requirementResult.data ?? []) as Assembly3pgsRequirement[]);
     })();
     return () => { cancelled = true; };
   }, [selectedId, acting]);
@@ -222,9 +228,9 @@ export default function AssemblyManagement() {
     if (!job || job.status !== "reconciliation_pending") { setComputedVariance(null); return; }
     let cancelled = false;
     (async () => {
-      const result = await pnaAssemblyRpc.rpc("compute_assembly_job_variance", { p_assembly_job_id: job.id });
+      const result = await pnaAssemblyRpc.rpc<number>("compute_assembly_job_variance", { p_assembly_job_id: job.id });
       if (cancelled) return;
-      if (result.error) { setComputedVariance(null); setVarianceError(true); }
+      if (result.error || result.data === null) { setComputedVariance(null); setVarianceError(true); }
       else { setComputedVariance(Number(result.data)); setVarianceError(false); }
     })();
     return () => { cancelled = true; };
@@ -243,17 +249,37 @@ export default function AssemblyManagement() {
     }
   }, [load]);
 
-  const handleReserve = useCallback((jobId: string) => runAction(
-    "Components reserved", "reserve_assembly_components",
-    { p_assembly_job_id: jobId, p_priority: "normal", p_correlation_id: crypto.randomUUID() },
-  ), [runAction]);
+  // reserve_assembly_components/authorize_partial_assembly_issue are
+  // idempotent by correlation_id, but a fresh crypto.randomUUID() on every
+  // call defeats that: if the RPC commits server-side but the client never
+  // sees the response (dropped connection, closed tab), a retry with a NEW
+  // id would be treated as a brand-new call and could reserve/authorise a
+  // second time. Persist one id per job (and, for the reason-carrying
+  // authorize call, per distinct reason text) across retries, clearing it
+  // only once runAction reports genuine success -- a failed call keeps its
+  // id so the next click is a safe idempotent retry, not a new action.
+  const reserveCorrelationRef = useRef<Record<string, string>>({});
+  const handleReserve = useCallback((jobId: string) => {
+    if (!reserveCorrelationRef.current[jobId]) reserveCorrelationRef.current[jobId] = crypto.randomUUID();
+    const correlationId = reserveCorrelationRef.current[jobId];
+    return runAction(
+      "Components reserved", "reserve_assembly_components",
+      { p_assembly_job_id: jobId, p_priority: "normal", p_correlation_id: correlationId },
+      () => { delete reserveCorrelationRef.current[jobId]; },
+    );
+  }, [runAction]);
 
+  const partialIssueCorrelationRef = useRef<Record<string, { reason: string; id: string }>>({});
   const handleAuthorizePartialIssue = useCallback((jobId: string) => {
     if (!partialReasonDraft.trim()) { toast.error("A reason is required to authorise a partial issue"); return Promise.resolve(); }
+    const reason = partialReasonDraft.trim();
+    const existing = partialIssueCorrelationRef.current[jobId];
+    const correlationId = existing && existing.reason === reason ? existing.id : crypto.randomUUID();
+    partialIssueCorrelationRef.current[jobId] = { reason, id: correlationId };
     return runAction(
       "Partial issue authorised", "authorize_partial_assembly_issue",
-      { p_assembly_job_id: jobId, p_reason: partialReasonDraft.trim(), p_correlation_id: crypto.randomUUID() },
-      () => setPartialReasonDraft(""),
+      { p_assembly_job_id: jobId, p_reason: reason, p_correlation_id: correlationId },
+      () => { delete partialIssueCorrelationRef.current[jobId]; setPartialReasonDraft(""); },
     );
   }, [partialReasonDraft, runAction]);
 
@@ -267,8 +293,12 @@ export default function AssemblyManagement() {
     const consumed = Number(draft.consumed || 0);
     const wasted = Number(draft.wasted || 0);
     const returned = Number(draft.returned || 0);
-    if (![consumed, wasted, returned].every(Number.isFinite)) {
-      toast.error("Consumed, wasted, and returned quantities must be valid numbers");
+    if (![consumed, wasted, returned].every((value) => Number.isFinite(value) && value >= 0)) {
+      toast.error("Consumed, wasted, and returned quantities must be valid, non-negative numbers");
+      return Promise.resolve();
+    }
+    if (consumed === 0 && wasted === 0 && returned === 0) {
+      toast.error("Enter at least one non-zero quantity");
       return Promise.resolve();
     }
     return runAction(
@@ -369,7 +399,8 @@ export default function AssemblyManagement() {
     const trimmed = orderNumberDraft.trim();
     if (!trimmed) return;
     const orderResult = await supabase.from("orders").select("id, order_number").eq("order_number", trimmed).maybeSingle();
-    if (orderResult.error || !orderResult.data) { setCreateLookupError("Order not found for that order number"); return; }
+    if (orderResult.error) { setCreateLookupError(orderResult.error.message); return; }
+    if (!orderResult.data) { setCreateLookupError("Order not found for that order number"); return; }
     const itemsResult = await supabase.from("order_items").select("id, product_id, quantity, products(name, sku)").eq("order_id", orderResult.data.id);
     if (itemsResult.error) { setCreateLookupError(itemsResult.error.message); return; }
     setOrderLookup(orderResult.data as OrderLookup);
@@ -419,6 +450,17 @@ export default function AssemblyManagement() {
         return;
       }
 
+      const invalidQty = resolvedRows.filter((row) => !(Number(row.quantity_per_unit) > 0));
+      if (invalidQty.length) {
+        toast.error(`${invalidQty.length} BOM component(s) have a missing or non-positive quantity_per_unit; fix the BOM before creating a job`);
+        return;
+      }
+      const bomTimestamps = resolvedRows.map((row) => row.created_at as string | null).filter((value): value is string => Boolean(value));
+      if (!bomTimestamps.length) {
+        toast.error("The BOM rows have no created_at timestamp; cannot record a BOM version");
+        return;
+      }
+
       const components = resolvedRows.map((row) => {
         const profile = profileByProduct.get(row.component_product_id as string);
         return {
@@ -428,14 +470,18 @@ export default function AssemblyManagement() {
           required_qty: Number(row.quantity_per_unit) * plannedQty,
         };
       });
-      const bomVersion = `product_bom@${resolvedRows.reduce((latest: string, row) => (row.created_at > latest ? row.created_at : latest), resolvedRows[0].created_at as string)}`;
+      const bomVersion = `product_bom@${bomTimestamps.reduce((latest, value) => (value > latest ? value : latest))}`;
       const output = orderLines.find((line) => line.product_id === createOutputProductId);
+      if (!output || !output.sku) {
+        toast.error("The selected order line has no SKU; cannot create a job without a governed output SKU");
+        return;
+      }
 
       const { error: rpcError } = await pnaAssemblyRpc.rpc("create_assembly_job", {
         p_assembly_job_number: `ASM-${orderLookup.order_number}-${crypto.randomUUID().slice(0, 8).toUpperCase()}`,
         p_order_id: orderLookup.id,
         p_output_product_id: createOutputProductId,
-        p_output_sku: output?.sku ?? "",
+        p_output_sku: output.sku,
         p_planned_qty: plannedQty,
         p_components: components,
         p_correlation_id: crypto.randomUUID(),
@@ -471,7 +517,7 @@ export default function AssemblyManagement() {
   const visibleJobs = jobs.filter((job) => {
     if (filter === "active") return !terminalStatuses.has(job.status);
     if (filter === "exceptions") return exceptionJobIds.has(job.id);
-    if (filter === "completed") return job.status === "job_closed";
+    if (filter === "completed") return terminalStatuses.has(job.status);
     return true;
   });
   const selected = jobs.find((job) => job.id === selectedId) ?? null;
@@ -578,6 +624,8 @@ export default function AssemblyManagement() {
                 <Detail label="BOM version" value={selected.bom_version ?? "—"} mono />
                 <Detail label="Master-data version" value={selected.master_data_version ?? "not yet supplied by AI Studio"} mono />
               </div>
+
+              {evidenceError && <p className="rounded-md border border-destructive/30 bg-destructive/5 p-2 text-xs text-destructive">Handover/3PGS evidence could not be read: {evidenceError}</p>}
 
               <LifecycleActions
                 job={selected}
