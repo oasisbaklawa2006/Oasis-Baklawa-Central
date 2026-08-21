@@ -86,9 +86,11 @@
  * There are no hard-coded credentials anywhere in this file.
  *
  * REQUIRED ENVIRONMENT:
- *   TEST_PREVIEW_URL        deployed site under test (defaults like the
- *                           rest of this repo's UAT specs, since it is not
- *                           a credential)
+ *   TEST_PREVIEW_URL        deployed site under test -- required (via
+ *                           tests/e2e-helpers.ts's getPreviewUrl(), same
+ *                           localhost/127.0.0.1/*.vercel.app allowlist and
+ *                           post-navigation origin check used by this
+ *                           repo's other UAT specs; not a credential)
  *   TEST_SUPABASE_URL       Supabase project URL backing TEST_PREVIEW_URL
  *   TEST_SUPABASE_ANON_KEY  its anon/publishable key -- used only as the
  *                           base client that PNA_ASSEMBLY_EMAIL/PASSWORD
@@ -122,13 +124,13 @@
  */
 import { test, expect, type Browser, type BrowserContext, type Page } from "@playwright/test";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import { getPreviewUrl } from "./e2e-helpers";
 
 /** Narrow evidence-row shapes for Core assembly tables (not yet in database.types.ts). */
 type AssemblyJobIdRow = { id: string };
 type AssemblyJobStatusRow = { id: string; status: string };
 type AssemblyJobPartialRow = { status: string; partial_issue_authorized: boolean };
 
-const TEST_PREVIEW_URL = process.env.TEST_PREVIEW_URL || "https://cursor-central-vercel.vercel.app";
 /** Production Supabase — Lane 2 proof must never authenticate or mutate this project. */
 const PRODUCTION_SUPABASE_PROJECT_REF = "tcxvcatsqqertcnycuop";
 /** Canonical staging Supabase for Lane 2 fixture matrix. */
@@ -159,7 +161,15 @@ function requireEnv(name: string): string {
 }
 
 async function login(page: Page, email: string, password: string) {
-  await page.goto(`${TEST_PREVIEW_URL}/login`, { waitUntil: "domcontentloaded", timeout: 60_000 });
+  const previewUrl = getPreviewUrl();
+  const expectedOrigin = new URL(previewUrl).origin;
+  await page.goto(`${previewUrl}/login`, { waitUntil: "domcontentloaded", timeout: 60_000 });
+  const actualOrigin = new URL(page.url()).origin;
+  if (actualOrigin !== expectedOrigin) {
+    throw new Error(
+      `Refusing to fill credentials: navigated to origin "${actualOrigin}" but expected "${expectedOrigin}" (TEST_PREVIEW_URL may have redirected off-origin).`,
+    );
+  }
   await page.getByRole("button", { name: /^Email$/i }).click();
   await page.getByPlaceholder("you@business.com").fill(email);
   await page.getByPlaceholder("••••••••").fill(password);
@@ -186,7 +196,7 @@ async function getAssemblyJob<T extends AssemblyJobIdRow>(sb: SupabaseClient, jo
 }
 /** Creates the job for a looked-up order, returning its exact assembly_job_number and the row prefix. */
 async function lookupOrderAndCreateJob(page: Page, orderNumber: string) {
-  await page.goto(`${TEST_PREVIEW_URL}/admin/assembly-tasks`, { waitUntil: "domcontentloaded", timeout: 60_000 });
+  await page.goto(`${getPreviewUrl()}/admin/assembly-tasks`, { waitUntil: "domcontentloaded", timeout: 60_000 });
   await expect(page.getByText("Create assembly job from an order requirement")).toBeVisible({ timeout: 30_000 });
 
   await page.getByPlaceholder("SO-...").fill(orderNumber);
@@ -350,7 +360,7 @@ test.describe("Lane 2 (P&A) end-to-end chain [STAGING-UAT-PENDING]", () => {
       // zero nor a short receipt can by itself satisfy Handed Over.
       const receiverPage = await isolatedPage();
       await login(receiverPage, RECEIVER_EMAIL, RECEIVER_PASSWORD);
-      await receiverPage.goto(`${TEST_PREVIEW_URL}/admin/assembly-tasks`, { waitUntil: "domcontentloaded", timeout: 60_000 });
+      await receiverPage.goto(`${getPreviewUrl()}/admin/assembly-tasks`, { waitUntil: "domcontentloaded", timeout: 60_000 });
       const receiverJobRow = receiverPage.locator("button").filter({ hasText: jobPrefix }).first();
       await expect(receiverJobRow).toBeVisible({ timeout: 30_000 });
       await receiverJobRow.click();
@@ -462,6 +472,18 @@ test.describe("Lane 2 (P&A) end-to-end chain [STAGING-UAT-PENDING]", () => {
       // partial_issue_authorized is true, which the refusal above never set.
       await expect(page.getByRole("button", { name: /issue components \(partial, authorised\)/i })).not.toBeVisible();
       await expect(page.getByPlaceholder(/reason to authorise a partial issue/i)).toBeVisible();
+
+      // Prove the ordinary (non-authorised) issue path is also blocked, not
+      // merely the partial-authorised one: Case A shows this button can
+      // remain visible while a job is partially reserved.
+      const ordinaryIssueButton = page.getByRole("button", { name: /^issue components$/i });
+      if (await ordinaryIssueButton.isVisible().catch(() => false)) {
+        await ordinaryIssueButton.click();
+        await expect(
+          errorToast(page),
+          "the ordinary Issue components action must also be refused while a mandatory 3PGS shortfall is unresolved",
+        ).toBeVisible({ timeout: 15_000 });
+      }
 
       const { data: recheckJob, error: recheckError } = await evidenceSb
         .from("b2b_assembly_jobs")
