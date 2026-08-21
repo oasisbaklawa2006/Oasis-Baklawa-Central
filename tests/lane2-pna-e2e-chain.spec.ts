@@ -473,17 +473,18 @@ test.describe("Lane 2 (P&A) end-to-end chain [STAGING-UAT-PENDING]", () => {
       await expect(page.getByRole("button", { name: /issue components \(partial, authorised\)/i })).not.toBeVisible();
       await expect(page.getByPlaceholder(/reason to authorise a partial issue/i)).toBeVisible();
 
-      // Prove the ordinary (non-authorised) issue path is also blocked, not
-      // merely the partial-authorised one: Case A shows this button can
-      // remain visible while a job is partially reserved.
-      const ordinaryIssueButton = page.getByRole("button", { name: /^issue components$/i });
-      if (await ordinaryIssueButton.isVisible().catch(() => false)) {
-        await ordinaryIssueButton.click();
-        await expect(
-          errorToast(page),
-          "the ordinary Issue components action must also be refused while a mandatory 3PGS shortfall is unresolved",
-        ).toBeVisible({ timeout: 15_000 });
-      }
+      // The ordinary (non-authorised) "Issue components" action is not just
+      // refused server-side -- AssemblyManagement.tsx's own status-gated
+      // ActionBar never renders it while status === "partially_reserved"
+      // (that status only ever shows "Retry reservation" plus either the
+      // partial-issue-authorise flow, or once authorised, "Issue components
+      // (partial, authorised)" -- the plain button only appears once
+      // materials_reserved). Assert that absence explicitly so this is a
+      // real UI-contract check, not a silently-skipped no-op.
+      await expect(
+        page.getByRole("button", { name: /^issue components$/i }),
+        "the ordinary (non-authorised) Issue components button must not be offered while partially_reserved with an unresolved 3PGS shortfall",
+      ).not.toBeVisible();
 
       const { data: recheckJob, error: recheckError } = await evidenceSb
         .from("b2b_assembly_jobs")
