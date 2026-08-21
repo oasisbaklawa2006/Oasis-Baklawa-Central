@@ -123,6 +123,11 @@
 import { test, expect, type Browser, type BrowserContext, type Page } from "@playwright/test";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 
+/** Narrow evidence-row shapes for Core assembly tables (not yet in database.types.ts). */
+type AssemblyJobIdRow = { id: string };
+type AssemblyJobStatusRow = { id: string; status: string };
+type AssemblyJobPartialRow = { status: string; partial_issue_authorized: boolean };
+
 const TEST_PREVIEW_URL = process.env.TEST_PREVIEW_URL || "https://cursor-central-vercel.vercel.app";
 
 function requireEnv(name: string): string {
@@ -151,12 +156,13 @@ function sourceReadinessBadge(page: Page, title: string) {
   return page.locator("div", { has: page.getByText(title, { exact: true }) }).first().getByText(/^(Reserved|Short|Not required)$/);
 }
 /** Exact, job-scoped lookup shared by both cases -- asserts the order's job resolves to exactly one row before returning it. */
-async function getAssemblyJob(sb: SupabaseClient, jobNumber: string, select: string) {
+async function getAssemblyJob<T extends AssemblyJobIdRow>(sb: SupabaseClient, jobNumber: string, select: string): Promise<T> {
   const { data, error } = await sb.from("b2b_assembly_jobs").select(select).eq("assembly_job_number", jobNumber);
   if (error) throw new Error(`Job lookup failed for ${jobNumber}: ${error.message}`);
   expect(data ?? [], `the exact assembly_job_number ${jobNumber} must resolve to exactly one job`).toHaveLength(1);
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  return data![0] as any;
+  const row = (data ?? [])[0] as T | undefined;
+  expect(row, `job row must exist for ${jobNumber}`).toBeTruthy();
+  return row as T;
 }
 /** Creates the job for a looked-up order, returning its exact assembly_job_number and the row prefix. */
 async function lookupOrderAndCreateJob(page: Page, orderNumber: string) {
@@ -257,7 +263,7 @@ test.describe("Lane 2 (P&A) end-to-end chain [STAGING-UAT-PENDING]", () => {
       ).toHaveText(/Reserved|Not required/, { timeout: 15_000 });
 
       const evidenceSb = await assemblyAuthedSupabase();
-      const jobRow = await getAssemblyJob(evidenceSb, jobNumber, "id");
+      const jobRow = await getAssemblyJob<AssemblyJobIdRow>(evidenceSb, jobNumber, "id");
 
       const { data: pgsRequirement, error: pgsRequirementError } = await evidenceSb
         .from("b2b_assembly_3pgs_requirements")
@@ -351,6 +357,10 @@ test.describe("Lane 2 (P&A) end-to-end chain [STAGING-UAT-PENDING]", () => {
 
       await receiverPage.getByRole("button", { name: /^close job$/i }).click();
       await expect(successToast(receiverPage, /job closed/i)).toBeVisible({ timeout: 15_000 });
+      test.info().annotations.push({
+        type: "staging-cleanup",
+        description: `Case A completed job ${jobNumber} on order ${ORDER_NUMBER} — re-seed fixture per docs/LANE2_PNA_STAGING_FIXTURE.md`,
+      });
     } finally {
       for (const ctx of contexts) await ctx.close();
     }
@@ -383,7 +393,7 @@ test.describe("Lane 2 (P&A) end-to-end chain [STAGING-UAT-PENDING]", () => {
       // 3pgs_requirements row with correct job/component/correlation
       // linkage -- P&A's actual current scope for this dependency.
       const evidenceSb = await assemblyAuthedSupabase();
-      const shortageJob = await getAssemblyJob(evidenceSb, jobNumber, "id, status");
+      const shortageJob = await getAssemblyJob<AssemblyJobStatusRow>(evidenceSb, jobNumber, "id, status");
       expect(shortageJob.status, "the job must genuinely be partially_reserved -- not materials_reserved, not further along").toBe("partially_reserved");
 
       const { data: pgsRequirements, error: pgsRequirementError } = await evidenceSb
@@ -438,8 +448,13 @@ test.describe("Lane 2 (P&A) end-to-end chain [STAGING-UAT-PENDING]", () => {
         .eq("id", shortageJob.id)
         .single();
       if (recheckError) throw new Error(`Post-refusal job re-check failed: ${recheckError.message}`);
-      expect(recheckJob.partial_issue_authorized, "the refused authorization attempt must not have been recorded").toBe(false);
-      expect(recheckJob.status, "the job must remain stuck at partially_reserved -- it can never falsely reach materially ready or Job Completed while 3PGS is unbuilt").toBe("partially_reserved");
+      const partialRow = recheckJob as AssemblyJobPartialRow;
+      expect(partialRow.partial_issue_authorized, "the refused authorization attempt must not have been recorded").toBe(false);
+      expect(partialRow.status, "the job must remain stuck at partially_reserved -- it can never falsely reach materially ready or Job Completed while 3PGS is unbuilt").toBe("partially_reserved");
+      test.info().annotations.push({
+        type: "staging-cleanup",
+        description: `Case B partial job ${jobNumber} on order ${SHORTAGE_ORDER_NUMBER} — reset fixture per docs/LANE2_PNA_STAGING_FIXTURE.md`,
+      });
     } finally {
       await ctx.close();
     }
