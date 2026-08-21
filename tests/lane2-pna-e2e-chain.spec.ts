@@ -133,11 +133,19 @@ const TEST_PREVIEW_URL = process.env.TEST_PREVIEW_URL || "https://cursor-central
 const PRODUCTION_SUPABASE_PROJECT_REF = "tcxvcatsqqertcnycuop";
 /** Canonical staging Supabase for Lane 2 fixture matrix. */
 const STAGING_SUPABASE_PROJECT_REF = "aruyieslaxjhnamlstpx";
+const STAGING_SUPABASE_HOST = `${STAGING_SUPABASE_PROJECT_REF}.supabase.co`;
 
-function refuseProductionSupabaseUrl(url: string, label: string): void {
-  if (url.includes(PRODUCTION_SUPABASE_PROJECT_REF)) {
+/** Fail closed: the mutation proof may run against the authorised staging project ONLY -- not merely "not production". */
+function requireStagingSupabaseUrl(url: string, label: string): void {
+  let parsed: URL;
+  try {
+    parsed = new URL(url);
+  } catch {
+    throw new Error(`${label} is not a valid URL.`);
+  }
+  if (parsed.protocol !== "https:" || parsed.hostname !== STAGING_SUPABASE_HOST) {
     throw new Error(
-      `${label} points at production Supabase (${PRODUCTION_SUPABASE_PROJECT_REF}). Lane 2 proof requires staging (${STAGING_SUPABASE_PROJECT_REF}) only.`,
+      `${label} must be the HTTPS staging Supabase project (${STAGING_SUPABASE_HOST}); resolved host was "${parsed.hostname}". Lane 2 proof refuses any other Supabase project, including production (${PRODUCTION_SUPABASE_PROJECT_REF}).`,
     );
   }
 }
@@ -226,7 +234,7 @@ test.describe("Lane 2 (P&A) end-to-end chain [STAGING-UAT-PENDING]", () => {
 
   test.beforeAll(() => {
     TEST_SUPABASE_URL = requireEnv("TEST_SUPABASE_URL");
-    refuseProductionSupabaseUrl(TEST_SUPABASE_URL, "TEST_SUPABASE_URL");
+    requireStagingSupabaseUrl(TEST_SUPABASE_URL, "TEST_SUPABASE_URL");
     TEST_SUPABASE_ANON_KEY = requireEnv("TEST_SUPABASE_ANON_KEY");
     ASSEMBLY_EMAIL = requireEnv("PNA_ASSEMBLY_EMAIL");
     ASSEMBLY_PASSWORD = requireEnv("PNA_ASSEMBLY_PASSWORD");

@@ -110,8 +110,8 @@ jobs:
             fi
           fi
           if [[ -z "$baked_ref" ]]; then
-            echo "::warning::Could not detect baked Supabase project from preview bundle."
-            exit 0
+            echo "::error::Could not verify the preview Supabase project from the bundle. Refusing Lane 2 proof (fail closed)."
+            exit 1
           fi
           echo "Detected preview Supabase project ref: $baked_ref"
           if [[ "$baked_ref" == "$PROD_REF" ]]; then
@@ -162,8 +162,10 @@ jobs:
             echo "::error::PNA_ORDER_NUMBER and PNA_3PGS_SHORTAGE_ORDER_NUMBER must differ."
             exit 1
           fi
-          if [[ "$TEST_SUPABASE_URL" == *"$LANE2_PRODUCTION_SUPABASE_REF"* ]]; then
-            echo "::error::TEST_SUPABASE_URL points at production ($LANE2_PRODUCTION_SUPABASE_REF). Lane 2 proof requires staging ($LANE2_STAGING_SUPABASE_REF)."
+          supabase_host="$(python3 -c "import sys, urllib.parse; print(urllib.parse.urlparse(sys.argv[1]).hostname or '')" "$TEST_SUPABASE_URL")"
+          expected_host="${LANE2_STAGING_SUPABASE_REF}.supabase.co"
+          if [[ "$TEST_SUPABASE_URL" != https://* || "$supabase_host" != "$expected_host" ]]; then
+            echo "::error::TEST_SUPABASE_URL must be the HTTPS staging Supabase project ($expected_host); resolved host was \"$supabase_host\". Lane 2 proof refuses any other Supabase project, including production ($LANE2_PRODUCTION_SUPABASE_REF)."
             exit 1
           fi
 
@@ -183,6 +185,7 @@ jobs:
         run: npx playwright test tests/lane2-pna-e2e-chain.spec.ts --project=desktop-chrome-size --reporter=junit,list
 
       - name: Assert report contains no live secret values
+        id: secret_scan
         if: always()
         shell: bash
         run: |
@@ -203,7 +206,7 @@ jobs:
 
       - name: Upload JUnit report
         uses: actions/upload-artifact@v4
-        if: always()
+        if: ${{ always() && steps.secret_scan.outcome == 'success' }}
         with:
           name: lane2-pna-e2e-results
           path: lane2-pna-e2e-junit.xml
