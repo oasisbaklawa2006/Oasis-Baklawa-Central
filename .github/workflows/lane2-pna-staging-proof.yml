@@ -1,0 +1,214 @@
+name: Lane 2 P&A Staging Proof
+
+# Central issue #368, Lane 2 PR D. Manual dispatch only — exercises
+# tests/lane2-pna-e2e-chain.spec.ts against a non-production preview/staging
+# deployment. See docs/LANE2_PNA_STAGING_FIXTURE.md.
+#
+# This workflow intentionally refuses production hosts. QA credentials must
+# never be sent to b2b.oasisbaklawa.com.
+on:
+  workflow_dispatch:
+    inputs:
+      preview_url:
+        description: >-
+          Optional override for the deployed Central URL (must be a Vercel
+          preview under oasisbaklawa2006-6222s-projects.vercel.app). When
+          empty, LANE2_TEST_PREVIEW_URL secret is used.
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+# Fail closed: Lane 2 proof must never hit production Supabase or production host.
+env:
+  LANE2_PRODUCTION_SUPABASE_REF: tcxvcatsqqertcnycuop
+  LANE2_STAGING_SUPABASE_REF: aruyieslaxjhnamlstpx
+
+concurrency:
+  group: lane2-pna-staging-proof
+  cancel-in-progress: false
+
+jobs:
+  connectivity-guard:
+    name: Prove runner reachability to non-production target (fail closed)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      url: ${{ steps.target.outputs.url }}
+    steps:
+      - name: Resolve and validate staging/preview URL
+        id: target
+        shell: bash
+        env:
+          INPUT_URL: ${{ inputs.preview_url }}
+          SECRET_URL: ${{ secrets.LANE2_TEST_PREVIEW_URL }}
+        run: |
+          set -euo pipefail
+          url="${INPUT_URL:-}"
+          if [[ -z "$url" ]]; then
+            url="$SECRET_URL"
+          fi
+          if [[ -z "$url" ]]; then
+            echo "::error::No target URL. Set workflow input preview_url or LANE2_TEST_PREVIEW_URL secret."
+            exit 1
+          fi
+          if [[ "$url" == *$'\n'* || "$url" == *$'\r'* ]]; then
+            echo "::error::Target URL contains newline/carriage-return; refusing (GITHUB_OUTPUT injection guard)."
+            exit 1
+          fi
+
+          host="$(python3 -c "import sys, urllib.parse; print(urllib.parse.urlparse(sys.argv[1]).hostname or '')" "$url")"
+
+          if [[ "$host" == "b2b.oasisbaklawa.com" ]]; then
+            echo "::error::Refusing production host b2b.oasisbaklawa.com for Lane 2 staging proof."
+            exit 1
+          fi
+
+          # Vercel preview deployments for this team only.
+          if ! python3 -c "import sys; h=sys.argv[1]; sys.exit(0 if h.endswith('.oasisbaklawa2006-6222s-projects.vercel.app') else 1)" "$host"; then
+            echo "::error::Host \"$host\" is not an allowed Vercel preview host (*.oasisbaklawa2006-6222s-projects.vercel.app)."
+            exit 1
+          fi
+
+          echo "url=$url" >> "$GITHUB_OUTPUT"
+          echo "Resolved non-production target host: $host"
+
+      - name: DNS and HTTP probe
+        shell: bash
+        env:
+          TARGET_URL: ${{ steps.target.outputs.url }}
+        run: |
+          set -euo pipefail
+          url="$TARGET_URL"
+          host="$(python3 -c "import sys, urllib.parse; print(urllib.parse.urlparse(sys.argv[1]).hostname or '')" "$url")"
+          if ! getent hosts "$host"; then
+            echo "::error::CI_NETWORK_EGRESS_BLOCKED — DNS failed for $host"
+            exit 1
+          fi
+          http_code="$(curl -sS -o /dev/null -w '%{http_code}' --max-time 25 "$url" || echo "000")"
+          echo "HTTP status: $http_code"
+          if [[ "$http_code" == "000" || "$http_code" -ge 500 ]]; then
+            echo "::error::Target unreachable or server error ($http_code)"
+            exit 1
+          fi
+
+      - name: Refuse preview builds not wired to staging Supabase
+        shell: bash
+        env:
+          TARGET_URL: ${{ steps.target.outputs.url }}
+          STAGING_REF: ${{ env.LANE2_STAGING_SUPABASE_REF }}
+        run: |
+          set -euo pipefail
+          html="$(curl -sS --max-time 25 "$TARGET_URL")"
+          baked_ref="$(echo "$html" | grep -oE 'https://[a-z0-9]+\.supabase\.co' | head -1 | sed 's|https://||;s|\.supabase\.co||' || true)"
+          if [[ -z "$baked_ref" ]]; then
+            js_path="$(echo "$html" | grep -oE '/assets/index-[a-zA-Z0-9]+\.js' | head -1 || true)"
+            if [[ -n "$js_path" ]]; then
+              js="$(curl -sS --max-time 25 "${TARGET_URL%/}$js_path")"
+              baked_ref="$(echo "$js" | grep -oE 'https://[a-z0-9]+\.supabase\.co' | head -1 | sed 's|https://||;s|\.supabase\.co||' || true)"
+            fi
+          fi
+          if [[ -z "$baked_ref" ]]; then
+            echo "::error::Could not verify the preview Supabase project from the bundle. Refusing Lane 2 proof (fail closed)."
+            exit 1
+          fi
+          echo "Detected preview Supabase project ref: $baked_ref"
+          if [[ "$baked_ref" != "$STAGING_REF" ]]; then
+            echo "::error::Preview must be wired to staging Supabase ($STAGING_REF); detected \"$baked_ref\". Configure Vercel Preview env to staging or supply a staging Central URL. See docs/LANE2_PNA_STAGING_FIXTURE.md"
+            exit 1
+          fi
+
+  lane2-pna-e2e:
+    name: Lane 2 P&A end-to-end staging proof
+    needs: connectivity-guard
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      TEST_PREVIEW_URL: ${{ needs.connectivity-guard.outputs.url }}
+      TEST_SUPABASE_URL: ${{ secrets.TEST_SUPABASE_URL }}
+      TEST_SUPABASE_ANON_KEY: ${{ secrets.TEST_SUPABASE_ANON_KEY }}
+      PNA_ASSEMBLY_EMAIL: ${{ secrets.PNA_ASSEMBLY_EMAIL }}
+      PNA_ASSEMBLY_PASSWORD: ${{ secrets.PNA_ASSEMBLY_PASSWORD }}
+      PNA_RECEIVER_EMAIL: ${{ secrets.PNA_RECEIVER_EMAIL }}
+      PNA_RECEIVER_PASSWORD: ${{ secrets.PNA_RECEIVER_PASSWORD }}
+      PNA_ORDER_NUMBER: ${{ secrets.PNA_ORDER_NUMBER }}
+      PNA_3PGS_SHORTAGE_ORDER_NUMBER: ${{ secrets.PNA_3PGS_SHORTAGE_ORDER_NUMBER }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Assert required staging secrets are present
+        shell: bash
+        run: |
+          set -euo pipefail
+          missing=()
+          for name in TEST_PREVIEW_URL TEST_SUPABASE_URL TEST_SUPABASE_ANON_KEY \
+                      PNA_ASSEMBLY_EMAIL PNA_ASSEMBLY_PASSWORD \
+                      PNA_RECEIVER_EMAIL PNA_RECEIVER_PASSWORD \
+                      PNA_ORDER_NUMBER PNA_3PGS_SHORTAGE_ORDER_NUMBER; do
+            if [[ -z "${!name:-}" ]]; then
+              missing+=("$name")
+            fi
+          done
+          if ((${#missing[@]} > 0)); then
+            echo "::error::Missing required secret(s): ${missing[*]}. See docs/LANE2_PNA_STAGING_FIXTURE.md"
+            exit 1
+          fi
+          if [[ "$PNA_ASSEMBLY_EMAIL" == "$PNA_RECEIVER_EMAIL" ]]; then
+            echo "::error::PNA_ASSEMBLY_EMAIL and PNA_RECEIVER_EMAIL must differ."
+            exit 1
+          fi
+          if [[ "$PNA_ORDER_NUMBER" == "$PNA_3PGS_SHORTAGE_ORDER_NUMBER" ]]; then
+            echo "::error::PNA_ORDER_NUMBER and PNA_3PGS_SHORTAGE_ORDER_NUMBER must differ."
+            exit 1
+          fi
+          supabase_host="$(python3 -c "import sys, urllib.parse; print(urllib.parse.urlparse(sys.argv[1]).hostname or '')" "$TEST_SUPABASE_URL")"
+          expected_host="${LANE2_STAGING_SUPABASE_REF}.supabase.co"
+          if [[ "$TEST_SUPABASE_URL" != https://* || "$supabase_host" != "$expected_host" ]]; then
+            echo "::error::TEST_SUPABASE_URL must be the HTTPS staging Supabase project ($expected_host); resolved host was \"$supabase_host\". Lane 2 proof refuses any other Supabase project, including production ($LANE2_PRODUCTION_SUPABASE_REF)."
+            exit 1
+          fi
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Install Playwright Browsers
+        run: npx playwright install --with-deps chromium
+
+      - name: Run Lane 2 P&A E2E chain (JUnit only)
+        env:
+          PLAYWRIGHT_JUNIT_OUTPUT_NAME: lane2-pna-e2e-junit.xml
+        run: npx playwright test tests/lane2-pna-e2e-chain.spec.ts --project=desktop-chrome-size --reporter=junit,list
+
+      - name: Assert report contains no live secret values
+        id: secret_scan
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          report="lane2-pna-e2e-junit.xml"
+          if [[ ! -f "$report" ]]; then
+            echo "$report was not produced."
+            exit 0
+          fi
+          for name in PNA_ASSEMBLY_PASSWORD PNA_RECEIVER_PASSWORD; do
+            value="${!name:-}"
+            [[ -n "$value" ]] || continue
+            if grep -qF -- "$value" "$report"; then
+              echo "::error::$report contains literal \$$name — refusing upload."
+              exit 1
+            fi
+          done
+
+      - name: Upload JUnit report
+        uses: actions/upload-artifact@v4
+        if: ${{ always() && steps.secret_scan.outcome == 'success' }}
+        with:
+          name: lane2-pna-e2e-results
+          path: lane2-pna-e2e-junit.xml
+          if-no-files-found: warn
+          retention-days: 14
