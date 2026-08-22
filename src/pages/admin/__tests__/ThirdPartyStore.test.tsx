@@ -20,7 +20,10 @@ const queueRow = {
   product: { name: "Outer Carton", sku: "CARTON-1" },
 };
 
-const rpcMock = vi.fn(async () => ({ data: null, error: null as { message: string } | null }));
+const rpcMock = vi.fn(async (_fn: string, _args: Record<string, unknown>) => ({
+  data: null,
+  error: null as { message: string } | null,
+}));
 
 function makeQuery(result: { data: unknown; error: null }) {
   const builder: Record<string, unknown> = {};
@@ -67,7 +70,7 @@ describe("ThirdPartyStore", () => {
     fireEvent.click(screen.getByRole("button", { name: /Done/i }));
 
     await waitFor(() => expect(rpcMock).toHaveBeenCalledTimes(1));
-    const [fn, args] = rpcMock.mock.calls[0] as [string, Record<string, unknown>];
+    const [fn, args] = rpcMock.mock.calls[0];
     expect(fn).toBe("complete_3pgs_order_item");
     expect(args).toMatchObject({ p_order_item_id: "item-1", p_actual_packed_qty: 12 });
   });
