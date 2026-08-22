@@ -124,16 +124,18 @@ jobs:
             exit 1
           fi
 
-      - name: Refuse preview builds not wired to production Supabase
+      - name: Refuse preview builds wired to production Supabase
         # NOTE: this step cannot pass a preview build as "certified staging" --
         # no such approved project currently exists (see the governance note
         # at the top of this file). It only proves the preview is NOT wired to
-        # production, as defense-in-depth alongside environment-governance-gate,
-        # which already refuses this workflow before this step can run.
+        # production or the historical unapproved reference, as defense-in-depth
+        # alongside environment-governance-gate, which already refuses this
+        # workflow before this step can run.
         shell: bash
         env:
           TARGET_URL: ${{ steps.target.outputs.url }}
           PRODUCTION_REF: ${{ env.LANE2_PRODUCTION_SUPABASE_REF }}
+          HISTORICAL_UNAPPROVED_REF: ${{ env.LANE2_HISTORICAL_UNAPPROVED_STAGING_REF }}
         run: |
           set -euo pipefail
           html="$(curl -sS --max-time 25 "$TARGET_URL")"
@@ -150,8 +152,8 @@ jobs:
             exit 1
           fi
           echo "Detected preview Supabase project ref: $baked_ref"
-          if [[ "$baked_ref" == "$PRODUCTION_REF" ]]; then
-            echo "::error::Preview is wired to production Supabase ($PRODUCTION_REF). Lane 2 proof must never run against production."
+          if [[ "$baked_ref" == "$PRODUCTION_REF" || "$baked_ref" == "$HISTORICAL_UNAPPROVED_REF" ]]; then
+            echo "::error::Preview is wired to an unapproved Supabase project ($baked_ref). Lane 2 proof must never run against production or the historical unapproved reference."
             exit 1
           fi
 
