@@ -4,7 +4,7 @@ import {
   Headphones, Users, Package, BarChart3, Scale, Globe, Settings, Shield, MessageCircle,
   Factory, PackageCheck, Landmark, AlertCircle, Languages, Bell, Sparkles, Monitor, Megaphone, Store,
   ScanLine, CalendarDays, Warehouse, Box, Boxes, ListOrdered, AlertOctagon, ScanBarcode, Network, Gauge, LayoutGrid, Search, PackageMinus,
-  Workflow, Link2, Inbox, Brain, ChevronDown, CalendarCheck2, ScrollText,
+  Workflow, Link2, Inbox, Brain, ChevronDown, CalendarCheck2, ScrollText, PackageSearch,
 } from "lucide-react";
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
@@ -79,6 +79,7 @@ const AdminLayout = () => {
         { to: "/admin/ready-goods-stock", icon: Boxes, label: "RGS ready stock", moduleKey: "inventory" },
         { to: "/admin/ready-goods-day-close", icon: CalendarCheck2, label: "RGS day closing", moduleKey: "inventory_audit" },
         { to: "/admin/ready-goods-reports", icon: ScrollText, label: "RGS reports & audit", moduleKey: "inventory_audit" },
+        { to: "/admin/3pgs-packing-material", icon: PackageSearch, label: "3PGS packing material", moduleKey: "inventory" },
         { to: "/admin/store-coordination", icon: Store, label: "Store coordination", moduleKey: "orders" },
         { to: "/admin/label-command-center", icon: ScanLine, label: "Label command center", moduleKey: "orders" },
         { to: "/admin/customer-timeline-preview", icon: CalendarDays, label: "Customer timeline preview", moduleKey: "cmd_war_room" },
