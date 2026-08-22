@@ -295,3 +295,35 @@ Point 14 is complete as an architecture/governance freeze because:
 - implementation is explicitly not misrepresented as completed.
 
 > **POINT 14 — COMPLETE**
+
+## 22. Addendum (2026-08-21): Lane 2 certification environment clarification
+
+This addendum is a governance clarification, not a migration, and does not
+reopen or amend §§1–21 above.
+
+- The sole persistent/canonical Supabase authority remains `tcxvcatsqqertcnycuop`,
+  as stated in §5. No second persistent Supabase project is authorised.
+- No certified staging/UAT Supabase project is currently named or approved
+  under this point. §5's "staging/UAT, where practical" target model
+  remains an unfulfilled aspiration, not a live binding.
+- A historical, informal reference (`aruyieslaxjhnamlstpx`), used in ad hoc
+  engineering sessions on 2026-05-30 before this point existed, was
+  discovered embedded in Central's Lane 2 (P&A) certification harness
+  (`tests/lane2-pna-e2e-chain.spec.ts`, `.github/workflows/lane2-pna-staging-proof.yml`,
+  `docs/LANE2_PNA_STAGING_FIXTURE.md`) as though it were an approved
+  staging environment. It was not, and the appearance of a project
+  reference in code, comments, or old session reports does not by itself
+  confer governance authorisation. That harness has been corrected to
+  remove the false authority claim and fail closed instead (see the
+  referenced files' current state).
+- Any future temporary or disposable certification environment (CI-provisioned,
+  ephemeral, or otherwise) requires explicit governance approval and a
+  named record here or in a successor point before code may treat it as
+  authorised. Until then, mutating certification proofs that need a real
+  backend remain deferred.
+- Temporary CI infrastructure used for a certification run must never
+  become, by drift or convenience, an independent migration authority or a
+  persistent business environment. Any disposable instance must be
+  provisioned from the canonical Core migration lineage and destroyed
+  after use — it does not accrue standing as a second environment merely
+  by having existed.

@@ -66,11 +66,24 @@
  * -- the exact same convention this repo's own `UAT_ORDER_SO` /
  * `PILOT_ORDERS` env vars already use elsewhere.
  *
- * STAGING-UAT-PENDING: this spec has not been executed. This repository's
- * sandbox has no browser-automation runtime and no confirmed network
- * reachability to the deployed staging site or its seeded accounts/
- * fixtures. No further Lane 2 construction is expected unless a real
- * browser-capable run exposes a genuine defect.
+ * STAGING-UAT-PENDING / ENVIRONMENT-PENDING: this spec has not been
+ * executed and cannot currently be executed. This repository's sandbox has
+ * no browser-automation runtime and no confirmed network reachability to a
+ * deployed staging site or its seeded accounts/fixtures. Separately, and
+ * more fundamentally: as of 2026-08-21, NO Supabase project is currently
+ * approved by App-Verse environment governance as a Lane 2 certification
+ * backend. `tcxvcatsqqertcnycuop` is the sole persistent/canonical Supabase
+ * authority and must never be used for this mutating proof.
+ * `aruyieslaxjhnamlstpx`, referenced below only as a historical marker, was
+ * used in ad hoc engineering sessions before environment governance existed
+ * (see docs/APP_VERSE_POINT_14_ENVIRONMENT_MATRIX_2026-07-23.md) and was
+ * never named or ratified by that governance record -- it must not be
+ * treated as approved, recreated, or reconnected. This spec fails closed at
+ * `beforeAll` regardless of what `TEST_SUPABASE_URL` is supplied, until a
+ * future, separately-approved disposable/isolated certification mechanism
+ * exists. See docs/LANE2_PNA_STAGING_FIXTURE.md. No further Lane 2
+ * construction is expected unless a real, environment-approved run exposes
+ * a genuine defect.
  *
  * DATABASE READS: no unscoped or "latest X" read, and no anonymous read of
  * internally-governed tables. Case A's evidence reads and Case B's
@@ -91,7 +104,10 @@
  *                           localhost/127.0.0.1/*.vercel.app allowlist and
  *                           post-navigation origin check used by this
  *                           repo's other UAT specs; not a credential)
- *   TEST_SUPABASE_URL       Supabase project URL backing TEST_PREVIEW_URL
+ *   TEST_SUPABASE_URL       Supabase project URL backing TEST_PREVIEW_URL --
+ *                           no value currently satisfies beforeAll's
+ *                           refuseUnapprovedLane2Environment(), since no
+ *                           project is currently approved for this purpose
  *   TEST_SUPABASE_ANON_KEY  its anon/publishable key -- used only as the
  *                           base client that PNA_ASSEMBLY_EMAIL/PASSWORD
  *                           then signs in through; never queried anonymously
@@ -131,25 +147,42 @@ type AssemblyJobIdRow = { id: string };
 type AssemblyJobStatusRow = { id: string; status: string };
 type AssemblyJobPartialRow = { status: string; partial_issue_authorized: boolean };
 
-/** Production Supabase — Lane 2 proof must never authenticate or mutate this project. */
+/** Sole persistent/canonical Supabase authority (App-Verse Point 14). Lane 2 proof must never authenticate or mutate this project. */
 const PRODUCTION_SUPABASE_PROJECT_REF = "tcxvcatsqqertcnycuop";
-/** Canonical staging Supabase for Lane 2 fixture matrix. */
-const STAGING_SUPABASE_PROJECT_REF = "aruyieslaxjhnamlstpx";
-const STAGING_SUPABASE_HOST = `${STAGING_SUPABASE_PROJECT_REF}.supabase.co`;
+/**
+ * Historical, NON-authoritative reference only. Used in ad hoc engineering
+ * sessions (2026-05-30, Stage 14B/14F/14H) before App-Verse environment
+ * governance existed. Never named or ratified by the canonical governance
+ * record (docs/APP_VERSE_POINT_14_ENVIRONMENT_MATRIX_2026-07-23.md, FROZEN).
+ * Retained here only so this constant's history is documented -- NOT to
+ * authorise its use, recreation, or reconnection. See
+ * docs/LANE2_PNA_STAGING_FIXTURE.md.
+ */
+const HISTORICAL_UNAPPROVED_STAGING_REF = "aruyieslaxjhnamlstpx";
 
-/** Fail closed: the mutation proof may run against the authorised staging project ONLY -- not merely "not production". */
-function requireStagingSupabaseUrl(url: string, label: string): void {
-  let parsed: URL;
+/**
+ * Fail closed, unconditionally: no Supabase project is currently approved by
+ * App-Verse environment governance as a Lane 2 certification backend. This
+ * spec refuses to run against ANY project -- including production and
+ * including the historical, unapproved reference above -- until a future,
+ * separately-approved disposable/isolated certification mechanism exists.
+ * See docs/LANE2_PNA_STAGING_FIXTURE.md.
+ */
+function refuseUnapprovedLane2Environment(url: string, label: string): never {
+  let hostname = "(unparseable)";
   try {
-    parsed = new URL(url);
+    hostname = new URL(url).hostname;
   } catch {
-    throw new Error(`${label} is not a valid URL.`);
+    // Reported generically below regardless of parse success.
   }
-  if (parsed.protocol !== "https:" || parsed.hostname !== STAGING_SUPABASE_HOST) {
+  if (hostname === `${PRODUCTION_SUPABASE_PROJECT_REF}.supabase.co`) {
     throw new Error(
-      `${label} must be the HTTPS staging Supabase project (${STAGING_SUPABASE_HOST}); resolved host was "${parsed.hostname}". Lane 2 proof refuses any other Supabase project, including production (${PRODUCTION_SUPABASE_PROJECT_REF}).`,
+      `${label} points at the sole persistent/canonical Supabase project (${PRODUCTION_SUPABASE_PROJECT_REF}). Lane 2 certification must never run against it.`,
     );
   }
+  throw new Error(
+    `Lane 2 certification is deferred by environment governance: no Supabase project is currently approved as a staging/certification backend (this includes the historical, unapproved reference "${HISTORICAL_UNAPPROVED_STAGING_REF}"). ${label} resolved to host "${hostname}". See docs/LANE2_PNA_STAGING_FIXTURE.md.`,
+  );
 }
 
 function requireEnv(name: string): string {
@@ -244,7 +277,7 @@ test.describe("Lane 2 (P&A) end-to-end chain [STAGING-UAT-PENDING]", () => {
 
   test.beforeAll(() => {
     TEST_SUPABASE_URL = requireEnv("TEST_SUPABASE_URL");
-    requireStagingSupabaseUrl(TEST_SUPABASE_URL, "TEST_SUPABASE_URL");
+    refuseUnapprovedLane2Environment(TEST_SUPABASE_URL, "TEST_SUPABASE_URL");
     TEST_SUPABASE_ANON_KEY = requireEnv("TEST_SUPABASE_ANON_KEY");
     ASSEMBLY_EMAIL = requireEnv("PNA_ASSEMBLY_EMAIL");
     ASSEMBLY_PASSWORD = requireEnv("PNA_ASSEMBLY_PASSWORD");
