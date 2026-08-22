@@ -38,7 +38,7 @@ export default function ThirdPartyStore() {
 
       if (error) throw error;
       setItems((data as QueueItem[]) ?? []);
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("[3PCS] fetch failed", err);
       toast.error("Failed to load 3PCS queue");
       setItems([]);
@@ -65,8 +65,8 @@ export default function ThirdPartyStore() {
 
       setItems(prev => prev.map(i => i.id === item.id ? { ...i, production_status: "completed", actual_packed_qty: item.quantity } : i));
       toast.success(`Marked complete: ${item.product?.name || "Item"}`);
-    } catch (err: any) {
-      toast.error(err?.message || "Failed to update");
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : "Failed to update");
     } finally {
       setActingId(null);
     }
