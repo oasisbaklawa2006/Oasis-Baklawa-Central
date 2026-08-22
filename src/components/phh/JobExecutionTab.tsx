@@ -178,6 +178,7 @@ export default function JobExecutionTab({ jobs, userId, department, onRefresh }:
       toast.error("Enter issue details");
       return;
     }
+    setActing(selectedJob.id);
     const { error } = await rgsGovernedRpc.rpc("report_production_issue", {
       p_job_id: selectedJob.id,
       p_department: department,
@@ -187,11 +188,13 @@ export default function JobExecutionTab({ jobs, userId, department, onRefresh }:
     });
     if (error) {
       toast.error(error.message || "Could not report issue");
+      setActing(null);
       return;
     }
     toast.success("⚠️ Issue Reported");
     setShowIssueModal(false);
     setIssueComment("");
+    setActing(null);
   };
 
   if (activeJobs.length === 0) {
@@ -390,7 +393,9 @@ export default function JobExecutionTab({ jobs, userId, department, onRefresh }:
                 <textarea value={issueComment} onChange={(e) => setIssueComment(e.target.value)} placeholder="Describe the issue..." className="w-full border border-slate-200 rounded-xl p-3 text-sm min-h-[100px] outline-none" />
                 <div className="flex gap-2">
                   <button onClick={() => setShowIssueModal(false)} className="flex-1 py-3 rounded-xl bg-slate-100 font-bold text-sm">Cancel</button>
-                  <button onClick={handleReportIssue} className="flex-1 py-3 rounded-xl bg-red-600 text-white font-black text-sm active:scale-95">Submit Issue</button>
+                  <button onClick={handleReportIssue} disabled={!!acting} className="flex-1 py-3 rounded-xl bg-red-600 text-white font-black text-sm active:scale-95 flex items-center justify-center gap-1">
+                    {acting ? <Loader2 size={14} className="animate-spin" /> : "Submit Issue"}
+                  </button>
                 </div>
               </motion.div>
             </motion.div>

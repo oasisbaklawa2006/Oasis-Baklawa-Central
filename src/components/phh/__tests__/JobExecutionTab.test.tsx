@@ -79,4 +79,29 @@ describe("JobExecutionTab governed issue reporting", () => {
     await waitFor(() => expect(rpcMock).toHaveBeenCalledTimes(1));
     expect(screen.getByText("Submit Issue")).toBeTruthy();
   });
+
+  it("shows a success toast and closes the modal on a successful report", async () => {
+    const { toast } = await import("sonner");
+    openIssueModal();
+    fireEvent.change(screen.getByPlaceholderText("Describe the issue..."), { target: { value: "Mixer is jammed" } });
+    fireEvent.click(screen.getByText("Submit Issue"));
+
+    await waitFor(() => expect(toast.success).toHaveBeenCalledWith("⚠️ Issue Reported"));
+    expect(screen.queryByPlaceholderText("Describe the issue...")).toBeNull();
+  });
+
+  it("does not allow a second submit while the first report is in flight", async () => {
+    let resolveRpc: (value: { data: null; error: null }) => void = () => {};
+    rpcMock.mockImplementationOnce(
+      () => new Promise((resolve) => { resolveRpc = resolve; })
+    );
+    openIssueModal();
+    fireEvent.change(screen.getByPlaceholderText("Describe the issue..."), { target: { value: "Mixer is jammed" } });
+    const submitButton = screen.getByText("Submit Issue");
+    fireEvent.click(submitButton);
+    fireEvent.click(submitButton);
+
+    resolveRpc({ data: null, error: null });
+    await waitFor(() => expect(rpcMock).toHaveBeenCalledTimes(1));
+  });
 });
