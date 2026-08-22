@@ -273,10 +273,11 @@ export default function AssemblyManagement() {
   // screen despite the read-only requirements panel below already
   // displaying them -- the P&A-to-3PGS handoff was schema-only. Same
   // per-component idempotent-retry persistence as handleReserve.
-  const raise3pgsCorrelationRef = useRef<Record<string, string>>({});
+  const raise3pgsCorrelationRef = useRef<Record<string, { qty: number; id: string }>>({});
   const handleRaise3pgsRequirement = useCallback((componentId: string, shortfallQty: number) => {
-    if (!raise3pgsCorrelationRef.current[componentId]) raise3pgsCorrelationRef.current[componentId] = crypto.randomUUID();
-    const correlationId = raise3pgsCorrelationRef.current[componentId];
+    const existing = raise3pgsCorrelationRef.current[componentId];
+    const correlationId = existing && existing.qty === shortfallQty ? existing.id : crypto.randomUUID();
+    raise3pgsCorrelationRef.current[componentId] = { qty: shortfallQty, id: correlationId };
     return runAction(
       "3PGS requirement raised", "create_assembly_3pgs_requirement",
       { p_assembly_component_id: componentId, p_requested_qty: shortfallQty, p_priority: "normal", p_correlation_id: correlationId },

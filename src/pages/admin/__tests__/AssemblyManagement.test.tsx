@@ -125,4 +125,28 @@ describe("AssemblyManagement 3PGS requirement handoff", () => {
     expect(firstArgs).toMatchObject({ p_assembly_component_id: "comp-1", p_requested_qty: 6, p_priority: "normal" });
     expect(secondArgs.p_correlation_id).toBe(firstArgs.p_correlation_id);
   });
+
+  it("rotates the correlation id when the shortfall quantity has changed since the last failed attempt", async () => {
+    rpcMock.mockResolvedValueOnce({ data: null, error: { message: "network hiccup" } });
+    render(<AssemblyManagement />);
+    const firstButton = await screen.findByText("Raise 3PGS requirement");
+    fireEvent.click(firstButton);
+    await waitFor(() => expect(rpcMock).toHaveBeenCalledTimes(1));
+
+    // Reservation progressed between attempts, so the real shortfall shrank --
+    // a manual refresh (the screen's own "Refresh" action) picks that up.
+    // The eventual retry must not replay the stale quantity under the old
+    // correlation id.
+    componentsResult = [{ ...shortComponent, reserved_qty: 6 }];
+    fireEvent.click(screen.getByText("Refresh"));
+    const secondButton = await screen.findByText("Raise 3PGS requirement");
+    fireEvent.click(secondButton);
+    await waitFor(() => expect(rpcMock).toHaveBeenCalledTimes(2));
+
+    const [, firstArgs] = rpcMock.mock.calls[0];
+    const [, secondArgs] = rpcMock.mock.calls[1];
+    expect(firstArgs.p_requested_qty).toBe(6);
+    expect(secondArgs.p_requested_qty).toBe(4);
+    expect(secondArgs.p_correlation_id).not.toBe(firstArgs.p_correlation_id);
+  });
 });
