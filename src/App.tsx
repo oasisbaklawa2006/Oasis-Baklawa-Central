@@ -93,6 +93,7 @@ const BarcodeExecutionPreview = lazy(() => import("./pages/admin/BarcodeExecutio
 const DispatchGovernedExecutionPreview = lazy(
   () => import("./pages/admin/DispatchGovernedExecutionPreview.tsx"),
 );
+const ThreePgsProcurementQueue = lazy(() => import("./pages/admin/ThreePgsProcurementQueue.tsx"));
 const ProductIntelligencePrototype = lazy(
   () => import("./pages/admin/ProductIntelligencePrototype.tsx"),
 );
@@ -465,6 +466,14 @@ const App = () => (
                     <Route path="dispatch-tv" element={<DispatchTV />} />
                     <Route path="target-vs-actual" element={<TargetVsActual />} />
                     <Route path="3pcs-store" element={<ThirdPartyStore />} />
+                    <Route
+                      path="3pgs-procurement-queue"
+                      element={
+                        <AdminModuleRoute moduleKey="inventory">
+                          <ThreePgsProcurementQueue />
+                        </AdminModuleRoute>
+                      }
+                    />
                     <Route path="verification" element={<Navigate to="/admin/execution-command-center" replace />} />
                     <Route path="announcements" element={<AdminAnnouncements />} />
                   </Route>
