@@ -34,7 +34,10 @@ const bookingRow = {
   created_at: "2026-08-22T00:00:00.000Z",
 };
 
-const rpcMock = vi.fn(async () => ({ data: null, error: null as { message: string } | null }));
+const rpcMock = vi.fn(async (_fn: string, _args: Record<string, unknown>) => ({
+  data: null,
+  error: null as { message: string } | null,
+}));
 
 function makeQuery(result: { data: unknown; error: null }) {
   const builder: Record<string, unknown> = {};
@@ -120,7 +123,7 @@ describe("ThirdPartyPackingMaterialCatalogue", () => {
     fireEvent.click(screen.getByRole("button", { name: "Confirm booking" }));
 
     await waitFor(() => expect(rpcMock).toHaveBeenCalledTimes(1));
-    const [fn, args] = rpcMock.mock.calls[0] as [string, Record<string, unknown>];
+    const [fn, args] = rpcMock.mock.calls[0];
     expect(fn).toBe("book_3pgs_packing_material_requisition");
     expect(args).toMatchObject({
       p_product_id: "p1",
