@@ -132,9 +132,14 @@ export default function ThreePgsProcurementQueue() {
   const assignCorrelationRef = useRef<Record<string, string>>({});
   const handleAssignVendor = useCallback(async (requirementId: string) => {
     const draft = vendorDrafts[requirementId];
-    const vendorReference = draft?.reference.trim();
+    const vendorReference = draft?.reference?.trim();
     if (!vendorReference) {
       toast.error("A vendor reference is required.");
+      return;
+    }
+    const expectedAtDate = draft.expectedAt ? new Date(draft.expectedAt) : null;
+    if (expectedAtDate && Number.isNaN(expectedAtDate.getTime())) {
+      toast.error("The expected date is invalid.");
       return;
     }
     if (!assignCorrelationRef.current[requirementId]) assignCorrelationRef.current[requirementId] = crypto.randomUUID();
@@ -144,7 +149,7 @@ export default function ThreePgsProcurementQueue() {
       const { error: rpcError } = await threePgsProcurementRpc.rpc("assign_procurement_vendor", {
         p_requirement_id: requirementId,
         p_vendor_reference: vendorReference,
-        p_expected_at: draft.expectedAt ? new Date(draft.expectedAt).toISOString() : null,
+        p_expected_at: expectedAtDate ? expectedAtDate.toISOString() : null,
         p_correlation_id: correlationId,
       });
       if (rpcError) throw new Error(rpcError.message);
