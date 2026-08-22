@@ -273,6 +273,7 @@ export default function JobExecutionTab({ jobs, userId, department, onRefresh }:
         {selectedJob.status === "in_production" && (
           <button
             onClick={() => { setShowPauseModal(true); }}
+            disabled={!!acting}
             className="w-full py-3 rounded-xl bg-amber-500 text-white font-black text-xs uppercase tracking-widest active:scale-95 flex items-center justify-center gap-2"
           >
             <Pause size={14} /> Pause Production
@@ -343,6 +344,7 @@ export default function JobExecutionTab({ jobs, userId, department, onRefresh }:
         {/* Report Issue */}
         <button
           onClick={() => setShowIssueModal(true)}
+          disabled={!!acting}
           className="w-full py-3 rounded-xl bg-red-50 text-red-600 font-black text-xs uppercase tracking-widest border border-red-200 active:scale-95 flex items-center justify-center gap-2"
         >
           <AlertTriangle size={14} /> Report Issue
@@ -369,7 +371,7 @@ export default function JobExecutionTab({ jobs, userId, department, onRefresh }:
                 <textarea value={pauseComment} onChange={(e) => setPauseComment(e.target.value)} placeholder="Additional notes..." className="w-full border border-slate-200 rounded-xl p-3 text-sm min-h-[80px] outline-none" />
                 <div className="flex gap-2">
                   <button onClick={() => setShowPauseModal(false)} className="flex-1 py-3 rounded-xl bg-slate-100 font-bold text-sm">Cancel</button>
-                  <button onClick={handlePause} disabled={!pauseReason} className="flex-1 py-3 rounded-xl bg-amber-500 text-white font-black text-sm active:scale-95">Confirm Pause</button>
+                  <button onClick={handlePause} disabled={!pauseReason || !!acting} className="flex-1 py-3 rounded-xl bg-amber-500 text-white font-black text-sm active:scale-95">Confirm Pause</button>
                 </div>
               </motion.div>
             </motion.div>

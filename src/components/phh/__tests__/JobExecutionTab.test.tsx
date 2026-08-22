@@ -61,6 +61,7 @@ describe("JobExecutionTab governed issue reporting", () => {
       p_department: "ARABIC_SWEETS",
       p_issue_type: "material",
       p_comment: "Mixer is jammed",
+      p_correlation_id: expect.any(String),
     })));
   });
 
@@ -103,5 +104,21 @@ describe("JobExecutionTab governed issue reporting", () => {
 
     resolveRpc({ data: null, error: null });
     await waitFor(() => expect(rpcMock).toHaveBeenCalledTimes(1));
+  });
+
+  it("disables Pause Production while a report is in flight, preventing an overlapping RPC", async () => {
+    let resolveRpc: (value: { data: null; error: null }) => void = () => {};
+    rpcMock.mockImplementationOnce(
+      () => new Promise((resolve) => { resolveRpc = resolve; })
+    );
+    openIssueModal();
+    fireEvent.change(screen.getByPlaceholderText("Describe the issue..."), { target: { value: "Mixer is jammed" } });
+    fireEvent.click(screen.getByText("Submit Issue"));
+
+    expect(screen.getByText("Pause Production")).toBeDisabled();
+
+    resolveRpc({ data: null, error: null });
+    await waitFor(() => expect(rpcMock).toHaveBeenCalledTimes(1));
+    expect(screen.getByText("Pause Production")).not.toBeDisabled();
   });
 });
