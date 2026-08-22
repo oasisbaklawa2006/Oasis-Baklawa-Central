@@ -1,7 +1,7 @@
 import { useCallback, useRef, useState } from "react";
 import TopNavBar from "@/components/TopNavBar";
 import { supabase } from "@/integrations/supabase/client";
-import { useAuth } from "@/hooks/useAuth";
+import { threePgsOrderItemRpc } from "@/lib/threePgsOrderItemRpc";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { CheckCircle2, Loader2, RefreshCcw } from "lucide-react";
@@ -19,7 +19,6 @@ interface QueueItem {
 }
 
 export default function ThirdPartyStore() {
-  const { user } = useAuth();
   const [items, setItems] = useState<QueueItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [loaded, setLoaded] = useState(false);
@@ -58,19 +57,11 @@ export default function ThirdPartyStore() {
   const handleComplete = async (item: QueueItem) => {
     setActingId(item.id);
     try {
-      const { error } = await supabase
-        .from("order_items")
-        .update({ production_status: "completed", actual_packed_qty: item.quantity })
-        .eq("id", item.id);
-      if (error) throw error;
-
-      await supabase.from("audit_logs").insert({
-        action_type: "3PCS_COMPLETE",
-        module_name: "3PCS",
-        entity_id: item.id,
-        actor_id: user?.id || null,
-        risk_level: "normal",
+      const { error } = await threePgsOrderItemRpc.rpc("complete_3pgs_order_item", {
+        p_order_item_id: item.id,
+        p_actual_packed_qty: item.quantity,
       });
+      if (error) throw new Error(error.message);
 
       setItems(prev => prev.map(i => i.id === item.id ? { ...i, production_status: "completed", actual_packed_qty: item.quantity } : i));
       toast.success(`Marked complete: ${item.product?.name || "Item"}`);
