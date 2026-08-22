@@ -1,5 +1,4 @@
 import { useState } from "react";
-import { supabase } from "@/integrations/supabase/client";
 import { rgsGovernedRpc } from "@/lib/rgsGovernedRpc";
 import { toast } from "sonner";
 import { Loader2, Play, Pause, RotateCcw, Image as ImageIcon, AlertTriangle, Camera, Send, Lock, ChevronRight } from "lucide-react";
@@ -179,13 +178,17 @@ export default function JobExecutionTab({ jobs, userId, department, onRefresh }:
       toast.error("Enter issue details");
       return;
     }
-    await supabase.from("production_issues").insert({
-      job_id: selectedJob.id,
-      department,
-      issue_type: issueType,
-      comment: issueComment,
-      reported_by: userId,
+    const { error } = await rgsGovernedRpc.rpc("report_production_issue", {
+      p_job_id: selectedJob.id,
+      p_department: department,
+      p_issue_type: issueType,
+      p_comment: issueComment,
+      p_correlation_id: crypto.randomUUID(),
     });
+    if (error) {
+      toast.error(error.message || "Could not report issue");
+      return;
+    }
     toast.success("⚠️ Issue Reported");
     setShowIssueModal(false);
     setIssueComment("");
