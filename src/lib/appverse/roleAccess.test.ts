@@ -26,4 +26,13 @@ describe("App-Verse role authority", () => {
     expect(hasModuleAccess(["*"], "finance")).toBe(true);
     expect(hasModuleAccess(["production"], "finance")).toBe(false);
   });
+
+  it("keeps Dispatch roles out of the general orders module (shipment-scoped visibility only)", () => {
+    for (const role of ["DISPATCH_MANAGER", "DISPATCH_INCHARGE", "DISPATCH_HEAD"]) {
+      expect(getAllowedModulesForRole(role)).not.toContain("orders");
+    }
+    // Their own dispatch/packing screens remain untouched.
+    expect(getAllowedModulesForRole("DISPATCH_MANAGER")).toContain("dispatch");
+    expect(getAllowedModulesForRole("DISPATCH_INCHARGE")).toContain("packing");
+  });
 });
