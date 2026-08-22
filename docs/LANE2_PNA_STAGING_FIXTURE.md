@@ -59,7 +59,7 @@ staff-provisioning path — not browser-side `signUp()`.
 
 ## Secrets this workflow expects (for whenever an approved environment exists)
 
-```
+```text
 LANE2_TEST_PREVIEW_URL          # Vercel preview or non-production Central URL (NOT production)
 
 TEST_SUPABASE_URL               # Approved certification project URL (none currently approved)
