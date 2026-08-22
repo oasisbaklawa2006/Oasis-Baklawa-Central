@@ -136,7 +136,7 @@ export default function ThirdPartyPackingMaterialCatalogue() {
     }
     setSubmitting(true);
     try {
-      const correlationId = `ui-${bookingItem.product_id}-${Date.now()}`;
+      const correlationId = `ui-${bookingItem.product_id}-${crypto.randomUUID()}`;
       const { error: rpcError } = await rgsGovernedRpc.rpc("book_3pgs_packing_material_requisition", {
         p_product_id: bookingItem.product_id,
         p_sku: bookingItem.sku,
