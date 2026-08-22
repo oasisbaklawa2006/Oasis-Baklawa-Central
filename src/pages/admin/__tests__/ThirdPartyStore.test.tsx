@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { toast } from "sonner";
 import ThirdPartyStore from "../ThirdPartyStore";
 
 vi.mock("@/components/TopNavBar", () => ({ default: () => null }));
@@ -78,7 +79,7 @@ describe("ThirdPartyStore governed completion", () => {
     const button = await screen.findByText("Done");
     fireEvent.click(button);
 
-    await waitFor(() => expect(rpcMock).toHaveBeenCalledTimes(1));
-    expect(await screen.findByText("Done")).toBeTruthy();
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith("not authorised"));
+    expect(screen.getByText("Done")).toBeTruthy();
   });
 });
