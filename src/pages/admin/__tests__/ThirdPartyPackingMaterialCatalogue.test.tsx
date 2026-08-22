@@ -150,4 +150,30 @@ describe("ThirdPartyPackingMaterialCatalogue", () => {
     await waitFor(() => expect(toast.error).toHaveBeenCalledWith("Not authorised to reserve RGS stock"));
     expect(screen.getByRole("button", { name: "Confirm booking" })).toBeTruthy();
   });
+
+  it("reuses the same correlation id across a retry, so a lost-response retry cannot double-book", async () => {
+    // Simulates a double-submit / retry-after-failure: the disabled-button
+    // guard is not authoritative, so the backend's correlation_id
+    // idempotency check is the real safety net -- it only works if every
+    // retry of the same booking attempt carries the identical id.
+    rpcMock.mockResolvedValueOnce({ data: null, error: { message: "network hiccup" } });
+    render(<ThirdPartyPackingMaterialCatalogue />);
+    await screen.findByText("Outer Carton");
+
+    fireEvent.click(screen.getAllByRole("button", { name: "Book" })[0]);
+    fireEvent.change(screen.getByLabelText("Quantity"), { target: { value: "3" } });
+    fireEvent.change(screen.getByLabelText("Requesting department"), {
+      target: { value: "Packing & Assembly" },
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Confirm booking" }));
+    await waitFor(() => expect(rpcMock).toHaveBeenCalledTimes(1));
+
+    fireEvent.click(screen.getByRole("button", { name: "Confirm booking" }));
+    await waitFor(() => expect(rpcMock).toHaveBeenCalledTimes(2));
+
+    const firstArgs = rpcMock.mock.calls[0][1];
+    const secondArgs = rpcMock.mock.calls[1][1];
+    expect(secondArgs.p_correlation_id).toBe(firstArgs.p_correlation_id);
+  });
 });

@@ -73,6 +73,7 @@ export default function ThirdPartyPackingMaterialCatalogue() {
   const [bookingQty, setBookingQty] = useState("");
   const [bookingDept, setBookingDept] = useState("");
   const [bookingNote, setBookingNote] = useState("");
+  const [bookingCorrelationId, setBookingCorrelationId] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
   const fetchData = useCallback(async () => {
@@ -121,10 +122,18 @@ export default function ThirdPartyPackingMaterialCatalogue() {
     setBookingQty("");
     setBookingDept("");
     setBookingNote("");
+    // Generated once per booking attempt (not per submit click) so that a
+    // double-click, a rapid repeat Enter/click, or a retry after a lost
+    // network response all replay the SAME correlation id. The backend
+    // (reserve_rgs_stock) is idempotent by correlation_id -- a fresh id per
+    // click would defeat that guarantee and let a UI-level double-submit
+    // create a genuine second reservation, since the disabled-button guard
+    // alone is not authoritative.
+    setBookingCorrelationId(`ui-${item.product_id}-${crypto.randomUUID()}`);
   };
 
   const submitBooking = async () => {
-    if (!bookingItem) return;
+    if (!bookingItem || !bookingCorrelationId) return;
     const qty = Number(bookingQty);
     if (!Number.isFinite(qty) || qty <= 0) {
       toast.error("Enter a valid quantity to book.");
@@ -136,18 +145,18 @@ export default function ThirdPartyPackingMaterialCatalogue() {
     }
     setSubmitting(true);
     try {
-      const correlationId = `ui-${bookingItem.product_id}-${crypto.randomUUID()}`;
       const { error: rpcError } = await rgsGovernedRpc.rpc("book_3pgs_packing_material_requisition", {
         p_product_id: bookingItem.product_id,
         p_sku: bookingItem.sku,
         p_requested_qty: qty,
         p_requesting_department: bookingDept.trim(),
-        p_correlation_id: correlationId,
+        p_correlation_id: bookingCorrelationId,
         p_purpose_note: bookingNote.trim() || null,
       });
       if (rpcError) throw new Error(rpcError.message);
       toast.success(`Booking submitted for ${bookingItem.sku}.`);
       setBookingItem(null);
+      setBookingCorrelationId(null);
       await fetchData();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to submit the booking.");
@@ -309,7 +318,15 @@ export default function ThirdPartyPackingMaterialCatalogue() {
         </CardContent>
       </Card>
 
-      <Dialog open={bookingItem !== null} onOpenChange={(open) => !open && setBookingItem(null)}>
+      <Dialog
+        open={bookingItem !== null}
+        onOpenChange={(open) => {
+          if (!open) {
+            setBookingItem(null);
+            setBookingCorrelationId(null);
+          }
+        }}
+      >
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Book {bookingItem?.product_name ?? bookingItem?.sku}</DialogTitle>
