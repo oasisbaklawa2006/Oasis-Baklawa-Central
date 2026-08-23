@@ -18,6 +18,7 @@ const demandRow = {
 const procurementRow = {
   id: "proc-1",
   requirement_number: "PNA-000001:3PGS:comp-1:corr-1:PROC:corr-2",
+  product_id: "prod-1",
   sku: "RIBBON-1",
   destination_store_code: "3PGS",
   shortage_qty: 6,
@@ -27,10 +28,15 @@ const procurementRow = {
   status: "open",
 };
 
-const rpcMock = vi.fn(async (_fn: string, _args: Record<string, unknown>) => ({
-  data: null,
-  error: null as { message: string } | null,
-}));
+const receiptLineRow = { id: "line-1", product_id: "prod-1", sku: "RIBBON-1" };
+const balanceRow = { version: 2 };
+
+const rpcMock = vi.fn(async (fn: string, _args: Record<string, unknown>) => {
+  if (fn === "create_b2b_inventory_receipt") {
+    return { data: { id: "receipt-1", status: "expected", destination_store_code: "3PGS" }, error: null };
+  }
+  return { data: null, error: null as { message: string } | null };
+});
 
 let demandResult: unknown[] = [demandRow];
 let procurementResult: unknown[] = [procurementRow];
@@ -41,10 +47,15 @@ function makeQuery(result: { data: unknown; error: null }) {
   const builder: any = {};
   builder.select = () => builder;
   builder.order = () => builder;
+  builder.eq = () => builder;
   builder.limit = () => {
-    if (failNextFetch) return Promise.resolve({ data: null, error: { message: "refresh failed" } });
-    return Promise.resolve(result);
+    const resolved = failNextFetch ? { data: null, error: { message: "refresh failed" } } : result;
+    const promise = Promise.resolve(resolved);
+    // @ts-expect-error -- test-only chainable promise, see maybeSingle usage below
+    promise.maybeSingle = () => Promise.resolve(resolved);
+    return promise;
   };
+  builder.maybeSingle = () => Promise.resolve(result);
   return builder;
 }
 
@@ -52,7 +63,10 @@ vi.mock("@/integrations/supabase/client", () => ({
   supabase: {
     from: (relation: string) => {
       if (relation === "b2b_3pgs_pending_demand_priority") return makeQuery({ data: demandResult, error: null });
-      return makeQuery({ data: procurementResult, error: null });
+      if (relation === "b2b_procurement_requirements") return makeQuery({ data: procurementResult, error: null });
+      if (relation === "b2b_inventory_receipt_lines") return makeQuery({ data: receiptLineRow, error: null });
+      if (relation === "inventory_stock_balances") return makeQuery({ data: balanceRow, error: null });
+      return makeQuery({ data: null, error: null });
     },
   },
 }));
@@ -148,5 +162,67 @@ describe("ThreePgsProcurementQueue", () => {
       p_requirement_id: "proc-1",
       p_vendor_reference: "Acme Packaging",
     })));
+  });
+
+  it("blocks receiving with no quantity entered", async () => {
+    render(<ThreePgsProcurementQueue />);
+    const button = await screen.findByText("Receive");
+    fireEvent.click(button);
+    await waitFor(() => expect(rpcMock).not.toHaveBeenCalled());
+  });
+
+  it("blocks receiving a quantity larger than the outstanding shortage", async () => {
+    render(<ThreePgsProcurementQueue />);
+    const button = await screen.findByText("Receive");
+    fireEvent.change(screen.getByPlaceholderText("Qty (of 6)"), { target: { value: "10" } });
+    fireEvent.click(button);
+    await waitFor(() => expect(rpcMock).not.toHaveBeenCalled());
+  });
+
+  it("receives a quantity by driving create -> record -> accept -> link in order with the right arguments", async () => {
+    render(<ThreePgsProcurementQueue />);
+    const button = await screen.findByText("Receive");
+    fireEvent.change(screen.getByPlaceholderText("Qty (of 6)"), { target: { value: "4" } });
+    fireEvent.click(button);
+
+    await waitFor(() => expect(rpcMock).toHaveBeenCalledTimes(4));
+
+    const calls = rpcMock.mock.calls;
+    expect(calls[0][0]).toBe("create_b2b_inventory_receipt");
+    expect(calls[0][1]).toMatchObject({
+      p_destination_store_code: "3PGS",
+      p_lines: [{ product_id: "prod-1", sku: "RIBBON-1", expected_qty: 4 }],
+    });
+    expect(calls[1][0]).toBe("record_b2b_inventory_receipt");
+    expect(calls[1][1]).toMatchObject({
+      p_receipt_id: "receipt-1",
+      p_lines: [{ line_id: "line-1", received_qty: 4 }],
+    });
+    expect(calls[2][0]).toBe("accept_b2b_inventory_receipt");
+    expect(calls[2][1]).toMatchObject({
+      p_receipt_id: "receipt-1",
+      p_lines: [{ line_id: "line-1", accepted_qty: 4, damaged_qty: 0, rejected_qty: 0, expected_balance_version: 2 }],
+    });
+    expect(calls[3][0]).toBe("link_procurement_receipt");
+    expect(calls[3][1]).toMatchObject({
+      p_requirement_id: "proc-1",
+      p_receipt_id: "receipt-1",
+      p_fulfilled_qty: 4,
+    });
+  });
+
+  it("skips record/accept and only links when the receipt already reached an accepted status (idempotent retry)", async () => {
+    rpcMock.mockImplementationOnce(async () => ({
+      data: { id: "receipt-1", status: "accepted", destination_store_code: "3PGS" },
+      error: null,
+    }));
+    render(<ThreePgsProcurementQueue />);
+    const button = await screen.findByText("Receive");
+    fireEvent.change(screen.getByPlaceholderText("Qty (of 6)"), { target: { value: "4" } });
+    fireEvent.click(button);
+
+    await waitFor(() => expect(rpcMock).toHaveBeenCalledTimes(2));
+    expect(rpcMock.mock.calls[0][0]).toBe("create_b2b_inventory_receipt");
+    expect(rpcMock.mock.calls[1][0]).toBe("link_procurement_receipt");
   });
 });
