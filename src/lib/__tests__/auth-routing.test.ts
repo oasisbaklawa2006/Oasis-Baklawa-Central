@@ -31,7 +31,7 @@ describe("auth-routing", () => {
     expect(getRoleDestination("SUPER_ADMIN")).toBe("/admin/cmd-war-room");
     expect(getRoleDestination("ADMIN")).toBe("/admin/cmd-war-room");
     expect(getRoleDestination("FINANCE_HEAD")).toBe("/admin/accounts-release");
-    expect(getRoleDestination("HOD_CHOCOLATE")).toBe("/admin/production");
+    expect(getRoleDestination("HOD_CHOCOLATE")).toBe("/operations-controller");
     expect(getRoleDestination("B2B_BUYER")).toBe("/customer-app-redirect");
     expect(getRoleDestination(null)).toBe("/customer-app-redirect");
     expect(getRoleDestination("PENDING")).toBe("/customer-app-redirect");
@@ -47,13 +47,31 @@ describe("auth-routing", () => {
 
   it("folds Dates floor/HOD roles into the Fusion Sweets surfaces", () => {
     expect(getRoleDestination("PROD_DATES")).toBe("/tv/fusion");
-    expect(getRoleDestination("HOD_DATES")).toBe("/admin/production");
+    expect(getRoleDestination("HOD_DATES")).toBe("/operations-controller");
     expect(isStaffRole("PROD_DATES")).toBe(true);
     expect(isStaffRole("HOD_DATES")).toBe(true);
   });
 
   it("routes the Ready Goods TV account to the kiosk route, not /admin", () => {
     expect(getRoleDestination("TV_READY")).toBe("/tv/rgs");
+  });
+
+  // Regression guard: these roles were previously landed on /admin/production
+  // (a desktop-tabbed admin console with no handheld components) despite
+  // needing the mobile-first, department-scoped OperationsController --
+  // confirmed by a reachability audit. HOD_ASSEMBLY is deliberately excluded:
+  // it keeps its own dedicated P&A management screen, not the production
+  // floor handheld surface.
+  it("lands production-floor HODs and the production manager on the handheld OperationsController, not the desktop admin console", () => {
+    expect(getRoleDestination("PRODUCTION_MANAGER")).toBe("/operations-controller");
+    expect(getRoleDestination("HOD_ARABIC")).toBe("/operations-controller");
+    expect(getRoleDestination("HOD_FUSION")).toBe("/operations-controller");
+    expect(getRoleDestination("HOD_CHOCOLATE")).toBe("/operations-controller");
+    expect(getRoleDestination("HOD_DRAGEES")).toBe("/operations-controller");
+    expect(getRoleDestination("HOD_DATES")).toBe("/operations-controller");
+    expect(getRoleDestination("HOD_BAKERY")).toBe("/operations-controller");
+    expect(getRoleDestination("HOD_NUTS")).toBe("/operations-controller");
+    expect(getRoleDestination("HOD_ASSEMBLY")).toBe("/admin/assembly-tasks");
   });
 
   it("respects nested paths within a role's destination", () => {
