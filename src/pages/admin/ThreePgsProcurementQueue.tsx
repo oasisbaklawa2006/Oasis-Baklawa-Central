@@ -230,7 +230,13 @@ export default function ThreePgsProcurementQueue() {
       const { data: receiptData, error: createError } = await threePgsProcurementRpc.rpc<InventoryReceipt>(
         "create_b2b_inventory_receipt",
         {
-          p_receipt_number: `${requirement.requirement_number}-RCV`,
+          // receipt_number is UNIQUE in Core -- a fixed "-RCV" suffix would
+          // collide on a second partial receive against the same
+          // requirement. correlationIds.create is stable for retries of the
+          // SAME receive attempt (so the idempotent create call still
+          // returns the same row) but fresh for each new attempt, so it's
+          // exactly the right disambiguator here.
+          p_receipt_number: `${requirement.requirement_number}-RCV-${correlationIds.create.slice(0, 8)}`,
           p_receipt_source: "vendor_procurement",
           p_destination_store_code: requirement.destination_store_code,
           p_source_document_type: "procurement_requirement",
