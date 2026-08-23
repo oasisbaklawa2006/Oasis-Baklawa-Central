@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { rgsGovernedRpc } from "@/lib/rgsGovernedRpc";
 import { toast } from "sonner";
@@ -54,20 +54,20 @@ export default function JobExecutionTab({ jobs, userId, department, onRefresh }:
   // currently open job so the same worker/department that's dealing with
   // the job can close out a fixed issue right where they reported it,
   // without a separate admin screen.
-  useEffect(() => {
-    if (!selectedJob) { setOpenIssues([]); return; }
-    let cancelled = false;
-    void issuesDb
+  const fetchOpenIssues = useCallback(async (jobId: string) => {
+    const { data } = await issuesDb
       .from("production_issues")
       .select("id, job_id, issue_type, comment, created_at")
-      .eq("job_id", selectedJob.id)
+      .eq("job_id", jobId)
       .eq("status", "open")
-      .order("created_at", { ascending: false })
-      .then(({ data }: { data: OpenIssue[] | null }) => {
-        if (!cancelled) setOpenIssues(data ?? []);
-      });
-    return () => { cancelled = true; };
-  }, [selectedJob]);
+      .order("created_at", { ascending: false });
+    setOpenIssues((data ?? []) as OpenIssue[]);
+  }, []);
+
+  useEffect(() => {
+    if (!selectedJob) { setOpenIssues([]); return; }
+    void fetchOpenIssues(selectedJob.id);
+  }, [selectedJob, fetchOpenIssues]);
 
   const handleResolveIssue = async (issue: OpenIssue) => {
     const notes = (resolutionNotesById[issue.id] ?? "").trim();
@@ -86,6 +86,7 @@ export default function JobExecutionTab({ jobs, userId, department, onRefresh }:
       toast.success("✅ Issue Resolved");
       setOpenIssues((prev) => prev.filter((i) => i.id !== issue.id));
       setResolutionNotesById((prev) => { const next = { ...prev }; delete next[issue.id]; return next; });
+      onRefresh();
     }
     setActing(null);
   };
@@ -253,6 +254,7 @@ export default function JobExecutionTab({ jobs, userId, department, onRefresh }:
     toast.success("⚠️ Issue Reported");
     setShowIssueModal(false);
     setIssueComment("");
+    void fetchOpenIssues(selectedJob.id);
     setActing(null);
   };
 
