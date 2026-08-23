@@ -34,13 +34,17 @@ const rpcMock = vi.fn(async (_fn: string, _args: Record<string, unknown>) => ({
 
 let demandResult: unknown[] = [demandRow];
 let procurementResult: unknown[] = [procurementRow];
+let failNextFetch = false;
 
 function makeQuery(result: { data: unknown; error: null }) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const builder: any = {};
   builder.select = () => builder;
   builder.order = () => builder;
-  builder.limit = () => Promise.resolve(result);
+  builder.limit = () => {
+    if (failNextFetch) return Promise.resolve({ data: null, error: { message: "refresh failed" } });
+    return Promise.resolve(result);
+  };
   return builder;
 }
 
@@ -65,6 +69,7 @@ afterEach(() => {
   vi.clearAllMocks();
   demandResult = [demandRow];
   procurementResult = [procurementRow];
+  failNextFetch = false;
 });
 
 describe("ThreePgsProcurementQueue", () => {
@@ -101,6 +106,28 @@ describe("ThreePgsProcurementQueue", () => {
       p_destination_store_code: "3PGS",
       p_shortage_qty: 6,
     });
+    expect(secondArgs.p_correlation_id).toBe(firstArgs.p_correlation_id);
+  });
+
+  it("keeps the same correlation id for a retry when the RPC succeeds but the post-action refresh fails", async () => {
+    render(<ThreePgsProcurementQueue />);
+    const button = await screen.findByText("Raise procurement requirement");
+
+    failNextFetch = true;
+    fireEvent.click(button);
+    await waitFor(() => expect(rpcMock).toHaveBeenCalledTimes(1));
+    // The RPC succeeded but the subsequent refresh failed -- the row must
+    // stay actionable and a retry must reuse the same correlation id rather
+    // than generating a new one (which would replay the accepted RPC as a
+    // fresh, un-deduplicated call).
+    await waitFor(() => expect(screen.getByText("Failed to load the 3PGS procurement queue.")).toBeTruthy());
+
+    failNextFetch = false;
+    fireEvent.click(button);
+    await waitFor(() => expect(rpcMock).toHaveBeenCalledTimes(2));
+
+    const [, firstArgs] = rpcMock.mock.calls[0];
+    const [, secondArgs] = rpcMock.mock.calls[1];
     expect(secondArgs.p_correlation_id).toBe(firstArgs.p_correlation_id);
   });
 

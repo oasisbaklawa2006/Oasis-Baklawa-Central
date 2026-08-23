@@ -68,7 +68,7 @@ export default function ThreePgsProcurementQueue() {
   const [vendorDrafts, setVendorDrafts] = useState<Record<string, { reference: string; expectedAt: string }>>({});
   const [assigning, setAssigning] = useState<string | null>(null);
 
-  const fetchData = useCallback(async () => {
+  const fetchData = useCallback(async (): Promise<boolean> => {
     setLoading(true);
     setError(null);
     try {
@@ -89,8 +89,10 @@ export default function ThreePgsProcurementQueue() {
       if (reqError) throw reqError;
       setPendingDemand((demand ?? []) as PendingDemandRow[]);
       setRequirements((reqs ?? []) as ProcurementRequirement[]);
+      return true;
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load the 3PGS procurement queue.");
+      return false;
     } finally {
       setLoading(false);
     }
@@ -120,8 +122,9 @@ export default function ThreePgsProcurementQueue() {
       });
       if (rpcError) throw new Error(rpcError.message);
       toast.success("Procurement requirement raised.");
-      delete raiseCorrelationRef.current[row.demand_id];
-      await fetchData();
+      if (await fetchData()) {
+        delete raiseCorrelationRef.current[row.demand_id];
+      }
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to raise the procurement requirement.");
     } finally {
@@ -154,9 +157,10 @@ export default function ThreePgsProcurementQueue() {
       });
       if (rpcError) throw new Error(rpcError.message);
       toast.success("Vendor assigned.");
-      delete assignCorrelationRef.current[requirementId];
-      setVendorDrafts((current) => { const next = { ...current }; delete next[requirementId]; return next; });
-      await fetchData();
+      if (await fetchData()) {
+        delete assignCorrelationRef.current[requirementId];
+        setVendorDrafts((current) => { const next = { ...current }; delete next[requirementId]; return next; });
+      }
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to assign the vendor.");
     } finally {
@@ -269,7 +273,7 @@ export default function ThreePgsProcurementQueue() {
                     {requirement.vendor_reference ? (
                       <p className="mt-1 text-muted-foreground">
                         Vendor: {requirement.vendor_reference}
-                        {requirement.expected_at ? ` · ETA ${new Date(requirement.expected_at).toLocaleDateString()}` : ""}
+                        {requirement.expected_at ? ` · ETA ${new Date(requirement.expected_at).toLocaleDateString(undefined, { timeZone: "UTC" })}` : ""}
                       </p>
                     ) : canAssignVendor ? (
                       <div className="mt-2 flex flex-wrap items-center gap-1">
