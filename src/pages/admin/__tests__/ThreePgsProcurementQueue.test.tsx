@@ -186,6 +186,31 @@ describe("ThreePgsProcurementQueue", () => {
     expect(secondArgs.p_correlation_id).toBe(firstArgs.p_correlation_id);
   });
 
+  it("generates a fresh correlation id when the fulfilment quantity changes before a retry", async () => {
+    rpcMock.mockResolvedValueOnce({ data: null, error: { message: "network hiccup" } });
+    render(<ThreePgsProcurementQueue />);
+    const input = await screen.findByPlaceholderText("Up to 6");
+    const button = screen.getByText("Record fulfilment");
+
+    fireEvent.change(input, { target: { value: "4" } });
+    fireEvent.click(button);
+    await waitFor(() => expect(rpcMock).toHaveBeenCalledTimes(1));
+
+    // First attempt (qty 4) failed, so its correlation id is still pending.
+    // Changing the quantity before retrying must mint a new one -- reusing
+    // the old id here would let the server-side idempotent-replay check
+    // treat this as the same request and silently keep the original qty.
+    fireEvent.change(input, { target: { value: "2" } });
+    fireEvent.click(button);
+    await waitFor(() => expect(rpcMock).toHaveBeenCalledTimes(2));
+
+    const [, firstArgs] = rpcMock.mock.calls[0];
+    const [, secondArgs] = rpcMock.mock.calls[1];
+    expect(firstArgs.p_fulfilled_qty).toBe(4);
+    expect(secondArgs.p_fulfilled_qty).toBe(2);
+    expect(secondArgs.p_correlation_id).not.toBe(firstArgs.p_correlation_id);
+  });
+
   it("blocks vendor assignment without a vendor reference", async () => {
     render(<ThreePgsProcurementQueue />);
     const button = await screen.findByText("Assign vendor");
