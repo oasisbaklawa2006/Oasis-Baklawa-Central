@@ -269,6 +269,22 @@ export default function AssemblyManagement() {
     );
   }, [runAction]);
 
+  // create_assembly_3pgs_requirement had zero callers anywhere in this
+  // screen despite the read-only requirements panel below already
+  // displaying them -- the P&A-to-3PGS handoff was schema-only. Same
+  // per-component idempotent-retry persistence as handleReserve.
+  const raise3pgsCorrelationRef = useRef<Record<string, { qty: number; id: string }>>({});
+  const handleRaise3pgsRequirement = useCallback((componentId: string, shortfallQty: number) => {
+    const existing = raise3pgsCorrelationRef.current[componentId];
+    const correlationId = existing && existing.qty === shortfallQty ? existing.id : crypto.randomUUID();
+    raise3pgsCorrelationRef.current[componentId] = { qty: shortfallQty, id: correlationId };
+    return runAction(
+      "3PGS requirement raised", "create_assembly_3pgs_requirement",
+      { p_assembly_component_id: componentId, p_requested_qty: shortfallQty, p_priority: "normal", p_correlation_id: correlationId },
+      () => { delete raise3pgsCorrelationRef.current[componentId]; },
+    );
+  }, [runAction]);
+
   const partialIssueCorrelationRef = useRef<Record<string, { reason: string; id: string }>>({});
   const handleAuthorizePartialIssue = useCallback((jobId: string) => {
     if (!partialReasonDraft.trim()) { toast.error("A reason is required to authorise a partial issue"); return Promise.resolve(); }
@@ -677,7 +693,17 @@ export default function AssemblyManagement() {
                 <div className="overflow-x-auto"><Table><TableHeader><TableRow><TableHead>Component</TableHead><TableHead>Source</TableHead><TableHead className="text-right">Required</TableHead><TableHead className="text-right">Reserved</TableHead><TableHead className="text-right">Issued</TableHead><TableHead className="text-right">Consumed</TableHead><TableHead className="text-right">Waste / return</TableHead><TableHead>State</TableHead>{(selected.status === "issued" || selected.status === "in_progress") && <TableHead>Log consumption</TableHead>}</TableRow></TableHeader><TableBody>{selectedComponents.map((component) => {
                   const draft = consumptionDraft[component.id] ?? { consumed: "", wasted: "", returned: "" };
                   const setDraft = (patch: Partial<typeof draft>) => setConsumptionDraft((current) => ({ ...current, [component.id]: { ...draft, ...patch } }));
-                  return <TableRow key={component.id}><TableCell><p className="font-medium">{products[component.product_id]?.name ?? component.sku}</p><p className="text-[11px] text-muted-foreground">{component.sku}</p></TableCell><TableCell>{sourceLabel(component.source_store_code)}</TableCell><TableCell className="text-right">{formatQty(component.required_qty)}</TableCell><TableCell className="text-right">{formatQty(component.reserved_qty)}</TableCell><TableCell className="text-right">{formatQty(component.issued_qty)}</TableCell><TableCell className="text-right">{formatQty(component.consumed_qty)}</TableCell><TableCell className="text-right">{formatQty(Number(component.wasted_qty) + Number(component.returned_qty))}</TableCell><TableCell>{hasMaterialRisk(component) ? <Badge variant="destructive">Short</Badge> : <Badge variant="outline">Accounted</Badge>}</TableCell>
+                  const shortfallQty = Number(component.required_qty) - Number(component.reserved_qty);
+                  const isOutsourcedSource = component.source_store_code === "3PGS" || component.source_store_code === "PACKING_ASSEMBLY";
+                  const hasActive3pgsRequirement = requirements.some((requirement) => requirement.assembly_component_id === component.id && (requirement.status === "open" || requirement.status === "partially_fulfilled"));
+                  const canRaise3pgsRequirement = isOutsourcedSource && shortfallQty > 0 && !hasActive3pgsRequirement;
+                  return <TableRow key={component.id}><TableCell><p className="font-medium">{products[component.product_id]?.name ?? component.sku}</p><p className="text-[11px] text-muted-foreground">{component.sku}</p></TableCell><TableCell>{sourceLabel(component.source_store_code)}</TableCell><TableCell className="text-right">{formatQty(component.required_qty)}</TableCell><TableCell className="text-right">{formatQty(component.reserved_qty)}</TableCell><TableCell className="text-right">{formatQty(component.issued_qty)}</TableCell><TableCell className="text-right">{formatQty(component.consumed_qty)}</TableCell><TableCell className="text-right">{formatQty(Number(component.wasted_qty) + Number(component.returned_qty))}</TableCell><TableCell>
+                    <div className="flex flex-col items-start gap-1">
+                      {hasMaterialRisk(component) ? <Badge variant="destructive">Short</Badge> : <Badge variant="outline">Accounted</Badge>}
+                      {canRaise3pgsRequirement && <Button size="sm" variant="outline" className="h-6 px-2 text-[10px]" disabled={acting} onClick={() => void handleRaise3pgsRequirement(component.id, shortfallQty)}>Raise 3PGS requirement</Button>}
+                      {hasActive3pgsRequirement && <Badge variant="secondary" className="text-[10px]">3PGS requirement raised</Badge>}
+                    </div>
+                  </TableCell>
                     {(selected.status === "issued" || selected.status === "in_progress") && <TableCell>
                       <div className="flex items-center gap-1">
                         <Input className="h-7 w-16 text-xs" placeholder="Used" value={draft.consumed} onChange={(e) => setDraft({ consumed: e.target.value })} />
