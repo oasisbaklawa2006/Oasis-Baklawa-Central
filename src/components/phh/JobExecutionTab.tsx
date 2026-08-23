@@ -1,5 +1,4 @@
 import { useState } from "react";
-import { supabase } from "@/integrations/supabase/client";
 import { rgsGovernedRpc } from "@/lib/rgsGovernedRpc";
 import { toast } from "sonner";
 import { Loader2, Play, Pause, RotateCcw, Image as ImageIcon, AlertTriangle, Camera, Send, Lock, ChevronRight } from "lucide-react";
@@ -179,16 +178,23 @@ export default function JobExecutionTab({ jobs, userId, department, onRefresh }:
       toast.error("Enter issue details");
       return;
     }
-    await supabase.from("production_issues").insert({
-      job_id: selectedJob.id,
-      department,
-      issue_type: issueType,
-      comment: issueComment,
-      reported_by: userId,
+    setActing(selectedJob.id);
+    const { error } = await rgsGovernedRpc.rpc("report_production_issue", {
+      p_job_id: selectedJob.id,
+      p_department: department,
+      p_issue_type: issueType,
+      p_comment: issueComment,
+      p_correlation_id: crypto.randomUUID(),
     });
+    if (error) {
+      toast.error(error.message || "Could not report issue");
+      setActing(null);
+      return;
+    }
     toast.success("⚠️ Issue Reported");
     setShowIssueModal(false);
     setIssueComment("");
+    setActing(null);
   };
 
   if (activeJobs.length === 0) {
@@ -267,6 +273,7 @@ export default function JobExecutionTab({ jobs, userId, department, onRefresh }:
         {selectedJob.status === "in_production" && (
           <button
             onClick={() => { setShowPauseModal(true); }}
+            disabled={!!acting}
             className="w-full py-3 rounded-xl bg-amber-500 text-white font-black text-xs uppercase tracking-widest active:scale-95 flex items-center justify-center gap-2"
           >
             <Pause size={14} /> Pause Production
@@ -337,6 +344,7 @@ export default function JobExecutionTab({ jobs, userId, department, onRefresh }:
         {/* Report Issue */}
         <button
           onClick={() => setShowIssueModal(true)}
+          disabled={!!acting}
           className="w-full py-3 rounded-xl bg-red-50 text-red-600 font-black text-xs uppercase tracking-widest border border-red-200 active:scale-95 flex items-center justify-center gap-2"
         >
           <AlertTriangle size={14} /> Report Issue
@@ -363,7 +371,7 @@ export default function JobExecutionTab({ jobs, userId, department, onRefresh }:
                 <textarea value={pauseComment} onChange={(e) => setPauseComment(e.target.value)} placeholder="Additional notes..." className="w-full border border-slate-200 rounded-xl p-3 text-sm min-h-[80px] outline-none" />
                 <div className="flex gap-2">
                   <button onClick={() => setShowPauseModal(false)} className="flex-1 py-3 rounded-xl bg-slate-100 font-bold text-sm">Cancel</button>
-                  <button onClick={handlePause} disabled={!pauseReason} className="flex-1 py-3 rounded-xl bg-amber-500 text-white font-black text-sm active:scale-95">Confirm Pause</button>
+                  <button onClick={handlePause} disabled={!pauseReason || !!acting} className="flex-1 py-3 rounded-xl bg-amber-500 text-white font-black text-sm active:scale-95">Confirm Pause</button>
                 </div>
               </motion.div>
             </motion.div>
@@ -387,7 +395,9 @@ export default function JobExecutionTab({ jobs, userId, department, onRefresh }:
                 <textarea value={issueComment} onChange={(e) => setIssueComment(e.target.value)} placeholder="Describe the issue..." className="w-full border border-slate-200 rounded-xl p-3 text-sm min-h-[100px] outline-none" />
                 <div className="flex gap-2">
                   <button onClick={() => setShowIssueModal(false)} className="flex-1 py-3 rounded-xl bg-slate-100 font-bold text-sm">Cancel</button>
-                  <button onClick={handleReportIssue} className="flex-1 py-3 rounded-xl bg-red-600 text-white font-black text-sm active:scale-95">Submit Issue</button>
+                  <button onClick={handleReportIssue} disabled={!!acting} className="flex-1 py-3 rounded-xl bg-red-600 text-white font-black text-sm active:scale-95 flex items-center justify-center gap-1">
+                    {acting ? <Loader2 size={14} className="animate-spin" /> : "Submit Issue"}
+                  </button>
                 </div>
               </motion.div>
             </motion.div>
