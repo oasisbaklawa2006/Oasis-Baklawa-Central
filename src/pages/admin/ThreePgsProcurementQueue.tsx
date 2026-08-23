@@ -41,26 +41,45 @@ type ProcurementRequirement = {
   status: string;
 };
 
+type AssemblyRequirement = {
+  id: string;
+  requirement_number: string;
+  sku: string;
+  source_store_code: string;
+  requested_qty: number;
+  fulfilled_qty: number;
+  status: string;
+  priority: string;
+};
+
 /**
  * 3PGS procurement/vendor-shortage queue -- gives the governed
- * b2b_3pgs_pending_demand_priority view and the create_procurement_requirement/
- * assign_procurement_vendor RPCs (added 20260820100000) real, reachable
- * callers. Before this screen, the entire 3PGS procurement bridge had zero
- * callers anywhere in Central (confirmed by a full reachability audit) --
- * schema-only despite looking wired.
+ * b2b_3pgs_pending_demand_priority view, create_procurement_requirement/
+ * assign_procurement_vendor (20260820100000), and fulfil_assembly_3pgs_requirement
+ * (20260819120000) real, reachable callers. Before this screen, all four had
+ * zero callers anywhere in Central (confirmed by a full reachability audit)
+ * -- schema-only despite looking wired.
  *
- * Deliberately scoped to raising a requirement and assigning a vendor only.
- * The inbound-receipt lifecycle this bridge links against
- * (create_b2b_inventory_receipt / record_b2b_inventory_receipt /
+ * The vendor-shortage bridge section is deliberately scoped to raising a
+ * requirement and assigning a vendor only. The inbound-receipt lifecycle it
+ * links against (create_b2b_inventory_receipt / record_b2b_inventory_receipt /
  * accept_b2b_inventory_receipt / link_procurement_receipt) and the P&A
  * reservation bridge (reserve_3pgs_requirement_stock / etc.) also have zero
  * callers today -- wiring those is a separate, later slice once a real
  * receiving screen exists to drive them, not something to bolt on here.
+ *
+ * The P&A assembly-shortfall section is a distinct, separately-scoped RPC:
+ * fulfil_assembly_3pgs_requirement only records that 3PGS has fulfilled a
+ * requirement raised directly against a blocked assembly component (see that
+ * table's own migration comment) -- it does not itself resume the P&A job;
+ * authorize_partial_assembly_issue (in AssemblyManagement.tsx) is the
+ * separate, deliberate override for that.
  * Route: /admin/3pgs-procurement-queue.
  */
 export default function ThreePgsProcurementQueue() {
   const [pendingDemand, setPendingDemand] = useState<PendingDemandRow[]>([]);
   const [requirements, setRequirements] = useState<ProcurementRequirement[]>([]);
+  const [assemblyRequirements, setAssemblyRequirements] = useState<AssemblyRequirement[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [raising, setRaising] = useState<string | null>(null);
@@ -68,11 +87,14 @@ export default function ThreePgsProcurementQueue() {
   const [vendorDrafts, setVendorDrafts] = useState<Record<string, { reference: string; expectedAt: string }>>({});
   const [assigning, setAssigning] = useState<string | null>(null);
 
+  const [fulfilDrafts, setFulfilDrafts] = useState<Record<string, string>>({});
+  const [fulfilling, setFulfilling] = useState<string | null>(null);
+
   const fetchData = useCallback(async (): Promise<boolean> => {
     setLoading(true);
     setError(null);
     try {
-      const [{ data: demand, error: demandError }, { data: reqs, error: reqError }] = await Promise.all([
+      const [{ data: demand, error: demandError }, { data: reqs, error: reqError }, { data: assemblyReqs, error: assemblyError }] = await Promise.all([
         procurementDb
           .from("b2b_3pgs_pending_demand_priority")
           .select("*")
@@ -84,11 +106,19 @@ export default function ThreePgsProcurementQueue() {
           .select("id, requirement_number, sku, destination_store_code, shortage_qty, fulfilled_qty, vendor_reference, expected_at, status")
           .order("created_at", { ascending: false })
           .limit(50),
+        procurementDb
+          .from("b2b_assembly_3pgs_requirements")
+          .select("id, requirement_number, sku, source_store_code, requested_qty, fulfilled_qty, status, priority")
+          .in("status", ["open", "partially_fulfilled"])
+          .order("created_at", { ascending: true })
+          .limit(50),
       ]);
       if (demandError) throw demandError;
       if (reqError) throw reqError;
+      if (assemblyError) throw assemblyError;
       setPendingDemand((demand ?? []) as PendingDemandRow[]);
       setRequirements((reqs ?? []) as ProcurementRequirement[]);
+      setAssemblyRequirements((assemblyReqs ?? []) as AssemblyRequirement[]);
       return true;
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load the 3PGS procurement queue.");
@@ -168,6 +198,50 @@ export default function ThreePgsProcurementQueue() {
     }
   }, [fetchData, vendorDrafts]);
 
+  // fulfil_assembly_3pgs_requirement had zero callers anywhere in Central
+  // despite being the only path that closes a P&A-raised 3PGS shortfall --
+  // 3PGS's own internal procurement against the requirement is out of scope
+  // here (see the migration's own table comment); this only records that
+  // 3PGS has fulfilled it. Same payload-aware correlation-id rotation as
+  // handleRaise3pgsRequirement in AssemblyManagement.tsx: a retry with a
+  // changed quantity gets a fresh id, a retry with the same quantity reuses
+  // the pending one.
+  const fulfilCorrelationRef = useRef<Record<string, { qty: number; id: string }>>({});
+  const handleFulfilAssemblyRequirement = useCallback(async (requirement: AssemblyRequirement) => {
+    const raw = fulfilDrafts[requirement.id] ?? "";
+    const qty = Number(raw);
+    if (!raw || !Number.isFinite(qty) || qty <= 0) {
+      toast.error("Enter a valid fulfilled quantity.");
+      return;
+    }
+    const remaining = requirement.requested_qty - requirement.fulfilled_qty;
+    if (qty > remaining) {
+      toast.error(`Fulfilled quantity (${qty}) exceeds the remaining shortfall (${remaining}).`);
+      return;
+    }
+    const existing = fulfilCorrelationRef.current[requirement.id];
+    const correlationId = existing && existing.qty === qty ? existing.id : crypto.randomUUID();
+    fulfilCorrelationRef.current[requirement.id] = { qty, id: correlationId };
+    setFulfilling(requirement.id);
+    try {
+      const { error: rpcError } = await threePgsProcurementRpc.rpc("fulfil_assembly_3pgs_requirement", {
+        p_requirement_id: requirement.id,
+        p_fulfilled_qty: qty,
+        p_correlation_id: correlationId,
+      });
+      if (rpcError) throw new Error(rpcError.message);
+      toast.success("3PGS requirement fulfilment recorded.");
+      if (await fetchData()) {
+        delete fulfilCorrelationRef.current[requirement.id];
+        setFulfilDrafts((current) => { const next = { ...current }; delete next[requirement.id]; return next; });
+      }
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to record fulfilment.");
+    } finally {
+      setFulfilling(null);
+    }
+  }, [fetchData, fulfilDrafts]);
+
   return (
     <div className="mx-auto max-w-5xl space-y-6 p-4 pb-24">
       <header className="flex flex-wrap items-center justify-between gap-2 border-b border-border pb-4">
@@ -198,6 +272,59 @@ export default function ThreePgsProcurementQueue() {
       </Card>
 
       {error ? <p className="text-xs text-destructive">{error}</p> : null}
+
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm">P&amp;A assembly shortfalls awaiting 3PGS fulfilment</CardTitle>
+          <CardDescription className="text-xs">
+            Raised directly against a blocked assembly job/component (distinct from the vendor-shortage bridge below).
+            Recording fulfilment here is the only way to close one of these -- it does not itself resume the P&amp;A job.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {!loading && assemblyRequirements.length === 0 ? (
+            <p className="text-sm text-muted-foreground">No open P&amp;A assembly requirements.</p>
+          ) : (
+            <div className="space-y-3">
+              {assemblyRequirements.map((requirement) => {
+                const remaining = requirement.requested_qty - requirement.fulfilled_qty;
+                return (
+                  <div key={requirement.id} className="rounded-lg border p-3 text-xs">
+                    <div className="flex items-center justify-between gap-2">
+                      <span>
+                        {requirement.requirement_number} · {requirement.sku} · {requirement.source_store_code} ·{" "}
+                        {requirement.fulfilled_qty} / {requirement.requested_qty}
+                      </span>
+                      <Badge variant="secondary" className="uppercase">{requirement.status.replace(/_/g, " ")}</Badge>
+                    </div>
+                    <div className="mt-2 flex flex-wrap items-center gap-1">
+                      <Input
+                        className="h-7 w-28 text-xs"
+                        type="number"
+                        min={0}
+                        max={remaining}
+                        step="any"
+                        placeholder={`Up to ${remaining}`}
+                        value={fulfilDrafts[requirement.id] ?? ""}
+                        onChange={(e) => setFulfilDrafts((current) => ({ ...current, [requirement.id]: e.target.value }))}
+                      />
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-7 px-2 text-[10px]"
+                        disabled={fulfilling === requirement.id}
+                        onClick={() => void handleFulfilAssemblyRequirement(requirement)}
+                      >
+                        Record fulfilment
+                      </Button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       <Card>
         <CardHeader className="pb-2">

@@ -27,6 +27,17 @@ const procurementRow = {
   status: "open",
 };
 
+const assemblyRequirementRow = {
+  id: "assy-req-1",
+  requirement_number: "PNA-000001:3PGS:comp-1:corr-1",
+  sku: "RIBBON-1",
+  source_store_code: "3PGS",
+  requested_qty: 6,
+  fulfilled_qty: 0,
+  status: "open",
+  priority: "normal",
+};
+
 const rpcMock = vi.fn(async (_fn: string, _args: Record<string, unknown>) => ({
   data: null,
   error: null as { message: string } | null,
@@ -34,6 +45,7 @@ const rpcMock = vi.fn(async (_fn: string, _args: Record<string, unknown>) => ({
 
 let demandResult: unknown[] = [demandRow];
 let procurementResult: unknown[] = [procurementRow];
+let assemblyRequirementResult: unknown[] = [assemblyRequirementRow];
 let failNextFetch = false;
 
 function makeQuery(result: { data: unknown; error: null }) {
@@ -41,6 +53,7 @@ function makeQuery(result: { data: unknown; error: null }) {
   const builder: any = {};
   builder.select = () => builder;
   builder.order = () => builder;
+  builder.in = () => builder;
   builder.limit = () => {
     if (failNextFetch) return Promise.resolve({ data: null, error: { message: "refresh failed" } });
     return Promise.resolve(result);
@@ -52,6 +65,7 @@ vi.mock("@/integrations/supabase/client", () => ({
   supabase: {
     from: (relation: string) => {
       if (relation === "b2b_3pgs_pending_demand_priority") return makeQuery({ data: demandResult, error: null });
+      if (relation === "b2b_assembly_3pgs_requirements") return makeQuery({ data: assemblyRequirementResult, error: null });
       return makeQuery({ data: procurementResult, error: null });
     },
   },
@@ -69,6 +83,7 @@ afterEach(() => {
   vi.clearAllMocks();
   demandResult = [demandRow];
   procurementResult = [procurementRow];
+  assemblyRequirementResult = [assemblyRequirementRow];
   failNextFetch = false;
 });
 
@@ -128,6 +143,46 @@ describe("ThreePgsProcurementQueue", () => {
 
     const [, firstArgs] = rpcMock.mock.calls[0];
     const [, secondArgs] = rpcMock.mock.calls[1];
+    expect(secondArgs.p_correlation_id).toBe(firstArgs.p_correlation_id);
+  });
+
+  it("shows an empty state when there are no open P&A assembly requirements", async () => {
+    assemblyRequirementResult = [];
+    render(<ThreePgsProcurementQueue />);
+    expect(await screen.findByText("No open P&A assembly requirements.")).toBeTruthy();
+  });
+
+  it("blocks recording fulfilment with a missing or non-positive quantity", async () => {
+    render(<ThreePgsProcurementQueue />);
+    const button = await screen.findByText("Record fulfilment");
+    fireEvent.click(button);
+    await waitFor(() => expect(rpcMock).not.toHaveBeenCalled());
+  });
+
+  it("blocks recording fulfilment above the remaining shortfall", async () => {
+    render(<ThreePgsProcurementQueue />);
+    const input = await screen.findByPlaceholderText("Up to 6");
+    fireEvent.change(input, { target: { value: "7" } });
+    fireEvent.click(screen.getByText("Record fulfilment"));
+    await waitFor(() => expect(rpcMock).not.toHaveBeenCalled());
+  });
+
+  it("records fulfilment against fulfil_assembly_3pgs_requirement with the entered quantity, reusing the correlation id on retry", async () => {
+    rpcMock.mockResolvedValueOnce({ data: null, error: { message: "network hiccup" } });
+    render(<ThreePgsProcurementQueue />);
+    const input = await screen.findByPlaceholderText("Up to 6");
+    fireEvent.change(input, { target: { value: "4" } });
+    const button = screen.getByText("Record fulfilment");
+
+    fireEvent.click(button);
+    await waitFor(() => expect(rpcMock).toHaveBeenCalledTimes(1));
+    fireEvent.click(button);
+    await waitFor(() => expect(rpcMock).toHaveBeenCalledTimes(2));
+
+    const [firstFn, firstArgs] = rpcMock.mock.calls[0];
+    const [, secondArgs] = rpcMock.mock.calls[1];
+    expect(firstFn).toBe("fulfil_assembly_3pgs_requirement");
+    expect(firstArgs).toMatchObject({ p_requirement_id: "assy-req-1", p_fulfilled_qty: 4 });
     expect(secondArgs.p_correlation_id).toBe(firstArgs.p_correlation_id);
   });
 
