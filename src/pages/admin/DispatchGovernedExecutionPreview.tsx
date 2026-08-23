@@ -54,9 +54,10 @@ const DISPATCH_MODES = [
 /**
  * Governed Dispatch execution preview -- verification/ops tool giving the
  * new b2b_dispatch_* governed RPCs (create_b2b_dispatch_consignment,
- * open_b2b_dispatch_carton, added 20260822140000/20260822150000) and the
- * shipment-scoped read view (b2b_dispatch_shipment_execution_view, added
- * 20260822130000) real, reachable callers instead of dead scaffolding.
+ * open_b2b_dispatch_carton, create_b2b_dispatch_shipment, added
+ * 20260822140000/20260822150000/20260823120000) and the shipment-scoped
+ * read view (b2b_dispatch_shipment_execution_view, added 20260822130000)
+ * real, reachable callers instead of dead scaffolding.
  *
  * This does NOT touch, replace, or duplicate the live legacy Dispatch
  * screens (DispatchManagement.tsx, AdminPackingDispatch.tsx, etc.), which
@@ -80,6 +81,15 @@ export default function DispatchGovernedExecutionPreview() {
   const [cartonConsignmentId, setCartonConsignmentId] = useState("");
   const [cartonCode, setCartonCode] = useState("");
   const [openingCarton, setOpeningCarton] = useState(false);
+
+  const [shipmentConsignmentId, setShipmentConsignmentId] = useState("");
+  const [transporterName, setTransporterName] = useState("");
+  const [trackingLrAwb, setTrackingLrAwb] = useState("");
+  const [vehicleNumber, setVehicleNumber] = useState("");
+  const [driverName, setDriverName] = useState("");
+  const [driverPhone, setDriverPhone] = useState("");
+  const [creatingShipment, setCreatingShipment] = useState(false);
+  const [shipmentCorrelationId, setShipmentCorrelationId] = useState(() => crypto.randomUUID());
 
   const fetchRows = useCallback(async () => {
     setLoading(true);
@@ -158,6 +168,45 @@ export default function DispatchGovernedExecutionPreview() {
       toast.error(err instanceof Error ? err.message : "Failed to open the carton.");
     } finally {
       setOpeningCarton(false);
+    }
+  };
+
+  const handleCreateShipment = async () => {
+    const trimmedConsignmentId = shipmentConsignmentId.trim();
+    const trimmedTransporter = transporterName.trim();
+    const trimmedTracking = trackingLrAwb.trim();
+    if (!trimmedConsignmentId) {
+      toast.error("Select a consignment.");
+      return;
+    }
+    if (!trimmedTransporter || !trimmedTracking) {
+      toast.error("Transporter name and tracking / LR / AWB number are required.");
+      return;
+    }
+    setCreatingShipment(true);
+    try {
+      const { error: rpcError } = await dispatchGovernedRpc.rpc("create_b2b_dispatch_shipment", {
+        p_consignment_id: trimmedConsignmentId,
+        p_transporter_name: trimmedTransporter,
+        p_tracking_lr_awb: trimmedTracking,
+        p_correlation_id: shipmentCorrelationId,
+        p_vehicle_number: vehicleNumber.trim() || null,
+        p_driver_name: driverName.trim() || null,
+        p_driver_phone: driverPhone.trim() || null,
+      });
+      if (rpcError) throw new Error(rpcError.message);
+      toast.success("Shipment recorded.");
+      setTransporterName("");
+      setTrackingLrAwb("");
+      setVehicleNumber("");
+      setDriverName("");
+      setDriverPhone("");
+      setShipmentCorrelationId(crypto.randomUUID());
+      await fetchRows();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to record the shipment.");
+    } finally {
+      setCreatingShipment(false);
     }
   };
 
@@ -295,6 +344,81 @@ export default function DispatchGovernedExecutionPreview() {
             onClick={() => void handleOpenCarton()}
           >
             {openingCarton ? "Opening…" : "Open carton"}
+          </Button>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm">Record a shipment</CardTitle>
+          <CardDescription className="text-xs">
+            Calls <code>create_b2b_dispatch_shipment</code>. Records real transport evidence against a consignment --
+            does not transition consignment status (no RPC does yet; see the migration's own comment on why).
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="grid gap-3 sm:grid-cols-2">
+          <div className="space-y-1 sm:col-span-2">
+            <Label htmlFor="dispatch-preview-shipment-consignment">Consignment</Label>
+            <Select value={shipmentConsignmentId} onValueChange={setShipmentConsignmentId}>
+              <SelectTrigger id="dispatch-preview-shipment-consignment">
+                <SelectValue placeholder="Select a consignment" />
+              </SelectTrigger>
+              <SelectContent>
+                {rows.map((row) => (
+                  <SelectItem key={row.consignment_id} value={row.consignment_id}>
+                    {row.consignment_number}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-1">
+            <Label htmlFor="dispatch-preview-transporter-name">Transporter name</Label>
+            <Input
+              id="dispatch-preview-transporter-name"
+              value={transporterName}
+              onChange={(e) => setTransporterName(e.target.value)}
+            />
+          </div>
+          <div className="space-y-1">
+            <Label htmlFor="dispatch-preview-tracking-lr-awb">Tracking / LR / AWB</Label>
+            <Input
+              id="dispatch-preview-tracking-lr-awb"
+              value={trackingLrAwb}
+              onChange={(e) => setTrackingLrAwb(e.target.value)}
+            />
+          </div>
+          <div className="space-y-1">
+            <Label htmlFor="dispatch-preview-vehicle-number">Vehicle number (optional)</Label>
+            <Input
+              id="dispatch-preview-vehicle-number"
+              value={vehicleNumber}
+              onChange={(e) => setVehicleNumber(e.target.value)}
+            />
+          </div>
+          <div className="space-y-1">
+            <Label htmlFor="dispatch-preview-driver-name">Driver name (optional)</Label>
+            <Input
+              id="dispatch-preview-driver-name"
+              value={driverName}
+              onChange={(e) => setDriverName(e.target.value)}
+            />
+          </div>
+          <div className="space-y-1">
+            <Label htmlFor="dispatch-preview-driver-phone">Driver phone (optional)</Label>
+            <Input
+              id="dispatch-preview-driver-phone"
+              value={driverPhone}
+              onChange={(e) => setDriverPhone(e.target.value)}
+            />
+          </div>
+          <Button
+            type="button"
+            className="sm:col-span-2"
+            disabled={creatingShipment}
+            onClick={() => void handleCreateShipment()}
+          >
+            {creatingShipment ? "Recording…" : "Record shipment"}
           </Button>
         </CardContent>
       </Card>
