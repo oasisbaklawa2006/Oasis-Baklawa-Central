@@ -71,6 +71,29 @@ describe("DayEndSignoffTab", () => {
     expect(screen.getByText("120")).toBeTruthy();
   });
 
+  it("renders array-valued summary fields (WIP jobs, escalations, etc.) as counts, not raw JSON", async () => {
+    currentSignoff = {
+      id: "sign-1",
+      department: "ARABIC_SWEETS",
+      business_date: "2026-08-23",
+      summary: {
+        wip_jobs: [{ job_id: "j1" }, { job_id: "j2" }],
+        escalations_open: [{ issue_id: "i1" }],
+        paused_jobs: [],
+      },
+      exception_notes: null,
+      signed_by: "user-1",
+      signed_at: "2026-08-23T18:00:00.000Z",
+      corrects_signoff_id: null,
+    };
+    render(<DayEndSignoffTab department="ARABIC_SWEETS" userId="user-1" />);
+    await screen.findByText("Signed for 2026-08-23");
+    expect(screen.getByText("WIP jobs")).toBeTruthy();
+    expect(screen.getByText("2")).toBeTruthy();
+    expect(screen.getByText("Open escalations")).toBeTruthy();
+    expect(screen.getByText("1")).toBeTruthy();
+  });
+
   it("submits a correction referencing the existing signoff id", async () => {
     currentSignoff = {
       id: "sign-1",
@@ -91,6 +114,28 @@ describe("DayEndSignoffTab", () => {
       p_department: "ARABIC_SWEETS",
       p_exception_notes: "Miscounted output",
       p_corrects_signoff_id: "sign-1",
+    })));
+  });
+
+  it("submits a correction against the ORIGINAL record's business_date, not today's date", async () => {
+    currentSignoff = {
+      id: "sign-old",
+      department: "ARABIC_SWEETS",
+      business_date: "2026-08-20",
+      summary: {},
+      exception_notes: null,
+      signed_by: "user-1",
+      signed_at: "2026-08-20T18:00:00.000Z",
+      corrects_signoff_id: null,
+    };
+    render(<DayEndSignoffTab department="ARABIC_SWEETS" userId="user-1" />);
+    fireEvent.click(await screen.findByText("Submit a correction"));
+    fireEvent.change(screen.getByPlaceholderText("Why is this being corrected?"), { target: { value: "Miscounted output" } });
+    fireEvent.click(screen.getByText("Submit Correction"));
+
+    await waitFor(() => expect(rpcMock).toHaveBeenCalledWith("submit_production_day_end", expect.objectContaining({
+      p_business_date: "2026-08-20",
+      p_corrects_signoff_id: "sign-old",
     })));
   });
 

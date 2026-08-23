@@ -38,6 +38,20 @@ const SUMMARY_LABELS: Record<string, string> = {
   wastage_today: "Wastage",
   completed_jobs_today: "Completed jobs",
   goods_declared_ready_today: "Goods declared ready",
+  material_under_department_custody: "Material under custody",
+  urgent_jobs_outstanding: "Urgent jobs outstanding",
+  goods_handed_to_rgs_today: "Goods handed to RGS",
+};
+
+// These summary fields are jsonb arrays (job/issue/handover lists), not
+// scalars -- rendered as a count rather than the raw array.
+const SUMMARY_COUNT_LABELS: Record<string, string> = {
+  wip_jobs: "WIP jobs",
+  paused_jobs: "Paused jobs",
+  shortfall_completed_jobs: "Shortfall jobs",
+  handovers_awaiting_rgs_acknowledgement: "Awaiting RGS ack",
+  escalations_open: "Open escalations",
+  batches_recorded_today: "Batches recorded",
 };
 
 /**
@@ -77,7 +91,11 @@ export default function DayEndSignoffTab({ department, userId }: Props) {
     setSubmitting(true);
     const { error } = await rgsGovernedRpc.rpc("submit_production_day_end", {
       p_department: department,
-      p_business_date: todayIso(),
+      // A correction must reference the SAME business_date as the record it
+      // corrects (the RPC itself rejects a mismatch) -- use that record's
+      // date directly rather than re-deriving today's date, which would
+      // only coincidentally match.
+      p_business_date: correctsId && current ? current.business_date : todayIso(),
       p_exception_notes: notes.trim() || null,
       p_corrects_signoff_id: correctsId,
       p_correlation_id: crypto.randomUUID(),
@@ -145,6 +163,16 @@ export default function DayEndSignoffTab({ department, userId }: Props) {
             </div>
           ) : null
         ))}
+        {Object.entries(SUMMARY_COUNT_LABELS).map(([key, label]) => {
+          const value = current.summary[key];
+          if (!Array.isArray(value)) return null;
+          return (
+            <div key={key} className="rounded-lg bg-slate-50 p-2">
+              <p className="text-slate-400 uppercase text-[9px] font-bold">{label}</p>
+              <p className="font-black text-slate-900">{value.length}</p>
+            </div>
+          );
+        })}
       </div>
       {current.exception_notes ? (
         <p className="text-xs text-slate-600"><span className="font-bold">Exception notes:</span> {current.exception_notes}</p>
@@ -173,7 +201,7 @@ export default function DayEndSignoffTab({ department, userId }: Props) {
             <button onClick={() => setShowCorrection(false)} className="flex-1 py-2.5 rounded-xl bg-white border border-slate-200 font-bold text-xs">Cancel</button>
             <button
               onClick={() => void submit(correctionNotes, current.id)}
-              disabled={submitting || !correctionNotes.trim()}
+              disabled={submitting || !correctionNotes.trim() || !userId}
               className="flex-1 py-2.5 rounded-xl bg-amber-500 text-white font-black text-xs active:scale-95"
             >
               {submitting ? <Loader2 size={14} className="animate-spin mx-auto" /> : "Submit Correction"}
