@@ -187,6 +187,7 @@ export default function ReadyGoodsStore() {
   const [acceptQtyById, setAcceptQtyById] = useState<Record<string, { accepted: string; rejected: string; hold: string }>>({});
   const [pickQtyById, setPickQtyById] = useState<Record<string, string>>({});
   const [issueById, setIssueById] = useState<Record<string, { qty: string; destinationType: string; destinationRef: string }>>({});
+  const [releaseById, setReleaseById] = useState<Record<string, { qty: string; reason: string }>>({});
   const [ackQtyById, setAckQtyById] = useState<Record<string, string>>({});
 
   const handleAllocateAndRouteShortage = useCallback(async (row: DemandState) => {
@@ -313,6 +314,32 @@ export default function ReadyGoodsStore() {
     else { toast.success(`Issued ${qty} ${reservation.sku} to ${destinationType}`); void load(); }
     setActing(null);
   }, [issueById, load]);
+
+  // release_rgs_reservation had zero callers anywhere in Central before
+  // this -- reserve_rgs_stock and pick_rgs_reservation were wired, but a
+  // reservation that's no longer needed (order cancelled, demand reduced)
+  // had no governed path back to available stock.
+  const handleReleaseReservation = useCallback(async (reservation: Reservation) => {
+    const entry = releaseById[reservation.id];
+    const qty = Number(entry?.qty ?? 0);
+    const reason = entry?.reason?.trim();
+    if (!qty || qty <= 0) { toast.error("Enter a valid release quantity"); return; }
+    if (!reason) { toast.error("A reason is required to release a reservation"); return; }
+    setActing(reservation.id);
+    const error = await callGovernedRpc("release_rgs_reservation", {
+      p_reservation_id: reservation.id,
+      p_release_qty: qty,
+      p_reason_code: reason,
+      p_correlation_id: crypto.randomUUID(),
+    });
+    if (error) toast.error(error.message || "Could not release the reservation");
+    else {
+      toast.success(`Released ${qty} ${reservation.sku} back to available stock`);
+      setReleaseById((prev) => { const next = { ...prev }; delete next[reservation.id]; return next; });
+      void load();
+    }
+    setActing(null);
+  }, [releaseById, load]);
 
   const handleAcknowledgeIssue = useCallback(async (issue: IssueEvent) => {
     const qty = Number(ackQtyById[issue.id] ?? issue.issued_qty);
@@ -524,6 +551,15 @@ export default function ReadyGoodsStore() {
                             onChange={(e) => setIssueById((prev) => ({ ...prev, [reservation.id]: { qty: prev[reservation.id]?.qty ?? "", destinationType: prev[reservation.id]?.destinationType ?? "b2b", destinationRef: e.target.value } }))} />
                           <Button size="sm" disabled={acting === reservation.id} onClick={() => void handleIssueStock(reservation)}>
                             {acting === reservation.id ? "Working…" : "Issue stock"}
+                          </Button>
+                          <Input type="number" step="0.001" placeholder="Release qty" className="h-8 w-28 text-xs"
+                            value={releaseById[reservation.id]?.qty ?? ""}
+                            onChange={(e) => setReleaseById((prev) => ({ ...prev, [reservation.id]: { qty: e.target.value, reason: prev[reservation.id]?.reason ?? "" } }))} />
+                          <Input placeholder="Reason (e.g. order_cancelled)" className="h-8 w-44 text-xs"
+                            value={releaseById[reservation.id]?.reason ?? ""}
+                            onChange={(e) => setReleaseById((prev) => ({ ...prev, [reservation.id]: { qty: prev[reservation.id]?.qty ?? "", reason: e.target.value } }))} />
+                          <Button size="sm" variant="destructive" disabled={acting === reservation.id} onClick={() => void handleReleaseReservation(reservation)}>
+                            {acting === reservation.id ? "Working…" : "Release"}
                           </Button>
                         </div>
                       )}
