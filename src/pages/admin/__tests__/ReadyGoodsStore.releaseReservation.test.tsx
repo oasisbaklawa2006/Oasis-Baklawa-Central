@@ -110,4 +110,28 @@ describe("ReadyGoodsStore release_rgs_reservation", () => {
       p_reason_code: "order_cancelled",
     })));
   });
+
+  it("surfaces an RPC error via toast and keeps the entered draft", async () => {
+    const { toast } = await import("sonner");
+    rpcMock.mockResolvedValueOnce({ data: null, error: { message: "Not authorised" } });
+    render(<ReadyGoodsStore />);
+    const button = await screen.findByText("Release");
+    fireEvent.change(screen.getByPlaceholderText("Release qty"), { target: { value: "2" } });
+    fireEvent.change(screen.getByPlaceholderText("Reason (e.g. order_cancelled)"), { target: { value: "order_cancelled" } });
+    fireEvent.click(button);
+
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith("Not authorised"));
+    expect((screen.getByPlaceholderText("Release qty") as HTMLInputElement).value).toBe("2");
+  });
+
+  it("clears the entered draft on a successful release", async () => {
+    render(<ReadyGoodsStore />);
+    const button = await screen.findByText("Release");
+    fireEvent.change(screen.getByPlaceholderText("Release qty"), { target: { value: "2" } });
+    fireEvent.change(screen.getByPlaceholderText("Reason (e.g. order_cancelled)"), { target: { value: "order_cancelled" } });
+    fireEvent.click(button);
+
+    await waitFor(() => expect(rpcMock).toHaveBeenCalled());
+    await waitFor(() => expect((screen.getByPlaceholderText("Release qty") as HTMLInputElement).value).toBe(""));
+  });
 });
