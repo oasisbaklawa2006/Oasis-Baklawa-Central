@@ -46,6 +46,8 @@ const rpcMock = vi.fn(async (_fn: string, _args: Record<string, unknown>) => ({
 let demandResult: unknown[] = [demandRow];
 let procurementResult: unknown[] = [procurementRow];
 let assemblyRequirementResult: unknown[] = [assemblyRequirementRow];
+let reservationResult: unknown[] = [];
+let issueEventResult: unknown[] = [];
 let failNextFetch = false;
 
 function makeQuery(result: { data: unknown; error: null }) {
@@ -54,9 +56,18 @@ function makeQuery(result: { data: unknown; error: null }) {
   builder.select = () => builder;
   builder.order = () => builder;
   builder.in = () => builder;
+  builder.eq = () => builder;
+  builder.gt = () => builder;
   builder.limit = () => {
     if (failNextFetch) return Promise.resolve({ data: null, error: { message: "refresh failed" } });
     return Promise.resolve(result);
+  };
+  // inventory_reservations/rgs_issue_events queries terminate on the last
+  // .eq()/.in()/.gt() call rather than .limit() -- make the builder itself
+  // thenable so `await` on it resolves the same way.
+  builder.then = (resolve: (value: { data: unknown; error: unknown }) => void) => {
+    if (failNextFetch) return Promise.resolve({ data: null, error: { message: "refresh failed" } }).then(resolve);
+    return Promise.resolve(result).then(resolve);
   };
   return builder;
 }
@@ -66,6 +77,8 @@ vi.mock("@/integrations/supabase/client", () => ({
     from: (relation: string) => {
       if (relation === "b2b_3pgs_pending_demand_priority") return makeQuery({ data: demandResult, error: null });
       if (relation === "b2b_assembly_3pgs_requirements") return makeQuery({ data: assemblyRequirementResult, error: null });
+      if (relation === "inventory_reservations") return makeQuery({ data: reservationResult, error: null });
+      if (relation === "rgs_issue_events") return makeQuery({ data: issueEventResult, error: null });
       return makeQuery({ data: procurementResult, error: null });
     },
   },
@@ -84,6 +97,8 @@ afterEach(() => {
   demandResult = [demandRow];
   procurementResult = [procurementRow];
   assemblyRequirementResult = [assemblyRequirementRow];
+  reservationResult = [];
+  issueEventResult = [];
   failNextFetch = false;
 });
 
@@ -152,63 +167,83 @@ describe("ThreePgsProcurementQueue", () => {
     expect(await screen.findByText("No open P&A assembly requirements.")).toBeTruthy();
   });
 
-  it("blocks recording fulfilment with a missing or non-positive quantity", async () => {
+  it("offers to reserve stock against an open assembly requirement, calling reserve_3pgs_requirement_stock", async () => {
     render(<ThreePgsProcurementQueue />);
-    const button = await screen.findByText("Record fulfilment");
+    const button = await screen.findByText("Reserve stock (6 outstanding)");
+    fireEvent.click(button);
+
+    await waitFor(() => expect(rpcMock).toHaveBeenCalledWith("reserve_3pgs_requirement_stock", expect.objectContaining({
+      p_requirement_id: "assy-req-1",
+      p_priority: "normal",
+    })));
+  });
+
+  it("does not offer to reserve stock once the full outstanding quantity is already reserved", async () => {
+    reservationResult = [{ id: "resv-1", reservation_number: "resv-num-1", reserved_qty: 6, demand_reference: assemblyRequirementRow.requirement_number }];
+    render(<ThreePgsProcurementQueue />);
+    await screen.findAllByText(assemblyRequirementRow.requirement_number, { exact: false });
+    expect(screen.queryByText(/Reserve stock \(/)).toBeNull();
+  });
+
+  it("offers to issue reserved stock, blocks an excessive quantity, and calls issue_3pgs_requirement_stock", async () => {
+    reservationResult = [{ id: "resv-1", reservation_number: "resv-num-1", reserved_qty: 4, demand_reference: assemblyRequirementRow.requirement_number }];
+    render(<ThreePgsProcurementQueue />);
+    const input = await screen.findByPlaceholderText("Up to 4");
+    const button = screen.getByText("Issue to P&A");
+
+    fireEvent.change(input, { target: { value: "5" } });
     fireEvent.click(button);
     await waitFor(() => expect(rpcMock).not.toHaveBeenCalled());
+
+    fireEvent.change(input, { target: { value: "4" } });
+    fireEvent.click(button);
+    await waitFor(() => expect(rpcMock).toHaveBeenCalledWith("issue_3pgs_requirement_stock", expect.objectContaining({
+      p_requirement_id: "assy-req-1",
+      p_reservation_id: "resv-1",
+      p_issue_qty: 4,
+    })));
   });
 
-  it("blocks recording fulfilment above the remaining shortfall", async () => {
+  it("offers to acknowledge a pending issue, blocks an excessive quantity, and calls acknowledge_3pgs_requirement_receipt", async () => {
+    issueEventResult = [{ id: "issue-1", reservation_id: "resv-1", issued_qty: 4, issued_by: "user-a", destination_reference: assemblyRequirementRow.requirement_number }];
     render(<ThreePgsProcurementQueue />);
-    const input = await screen.findByPlaceholderText("Up to 6");
-    fireEvent.change(input, { target: { value: "7" } });
-    fireEvent.click(screen.getByText("Record fulfilment"));
+    const input = await screen.findByPlaceholderText("Up to 4");
+    const button = screen.getByText("Acknowledge receipt");
+
+    fireEvent.change(input, { target: { value: "5" } });
+    fireEvent.click(button);
     await waitFor(() => expect(rpcMock).not.toHaveBeenCalled());
+
+    fireEvent.change(input, { target: { value: "4" } });
+    fireEvent.click(button);
+    await waitFor(() => expect(rpcMock).toHaveBeenCalledWith("acknowledge_3pgs_requirement_receipt", expect.objectContaining({
+      p_issue_event_id: "issue-1",
+      p_received_qty: 4,
+    })));
   });
 
-  it("records fulfilment against fulfil_assembly_3pgs_requirement with the entered quantity, reusing the correlation id on retry", async () => {
+  it("reuses the correlation id for an issue retry with the same quantity, and mints a fresh one when the quantity changes", async () => {
+    reservationResult = [{ id: "resv-1", reservation_number: "resv-num-1", reserved_qty: 4, demand_reference: assemblyRequirementRow.requirement_number }];
     rpcMock.mockResolvedValueOnce({ data: null, error: { message: "network hiccup" } });
     render(<ThreePgsProcurementQueue />);
-    const input = await screen.findByPlaceholderText("Up to 6");
-    fireEvent.change(input, { target: { value: "4" } });
-    const button = screen.getByText("Record fulfilment");
+    const input = await screen.findByPlaceholderText("Up to 4");
+    const button = screen.getByText("Issue to P&A");
 
+    fireEvent.change(input, { target: { value: "4" } });
     fireEvent.click(button);
     await waitFor(() => expect(rpcMock).toHaveBeenCalledTimes(1));
     fireEvent.click(button);
     await waitFor(() => expect(rpcMock).toHaveBeenCalledTimes(2));
-
-    const [firstFn, firstArgs] = rpcMock.mock.calls[0];
-    const [, secondArgs] = rpcMock.mock.calls[1];
-    expect(firstFn).toBe("fulfil_assembly_3pgs_requirement");
-    expect(firstArgs).toMatchObject({ p_requirement_id: "assy-req-1", p_fulfilled_qty: 4 });
-    expect(secondArgs.p_correlation_id).toBe(firstArgs.p_correlation_id);
-  });
-
-  it("generates a fresh correlation id when the fulfilment quantity changes before a retry", async () => {
-    rpcMock.mockResolvedValueOnce({ data: null, error: { message: "network hiccup" } });
-    render(<ThreePgsProcurementQueue />);
-    const input = await screen.findByPlaceholderText("Up to 6");
-    const button = screen.getByText("Record fulfilment");
-
-    fireEvent.change(input, { target: { value: "4" } });
-    fireEvent.click(button);
-    await waitFor(() => expect(rpcMock).toHaveBeenCalledTimes(1));
-
-    // First attempt (qty 4) failed, so its correlation id is still pending.
-    // Changing the quantity before retrying must mint a new one -- reusing
-    // the old id here would let the server-side idempotent-replay check
-    // treat this as the same request and silently keep the original qty.
-    fireEvent.change(input, { target: { value: "2" } });
-    fireEvent.click(button);
-    await waitFor(() => expect(rpcMock).toHaveBeenCalledTimes(2));
-
     const [, firstArgs] = rpcMock.mock.calls[0];
-    const [, secondArgs] = rpcMock.mock.calls[1];
-    expect(firstArgs.p_fulfilled_qty).toBe(4);
-    expect(secondArgs.p_fulfilled_qty).toBe(2);
-    expect(secondArgs.p_correlation_id).not.toBe(firstArgs.p_correlation_id);
+    const [, secondArgsSameQty] = rpcMock.mock.calls[1];
+    expect(secondArgsSameQty.p_correlation_id).toBe(firstArgs.p_correlation_id);
+
+    rpcMock.mockResolvedValueOnce({ data: null, error: { message: "network hiccup" } });
+    fireEvent.change(input, { target: { value: "3" } });
+    fireEvent.click(button);
+    await waitFor(() => expect(rpcMock).toHaveBeenCalledTimes(3));
+    const [, thirdArgsDifferentQty] = rpcMock.mock.calls[2];
+    expect(thirdArgsDifferentQty.p_correlation_id).not.toBe(secondArgsSameQty.p_correlation_id);
   });
 
   it("blocks vendor assignment without a vendor reference", async () => {
