@@ -69,10 +69,11 @@ type ReceivingState = {
  * Also closes the inbound-receipt lifecycle this bridge links against
  * (create_b2b_inventory_receipt / record_b2b_inventory_receipt /
  * accept_b2b_inventory_receipt / link_procurement_receipt) via a "Receive"
- * action per requirement below, and the P&A reservation bridge
+ * action per requirement below. The separate P&A reservation bridge
  * (reserve_3pgs_requirement_stock / issue_3pgs_requirement_stock /
- * acknowledge_3pgs_requirement_receipt) via a dedicated section further
- * down. Route: /admin/3pgs-procurement-queue.
+ * acknowledge_3pgs_requirement_receipt) is wired in a different, still-open
+ * PR against this same file -- not touched here, to keep this PR's diff
+ * scoped to the receipt lifecycle only. Route: /admin/3pgs-procurement-queue.
  */
 export default function ThreePgsProcurementQueue() {
   const [pendingDemand, setPendingDemand] = useState<PendingDemandRow[]>([]);
