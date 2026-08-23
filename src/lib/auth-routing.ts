@@ -21,17 +21,30 @@ const STAFF_ROLE_DESTINATIONS: Record<string, string> = {
   // Operations (top-level route — NOT under /admin)
   OPERATIONS_MANAGER:       "/operations-controller",
 
-  // Production managers — handheld execution
-  PRODUCTION_MANAGER:       "/admin/production",
-  HOD_ARABIC:               "/admin/production",
-  HOD_FUSION:               "/admin/production",
-  HOD_CHOCOLATE:            "/admin/production",
-  HOD_DRAGEES:              "/admin/production",
+  // Production managers — handheld execution. /operations-controller (the
+  // mobile-first, department-scoped phh/ handheld surface -- see
+  // OperationsController.tsx's HOD_DEPARTMENT_MAP filtering) is the real
+  // execution tool these roles need; /admin/production is an unrelated
+  // desktop-tabbed admin console (Order/Assembly/ReadyGoods/Inventory/
+  // Dispatch management) with no handheld components at all. These roles
+  // were previously landed on /admin/production despite this comment
+  // already describing the intent as "handheld execution" -- a routing
+  // defect confirmed by a reachability audit, fixed here. All these roles
+  // are already authorised for /operations-controller (ADMIN_STAFF_ROLES
+  // in App.tsx); this only changes the default post-login destination, not
+  // any permission.
+  PRODUCTION_MANAGER:       "/operations-controller",
+  HOD_ARABIC:               "/operations-controller",
+  HOD_FUSION:               "/operations-controller",
+  HOD_CHOCOLATE:            "/operations-controller",
+  HOD_DRAGEES:              "/operations-controller",
+  HOD_BAKERY:               "/operations-controller",
+  HOD_NUTS:                 "/operations-controller",
   // Dates has no standalone HOD desk -- it shares Fusion Sweets' handheld
   // execution surface, per the owner's six-TV estate (Central issue #368).
-  HOD_DATES:                "/admin/production",
-  HOD_BAKERY:               "/admin/production",
-  HOD_NUTS:                 "/admin/production",
+  HOD_DATES:                "/operations-controller",
+  // Assembly (P&A) keeps its own dedicated, actively-developed management
+  // screen -- not the production-floor handheld surface above.
   HOD_ASSEMBLY:             "/admin/assembly-tasks",
 
   // Production floor TV screens
