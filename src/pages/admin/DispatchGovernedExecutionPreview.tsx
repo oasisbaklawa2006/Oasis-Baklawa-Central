@@ -51,6 +51,35 @@ const DISPATCH_MODES = [
   "approved_special",
 ] as const;
 
+// Shared by the "Open a carton" and "Record a shipment" consignment pickers
+// below -- both select from the same governed consignment list.
+function ConsignmentSelect({
+  id,
+  rows,
+  value,
+  onValueChange,
+}: {
+  id: string;
+  rows: ShipmentExecutionRow[];
+  value: string;
+  onValueChange: (value: string) => void;
+}) {
+  return (
+    <Select value={value} onValueChange={onValueChange}>
+      <SelectTrigger id={id}>
+        <SelectValue placeholder="Select a consignment" />
+      </SelectTrigger>
+      <SelectContent>
+        {rows.map((row) => (
+          <SelectItem key={row.consignment_id} value={row.consignment_id}>
+            {row.consignment_number}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+  );
+}
+
 /**
  * Governed Dispatch execution preview -- verification/ops tool giving the
  * new b2b_dispatch_* governed RPCs (create_b2b_dispatch_consignment,
@@ -315,18 +344,12 @@ export default function DispatchGovernedExecutionPreview() {
         <CardContent className="grid gap-3 sm:grid-cols-2">
           <div className="space-y-1">
             <Label htmlFor="dispatch-preview-carton-consignment">Consignment</Label>
-            <Select value={cartonConsignmentId} onValueChange={setCartonConsignmentId}>
-              <SelectTrigger id="dispatch-preview-carton-consignment">
-                <SelectValue placeholder="Select a consignment" />
-              </SelectTrigger>
-              <SelectContent>
-                {rows.map((row) => (
-                  <SelectItem key={row.consignment_id} value={row.consignment_id}>
-                    {row.consignment_number}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <ConsignmentSelect
+              id="dispatch-preview-carton-consignment"
+              rows={rows}
+              value={cartonConsignmentId}
+              onValueChange={setCartonConsignmentId}
+            />
           </div>
           <div className="space-y-1">
             <Label htmlFor="dispatch-preview-carton-code">Carton code</Label>
@@ -359,18 +382,12 @@ export default function DispatchGovernedExecutionPreview() {
         <CardContent className="grid gap-3 sm:grid-cols-2">
           <div className="space-y-1 sm:col-span-2">
             <Label htmlFor="dispatch-preview-shipment-consignment">Consignment</Label>
-            <Select value={shipmentConsignmentId} onValueChange={setShipmentConsignmentId}>
-              <SelectTrigger id="dispatch-preview-shipment-consignment">
-                <SelectValue placeholder="Select a consignment" />
-              </SelectTrigger>
-              <SelectContent>
-                {rows.map((row) => (
-                  <SelectItem key={row.consignment_id} value={row.consignment_id}>
-                    {row.consignment_number}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <ConsignmentSelect
+              id="dispatch-preview-shipment-consignment"
+              rows={rows}
+              value={shipmentConsignmentId}
+              onValueChange={setShipmentConsignmentId}
+            />
           </div>
           <div className="space-y-1">
             <Label htmlFor="dispatch-preview-transporter-name">Transporter name</Label>
@@ -408,6 +425,7 @@ export default function DispatchGovernedExecutionPreview() {
             <Label htmlFor="dispatch-preview-driver-phone">Driver phone (optional)</Label>
             <Input
               id="dispatch-preview-driver-phone"
+              type="tel"
               value={driverPhone}
               onChange={(e) => setDriverPhone(e.target.value)}
             />
