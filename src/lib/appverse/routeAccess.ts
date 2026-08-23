@@ -54,6 +54,7 @@ const ADMIN_ROUTE_MODULES: Array<{ prefix: string; moduleKey: AppVerseModuleKey 
   { prefix: "/admin/ready-goods", moduleKey: "inventory" },
   { prefix: "/admin/rgs-tv", moduleKey: "inventory" },
   { prefix: "/admin/3pgs-packing-material", moduleKey: "inventory" },
+  { prefix: "/admin/3pgs-procurement-queue", moduleKey: "inventory" },
   { prefix: "/admin/inventory", moduleKey: "inventory" },
   { prefix: "/admin/reservation-board", moduleKey: "inventory_audit" },
   { prefix: "/admin/stock-finalization", moduleKey: "inventory_audit" },
