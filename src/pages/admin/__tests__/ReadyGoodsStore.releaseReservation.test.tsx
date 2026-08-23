@@ -134,4 +134,47 @@ describe("ReadyGoodsStore release_rgs_reservation", () => {
     await waitFor(() => expect(rpcMock).toHaveBeenCalled());
     await waitFor(() => expect((screen.getByPlaceholderText("Release qty") as HTMLInputElement).value).toBe(""));
   });
+
+  // Mandatory adversarial check: release_rgs_reservation's only idempotency
+  // guard is a correlation_id lookup, which does NOT independently protect a
+  // partial release (only a full release flips reservation_status to a
+  // non-releasable state). A lost-response retry MUST reuse the same
+  // correlation id, or the RPC would double-execute -- crediting available
+  // stock twice for one real release.
+  it("reuses the same correlation id when retrying after a lost response with the same quantity and reason", async () => {
+    rpcMock.mockResolvedValueOnce({ data: null, error: { message: "network hiccup" } });
+    render(<ReadyGoodsStore />);
+    const button = await screen.findByText("Release");
+    fireEvent.change(screen.getByPlaceholderText("Release qty"), { target: { value: "2" } });
+    fireEvent.change(screen.getByPlaceholderText("Reason (e.g. order_cancelled)"), { target: { value: "order_cancelled" } });
+
+    fireEvent.click(button);
+    await waitFor(() => expect(rpcMock).toHaveBeenCalledTimes(1));
+
+    fireEvent.click(button);
+    await waitFor(() => expect(rpcMock).toHaveBeenCalledTimes(2));
+
+    const [, firstArgs] = rpcMock.mock.calls[0];
+    const [, secondArgs] = rpcMock.mock.calls[1];
+    expect(secondArgs.p_correlation_id).toBe(firstArgs.p_correlation_id);
+  });
+
+  it("uses a fresh correlation id when the quantity changes before retrying", async () => {
+    rpcMock.mockResolvedValueOnce({ data: null, error: { message: "network hiccup" } });
+    render(<ReadyGoodsStore />);
+    const button = await screen.findByText("Release");
+    fireEvent.change(screen.getByPlaceholderText("Release qty"), { target: { value: "2" } });
+    fireEvent.change(screen.getByPlaceholderText("Reason (e.g. order_cancelled)"), { target: { value: "order_cancelled" } });
+
+    fireEvent.click(button);
+    await waitFor(() => expect(rpcMock).toHaveBeenCalledTimes(1));
+
+    fireEvent.change(screen.getByPlaceholderText("Release qty"), { target: { value: "3" } });
+    fireEvent.click(button);
+    await waitFor(() => expect(rpcMock).toHaveBeenCalledTimes(2));
+
+    const [, firstArgs] = rpcMock.mock.calls[0];
+    const [, secondArgs] = rpcMock.mock.calls[1];
+    expect(secondArgs.p_correlation_id).not.toBe(firstArgs.p_correlation_id);
+  });
 });
