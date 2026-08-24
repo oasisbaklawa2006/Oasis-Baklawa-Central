@@ -250,8 +250,9 @@ export async function fetchWhatsAppOrderAutonomyDecisions(
   if (ids.length === 0) return new Map();
 
   // Generated types lag CORE-A/B tables; inbox remains read-only here.
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const decisionQuery = supabase.from("whatsapp_order_autonomy_decisions" as any)
+  const decisionQuery = supabase
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    .from("whatsapp_order_autonomy_decisions" as any)
     .select("id,packet_id,case_id,potential_order_id,interpretation_id,autonomy_outcome,decision_reasons,blocking_reasons,governed_facts,readiness_snapshot,evaluated_at")
     .in("packet_id", ids)
     .order("evaluated_at", { ascending: false });
@@ -268,8 +269,8 @@ export async function fetchWhatsAppOrderAutonomyDecisions(
   const decisionIds = [...byPacket.values()].map((row) => row.id);
   if (decisionIds.length === 0) return byPacket;
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data: executionRows, error: executionError } = await supabase
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     .from("whatsapp_order_autonomy_draft_executions" as any)
     .select("autonomy_decision_id,execution_status,blocking_reason,sales_order_draft_id,promoted_order_id")
     .in("autonomy_decision_id", decisionIds);
