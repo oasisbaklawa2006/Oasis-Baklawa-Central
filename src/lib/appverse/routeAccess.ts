@@ -63,6 +63,7 @@ const ADMIN_ROUTE_MODULES: Array<{ prefix: string; moduleKey: AppVerseModuleKey 
   { prefix: "/admin/dispatch-readiness", moduleKey: "dispatch" },
   { prefix: "/admin/dispatch-completion", moduleKey: "dispatch" },
   { prefix: "/admin/dispatch-finalization", moduleKey: "dispatch" },
+  { prefix: "/admin/dispatch-tv", moduleKey: "dispatch" },
   { prefix: "/admin/dispatch", moduleKey: "dispatch" },
   { prefix: "/admin/golden-chain-operator", moduleKey: "dispatch" },
   { prefix: "/admin/users", moduleKey: "users" },
