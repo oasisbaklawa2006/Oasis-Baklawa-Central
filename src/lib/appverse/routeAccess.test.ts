@@ -19,4 +19,9 @@ describe("getRequiredModuleForAdminPath", () => {
     expect(getRequiredModuleForAdminPath("/admin/ready-goods")).toBe("inventory");
     expect(getRequiredModuleForAdminPath("/admin/inventory-risk-board")).toBe("inventory");
   });
+
+  it("maps the read-only Dispatch TV surface to the dispatch module, not the dashboard fallback", () => {
+    expect(getRequiredModuleForAdminPath("/admin/dispatch-tv")).toBe("dispatch");
+    expect(getRequiredModuleForAdminPath("/admin/dispatch-tv/anything")).toBe("dispatch");
+  });
 });
