@@ -32,8 +32,25 @@ const rpcMock = vi.fn(async (_fn: string, _args: Record<string, unknown>) => ({
   error: null as { message: string } | null,
 }));
 
+let openIssuesResult: unknown[] = [];
+
 vi.mock("@/lib/rgsGovernedRpc", () => ({
   rgsGovernedRpc: { rpc: (...args: unknown[]) => rpcMock(...(args as [string, Record<string, unknown>])) },
+}));
+
+vi.mock("@/integrations/supabase/client", () => ({
+  supabase: {
+    from: (relation: string) => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const builder: any = {};
+      builder.select = () => builder;
+      builder.eq = () => builder;
+      builder.order = () => builder;
+      builder.then = (resolve: (value: { data: unknown[] }) => void) =>
+        resolve(relation === "production_issues" ? { data: openIssuesResult } : { data: [] });
+      return builder;
+    },
+  },
 }));
 
 vi.mock("sonner", () => ({
@@ -42,6 +59,7 @@ vi.mock("sonner", () => ({
 
 afterEach(() => {
   vi.clearAllMocks();
+  openIssuesResult = [];
 });
 
 function openIssueModal() {
@@ -120,5 +138,78 @@ describe("JobExecutionTab governed issue reporting", () => {
     resolveRpc({ data: null, error: null });
     await waitFor(() => expect(rpcMock).toHaveBeenCalledTimes(1));
     expect(screen.getByText("Pause Production")).not.toBeDisabled();
+  });
+});
+
+describe("JobExecutionTab governed issue resolution", () => {
+  const openIssue = { id: "issue-1", job_id: "job-1", issue_type: "machine", comment: "Mixer is jammed", created_at: "2026-08-23T00:00:00.000Z" };
+
+  it("shows no open-issues section when the job has none", async () => {
+    render(<JobExecutionTab jobs={[job]} userId="user-1" department="ARABIC_SWEETS" onRefresh={vi.fn()} />);
+    fireEvent.click(screen.getByText("Test Sweet"));
+    await waitFor(() => expect(screen.queryByText("Open issues on this job")).toBeNull());
+  });
+
+  it("displays an open issue for the selected job and blocks resolving without notes", async () => {
+    openIssuesResult = [openIssue];
+    render(<JobExecutionTab jobs={[job]} userId="user-1" department="ARABIC_SWEETS" onRefresh={vi.fn()} />);
+    fireEvent.click(screen.getByText("Test Sweet"));
+
+    expect(await screen.findByText("Mixer is jammed")).toBeTruthy();
+    fireEvent.click(screen.getByText("Mark Resolved"));
+    await waitFor(() => expect(rpcMock).not.toHaveBeenCalled());
+  });
+
+  it("calls resolve_production_issue with the entered resolution notes", async () => {
+    openIssuesResult = [openIssue];
+    render(<JobExecutionTab jobs={[job]} userId="user-1" department="ARABIC_SWEETS" onRefresh={vi.fn()} />);
+    fireEvent.click(screen.getByText("Test Sweet"));
+
+    await screen.findByText("Mixer is jammed");
+    fireEvent.change(screen.getByPlaceholderText("Resolution notes (what fixed it)..."), { target: { value: "Replaced belt" } });
+    fireEvent.click(screen.getByText("Mark Resolved"));
+
+    await waitFor(() => expect(rpcMock).toHaveBeenCalledWith("resolve_production_issue", {
+      p_issue_id: "issue-1",
+      p_resolution_notes: "Replaced belt",
+    }));
+  });
+
+  it("removes the issue from the list on a successful resolution", async () => {
+    openIssuesResult = [openIssue];
+    render(<JobExecutionTab jobs={[job]} userId="user-1" department="ARABIC_SWEETS" onRefresh={vi.fn()} />);
+    fireEvent.click(screen.getByText("Test Sweet"));
+
+    await screen.findByText("Mixer is jammed");
+    fireEvent.change(screen.getByPlaceholderText("Resolution notes (what fixed it)..."), { target: { value: "Replaced belt" } });
+    fireEvent.click(screen.getByText("Mark Resolved"));
+
+    await waitFor(() => expect(screen.queryByText("Mixer is jammed")).toBeNull());
+  });
+
+  it("notifies the parent via onRefresh on a successful resolution", async () => {
+    openIssuesResult = [openIssue];
+    const onRefresh = vi.fn();
+    render(<JobExecutionTab jobs={[job]} userId="user-1" department="ARABIC_SWEETS" onRefresh={onRefresh} />);
+    fireEvent.click(screen.getByText("Test Sweet"));
+
+    await screen.findByText("Mixer is jammed");
+    fireEvent.change(screen.getByPlaceholderText("Resolution notes (what fixed it)..."), { target: { value: "Replaced belt" } });
+    fireEvent.click(screen.getByText("Mark Resolved"));
+
+    await waitFor(() => expect(onRefresh).toHaveBeenCalled());
+  });
+
+  it("refetches open issues after successfully reporting a new one, so it appears without reselecting the job", async () => {
+    render(<JobExecutionTab jobs={[job]} userId="user-1" department="ARABIC_SWEETS" onRefresh={vi.fn()} />);
+    fireEvent.click(screen.getByText("Test Sweet"));
+    fireEvent.click(screen.getByText("Report Issue"));
+
+    // Simulate the just-reported issue becoming visible in the next fetch.
+    openIssuesResult = [openIssue];
+    fireEvent.change(screen.getByPlaceholderText("Describe the issue..."), { target: { value: "Mixer is jammed" } });
+    fireEvent.click(screen.getByText("Submit Issue"));
+
+    expect(await screen.findByText("Mixer is jammed")).toBeTruthy();
   });
 });
