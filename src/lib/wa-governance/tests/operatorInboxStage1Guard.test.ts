@@ -110,6 +110,20 @@ describe("operator inbox Stage-1 guardrails", () => {
     expect(scanRepoFileForForbiddenPostgrestWrites(REPO_ROOT, "src/components/whatsapp/OperatorInboxSalesOrderDraftSection.tsx")).toEqual([]);
   });
 
+  it("exception desk reads Core autonomy ledgers and does not write them", () => {
+    const model = readRepoFile("src/lib/wa-governance/orderAutonomy.ts");
+    expect(model).toContain(".from(\"whatsapp_order_autonomy_decisions\"");
+    expect(model).toContain(".from(\"whatsapp_order_autonomy_draft_executions\"");
+    expect(model).toContain(".select(");
+    expect(model).not.toMatch(/\.(insert|update|delete|upsert)\(/);
+    const desk = readRepoFile("src/components/whatsapp/OperatorInboxAiDecisionDesk.tsx");
+    expect(desk).toContain("What they want");
+    expect(desk).toContain("What happens next");
+    expect(desk).toContain("showAiConclusionDecision");
+    const inbox = readRepoFile("src/components/WhatsAppInbox.tsx");
+    expect(inbox).toContain("Exception queue (hide auto-success orders Core already progressed)");
+  });
+
   it("webhook auto-order and owner reassignment flags default to disabled", () => {
     expect(isWaWebhookAutoOrderWritesEnabled(() => undefined)).toBe(false);
     expect(isWaWebhookOwnerReassignmentEnabled(() => undefined)).toBe(false);

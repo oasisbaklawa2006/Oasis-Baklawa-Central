@@ -84,6 +84,11 @@ import {
   OperatorInboxPacketHealthBadge,
   OperatorInboxRefreshingBanner,
 } from "@/components/whatsapp/OperatorInboxReadOnlyPanels";
+import {
+  fetchWhatsAppOrderAutonomyDecisions,
+  packetRequiresOperatorAttention,
+  type WhatsAppOrderAutonomyDecision,
+} from "@/lib/wa-governance/orderAutonomy";
 import { useOperatorInboxObservability } from "@/components/whatsapp/useOperatorInboxObservability";
 import { OperatorInboxOperationalContextPanel } from "@/components/whatsapp/OperatorInboxOperationalContextPanel";
 import { OperatorInboxSenderIdentityPanel } from "@/components/whatsapp/OperatorInboxSenderIdentityPanel";
@@ -182,6 +187,8 @@ export function WhatsAppInbox() {
   const [suggestionsError, setSuggestionsError] = useState<string | null>(null);
   const [filterQuery, setFilterQuery] = useState("");
   const [unansweredOnly, setUnansweredOnly] = useState(false);
+  const [exceptionQueueOnly, setExceptionQueueOnly] = useState(true);
+  const [autonomyByPacketId, setAutonomyByPacketId] = useState<Map<string, WhatsAppOrderAutonomyDecision>>(new Map());
   const [pinnedIds, setPinnedIds] = useState<string[]>([]);
   const [bulkFilters, setBulkFilters] = useState<OperatorInboxBulkFilters>({ ...EMPTY_INBOX_BULK_FILTERS });
   const [uiHydrated, setUiHydrated] = useState(false);
@@ -302,6 +309,7 @@ export function WhatsAppInbox() {
     if (saved) {
       if (typeof saved.filterQuery === "string") setFilterQuery(saved.filterQuery);
       if (typeof saved.unansweredOnly === "boolean") setUnansweredOnly(saved.unansweredOnly);
+      if (typeof saved.exceptionQueueOnly === "boolean") setExceptionQueueOnly(saved.exceptionQueueOnly);
       if (Array.isArray(saved.pinnedIds)) setPinnedIds(saved.pinnedIds);
       setBulkFilters(normalizePersistedBulkFilters(saved.bulkFilters));
       if (typeof saved.compactMode === "boolean") setCompactMode(saved.compactMode);
@@ -317,6 +325,7 @@ export function WhatsAppInbox() {
       saveOperatorInboxUiState({
         filterQuery,
         unansweredOnly,
+        exceptionQueueOnly,
         pinnedIds,
         bulkFilters,
         compactMode,
@@ -328,6 +337,7 @@ export function WhatsAppInbox() {
   }, [
     filterQuery,
     unansweredOnly,
+    exceptionQueueOnly,
     pinnedIds,
     bulkFilters,
     compactMode,
@@ -335,6 +345,21 @@ export function WhatsAppInbox() {
     showAiPreviewPanel,
     uiHydrated,
   ]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const ids = packets.map((packet) => packet.id);
+    if (ids.length === 0) {
+      setAutonomyByPacketId(new Map());
+      return;
+    }
+    void fetchWhatsAppOrderAutonomyDecisions(supabase, ids).then((map) => {
+      if (!cancelled) setAutonomyByPacketId(map);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [packets]);
 
   useEffect(() => {
     const mq = window.matchMedia("(max-width: 1023px)");
@@ -899,6 +924,7 @@ export function WhatsAppInbox() {
     const q = filterQuery.trim().toLowerCase();
     return packets.filter((p) => {
       if (!packetMatchesBulkFilters(p, bulkFilters)) return false;
+      if (exceptionQueueOnly && !packetRequiresOperatorAttention(autonomyByPacketId.get(p.id) ?? null)) return false;
       if (unansweredOnly && !isLastMessageInboundUnanswered(p.messages ?? [])) return false;
       if (!q) return true;
       const preview = operatorInboxPacketPreviewSummary(p).toLowerCase();
@@ -910,7 +936,7 @@ export function WhatsAppInbox() {
         fullText.includes(q)
       );
     });
-  }, [packets, filterQuery, unansweredOnly, bulkFilters, packetSearchIndex]);
+  }, [packets, filterQuery, unansweredOnly, exceptionQueueOnly, bulkFilters, packetSearchIndex, autonomyByPacketId]);
 
   const orderedPackets = useMemo(() => {
     const pinSet = new Set(pinnedIds);
@@ -1266,6 +1292,16 @@ export function WhatsAppInbox() {
                 />
                 <label htmlFor="operator-inbox-unanswered-only" className="text-xs text-gray-600">
                   Unanswered only (last message inbound)
+                </label>
+              </div>
+              <div className="flex items-center gap-2">
+                <Checkbox
+                  id="operator-inbox-exception-queue"
+                  checked={exceptionQueueOnly}
+                  onCheckedChange={(v) => setExceptionQueueOnly(v === true)}
+                />
+                <label htmlFor="operator-inbox-exception-queue" className="text-xs text-gray-600">
+                  Exception queue (hide auto-success orders Core already progressed)
                 </label>
               </div>
 
