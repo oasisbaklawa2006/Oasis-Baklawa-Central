@@ -1,10 +1,25 @@
-import { useState } from "react";
+import { useCallback, useEffect, useState } from "react";
+import { supabase } from "@/integrations/supabase/client";
 import { rgsGovernedRpc } from "@/lib/rgsGovernedRpc";
 import { toast } from "sonner";
-import { Loader2, Play, Pause, RotateCcw, Image as ImageIcon, AlertTriangle, Camera, Send, Lock, ChevronRight } from "lucide-react";
+import { Loader2, Play, Pause, RotateCcw, Image as ImageIcon, AlertTriangle, Camera, Send, Lock, ChevronRight, CheckCircle2 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { ProductionJob, STAGE_ORDER, STAGE_LABELS, PRIORITY_STYLES, DEPARTMENTS } from "./types";
 import { executionFieldsForDepartment } from "./departmentExecutionFields";
+
+// Temporary typed boundary for production_issues, pending regenerated
+// project-wide Supabase definitions (same escape-hatch pattern used
+// elsewhere in this programme).
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const issuesDb = supabase as unknown as { from: (relation: string) => any };
+
+type OpenIssue = {
+  id: string;
+  job_id: string;
+  issue_type: string;
+  comment: string;
+  created_at: string;
+};
 
 interface Props {
   jobs: ProductionJob[];
@@ -26,10 +41,55 @@ export default function JobExecutionTab({ jobs, userId, department, onRefresh }:
   const [issueType, setIssueType] = useState("material");
   const [issueComment, setIssueComment] = useState("");
   const [executionMetadata, setExecutionMetadata] = useState<Record<string, string>>({});
+  const [openIssues, setOpenIssues] = useState<OpenIssue[]>([]);
+  const [resolutionNotesById, setResolutionNotesById] = useState<Record<string, string>>({});
 
   const activeJobs = jobs.filter((j) => ["accepted", "in_production", "paused"].includes(j.status));
   const executionFields = executionFieldsForDepartment(department);
   const departmentLabel = DEPARTMENTS.find((d) => d.value === department)?.label ?? department;
+
+  // resolve_production_issue had zero callers anywhere in Central --
+  // report_production_issue (above) closed the report side, but nothing
+  // ever fetched or resolved an open issue once reported. Scoped to the
+  // currently open job so the same worker/department that's dealing with
+  // the job can close out a fixed issue right where they reported it,
+  // without a separate admin screen.
+  const fetchOpenIssues = useCallback(async (jobId: string) => {
+    const { data } = await issuesDb
+      .from("production_issues")
+      .select("id, job_id, issue_type, comment, created_at")
+      .eq("job_id", jobId)
+      .eq("status", "open")
+      .order("created_at", { ascending: false });
+    setOpenIssues((data ?? []) as OpenIssue[]);
+  }, []);
+
+  useEffect(() => {
+    if (!selectedJob) { setOpenIssues([]); return; }
+    void fetchOpenIssues(selectedJob.id);
+  }, [selectedJob, fetchOpenIssues]);
+
+  const handleResolveIssue = async (issue: OpenIssue) => {
+    const notes = (resolutionNotesById[issue.id] ?? "").trim();
+    if (!notes) {
+      toast.error("Enter resolution notes");
+      return;
+    }
+    setActing(issue.id);
+    const { error } = await rgsGovernedRpc.rpc("resolve_production_issue", {
+      p_issue_id: issue.id,
+      p_resolution_notes: notes,
+    });
+    if (error) {
+      toast.error(error.message || "Could not resolve issue");
+    } else {
+      toast.success("✅ Issue Resolved");
+      setOpenIssues((prev) => prev.filter((i) => i.id !== issue.id));
+      setResolutionNotesById((prev) => { const next = { ...prev }; delete next[issue.id]; return next; });
+      onRefresh();
+    }
+    setActing(null);
+  };
 
   const handleStart = async (job: ProductionJob) => {
     setActing(job.id);
@@ -194,6 +254,7 @@ export default function JobExecutionTab({ jobs, userId, department, onRefresh }:
     toast.success("⚠️ Issue Reported");
     setShowIssueModal(false);
     setIssueComment("");
+    void fetchOpenIssues(selectedJob.id);
     setActing(null);
   };
 
@@ -338,6 +399,32 @@ export default function JobExecutionTab({ jobs, userId, department, onRefresh }:
             >
               {acting ? <Loader2 size={16} className="animate-spin" /> : <><Lock size={16} /> Production Completed → Transfer to RGS</>}
             </button>
+          </div>
+        )}
+
+        {/* Open Issues for this job */}
+        {openIssues.length > 0 && (
+          <div className="bg-white rounded-2xl p-4 border border-red-200 space-y-3">
+            <p className="text-[10px] font-black uppercase tracking-widest text-red-500">Open issues on this job</p>
+            {openIssues.map((issue) => (
+              <div key={issue.id} className="rounded-xl border border-slate-200 p-3 space-y-2">
+                <p className="text-xs font-bold uppercase text-slate-500">{issue.issue_type}</p>
+                <p className="text-sm text-slate-700">{issue.comment}</p>
+                <textarea
+                  value={resolutionNotesById[issue.id] ?? ""}
+                  onChange={(e) => setResolutionNotesById((prev) => ({ ...prev, [issue.id]: e.target.value }))}
+                  placeholder="Resolution notes (what fixed it)..."
+                  className="w-full border border-slate-200 rounded-lg p-2 text-sm min-h-[60px] outline-none focus:border-emerald-500"
+                />
+                <button
+                  onClick={() => handleResolveIssue(issue)}
+                  disabled={!!acting}
+                  className="w-full py-2.5 rounded-xl bg-emerald-600 text-white font-black text-xs uppercase tracking-widest active:scale-95 flex items-center justify-center gap-1"
+                >
+                  {acting === issue.id ? <Loader2 size={14} className="animate-spin" /> : <><CheckCircle2 size={14} /> Mark Resolved</>}
+                </button>
+              </div>
+            ))}
           </div>
         )}
 

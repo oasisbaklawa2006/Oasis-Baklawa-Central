@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AlertTriangle, Factory, PackageCheck, RefreshCw, ShieldCheck, Truck, Warehouse } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { rgsGovernedRpc } from "@/lib/rgsGovernedRpc";
@@ -187,6 +187,7 @@ export default function ReadyGoodsStore() {
   const [acceptQtyById, setAcceptQtyById] = useState<Record<string, { accepted: string; rejected: string; hold: string }>>({});
   const [pickQtyById, setPickQtyById] = useState<Record<string, string>>({});
   const [issueById, setIssueById] = useState<Record<string, { qty: string; destinationType: string; destinationRef: string }>>({});
+  const [releaseById, setReleaseById] = useState<Record<string, { qty: string; reason: string }>>({});
   const [ackQtyById, setAckQtyById] = useState<Record<string, string>>({});
 
   const handleAllocateAndRouteShortage = useCallback(async (row: DemandState) => {
@@ -313,6 +314,56 @@ export default function ReadyGoodsStore() {
     else { toast.success(`Issued ${qty} ${reservation.sku} to ${destinationType}`); void load(); }
     setActing(null);
   }, [issueById, load]);
+
+  // release_rgs_reservation had zero callers anywhere in Central before
+  // this -- reserve_rgs_stock and pick_rgs_reservation were wired, but a
+  // reservation that's no longer needed (order cancelled, demand reduced)
+  // had no governed path back to available stock.
+  //
+  // release_rgs_reservation's ONLY idempotency guard is a correlation_id
+  // lookup against inventory_movements -- there is no state-based replay
+  // protection for a PARTIAL release (unlike a full release, which flips
+  // reservation_status to 'released' and so fails the "releasable state"
+  // check on retry). A fresh crypto.randomUUID() per call -- this file's
+  // convention for every OTHER action here -- would let a lost-response
+  // retry of a partial release double-execute: reserved_qty decremented
+  // twice, available_qty credited twice, for stock that was only actually
+  // released once. Persist one correlation id per (reservation, qty,
+  // reason) so a genuine retry of the same request reuses it and hits the
+  // RPC's own idempotent early-return; changing the qty or reason before
+  // retrying is a materially different request and legitimately gets a
+  // fresh one.
+  const releaseCorrelationRef = useRef<Record<string, { qty: string; reason: string; correlationId: string }>>({});
+  const handleReleaseReservation = useCallback(async (reservation: Reservation) => {
+    const entry = releaseById[reservation.id];
+    const qty = Number(entry?.qty ?? 0);
+    const reason = entry?.reason?.trim();
+    if (!qty || qty <= 0) { toast.error("Enter a valid release quantity"); return; }
+    if (!reason) { toast.error("A reason is required to release a reservation"); return; }
+
+    const qtyKey = entry?.qty ?? "";
+    const cached = releaseCorrelationRef.current[reservation.id];
+    const correlationId = cached && cached.qty === qtyKey && cached.reason === reason
+      ? cached.correlationId
+      : crypto.randomUUID();
+    releaseCorrelationRef.current[reservation.id] = { qty: qtyKey, reason, correlationId };
+
+    setActing(reservation.id);
+    const error = await callGovernedRpc("release_rgs_reservation", {
+      p_reservation_id: reservation.id,
+      p_release_qty: qty,
+      p_reason_code: reason,
+      p_correlation_id: correlationId,
+    });
+    if (error) toast.error(error.message || "Could not release the reservation");
+    else {
+      toast.success(`Released ${qty} ${reservation.sku} back to available stock`);
+      delete releaseCorrelationRef.current[reservation.id];
+      setReleaseById((prev) => { const next = { ...prev }; delete next[reservation.id]; return next; });
+      void load();
+    }
+    setActing(null);
+  }, [releaseById, load]);
 
   const handleAcknowledgeIssue = useCallback(async (issue: IssueEvent) => {
     const qty = Number(ackQtyById[issue.id] ?? issue.issued_qty);
@@ -524,6 +575,15 @@ export default function ReadyGoodsStore() {
                             onChange={(e) => setIssueById((prev) => ({ ...prev, [reservation.id]: { qty: prev[reservation.id]?.qty ?? "", destinationType: prev[reservation.id]?.destinationType ?? "b2b", destinationRef: e.target.value } }))} />
                           <Button size="sm" disabled={acting === reservation.id} onClick={() => void handleIssueStock(reservation)}>
                             {acting === reservation.id ? "Working…" : "Issue stock"}
+                          </Button>
+                          <Input type="number" step="0.001" placeholder="Release qty" className="h-8 w-28 text-xs"
+                            value={releaseById[reservation.id]?.qty ?? ""}
+                            onChange={(e) => setReleaseById((prev) => ({ ...prev, [reservation.id]: { qty: e.target.value, reason: prev[reservation.id]?.reason ?? "" } }))} />
+                          <Input placeholder="Reason (e.g. order_cancelled)" className="h-8 w-44 text-xs"
+                            value={releaseById[reservation.id]?.reason ?? ""}
+                            onChange={(e) => setReleaseById((prev) => ({ ...prev, [reservation.id]: { qty: prev[reservation.id]?.qty ?? "", reason: e.target.value } }))} />
+                          <Button size="sm" variant="destructive" disabled={acting === reservation.id} onClick={() => void handleReleaseReservation(reservation)}>
+                            {acting === reservation.id ? "Working…" : "Release"}
                           </Button>
                         </div>
                       )}
