@@ -119,7 +119,7 @@ export function requiresHumanAiConclusionDecision(decision: WhatsAppOrderAutonom
 
 export function requiresAcceptRouting(decision: WhatsAppOrderAutonomyDecision | null): boolean {
   if (!decision) return true;
-  return decision.outcome !== "AUTO_ELIGIBLE";
+  return requiresHumanAiConclusionDecision(decision);
 }
 
 function governedWho(facts: Record<string, unknown>): string | null {

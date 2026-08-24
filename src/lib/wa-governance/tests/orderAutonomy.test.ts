@@ -73,6 +73,17 @@ describe("WhatsApp order autonomy operator model", () => {
     }))).toBe(true);
   });
 
+  it("does not expose Accept routing for Core clarification", () => {
+    expect(requiresAcceptRouting(decision({
+      outcome: "CLARIFICATION_REQUIRED",
+      draftStatus: null,
+    }))).toBe(false);
+    expect(requiresAcceptRouting(decision({
+      outcome: "POLICY_APPROVAL_REQUIRED",
+      draftStatus: null,
+    }))).toBe(true);
+  });
+
   it("builds a plain-language narrative without confidence jargon", () => {
     const narrative = buildOperatorExceptionNarrative(
       decision({
