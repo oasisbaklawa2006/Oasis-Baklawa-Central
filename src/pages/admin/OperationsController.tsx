@@ -1,12 +1,13 @@
 import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
-import { Loader2, ClipboardList, Play, Camera, AlertTriangle, Zap } from "lucide-react";
+import { Loader2, ClipboardList, Play, Camera, AlertTriangle, Zap, ClipboardCheck } from "lucide-react";
 import TopNavBar from "@/components/TopNavBar";
 import { normalizeRole } from "@/lib/auth-routing";
 import JobIntakeTab from "@/components/phh/JobIntakeTab";
 import JobExecutionTab from "@/components/phh/JobExecutionTab";
 import QuickEntryTab from "@/components/phh/QuickEntryTab";
+import DayEndSignoffTab from "@/components/phh/DayEndSignoffTab";
 import { ProductionJob, HOD_DEPARTMENT_MAP, DEPARTMENTS } from "@/components/phh/types";
 
 // Temporary typed boundary: canonical_department is a governed column added
@@ -26,7 +27,7 @@ const OperationsController = () => {
   const roleDepartment = getDepartmentForRole(role);
   const [loading, setLoading] = useState(true);
   const [myDepartment, setMyDepartment] = useState(roleDepartment ?? "ARABIC_SWEETS");
-  const [activeTab, setActiveTab] = useState<"intake" | "execution" | "quick_entry">("intake");
+  const [activeTab, setActiveTab] = useState<"intake" | "execution" | "quick_entry" | "day_end">("intake");
   const [jobs, setJobs] = useState<ProductionJob[]>([]);
   const [urgentCount, setUrgentCount] = useState(0);
   useEffect(() => {
@@ -76,6 +77,7 @@ const OperationsController = () => {
     { key: "intake" as const, label: "Intake", icon: ClipboardList, badge: pendingCount },
     { key: "execution" as const, label: "Execute", icon: Play, badge: activeCount },
     { key: "quick_entry" as const, label: "Quick Log", icon: Camera, badge: 0 },
+    { key: "day_end" as const, label: "Day End", icon: ClipboardCheck, badge: 0 },
   ];
 
   return (
@@ -157,6 +159,9 @@ const OperationsController = () => {
         )}
         {activeTab === "quick_entry" && (
           <QuickEntryTab department={myDepartment} departmentLabel={deptLabel} userId={user?.id} />
+        )}
+        {activeTab === "day_end" && (
+          <DayEndSignoffTab department={myDepartment} userId={user?.id} />
         )}
       </div>
     </div>
