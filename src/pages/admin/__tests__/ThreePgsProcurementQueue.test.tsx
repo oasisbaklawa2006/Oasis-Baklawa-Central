@@ -222,6 +222,32 @@ describe("ThreePgsProcurementQueue", () => {
     })));
   });
 
+  it("limits an issue to the unissued reservation balance when an issue event already exists", async () => {
+    reservationResult = [{ id: "resv-1", reservation_number: "resv-num-1", reserved_qty: 4, demand_reference: assemblyRequirementRow.requirement_number }];
+    issueEventResult = [{ id: "issue-1", reservation_id: "resv-1", issued_qty: 4, issued_by: "user-a", destination_reference: assemblyRequirementRow.requirement_number }];
+    render(<ThreePgsProcurementQueue />);
+    const input = await screen.findByPlaceholderText("Up to 0");
+    const button = screen.getByText("Issue to P&A");
+
+    fireEvent.change(input, { target: { value: "1" } });
+    fireEvent.click(button);
+    await waitFor(() => expect(rpcMock).not.toHaveBeenCalledWith("issue_3pgs_requirement_stock", expect.anything()));
+  });
+
+  it("blocks acknowledging receipt with a blank or zero quantity", async () => {
+    issueEventResult = [{ id: "issue-1", reservation_id: "resv-1", issued_qty: 4, issued_by: "user-a", destination_reference: assemblyRequirementRow.requirement_number }];
+    render(<ThreePgsProcurementQueue />);
+    const button = await screen.findByText("Acknowledge receipt");
+
+    fireEvent.click(button);
+    await waitFor(() => expect(rpcMock).not.toHaveBeenCalled());
+
+    const input = screen.getByPlaceholderText("Up to 4");
+    fireEvent.change(input, { target: { value: "0" } });
+    fireEvent.click(button);
+    await waitFor(() => expect(rpcMock).not.toHaveBeenCalled());
+  });
+
   it("reuses the correlation id for an issue retry with the same quantity, and mints a fresh one when the quantity changes", async () => {
     reservationResult = [{ id: "resv-1", reservation_number: "resv-num-1", reserved_qty: 4, demand_reference: assemblyRequirementRow.requirement_number }];
     rpcMock.mockResolvedValueOnce({ data: null, error: { message: "network hiccup" } });

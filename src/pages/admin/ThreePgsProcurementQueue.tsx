@@ -292,8 +292,12 @@ export default function ThreePgsProcurementQueue() {
       toast.error("Enter a valid issue quantity.");
       return;
     }
-    if (qty > reservation.reserved_qty) {
-      toast.error(`Issue quantity (${qty}) exceeds what is reserved (${reservation.reserved_qty}).`);
+    const alreadyIssued = assemblyIssueEvents
+      .filter((event) => event.reservation_id === reservation.id)
+      .reduce((sum, event) => sum + event.issued_qty, 0);
+    const remainingReserved = reservation.reserved_qty - alreadyIssued;
+    if (qty > remainingReserved) {
+      toast.error(`Issue quantity (${qty}) exceeds what remains reserved (${remainingReserved}).`);
       return;
     }
     const existing = issueCorrelationRef.current[reservation.id];
@@ -318,7 +322,7 @@ export default function ThreePgsProcurementQueue() {
     } finally {
       setIssuing(null);
     }
-  }, [fetchData, issueDrafts]);
+  }, [fetchData, issueDrafts, assemblyIssueEvents]);
 
   // acknowledge_3pgs_requirement_receipt is the ONLY path that advances a
   // requirement's fulfilled_qty -- it calls the existing acknowledge_rgs_issue
@@ -328,9 +332,9 @@ export default function ThreePgsProcurementQueue() {
   // pre-check that client-side).
   const ackCorrelationRef = useRef<Record<string, { qty: number; id: string }>>({});
   const handleAcknowledgeReceipt = useCallback(async (issueEvent: AssemblyIssueEvent) => {
-    const raw = ackDrafts[issueEvent.id] ?? String(issueEvent.issued_qty);
+    const raw = ackDrafts[issueEvent.id] ?? "";
     const qty = Number(raw);
-    if (!raw || !Number.isFinite(qty) || qty < 0) {
+    if (!raw || !Number.isFinite(qty) || qty <= 0) {
       toast.error("Enter a valid received quantity.");
       return;
     }
@@ -435,32 +439,38 @@ export default function ThreePgsProcurementQueue() {
                       </div>
                     ) : null}
 
-                    {reservations.map((reservation) => (
-                      <div key={reservation.id} className="mt-2 flex flex-wrap items-center gap-1 border-t pt-2">
-                        <span className="text-muted-foreground">
-                          Reserved {reservation.reservation_number}: {reservation.reserved_qty}
-                        </span>
-                        <Input
-                          className="h-7 w-24 text-xs"
-                          type="number"
-                          min={0}
-                          max={reservation.reserved_qty}
-                          step="any"
-                          placeholder={`Up to ${reservation.reserved_qty}`}
-                          value={issueDrafts[reservation.id] ?? ""}
-                          onChange={(e) => setIssueDrafts((current) => ({ ...current, [reservation.id]: e.target.value }))}
-                        />
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="h-7 px-2 text-[10px]"
-                          disabled={issuing === reservation.id}
-                          onClick={() => void handleIssueStock(requirement, reservation)}
-                        >
-                          Issue to P&amp;A
-                        </Button>
-                      </div>
-                    ))}
+                    {reservations.map((reservation) => {
+                      const alreadyIssued = assemblyIssueEvents
+                        .filter((e) => e.reservation_id === reservation.id)
+                        .reduce((sum, e) => sum + e.issued_qty, 0);
+                      const remainingReserved = reservation.reserved_qty - alreadyIssued;
+                      return (
+                        <div key={reservation.id} className="mt-2 flex flex-wrap items-center gap-1 border-t pt-2">
+                          <span className="text-muted-foreground">
+                            Reserved {reservation.reservation_number}: {reservation.reserved_qty}
+                          </span>
+                          <Input
+                            className="h-7 w-24 text-xs"
+                            type="number"
+                            min={0}
+                            max={remainingReserved}
+                            step="any"
+                            placeholder={`Up to ${remainingReserved}`}
+                            value={issueDrafts[reservation.id] ?? ""}
+                            onChange={(e) => setIssueDrafts((current) => ({ ...current, [reservation.id]: e.target.value }))}
+                          />
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="h-7 px-2 text-[10px]"
+                            disabled={issuing === reservation.id}
+                            onClick={() => void handleIssueStock(requirement, reservation)}
+                          >
+                            Issue to P&amp;A
+                          </Button>
+                        </div>
+                      );
+                    })}
 
                     {issueEvents.map((issueEvent) => (
                       <div key={issueEvent.id} className="mt-2 flex flex-wrap items-center gap-1 border-t pt-2">
