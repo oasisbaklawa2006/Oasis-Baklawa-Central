@@ -139,4 +139,13 @@ describe("DispatchGovernedExecutionPreview", () => {
 
     await waitFor(() => expect(rpcMock).not.toHaveBeenCalled());
   });
+
+  it("blocks recording a shipment with no consignment, transporter, or tracking number entered", async () => {
+    render(<DispatchGovernedExecutionPreview />);
+    await screen.findByText("SO-2026-000001-DC-01");
+
+    fireEvent.click(screen.getByRole("button", { name: "Record shipment" }));
+
+    await waitFor(() => expect(rpcMock).not.toHaveBeenCalled());
+  });
 });
