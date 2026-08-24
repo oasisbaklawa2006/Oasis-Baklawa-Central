@@ -8,6 +8,7 @@ const rpcMock = vi.fn(async (_fn: string, _args: Record<string, unknown>) => ({
 }));
 
 let currentSignoff: Record<string, unknown> | null = null;
+let loadFails = false;
 
 vi.mock("@/lib/rgsGovernedRpc", () => ({
   rgsGovernedRpc: { rpc: (...args: unknown[]) => rpcMock(...(args as [string, Record<string, unknown>])) },
@@ -20,7 +21,9 @@ vi.mock("@/integrations/supabase/client", () => ({
       const builder: any = {};
       builder.select = () => builder;
       builder.eq = () => builder;
-      builder.maybeSingle = () => Promise.resolve({ data: currentSignoff, error: null });
+      builder.maybeSingle = () => Promise.resolve(
+        loadFails ? { data: null, error: { message: "connection lost" } } : { data: currentSignoff, error: null },
+      );
       return builder;
     },
   },
@@ -33,12 +36,40 @@ vi.mock("sonner", () => ({
 afterEach(() => {
   vi.clearAllMocks();
   currentSignoff = null;
+  loadFails = false;
 });
 
 describe("DayEndSignoffTab", () => {
   it("shows a submission form when no signoff exists for today", async () => {
     render(<DayEndSignoffTab department="ARABIC_SWEETS" userId="user-1" />);
     expect(await screen.findByText("Submit Day-End Signoff")).toBeTruthy();
+  });
+
+  it("shows a retry error state instead of the submission form when the status load fails", async () => {
+    loadFails = true;
+    render(<DayEndSignoffTab department="ARABIC_SWEETS" userId="user-1" />);
+    expect(await screen.findByText("Could not load today's day-end status")).toBeTruthy();
+    expect(screen.queryByText("Submit Day-End Signoff")).toBeNull();
+
+    loadFails = false;
+    fireEvent.click(screen.getByText("Retry"));
+    expect(await screen.findByText("Submit Day-End Signoff")).toBeTruthy();
+  });
+
+  it("displays the signer's identity alongside the signed timestamp", async () => {
+    currentSignoff = {
+      id: "sign-1",
+      department: "ARABIC_SWEETS",
+      business_date: "2026-08-23",
+      summary: {},
+      exception_notes: null,
+      signed_by: "user-1",
+      signed_at: "2026-08-23T18:00:00.000Z",
+      corrects_signoff_id: null,
+    };
+    render(<DayEndSignoffTab department="ARABIC_SWEETS" userId="user-1" />);
+    await screen.findByText("Signed for 2026-08-23");
+    expect(screen.getByText((_, node) => (node?.textContent ?? "").startsWith("Signed by user-1 at"))).toBeTruthy();
   });
 
   it("submits a fresh signoff with department, business date, and exception notes", async () => {

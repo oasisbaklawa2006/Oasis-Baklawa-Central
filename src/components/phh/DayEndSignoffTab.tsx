@@ -68,6 +68,7 @@ const SUMMARY_COUNT_LABELS: Record<string, string> = {
 export default function DayEndSignoffTab({ department, userId }: Props) {
   const [current, setCurrent] = useState<DaySignoff | null>(null);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [exceptionNotes, setExceptionNotes] = useState("");
   const [correctionNotes, setCorrectionNotes] = useState("");
   const [showCorrection, setShowCorrection] = useState(false);
@@ -75,13 +76,18 @@ export default function DayEndSignoffTab({ department, userId }: Props) {
 
   const load = useCallback(async () => {
     setLoading(true);
-    const { data } = await dayEndDb
+    const { data, error } = await dayEndDb
       .from("production_day_end_current")
       .select("id, department, business_date, summary, exception_notes, signed_by, signed_at, corrects_signoff_id")
       .eq("department", department)
       .eq("business_date", todayIso())
       .maybeSingle();
-    setCurrent((data ?? null) as DaySignoff | null);
+    if (error) {
+      setLoadError(error.message || "Could not load today's day-end status");
+    } else {
+      setLoadError(null);
+      setCurrent((data ?? null) as DaySignoff | null);
+    }
     setLoading(false);
   }, [department]);
 
@@ -116,6 +122,21 @@ export default function DayEndSignoffTab({ department, userId }: Props) {
     return (
       <div className="flex justify-center py-16">
         <Loader2 className="w-8 h-8 animate-spin text-slate-400" />
+      </div>
+    );
+  }
+
+  if (loadError) {
+    return (
+      <div className="bg-white rounded-2xl p-4 border border-red-200 space-y-3">
+        <p className="text-sm font-black text-red-600">Could not load today's day-end status</p>
+        <p className="text-xs text-slate-500">{loadError}</p>
+        <button
+          onClick={() => void load()}
+          className="w-full py-2 rounded-xl bg-slate-100 text-slate-600 font-bold text-xs uppercase tracking-widest active:scale-95"
+        >
+          Retry
+        </button>
       </div>
     );
   }
@@ -177,7 +198,9 @@ export default function DayEndSignoffTab({ department, userId }: Props) {
       {current.exception_notes ? (
         <p className="text-xs text-slate-600"><span className="font-bold">Exception notes:</span> {current.exception_notes}</p>
       ) : null}
-      <p className="text-[10px] text-slate-400">Signed at {new Date(current.signed_at).toLocaleString()}</p>
+      <p className="text-[10px] text-slate-400">
+        Signed by {current.signed_by} at {new Date(current.signed_at).toLocaleString()}
+      </p>
 
       {!showCorrection ? (
         <button
