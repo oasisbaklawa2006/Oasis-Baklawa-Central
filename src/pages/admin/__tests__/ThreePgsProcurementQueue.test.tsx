@@ -85,6 +85,7 @@ function makeQuery(result: { data: unknown; error: null }) {
 vi.mock("@/integrations/supabase/client", () => ({
   supabase: {
     from: (relation: string) => {
+      if (relation === "b2b_3pgs_pending_demand_priority") return makeQuery({ data: demandResult, error: null });
       if (relation === "b2b_assembly_3pgs_requirements") return makeQuery({ data: assemblyRequirementResult, error: null });
       if (relation === "inventory_reservations") return makeQuery({ data: reservationResult, error: null });
       if (relation === "rgs_issue_events") return makeQuery({ data: issueEventResult, error: null });
