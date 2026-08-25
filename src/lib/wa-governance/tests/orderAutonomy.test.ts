@@ -28,6 +28,7 @@ function futureDueAt(hoursFromNow = 24): string {
   return new Date(Date.now() + hoursFromNow * 60 * 60 * 1000).toISOString();
 }
 
+function decision(
   overrides: Partial<WhatsAppOrderAutonomyDecision> = {},
 ): WhatsAppOrderAutonomyDecision {
   return {
