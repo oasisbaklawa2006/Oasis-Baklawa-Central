@@ -182,6 +182,21 @@ describe("WhatsApp order autonomy operator model", () => {
     expect(requiresHumanAiConclusionDecision(view)).toBe(false);
   });
 
+  it("does not classify clarification as automation-active without governed outbound evidence", () => {
+    const health = classifyClarificationHealth({
+      caseStatus: "AWAITING_CUSTOMER",
+      clarifications: [{ status: "OPEN", due_at: "2026-12-31T00:00:00Z" }],
+      escalations: [],
+      outboundDecisions: [],
+    });
+    expect(health).toBe("UNKNOWN");
+    const view = readyView("p1", decision({
+      outcome: "CLARIFICATION_REQUIRED",
+      draftStatus: null,
+    }), { clarificationHealth: "UNKNOWN" });
+    expect(packetRequiresOperatorAttention(view)).toBe(true);
+  });
+
   it("10. shows healthy CORE-C clarification as automation/waiting state", () => {
     const health = classifyClarificationHealth({
       caseStatus: "AWAITING_CUSTOMER",

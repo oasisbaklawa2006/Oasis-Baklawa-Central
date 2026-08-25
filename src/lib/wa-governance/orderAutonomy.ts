@@ -194,7 +194,7 @@ export function classifyClarificationHealth(input: {
   });
 
   if (input.caseStatus === "AWAITING_CUSTOMER" && openClarifications.length > 0) {
-    return governedOutbound || openClarifications.length > 0 ? "AUTOMATION_ACTIVE" : "UNKNOWN";
+    return governedOutbound ? "AUTOMATION_ACTIVE" : "UNKNOWN";
   }
 
   if (openClarifications.length > 0 && input.caseStatus !== "AWAITING_CUSTOMER") {
@@ -518,6 +518,7 @@ async function fetchClarificationContextByPacket(
   const clarificationsByCase = new Map<string, Record<string, unknown>[]>();
   const escalationsByCase = new Map<string, Record<string, unknown>[]>();
   const outboundByCase = new Map<string, Record<string, unknown>[]>();
+  const failedCaseIds = new Set<string>();
 
   for (const batch of chunk(caseIds, AUTONOMY_PACKET_BATCH_SIZE)) {
     const [clarificationResult, escalationResult, outboundResult] = await Promise.all([
@@ -537,6 +538,17 @@ async function fetchClarificationContextByPacket(
         .select("case_id,status,related_clarification_id")
         .in("case_id", batch),
     ]);
+
+    const contextError =
+      clarificationResult.error?.message ||
+      escalationResult.error?.message ||
+      outboundResult.error?.message ||
+      null;
+    if (contextError) {
+      console.warn("[OperatorInbox] clarification context lookup failed", contextError);
+      for (const caseId of batch) failedCaseIds.add(caseId);
+      continue;
+    }
 
     for (const row of Array.isArray(clarificationResult.data) ? clarificationResult.data : []) {
       const rec = asRecord(row);
@@ -567,6 +579,15 @@ async function fetchClarificationContextByPacket(
   for (const packetId of ids) {
     const caseRow = casesByPacket.get(packetId);
     if (!caseRow) {
+      result.set(packetId, {
+        caseStatus: null,
+        clarifications: [],
+        escalations: [],
+        outboundDecisions: [],
+      });
+      continue;
+    }
+    if (failedCaseIds.has(caseRow.caseId)) {
       result.set(packetId, {
         caseStatus: null,
         clarifications: [],
