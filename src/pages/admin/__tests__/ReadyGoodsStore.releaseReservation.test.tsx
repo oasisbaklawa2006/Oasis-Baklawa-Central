@@ -200,3 +200,21 @@ describe("ReadyGoodsStore release_rgs_reservation", () => {
     expect(secondArgs.p_correlation_id).not.toBe(firstArgs.p_correlation_id);
   });
 });
+
+describe("ReadyGoodsStore emit_rgs_handover_escalations mount ping", () => {
+  it("fires emit_rgs_handover_escalations on mount", async () => {
+    render(<ReadyGoodsStore />);
+    await waitFor(() => expect(rpcMock).toHaveBeenCalledWith("emit_rgs_handover_escalations", {}));
+  });
+
+  it("swallows a rejected emit_rgs_handover_escalations call without erroring the screen", async () => {
+    rpcMock.mockImplementation(async (fn: string) => {
+      if (fn === "emit_rgs_handover_escalations") return Promise.reject(new Error("network hiccup"));
+      return { data: null, error: null };
+    });
+    render(<ReadyGoodsStore />);
+    await waitFor(() => expect(rpcMock).toHaveBeenCalledWith("emit_rgs_handover_escalations", {}));
+    // The screen's own data (unrelated to this ping) still renders normally.
+    expect(await screen.findByText("Release")).toBeTruthy();
+  });
+});
