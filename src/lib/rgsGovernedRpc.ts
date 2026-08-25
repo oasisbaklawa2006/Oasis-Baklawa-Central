@@ -1,5 +1,14 @@
 import { supabase } from "@/integrations/supabase/client";
 
+type GovernedRpcResult = {
+  data: Record<string, unknown> | null;
+  error: { message: string } | null;
+};
+
+type GovernedRpcClient = {
+  rpc: (name: string, params?: Record<string, unknown>) => PromiseLike<GovernedRpcResult>;
+};
+
 /**
  * Temporary typed boundary for the RGS/Production governed RPCs added in
  * oasis-supabase-core (20260817090000-20260817130000) pending regenerated
@@ -10,14 +19,13 @@ import { supabase } from "@/integrations/supabase/client";
  *
  * Supabase's rpc() returns a PostgrestFilterBuilder: it is awaitable/thenable,
  * but it is not a native Promise and therefore does not implement `.catch()`.
- * Normalize that thenable to a real Promise here so callers can safely use
- * either `await rgsGovernedRpc.rpc(...)` or best-effort `.catch(...)` handling.
+ * The async wrapper normalizes that thenable to a native Promise and also
+ * turns any synchronous invocation failure into a rejected Promise.
  */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const governedRpcClient = supabase as unknown as GovernedRpcClient;
+
 export const rgsGovernedRpc = {
-  rpc: (fn: string, args?: Record<string, unknown>): Promise<{ data: any; error: { message: string } | null }> =>
-    Promise.resolve(
-      (supabase as unknown as { rpc: (name: string, params?: Record<string, unknown>) => PromiseLike<{ data: any; error: { message: string } | null }> })
-        .rpc(fn, args),
-    ),
+  async rpc(fn: string, args?: Record<string, unknown>): Promise<GovernedRpcResult> {
+    return await governedRpcClient.rpc(fn, args);
+  },
 };
