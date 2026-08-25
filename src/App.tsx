@@ -488,7 +488,7 @@ const App = () => (
                       </ProtectedRoute>
                     }
                   />
-                  <Route path="/tv/arabic-sweets" element={<RoleProtectedRoute allowedRoles={["HOD_ARABIC", "PROD_ARABIC", "SUPER_ADMIN", "ADMIN"]}><FactoryTVModule category="Arabic Sweets" departmentFilter="Arabic Sweets" title="Arabic Sweets Line" /></RoleProtectedRoute>} />
+                  <Route path="/tv/arabic-sweets" element={<RoleProtectedRoute allowedRoles={["HOD_ARABIC", "PROD_ARABIC_SWEETS", "SUPER_ADMIN", "ADMIN"]}><FactoryTVModule category="Arabic Sweets" departmentFilter="Arabic Sweets" title="Arabic Sweets Line" /></RoleProtectedRoute>} />
                   {/* Chocolates & Confectionery TV also serves Dragees staff -- owner's
                       six-TV estate (Central issue #368) folds Dragees into Chocolates &
                       Confectionery rather than giving it its own screen. FactoryTVModule's
