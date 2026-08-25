@@ -7,17 +7,17 @@ import { useWhatsAppPermissions } from "@/hooks/useWhatsAppPermissions";
 import type { ProductResolutionAiInterpretation } from "@/lib/wa-governance/productResolutionTypes";
 import {
   acceptWhatsAppAiRouting,
-  fetchWhatsAppCaseDecisionSnapshot,
   newCaseRoutingIdempotencyKey,
   type WhatsAppCaseDecisionSnapshot,
 } from "@/lib/wa-governance/caseDecisionDesk";
 import {
   buildOperatorExceptionNarrative,
-  fetchWhatsAppOrderAutonomyDecisions,
+  allowsCommercialMutation,
   requiresAcceptRouting,
   requiresHumanAiConclusionDecision,
-  type WhatsAppOrderAutonomyDecision,
+  type PacketAutonomyView,
 } from "@/lib/wa-governance/orderAutonomy";
+import { loadOperatorDecisionDeskState } from "@/lib/wa-governance/operatorDecisionDeskLoad";
 import { OperatorInboxCaseLifecycleActions } from "./OperatorInboxCaseLifecycleActions";
 import { OperatorInboxCommercialLayers } from "./OperatorInboxCommercialLayers";
 import { OperatorInboxPaymentProofReview } from "./OperatorInboxPaymentProofReview";
@@ -48,7 +48,7 @@ export function OperatorInboxAiDecisionDesk({
   const authority = useWhatsAppPermissions();
   const conclusion = interpretation.conclusion;
   const [snapshot, setSnapshot] = useState<WhatsAppCaseDecisionSnapshot | null>(null);
-  const [autonomy, setAutonomy] = useState<WhatsAppOrderAutonomyDecision | null>(null);
+  const [autonomy, setAutonomy] = useState<PacketAutonomyView | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -69,26 +69,26 @@ export function OperatorInboxAiDecisionDesk({
     idempotencyKeyRef.current = null;
   }, [packetId, conclusion?.primary_department, conclusion?.recommended_action]);
 
-  const reload = async (targetPacketId = packetId) => {
+  const loadDesk = async (targetPacketId = packetId) => {
     if (activePacketIdRef.current !== targetPacketId) return;
     setLoading(true);
     setError(null);
     try {
-      const [nextSnapshot, autonomyMap] = await Promise.all([
-        fetchWhatsAppCaseDecisionSnapshot(supabase, targetPacketId),
-        fetchWhatsAppOrderAutonomyDecisions(supabase, [targetPacketId]),
-      ]);
+      const loaded = await loadOperatorDecisionDeskState(supabase, targetPacketId);
       if (activePacketIdRef.current !== targetPacketId) return;
-      setSnapshot(nextSnapshot);
-      setAutonomy(autonomyMap.get(targetPacketId) ?? null);
+      setSnapshot(loaded.snapshot);
+      setAutonomy(loaded.autonomy);
     } catch (caught) {
       if (activePacketIdRef.current !== targetPacketId) return;
       setSnapshot(null);
+      setAutonomy(null);
       setError(caught instanceof Error ? caught.message : "Could not load governed communication case");
     } finally {
       if (activePacketIdRef.current === targetPacketId) setLoading(false);
     }
   };
+
+  const reload = loadDesk;
 
   useEffect(() => {
     let cancelled = false;
@@ -96,14 +96,11 @@ export function OperatorInboxAiDecisionDesk({
     setAutonomy(null);
     setLoading(true);
     setError(null);
-    void Promise.all([
-      fetchWhatsAppCaseDecisionSnapshot(supabase, packetId),
-      fetchWhatsAppOrderAutonomyDecisions(supabase, [packetId]),
-    ])
-      .then(([value, autonomyMap]) => {
+    void loadOperatorDecisionDeskState(supabase, packetId)
+      .then((loaded) => {
         if (!cancelled && activePacketIdRef.current === packetId) {
-          setSnapshot(value);
-          setAutonomy(autonomyMap.get(packetId) ?? null);
+          setSnapshot(loaded.snapshot);
+          setAutonomy(loaded.autonomy);
         }
       })
       .catch((caught) => {
@@ -122,8 +119,8 @@ export function OperatorInboxAiDecisionDesk({
     () => buildOperatorExceptionNarrative(autonomy, conclusion?.summary ?? null),
     [autonomy, conclusion?.summary],
   );
-  const showAcceptRouting = requiresAcceptRouting(autonomy);
-  const showHumanAiDecision = requiresHumanAiConclusionDecision(autonomy);
+  const showAcceptRouting = requiresAcceptRouting(autonomy) && allowsCommercialMutation(autonomy);
+  const showHumanAiDecision = requiresHumanAiConclusionDecision(autonomy) && allowsCommercialMutation(autonomy);
   const mayAcceptRouting = authority.has("wa.intake.triage") && authority.has("wa.intake.assign");
   const isAssigned = communicationCase?.accountability_status === "ASSIGNED" || communicationCase?.accountability_status === "ESCALATED";
   const contributorDepartments = useMemo(
@@ -208,7 +205,7 @@ export function OperatorInboxAiDecisionDesk({
           <div className="rounded border border-slate-200 bg-white p-2">
             <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">Accountability</span>
             <p className="mt-0.5 font-medium text-slate-800">
-              {autonomy?.outcome === "AUTO_ELIGIBLE"
+              {autonomy?.decision?.outcome === "AUTO_ELIGIBLE"
                 ? narrative.queueLabel
                 : isAssigned
                   ? humanLabel(communicationCase.accountable_team)

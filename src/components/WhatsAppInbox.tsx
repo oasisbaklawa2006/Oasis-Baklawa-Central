@@ -85,10 +85,10 @@ import {
   OperatorInboxRefreshingBanner,
 } from "@/components/whatsapp/OperatorInboxReadOnlyPanels";
 import {
-  fetchWhatsAppOrderAutonomyDecisions,
   packetRequiresOperatorAttention,
-  type WhatsAppOrderAutonomyDecision,
+  type PacketAutonomyView,
 } from "@/lib/wa-governance/orderAutonomy";
+import { loadPacketAutonomyViewsIncremental } from "@/lib/wa-governance/orderAutonomyCache";
 import { useOperatorInboxObservability } from "@/components/whatsapp/useOperatorInboxObservability";
 import { OperatorInboxOperationalContextPanel } from "@/components/whatsapp/OperatorInboxOperationalContextPanel";
 import { OperatorInboxSenderIdentityPanel } from "@/components/whatsapp/OperatorInboxSenderIdentityPanel";
@@ -188,7 +188,10 @@ export function WhatsAppInbox() {
   const [filterQuery, setFilterQuery] = useState("");
   const [unansweredOnly, setUnansweredOnly] = useState(false);
   const [exceptionQueueOnly, setExceptionQueueOnly] = useState(true);
-  const [autonomyByPacketId, setAutonomyByPacketId] = useState<Map<string, WhatsAppOrderAutonomyDecision>>(new Map());
+  const [autonomyByPacketId, setAutonomyByPacketId] = useState<Map<string, PacketAutonomyView>>(new Map());
+  const autonomyCacheRef = useRef<Map<string, PacketAutonomyView>>(new Map());
+  const [autonomyRevalidateKey, setAutonomyRevalidateKey] = useState(0);
+  const lastAutonomyRevalidateKeyRef = useRef(0);
   const [pinnedIds, setPinnedIds] = useState<string[]>([]);
   const [bulkFilters, setBulkFilters] = useState<OperatorInboxBulkFilters>({ ...EMPTY_INBOX_BULK_FILTERS });
   const [uiHydrated, setUiHydrated] = useState(false);
@@ -349,17 +352,30 @@ export function WhatsAppInbox() {
   useEffect(() => {
     let cancelled = false;
     const ids = packets.map((packet) => packet.id);
+    const revalidate = autonomyRevalidateKey !== lastAutonomyRevalidateKeyRef.current;
+    if (revalidate) lastAutonomyRevalidateKeyRef.current = autonomyRevalidateKey;
+
     if (ids.length === 0) {
+      autonomyCacheRef.current = new Map();
       setAutonomyByPacketId(new Map());
       return;
     }
-    void fetchWhatsAppOrderAutonomyDecisions(supabase, ids).then((map) => {
-      if (!cancelled) setAutonomyByPacketId(map);
+
+    void loadPacketAutonomyViewsIncremental(
+      supabase,
+      ids,
+      autonomyCacheRef.current,
+      revalidate,
+    ).then((next) => {
+      if (cancelled) return;
+      autonomyCacheRef.current = next;
+      setAutonomyByPacketId(next);
     });
+
     return () => {
       cancelled = true;
     };
-  }, [packets]);
+  }, [packets, autonomyRevalidateKey]);
 
   useEffect(() => {
     const mq = window.matchMedia("(max-width: 1023px)");
@@ -516,6 +532,7 @@ export function WhatsAppInbox() {
       setError(null);
       setRefreshError(null);
       setObsRefreshKey((k) => k + 1);
+      setAutonomyRevalidateKey((k) => k + 1);
     } catch (err) {
       if (gen !== inboxLoadGenerationRef.current) return;
       const msg = err instanceof Error ? err.message : "Failed to load inbox";
