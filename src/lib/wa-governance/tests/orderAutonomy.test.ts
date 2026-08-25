@@ -24,7 +24,10 @@ import {
 } from "../orderAutonomyCache";
 import { loadOperatorDecisionDeskState } from "../operatorDecisionDeskLoad";
 
-function decision(
+function futureDueAt(hoursFromNow = 24): string {
+  return new Date(Date.now() + hoursFromNow * 60 * 60 * 1000).toISOString();
+}
+
   overrides: Partial<WhatsAppOrderAutonomyDecision> = {},
 ): WhatsAppOrderAutonomyDecision {
   return {
@@ -185,7 +188,7 @@ describe("WhatsApp order autonomy operator model", () => {
   it("does not classify clarification as automation-active without governed outbound evidence", () => {
     const health = classifyClarificationHealth({
       caseStatus: "AWAITING_CUSTOMER",
-      clarifications: [{ status: "OPEN", due_at: "2026-12-31T00:00:00Z" }],
+      clarifications: [{ status: "OPEN", due_at: futureDueAt() }],
       escalations: [],
       outboundDecisions: [],
     });
@@ -200,7 +203,7 @@ describe("WhatsApp order autonomy operator model", () => {
   it("10. shows healthy CORE-C clarification as automation/waiting state", () => {
     const health = classifyClarificationHealth({
       caseStatus: "AWAITING_CUSTOMER",
-      clarifications: [{ status: "OPEN", due_at: "2026-12-31T00:00:00Z" }],
+      clarifications: [{ status: "OPEN", due_at: futureDueAt() }],
       escalations: [],
       outboundDecisions: [{ status: "RELEASED", related_clarification_id: "clar-1" }],
     });
@@ -396,7 +399,7 @@ describe("WhatsApp order autonomy operator model", () => {
         identities: [],
         recipientAuthorizations: [],
         departmentTasks: [],
-        clarifications: [{ status: "OPEN", due_at: "2026-12-31T00:00:00Z" }],
+        clarifications: [{ status: "OPEN", due_at: futureDueAt() }],
         escalations: [],
         outboundDecisions: [{ status: "RELEASED", related_clarification_id: "clar-1" }],
         milestones: [],
