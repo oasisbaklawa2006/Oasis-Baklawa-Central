@@ -4,6 +4,14 @@ import { Loader2, RefreshCw, Clock, Package, AlertTriangle, Zap } from "lucide-r
 import { getPackDescription, getPrimaryPackWeightKg } from "@/utils/pricing";
 import { tvGroupOf } from "@/lib/productProductionDepartments";
 
+// Temporary typed boundary: canonical_department is a governed column added
+// by oasis-supabase-core's 20260817090000 taxonomy migration, pending
+// regenerated project-wide Supabase definitions (same pattern as
+// OperationsController.tsx's productionJobsDb and ReadyGoodsStore.tsx's
+// operationsDb).
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const productionJobsDb = supabase as unknown as { from: (relation: string) => any };
+
 // production_jobs is the governed production execution authority (RGS
 // shortage demand -> create_production_shortage_demand -> production_jobs,
 // and the PHH lifecycle RPCs that drive it through accepted/in_production/
@@ -73,7 +81,7 @@ const FactoryTVModule = ({ category, departmentFilter, title }: FactoryTVModuleP
       return;
     }
 
-    const { data, error: jobsError } = await supabase
+    const { data, error: jobsError } = await productionJobsDb
       .from("production_jobs")
       .select(
         "id, order_id, assigned_qty, produced_qty, priority, status, department, created_at, product:products(name, sku, image_url, uom, net_weight_grams, avg_weight_per_pack, category, sub_category, packs_per_master_carton, pcs_per_master_carton, moq)",
