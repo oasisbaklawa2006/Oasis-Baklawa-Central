@@ -121,6 +121,18 @@ jobs:
 
       - name: Production build
         if: steps.changes.outputs.app == 'true' || steps.changes.outputs.ui == 'true' || steps.changes.outputs.tooling == 'true'
+        env:
+          # Publishable/anon values only (never a service-role key) -- these
+          # are safe to bake into a client bundle by Supabase's own design
+          # (the live production site already ships this exact anon key to
+          # every visitor's browser; real access control is RLS, not secrecy
+          # of this value). Without these the built app's supabase-js client
+          # throws "supabaseUrl is required" at module load in every browser
+          # context, which silently broke this CI build's ability to render
+          # ANY route -- including the ones visual-audit.spec.ts already
+          # screenshots -- before this fix.
+          VITE_SUPABASE_URL: https://tcxvcatsqqertcnycuop.supabase.co
+          VITE_SUPABASE_PUBLISHABLE_KEY: sb_publishable_UbNV2X25YHY3cupjpoLsjw_RhlDG4f_
         run: npm run build
 
       - name: Install Chromium
@@ -148,6 +160,94 @@ jobs:
           APP_URL: http://127.0.0.1:4173
           TEST_PREVIEW_URL: http://127.0.0.1:4173
         run: npx playwright test tests/visual-audit.spec.ts --project=desktop-chrome-size --trace=on
+
+      # Lane 1 (Central issue #368) authenticated e2e chain coverage, promoted
+      # from the manual-dispatch-only lane1-live-smoke.yml into this required
+      # gate (Lane 1 B3). Same spec file, same role-separated QA secrets,
+      # same JUnit-only/no-HTML-reporter/credential-scrub safeguards as that
+      # workflow -- only the trigger surface changes (every PR, not manual).
+      - name: Assert Lane 1 credentials are present (fail clear, not silent skip)
+        if: steps.changes.outputs.ui == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          missing=()
+          for name in TEST_RGS_EMAIL TEST_RGS_PASSWORD TEST_TV_RGS_EMAIL TEST_TV_RGS_PASSWORD \
+                      TEST_PRODUCTION_EMAIL TEST_PRODUCTION_PASSWORD \
+                      TEST_TV_PRODUCTION_EMAIL TEST_TV_PRODUCTION_PASSWORD; do
+            if [[ -z "${!name:-}" ]]; then
+              missing+=("$name")
+            fi
+          done
+          if ((${#missing[@]} > 0)); then
+            echo "::error::Missing required secret(s): ${missing[*]}. See docs/LANE1_QA_ACCOUNT_MATRIX.md for provisioning steps. Refusing to silently skip the authenticated suite."
+            exit 1
+          fi
+          if [[ -z "${TEST_ADMIN_EMAIL:-}" ]]; then
+            echo "::notice::TEST_ADMIN_EMAIL/PASSWORD not set -- the six-TV cross-grouping sweep will be skipped (not failed). All role-specific tests still run."
+          fi
+        env:
+          TEST_RGS_EMAIL: ${{ secrets.TEST_RGS_EMAIL }}
+          TEST_RGS_PASSWORD: ${{ secrets.TEST_RGS_PASSWORD }}
+          TEST_TV_RGS_EMAIL: ${{ secrets.TEST_TV_RGS_EMAIL }}
+          TEST_TV_RGS_PASSWORD: ${{ secrets.TEST_TV_RGS_PASSWORD }}
+          TEST_PRODUCTION_EMAIL: ${{ secrets.TEST_PRODUCTION_EMAIL }}
+          TEST_PRODUCTION_PASSWORD: ${{ secrets.TEST_PRODUCTION_PASSWORD }}
+          TEST_TV_PRODUCTION_EMAIL: ${{ secrets.TEST_TV_PRODUCTION_EMAIL }}
+          TEST_TV_PRODUCTION_PASSWORD: ${{ secrets.TEST_TV_PRODUCTION_PASSWORD }}
+          TEST_ADMIN_EMAIL: ${{ secrets.TEST_ADMIN_EMAIL }}
+
+      - name: Run Lane 1 authenticated live smoke (JUnit report only, no HTML reporter)
+        if: steps.changes.outputs.ui == 'true'
+        env:
+          PLAYWRIGHT_JUNIT_OUTPUT_NAME: lane1-live-smoke-junit.xml
+          TEST_PREVIEW_URL: http://127.0.0.1:4173
+          TEST_RGS_EMAIL: ${{ secrets.TEST_RGS_EMAIL }}
+          TEST_RGS_PASSWORD: ${{ secrets.TEST_RGS_PASSWORD }}
+          TEST_TV_RGS_EMAIL: ${{ secrets.TEST_TV_RGS_EMAIL }}
+          TEST_TV_RGS_PASSWORD: ${{ secrets.TEST_TV_RGS_PASSWORD }}
+          TEST_PRODUCTION_EMAIL: ${{ secrets.TEST_PRODUCTION_EMAIL }}
+          TEST_PRODUCTION_PASSWORD: ${{ secrets.TEST_PRODUCTION_PASSWORD }}
+          TEST_TV_PRODUCTION_EMAIL: ${{ secrets.TEST_TV_PRODUCTION_EMAIL }}
+          TEST_TV_PRODUCTION_PASSWORD: ${{ secrets.TEST_TV_PRODUCTION_PASSWORD }}
+          TEST_ADMIN_EMAIL: ${{ secrets.TEST_ADMIN_EMAIL }}
+          TEST_ADMIN_PASSWORD: ${{ secrets.TEST_ADMIN_PASSWORD }}
+        run: npx playwright test tests/lane1-live-smoke.spec.ts --project=desktop-chrome-size --reporter=junit,list
+
+      - name: Assert Lane 1 report contains no live secret value (defense in depth)
+        if: ${{ !cancelled() && steps.changes.outputs.ui == 'true' }}
+        shell: bash
+        env:
+          TEST_RGS_PASSWORD: ${{ secrets.TEST_RGS_PASSWORD }}
+          TEST_TV_RGS_PASSWORD: ${{ secrets.TEST_TV_RGS_PASSWORD }}
+          TEST_PRODUCTION_PASSWORD: ${{ secrets.TEST_PRODUCTION_PASSWORD }}
+          TEST_TV_PRODUCTION_PASSWORD: ${{ secrets.TEST_TV_PRODUCTION_PASSWORD }}
+          TEST_ADMIN_PASSWORD: ${{ secrets.TEST_ADMIN_PASSWORD }}
+        run: |
+          set -euo pipefail
+          report="lane1-live-smoke-junit.xml"
+          if [[ ! -f "$report" ]]; then
+            echo "$report was not produced -- nothing to check or upload."
+            exit 0
+          fi
+          for name in TEST_RGS_PASSWORD TEST_TV_RGS_PASSWORD TEST_PRODUCTION_PASSWORD TEST_TV_PRODUCTION_PASSWORD TEST_ADMIN_PASSWORD; do
+            value="${!name:-}"
+            [[ -n "$value" ]] || continue
+            if grep -qF -- "$value" "$report"; then
+              echo "::error::$report contains the literal value of \$$name -- refusing to upload a credential-bearing report."
+              exit 1
+            fi
+          done
+          echo "Confirmed: $report contains none of the QA secret values."
+
+      - name: Upload Lane 1 live smoke report
+        uses: actions/upload-artifact@v4
+        if: ${{ !cancelled() && steps.changes.outputs.ui == 'true' }}
+        with:
+          name: lane1-live-smoke-results-${{ github.run_id }}-${{ github.run_attempt }}
+          path: lane1-live-smoke-junit.xml
+          if-no-files-found: warn
+          retention-days: 14
 
       - name: Docs-only fast pass
         if: steps.changes.outputs.app != 'true' && steps.changes.outputs.ui != 'true' && steps.changes.outputs.migration != 'true' && steps.changes.outputs.tooling != 'true' && steps.changes.outputs.tests != 'true'
