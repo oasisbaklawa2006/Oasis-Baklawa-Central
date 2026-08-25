@@ -7,10 +7,17 @@ import { useWhatsAppPermissions } from "@/hooks/useWhatsAppPermissions";
 import type { ProductResolutionAiInterpretation } from "@/lib/wa-governance/productResolutionTypes";
 import {
   acceptWhatsAppAiRouting,
-  fetchWhatsAppCaseDecisionSnapshot,
   newCaseRoutingIdempotencyKey,
   type WhatsAppCaseDecisionSnapshot,
 } from "@/lib/wa-governance/caseDecisionDesk";
+import {
+  buildOperatorExceptionNarrative,
+  allowsCommercialMutation,
+  requiresAcceptRouting,
+  requiresHumanAiConclusionDecision,
+  type PacketAutonomyView,
+} from "@/lib/wa-governance/orderAutonomy";
+import { loadOperatorDecisionDeskState } from "@/lib/wa-governance/operatorDecisionDeskLoad";
 import { OperatorInboxCaseLifecycleActions } from "./OperatorInboxCaseLifecycleActions";
 import { OperatorInboxCommercialLayers } from "./OperatorInboxCommercialLayers";
 import { OperatorInboxPaymentProofReview } from "./OperatorInboxPaymentProofReview";
@@ -41,6 +48,7 @@ export function OperatorInboxAiDecisionDesk({
   const authority = useWhatsAppPermissions();
   const conclusion = interpretation.conclusion;
   const [snapshot, setSnapshot] = useState<WhatsAppCaseDecisionSnapshot | null>(null);
+  const [autonomy, setAutonomy] = useState<PacketAutonomyView | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -61,33 +69,44 @@ export function OperatorInboxAiDecisionDesk({
     idempotencyKeyRef.current = null;
   }, [packetId, conclusion?.primary_department, conclusion?.recommended_action]);
 
-  const reload = async (targetPacketId = packetId) => {
+  const loadDesk = async (targetPacketId = packetId) => {
     if (activePacketIdRef.current !== targetPacketId) return;
     setLoading(true);
     setError(null);
     try {
-      const nextSnapshot = await fetchWhatsAppCaseDecisionSnapshot(supabase, targetPacketId);
+      const loaded = await loadOperatorDecisionDeskState(supabase, targetPacketId);
       if (activePacketIdRef.current !== targetPacketId) return;
-      setSnapshot(nextSnapshot);
+      setSnapshot(loaded.snapshot);
+      setAutonomy(loaded.autonomy);
     } catch (caught) {
       if (activePacketIdRef.current !== targetPacketId) return;
       setSnapshot(null);
+      setAutonomy(null);
       setError(caught instanceof Error ? caught.message : "Could not load governed communication case");
     } finally {
       if (activePacketIdRef.current === targetPacketId) setLoading(false);
     }
   };
 
+  const reload = loadDesk;
+
   useEffect(() => {
     let cancelled = false;
     setSnapshot(null);
+    setAutonomy(null);
     setLoading(true);
     setError(null);
-    void fetchWhatsAppCaseDecisionSnapshot(supabase, packetId)
-      .then((value) => { if (!cancelled && activePacketIdRef.current === packetId) setSnapshot(value); })
+    void loadOperatorDecisionDeskState(supabase, packetId)
+      .then((loaded) => {
+        if (!cancelled && activePacketIdRef.current === packetId) {
+          setSnapshot(loaded.snapshot);
+          setAutonomy(loaded.autonomy);
+        }
+      })
       .catch((caught) => {
         if (!cancelled && activePacketIdRef.current === packetId) {
           setSnapshot(null);
+          setAutonomy(null);
           setError(caught instanceof Error ? caught.message : "Could not load governed communication case");
         }
       })
@@ -96,6 +115,12 @@ export function OperatorInboxAiDecisionDesk({
   }, [packetId]);
 
   const communicationCase = snapshot?.communicationCase ?? null;
+  const narrative = useMemo(
+    () => buildOperatorExceptionNarrative(autonomy, conclusion?.summary ?? null),
+    [autonomy, conclusion?.summary],
+  );
+  const showAcceptRouting = requiresAcceptRouting(autonomy) && allowsCommercialMutation(autonomy);
+  const showHumanAiDecision = requiresHumanAiConclusionDecision(autonomy) && allowsCommercialMutation(autonomy);
   const mayAcceptRouting = authority.has("wa.intake.triage") && authority.has("wa.intake.assign");
   const isAssigned = communicationCase?.accountability_status === "ASSIGNED" || communicationCase?.accountability_status === "ESCALATED";
   const contributorDepartments = useMemo(
@@ -149,8 +174,8 @@ export function OperatorInboxAiDecisionDesk({
         <div className="flex items-center gap-2">
           <BrainCircuit className="h-4 w-4 text-slate-700" aria-hidden />
           <div>
-            <p className="text-xs font-semibold uppercase tracking-wide text-slate-800">AI B2B Decision Desk</p>
-            <p className="text-[11px] text-slate-500">AI concludes and recommends. An authorised human makes the business decision.</p>
+            <p className="text-xs font-semibold uppercase tracking-wide text-slate-800">Exception desk</p>
+            <p className="text-[11px] text-slate-500">Core decides clear orders. Operators handle only what is blocked, unclear, or sensitive.</p>
           </div>
         </div>
         {interpretation.source ? (
@@ -180,7 +205,11 @@ export function OperatorInboxAiDecisionDesk({
           <div className="rounded border border-slate-200 bg-white p-2">
             <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">Accountability</span>
             <p className="mt-0.5 font-medium text-slate-800">
-              {isAssigned ? humanLabel(communicationCase.accountable_team) : "Human decision pending"}
+              {autonomy?.decision?.outcome === "AUTO_ELIGIBLE"
+                ? narrative.queueLabel
+                : isAssigned
+                  ? humanLabel(communicationCase.accountable_team)
+                  : narrative.queueLabel}
             </p>
           </div>
         </div>
@@ -189,6 +218,30 @@ export function OperatorInboxAiDecisionDesk({
           No governed communication case is available for this packet yet. The packet remains evidence; do not infer that a business action has been approved.
         </div>
       ) : null}
+
+      <div className="mt-3 grid gap-2 sm:grid-cols-2">
+        <div className="rounded border border-slate-200 bg-white p-2.5">
+          <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">Who</p>
+          <p className="mt-1 text-xs font-medium text-slate-800">{narrative.who}</p>
+        </div>
+        <div className="rounded border border-slate-200 bg-white p-2.5">
+          <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">What they want</p>
+          <p className="mt-1 text-xs font-medium text-slate-800">{narrative.whatTheyWant}</p>
+        </div>
+        <div className="rounded border border-slate-200 bg-white p-2.5">
+          <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">What AI understood</p>
+          <p className="mt-1 text-xs font-medium text-slate-800">{narrative.whatAiUnderstood}</p>
+          <p className="mt-1 text-[11px] text-slate-500">Advisory only until Core validates it.</p>
+        </div>
+        <div className="rounded border border-slate-200 bg-white p-2.5">
+          <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">What is unclear / blocked</p>
+          <p className="mt-1 text-xs font-medium text-slate-800">{narrative.whatIsBlocked}</p>
+        </div>
+        <div className="rounded border border-emerald-200 bg-emerald-50 p-2.5 sm:col-span-2">
+          <p className="text-[10px] font-semibold uppercase tracking-wide text-emerald-800">What happens next</p>
+          <p className="mt-1 text-xs font-medium text-emerald-950">{narrative.whatHappensNext}</p>
+        </div>
+      </div>
 
       {conclusion ? (
         <>
@@ -228,7 +281,7 @@ export function OperatorInboxAiDecisionDesk({
             </div>
           ) : null}
 
-          {!isAssigned && communicationCase ? (
+          {!isAssigned && communicationCase && showAcceptRouting ? (
             <div className="mt-3 rounded border border-slate-200 bg-white p-3">
               <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">Human decision — accept / modify AI routing</p>
               <div className="mt-2 grid gap-2 sm:grid-cols-2">
@@ -307,6 +360,7 @@ export function OperatorInboxAiDecisionDesk({
           packetId={packetId}
           snapshot={snapshot}
           aiDraftReply={conclusion?.draft_reply ?? ""}
+          showAiConclusionDecision={showHumanAiDecision}
           onReload={() => reload(packetId)}
         />
       ) : null}

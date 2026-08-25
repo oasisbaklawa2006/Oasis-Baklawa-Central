@@ -6,6 +6,7 @@ const STORAGE_KEY = "oasis_c2b2_operator_inbox_ui_v1";
 export interface OperatorInboxPersistedUiState {
   filterQuery: string;
   unansweredOnly: boolean;
+  exceptionQueueOnly?: boolean;
   pinnedIds: string[];
   bulkFilters: OperatorInboxBulkFilters;
   /** Denser packet rows (local only). */

@@ -110,11 +110,13 @@ export function OperatorInboxCaseLifecycleActions({
   snapshot,
   aiDraftReply,
   onReload,
+  showAiConclusionDecision = true,
 }: {
   packetId: string;
   snapshot: WhatsAppCaseDecisionSnapshot;
   aiDraftReply: string;
   onReload: () => Promise<void>;
+  showAiConclusionDecision?: boolean;
 }) {
   const authority = useWhatsAppPermissions();
   const communicationCase = snapshot.communicationCase;
@@ -352,6 +354,7 @@ export function OperatorInboxCaseLifecycleActions({
         </div>
       </details>
 
+      {showAiConclusionDecision ? (
       <details className="rounded border border-slate-200 bg-white">
         <summary className="cursor-pointer px-3 py-2 text-xs font-semibold text-slate-800">2. Human decision over AI conclusion</summary>
         <div className="border-t border-slate-100 p-3 text-xs">
@@ -365,6 +368,7 @@ export function OperatorInboxCaseLifecycleActions({
           </div>
         </div>
       </details>
+      ) : null}
 
       <details className="rounded border border-slate-200 bg-white" open={openClarifications.length > 0}>
         <summary className="cursor-pointer px-3 py-2 text-xs font-semibold text-slate-800">3. Ask Customer / confirm clarification answer</summary>
