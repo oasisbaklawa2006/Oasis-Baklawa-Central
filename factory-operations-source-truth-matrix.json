@@ -1,0 +1,71 @@
+{
+  "generatedFor": "factory-operations-closure (RGS/Production, PR #404 branch)",
+  "generatedAt": "2026-08-25",
+  "tables": {
+    "orders": {
+      "readers": ["FactoryTVModule.tsx (legacy order_items-derived rows)", "DispatchTV.tsx", "AssemblyManagement.tsx", "DispatchManagement.tsx", "productionQueueFeed.ts (isProductionPipelineOrder)"],
+      "writeAuthority": "Order lifecycle RPCs / direct writes elsewhere in the app (out of this closure's scope to fully enumerate)",
+      "projection": "raw table read, filtered by status/department in various ways per consumer",
+      "canonicalSourceEntity": "orders",
+      "expectedSynchronisation": "n/a (this is itself a source table)",
+      "flags": ["MISLABELLED_METRIC: productionQueueFeed.ts's `orders.status` pipeline count was surfaced under the bare label 'Production' in Live Work Queues, indistinguishable from the governed production_jobs count. FIXED this closure -- relabeled to 'Orders in Production Pipeline' and a separate 'Production Jobs (Governed)' KPI (src/hooks/useOpenProductionJobsCount.ts) now surfaces the production_jobs count under its own label."]
+    },
+    "production_jobs": {
+      "readers": ["FactoryTVModule.tsx", "OperationsController.tsx", "ReadyGoodsStore.tsx", "useOpenProductionJobsCount.ts (new, this closure)"],
+      "writeAuthority": "Governed RPCs only: accept_production_job, reject_production_job, start_production_job, pause_production_job, resume_production_job, advance_production_job_stage, record_production_output, declare_production_ready, dispatch_production_to_rgs, resolve_production_issue, report_production_issue, submit_production_day_end, quick_log_production_to_rgs (all in src/components/phh/*.tsx via rgsGovernedRpc) plus reserve_rgs_stock/create_production_shortage_demand from ReadyGoodsStore.tsx (job creation on shortage).",
+      "projection": "raw table read filtered by canonical_department + status (OperationsController.tsx, FactoryTVModule.tsx)",
+      "canonicalSourceEntity": "production_jobs",
+      "expectedSynchronisation": "canonical_department is trigger-maintained server-side in oasis-supabase-core -- client code treats it as authoritative and never derives it locally (per the typed-boundary comment added in commit f123418e).",
+      "flags": ["This is THE authoritative production authority. The golden regression case (SO#ABB4287E / OAS-RIN-3 / job E3ED28B0) lives here."]
+    },
+    "operational_queue_items": {
+      "readers": ["DepartmentExecutionBoard.tsx (via useDepartmentExecutionBoard.ts -> operationalQueueReadStore.ts) for all seven execution/* boards", "useExecutionCommandCenter.ts (ExecutionCommandCenter.tsx)"],
+      "writeAuthority": "NONE -- confirmed zero writers anywhere in oasis-supabase-core's migration history for every queue_type (owner-supplied finding, taken as given for this closure; this repo cannot inspect oasis-supabase-core directly).",
+      "projection": "raw table read, filtered by queue_type per board",
+      "canonicalSourceEntity": "none -- dead table",
+      "expectedSynchronisation": "NONE POSSIBLE -- nothing ever writes to it",
+      "flags": ["DEAD_PROJECTION across all seven consumers. Three of the seven (execution/production, execution/assembly, execution/ready-goods) redirected to governed replacements this closure. The other four (execution/dispatch, execution/third-party, execution/retail, execution/complaints) and ExecutionCommandCenter.tsx are documented as LEGACY-SUPERSEDED SURFACE but left unredirected pending a confirmed 1:1 canonical replacement and a passing test, per the owner's explicit scope for this closure."]
+    },
+    "inventory_reservations": {
+      "readers": ["ReadyGoodsStore.tsx", "RgsProductionDemandPlanner.tsx", "ThreePgsProcurementQueue.tsx", "ThirdPartyPackingMaterialCatalogue.tsx"],
+      "writeAuthority": "Governed RPCs: reserve_rgs_stock, pick_rgs_reservation, issue_rgs_stock, release_rgs_reservation (all in ReadyGoodsStore.tsx via rgsGovernedRpc/callGovernedRpc)",
+      "projection": "raw table read joined against orders/products per consumer",
+      "canonicalSourceEntity": "inventory_reservations",
+      "expectedSynchronisation": "Reservation lifecycle fields (reserved_qty/fulfilled_qty/released_qty) are only ever mutated through the governed RPCs above -- no direct client writes found.",
+      "flags": []
+    },
+    "inventory_stock_balances": {
+      "readers": ["ReadyGoodsTV.tsx", "ThreePgsProcurementQueue.tsx", "ReadyGoodsStore.tsx (version read for optimistic concurrency on accept_rgs_production_receipt)"],
+      "writeAuthority": "Server-side only, via accept_rgs_production_receipt and issue_rgs_stock RPCs (balance mutation itself happens in oasis-supabase-core, not client code)",
+      "projection": "raw table read",
+      "canonicalSourceEntity": "inventory_stock_balances",
+      "expectedSynchronisation": "Client reads `version` before accept_rgs_production_receipt and passes p_expected_balance_version -- optimistic-concurrency guard against a stale balance read racing a concurrent acceptance.",
+      "flags": []
+    },
+    "production_rgs_transfers": {
+      "readers": ["ReadyGoodsStore.tsx"],
+      "writeAuthority": "Governed RPCs: record_rgs_receipt, accept_rgs_production_receipt",
+      "projection": "raw table read, joined to production_jobs by job_id for display",
+      "canonicalSourceEntity": "production_rgs_transfers",
+      "expectedSynchronisation": "This table is the evidence trail between a production_jobs dispatch (dispatch_production_to_rgs) and RGS's physical receipt/acceptance -- rgs_notified flags whether the RGS side has acknowledged it yet.",
+      "flags": []
+    },
+    "rgs_issue_events": {
+      "readers": ["ReadyGoodsStore.tsx", "ThreePgsProcurementQueue.tsx"],
+      "writeAuthority": "Governed RPC: acknowledge_rgs_issue (and issue_rgs_stock creates the underlying issue event server-side)",
+      "projection": "raw table read",
+      "canonicalSourceEntity": "rgs_issue_events",
+      "expectedSynchronisation": "n/a",
+      "flags": []
+    }
+  },
+  "commandCenterProductionKpi": {
+    "defect": "src/lib/live-feeds/productionQueueFeed.ts computed a count from legacy orders.status (via isProductionPipelineOrder), surfaced under the bare label 'Production' in src/pages/admin/LiveWorkQueues.tsx -- completely disconnected from the governed production_jobs authority.",
+    "fix": "Option B implemented: (1) src/lib/work-queues/queueTypes.ts WORK_QUEUE_LABELS.production_queue relabeled 'Production' -> 'Orders in Production Pipeline'. (2) New src/lib/production-jobs/openProductionJobsCount.ts + src/hooks/useOpenProductionJobsCount.ts provide an authoritative open production_jobs count (statuses pending/accepted/in_production/paused). (3) LiveWorkQueues.tsx renders both as separate, distinctly labeled cards.",
+    "whyOptionB": "A clean authoritative production_jobs count required new cross-cutting query wiring (a standalone hook, independent of the existing OperationalFeedContext/aggregateLiveFeeds pipeline, to avoid touching the WorkQueueId exhaustive-Record maps used by escalation/ownership/dependency projections) -- Option A (rewriting productionQueueFeed.ts itself to read production_jobs) would have changed what 'production_queue' items/pressure mean for every other consumer of aggregateLiveFeeds (queueEscalation.ts, queueOwnership.ts, cmdQueuePressure.ts), which was out of this closure's scope to fully re-verify.",
+    "regressionTests": [
+      "src/lib/production-jobs/__tests__/openProductionJobsCount.test.ts",
+      "src/pages/admin/__tests__/LiveWorkQueues.productionKpi.test.tsx"
+    ]
+  }
+}

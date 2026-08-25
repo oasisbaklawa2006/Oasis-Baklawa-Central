@@ -1,0 +1,39 @@
+{
+  "generatedFor": "factory-operations-closure (RGS/Production, PR #404 branch)",
+  "generatedAt": "2026-08-25",
+  "method": "Cross-referenced ADMIN_STAFF_ROLES (src/App.tsx) x STAFF_ROLE_DESTINATIONS (src/lib/auth-routing.ts) x each factory route's allowedRoles, programmatically diffed.",
+  "findings": [
+    {
+      "check": "Every role in ADMIN_STAFF_ROLES has a STAFF_ROLE_DESTINATIONS entry",
+      "result": "PASS",
+      "detail": "No gaps found -- all factory-relevant roles (HOD_*, PROD_*, STORE_*, DISPATCH_*, GATE_SECURITY, SECURITY_CONTROL, RGS_ADMIN, TV_*, ASSEMBLY_MANAGER, PACKING_SUPERVISOR) resolve to a real destination."
+    },
+    {
+      "check": "Every TV role's default destination is included in that TV route's allowedRoles",
+      "result": "PASS",
+      "detail": "PROD_ARABIC_SWEETS->/tv/arabic-sweets, PROD_FUSION & PROD_DATES->/tv/fusion, PROD_CHOCOLATE & PROD_DRAGEES->/tv/chocolate, PROD_BAKERY->/tv/bakery, PROD_NUTS->/tv/nuts, TV_READY->/tv/rgs -- all confirmed present in the corresponding route's RoleProtectedRoute allowedRoles array in App.tsx. This is the class of bug the already-fixed PROD_ARABIC -> PROD_ARABIC_SWEETS defect belonged to; no further instances of it found."
+    },
+    {
+      "check": "Stale/typo role names (the PROD_ARABIC-class bug)",
+      "result": "PASS -- none found",
+      "detail": "Searched for PROD_ARABIC (without _SWEETS) across src/ -- zero remaining occurrences. All four registries (App.tsx ADMIN_STAFF_ROLES, App.tsx route allowedRoles, auth-routing.ts STAFF_ROLE_DESTINATIONS, src/lib/appverse/{roleAccess,roleHome,tvSurfaces}.ts) consistently use PROD_ARABIC_SWEETS."
+    },
+    {
+      "check": "Any ADMIN_STAFF_ROLES role excluded from a route auth-routing.ts sends it to by default",
+      "result": "PASS -- none found for factory routes",
+      "detail": "Checked HOD_ASSEMBLY->/admin/assembly-tasks, STORE_3RD_PARTY->/admin/3pcs-store, DISPATCH_HEAD/DISPATCH_MANAGER/DISPATCH_INCHARGE->/admin/dispatch-mgmt, PACKING_SUPERVISOR->/admin/order-management, SUPPORT_EXECUTIVE->/admin/support, CATALOGUE_CONTRIBUTOR->/admin/products -- all these destinations sit under the single /admin parent route, which is gated by RoleProtectedRoute allowedRoles=[...ADMIN_STAFF_ROLES], so every one of these roles is already authorized for its own default destination."
+    },
+    {
+      "check": "Roles present in STAFF_ROLE_DESTINATIONS but absent from ADMIN_STAFF_ROLES (out-of-scope, non-factory)",
+      "result": "OBSERVED, NOT FIXED (out of scope)",
+      "detail": "FINANCE_AUDITOR and OWNER have destinations (/admin/accounts-release, /admin/cmd-war-room) but are not members of ADMIN_STAFF_ROLES, so a user with either role would be sent by RootGate to an /admin/* destination but then bounced by the parent /admin route's RoleProtectedRoute (which gates on ADMIN_STAFF_ROLES) -- a real WRONG_ROLE-class defect, but pure Finance/Admin, not Factory Operations. Left undocumented-but-unfixed per the task's explicit scope boundary (skip pure finance/sales routes); flagged here for a future finance-scoped closure."
+    },
+    {
+      "check": "STORE_INCHARGE vs STORE_READY_GOODS vs RGS_ADMIN -- three roles, one destination",
+      "result": "PASS (intentional, not a defect)",
+      "detail": "All three map to /admin/ready-goods and are all present in ADMIN_STAFF_ROLES and covered by the parent /admin gate. Confirmed intentional (RGS has multiple staffing tiers sharing one screen), not a stale-role artifact."
+    }
+  ],
+  "regressionTestsAdded": [],
+  "notesOnRegressionTests": "No new static role-name mismatch was found in this closure (the PROD_ARABIC-class bug was already fixed on this branch before this task started), so no new role-matrix regression test was required. The App.executionRedirects.test.tsx added for the execution-board redirects does incidentally exercise ADMIN role authorization through RoleProtectedRoute for /admin/execution/production, /admin/execution/assembly and /admin/execution/ready-goods."
+}

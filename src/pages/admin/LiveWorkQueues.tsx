@@ -14,10 +14,12 @@ import { OperationalReadOnlyBanner } from "@/components/admin/OperationalReadOnl
 import { QueueItemDetailDrawer } from "@/components/admin/QueueItemDetailDrawer";
 import type { WorkQueueItem } from "@/lib/work-queues/queueTypes";
 import { WORK_QUEUE_LABELS } from "@/lib/work-queues/queueTypes";
+import { useOpenProductionJobsCount } from "@/hooks/useOpenProductionJobsCount";
 
 export default function LiveWorkQueues() {
   const { loading, error, feeds, refresh } = useOperationalLiveFeeds();
   const dependency = useMemo(() => financeBlocksProductionProjection(), []);
+  const openProductionJobs = useOpenProductionJobsCount();
 
   const [queueFilter, setQueueFilter] = useState<string>("all");
   const [priorityFilter, setPriorityFilter] = useState<string>("all");
@@ -160,6 +162,33 @@ export default function LiveWorkQueues() {
           <p>
             <span className="font-medium">Root:</span> {feeds?.cmdPressure.unifiedRootBlocker ?? dependency.resolution.rootBlocker?.label ?? "—"}
           </p>
+        </CardContent>
+      </Card>
+
+      <Card className="border-border/80" data-testid="production-jobs-governed-card">
+        <CardHeader className="pb-2">
+          <div className="flex items-start justify-between gap-2">
+            <CardTitle className="text-sm">Production Jobs (Governed)</CardTitle>
+            <Badge variant="secondary" className="shrink-0 font-mono text-[10px]">
+              {openProductionJobs.loading || openProductionJobs.count === null
+                ? "pending"
+                : openProductionJobs.count}
+            </Badge>
+          </div>
+          <CardDescription className="text-[10px]">
+            production_jobs · open (pending/accepted/in_production/paused) — the authoritative
+            RGS/PHH production authority, distinct from the "Orders in Production Pipeline" card
+            below, which counts legacy orders.status membership only.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="text-[11px]">
+          {openProductionJobs.error ? (
+            <p className="text-amber-800 dark:text-amber-200">{openProductionJobs.error}</p>
+          ) : (
+            <p className="text-muted-foreground">
+              Count reflects every open job across all canonical departments.
+            </p>
+          )}
         </CardContent>
       </Card>
 
