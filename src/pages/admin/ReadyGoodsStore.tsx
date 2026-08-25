@@ -136,7 +136,7 @@ export default function ReadyGoodsStore() {
         operationsDb.from("order_items")
           .select("id, order_id, product_id, quantity, actual_packed_qty, production_status, department, order:orders!inner(id, status, created_at, company:companies(business_name)), product:products(id, name, sku, production_department)")
           .in("order.status", activeOrderStatuses)
-          .order("orders(created_at)", { ascending: true })
+          .order("created_at", { ascending: true, referencedTable: "order" })
           .limit(500),
         operationsDb.from("production_jobs")
           .select("id, order_item_id, order_id, product_id, department, reservation_id, assigned_qty, produced_qty, batch_number, priority, stage, status, created_at")
@@ -155,9 +155,21 @@ export default function ReadyGoodsStore() {
           .order("issued_at", { ascending: false })
           .limit(500),
       ]);
-      const failed = availabilityResult.error ?? demandResult.error ?? jobsResult.error ?? transfersResult.error
-        ?? reservationsResult.error ?? issueEventsResult.error;
-      if (failed) throw failed;
+      const failed = [
+        ["availability", availabilityResult.error],
+        ["demand", demandResult.error],
+        ["production_jobs", jobsResult.error],
+        ["production_rgs_transfers", transfersResult.error],
+        ["inventory_reservations", reservationsResult.error],
+        ["rgs_issue_events", issueEventsResult.error],
+      ].find((entry) => entry[1]);
+      if (failed) {
+        const [contract, cause] = failed;
+        const detail = cause && typeof cause === "object" && "message" in cause
+          ? String((cause as { message?: unknown }).message ?? "Unknown data error")
+          : String(cause ?? "Unknown data error");
+        throw new Error(`${contract}: ${detail}`);
+      }
       const nextDemand = (demandResult.data ?? []) as Demand[];
       setAvailability((availabilityResult.data ?? []) as Availability[]);
       setDemand(nextDemand);
