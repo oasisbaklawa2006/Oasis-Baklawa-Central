@@ -182,6 +182,15 @@ export default function ReadyGoodsStore() {
 
   useEffect(() => { void load(); }, [load]);
 
+  // Best-effort: surface any handover still awaiting RGS acknowledgement on
+  // the existing CMD War Room / Execution Command Center escalation board
+  // (emit_rgs_handover_escalations is idempotent per transfer+status, so a
+  // repeat call on every page load never duplicates an event). Failures here
+  // must never block or error the RGS screen itself.
+  useEffect(() => {
+    rgsGovernedRpc.rpc("emit_rgs_handover_escalations", {}).catch(() => {});
+  }, []);
+
   const [acting, setActing] = useState<string | null>(null);
   const [receiptQtyById, setReceiptQtyById] = useState<Record<string, string>>({});
   const [acceptQtyById, setAcceptQtyById] = useState<Record<string, { accepted: string; rejected: string; hold: string }>>({});

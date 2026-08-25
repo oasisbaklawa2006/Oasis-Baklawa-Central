@@ -42,6 +42,28 @@ const rpcMock = vi.fn(async (_fn: string, _args: Record<string, unknown>) => ({
   error: null as { message: string } | null,
 }));
 
+// ReadyGoodsStore also fires a best-effort emit_rgs_handover_escalations()
+// ping on mount (see Lane 1 B2) through this same rpcMock -- filter it out
+// so this file's release_rgs_reservation assertions aren't coupled to that
+// unrelated, fire-and-forget call.
+function releaseCalls() {
+  return rpcMock.mock.calls.filter(([fn]) => fn === "release_rgs_reservation");
+}
+
+// mockResolvedValueOnce would apply to whichever rpcMock call happens
+// first, which is now the mount-time emit_rgs_handover_escalations() ping,
+// not necessarily the release action under test -- this targets the error
+// at the release call specifically, regardless of call ordering.
+function mockNextReleaseCallToError(message: string) {
+  rpcMock.mockImplementation(async (fn: string, args: Record<string, unknown>) => {
+    if (fn === "release_rgs_reservation") {
+      rpcMock.mockImplementation(async () => ({ data: null, error: null }));
+      return { data: null, error: { message } };
+    }
+    return { data: null, error: null };
+  });
+}
+
 function makeQuery(data: unknown[]) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const builder: any = {};
@@ -86,7 +108,7 @@ describe("ReadyGoodsStore release_rgs_reservation", () => {
     render(<ReadyGoodsStore />);
     const button = await screen.findByText("Release");
     fireEvent.click(button);
-    await waitFor(() => expect(rpcMock).not.toHaveBeenCalled());
+    await waitFor(() => expect(releaseCalls()).toHaveLength(0));
   });
 
   it("blocks releasing a reservation with a quantity but no reason", async () => {
@@ -94,7 +116,7 @@ describe("ReadyGoodsStore release_rgs_reservation", () => {
     const button = await screen.findByText("Release");
     fireEvent.change(screen.getByPlaceholderText("Release qty"), { target: { value: "2" } });
     fireEvent.click(button);
-    await waitFor(() => expect(rpcMock).not.toHaveBeenCalled());
+    await waitFor(() => expect(releaseCalls()).toHaveLength(0));
   });
 
   it("releases a reservation with the entered quantity and reason", async () => {
@@ -113,7 +135,7 @@ describe("ReadyGoodsStore release_rgs_reservation", () => {
 
   it("surfaces an RPC error via toast and keeps the entered draft", async () => {
     const { toast } = await import("sonner");
-    rpcMock.mockResolvedValueOnce({ data: null, error: { message: "Not authorised" } });
+    mockNextReleaseCallToError("Not authorised");
     render(<ReadyGoodsStore />);
     const button = await screen.findByText("Release");
     fireEvent.change(screen.getByPlaceholderText("Release qty"), { target: { value: "2" } });
@@ -131,7 +153,7 @@ describe("ReadyGoodsStore release_rgs_reservation", () => {
     fireEvent.change(screen.getByPlaceholderText("Reason (e.g. order_cancelled)"), { target: { value: "order_cancelled" } });
     fireEvent.click(button);
 
-    await waitFor(() => expect(rpcMock).toHaveBeenCalled());
+    await waitFor(() => expect(releaseCalls().length).toBeGreaterThan(0));
     await waitFor(() => expect((screen.getByPlaceholderText("Release qty") as HTMLInputElement).value).toBe(""));
   });
 
@@ -142,39 +164,57 @@ describe("ReadyGoodsStore release_rgs_reservation", () => {
   // correlation id, or the RPC would double-execute -- crediting available
   // stock twice for one real release.
   it("reuses the same correlation id when retrying after a lost response with the same quantity and reason", async () => {
-    rpcMock.mockResolvedValueOnce({ data: null, error: { message: "network hiccup" } });
+    mockNextReleaseCallToError("network hiccup");
     render(<ReadyGoodsStore />);
     const button = await screen.findByText("Release");
     fireEvent.change(screen.getByPlaceholderText("Release qty"), { target: { value: "2" } });
     fireEvent.change(screen.getByPlaceholderText("Reason (e.g. order_cancelled)"), { target: { value: "order_cancelled" } });
 
     fireEvent.click(button);
-    await waitFor(() => expect(rpcMock).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(releaseCalls()).toHaveLength(1));
 
     fireEvent.click(button);
-    await waitFor(() => expect(rpcMock).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(releaseCalls()).toHaveLength(2));
 
-    const [, firstArgs] = rpcMock.mock.calls[0];
-    const [, secondArgs] = rpcMock.mock.calls[1];
+    const [, firstArgs] = releaseCalls()[0];
+    const [, secondArgs] = releaseCalls()[1];
     expect(secondArgs.p_correlation_id).toBe(firstArgs.p_correlation_id);
   });
 
   it("uses a fresh correlation id when the quantity changes before retrying", async () => {
-    rpcMock.mockResolvedValueOnce({ data: null, error: { message: "network hiccup" } });
+    mockNextReleaseCallToError("network hiccup");
     render(<ReadyGoodsStore />);
     const button = await screen.findByText("Release");
     fireEvent.change(screen.getByPlaceholderText("Release qty"), { target: { value: "2" } });
     fireEvent.change(screen.getByPlaceholderText("Reason (e.g. order_cancelled)"), { target: { value: "order_cancelled" } });
 
     fireEvent.click(button);
-    await waitFor(() => expect(rpcMock).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(releaseCalls()).toHaveLength(1));
 
     fireEvent.change(screen.getByPlaceholderText("Release qty"), { target: { value: "3" } });
     fireEvent.click(button);
-    await waitFor(() => expect(rpcMock).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(releaseCalls()).toHaveLength(2));
 
-    const [, firstArgs] = rpcMock.mock.calls[0];
-    const [, secondArgs] = rpcMock.mock.calls[1];
+    const [, firstArgs] = releaseCalls()[0];
+    const [, secondArgs] = releaseCalls()[1];
     expect(secondArgs.p_correlation_id).not.toBe(firstArgs.p_correlation_id);
+  });
+});
+
+describe("ReadyGoodsStore emit_rgs_handover_escalations mount ping", () => {
+  it("fires emit_rgs_handover_escalations on mount", async () => {
+    render(<ReadyGoodsStore />);
+    await waitFor(() => expect(rpcMock).toHaveBeenCalledWith("emit_rgs_handover_escalations", {}));
+  });
+
+  it("swallows a rejected emit_rgs_handover_escalations call without erroring the screen", async () => {
+    rpcMock.mockImplementation(async (fn: string) => {
+      if (fn === "emit_rgs_handover_escalations") return Promise.reject(new Error("network hiccup"));
+      return { data: null, error: null };
+    });
+    render(<ReadyGoodsStore />);
+    await waitFor(() => expect(rpcMock).toHaveBeenCalledWith("emit_rgs_handover_escalations", {}));
+    // The screen's own data (unrelated to this ping) still renders normally.
+    expect(await screen.findByText("Release")).toBeTruthy();
   });
 });
