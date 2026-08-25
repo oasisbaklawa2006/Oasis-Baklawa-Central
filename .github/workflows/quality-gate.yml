@@ -136,11 +136,11 @@ jobs:
         run: npm run build
 
       - name: Install Chromium
-        if: steps.changes.outputs.ui == 'true'
+        if: steps.changes.outputs.app == 'true' || steps.changes.outputs.ui == 'true' || steps.changes.outputs.tooling == 'true'
         run: npx playwright install --with-deps chromium
 
       - name: Start PR build locally
-        if: steps.changes.outputs.ui == 'true'
+        if: steps.changes.outputs.app == 'true' || steps.changes.outputs.ui == 'true' || steps.changes.outputs.tooling == 'true'
         shell: bash
         run: |
           set -euo pipefail
@@ -155,7 +155,7 @@ jobs:
           exit 1
 
       - name: Playwright PR smoke
-        if: steps.changes.outputs.ui == 'true'
+        if: steps.changes.outputs.app == 'true' || steps.changes.outputs.ui == 'true' || steps.changes.outputs.tooling == 'true'
         env:
           APP_URL: http://127.0.0.1:4173
           TEST_PREVIEW_URL: http://127.0.0.1:4173
@@ -167,7 +167,7 @@ jobs:
       # same JUnit-only/no-HTML-reporter/credential-scrub safeguards as that
       # workflow -- only the trigger surface changes (every PR, not manual).
       - name: Assert Lane 1 credentials are present (fail clear, not silent skip)
-        if: steps.changes.outputs.ui == 'true'
+        if: steps.changes.outputs.app == 'true' || steps.changes.outputs.ui == 'true' || steps.changes.outputs.tooling == 'true'
         shell: bash
         run: |
           set -euo pipefail
@@ -183,8 +183,8 @@ jobs:
             echo "::error::Missing required secret(s): ${missing[*]}. See docs/LANE1_QA_ACCOUNT_MATRIX.md for provisioning steps. Refusing to silently skip the authenticated suite."
             exit 1
           fi
-          if [[ -z "${TEST_ADMIN_EMAIL:-}" ]]; then
-            echo "::notice::TEST_ADMIN_EMAIL/PASSWORD not set -- the six-TV cross-grouping sweep will be skipped (not failed). All role-specific tests still run."
+          if [[ -z "${TEST_ADMIN_EMAIL:-}" || -z "${TEST_ADMIN_PASSWORD:-}" ]]; then
+            echo "::notice::TEST_ADMIN_EMAIL/PASSWORD not set (or only partially set) -- the six-TV cross-grouping sweep will be skipped (not failed). All role-specific tests still run."
           fi
         env:
           TEST_RGS_EMAIL: ${{ secrets.TEST_RGS_EMAIL }}
@@ -196,9 +196,10 @@ jobs:
           TEST_TV_PRODUCTION_EMAIL: ${{ secrets.TEST_TV_PRODUCTION_EMAIL }}
           TEST_TV_PRODUCTION_PASSWORD: ${{ secrets.TEST_TV_PRODUCTION_PASSWORD }}
           TEST_ADMIN_EMAIL: ${{ secrets.TEST_ADMIN_EMAIL }}
+          TEST_ADMIN_PASSWORD: ${{ secrets.TEST_ADMIN_PASSWORD }}
 
       - name: Run Lane 1 authenticated live smoke (JUnit report only, no HTML reporter)
-        if: steps.changes.outputs.ui == 'true'
+        if: steps.changes.outputs.app == 'true' || steps.changes.outputs.ui == 'true' || steps.changes.outputs.tooling == 'true'
         env:
           PLAYWRIGHT_JUNIT_OUTPUT_NAME: lane1-live-smoke-junit.xml
           TEST_PREVIEW_URL: http://127.0.0.1:4173
@@ -215,7 +216,7 @@ jobs:
         run: npx playwright test tests/lane1-live-smoke.spec.ts --project=desktop-chrome-size --reporter=junit,list
 
       - name: Assert Lane 1 report contains no live secret value (defense in depth)
-        if: ${{ !cancelled() && steps.changes.outputs.ui == 'true' }}
+        if: ${{ !cancelled() && (steps.changes.outputs.app == 'true' || steps.changes.outputs.ui == 'true' || steps.changes.outputs.tooling == 'true') }}
         shell: bash
         env:
           TEST_RGS_PASSWORD: ${{ secrets.TEST_RGS_PASSWORD }}
@@ -230,6 +231,10 @@ jobs:
             echo "$report was not produced -- nothing to check or upload."
             exit 0
           fi
+          # The JUnit reporter XML-encodes attribute/text content, so a
+          # password containing &, <, >, ', or " would never match a plain
+          # literal grep even though its encoded form is present in the
+          # file. Check both the raw value and its XML-escaped equivalent.
           for name in TEST_RGS_PASSWORD TEST_TV_RGS_PASSWORD TEST_PRODUCTION_PASSWORD TEST_TV_PRODUCTION_PASSWORD TEST_ADMIN_PASSWORD; do
             value="${!name:-}"
             [[ -n "$value" ]] || continue
@@ -237,12 +242,17 @@ jobs:
               echo "::error::$report contains the literal value of \$$name -- refusing to upload a credential-bearing report."
               exit 1
             fi
+            encoded="$(python3 -c "import sys, xml.sax.saxutils as s; print(s.escape(sys.argv[1], {chr(39): '&apos;', chr(34): '&quot;'}))" "$value")"
+            if [[ "$encoded" != "$value" ]] && grep -qF -- "$encoded" "$report"; then
+              echo "::error::$report contains the XML-encoded value of \$$name -- refusing to upload a credential-bearing report."
+              exit 1
+            fi
           done
-          echo "Confirmed: $report contains none of the QA secret values."
+          echo "Confirmed: $report contains none of the QA secret values (raw or XML-encoded)."
 
       - name: Upload Lane 1 live smoke report
         uses: actions/upload-artifact@v4
-        if: ${{ !cancelled() && steps.changes.outputs.ui == 'true' }}
+        if: ${{ !cancelled() && (steps.changes.outputs.app == 'true' || steps.changes.outputs.ui == 'true' || steps.changes.outputs.tooling == 'true') }}
         with:
           name: lane1-live-smoke-results-${{ github.run_id }}-${{ github.run_attempt }}
           path: lane1-live-smoke-junit.xml
@@ -255,7 +265,7 @@ jobs:
 
       - name: Upload Playwright report
         uses: actions/upload-artifact@v4
-        if: ${{ !cancelled() && steps.changes.outputs.ui == 'true' }}
+        if: ${{ !cancelled() && (steps.changes.outputs.app == 'true' || steps.changes.outputs.ui == 'true' || steps.changes.outputs.tooling == 'true') }}
         with:
           name: playwright-report-${{ github.run_id }}-${{ github.run_attempt }}
           path: |
