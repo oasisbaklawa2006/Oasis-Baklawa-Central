@@ -8,18 +8,29 @@
  * 3PGS (the 3rd Party/Contract Store) IS AN EXISTING, PARTIALLY-BUILT
  * OPERATIONAL MODULE in this app -- ThirdPartyStore, ThirdPartyExecutionBoard,
  * thirdPartyQueueFeed, and its departmental routing are real and untouched
- * by this PR. What is new is b2b_assembly_3pgs_requirements itself (Core
- * PR B): no existing 3PGS surface consumes this specific governed
- * requirement type yet, so there is no vendor order, picking, collection,
- * or stock-crediting workflow wired to fulfil_assembly_3pgs_requirement
- * today. That wiring is 3PGS COMPLETION WORK PENDING in the dedicated 3PGS
- * build lane -- not a claim that 3PGS itself is missing. P&A's real,
- * current scope is: decompose to Level 0, route loose-food demand to RGS,
- * and CREATE/EXPOSE a governed 3PGS requirement for packaging/outsourced/
- * giftware/decoration demand, respecting the resulting material-readiness
- * state. This spec does not claim P&A -> completed 3PGS fulfilment -> P&A
- * completion already works end-to-end, because the existing 3PGS module
- * does not yet consume this contract.
+ * by this PR. b2b_assembly_3pgs_requirements (Core PR B) is the governed
+ * record of a P&A packaging/outsourced shortfall against 3PGS, and 3PGS now
+ * has a real, live fulfilment surface for it: ThreePgsProcurementQueue.tsx
+ * (/admin/3pgs-procurement-queue) drives reserve_3pgs_requirement_stock ->
+ * issue_3pgs_requirement_stock -> acknowledge_3pgs_requirement_receipt (a
+ * DIFFERENT receiving actor than whoever issued), which internally calls
+ * fulfil_assembly_3pgs_requirement. That RPC now credits the linked
+ * b2b_assembly_components.reserved_qty/issued_qty and resumes the P&A job
+ * from partially_reserved to materials_reserved once every component is
+ * genuinely covered by real, receipted stock movement -- see Core's
+ * 20260825100000_3pgs_pna_requirement_credit_and_resume.sql and its pgTAP
+ * coverage. P&A's scope in THIS spec remains: decompose to Level 0, route
+ * loose-food demand to RGS, and CREATE/EXPOSE a governed 3PGS requirement
+ * for packaging/outsourced/giftware/decoration demand, respecting the
+ * resulting material-readiness state -- Case B does not itself drive 3PGS's
+ * resolution UI (that would require P&A's own dispatcher identity to act as
+ * 3PGS too, blurring the actor boundary the RPC layer deliberately
+ * separates, and this fixture's shortfall is not guaranteed to be coverable
+ * by whatever stock happens to exist in a given staging run). The real,
+ * governed resume-on-fulfilment path is proven directly against the RPC
+ * layer by Core's pgTAP suite; this spec proves the P&A-side half of the
+ * boundary -- the shortfall is real, correctly linked, and cannot be
+ * bypassed or self-fulfilled from P&A's side of it.
  *
  * CASE A -- P&A executable chain, using material that is genuinely
  * available. Proves the full lifecycle end to end: pre-existing order ->
@@ -38,18 +49,30 @@
  *
  * CASE B -- 3PGS dependency-boundary proof. A separate fixture
  * (PNA_3PGS_SHORTAGE_ORDER_NUMBER) whose BOM has a genuinely short 3PGS/
- * PACKING_ASSEMBLY/B2B_RAW-sourced component. Proves only: P&A decomposition
+ * PACKING_ASSEMBLY/B2B_RAW-sourced component. Proves: P&A decomposition
  * raises a governed b2b_assembly_3pgs_requirements record with correct job/
  * component/correlation linkage; P&A's UI clearly shows the shortage; and
  * the job can never falsely become materially ready, issued, or complete
- * while that component remains unresolved -- authorize_partial_assembly_
- * issue refuses unconditionally (Core's dependency-boundary fix), and
- * issue_assembly_components is therefore never reachable. This test does
- * NOT fabricate 3PGS fulfilment and does NOT call fulfil_assembly_3pgs_
- * requirement (that would be P&A self-fulfilling its own request, which
- * this test must not do, and which the RPC itself refuses in any case --
- * it requires can_receive_b2b_inventory, a different authority than the
- * assembly/dispatcher identity used throughout this test).
+ * while that component remains genuinely unresolved -- authorize_partial_
+ * assembly_issue refuses unconditionally (Core's dependency-boundary fix),
+ * and issue_assembly_components is therefore never reachable from P&A's
+ * side while the shortfall stands.
+ *
+ * This is a P&A-side boundary proof, not a 3PGS-side fulfilment proof: this
+ * test does NOT drive 3PGS's own resolution UI (ThreePgsProcurementQueue.tsx)
+ * and does NOT call fulfil_assembly_3pgs_requirement directly, because doing
+ * either from P&A's own dispatcher identity would blur the actor boundary
+ * the RPC layer deliberately separates (reserve/issue require
+ * can_manage_b2b_inventory exercised as the 3PGS operator, and
+ * acknowledgement requires can_receive_b2b_inventory as a receiver DISTINCT
+ * from whoever issued -- P&A cannot self-fulfil its own request, and this
+ * spec must not simulate around that). The requirement raised here is
+ * genuinely, fully fulfillable once real 3PGS stock movement occurs --
+ * fulfil_assembly_3pgs_requirement now credits the linked component and
+ * resumes the job to materials_reserved when every component is covered
+ * (20260825100000_3pgs_pna_requirement_credit_and_resume.sql in Core) -- but
+ * proving that resolution path is Core's pgTAP responsibility
+ * (3pgs_pna_requirement_credit_and_resume.test.sql), not this UI spec's.
  *
  * CORRECTED ORDER-CREATION PREMISE: Oasis-Baklawa-Central has NO storefront
  * checkout UI. There is no /cart or /catalogue route in this app's router,
@@ -430,7 +453,7 @@ test.describe("Lane 2 (P&A) end-to-end chain [STAGING-UAT-PENDING]", () => {
     }
   });
 
-  test("CASE B -- 3PGS dependency-boundary proof: a mandatory 3PGS-sourced shortfall raises exact governed evidence and can NEVER be bypassed, self-fulfilled, or falsely reach materially-ready/Job Completed (the existing 3PGS module does not yet consume this governed requirement type -- 3PGS completion work pending)", async ({ browser }: { browser: Browser }) => {
+  test("CASE B -- 3PGS dependency-boundary proof: a mandatory 3PGS-sourced shortfall raises exact governed evidence and can NEVER be bypassed or self-fulfilled from P&A's side, and stays correctly blocked until 3PGS's own governed reserve/issue/acknowledge bridge actually resolves it (proven separately in Core's pgTAP suite)", async ({ browser }: { browser: Browser }) => {
     test.setTimeout(5 * 60 * 1000);
     const ctx = await browser.newContext();
     try {
@@ -488,9 +511,13 @@ test.describe("Lane 2 (P&A) end-to-end chain [STAGING-UAT-PENDING]", () => {
       }
 
       // The dependency boundary itself: P&A's own manager-authority override
-      // refuses, unconditionally, to bypass this. Do NOT fabricate 3PGS
-      // fulfilment and do NOT self-fulfil -- this test never calls
-      // fulfil_assembly_3pgs_requirement at all.
+      // refuses, unconditionally, to bypass this -- even though the
+      // requirement is genuinely fulfillable via 3PGS's own governed
+      // reserve/issue/acknowledge bridge, that bridge has not been driven
+      // here, so the shortfall is still real and the bypass must still be
+      // refused. Do NOT fabricate 3PGS fulfilment and do NOT self-fulfil --
+      // this test never calls fulfil_assembly_3pgs_requirement, and never
+      // drives ThreePgsProcurementQueue.tsx, at all.
       await page.getByPlaceholder(/reason to authorise a partial issue/i).fill(
         "PR D e2e proof, Case B: attempting to bypass the outstanding 3PGS/packaging shortfall (this must be refused)",
       );
@@ -527,7 +554,14 @@ test.describe("Lane 2 (P&A) end-to-end chain [STAGING-UAT-PENDING]", () => {
       if (recheckError) throw new Error(`Post-refusal job re-check failed: ${recheckError.message}`);
       const partialRow = recheckJob as AssemblyJobPartialRow;
       expect(partialRow.partial_issue_authorized, "the refused authorization attempt must not have been recorded").toBe(false);
-      expect(partialRow.status, "the job must remain stuck at partially_reserved -- it can never falsely reach materially ready or Job Completed while 3PGS is unbuilt").toBe("partially_reserved");
+      // Still partially_reserved here because THIS test never drove 3PGS's
+      // real reserve/issue/acknowledge bridge against the shortfall -- not
+      // because no such bridge exists. A genuinely resolved requirement DOES
+      // resume this exact job to materials_reserved (proven directly against
+      // the RPC layer in Core's 3pgs_pna_requirement_credit_and_resume.test.sql);
+      // this assertion only confirms the job never falsely resumes on its own
+      // while the shortfall remains genuinely unresolved.
+      expect(partialRow.status, "the job must remain at partially_reserved while its 3PGS shortfall remains genuinely unresolved -- it can never falsely reach materially ready or Job Completed on its own").toBe("partially_reserved");
       test.info().annotations.push({
         type: "staging-cleanup",
         description: `Case B partial job ${jobNumber} on order ${SHORTAGE_ORDER_NUMBER} — reset fixture per docs/LANE2_PNA_STAGING_FIXTURE.md`,
