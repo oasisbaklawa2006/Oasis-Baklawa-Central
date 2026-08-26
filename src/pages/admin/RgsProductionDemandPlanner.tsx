@@ -228,7 +228,7 @@ export default function RgsProductionDemandPlanner() {
 
       {error && <Card className="border-destructive/40"><CardContent className="flex items-center gap-2 p-4 text-sm text-destructive"><AlertTriangle className="h-4 w-4" />Demand could not be read: {error}</CardContent></Card>}
 
-      <Card><CardContent className="flex items-center gap-3 p-4"><Factory className="h-5 w-5 text-primary" /><div><p className="text-2xl font-bold">{fmt(totalShortage)}</p><p className="text-xs text-muted-foreground">Total open shortage across {skuDemand.length} SKU{skuDemand.length === 1 ? "" : "s"}</p></div></CardContent></Card>
+      <Card><CardContent className="flex items-center gap-3 p-4"><Factory className="h-5 w-5 text-primary" /><div><p className="text-2xl font-bold">{loading || error ? "—" : fmt(totalShortage)}</p><p className="text-xs text-muted-foreground">{loading ? "Reading current RGS shortage…" : error ? "Current shortage totals unavailable until demand can be read." : `Total open shortage across ${skuDemand.length} SKU${skuDemand.length === 1 ? "" : "s"}`}</p></div></CardContent></Card>
 
       <Card>
         <CardHeader><CardTitle className="flex items-center gap-2 text-base"><PlusCircle className="h-4 w-4 text-primary" />Raise P&amp;A / outlet / internal demand</CardTitle></CardHeader>
