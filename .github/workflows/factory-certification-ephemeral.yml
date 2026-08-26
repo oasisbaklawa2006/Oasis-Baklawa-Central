@@ -14,6 +14,7 @@ on:
       - 'tests/factory-operations-*.cert.spec.ts'
       - 'tests/factory-certification/**'
   workflow_dispatch:
+  workflow_call:
 
 permissions:
   contents: read
@@ -96,12 +97,6 @@ jobs:
             echo "FACTORY_CERT_GOLDEN_JOB_SHORT_ID=E3ED28B0"
           } >> "${GITHUB_ENV}"
 
-          # create-test-identities.mjs emits only base64url/alphanumeric
-          # passwords and example.invalid emails. Strip the shell `export`
-          # wrapper and quotes before adding them to the job environment.
-          # Values added to GITHUB_ENV are not masked in logs automatically
-          # (that only happens for registered repo Secrets), so every
-          # disposable password is explicitly masked first.
           while IFS= read -r cred_line; do
             if [[ "${cred_line}" =~ ^export\ ([A-Z0-9_]+)_PASSWORD=\'([^\']*)\'$ ]]; then
               echo "::add-mask::${BASH_REMATCH[2]}"
