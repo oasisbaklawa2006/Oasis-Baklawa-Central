@@ -218,6 +218,7 @@ const FactoryTVModule = ({ category, departmentFilter, title }: FactoryTVModuleP
                 <div
                   key={job.id}
                   data-job-id={job.id}
+                  data-job-short-id={job.id.slice(0, 8).toUpperCase()}
                   data-job-status={job.status}
                   data-priority={job.priority}
                   data-canonical-department={tvGroup}
