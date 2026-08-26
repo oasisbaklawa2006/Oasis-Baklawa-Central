@@ -1,5 +1,6 @@
 import {
   ADMIN_STAFF_ROLES_REFERENCE,
+  FACTORY_OPERATIONS_ROUTES,
   type FactoryRouteEntry,
 } from "./factoryOperationsRouteRegistry";
 import { getAllowedModulesForRole, hasModuleAccess } from "./appverse/roleAccess";
@@ -14,11 +15,21 @@ import { getRequiredModuleForAdminPath } from "./appverse/routeAccess";
  * A role therefore counts as executable certification authority only when it
  * passes both layers. Non-admin routes use their explicit RoleProtectedRoute
  * role list directly.
+ *
+ * LEGACY_REDIRECT entries are pure <Navigate> aliases with deliberately empty
+ * technicallyAllowedRoles -- any authenticated staff role can hit the alias
+ * URL and be bounced onward, so authorization is evaluated against the
+ * redirect target's real guard, not the alias itself.
  */
 export function isEffectivelyAuthorizedFactoryRole(
   entry: FactoryRouteEntry,
   role: string,
 ): boolean {
+  if (entry.status === "LEGACY_REDIRECT" && entry.legacyRedirectTarget) {
+    const target = FACTORY_OPERATIONS_ROUTES.find((candidate) => candidate.route === entry.legacyRedirectTarget);
+    if (target) return isEffectivelyAuthorizedFactoryRole(target, role);
+  }
+
   const canonicalRole = role.trim().toUpperCase();
   if (!entry.technicallyAllowedRoles.includes(canonicalRole)) return false;
 
@@ -37,10 +48,17 @@ export function isEffectivelyAuthorizedFactoryRole(
  * merely to make certification green.
  */
 export function resolveEffectiveFactoryCertificationRole(entry: FactoryRouteEntry): string {
+  const target =
+    entry.status === "LEGACY_REDIRECT" && entry.legacyRedirectTarget
+      ? FACTORY_OPERATIONS_ROUTES.find((candidate) => candidate.route === entry.legacyRedirectTarget)
+      : undefined;
+
   const candidates = Array.from(
     new Set([
       ...entry.intendedPrimaryAudience,
+      ...(target?.intendedPrimaryAudience ?? []),
       ...entry.technicallyAllowedRoles,
+      ...(target?.technicallyAllowedRoles ?? []),
       ...ADMIN_STAFF_ROLES_REFERENCE,
     ].map((role) => role.trim().toUpperCase())),
   );
