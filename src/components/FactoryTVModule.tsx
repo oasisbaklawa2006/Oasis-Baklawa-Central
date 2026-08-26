@@ -217,6 +217,12 @@ const FactoryTVModule = ({ category, departmentFilter, title }: FactoryTVModuleP
               return (
                 <div
                   key={job.id}
+                  data-job-id={job.id}
+                  data-job-status={job.status}
+                  data-priority={job.priority}
+                  data-canonical-department={tvGroup}
+                  data-assigned-qty={job.assigned_qty}
+                  data-produced-qty={job.produced_qty ?? 0}
                   className={`rounded-2xl p-6 flex flex-col gap-4 transition-all ${
                     isUrgent
                       ? "bg-red-900/40 border-2 border-red-500 animate-pulse"
