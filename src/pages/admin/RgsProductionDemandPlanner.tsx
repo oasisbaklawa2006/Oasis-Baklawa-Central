@@ -11,6 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
 const nonB2bDemandSources = ["pna", "outlet", "internal"] as const;
+const PRODUCT_ID_QUERY_CHUNK_SIZE = 100;
 
 // Temporary typed boundary for live relations pending regenerated
 // project-wide Supabase definitions (matches the operationsDb pattern used
@@ -80,20 +81,29 @@ export default function RgsProductionDemandPlanner() {
     const productIds = Array.from(new Set(rows.map((r) => r.product_id))).filter(Boolean);
     let productMap = new Map<string, { name: string; production_department: string | null }>();
     if (productIds.length > 0) {
-      const { data: productRows, error: productError } = await planningDb
-        .from("products")
-        .select("id, name, production_department")
-        .in("id", productIds);
-      if (productError) {
-        setError(productError.message ?? "Unexpected demand planner error");
-        setReservations([]);
-        setLoading(false);
-        return;
+      const allProductRows: { id: string; name: string; production_department: string | null }[] = [];
+      // Supabase/PostgREST serializes `.in()` values into the request URL.
+      // With up to 1000 reservations, sending every UUID in a single filter
+      // can exceed common proxy/request-line limits and turn a valid planner
+      // load into HTTP 414. Keep each request bounded and merge the results.
+      for (let offset = 0; offset < productIds.length; offset += PRODUCT_ID_QUERY_CHUNK_SIZE) {
+        const productIdChunk = productIds.slice(offset, offset + PRODUCT_ID_QUERY_CHUNK_SIZE);
+        const { data: productRows, error: productError } = await planningDb
+          .from("products")
+          .select("id, name, production_department")
+          .in("id", productIdChunk);
+        if (productError) {
+          setError(productError.message ?? "Unexpected demand planner error");
+          setReservations([]);
+          setLoading(false);
+          return;
+        }
+        allProductRows.push(
+          ...((productRows ?? []) as { id: string; name: string; production_department: string | null }[]),
+        );
       }
       productMap = new Map(
-        ((productRows ?? []) as { id: string; name: string; production_department: string | null }[]).map(
-          (p) => [p.id, { name: p.name, production_department: p.production_department }],
-        ),
+        allProductRows.map((p) => [p.id, { name: p.name, production_department: p.production_department }]),
       );
     }
     setReservations(rows.map((r) => ({ ...r, product: productMap.get(r.product_id) ?? null })));
