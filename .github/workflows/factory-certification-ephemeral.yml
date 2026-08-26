@@ -317,6 +317,12 @@ jobs:
           begin;
           select plan(10);
 
+          -- audit_logs.actor_id references auth.users(id), not public.users(id);
+          -- the synthetic gate-security actor must exist there too or the RPC's
+          -- own audit-log insert (via auth.uid()) fails its FK constraint.
+          insert into auth.users (id, email) values
+            ('91000000-0000-0000-0000-000000000001', 'factory-gate-cert-security@example.invalid');
+
           insert into public.users (id, role) values
             ('91000000-0000-0000-0000-000000000001', 'GATE_SECURITY');
 
