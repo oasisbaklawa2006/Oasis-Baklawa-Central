@@ -5,11 +5,9 @@ import App from "../App";
 
 // Test-then-implement coverage for the owner's execution-board disposition:
 // /admin/execution/production, /admin/execution/assembly and
-// /admin/execution/ready-goods all used to
-// read `operational_queue_items`, a table with zero writers anywhere in
-// oasis-supabase-core's migration history. These three now redirect to the
-// real governed surfaces. This proves each redirect target actually
-// renders, not just that a <Navigate> element exists in the route tree.
+// /admin/execution/ready-goods all used to read `operational_queue_items`,
+// a table with zero writers anywhere in oasis-supabase-core's migration
+// history. These three now redirect to the real governed surfaces.
 
 vi.mock("@/hooks/useAuth", () => ({
   useAuth: () => ({
@@ -47,9 +45,7 @@ vi.mock("@/integrations/supabase/client", () => {
     supabase: {
       from: () => builder,
       // get_user_role must agree with the mocked useAuth role ("ADMIN") --
-      // RoleProtectedRoute forces a logout on any server/client role
-      // mismatch, which would otherwise strand this test on its own
-      // verifying spinner forever.
+      // RoleProtectedRoute forces a logout on any server/client role mismatch.
       rpc: (fn: string) => Promise.resolve({ data: fn === "get_user_role" ? "ADMIN" : null, error: null }),
       auth: {
         getSession: () => Promise.resolve({ data: { session: null }, error: null }),
@@ -68,26 +64,25 @@ function goTo(path: string) {
   return render(<App />);
 }
 
+async function verifyRedirect(sourcePath: string, expectedPath: string) {
+  goTo(sourcePath);
+  await waitFor(() => expect(window.location.pathname).toBe(expectedPath), { timeout: 15000 });
+  if (expectedPath.startsWith("/admin/")) {
+    await waitFor(() => expect(screen.getByTestId("admin-layout-stub")).toBeInTheDocument(), { timeout: 15000 });
+  }
+  await waitFor(() => expect(screen.queryByText(/page not found/i)).toBeNull(), { timeout: 15000 });
+}
+
 describe("Execution board redirects (dead operational_queue_items surfaces)", () => {
-  it("redirects /admin/execution/production to /operations-controller and it renders", async () => {
-    goTo("/admin/execution/production");
-    await waitFor(() => expect(window.location.pathname).toBe("/operations-controller"), { timeout: 15000 });
-    // OperationsController's own heading text, proving the target actually
-    // mounted rather than the route tree just falling through to NotFound.
-    await waitFor(() => expect(screen.queryByText(/page not found/i)).toBeNull(), { timeout: 15000 });
+  it("redirects production execution to the governed Operations Controller", async () => {
+    await verifyRedirect("/admin/execution/production", "/operations-controller");
   });
 
-  it("redirects /admin/execution/assembly to /admin/assembly-tasks and it renders", async () => {
-    goTo("/admin/execution/assembly");
-    await waitFor(() => expect(window.location.pathname).toBe("/admin/assembly-tasks"), { timeout: 15000 });
-    await waitFor(() => expect(screen.getByTestId("admin-layout-stub")).toBeInTheDocument(), { timeout: 15000 });
-    await waitFor(() => expect(screen.queryByText(/page not found/i)).toBeNull(), { timeout: 15000 });
+  it("redirects assembly execution to governed Assembly Tasks", async () => {
+    await verifyRedirect("/admin/execution/assembly", "/admin/assembly-tasks");
   });
 
-  it("redirects /admin/execution/ready-goods to /admin/ready-goods and it renders", async () => {
-    goTo("/admin/execution/ready-goods");
-    await waitFor(() => expect(window.location.pathname).toBe("/admin/ready-goods"), { timeout: 15000 });
-    await waitFor(() => expect(screen.getByTestId("admin-layout-stub")).toBeInTheDocument(), { timeout: 15000 });
-    await waitFor(() => expect(screen.queryByText(/page not found/i)).toBeNull(), { timeout: 15000 });
+  it("redirects ready-goods execution to governed Ready Goods", async () => {
+    await verifyRedirect("/admin/execution/ready-goods", "/admin/ready-goods");
   });
 });
