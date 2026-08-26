@@ -26,7 +26,7 @@ jobs:
   disposable-certification:
     name: Disposable Factory certification
     runs-on: ubuntu-latest
-    timeout-minutes: 50
+    timeout-minutes: 90
     env:
       FACTORY_CERT_CORE_REPO: ${{ github.workspace }}/oasis-supabase-core
       FACTORY_CERT_ALLOW_LOCAL_RESET: "true"
@@ -134,15 +134,22 @@ jobs:
           tests/factory-operations-failure-injection.cert.spec.ts
           -c playwright.factory-cert.config.ts
 
-      - name: Enforce seven executed passes and zero skips
+      - name: Preserve Production certification result
+        if: always()
+        shell: bash
+        run: |
+          test -f factory-certification-results.json
+          cp factory-certification-results.json factory-production-certification-results.json
+
+      - name: Enforce seven executed Production passes and zero skips
         if: always()
         shell: bash
         run: |
           node <<'NODE'
           const fs = require('node:fs');
-          const path = 'factory-certification-results.json';
+          const path = 'factory-production-certification-results.json';
           if (!fs.existsSync(path)) {
-            throw new Error('CERTIFICATION_RESULT_MISSING: Playwright JSON report was not produced');
+            throw new Error('CERTIFICATION_RESULT_MISSING: Production Playwright JSON report was not produced');
           }
           const report = JSON.parse(fs.readFileSync(path, 'utf8'));
           const statuses = [];
@@ -166,35 +173,109 @@ jobs:
             acc[status] = (acc[status] ?? 0) + 1;
             return acc;
           }, {});
-          console.log('Factory certification result counts:', counts);
-          // 5 production-truth tests (one per Production TV department) +
-          // 2 failure-injection tests = 7. Update this if either spec's
-          // test count changes.
+          console.log('Factory Production certification result counts:', counts);
           if (statuses.length !== 7) {
-            throw new Error(`CERTIFICATION_COUNT_MISMATCH: expected exactly 7 required results, got ${statuses.length}`);
+            throw new Error(`CERTIFICATION_COUNT_MISMATCH: expected exactly 7 required Production results, got ${statuses.length}`);
           }
           if ((counts.passed ?? 0) !== 7 || (counts.skipped ?? 0) !== 0 || (counts.failed ?? 0) !== 0 || (counts.timedOut ?? 0) !== 0 || (counts.interrupted ?? 0) !== 0) {
             throw new Error(`CERTIFICATION_NOT_EXECUTED_PASS: ${JSON.stringify(counts)}`);
           }
           NODE
           if [[ "${{ steps.production_cert.outcome }}" != "success" ]]; then
-            echo "Playwright command itself failed." >&2
+            echo "Production Playwright command itself failed." >&2
             exit 1
           fi
 
-      - name: Run full route/role/device health on trusted manual dispatch
-        if: github.event_name == 'workflow_dispatch'
+      - name: List full route/role/device health matrix
+        shell: bash
+        run: >-
+          npx playwright test
+          tests/factory-operations-route-health.cert.spec.ts
+          --list
+          -c playwright.factory-cert.config.ts
+          | tee factory-route-health-list.txt
+
+      - name: Run full route/role/device health
+        id: route_health
+        continue-on-error: true
         run: >-
           npx playwright test
           tests/factory-operations-route-health.cert.spec.ts
           -c playwright.factory-cert.config.ts
 
-      - name: Upload machine-readable certification result
+      - name: Preserve route-health certification result
+        shell: bash
+        run: |
+          test -f factory-certification-results.json
+          cp factory-certification-results.json factory-route-health-results.json
+
+      - name: Enforce complete route-health execution and zero skips
+        shell: bash
+        run: |
+          node <<'NODE'
+          const fs = require('node:fs');
+          const resultPath = 'factory-route-health-results.json';
+          const listPath = 'factory-route-health-list.txt';
+          if (!fs.existsSync(resultPath)) {
+            throw new Error('ROUTE_HEALTH_RESULT_MISSING: Playwright JSON report was not produced');
+          }
+          if (!fs.existsSync(listPath)) {
+            throw new Error('ROUTE_HEALTH_LIST_MISSING: Playwright test listing was not preserved');
+          }
+          const listText = fs.readFileSync(listPath, 'utf8');
+          const listed = listText.match(/Total:\s+(\d+)\s+tests?\b/i);
+          if (!listed) {
+            throw new Error('ROUTE_HEALTH_LIST_UNPARSEABLE: could not determine discovered test count');
+          }
+          const listedCount = Number(listed[1]);
+          if (!Number.isInteger(listedCount) || listedCount < 2) {
+            throw new Error(`ROUTE_HEALTH_DISCOVERY_INVALID: discovered ${listedCount} tests`);
+          }
+
+          const report = JSON.parse(fs.readFileSync(resultPath, 'utf8'));
+          const statuses = [];
+          const visit = (value) => {
+            if (!value || typeof value !== 'object') return;
+            if (Array.isArray(value)) {
+              for (const item of value) visit(item);
+              return;
+            }
+            if (Array.isArray(value.results)) {
+              for (const result of value.results) {
+                if (typeof result?.status === 'string') statuses.push(result.status);
+              }
+            }
+            for (const [key, child] of Object.entries(value)) {
+              if (key !== 'results') visit(child);
+            }
+          };
+          visit(report.suites ?? report);
+          const counts = statuses.reduce((acc, status) => {
+            acc[status] = (acc[status] ?? 0) + 1;
+            return acc;
+          }, {});
+          console.log(`Factory route-health discovered=${listedCount} executed=${statuses.length}`, counts);
+          if (statuses.length !== listedCount) {
+            throw new Error(`ROUTE_HEALTH_COUNT_MISMATCH: listed ${listedCount}, result file contains ${statuses.length}`);
+          }
+          if ((counts.passed ?? 0) !== listedCount || (counts.skipped ?? 0) !== 0 || (counts.failed ?? 0) !== 0 || (counts.timedOut ?? 0) !== 0 || (counts.interrupted ?? 0) !== 0) {
+            throw new Error(`ROUTE_HEALTH_NOT_EXECUTED_PASS: ${JSON.stringify(counts)}`);
+          }
+          NODE
+          if [[ "${{ steps.route_health.outcome }}" != "success" ]]; then
+            echo "Route-health Playwright command itself failed." >&2
+            exit 1
+          fi
+
+      - name: Upload machine-readable certification evidence
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: factory-certification-${{ github.run_id }}-${{ github.run_attempt }}
-          path: factory-certification-results.json
+          path: |
+            factory-production-certification-results.json
+            factory-route-health-results.json
+            factory-route-health-list.txt
           if-no-files-found: warn
           retention-days: 7
 
