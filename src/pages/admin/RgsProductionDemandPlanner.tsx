@@ -266,7 +266,7 @@ export default function RgsProductionDemandPlanner() {
               ))}
             </TableBody>
           </Table>
-          {!loading && !skuDemand.length && <p className="py-8 text-center text-sm text-muted-foreground">No open RGS shortage — every reservation is fully covered.</p>}
+          {!loading && !error && !skuDemand.length && <p className="py-8 text-center text-sm text-muted-foreground">No open RGS shortage — every reservation is fully covered.</p>}
         </CardContent>
       </Card>
     </div>
