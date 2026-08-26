@@ -1,15 +1,17 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
-import RgsProductionDemandPlanner from "../RgsProductionDemandPlanner";
+import RgsProductionDemandPlanner, { calculateOpenReservationShortage } from "../RgsProductionDemandPlanner";
 
 // Focused coverage for the client-side reservation<->product join
 // (RgsProductionDemandPlanner.tsx's load()): inventory_reservations carries
 // no FK to products, so the join happens in two plain queries merged in
-// the browser. This covers two things Codacy flagged as untested:
+// the browser. This covers:
 // 1. the join itself (a reservation resolves to its product's name/department)
 // 2. the product-ID chunking (PRODUCT_ID_QUERY_CHUNK_SIZE) that avoids a
 //    414 Request-URI Too Large when a single .in() filter would otherwise
 //    carry an unbounded UUID array
+// 3. reservation release semantics: Core decrements reserved_qty when stock
+//    is released, so released_qty must not be subtracted again as coverage.
 
 const PRODUCT_ID_QUERY_CHUNK_SIZE = 100;
 
@@ -114,5 +116,28 @@ describe("RgsProductionDemandPlanner product-ID chunking", () => {
     // chunk boundaries doesn't drop or misattribute data.
     expect(screen.getByText("Widget 149")).toBeInTheDocument();
     expect(screen.getByText("Widget 249")).toBeInTheDocument();
+  });
+
+  it("treats released stock as newly uncovered demand rather than double-counting it as coverage", () => {
+    // Core release_rgs_reservation changes reserved_qty 10 -> 8 and
+    // released_qty 0 -> 2 in the same transaction. The correct shortage is
+    // therefore requested 10 - currently reserved 8 - fulfilled 0 = 2.
+    expect(
+      calculateOpenReservationShortage({
+        requested_qty: 10,
+        reserved_qty: 8,
+        fulfilled_qty: 0,
+        released_qty: 2,
+      }),
+    ).toBe(2);
+
+    expect(
+      calculateOpenReservationShortage({
+        requested_qty: 10,
+        reserved_qty: 8,
+        fulfilled_qty: 2,
+        released_qty: 2,
+      }),
+    ).toBe(0);
   });
 });
