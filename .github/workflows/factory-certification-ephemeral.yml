@@ -134,7 +134,7 @@ jobs:
           tests/factory-operations-failure-injection.cert.spec.ts
           -c playwright.factory-cert.config.ts
 
-      - name: Enforce six executed passes and zero skips
+      - name: Enforce seven executed passes and zero skips
         if: always()
         shell: bash
         run: |
@@ -167,8 +167,11 @@ jobs:
             return acc;
           }, {});
           console.log('Factory certification result counts:', counts);
-          if (statuses.length !== 6) {
-            throw new Error(`CERTIFICATION_COUNT_MISMATCH: expected exactly 6 required results, got ${statuses.length}`);
+          // 5 production-truth tests (one per Production TV department) +
+          // 2 failure-injection tests = 7. Update this if either spec's
+          // test count changes.
+          if (statuses.length !== 7) {
+            throw new Error(`CERTIFICATION_COUNT_MISMATCH: expected exactly 7 required results, got ${statuses.length}`);
           }
           if ((counts.passed ?? 0) !== 6 || (counts.skipped ?? 0) !== 0 || (counts.failed ?? 0) !== 0 || (counts.timedOut ?? 0) !== 0 || (counts.interrupted ?? 0) !== 0) {
             throw new Error(`CERTIFICATION_NOT_EXECUTED_PASS: ${JSON.stringify(counts)}`);
