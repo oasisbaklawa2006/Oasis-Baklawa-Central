@@ -44,14 +44,24 @@ jobs:
           ref: main
           path: oasis-supabase-core
 
-      - name: Verify merged Core Production role-alias authority
+      - name: Checkout Trace client contracts
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          repository: oasisbaklawa2006/oasis-trace
+          ref: main
+          path: oasis-trace
+
+      - name: Verify merged Core Factory authority dependencies
         shell: bash
         run: |
-          migration="oasis-supabase-core/supabase/migrations/20260826043000_factory_production_role_alias_parity.sql"
-          test -f "${migration}"
-          grep -q "PROD_ARABIC_SWEETS" "${migration}"
-          grep -q "PROD_DRAGEES" "${migration}"
-          echo "Core main contains the Factory Production role-alias parity migration."
+          production_alias_migration="oasis-supabase-core/supabase/migrations/20260826043000_factory_production_role_alias_parity.sql"
+          store_role_migration="oasis-supabase-core/supabase/migrations/20260826093000_3pgs_staff_provisioning_role_parity.sql"
+          test -f "${production_alias_migration}"
+          test -f "${store_role_migration}"
+          grep -q "PROD_ARABIC_SWEETS" "${production_alias_migration}"
+          grep -q "PROD_DRAGEES" "${production_alias_migration}"
+          grep -qi "store_3rd_party" "${store_role_migration}"
+          echo "Core main contains Production role aliases and governed 3PGS staff provisioning parity."
 
       - name: Set up pinned Supabase CLI
         uses: supabase/setup-cli@ab058987d8d6c725971f6cf9d0b5c98467e30bd1 # v1.7.1
@@ -66,6 +76,9 @@ jobs:
 
       - name: Install Central dependencies
         run: npm ci
+
+      - name: Install Trace dependencies
+        run: npm ci --prefix oasis-trace
 
       - name: Validate certification scripts before execution
         shell: bash
@@ -267,6 +280,245 @@ jobs:
             exit 1
           fi
 
+      - name: Run canonical Core RGS, P&A, 3PGS and Gate authority contracts
+        shell: bash
+        working-directory: oasis-supabase-core
+        run: |
+          set -euo pipefail
+          evidence_dir="${GITHUB_WORKSPACE}/factory-custody-evidence"
+          mkdir -p "${evidence_dir}"
+          suites=(
+            "rgs_production_governed_authority.test.sql:42:rgs"
+            "pna_assembly_job_governed_authority.test.sql:90:pna"
+            "3pgs_governed_fulfilment_authority.test.sql:75:3pgs"
+            "20260809_wave1c_authority_closure.sql:22:dispatch-gate-authority"
+          )
+          for spec in "${suites[@]}"; do
+            IFS=: read -r suite expected label <<< "${spec}"
+            file="supabase/tests/${suite}"
+            log="${evidence_dir}/core-${label}.tap.log"
+            test -f "${file}"
+            grep -Eq "select[[:space:]]+plan\(${expected}\)" "${file}"
+            supabase test db "${file}" 2>&1 | tee "${log}"
+            grep -q "Result: PASS" "${log}"
+            grep -Eq "Files=1, Tests=${expected}([,[:space:]]|$)" "${log}"
+          done
+          git rev-parse HEAD > "${evidence_dir}/core-commit.txt"
+
+      - name: Run disposable positive and denied Gate-release mutation contract
+        shell: bash
+        working-directory: oasis-supabase-core
+        run: |
+          set -euo pipefail
+          evidence_dir="${GITHUB_WORKSPACE}/factory-custody-evidence"
+          gate_test="supabase/tests/factory_gate_release_mutation.cert.sql"
+          trap 'rm -f "${gate_test}"' EXIT
+          cat > "${gate_test}" <<'SQL'
+          begin;
+          select plan(10);
+
+          insert into public.users (id, role) values
+            ('91000000-0000-0000-0000-000000000001', 'GATE_SECURITY');
+
+          insert into public.companies (id, business_name, gst_number, registered_address, status, payment_terms)
+          values (
+            '92000000-0000-0000-0000-000000000001',
+            'Factory Gate Certification',
+            '07AACCF0000A1Z5',
+            'New Delhi',
+            'approved',
+            'prepaid'
+          );
+
+          insert into public.orders (
+            id, company_id, status, order_number, sales_order_value, advance_required,
+            advance_paid, payment_status, payment_cleared, final_invoice_url,
+            order_origin, tracking_token
+          ) values (
+            '93000000-0000-0000-0000-000000000001',
+            '92000000-0000-0000-0000-000000000001',
+            'cleared_for_dispatch',
+            'FACTORY-GATE-CERT-001',
+            100, 0, 100, 'paid', true,
+            'https://example.invalid/factory-gate-cert-invoice',
+            'LEGACY_ERP',
+            'factory-gate-cert-tracking-001'
+          );
+
+          insert into public.dispatch_cartons (
+            id, order_id, barcode_string, box_number, total_boxes, status
+          ) values
+            ('94000000-0000-0000-0000-000000000001', '93000000-0000-0000-0000-000000000001', 'FACTORY-GATE-CERT-C1', 1, 2, 'labeled'),
+            ('94000000-0000-0000-0000-000000000002', '93000000-0000-0000-0000-000000000001', 'FACTORY-GATE-CERT-C2', 2, 2, 'labeled');
+
+          insert into public.operational_scan_records (
+            id, scan_type, verification_type, entity_type, entity_id, order_id,
+            barcode_value, expected_barcode, verification_status, scan_source, correlation_id
+          ) values
+            ('95000000-0000-0000-0000-000000000001', 'dispatch_gate', 'gate_check', 'dispatch_carton',
+             '94000000-0000-0000-0000-000000000001', '93000000-0000-0000-0000-000000000001',
+             'FACTORY-GATE-CERT-C1', 'FACTORY-GATE-CERT-C1', 'verified', 'factory_certification', 'factory-gate-cert-scan-1'),
+            ('95000000-0000-0000-0000-000000000002', 'dispatch_gate', 'gate_check', 'dispatch_carton',
+             '94000000-0000-0000-0000-000000000002', '93000000-0000-0000-0000-000000000001',
+             'WRONG-BARCODE', 'FACTORY-GATE-CERT-C2', 'verified', 'factory_certification', 'factory-gate-cert-scan-2');
+
+          set local request.jwt.claim.sub = '91000000-0000-0000-0000-000000000001';
+          set local request.jwt.claim.role = 'authenticated';
+
+          select is(
+            (public.release_carton_at_dispatch_gate_v1(
+              '94000000-0000-0000-0000-000000000001',
+              '95000000-0000-0000-0000-000000000001'
+            )->>'ok'),
+            'true',
+            'verified gate evidence releases an eligible carton'
+          );
+          select is(
+            (select status from public.dispatch_cartons where id='94000000-0000-0000-0000-000000000001'),
+            'physically_dispatched',
+            'positive gate release mutates carton custody state exactly once'
+          );
+          select ok(
+            (select scanned_out_at is not null from public.dispatch_cartons where id='94000000-0000-0000-0000-000000000001'),
+            'positive gate release timestamps physical dispatch'
+          );
+          select is(
+            (select count(*)::int from public.dispatch_gate_decisions where carton_id='94000000-0000-0000-0000-000000000001' and decision='released'),
+            1,
+            'positive gate release appends one released decision'
+          );
+          select is(
+            (select count(*)::int from public.audit_logs where entity_id='94000000-0000-0000-0000-000000000001'::text and action_type='CARTON_GATE_RELEASED'),
+            1,
+            'positive gate release appends one high-risk audit record'
+          );
+          select is(
+            (public.release_carton_at_dispatch_gate_v1(
+              '94000000-0000-0000-0000-000000000001',
+              '95000000-0000-0000-0000-000000000001'
+            )->>'already_released'),
+            'true',
+            'replayed gate release returns settled truth idempotently'
+          );
+          select is(
+            (select count(*)::int from public.dispatch_gate_decisions where carton_id='94000000-0000-0000-0000-000000000001'),
+            1,
+            'idempotent replay does not append duplicate gate decisions'
+          );
+          select is(
+            (public.release_carton_at_dispatch_gate_v1(
+              '94000000-0000-0000-0000-000000000002',
+              '95000000-0000-0000-0000-000000000002'
+            )->>'ok'),
+            'false',
+            'mismatched scan evidence fails closed'
+          );
+          select is(
+            (select status from public.dispatch_cartons where id='94000000-0000-0000-0000-000000000002'),
+            'labeled',
+            'denied gate release leaves carton custody unchanged'
+          );
+          select is(
+            (select count(*)::int from public.dispatch_gate_decisions where carton_id='94000000-0000-0000-0000-000000000002' and decision='denied'),
+            1,
+            'denied gate release appends one immutable decision record'
+          );
+
+          select * from finish();
+          rollback;
+          SQL
+
+          log="${evidence_dir}/core-dispatch-gate-mutation.tap.log"
+          supabase test db "${gate_test}" 2>&1 | tee "${log}"
+          grep -q "Result: PASS" "${log}"
+          grep -Eq "Files=1, Tests=10([,[:space:]]|$)" "${log}"
+
+      - name: Run Trace scan, mutation, chain and fail-closed contracts
+        shell: bash
+        working-directory: oasis-trace
+        run: |
+          set -euo pipefail
+          evidence_dir="${GITHUB_WORKSPACE}/factory-custody-evidence"
+          git rev-parse HEAD > "${evidence_dir}/trace-commit.txt"
+          npm exec -- vitest run \
+            src/lib/scanContract.test.ts \
+            src/lib/scanService.test.ts \
+            src/lib/traceChain.test.ts \
+            src/lib/traceMutations.test.ts \
+            src/lib/legacyGateDecision.test.ts \
+            src/lib/centralSubmit.test.ts \
+            src/lib/data.write-failure.test.ts \
+            --reporter=json \
+            --outputFile="${evidence_dir}/trace-results.json"
+
+      - name: Enforce complete mutation and custody certification evidence
+        shell: bash
+        run: |
+          node <<'NODE'
+          const fs = require('node:fs');
+          const path = require('node:path');
+          const dir = 'factory-custody-evidence';
+          const required = [
+            'core-rgs.tap.log',
+            'core-pna.tap.log',
+            'core-3pgs.tap.log',
+            'core-dispatch-gate-authority.tap.log',
+            'core-dispatch-gate-mutation.tap.log',
+            'core-commit.txt',
+            'trace-commit.txt',
+            'trace-results.json',
+          ];
+          for (const file of required) {
+            if (!fs.existsSync(path.join(dir, file))) throw new Error(`CUSTODY_EVIDENCE_MISSING: ${file}`);
+          }
+
+          const trace = JSON.parse(fs.readFileSync(path.join(dir, 'trace-results.json'), 'utf8'));
+          const expectedTraceFiles = new Set([
+            'scanContract.test.ts',
+            'scanService.test.ts',
+            'traceChain.test.ts',
+            'traceMutations.test.ts',
+            'legacyGateDecision.test.ts',
+            'centralSubmit.test.ts',
+            'data.write-failure.test.ts',
+          ]);
+          const executedTraceFiles = new Set((trace.testResults ?? []).map((result) => path.basename(result.name)));
+          for (const file of expectedTraceFiles) {
+            if (!executedTraceFiles.has(file)) throw new Error(`TRACE_CONTRACT_NOT_EXECUTED: ${file}`);
+          }
+          if (trace.success !== true || (trace.numFailedTests ?? 0) !== 0 || (trace.numPendingTests ?? 0) !== 0) {
+            throw new Error(`TRACE_CONTRACTS_NOT_GREEN: ${JSON.stringify({ success: trace.success, failed: trace.numFailedTests, pending: trace.numPendingTests })}`);
+          }
+          if ((trace.numTotalTests ?? 0) < 1) throw new Error('TRACE_CONTRACT_COUNT_INVALID: no Trace tests executed');
+
+          const summary = {
+            schema_version: 1,
+            status: 'PASS',
+            environment: 'disposable-local-core',
+            production_accessed: false,
+            central_commit: process.env.GITHUB_SHA,
+            core_commit: fs.readFileSync(path.join(dir, 'core-commit.txt'), 'utf8').trim(),
+            trace_commit: fs.readFileSync(path.join(dir, 'trace-commit.txt'), 'utf8').trim(),
+            core_contracts: {
+              rgs_mutation_and_custody: 42,
+              pna_lifecycle_and_handover: 90,
+              three_pgs_fulfilment_and_custody: 75,
+              dispatch_gate_authority_and_immutability: 22,
+              dispatch_gate_positive_denied_and_idempotent_mutation: 10,
+              total_assertions: 239,
+            },
+            trace_contracts: {
+              files_executed: [...executedTraceFiles].sort(),
+              total_tests: trace.numTotalTests,
+              passed_tests: trace.numPassedTests,
+              failed_tests: trace.numFailedTests,
+              pending_tests: trace.numPendingTests,
+            },
+          };
+          fs.writeFileSync(path.join(dir, 'factory-custody-summary.json'), `${JSON.stringify(summary, null, 2)}\n`);
+          console.log('Factory mutation/custody certification:', summary);
+          NODE
+
       - name: Upload machine-readable certification evidence
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
@@ -276,6 +528,7 @@ jobs:
             factory-production-certification-results.json
             factory-route-health-results.json
             factory-route-health-list.txt
+            factory-custody-evidence/
           if-no-files-found: warn
           retention-days: 7
 
