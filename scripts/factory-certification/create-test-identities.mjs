@@ -15,6 +15,14 @@ if (!["localhost", "127.0.0.1", "::1", "[::1]"].includes(parsedBase.hostname)) {
   throw new Error(`Identity bootstrap is local-only; refusing Supabase host ${parsedBase.hostname}`);
 }
 
+const REQUIRED_AUTOMATIC_CERT_ROLES = [
+  "prod_arabic_sweets",
+  "prod_chocolate",
+  "prod_fusion",
+  "prod_bakery",
+  "prod_nuts",
+];
+
 function password() {
   return `${randomBytes(24).toString("base64url")}Aa1`;
 }
@@ -78,9 +86,6 @@ async function upsertUserProfile({ id, email, roleKey, displayName }) {
 }
 
 async function linkRoleMap(userId, roleId) {
-  // The local database has just been reset, so there is no prior mapping for
-  // this disposable auth user. Keep the write simple and fail if the canonical
-  // role row cannot be linked.
   await request("/rest/v1/user_role_map", {
     method: "POST",
     prefer: "return=minimal",
@@ -88,17 +93,46 @@ async function linkRoleMap(userId, roleId) {
   });
 }
 
-const activeRoles = await request("/rest/v1/roles?is_active=eq.true&select=id,role_key&order=role_key.asc");
+async function verifyUserProfile(userId, expectedRole) {
+  const rows = await request(`/rest/v1/users?id=eq.${encodeURIComponent(userId)}&select=id,role,is_active&limit=1`);
+  if (!Array.isArray(rows) || rows.length !== 1) {
+    throw new Error(`Disposable identity ${userId} was not materialised in public.users`);
+  }
+  const actualRole = String(rows[0].role ?? "").trim().toLowerCase();
+  if (actualRole !== expectedRole || rows[0].is_active !== true) {
+    throw new Error(`Disposable identity ${userId} expected active role ${expectedRole}; got ${actualRole || "<empty>"}`);
+  }
+}
+
+const activeRoleRows = await request("/rest/v1/roles?is_active=eq.true&select=id,role_key&order=role_key.asc");
 const roleIdByKey = new Map(
-  (activeRoles ?? [])
+  (activeRoleRows ?? [])
     .map((row) => [String(row.role_key ?? "").trim().toLowerCase(), String(row.id ?? "")])
     .filter(([roleKey, roleId]) => roleKey && roleId),
 );
 
+// staff_provisionable_roles is the canonical server-side allowlist used by
+// grant_staff_role(). It is intentionally authoritative even when an older
+// public.roles catalogue has not yet gained the same alias. Intersecting the
+// two tables silently dropped valid roles such as PROD_ARABIC_SWEETS and made
+// credential-gated certification false-green via skipped tests.
 const provisionableRows = await request(
   "/rest/v1/staff_provisionable_roles?is_active=eq.true&select=role_key&order=role_key.asc",
 );
-const provisionable = new Set((provisionableRows ?? []).map((row) => String(row.role_key ?? "").trim().toLowerCase()).filter(Boolean));
+const provisionable = new Set(
+  (provisionableRows ?? [])
+    .map((row) => String(row.role_key ?? "").trim().toLowerCase())
+    .filter(Boolean),
+);
+
+const allRoleKeys = Array.from(new Set([...roleIdByKey.keys(), ...provisionable])).sort();
+for (const requiredRole of REQUIRED_AUTOMATIC_CERT_ROLES) {
+  if (!provisionable.has(requiredRole)) {
+    throw new Error(
+      `Canonical Core provisioning authority is missing required Factory certification role ${requiredRole}`,
+    );
+  }
+}
 
 const credentialLines = [
   "# Disposable Factory Operations certification identities.",
@@ -120,11 +154,13 @@ await upsertUserProfile({
   displayName: "Factory Cert SUPER_ADMIN",
 });
 await linkRoleMap(bootstrapId, bootstrapRoleId);
+await verifyUserProfile(bootstrapId, bootstrapRole);
 credentialLines.push(`export FACTORY_CERT_${envRole(bootstrapRole)}_EMAIL=${shellQuote(bootstrapEmail)}`);
 credentialLines.push(`export FACTORY_CERT_${envRole(bootstrapRole)}_PASSWORD=${shellQuote(bootstrapPassword)}`);
 
+const createdRoleKeys = new Set([bootstrapRole]);
 let identityCount = 1;
-for (const [roleKey, roleId] of Array.from(roleIdByKey.entries()).sort(([a], [b]) => a.localeCompare(b))) {
+for (const roleKey of allRoleKeys) {
   if (!roleKey || roleKey === bootstrapRole) continue;
 
   const email = `factory-cert-${roleKey.replaceAll("_", "-")}@example.invalid`;
@@ -132,8 +168,10 @@ for (const [roleKey, roleId] of Array.from(roleIdByKey.entries()).sort(([a], [b]
   const id = await createAuthUser(email, userPassword);
 
   if (provisionable.has(roleKey)) {
-    // Exercise the canonical Core provisioning authority whenever the role is
-    // on its allowlist.
+    // This is the canonical authority path. It intentionally does not require
+    // a public.roles row: grant_staff_role() itself authorizes against
+    // staff_provisionable_roles and writes public.users.role. If a matching
+    // legacy role row exists, the Core RPC also links user_role_map.
     await request("/rest/v1/rpc/grant_staff_role", {
       method: "POST",
       body: {
@@ -147,11 +185,13 @@ for (const [roleKey, roleId] of Array.from(roleIdByKey.entries()).sort(([a], [b]
       },
     });
   } else {
-    // Some implemented legacy/TV/store roles exist in public.roles but are not
-    // currently on staff_provisionable_roles. For a disposable local database
-    // only, service_role seeds the profile+role map directly so route isolation
-    // can still be certified. This path is impossible against a remote backend
-    // because the script rejects non-loopback Supabase hosts above.
+    const roleId = roleIdByKey.get(roleKey);
+    if (!roleId) {
+      throw new Error(`Non-provisionable role ${roleKey} has no canonical public.roles row`);
+    }
+    // Legacy/device roles outside the staff provisioning allowlist are seeded
+    // only in this loopback disposable database so route isolation can be
+    // tested. The script refuses every remote host before reaching this path.
     await upsertUserProfile({
       id,
       email,
@@ -161,13 +201,29 @@ for (const [roleKey, roleId] of Array.from(roleIdByKey.entries()).sort(([a], [b]
     await linkRoleMap(id, roleId);
   }
 
+  await verifyUserProfile(id, roleKey);
+
   const envKey = envRole(roleKey);
   credentialLines.push(`export FACTORY_CERT_${envKey}_EMAIL=${shellQuote(email)}`);
   credentialLines.push(`export FACTORY_CERT_${envKey}_PASSWORD=${shellQuote(userPassword)}`);
+  createdRoleKeys.add(roleKey);
   identityCount += 1;
+}
+
+for (const requiredRole of REQUIRED_AUTOMATIC_CERT_ROLES) {
+  if (!createdRoleKeys.has(requiredRole)) {
+    throw new Error(`CREDENTIAL_BOOTSTRAP_FAILED: required role ${requiredRole} was not created`);
+  }
+  const envKey = envRole(requiredRole);
+  const hasEmail = credentialLines.some((line) => line.startsWith(`export FACTORY_CERT_${envKey}_EMAIL=`));
+  const hasPassword = credentialLines.some((line) => line.startsWith(`export FACTORY_CERT_${envKey}_PASSWORD=`));
+  if (!hasEmail || !hasPassword) {
+    throw new Error(`CREDENTIAL_BOOTSTRAP_FAILED: required role ${requiredRole} has incomplete exports`);
+  }
 }
 
 await writeFile(outputFile, `${credentialLines.join("\n")}\n`, { encoding: "utf8", mode: 0o600 });
 await chmod(outputFile, 0o600);
 console.log(`Created ${identityCount} disposable role identities.`);
+console.log(`Required automatic Factory certification roles created: ${REQUIRED_AUTOMATIC_CERT_ROLES.join(", ")}`);
 console.log(`Credential exports written to ${outputFile}`);
