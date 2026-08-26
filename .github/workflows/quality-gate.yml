@@ -194,6 +194,8 @@ jobs:
     if: needs.quality-gate.outputs.factory_cert == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 50
+    permissions:
+      contents: read
     env:
       FACTORY_CERT_CORE_REPO: ${{ github.workspace }}/oasis-supabase-core
       FACTORY_CERT_ALLOW_LOCAL_RESET: "true"

@@ -1,20 +1,13 @@
 name: Factory Operations Ephemeral Certification
 
 on:
-  pull_request:
-    branches: [main]
-    paths:
-      - '.github/workflows/factory-certification-ephemeral.yml'
-      - 'playwright.factory-cert.config.ts'
-      - 'scripts/factory-certification/**'
-      - 'src/lib/factoryCertification*.ts'
-      - 'src/lib/factoryOperations*.ts'
-      - 'src/lib/__tests__/factoryCertification*.test.ts'
-      - 'src/lib/__tests__/factoryOperations*.test.ts'
-      - 'tests/factory-operations-*.cert.spec.ts'
-      - 'tests/factory-certification/**'
+  # quality-gate.yml now runs the disposable production-truth and
+  # failure-injection certification natively as its own `factory-certification`
+  # job on every relevant PR. This workflow keeps only workflow_dispatch, for
+  # the full route/role/device matrix, which the blocking gate does not run.
+  # A `pull_request` trigger here would duplicate the disposable Supabase
+  # certification for every PR that touches these paths.
   workflow_dispatch:
-  workflow_call:
 
 permissions:
   contents: read
