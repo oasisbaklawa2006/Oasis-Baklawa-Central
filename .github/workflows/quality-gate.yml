@@ -16,6 +16,8 @@ jobs:
     name: Typecheck, unit test, production build, and Playwright smoke
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    outputs:
+      factory_cert: ${{ steps.changes.outputs.factory_cert }}
 
     steps:
       - name: Checkout
@@ -59,18 +61,21 @@ jobs:
           MIGRATION=false
           TOOLING=false
           TESTS=false
+          FACTORY_CERT=false
 
           has_match '^(src/|public/|index.html$|vite\.config\.|tsconfig|package\.json$|package-lock\.json$)' && APP=true || true
           has_match '^(src/|public/|tests/.*\.(spec|test)\.(ts|tsx)$|playwright.*\.ts$)' && UI=true || true
           has_match '^(supabase/migrations/|supabase/uat/)' && MIGRATION=true || true
           has_match '^(\.github/workflows/|scripts/|eslint\.config\.|package\.json$|package-lock\.json$)' && TOOLING=true || true
           has_match '(^|/)(tests?|__tests__)/|\.(spec|test)\.(ts|tsx)$' && TESTS=true || true
+          has_match '^(\.github/workflows/factory-certification-ephemeral\.yml$|playwright\.factory-cert\.config\.ts$|scripts/factory-certification/|src/lib/factoryCertification|src/lib/factoryOperations|src/lib/__tests__/factoryCertification|src/lib/__tests__/factoryOperations|tests/factory-operations-.*\.cert\.spec\.ts$|tests/factory-certification/)' && FACTORY_CERT=true || true
 
           echo "app=$APP" >> "$GITHUB_OUTPUT"
           echo "ui=$UI" >> "$GITHUB_OUTPUT"
           echo "migration=$MIGRATION" >> "$GITHUB_OUTPUT"
           echo "tooling=$TOOLING" >> "$GITHUB_OUTPUT"
           echo "tests=$TESTS" >> "$GITHUB_OUTPUT"
+          echo "factory_cert=$FACTORY_CERT" >> "$GITHUB_OUTPUT"
 
       - name: Enforce canonical Supabase migration ownership
         if: github.event_name == 'pull_request'
@@ -128,14 +133,15 @@ jobs:
             bash -n scripts/factory-certification/start-ephemeral.sh
             bash -n scripts/factory-certification/stop-ephemeral.sh
             node --check scripts/factory-certification/create-test-identities.mjs
+            node --check scripts/factory-certification/seed-production-fixtures.mjs
           fi
           if [ -f tests/factory-route-source-reconciliation.spec.ts ]; then
             npx playwright test tests/factory-route-source-reconciliation.spec.ts --project=desktop-chrome-size
           fi
           if [ -f playwright.factory-cert.config.ts ]; then
             # Compile/discover the credentialed suites without executing them.
-            # Full credentialed execution is reserved for the disposable
-            # workflow_dispatch environment and never receives production secrets.
+            # Executed proof is delegated below to the disposable canonical-Core
+            # reusable workflow when Factory certification paths changed.
             npx playwright test --list -c playwright.factory-cert.config.ts
           fi
 
@@ -214,3 +220,9 @@ jobs:
             test-results/
           if-no-files-found: ignore
           retention-days: 7
+
+  factory-certification:
+    name: Disposable Factory certification
+    needs: quality-gate
+    if: needs.quality-gate.outputs.factory_cert == 'true'
+    uses: ./.github/workflows/factory-certification-ephemeral.yml
