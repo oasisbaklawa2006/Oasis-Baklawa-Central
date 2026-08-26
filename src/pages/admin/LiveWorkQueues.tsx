@@ -17,7 +17,7 @@ import { WORK_QUEUE_LABELS } from "@/lib/work-queues/queueTypes";
 import { useOpenProductionJobsCount } from "@/hooks/useOpenProductionJobsCount";
 
 export default function LiveWorkQueues() {
-  const { loading, error, feeds, refresh } = useOperationalLiveFeeds();
+  const { loading, error, feeds, refresh: refreshOperationalFeeds } = useOperationalLiveFeeds();
   const dependency = useMemo(() => financeBlocksProductionProjection(), []);
   const openProductionJobs = useOpenProductionJobsCount();
 
@@ -29,6 +29,11 @@ export default function LiveWorkQueues() {
   const [blockedOnly, setBlockedOnly] = useState(false);
   const [selectedItem, setSelectedItem] = useState<WorkQueueItem | null>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
+
+  const refreshAll = () => {
+    refreshOperationalFeeds();
+    openProductionJobs.refresh();
+  };
 
   const snapshots = feeds?.snapshots ?? [];
   const allItems = useMemo(() => snapshots.flatMap((q) => q.items), [snapshots]);
@@ -62,8 +67,17 @@ export default function LiveWorkQueues() {
             Read-only feeds
           </Badge>
         </div>
-        <Button type="button" variant="outline" size="sm" onClick={() => refresh()} disabled={loading}>
-          <RefreshCw className={`mr-1 h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`} aria-hidden />
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          onClick={refreshAll}
+          disabled={loading || openProductionJobs.loading}
+        >
+          <RefreshCw
+            className={`mr-1 h-3.5 w-3.5 ${loading || openProductionJobs.loading ? "animate-spin" : ""}`}
+            aria-hidden
+          />
           Refresh
         </Button>
       </header>
