@@ -51,7 +51,11 @@ export FACTORY_CERT_ENVIRONMENT_ID="${FACTORY_CERT_ENVIRONMENT_ID:-factory-cert-
 CREDENTIAL_FILE="${FACTORY_CERT_CREDENTIAL_FILE:-/tmp/oasis-factory-certification.env}"
 export FACTORY_CERT_CREDENTIAL_FILE="${CREDENTIAL_FILE}"
 
+# Bootstrap disposable identities and deterministic non-commercial Factory
+# fixtures only after the canonical Core replay is complete. Both scripts
+# reject every non-loopback backend before using service_role.
 node "$(dirname "$0")/create-test-identities.mjs"
+node "$(dirname "$0")/seed-production-fixtures.mjs"
 
 cat <<EOF
 Factory certification local backend is ready.
@@ -73,6 +77,9 @@ Load them only into the disposable certification shell:
   source "${CREDENTIAL_FILE}"
   set +a
 
+Deterministic Production fixtures include the controlled Arabic short ID
+E3ED28B0 plus one open job for each other Production TV group.
+
 The local service-role key was used only to bootstrap disposable identities and
-was NOT written to the credential file.
+fixtures and was NOT written to the credential file.
 EOF
