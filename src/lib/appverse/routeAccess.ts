@@ -40,7 +40,7 @@ const ADMIN_ROUTE_MODULES: Array<{ prefix: string; moduleKey: AppVerseModuleKey 
   { prefix: "/admin/order-management", moduleKey: "orders" },
   { prefix: "/admin/orders", moduleKey: "orders" },
   { prefix: "/admin/store-coordination", moduleKey: "orders" },
-  { prefix: "/admin/label-command-center", moduleKey: "orders" },
+  { prefix: "/admin/label-command-center", moduleKey: "packing" },
   { prefix: "/admin/exceptions", moduleKey: "exceptions" },
   { prefix: "/admin/production", moduleKey: "production" },
   { prefix: "/admin/assembly-tasks", moduleKey: "production" },
