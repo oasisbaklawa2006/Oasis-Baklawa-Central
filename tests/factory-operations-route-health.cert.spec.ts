@@ -5,6 +5,7 @@ import {
   type FactoryRouteEntry,
 } from "../src/lib/factoryOperationsRouteRegistry";
 import { compareExactDestination } from "../src/lib/factoryCertificationHelpers";
+import { resolveEffectiveFactoryCertificationRole } from "../src/lib/factoryCertificationEffectiveAccess";
 import { factoryCertificationCredentialSpec } from "../src/lib/factoryCertificationCredentialPolicy";
 import {
   assertNoProvidedCredentialReuse,
@@ -14,7 +15,6 @@ import {
   hasFactoryCertificationTarget,
   loginToFactoryCertificationTarget,
   readFactoryCertificationCredentials,
-  resolveCertificationRole,
   resolveFactoryCertificationTarget,
   verifyAuthenticatedRole,
 } from "./factory-certification/support";
@@ -25,7 +25,8 @@ import {
  * Safe by construction:
  * - only an explicitly-approved disposable certification target is accepted;
  * - Vercel previews and known production hosts are rejected by policy;
- * - every route is authenticated with the exact role selected for that route;
+ * - every route is authenticated with a role that passes the complete runtime
+ *   authorization chain, including AdminRouteGuard module access for /admin/*;
  * - supplied emails may not be reused across multiple roles;
  * - the authenticated role is proven against public.users before route checks;
  * - no mutation action is invoked.
@@ -55,7 +56,7 @@ test.describe("Factory Operations route health certification", () => {
 
   for (const entry of routeEntries) {
     for (const viewport of certificationViewports(entry)) {
-      const role = resolveCertificationRole(entry);
+      const role = resolveEffectiveFactoryCertificationRole(entry);
       const credentialSpec = factoryCertificationCredentialSpec(role);
 
       test(`${entry.route} :: ${role} :: ${viewport.name}`, async ({ page }) => {
