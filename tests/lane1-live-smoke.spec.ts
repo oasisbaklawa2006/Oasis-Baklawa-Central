@@ -142,8 +142,13 @@ test.describe("Lane 1 live smoke — production role", () => {
     const { email, password } = requireLane1Credentials("production");
     await login(page, email, password);
 
+    // /admin/execution/production used to be the destination -- it read
+    // `operational_queue_items`, a table with zero writers anywhere in
+    // oasis-supabase-core's migration history, and now redirects to the
+    // real governed handheld surface instead (factory-operations
+    // certification, "Execution board disposition").
     const d = await assertRouteRendersWithoutFailure(page, "/admin/execution/production");
-    expect(page.url(), "Production account must reach the production execution board").toContain("/admin/execution/production");
+    expect(page.url(), "Production account must land on the governed handheld surface after the legacy redirect").toContain("/operations-controller");
     void d;
   });
 

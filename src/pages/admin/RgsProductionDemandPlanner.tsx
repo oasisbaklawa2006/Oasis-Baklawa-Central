@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { AlertTriangle, Factory, PlusCircle, RefreshCw } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import type { Database } from "@/integrations/supabase/types";
 import { rgsGovernedRpc } from "@/lib/rgsGovernedRpc";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
@@ -11,12 +12,16 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
 const nonB2bDemandSources = ["pna", "outlet", "internal"] as const;
+const PRODUCT_ID_QUERY_CHUNK_SIZE = 100;
 
-// Temporary typed boundary for live relations pending regenerated
-// project-wide Supabase definitions (matches the operationsDb pattern used
-// elsewhere in the RGS surfaces).
+// inventory_reservations is not yet present in Central's generated Database
+// snapshot. Keep the temporary boundary ONLY for that relation; products is
+// present in the generated schema and is queried through the typed client.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-const planningDb = supabase as unknown as { from: (relation: string) => any };
+const reservationDb = supabase as unknown as { from: (relation: string) => any };
+
+type ProductRow = Database["public"]["Tables"]["products"]["Row"];
+type DemandProduct = Pick<ProductRow, "id" | "name" | "production_department">;
 
 type Reservation = {
   id: string;
@@ -27,8 +32,13 @@ type Reservation = {
   fulfilled_qty: number;
   released_qty: number;
   reservation_status: string;
-  product: { name: string; production_department: string | null } | null;
+  product: Pick<DemandProduct, "name" | "production_department"> | null;
 };
+
+type ReservationCoverage = Pick<
+  Reservation,
+  "requested_qty" | "reserved_qty" | "fulfilled_qty" | "released_qty"
+>;
 
 type SkuDemand = {
   key: string;
@@ -38,6 +48,19 @@ type SkuDemand = {
   totalShortage: number;
   reservationIds: string[];
 };
+
+/**
+ * Core release_rgs_reservation decrements reserved_qty and increments
+ * released_qty in the same transaction. Therefore released_qty is historical
+ * evidence, not additional current coverage. Subtracting it again would hide
+ * newly-uncovered demand after a release.
+ */
+export function calculateOpenReservationShortage(reservation: ReservationCoverage): number {
+  const requested = Math.max(0, Number(reservation.requested_qty));
+  const reserved = Math.max(0, Number(reservation.reserved_qty));
+  const fulfilled = Math.max(0, Number(reservation.fulfilled_qty));
+  return Math.max(0, requested - reserved - fulfilled);
+}
 
 /**
  * RGS PC capability #6 (Production Demand Planner): a standalone SKU-wise
@@ -57,18 +80,53 @@ export default function RgsProductionDemandPlanner() {
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
-    const { data, error: loadError } = await planningDb
+    // inventory_reservations.product_id carries no FK to products (by
+    // design -- see the schema), so PostgREST's embedded-resource syntax
+    // ("product:products(...)") cannot resolve this join: it fails with
+    // "Could not find a relationship between 'inventory_reservations' and
+    // 'products' in the schema cache". Fetch reservations and products as
+    // two plain queries and join them client-side instead of adding an FK
+    // solely to satisfy PostgREST's embedding.
+    const { data: reservationRows, error: loadError } = await reservationDb
       .from("inventory_reservations")
-      .select("id, product_id, sku, requested_qty, reserved_qty, fulfilled_qty, released_qty, reservation_status, product:products(name, production_department)")
+      .select("id, product_id, sku, requested_qty, reserved_qty, fulfilled_qty, released_qty, reservation_status")
       .in("reservation_status", ["pending", "partially_reserved"])
       .order("created_at", { ascending: true })
       .limit(1000);
     if (loadError) {
       setError(loadError.message ?? "Unexpected demand planner error");
       setReservations([]);
-    } else {
-      setReservations((data ?? []) as Reservation[]);
+      setLoading(false);
+      return;
     }
+    const rows = (reservationRows ?? []) as Omit<Reservation, "product">[];
+    const productIds = Array.from(new Set(rows.map((r) => r.product_id))).filter(Boolean);
+    let productMap = new Map<string, Pick<DemandProduct, "name" | "production_department">>();
+    if (productIds.length > 0) {
+      const allProductRows: DemandProduct[] = [];
+      // Supabase/PostgREST serializes `.in()` values into the request URL.
+      // With up to 1000 reservations, sending every UUID in a single filter
+      // can exceed common proxy/request-line limits and turn a valid planner
+      // load into HTTP 414. Keep each request bounded and merge the results.
+      for (let offset = 0; offset < productIds.length; offset += PRODUCT_ID_QUERY_CHUNK_SIZE) {
+        const productIdChunk = productIds.slice(offset, offset + PRODUCT_ID_QUERY_CHUNK_SIZE);
+        const { data: productRows, error: productError } = await supabase
+          .from("products")
+          .select("id, name, production_department")
+          .in("id", productIdChunk);
+        if (productError) {
+          setError(productError.message ?? "Unexpected demand planner error");
+          setReservations([]);
+          setLoading(false);
+          return;
+        }
+        allProductRows.push(...(productRows ?? []));
+      }
+      productMap = new Map(
+        allProductRows.map((p) => [p.id, { name: p.name, production_department: p.production_department }]),
+      );
+    }
+    setReservations(rows.map((r) => ({ ...r, product: productMap.get(r.product_id) ?? null })));
     setLoading(false);
   }, []);
 
@@ -77,8 +135,7 @@ export default function RgsProductionDemandPlanner() {
   const skuDemand = useMemo(() => {
     const byKey = new Map<string, SkuDemand>();
     for (const reservation of reservations) {
-      const shortage = Number(reservation.requested_qty) - Number(reservation.reserved_qty)
-        - Number(reservation.fulfilled_qty) - Number(reservation.released_qty);
+      const shortage = calculateOpenReservationShortage(reservation);
       if (shortage <= 0) continue;
       const department = reservation.product?.production_department ?? null;
       const key = `${reservation.sku}::${department ?? "unmapped"}`;
@@ -125,7 +182,7 @@ export default function RgsProductionDemandPlanner() {
     if (!qty || qty <= 0) { toast.error("Enter a valid quantity"); return; }
     setRaising(true);
     try {
-      const { data: product, error: productError } = await planningDb
+      const { data: product, error: productError } = await supabase
         .from("products")
         .select("id, sku")
         .eq("sku", raiseForm.sku.trim())

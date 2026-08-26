@@ -100,9 +100,12 @@ const ProductIntelligencePrototype = lazy(
 const ExecutionCommandCenter = lazy(() => import("./pages/admin/ExecutionCommandCenter.tsx"));
 const ExecutionRiskBoard = lazy(() => import("./pages/admin/ExecutionRiskBoard.tsx"));
 const ExecutionBottlenecks = lazy(() => import("./pages/admin/ExecutionBottlenecks.tsx"));
-const ProductionExecutionBoard = lazy(() => import("./pages/admin/execution/ProductionExecutionBoard.tsx"));
-const AssemblyExecutionBoard = lazy(() => import("./pages/admin/execution/AssemblyExecutionBoard.tsx"));
-const ReadyGoodsExecutionBoard = lazy(() => import("./pages/admin/execution/ReadyGoodsExecutionBoard.tsx"));
+// ProductionExecutionBoard / AssemblyExecutionBoard / ReadyGoodsExecutionBoard
+// are no longer routed -- their routes now redirect to the governed
+// canonical surfaces (see the execution/production etc. <Route> comments
+// below); the components themselves are left in place, unrouted, rather
+// than deleted, since DepartmentExecutionBoard is shared with the four
+// execution boards still in service.
 const DispatchExecutionBoard = lazy(() => import("./pages/admin/execution/DispatchExecutionBoard.tsx"));
 const ThirdPartyExecutionBoard = lazy(() => import("./pages/admin/execution/ThirdPartyExecutionBoard.tsx"));
 const RetailExecutionBoard = lazy(() => import("./pages/admin/execution/RetailExecutionBoard.tsx"));
@@ -400,30 +403,24 @@ const App = () => (
                         </AdminModuleRoute>
                       }
                     />
-                    <Route
-                      path="execution/production"
-                      element={
-                        <AdminModuleRoute moduleKey="production">
-                          <ProductionExecutionBoard />
-                        </AdminModuleRoute>
-                      }
-                    />
-                    <Route
-                      path="execution/assembly"
-                      element={
-                        <AdminModuleRoute moduleKey="production">
-                          <AssemblyExecutionBoard />
-                        </AdminModuleRoute>
-                      }
-                    />
-                    <Route
-                      path="execution/ready-goods"
-                      element={
-                        <AdminModuleRoute moduleKey="inventory">
-                          <ReadyGoodsExecutionBoard />
-                        </AdminModuleRoute>
-                      }
-                    />
+                    {/*
+                      execution/production, execution/assembly and
+                      execution/ready-goods all read operational_queue_items,
+                      a table with zero writers anywhere in
+                      oasis-supabase-core's migration history for every
+                      queue_type -- confirmed dead data by direct inspection.
+                      Redirected to the real governed surfaces that read the
+                      authoritative tables instead. execution/dispatch,
+                      execution/third-party, execution/retail and
+                      execution/complaints are in the same dead-data
+                      situation but are NOT redirected here -- no confirmed
+                      1:1 canonical replacement was established for those
+                      four in the time available; a redirect requires a
+                      proven target plus a passing test first.
+                    */}
+                    <Route path="execution/production" element={<Navigate to="/operations-controller" replace />} />
+                    <Route path="execution/assembly" element={<Navigate to="/admin/assembly-tasks" replace />} />
+                    <Route path="execution/ready-goods" element={<Navigate to="/admin/ready-goods" replace />} />
                     <Route
                       path="execution/dispatch"
                       element={
@@ -488,7 +485,7 @@ const App = () => (
                       </ProtectedRoute>
                     }
                   />
-                  <Route path="/tv/arabic-sweets" element={<RoleProtectedRoute allowedRoles={["HOD_ARABIC", "PROD_ARABIC", "SUPER_ADMIN", "ADMIN"]}><FactoryTVModule category="Arabic Sweets" departmentFilter="Arabic Sweets" title="Arabic Sweets Line" /></RoleProtectedRoute>} />
+                  <Route path="/tv/arabic-sweets" element={<RoleProtectedRoute allowedRoles={["HOD_ARABIC", "PROD_ARABIC_SWEETS", "SUPER_ADMIN", "ADMIN"]}><FactoryTVModule category="Arabic Sweets" departmentFilter="Arabic Sweets" title="Arabic Sweets Line" /></RoleProtectedRoute>} />
                   {/* Chocolates & Confectionery TV also serves Dragees staff -- owner's
                       six-TV estate (Central issue #368) folds Dragees into Chocolates &
                       Confectionery rather than giving it its own screen. FactoryTVModule's

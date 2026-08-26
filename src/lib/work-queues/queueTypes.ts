@@ -64,7 +64,13 @@ export interface WorkQueueSnapshot {
 
 export const WORK_QUEUE_LABELS: Record<WorkQueueId, string> = {
   finance_review_queue: "Finance review",
-  production_queue: "Production",
+  // Deliberately NOT "Production" -- this queue counts legacy
+  // orders.status pipeline membership (productionQueueFeed.ts), not the
+  // governed production_jobs authority. Renamed to avoid two different
+  // Command Center numbers sharing one label; see
+  // useOpenProductionJobsCount.ts for the authoritative production_jobs
+  // open-job count shown alongside this card in LiveWorkQueues.tsx.
+  production_queue: "Orders in Production Pipeline",
   assembly_queue: "Assembly",
   dispatch_queue: "Dispatch",
   retail_followup_queue: "Retail follow-up",
