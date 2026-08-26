@@ -85,6 +85,26 @@ async function upsertUserProfile({ id, email, roleKey, displayName }) {
   });
 }
 
+// Central's real email-login flow resolves both public.users and public.profiles.
+// A disposable auth.users + public.users identity without a profiles row signs in
+// at GoTrue but is then rejected by completeAuthLogin() as PROFILE_MISSING. Keep
+// the certification identity shaped like a real approved portal identity so the
+// harness exercises the application's actual login path rather than bypassing it.
+async function upsertLoginProfile({ id, email, roleKey }) {
+  await request("/rest/v1/profiles?on_conflict=id", {
+    method: "POST",
+    prefer: "resolution=merge-duplicates,return=representation",
+    body: [{
+      id,
+      email,
+      role: roleKey,
+      is_approved: true,
+      status: "approved",
+      company_id: null,
+    }],
+  });
+}
+
 async function linkRoleMap(userId, roleId) {
   await request("/rest/v1/user_role_map", {
     method: "POST",
@@ -101,6 +121,18 @@ async function verifyUserProfile(userId, expectedRole) {
   const actualRole = String(rows[0].role ?? "").trim().toLowerCase();
   if (actualRole !== expectedRole || rows[0].is_active !== true) {
     throw new Error(`Disposable identity ${userId} expected active role ${expectedRole}; got ${actualRole || "<empty>"}`);
+  }
+
+  const profileRows = await request(`/rest/v1/profiles?id=eq.${encodeURIComponent(userId)}&select=id,role,is_approved,status&limit=1`);
+  if (!Array.isArray(profileRows) || profileRows.length !== 1) {
+    throw new Error(`Disposable identity ${userId} is missing the public.profiles row required by Central login`);
+  }
+  const profileRole = String(profileRows[0].role ?? "").trim().toLowerCase();
+  const profileStatus = String(profileRows[0].status ?? "").trim().toLowerCase();
+  if (profileRole !== expectedRole || profileRows[0].is_approved !== true || profileStatus !== "approved") {
+    throw new Error(
+      `Disposable identity ${userId} login profile expected approved role ${expectedRole}; got role=${profileRole || "<empty>"}, approved=${String(profileRows[0].is_approved)}, status=${profileStatus || "<empty>"}`,
+    );
   }
 }
 
@@ -153,6 +185,7 @@ await upsertUserProfile({
   roleKey: bootstrapRole,
   displayName: "Factory Cert SUPER_ADMIN",
 });
+await upsertLoginProfile({ id: bootstrapId, email: bootstrapEmail, roleKey: bootstrapRole });
 await linkRoleMap(bootstrapId, bootstrapRoleId);
 await verifyUserProfile(bootstrapId, bootstrapRole);
 credentialLines.push(`export FACTORY_CERT_${envRole(bootstrapRole)}_EMAIL=${shellQuote(bootstrapEmail)}`);
@@ -201,6 +234,7 @@ for (const roleKey of allRoleKeys) {
     await linkRoleMap(id, roleId);
   }
 
+  await upsertLoginProfile({ id, email, roleKey });
   await verifyUserProfile(id, roleKey);
 
   const envKey = envRole(roleKey);
