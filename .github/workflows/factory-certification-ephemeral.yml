@@ -1,20 +1,32 @@
 name: Factory Operations Ephemeral Certification
 
 on:
+  pull_request:
+    branches: [main]
+    paths:
+      - '.github/workflows/factory-certification-ephemeral.yml'
+      - 'playwright.factory-cert.config.ts'
+      - 'scripts/factory-certification/**'
+      - 'src/lib/factoryCertification*.ts'
+      - 'src/lib/factoryOperations*.ts'
+      - 'src/lib/__tests__/factoryCertification*.test.ts'
+      - 'src/lib/__tests__/factoryOperations*.test.ts'
+      - 'tests/factory-operations-*.cert.spec.ts'
+      - 'tests/factory-certification/**'
   workflow_dispatch:
 
 permissions:
   contents: read
 
 concurrency:
-  group: factory-operations-certification-${{ github.ref }}
+  group: factory-operations-certification-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 jobs:
-  route-health-and-failure-injection:
-    name: Disposable Factory route/role/device certification
+  disposable-certification:
+    name: Disposable Factory certification
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 50
     env:
       FACTORY_CERT_CORE_REPO: ${{ github.workspace }}/oasis-supabase-core
       FACTORY_CERT_ALLOW_LOCAL_RESET: "true"
@@ -52,8 +64,9 @@ jobs:
           bash -n scripts/factory-certification/start-ephemeral.sh
           bash -n scripts/factory-certification/stop-ephemeral.sh
           node --check scripts/factory-certification/create-test-identities.mjs
+          node --check scripts/factory-certification/seed-production-fixtures.mjs
 
-      - name: Start canonical local Core and create disposable role identities
+      - name: Start canonical local Core, identities and deterministic fixtures
         shell: bash
         run: bash scripts/factory-certification/start-ephemeral.sh
 
@@ -71,6 +84,7 @@ jobs:
             echo "VITE_SUPABASE_URL=${API_URL}"
             echo "VITE_SUPABASE_PUBLISHABLE_KEY=${ANON_KEY}"
             echo "FACTORY_CERT_ENVIRONMENT_ID=factory-cert-gha-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+            echo "FACTORY_CERT_GOLDEN_JOB_SHORT_ID=E3ED28B0"
           } >> "${GITHUB_ENV}"
 
           # create-test-identities.mjs emits only base64url/alphanumeric
@@ -99,20 +113,36 @@ jobs:
           cat "${RUNNER_TEMP}/factory-central-preview.log"
           exit 1
 
-      - name: Run route/role/device health and read-failure certification
+      - name: Run governed Production truth and read-failure certification
+        run: >-
+          npx playwright test
+          tests/factory-operations-production-truth.cert.spec.ts
+          tests/factory-operations-failure-injection.cert.spec.ts
+          -c playwright.factory-cert.config.ts
+
+      - name: Run full route/role/device health on trusted manual dispatch
+        if: github.event_name == 'workflow_dispatch'
         run: >-
           npx playwright test
           tests/factory-operations-route-health.cert.spec.ts
-          tests/factory-operations-failure-injection.cert.spec.ts
           -c playwright.factory-cert.config.ts
 
       - name: Upload machine-readable certification result
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          name: factory-certification-route-health-${{ github.run_id }}-${{ github.run_attempt }}
+          name: factory-certification-${{ github.run_id }}-${{ github.run_attempt }}
           path: factory-certification-results.json
           if-no-files-found: warn
+          retention-days: 7
+
+      - name: Upload sanitized Central startup log on failure
+        if: failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: factory-central-startup-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/factory-central-preview.log
+          if-no-files-found: ignore
           retention-days: 7
 
       - name: Stop Central preview
