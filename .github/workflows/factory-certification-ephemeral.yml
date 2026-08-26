@@ -126,11 +126,58 @@ jobs:
           exit 1
 
       - name: Run governed Production truth and read-failure certification
+        id: production_cert
+        continue-on-error: true
         run: >-
           npx playwright test
           tests/factory-operations-production-truth.cert.spec.ts
           tests/factory-operations-failure-injection.cert.spec.ts
           -c playwright.factory-cert.config.ts
+
+      - name: Enforce six executed passes and zero skips
+        if: always()
+        shell: bash
+        run: |
+          node <<'NODE'
+          const fs = require('node:fs');
+          const path = 'factory-certification-results.json';
+          if (!fs.existsSync(path)) {
+            throw new Error('CERTIFICATION_RESULT_MISSING: Playwright JSON report was not produced');
+          }
+          const report = JSON.parse(fs.readFileSync(path, 'utf8'));
+          const statuses = [];
+          const visit = (value) => {
+            if (!value || typeof value !== 'object') return;
+            if (Array.isArray(value)) {
+              for (const item of value) visit(item);
+              return;
+            }
+            if (Array.isArray(value.results)) {
+              for (const result of value.results) {
+                if (typeof result?.status === 'string') statuses.push(result.status);
+              }
+            }
+            for (const [key, child] of Object.entries(value)) {
+              if (key !== 'results') visit(child);
+            }
+          };
+          visit(report.suites ?? report);
+          const counts = statuses.reduce((acc, status) => {
+            acc[status] = (acc[status] ?? 0) + 1;
+            return acc;
+          }, {});
+          console.log('Factory certification result counts:', counts);
+          if (statuses.length !== 6) {
+            throw new Error(`CERTIFICATION_COUNT_MISMATCH: expected exactly 6 required results, got ${statuses.length}`);
+          }
+          if ((counts.passed ?? 0) !== 6 || (counts.skipped ?? 0) !== 0 || (counts.failed ?? 0) !== 0 || (counts.timedOut ?? 0) !== 0 || (counts.interrupted ?? 0) !== 0) {
+            throw new Error(`CERTIFICATION_NOT_EXECUTED_PASS: ${JSON.stringify(counts)}`);
+          }
+          NODE
+          if [[ "${{ steps.production_cert.outcome }}" != "success" ]]; then
+            echo "Playwright command itself failed." >&2
+            exit 1
+          fi
 
       - name: Run full route/role/device health on trusted manual dispatch
         if: github.event_name == 'workflow_dispatch'
