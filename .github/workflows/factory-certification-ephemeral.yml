@@ -1,0 +1,129 @@
+name: Factory Operations Ephemeral Certification
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: factory-operations-certification-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  route-health-and-failure-injection:
+    name: Disposable Factory route/role/device certification
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      FACTORY_CERT_CORE_REPO: ${{ github.workspace }}/oasis-supabase-core
+      FACTORY_CERT_ALLOW_LOCAL_RESET: "true"
+      FACTORY_CERT_CREDENTIAL_FILE: ${{ runner.temp }}/factory-certification.env
+      FACTORY_CERT_TARGET_URL: http://127.0.0.1:4173
+
+    steps:
+      - name: Checkout Central certification branch
+        uses: actions/checkout@v4
+
+      - name: Checkout canonical Core schema authority
+        uses: actions/checkout@v4
+        with:
+          repository: oasisbaklawa2006/oasis-supabase-core
+          ref: main
+          path: oasis-supabase-core
+
+      - name: Set up pinned Supabase CLI
+        uses: supabase/setup-cli@v1
+        with:
+          version: 2.101.0
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install Central dependencies
+        run: npm ci
+
+      - name: Validate certification scripts before execution
+        shell: bash
+        run: |
+          bash -n scripts/factory-certification/start-ephemeral.sh
+          bash -n scripts/factory-certification/stop-ephemeral.sh
+          node --check scripts/factory-certification/create-test-identities.mjs
+
+      - name: Start canonical local Core and create disposable role identities
+        shell: bash
+        run: bash scripts/factory-certification/start-ephemeral.sh
+
+      - name: Export local backend and disposable identities to this job only
+        shell: bash
+        run: |
+          pushd oasis-supabase-core >/dev/null
+          supabase status -o env > "${RUNNER_TEMP}/factory-supabase.env"
+          popd >/dev/null
+          # shellcheck disable=SC1090
+          source "${RUNNER_TEMP}/factory-supabase.env"
+          {
+            echo "FACTORY_CERT_SUPABASE_URL=${API_URL}"
+            echo "FACTORY_CERT_SUPABASE_ANON_KEY=${ANON_KEY}"
+            echo "VITE_SUPABASE_URL=${API_URL}"
+            echo "VITE_SUPABASE_PUBLISHABLE_KEY=${ANON_KEY}"
+            echo "FACTORY_CERT_ENVIRONMENT_ID=factory-cert-gha-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          } >> "${GITHUB_ENV}"
+
+          # create-test-identities.mjs emits only base64url/alphanumeric
+          # passwords and example.invalid emails. Strip the shell `export`
+          # wrapper and quotes before adding them to the job environment.
+          sed -n -E "s/^export ([A-Z0-9_]+)='([^']*)'$/\1=\2/p" "${FACTORY_CERT_CREDENTIAL_FILE}" >> "${GITHUB_ENV}"
+
+      - name: Build Central against disposable local Core
+        run: npm run build
+
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Start built Central locally
+        shell: bash
+        run: |
+          npm run preview -- --host 127.0.0.1 --port 4173 > "${RUNNER_TEMP}/factory-central-preview.log" 2>&1 &
+          echo $! > "${RUNNER_TEMP}/factory-central-preview.pid"
+          for i in $(seq 1 60); do
+            if curl -fsS http://127.0.0.1:4173/login >/dev/null; then
+              echo "Central certification target is ready."
+              exit 0
+            fi
+            sleep 1
+          done
+          cat "${RUNNER_TEMP}/factory-central-preview.log"
+          exit 1
+
+      - name: Run route/role/device health and read-failure certification
+        run: >-
+          npx playwright test
+          tests/factory-operations-route-health.cert.spec.ts
+          tests/factory-operations-failure-injection.cert.spec.ts
+          -c playwright.factory-cert.config.ts
+
+      - name: Upload machine-readable certification result
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: factory-certification-route-health-${{ github.run_id }}-${{ github.run_attempt }}
+          path: factory-certification-results.json
+          if-no-files-found: warn
+          retention-days: 7
+
+      - name: Stop Central preview
+        if: always()
+        shell: bash
+        run: |
+          if [[ -f "${RUNNER_TEMP}/factory-central-preview.pid" ]]; then
+            kill "$(cat "${RUNNER_TEMP}/factory-central-preview.pid")" >/dev/null 2>&1 || true
+          fi
+
+      - name: Destroy disposable Core database without backup
+        if: always()
+        shell: bash
+        run: bash scripts/factory-certification/stop-ephemeral.sh || true
