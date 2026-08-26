@@ -1,16 +1,9 @@
 import { useEffect, useState, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import type { Database } from "@/integrations/supabase/types";
 import { Loader2, RefreshCw, Clock, Package, AlertTriangle, Zap } from "lucide-react";
 import { getPackDescription, getPrimaryPackWeightKg } from "@/utils/pricing";
 import { tvGroupOf } from "@/lib/productProductionDepartments";
-
-// Temporary typed boundary: canonical_department is a governed column added
-// by oasis-supabase-core's 20260817090000 taxonomy migration, pending
-// regenerated project-wide Supabase definitions (same pattern as
-// OperationsController.tsx's productionJobsDb and ReadyGoodsStore.tsx's
-// operationsDb).
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const productionJobsDb = supabase as unknown as { from: (relation: string) => any };
 
 // production_jobs is the governed production execution authority (RGS
 // shortage demand -> create_production_shortage_demand -> production_jobs,
@@ -25,31 +18,37 @@ const productionJobsDb = supabase as unknown as { from: (relation: string) => an
 // TV's canonical department group, for every open job regardless of
 // priority; priority only changes visual treatment (flash banner + red
 // card), never whether a job appears at all.
-type ProductionJobProduct = {
-  name: string;
-  sku: string | null;
-  image_url: string | null;
-  uom: string | null;
-  net_weight_grams: number | null;
-  avg_weight_per_pack: number | null;
-  category: string | null;
-  sub_category: string | null;
-  packs_per_master_carton: number | null;
-  pcs_per_master_carton: number | null;
-  moq: number | null;
-} | null;
+type ProductRow = Database["public"]["Tables"]["products"]["Row"];
+type ProductionJobBase = Database["public"]["Tables"]["production_jobs"]["Row"];
 
-interface ProductionJobRow {
-  id: string;
-  order_id: string | null;
-  assigned_qty: number;
-  produced_qty: number | null;
-  priority: string;
-  status: string;
-  department: string | null;
-  created_at: string | null;
+type ProductionJobProduct = Pick<
+  ProductRow,
+  | "name"
+  | "sku"
+  | "image_url"
+  | "uom"
+  | "net_weight_grams"
+  | "avg_weight_per_pack"
+  | "category"
+  | "sub_category"
+  | "packs_per_master_carton"
+  | "pcs_per_master_carton"
+  | "moq"
+> | null;
+
+type ProductionJobRow = Pick<
+  ProductionJobBase,
+  | "id"
+  | "order_id"
+  | "assigned_qty"
+  | "produced_qty"
+  | "priority"
+  | "status"
+  | "department"
+  | "created_at"
+> & {
   product: ProductionJobProduct;
-}
+};
 
 interface OrderLookup {
   id: string;
@@ -81,7 +80,7 @@ const FactoryTVModule = ({ category, departmentFilter, title }: FactoryTVModuleP
       return;
     }
 
-    const { data, error: jobsError } = await productionJobsDb
+    const { data, error: jobsError } = await supabase
       .from("production_jobs")
       .select(
         "id, order_id, assigned_qty, produced_qty, priority, status, department, created_at, product:products(name, sku, image_url, uom, net_weight_grams, avg_weight_per_pack, category, sub_category, packs_per_master_carton, pcs_per_master_carton, moq)",
@@ -147,7 +146,6 @@ const FactoryTVModule = ({ category, departmentFilter, title }: FactoryTVModuleP
 
   return (
     <div className="fixed inset-0 bg-gray-900 text-white z-[100] flex flex-col overflow-hidden">
-      {/* Header */}
       <header className="flex items-center justify-between px-8 py-4 bg-gray-800 border-b-2 border-emerald-500 shrink-0">
         <div className="flex items-center gap-4">
           <Package size={36} className="text-emerald-400" />
@@ -171,8 +169,6 @@ const FactoryTVModule = ({ category, departmentFilter, title }: FactoryTVModuleP
         </div>
       </header>
 
-      {/* Urgent Jobs Flash Banner -- affects visual priority only; every job
-          below (urgent or not) already appears in the main grid. */}
       {urgentJobs.length > 0 && (
         <div className="bg-red-600 px-8 py-3 flex items-center gap-4 animate-pulse shrink-0" style={{ animationDuration: "1.5s" }}>
           <Zap size={28} className="text-white shrink-0" />
@@ -191,7 +187,6 @@ const FactoryTVModule = ({ category, departmentFilter, title }: FactoryTVModuleP
         </div>
       )}
 
-      {/* Job Grid */}
       <main className="flex-1 overflow-auto p-6">
         {jobs.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full text-gray-500">
@@ -231,7 +226,6 @@ const FactoryTVModule = ({ category, departmentFilter, title }: FactoryTVModuleP
                   }`}
                   style={isUrgent ? { animationDuration: "3s" } : undefined}
                 >
-                  {/* Job Header */}
                   <div className="flex justify-between items-start">
                     <div>
                       <p className="text-3xl font-black text-white tracking-wide">
@@ -255,7 +249,6 @@ const FactoryTVModule = ({ category, departmentFilter, title }: FactoryTVModuleP
                     </div>
                   </div>
 
-                  {/* Item Row */}
                   <div className="flex-1 space-y-2">
                     <div className="flex justify-between items-center bg-gray-900/40 rounded-lg px-4 py-3">
                       <div className="flex-1">
@@ -274,7 +267,6 @@ const FactoryTVModule = ({ category, departmentFilter, title }: FactoryTVModuleP
                     </div>
                   </div>
 
-                  {/* Assigned / Produced KPI */}
                   <div className="bg-gray-900/60 rounded-xl px-4 py-3 flex items-center justify-between">
                     <span className="text-lg text-gray-400">Assigned / Produced</span>
                     <span className="text-2xl font-black text-emerald-400">
@@ -282,7 +274,6 @@ const FactoryTVModule = ({ category, departmentFilter, title }: FactoryTVModuleP
                     </span>
                   </div>
 
-                  {/* Status */}
                   <div className="pt-2 border-t border-gray-700">
                     <span
                       className={`inline-block px-3 py-1 rounded-full text-sm font-bold uppercase tracking-wider ${
@@ -303,7 +294,6 @@ const FactoryTVModule = ({ category, departmentFilter, title }: FactoryTVModuleP
         )}
       </main>
 
-      {/* Footer Ticker */}
       <footer className="bg-gray-800 border-t border-gray-700 px-8 py-3 flex items-center justify-between shrink-0">
         <p className="text-sm text-gray-500">
           {title} • Factory TV Module • Auto-refreshes every 30s
