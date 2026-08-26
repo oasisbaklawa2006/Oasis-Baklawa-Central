@@ -16,8 +16,6 @@ jobs:
     name: Typecheck, unit test, production build, and Playwright smoke
     runs-on: ubuntu-latest
     timeout-minutes: 30
-    outputs:
-      factory_cert: ${{ steps.changes.outputs.factory_cert }}
 
     steps:
       - name: Checkout
@@ -48,6 +46,8 @@ jobs:
           git diff --name-only "$BASE_SHA" HEAD > /tmp/changed-files.txt
           cat /tmp/changed-files.txt
 
+          # Added/modified/renamed files only (excludes deletions), so retiring
+          # migrations out of this repo doesn't itself trip the ownership check.
           git diff --name-only --diff-filter=ACMR "$BASE_SHA" HEAD > /tmp/changed-files-non-deleted.txt
 
           has_match() {
@@ -59,21 +59,18 @@ jobs:
           MIGRATION=false
           TOOLING=false
           TESTS=false
-          FACTORY_CERT=false
 
           has_match '^(src/|public/|index.html$|vite\.config\.|tsconfig|package\.json$|package-lock\.json$)' && APP=true || true
           has_match '^(src/|public/|tests/.*\.(spec|test)\.(ts|tsx)$|playwright.*\.ts$)' && UI=true || true
           has_match '^(supabase/migrations/|supabase/uat/)' && MIGRATION=true || true
           has_match '^(\.github/workflows/|scripts/|eslint\.config\.|package\.json$|package-lock\.json$)' && TOOLING=true || true
           has_match '(^|/)(tests?|__tests__)/|\.(spec|test)\.(ts|tsx)$' && TESTS=true || true
-          has_match '^(\.github/workflows/factory-certification-ephemeral\.yml$|playwright\.factory-cert\.config\.ts$|scripts/factory-certification/|src/lib/factoryCertification|src/lib/factoryOperations|src/lib/__tests__/factoryCertification|src/lib/__tests__/factoryOperations|tests/factory-operations-.*\.cert\.spec\.ts$|tests/factory-certification/)' && FACTORY_CERT=true || true
 
           echo "app=$APP" >> "$GITHUB_OUTPUT"
           echo "ui=$UI" >> "$GITHUB_OUTPUT"
           echo "migration=$MIGRATION" >> "$GITHUB_OUTPUT"
           echo "tooling=$TOOLING" >> "$GITHUB_OUTPUT"
           echo "tests=$TESTS" >> "$GITHUB_OUTPUT"
-          echo "factory_cert=$FACTORY_CERT" >> "$GITHUB_OUTPUT"
 
       - name: Enforce canonical Supabase migration ownership
         if: github.event_name == 'pull_request'
@@ -122,27 +119,18 @@ jobs:
         if: steps.changes.outputs.app == 'true' || steps.changes.outputs.migration == 'true' || steps.changes.outputs.tooling == 'true' || steps.changes.outputs.tests == 'true'
         run: npm run test
 
-      - name: Factory certification harness static validation
-        if: steps.changes.outputs.app == 'true' || steps.changes.outputs.ui == 'true' || steps.changes.outputs.tooling == 'true' || steps.changes.outputs.tests == 'true'
-        shell: bash
-        run: |
-          set -euo pipefail
-          if [ -f scripts/factory-certification/start-ephemeral.sh ]; then
-            bash -n scripts/factory-certification/start-ephemeral.sh
-            bash -n scripts/factory-certification/stop-ephemeral.sh
-            node --check scripts/factory-certification/create-test-identities.mjs
-            node --check scripts/factory-certification/seed-production-fixtures.mjs
-          fi
-          if [ -f tests/factory-route-source-reconciliation.spec.ts ]; then
-            npx playwright test tests/factory-route-source-reconciliation.spec.ts --project=desktop-chrome-size
-          fi
-          if [ -f playwright.factory-cert.config.ts ]; then
-            npx playwright test --list -c playwright.factory-cert.config.ts
-          fi
-
       - name: Production build
         if: steps.changes.outputs.app == 'true' || steps.changes.outputs.ui == 'true' || steps.changes.outputs.tooling == 'true'
         env:
+          # Publishable/anon values only (never a service-role key) -- these
+          # are safe to bake into a client bundle by Supabase's own design
+          # (the live production site already ships this exact anon key to
+          # every visitor's browser; real access control is RLS, not secrecy
+          # of this value). Without these the built app's supabase-js client
+          # throws "supabaseUrl is required" at module load in every browser
+          # context, which silently broke this CI build's ability to render
+          # ANY route -- including the ones visual-audit.spec.ts already
+          # screenshots -- before this fix.
           VITE_SUPABASE_URL: https://tcxvcatsqqertcnycuop.supabase.co
           VITE_SUPABASE_PUBLISHABLE_KEY: sb_publishable_UbNV2X25YHY3cupjpoLsjw_RhlDG4f_
         run: npm run build
@@ -173,6 +161,25 @@ jobs:
           TEST_PREVIEW_URL: http://127.0.0.1:4173
         run: npx playwright test tests/visual-audit.spec.ts --project=desktop-chrome-size --trace=on
 
+      # Lane 1 (Central issue #368) authenticated e2e chain coverage
+      # (tests/lane1-live-smoke.spec.ts) is deliberately NOT wired into this
+      # automatic pull_request-triggered gate. It authenticates with real
+      # production QA passwords; folding it in here would mean any commit on
+      # any PR branch could modify this spec file (or the login page it
+      # drives) to exfiltrate those live credentials to an attacker-chosen
+      # host the moment CI runs, before any human reviews the diff -- a
+      # same-repo-PR credential-exfiltration path with no mitigation, unlike
+      # its existing home, lane1-live-smoke.yml, which is workflow_dispatch
+      # -only and therefore requires a trusted maintainer to deliberately
+      # trigger it against a fixed, non-overridable target
+      # (https://b2b.oasisbaklawa.com only). This is a proven, real
+      # incompatibility (flagged by CodeRabbit's security review on this PR)
+      # -- not an oversight -- and is analogous to why
+      # tests/lane2-pna-e2e-chain.spec.ts also stays off this gate. Making
+      # Lane 1 B3 safe to promote would require a disposable non-production
+      # tenant/credential set for PR-triggered runs, which is a separate,
+      # larger change outside this PR's scope.
+
       - name: Docs-only fast pass
         if: steps.changes.outputs.app != 'true' && steps.changes.outputs.ui != 'true' && steps.changes.outputs.migration != 'true' && steps.changes.outputs.tooling != 'true' && steps.changes.outputs.tests != 'true'
         run: echo "Documentation-only or metadata-only change; expensive application checks skipped."
@@ -187,142 +194,3 @@ jobs:
             test-results/
           if-no-files-found: ignore
           retention-days: 7
-
-  factory-certification:
-    name: Disposable Factory certification
-    needs: quality-gate
-    if: needs.quality-gate.outputs.factory_cert == 'true'
-    runs-on: ubuntu-latest
-    timeout-minutes: 50
-    permissions:
-      contents: read
-    env:
-      FACTORY_CERT_CORE_REPO: ${{ github.workspace }}/oasis-supabase-core
-      FACTORY_CERT_ALLOW_LOCAL_RESET: "true"
-      FACTORY_CERT_CREDENTIAL_FILE: ${{ runner.temp }}/factory-certification.env
-      FACTORY_CERT_TARGET_URL: http://127.0.0.1:4173
-
-    steps:
-      - name: Checkout Central certification branch
-        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
-
-      - name: Checkout canonical Core schema authority
-        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
-        with:
-          repository: oasisbaklawa2006/oasis-supabase-core
-          ref: main
-          path: oasis-supabase-core
-
-      - name: Verify merged Core Production role-alias authority
-        shell: bash
-        run: |
-          migration="oasis-supabase-core/supabase/migrations/20260826043000_factory_production_role_alias_parity.sql"
-          test -f "${migration}"
-          grep -q "PROD_ARABIC_SWEETS" "${migration}"
-          grep -q "PROD_DRAGEES" "${migration}"
-
-      - name: Set up pinned Supabase CLI
-        uses: supabase/setup-cli@ab058987d8d6c725971f6cf9d0b5c98467e30bd1
-        with:
-          version: 2.101.0
-
-      - name: Setup Node
-        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
-        with:
-          node-version: 22
-          cache: npm
-
-      - name: Install Central dependencies
-        run: npm ci
-
-      - name: Validate certification scripts before execution
-        shell: bash
-        run: |
-          bash -n scripts/factory-certification/start-ephemeral.sh
-          bash -n scripts/factory-certification/stop-ephemeral.sh
-          node --check scripts/factory-certification/create-test-identities.mjs
-          node --check scripts/factory-certification/seed-production-fixtures.mjs
-
-      - name: Start canonical local Core, identities and deterministic fixtures
-        shell: bash
-        run: bash scripts/factory-certification/start-ephemeral.sh
-
-      - name: Export local backend and disposable identities to this job only
-        shell: bash
-        run: |
-          pushd oasis-supabase-core >/dev/null
-          supabase status -o env > "${RUNNER_TEMP}/factory-supabase.env"
-          popd >/dev/null
-          source "${RUNNER_TEMP}/factory-supabase.env"
-          {
-            echo "FACTORY_CERT_SUPABASE_URL=${API_URL}"
-            echo "FACTORY_CERT_SUPABASE_ANON_KEY=${ANON_KEY}"
-            echo "VITE_SUPABASE_URL=${API_URL}"
-            echo "VITE_SUPABASE_PUBLISHABLE_KEY=${ANON_KEY}"
-            echo "FACTORY_CERT_ENVIRONMENT_ID=factory-cert-gha-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
-            echo "FACTORY_CERT_GOLDEN_JOB_SHORT_ID=E3ED28B0"
-          } >> "${GITHUB_ENV}"
-          while IFS= read -r cred_line; do
-            if [[ "${cred_line}" =~ ^export\ ([A-Z0-9_]+)_PASSWORD=\'([^\']*)\'$ ]]; then
-              echo "::add-mask::${BASH_REMATCH[2]}"
-            fi
-          done < "${FACTORY_CERT_CREDENTIAL_FILE}"
-          sed -n -E "s/^export ([A-Z0-9_]+)='([^']*)'$/\1=\2/p" "${FACTORY_CERT_CREDENTIAL_FILE}" >> "${GITHUB_ENV}"
-
-      - name: Build Central against disposable local Core
-        run: npm run build
-
-      - name: Install Chromium
-        run: npx playwright install --with-deps chromium
-
-      - name: Start built Central locally
-        shell: bash
-        run: |
-          npm run preview -- --host 127.0.0.1 --port 4173 > "${RUNNER_TEMP}/factory-central-preview.log" 2>&1 &
-          echo $! > "${RUNNER_TEMP}/factory-central-preview.pid"
-          for i in $(seq 1 60); do
-            if curl -fsS http://127.0.0.1:4173/login >/dev/null; then
-              exit 0
-            fi
-            sleep 1
-          done
-          cat "${RUNNER_TEMP}/factory-central-preview.log"
-          exit 1
-
-      - name: Run governed Production truth and read-failure certification
-        run: >-
-          npx playwright test
-          tests/factory-operations-production-truth.cert.spec.ts
-          tests/factory-operations-failure-injection.cert.spec.ts
-          -c playwright.factory-cert.config.ts
-
-      - name: Upload machine-readable certification result
-        if: always()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
-        with:
-          name: factory-certification-${{ github.run_id }}-${{ github.run_attempt }}
-          path: factory-certification-results.json
-          if-no-files-found: warn
-          retention-days: 7
-
-      - name: Upload sanitized Central startup log on failure
-        if: failure()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
-        with:
-          name: factory-central-startup-${{ github.run_id }}-${{ github.run_attempt }}
-          path: ${{ runner.temp }}/factory-central-preview.log
-          if-no-files-found: ignore
-          retention-days: 7
-
-      - name: Stop Central preview
-        if: always()
-        shell: bash
-        run: |
-          if [[ -f "${RUNNER_TEMP}/factory-central-preview.pid" ]]; then
-            kill "$(cat "${RUNNER_TEMP}/factory-central-preview.pid")" >/dev/null 2>&1 || true
-          fi
-
-      - name: Destroy disposable Core database without backup
-        if: always()
-        shell: bash
-        run: bash scripts/factory-certification/stop-ephemeral.sh || true
