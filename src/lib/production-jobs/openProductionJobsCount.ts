@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import type { Database } from "@/integrations/supabase/types";
 
 /**
  * Authoritative "open" statuses for a governed production_jobs row -- a job
@@ -27,7 +28,7 @@ export interface OpenProductionJobsCountResult {
  * membership) so the two numbers are never conflated under one label.
  */
 export async function fetchOpenProductionJobsCount(
-  client: SupabaseClient,
+  client: SupabaseClient<Database>,
 ): Promise<OpenProductionJobsCountResult> {
   try {
     const { count, error } = await client
