@@ -119,6 +119,26 @@ jobs:
         if: steps.changes.outputs.app == 'true' || steps.changes.outputs.migration == 'true' || steps.changes.outputs.tooling == 'true' || steps.changes.outputs.tests == 'true'
         run: npm run test
 
+      - name: Factory certification harness static validation
+        if: steps.changes.outputs.app == 'true' || steps.changes.outputs.ui == 'true' || steps.changes.outputs.tooling == 'true' || steps.changes.outputs.tests == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -f scripts/factory-certification/start-ephemeral.sh ]; then
+            bash -n scripts/factory-certification/start-ephemeral.sh
+            bash -n scripts/factory-certification/stop-ephemeral.sh
+            node --check scripts/factory-certification/create-test-identities.mjs
+          fi
+          if [ -f tests/factory-route-source-reconciliation.spec.ts ]; then
+            npx playwright test tests/factory-route-source-reconciliation.spec.ts --project=desktop-chrome-size
+          fi
+          if [ -f playwright.factory-cert.config.ts ]; then
+            # Compile/discover the credentialed suites without executing them.
+            # Full credentialed execution is reserved for the disposable
+            # workflow_dispatch environment and never receives production secrets.
+            npx playwright test --list -c playwright.factory-cert.config.ts
+          fi
+
       - name: Production build
         if: steps.changes.outputs.app == 'true' || steps.changes.outputs.ui == 'true' || steps.changes.outputs.tooling == 'true'
         env:
