@@ -44,6 +44,15 @@ jobs:
           ref: main
           path: oasis-supabase-core
 
+      - name: Verify merged Core Production role-alias authority
+        shell: bash
+        run: |
+          migration="oasis-supabase-core/supabase/migrations/20260826043000_factory_production_role_alias_parity.sql"
+          test -f "${migration}"
+          grep -q "PROD_ARABIC_SWEETS" "${migration}"
+          grep -q "PROD_DRAGEES" "${migration}"
+          echo "Core main contains the Factory Production role-alias parity migration."
+
       - name: Set up pinned Supabase CLI
         uses: supabase/setup-cli@ab058987d8d6c725971f6cf9d0b5c98467e30bd1 # v1.7.1
         with:
