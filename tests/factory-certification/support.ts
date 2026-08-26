@@ -1,0 +1,255 @@
+import { expect, type Page } from "@playwright/test";
+import type { FactoryRouteEntry } from "../../src/lib/factoryOperationsRouteRegistry";
+import { FACTORY_OPERATIONS_ROUTES } from "../../src/lib/factoryOperationsRouteRegistry";
+import {
+  factoryCertificationCredentialSpec,
+  findDuplicateCertificationEmails,
+} from "../../src/lib/factoryCertificationCredentialPolicy";
+import {
+  validateFactoryCertificationBackend,
+  validateFactoryCertificationTarget,
+} from "../../src/lib/factoryCertificationEnvironmentPolicy";
+
+export type FactoryCertificationCredentials = {
+  role: string;
+  email: string;
+  password: string;
+};
+
+export type FactoryCertificationViewport = {
+  name: "mobile" | "tablet" | "desktop" | "tv";
+  width: number;
+  height: number;
+};
+
+export type FactoryProductionJobTruth = {
+  id: string;
+  canonical_department: string | null;
+  status: string;
+  assigned_qty: number;
+  produced_qty: number | null;
+  priority: string;
+  order_id: string | null;
+};
+
+const OPEN_PRODUCTION_STATUSES = ["pending", "accepted", "in_production", "paused"];
+
+function isRemoteEphemeralAllowed(): boolean {
+  return process.env.FACTORY_CERT_ALLOW_REMOTE_EPHEMERAL === "true";
+}
+
+export function hasFactoryCertificationTarget(): boolean {
+  return Boolean(process.env.FACTORY_CERT_TARGET_URL?.trim());
+}
+
+export function resolveFactoryCertificationTarget(): string {
+  const targetUrl = process.env.FACTORY_CERT_TARGET_URL?.trim();
+  if (!targetUrl) throw new Error("CERTIFICATION_ENV_REQUIRED: FACTORY_CERT_TARGET_URL is missing");
+
+  const policy = validateFactoryCertificationTarget({
+    targetUrl,
+    allowRemoteEphemeral: isRemoteEphemeralAllowed(),
+    allowedHost: process.env.FACTORY_CERT_ALLOWED_HOST,
+    environmentId: process.env.FACTORY_CERT_ENVIRONMENT_ID,
+  });
+  if (!policy.valid || !policy.normalizedUrl) {
+    throw new Error(`UNSAFE_CERTIFICATION_TARGET: ${policy.reason ?? "target rejected"}`);
+  }
+  return policy.normalizedUrl;
+}
+
+export function hasFactoryCertificationBackend(): boolean {
+  return Boolean(
+    process.env.FACTORY_CERT_SUPABASE_URL?.trim() &&
+    process.env.FACTORY_CERT_SUPABASE_ANON_KEY?.trim(),
+  );
+}
+
+export function resolveFactoryCertificationBackend(): { url: string; anonKey: string } {
+  const supabaseUrl = process.env.FACTORY_CERT_SUPABASE_URL?.trim();
+  const anonKey = process.env.FACTORY_CERT_SUPABASE_ANON_KEY?.trim();
+  if (!supabaseUrl || !anonKey) {
+    throw new Error("CERTIFICATION_ENV_REQUIRED: FACTORY_CERT_SUPABASE_URL / FACTORY_CERT_SUPABASE_ANON_KEY missing");
+  }
+
+  const policy = validateFactoryCertificationBackend({
+    supabaseUrl,
+    allowRemoteEphemeral: isRemoteEphemeralAllowed(),
+    allowedSupabaseHost: process.env.FACTORY_CERT_ALLOWED_SUPABASE_HOST,
+    environmentId: process.env.FACTORY_CERT_ENVIRONMENT_ID,
+  });
+  if (!policy.valid || !policy.normalizedUrl) {
+    throw new Error(`UNSAFE_CERTIFICATION_BACKEND: ${policy.reason ?? "backend rejected"}`);
+  }
+  return { url: policy.normalizedUrl, anonKey };
+}
+
+export function readFactoryCertificationCredentials(role: string): FactoryCertificationCredentials | null {
+  const spec = factoryCertificationCredentialSpec(role);
+  const email = process.env[spec.emailEnv]?.trim();
+  const password = process.env[spec.passwordEnv]?.trim();
+  if (!email || !password) return null;
+  return { role: spec.role, email, password };
+}
+
+export function assertNoProvidedCredentialReuse(roles: readonly string[]): void {
+  const identities = roles
+    .map(readFactoryCertificationCredentials)
+    .filter((credential): credential is FactoryCertificationCredentials => Boolean(credential))
+    .map(({ role, email }) => ({ role, email }));
+  const duplicates = findDuplicateCertificationEmails(identities);
+  if (duplicates.length > 0) {
+    throw new Error(
+      `ROLE_CREDENTIAL_REUSE: ${duplicates.map((d) => `${d.email} => ${d.roles.join("/")}`).join("; ")}`,
+    );
+  }
+}
+
+export function resolveCertificationRole(entry: FactoryRouteEntry): string {
+  if (entry.intendedPrimaryAudience.length > 0) return entry.intendedPrimaryAudience[0];
+
+  if (entry.status === "LEGACY_REDIRECT" && entry.legacyRedirectTarget) {
+    const target = FACTORY_OPERATIONS_ROUTES.find((candidate) => candidate.route === entry.legacyRedirectTarget);
+    if (target?.intendedPrimaryAudience.length) return target.intendedPrimaryAudience[0];
+  }
+
+  if (entry.technicallyAllowedRoles.includes("ADMIN")) return "ADMIN";
+  if (entry.technicallyAllowedRoles.length > 0) return entry.technicallyAllowedRoles[0];
+  throw new Error(`NO_CERTIFICATION_ROLE: ${entry.route} has no technically allowed role`);
+}
+
+export function certificationViewports(entry: FactoryRouteEntry): FactoryCertificationViewport[] {
+  if (entry.deviceClass === "TV") return [{ name: "tv", width: 1920, height: 1080 }];
+  if (entry.deviceClass === "BOTH") {
+    return [
+      { name: "mobile", width: 390, height: 844 },
+      { name: "tablet", width: 768, height: 1024 },
+      { name: "desktop", width: 1440, height: 900 },
+      { name: "tv", width: 1920, height: 1080 },
+    ];
+  }
+  return [
+    { name: "mobile", width: 390, height: 844 },
+    { name: "tablet", width: 768, height: 1024 },
+    { name: "desktop", width: 1440, height: 900 },
+  ];
+}
+
+export async function loginToFactoryCertificationTarget(
+  page: Page,
+  credentials: FactoryCertificationCredentials,
+): Promise<void> {
+  const target = resolveFactoryCertificationTarget();
+  await page.goto(`${target}/login`, { waitUntil: "domcontentloaded", timeout: 60_000 });
+  await expect(page.getByRole("heading", { name: /Welcome Back/i })).toBeVisible({ timeout: 30_000 });
+  await page.getByRole("button", { name: /^Email$/i }).click();
+  await page.getByPlaceholder("you@business.com").fill(credentials.email);
+  await page.getByPlaceholder("••••••••").fill(credentials.password);
+  await page.getByRole("button", { name: /^Login$/i }).click();
+  await page.waitForURL((url) => !/\/login(?:\/|$|\?)/i.test(url.pathname), { timeout: 120_000 });
+}
+
+type BrowserSessionProof = { accessToken: string; userId: string };
+
+export async function readBrowserSessionProof(page: Page): Promise<BrowserSessionProof> {
+  const proof = await page.evaluate(() => {
+    type SessionLike = { access_token?: unknown; user?: { id?: unknown } };
+
+    const findSession = (value: unknown): SessionLike | null => {
+      if (!value || typeof value !== "object") return null;
+      const candidate = value as SessionLike;
+      if (typeof candidate.access_token === "string" && typeof candidate.user?.id === "string") {
+        return candidate;
+      }
+      if (Array.isArray(value)) {
+        for (const child of value) {
+          const found = findSession(child);
+          if (found) return found;
+        }
+        return null;
+      }
+      for (const child of Object.values(value as Record<string, unknown>)) {
+        const found = findSession(child);
+        if (found) return found;
+      }
+      return null;
+    };
+
+    for (let i = 0; i < localStorage.length; i += 1) {
+      const key = localStorage.key(i);
+      if (!key) continue;
+      const raw = localStorage.getItem(key);
+      if (!raw) continue;
+      try {
+        const found = findSession(JSON.parse(raw));
+        if (found && typeof found.access_token === "string" && typeof found.user?.id === "string") {
+          return { accessToken: found.access_token, userId: found.user.id };
+        }
+      } catch {
+        // Ignore unrelated localStorage values; only a valid Supabase session is accepted.
+      }
+    }
+    return null;
+  });
+
+  if (!proof) throw new Error("AUTH_SESSION_MISSING: authenticated Supabase session not found in browser storage");
+  return proof;
+}
+
+async function queryCertificationRest<T>(
+  page: Page,
+  relation: string,
+  params: Record<string, string>,
+): Promise<T[]> {
+  const backend = resolveFactoryCertificationBackend();
+  const session = await readBrowserSessionProof(page);
+  const url = new URL(`/rest/v1/${relation}`, backend.url);
+  for (const [key, value] of Object.entries(params)) url.searchParams.set(key, value);
+
+  const response = await fetch(url, {
+    headers: {
+      apikey: backend.anonKey,
+      Authorization: `Bearer ${session.accessToken}`,
+      Accept: "application/json",
+    },
+  });
+  const body = await response.text();
+  if (!response.ok) {
+    throw new Error(`BACKEND_READ_FAILED ${relation} HTTP ${response.status}: ${body.slice(0, 400)}`);
+  }
+  const parsed = body ? JSON.parse(body) : [];
+  if (!Array.isArray(parsed)) throw new Error(`BACKEND_READ_INVALID ${relation}: expected array response`);
+  return parsed as T[];
+}
+
+export async function verifyAuthenticatedRole(page: Page, expectedRole: string): Promise<void> {
+  const session = await readBrowserSessionProof(page);
+  const rows = await queryCertificationRest<{ id: string; role: string | null }>(page, "users", {
+    select: "id,role",
+    id: `eq.${session.userId}`,
+    limit: "1",
+  });
+  expect(rows, `Authenticated user ${session.userId} must exist in public.users`).toHaveLength(1);
+  const actualRole = String(rows[0].role ?? "").trim().toUpperCase();
+  expect(actualRole, `Credential must prove role ${expectedRole}; got ${actualRole || "<empty>"}`).toBe(expectedRole);
+}
+
+export async function readAuthoritativeProductionJobs(
+  page: Page,
+  canonicalDepartment: string,
+): Promise<FactoryProductionJobTruth[]> {
+  return queryCertificationRest<FactoryProductionJobTruth>(page, "production_jobs", {
+    select: "id,canonical_department,status,assigned_qty,produced_qty,priority,order_id",
+    canonical_department: `eq.${canonicalDepartment}`,
+    status: `in.(${OPEN_PRODUCTION_STATUSES.join(",")})`,
+    order: "created_at.asc",
+  });
+}
+
+export function expectedDestinationFor(entry: FactoryRouteEntry): string {
+  if (entry.status === "LEGACY_REDIRECT") {
+    if (!entry.legacyRedirectTarget) throw new Error(`LEGACY_REDIRECT_MISSING_TARGET: ${entry.route}`);
+    return entry.legacyRedirectTarget;
+  }
+  return entry.route;
+}
