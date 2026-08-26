@@ -446,7 +446,7 @@ jobs:
           set -euo pipefail
           evidence_dir="${GITHUB_WORKSPACE}/factory-custody-evidence"
           git rev-parse HEAD > "${evidence_dir}/trace-commit.txt"
-          npm exec -- vitest run \
+          npm run test -- \
             src/lib/scanContract.test.ts \
             src/lib/scanService.test.ts \
             src/lib/traceChain.test.ts \
