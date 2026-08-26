@@ -1,12 +1,9 @@
 import { useEffect, useState } from "react";
-import type { SupabaseClient } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 import {
   fetchOpenProductionJobsCount,
   type OpenProductionJobsCountResult,
 } from "@/lib/production-jobs/openProductionJobsCount";
-
-const operationalDb = supabase as unknown as SupabaseClient;
 
 /**
  * Authoritative open production_jobs count -- independent of the legacy
@@ -20,7 +17,7 @@ export function useOpenProductionJobsCount() {
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
-    fetchOpenProductionJobsCount(operationalDb).then((res) => {
+    fetchOpenProductionJobsCount(supabase).then((res) => {
       if (!cancelled) {
         setResult(res);
         setLoading(false);
