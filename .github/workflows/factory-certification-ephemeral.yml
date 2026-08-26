@@ -173,7 +173,7 @@ jobs:
           if (statuses.length !== 7) {
             throw new Error(`CERTIFICATION_COUNT_MISMATCH: expected exactly 7 required results, got ${statuses.length}`);
           }
-          if ((counts.passed ?? 0) !== 6 || (counts.skipped ?? 0) !== 0 || (counts.failed ?? 0) !== 0 || (counts.timedOut ?? 0) !== 0 || (counts.interrupted ?? 0) !== 0) {
+          if ((counts.passed ?? 0) !== 7 || (counts.skipped ?? 0) !== 0 || (counts.failed ?? 0) !== 0 || (counts.timedOut ?? 0) !== 0 || (counts.interrupted ?? 0) !== 0) {
             throw new Error(`CERTIFICATION_NOT_EXECUTED_PASS: ${JSON.stringify(counts)}`);
           }
           NODE
