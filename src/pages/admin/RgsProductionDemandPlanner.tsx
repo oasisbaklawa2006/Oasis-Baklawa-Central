@@ -35,6 +35,11 @@ type Reservation = {
   product: Pick<DemandProduct, "name" | "production_department"> | null;
 };
 
+type ReservationCoverage = Pick<
+  Reservation,
+  "requested_qty" | "reserved_qty" | "fulfilled_qty" | "released_qty"
+>;
+
 type SkuDemand = {
   key: string;
   sku: string;
@@ -43,6 +48,19 @@ type SkuDemand = {
   totalShortage: number;
   reservationIds: string[];
 };
+
+/**
+ * Core release_rgs_reservation decrements reserved_qty and increments
+ * released_qty in the same transaction. Therefore released_qty is historical
+ * evidence, not additional current coverage. Subtracting it again would hide
+ * newly-uncovered demand after a release.
+ */
+export function calculateOpenReservationShortage(reservation: ReservationCoverage): number {
+  const requested = Math.max(0, Number(reservation.requested_qty));
+  const reserved = Math.max(0, Number(reservation.reserved_qty));
+  const fulfilled = Math.max(0, Number(reservation.fulfilled_qty));
+  return Math.max(0, requested - reserved - fulfilled);
+}
 
 /**
  * RGS PC capability #6 (Production Demand Planner): a standalone SKU-wise
@@ -117,8 +135,7 @@ export default function RgsProductionDemandPlanner() {
   const skuDemand = useMemo(() => {
     const byKey = new Map<string, SkuDemand>();
     for (const reservation of reservations) {
-      const shortage = Number(reservation.requested_qty) - Number(reservation.reserved_qty)
-        - Number(reservation.fulfilled_qty) - Number(reservation.released_qty);
+      const shortage = calculateOpenReservationShortage(reservation);
       if (shortage <= 0) continue;
       const department = reservation.product?.production_department ?? null;
       const key = `${reservation.sku}::${department ?? "unmapped"}`;
