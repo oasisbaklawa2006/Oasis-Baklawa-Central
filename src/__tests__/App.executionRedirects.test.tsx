@@ -3,9 +3,9 @@ import { render, screen, waitFor } from "@testing-library/react";
 import { Outlet } from "react-router-dom";
 import App from "../App";
 
-// Test-then-implement coverage for the owner's execution-board disposition
-// (factory-operations-certification-summary.md): /admin/execution/production,
-// /admin/execution/assembly and /admin/execution/ready-goods all used to
+// Test-then-implement coverage for the owner's execution-board disposition:
+// /admin/execution/production, /admin/execution/assembly and
+// /admin/execution/ready-goods all used to
 // read `operational_queue_items`, a table with zero writers anywhere in
 // oasis-supabase-core's migration history. These three now redirect to the
 // real governed surfaces. This proves each redirect target actually

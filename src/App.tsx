@@ -408,16 +408,15 @@ const App = () => (
                       execution/ready-goods all read operational_queue_items,
                       a table with zero writers anywhere in
                       oasis-supabase-core's migration history for every
-                      queue_type -- confirmed dead data by the factory-ops
-                      route census (factory-operations-route-matrix.json).
+                      queue_type -- confirmed dead data by direct inspection.
                       Redirected to the real governed surfaces that read the
                       authoritative tables instead. execution/dispatch,
                       execution/third-party, execution/retail and
                       execution/complaints are in the same dead-data
-                      situation but are NOT redirected here -- see the
-                      certification summary's "DepartmentExecutionBoard
-                      surfaces" section for why those four are left as-is
-                      pending their own canonical-replacement confirmation.
+                      situation but are NOT redirected here -- no confirmed
+                      1:1 canonical replacement was established for those
+                      four in the time available; a redirect requires a
+                      proven target plus a passing test first.
                     */}
                     <Route path="execution/production" element={<Navigate to="/operations-controller" replace />} />
                     <Route path="execution/assembly" element={<Navigate to="/admin/assembly-tasks" replace />} />

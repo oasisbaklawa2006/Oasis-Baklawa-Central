@@ -25,9 +25,6 @@ export interface OpenProductionJobsCountResult {
  * completion). This is intentionally a separate, independent read from
  * `productionQueueFeed` (which counts legacy `orders.status` pipeline
  * membership) so the two numbers are never conflated under one label.
- *
- * See factory-operations-certification-summary.md, "Command Center
- * Production KPI" for the defect this closes.
  */
 export async function fetchOpenProductionJobsCount(
   client: SupabaseClient,

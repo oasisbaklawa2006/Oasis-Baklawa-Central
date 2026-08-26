@@ -7,8 +7,7 @@ import { test, expect } from '@playwright/test';
 // /admin/execution/production, /admin/execution/assembly and
 // /admin/execution/ready-goods now redirect to the governed canonical
 // surfaces (operational_queue_items has zero writers anywhere in
-// oasis-supabase-core's migration history -- see
-// factory-operations-certification-summary.md). They're still listed here
+// oasis-supabase-core's migration history). They're still listed here
 // (a redirect must still load without a 5xx / overflow / console error),
 // but no longer carry a `?display=tv` TV-mode check -- that mode belonged
 // to the retired DepartmentExecutionBoard-based production board, not its
