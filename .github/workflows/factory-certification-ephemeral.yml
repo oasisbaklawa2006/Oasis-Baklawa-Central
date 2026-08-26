@@ -90,6 +90,15 @@ jobs:
           # create-test-identities.mjs emits only base64url/alphanumeric
           # passwords and example.invalid emails. Strip the shell `export`
           # wrapper and quotes before adding them to the job environment.
+          # Values added to GITHUB_ENV are not masked in logs automatically
+          # (that only happens for registered repo Secrets), so every
+          # disposable password is explicitly masked first.
+          while IFS= read -r cred_line; do
+            if [[ "${cred_line}" =~ ^export\ ([A-Z0-9_]+)_PASSWORD=\'([^\']*)\'$ ]]; then
+              echo "::add-mask::${BASH_REMATCH[2]}"
+            fi
+          done < "${FACTORY_CERT_CREDENTIAL_FILE}"
+
           sed -n -E "s/^export ([A-Z0-9_]+)='([^']*)'$/\1=\2/p" "${FACTORY_CERT_CREDENTIAL_FILE}" >> "${GITHUB_ENV}"
 
       - name: Build Central against disposable local Core
