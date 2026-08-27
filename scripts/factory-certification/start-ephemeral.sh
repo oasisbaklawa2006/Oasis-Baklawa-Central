@@ -48,7 +48,14 @@ export FACTORY_CERT_SUPABASE_ANON_KEY="${ANON_KEY}"
 export FACTORY_CERT_LOCAL_SERVICE_ROLE_KEY="${SERVICE_ROLE_KEY}"
 export FACTORY_CERT_ENVIRONMENT_ID="${FACTORY_CERT_ENVIRONMENT_ID:-factory-cert-local-$(date +%Y%m%d%H%M%S)}"
 
-CREDENTIAL_FILE="${FACTORY_CERT_CREDENTIAL_FILE:-/tmp/oasis-factory-certification.env}"
+# The credential path is deliberately fixed. Accepting an environment-derived
+# write destination is unnecessary for certification and creates avoidable path
+# traversal/sink ambiguity for both humans and static analyzers.
+CREDENTIAL_FILE="/tmp/oasis-factory-certification.env"
+if [[ -n "${FACTORY_CERT_CREDENTIAL_FILE:-}" && "${FACTORY_CERT_CREDENTIAL_FILE}" != "${CREDENTIAL_FILE}" ]]; then
+  echo "Refusing alternate FACTORY_CERT_CREDENTIAL_FILE; certification credentials must stay at ${CREDENTIAL_FILE}" >&2
+  exit 2
+fi
 export FACTORY_CERT_CREDENTIAL_FILE="${CREDENTIAL_FILE}"
 
 # Bootstrap disposable identities and deterministic non-commercial Factory
