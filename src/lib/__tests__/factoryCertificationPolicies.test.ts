@@ -51,6 +51,20 @@ describe("Factory certification environment policy", () => {
     expect(validateFactoryCertificationTarget({ targetUrl: "https://some-branch.vercel.app" }).valid).toBe(false);
   });
 
+  it("rejects terminal-dot spellings of production targets before remote allowlisting", () => {
+    expect(
+      validateFactoryCertificationTarget({
+        targetUrl: "https://b2b.oasisbaklawa.com./",
+        allowRemoteEphemeral: true,
+        allowedHost: "b2b.oasisbaklawa.com.",
+        environmentId: "factory-cert-pretend-remote",
+      }),
+    ).toMatchObject({
+      valid: false,
+      reason: expect.stringMatching(/Production host/),
+    });
+  });
+
   it("requires an exact host and environment id for an explicitly remote disposable target", () => {
     expect(
       validateFactoryCertificationTarget({
@@ -90,6 +104,20 @@ describe("Factory certification environment policy", () => {
         supabaseUrl: "https://tcxvcatsqqertcnycuop.supabase.co",
         allowRemoteEphemeral: true,
         allowedSupabaseHost: "tcxvcatsqqertcnycuop.supabase.co",
+        environmentId: "factory-cert-pretend-remote",
+      }),
+    ).toMatchObject({
+      valid: false,
+      reason: expect.stringMatching(/Production Supabase host/),
+    });
+  });
+
+  it("rejects a terminal-dot production Supabase hostname even when allowlisted", () => {
+    expect(
+      validateFactoryCertificationBackend({
+        supabaseUrl: "https://tcxvcatsqqertcnycuop.supabase.co./",
+        allowRemoteEphemeral: true,
+        allowedSupabaseHost: "tcxvcatsqqertcnycuop.supabase.co.",
         environmentId: "factory-cert-pretend-remote",
       }),
     ).toMatchObject({
