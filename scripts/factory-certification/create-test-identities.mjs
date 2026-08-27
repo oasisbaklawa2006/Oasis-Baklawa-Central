@@ -1,34 +1,24 @@
 #!/usr/bin/env node
 import { randomBytes } from "node:crypto";
 import { chmod, writeFile } from "node:fs/promises";
-import { isAbsolute, relative, resolve, sep } from "node:path";
-import { createLocalSupabaseRestClient } from "./local-rest-client.mjs";
+import {
+  assertNoSupabaseError,
+  createLocalSupabaseAdminClient,
+} from "./local-supabase-client.mjs";
 
 const baseUrl = process.env.FACTORY_CERT_SUPABASE_URL?.trim();
 const serviceRoleKey = process.env.FACTORY_CERT_LOCAL_SERVICE_ROLE_KEY?.trim();
-const requestedOutputFile = process.env.FACTORY_CERT_CREDENTIAL_FILE?.trim() || "/tmp/oasis-factory-certification.env";
+const outputFile = "/tmp/oasis-factory-certification.env";
 
 if (!baseUrl || !serviceRoleKey) {
   throw new Error("FACTORY_CERT_SUPABASE_URL and FACTORY_CERT_LOCAL_SERVICE_ROLE_KEY are required");
 }
 
-const { request } = createLocalSupabaseRestClient({
+const { client: supabase } = createLocalSupabaseAdminClient({
   baseUrl,
   serviceRoleKey,
   callerLabel: "Identity bootstrap",
 });
-
-const credentialRoot = resolve("/tmp");
-const outputFile = resolve(requestedOutputFile);
-const relativeOutput = relative(credentialRoot, outputFile);
-if (
-  relativeOutput === "" ||
-  relativeOutput === ".." ||
-  relativeOutput.startsWith(`..${sep}`) ||
-  isAbsolute(relativeOutput)
-) {
-  throw new Error(`FACTORY_CERT_CREDENTIAL_FILE must stay inside ${credentialRoot}; got ${outputFile}`);
-}
 
 const REQUIRED_AUTOMATIC_CERT_ROLES = [
   "prod_arabic_sweets",
@@ -38,80 +28,84 @@ const REQUIRED_AUTOMATIC_CERT_ROLES = [
   "prod_nuts",
 ];
 
+/** Generate a high-entropy disposable password for one certification identity. */
 function password() {
   return `${randomBytes(24).toString("base64url")}Aa1`;
 }
 
+/** Convert a canonical role key to its certification environment suffix. */
 function envRole(roleKey) {
   return roleKey.trim().toUpperCase().replace(/[^A-Z0-9_]/g, "_");
 }
 
+/** Quote one value for safe loading by the certification shell. */
 function shellQuote(value) {
   return `'${String(value).replaceAll("'", `'"'"'`)}'`;
 }
 
+/** Create one disposable auth.users identity through the local Admin API. */
 async function createAuthUser(email, userPassword) {
-  const payload = await request("/auth/v1/admin/users", {
-    method: "POST",
-    body: {
-      email,
-      password: userPassword,
-      email_confirm: true,
-      user_metadata: { factory_certification: true },
-    },
+  const { data, error } = await supabase.auth.admin.createUser({
+    email,
+    password: userPassword,
+    email_confirm: true,
+    user_metadata: { factory_certification: true },
   });
-  const user = payload?.user ?? payload;
-  if (!user?.id) throw new Error(`Auth Admin API did not return an id for ${email}`);
-  return String(user.id);
+  assertNoSupabaseError(error, `Auth Admin createUser failed for ${email}`);
+  if (!data?.user?.id) throw new Error(`Auth Admin API did not return an id for ${email}`);
+  return String(data.user.id);
 }
 
+/** Materialize the public.users row required by Central role resolution. */
 async function upsertUserProfile({ id, email, roleKey, displayName }) {
-  await request("/rest/v1/users?on_conflict=id", {
-    method: "POST",
-    prefer: "resolution=merge-duplicates,return=representation",
-    body: [{
-      id,
-      email,
-      full_name: displayName,
-      role: roleKey,
-      department: "Certification",
-      designation: "Disposable Factory certification identity",
-      is_active: true,
-      invite_status: "active",
-    }],
-  });
+  const { error } = await supabase.from("users").upsert({
+    id,
+    email,
+    full_name: displayName,
+    role: roleKey,
+    department: "Certification",
+    designation: "Disposable Factory certification identity",
+    is_active: true,
+    invite_status: "active",
+  }, { onConflict: "id" });
+  assertNoSupabaseError(error, `public.users upsert failed for ${email}`);
 }
 
-// Central's real email-login flow resolves both public.users and public.profiles.
-// A disposable auth.users + public.users identity without a profiles row signs in
-// at GoTrue but is then rejected by completeAuthLogin() as PROFILE_MISSING. Keep
-// the certification identity shaped like a real approved portal identity so the
-// harness exercises the application's actual login path rather than bypassing it.
+/** Materialize the public.profiles row required by Central's real login flow. */
 async function upsertLoginProfile({ id, email, roleKey }) {
-  await request("/rest/v1/profiles?on_conflict=id", {
-    method: "POST",
-    prefer: "resolution=merge-duplicates,return=representation",
-    body: [{
-      id,
-      email,
-      role: roleKey,
-      is_approved: true,
-      status: "approved",
-      company_id: null,
-    }],
-  });
+  const { error } = await supabase.from("profiles").upsert({
+    id,
+    email,
+    role: roleKey,
+    is_approved: true,
+    status: "approved",
+    company_id: null,
+  }, { onConflict: "id" });
+  assertNoSupabaseError(error, `public.profiles upsert failed for ${email}`);
 }
 
+/** Link a disposable identity to a legacy/device role row when required. */
 async function linkRoleMap(userId, roleId) {
-  await request("/rest/v1/user_role_map", {
-    method: "POST",
-    prefer: "return=minimal",
-    body: [{ user_id: userId, role_id: roleId }],
+  const { error } = await supabase.from("user_role_map").insert({
+    user_id: userId,
+    role_id: roleId,
   });
+  assertNoSupabaseError(error, `user_role_map insert failed for ${userId}`);
 }
 
+/**
+ * Prove that both role-bearing profile tables contain the expected active,
+ * approved identity. This intentionally fails fast on the first authority
+ * mismatch so the bootstrap cannot manufacture more credentials after trust is
+ * already invalid.
+ */
 async function verifyUserProfile(userId, expectedRole) {
-  const rows = await request(`/rest/v1/users?id=eq.${encodeURIComponent(userId)}&select=id,role,is_active&limit=1`);
+  const { data: rows, error: userError } = await supabase
+    .from("users")
+    .select("id,role,is_active")
+    .eq("id", userId)
+    .limit(1);
+  assertNoSupabaseError(userError, `public.users verification failed for ${userId}`);
   if (!Array.isArray(rows) || rows.length !== 1) {
     throw new Error(`Disposable identity ${userId} was not materialised in public.users`);
   }
@@ -120,7 +114,12 @@ async function verifyUserProfile(userId, expectedRole) {
     throw new Error(`Disposable identity ${userId} expected active role ${expectedRole}; got ${actualRole || "<empty>"}`);
   }
 
-  const profileRows = await request(`/rest/v1/profiles?id=eq.${encodeURIComponent(userId)}&select=id,role,is_approved,status&limit=1`);
+  const { data: profileRows, error: profileError } = await supabase
+    .from("profiles")
+    .select("id,role,is_approved,status")
+    .eq("id", userId)
+    .limit(1);
+  assertNoSupabaseError(profileError, `public.profiles verification failed for ${userId}`);
   if (!Array.isArray(profileRows) || profileRows.length !== 1) {
     throw new Error(`Disposable identity ${userId} is missing the public.profiles row required by Central login`);
   }
@@ -133,7 +132,13 @@ async function verifyUserProfile(userId, expectedRole) {
   }
 }
 
-const activeRoleRows = await request("/rest/v1/roles?is_active=eq.true&select=id,role_key&order=role_key.asc");
+const { data: activeRoleRows, error: rolesError } = await supabase
+  .from("roles")
+  .select("id,role_key")
+  .eq("is_active", true)
+  .order("role_key", { ascending: true });
+assertNoSupabaseError(rolesError, "Active role catalogue read failed");
+
 const roleIdByKey = new Map(
   (activeRoleRows ?? [])
     .map((row) => [String(row.role_key ?? "").trim().toLowerCase(), String(row.id ?? "")])
@@ -142,12 +147,14 @@ const roleIdByKey = new Map(
 
 // staff_provisionable_roles is the canonical server-side allowlist used by
 // grant_staff_role(). It is intentionally authoritative even when an older
-// public.roles catalogue has not yet gained the same alias. Intersecting the
-// two tables silently dropped valid roles such as PROD_ARABIC_SWEETS and made
-// credential-gated certification false-green via skipped tests.
-const provisionableRows = await request(
-  "/rest/v1/staff_provisionable_roles?is_active=eq.true&select=role_key&order=role_key.asc",
-);
+// public.roles catalogue has not yet gained the same alias.
+const { data: provisionableRows, error: provisionableError } = await supabase
+  .from("staff_provisionable_roles")
+  .select("role_key")
+  .eq("is_active", true)
+  .order("role_key", { ascending: true });
+assertNoSupabaseError(provisionableError, "Provisionable role catalogue read failed");
+
 const provisionable = new Set(
   (provisionableRows ?? [])
     .map((row) => String(row.role_key ?? "").trim().toLowerCase())
@@ -198,30 +205,21 @@ for (const roleKey of allRoleKeys) {
   const id = await createAuthUser(email, userPassword);
 
   if (provisionable.has(roleKey)) {
-    // This is the canonical authority path. It intentionally does not require
-    // a public.roles row: grant_staff_role() itself authorizes against
-    // staff_provisionable_roles and writes public.users.role. If a matching
-    // legacy role row exists, the Core RPC also links user_role_map.
-    await request("/rest/v1/rpc/grant_staff_role", {
-      method: "POST",
-      body: {
-        p_auth_user_id: id,
-        p_email: email,
-        p_display_name: `Factory Cert ${roleKey.toUpperCase()}`,
-        p_role_key: roleKey,
-        p_actor: bootstrapId,
-        p_department: "Certification",
-        p_designation: "Disposable Factory certification identity",
-      },
+    const { error } = await supabase.rpc("grant_staff_role", {
+      p_auth_user_id: id,
+      p_email: email,
+      p_display_name: `Factory Cert ${roleKey.toUpperCase()}`,
+      p_role_key: roleKey,
+      p_actor: bootstrapId,
+      p_department: "Certification",
+      p_designation: "Disposable Factory certification identity",
     });
+    assertNoSupabaseError(error, `grant_staff_role failed for ${roleKey}`);
   } else {
     const roleId = roleIdByKey.get(roleKey);
     if (!roleId) {
       throw new Error(`Non-provisionable role ${roleKey} has no canonical public.roles row`);
     }
-    // Legacy/device roles outside the staff provisioning allowlist are seeded
-    // only in this loopback disposable database so route isolation can be
-    // tested. The script refuses every remote host before reaching this path.
     await upsertUserProfile({
       id,
       email,
@@ -232,8 +230,6 @@ for (const roleKey of allRoleKeys) {
   }
 
   await upsertLoginProfile({ id, email, roleKey });
-  // Fail fast on the first malformed identity. Continuing would create more
-  // disposable credentials after authority verification has already failed.
   await verifyUserProfile(id, roleKey);
 
   const envKey = envRole(roleKey);
@@ -256,8 +252,8 @@ for (const requiredRole of REQUIRED_AUTOMATIC_CERT_ROLES) {
 }
 
 await writeFile(outputFile, `${credentialLines.join("\n")}\n`, { encoding: "utf8", mode: 0o600 });
-// writeFile's mode only applies when creating a file; chmod also tightens an
-// existing credential file that may have been created with broader permissions.
+// writeFile's mode only applies on creation; chmod also tightens a pre-existing
+// file that may have broader permissions.
 await chmod(outputFile, 0o600);
 console.log(`Created ${identityCount} disposable role identities.`);
 console.log(`Required automatic Factory certification roles created: ${REQUIRED_AUTOMATIC_CERT_ROLES.join(", ")}`);
