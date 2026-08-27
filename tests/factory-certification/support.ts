@@ -154,23 +154,34 @@ type BrowserSessionProof = { accessToken: string; userId: string };
 export async function readBrowserSessionProof(page: Page): Promise<BrowserSessionProof> {
   const proof = await page.evaluate(() => {
     type SessionLike = { access_token?: unknown; user?: { id?: unknown } };
+    type SearchNode = { value: unknown; depth: number };
 
-    const findSession = (value: unknown): SessionLike | null => {
-      if (!value || typeof value !== "object") return null;
-      const candidate = value as SessionLike;
-      if (typeof candidate.access_token === "string" && typeof candidate.user?.id === "string") {
-        return candidate;
-      }
-      if (Array.isArray(value)) {
-        for (const child of value) {
-          const found = findSession(child);
-          if (found) return found;
+    const findSession = (root: unknown): SessionLike | null => {
+      const MAX_DEPTH = 12;
+      const MAX_NODES = 512;
+      const stack: SearchNode[] = [{ value: root, depth: 0 }];
+      let visited = 0;
+
+      while (stack.length > 0 && visited < MAX_NODES) {
+        const current = stack.pop();
+        if (!current) break;
+        visited += 1;
+
+        const { value, depth } = current;
+        if (!value || typeof value !== "object") continue;
+
+        const candidate = value as SessionLike;
+        if (typeof candidate.access_token === "string" && typeof candidate.user?.id === "string") {
+          return candidate;
         }
-        return null;
-      }
-      for (const child of Object.values(value as Record<string, unknown>)) {
-        const found = findSession(child);
-        if (found) return found;
+        if (depth >= MAX_DEPTH) continue;
+
+        const children = Array.isArray(value)
+          ? value
+          : Object.values(value as Record<string, unknown>);
+        for (let index = children.length - 1; index >= 0; index -= 1) {
+          stack.push({ value: children[index], depth: depth + 1 });
+        }
       }
       return null;
     };

@@ -11,13 +11,37 @@ if (!baseUrl || !serviceRoleKey) {
   throw new Error("FACTORY_CERT_SUPABASE_URL and FACTORY_CERT_LOCAL_SERVICE_ROLE_KEY are required");
 }
 
-const parsedBase = new URL(baseUrl);
-if (!["localhost", "127.0.0.1", "::1", "[::1]"].includes(parsedBase.hostname)) {
-  throw new Error(`Fixture seeding is local-only; refusing Supabase host ${parsedBase.hostname}`);
+const LOOPBACK_HOSTS = new Set(["localhost", "127.0.0.1", "::1", "[::1]"]);
+
+function resolveLocalSupabaseOrigin(rawUrl) {
+  const parsed = new URL(rawUrl);
+  if (parsed.protocol !== "http:") {
+    throw new Error(`Fixture seeding is local-only; refusing Supabase protocol ${parsed.protocol}`);
+  }
+  if (!LOOPBACK_HOSTS.has(parsed.hostname)) {
+    throw new Error(`Fixture seeding is local-only; refusing Supabase host ${parsed.hostname}`);
+  }
+  if (parsed.username || parsed.password || parsed.pathname !== "/" || parsed.search || parsed.hash) {
+    throw new Error("Fixture seeding requires a canonical loopback Supabase origin with no credentials, path, query, or fragment");
+  }
+  return parsed.origin;
+}
+
+const localSupabaseOrigin = resolveLocalSupabaseOrigin(baseUrl);
+
+function resolveLocalRequestUrl(path) {
+  if (typeof path !== "string" || !path.startsWith("/")) {
+    throw new Error(`Fixture request path must be absolute: ${String(path)}`);
+  }
+  const target = new URL(path, localSupabaseOrigin);
+  if (target.protocol !== "http:" || target.origin !== localSupabaseOrigin || !LOOPBACK_HOSTS.has(target.hostname)) {
+    throw new Error(`Fixture request escaped the approved local Supabase origin: ${target.href}`);
+  }
+  return target;
 }
 
 async function request(path, { method = "GET", body, prefer } = {}) {
-  const response = await fetch(new URL(path, baseUrl), {
+  const response = await fetch(resolveLocalRequestUrl(path), {
     method,
     headers: {
       apikey: serviceRoleKey,
