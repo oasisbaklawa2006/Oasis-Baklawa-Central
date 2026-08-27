@@ -446,9 +446,26 @@ jobs:
           set -euo pipefail
           evidence_dir="${GITHUB_WORKSPACE}/factory-custody-evidence"
           git rev-parse HEAD > "${evidence_dir}/trace-commit.txt"
+          test -f src/test/setup.ts
+          test -f vitest.config.ts
+          cp vitest.config.ts factory-cert.vitest.config.ts
+          trap 'rm -f factory-cert.vitest.config.ts' EXIT
+          node <<'NODE'
+          const fs = require('node:fs');
+          const configPath = 'factory-cert.vitest.config.ts';
+          const source = fs.readFileSync(configPath, 'utf8');
+          const oldValue = 'setupFiles: ["./src/test/setup.ts"],';
+          const newValue = 'setupFiles: [path.resolve(__dirname, "./src/test/setup.ts")],';
+          const occurrences = source.split(oldValue).length - 1;
+          if (occurrences !== 1) {
+            throw new Error(`TRACE_VITEST_CONFIG_UNEXPECTED: expected one relative setupFiles entry, found ${occurrences}`);
+          }
+          fs.writeFileSync(configPath, source.replace(oldValue, newValue));
+          NODE
+          grep -Fq 'setupFiles: [path.resolve(__dirname, "./src/test/setup.ts")],' factory-cert.vitest.config.ts
           npm run test -- \
             --root "${GITHUB_WORKSPACE}/oasis-trace" \
-            --config "${GITHUB_WORKSPACE}/oasis-trace/vitest.config.ts" \
+            --config "${GITHUB_WORKSPACE}/oasis-trace/factory-cert.vitest.config.ts" \
             src/lib/scanContract.test.ts \
             src/lib/scanService.test.ts \
             src/lib/traceChain.test.ts \
