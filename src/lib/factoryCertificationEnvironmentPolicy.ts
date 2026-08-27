@@ -43,8 +43,17 @@ function validateUrl(raw: string): URL | null {
   }
 }
 
+/**
+ * DNS hostnames with a terminal dot are equivalent to their non-dotted FQDN.
+ * Canonicalize before any denylist or exact-allowlist comparison so an
+ * equivalent spelling cannot bypass a fail-closed environment boundary.
+ */
+function canonicalizeHostname(hostname: string): string {
+  return hostname.trim().toLowerCase().replace(/\.+$/, "");
+}
+
 function isLoopback(hostname: string): boolean {
-  const host = hostname.toLowerCase();
+  const host = canonicalizeHostname(hostname);
   return host === "localhost" || host === "127.0.0.1" || host === "::1" || host === "[::1]";
 }
 
@@ -54,7 +63,7 @@ export function validateFactoryCertificationTarget(
   const url = validateUrl(input.targetUrl.trim());
   if (!url) return { valid: false, reason: "Factory certification target must be a valid http(s) URL" };
 
-  const hostname = url.hostname.toLowerCase();
+  const hostname = canonicalizeHostname(url.hostname);
   if (KNOWN_PRODUCTION_HOSTS.has(hostname)) {
     return { valid: false, reason: `Production host ${hostname} is prohibited for credentialed Factory certification` };
   }
@@ -75,10 +84,11 @@ export function validateFactoryCertificationTarget(
   if (!input.allowedHost?.trim()) {
     return { valid: false, reason: "Remote Factory certification requires an exact FACTORY_CERT_ALLOWED_HOST" };
   }
-  if (hostname !== input.allowedHost.trim().toLowerCase()) {
+  const allowedHost = canonicalizeHostname(input.allowedHost);
+  if (hostname !== allowedHost) {
     return {
       valid: false,
-      reason: `Remote target host ${hostname} does not match the exact allowed host ${input.allowedHost.trim().toLowerCase()}`,
+      reason: `Remote target host ${hostname} does not match the exact allowed host ${allowedHost}`,
     };
   }
 
@@ -98,7 +108,7 @@ export function validateFactoryCertificationBackend(
   const url = validateUrl(input.supabaseUrl.trim());
   if (!url) return { valid: false, reason: "Factory certification Supabase URL must be a valid http(s) URL" };
 
-  const hostname = url.hostname.toLowerCase();
+  const hostname = canonicalizeHostname(url.hostname);
   if (KNOWN_PRODUCTION_SUPABASE_HOSTS.has(hostname)) {
     return { valid: false, reason: `Production Supabase host ${hostname} is prohibited for Factory certification` };
   }
@@ -110,10 +120,11 @@ export function validateFactoryCertificationBackend(
   if (!input.allowedSupabaseHost?.trim()) {
     return { valid: false, reason: "Remote Supabase certification backend requires FACTORY_CERT_ALLOWED_SUPABASE_HOST" };
   }
-  if (hostname !== input.allowedSupabaseHost.trim().toLowerCase()) {
+  const allowedSupabaseHost = canonicalizeHostname(input.allowedSupabaseHost);
+  if (hostname !== allowedSupabaseHost) {
     return {
       valid: false,
-      reason: `Supabase host ${hostname} does not match exact allowed host ${input.allowedSupabaseHost.trim().toLowerCase()}`,
+      reason: `Supabase host ${hostname} does not match exact allowed host ${allowedSupabaseHost}`,
     };
   }
 
