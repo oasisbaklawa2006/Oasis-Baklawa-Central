@@ -1,4 +1,6 @@
 import { expect, type Page } from "@playwright/test";
+import { createClient } from "@supabase/supabase-js";
+import type { DatabaseWithCanonicalProductionDepartment } from "../../src/lib/production-jobs/productionJobsDatabase";
 import type { FactoryRouteEntry } from "../../src/lib/factoryOperationsRouteRegistry";
 import { FACTORY_OPERATIONS_ROUTES } from "../../src/lib/factoryOperationsRouteRegistry";
 import {
@@ -207,41 +209,34 @@ export async function readBrowserSessionProof(page: Page): Promise<BrowserSessio
   return proof;
 }
 
-async function queryCertificationRest<T>(
-  page: Page,
-  relation: string,
-  params: Record<string, string>,
-): Promise<T[]> {
-  const backend = resolveFactoryCertificationBackend();
-  const session = await readBrowserSessionProof(page);
-  const url = new URL(`/rest/v1/${relation}`, backend.url);
-  for (const [key, value] of Object.entries(params)) url.searchParams.set(key, value);
-
-  const response = await fetch(url, {
-    headers: {
-      apikey: backend.anonKey,
-      Authorization: `Bearer ${session.accessToken}`,
-      Accept: "application/json",
+function createCertificationClient(
+  backend: { url: string; anonKey: string },
+  accessToken: string,
+) {
+  return createClient<DatabaseWithCanonicalProductionDepartment>(backend.url, backend.anonKey, {
+    global: { headers: { Authorization: `Bearer ${accessToken}` } },
+    auth: {
+      persistSession: false,
+      autoRefreshToken: false,
+      detectSessionInUrl: false,
     },
   });
-  const body = await response.text();
-  if (!response.ok) {
-    throw new Error(`BACKEND_READ_FAILED ${relation} HTTP ${response.status}: ${body.slice(0, 400)}`);
-  }
-  const parsed = body ? JSON.parse(body) : [];
-  if (!Array.isArray(parsed)) throw new Error(`BACKEND_READ_INVALID ${relation}: expected array response`);
-  return parsed as T[];
 }
 
 export async function verifyAuthenticatedRole(page: Page, expectedRole: string): Promise<void> {
+  const backend = resolveFactoryCertificationBackend();
   const session = await readBrowserSessionProof(page);
-  const rows = await queryCertificationRest<{ id: string; role: string | null }>(page, "users", {
-    select: "id,role",
-    id: `eq.${session.userId}`,
-    limit: "1",
-  });
+  const client = createCertificationClient(backend, session.accessToken);
+  const { data: rows, error } = await client
+    .from("users")
+    .select("id,role")
+    .eq("id", session.userId)
+    .limit(1);
+  if (error) {
+    throw new Error(`BACKEND_READ_FAILED users: ${error.message}`);
+  }
   expect(rows, `Authenticated user ${session.userId} must exist in public.users`).toHaveLength(1);
-  const actualRole = String(rows[0].role ?? "").trim().toUpperCase();
+  const actualRole = String(rows?.[0]?.role ?? "").trim().toUpperCase();
   expect(actualRole, `Credential must prove role ${expectedRole}; got ${actualRole || "<empty>"}`).toBe(expectedRole);
 }
 
@@ -249,12 +244,19 @@ export async function readAuthoritativeProductionJobs(
   page: Page,
   canonicalDepartment: string,
 ): Promise<FactoryProductionJobTruth[]> {
-  return queryCertificationRest<FactoryProductionJobTruth>(page, "production_jobs", {
-    select: "id,canonical_department,status,assigned_qty,produced_qty,priority,order_id",
-    canonical_department: `eq.${canonicalDepartment}`,
-    status: `in.(${OPEN_PRODUCTION_STATUSES.join(",")})`,
-    order: "created_at.asc",
-  });
+  const backend = resolveFactoryCertificationBackend();
+  const session = await readBrowserSessionProof(page);
+  const client = createCertificationClient(backend, session.accessToken);
+  const { data: rows, error } = await client
+    .from("production_jobs")
+    .select("id,canonical_department,status,assigned_qty,produced_qty,priority,order_id")
+    .eq("canonical_department", canonicalDepartment)
+    .in("status", OPEN_PRODUCTION_STATUSES)
+    .order("created_at", { ascending: true });
+  if (error) {
+    throw new Error(`BACKEND_READ_FAILED production_jobs: ${error.message}`);
+  }
+  return rows ?? [];
 }
 
 export function expectedDestinationFor(entry: FactoryRouteEntry): string {
