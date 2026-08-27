@@ -1,0 +1,591 @@
+name: Factory Operations Ephemeral Certification
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - '.github/workflows/factory-certification-ephemeral.yml'
+      - 'playwright.factory-cert.config.ts'
+      - 'scripts/factory-certification/**'
+      - 'src/lib/factoryCertification*.ts'
+      - 'src/lib/factoryOperations*.ts'
+      - 'src/lib/__tests__/factoryCertification*.test.ts'
+      - 'src/lib/__tests__/factoryOperations*.test.ts'
+      - 'tests/factory-operations-*.cert.spec.ts'
+      - 'tests/factory-certification/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: factory-operations-certification-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  disposable-certification:
+    name: Disposable Factory certification
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    env:
+      FACTORY_CERT_CORE_REPO: ${{ github.workspace }}/oasis-supabase-core
+      FACTORY_CERT_ALLOW_LOCAL_RESET: "true"
+      FACTORY_CERT_CREDENTIAL_FILE: /tmp/oasis-factory-certification.env
+      FACTORY_CERT_TARGET_URL: http://127.0.0.1:4173
+
+    steps:
+      - name: Checkout Central certification branch
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+
+      - name: Checkout canonical Core schema authority
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+          repository: oasisbaklawa2006/oasis-supabase-core
+          ref: main
+          path: oasis-supabase-core
+
+      - name: Checkout Trace client contracts
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+          repository: oasisbaklawa2006/oasis-trace
+          ref: main
+          path: oasis-trace
+
+      - name: Verify merged Core Factory authority dependencies
+        shell: bash
+        run: |
+          production_alias_migration="oasis-supabase-core/supabase/migrations/20260826043000_factory_production_role_alias_parity.sql"
+          store_role_migration="oasis-supabase-core/supabase/migrations/20260826093000_3pgs_staff_provisioning_role_parity.sql"
+          test -f "${production_alias_migration}"
+          test -f "${store_role_migration}"
+          grep -q "PROD_ARABIC_SWEETS" "${production_alias_migration}"
+          grep -q "PROD_DRAGEES" "${production_alias_migration}"
+          grep -qi "store_3rd_party" "${store_role_migration}"
+          echo "Core main contains Production role aliases and governed 3PGS staff provisioning parity."
+
+      - name: Set up pinned Supabase CLI
+        uses: supabase/setup-cli@ab058987d8d6c725971f6cf9d0b5c98467e30bd1 # v1.7.1
+        with:
+          version: 2.101.0
+
+      - name: Setup Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install Central dependencies
+        run: npm ci
+
+      - name: Install Trace dependencies
+        run: npm ci --prefix oasis-trace
+
+      - name: Validate certification scripts before execution
+        shell: bash
+        run: |
+          bash -n scripts/factory-certification/start-ephemeral.sh
+          bash -n scripts/factory-certification/stop-ephemeral.sh
+          node --check scripts/factory-certification/create-test-identities.mjs
+          node --check scripts/factory-certification/seed-production-fixtures.mjs
+
+      - name: Start canonical local Core, identities and deterministic fixtures
+        shell: bash
+        run: bash scripts/factory-certification/start-ephemeral.sh
+
+      - name: Export local backend and disposable identities to this job only
+        shell: bash
+        run: |
+          pushd oasis-supabase-core >/dev/null
+          supabase status -o env > "${RUNNER_TEMP}/factory-supabase.env"
+          popd >/dev/null
+          # shellcheck disable=SC1090
+          source "${RUNNER_TEMP}/factory-supabase.env"
+          {
+            echo "FACTORY_CERT_SUPABASE_URL=${API_URL}"
+            echo "FACTORY_CERT_SUPABASE_ANON_KEY=${ANON_KEY}"
+            echo "VITE_SUPABASE_URL=${API_URL}"
+            echo "VITE_SUPABASE_PUBLISHABLE_KEY=${ANON_KEY}"
+            echo "FACTORY_CERT_ENVIRONMENT_ID=factory-cert-gha-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+            echo "FACTORY_CERT_GOLDEN_JOB_SHORT_ID=E3ED28B0"
+          } >> "${GITHUB_ENV}"
+
+          while IFS= read -r cred_line; do
+            if [[ "${cred_line}" =~ ^export\ ([A-Z0-9_]+)_PASSWORD=\'([^\']*)\'$ ]]; then
+              echo "::add-mask::${BASH_REMATCH[2]}"
+            fi
+          done < "${FACTORY_CERT_CREDENTIAL_FILE}"
+
+          sed -n -E "s/^export ([A-Z0-9_]+)='([^']*)'$/\1=\2/p" "${FACTORY_CERT_CREDENTIAL_FILE}" >> "${GITHUB_ENV}"
+
+      - name: Build Central against disposable local Core
+        run: npm run build
+
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Start built Central locally
+        shell: bash
+        run: |
+          npm run preview -- --host 127.0.0.1 --port 4173 > "${RUNNER_TEMP}/factory-central-preview.log" 2>&1 &
+          preview_pid=$!
+          echo "${preview_pid}" > "${RUNNER_TEMP}/factory-central-preview.pid"
+          for _ in $(seq 1 60); do
+            if ! kill -0 "${preview_pid}" >/dev/null 2>&1; then
+              echo "Central certification preview exited before becoming ready." >&2
+              cat "${RUNNER_TEMP}/factory-central-preview.log"
+              exit 1
+            fi
+            if curl -fsS http://127.0.0.1:4173/login >/dev/null; then
+              echo "Central certification target is ready."
+              exit 0
+            fi
+            sleep 1
+          done
+          cat "${RUNNER_TEMP}/factory-central-preview.log"
+          exit 1
+
+      - name: Run governed Production truth and read-failure certification
+        id: production_cert
+        continue-on-error: true
+        run: >-
+          npx playwright test
+          tests/factory-operations-production-truth.cert.spec.ts
+          tests/factory-operations-failure-injection.cert.spec.ts
+          -c playwright.factory-cert.config.ts
+
+      - name: Preserve Production certification result
+        if: always()
+        shell: bash
+        run: |
+          test -f factory-certification-results.json
+          cp factory-certification-results.json factory-production-certification-results.json
+
+      - name: Enforce seven executed Production passes and zero skips
+        if: always()
+        shell: bash
+        run: |
+          node <<'NODE'
+          const fs = require('node:fs');
+          const path = 'factory-production-certification-results.json';
+          if (!fs.existsSync(path)) {
+            throw new Error('CERTIFICATION_RESULT_MISSING: Production Playwright JSON report was not produced');
+          }
+          const report = JSON.parse(fs.readFileSync(path, 'utf8'));
+          const statuses = [];
+          const visit = (value) => {
+            if (!value || typeof value !== 'object') return;
+            if (Array.isArray(value)) {
+              for (const item of value) visit(item);
+              return;
+            }
+            if (Array.isArray(value.results)) {
+              for (const result of value.results) {
+                if (typeof result?.status === 'string') statuses.push(result.status);
+              }
+            }
+            for (const [key, child] of Object.entries(value)) {
+              if (key !== 'results') visit(child);
+            }
+          };
+          visit(report.suites ?? report);
+          const counts = statuses.reduce((acc, status) => {
+            acc[status] = (acc[status] ?? 0) + 1;
+            return acc;
+          }, {});
+          console.log('Factory Production certification result counts:', counts);
+          if (statuses.length !== 7) {
+            throw new Error(`CERTIFICATION_COUNT_MISMATCH: expected exactly 7 required Production results, got ${statuses.length}`);
+          }
+          if ((counts.passed ?? 0) !== 7 || (counts.skipped ?? 0) !== 0 || (counts.failed ?? 0) !== 0 || (counts.timedOut ?? 0) !== 0 || (counts.interrupted ?? 0) !== 0) {
+            throw new Error(`CERTIFICATION_NOT_EXECUTED_PASS: ${JSON.stringify(counts)}`);
+          }
+          NODE
+          if [[ "${{ steps.production_cert.outcome }}" != "success" ]]; then
+            echo "Production Playwright command itself failed." >&2
+            exit 1
+          fi
+
+      - name: List full route/role/device health matrix
+        shell: bash
+        run: |
+          set -euo pipefail
+          npx playwright test \
+            tests/factory-operations-route-health.cert.spec.ts \
+            --list \
+            -c playwright.factory-cert.config.ts \
+            | tee factory-route-health-list.txt
+
+      - name: Run full route/role/device health
+        id: route_health
+        continue-on-error: true
+        run: >-
+          npx playwright test
+          tests/factory-operations-route-health.cert.spec.ts
+          -c playwright.factory-cert.config.ts
+
+      - name: Preserve route-health certification result
+        shell: bash
+        run: |
+          test -f factory-certification-results.json
+          cp factory-certification-results.json factory-route-health-results.json
+
+      - name: Enforce complete route-health execution and zero skips
+        shell: bash
+        run: |
+          node <<'NODE'
+          const fs = require('node:fs');
+          const resultPath = 'factory-route-health-results.json';
+          const listPath = 'factory-route-health-list.txt';
+          if (!fs.existsSync(resultPath)) {
+            throw new Error('ROUTE_HEALTH_RESULT_MISSING: Playwright JSON report was not produced');
+          }
+          if (!fs.existsSync(listPath)) {
+            throw new Error('ROUTE_HEALTH_LIST_MISSING: Playwright test listing was not preserved');
+          }
+          const listText = fs.readFileSync(listPath, 'utf8');
+          const listed = listText.match(/Total:\s+(\d+)\s+tests?\b/i);
+          if (!listed) {
+            throw new Error('ROUTE_HEALTH_LIST_UNPARSEABLE: could not determine discovered test count');
+          }
+          const listedCount = Number(listed[1]);
+          if (!Number.isInteger(listedCount) || listedCount < 2) {
+            throw new Error(`ROUTE_HEALTH_DISCOVERY_INVALID: discovered ${listedCount} tests`);
+          }
+
+          const report = JSON.parse(fs.readFileSync(resultPath, 'utf8'));
+          const statuses = [];
+          const visit = (value) => {
+            if (!value || typeof value !== 'object') return;
+            if (Array.isArray(value)) {
+              for (const item of value) visit(item);
+              return;
+            }
+            if (Array.isArray(value.results)) {
+              for (const result of value.results) {
+                if (typeof result?.status === 'string') statuses.push(result.status);
+              }
+            }
+            for (const [key, child] of Object.entries(value)) {
+              if (key !== 'results') visit(child);
+            }
+          };
+          visit(report.suites ?? report);
+          const counts = statuses.reduce((acc, status) => {
+            acc[status] = (acc[status] ?? 0) + 1;
+            return acc;
+          }, {});
+          console.log(`Factory route-health discovered=${listedCount} executed=${statuses.length}`, counts);
+          if (statuses.length !== listedCount) {
+            throw new Error(`ROUTE_HEALTH_COUNT_MISMATCH: listed ${listedCount}, result file contains ${statuses.length}`);
+          }
+          if ((counts.passed ?? 0) !== listedCount || (counts.skipped ?? 0) !== 0 || (counts.failed ?? 0) !== 0 || (counts.timedOut ?? 0) !== 0 || (counts.interrupted ?? 0) !== 0) {
+            throw new Error(`ROUTE_HEALTH_NOT_EXECUTED_PASS: ${JSON.stringify(counts)}`);
+          }
+          NODE
+          if [[ "${{ steps.route_health.outcome }}" != "success" ]]; then
+            echo "Route-health Playwright command itself failed." >&2
+            exit 1
+          fi
+
+      - name: Run canonical Core RGS, P&A, 3PGS and Gate authority contracts
+        shell: bash
+        working-directory: oasis-supabase-core
+        run: |
+          set -euo pipefail
+          evidence_dir="${GITHUB_WORKSPACE}/factory-custody-evidence"
+          mkdir -p "${evidence_dir}"
+          suites=(
+            "rgs_production_governed_authority.test.sql:42:rgs"
+            "pna_assembly_job_governed_authority.test.sql:90:pna"
+            "3pgs_governed_fulfilment_authority.test.sql:75:3pgs"
+            "20260809_wave1c_authority_closure.sql:22:dispatch-gate-authority"
+          )
+          for spec in "${suites[@]}"; do
+            IFS=: read -r suite expected label <<< "${spec}"
+            file="supabase/tests/${suite}"
+            log="${evidence_dir}/core-${label}.tap.log"
+            test -f "${file}"
+            grep -Eq "select[[:space:]]+plan\(${expected}\)" "${file}"
+            supabase test db "${file}" 2>&1 | tee "${log}"
+            grep -q "Result: PASS" "${log}"
+            grep -Eq "Files=1, Tests=${expected}([,[:space:]]|$)" "${log}"
+          done
+          git rev-parse HEAD > "${evidence_dir}/core-commit.txt"
+
+      - name: Run disposable positive and denied Gate-release mutation contract
+        shell: bash
+        working-directory: oasis-supabase-core
+        run: |
+          set -euo pipefail
+          evidence_dir="${GITHUB_WORKSPACE}/factory-custody-evidence"
+          gate_test="supabase/tests/factory_gate_release_mutation.cert.sql"
+          trap 'rm -f "${gate_test}"' EXIT
+          cat > "${gate_test}" <<'SQL'
+          begin;
+          select plan(10);
+
+          -- audit_logs.actor_id references auth.users(id), not public.users(id);
+          -- the synthetic gate-security actor must exist there too or the RPC's
+          -- own audit-log insert (via auth.uid()) fails its FK constraint.
+          insert into auth.users (id, email) values
+            ('91000000-0000-0000-0000-000000000001', 'factory-gate-cert-security@example.invalid');
+
+          insert into public.users (id, role) values
+            ('91000000-0000-0000-0000-000000000001', 'GATE_SECURITY');
+
+          insert into public.companies (id, business_name, gst_number, registered_address, status, payment_terms)
+          values (
+            '92000000-0000-0000-0000-000000000001',
+            'Factory Gate Certification',
+            '07AACCF0000A1Z5',
+            'New Delhi',
+            'approved',
+            'prepaid'
+          );
+
+          insert into public.orders (
+            id, company_id, status, order_number, sales_order_value, advance_required,
+            advance_paid, payment_status, payment_cleared, final_invoice_url,
+            order_origin, tracking_token
+          ) values (
+            '93000000-0000-0000-0000-000000000001',
+            '92000000-0000-0000-0000-000000000001',
+            'cleared_for_dispatch',
+            'FACTORY-GATE-CERT-001',
+            100, 0, 100, 'paid', true,
+            'https://example.invalid/factory-gate-cert-invoice',
+            'LEGACY_ERP',
+            'factory-gate-cert-tracking-001'
+          );
+
+          insert into public.dispatch_cartons (
+            id, order_id, barcode_string, box_number, total_boxes, status
+          ) values
+            ('94000000-0000-0000-0000-000000000001', '93000000-0000-0000-0000-000000000001', 'FACTORY-GATE-CERT-C1', 1, 2, 'labeled'),
+            ('94000000-0000-0000-0000-000000000002', '93000000-0000-0000-0000-000000000001', 'FACTORY-GATE-CERT-C2', 2, 2, 'labeled');
+
+          insert into public.operational_scan_records (
+            id, scan_type, verification_type, entity_type, entity_id, order_id,
+            barcode_value, expected_barcode, verification_status, scan_source, correlation_id
+          ) values
+            ('95000000-0000-0000-0000-000000000001', 'dispatch_gate', 'gate_check', 'dispatch_carton',
+             '94000000-0000-0000-0000-000000000001', '93000000-0000-0000-0000-000000000001',
+             'FACTORY-GATE-CERT-C1', 'FACTORY-GATE-CERT-C1', 'verified', 'factory_certification', 'factory-gate-cert-scan-1'),
+            ('95000000-0000-0000-0000-000000000002', 'dispatch_gate', 'gate_check', 'dispatch_carton',
+             '94000000-0000-0000-0000-000000000002', '93000000-0000-0000-0000-000000000001',
+             'WRONG-BARCODE', 'FACTORY-GATE-CERT-C2', 'verified', 'factory_certification', 'factory-gate-cert-scan-2');
+
+          set local request.jwt.claim.sub = '91000000-0000-0000-0000-000000000001';
+          set local request.jwt.claim.role = 'authenticated';
+
+          select is(
+            (public.release_carton_at_dispatch_gate_v1(
+              '94000000-0000-0000-0000-000000000001',
+              '95000000-0000-0000-0000-000000000001'
+            )->>'ok'),
+            'true',
+            'verified gate evidence releases an eligible carton'
+          );
+          select is(
+            (select status from public.dispatch_cartons where id='94000000-0000-0000-0000-000000000001'),
+            'physically_dispatched',
+            'positive gate release mutates carton custody state exactly once'
+          );
+          select ok(
+            (select scanned_out_at is not null from public.dispatch_cartons where id='94000000-0000-0000-0000-000000000001'),
+            'positive gate release timestamps physical dispatch'
+          );
+          select is(
+            (select count(*)::int from public.dispatch_gate_decisions where carton_id='94000000-0000-0000-0000-000000000001' and decision='released'),
+            1,
+            'positive gate release appends one released decision'
+          );
+          select is(
+            (select count(*)::int from public.audit_logs where entity_id='94000000-0000-0000-0000-000000000001'::text and action_type='CARTON_GATE_RELEASED'),
+            1,
+            'positive gate release appends one high-risk audit record'
+          );
+          select is(
+            (public.release_carton_at_dispatch_gate_v1(
+              '94000000-0000-0000-0000-000000000001',
+              '95000000-0000-0000-0000-000000000001'
+            )->>'already_released'),
+            'true',
+            'replayed gate release returns settled truth idempotently'
+          );
+          select is(
+            (select count(*)::int from public.dispatch_gate_decisions where carton_id='94000000-0000-0000-0000-000000000001'),
+            1,
+            'idempotent replay does not append duplicate gate decisions'
+          );
+          select is(
+            (public.release_carton_at_dispatch_gate_v1(
+              '94000000-0000-0000-0000-000000000002',
+              '95000000-0000-0000-0000-000000000002'
+            )->>'ok'),
+            'false',
+            'mismatched scan evidence fails closed'
+          );
+          select is(
+            (select status from public.dispatch_cartons where id='94000000-0000-0000-0000-000000000002'),
+            'labeled',
+            'denied gate release leaves carton custody unchanged'
+          );
+          select is(
+            (select count(*)::int from public.dispatch_gate_decisions where carton_id='94000000-0000-0000-0000-000000000002' and decision='denied'),
+            1,
+            'denied gate release appends one immutable decision record'
+          );
+
+          select * from finish();
+          rollback;
+          SQL
+
+          log="${evidence_dir}/core-dispatch-gate-mutation.tap.log"
+          supabase test db "${gate_test}" 2>&1 | tee "${log}"
+          grep -q "Result: PASS" "${log}"
+          grep -Eq "Files=1, Tests=10([,[:space:]]|$)" "${log}"
+
+      - name: Run Trace scan, mutation, chain and fail-closed contracts
+        shell: bash
+        working-directory: oasis-trace
+        run: |
+          set -euo pipefail
+          evidence_dir="${GITHUB_WORKSPACE}/factory-custody-evidence"
+          git rev-parse HEAD > "${evidence_dir}/trace-commit.txt"
+          test -f src/test/setup.ts
+          test -f vitest.config.ts
+          cp vitest.config.ts factory-cert.vitest.config.ts
+          trap 'rm -f factory-cert.vitest.config.ts' EXIT
+          node <<'NODE'
+          const fs = require('node:fs');
+          const configPath = 'factory-cert.vitest.config.ts';
+          const source = fs.readFileSync(configPath, 'utf8');
+          const oldValue = 'setupFiles: ["./src/test/setup.ts"],';
+          const newValue = 'setupFiles: [path.resolve(__dirname, "./src/test/setup.ts")],';
+          const occurrences = source.split(oldValue).length - 1;
+          if (occurrences !== 1) {
+            throw new Error(`TRACE_VITEST_CONFIG_UNEXPECTED: expected one relative setupFiles entry, found ${occurrences}`);
+          }
+          fs.writeFileSync(configPath, source.replace(oldValue, newValue));
+          NODE
+          grep -Fq 'setupFiles: [path.resolve(__dirname, "./src/test/setup.ts")],' factory-cert.vitest.config.ts
+          npm run test -- \
+            --root "${GITHUB_WORKSPACE}/oasis-trace" \
+            --config "${GITHUB_WORKSPACE}/oasis-trace/factory-cert.vitest.config.ts" \
+            src/lib/scanContract.test.ts \
+            src/lib/scanService.test.ts \
+            src/lib/traceChain.test.ts \
+            src/lib/traceMutations.test.ts \
+            src/lib/legacyGateDecision.test.ts \
+            src/lib/centralSubmit.test.ts \
+            src/lib/data.write-failure.test.ts \
+            --reporter=json \
+            --outputFile="${evidence_dir}/trace-results.json"
+
+      - name: Enforce complete mutation and custody certification evidence
+        shell: bash
+        run: |
+          node <<'NODE'
+          const fs = require('node:fs');
+          const path = require('node:path');
+          const dir = 'factory-custody-evidence';
+          const required = [
+            'core-rgs.tap.log',
+            'core-pna.tap.log',
+            'core-3pgs.tap.log',
+            'core-dispatch-gate-authority.tap.log',
+            'core-dispatch-gate-mutation.tap.log',
+            'core-commit.txt',
+            'trace-commit.txt',
+            'trace-results.json',
+          ];
+          for (const file of required) {
+            if (!fs.existsSync(path.join(dir, file))) throw new Error(`CUSTODY_EVIDENCE_MISSING: ${file}`);
+          }
+
+          const trace = JSON.parse(fs.readFileSync(path.join(dir, 'trace-results.json'), 'utf8'));
+          const expectedTraceFiles = new Set([
+            'scanContract.test.ts',
+            'scanService.test.ts',
+            'traceChain.test.ts',
+            'traceMutations.test.ts',
+            'legacyGateDecision.test.ts',
+            'centralSubmit.test.ts',
+            'data.write-failure.test.ts',
+          ]);
+          const executedTraceFiles = new Set((trace.testResults ?? []).map((result) => path.basename(result.name)));
+          for (const file of expectedTraceFiles) {
+            if (!executedTraceFiles.has(file)) throw new Error(`TRACE_CONTRACT_NOT_EXECUTED: ${file}`);
+          }
+          if (trace.success !== true || (trace.numFailedTests ?? 0) !== 0 || (trace.numPendingTests ?? 0) !== 0) {
+            throw new Error(`TRACE_CONTRACTS_NOT_GREEN: ${JSON.stringify({ success: trace.success, failed: trace.numFailedTests, pending: trace.numPendingTests })}`);
+          }
+          if ((trace.numTotalTests ?? 0) < 1) throw new Error('TRACE_CONTRACT_COUNT_INVALID: no Trace tests executed');
+
+          const summary = {
+            schema_version: 1,
+            status: 'PASS',
+            environment: 'disposable-local-core',
+            production_accessed: false,
+            central_commit: process.env.GITHUB_SHA,
+            core_commit: fs.readFileSync(path.join(dir, 'core-commit.txt'), 'utf8').trim(),
+            trace_commit: fs.readFileSync(path.join(dir, 'trace-commit.txt'), 'utf8').trim(),
+            core_contracts: {
+              rgs_mutation_and_custody: 42,
+              pna_lifecycle_and_handover: 90,
+              three_pgs_fulfilment_and_custody: 75,
+              dispatch_gate_authority_and_immutability: 22,
+              dispatch_gate_positive_denied_and_idempotent_mutation: 10,
+              total_assertions: 239,
+            },
+            trace_contracts: {
+              files_executed: [...executedTraceFiles].sort(),
+              total_tests: trace.numTotalTests,
+              passed_tests: trace.numPassedTests,
+              failed_tests: trace.numFailedTests,
+              pending_tests: trace.numPendingTests,
+            },
+          };
+          fs.writeFileSync(path.join(dir, 'factory-custody-summary.json'), `${JSON.stringify(summary, null, 2)}\n`);
+          console.log('Factory mutation/custody certification:', summary);
+          NODE
+
+      - name: Upload machine-readable certification evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: factory-certification-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            factory-production-certification-results.json
+            factory-route-health-results.json
+            factory-route-health-list.txt
+            factory-custody-evidence/
+          if-no-files-found: warn
+          retention-days: 7
+
+      - name: Upload sanitized Central startup log on failure
+        if: failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: factory-central-startup-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/factory-central-preview.log
+          if-no-files-found: ignore
+          retention-days: 7
+
+      - name: Stop Central preview
+        if: always()
+        shell: bash
+        run: |
+          if [[ -f "${RUNNER_TEMP}/factory-central-preview.pid" ]]; then
+            kill "$(cat "${RUNNER_TEMP}/factory-central-preview.pid")" >/dev/null 2>&1 || true
+          fi
+
+      - name: Destroy disposable Core database without backup
+        if: always()
+        shell: bash
+        run: bash scripts/factory-certification/stop-ephemeral.sh || true
