@@ -2,6 +2,7 @@
 import { randomBytes } from "node:crypto";
 import { chmod, writeFile } from "node:fs/promises";
 import { isAbsolute, relative, resolve, sep } from "node:path";
+import { createLocalSupabaseRestClient } from "./local-rest-client.mjs";
 
 const baseUrl = process.env.FACTORY_CERT_SUPABASE_URL?.trim();
 const serviceRoleKey = process.env.FACTORY_CERT_LOCAL_SERVICE_ROLE_KEY?.trim();
@@ -11,34 +12,11 @@ if (!baseUrl || !serviceRoleKey) {
   throw new Error("FACTORY_CERT_SUPABASE_URL and FACTORY_CERT_LOCAL_SERVICE_ROLE_KEY are required");
 }
 
-const LOOPBACK_HOSTS = new Set(["localhost", "127.0.0.1", "::1", "[::1]"]);
-
-function resolveLocalSupabaseOrigin(rawUrl) {
-  const parsed = new URL(rawUrl);
-  if (parsed.protocol !== "http:") {
-    throw new Error(`Identity bootstrap is local-only; refusing Supabase protocol ${parsed.protocol}`);
-  }
-  if (!LOOPBACK_HOSTS.has(parsed.hostname)) {
-    throw new Error(`Identity bootstrap is local-only; refusing Supabase host ${parsed.hostname}`);
-  }
-  if (parsed.username || parsed.password || parsed.pathname !== "/" || parsed.search || parsed.hash) {
-    throw new Error("Identity bootstrap requires a canonical loopback Supabase origin with no credentials, path, query, or fragment");
-  }
-  return parsed.origin;
-}
-
-const localSupabaseOrigin = resolveLocalSupabaseOrigin(baseUrl);
-
-function resolveLocalRequestUrl(path) {
-  if (typeof path !== "string" || !path.startsWith("/")) {
-    throw new Error(`Identity bootstrap request path must be absolute: ${String(path)}`);
-  }
-  const target = new URL(path, localSupabaseOrigin);
-  if (target.protocol !== "http:" || target.origin !== localSupabaseOrigin || !LOOPBACK_HOSTS.has(target.hostname)) {
-    throw new Error(`Identity bootstrap request escaped the approved local Supabase origin: ${target.href}`);
-  }
-  return target;
-}
+const { request } = createLocalSupabaseRestClient({
+  baseUrl,
+  serviceRoleKey,
+  callerLabel: "Identity bootstrap",
+});
 
 const credentialRoot = resolve("/tmp");
 const outputFile = resolve(requestedOutputFile);
@@ -70,24 +48,6 @@ function envRole(roleKey) {
 
 function shellQuote(value) {
   return `'${String(value).replaceAll("'", `'"'"'`)}'`;
-}
-
-async function request(path, { method = "GET", body, prefer } = {}) {
-  const response = await fetch(resolveLocalRequestUrl(path), {
-    method,
-    headers: {
-      apikey: serviceRoleKey,
-      Authorization: `Bearer ${serviceRoleKey}`,
-      "Content-Type": "application/json",
-      ...(prefer ? { Prefer: prefer } : {}),
-    },
-    body: body === undefined ? undefined : JSON.stringify(body),
-  });
-  const text = await response.text();
-  if (!response.ok) {
-    throw new Error(`${method} ${path} -> HTTP ${response.status}: ${text.slice(0, 600)}`);
-  }
-  return text ? JSON.parse(text) : null;
 }
 
 async function createAuthUser(email, userPassword) {

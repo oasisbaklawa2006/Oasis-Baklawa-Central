@@ -56,10 +56,22 @@ test.describe("Factory Operations route health certification", () => {
 
   for (const entry of routeEntries) {
     for (const viewport of certificationViewports(entry)) {
-      const role = resolveEffectiveFactoryCertificationRole(entry);
-      const credentialSpec = factoryCertificationCredentialSpec(role);
+      // Resolution can throw NO_EFFECTIVE_CERTIFICATION_ROLE for a malformed
+      // registry entry. Resolving only for the title here, in a try/catch,
+      // keeps that throw from aborting collection of every other test in
+      // this file; the real (re-thrown) resolution happens per-test below,
+      // so only the offending route's own test fails.
+      let titleRole: string;
+      try {
+        titleRole = resolveEffectiveFactoryCertificationRole(entry);
+      } catch {
+        titleRole = "UNRESOLVED_ROLE";
+      }
 
-      test(`${entry.route} :: ${role} :: ${viewport.name}`, async ({ page }) => {
+      test(`${entry.route} :: ${titleRole} :: ${viewport.name}`, async ({ page }) => {
+        const role = resolveEffectiveFactoryCertificationRole(entry);
+        const credentialSpec = factoryCertificationCredentialSpec(role);
+
         test.skip(
           !hasFactoryCertificationTarget(),
           "CERTIFICATION_ENV_REQUIRED: FACTORY_CERT_TARGET_URL is not configured",

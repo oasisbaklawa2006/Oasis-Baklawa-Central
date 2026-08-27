@@ -5,58 +5,20 @@
  * It uses service_role only during local bootstrap, never in browser tests.
  */
 
+import { createLocalSupabaseRestClient } from "./local-rest-client.mjs";
+
 const baseUrl = process.env.FACTORY_CERT_SUPABASE_URL?.trim();
 const serviceRoleKey = process.env.FACTORY_CERT_LOCAL_SERVICE_ROLE_KEY?.trim();
 if (!baseUrl || !serviceRoleKey) {
   throw new Error("FACTORY_CERT_SUPABASE_URL and FACTORY_CERT_LOCAL_SERVICE_ROLE_KEY are required");
 }
 
-const LOOPBACK_HOSTS = new Set(["localhost", "127.0.0.1", "::1", "[::1]"]);
-
-function resolveLocalSupabaseOrigin(rawUrl) {
-  const parsed = new URL(rawUrl);
-  if (parsed.protocol !== "http:") {
-    throw new Error(`Fixture seeding is local-only; refusing Supabase protocol ${parsed.protocol}`);
-  }
-  if (!LOOPBACK_HOSTS.has(parsed.hostname)) {
-    throw new Error(`Fixture seeding is local-only; refusing Supabase host ${parsed.hostname}`);
-  }
-  if (parsed.username || parsed.password || parsed.pathname !== "/" || parsed.search || parsed.hash) {
-    throw new Error("Fixture seeding requires a canonical loopback Supabase origin with no credentials, path, query, or fragment");
-  }
-  return parsed.origin;
-}
-
-const localSupabaseOrigin = resolveLocalSupabaseOrigin(baseUrl);
-
-function resolveLocalRequestUrl(path) {
-  if (typeof path !== "string" || !path.startsWith("/")) {
-    throw new Error(`Fixture request path must be absolute: ${String(path)}`);
-  }
-  const target = new URL(path, localSupabaseOrigin);
-  if (target.protocol !== "http:" || target.origin !== localSupabaseOrigin || !LOOPBACK_HOSTS.has(target.hostname)) {
-    throw new Error(`Fixture request escaped the approved local Supabase origin: ${target.href}`);
-  }
-  return target;
-}
-
-async function request(path, { method = "GET", body, prefer } = {}) {
-  const response = await fetch(resolveLocalRequestUrl(path), {
-    method,
-    headers: {
-      apikey: serviceRoleKey,
-      Authorization: `Bearer ${serviceRoleKey}`,
-      "Content-Type": "application/json",
-      ...(prefer ? { Prefer: prefer } : {}),
-    },
-    body: body === undefined ? undefined : JSON.stringify(body),
-  });
-  const text = await response.text();
-  if (!response.ok) {
-    throw new Error(`${method} ${path} -> HTTP ${response.status}: ${text.slice(0, 800)}`);
-  }
-  return text ? JSON.parse(text) : null;
-}
+const { request } = createLocalSupabaseRestClient({
+  baseUrl,
+  serviceRoleKey,
+  callerLabel: "Fixture seeding",
+  errorBodyLimit: 800,
+});
 
 const products = [
   {

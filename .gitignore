@@ -31,6 +31,7 @@ factory-certification-results.json
 factory-production-certification-results.json
 factory-route-health-results.json
 factory-route-health-list.txt
+factory-custody-evidence/
 
 # UX audit run output (large binaries; keep report in docs/)
 audit-artifacts/screenshots/

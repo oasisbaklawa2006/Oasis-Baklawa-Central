@@ -223,10 +223,16 @@ function createCertificationClient(
   });
 }
 
-export async function verifyAuthenticatedRole(page: Page, expectedRole: string): Promise<void> {
+async function createAuthenticatedCertificationClient(
+  page: Page,
+): Promise<{ client: ReturnType<typeof createCertificationClient>; session: BrowserSessionProof }> {
   const backend = resolveFactoryCertificationBackend();
   const session = await readBrowserSessionProof(page);
-  const client = createCertificationClient(backend, session.accessToken);
+  return { client: createCertificationClient(backend, session.accessToken), session };
+}
+
+export async function verifyAuthenticatedRole(page: Page, expectedRole: string): Promise<void> {
+  const { client, session } = await createAuthenticatedCertificationClient(page);
   const { data: rows, error } = await client
     .from("users")
     .select("id,role")
@@ -244,9 +250,7 @@ export async function readAuthoritativeProductionJobs(
   page: Page,
   canonicalDepartment: string,
 ): Promise<FactoryProductionJobTruth[]> {
-  const backend = resolveFactoryCertificationBackend();
-  const session = await readBrowserSessionProof(page);
-  const client = createCertificationClient(backend, session.accessToken);
+  const { client } = await createAuthenticatedCertificationClient(page);
   const { data: rows, error } = await client
     .from("production_jobs")
     .select("id,canonical_department,status,assigned_qty,produced_qty,priority,order_id")

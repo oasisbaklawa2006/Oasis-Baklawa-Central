@@ -278,7 +278,6 @@ export const FACTORY_OPERATIONS_ROUTES: FactoryRouteEntry[] = [
     technicallyAllowedRoles: ADMIN_STAFF_ROLES_REFERENCE,
     intendedPrimaryAudience: [],
     status: "FACTORY_LEGACY",
-    legacyRedirectTarget: "/tv/rgs",
     deviceClass: "TV",
     evidence: "App.tsx line 457: renders the SAME <ReadyGoodsTV /> component as /tv/rgs, but through the broad ADMIN_STAFF_ROLES gate instead of the TV-specific RoleProtectedRoute. No redirect exists; superseded by the canonical /tv/rgs kiosk route -- treated as a duplicate, not certified separately.",
   },

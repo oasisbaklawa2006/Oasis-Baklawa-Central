@@ -133,7 +133,7 @@ jobs:
           npm run preview -- --host 127.0.0.1 --port 4173 > "${RUNNER_TEMP}/factory-central-preview.log" 2>&1 &
           preview_pid=$!
           echo "${preview_pid}" > "${RUNNER_TEMP}/factory-central-preview.pid"
-          for i in $(seq 1 60); do
+          for _ in $(seq 1 60); do
             if ! kill -0 "${preview_pid}" >/dev/null 2>&1; then
               echo "Central certification preview exited before becoming ready." >&2
               cat "${RUNNER_TEMP}/factory-central-preview.log"
@@ -211,12 +211,13 @@ jobs:
 
       - name: List full route/role/device health matrix
         shell: bash
-        run: >-
-          npx playwright test
-          tests/factory-operations-route-health.cert.spec.ts
-          --list
-          -c playwright.factory-cert.config.ts
-          | tee factory-route-health-list.txt
+        run: |
+          set -euo pipefail
+          npx playwright test \
+            tests/factory-operations-route-health.cert.spec.ts \
+            --list \
+            -c playwright.factory-cert.config.ts \
+            | tee factory-route-health-list.txt
 
       - name: Run full route/role/device health
         id: route_health
