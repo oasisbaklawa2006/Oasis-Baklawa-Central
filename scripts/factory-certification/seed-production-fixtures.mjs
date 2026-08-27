@@ -5,7 +5,10 @@
  * It uses service_role only during local bootstrap, never in browser tests.
  */
 
-import { createLocalSupabaseRestClient } from "./local-rest-client.mjs";
+import {
+  assertNoSupabaseError,
+  createLocalSupabaseAdminClient,
+} from "./local-supabase-client.mjs";
 
 const baseUrl = process.env.FACTORY_CERT_SUPABASE_URL?.trim();
 const serviceRoleKey = process.env.FACTORY_CERT_LOCAL_SERVICE_ROLE_KEY?.trim();
@@ -13,11 +16,10 @@ if (!baseUrl || !serviceRoleKey) {
   throw new Error("FACTORY_CERT_SUPABASE_URL and FACTORY_CERT_LOCAL_SERVICE_ROLE_KEY are required");
 }
 
-const { request } = createLocalSupabaseRestClient({
+const { client: supabase } = createLocalSupabaseAdminClient({
   baseUrl,
   serviceRoleKey,
   callerLabel: "Fixture seeding",
-  errorBodyLimit: 800,
 });
 
 const products = [
@@ -63,11 +65,10 @@ const products = [
   },
 ];
 
-await request("/rest/v1/products?on_conflict=id", {
-  method: "POST",
-  prefer: "resolution=merge-duplicates,return=minimal",
-  body: products,
-});
+const { error: productError } = await supabase
+  .from("products")
+  .upsert(products, { onConflict: "id" });
+assertNoSupabaseError(productError, "Deterministic product fixture upsert failed");
 
 const jobs = [
   {
@@ -127,15 +128,18 @@ const jobs = [
   },
 ];
 
-await request("/rest/v1/production_jobs?on_conflict=id", {
-  method: "POST",
-  prefer: "resolution=merge-duplicates,return=representation",
-  body: jobs,
-});
+const { error: jobError } = await supabase
+  .from("production_jobs")
+  .upsert(jobs, { onConflict: "id" });
+assertNoSupabaseError(jobError, "Deterministic Production job fixture upsert failed");
 
-const seeded = await request(
-  "/rest/v1/production_jobs?correlation_id=like.factory-cert-production-*&select=id,canonical_department,status,assigned_qty,produced_qty,priority,correlation_id&order=correlation_id.asc",
-);
+const { data: seeded, error: seededError } = await supabase
+  .from("production_jobs")
+  .select("id,canonical_department,status,assigned_qty,produced_qty,priority,correlation_id")
+  .like("correlation_id", "factory-cert-production-%")
+  .order("correlation_id", { ascending: true });
+assertNoSupabaseError(seededError, "Seeded Production job verification read failed");
+
 if (!Array.isArray(seeded) || seeded.length !== jobs.length) {
   throw new Error(`Expected ${jobs.length} seeded Production jobs; got ${Array.isArray(seeded) ? seeded.length : "invalid response"}`);
 }
