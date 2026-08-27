@@ -26,6 +26,13 @@ const KNOWN_PRODUCTION_HOSTS = new Set([
   "oasis-baklawa-central.vercel.app",
 ]);
 
+// Canonical deployed Supabase project host referenced by repository runbooks
+// and evidence. A production backend is never a disposable certification
+// target, even when the caller enables remote certification and allowlists it.
+const KNOWN_PRODUCTION_SUPABASE_HOSTS = new Set([
+  "tcxvcatsqqertcnycuop.supabase.co",
+]);
+
 function validateUrl(raw: string): URL | null {
   try {
     const url = new URL(raw);
@@ -92,6 +99,9 @@ export function validateFactoryCertificationBackend(
   if (!url) return { valid: false, reason: "Factory certification Supabase URL must be a valid http(s) URL" };
 
   const hostname = url.hostname.toLowerCase();
+  if (KNOWN_PRODUCTION_SUPABASE_HOSTS.has(hostname)) {
+    return { valid: false, reason: `Production Supabase host ${hostname} is prohibited for Factory certification` };
+  }
   if (isLoopback(hostname)) return { valid: true, normalizedUrl: url.origin };
 
   if (!input.allowRemoteEphemeral || !input.environmentId?.trim()) {

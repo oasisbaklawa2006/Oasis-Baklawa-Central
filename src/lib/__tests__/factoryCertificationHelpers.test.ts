@@ -40,13 +40,14 @@ describe("factoryCertificationHelpers", () => {
     expect(result.passed).toBe(false);
   });
 
-  it("resolves the human short job id only when it matches the full id prefix", () => {
+  it("resolves the human short job id only when it matches a valid full UUID prefix", () => {
     expect(
       resolveJobShortId("E3ED28B0", "e3ed28b0-1234-4567-89ab-0123456789ab").valid,
     ).toBe(true);
     expect(
       resolveJobShortId("E3ED28B0", "ffffffff-1234-4567-89ab-0123456789ab").valid,
     ).toBe(false);
+    expect(resolveJobShortId("E3ED28B0", "E3ED28B0-not-a-uuid").valid).toBe(false);
   });
 
   it("fails when a required golden fixture is absent", () => {

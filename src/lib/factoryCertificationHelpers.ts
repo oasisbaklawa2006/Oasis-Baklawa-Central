@@ -84,12 +84,12 @@ export const resolveJobShortId = (
     };
   }
 
-  if (fullId.length < 16) {
+  if (!/^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i.test(fullId)) {
     return {
       valid: false,
       shortId,
       fullId,
-      reason: `Full ID too short for UUID: ${fullId.length} chars`,
+      reason: `Full ID is not a valid UUID: ${fullId}`,
     };
   }
 

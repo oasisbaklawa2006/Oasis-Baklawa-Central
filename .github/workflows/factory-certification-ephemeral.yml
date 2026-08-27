@@ -36,10 +36,13 @@ jobs:
     steps:
       - name: Checkout Central certification branch
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
 
       - name: Checkout canonical Core schema authority
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
+          persist-credentials: false
           repository: oasisbaklawa2006/oasis-supabase-core
           ref: main
           path: oasis-supabase-core
@@ -47,6 +50,7 @@ jobs:
       - name: Checkout Trace client contracts
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
+          persist-credentials: false
           repository: oasisbaklawa2006/oasis-trace
           ref: main
           path: oasis-trace
@@ -127,8 +131,14 @@ jobs:
         shell: bash
         run: |
           npm run preview -- --host 127.0.0.1 --port 4173 > "${RUNNER_TEMP}/factory-central-preview.log" 2>&1 &
-          echo $! > "${RUNNER_TEMP}/factory-central-preview.pid"
+          preview_pid=$!
+          echo "${preview_pid}" > "${RUNNER_TEMP}/factory-central-preview.pid"
           for i in $(seq 1 60); do
+            if ! kill -0 "${preview_pid}" >/dev/null 2>&1; then
+              echo "Central certification preview exited before becoming ready." >&2
+              cat "${RUNNER_TEMP}/factory-central-preview.log"
+              exit 1
+            fi
             if curl -fsS http://127.0.0.1:4173/login >/dev/null; then
               echo "Central certification target is ready."
               exit 0

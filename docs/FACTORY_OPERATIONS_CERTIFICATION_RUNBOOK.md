@@ -1,14 +1,14 @@
 # Factory Operations Autonomous Certification Runbook
 
-Status: **HARNESS + DISPOSABLE ENVIRONMENT IMPLEMENTED IN PART — EXECUTION EVIDENCE PENDING**
+Status: **SOFTWARE EXECUTION EVIDENCE RETAINED — CURRENT HEAD MUST REMAIN GREEN BEFORE MERGE**
 
 This runbook covers the Factory Operations certification harness in PR #405. It does not authorize production mutation, production credentials in branch-controlled previews, or a persistent second Supabase project.
 
 ## Safety boundary
 
-Credentialed Factory certification accepts `localhost` / `127.0.0.1` by default. A remote disposable target must be explicitly allowlisted with an exact host and a non-empty environment identifier. `*.vercel.app`, `b2b.oasisbaklawa.com`, and the known production Vercel hostname are rejected by the harness.
+Credentialed Factory certification accepts `localhost` / `127.0.0.1` by default. A remote disposable target must be explicitly allowlisted with an exact host and a non-empty environment identifier. `*.vercel.app`, `b2b.oasisbaklawa.com`, the known production Vercel hostname, and the repository's known production Supabase project host are rejected by the harness.
 
-No service-role key is consumed by Playwright. The local bootstrap scripts use the local Supabase service-role key only while creating disposable identities and deterministic fixtures after a canonical Core replay. That key is never written to the role-credential file and the scripts refuse every non-loopback Supabase host.
+No service-role key is consumed by Playwright. The local bootstrap scripts use the local Supabase service-role key only while creating disposable identities and deterministic fixtures after a canonical Core replay. That key is never written to the role-credential file and the scripts require a canonical `http://` loopback Supabase origin before any service-role request.
 
 Authenticated backend reads in Playwright use the same user's bearer token plus the disposable environment's anon key, so RLS remains part of the proof. Traces, screenshots, and videos are disabled in `playwright.factory-cert.config.ts`.
 
@@ -40,7 +40,7 @@ The start script:
 4. uses `grant_staff_role` whenever the role is on Core's provisionable allowlist;
 5. locally seeds implemented legacy roles only when the role exists in `public.roles` but is not provisionable;
 6. seeds deterministic, non-commercial Production fixtures for every Production TV group;
-7. writes role email/password exports to a chmod-600 `/tmp` file.
+7. writes role email/password exports only inside `/tmp`, with mode `0600` enforced even for a pre-existing file.
 
 The controlled Arabic fixture uses full UUID `e3ed28b0-0000-4000-8000-000000000001`, display short ID `E3ED28B0`, assigned quantity `6`, produced quantity `0`, priority `normal`, status `pending`.
 
@@ -61,7 +61,7 @@ export FACTORY_CERT_ALLOWED_HOST='exact-app-host.example.test'
 export FACTORY_CERT_ALLOWED_SUPABASE_HOST='exact-backend-host.example.test'
 ```
 
-Do not set those variables to production or a branch-preview target.
+Do not set those variables to production or a branch-preview target. Exact allowlisting never overrides the explicit production-host denylist.
 
 ## Role credentials
 
@@ -82,7 +82,7 @@ The harness rejects one email being reused for multiple canonical roles. Missing
 
 ### Route / role / device health
 
-`tests/factory-operations-route-health.cert.spec.ts` covers every `FACTORY_CURRENT` and `LEGACY_REDIRECT` registry entry, with exact role identity, role proof, device viewport, exact destination, blank/error/console/overflow checks and TV read-only checks. The complete crawl is limited to trusted manual dispatch while it remains high-cost.
+`tests/factory-operations-route-health.cert.spec.ts` covers every `FACTORY_CURRENT` and `LEGACY_REDIRECT` registry entry, with exact role identity, role proof, device viewport, exact destination, blank/error/console/overflow checks and TV read-only checks. The PR workflow executes and retains the complete route × role × device matrix.
 
 ### Governed Production source truth
 
@@ -94,11 +94,15 @@ The current six-TV grouping follows Core's forward correction `20260818090000_rg
 
 `tests/factory-operations-failure-injection.cert.spec.ts` aborts browser reads only. Failed `production_jobs` reads must show the Production TV error state rather than `No Open Production Jobs`; failed `inventory_reservations` reads must show the Planner error state rather than false zero shortage.
 
+### Mutation and custody evidence
+
+The disposable workflow executes canonical Core pgTAP contracts for RGS, P&A, 3PGS and Dispatch/Gate authority plus a positive/denied/idempotent Gate-release fixture. It also executes the selected Trace scan, mutation, chain and fail-closed client contract suites. Machine-readable summaries are retained as workflow artifacts.
+
 ## Automatic disposable PR execution
 
-`.github/workflows/factory-certification-ephemeral.yml` runs on relevant PR changes with no production secrets. It checks out Central plus canonical Core `main`, creates a local Supabase stack from Core migrations, creates disposable identities and deterministic Production fixtures, builds Central against that backend, executes Production source-truth and read-failure certification, uploads only the JSON result, then destroys the local database without backup.
+`.github/workflows/factory-certification-ephemeral.yml` runs on relevant PR changes with no production secrets. It checks out Central plus canonical Core and Trace `main`, creates a local Supabase stack from Core migrations, creates disposable identities and deterministic fixtures, builds Central against that backend, executes the browser, Core custody and Trace contract layers, uploads machine-readable evidence, then destroys the local database without backup.
 
-The broader route × role × device crawl is additionally available on trusted `workflow_dispatch`.
+Any later branch push invalidates prior exact-head certification for merge purposes. The new head must complete the same workflow successfully before approval/merge.
 
 ## Local run
 
@@ -108,13 +112,10 @@ npx playwright test -c playwright.factory-cert.config.ts
 
 Results are written to `factory-certification-results.json`. Missing environment or exact role credentials must remain skipped as `CERTIFICATION_ENV_REQUIRED` or `CREDENTIAL_REQUIRED` and must never be reported as PASS.
 
-## Still pending before Factory Operations can be called certified
+## Retained evidence and remaining gate
 
-- successful execution of the disposable PR workflow and correction of every genuine failure it exposes;
-- RGS reservation → Production → receipt → acceptance → pick → issue → acknowledgement mutation certification;
-- P&A → 3PGS shortage → fulfilment → P&A resume mutation certification;
-- Dispatch/Gate/Trace mutation chain;
-- broader RGS/P&A/3PGS/Dispatch/Gate cross-screen source-truth assertions;
-- physical wall-TV / scanner / printer / kiosk UAT.
+The harness has retained successful disposable evidence for all software layers above. The final PR head must still show its own green workflow evidence after any review-driven change.
 
-Production remains read-only and is not an allowed substitute for disposable mutation certification.
+The only separate operational acceptance gate outside this autonomous software certification is physical wall-TV / scanner / printer / kiosk/handheld UAT.
+
+Production remains untouched and is not an allowed substitute for disposable mutation certification.

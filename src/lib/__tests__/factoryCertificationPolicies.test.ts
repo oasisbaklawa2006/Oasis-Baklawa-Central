@@ -83,4 +83,18 @@ describe("Factory certification environment policy", () => {
       }).valid,
     ).toBe(true);
   });
+
+  it("rejects the known production Supabase host even when every remote override is enabled", () => {
+    expect(
+      validateFactoryCertificationBackend({
+        supabaseUrl: "https://tcxvcatsqqertcnycuop.supabase.co",
+        allowRemoteEphemeral: true,
+        allowedSupabaseHost: "tcxvcatsqqertcnycuop.supabase.co",
+        environmentId: "factory-cert-pretend-remote",
+      }),
+    ).toMatchObject({
+      valid: false,
+      reason: expect.stringMatching(/Production Supabase host/),
+    });
+  });
 });
