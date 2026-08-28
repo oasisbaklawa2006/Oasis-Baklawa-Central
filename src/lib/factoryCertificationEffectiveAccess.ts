@@ -5,6 +5,7 @@ import {
 } from "./factoryOperationsRouteRegistry";
 import { getAllowedModulesForRole, hasModuleAccess } from "./appverse/roleAccess";
 import { getRequiredModuleForAdminPath } from "./appverse/routeAccess";
+import { canAccessThreePgsOperator } from "./threePgsAccess";
 
 /**
  * Factory certification must reproduce Central's complete route authorization,
@@ -13,8 +14,9 @@ import { getRequiredModuleForAdminPath } from "./appverse/routeAccess";
  * For /admin/* routes the rendered child is also wrapped by AdminRouteGuard,
  * which maps the concrete path to an App-Verse module and checks roleAccess.
  * A role therefore counts as executable certification authority only when it
- * passes both layers. Non-admin routes use their explicit RoleProtectedRoute
- * role list directly.
+ * passes both layers. The R4 3PGS procurement queue adds a narrower operator
+ * gate inside AdminModuleRoute; certification mirrors that gate here instead
+ * of broadening runtime RBAC merely to make a route-health test pass.
  *
  * LEGACY_REDIRECT entries are pure <Navigate> aliases with deliberately empty
  * technicallyAllowedRoles -- any authenticated staff role can hit the alias
@@ -37,8 +39,13 @@ export function isEffectivelyAuthorizedFactoryRole(
 
   const requiredModule = getRequiredModuleForAdminPath(entry.route);
   if (!requiredModule) return false;
+  if (!hasModuleAccess(getAllowedModulesForRole(canonicalRole), requiredModule)) return false;
 
-  return hasModuleAccess(getAllowedModulesForRole(canonicalRole), requiredModule);
+  if (entry.route === "/admin/3pgs-procurement-queue") {
+    return canAccessThreePgsOperator(canonicalRole);
+  }
+
+  return true;
 }
 
 /**
@@ -60,7 +67,7 @@ export function resolveEffectiveFactoryCertificationRole(entry: FactoryRouteEntr
       ...entry.technicallyAllowedRoles,
       ...(target?.technicallyAllowedRoles ?? []),
       ...ADMIN_STAFF_ROLES_REFERENCE,
-    ].map((role) => role.trim().toUpperCase())),
+    ].map((candidateRole) => candidateRole.trim().toUpperCase())),
   );
 
   const role = candidates.find((candidate) => isEffectivelyAuthorizedFactoryRole(entry, candidate));
