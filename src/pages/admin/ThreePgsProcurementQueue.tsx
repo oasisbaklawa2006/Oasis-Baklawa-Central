@@ -3,6 +3,12 @@ import { AlertTriangle, PackageSearch, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { threePgsProcurementRpc } from "@/lib/threePgsProcurementRpc";
+import {
+  EMPTY_THREE_PGS_RECEIPT_DRAFT,
+  parseThreePgsReceiptDisposition,
+  receiptDispositionFingerprint,
+  type ThreePgsReceiptDispositionDraft,
+} from "@/lib/threePgsReceiptDisposition";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -81,41 +87,25 @@ type InventoryReceiptLine = {
 };
 
 type ReceivingState = {
-  correlationIds: { create: string; record: string; accept: string; link: string };
+  receiptCorrelationId: string;
+  linkCorrelationId: string;
+  payloadFingerprint: string;
 };
 
+function emptyReceivingDraft(): ThreePgsReceiptDispositionDraft {
+  return { ...EMPTY_THREE_PGS_RECEIPT_DRAFT };
+}
+
 /**
- * 3PGS procurement/vendor-shortage queue -- gives the governed
- * b2b_3pgs_pending_demand_priority view and create_procurement_requirement/
- * assign_procurement_vendor (20260820100000) real, reachable callers. Before
- * this screen, both had zero callers anywhere in Central (confirmed by a
- * full reachability audit) -- schema-only despite looking wired.
+ * 3PGS procurement/vendor-shortage queue.
  *
- * The vendor-shortage bridge section closes the inbound-receipt lifecycle it
- * links against (create_b2b_inventory_receipt / record_b2b_inventory_receipt /
- * accept_b2b_inventory_receipt / link_procurement_receipt) via a "Receive"
- * action per requirement below.
+ * Two independent governed bridges are composed here:
+ * - vendor shortage -> procurement requirement -> physical receipt -> receipt
+ *   disposition -> accepted quantity linked to the procurement requirement;
+ * - P&A shortfall -> reserve -> issue -> distinct receiver acknowledgement.
  *
- * The P&A assembly-shortfall section wires the OTHER bridge in the same
- * migration: reserve_3pgs_requirement_stock / issue_3pgs_requirement_stock /
- * acknowledge_3pgs_requirement_receipt. This is the migration's own designed
- * closure path for a b2b_assembly_3pgs_requirements row -- NOT a direct call
- * to fulfil_assembly_3pgs_requirement (an earlier version of this file did
- * that, and it was a genuine bug: it bypassed the real stock movement AND
- * acknowledge_3pgs_requirement_receipt's distinct-actor safeguard, which
- * fails closed if the same identity both issues and acknowledges so P&A can
- * never self-fulfil its own requirement). acknowledge_3pgs_requirement_receipt
- * calls the existing, unmodified fulfil_assembly_3pgs_requirement internally
- * once receipt is genuinely acknowledged by a different actor -- this file
- * never calls it directly.
- *
- * These two bridges are independent: the receipt lifecycle links a
- * b2b_procurement_requirements row to an accepted b2b_inventory_receipt and
- * never touches inventory_reservations/rgs_issue_events; the P&A bridge
- * reserves/issues/acknowledges against inventory_reservations/rgs_issue_events
- * and never touches b2b_inventory_receipts. Neither can overwrite, duplicate,
- * or hide the other's state.
- * Route: /admin/3pgs-procurement-queue.
+ * They intentionally reuse Core's existing receipt/reservation/issue stock
+ * authorities. This page never writes stock tables directly.
  */
 export default function ThreePgsProcurementQueue() {
   const [pendingDemand, setPendingDemand] = useState<PendingDemandRow[]>([]);
@@ -136,11 +126,19 @@ export default function ThreePgsProcurementQueue() {
   const [ackDrafts, setAckDrafts] = useState<Record<string, string>>({});
   const [acknowledging, setAcknowledging] = useState<string | null>(null);
 
+  const [receivingDrafts, setReceivingDrafts] = useState<Record<string, ThreePgsReceiptDispositionDraft>>({});
+  const [receiving, setReceiving] = useState<string | null>(null);
+  const receivingCorrelationRef = useRef<Record<string, ReceivingState>>({});
+
   const fetchData = useCallback(async (): Promise<boolean> => {
     setLoading(true);
     setError(null);
     try {
-      const [{ data: demand, error: demandError }, { data: reqs, error: reqError }, { data: assemblyReqs, error: assemblyError }] = await Promise.all([
+      const [
+        { data: demand, error: demandError },
+        { data: reqs, error: reqError },
+        { data: assemblyReqs, error: assemblyError },
+      ] = await Promise.all([
         procurementDb
           .from("b2b_3pgs_pending_demand_priority")
           .select("*")
@@ -162,17 +160,17 @@ export default function ThreePgsProcurementQueue() {
       if (demandError) throw demandError;
       if (reqError) throw reqError;
       if (assemblyError) throw assemblyError;
+
       const assemblyRows = (assemblyReqs ?? []) as AssemblyRequirement[];
       const requirementNumbers = assemblyRows.map((row) => row.requirement_number);
-
-      // These two queries are only meaningful once at least one open
-      // assembly requirement exists -- an empty .in() array would otherwise
-      // either error or (worse, silently) return every row depending on the
-      // client, so skip them entirely rather than rely on that.
       let reservationRows: AssemblyReservation[] = [];
       let issueEventRows: AssemblyIssueEvent[] = [];
+
       if (requirementNumbers.length > 0) {
-        const [{ data: reservations, error: reservationError }, { data: issueEvents, error: issueEventError }] = await Promise.all([
+        const [
+          { data: reservations, error: reservationError },
+          { data: issueEvents, error: issueEventError },
+        ] = await Promise.all([
           procurementDb
             .from("inventory_reservations")
             .select("id, reservation_number, reserved_qty, demand_reference")
@@ -210,9 +208,6 @@ export default function ThreePgsProcurementQueue() {
     void fetchData();
   }, [fetchData]);
 
-  // create_procurement_requirement is idempotent by correlation_id; persist
-  // one id per demand row across a failed retry so a lost-response retry
-  // replays into the same call instead of raising a duplicate requirement.
   const raiseCorrelationRef = useRef<Record<string, string>>({});
   const handleRaiseRequirement = useCallback(async (row: PendingDemandRow) => {
     if (!raiseCorrelationRef.current[row.demand_id]) raiseCorrelationRef.current[row.demand_id] = crypto.randomUUID();
@@ -230,9 +225,7 @@ export default function ThreePgsProcurementQueue() {
       });
       if (rpcError) throw new Error(rpcError.message);
       toast.success("Procurement requirement raised.");
-      if (await fetchData()) {
-        delete raiseCorrelationRef.current[row.demand_id];
-      }
+      if (await fetchData()) delete raiseCorrelationRef.current[row.demand_id];
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to raise the procurement requirement.");
     } finally {
@@ -267,7 +260,11 @@ export default function ThreePgsProcurementQueue() {
       toast.success("Vendor assigned.");
       if (await fetchData()) {
         delete assignCorrelationRef.current[requirementId];
-        setVendorDrafts((current) => { const next = { ...current }; delete next[requirementId]; return next; });
+        setVendorDrafts((current) => {
+          const next = { ...current };
+          delete next[requirementId];
+          return next;
+        });
       }
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to assign the vendor.");
@@ -276,11 +273,6 @@ export default function ThreePgsProcurementQueue() {
     }
   }, [fetchData, vendorDrafts]);
 
-  // reserve_3pgs_requirement_stock bridges a b2b_assembly_3pgs_requirements
-  // row into the existing reserve_rgs_stock pipeline -- the same mechanism
-  // outlet/b2b/internal 3PGS demand already uses. A single fixed-argument
-  // call per requirement (no user-entered payload to rotate against), so a
-  // stable correlation id persisted across retries is sufficient.
   const reserveCorrelationRef = useRef<Record<string, string>>({});
   const handleReserveStock = useCallback(async (requirement: AssemblyRequirement) => {
     if (!reserveCorrelationRef.current[requirement.id]) reserveCorrelationRef.current[requirement.id] = crypto.randomUUID();
@@ -302,10 +294,6 @@ export default function ThreePgsProcurementQueue() {
     }
   }, [fetchData]);
 
-  // issue_3pgs_requirement_stock bridges the reservation into the existing
-  // issue_rgs_stock pipeline. Dispatch alone does not fulfil the
-  // requirement -- acknowledge_3pgs_requirement_receipt (below) is the only
-  // path that does, and it requires a genuinely different receiving actor.
   const issueCorrelationRef = useRef<Record<string, { qty: number; id: string }>>({});
   const handleIssueStock = useCallback(async (requirement: AssemblyRequirement, reservation: AssemblyReservation) => {
     const raw = issueDrafts[reservation.id] ?? "";
@@ -337,7 +325,11 @@ export default function ThreePgsProcurementQueue() {
       toast.success("Stock issued -- awaiting receiver acknowledgement.");
       if (await fetchData()) {
         delete issueCorrelationRef.current[reservation.id];
-        setIssueDrafts((current) => { const next = { ...current }; delete next[reservation.id]; return next; });
+        setIssueDrafts((current) => {
+          const next = { ...current };
+          delete next[reservation.id];
+          return next;
+        });
       }
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to issue stock.");
@@ -346,12 +338,6 @@ export default function ThreePgsProcurementQueue() {
     }
   }, [fetchData, issueDrafts, assemblyIssueEvents]);
 
-  // acknowledge_3pgs_requirement_receipt is the ONLY path that advances a
-  // requirement's fulfilled_qty -- it calls the existing acknowledge_rgs_issue
-  // and fulfil_assembly_3pgs_requirement internally once a genuinely
-  // different actor than the issuer confirms receipt (server-side, fails
-  // closed on self-acknowledgement; this UI cannot and does not attempt to
-  // pre-check that client-side).
   const ackCorrelationRef = useRef<Record<string, { qty: number; id: string }>>({});
   const handleAcknowledgeReceipt = useCallback(async (issueEvent: AssemblyIssueEvent) => {
     const raw = ackDrafts[issueEvent.id] ?? "";
@@ -375,10 +361,14 @@ export default function ThreePgsProcurementQueue() {
         p_correlation_id: correlationId,
       });
       if (rpcError) throw new Error(rpcError.message);
-      toast.success("Receipt acknowledged -- 3PGS requirement fulfilment recorded.");
+      toast.success("Receipt acknowledged -- 3PGS fulfilment recorded and eligible P&A work may resume.");
       if (await fetchData()) {
         delete ackCorrelationRef.current[issueEvent.id];
-        setAckDrafts((current) => { const next = { ...current }; delete next[issueEvent.id]; return next; });
+        setAckDrafts((current) => {
+          const next = { ...current };
+          delete next[issueEvent.id];
+          return next;
+        });
       }
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to acknowledge receipt.");
@@ -387,65 +377,55 @@ export default function ThreePgsProcurementQueue() {
     }
   }, [fetchData, ackDrafts]);
 
-  // Closes the inbound-receipt lifecycle this bridge links against
-  // (create_b2b_inventory_receipt -> record_b2b_inventory_receipt ->
-  // accept_b2b_inventory_receipt -> link_procurement_receipt), all four of
-  // which had zero callers before this. Modelled as one "receive & accept in
-  // full" action rather than a separate goods-in/QC-disposition UI: the
-  // owner has not asked for partial damage/rejection handling here, and this
-  // file's established pattern (see the reserve/issue/acknowledge section
-  // below) is to wire the real RPC chain narrowly, not build UI ahead of a
-  // real requirement. Every step is idempotent, so a retry after a
-  // mid-sequence failure is driven by the current row state (returned by
-  // create_b2b_inventory_receipt, itself idempotent by correlation_id)
-  // rather than by which step last succeeded on the client.
-  const [receivingDrafts, setReceivingDrafts] = useState<Record<string, string>>({});
-  const [receiving, setReceiving] = useState<string | null>(null);
-  const receivingCorrelationRef = useRef<Record<string, ReceivingState>>({});
-
   const handleReceive = useCallback(async (requirement: ProcurementRequirement) => {
     const remaining = requirement.shortage_qty - requirement.fulfilled_qty;
-    const rawQty = receivingDrafts[requirement.id];
-    const qty = Number(rawQty);
-    if (!rawQty || !Number.isFinite(qty) || qty <= 0) {
-      toast.error("Enter a positive received quantity.");
+    const draft = receivingDrafts[requirement.id] ?? emptyReceivingDraft();
+    const parsed = parseThreePgsReceiptDisposition(draft, remaining);
+    if (!parsed.ok) {
+      toast.error(parsed.error);
       return;
     }
-    if (qty > remaining) {
-      toast.error(`Cannot receive more than the outstanding ${remaining}.`);
+    const disposition = parsed.value;
+    const payloadFingerprint = receiptDispositionFingerprint(disposition);
+    const previousState = receivingCorrelationRef.current[requirement.id];
+
+    if (previousState && previousState.payloadFingerprint !== payloadFingerprint) {
+      toast.error(
+        "A previous receive attempt is pending. Restore the original receipt quantities or refresh after reconciliation before changing the disposition.",
+      );
       return;
     }
 
-    if (!receivingCorrelationRef.current[requirement.id]) {
-      receivingCorrelationRef.current[requirement.id] = {
-        correlationIds: {
-          create: crypto.randomUUID(),
-          record: crypto.randomUUID(),
-          accept: crypto.randomUUID(),
-          link: crypto.randomUUID(),
-        },
-      };
-    }
-    const { correlationIds } = receivingCorrelationRef.current[requirement.id];
+    const state = previousState ?? {
+      receiptCorrelationId: crypto.randomUUID(),
+      linkCorrelationId: crypto.randomUUID(),
+      payloadFingerprint,
+    };
+    receivingCorrelationRef.current[requirement.id] = state;
+    const { receiptCorrelationId, linkCorrelationId } = state;
 
     setReceiving(requirement.id);
     try {
       const { data: receiptData, error: createError } = await threePgsProcurementRpc.rpc<InventoryReceipt>(
         "create_b2b_inventory_receipt",
         {
-          // receipt_number is UNIQUE in Core -- a fixed "-RCV" suffix would
-          // collide on a second partial receive against the same
-          // requirement. correlationIds.create is stable for retries of the
-          // SAME receive attempt (so the idempotent create call still
-          // returns the same row) but fresh for each new attempt, so it's
-          // exactly the right disambiguator here.
-          p_receipt_number: `${requirement.requirement_number}-RCV-${correlationIds.create.slice(0, 8)}`,
-          p_receipt_source: "vendor_procurement",
+          p_receipt_number: `${requirement.requirement_number}-RCV-${receiptCorrelationId.slice(0, 8)}`,
+          // Core PR #129 keeps procurement-backed vendor inward inside the
+          // canonical supplier receipt vocabulary. The governed procurement
+          // requirement is the source document; no fake supplier UUID is used.
+          p_receipt_source: "supplier",
           p_destination_store_code: requirement.destination_store_code,
           p_source_document_type: "procurement_requirement",
           p_source_document_reference: requirement.requirement_number,
-          p_lines: [{ product_id: requirement.product_id, sku: requirement.sku, expected_qty: qty }],
-          p_correlation_id: correlationIds.create,
+          p_lines: [{
+            product_id: requirement.product_id,
+            sku: requirement.sku,
+            expected_qty: disposition.receivedQty,
+            supplier_batch_lot: disposition.supplierBatchLot,
+            expiry_date: disposition.expiryDate,
+          }],
+          p_correlation_id: receiptCorrelationId,
+          p_notes: disposition.notes,
         },
       );
       if (createError) throw new Error(createError.message);
@@ -462,50 +442,78 @@ export default function ThreePgsProcurementQueue() {
       const line = receiptLine as InventoryReceiptLine | null;
       if (!line) throw new Error("The inventory receipt has no line to record against.");
 
+      // Core requires the exact correlation carried by the receipt for both
+      // record and accept. A single stable id also makes lost-response retries
+      // resolve through the server row's current status instead of duplicating
+      // physical evidence.
       if (receiptData.status === "expected") {
         const { error: recordError } = await threePgsProcurementRpc.rpc("record_b2b_inventory_receipt", {
           p_receipt_id: receiptId,
-          p_lines: [{ line_id: line.id, received_qty: qty }],
-          p_correlation_id: correlationIds.record,
+          p_lines: [{
+            line_id: line.id,
+            received_qty: disposition.receivedQty,
+            supplier_batch_lot: disposition.supplierBatchLot,
+            expiry_date: disposition.expiryDate,
+            notes: disposition.notes,
+          }],
+          p_correlation_id: receiptCorrelationId,
         });
         if (recordError) throw new Error(recordError.message);
       }
 
       if (receiptData.status === "expected" || receiptData.status === "received") {
-        const { data: balance, error: balanceError } = await procurementDb
-          .from("inventory_stock_balances")
-          .select("version")
-          .eq("product_id", line.product_id)
-          .eq("sku", line.sku)
-          .eq("location_code", requirement.destination_store_code)
-          .maybeSingle();
-        if (balanceError) throw new Error(balanceError.message);
+        let expectedBalanceVersion = 0;
+        if (disposition.acceptedQty > 0) {
+          const { data: balance, error: balanceError } = await procurementDb
+            .from("inventory_stock_balances")
+            .select("version")
+            .eq("product_id", line.product_id)
+            .eq("sku", line.sku)
+            .eq("location_code", requirement.destination_store_code)
+            .maybeSingle();
+          if (balanceError) throw new Error(balanceError.message);
+          expectedBalanceVersion = (balance as { version: number } | null)?.version ?? 0;
+        }
+
         const { error: acceptError } = await threePgsProcurementRpc.rpc("accept_b2b_inventory_receipt", {
           p_receipt_id: receiptId,
           p_lines: [{
             line_id: line.id,
-            accepted_qty: qty,
-            damaged_qty: 0,
-            rejected_qty: 0,
-            expected_balance_version: (balance as { version: number } | null)?.version ?? 0,
+            accepted_qty: disposition.acceptedQty,
+            damaged_qty: disposition.damagedQty,
+            rejected_qty: disposition.rejectedQty,
+            expected_balance_version: expectedBalanceVersion,
           }],
-          p_correlation_id: correlationIds.accept,
+          p_correlation_id: receiptCorrelationId,
         });
         if (acceptError) throw new Error(acceptError.message);
       }
 
-      const { error: linkError } = await threePgsProcurementRpc.rpc("link_procurement_receipt", {
-        p_requirement_id: requirement.id,
-        p_receipt_id: receiptId,
-        p_fulfilled_qty: qty,
-        p_correlation_id: correlationIds.link,
-      });
-      if (linkError) throw new Error(linkError.message);
+      // Procurement fulfilment is physical accepted quantity, never merely
+      // what arrived at the door. A fully damaged/rejected receipt therefore
+      // creates discrepancy evidence but leaves the shortage open.
+      if (disposition.acceptedQty > 0) {
+        const { error: linkError } = await threePgsProcurementRpc.rpc("link_procurement_receipt", {
+          p_requirement_id: requirement.id,
+          p_receipt_id: receiptId,
+          p_fulfilled_qty: disposition.acceptedQty,
+          p_correlation_id: linkCorrelationId,
+        });
+        if (linkError) throw new Error(linkError.message);
+      }
 
-      toast.success("Receipt recorded, accepted into stock, and linked to the requirement.");
+      toast.success(
+        disposition.acceptedQty > 0
+          ? "Receipt disposition recorded. Accepted stock is held pending put-away/GRN and accepted quantity is linked to the requirement."
+          : "Receipt disposition recorded. No quantity was accepted; procurement shortage remains open.",
+      );
       if (await fetchData()) {
         delete receivingCorrelationRef.current[requirement.id];
-        setReceivingDrafts((current) => { const next = { ...current }; delete next[requirement.id]; return next; });
+        setReceivingDrafts((current) => {
+          const next = { ...current };
+          delete next[requirement.id];
+          return next;
+        });
       }
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to record the inbound receipt.");
@@ -520,9 +528,7 @@ export default function ThreePgsProcurementQueue() {
         <div className="flex flex-wrap items-center gap-2">
           <PackageSearch className="h-7 w-7 text-primary" aria-hidden />
           <h1 className="text-xl font-bold tracking-tight">3PGS procurement queue</h1>
-          <Badge variant="outline" className="text-[10px] uppercase">
-            Vendor-shortage bridge
-          </Badge>
+          <Badge variant="outline" className="text-[10px] uppercase">Vendor-shortage bridge</Badge>
         </div>
         <Button type="button" variant="outline" size="sm" onClick={() => void fetchData()} disabled={loading}>
           <RefreshCw className={`mr-1 h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`} aria-hidden />
@@ -534,11 +540,11 @@ export default function ThreePgsProcurementQueue() {
         <CardHeader className="pb-2">
           <CardTitle className="flex items-center gap-2 text-sm text-amber-900 dark:text-amber-100">
             <AlertTriangle className="h-4 w-4" aria-hidden />
-            Vendor-shortage bridge
+            Governed 3PGS vendor shortage and inward
           </CardTitle>
           <CardDescription className="text-xs">
-            Raises a procurement requirement, records a vendor/ETA, and receives the inbound stock -- accepting it in
-            full and linking it back to the requirement in one action.
+            Vendor arrival is recorded separately from accepted stock. Accepted, damaged and rejected quantities must
+            reconcile to what physically arrived; accepted stock remains held until governed put-away and GRN.
           </CardDescription>
         </CardHeader>
       </Card>
@@ -549,9 +555,8 @@ export default function ThreePgsProcurementQueue() {
         <CardHeader className="pb-2">
           <CardTitle className="text-sm">P&amp;A assembly shortfalls awaiting 3PGS fulfilment</CardTitle>
           <CardDescription className="text-xs">
-            Raised directly against a blocked assembly job/component (distinct from the vendor-shortage bridge below).
-            Reserve stock, issue it, then have a DIFFERENT receiving actor acknowledge receipt -- acknowledgement is
-            what actually records fulfilment and resumes nothing on its own for the P&amp;A job.
+            Reserve stock, issue it, then have a different receiving actor acknowledge receipt. Core credits the
+            assembly component and resumes eligible P&amp;A work only after the governed acknowledgement.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -561,9 +566,9 @@ export default function ThreePgsProcurementQueue() {
             <div className="space-y-3">
               {assemblyRequirements.map((requirement) => {
                 const remaining = requirement.requested_qty - requirement.fulfilled_qty;
-                const reservations = assemblyReservations.filter((r) => r.demand_reference === requirement.requirement_number);
-                const issueEvents = assemblyIssueEvents.filter((e) => e.destination_reference === requirement.requirement_number);
-                const alreadyReserved = reservations.reduce((sum, r) => sum + r.reserved_qty, 0);
+                const reservations = assemblyReservations.filter((row) => row.demand_reference === requirement.requirement_number);
+                const issueEvents = assemblyIssueEvents.filter((row) => row.destination_reference === requirement.requirement_number);
+                const alreadyReserved = reservations.reduce((sum, row) => sum + row.reserved_qty, 0);
                 return (
                   <div key={requirement.id} className="rounded-lg border p-3 text-xs">
                     <div className="flex items-center justify-between gap-2">
@@ -590,8 +595,8 @@ export default function ThreePgsProcurementQueue() {
 
                     {reservations.map((reservation) => {
                       const alreadyIssued = assemblyIssueEvents
-                        .filter((e) => e.reservation_id === reservation.id)
-                        .reduce((sum, e) => sum + e.issued_qty, 0);
+                        .filter((event) => event.reservation_id === reservation.id)
+                        .reduce((sum, event) => sum + event.issued_qty, 0);
                       const remainingReserved = reservation.reserved_qty - alreadyIssued;
                       return (
                         <div key={reservation.id} className="mt-2 flex flex-wrap items-center gap-1 border-t pt-2">
@@ -606,7 +611,7 @@ export default function ThreePgsProcurementQueue() {
                             step="any"
                             placeholder={`Up to ${remainingReserved}`}
                             value={issueDrafts[reservation.id] ?? ""}
-                            onChange={(e) => setIssueDrafts((current) => ({ ...current, [reservation.id]: e.target.value }))}
+                            onChange={(event) => setIssueDrafts((current) => ({ ...current, [reservation.id]: event.target.value }))}
                           />
                           <Button
                             size="sm"
@@ -632,7 +637,7 @@ export default function ThreePgsProcurementQueue() {
                           step="any"
                           placeholder={`Up to ${issueEvent.issued_qty}`}
                           value={ackDrafts[issueEvent.id] ?? ""}
-                          onChange={(e) => setAckDrafts((current) => ({ ...current, [issueEvent.id]: e.target.value }))}
+                          onChange={(event) => setAckDrafts((current) => ({ ...current, [issueEvent.id]: event.target.value }))}
                         />
                         <Button
                           size="sm"
@@ -702,6 +707,10 @@ export default function ThreePgsProcurementQueue() {
       <Card>
         <CardHeader className="pb-2">
           <CardTitle className="text-sm">Procurement requirements</CardTitle>
+          <CardDescription className="text-xs">
+            Accepted quantity fulfils the shortage. Damaged/rejected quantity remains exception evidence and never
+            becomes available stock.
+          </CardDescription>
         </CardHeader>
         <CardContent>
           {!loading && requirements.length === 0 ? (
@@ -709,12 +718,33 @@ export default function ThreePgsProcurementQueue() {
           ) : (
             <div className="space-y-3">
               {requirements.map((requirement) => {
-                const draft = vendorDrafts[requirement.id] ?? { reference: "", expectedAt: "" };
-                const setDraft = (patch: Partial<typeof draft>) =>
-                  setVendorDrafts((current) => ({ ...current, [requirement.id]: { ...draft, ...patch } }));
+                const vendorDraft = vendorDrafts[requirement.id] ?? { reference: "", expectedAt: "" };
+                const setVendorDraft = (patch: Partial<typeof vendorDraft>) =>
+                  setVendorDrafts((current) => ({ ...current, [requirement.id]: { ...vendorDraft, ...patch } }));
                 const canAssignVendor = requirement.status === "open" || requirement.status === "vendor_assigned";
                 const remaining = requirement.shortage_qty - requirement.fulfilled_qty;
                 const canReceive = remaining > 0 && requirement.status !== "received" && requirement.status !== "cancelled";
+                const receiptDraft = receivingDrafts[requirement.id] ?? emptyReceivingDraft();
+                const setReceiptDraft = (patch: Partial<ThreePgsReceiptDispositionDraft>) =>
+                  setReceivingDrafts((current) => ({
+                    ...current,
+                    [requirement.id]: { ...(current[requirement.id] ?? emptyReceivingDraft()), ...patch },
+                  }));
+                const setReceivedQty = (value: string) => {
+                  const current = receivingDrafts[requirement.id] ?? emptyReceivingDraft();
+                  const wasDefaultFullAcceptance =
+                    current.acceptedQty === current.receivedQty
+                    && (current.damagedQty === "" || Number(current.damagedQty) === 0)
+                    && (current.rejectedQty === "" || Number(current.rejectedQty) === 0);
+                  const hasNoDisposition =
+                    current.acceptedQty === "" && current.damagedQty === "" && current.rejectedQty === "";
+                  setReceiptDraft(
+                    wasDefaultFullAcceptance || hasNoDisposition
+                      ? { receivedQty: value, acceptedQty: value, damagedQty: "0", rejectedQty: "0" }
+                      : { receivedQty: value },
+                  );
+                };
+
                 return (
                   <div key={requirement.id} className="rounded-lg border p-3 text-xs">
                     <div className="flex items-center justify-between gap-2">
@@ -726,24 +756,27 @@ export default function ThreePgsProcurementQueue() {
                         {requirement.status.replace(/_/g, " ")}
                       </Badge>
                     </div>
+
                     {requirement.vendor_reference ? (
                       <p className="mt-1 text-muted-foreground">
                         Vendor: {requirement.vendor_reference}
-                        {requirement.expected_at ? ` · ETA ${new Date(requirement.expected_at).toLocaleDateString(undefined, { timeZone: "UTC" })}` : ""}
+                        {requirement.expected_at
+                          ? ` · ETA ${new Date(requirement.expected_at).toLocaleDateString(undefined, { timeZone: "UTC" })}`
+                          : ""}
                       </p>
                     ) : canAssignVendor ? (
                       <div className="mt-2 flex flex-wrap items-center gap-1">
                         <Input
                           className="h-7 w-40 text-xs"
                           placeholder="Vendor reference"
-                          value={draft.reference}
-                          onChange={(e) => setDraft({ reference: e.target.value })}
+                          value={vendorDraft.reference}
+                          onChange={(event) => setVendorDraft({ reference: event.target.value })}
                         />
                         <Input
                           className="h-7 w-36 text-xs"
                           type="date"
-                          value={draft.expectedAt}
-                          onChange={(e) => setDraft({ expectedAt: e.target.value })}
+                          value={vendorDraft.expectedAt}
+                          onChange={(event) => setVendorDraft({ expectedAt: event.target.value })}
                         />
                         <Button
                           size="sm"
@@ -756,28 +789,89 @@ export default function ThreePgsProcurementQueue() {
                         </Button>
                       </div>
                     ) : null}
+
                     {canReceive ? (
-                      <div className="mt-2 flex flex-wrap items-center gap-1">
-                        <Input
-                          className="h-7 w-28 text-xs"
-                          type="number"
-                          min={0}
-                          step="any"
-                          placeholder={`Qty (of ${remaining})`}
-                          value={receivingDrafts[requirement.id] ?? ""}
-                          onChange={(e) =>
-                            setReceivingDrafts((current) => ({ ...current, [requirement.id]: e.target.value }))
-                          }
-                        />
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="h-7 px-2 text-[10px]"
-                          disabled={receiving === requirement.id}
-                          onClick={() => void handleReceive(requirement)}
-                        >
-                          Receive
-                        </Button>
+                      <div className="mt-3 space-y-2 border-t pt-3">
+                        <p className="font-medium">Receive &amp; disposition</p>
+                        <div className="grid gap-2 sm:grid-cols-4">
+                          <Input
+                            className="h-8 text-xs"
+                            type="number"
+                            min={0}
+                            step="any"
+                            placeholder={`Qty (of ${remaining})`}
+                            aria-label="Received quantity"
+                            value={receiptDraft.receivedQty}
+                            onChange={(event) => setReceivedQty(event.target.value)}
+                          />
+                          <Input
+                            className="h-8 text-xs"
+                            type="number"
+                            min={0}
+                            step="any"
+                            placeholder="Accepted"
+                            aria-label="Accepted quantity"
+                            value={receiptDraft.acceptedQty}
+                            onChange={(event) => setReceiptDraft({ acceptedQty: event.target.value })}
+                          />
+                          <Input
+                            className="h-8 text-xs"
+                            type="number"
+                            min={0}
+                            step="any"
+                            placeholder="Damaged"
+                            aria-label="Damaged quantity"
+                            value={receiptDraft.damagedQty}
+                            onChange={(event) => setReceiptDraft({ damagedQty: event.target.value })}
+                          />
+                          <Input
+                            className="h-8 text-xs"
+                            type="number"
+                            min={0}
+                            step="any"
+                            placeholder="Rejected"
+                            aria-label="Rejected quantity"
+                            value={receiptDraft.rejectedQty}
+                            onChange={(event) => setReceiptDraft({ rejectedQty: event.target.value })}
+                          />
+                        </div>
+                        <div className="grid gap-2 sm:grid-cols-3">
+                          <Input
+                            className="h-8 text-xs"
+                            placeholder="Supplier batch / lot"
+                            aria-label="Supplier batch or lot"
+                            value={receiptDraft.supplierBatchLot}
+                            onChange={(event) => setReceiptDraft({ supplierBatchLot: event.target.value })}
+                          />
+                          <Input
+                            className="h-8 text-xs"
+                            type="date"
+                            aria-label="Expiry date"
+                            value={receiptDraft.expiryDate}
+                            onChange={(event) => setReceiptDraft({ expiryDate: event.target.value })}
+                          />
+                          <Input
+                            className="h-8 text-xs"
+                            placeholder="Receiving note / evidence reference"
+                            aria-label="Receiving note"
+                            value={receiptDraft.notes}
+                            onChange={(event) => setReceiptDraft({ notes: event.target.value })}
+                          />
+                        </div>
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <p className="text-[11px] text-muted-foreground">
+                            Accepted + damaged + rejected must equal received. Accepted stock remains held until put-away/GRN.
+                          </p>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="h-8 px-3 text-[10px]"
+                            disabled={receiving === requirement.id}
+                            onClick={() => void handleReceive(requirement)}
+                          >
+                            Receive
+                          </Button>
+                        </div>
                       </div>
                     ) : null}
                   </div>
