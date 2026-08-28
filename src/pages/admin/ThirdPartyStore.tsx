@@ -1,7 +1,11 @@
 import { useCallback, useRef, useState } from "react";
+import { Navigate } from "react-router-dom";
 import TopNavBar from "@/components/TopNavBar";
 import { supabase } from "@/integrations/supabase/client";
 import { threePgsOrderItemRpc } from "@/lib/threePgsOrderItemRpc";
+import { canAccessThreePgsOperator } from "@/lib/threePgsAccess";
+import { getRoleDestination } from "@/lib/auth-routing";
+import { useAuth } from "@/hooks/useAuth";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { CheckCircle2, Loader2, RefreshCcw } from "lucide-react";
@@ -18,7 +22,14 @@ interface QueueItem {
   product?: { name: string | null; sku: string | null } | null;
 }
 
+/**
+ * Narrow legacy order-item completion surface retained during R4 command-centre
+ * reconciliation. It is no longer the STORE_3RD_PARTY landing route and is
+ * restricted to 3PGS operators/management; canonical stock authority remains
+ * server-side in Core.
+ */
 export default function ThirdPartyStore() {
+  const { role } = useAuth();
   const [items, setItems] = useState<QueueItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [loaded, setLoaded] = useState(false);
@@ -48,10 +59,13 @@ export default function ThirdPartyStore() {
     }
   }, []);
 
-  // Single initial fetch on mount
+  if (!canAccessThreePgsOperator(role)) {
+    return <Navigate to={getRoleDestination(role)} replace />;
+  }
+
   if (!fetchGuard.current) {
     fetchGuard.current = true;
-    fetchData();
+    void fetchData();
   }
 
   const handleComplete = async (item: QueueItem) => {
@@ -63,7 +77,9 @@ export default function ThirdPartyStore() {
       });
       if (error) throw new Error(error.message);
 
-      setItems(prev => prev.map(i => i.id === item.id ? { ...i, production_status: "completed", actual_packed_qty: item.quantity } : i));
+      setItems((prev) => prev.map((current) => current.id === item.id
+        ? { ...current, production_status: "completed", actual_packed_qty: item.quantity }
+        : current));
       toast.success(`Marked complete: ${item.product?.name || "Item"}`);
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : "Failed to update");
@@ -77,8 +93,11 @@ export default function ThirdPartyStore() {
       <TopNavBar />
       <div className="pt-20 px-4 max-w-4xl mx-auto space-y-4">
         <div className="flex items-center justify-between">
-          <h1 className="text-xl font-bold text-foreground">3rd Party Store (3PCS)</h1>
-          <Button size="sm" variant="outline" onClick={fetchData} disabled={loading}>
+          <div>
+            <h1 className="text-xl font-bold text-foreground">3rd Party Store (3PCS)</h1>
+            <p className="text-xs text-muted-foreground">Legacy order-item completion · canonical 3PGS queue is Procurement Queue</p>
+          </div>
+          <Button size="sm" variant="outline" onClick={() => void fetchData()} disabled={loading}>
             {loading ? <Loader2 size={14} className="animate-spin" /> : <RefreshCcw size={14} />}
             <span className="ml-1">Refresh</span>
           </Button>
@@ -104,7 +123,7 @@ export default function ThirdPartyStore() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {items.map(item => (
+                {items.map((item) => (
                   <TableRow key={item.id}>
                     <TableCell className="font-medium">{item.product?.name || "Unknown"}</TableCell>
                     <TableCell className="text-muted-foreground text-xs font-mono">{item.product?.sku || "—"}</TableCell>
@@ -121,7 +140,7 @@ export default function ThirdPartyStore() {
                           size="sm"
                           variant="outline"
                           className="text-xs"
-                          onClick={() => handleComplete(item)}
+                          onClick={() => void handleComplete(item)}
                           disabled={actingId === item.id}
                         >
                           {actingId === item.id ? <Loader2 size={14} className="animate-spin" /> : <CheckCircle2 size={14} />}
