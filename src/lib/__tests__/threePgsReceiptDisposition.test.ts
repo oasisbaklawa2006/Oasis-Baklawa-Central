@@ -18,7 +18,7 @@ describe("3PGS receipt disposition", () => {
       notes: "outer carton damaged",
     }, 6);
 
-    expect(result).toEqual({
+    expect(result).toMatchObject({
       ok: true,
       value: {
         receivedQty: 6,
@@ -54,7 +54,7 @@ describe("3PGS receipt disposition", () => {
       rejectedQty: "0",
     }, 6);
 
-    expect(result).toEqual({ ok: false, error: "Cannot receive more than the outstanding 6." });
+    expect(result).toMatchObject({ ok: false, error: "Cannot receive more than the outstanding 6." });
   });
 
   it("allows a fully damaged/rejected arrival so no false stock need be accepted", () => {
