@@ -6,7 +6,7 @@ type RoleRecord = {
 };
 
 // ─── Role → Route map ─────────────────────────────────────────────────────────
-// Every route here MUST exist in App.tsx. Verified against App.tsx 14 May 2026.
+// Every route here MUST exist in App.tsx.
 const STAFF_ROLE_DESTINATIONS: Record<string, string> = {
   // CMD / Admin
   SUPER_ADMIN:              "/admin/cmd-war-room",
@@ -26,13 +26,7 @@ const STAFF_ROLE_DESTINATIONS: Record<string, string> = {
   // OperationsController.tsx's HOD_DEPARTMENT_MAP filtering) is the real
   // execution tool these roles need; /admin/production is an unrelated
   // desktop-tabbed admin console (Order/Assembly/ReadyGoods/Inventory/
-  // Dispatch management) with no handheld components at all. These roles
-  // were previously landed on /admin/production despite this comment
-  // already describing the intent as "handheld execution" -- a routing
-  // defect confirmed by a reachability audit, fixed here. All these roles
-  // are already authorised for /operations-controller (ADMIN_STAFF_ROLES
-  // in App.tsx); this only changes the default post-login destination, not
-  // any permission.
+  // Dispatch management) with no handheld components at all.
   PRODUCTION_MANAGER:       "/operations-controller",
   HOD_ARABIC:               "/operations-controller",
   HOD_FUSION:               "/operations-controller",
@@ -40,35 +34,19 @@ const STAFF_ROLE_DESTINATIONS: Record<string, string> = {
   HOD_DRAGEES:              "/operations-controller",
   HOD_BAKERY:               "/operations-controller",
   HOD_NUTS:                 "/operations-controller",
-  // Dates has no standalone HOD desk -- it shares Fusion Sweets' handheld
-  // execution surface, per the owner's six-TV estate (Central issue #368).
   HOD_DATES:                "/operations-controller",
-  // Assembly (P&A) keeps its own dedicated, actively-developed management
-  // screen -- not the production-floor handheld surface above.
   HOD_ASSEMBLY:             "/admin/assembly-tasks",
 
   // Production floor TV screens
   PROD_ARABIC_SWEETS:       "/tv/arabic-sweets",
   PROD_FUSION:              "/tv/fusion",
-  // Dates is folded into the Fusion Sweets TV, not a standalone screen.
   PROD_DATES:               "/tv/fusion",
   PROD_CHOCOLATE:           "/tv/chocolate",
-  // Dragees is folded into the Chocolates & Confectionery TV, not a
-  // standalone screen, per the owner's six-TV estate (Central issue #368).
   PROD_DRAGEES:             "/tv/chocolate",
   PROD_BAKERY:              "/tv/bakery",
   PROD_NUTS:                "/tv/nuts",
 
   // TV wall display accounts (read-only, no timeout)
-  // /admin/assembly-tv and /admin/dispatch-tv are real, working live boards
-  // (real Supabase queries, loading/error states) but both self-label as
-  // "internal preview, not yet evidence-validated" -- do not default-land
-  // any role there until that validation is done, so TV_DISPLAY/TV_ASSEMBLY
-  // land on the CMD War Room hub instead. TV_READY is RGS's dedicated TV
-  // account and lands on the chrome-free kiosk route (/tv/rgs), matching
-  // the five production TVs' pattern rather than the full authenticated
-  // /admin shell -- RGS's TV was evidence-validated as part of Central
-  // issue #368's Lane 1 closure, unlike assembly/dispatch.
   TV_DISPLAY:               "/admin/cmd-war-room",
   TV_ASSEMBLY:              "/admin/cmd-war-room",
   TV_READY:                 "/tv/rgs",
@@ -77,7 +55,9 @@ const STAFF_ROLE_DESTINATIONS: Record<string, string> = {
   STORE_INCHARGE:           "/admin/ready-goods",
   STORE_READY_GOODS:        "/admin/ready-goods",
   RGS_ADMIN:                "/admin/ready-goods",
-  STORE_3RD_PARTY:          "/admin/3pcs-store",
+  // R4: the STORE_3RD_PARTY role lands on the governed priority/procurement/
+  // custody queue rather than the narrow legacy order-item completion list.
+  STORE_3RD_PARTY:          "/admin/3pgs-procurement-queue",
 
   // Dispatch
   DISPATCH_HEAD:            "/admin/dispatch-mgmt",
@@ -146,7 +126,6 @@ export function getRoleDestination(role?: string | null): string {
 
   if (CLIENT_ROLES.has(r)) return "/customer-app-redirect";
 
-  // Unknown role — do NOT send to /admin
   return "/customer-app-redirect";
 }
 
