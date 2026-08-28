@@ -18,9 +18,13 @@ export type ThreePgsReceiptDisposition = {
   notes: string | null;
 };
 
+// Both fields are present in both variants so this remains safe under the
+// repository's current TypeScript control-flow settings. The inactive field is
+// `never` and is materialised as undefined only on the branch that returns
+// before it can be consumed.
 export type ThreePgsReceiptDispositionResult =
-  | { ok: true; value: ThreePgsReceiptDisposition }
-  | { ok: false; error: string };
+  | { ok: true; value: ThreePgsReceiptDisposition; error: never }
+  | { ok: false; error: string; value: never };
 
 export const EMPTY_THREE_PGS_RECEIPT_DRAFT: ThreePgsReceiptDispositionDraft = {
   receivedQty: "",
@@ -31,6 +35,10 @@ export const EMPTY_THREE_PGS_RECEIPT_DRAFT: ThreePgsReceiptDispositionDraft = {
   expiryDate: "",
   notes: "",
 };
+
+function failure(error: string): ThreePgsReceiptDispositionResult {
+  return { ok: false, error, value: undefined as never };
+}
 
 function parseNonNegative(raw: string, label: string): number | string {
   if (raw.trim() === "") return `${label} quantity is required.`;
@@ -45,34 +53,32 @@ export function parseThreePgsReceiptDisposition(
 ): ThreePgsReceiptDispositionResult {
   const received = Number(draft.receivedQty);
   if (!draft.receivedQty.trim() || !Number.isFinite(received) || received <= 0) {
-    return { ok: false, error: "Enter a positive received quantity." };
+    return failure("Enter a positive received quantity.");
   }
   if (received > outstandingQty) {
-    return { ok: false, error: `Cannot receive more than the outstanding ${outstandingQty}.` };
+    return failure(`Cannot receive more than the outstanding ${outstandingQty}.`);
   }
 
   const accepted = parseNonNegative(draft.acceptedQty, "Accepted");
-  if (typeof accepted === "string") return { ok: false, error: accepted };
+  if (typeof accepted === "string") return failure(accepted);
   const damaged = parseNonNegative(draft.damagedQty, "Damaged");
-  if (typeof damaged === "string") return { ok: false, error: damaged };
+  if (typeof damaged === "string") return failure(damaged);
   const rejected = parseNonNegative(draft.rejectedQty, "Rejected");
-  if (typeof rejected === "string") return { ok: false, error: rejected };
+  if (typeof rejected === "string") return failure(rejected);
 
   const dispositioned = accepted + damaged + rejected;
   if (Math.abs(dispositioned - received) > 1e-9) {
-    return {
-      ok: false,
-      error: `Accepted + damaged + rejected must equal received quantity (${received}).`,
-    };
+    return failure(`Accepted + damaged + rejected must equal received quantity (${received}).`);
   }
 
   const expiryDate = draft.expiryDate.trim();
   if (expiryDate && !/^\d{4}-\d{2}-\d{2}$/.test(expiryDate)) {
-    return { ok: false, error: "Expiry date must use YYYY-MM-DD." };
+    return failure("Expiry date must use YYYY-MM-DD.");
   }
 
   return {
     ok: true,
+    error: undefined as never,
     value: {
       receivedQty: received,
       acceptedQty: accepted,
