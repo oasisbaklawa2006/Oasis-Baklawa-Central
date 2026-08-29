@@ -202,7 +202,12 @@ const FinanceReleaseBoard = () => {
       const facts = await getPaymentFacts(binding.piId);
       const pending = [...facts.payments].reverse().find((payment) => payment.status === "uploaded");
       setLatestUtrByOrderId((prev) => ({ ...prev, [orderId]: pending?.externalReference?.trim() || "—" }));
-      if (pending) setPaymentIdByOrderId((prev) => ({ ...prev, [orderId]: pending.paymentId }));
+      setPaymentIdByOrderId((prev) => {
+        const next = { ...prev };
+        if (pending) next[orderId] = pending.paymentId;
+        else delete next[orderId];
+        return next;
+      });
     } catch (error) {
       console.error("[FinanceReleaseBoard] canonical payment facts", error);
       setLatestUtrByOrderId((prev) => ({ ...prev, [orderId]: "Unavailable — governed PI/payment facts required" }));
@@ -271,6 +276,17 @@ const FinanceReleaseBoard = () => {
       } else {
         const paymentId = paymentIdByOrderId[reviewOrder.id];
         if (!paymentId) throw new Error("Canonical payment facts are required before rejecting payment proof");
+        const binding = await resolvePaymentBinding(reviewOrder.id);
+        const facts = await getPaymentFacts(binding.piId);
+        const payment = facts.payments.find((candidate) => candidate.paymentId === paymentId && candidate.status === "uploaded");
+        if (!payment) {
+          setPaymentIdByOrderId((prev) => {
+            const next = { ...prev };
+            delete next[reviewOrder.id];
+            return next;
+          });
+          throw new Error("Payment proof is no longer pending rejection");
+        }
         const correlationId = await buildPaymentCorrelationId("reject", paymentId);
         await rejectPayment({
           paymentId,
