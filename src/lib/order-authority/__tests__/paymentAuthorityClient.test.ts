@@ -1,7 +1,12 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
-import { buildPaymentIdempotencyKey } from "../paymentAuthorityClient";
+import {
+  buildPaymentCorrelationId,
+  buildPaymentIdempotencyKey,
+  parsePaymentBindingRows,
+  parsePaymentFacts,
+} from "../paymentAuthorityClient";
 
 const source = (relativePath: string) =>
   readFileSync(resolve(process.cwd(), "src", relativePath), "utf8");
@@ -15,6 +20,30 @@ describe("PF-6A Central payment authority contract", () => {
 
   it("fails closed for an empty identity", () => {
     expect(() => buildPaymentIdempotencyKey("proof", "  ")).toThrow("stable payment identity");
+    expect(() => buildPaymentCorrelationId("proof", "  ")).toThrow("stable payment identity");
+  });
+
+  it("bounds correlation IDs and rejects ambiguous PI bindings", () => {
+    const correlationId = buildPaymentCorrelationId("proof", "receipt:https://example.test/" + "x".repeat(5000));
+    expect(correlationId.length).toBeLessThan(64);
+    expect(() => parsePaymentBindingRows([])).toThrow("single governed PI");
+    expect(() => parsePaymentBindingRows([{ id: "pi-1" }, { id: "pi-2" }])).toThrow("single governed PI");
+  });
+
+  it("maps the factual Core payment projection and fails closed on malformed rows", () => {
+    const facts = parsePaymentFacts({
+      payment_facts_only: true,
+      pi_id: "pi-1",
+      order_id: "order-1",
+      commercial_version_id: "version-1",
+      commercial_version_number: "2",
+      commercial_value: "12500",
+      verified_total: 2500,
+      remaining_commercial_amount: 10000,
+      payments: [{ payment_id: "payment-1", status: "uploaded", payment_type: "advance", submitted_amount: "2500" }],
+    });
+    expect(facts.payments[0]?.submittedAmount).toBe(2500);
+    expect(() => parsePaymentFacts({ payment_facts_only: true, payments: [] })).toThrow("pi_id");
   });
 
   it("exposes the exact merged Core RPC surface", () => {

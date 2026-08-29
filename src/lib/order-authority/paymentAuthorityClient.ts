@@ -114,6 +114,10 @@ function requiredString(value: unknown, field: string): string {
   return value;
 }
 
+function assertActorId(actorId: string): void {
+  requiredString(actorId, "authenticated actor");
+}
+
 function requiredNumber(value: unknown, field: string): number {
   const number = typeof value === "number" ? value : typeof value === "string" ? Number(value) : NaN;
   if (!Number.isFinite(number)) throw new PaymentAuthorityError(`Invalid ${field} from Core payment authority`);
@@ -146,7 +150,17 @@ export function buildPaymentIdempotencyKey(operation: "proof" | "verify" | "reje
   return `central:pf6a:${operation}:${normalized}`;
 }
 
+/** Stable, bounded correlation identity; raw receipt URLs never enter Core metadata. */
+export function buildPaymentCorrelationId(operation: "proof" | "verify" | "reject", identity: string): string {
+  const normalized = identity.trim();
+  if (!normalized) throw new PaymentAuthorityError("A stable payment identity is required for correlation");
+  let hash = 2166136261;
+  for (const character of normalized) hash = Math.imul(hash ^ character.charCodeAt(0), 16777619);
+  return `central:pf6a:${operation}:${(hash >>> 0).toString(16).padStart(8, "0")}`;
+}
+
 export async function recordPaymentProof(input: PaymentProofInput): Promise<PaymentProofResult> {
+  assertActorId(input.actorId);
   const mapped = mapResult(await call("record_order_payment_proof_v1", {
     p_order_id: input.orderId,
     p_pi_id: input.piId,
@@ -168,6 +182,7 @@ export async function recordPaymentProof(input: PaymentProofInput): Promise<Paym
 }
 
 export async function verifyPayment(input: PaymentVerificationInput): Promise<PaymentVerificationResult> {
+  assertActorId(input.actorId);
   const mapped = mapResult(await call("verify_order_payment_v1", {
     p_payment_id: input.paymentId,
     p_verified_amount: input.verifiedAmount,
@@ -182,6 +197,7 @@ export async function verifyPayment(input: PaymentVerificationInput): Promise<Pa
 }
 
 export async function rejectPayment(input: PaymentRejectionInput): Promise<PaymentRejectionResult> {
+  assertActorId(input.actorId);
   const mapped = mapResult(await call("reject_order_payment_v1", {
     p_payment_id: input.paymentId,
     p_reason: input.reason,
@@ -192,18 +208,18 @@ export async function rejectPayment(input: PaymentRejectionInput): Promise<Payme
   return { paymentId: mapped.paymentId, status: mapped.status, alreadyRejected: mapped.already };
 }
 
-export async function getPaymentFacts(piId: string): Promise<PaymentFacts> {
-  const value = row<Record<string, unknown>>(await call("get_order_payment_facts_v1", { p_pi_id: piId }), "getPaymentFacts");
-  if (value.payment_facts_only !== true) throw new PaymentAuthorityError("Core payment facts response is not factual-only");
-  const payments = Array.isArray(value.payments) ? value.payments : [];
+export function parsePaymentFacts(value: unknown): PaymentFacts {
+  const facts = row<Record<string, unknown>>(value, "getPaymentFacts");
+  if (facts.payment_facts_only !== true) throw new PaymentAuthorityError("Core payment facts response is not factual-only");
+  const payments = Array.isArray(facts.payments) ? facts.payments : [];
   return {
-    piId: requiredString(value.pi_id, "pi_id"),
-    orderId: requiredString(value.order_id, "order_id"),
-    commercialVersionId: requiredString(value.commercial_version_id, "commercial_version_id"),
-    commercialVersionNumber: requiredNumber(value.commercial_version_number, "commercial_version_number"),
-    commercialValue: requiredNumber(value.commercial_value, "commercial_value"),
-    verifiedTotal: requiredNumber(value.verified_total, "verified_total"),
-    remainingCommercialAmount: requiredNumber(value.remaining_commercial_amount, "remaining_commercial_amount"),
+    piId: requiredString(facts.pi_id, "pi_id"),
+    orderId: requiredString(facts.order_id, "order_id"),
+    commercialVersionId: requiredString(facts.commercial_version_id, "commercial_version_id"),
+    commercialVersionNumber: requiredNumber(facts.commercial_version_number, "commercial_version_number"),
+    commercialValue: requiredNumber(facts.commercial_value, "commercial_value"),
+    verifiedTotal: requiredNumber(facts.verified_total, "verified_total"),
+    remainingCommercialAmount: requiredNumber(facts.remaining_commercial_amount, "remaining_commercial_amount"),
     payments: payments.map((item) => {
       const payment = item && typeof item === "object" ? item as Record<string, unknown> : {};
       return {
@@ -225,14 +241,11 @@ export async function getPaymentFacts(piId: string): Promise<PaymentFacts> {
   };
 }
 
-export async function resolvePaymentBinding(orderId: string): Promise<PaymentBinding> {
-  const { data, error } = await db.from("sales_order_proforma_invoice_authority_v1")
-    .select("id, order_id, commercial_version_id, status")
-    .eq("order_id", orderId)
-    .in("status", ["READY_FOR_ISSUE", "ISSUED"])
-    .order("created_at", { ascending: false })
-    .limit(2);
-  if (error) throw new PaymentAuthorityError(error);
+export async function getPaymentFacts(piId: string): Promise<PaymentFacts> {
+  return parsePaymentFacts(await call("get_order_payment_facts_v1", { p_pi_id: piId }));
+}
+
+export function parsePaymentBindingRows(data: unknown): PaymentBinding {
   const rows = Array.isArray(data) ? data : [];
   if (rows.length !== 1) throw new PaymentAuthorityError("A single governed PI and commercial version are required before payment action");
   const value = rows[0] && typeof rows[0] === "object" ? rows[0] as Record<string, unknown> : {};
@@ -242,4 +255,15 @@ export async function resolvePaymentBinding(orderId: string): Promise<PaymentBin
     commercialVersionId: requiredString(value.commercial_version_id, "commercial version id"),
     status: requiredString(value.status, "PI status"),
   };
+}
+
+export async function resolvePaymentBinding(orderId: string): Promise<PaymentBinding> {
+  const { data, error } = await db.from("sales_order_proforma_invoice_authority_v1")
+    .select("id, order_id, commercial_version_id, status")
+    .eq("order_id", orderId)
+    .in("status", ["READY_FOR_ISSUE", "ISSUED"])
+    .order("created_at", { ascending: false })
+    .limit(2);
+  if (error) throw new PaymentAuthorityError(error);
+  return parsePaymentBindingRows(data);
 }

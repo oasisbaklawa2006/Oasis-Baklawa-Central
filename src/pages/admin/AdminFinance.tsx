@@ -3,6 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { releaseOrderToManufacturing } from "@/lib/order-authority/orderAuthorityClient";
 import {
   buildPaymentIdempotencyKey,
+  buildPaymentCorrelationId,
   getPaymentFacts,
   recordPaymentProof,
   resolvePaymentBinding,
@@ -654,7 +655,7 @@ const AdminFinance = () => {
       if (!financialEntry.receiptUrl) {
         throw new Error("Canonical payment proof requires an uploaded receipt before verification");
       }
-      const correlationId = `central:finance-payment:${financialEntry.orderId}:${financialEntry.utrReference.trim() || financialEntry.receiptUrl}`;
+      const correlationId = buildPaymentCorrelationId("proof", `${financialEntry.orderId}:${financialEntry.utrReference.trim() || financialEntry.receiptUrl}`);
       const proof = await recordPaymentProof({
         orderId: financialEntry.orderId,
         piId: binding.piId,

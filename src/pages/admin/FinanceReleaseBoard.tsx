@@ -9,6 +9,7 @@ import {
 } from "@/lib/order-authority/orderAuthorityClient";
 import {
   buildPaymentIdempotencyKey,
+  buildPaymentCorrelationId,
   getPaymentFacts,
   rejectPayment,
   resolvePaymentBinding,
@@ -233,7 +234,7 @@ const FinanceReleaseBoard = () => {
         const facts = await getPaymentFacts(binding.piId);
         const payment = facts.payments.find((candidate) => candidate.paymentId === paymentId && candidate.status === "uploaded");
         if (!payment) throw new Error("Payment proof is no longer pending verification");
-        const correlationId = `central:finance-review:${reviewOrder.id}:${paymentId}`;
+        const correlationId = buildPaymentCorrelationId("verify", paymentId);
         await verifyPayment({
           paymentId,
           verifiedAmount: payment.submittedAmount,
@@ -270,7 +271,7 @@ const FinanceReleaseBoard = () => {
       } else {
         const paymentId = paymentIdByOrderId[reviewOrder.id];
         if (!paymentId) throw new Error("Canonical payment facts are required before rejecting payment proof");
-        const correlationId = `central:finance-reject:${reviewOrder.id}:${paymentId}`;
+        const correlationId = buildPaymentCorrelationId("reject", paymentId);
         await rejectPayment({
           paymentId,
           reason: trimmed,
