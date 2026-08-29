@@ -1,29 +1,16 @@
 import { expect, test } from "@playwright/test";
 import * as fs from "fs";
-import * as path from "path";
-import { fileURLToPath } from "url";
 import { THREE_PGS_OPERATOR_ROLES, canAccessThreePgsOperator } from "../src/lib/threePgsAccess";
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const projectRoot = path.resolve(__dirname, "..");
-
-function read(relative: string): string {
-  const resolved = path.resolve(projectRoot, relative);
-  if (resolved !== projectRoot && !resolved.startsWith(projectRoot + path.sep)) {
-    throw new Error(`Refusing to read outside the project root: ${relative}`);
-  }
-  return fs.readFileSync(resolved, "utf-8");
-}
-
-// auth-routing.ts imports the live Supabase client singleton at module scope
-// (it needs `supabase` for other exports), which throws outside a Vite
-// runtime because `import.meta.env` is undefined under Playwright's Node
-// test loader. This spec therefore asserts the destination mapping against
-// source text, matching the pattern already used below for the other two
-// route-closure checks, instead of importing auth-routing.ts directly.
-const authRouting = read("src/lib/auth-routing.ts");
-const legacyBoard = read("src/pages/admin/execution/ThirdPartyExecutionBoard.tsx");
-const moduleGuard = read("src/components/AdminModuleRoute.tsx");
+// Use fixed module-relative URLs instead of resolving caller-supplied paths.
+// This keeps the source-contract checks deterministic without exposing a
+// dynamic filesystem path sink for the security scanner.
+const authRouting = fs.readFileSync(new URL("../src/lib/auth-routing.ts", import.meta.url), "utf-8");
+const legacyBoard = fs.readFileSync(
+  new URL("../src/pages/admin/execution/ThirdPartyExecutionBoard.tsx", import.meta.url),
+  "utf-8",
+);
+const moduleGuard = fs.readFileSync(new URL("../src/components/AdminModuleRoute.tsx", import.meta.url), "utf-8");
 
 test.describe("R4 3PGS route closure", () => {
   test("STORE_3RD_PARTY lands on the governed priority/procurement queue", () => {
