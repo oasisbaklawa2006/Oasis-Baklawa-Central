@@ -1,6 +1,16 @@
 import { useEffect, useState, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { releaseOrderToManufacturing } from "@/lib/order-authority/orderAuthorityClient";
+import {
+  buildPaymentIdempotencyKey,
+  buildPaymentCorrelationId,
+  buildPaymentProofIdentity,
+  type PaymentProofIdentityInput,
+  getPaymentFacts,
+  recordPaymentProof,
+  resolvePaymentBinding,
+  verifyPayment,
+} from "@/lib/order-authority/paymentAuthorityClient";
 import { toast } from "sonner";
 import {
   Loader2,
@@ -29,7 +39,6 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useAuth } from "@/hooks/useAuth";
 import { queueNotification } from "@/utils/notificationOutbox";
-import { classifyFlow } from "@/utils/departmentClassifier";
 import { LedgerDisputesPanel } from "@/components/admin/LedgerDisputesPanel";
 import { exportTallyBridgeV1ToCsv, isOrderReadyForTallyExportV1 } from "@/utils/tallyExportV1";
 import {
@@ -125,27 +134,6 @@ interface UserNameRow {
 
 interface InwardMaterialItemRow {
   advice_id: string;
-}
-
-interface FinanceBomOrderItem {
-  id: string;
-  quantity: number;
-  product_id: string | null;
-  product?: {
-    name?: string | null;
-    production_department?: string | null;
-    category?: { name?: string | null } | null;
-    product_bom?: ScrutinyBomComponent[] | null;
-  } | null;
-}
-
-interface ScrutinyBomComponent {
-  component_product_id?: string | null;
-  component_name?: string | null;
-  quantity_per_unit?: number | null;
-  source_department?: string | null;
-  quantity?: number | null;
-  product?: { name?: string | null; price_per_kg?: number | null } | null;
 }
 
 const FAULT_OPTIONS = ["Sales Error", "Manufacturing Defect", "Logistics Damage"];
@@ -619,7 +607,12 @@ const AdminFinance = () => {
         return;
       }
 
-      const liveSOValue = liveOrder.sales_order_value ?? 0;
+      const binding = await resolvePaymentBinding(financialEntry.orderId);
+      const facts = await getPaymentFacts(binding.piId);
+      if (facts.orderId !== financialEntry.orderId || facts.commercialVersionId !== binding.commercialVersionId) {
+        throw new Error("Core payment facts do not match the governed order version");
+      }
+      const liveSOValue = facts.commercialValue;
 
       // GUARD: Never release a ₹0 order
       if (liveSOValue <= 0) {
@@ -639,91 +632,46 @@ const AdminFinance = () => {
         }
       }
 
-      await supabase.from("order_payments").insert({
-        order_id: financialEntry.orderId,
-        payment_type: "advance",
-        amount,
-        reference_no: financialEntry.utrReference || null,
-        created_by: user?.id ?? null,
+      if (!financialEntry.receiptUrl) {
+        throw new Error("Canonical payment proof requires an uploaded receipt before verification");
+      }
+      const proofIdentityInput: PaymentProofIdentityInput = {
+        orderId: financialEntry.orderId,
+        piId: binding.piId,
+        commercialVersionId: binding.commercialVersionId,
+        paymentType: "advance",
+        submittedAmount: amount,
+        currency: "INR",
+        paymentMode: financialEntry.paymentMode,
+        externalReference: financialEntry.utrReference.trim() || null,
+        proofEvidenceReference: financialEntry.receiptUrl,
+        sourceChannel: "SALES",
+        sourceReference: `central:finance-entry:${financialEntry.orderId}`,
+      };
+      const proofIdentity = buildPaymentProofIdentity(proofIdentityInput);
+      const correlationId = await buildPaymentCorrelationId("proof", proofIdentity);
+      const proof = await recordPaymentProof({
+        ...proofIdentityInput,
+        correlationId,
+        idempotencyKey: await buildPaymentIdempotencyKey("proof", proofIdentity),
+        actorId: user?.id ?? "",
+      });
+      const verificationCorrelationId = await buildPaymentCorrelationId("verify", proof.paymentId);
+      await verifyPayment({
+        paymentId: proof.paymentId,
+        verifiedAmount: amount,
+        verifiedReference: financialEntry.utrReference.trim() || null,
+        verificationEvidenceReference: financialEntry.receiptUrl,
+        reason: "Finance review",
+        correlationId: verificationCorrelationId,
+        idempotencyKey: await buildPaymentIdempotencyKey("verify", proof.paymentId),
+        actorId: user?.id ?? "",
       });
 
-      await releaseOrderToManufacturing(
-        financialEntry.orderId,
-        "verified_advance",
-        amount,
-        liveSOValue,
-      );
-
-      // AUTO-DIVERTER + BOM BLAST: Route items by category, explode hampers
-      try {
-        const { data: items } = await supabase
-          .from("order_items")
-          .select("id, quantity, product_id, product:products(name, production_department, category:categories(name), product_bom(component_product_id, component_name, quantity_per_unit, source_department))")
-          .eq("order_id", financialEntry.orderId);
-        if (items) {
-          for (const item of items as FinanceBomOrderItem[]) {
-            const catName = (item.product?.category?.name || "").toLowerCase().trim();
-            const prodName = (item.product?.name || "").toLowerCase().trim();
-            const mappedDepartment = (item.product?.production_department || "").trim();
-            let dept = mappedDepartment || "Ready Goods";
-
-            if (!mappedDepartment && (catName.includes("hamper") || catName.includes("gift") || prodName.includes("hamper") || prodName.includes("gift"))) {
-              dept = "Packing & Assembly";
-            } else if (!mappedDepartment && (catName.includes("platter") || catName.includes("accessor") || catName.includes("basket") || catName.includes("tray") || prodName.includes("platter") || prodName.includes("tray"))) {
-              dept = "3rd Party Goods";
-            }
-
-            const bomComponents = Array.isArray(item.product?.product_bom) ? item.product.product_bom : [];
-            if (bomComponents.length > 0) {
-              await supabase.from("audit_logs").insert({
-                action_type: "BOM_EXPLOSION",
-                module_name: "Finance→BOM",
-                entity_name: "order_items",
-                entity_id: item.id,
-                actor_id: user?.id || null,
-                new_value: {
-                  parent_product: item.product?.name,
-                  target_department: dept,
-                  qty: item.quantity,
-                  components: bomComponents.map((component) => ({
-                    component_product_id: component.component_product_id,
-                    component_name: component.component_name,
-                    quantity_per_unit: component.quantity_per_unit,
-                    source_department: component.source_department,
-                  })),
-                },
-                risk_level: "normal",
-              });
-            }
-
-            const flow = classifyFlow(dept || mappedDepartment);
-            const itemUpdate: { department: string; production_status?: string } = { department: dept };
-            if (flow === "FLOW_ASSEMBLY" || flow === "FLOW_3PCS") {
-              itemUpdate.production_status = "pending";
-            }
-
-            await supabase.from("order_items").update(itemUpdate).eq("id", item.id);
-          }
-        }
-      } catch { /* non-critical routing */ }
-
-      // Push to RGS Inbox
-      try {
-        await supabase.from("audit_logs").insert({
-          action_type: "RGS_INBOX_PUSH",
-          module_name: "Finance→RGS",
-          entity_name: "orders",
-          entity_id: financialEntry.orderId,
-          actor_id: user?.id || null,
-          new_value: { pushed_at: new Date().toISOString(), source: "finance_release" },
-          risk_level: "normal",
-        });
-      } catch { /* non-critical */ }
-
-      toast.success(`₹${amount.toLocaleString("en-IN")} verified — released to Production`);
+      toast.success(`₹${amount.toLocaleString("en-IN")} verified in Core; production release remains a separate governed action.`);
       setFinancialEntry(null);
       fetchOrders();
-    } catch { toast.error("Verification failed."); }
+    } catch (err) { toast.error(err instanceof Error ? err.message : "Verification failed."); }
     setSavingEntry(false);
   };
 
@@ -1179,7 +1127,7 @@ const AdminFinance = () => {
                         })}
                         className="flex-1 py-2.5 bg-emerald-600 text-white rounded-lg text-xs font-bold hover:bg-emerald-700 flex justify-center items-center gap-1"
                       >
-                        <ShieldCheck size={14} /> Verify Credit & Release
+                        <ShieldCheck size={14} /> Record Proof & Verify
                       </button>
                       <button
                         onClick={() => setShortTermTarget(order)}
@@ -2016,7 +1964,7 @@ const AdminFinance = () => {
                   disabled={savingEntry}
                   className="flex min-h-[3rem] w-full items-center justify-center gap-2 rounded-xl bg-emerald-600 py-4 font-bold text-white shadow-xl shadow-emerald-600/20 transition-all hover:bg-emerald-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-offset-2 active:scale-[0.99] disabled:opacity-60"
                 >
-                  {savingEntry ? <Loader2 size={18} className="animate-spin" /> : <><CheckCircle2 size={18} /> Verify & Release to Production</>}
+                    {savingEntry ? <Loader2 size={18} className="animate-spin" /> : <><CheckCircle2 size={18} /> Record proof & verify in Core</>}
                 </button>
               </div>
             </motion.div>
