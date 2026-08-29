@@ -1,0 +1,56 @@
+{
+  "schema_version": 1,
+  "authority": "APPVERSE_MISSION_CONTROL",
+  "objective": "Complete the Oasis Baklawa Appverse. PR completion is subordinate to application completion.",
+  "status_vocabulary": {
+    "CLEARED": "Completed and verified against every mandatory gate for the stated scope.",
+    "IN_PROCESS": "Actively being worked or certified.",
+    "BLOCKED": "Cannot proceed until a named dependency or blocker clears.",
+    "READY": "Prerequisites are clear and work may start.",
+    "NOT_CLEARED": "Known remaining work or clearance evidence is incomplete.",
+    "LOCKED": "Deliberately cannot begin until upstream programme gates clear."
+  },
+  "clearance_rule": "A merged PR is evidence only. It MUST NOT automatically set a stage or substage to CLEARED. CLEARED requires every mandatory gate declared for that item.",
+  "repositories": [
+    "oasisbaklawa2006/Oasis-Baklawa-Central",
+    "oasisbaklawa2006/oasis-supabase-core",
+    "oasisbaklawa2006/oasis-ai-studio",
+    "oasisbaklawa2006/oasis-trace",
+    "oasisbaklawa2006/oasis-baklawa"
+  ],
+  "critical_path": {
+    "mode": "parallel-convergence",
+    "current_primary_blocker": "No single universal blocker. App completion currently converges through migration/schema governance, WhatsApp certification, 3PGS closure, and pre-factory commercial/payment authority.",
+    "active_heads": ["MIG-01", "WA-01", "3PGS-01", "PF-01"],
+    "final_sequence": ["remaining-module-closure", "cross-app-integration", "ui-ux-completion", "automated-e2e", "physical-uat", "production-readiness", "APP-COMPLETE"]
+  },
+  "stages": [
+    {"id":"00","name":"Architecture & Governance","status":"IN_PROCESS","owner":"Mission Control + repo governance","active_prs":["Central#411","Core#133"],"gates":["single migration authority","repo ownership boundaries","thread routing guardrails","dependency enforcement","ASM automation"],"next":"Merge and propagate Mission Control/guardrail control plane; finish bounded schema governance."},
+    {"id":"01","name":"Database / Schema / Migrations","status":"IN_PROCESS","owner":"Core migration lane","active_prs":["Core#133"],"gates":["clean replay","pgTAP","migration monotonicity","production ledger parity","semantic drift sentinel"],"next":"Close Core#133 and verify the bounded semantic census remains green."},
+    {"id":"02","name":"Authentication / RBAC","status":"NOT_CLEARED","owner":null,"active_prs":[],"gates":["all operational roles provisionable","route-role parity","Core RLS parity","cross-app login certification"],"next":"Run final cross-Appverse RBAC census after active schema lanes settle.","evidence_note":"Several role-parity repairs are merged, but no whole-Appverse final clearance has been established."},
+    {"id":"03","name":"Core Backend Authority","status":"IN_PROCESS","owner":"Core lanes","active_prs":["Core#130","Core#133","Core#134"],"gates":["canonical authority only","no dead mutation surfaces","idempotency","RLS/RBAC","contract tests"],"next":"Complete active Core authority slices and recensus remaining dead/un-governed paths."},
+    {"id":"04","name":"Central App Foundation","status":"NOT_CLEARED","owner":"Central","active_prs":["Central#411"],"gates":["build","route census","ownership boundaries","no shadow schema","final module reachability"],"next":"Close #411, then final route/module census.","evidence_note":"Foundation is mature, but final Appverse clearance is not yet established."},
+    {"id":"05","name":"Order / Pre-Factory Commercial Flow","status":"IN_PROCESS","owner":"Core pre-factory lane","active_prs":["Core#130"],"gates":["SO commercial freeze","PI authority","payment evidence","finance verification","release authority","Central callers","E2E"],"next":"Complete PF-6A payment authority, then continue the governed pre-factory chain."},
+    {"id":"06","name":"WhatsApp","status":"IN_PROCESS","owner":"WhatsApp certification lane","active_prs":["Core#126","Core#134"],"gates":["ingress","identity","interpretation","clarification","autonomous SO continuation","non-order resolution","multimodal media","protected corpus","provider proof","load/chaos","release certification"],"next":"Merge/fix #134 as appropriate and continue isolated #126 certification through real provider/release gates."},
+    {"id":"07","name":"RGS","status":"NOT_CLEARED","owner":null,"active_prs":[],"gates":["governed stock lifecycle","production handoff","escalation","software certification","physical handheld/TV UAT"],"next":"Software evidence is strong; perform remaining physical-device UAT and final scope census.","evidence_note":"Factory certification recorded RGS custody assertions green; physical UAT remained explicitly separate."},
+    {"id":"08","name":"3PGS","status":"IN_PROCESS","owner":"Central R4 lane","active_prs":["Central#410"],"gates":["priority queue","P&A shortfall bridge","vendor receipt truth","put-away/GRN reachability","discrepancy workspace","satellite visibility","E2E","physical UAT"],"next":"Close Central#410; continue R4.3 put-away allocation reachability and discrepancy closure."},
+    {"id":"09","name":"Packing & Assembly","status":"NOT_CLEARED","owner":null,"active_prs":[],"gates":["component reservation","3PGS handoff","assembly execution","custody","software certification","physical UAT"],"next":"Retain merged software closure; complete final physical-device UAT and whole-chain confirmation.","evidence_note":"Software custody certification is green, but physical UAT was explicitly left outside autonomous certification."},
+    {"id":"10","name":"Production Departments","status":"NOT_CLEARED","owner":null,"active_prs":[],"gates":["department routing","job execution","issues/escalation","day-end","TV truth","software certification","physical UAT"],"next":"Software certification is green; complete real TV/handheld certification before stage clearance."},
+    {"id":"11","name":"Dispatch","status":"NOT_CLEARED","owner":null,"active_prs":[],"gates":["governed consignment","carton lifecycle","packing evidence","finance release","shipment","gate","legacy cutover","E2E","physical UAT"],"next":"Recensus the intentionally deferred carton/status/legacy cutover gaps and continue governed migration."},
+    {"id":"12","name":"Finance & Accounts","status":"IN_PROCESS","owner":"Core pre-factory lane","active_prs":["Core#130"],"gates":["PI","payment proof","finance verification","clearance","credit/wallet policy","dispatch release integration","E2E"],"next":"Finish canonical payment evidence and downstream finance-clearance authority."},
+    {"id":"13","name":"Buyer App","status":"NOT_CLEARED","owner":null,"active_prs":[],"gates":["catalogue","cart/MOQ","SO","payments","tracking","documents","support","mobile UX","E2E"],"next":"Perform current repository census and map every buyer journey to canonical Core authority."},
+    {"id":"14","name":"AI Studio","status":"NOT_CLEARED","owner":null,"active_prs":[],"gates":["knowledge plane","catalogue provenance","Core handoff","review/activation","runtime consumption","E2E"],"next":"Verify current AI Studio head against merged Core knowledge bridge and establish final clearance gaps."},
+    {"id":"15","name":"Trace","status":"NOT_CLEARED","owner":null,"active_prs":[],"gates":["governed mutations","scan contracts","DPL/PI carton membership","Central integration","device/scanner UAT","E2E"],"next":"Reconcile latest Trace state; software contracts have passing evidence but final operational/device clearance is still required."},
+    {"id":"16","name":"Cross-App Integration","status":"LOCKED","owner":"Mission Control","active_prs":[],"gates":["Core-Central","Core-Buyer","AI-Core","Trace-Core/Central","shared identity","end-to-end data lineage"],"next":"Unlock progressively as upstream module gates reach software-complete state."},
+    {"id":"17","name":"Automated Testing / Certification","status":"IN_PROCESS","owner":"Certification lanes","active_prs":["Core#126"],"gates":["unit","contract","clean replay","browser runtime","cross-repo","failure injection","load/chaos","release evidence"],"next":"Extend existing Factory certification pattern to the remaining Appverse critical journeys."},
+    {"id":"18","name":"Security / Governance","status":"IN_PROCESS","owner":"Governance lanes","active_prs":["Central#411","Core#133"],"gates":["repo boundaries","least privilege","AAL2 where required","secret safety","supply-chain pinning","schema drift protection"],"next":"Close current governance PRs and make control-plane checks required."},
+    {"id":"19","name":"UI / UX Completion","status":"NOT_CLEARED","owner":null,"active_prs":[],"gates":["role-appropriate surfaces","mobile/handheld","TV","error states","navigation","buyer UX","accessibility","visual consistency"],"next":"Run module-by-module UI completion census after functional authority lanes converge."},
+    {"id":"20","name":"End-to-End Certification","status":"LOCKED","owner":"Mission Control","active_prs":[],"gates":["golden business journeys","negative paths","cross-app propagation","retries/idempotency","failure recovery","festival/load"],"next":"Unlock once required upstream functional slices are software-complete."},
+    {"id":"21","name":"Production Readiness","status":"LOCKED","owner":"Mission Control","active_prs":[],"gates":["production migration parity","deployment","observability","rollback/recovery","physical devices","operator UAT","release signoff"],"next":"Unlock after E2E certification."},
+    {"id":"22","name":"APPVERSE COMPLETE","status":"LOCKED","owner":"Mission Control","active_prs":[],"gates":["all mandatory stage gates CLEARED","no launch-blocking blocker","production readiness CLEARED"],"next":"Final release closure."}
+  ],
+  "live_evidence": {
+    "generated_file": "appverse-control/generated/github-state.json",
+    "rule": "Automatically refreshed GitHub facts may change active evidence and alerts, but never semantic CLEARED status by themselves."
+  }
+}
