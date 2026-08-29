@@ -49,6 +49,8 @@ export type PaymentProofInput = {
   actorId: string;
 };
 
+export type PaymentProofIdentityInput = Omit<PaymentProofInput, "correlationId" | "idempotencyKey" | "actorId">;
+
 export type PaymentProofResult = { paymentId: string; status: string; alreadyRecorded: boolean };
 
 export type PaymentVerificationInput = {
@@ -144,19 +146,50 @@ async function call<T>(fn: string, args: Record<string, unknown>): Promise<T> {
   return data;
 }
 
-export function buildPaymentIdempotencyKey(operation: "proof" | "verify" | "reject", identity: string): string {
+function normalizeIdentity(identity: string, purpose: string): string {
   const normalized = identity.trim();
-  if (!normalized) throw new PaymentAuthorityError("A stable payment identity is required for idempotency");
-  return `central:pf6a:${operation}:${normalized}`;
+  if (!normalized) throw new PaymentAuthorityError(`A stable payment identity is required for ${purpose}`);
+  return normalized;
+}
+
+/** Canonical proof identity; evidence URLs are hashed and never emitted in Core metadata. */
+export function buildPaymentProofIdentity(input: PaymentProofIdentityInput): string {
+  const identity = [
+    requiredString(input.orderId, "order id").trim(),
+    requiredString(input.piId, "PI id").trim(),
+    requiredString(input.commercialVersionId, "commercial version id").trim(),
+    requiredString(input.paymentType, "payment type").trim(),
+    input.submittedAmount,
+    requiredString(input.currency, "currency").toUpperCase(),
+    input.paymentMode?.trim() || null,
+    input.externalReference?.trim() || null,
+    input.payerReference?.trim() || null,
+    requiredString(input.proofEvidenceReference, "proof evidence reference").trim(),
+    requiredString(input.sourceChannel, "source channel").trim(),
+    requiredString(input.sourceReference, "source reference").trim(),
+  ];
+  if (!Number.isFinite(input.submittedAmount)) throw new PaymentAuthorityError("A finite submitted amount is required for payment identity");
+  return JSON.stringify(identity);
+}
+
+async function sha256Hex(value: string): Promise<string> {
+  const subtle = globalThis.crypto?.subtle;
+  if (!subtle) throw new PaymentAuthorityError("Web Crypto SHA-256 is unavailable for payment identity");
+  const digest = await subtle.digest("SHA-256", new TextEncoder().encode(value));
+  return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join("");
+}
+
+export async function buildPaymentIdempotencyKey(operation: "proof" | "verify" | "reject", identity: string): Promise<string> {
+  const normalized = normalizeIdentity(identity, "idempotency");
+  const digest = await sha256Hex(`pf6a:${operation}:${normalized}`);
+  return `central:pf6a:${operation}:${digest}`;
 }
 
 /** Stable, bounded correlation identity; raw receipt URLs never enter Core metadata. */
-export function buildPaymentCorrelationId(operation: "proof" | "verify" | "reject", identity: string): string {
-  const normalized = identity.trim();
-  if (!normalized) throw new PaymentAuthorityError("A stable payment identity is required for correlation");
-  let hash = 2166136261;
-  for (const character of normalized) hash = Math.imul(hash ^ character.charCodeAt(0), 16777619);
-  return `central:pf6a:${operation}:${(hash >>> 0).toString(16).padStart(8, "0")}`;
+export async function buildPaymentCorrelationId(operation: "proof" | "verify" | "reject", identity: string): Promise<string> {
+  const normalized = normalizeIdentity(identity, "correlation");
+  const digest = await sha256Hex(`pf6a:${operation}:${normalized}`);
+  return `central:pf6a:${operation}:${digest}`;
 }
 
 export async function recordPaymentProof(input: PaymentProofInput): Promise<PaymentProofResult> {

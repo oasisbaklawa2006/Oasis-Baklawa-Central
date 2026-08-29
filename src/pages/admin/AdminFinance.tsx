@@ -4,6 +4,8 @@ import { releaseOrderToManufacturing } from "@/lib/order-authority/orderAuthorit
 import {
   buildPaymentIdempotencyKey,
   buildPaymentCorrelationId,
+  buildPaymentProofIdentity,
+  type PaymentProofIdentityInput,
   getPaymentFacts,
   recordPaymentProof,
   resolvePaymentBinding,
@@ -655,8 +657,7 @@ const AdminFinance = () => {
       if (!financialEntry.receiptUrl) {
         throw new Error("Canonical payment proof requires an uploaded receipt before verification");
       }
-      const correlationId = buildPaymentCorrelationId("proof", `${financialEntry.orderId}:${financialEntry.utrReference.trim() || financialEntry.receiptUrl}`);
-      const proof = await recordPaymentProof({
+      const proofIdentityInput: PaymentProofIdentityInput = {
         orderId: financialEntry.orderId,
         piId: binding.piId,
         commercialVersionId: binding.commercialVersionId,
@@ -668,18 +669,24 @@ const AdminFinance = () => {
         proofEvidenceReference: financialEntry.receiptUrl,
         sourceChannel: "SALES",
         sourceReference: `central:finance-entry:${financialEntry.orderId}`,
+      };
+      const proofIdentity = buildPaymentProofIdentity(proofIdentityInput);
+      const correlationId = await buildPaymentCorrelationId("proof", proofIdentity);
+      const proof = await recordPaymentProof({
+        ...proofIdentityInput,
         correlationId,
-        idempotencyKey: buildPaymentIdempotencyKey("proof", correlationId),
+        idempotencyKey: await buildPaymentIdempotencyKey("proof", proofIdentity),
         actorId: user?.id ?? "",
       });
+      const verificationCorrelationId = await buildPaymentCorrelationId("verify", proof.paymentId);
       await verifyPayment({
         paymentId: proof.paymentId,
         verifiedAmount: amount,
         verifiedReference: financialEntry.utrReference.trim() || null,
         verificationEvidenceReference: financialEntry.receiptUrl,
         reason: "Finance review",
-        correlationId,
-        idempotencyKey: buildPaymentIdempotencyKey("verify", proof.paymentId),
+        correlationId: verificationCorrelationId,
+        idempotencyKey: await buildPaymentIdempotencyKey("verify", proof.paymentId),
         actorId: user?.id ?? "",
       });
 

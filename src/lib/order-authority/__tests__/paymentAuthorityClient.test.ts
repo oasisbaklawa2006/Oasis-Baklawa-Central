@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 import {
   buildPaymentCorrelationId,
   buildPaymentIdempotencyKey,
+  buildPaymentProofIdentity,
   parsePaymentBindingRows,
   parsePaymentFacts,
 } from "../paymentAuthorityClient";
@@ -12,20 +13,51 @@ const source = (relativePath: string) =>
   readFileSync(resolve(process.cwd(), "src", relativePath), "utf8");
 
 describe("PF-6A Central payment authority contract", () => {
-  it("builds stable operation-scoped idempotency keys", () => {
-    expect(buildPaymentIdempotencyKey("proof", "order:1")).toBe("central:pf6a:proof:order:1");
-    expect(buildPaymentIdempotencyKey("proof", " order:1 ")).toBe("central:pf6a:proof:order:1");
-    expect(buildPaymentIdempotencyKey("proof", "order:1")).not.toBe(buildPaymentIdempotencyKey("verify", "order:1"));
+  it("builds stable operation-scoped SHA-256 idempotency keys", async () => {
+    const proofKey = await buildPaymentIdempotencyKey("proof", "order:1");
+    expect(proofKey).toMatch(/^central:pf6a:proof:[0-9a-f]{64}$/);
+    expect(await buildPaymentIdempotencyKey("proof", " order:1 ")).toBe(proofKey);
+    expect(proofKey).not.toBe(await buildPaymentIdempotencyKey("verify", "order:1"));
   });
 
-  it("fails closed for an empty identity", () => {
-    expect(() => buildPaymentIdempotencyKey("proof", "  ")).toThrow("stable payment identity");
-    expect(() => buildPaymentCorrelationId("proof", "  ")).toThrow("stable payment identity");
+  it("fails closed for an empty identity", async () => {
+    await expect(buildPaymentIdempotencyKey("proof", "  ")).rejects.toThrow("stable payment identity");
+    await expect(buildPaymentCorrelationId("proof", "  ")).rejects.toThrow("stable payment identity");
   });
 
-  it("bounds correlation IDs and rejects ambiguous PI bindings", () => {
-    const correlationId = buildPaymentCorrelationId("proof", "receipt:https://example.test/" + "x".repeat(5000));
-    expect(correlationId.length).toBeLessThan(64);
+  it("uses a deterministic collision-resistant digest and bounds correlation IDs", async () => {
+    const base = {
+      orderId: "order-1",
+      piId: "pi-1",
+      commercialVersionId: "version-1",
+      paymentType: "advance" as const,
+      submittedAmount: 2500,
+      currency: "INR",
+      paymentMode: "UPI",
+      externalReference: "utr-1",
+      payerReference: "payer-1",
+      proofEvidenceReference: "https://example.test/" + "x".repeat(5000),
+      sourceChannel: "WHATSAPP",
+      sourceReference: "draft-1",
+    };
+    const identity = buildPaymentProofIdentity(base);
+    const correlationId = await buildPaymentCorrelationId("proof", identity);
+    expect(correlationId).toMatch(/^central:pf6a:proof:[0-9a-f]{64}$/);
+    expect(correlationId).toHaveLength(83);
+    expect(await buildPaymentCorrelationId("proof", identity)).toBe(correlationId);
+    expect(await buildPaymentIdempotencyKey("proof", identity)).toMatch(/^central:pf6a:proof:[0-9a-f]{64}$/);
+    expect(await buildPaymentIdempotencyKey("proof", identity)).toHaveLength(83);
+    expect(await buildPaymentCorrelationId("proof", buildPaymentProofIdentity({ ...base, proofEvidenceReference: "receipt-2" }))).not.toBe(correlationId);
+    expect(await buildPaymentIdempotencyKey("proof", buildPaymentProofIdentity({ ...base, proofEvidenceReference: "receipt-2" }))).not.toBe(await buildPaymentIdempotencyKey("proof", identity));
+    expect(await buildPaymentCorrelationId("verify", "payment-1")).toMatch(/^central:pf6a:verify:[0-9a-f]{64}$/);
+    expect(await buildPaymentCorrelationId("reject", "payment-1")).not.toBe(await buildPaymentCorrelationId("verify", "payment-1"));
+    const client = source("lib/order-authority/paymentAuthorityClient.ts");
+    expect(client).not.toContain("2166136261");
+    expect(client).not.toContain("Math.imul");
+    expect(client).not.toContain("padStart(8, \"0\")");
+  });
+
+  it("rejects ambiguous PI bindings", () => {
     expect(() => parsePaymentBindingRows([])).toThrow("single governed PI");
     expect(() => parsePaymentBindingRows([{ id: "pi-1" }, { id: "pi-2" }])).toThrow("single governed PI");
   });

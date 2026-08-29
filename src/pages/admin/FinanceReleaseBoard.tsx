@@ -234,7 +234,7 @@ const FinanceReleaseBoard = () => {
         const facts = await getPaymentFacts(binding.piId);
         const payment = facts.payments.find((candidate) => candidate.paymentId === paymentId && candidate.status === "uploaded");
         if (!payment) throw new Error("Payment proof is no longer pending verification");
-        const correlationId = buildPaymentCorrelationId("verify", paymentId);
+        const correlationId = await buildPaymentCorrelationId("verify", paymentId);
         await verifyPayment({
           paymentId,
           verifiedAmount: payment.submittedAmount,
@@ -242,7 +242,7 @@ const FinanceReleaseBoard = () => {
           verificationEvidenceReference: reviewOrder.payment_receipt_url,
           reason: "Finance review",
           correlationId,
-          idempotencyKey: buildPaymentIdempotencyKey("verify", paymentId),
+          idempotencyKey: await buildPaymentIdempotencyKey("verify", paymentId),
           actorId: user.id,
         });
       }
@@ -271,12 +271,12 @@ const FinanceReleaseBoard = () => {
       } else {
         const paymentId = paymentIdByOrderId[reviewOrder.id];
         if (!paymentId) throw new Error("Canonical payment facts are required before rejecting payment proof");
-        const correlationId = buildPaymentCorrelationId("reject", paymentId);
+        const correlationId = await buildPaymentCorrelationId("reject", paymentId);
         await rejectPayment({
           paymentId,
           reason: trimmed,
           correlationId,
-          idempotencyKey: buildPaymentIdempotencyKey("reject", paymentId),
+          idempotencyKey: await buildPaymentIdempotencyKey("reject", paymentId),
           actorId: user.id,
         });
       }
