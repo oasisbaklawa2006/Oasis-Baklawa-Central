@@ -40,11 +40,10 @@ interface FinanceOrder {
   company?: { business_name: string; wallet_balance?: number | null } | null;
 }
 
-type PaymentAction = "request_advance" | "mark_advance_paid" | "request_balance" | "mark_fully_paid" | "issue_gate_pass";
+type PaymentAction = "request_advance" | "request_balance" | "mark_fully_paid" | "issue_gate_pass";
 
 const ACTION_LABELS: Record<PaymentAction, string> = {
   request_advance: "Request 50% Advance",
-  mark_advance_paid: "Mark Advance Paid",
   request_balance: "Request Final Balance",
   mark_fully_paid: "Mark Fully Paid",
   issue_gate_pass: "Generate Shipping & Gate Pass",
@@ -55,7 +54,6 @@ function getAvailableActions(order: FinanceOrder): PaymentAction[] {
   const advReq = order.advance_required ?? 0;
   const advPaid = order.advance_paid ?? 0;
   if (advReq === 0) actions.push("request_advance");
-  if (advReq > 0 && advPaid < advReq) actions.push("mark_advance_paid");
   if (advPaid >= advReq && advReq > 0 && order.payment_status !== "paid") actions.push("request_balance");
   if (order.payment_status !== "paid" && advPaid > 0) actions.push("mark_fully_paid");
 
@@ -417,10 +415,6 @@ const AdminAccountsRelease = () => {
     try {
       if (action === "request_advance") {
         toast.error("Setting advance requirement requires a governed finance RPC — use Finance Release Board.");
-        setActing(null);
-        return;
-      } else if (action === "mark_advance_paid") {
-        toast.error("Payment proof must be recorded and verified through the governed Core Finance flow; production release is a separate action.");
         setActing(null);
         return;
       } else if (action === "request_balance") {
