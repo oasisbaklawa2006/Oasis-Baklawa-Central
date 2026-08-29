@@ -481,6 +481,30 @@ describe("ThreePgsProcurementQueue", () => {
       expect(rpcMock).toHaveBeenCalledTimes(4);
     });
 
+    it("clears the pending correlation when create fails validation, so a corrected resubmission is not blocked", async () => {
+      rpcMock.mockImplementationOnce(async () => ({
+        data: null,
+        error: { message: "expected_qty exceeds outstanding shortage" },
+      }));
+      render(<ThreePgsProcurementQueue />);
+      fireEvent.change(await screen.findByPlaceholderText("Qty (of 6)"), { target: { value: "4" } });
+      fireEvent.click(screen.getByText("Receive"));
+
+      await waitFor(() => expect(toast.error).toHaveBeenCalledWith("expected_qty exceeds outstanding shortage"));
+      expect(rpcMock).toHaveBeenCalledTimes(1);
+
+      // No receipt was ever created, so the reserved correlation must not
+      // survive to block a corrected resubmission with different quantities.
+      fireEvent.change(screen.getByPlaceholderText("Qty (of 6)"), { target: { value: "3" } });
+      fireEvent.click(screen.getByText("Receive"));
+
+      await waitFor(() => expect(rpcMock).toHaveBeenCalledTimes(5));
+      expect(rpcMock.mock.calls[1][0]).toBe("create_b2b_inventory_receipt");
+      expect(toast.error).not.toHaveBeenCalledWith(
+        "A previous receive attempt is pending. Restore the original receipt quantities or refresh after reconciliation before changing the disposition.",
+      );
+    });
+
     it("treats malformed persisted state as absent and still completes a receive", async () => {
       window.sessionStorage.setItem(RECEIVING_CORRELATION_STORAGE_KEY, "{not json");
       render(<ThreePgsProcurementQueue />);

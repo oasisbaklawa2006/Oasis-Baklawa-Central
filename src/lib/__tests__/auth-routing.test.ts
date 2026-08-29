@@ -4,6 +4,7 @@ import {
   isPathWithinRoleDestination,
   isStaffRole,
   isStorefrontRole,
+  normalizePathname,
   normalizeRole,
 } from "@/lib/auth-routing";
 
@@ -79,5 +80,15 @@ describe("auth-routing", () => {
     expect(isPathWithinRoleDestination("/admin/cmd-war-room/foo", "ADMIN")).toBe(true);
     expect(isPathWithinRoleDestination("/sales/dashboard", "SALES_EXECUTIVE")).toBe(true);
     expect(isPathWithinRoleDestination("/admin/users", "B2B_BUYER")).toBe(false);
+  });
+
+  it("strips any number of repeated trailing slashes, not just one", () => {
+    expect(normalizePathname("/admin/3pgs-procurement-queue")).toBe("/admin/3pgs-procurement-queue");
+    expect(normalizePathname("/admin/3pgs-procurement-queue/")).toBe("/admin/3pgs-procurement-queue");
+    expect(normalizePathname("/admin/3pgs-procurement-queue//")).toBe("/admin/3pgs-procurement-queue");
+    expect(normalizePathname("/admin/3pgs-procurement-queue///")).toBe("/admin/3pgs-procurement-queue");
+    expect(normalizePathname("/")).toBe("/");
+    expect(normalizePathname("//")).toBe("/");
+    expect(normalizePathname("")).toBe("/");
   });
 });

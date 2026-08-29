@@ -487,6 +487,13 @@ export default function ThreePgsProcurementQueue() {
     const { receiptCorrelationId, linkCorrelationId } = state;
 
     setReceiving(requirement.id);
+    // Tracks whether create_b2b_inventory_receipt is confirmed to have
+    // produced a receipt row. A validation failure here means no receipt
+    // exists server-side, so the reserved correlation carries no meaning and
+    // must not block a corrected resubmission. A lost response leaves this
+    // false too, which is exactly right -- we can't tell whether a receipt
+    // was created, so the correlation must be kept and reused on retry.
+    let receiptCreated = false;
     try {
       const { data: receiptData, error: createError } = await threePgsProcurementRpc.rpc<InventoryReceipt>(
         "create_b2b_inventory_receipt",
@@ -512,6 +519,7 @@ export default function ThreePgsProcurementQueue() {
       );
       if (createError) throw new Error(createError.message);
       if (!receiptData) throw new Error("The inventory receipt could not be created.");
+      receiptCreated = true;
       const receiptId = receiptData.id;
 
       const { data: receiptLine, error: lineError } = await procurementDb
@@ -599,6 +607,10 @@ export default function ThreePgsProcurementQueue() {
         });
       }
     } catch (err) {
+      if (!receiptCreated) {
+        if (receivingCorrelationRef.current) delete receivingCorrelationRef.current[requirement.id];
+        persistReceivingState(requirement.id, null);
+      }
       toast.error(err instanceof Error ? err.message : "Failed to record the inbound receipt.");
     } finally {
       setReceiving(null);
