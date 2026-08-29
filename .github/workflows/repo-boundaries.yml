@@ -32,3 +32,6 @@ jobs:
 
       - name: Check repo ownership boundaries
         run: npm run check:boundaries
+
+      - name: Regression-test ownership boundaries
+        run: bash scripts/tests/verify-repo-boundaries.sh
