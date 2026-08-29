@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Navigate } from "react-router-dom";
 import TopNavBar from "@/components/TopNavBar";
 import { supabase } from "@/integrations/supabase/client";
@@ -59,13 +59,16 @@ export default function ThirdPartyStore() {
     }
   }, []);
 
-  if (!canAccessThreePgsOperator(role)) {
-    return <Navigate to={getRoleDestination(role)} replace />;
-  }
+  const authorized = canAccessThreePgsOperator(role);
 
-  if (!fetchGuard.current) {
+  useEffect(() => {
+    if (!authorized || fetchGuard.current) return;
     fetchGuard.current = true;
     void fetchData();
+  }, [authorized, fetchData]);
+
+  if (!authorized) {
+    return <Navigate to={getRoleDestination(role)} replace />;
   }
 
   const handleComplete = async (item: QueueItem) => {
