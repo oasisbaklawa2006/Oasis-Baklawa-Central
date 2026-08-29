@@ -39,7 +39,6 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useAuth } from "@/hooks/useAuth";
 import { queueNotification } from "@/utils/notificationOutbox";
-import { classifyFlow } from "@/utils/departmentClassifier";
 import { LedgerDisputesPanel } from "@/components/admin/LedgerDisputesPanel";
 import { exportTallyBridgeV1ToCsv, isOrderReadyForTallyExportV1 } from "@/utils/tallyExportV1";
 import {
@@ -135,27 +134,6 @@ interface UserNameRow {
 
 interface InwardMaterialItemRow {
   advice_id: string;
-}
-
-interface FinanceBomOrderItem {
-  id: string;
-  quantity: number;
-  product_id: string | null;
-  product?: {
-    name?: string | null;
-    production_department?: string | null;
-    category?: { name?: string | null } | null;
-    product_bom?: ScrutinyBomComponent[] | null;
-  } | null;
-}
-
-interface ScrutinyBomComponent {
-  component_product_id?: string | null;
-  component_name?: string | null;
-  quantity_per_unit?: number | null;
-  source_department?: string | null;
-  quantity?: number | null;
-  product?: { name?: string | null; price_per_kg?: number | null } | null;
 }
 
 const FAULT_OPTIONS = ["Sales Error", "Manufacturing Defect", "Logistics Damage"];
@@ -689,59 +667,6 @@ const AdminFinance = () => {
         idempotencyKey: await buildPaymentIdempotencyKey("verify", proof.paymentId),
         actorId: user?.id ?? "",
       });
-
-      // AUTO-DIVERTER + BOM BLAST: Route items by category, explode hampers
-      try {
-        const { data: items } = await supabase
-          .from("order_items")
-          .select("id, quantity, product_id, product:products(name, production_department, category:categories(name), product_bom(component_product_id, component_name, quantity_per_unit, source_department))")
-          .eq("order_id", financialEntry.orderId);
-        if (items) {
-          for (const item of items as FinanceBomOrderItem[]) {
-            const catName = (item.product?.category?.name || "").toLowerCase().trim();
-            const prodName = (item.product?.name || "").toLowerCase().trim();
-            const mappedDepartment = (item.product?.production_department || "").trim();
-            let dept = mappedDepartment || "Ready Goods";
-
-            if (!mappedDepartment && (catName.includes("hamper") || catName.includes("gift") || prodName.includes("hamper") || prodName.includes("gift"))) {
-              dept = "Packing & Assembly";
-            } else if (!mappedDepartment && (catName.includes("platter") || catName.includes("accessor") || catName.includes("basket") || catName.includes("tray") || prodName.includes("platter") || prodName.includes("tray"))) {
-              dept = "3rd Party Goods";
-            }
-
-            const bomComponents = Array.isArray(item.product?.product_bom) ? item.product.product_bom : [];
-            if (bomComponents.length > 0) {
-              await supabase.from("audit_logs").insert({
-                action_type: "BOM_EXPLOSION",
-                module_name: "Finance→BOM",
-                entity_name: "order_items",
-                entity_id: item.id,
-                actor_id: user?.id || null,
-                new_value: {
-                  parent_product: item.product?.name,
-                  target_department: dept,
-                  qty: item.quantity,
-                  components: bomComponents.map((component) => ({
-                    component_product_id: component.component_product_id,
-                    component_name: component.component_name,
-                    quantity_per_unit: component.quantity_per_unit,
-                    source_department: component.source_department,
-                  })),
-                },
-                risk_level: "normal",
-              });
-            }
-
-            const flow = classifyFlow(dept || mappedDepartment);
-            const itemUpdate: { department: string; production_status?: string } = { department: dept };
-            if (flow === "FLOW_ASSEMBLY" || flow === "FLOW_3PCS") {
-              itemUpdate.production_status = "pending";
-            }
-
-            await supabase.from("order_items").update(itemUpdate).eq("id", item.id);
-          }
-        }
-      } catch { /* non-critical routing */ }
 
       toast.success(`₹${amount.toLocaleString("en-IN")} verified in Core; production release remains a separate governed action.`);
       setFinancialEntry(null);

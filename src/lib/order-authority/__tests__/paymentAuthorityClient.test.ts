@@ -108,4 +108,23 @@ describe("PF-6A Central payment authority contract", () => {
     expect(releaseBoard).toContain("verifyPayment");
     expect(releaseBoard).toContain("rejectPayment");
   });
+
+  it("keeps payment verification separate from production and operations mutation", () => {
+    const adminFinance = source("pages/admin/AdminFinance.tsx");
+    const releaseBoard = source("pages/admin/FinanceReleaseBoard.tsx");
+    const paymentVerification = adminFinance.slice(
+      adminFinance.indexOf("const handleFinancialEntrySubmit"),
+      adminFinance.indexOf("// Short-Term Credit Release"),
+    );
+    const paymentReview = releaseBoard.slice(
+      releaseBoard.indexOf("const runVerifyAction"),
+      releaseBoard.indexOf("const pushToFloor"),
+    );
+    expect(paymentVerification).toContain("verifyPayment");
+    expect(paymentVerification).not.toContain("releaseOrderToManufacturing");
+    expect(paymentVerification).not.toContain("order_items");
+    expect(paymentVerification).not.toContain("production_status");
+    expect(paymentVerification).not.toContain("BOM_EXPLOSION");
+    expect(paymentReview).not.toMatch(/releaseOrderTo(InProduction|Manufacturing)|order_items|production_status|BOM_EXPLOSION/);
+  });
 });
