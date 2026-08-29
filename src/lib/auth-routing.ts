@@ -155,7 +155,7 @@ export function getRoleDestination(role?: string | null): string {
 }
 
 // ─── Path check ───────────────────────────────────────────────────────────────
-function normalizePathname(pathname: string): string {
+export function normalizePathname(pathname: string): string {
   if (!pathname || pathname === "/") return "/";
   return pathname.endsWith("/") ? pathname.slice(0, -1) : pathname;
 }

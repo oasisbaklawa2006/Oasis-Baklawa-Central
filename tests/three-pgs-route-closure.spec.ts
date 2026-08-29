@@ -5,7 +5,15 @@ import { fileURLToPath } from "url";
 import { THREE_PGS_OPERATOR_ROLES, canAccessThreePgsOperator } from "../src/lib/threePgsAccess";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const read = (relative: string) => fs.readFileSync(path.resolve(__dirname, "..", relative), "utf-8");
+const projectRoot = path.resolve(__dirname, "..");
+
+function read(relative: string): string {
+  const resolved = path.resolve(projectRoot, relative);
+  if (resolved !== projectRoot && !resolved.startsWith(projectRoot + path.sep)) {
+    throw new Error(`Refusing to read outside the project root: ${relative}`);
+  }
+  return fs.readFileSync(resolved, "utf-8");
+}
 
 // auth-routing.ts imports the live Supabase client singleton at module scope
 // (it needs `supabase` for other exports), which throws outside a Vite
@@ -43,7 +51,7 @@ test.describe("R4 3PGS route closure", () => {
   });
 
   test("admin module boundary applies the 3PGS operator gate", () => {
-    expect(moduleGuard).toContain('location.pathname === "/admin/3pgs-procurement-queue"');
+    expect(moduleGuard).toContain('normalizePathname(location.pathname) === "/admin/3pgs-procurement-queue"');
     expect(moduleGuard).toContain("!canAccessThreePgsOperator(role)");
   });
 });

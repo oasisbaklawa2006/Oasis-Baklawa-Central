@@ -92,6 +92,83 @@ type ReceivingState = {
   payloadFingerprint: string;
 };
 
+// Receipt correlations must survive a reload after create but before
+// record/accept completes (a lost response), or a retry mints a fresh
+// correlation id and Core's idempotency can no longer recognize it as the
+// same physical delivery -- creating a duplicate receipt. sessionStorage is
+// deliberately per-tab (never localStorage): an in-progress receive is a
+// single operator's in-flight action, not something that should silently
+// resume in a different tab. This is client-side retry bookkeeping only --
+// it grants no authority Core doesn't already enforce via p_correlation_id.
+const RECEIVING_CORRELATION_STORAGE_KEY = "3pgs-receiving-correlations:v1";
+// An entry older than this is treated as abandoned (e.g. the tab crashed
+// before the success path could clear it) so it can never permanently block
+// a legitimate later receipt on the same requirement.
+const RECEIVING_CORRELATION_TTL_MS = 24 * 60 * 60 * 1000;
+
+type StoredReceivingState = ReceivingState & { storedAt: number };
+type StoredReceivingCorrelations = Record<string, StoredReceivingState>;
+
+function readStoredReceivingCorrelations(): StoredReceivingCorrelations {
+  try {
+    const raw = window.sessionStorage.getItem(RECEIVING_CORRELATION_STORAGE_KEY);
+    if (!raw) return {};
+    const parsed: unknown = JSON.parse(raw);
+    if (!parsed || typeof parsed !== "object") return {};
+    const now = Date.now();
+    const result: StoredReceivingCorrelations = {};
+    for (const [requirementId, value] of Object.entries(parsed as Record<string, unknown>)) {
+      if (!value || typeof value !== "object") continue;
+      const candidate = value as Record<string, unknown>;
+      const { receiptCorrelationId, linkCorrelationId, payloadFingerprint, storedAt } = candidate;
+      if (
+        typeof receiptCorrelationId !== "string" || receiptCorrelationId.length === 0
+        || typeof linkCorrelationId !== "string" || linkCorrelationId.length === 0
+        || typeof payloadFingerprint !== "string"
+        || typeof storedAt !== "number" || !Number.isFinite(storedAt)
+      ) {
+        continue;
+      }
+      if (now - storedAt > RECEIVING_CORRELATION_TTL_MS) continue;
+      result[requirementId] = { receiptCorrelationId, linkCorrelationId, payloadFingerprint, storedAt };
+    }
+    return result;
+  } catch {
+    // Malformed or inaccessible storage never widens authority -- treat it
+    // as empty and let fresh correlation ids be minted.
+    return {};
+  }
+}
+
+function loadReceivingCorrelations(): Record<string, ReceivingState> {
+  const stored = readStoredReceivingCorrelations();
+  const result: Record<string, ReceivingState> = {};
+  for (const [requirementId, entry] of Object.entries(stored)) {
+    result[requirementId] = {
+      receiptCorrelationId: entry.receiptCorrelationId,
+      linkCorrelationId: entry.linkCorrelationId,
+      payloadFingerprint: entry.payloadFingerprint,
+    };
+  }
+  return result;
+}
+
+function persistReceivingState(requirementId: string, state: ReceivingState | null): void {
+  try {
+    const stored = readStoredReceivingCorrelations();
+    if (state) {
+      stored[requirementId] = { ...state, storedAt: Date.now() };
+    } else {
+      delete stored[requirementId];
+    }
+    window.sessionStorage.setItem(RECEIVING_CORRELATION_STORAGE_KEY, JSON.stringify(stored));
+  } catch {
+    // sessionStorage unavailable (private mode, quota) -- persistence
+    // degrades to in-memory-only for this tab; still correct, just loses
+    // reload survival.
+  }
+}
+
 function emptyReceivingDraft(): ThreePgsReceiptDispositionDraft {
   return { ...EMPTY_THREE_PGS_RECEIPT_DRAFT };
 }
@@ -128,7 +205,10 @@ export default function ThreePgsProcurementQueue() {
 
   const [receivingDrafts, setReceivingDrafts] = useState<Record<string, ThreePgsReceiptDispositionDraft>>({});
   const [receiving, setReceiving] = useState<string | null>(null);
-  const receivingCorrelationRef = useRef<Record<string, ReceivingState>>({});
+  const receivingCorrelationRef = useRef<Record<string, ReceivingState> | null>(null);
+  if (receivingCorrelationRef.current === null) {
+    receivingCorrelationRef.current = loadReceivingCorrelations();
+  }
 
   const fetchData = useCallback(async (): Promise<boolean> => {
     setLoading(true);
@@ -387,7 +467,8 @@ export default function ThreePgsProcurementQueue() {
     }
     const disposition = parsed.value;
     const payloadFingerprint = receiptDispositionFingerprint(disposition);
-    const previousState = receivingCorrelationRef.current[requirement.id];
+    const correlations = receivingCorrelationRef.current ?? (receivingCorrelationRef.current = loadReceivingCorrelations());
+    const previousState = correlations[requirement.id];
 
     if (previousState && previousState.payloadFingerprint !== payloadFingerprint) {
       toast.error(
@@ -401,7 +482,8 @@ export default function ThreePgsProcurementQueue() {
       linkCorrelationId: crypto.randomUUID(),
       payloadFingerprint,
     };
-    receivingCorrelationRef.current[requirement.id] = state;
+    correlations[requirement.id] = state;
+    persistReceivingState(requirement.id, state);
     const { receiptCorrelationId, linkCorrelationId } = state;
 
     setReceiving(requirement.id);
@@ -508,7 +590,8 @@ export default function ThreePgsProcurementQueue() {
           : "Receipt disposition recorded. No quantity was accepted; procurement shortage remains open.",
       );
       if (await fetchData()) {
-        delete receivingCorrelationRef.current[requirement.id];
+        if (receivingCorrelationRef.current) delete receivingCorrelationRef.current[requirement.id];
+        persistReceivingState(requirement.id, null);
         setReceivingDrafts((current) => {
           const next = { ...current };
           delete next[requirement.id];
