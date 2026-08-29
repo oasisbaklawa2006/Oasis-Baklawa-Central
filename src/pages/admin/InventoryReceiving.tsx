@@ -234,23 +234,25 @@ function computeMissingPutawaySlots(lines: ReceiptLine[], tasks: PutawayTask[]):
 
 function PutawayAllocationPanel({ receipt, lines, tasks, bins, reload }: { receipt: Receipt; lines: ReceiptLine[]; tasks: PutawayTask[]; bins: Bin[]; reload: () => Promise<void> }) {
   const slots = useMemo(() => computeMissingPutawaySlots(lines, tasks), [lines, tasks]);
-  const [binBySlot, setBinBySlot] = useState<Record<string, string>>({});
+  const [binBySlot, setBinBySlot] = useState<Map<string, string>>(new Map());
   const [busy, setBusy] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
 
+  const setSlotBin = (key: string, binId: string) => setBinBySlot((current) => new Map(current).set(key, binId));
+
   const submit = async () => {
-    const unfilled = slots.filter((slot) => !binBySlot[slotKey(slot)]);
+    const unfilled = slots.filter((slot) => !binBySlot.get(slotKey(slot)));
     if (unfilled.length) { setActionError("Select a bin for every open allocation before submitting."); return; }
     setBusy(true); setActionError(null);
     try {
-      const allocations = slots.map((slot) => ({ line_id: slot.lineId, bin_id: binBySlot[slotKey(slot)], disposition: slot.disposition, quantity: slot.quantity }));
+      const allocations = slots.map((slot) => ({ line_id: slot.lineId, bin_id: binBySlot.get(slotKey(slot)), disposition: slot.disposition, quantity: slot.quantity }));
       const { error } = await fulfilmentDb.rpc("allocate_b2b_inventory_putaway", {
         p_receipt_id: receipt.id,
         p_allocations: allocations,
         p_correlation_id: `putaway-alloc:${receipt.id}:${Date.now()}`,
       });
       if (error) setActionError(error.message);
-      else { setBinBySlot({}); await reload(); }
+      else { setBinBySlot(new Map()); await reload(); }
     } catch (cause) {
       setActionError(cause instanceof Error ? cause.message : "Put-away allocation failed");
     } finally {
@@ -279,8 +281,8 @@ function PutawayAllocationPanel({ receipt, lines, tasks, bins, reload }: { recei
               </div>
               <select
                 className="rounded border bg-background px-2 py-2 text-sm"
-                value={binBySlot[key] ?? ""}
-                onChange={(event) => setBinBySlot((current) => ({ ...current, [key]: event.target.value }))}
+                value={binBySlot.get(key) ?? ""}
+                onChange={(event) => setSlotBin(key, event.target.value)}
                 aria-label={`Bin for ${slot.sku} ${slot.disposition}`}
               >
                 <option value="">Select a bin…</option>
@@ -298,24 +300,27 @@ function PutawayAllocationPanel({ receipt, lines, tasks, bins, reload }: { recei
 }
 
 function SupplierDiscrepancyPanel({ lines, discrepancies, reload }: { lines: ReceiptLine[]; discrepancies: Discrepancy[]; reload: () => Promise<void> }) {
-  const [resolutionById, setResolutionById] = useState<Record<string, string>>({});
-  const [statusById, setStatusById] = useState<Record<string, string>>({});
+  const [resolutionById, setResolutionById] = useState<Map<string, string>>(new Map());
+  const [statusById, setStatusById] = useState<Map<string, string>>(new Map());
   const [busyId, setBusyId] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const skuByLineId = useMemo(() => new Map(lines.map((line) => [line.id, line.sku])), [lines]);
 
+  const setResolutionText = (id: string, value: string) => setResolutionById((current) => new Map(current).set(id, value));
+  const setResolutionStatus = (id: string, value: string) => setStatusById((current) => new Map(current).set(id, value));
+
   const resolve = async (discrepancy: Discrepancy) => {
-    const resolution = (resolutionById[discrepancy.id] ?? "").trim();
+    const resolution = (resolutionById.get(discrepancy.id) ?? "").trim();
     if (!resolution) { setActionError("Enter resolution notes before submitting."); return; }
     setBusyId(discrepancy.id); setActionError(null);
     try {
       const { error } = await fulfilmentDb.rpc("resolve_b2b_supplier_discrepancy", {
         p_discrepancy_id: discrepancy.id,
         p_resolution: resolution,
-        p_status: statusById[discrepancy.id] ?? "resolved",
+        p_status: statusById.get(discrepancy.id) ?? "resolved",
       });
       if (error) setActionError(error.message);
-      else { setResolutionById((current) => ({ ...current, [discrepancy.id]: "" })); await reload(); }
+      else { setResolutionText(discrepancy.id, ""); await reload(); }
     } catch (cause) {
       setActionError(cause instanceof Error ? cause.message : "Discrepancy resolution failed");
     } finally {
@@ -346,8 +351,8 @@ function SupplierDiscrepancyPanel({ lines, discrepancies, reload }: { lines: Rec
               </div>
               {discrepancy.resolution && <p className="text-xs text-muted-foreground">Resolution: {discrepancy.resolution}{discrepancy.resolved_at ? ` · ${new Date(discrepancy.resolved_at).toLocaleDateString()}` : ""}</p>}
               {open && <div className="grid gap-2 sm:grid-cols-[1fr_180px_auto]">
-                <input className="rounded border bg-background px-2 py-2 text-sm" placeholder="Resolution notes" value={resolutionById[discrepancy.id] ?? ""} onChange={(event) => setResolutionById((current) => ({ ...current, [discrepancy.id]: event.target.value }))} aria-label={`Resolution notes for ${discrepancy.discrepancy_type}`} />
-                <select className="rounded border bg-background px-2 py-2 text-sm" value={statusById[discrepancy.id] ?? "resolved"} onChange={(event) => setStatusById((current) => ({ ...current, [discrepancy.id]: event.target.value }))} aria-label={`Resolution status for ${discrepancy.discrepancy_type}`}>
+                <input className="rounded border bg-background px-2 py-2 text-sm" placeholder="Resolution notes" value={resolutionById.get(discrepancy.id) ?? ""} onChange={(event) => setResolutionText(discrepancy.id, event.target.value)} aria-label={`Resolution notes for ${discrepancy.discrepancy_type}`} />
+                <select className="rounded border bg-background px-2 py-2 text-sm" value={statusById.get(discrepancy.id) ?? "resolved"} onChange={(event) => setResolutionStatus(discrepancy.id, event.target.value)} aria-label={`Resolution status for ${discrepancy.discrepancy_type}`}>
                   {DISCREPANCY_RESOLUTION_STATUSES.map((status) => <option key={status} value={status}>{status.replace(/_/g, " ")}</option>)}
                 </select>
                 <Button size="sm" disabled={busyId !== null} onClick={() => void resolve(discrepancy)}>{busyId === discrepancy.id ? "Saving…" : "Save"}</Button>
