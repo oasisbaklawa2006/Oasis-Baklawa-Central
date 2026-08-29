@@ -44,6 +44,16 @@ describe("PF-6A Central payment authority contract", () => {
     });
     expect(facts.payments[0]?.submittedAmount).toBe(2500);
     expect(() => parsePaymentFacts({ payment_facts_only: true, payments: [] })).toThrow("pi_id");
+    expect(() => parsePaymentFacts({
+      payment_facts_only: true,
+      pi_id: "pi-1",
+      order_id: "order-1",
+      commercial_version_id: "version-1",
+      commercial_version_number: 1,
+      commercial_value: 100,
+      verified_total: 0,
+      remaining_commercial_amount: 100,
+    })).toThrow("Invalid payments");
   });
 
   it("exposes the exact merged Core RPC surface", () => {

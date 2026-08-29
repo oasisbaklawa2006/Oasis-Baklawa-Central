@@ -211,7 +211,8 @@ export async function rejectPayment(input: PaymentRejectionInput): Promise<Payme
 export function parsePaymentFacts(value: unknown): PaymentFacts {
   const facts = row<Record<string, unknown>>(value, "getPaymentFacts");
   if (facts.payment_facts_only !== true) throw new PaymentAuthorityError("Core payment facts response is not factual-only");
-  const payments = Array.isArray(facts.payments) ? facts.payments : [];
+  if (!Array.isArray(facts.payments)) throw new PaymentAuthorityError("Invalid payments from Core payment authority");
+  const payments = facts.payments;
   return {
     piId: requiredString(facts.pi_id, "pi_id"),
     orderId: requiredString(facts.order_id, "order_id"),

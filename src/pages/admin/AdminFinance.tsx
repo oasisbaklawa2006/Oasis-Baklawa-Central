@@ -1195,7 +1195,7 @@ const AdminFinance = () => {
                         })}
                         className="flex-1 py-2.5 bg-emerald-600 text-white rounded-lg text-xs font-bold hover:bg-emerald-700 flex justify-center items-center gap-1"
                       >
-                        <ShieldCheck size={14} /> Verify Credit & Release
+                        <ShieldCheck size={14} /> Record Proof & Verify
                       </button>
                       <button
                         onClick={() => setShortTermTarget(order)}
