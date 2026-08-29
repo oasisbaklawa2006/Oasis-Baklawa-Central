@@ -7,6 +7,13 @@ import {
   updateOrderFinanceVerification,
   rejectOrderFinanceReview,
 } from "@/lib/order-authority/orderAuthorityClient";
+import {
+  buildPaymentIdempotencyKey,
+  getPaymentFacts,
+  rejectPayment,
+  resolvePaymentBinding,
+  verifyPayment,
+} from "@/lib/order-authority/paymentAuthorityClient";
 import { toast } from "sonner";
 import { Loader2, ShieldAlert, Receipt, Hammer, Truck, Package, RefreshCw } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -88,6 +95,7 @@ const FinanceReleaseBoard = () => {
   const [rejectReason, setRejectReason] = useState("");
   const [actingId, setActingId] = useState<string | null>(null);
   const [latestUtrByOrderId, setLatestUtrByOrderId] = useState<Record<string, string>>({});
+  const [paymentIdByOrderId, setPaymentIdByOrderId] = useState<Record<string, string>>({});
   const [loadError, setLoadError] = useState<string | null>(null);
   const [pushConfirm, setPushConfirm] = useState<BoardOrder | null>(null);
   /** Prevents duplicate pushToFloor while the first invocation is still in flight (sync guard before actingId paints). */
@@ -188,17 +196,20 @@ const FinanceReleaseBoard = () => {
   }, [loadBoard]);
 
   const fetchLatestUtr = async (orderId: string) => {
-    const { data, error } = await supabase
-      .from("order_payments")
-      .select("reference_no, created_at")
-      .eq("order_id", orderId)
-      .order("created_at", { ascending: false })
-      .limit(1);
-    if (!error && data?.[0]) {
-      const ref = (data[0] as { reference_no: string | null }).reference_no;
-      setLatestUtrByOrderId((prev) => ({ ...prev, [orderId]: ref?.trim() || "—" }));
-    } else {
-      setLatestUtrByOrderId((prev) => ({ ...prev, [orderId]: "—" }));
+    try {
+      const binding = await resolvePaymentBinding(orderId);
+      const facts = await getPaymentFacts(binding.piId);
+      const pending = [...facts.payments].reverse().find((payment) => payment.status === "uploaded");
+      setLatestUtrByOrderId((prev) => ({ ...prev, [orderId]: pending?.externalReference?.trim() || "—" }));
+      if (pending) setPaymentIdByOrderId((prev) => ({ ...prev, [orderId]: pending.paymentId }));
+    } catch (error) {
+      console.error("[FinanceReleaseBoard] canonical payment facts", error);
+      setLatestUtrByOrderId((prev) => ({ ...prev, [orderId]: "Unavailable — governed PI/payment facts required" }));
+      setPaymentIdByOrderId((prev) => {
+        const next = { ...prev };
+        delete next[orderId];
+        return next;
+      });
     }
   };
 
@@ -211,8 +222,29 @@ const FinanceReleaseBoard = () => {
     if (!reviewOrder || !user) return;
     setActingId(reviewOrder.id);
     try {
-      const paymentStatus = kind === "verify" ? "verified_advance" : "on_credit";
-      await updateOrderFinanceVerification(reviewOrder.id, paymentStatus);
+      if (kind === "credit") {
+        await updateOrderFinanceVerification(reviewOrder.id, "on_credit");
+      } else {
+        const paymentId = paymentIdByOrderId[reviewOrder.id];
+        if (!paymentId || !reviewOrder.payment_receipt_url) {
+          throw new Error("Canonical payment proof and governed payment facts are required before verification");
+        }
+        const binding = await resolvePaymentBinding(reviewOrder.id);
+        const facts = await getPaymentFacts(binding.piId);
+        const payment = facts.payments.find((candidate) => candidate.paymentId === paymentId && candidate.status === "uploaded");
+        if (!payment) throw new Error("Payment proof is no longer pending verification");
+        const correlationId = `central:finance-review:${reviewOrder.id}:${paymentId}`;
+        await verifyPayment({
+          paymentId,
+          verifiedAmount: payment.submittedAmount,
+          verifiedReference: latestUtrByOrderId[reviewOrder.id] === "—" ? null : latestUtrByOrderId[reviewOrder.id],
+          verificationEvidenceReference: reviewOrder.payment_receipt_url,
+          reason: "Finance review",
+          correlationId,
+          idempotencyKey: buildPaymentIdempotencyKey("verify", paymentId),
+          actorId: user.id,
+        });
+      }
       toast.success(kind === "verify" ? "Payment verified." : "Credit approved.");
       setReviewOrder(null);
       await loadBoard();
@@ -233,7 +265,20 @@ const FinanceReleaseBoard = () => {
     }
     setActingId(reviewOrder.id);
     try {
-      await rejectOrderFinanceReview(reviewOrder.id, trimmed);
+      if (reviewOrder.payment_status === "on_credit") {
+        await rejectOrderFinanceReview(reviewOrder.id, trimmed);
+      } else {
+        const paymentId = paymentIdByOrderId[reviewOrder.id];
+        if (!paymentId) throw new Error("Canonical payment facts are required before rejecting payment proof");
+        const correlationId = `central:finance-reject:${reviewOrder.id}:${paymentId}`;
+        await rejectPayment({
+          paymentId,
+          reason: trimmed,
+          correlationId,
+          idempotencyKey: buildPaymentIdempotencyKey("reject", paymentId),
+          actorId: user.id,
+        });
+      }
       toast.success("Buyer asked to update payment receipt.");
       setReviewOrder(null);
       await loadBoard();
@@ -631,7 +676,7 @@ const FinanceReleaseBoard = () => {
           {reviewOrder && (
             <div className="min-h-0 flex-1 space-y-4 overflow-y-auto overscroll-y-contain px-6 py-4">
               <div>
-                <p className="text-[11px] font-bold text-muted-foreground uppercase">Latest UTR (order_payments)</p>
+                <p className="text-[11px] font-bold text-muted-foreground uppercase">Latest UTR (Core payment facts)</p>
                 <p className="text-sm font-mono mt-1">{latestUtrByOrderId[reviewOrder.id] ?? "Loading…"}</p>
               </div>
               <div>

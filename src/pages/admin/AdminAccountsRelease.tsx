@@ -19,7 +19,6 @@ import { Badge } from "@/components/ui/badge";
 import { FinanceReleaseChips } from "@/components/admin/FinanceReleaseChips";
 import {
   clearOrderForDispatch,
-  releaseOrderToManufacturing,
   recordOrderFullyPaid,
 } from "@/lib/order-authority/orderAuthorityClient";
 import {
@@ -421,10 +420,9 @@ const AdminAccountsRelease = () => {
         setActing(null);
         return;
       } else if (action === "mark_advance_paid") {
-        const advReq = order.advance_required ?? 0;
-        await supabase.from("order_payments").insert({ order_id: order.id, company_id: order.company_id, payment_type: "advance", amount: advReq, created_by: user?.id ?? null });
-        await releaseOrderToManufacturing(order.id, "advance_paid", advReq, total);
-        toast.success("Advance paid — released to Production");
+        toast.error("Payment proof must be recorded and verified through the governed Core Finance flow; production release is a separate action.");
+        setActing(null);
+        return;
       } else if (action === "request_balance") {
         toast.success(`Balance of ${format(total - advPaid)} requested`);
       } else if (action === "mark_fully_paid") {

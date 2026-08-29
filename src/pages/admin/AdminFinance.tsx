@@ -1,6 +1,13 @@
 import { useEffect, useState, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { releaseOrderToManufacturing } from "@/lib/order-authority/orderAuthorityClient";
+import {
+  buildPaymentIdempotencyKey,
+  getPaymentFacts,
+  recordPaymentProof,
+  resolvePaymentBinding,
+  verifyPayment,
+} from "@/lib/order-authority/paymentAuthorityClient";
 import { toast } from "sonner";
 import {
   Loader2,
@@ -619,7 +626,12 @@ const AdminFinance = () => {
         return;
       }
 
-      const liveSOValue = liveOrder.sales_order_value ?? 0;
+      const binding = await resolvePaymentBinding(financialEntry.orderId);
+      const facts = await getPaymentFacts(binding.piId);
+      if (facts.orderId !== financialEntry.orderId || facts.commercialVersionId !== binding.commercialVersionId) {
+        throw new Error("Core payment facts do not match the governed order version");
+      }
+      const liveSOValue = facts.commercialValue;
 
       // GUARD: Never release a ₹0 order
       if (liveSOValue <= 0) {
@@ -639,20 +651,36 @@ const AdminFinance = () => {
         }
       }
 
-      await supabase.from("order_payments").insert({
-        order_id: financialEntry.orderId,
-        payment_type: "advance",
-        amount,
-        reference_no: financialEntry.utrReference || null,
-        created_by: user?.id ?? null,
+      if (!financialEntry.receiptUrl) {
+        throw new Error("Canonical payment proof requires an uploaded receipt before verification");
+      }
+      const correlationId = `central:finance-payment:${financialEntry.orderId}:${financialEntry.utrReference.trim() || financialEntry.receiptUrl}`;
+      const proof = await recordPaymentProof({
+        orderId: financialEntry.orderId,
+        piId: binding.piId,
+        commercialVersionId: binding.commercialVersionId,
+        paymentType: "advance",
+        submittedAmount: amount,
+        currency: "INR",
+        paymentMode: financialEntry.paymentMode,
+        externalReference: financialEntry.utrReference.trim() || null,
+        proofEvidenceReference: financialEntry.receiptUrl,
+        sourceChannel: "SALES",
+        sourceReference: `central:finance-entry:${financialEntry.orderId}`,
+        correlationId,
+        idempotencyKey: buildPaymentIdempotencyKey("proof", correlationId),
+        actorId: user?.id ?? "",
       });
-
-      await releaseOrderToManufacturing(
-        financialEntry.orderId,
-        "verified_advance",
-        amount,
-        liveSOValue,
-      );
+      await verifyPayment({
+        paymentId: proof.paymentId,
+        verifiedAmount: amount,
+        verifiedReference: financialEntry.utrReference.trim() || null,
+        verificationEvidenceReference: financialEntry.receiptUrl,
+        reason: "Finance review",
+        correlationId,
+        idempotencyKey: buildPaymentIdempotencyKey("verify", proof.paymentId),
+        actorId: user?.id ?? "",
+      });
 
       // AUTO-DIVERTER + BOM BLAST: Route items by category, explode hampers
       try {
@@ -707,23 +735,10 @@ const AdminFinance = () => {
         }
       } catch { /* non-critical routing */ }
 
-      // Push to RGS Inbox
-      try {
-        await supabase.from("audit_logs").insert({
-          action_type: "RGS_INBOX_PUSH",
-          module_name: "Finance→RGS",
-          entity_name: "orders",
-          entity_id: financialEntry.orderId,
-          actor_id: user?.id || null,
-          new_value: { pushed_at: new Date().toISOString(), source: "finance_release" },
-          risk_level: "normal",
-        });
-      } catch { /* non-critical */ }
-
-      toast.success(`₹${amount.toLocaleString("en-IN")} verified — released to Production`);
+      toast.success(`₹${amount.toLocaleString("en-IN")} verified in Core; production release remains a separate governed action.`);
       setFinancialEntry(null);
       fetchOrders();
-    } catch { toast.error("Verification failed."); }
+    } catch (err) { toast.error(err instanceof Error ? err.message : "Verification failed."); }
     setSavingEntry(false);
   };
 
@@ -2016,7 +2031,7 @@ const AdminFinance = () => {
                   disabled={savingEntry}
                   className="flex min-h-[3rem] w-full items-center justify-center gap-2 rounded-xl bg-emerald-600 py-4 font-bold text-white shadow-xl shadow-emerald-600/20 transition-all hover:bg-emerald-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-offset-2 active:scale-[0.99] disabled:opacity-60"
                 >
-                  {savingEntry ? <Loader2 size={18} className="animate-spin" /> : <><CheckCircle2 size={18} /> Verify & Release to Production</>}
+                    {savingEntry ? <Loader2 size={18} className="animate-spin" /> : <><CheckCircle2 size={18} /> Record proof & verify in Core</>}
                 </button>
               </div>
             </motion.div>
