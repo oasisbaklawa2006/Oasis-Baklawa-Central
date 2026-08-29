@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { toast } from "sonner";
-import ThreePgsProcurementQueue from "../ThreePgsProcurementQueue";
+import ThreePgsProcurementQueue, { RECEIVING_CORRELATION_STORAGE_KEY } from "../ThreePgsProcurementQueue";
 
 const demandRow = {
   demand_source_type: "pna" as const,
@@ -122,7 +122,6 @@ afterEach(() => {
   window.sessionStorage.clear();
 });
 
-const RECEIVING_CORRELATION_STORAGE_KEY = "3pgs-receiving-correlations:v1";
 
 describe("ThreePgsProcurementQueue", () => {
   it("renders pending demand and existing procurement requirements", async () => {

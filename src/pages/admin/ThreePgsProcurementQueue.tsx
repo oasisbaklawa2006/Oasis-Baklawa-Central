@@ -100,7 +100,7 @@ type ReceivingState = {
 // single operator's in-flight action, not something that should silently
 // resume in a different tab. This is client-side retry bookkeeping only --
 // it grants no authority Core doesn't already enforce via p_correlation_id.
-const RECEIVING_CORRELATION_STORAGE_KEY = "3pgs-receiving-correlations:v1";
+export const RECEIVING_CORRELATION_STORAGE_KEY = "3pgs-receiving-correlations:v1";
 // An entry older than this is treated as abandoned (e.g. the tab crashed
 // before the success path could clear it) so it can never permanently block
 // a legitimate later receipt on the same requirement.
