@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+SCRIPT_DIR="$(dirname "${BASH_SOURCE[0]}")"
+ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 STATE="$ROOT/appverse-control/state.json"
 OUT="$ROOT/appverse-control/generated/github-state.json"
 
@@ -75,7 +76,8 @@ if ! REPOSITORIES_JSON="$(
   exit 1
 fi
 
-mapfile -t REPOSITORIES < <(jq -r '.[]' <<<"$REPOSITORIES_JSON")
+REPOSITORIES_TEXT="$(jq -r '.[]' <<<"$REPOSITORIES_JSON")"
+mapfile -t REPOSITORIES <<<"$REPOSITORIES_TEXT"
 
 SNAPSHOT="$(
   jq -cn '{
@@ -216,6 +218,7 @@ if [[ "$EXISTING_COMPARABLE" == "$NEW_COMPARABLE" ]]; then
 fi
 
 GENERATED_AT="$(date -u +'%Y-%m-%dT%H:%M:%SZ')"
-mkdir -p "$(dirname "$OUT")"
+OUT_DIR="$(dirname "$OUT")"
+mkdir -p "$OUT_DIR"
 jq -S --arg generated_at "$GENERATED_AT" \
   '. + {generated_at: $generated_at}' <<<"$SNAPSHOT" >"$OUT"
