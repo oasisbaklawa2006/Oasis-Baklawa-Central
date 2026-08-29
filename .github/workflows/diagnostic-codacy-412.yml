@@ -13,19 +13,24 @@ jobs:
   fetch-codacy-issues:
     runs-on: ubuntu-latest
     steps:
-      - name: Fetch and persist public Codacy issue metadata
+      - name: Fetch and persist raw public Codacy issue metadata
         env:
           GH_TOKEN: ${{ github.token }}
         shell: bash
         run: |
           set -euo pipefail
           endpoint='https://api.codacy.com/api/v3/analysis/organizations/gh/oasisbaklawa2006/repositories/Oasis-Baklawa-Central/pull-requests/412/issues?status=new'
-          issues="$(curl --fail --silent --show-error "$endpoint" \
-            | jq '{data: [.data[] | {filePath, lineNumber, patternInfo, message, category, level}]}')"
+          issues="$(curl --fail --silent --show-error "$endpoint" | jq '.')"
+          current_sha="$(gh api repos/oasisbaklawa2006/Oasis-Baklawa-Central/contents/.diagnostics/codacy-412.json?ref=diagnostic/codacy-412-shell --jq '.sha' 2>/dev/null || true)"
           encoded="$(printf '%s\n' "$issues" | base64 -w0)"
-          gh api \
-            --method PUT \
-            repos/oasisbaklawa2006/Oasis-Baklawa-Central/contents/.diagnostics/codacy-412.json \
-            -f message='test: persist Codacy 412 diagnostic output' \
-            -f content="$encoded" \
+          args=(
+            --method PUT
+            repos/oasisbaklawa2006/Oasis-Baklawa-Central/contents/.diagnostics/codacy-412.json
+            -f message='test: persist raw Codacy 412 diagnostic output'
+            -f content="$encoded"
             -f branch='diagnostic/codacy-412-shell'
+          )
+          if [[ -n "$current_sha" ]]; then
+            args+=(-f sha="$current_sha")
+          fi
+          gh api "${args[@]}"
