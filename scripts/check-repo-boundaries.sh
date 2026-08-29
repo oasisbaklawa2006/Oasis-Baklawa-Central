@@ -1,8 +1,13 @@
 #!/usr/bin/env bash
 # Repo ownership boundary check for Oasis-Baklawa-Central.
-# Fails if Catalogue AI-Studio frontend/schema work (owned by oasis-ai-studio /
-# oasis-supabase-core) is reintroduced into Central's active source or migrations.
-# See docs/repo-ownership-guardrails.md for the ownership split this enforces.
+#
+# Backend authority invariant:
+#   oasis-supabase-core is the ONLY repository allowed to own Supabase
+#   migrations. Central may consume generated/runtime contracts, but it may not
+#   introduce a shadow migration train or direct schema authority.
+#
+# Catalogue AI-Studio ownership rules below remain in force as a separate
+# frontend/module boundary. See docs/repo-ownership-guardrails.md.
 set -euo pipefail
 
 FORBIDDEN_FILES=(
@@ -24,14 +29,29 @@ FORBIDDEN_PATTERNS=(
   "catalogue_ai_studio_draft_audit_log"
 )
 
-# Only active source/migration paths are scanned — never docs/, which
-# necessarily names these terms to document the guardrail itself.
+# Preserve the pre-existing Catalogue AI-Studio scan scope. Migration SQL is
+# forbidden wholesale below, but non-SQL files under the migration tree remain
+# part of the legacy pattern scan so boundary coverage is not narrowed.
 SCAN_PATHS=("src")
 if [ -d "supabase/migrations" ]; then
   SCAN_PATHS+=("supabase/migrations")
 fi
 
 violations=0
+
+# Supabase schema/migration authority belongs exclusively to
+# oasis-supabase-core. Fail on ANY SQL migration file anywhere under this tree,
+# regardless of nesting, contents, or feature area. This prevents a future PR
+# from creating a second migration history that can drift from the canonical
+# Core ledger.
+if [ -d "supabase/migrations" ]; then
+  mapfile -t shadow_migrations < <(find supabase/migrations -type f -name '*.sql' -print | LC_ALL=C sort)
+  if [ "${#shadow_migrations[@]}" -gt 0 ]; then
+    echo "BOUNDARY VIOLATION: Central must not own Supabase migrations. Move schema changes to oasis-supabase-core:"
+    printf '  %s\n' "${shadow_migrations[@]}"
+    violations=$((violations + 1))
+  fi
+fi
 
 for f in "${FORBIDDEN_FILES[@]}"; do
   if [ -e "$f" ]; then
@@ -52,10 +72,10 @@ done
 if [ "$violations" -gt 0 ]; then
   echo ""
   echo "Repo ownership boundary check FAILED ($violations violation(s))."
-  echo "Catalogue Product AI Studio frontend belongs in oasis-ai-studio (/admin/catalogue-product-studio);"
-  echo "catalogue AI-Studio draft/audit schema belongs in oasis-supabase-core."
+  echo "All Supabase migrations/schema authority belongs in oasis-supabase-core."
+  echo "Catalogue Product AI Studio frontend belongs in oasis-ai-studio (/admin/catalogue-product-studio)."
   echo "See docs/repo-ownership-guardrails.md."
   exit 1
 fi
 
-echo "Repo ownership boundary check passed — no Catalogue AI-Studio work found in Central's src/migrations."
+echo "Repo ownership boundary check passed — Central owns no Supabase migrations and no Catalogue AI-Studio-owned source."
