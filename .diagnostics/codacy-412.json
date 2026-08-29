@@ -1,20 +1,69 @@
 {
+  "analyzed": true,
   "data": [
     {
-      "filePath": null,
-      "lineNumber": null,
-      "patternInfo": null,
-      "message": null,
-      "category": null,
-      "level": null
+      "commitIssue": {
+        "issueId": "1de8975ad7ac5ec3db89cff29c54fde5",
+        "resultDataId": 131533323689,
+        "filePath": "AGENTS.md",
+        "fileId": 228132868597,
+        "patternInfo": {
+          "id": "Agentlinter_consistency_referenced-files-exist",
+          "category": "ErrorProne",
+          "level": "High",
+          "severityLevel": "High"
+        },
+        "toolInfo": {
+          "uuid": "498c9a6e-5ff8-45de-9bd3-0fef69370617",
+          "name": "Agentlinter"
+        },
+        "lineNumber": 1,
+        "message": "Referenced file \"APPVERSE_THREAD_GUARDRAIL.md\" not found in workspace.",
+        "language": "Markdown",
+        "lineText": "# Agent Instructions — Oasis Baklawa Central / Mission Control",
+        "falsePositiveThreshold": 80,
+        "commitInfo": {
+          "sha": "20c1bc840706d0b83947cfbb7d8c182309bc677b",
+          "commiter": "oasisbaklawa2006@gmail.com",
+          "commiterName": "Dinesh Mutreja",
+          "timestamp": "2026-08-29T07:40:42Z"
+        }
+      },
+      "deltaType": "Added"
     },
     {
-      "filePath": null,
-      "lineNumber": null,
-      "patternInfo": null,
-      "message": null,
-      "category": null,
-      "level": null
+      "commitIssue": {
+        "issueId": "d3628cab8a3510e65dc0892374abf3cc",
+        "resultDataId": 131533323690,
+        "filePath": "CLAUDE.md",
+        "fileId": 228132868477,
+        "patternInfo": {
+          "id": "Agentlinter_consistency_referenced-files-exist",
+          "category": "ErrorProne",
+          "level": "High",
+          "severityLevel": "High"
+        },
+        "toolInfo": {
+          "uuid": "498c9a6e-5ff8-45de-9bd3-0fef69370617",
+          "name": "Agentlinter"
+        },
+        "lineNumber": 1,
+        "message": "Referenced file \"APPVERSE_THREAD_GUARDRAIL.md\" not found in workspace.",
+        "language": "Markdown",
+        "lineText": "# Claude Instructions — Oasis Baklawa Central / Mission Control",
+        "falsePositiveThreshold": 80,
+        "commitInfo": {
+          "sha": "0763e10a5fcdb83334d9d61228b5612d5eadad82",
+          "commiter": "oasisbaklawa2006@gmail.com",
+          "commiterName": "Dinesh Mutreja",
+          "timestamp": "2026-08-29T07:40:49Z"
+        }
+      },
+      "deltaType": "Added"
     }
-  ]
+  ],
+  "pagination": {
+    "limit": 100,
+    "total": 2
+  }
 }
