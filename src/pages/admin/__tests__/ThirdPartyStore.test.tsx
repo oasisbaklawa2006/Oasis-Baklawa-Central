@@ -4,6 +4,7 @@ import { toast } from "sonner";
 import ThirdPartyStore from "../ThirdPartyStore";
 
 vi.mock("@/components/TopNavBar", () => ({ default: () => null }));
+vi.mock("@/hooks/useAuth", () => ({ useAuth: () => ({ role: "STORE_3RD_PARTY" }) }));
 
 function renderPage() {
   return render(<ThirdPartyStore />);

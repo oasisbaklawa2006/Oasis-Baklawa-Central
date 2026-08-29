@@ -358,7 +358,7 @@ jobs:
             'FACTORY-GATE-CERT-001',
             100, 0, 100, 'paid', true,
             'https://example.invalid/factory-gate-cert-invoice',
-            'LEGACY_ERP',
+            'MANUAL',
             'factory-gate-cert-tracking-001'
           );
 

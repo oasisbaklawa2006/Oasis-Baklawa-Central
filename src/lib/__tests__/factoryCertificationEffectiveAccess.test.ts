@@ -40,4 +40,13 @@ describe("Factory certification effective authorization", () => {
     expect(resolveEffectiveFactoryCertificationRole(route("/admin/production-demand-planner"))).toBe("PRODUCTION_MANAGER");
     expect(resolveEffectiveFactoryCertificationRole(route("/tv/arabic-sweets"))).toBe("PROD_ARABIC_SWEETS");
   });
+
+  it("mirrors the R4 3PGS operator gate instead of certifying broad inventory roles", () => {
+    const procurement = route("/admin/3pgs-procurement-queue");
+    expect(isEffectivelyAuthorizedFactoryRole(procurement, "STORE_3RD_PARTY")).toBe(true);
+    expect(isEffectivelyAuthorizedFactoryRole(procurement, "OPERATIONS_MANAGER")).toBe(true);
+    expect(isEffectivelyAuthorizedFactoryRole(procurement, "DISPATCH_MANAGER")).toBe(false);
+    expect(isEffectivelyAuthorizedFactoryRole(procurement, "STORE_READY_GOODS")).toBe(false);
+    expect(resolveEffectiveFactoryCertificationRole(procurement)).toBe("STORE_3RD_PARTY");
+  });
 });

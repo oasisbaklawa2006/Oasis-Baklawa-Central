@@ -1,4 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
+import { normalizeRole } from "./roleNormalization";
 
 type RoleRecord = {
   company_id: string | null;
@@ -77,7 +78,8 @@ const STAFF_ROLE_DESTINATIONS: Record<string, string> = {
   STORE_INCHARGE:           "/admin/ready-goods",
   STORE_READY_GOODS:        "/admin/ready-goods",
   RGS_ADMIN:                "/admin/ready-goods",
-  STORE_3RD_PARTY:          "/admin/3pcs-store",
+  // R4: land the dedicated 3PGS operator on the governed priority/procurement/custody queue.
+  STORE_3RD_PARTY:          "/admin/3pgs-procurement-queue",
 
   // Dispatch
   DISPATCH_HEAD:            "/admin/dispatch-mgmt",
@@ -130,9 +132,11 @@ export function isStorefrontRole(role?: string | null): boolean {
 }
 
 // ─── Normalize: always UPPERCASE for comparison ───────────────────────────────
-export function normalizeRole(role?: string | null): string | null {
-  return role?.trim().toUpperCase() ?? null;
-}
+// Imported from roleNormalization.ts (no runtime dependencies) and
+// re-exported here for existing callers; certification/lightweight callers
+// can import it directly from roleNormalization.ts to avoid pulling in this
+// module's Supabase client import.
+export { normalizeRole };
 
 // ─── Route resolver ───────────────────────────────────────────────────────────
 // NEVER falls back to /admin for unknown roles — security risk
@@ -151,9 +155,10 @@ export function getRoleDestination(role?: string | null): string {
 }
 
 // ─── Path check ───────────────────────────────────────────────────────────────
-function normalizePathname(pathname: string): string {
-  if (!pathname || pathname === "/") return "/";
-  return pathname.endsWith("/") ? pathname.slice(0, -1) : pathname;
+export function normalizePathname(pathname: string): string {
+  if (!pathname) return "/";
+  const stripped = pathname.replace(/\/+$/, "");
+  return stripped === "" ? "/" : stripped;
 }
 
 export function isPathWithinRoleDestination(
