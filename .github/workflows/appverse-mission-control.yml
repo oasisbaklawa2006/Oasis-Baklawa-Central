@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
   group: appverse-mission-control
@@ -16,12 +16,14 @@ jobs:
   refresh-live-evidence:
     if: github.repository == 'oasisbaklawa2006/Oasis-Baklawa-Central'
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - name: Checkout dedicated live-state branch
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           ref: mission-control/live-state
-          persist-credentials: true
+          persist-credentials: false
 
       - name: Refresh objective GitHub evidence
         env:
@@ -30,6 +32,8 @@ jobs:
 
       - name: Commit live evidence only when changed
         shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
           if git diff --quiet -- appverse-control/generated/github-state.json; then
@@ -40,4 +44,5 @@ jobs:
           git config user.email 'oasis-mission-control[bot]@users.noreply.github.com'
           git add appverse-control/generated/github-state.json
           git commit -m 'chore(mission-control): refresh live Appverse evidence'
+          gh auth setup-git
           git push origin HEAD:mission-control/live-state
