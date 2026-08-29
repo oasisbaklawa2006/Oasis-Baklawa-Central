@@ -1,4 +1,4 @@
-import { normalizeRole } from "@/lib/auth-routing";
+import { normalizeRole } from "@/lib/roleNormalization";
 
 /**
  * Roles allowed onto 3PGS operator/management mutation surfaces.

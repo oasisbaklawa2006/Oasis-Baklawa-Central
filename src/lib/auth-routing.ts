@@ -1,4 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
+import { normalizeRole } from "./roleNormalization";
 
 type RoleRecord = {
   company_id: string | null;
@@ -131,9 +132,11 @@ export function isStorefrontRole(role?: string | null): boolean {
 }
 
 // ─── Normalize: always UPPERCASE for comparison ───────────────────────────────
-export function normalizeRole(role?: string | null): string | null {
-  return role?.trim().toUpperCase() ?? null;
-}
+// Imported from roleNormalization.ts (no runtime dependencies) and
+// re-exported here for existing callers; certification/lightweight callers
+// can import it directly from roleNormalization.ts to avoid pulling in this
+// module's Supabase client import.
+export { normalizeRole };
 
 // ─── Route resolver ───────────────────────────────────────────────────────────
 // NEVER falls back to /admin for unknown roles — security risk
