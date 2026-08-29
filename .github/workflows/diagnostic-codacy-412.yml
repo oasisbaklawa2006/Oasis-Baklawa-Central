@@ -1,0 +1,22 @@
+name: Diagnostic Codacy 412
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/diagnostic-codacy-412.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  fetch-codacy-issues:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Fetch public Codacy issue metadata
+        shell: bash
+        run: |
+          set -euo pipefail
+          endpoint='https://api.codacy.com/api/v3/analysis/organizations/gh/oasisbaklawa2006/repositories/Oasis-Baklawa-Central/pull-requests/412/issues?status=new'
+          curl --fail --silent --show-error "$endpoint" \
+            | jq '{data: [.data[] | {filePath, lineNumber, patternInfo, message, category, level}]}'
