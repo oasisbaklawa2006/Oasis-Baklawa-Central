@@ -41,6 +41,19 @@ type ReceiptLine = {
 };
 type PutawayTask = { id: string; receipt_line_id: string; bin_id: string; disposition: string; allocated_qty: number; placed_qty: number; status: string; b2b_inventory_bins: { bin_code: string; store_code: string; zone_code: string; rack_code: string; shelf_code: string } | null };
 type Grn = { receipt_id: string; grn_number: string; status: string; finalised_at: string | null };
+type Bin = { id: string; store_code: string; zone_code: string; rack_code: string; shelf_code: string; bin_code: string; storage_class: string; active: boolean };
+type Discrepancy = { id: string; receipt_line_id: string; discrepancy_type: string; quantity: number | null; status: string; resolution: string | null; resolved_at: string | null; created_at: string };
+
+const OPEN_DISCREPANCY_STATUSES = new Set(["open", "supplier_contacted", "awaiting_credit", "replacement_due"]);
+const DISCREPANCY_RESOLUTION_STATUSES = ["supplier_contacted", "awaiting_credit", "replacement_due", "resolved", "waived"] as const;
+// A disposition of 'accepted' must not land in a bin reserved for
+// quarantine/damaged/rejected/return-to-vendor stock, and vice versa --
+// this mirrors allocate_b2b_inventory_putaway's own storage-class check
+// exactly, so the picker can never offer a bin the RPC would reject.
+function isEligibleBin(bin: Bin, disposition: "accepted" | "damaged" | "rejected"): boolean {
+  const restricted = new Set(["quarantine", "damaged", "rejected", "return_to_vendor"]);
+  return disposition === "accepted" ? !restricted.has(bin.storage_class) : bin.storage_class !== "ambient";
+}
 
 const terminalStatuses = new Set(["accepted", "rejected", "cancelled"]);
 
@@ -50,6 +63,8 @@ export default function InventoryReceiving() {
   const [lines, setLines] = useState<ReceiptLine[]>([]);
   const [tasks, setTasks] = useState<PutawayTask[]>([]);
   const [grns, setGrns] = useState<Grn[]>([]);
+  const [bins, setBins] = useState<Bin[]>([]);
+  const [discrepancies, setDiscrepancies] = useState<Discrepancy[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [filter, setFilter] = useState<"open" | "all" | "exceptions">("open");
   const [loading, setLoading] = useState(true);
