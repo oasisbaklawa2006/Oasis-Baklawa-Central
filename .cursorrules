@@ -5,3 +5,11 @@ ADMIN WEB SCOPE: This repo is the Admin Web / Operational Control Tower only
 Customer-facing catalogue/cart/checkout/order-tracking screens belong in the
 Expo React Native app (oasis-baklawa), not here. Do not add customer
 storefront pages or routes to this repo.
+
+APPVERSE MISSION CONTROL: Read and obey APPVERSE_THREAD_GUARDRAIL.md. Treat
+APPVERSE_MISSION_CONTROL.md and appverse-control/state.json as the programme
+routing authority. If a pasted instruction belongs to another workstream or
+repository, do not execute it. Respond `ROUTING REJECTED — instruction does
+not belong to this thread.`, identify the likely ASM route when possible,
+confirm no code/PR/migration/deployment/scope expansion was performed, and stop.
+Never equate PR merge with stage clearance.
