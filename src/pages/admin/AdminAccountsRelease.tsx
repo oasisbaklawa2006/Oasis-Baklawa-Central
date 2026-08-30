@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import type { Database } from "@/integrations/supabase/types";
 import { toast } from "sonner";
 import { Loader2, ChevronDown, Check, Lock, Truck, X, IndianRupee, FileText, Upload, ShieldCheck, AlertTriangle, CheckCircle2 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
@@ -30,15 +31,20 @@ import {
   deriveFinanceReleaseState,
   getFinanceReleaseBlockers,
 } from "@/utils/financeReleaseState";
+import {
+  buildCreditWalletCorrelationId,
+  buildCreditWalletIdempotencyKey,
+  buildWalletIdentity,
+  getWalletBalance,
+  recordWalletEntry,
+  resolveCreditBinding,
+} from "@/lib/order-authority/creditWalletAuthorityClient";
 
-interface FinanceOrder {
-  id: string; status: string; payment_status: string | null;
-  sales_order_value: number | null; advance_paid: number | null;
-  advance_required: number | null; company_id: string | null;
-  final_invoice_url?: string | null; eway_bill_number?: string | null;
-  payment_cleared?: boolean | null;
-  company?: { business_name: string; wallet_balance?: number | null } | null;
-}
+type FinanceOrder = Pick<
+  Database["public"]["Tables"]["orders"]["Row"],
+  "id" | "status" | "payment_status" | "sales_order_value" | "advance_paid" | "advance_required" |
+    "company_id" | "final_invoice_url" | "eway_bill_number" | "payment_cleared"
+> & { company?: { business_name: string; wallet_balance?: number | null } | null };
 
 type PaymentAction = "request_advance" | "request_balance" | "mark_fully_paid" | "issue_gate_pass";
 
@@ -129,10 +135,20 @@ const AdminAccountsRelease = () => {
     setLoading(true);
     const { data } = await supabase
       .from("orders")
-      .select("id, status, payment_status, sales_order_value, advance_paid, advance_required, company_id, final_invoice_url, eway_bill_number, payment_cleared, company:companies(business_name, wallet_balance)")
+      .select("id, status, payment_status, sales_order_value, advance_paid, advance_required, company_id, final_invoice_url, eway_bill_number, payment_cleared, company:companies(business_name)")
       .not("status", "in", '("draft","cart")')
       .order("created_at", { ascending: false });
-    setOrders((data as unknown as FinanceOrder[]) ?? []);
+    const rows: FinanceOrder[] = data ?? [];
+    const enriched = await Promise.all(rows.map(async (order) => {
+      if (!order.company_id || !order.company) return order;
+      try {
+        return { ...order, company: { ...order.company, wallet_balance: await getWalletBalance(order.company_id) } };
+      } catch {
+        // PF-6B is fail-closed: do not turn an unavailable Core balance into ₹0.
+        return { ...order, company: { ...order.company, wallet_balance: null } };
+      }
+    }));
+    setOrders(enriched);
     setLoading(false);
   };
 
@@ -209,54 +225,9 @@ const AdminAccountsRelease = () => {
         packed_quantity: Number(pl.packed_quantity),
       }));
 
-      // Insert dispatch record
-      const { data: dispatchData, error: dispatchErr } = await supabase
-        .from("dispatches")
-        .insert({
-          order_id: orderId,
-          company_id: companyId,
-          transporter_name: tp,
-          tracking_number: lr,
-          driver_phone: driverPhone.trim() || null,
-          status: "dispatched",
-          dispatch_date: new Date().toISOString().split("T")[0],
-          proof_storage_path: proofPath,
-          is_partial: false,
-        })
-        .select("id")
-        .single();
-
-      if (dispatchErr) throw dispatchErr;
-      const dispatchId = dispatchData.id;
-
-      // Estimate cartons
-      const totalValue = gatePassOrder.sales_order_value ?? 0;
-      const totalBoxes = Math.max(1, Math.ceil(totalValue / 5000));
-
-      // Insert carton barcodes
-      const cartonRows = Array.from({ length: totalBoxes }, (_, i) => ({
-        order_id: orderId,
-        dispatch_id: dispatchId,
-        barcode_string: `OASIS-${orderId.slice(0, 8).toUpperCase()}-B${i + 1}`,
-        box_number: i + 1,
-        total_boxes: totalBoxes,
-        status: "labeled",
-      }));
-
-      await supabase.from("dispatch_cartons").insert(cartonRows);
-
-      // Insert freight ledger
-      await supabase.from("freight_ledger").insert({
-        order_id: orderId,
-        transporter_name: tp,
-        total_freight_amt: freightAmt,
-        advance_paid_amt: freightAdv,
-        balance_due_amt: freightAmt - freightAdv,
-        payment_status: freightAdv >= freightAmt ? "paid" : "pending",
-      });
-
-      // ═══ WALLET ENGINE: SO vs DPL reconciliation ═══
-      // Calculate actual packed value from packing list + product prices
+      // Preflight the canonical wallet fact before any new dispatch-side writes.
+      // The order + tracking number is the stable full-gate-pass leg identity used
+      // to make a lost response/retry resumable through Core idempotency.
       let dplValue = 0;
       if (packedItems.length > 0) {
         const productIds = packedItems.map((p) => p.product_id).filter(Boolean);
@@ -279,18 +250,28 @@ const AdminAccountsRelease = () => {
 
       if (walletDiff > 0 && companyId && dplValue > 0) {
         // DPL < SO → Credit client wallet
-        await supabase.from("companies").update({
-          wallet_balance: (await supabase.from("companies").select("wallet_balance").eq("id", companyId).single()).data?.wallet_balance
-            ? Number((await supabase.from("companies").select("wallet_balance").eq("id", companyId).single()).data?.wallet_balance || 0) + walletDiff
-            : walletDiff,
-        }).eq("id", companyId);
+        if (!user?.id) throw new Error("Authenticated actor required for wallet adjustment");
+        const binding = await resolveCreditBinding(orderId);
+        const sourceReference = `dpl-variance:${orderId}:${lr}`;
+        const identity = buildWalletIdentity({
+          companyId, direction: "credit", amount: walletDiff, currency: "INR", orderId,
+          proformaInvoiceId: binding.piId, commercialVersionId: binding.commercialVersionId,
+          sourceChannel: "CENTRAL_FINANCE", sourceReference, reason: "DPL variance wallet credit",
+        });
+        const wallet = await recordWalletEntry({
+          companyId, direction: "credit", amount: walletDiff, currency: "INR", orderId,
+          proformaInvoiceId: binding.piId, commercialVersionId: binding.commercialVersionId,
+          sourceChannel: "CENTRAL_FINANCE", sourceReference, reason: "DPL variance wallet credit",
+          correlationId: await buildCreditWalletCorrelationId("wallet", identity),
+          idempotencyKey: await buildCreditWalletIdempotencyKey("wallet", identity), actorId: user.id,
+        });
         await supabase.from("audit_logs").insert({
           action_type: "wallet_credit_dpl_variance",
           module_name: "Finance",
           entity_name: "order",
           entity_id: orderId,
           actor_id: user?.id,
-          new_value: { so_value: soValue, dpl_value: dplValue, credit_amount: walletDiff },
+          new_value: { so_value: soValue, dpl_value: dplValue, credit_amount: walletDiff, resulting_wallet_balance: wallet.balance },
           risk_level: "high",
         });
       } else if (walletDiff < 0 && dplValue > 0) {
@@ -305,6 +286,73 @@ const AdminAccountsRelease = () => {
           actor_id: user?.id,
           new_value: { so_value: soValue, dpl_value: dplValue, debit_amount: Math.abs(walletDiff) },
           risk_level: "high",
+        });
+      }
+
+      // Reuse a dispatch leg already created before a lost response/retry.
+      const { data: existingDispatch } = await supabase
+        .from("dispatches")
+        .select("id")
+        .eq("order_id", orderId)
+        .eq("tracking_number", lr)
+        .limit(1)
+        .maybeSingle();
+      let dispatchId = existingDispatch?.id ?? null;
+      if (!dispatchId) {
+        const { data: dispatchData, error: dispatchErr } = await supabase
+          .from("dispatches")
+          .insert({
+            order_id: orderId,
+            company_id: companyId,
+            transporter_name: tp,
+            tracking_number: lr,
+            driver_phone: driverPhone.trim() || null,
+            status: "dispatched",
+            dispatch_date: new Date().toISOString().split("T")[0],
+            proof_storage_path: proofPath,
+            is_partial: false,
+          })
+          .select("id")
+          .single();
+        if (dispatchErr || !dispatchData) throw dispatchErr ?? new Error("Dispatch record was not created");
+        dispatchId = dispatchData.id;
+      }
+      if (!dispatchId) throw new Error("Dispatch leg identity could not be resolved");
+
+      // Estimate cartons
+      const totalValue = gatePassOrder.sales_order_value ?? 0;
+      const totalBoxes = Math.max(1, Math.ceil(totalValue / 5000));
+
+      // Insert carton barcodes
+      const cartonRows = Array.from({ length: totalBoxes }, (_, i) => ({
+        order_id: orderId,
+        dispatch_id: dispatchId,
+        barcode_string: `OASIS-${orderId.slice(0, 8).toUpperCase()}-B${i + 1}`,
+        box_number: i + 1,
+        total_boxes: totalBoxes,
+        status: "labeled",
+      }));
+
+      const { count: cartonCount } = await supabase
+        .from("dispatch_cartons")
+        .select("id", { count: "exact", head: true })
+        .eq("dispatch_id", dispatchId);
+      if (!cartonCount) await supabase.from("dispatch_cartons").insert(cartonRows);
+
+      // Insert freight ledger
+      const { count: freightCount } = await supabase
+        .from("freight_ledger")
+        .select("id", { count: "exact", head: true })
+        .eq("order_id", orderId)
+        .eq("transporter_name", tp);
+      if (!freightCount) {
+        await supabase.from("freight_ledger").insert({
+          order_id: orderId,
+          transporter_name: tp,
+          total_freight_amt: freightAmt,
+          advance_paid_amt: freightAdv,
+          balance_due_amt: freightAmt - freightAdv,
+          payment_status: freightAdv >= freightAmt ? "paid" : "pending",
         });
       }
 
@@ -434,7 +482,8 @@ const AdminAccountsRelease = () => {
     setGeneratingPi(order.id);
     try {
       const piTotal = order.sales_order_value ?? 0;
-      const walletBalance = order.company?.wallet_balance ?? 0;
+      const walletBalance = order.company?.wallet_balance;
+      if (walletBalance == null) throw new Error("Canonical Core wallet balance unavailable; PI wallet assessment is blocked.");
       const walletDiff = walletBalance - piTotal;
 
       if (isWalletPiAutoSettleEligible(walletBalance, piTotal) && order.company_id) {
@@ -624,8 +673,11 @@ const AdminAccountsRelease = () => {
                         {/* Wallet deficit alert */}
                         {(order.status === "awaiting_payment" || order.status === "awaiting_final_payment") && !order.payment_cleared && (
                           (() => {
-                            const walletBal = order.company?.wallet_balance ?? 0;
+                            const walletBal = order.company?.wallet_balance;
                             const piTotal = order.sales_order_value ?? 0;
+                            if (walletBal == null) {
+                              return <Badge variant="destructive" className="text-[10px]">Wallet unavailable — Core facts required</Badge>;
+                            }
                             const deficit = piTotal - walletBal;
                             return deficit > 0 ? (
                               <Badge variant="destructive" className="text-[10px]">

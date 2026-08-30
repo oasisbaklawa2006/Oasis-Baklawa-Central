@@ -9,6 +9,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useLanguage } from "@/hooks/useLanguage";
+import { useAuth } from "@/hooks/useAuth";
 import { LegacyDispatchGovernanceBanner } from "@/components/admin/LegacyDispatchGovernanceBanner";
 import {
   DISPATCH_FINALIZATION_ROUTE,
@@ -23,6 +24,13 @@ import {
   getPackedReadyToClearedDispatchBlockers,
 } from "@/utils/financeReleaseState";
 import { FinanceReleaseChips } from "@/components/admin/FinanceReleaseChips";
+import {
+  buildCreditWalletCorrelationId,
+  buildCreditWalletIdempotencyKey,
+  buildWalletIdentity,
+  recordWalletEntry,
+  resolveCreditBinding,
+} from "@/lib/order-authority/creditWalletAuthorityClient";
 
 const PACKS_PER_CARTON = 9;
 
@@ -67,6 +75,7 @@ interface ModalItem extends OrderItem {
 }
 
 const AdminPackingDispatch = () => {
+  const { user } = useAuth();
   const [orders, setOrders] = useState<DispatchOrder[]>([]);
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState<"packing" | "dispatch_ready" | "blocked">("packing");
@@ -318,6 +327,35 @@ const AdminPackingDispatch = () => {
         return;
       }
 
+      // Record the canonical wallet fact before any durable dispatch/packing writes.
+      // Core idempotency makes a retry resumable if a later write fails.
+      let resultingWalletBalance: number | null = null;
+      let varianceDescription = "";
+      if (Math.abs(varianceAmount) > 0.01 && selectedOrder.company_id) {
+        const txType = varianceAmount > 0 ? "credit" : "debit";
+        // LR/AWB is the stable per-leg reference retained when the operator retries.
+        const walletSourceReference = `weight-variance:${selectedOrder.id}:${lr}`;
+        const desc = varianceAmount > 0
+          ? `Refund ₹${varianceAmount.toFixed(2)} for short-weight variance on Order ${selectedOrder.id.slice(0, 8)}`
+          : `Charge ₹${Math.abs(varianceAmount).toFixed(2)} for over-weight variance on Order ${selectedOrder.id.slice(0, 8)}`;
+        varianceDescription = desc;
+        if (!user?.id) throw new Error("Authenticated actor required for wallet adjustment");
+        const binding = await resolveCreditBinding(selectedOrder.id);
+        const identity = buildWalletIdentity({
+          companyId: selectedOrder.company_id, direction: txType, amount: Math.abs(varianceAmount), currency: "INR",
+          orderId: selectedOrder.id, proformaInvoiceId: binding.piId, commercialVersionId: binding.commercialVersionId,
+          sourceChannel: "CENTRAL_PACKING", sourceReference: walletSourceReference, reason: desc,
+        });
+        const wallet = await recordWalletEntry({
+          companyId: selectedOrder.company_id, direction: txType, amount: Math.abs(varianceAmount), currency: "INR",
+          orderId: selectedOrder.id, proformaInvoiceId: binding.piId, commercialVersionId: binding.commercialVersionId,
+          sourceChannel: "CENTRAL_PACKING", sourceReference: walletSourceReference, reason: desc,
+          correlationId: await buildCreditWalletCorrelationId("wallet", identity),
+          idempotencyKey: await buildCreditWalletIdempotencyKey("wallet", identity), actorId: user.id,
+        });
+        resultingWalletBalance = wallet.balance;
+      }
+
       // 1. Create dispatch record (partial legs are flagged; full closure drives order status + security gate)
       const { data: dispatch, error: dispErr } = await supabase.from("dispatches").insert({
         order_id: selectedOrder.id, company_id: selectedOrder.company_id,
@@ -346,49 +384,21 @@ const AdminPackingDispatch = () => {
 
       // Partial leg only — orders.status → dispatched is governed via Phase 4E (never here).
 
-      // 4. Wallet reconciliation if variance exists
-      if (Math.abs(varianceAmount) > 0.01 && selectedOrder.company_id) {
-        // Get current wallet balance
-        const { data: company } = await supabase
-          .from("companies")
-          .select("wallet_balance")
-          .eq("id", selectedOrder.company_id)
-          .single();
-
-        const currentBalance = company?.wallet_balance ?? 0;
-        // varianceAmount > 0 means final < original → credit (refund)
-        // varianceAmount < 0 means final > original → debit (charge)
-        const newBalance = currentBalance + varianceAmount;
-
-        await supabase.from("companies").update({
-          wallet_balance: newBalance,
-        }).eq("id", selectedOrder.company_id);
-
-        // 6. Log wallet transaction
-        const txType = varianceAmount > 0 ? "credit" : "debit";
-        const desc = varianceAmount > 0
-          ? `Refund ₹${varianceAmount.toFixed(2)} for short-weight variance on Order ${selectedOrder.id.slice(0, 8)}`
-          : `Charge ₹${Math.abs(varianceAmount).toFixed(2)} for over-weight variance on Order ${selectedOrder.id.slice(0, 8)}`;
-
-        await supabase.from("wallet_transactions").insert({
-          company_id: selectedOrder.company_id,
-          type: txType,
-          amount: Math.abs(varianceAmount),
-          reference: `weight_variance:${selectedOrder.id}`,
-        });
-
+      // 4. Wallet reconciliation was recorded before durable dispatch writes.
+      if (resultingWalletBalance !== null) {
         // Also log to audit_logs for traceability
         await supabase.from("audit_logs").insert({
           module_name: "dispatch",
           action_type: "weight_variance_adjustment",
           entity_id: selectedOrder.id,
           entity_name: "orders",
-          reason: desc,
+          reason: varianceDescription,
           risk_level: Math.abs(varianceAmount) > 5000 ? "high" : "normal",
           new_value: {
             finalInvoiceTotal,
             originalInvoiceTotal,
             varianceAmount,
+            resulting_wallet_balance: resultingWalletBalance,
             items: modalItems.map((i) => ({
               id: i.id,
               original_weight: i.original_weight_kg,
