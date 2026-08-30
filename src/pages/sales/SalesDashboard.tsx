@@ -9,9 +9,8 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Loader2, CreditCard, Search, Building2, Wallet, IndianRupee, Phone, MessageSquare, TrendingUp, Target, AlertCircle } from "lucide-react";
+import { Loader2, Search, Building2, Wallet, IndianRupee, Phone, MessageSquare, TrendingUp, Target, AlertCircle } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
-import CreditRequestModal from "@/components/CreditRequestModal";
 import { getWalletBalance } from "@/lib/order-authority/creditWalletAuthorityClient";
 import { format, startOfMonth } from "date-fns";
 import type { Database } from "@/integrations/supabase/types";
@@ -35,8 +34,6 @@ const SalesDashboard = () => {
   const [rosterLoadFailed, setRosterLoadFailed] = useState(false);
   const [dataLoading, setDataLoading] = useState(true);
   const [search, setSearch] = useState("");
-  const [creditModalOpen, setCreditModalOpen] = useState(false);
-  const [selectedCompany, setSelectedCompany] = useState<{ id: string; business_name: string } | null>(null);
 
   // Live revenue data
   const [monthOrders, setMonthOrders] = useState<SalesOrder[]>([]);
@@ -302,10 +299,7 @@ const SalesDashboard = () => {
                       <TableCell className="text-right font-mono text-sm">₹{(c.current_balance || 0).toLocaleString()}</TableCell>
                       <TableCell>
                         <div className="flex items-center justify-center gap-2">
-                          <Button size="sm" variant="outline" className="h-8 text-xs gap-1.5"
-                            onClick={() => { setSelectedCompany({ id: c.id, business_name: c.business_name }); setCreditModalOpen(true); }}>
-                            <CreditCard size={13} /> Request Credit
-                          </Button>
+                          <span className="text-xs text-muted-foreground">Select a governed SO to request credit</span>
                         </div>
                       </TableCell>
                     </TableRow>
@@ -316,15 +310,6 @@ const SalesDashboard = () => {
           </CardContent>
         </Card>
       </div>
-
-      <CreditRequestModal
-        open={creditModalOpen}
-        onClose={() => setCreditModalOpen(false)}
-        company={selectedCompany}
-        orderId={null}
-        proformaInvoiceId={null}
-        commercialVersionId={null}
-      />
 
       {/* Log Interaction Modal */}
       <Dialog open={logModalOpen} onOpenChange={setLogModalOpen}>

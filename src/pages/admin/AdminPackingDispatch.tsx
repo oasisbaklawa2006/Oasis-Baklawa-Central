@@ -333,6 +333,8 @@ const AdminPackingDispatch = () => {
       let varianceDescription = "";
       if (Math.abs(varianceAmount) > 0.01 && selectedOrder.company_id) {
         const txType = varianceAmount > 0 ? "credit" : "debit";
+        // LR/AWB is the stable per-leg reference retained when the operator retries.
+        const walletSourceReference = `weight-variance:${selectedOrder.id}:${lr}`;
         const desc = varianceAmount > 0
           ? `Refund ₹${varianceAmount.toFixed(2)} for short-weight variance on Order ${selectedOrder.id.slice(0, 8)}`
           : `Charge ₹${Math.abs(varianceAmount).toFixed(2)} for over-weight variance on Order ${selectedOrder.id.slice(0, 8)}`;
@@ -342,12 +344,12 @@ const AdminPackingDispatch = () => {
         const identity = buildWalletIdentity({
           companyId: selectedOrder.company_id, direction: txType, amount: Math.abs(varianceAmount), currency: "INR",
           orderId: selectedOrder.id, proformaInvoiceId: binding.piId, commercialVersionId: binding.commercialVersionId,
-          sourceChannel: "CENTRAL_PACKING", sourceReference: `weight-variance:${selectedOrder.id}`, reason: desc,
+          sourceChannel: "CENTRAL_PACKING", sourceReference: walletSourceReference, reason: desc,
         });
         const wallet = await recordWalletEntry({
           companyId: selectedOrder.company_id, direction: txType, amount: Math.abs(varianceAmount), currency: "INR",
           orderId: selectedOrder.id, proformaInvoiceId: binding.piId, commercialVersionId: binding.commercialVersionId,
-          sourceChannel: "CENTRAL_PACKING", sourceReference: `weight-variance:${selectedOrder.id}`, reason: desc,
+          sourceChannel: "CENTRAL_PACKING", sourceReference: walletSourceReference, reason: desc,
           correlationId: await buildCreditWalletCorrelationId("wallet", identity),
           idempotencyKey: await buildCreditWalletIdempotencyKey("wallet", identity), actorId: user.id,
         });

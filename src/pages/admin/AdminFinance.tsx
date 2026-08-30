@@ -257,7 +257,13 @@ const AdminFinance = () => {
       .eq("status", "pending")
       .order("created_at", { ascending: false });
 
-    if (!error && data) setCreditRequests(data as unknown as CreditRequest[]);
+    if (!error && data) {
+      // Historical requests without an exact SO/PI/version binding are retained
+      // in the database but cannot appear as actionable governed approvals.
+      setCreditRequests((data as unknown as CreditRequest[]).filter((request) =>
+        Boolean(request.order_id && request.proforma_invoice_id && request.commercial_version_id),
+      ));
+    }
   };
 
   const fetchReturns = async () => {
