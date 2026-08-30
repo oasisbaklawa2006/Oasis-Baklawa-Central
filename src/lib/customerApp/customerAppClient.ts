@@ -1,5 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
-import type { Database, Json } from "@/integrations/supabase/types";
+import type { Database, Json } from "@/integrations/supabase/database.types";
 
 type PublicFunctions = Database["public"]["Functions"];
 type RpcName = keyof PublicFunctions;

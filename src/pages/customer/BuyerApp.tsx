@@ -3,7 +3,7 @@ import { Link, useLocation, useNavigate } from "react-router-dom";
 import { Home as HomeIcon, Package, ShoppingBag, UserRound, Search, Plus, Minus, Trash2, ArrowLeft, LifeBuoy, LogOut, Loader2, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
-import type { Database } from "@/integrations/supabase/types";
+import type { Database } from "@/integrations/supabase/database.types";
 import { useAuth } from "@/hooks/useAuth";
 import { customerAppClient, clearCheckoutIdempotencyKey, getCheckoutIdempotencyKey, type BuyerCompany, type BuyerDraftLine, type BuyerOrder, type BuyerOrderItem, type BuyerPrice, type BuyerTeamMember, type BuyerTicket } from "@/lib/customerApp/customerAppClient";
 import SystemAlertMarquee from "@/components/buyer/SystemAlertMarquee";
