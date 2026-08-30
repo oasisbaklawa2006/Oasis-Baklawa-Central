@@ -6,6 +6,26 @@ export type Json =
   | { [key: string]: Json | undefined }
   | Json[]
 
+// Customer-facing RPCs are maintained here until the next canonical Supabase
+// type generation. Keeping them in the Database contract prevents callers from
+// widening the client to an untyped `rpc(name, params)` escape hatch.
+type CustomerAppFunctions = {
+  customer_company_v1: { Args: never; Returns: { company_id: string; business_name: string | null; gst_number: string | null; status: string | null; price_tier: string | null; payment_terms: string | null; registered_address: string | null; phone: string | null; is_frozen: boolean }[] }
+  customer_team_v1: { Args: never; Returns: { profile_id: string; full_name: string | null; email: string | null; mobile_number: string | null; role: string | null; status: string | null }[] }
+  buyer_product_prices_v1: { Args: never; Returns: { product_id: string; selling_price: number; currency: string; uom: string | null; gst_rate: number | null; tax_inclusive: boolean; applied_discount_percent: number | null; minimum_order_quantity: number | null; minimum_order_uom: string | null; order_increment: number | null; order_increment_uom: string | null; valid_from: string | null; valid_until: string | null }[] }
+  get_customer_order_draft_v1: { Args: never; Returns: { draft_id: string; company_id: string; status: string; readiness_status: string; readiness_issues: Json; line_id: string | null; product_id: string | null; quantity: number | null; unit_price_snapshot: number | null; currency_snapshot: string | null; uom_snapshot: string | null; sku_snapshot: string | null; product_name_snapshot: string | null }[] }
+  add_customer_order_draft_line_v1: { Args: { p_product_id: string; p_quantity: number }; Returns: { draft_id: string; line_id: string; readiness_status: string; readiness_issues: Json }[] }
+  update_customer_order_draft_line_v1: { Args: { p_line_id: string; p_quantity: number }; Returns: { draft_id: string; line_id: string; readiness_status: string; readiness_issues: Json }[] }
+  remove_customer_order_draft_line_v1: { Args: { p_line_id: string }; Returns: { draft_id: string; readiness_status: string; readiness_issues: Json }[] }
+  clear_customer_order_draft_v1: { Args: never; Returns: { draft_id: string; readiness_status: string; readiness_issues: Json }[] }
+  submit_customer_order_v1: { Args: { p_idempotency_key: string; p_requested_dispatch_date?: string | null }; Returns: { order_id: string; order_number: string; sales_order_value: number; advance_required: number; draft_id: string; is_duplicate_submission: boolean }[] }
+  customer_order_status_v1: { Args: never; Returns: { order_id: string; order_number: string; customer_stage: string; payment_stage: string; order_value: number | null; total_weight_kg: number | null; requested_dispatch_date: string | null; promised_dispatch_date: string | null; tracking_number: string | null; courier_name: string | null; created_at: string; updated_at: string }[] }
+  customer_order_items_v1: { Args: never; Returns: { order_id: string; item_id: string; product_id: string; sku: string | null; product_name: string | null; quantity: number; pack_size: string | null; weight_kg: number | null; packed_quantity: number | null }[] }
+  customer_support_tickets_v1: { Args: never; Returns: { ticket_id: string; order_id: string; order_number: string; issue_type: string; description: string; customer_status: string; product_sku: string | null; quantity_affected: number | null; created_at: string; updated_at: string; first_response_due: string | null; resolution_due: string | null; resolved_at: string | null; customer_rating: number | null }[] }
+  submit_customer_support_ticket_v1: { Args: { p_order_id: string; p_issue_type: string; p_description: string; p_product_sku?: string | null; p_quantity_affected?: number | null }; Returns: string }
+  submit_b2b_trade_application_v1: { Args: { p_business_name: string; p_trade_name?: string | null; p_business_type?: string | null; p_gst_number?: string | null; p_expected_volume?: string | null; p_contact_name?: string | null; p_contact_person?: string | null; p_contact_email?: string | null; p_contact_phone?: string | null; p_mobile_number?: string | null; p_registered_address?: string | null; p_city?: string | null; p_state?: string | null; p_pincode?: string | null; p_gst_certificate_path?: string | null; p_business_proof_path?: string | null; p_current_brands?: string | null; p_preferred_dispatch?: string | null; p_preferred_dispatch_other_name?: string | null; p_trade_declaration?: boolean; p_data_consent?: boolean }; Returns: { application_id: string; application_status: string; company_id: string | null; is_duplicate_submission: boolean }[] }
+}
+
 export type Database = {
   // Allows to automatically instantiate createClient with right options
   // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
@@ -5869,7 +5889,7 @@ export type Database = {
         Relationships: []
       }
     }
-    Functions: {
+    Functions: CustomerAppFunctions & {
       get_whatsapp_clarification_summary: {
         Args: never
         Returns: {

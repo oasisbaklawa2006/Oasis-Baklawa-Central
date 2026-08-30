@@ -1,5 +1,5 @@
 import { motion, AnimatePresence } from "framer-motion";
-import { X, Upload, AlertTriangle } from "lucide-react";
+import { X, AlertTriangle } from "lucide-react";
 import { useState } from "react";
 import { customerAppClient } from "@/lib/customerApp/customerAppClient";
 import { toast } from "sonner";
@@ -88,11 +88,6 @@ const SupportTicketModal = ({ open, onClose, orderId }: Props) => {
                   rows={3}
                   className="w-full rounded-xl bg-muted/50 border border-border px-4 py-3 font-body text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
                 />
-
-                <button className="w-full py-3 rounded-xl bg-muted/50 border border-dashed border-border text-muted-foreground font-body text-sm flex items-center justify-center gap-2 hover:border-primary/50 transition-colors">
-                  <Upload size={16} />
-                  Upload Photo Evidence
-                </button>
 
                 <button
                   onClick={handleSubmit}

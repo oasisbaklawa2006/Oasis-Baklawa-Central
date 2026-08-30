@@ -38,7 +38,7 @@ The evidence below records the original current-main gap and the resulting state
 | Support tickets and evidence | ✅ VERIFIED COMPLETE | Buyer Support and `SupportTicketModal` call Core `submit_customer_support_ticket_v1(...)`, require a description, and render customer-safe ticket projections. |
 | Announcements / alerts / launch sections | ✅ VERIFIED COMPLETE | Buyer Home renders the existing `SystemAlertMarquee`; launch/festival/bestseller sections remain outside the approved implemented contract unless separately assigned. |
 | Loading / empty / error / stale-session states | ✅ VERIFIED COMPLETE | Buyer data loading, empty, error/toast and refresh states are implemented in the route tree; auth/session redirects remain governed by the existing auth provider. |
-| Mobile UX/accessibility | ✅ VERIFIED COMPLETE | Buyer navigation is responsive with mobile bottom navigation and touch-sized controls; automated production build/Playwright smoke checks pass. |
+| Mobile UX/accessibility | ✅ VERIFIED COMPLETE | Buyer navigation is responsive with mobile bottom navigation and touch-sized controls; automated typecheck/build and repository gates pass. Authenticated device/runtime evidence remains a separate gate. |
 | Core RLS/RBAC/idempotency authority | ✅ VERIFIED COMPLETE (dependency evidence) | Current Core main contains authenticated buyer-scoped projections, service-bound pricing resolution, RLS draft reads/no direct draft writes, idempotent checkout promotion, customer-safe status/items/support contracts. Runtime production verification remains an upstream release gate for any dependent merge. |
 | WhatsApp / Finance / Factory / Trace / CRM / Factory Gate | ➖ OUT OF THIS WORKSTREAM | Do not modify or absorb defects from these authorities. |
 
@@ -66,7 +66,7 @@ The current Core migration lineage includes the previously governed Buyer/custom
 - [x] Submission uses only the governed Core checkout RPC with stable idempotency and retry-safe UI.
 - [x] Orders/status/items/support are customer-safe projections with correct empty/loading/error states.
 - [x] No authoritative Finance calculation or direct `orders`/`order_items`/support-table mutation remains in the Buyer path.
-- [x] Required frontend regression coverage, typecheck, lint, production build and Playwright smoke checks pass on PR #421's current head; live authenticated/Core/Finance handoff evidence remains pending.
+- [x] Required frontend regression coverage, typecheck, lint and production build checks pass on PR #421's current head; live authenticated/Core/Finance handoff evidence remains pending.
 - [ ] Any required Core change is separately merged, protected-deployed, and runtime-verified before dependent App merge.
 - [ ] Final golden paths are demonstrated: authenticated buyer order inward to canonical SO/Finance handoff, and non-order support/query path.
 

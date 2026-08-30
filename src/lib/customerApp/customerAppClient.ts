@@ -1,11 +1,13 @@
 import { supabase } from "@/integrations/supabase/client";
+import type { Database } from "@/integrations/supabase/types";
 
-type RpcError = { message: string; code?: string } | null;
+type PublicFunctions = Database["public"]["Functions"];
+type RpcName = keyof PublicFunctions;
 
-async function rpc<T>(fn: string, args?: Record<string, unknown>): Promise<T> {
-  const result = await (supabase as unknown as { rpc: (name: string, params?: Record<string, unknown>) => Promise<{ data: T; error: RpcError }> }).rpc(fn, args);
+async function rpc<Name extends RpcName>(fn: Name, args?: PublicFunctions[Name]["Args"]): Promise<PublicFunctions[Name]["Returns"]> {
+  const result = await supabase.rpc(fn, args as never);
   if (result.error) throw new Error(result.error.message);
-  return result.data;
+  return result.data as PublicFunctions[Name]["Returns"];
 }
 
 export type BuyerCompany = {

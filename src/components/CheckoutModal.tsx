@@ -1,7 +1,6 @@
 import { motion, AnimatePresence } from "framer-motion";
-import { X, Wallet, Smartphone, Building, CheckCircle2, ShieldCheck, Loader2 } from "lucide-react";
-import { useState } from "react";
-import { toast } from "sonner";
+import { X, ShieldCheck } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 
 interface CheckoutModalProps {
   open: boolean;
@@ -14,28 +13,12 @@ interface CheckoutModalProps {
 
 const formatPrice = (n: number) => "₹" + n.toLocaleString("en-IN");
 
-const paymentMethods = [
-  { id: "upi", label: "Pay via UPI", desc: "Google Pay, PhonePe, Paytm", icon: Smartphone },
-  { id: "neft", label: "NEFT / Bank Transfer", desc: "Direct bank transfer", icon: Building },
-  { id: "wallet", label: "Use Wallet Balance", desc: "Available: ₹45,000", icon: Wallet },
-];
-
-const CheckoutModal = ({ open, onClose, grandTotal, orderId, companyId, onOrderConfirmed }: CheckoutModalProps) => {
-  const [selected, setSelected] = useState("upi");
-  const [confirming, setConfirming] = useState(false);
-  // Core owns the authoritative advance calculation. This legacy modal is
-  // retained only for compatibility with unrouted callers; the Buyer App uses
-  // submit_customer_order_v1 directly.
-  const advance = null;
-  const isReady = !!orderId && !!companyId;
+const CheckoutModal = ({ open, onClose, grandTotal }: CheckoutModalProps) => {
+  const navigate = useNavigate();
 
   const handleConfirm = async () => {
-    if (!orderId || !companyId) {
-      toast.error("Order details are still loading. Please wait a moment.");
-      return;
-    }
-    setConfirming(false);
-    toast.error("This legacy checkout surface is not an order authority. Return to the Buyer cart to submit through Core.");
+    onClose();
+    navigate("/buyer/cart");
   };
 
   return (
@@ -83,43 +66,13 @@ const CheckoutModal = ({ open, onClose, grandTotal, orderId, companyId, onOrderC
                 </p>
               </div>
 
-              {/* Payment Methods */}
-              <div className="space-y-3">
-                <h3 className="font-body font-bold text-foreground text-sm">Select Payment Method</h3>
-                {paymentMethods.map((pm) => {
-                  const isSelected = selected === pm.id;
-                  return (
-                    <button
-                      key={pm.id}
-                      onClick={() => setSelected(pm.id)}
-                      className={`w-full flex items-center gap-4 p-4 rounded-xl border transition-all ${
-                        isSelected
-                          ? "border-primary bg-primary/5 shadow-sm"
-                          : "border-border bg-card hover:border-primary/30"
-                      }`}
-                    >
-                      <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${isSelected ? "bg-primary/10" : "bg-muted/60"}`}>
-                        <pm.icon size={18} className={isSelected ? "text-primary" : "text-muted-foreground"} />
-                      </div>
-                      <div className="flex-1 text-left">
-                        <p className="font-body font-semibold text-foreground text-sm">{pm.label}</p>
-                        <p className="font-body text-[11px] text-muted-foreground">{pm.desc}</p>
-                      </div>
-                      {isSelected && <CheckCircle2 size={18} className="text-primary" />}
-                    </button>
-                  );
-                })}
-              </div>
-
               {/* CTA - fixed on mobile */}
               <div className="sm:static fixed bottom-0 left-0 right-0 sm:p-0 p-4 bg-background sm:bg-transparent border-t sm:border-0 border-border/50 space-y-2">
                 <button
                   onClick={handleConfirm}
-                  disabled={confirming || !isReady}
                   className="w-full py-4 rounded-xl bg-primary text-primary-foreground font-body font-bold text-sm flex items-center justify-center gap-2 hover:bg-primary/90 transition-colors shadow-fab disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  {confirming ? <Loader2 size={16} className="animate-spin" /> : !isReady ? <Loader2 size={16} className="animate-spin" /> : null}
-                  {confirming ? "Confirming…" : !isReady ? "Loading order details…" : "Pay Advance & Confirm Order"}
+                  Review in Buyer cart
                 </button>
                 <p className="font-body text-[10px] text-muted-foreground text-center leading-relaxed">
                   By confirming, you agree to Oasis Baklawa's B2B terms. Advance is non-refundable once production begins.
