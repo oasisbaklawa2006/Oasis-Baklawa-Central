@@ -173,7 +173,7 @@ export default function DispatchManagement() {
   const [cartons, setCartons] = useState<CartonRow[]>([]);
   const [consignmentLines, setConsignmentLines] = useState<ConsignmentLineRow[]>([]);
   const [dplVersions, setDplVersions] = useState<DplVersionRow[]>([]);
-  const [supersessionReasons, setSupersessionReasons] = useState<Record<string, string>>({});
+  const [supersessionReasons, setSupersessionReasons] = useState<Map<string, string>>(new Map());
   const [workingLoading, setWorkingLoading] = useState(false);
 
   // Open carton
@@ -271,9 +271,9 @@ export default function DispatchManagement() {
       setCartons((cartonsRes.data ?? []) as CartonRow[]);
       setConsignmentLines((linesRes.data ?? []) as ConsignmentLineRow[]);
       setDplVersions((dplRes.data ?? []) as DplVersionRow[]);
-      const reasonMap: Record<string, string> = {};
+      const reasonMap = new Map<string, string>();
       for (const evt of (eventsRes.data ?? []) as { document_version_id: string | null; reason: string | null }[]) {
-        if (evt.document_version_id && evt.reason) reasonMap[evt.document_version_id] = evt.reason;
+        if (evt.document_version_id && evt.reason) reasonMap.set(evt.document_version_id, evt.reason);
       }
       setSupersessionReasons(reasonMap);
     } catch (err) {
@@ -981,8 +981,8 @@ export default function DispatchManagement() {
                   {supersededVersions.map((version) => (
                     <div key={version.id} className="flex items-center justify-between text-[11px]">
                       <span>Version {version.version_number} -- superseded</span>
-                      {supersessionReasons[version.id] ? (
-                        <span className="text-muted-foreground">Reason: {supersessionReasons[version.id]}</span>
+                      {supersessionReasons.get(version.id) ? (
+                        <span className="text-muted-foreground">Reason: {supersessionReasons.get(version.id)}</span>
                       ) : null}
                     </div>
                   ))}
