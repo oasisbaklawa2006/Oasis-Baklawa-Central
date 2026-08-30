@@ -90,9 +90,6 @@ const LiveWorkQueues = lazy(() => import("./pages/admin/LiveWorkQueues.tsx"));
 const EntityGraphExplorer = lazy(() => import("./pages/admin/EntityGraphExplorer.tsx"));
 const QueueExecutionPreview = lazy(() => import("./pages/admin/QueueExecutionPreview.tsx"));
 const BarcodeExecutionPreview = lazy(() => import("./pages/admin/BarcodeExecutionPreview.tsx"));
-const DispatchGovernedExecutionPreview = lazy(
-  () => import("./pages/admin/DispatchGovernedExecutionPreview.tsx"),
-);
 const ThreePgsProcurementQueue = lazy(() => import("./pages/admin/ThreePgsProcurementQueue.tsx"));
 const ProductIntelligencePrototype = lazy(
   () => import("./pages/admin/ProductIntelligencePrototype.tsx"),
@@ -360,14 +357,6 @@ const App = () => (
                       element={
                         <AdminModuleRoute moduleKey="cmd_war_room">
                           <BarcodeExecutionPreview />
-                        </AdminModuleRoute>
-                      }
-                    />
-                    <Route
-                      path="dispatch-governed-preview"
-                      element={
-                        <AdminModuleRoute moduleKey="cmd_war_room">
-                          <DispatchGovernedExecutionPreview />
                         </AdminModuleRoute>
                       }
                     />

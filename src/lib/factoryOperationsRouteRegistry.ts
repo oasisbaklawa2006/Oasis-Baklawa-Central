@@ -313,7 +313,7 @@ export const FACTORY_OPERATIONS_ROUTES: FactoryRouteEntry[] = [
     intendedPrimaryAudience: ["DISPATCH_HEAD", "DISPATCH_MANAGER", "DISPATCH_INCHARGE"],
     status: "FACTORY_CURRENT",
     deviceClass: "DESKTOP",
-    evidence: "App.tsx line 463 (DispatchManagement component); auth-routing.ts defaults all three dispatch roles here.",
+    evidence: "App.tsx (DispatchManagement component); auth-routing.ts defaults all three dispatch roles here. FACT-C3: rewired onto the governed b2b_dispatch_* RPC chain (create_b2b_dispatch_consignment through submit_b2b_dispatch_packing_list_to_finance) -- no direct writes to dispatch_cartons/order_items/packing_lists remain in this component. Absorbed the former /admin/dispatch-governed-preview capabilities; that route was retired.",
   },
   {
     route: "/admin/dispatch-readiness",
@@ -364,16 +364,6 @@ export const FACTORY_OPERATIONS_ROUTES: FactoryRouteEntry[] = [
     status: "FACTORY_CURRENT",
     deviceClass: "DESKTOP",
     evidence: "App.tsx line 458 (GoldenChainOperatorWizard). Composes createDispatchReadinessBundle + createDispatchCompletionBundle + createDispatchFinalizationBundle + createFinanceGovernanceBundle -- a real orchestration wizard across the dispatch lifecycle boards above, not dead data. Its one finance-governance panel does not make the whole screen out-of-scope.",
-  },
-  {
-    route: "/admin/dispatch-governed-preview",
-    label: "Dispatch Governed Execution Preview",
-    subsystem: "DISPATCH",
-    technicallyAllowedRoles: ADMIN_STAFF_ROLES_REFERENCE,
-    intendedPrimaryAudience: ["DISPATCH_MANAGER"],
-    status: "FACTORY_CURRENT",
-    deviceClass: "DESKTOP",
-    evidence: "App.tsx: DispatchGovernedExecutionPreview reads b2b_dispatch/dispatch_carton (governed schema shipped in Central PR #385, 'Dispatch G3: governed execution preview'). Despite the 'preview' name this is real governed data already shipped, not an unvalidated prototype -- classified FACTORY_CURRENT, not FACTORY_PREVIEW.",
   },
   {
     route: "/admin/dispatch-tv",

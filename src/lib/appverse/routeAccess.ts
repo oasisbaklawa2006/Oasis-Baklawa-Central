@@ -15,7 +15,6 @@ const ADMIN_ROUTE_MODULES: Array<{ prefix: string; moduleKey: AppVerseModuleKey 
   { prefix: "/admin/entity-graph-explorer", moduleKey: "cmd_war_room" },
   { prefix: "/admin/queue-execution-preview", moduleKey: "cmd_war_room" },
   { prefix: "/admin/barcode-execution-preview", moduleKey: "cmd_war_room" },
-  { prefix: "/admin/dispatch-governed-preview", moduleKey: "cmd_war_room" },
   { prefix: "/admin/product-intelligence-prototype", moduleKey: "cmd_war_room" },
   { prefix: "/admin/customer-timeline-preview", moduleKey: "cmd_war_room" },
   { prefix: "/admin/operational-search", moduleKey: "cmd_war_room" },

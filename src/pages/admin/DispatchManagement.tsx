@@ -1,494 +1,1003 @@
-import { useEffect, useState, useCallback, useRef } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { useCallback, useEffect, useState } from "react";
+import {
+  CheckCircle2,
+  Lock,
+  PackageCheck,
+  RefreshCw,
+  ScanLine,
+  ShieldAlert,
+} from "lucide-react";
 import { toast } from "sonner";
-import { useAuth } from "@/hooks/useAuth";
-import { Loader2, Package, ScanLine, Camera, CheckCircle2, Printer, Box, Upload, Hash, FileCheck } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
+import { supabase } from "@/integrations/supabase/client";
+import { dispatchDb, dispatchGovernedRpc } from "@/lib/dispatchGovernedRpc";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { Progress } from "@/components/ui/progress";
-import StagnancyBadge from "@/components/StagnancyBadge";
-import { DispatchReadinessBadge } from "@/components/admin/DispatchReadinessBadge";
-import { LegacyDispatchGovernanceBanner } from "@/components/admin/LegacyDispatchGovernanceBanner";
-import type { DispatchReadinessInput } from "@/lib/dispatch-readiness";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
-interface DispatchOrder {
+/**
+ * Canonical Dispatch operator workflow (FACT-C3): the single governed path
+ * from a released Sales Order through consignment creation, carton opening,
+ * scanned/evidenced/locked carton truth (FACT-C1), and Dispatch Packing
+ * List creation, correction and submission to Finance (FACT-C2).
+ *
+ * This replaces the legacy handheld packing screen -- it no longer writes
+ * to `dispatch_cartons`, `order_items.actual_packed_qty`, or any
+ * order-status-flipping "Finalize DPL" action. Every mutation here goes
+ * through a governed oasis-supabase-core RPC against the `b2b_dispatch_*`
+ * schema; there is exactly one DPL-mutation authority in the app --
+ * create/supersede/submit_b2b_dispatch_packing_list_to_finance, called only
+ * from this page. FACT-C3 stops at "submitted to Finance": no transporter
+ * selection, loading, gate, departure or POD/delivery is implemented here.
+ */
+
+type ShipmentExecutionRow = {
+  consignment_id: string;
+  consignment_number: string;
+  order_id: string;
+  order_number: string;
+  consignment_status: string;
+  dispatch_mode: string;
+  consignee_name: string | null;
+  destination_city: string | null;
+  carton_count: number;
+  selected_qty: number;
+  packed_qty: number;
+  dispatched_qty: number;
+  transporter_name: string | null;
+  finance_status: "CLEARED" | "HOLD";
+  open_exception_count: number;
+};
+
+type CartonRow = {
   id: string;
+  carton_code: string;
+  carton_sequence: number;
   status: string;
-  created_at: string | null;
-  sales_order_value: number | null;
-  company?: { business_name: string } | null;
-  items: { id: string; quantity: number; actual_packed_qty: number | null; production_status: string | null; product?: { name: string; sku: string | null; image_url: string | null } | null }[];
-}
+  net_weight: number | null;
+  gross_weight: number | null;
+  open_photo_ref: string | null;
+  locked_by: string | null;
+  locked_at: string | null;
+  current_version: number;
+};
 
-interface CartonItem {
-  itemId: string;
-  productName: string;
-  sku: string | null;
-  packedQty: number;
+type CartonItemRow = {
+  id: string;
+  barcode_value: string;
+  batch_lot: string;
+  quantity: number;
+  product_code: string;
+  scanned_at: string;
+};
+
+type ScanEventRow = {
+  id: string;
+  barcode_value: string;
+  scan_result: string;
+  reason: string | null;
+  created_at: string;
+};
+
+type ConsignmentLineRow = {
+  id: string;
+  product_code: string;
+  uom: string;
+  accepted_ready_qty: number;
+  packed_qty: number;
+};
+
+type DplVersionRow = {
+  id: string;
+  version_number: number;
+  status: string;
+  submitted_to_finance_at: string | null;
+  finance_check_state: string;
+  superseded_by: string | null;
+  generated_at: string;
+  correlation_id: string;
+};
+
+const DISPATCH_MODES = [
+  "road_transporter",
+  "courier",
+  "air",
+  "train",
+  "direct_special_delivery",
+  "customer_pickup",
+  "approved_special",
+] as const;
+
+const LOCKED_CARTON_STATUSES = new Set([
+  "locked",
+  "finance_check_open",
+  "verified",
+  "labelled",
+  "ready_to_load",
+  "loaded",
+  "handed_over",
+]);
+
+function ConsignmentSelect({
+  id,
+  rows,
+  value,
+  onValueChange,
+}: {
+  id: string;
+  rows: ShipmentExecutionRow[];
+  value: string;
+  onValueChange: (value: string) => void;
+}) {
+  return (
+    <Select value={value} onValueChange={onValueChange}>
+      <SelectTrigger id={id}>
+        <SelectValue placeholder="Select a consignment" />
+      </SelectTrigger>
+      <SelectContent>
+        {rows.map((row) => (
+          <SelectItem key={row.consignment_id} value={row.consignment_id}>
+            {row.consignment_number}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+  );
 }
 
 export default function DispatchManagement() {
-  const { user } = useAuth();
-  const [orders, setOrders] = useState<DispatchOrder[]>([]);
+  const [rows, setRows] = useState<ShipmentExecutionRow[]>([]);
   const [loading, setLoading] = useState(true);
-  const [activeOrderId, setActiveOrderId] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
-  // Scan & Pack state
-  const [scanInput, setScanInput] = useState("");
-  const [matchedItem, setMatchedItem] = useState<DispatchOrder["items"][0] | null>(null);
-  const [packQty, setPackQty] = useState("");
-  const scanRef = useRef<HTMLInputElement>(null);
+  // Consignment creation
+  const [orderId, setOrderId] = useState("");
+  const [dispatchMode, setDispatchMode] = useState<string>(DISPATCH_MODES[0]);
+  const [orderItemId, setOrderItemId] = useState("");
+  const [selectedQty, setSelectedQty] = useState("");
+  const [creating, setCreating] = useState(false);
+  const [createCorrelationId, setCreateCorrelationId] = useState(() => crypto.randomUUID());
 
-  // Carton state
-  const [currentCarton, setCurrentCarton] = useState<CartonItem[]>([]);
-  const [cartonCount, setCartonCount] = useState(0);
-  const [acting, setActing] = useState(false);
+  // Working consignment (the one being packed / whose DPL is being managed)
+  const [workingConsignmentId, setWorkingConsignmentId] = useState("");
+  const [cartons, setCartons] = useState<CartonRow[]>([]);
+  const [consignmentLines, setConsignmentLines] = useState<ConsignmentLineRow[]>([]);
+  const [dplVersions, setDplVersions] = useState<DplVersionRow[]>([]);
+  const [supersessionReasons, setSupersessionReasons] = useState<Record<string, string>>({});
+  const [workingLoading, setWorkingLoading] = useState(false);
 
-  // Photo proof
-  const [photoUrl, setPhotoUrl] = useState<string | null>(null);
+  // Open carton
+  const [cartonCode, setCartonCode] = useState("");
+  const [openingCarton, setOpeningCarton] = useState(false);
 
-  const fetchOrders = useCallback(async () => {
-    const { data } = await supabase
-      .from("orders")
-      .select("id, status, created_at, sales_order_value, company:companies(business_name)")
-      .in("status", ["in_production", "partial_ready", "packed_ready", "approved"])
-      .order("created_at", { ascending: true });
+  // Selected carton (scan / evidence / lock)
+  const [selectedCartonId, setSelectedCartonId] = useState("");
+  const [cartonItems, setCartonItems] = useState<CartonItemRow[]>([]);
+  const [scanEvents, setScanEvents] = useState<ScanEventRow[]>([]);
 
-    const result: DispatchOrder[] = [];
-    for (const o of (data || [])) {
-      const { data: items } = await supabase
-        .from("order_items")
-        .select("id, quantity, actual_packed_qty, production_status, product:products(name, sku, image_url)")
-        .eq("order_id", o.id);
-      result.push({ ...o, items: (items as any[]) || [] } as DispatchOrder);
+  const [scanLineId, setScanLineId] = useState("");
+  const [scanBarcode, setScanBarcode] = useState("");
+  const [scanBatchLot, setScanBatchLot] = useState("");
+  const [scanQuantity, setScanQuantity] = useState("");
+  const [scanning, setScanning] = useState(false);
+  const [scanCorrelationId, setScanCorrelationId] = useState(() => crypto.randomUUID());
+
+  const [netWeight, setNetWeight] = useState("");
+  const [grossWeight, setGrossWeight] = useState("");
+  const [evidencePhoto, setEvidencePhoto] = useState<File | null>(null);
+  const [recordingEvidence, setRecordingEvidence] = useState(false);
+  const [evidenceCorrelationId, setEvidenceCorrelationId] = useState(() => crypto.randomUUID());
+
+  const [locking, setLocking] = useState(false);
+  const [lockCorrelationId, setLockCorrelationId] = useState(() => crypto.randomUUID());
+
+  // DPL actions
+  const [creatingDpl, setCreatingDpl] = useState(false);
+  const [dplCreateCorrelationId, setDplCreateCorrelationId] = useState(() => crypto.randomUUID());
+  const [supersedeReason, setSupersedeReason] = useState("");
+  const [superseding, setSuperseding] = useState(false);
+  const [supersedeCorrelationId, setSupersedeCorrelationId] = useState(() => crypto.randomUUID());
+  const [submittingDpl, setSubmittingDpl] = useState(false);
+  const [dplSubmitCorrelationId, setDplSubmitCorrelationId] = useState(() => crypto.randomUUID());
+
+  const fetchRows = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const { data, error: fetchError } = await dispatchDb
+        .from("b2b_dispatch_shipment_execution_view")
+        .select("*")
+        .order("consignment_number", { ascending: false })
+        .limit(50);
+      if (fetchError) throw fetchError;
+      setRows((data ?? []) as ShipmentExecutionRow[]);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to load governed dispatch consignments.");
+    } finally {
+      setLoading(false);
     }
-    setOrders(result);
-    setLoading(false);
   }, []);
 
-  useEffect(() => { fetchOrders(); }, [fetchOrders]);
+  useEffect(() => {
+    void fetchRows();
+  }, [fetchRows]);
 
-  const activeOrder = orders.find(o => o.id === activeOrderId);
-
-  const getReadiness = (order: DispatchOrder) => {
-    const total = order.items.reduce((s, i) => s + i.quantity, 0);
-    const ready = order.items.reduce((s, i) => s + (i.actual_packed_qty || 0), 0);
-    return total > 0 ? Math.round((ready / total) * 100) : 0;
-  };
-
-  const isAllPacked = (order: DispatchOrder) => {
-    return order.items.length > 0 && order.items.every(i => (i.actual_packed_qty || 0) >= i.quantity);
-  };
-
-  const buildReadinessInput = (order: DispatchOrder): DispatchReadinessInput => {
-    const packed = isAllPacked(order);
-    const pct = getReadiness(order);
-    return {
-      orderId: order.id,
-      queue: { queueItemId: null, isActive: true, isCompleted: false, hasVersionConflict: false },
-      scan: {
-        hasUnresolvedMismatch: false,
-        hasRejectedGateScan: false,
-        gateScanVerified: false,
-        cartonBarcodeVerified: pct >= 100,
-      },
-      reservationStatus: "none",
-      financeSignal: "unknown",
-      packingEvidenceVerified: packed && !!photoUrl && activeOrderId === order.id,
-      documentPlaceholderPresent: false,
-      openExceptionTypes: [],
-    };
-  };
-
-  const [finalizingDpl, setFinalizingDpl] = useState(false);
-
-  const handleFinalizeDpl = async (orderId: string) => {
-    setFinalizingDpl(true);
+  const refreshWorkingConsignment = useCallback(async (consignmentId: string) => {
+    if (!consignmentId) {
+      setCartons([]);
+      setConsignmentLines([]);
+      setDplVersions([]);
+      setSupersessionReasons({});
+      return;
+    }
+    setWorkingLoading(true);
     try {
-      const { data: currentRow, error: fetchErr } = await supabase
-        .from("orders")
-        .select("status")
-        .eq("id", orderId)
-        .maybeSingle();
-      if (fetchErr) throw fetchErr;
-      const priorStatus = currentRow?.status ?? orders.find((o) => o.id === orderId)?.status ?? null;
+      const [cartonsRes, linesRes, dplRes, eventsRes] = await Promise.all([
+        dispatchDb
+          .from("b2b_dispatch_cartons")
+          .select(
+            "id, carton_code, carton_sequence, status, net_weight, gross_weight, open_photo_ref, locked_by, locked_at, current_version",
+          )
+          .eq("consignment_id", consignmentId)
+          .order("carton_sequence", { ascending: true }),
+        dispatchDb
+          .from("b2b_dispatch_consignment_lines")
+          .select("id, product_code, uom, accepted_ready_qty, packed_qty")
+          .eq("consignment_id", consignmentId)
+          .order("product_code", { ascending: true }),
+        dispatchDb
+          .from("b2b_dispatch_packing_list_versions")
+          .select(
+            "id, version_number, status, submitted_to_finance_at, finance_check_state, superseded_by, generated_at, correlation_id",
+          )
+          .eq("consignment_id", consignmentId)
+          .order("version_number", { ascending: false }),
+        dispatchDb
+          .from("b2b_dispatch_events")
+          .select("document_version_id, reason")
+          .eq("consignment_id", consignmentId)
+          .eq("event_type", "packing_list_superseded"),
+      ]);
+      setCartons((cartonsRes.data ?? []) as CartonRow[]);
+      setConsignmentLines((linesRes.data ?? []) as ConsignmentLineRow[]);
+      setDplVersions((dplRes.data ?? []) as DplVersionRow[]);
+      const reasonMap: Record<string, string> = {};
+      for (const evt of (eventsRes.data ?? []) as { document_version_id: string | null; reason: string | null }[]) {
+        if (evt.document_version_id && evt.reason) reasonMap[evt.document_version_id] = evt.reason;
+      }
+      setSupersessionReasons(reasonMap);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to load consignment detail.");
+    } finally {
+      setWorkingLoading(false);
+    }
+  }, []);
 
-      // Align with canonical OrderManagement STATUS_FLOW payment stage.
-      await supabase.from("orders").update({ status: "awaiting_final_payment" }).eq("id", orderId);
-      // Use actual prior order status for accurate dispatch audit history.
-      await supabase.from("order_status_history").insert({
-        order_id: orderId,
-        old_status: priorStatus,
-        new_status: "awaiting_final_payment",
+  useEffect(() => {
+    void refreshWorkingConsignment(workingConsignmentId);
+    setSelectedCartonId("");
+  }, [workingConsignmentId, refreshWorkingConsignment]);
+
+  const refreshCartonDetail = useCallback(async (cartonId: string) => {
+    if (!cartonId) {
+      setCartonItems([]);
+      setScanEvents([]);
+      return;
+    }
+    try {
+      const [itemsRes, eventsRes] = await Promise.all([
+        dispatchDb
+          .from("b2b_dispatch_carton_items")
+          .select("id, barcode_value, batch_lot, quantity, product_code, scanned_at")
+          .eq("carton_id", cartonId)
+          .order("scanned_at", { ascending: false }),
+        dispatchDb
+          .from("b2b_dispatch_product_scan_events")
+          .select("id, barcode_value, scan_result, reason, created_at")
+          .eq("carton_id", cartonId)
+          .order("created_at", { ascending: false })
+          .limit(10),
+      ]);
+      setCartonItems((itemsRes.data ?? []) as CartonItemRow[]);
+      setScanEvents((eventsRes.data ?? []) as ScanEventRow[]);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to load carton detail.");
+    }
+  }, []);
+
+  useEffect(() => {
+    void refreshCartonDetail(selectedCartonId);
+  }, [selectedCartonId, refreshCartonDetail]);
+
+  const selectedCarton = cartons.find((c) => c.id === selectedCartonId) ?? null;
+  const currentDplVersion = dplVersions.find((v) => v.status !== "superseded") ?? null;
+  const supersededVersions = dplVersions.filter((v) => v.status === "superseded");
+
+  const handleCreateConsignment = async () => {
+    const trimmedOrderId = orderId.trim();
+    const trimmedOrderItemId = orderItemId.trim();
+    const qty = Number(selectedQty);
+    if (!trimmedOrderId || !trimmedOrderItemId) {
+      toast.error("Order ID and order item ID are required.");
+      return;
+    }
+    if (!Number.isFinite(qty) || qty <= 0) {
+      toast.error("Selected quantity must be a positive number.");
+      return;
+    }
+    setCreating(true);
+    try {
+      const { error: rpcError } = await dispatchGovernedRpc.rpc("create_b2b_dispatch_consignment", {
+        p_order_id: trimmedOrderId,
+        p_dispatch_mode: dispatchMode,
+        p_lines: [{ order_item_id: trimmedOrderItemId, selected_qty: qty }],
+        p_correlation_id: createCorrelationId,
       });
-      await supabase.from("audit_logs").insert({
-        action_type: "DPL_FINALIZED",
-        module_name: "Dispatch",
-        entity_name: "orders",
-        entity_id: orderId,
-        actor_id: user?.id || null,
-        new_value: { note: "DPL finalized with actual packed quantities. Quantities locked." } as any,
-        risk_level: "normal",
+      if (rpcError) throw new Error(rpcError.message);
+      toast.success("Governed dispatch consignment created.");
+      setOrderId("");
+      setOrderItemId("");
+      setSelectedQty("");
+      setCreateCorrelationId(crypto.randomUUID());
+      await fetchRows();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to create the consignment.");
+    } finally {
+      setCreating(false);
+    }
+  };
+
+  const handleOpenCarton = async () => {
+    const trimmedCartonCode = cartonCode.trim();
+    if (!workingConsignmentId || !trimmedCartonCode) {
+      toast.error("Select a consignment and enter a carton code.");
+      return;
+    }
+    setOpeningCarton(true);
+    try {
+      const { error: rpcError } = await dispatchGovernedRpc.rpc("open_b2b_dispatch_carton", {
+        p_consignment_id: workingConsignmentId,
+        p_carton_code: trimmedCartonCode,
       });
-      toast.success("✅ DPL Finalized — Order moved to Awaiting Finance");
-      fetchOrders();
-      setActiveOrderId(null);
-    } catch {
-      toast.error("Failed to finalize DPL");
+      if (rpcError) throw new Error(rpcError.message);
+      toast.success("Carton opened.");
+      setCartonCode("");
+      await Promise.all([fetchRows(), refreshWorkingConsignment(workingConsignmentId)]);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to open the carton.");
+    } finally {
+      setOpeningCarton(false);
     }
-    setFinalizingDpl(false);
   };
 
-  // Scan handler
-  const handleScan = (e: React.FormEvent) => {
-    e.preventDefault();
-    const code = scanInput.trim().toLowerCase();
-    if (!code || !activeOrder) return;
-    const found = activeOrder.items.find(i =>
-      (i.product?.sku || "").toLowerCase() === code ||
-      i.id.toLowerCase().startsWith(code)
-    );
-    if (found) {
-      setMatchedItem(found);
-      setPackQty("");
-      toast.success(`✅ SKU Matched: ${found.product?.name}`);
-    } else {
-      toast.error("❌ SKU not found in this order");
+  const handleScan = async () => {
+    const barcode = scanBarcode.trim();
+    const batchLot = scanBatchLot.trim();
+    const qty = Number(scanQuantity);
+    if (!selectedCartonId || !scanLineId) {
+      toast.error("Select a carton and the consignment line being packed.");
+      return;
     }
-    setScanInput("");
-  };
-
-  const addToCarton = () => {
-    if (!matchedItem || !packQty) return;
-    const qty = parseInt(packQty);
-    if (isNaN(qty) || qty <= 0) { toast.error("Enter valid qty"); return; }
-    setCurrentCarton(prev => [...prev, {
-      itemId: matchedItem.id,
-      productName: matchedItem.product?.name || "Unknown",
-      sku: matchedItem.product?.sku || null,
-      packedQty: qty,
-    }]);
-    setMatchedItem(null);
-    setPackQty("");
-    toast.success(`Added ${qty}x to carton`);
-  };
-
-  const closeCarton = async () => {
-    if (!activeOrderId || currentCarton.length === 0) return;
-    setActing(true);
-    const newCartonNum = cartonCount + 1;
-    const cartonId = `C-${activeOrderId.slice(0, 4).toUpperCase()}-${String(newCartonNum).padStart(2, "0")}`;
-
-    await supabase.from("dispatch_cartons").insert({
-      barcode_string: cartonId,
-      order_id: activeOrderId,
-      box_number: newCartonNum,
-      total_boxes: newCartonNum,
-      status: "labeled",
-    });
-
-    // Update packed quantities
-    for (const ci of currentCarton) {
-      const item = activeOrder?.items.find(i => i.id === ci.itemId);
-      const newPacked = (item?.actual_packed_qty || 0) + ci.packedQty;
-      await supabase.from("order_items").update({ actual_packed_qty: newPacked }).eq("id", ci.itemId);
+    if (!barcode || !batchLot) {
+      toast.error("Barcode and batch/lot are required.");
+      return;
     }
-
-    await supabase.from("audit_logs").insert([{
-      action_type: "CARTON_CLOSED",
-      module_name: "Dispatch",
-      entity_name: "dispatch_cartons",
-      entity_id: cartonId,
-      actor_id: user?.id || null,
-      new_value: { order_id: activeOrderId, items: currentCarton.map(c => ({ ...c })), photo_url: photoUrl } as any,
-      risk_level: "normal",
-    }]);
-
-    setCartonCount(newCartonNum);
-    setCurrentCarton([]);
-    setPhotoUrl(null);
-    toast.success(`📦 Carton ${cartonId} sealed & labeled`);
-
-    // Generate ZPL label download
-    const company = activeOrder?.company?.business_name || "N/A";
-    const zpl = `^XA
-^FO30,30^A0N,36,36^FDPack ${String(newCartonNum).padStart(2, "0")} of ${newCartonNum}^FS
-^FO30,80^A0N,28,28^FDConsignee: ${company}^FS
-^FO30,120^A0N,20,20^FDConsignor: TCF Chocolates & Gifts Pvt. Ltd.^FS
-^FO30,150^A0N,18,18^FDWZ-117, Kirti Nagar, New Delhi-110015^FS
-^FO30,190^BY3^BCN,80,Y,N,N^FD${cartonId}^FS
-^FO30,300^A0N,16,16^FDFSSAI: 10721042000284^FS
-^XZ`;
-    const blob = new Blob([zpl], { type: "text/plain" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url; a.download = `${cartonId}.zpl`; a.click();
-    URL.revokeObjectURL(url);
-
-    fetchOrders();
-    setActing(false);
+    if (!Number.isFinite(qty) || qty <= 0) {
+      toast.error("Scan quantity must be a positive number.");
+      return;
+    }
+    setScanning(true);
+    try {
+      const { data, error: rpcError } = await dispatchGovernedRpc.rpc<{ scan_result: string; reason: string | null }>(
+        "record_b2b_dispatch_carton_item_scan",
+        {
+          p_carton_id: selectedCartonId,
+          p_consignment_line_id: scanLineId,
+          p_barcode_value: barcode,
+          p_batch_lot: batchLot,
+          p_quantity: qty,
+          p_correlation_id: scanCorrelationId,
+        },
+      );
+      if (rpcError) throw new Error(rpcError.message);
+      if (data?.scan_result === "verified") {
+        toast.success(`Scan verified: ${barcode}`);
+      } else {
+        toast.error(`Scan rejected (${data?.scan_result ?? "unknown"})${data?.reason ? `: ${data.reason}` : ""}`);
+      }
+      setScanBarcode("");
+      setScanBatchLot("");
+      setScanQuantity("");
+      setScanCorrelationId(crypto.randomUUID());
+      await Promise.all([refreshWorkingConsignment(workingConsignmentId), refreshCartonDetail(selectedCartonId)]);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Scan failed.");
+    } finally {
+      setScanning(false);
+    }
   };
 
-  const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file || !activeOrderId) return;
-    const path = `dispatch-proof/${activeOrderId}/${Date.now()}-${file.name}`;
-    const { error } = await supabase.storage.from("receipts").upload(path, file);
-    if (error) { toast.error("Upload failed"); return; }
-    const { data: urlData } = supabase.storage.from("receipts").getPublicUrl(path);
-    setPhotoUrl(urlData.publicUrl);
-
-    await supabase.from("order_attachments").insert({
-      order_id: activeOrderId,
-      file_url: urlData.publicUrl,
-      attachment_type: "dispatch_proof",
-    });
-    toast.success("📸 Photo proof uploaded");
+  const handleRecordEvidence = async () => {
+    const net = Number(netWeight);
+    const gross = Number(grossWeight);
+    if (!selectedCartonId) {
+      toast.error("Select a carton first.");
+      return;
+    }
+    if (!Number.isFinite(net) || net < 0 || !Number.isFinite(gross) || gross < 0) {
+      toast.error("Net and gross weight are required.");
+      return;
+    }
+    if (!evidencePhoto && !selectedCarton?.open_photo_ref) {
+      toast.error("A carton photo is required.");
+      return;
+    }
+    setRecordingEvidence(true);
+    try {
+      let photoRef = selectedCarton?.open_photo_ref ?? null;
+      if (evidencePhoto) {
+        const path = `dispatch-carton-evidence/${selectedCartonId}/${Date.now()}-${evidencePhoto.name}`;
+        const { error: uploadError } = await supabase.storage.from("receipts").upload(path, evidencePhoto);
+        if (uploadError) throw new Error(uploadError.message ?? "Photo upload failed.");
+        const { data: urlData } = supabase.storage.from("receipts").getPublicUrl(path);
+        photoRef = urlData.publicUrl;
+      }
+      const { error: rpcError } = await dispatchGovernedRpc.rpc("record_b2b_dispatch_carton_evidence", {
+        p_carton_id: selectedCartonId,
+        p_net_weight: net,
+        p_gross_weight: gross,
+        p_open_photo_ref: photoRef,
+        p_correlation_id: evidenceCorrelationId,
+      });
+      if (rpcError) throw new Error(rpcError.message);
+      toast.success("Evidence recorded.");
+      setNetWeight("");
+      setGrossWeight("");
+      setEvidencePhoto(null);
+      setEvidenceCorrelationId(crypto.randomUUID());
+      await Promise.all([refreshWorkingConsignment(workingConsignmentId), refreshCartonDetail(selectedCartonId)]);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to record evidence.");
+    } finally {
+      setRecordingEvidence(false);
+    }
   };
 
-  if (loading) {
-    return (
-      <div className="mx-auto max-w-lg space-y-3 px-2 py-8" aria-busy="true">
-        <div className="h-8 w-48 animate-pulse rounded bg-muted" />
-        <div className="h-24 rounded-xl bg-muted" />
-        <div className="h-24 rounded-xl bg-muted" />
-      </div>
-    );
-  }
+  const handleLockCarton = async () => {
+    if (!selectedCarton) {
+      toast.error("Select a carton first.");
+      return;
+    }
+    setLocking(true);
+    try {
+      const { error: rpcError } = await dispatchGovernedRpc.rpc("lock_b2b_dispatch_carton", {
+        p_carton_id: selectedCarton.id,
+        p_expected_version: selectedCarton.current_version,
+        p_correlation_id: lockCorrelationId,
+      });
+      if (rpcError) throw new Error(rpcError.message);
+      toast.success("Carton locked.");
+      setLockCorrelationId(crypto.randomUUID());
+      await Promise.all([refreshWorkingConsignment(workingConsignmentId), refreshCartonDetail(selectedCarton.id)]);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to lock the carton. Reload and retry if the carton changed.");
+    } finally {
+      setLocking(false);
+    }
+  };
+
+  const handleCreateDpl = async () => {
+    if (!workingConsignmentId) {
+      toast.error("Select a consignment first.");
+      return;
+    }
+    setCreatingDpl(true);
+    try {
+      const { error: rpcError } = await dispatchGovernedRpc.rpc("create_b2b_dispatch_packing_list", {
+        p_consignment_id: workingConsignmentId,
+        p_correlation_id: dplCreateCorrelationId,
+      });
+      if (rpcError) throw new Error(rpcError.message);
+      toast.success("Packing list generated.");
+      setDplCreateCorrelationId(crypto.randomUUID());
+      await refreshWorkingConsignment(workingConsignmentId);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to generate the packing list.");
+    } finally {
+      setCreatingDpl(false);
+    }
+  };
+
+  const handleSupersedeDpl = async () => {
+    const reason = supersedeReason.trim();
+    if (!currentDplVersion) {
+      toast.error("There is no current packing list version to correct.");
+      return;
+    }
+    if (!reason) {
+      toast.error("A correction reason is required.");
+      return;
+    }
+    setSuperseding(true);
+    try {
+      const { error: rpcError } = await dispatchGovernedRpc.rpc("supersede_b2b_dispatch_packing_list", {
+        p_consignment_id: workingConsignmentId,
+        p_current_version_id: currentDplVersion.id,
+        p_reason: reason,
+        p_correlation_id: supersedeCorrelationId,
+      });
+      if (rpcError) throw new Error(rpcError.message);
+      toast.success("Packing list corrected with a new version.");
+      setSupersedeReason("");
+      setSupersedeCorrelationId(crypto.randomUUID());
+      await refreshWorkingConsignment(workingConsignmentId);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to correct the packing list.");
+    } finally {
+      setSuperseding(false);
+    }
+  };
+
+  const handleSubmitDpl = async () => {
+    if (!currentDplVersion) {
+      toast.error("There is no current packing list version to submit.");
+      return;
+    }
+    setSubmittingDpl(true);
+    try {
+      const { error: rpcError } = await dispatchGovernedRpc.rpc("submit_b2b_dispatch_packing_list_to_finance", {
+        p_consignment_id: workingConsignmentId,
+        p_version_id: currentDplVersion.id,
+        p_correlation_id: dplSubmitCorrelationId,
+      });
+      if (rpcError) throw new Error(rpcError.message);
+      toast.success("Packing list submitted to Finance.");
+      setDplSubmitCorrelationId(crypto.randomUUID());
+      await refreshWorkingConsignment(workingConsignmentId);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to submit the packing list to Finance.");
+    } finally {
+      setSubmittingDpl(false);
+    }
+  };
 
   return (
-    <div className="mx-auto max-w-lg min-w-0 space-y-4 px-2 pb-[max(1rem,env(safe-area-inset-bottom))] sm:px-0">
-      <div className="flex items-center justify-between">
-        <h1 className="text-xl font-bold text-foreground">Dispatch Handheld</h1>
-        <Badge variant="outline">{orders.length} Active Orders</Badge>
-      </div>
+    <div className="mx-auto max-w-5xl space-y-6 p-4 pb-24">
+      <header className="flex flex-wrap items-center justify-between gap-2 border-b border-border pb-4">
+        <div className="flex flex-wrap items-center gap-2">
+          <PackageCheck className="h-7 w-7 text-primary" aria-hidden />
+          <h1 className="text-xl font-bold tracking-tight">Dispatch</h1>
+          <Badge variant="outline" className="text-[10px] uppercase">
+            Governed carton &amp; DPL authority
+          </Badge>
+        </div>
+        <Button type="button" variant="outline" size="sm" onClick={() => void fetchRows()} disabled={loading}>
+          <RefreshCw className={`mr-1 h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`} aria-hidden />
+          Refresh
+        </Button>
+      </header>
 
-      <LegacyDispatchGovernanceBanner pageLabel="Dispatch Handheld" />
+      {error ? <p className="text-xs text-destructive">{error}</p> : null}
 
-      <Tabs defaultValue="dashboard" className="w-full min-w-0">
-        <TabsList className="grid h-auto w-full min-h-11 grid-cols-2 gap-1 p-1">
-          <TabsTrigger value="dashboard" className="min-h-10 touch-manipulation">
-            Dashboard
-          </TabsTrigger>
-          <TabsTrigger value="packing" className="min-h-10 touch-manipulation">
-            Scan & Pack
-          </TabsTrigger>
-        </TabsList>
-
-        {/* SCREEN 1: Dashboard */}
-        <TabsContent value="dashboard" className="mt-4">
-          {orders.length === 0 ? (
-            <Card>
-              <CardContent className="space-y-3 py-12 text-center text-muted-foreground" role="status">
-                <Package className="mx-auto h-12 w-12 opacity-40" aria-hidden />
-                <p className="text-sm font-medium text-foreground">No active packing orders</p>
-                <p className="text-xs leading-relaxed">
-                  Orders in production or packing stages will appear here. If you expected work, refresh after operations updates the queue.
-                </p>
-                <Button type="button" variant="outline" className="min-h-11 touch-manipulation" onClick={() => void fetchOrders()}>
-                  Refresh
-                </Button>
-              </CardContent>
-            </Card>
-          ) : (
-          <div className="grid gap-3">
-            {orders.map(order => {
-              const pct = getReadiness(order);
-              return (
-                <Card key={order.id} className="border-l-4" style={{ borderLeftColor: pct === 100 ? "hsl(var(--chart-2))" : pct > 50 ? "hsl(var(--chart-4))" : "hsl(var(--chart-5))" }}>
-                  <CardContent className="p-4">
-                    <div className="flex items-start justify-between mb-2">
-                      <div>
-                        <p className="font-bold text-sm text-foreground">SO#{order.id.slice(0, 8).toUpperCase()}</p>
-                        <p className="text-xs break-words text-muted-foreground">{order.company?.business_name || "N/A"}</p>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <Badge variant={pct === 100 ? "default" : "outline"} className="text-[10px]">{pct}% Ready</Badge>
-                        <StagnancyBadge createdAt={order.created_at} />
-                      </div>
-                    </div>
-                    <Progress value={pct} className="h-2 mb-2" />
-                    <DispatchReadinessBadge input={buildReadinessInput(order)} className="mb-2" />
-                    <div className="flex flex-col gap-2 sm:flex-row">
-                      <Button
-                        size="sm"
-                        className="min-h-11 flex-1 touch-manipulation text-xs"
-                        onClick={() => { setActiveOrderId(order.id); setCartonCount(0); setCurrentCarton([]); }}
-                        aria-label={`Start packing order ${order.id.slice(0, 8)}`}
-                      >
-                        <ScanLine size={14} className="mr-1 shrink-0" aria-hidden /> Start Packing
-                      </Button>
-                      {pct === 100 && (
-                        <Button
-                          size="sm"
-                          variant="default"
-                          className="min-h-11 touch-manipulation bg-emerald-600 text-xs hover:bg-emerald-700"
-                          onClick={() => void handleFinalizeDpl(order.id)}
-                          disabled={finalizingDpl}
-                          aria-label={`Finalize dispatch packing list for order ${order.id.slice(0, 8)}`}
-                        >
-                          <FileCheck size={14} className="mr-1 shrink-0" aria-hidden /> Finalize DPL
-                        </Button>
-                      )}
-                    </div>
-                  </CardContent>
-                </Card>
-              );
-            })}
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm">Start a governed consignment</CardTitle>
+          <CardDescription className="text-xs">
+            Calls <code>create_b2b_dispatch_consignment</code>. Requires an existing order with a company and an
+            order item on it.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="grid gap-3 sm:grid-cols-2">
+          <div className="space-y-1">
+            <Label htmlFor="dispatch-order-id">Order ID</Label>
+            <Input id="dispatch-order-id" value={orderId} onChange={(e) => setOrderId(e.target.value)} placeholder="uuid" />
           </div>
-          )}
-        </TabsContent>
+          <div className="space-y-1">
+            <Label htmlFor="dispatch-dispatch-mode">Dispatch mode</Label>
+            <Select value={dispatchMode} onValueChange={setDispatchMode}>
+              <SelectTrigger id="dispatch-dispatch-mode">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {DISPATCH_MODES.map((mode) => (
+                  <SelectItem key={mode} value={mode}>
+                    {mode}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-1">
+            <Label htmlFor="dispatch-order-item-id">Order item ID</Label>
+            <Input
+              id="dispatch-order-item-id"
+              value={orderItemId}
+              onChange={(e) => setOrderItemId(e.target.value)}
+              placeholder="uuid"
+            />
+          </div>
+          <div className="space-y-1">
+            <Label htmlFor="dispatch-selected-qty">Selected quantity</Label>
+            <Input
+              id="dispatch-selected-qty"
+              type="number"
+              min="0"
+              value={selectedQty}
+              onChange={(e) => setSelectedQty(e.target.value)}
+            />
+          </div>
+          <Button type="button" className="sm:col-span-2" disabled={creating} onClick={() => void handleCreateConsignment()}>
+            {creating ? "Creating…" : "Create consignment"}
+          </Button>
+        </CardContent>
+      </Card>
 
-        {/* SCREEN 2: Scan & Pack */}
-        <TabsContent value="packing" className="mt-4">
-          {!activeOrderId ? (
-            <Card>
-              <CardContent className="space-y-3 py-12 text-center text-muted-foreground" role="status">
-                <ScanLine className="mx-auto h-10 w-10 opacity-40" aria-hidden />
-                <p className="text-sm font-medium text-foreground">Select an order first</p>
-                <p className="text-xs">Open the Dashboard tab, choose an order, then return here to scan and seal cartons.</p>
-              </CardContent>
-            </Card>
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm">Governed consignments</CardTitle>
+          <CardDescription className="text-xs">
+            Select a consignment below to open cartons, scan contents, capture evidence, lock cartons and manage its
+            packing list.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <div className="space-y-1 sm:max-w-xs">
+            <Label htmlFor="dispatch-working-consignment">Working consignment</Label>
+            <ConsignmentSelect
+              id="dispatch-working-consignment"
+              rows={rows}
+              value={workingConsignmentId}
+              onValueChange={setWorkingConsignmentId}
+            />
+          </div>
+          {!loading && rows.length === 0 ? (
+            <p className="text-sm text-muted-foreground">No governed consignments yet.</p>
           ) : (
-            <div className="flex max-h-[min(100dvh,48rem)] flex-col gap-0">
-              <div className="min-h-0 flex-1 space-y-4 overflow-y-auto overscroll-y-contain pb-4">
-              <Card>
-                <CardContent className="space-y-3 p-4">
-                  <p className="text-sm font-bold text-foreground">Packing: SO#{activeOrderId.slice(0, 8).toUpperCase()}</p>
-                  <p className="break-words text-xs text-muted-foreground">{activeOrder?.company?.business_name}</p>
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Consignment</TableHead>
+                    <TableHead>Order</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>Cartons</TableHead>
+                    <TableHead>Selected / Packed / Dispatched</TableHead>
+                    <TableHead>Finance</TableHead>
+                    <TableHead>Exceptions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {rows.map((row) => (
+                    <TableRow
+                      key={row.consignment_id}
+                      className={row.consignment_id === workingConsignmentId ? "bg-primary/5" : undefined}
+                    >
+                      <TableCell className="text-xs">{row.consignment_number}</TableCell>
+                      <TableCell className="text-xs">{row.order_number}</TableCell>
+                      <TableCell className="text-xs">{row.consignment_status}</TableCell>
+                      <TableCell className="text-xs">{row.carton_count}</TableCell>
+                      <TableCell className="text-xs">
+                        {row.selected_qty} / {row.packed_qty} / {row.dispatched_qty}
+                      </TableCell>
+                      <TableCell className="text-xs">
+                        <Badge variant={row.finance_status === "CLEARED" ? "default" : "outline"}>
+                          {row.finance_status}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-xs">{row.open_exception_count}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
-                  <form onSubmit={handleScan} className="mb-3 flex gap-2">
-                    <Input
-                      ref={scanRef}
-                      value={scanInput}
-                      onChange={e => setScanInput(e.target.value)}
-                      placeholder="Scan barcode / Enter SKU..."
-                      className="min-h-11 flex-1"
-                      autoFocus
-                      aria-label="Scan or type product SKU"
-                    />
-                    <Button type="submit" size="icon" className="h-11 w-11 shrink-0 touch-manipulation" aria-label="Submit scan">
-                      <ScanLine size={18} aria-hidden />
-                    </Button>
-                  </form>
+      {workingConsignmentId ? (
+        <>
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm">Cartons</CardTitle>
+              <CardDescription className="text-xs">
+                Calls <code>open_b2b_dispatch_carton</code>. Select a carton row to scan contents, capture evidence
+                and lock it.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <div className="flex flex-wrap items-end gap-2">
+                <div className="space-y-1">
+                  <Label htmlFor="dispatch-carton-code">Carton code</Label>
+                  <Input
+                    id="dispatch-carton-code"
+                    value={cartonCode}
+                    onChange={(e) => setCartonCode(e.target.value)}
+                    placeholder="e.g. CTN-0001"
+                  />
+                </div>
+                <Button type="button" disabled={openingCarton} onClick={() => void handleOpenCarton()}>
+                  {openingCarton ? "Opening…" : "Open carton"}
+                </Button>
+              </div>
 
-                  {/* Matched Item */}
-                  {matchedItem && (
-                    <div className="rounded-lg border border-primary/40 bg-primary/5 p-3 mb-3">
-                      <div className="flex items-center gap-2 mb-2">
-                        <div className="w-10 h-10 rounded bg-muted flex items-center justify-center overflow-hidden">
-                          {matchedItem.product?.image_url ? <img src={matchedItem.product.image_url} className="w-full h-full object-cover" /> : <Package size={16} className="text-muted-foreground" />}
-                        </div>
-                        <div>
-                          <p className="break-words text-sm font-semibold text-foreground">{matchedItem.product?.name}</p>
-                          <p className="text-[10px] text-muted-foreground font-mono">SKU: {matchedItem.product?.sku} | Ordered: {matchedItem.quantity}</p>
-                        </div>
-                      </div>
-                      <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-                        <Input
-                          type="number"
-                          value={packQty}
-                          onChange={e => setPackQty(e.target.value)}
-                          placeholder="Packed Qty"
-                          className="min-h-11 w-full sm:w-32"
-                          aria-label="Quantity to add to carton"
-                        />
-                        <Button type="button" size="sm" className="min-h-11 w-full touch-manipulation sm:w-auto" onClick={addToCarton}>
-                          <Box size={14} className="mr-1 shrink-0" aria-hidden /> Add to Carton
-                        </Button>
-                      </div>
+              {workingLoading ? (
+                <p className="text-xs text-muted-foreground">Loading cartons…</p>
+              ) : cartons.length === 0 ? (
+                <p className="text-xs text-muted-foreground">No cartons opened yet for this consignment.</p>
+              ) : (
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Carton</TableHead>
+                        <TableHead>Status</TableHead>
+                        <TableHead>Net / Gross</TableHead>
+                        <TableHead>Locked</TableHead>
+                        <TableHead />
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {cartons.map((carton) => (
+                        <TableRow key={carton.id} className={carton.id === selectedCartonId ? "bg-primary/5" : undefined}>
+                          <TableCell className="text-xs">{carton.carton_code}</TableCell>
+                          <TableCell className="text-xs">
+                            <Badge variant={LOCKED_CARTON_STATUSES.has(carton.status) ? "default" : "outline"}>
+                              {carton.status}
+                            </Badge>
+                          </TableCell>
+                          <TableCell className="text-xs">
+                            {carton.net_weight ?? "—"} / {carton.gross_weight ?? "—"}
+                          </TableCell>
+                          <TableCell className="text-xs">
+                            {carton.locked_at ? <CheckCircle2 className="h-4 w-4 text-emerald-500" aria-label="Locked" /> : "—"}
+                          </TableCell>
+                          <TableCell>
+                            <Button type="button" size="sm" variant="outline" onClick={() => setSelectedCartonId(carton.id)}>
+                              {carton.id === selectedCartonId ? "Selected" : "Select"}
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {selectedCarton ? (
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm">
+                  Carton {selectedCarton.carton_code} -- {selectedCarton.status}
+                </CardTitle>
+                <CardDescription className="text-xs">
+                  Scan contents, capture net/gross weight and a photo, then lock once evidence is complete.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="space-y-2 rounded-lg border p-3">
+                  <p className="text-xs font-semibold">Scan a product</p>
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    <div className="space-y-1">
+                      <Label htmlFor="dispatch-scan-line">Consignment line</Label>
+                      <Select value={scanLineId} onValueChange={setScanLineId}>
+                        <SelectTrigger id="dispatch-scan-line">
+                          <SelectValue placeholder="Select the product being packed" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {consignmentLines.map((line) => (
+                            <SelectItem key={line.id} value={line.id}>
+                              {line.product_code} ({line.packed_qty}/{line.accepted_ready_qty} {line.uom})
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
                     </div>
-                  )}
+                    <div className="space-y-1">
+                      <Label htmlFor="dispatch-scan-barcode">Barcode</Label>
+                      <Input
+                        id="dispatch-scan-barcode"
+                        value={scanBarcode}
+                        onChange={(e) => setScanBarcode(e.target.value)}
+                        placeholder="Scan or type barcode"
+                        autoFocus
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <Label htmlFor="dispatch-scan-batch">Batch / lot</Label>
+                      <Input id="dispatch-scan-batch" value={scanBatchLot} onChange={(e) => setScanBatchLot(e.target.value)} />
+                    </div>
+                    <div className="space-y-1">
+                      <Label htmlFor="dispatch-scan-qty">Quantity</Label>
+                      <Input
+                        id="dispatch-scan-qty"
+                        type="number"
+                        min="0"
+                        value={scanQuantity}
+                        onChange={(e) => setScanQuantity(e.target.value)}
+                      />
+                    </div>
+                  </div>
+                  <Button type="button" disabled={scanning} onClick={() => void handleScan()}>
+                    <ScanLine className="mr-1 h-4 w-4" aria-hidden />
+                    {scanning ? "Scanning…" : "Record scan"}
+                  </Button>
 
-                  {/* Current Carton Contents */}
-                  {currentCarton.length > 0 && (
-                    <div className="rounded-lg border bg-muted/30 p-3 mb-3">
-                      <p className="text-xs font-bold text-foreground mb-2">📦 Current Carton ({currentCarton.length} items)</p>
-                      {currentCarton.map((ci, idx) => (
-                        <div key={idx} className="flex justify-between text-xs text-foreground py-1 border-b border-border last:border-0">
-                          <span>{ci.productName}</span>
-                          <span className="font-mono font-bold">{ci.packedQty} pcs</span>
+                  {scanEvents.length > 0 ? (
+                    <div className="mt-2 space-y-1">
+                      <p className="text-[11px] font-semibold text-muted-foreground">Recent scans</p>
+                      {scanEvents.map((evt) => (
+                        <div key={evt.id} className="flex items-center justify-between text-[11px]">
+                          <span className="font-mono">{evt.barcode_value}</span>
+                          <Badge variant={evt.scan_result === "verified" ? "default" : "destructive"} className="text-[10px]">
+                            {evt.scan_result}
+                            {evt.reason ? `: ${evt.reason}` : ""}
+                          </Badge>
                         </div>
                       ))}
                     </div>
-                  )}
+                  ) : null}
 
-                  {/* Photo Proof */}
-                  <div className="mb-3 flex flex-col gap-2 sm:flex-row">
-                    <label className="flex-1">
-                      <input type="file" accept="image/*" capture="environment" className="sr-only" onChange={handlePhotoUpload} />
-                      <Button variant="outline" size="sm" className="min-h-11 w-full touch-manipulation text-xs" asChild>
-                        <span className="inline-flex cursor-pointer items-center justify-center gap-2">
-                          <Camera size={14} aria-hidden /> Photo Proof
-                        </span>
-                      </Button>
-                    </label>
-                    {photoUrl && <Badge className="min-h-11 items-center bg-emerald-500/20 px-3 text-[10px] text-emerald-700">Photo attached</Badge>}
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardContent className="p-4">
-                  <p className="mb-2 text-xs font-bold text-foreground">Order Items Status</p>
-                  {activeOrder?.items.map((item) => (
-                    <div key={item.id} className="flex items-center gap-2 border-b border-border py-1.5 last:border-0">
-                      <div className="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded bg-muted">
-                        {item.product?.image_url ? (
-                          <img src={item.product.image_url} alt="" className="h-full w-full object-cover" />
-                        ) : (
-                          <Package size={12} className="text-muted-foreground" aria-hidden />
-                        )}
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <p className="break-words text-xs font-medium text-foreground">{item.product?.name}</p>
-                        <p className="text-[10px] text-muted-foreground">
-                          Packed: {item.actual_packed_qty || 0}/{item.quantity}
-                        </p>
-                      </div>
-                      {(item.actual_packed_qty || 0) >= item.quantity ? (
-                        <CheckCircle2 size={14} className="shrink-0 text-emerald-500" aria-label="Line complete" />
-                      ) : (
-                        <Badge variant="outline" className="shrink-0 text-[10px]">
-                          {Math.round(((item.actual_packed_qty || 0) / item.quantity) * 100)}%
-                        </Badge>
-                      )}
+                  {cartonItems.length > 0 ? (
+                    <div className="mt-2 space-y-1">
+                      <p className="text-[11px] font-semibold text-muted-foreground">Carton contents</p>
+                      {cartonItems.map((item) => (
+                        <div key={item.id} className="flex justify-between text-[11px]">
+                          <span>
+                            {item.product_code} ({item.batch_lot})
+                          </span>
+                          <span className="font-mono">{item.quantity}</span>
+                        </div>
+                      ))}
                     </div>
-                  ))}
-                </CardContent>
-              </Card>
-              </div>
+                  ) : null}
+                </div>
 
-              <div className="sticky bottom-0 z-10 mt-2 space-y-2 border-t border-border bg-background/95 px-1 py-3 backdrop-blur-sm supports-[backdrop-filter]:backdrop-blur-sm pb-[max(0.75rem,env(safe-area-inset-bottom))]">
+                <div className="space-y-2 rounded-lg border p-3">
+                  <p className="text-xs font-semibold">Evidence</p>
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    <div className="space-y-1">
+                      <Label htmlFor="dispatch-net-weight">Net weight</Label>
+                      <Input id="dispatch-net-weight" type="number" min="0" value={netWeight} onChange={(e) => setNetWeight(e.target.value)} />
+                    </div>
+                    <div className="space-y-1">
+                      <Label htmlFor="dispatch-gross-weight">Gross weight</Label>
+                      <Input
+                        id="dispatch-gross-weight"
+                        type="number"
+                        min="0"
+                        value={grossWeight}
+                        onChange={(e) => setGrossWeight(e.target.value)}
+                      />
+                    </div>
+                  </div>
+                  <div className="space-y-1">
+                    <Label htmlFor="dispatch-evidence-photo">Carton photo</Label>
+                    <Input
+                      id="dispatch-evidence-photo"
+                      type="file"
+                      accept="image/*"
+                      capture="environment"
+                      onChange={(e) => setEvidencePhoto(e.target.files?.[0] ?? null)}
+                    />
+                    {selectedCarton.open_photo_ref ? (
+                      <p className="text-[11px] text-muted-foreground">A photo is already on file for this carton.</p>
+                    ) : null}
+                  </div>
+                  <Button type="button" disabled={recordingEvidence} onClick={() => void handleRecordEvidence()}>
+                    {recordingEvidence ? "Recording…" : "Record evidence"}
+                  </Button>
+                </div>
+
                 <Button
                   type="button"
-                  className="min-h-12 w-full touch-manipulation"
-                  onClick={() => void closeCarton()}
-                  disabled={acting || currentCarton.length === 0}
-                  aria-label="Close carton and print label"
+                  className="w-full bg-emerald-600 hover:bg-emerald-700"
+                  disabled={locking || LOCKED_CARTON_STATUSES.has(selectedCarton.status)}
+                  onClick={() => void handleLockCarton()}
                 >
-                  <Printer size={16} className="mr-2 shrink-0" aria-hidden /> Close Carton & Print Label
+                  <Lock className="mr-1 h-4 w-4" aria-hidden />
+                  {LOCKED_CARTON_STATUSES.has(selectedCarton.status)
+                    ? "Carton locked"
+                    : locking
+                      ? "Locking…"
+                      : "Lock carton"}
                 </Button>
-                {activeOrder && isAllPacked(activeOrder) && (
-                  <Button
-                    type="button"
-                    className="min-h-12 w-full touch-manipulation bg-emerald-600 text-white hover:bg-emerald-700"
-                    onClick={() => void handleFinalizeDpl(activeOrderId!)}
-                    disabled={finalizingDpl}
-                    aria-label="Finalize dispatch packing list and send to finance"
-                  >
-                    <FileCheck size={16} className="mr-2 shrink-0" aria-hidden />{" "}
-                    {finalizingDpl ? "Finalizing..." : "Finalize DPL → Send to Finance"}
-                  </Button>
-                )}
+              </CardContent>
+            </Card>
+          ) : null}
+
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm">Dispatch Packing List</CardTitle>
+              <CardDescription className="text-xs">
+                Calls <code>create_b2b_dispatch_packing_list</code>, <code>supersede_b2b_dispatch_packing_list</code>{" "}
+                and <code>submit_b2b_dispatch_packing_list_to_finance</code>. All cartons must be locked before a
+                packing list can be generated.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {currentDplVersion ? (
+                <div className="rounded-lg border p-3">
+                  <div className="flex items-center justify-between">
+                    <p className="text-sm font-semibold">Version {currentDplVersion.version_number}</p>
+                    <Badge variant={currentDplVersion.status === "submitted_to_finance" ? "default" : "outline"}>
+                      {currentDplVersion.status}
+                    </Badge>
+                  </div>
+                  <p className="mt-1 text-[11px] text-muted-foreground">
+                    Finance check: {currentDplVersion.finance_check_state}
+                    {currentDplVersion.submitted_to_finance_at
+                      ? ` -- submitted ${new Date(currentDplVersion.submitted_to_finance_at).toLocaleString()}`
+                      : ""}
+                  </p>
+                </div>
+              ) : (
+                <p className="text-xs text-muted-foreground">No packing list generated yet for this consignment.</p>
+              )}
+
+              <div className="flex flex-wrap gap-2">
+                <Button type="button" disabled={creatingDpl || !!currentDplVersion} onClick={() => void handleCreateDpl()}>
+                  {creatingDpl ? "Generating…" : "Create packing list"}
+                </Button>
+                <Button
+                  type="button"
+                  className="bg-emerald-600 hover:bg-emerald-700"
+                  disabled={submittingDpl || !currentDplVersion || currentDplVersion.status !== "generated"}
+                  onClick={() => void handleSubmitDpl()}
+                >
+                  {submittingDpl ? "Submitting…" : "Submit to Finance"}
+                </Button>
               </div>
-            </div>
-          )}
-        </TabsContent>
-      </Tabs>
+
+              {currentDplVersion ? (
+                <div className="space-y-2 rounded-lg border p-3">
+                  <p className="text-xs font-semibold">Correct this version</p>
+                  <Textarea
+                    placeholder="Reason for correction (required)"
+                    value={supersedeReason}
+                    onChange={(e) => setSupersedeReason(e.target.value)}
+                  />
+                  <Button type="button" variant="outline" disabled={superseding} onClick={() => void handleSupersedeDpl()}>
+                    {superseding ? "Correcting…" : "Supersede with a corrected version"}
+                  </Button>
+                </div>
+              ) : null}
+
+              {supersededVersions.length > 0 ? (
+                <div className="space-y-1">
+                  <p className="text-[11px] font-semibold text-muted-foreground">Superseded history</p>
+                  {supersededVersions.map((version) => (
+                    <div key={version.id} className="flex items-center justify-between text-[11px]">
+                      <span>Version {version.version_number} -- superseded</span>
+                      {supersessionReasons[version.id] ? (
+                        <span className="text-muted-foreground">Reason: {supersessionReasons[version.id]}</span>
+                      ) : null}
+                    </div>
+                  ))}
+                </div>
+              ) : null}
+            </CardContent>
+          </Card>
+        </>
+      ) : (
+        <Card className="border-dashed">
+          <CardContent className="flex items-center gap-2 py-6 text-xs text-muted-foreground">
+            <ShieldAlert className="h-4 w-4" aria-hidden />
+            Select a working consignment above to manage cartons and its packing list.
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }

@@ -88,7 +88,6 @@ const AdminLayout = () => {
         { to: "/admin/dispatch-readiness", icon: ClipboardList, label: "Dispatch readiness (audit)", moduleKey: "dispatch_audit" },
         { to: "/admin/dispatch-completion", icon: Truck, label: "Dispatch completion (audit)", moduleKey: "dispatch_audit" },
         { to: "/admin/dispatch-finalization", icon: Truck, label: "Dispatch finalization (audit)", moduleKey: "dispatch_audit" },
-        { to: "/admin/dispatch-governed-preview", icon: Truck, label: "Dispatch governed execution (preview)", moduleKey: "cmd_war_room" },
         { to: "/admin/dispatch-mgmt", icon: Truck, label: "Dispatch", moduleKey: "packing" },
         { to: "/security-gate", icon: Shield, label: "Security Gate", moduleKey: "packing" },
       ],
