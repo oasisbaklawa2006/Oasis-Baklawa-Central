@@ -51,7 +51,7 @@ export type BuyerDraftLine = {
   draft_id: string;
   company_id: string;
   status: string;
-  readiness_status: "ready" | "not_ready";
+  readiness_status: string;
   readiness_issues: Json;
   line_id: string | null;
   product_id: string | null;
