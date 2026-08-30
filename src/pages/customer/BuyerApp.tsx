@@ -115,6 +115,16 @@ function Home({ data }: { data: ReturnType<typeof useBuyerData> }) { const navig
 
 function Empty({ title: heading, text, action }: { title: string; text: string; action?: React.ReactNode }) { return <div className="rounded-2xl border border-dashed p-10 text-center"><p className="font-semibold">{heading}</p><p className="mt-1 text-sm text-muted-foreground">{text}</p>{action && <div className="mt-4">{action}</div>}</div>; }
 
+export function BuyerAccessRequest() {
+  const [form, setForm] = useState({ businessName: "", contactName: "", contactEmail: "", contactPhone: "", gstNumber: "", address: "" });
+  const [submitting, setSubmitting] = useState(false);
+  const [submitted, setSubmitted] = useState(false);
+  const submit = async () => { if (!form.businessName || !form.contactName || !form.contactEmail || !form.contactPhone) return; setSubmitting(true); try { await customerAppClient.submitApplication(form); setSubmitted(true); toast.success("Access request submitted"); } catch (e) { toast.error(e instanceof Error ? e.message : "Unable to submit access request"); } finally { setSubmitting(false); } };
+  if (submitted) return <main className="mx-auto flex min-h-screen max-w-lg items-center px-6"><div className="w-full rounded-3xl border bg-card p-8 text-center"><h1 className="text-2xl font-bold">Request received</h1><p className="mt-2 text-sm text-muted-foreground">Our team will review your company details and activate Buyer access when approved.</p></div></main>;
+  const fields: Array<[keyof typeof form, string, boolean]> = [["businessName", "Business name", true], ["contactName", "Contact name", true], ["contactEmail", "Work email", true], ["contactPhone", "Phone number", true], ["gstNumber", "GST number (optional)", false], ["address", "Registered address (optional)", false]];
+  return <main className="mx-auto min-h-screen max-w-lg px-6 py-10"><p className="text-sm text-muted-foreground">Oasis Baklawa B2B</p><h1 className="mt-1 text-3xl font-bold">Request Buyer access</h1><p className="mt-2 text-sm text-muted-foreground">Tell us about your company. Approval is required before catalogue pricing and checkout are available.</p><div className="mt-6 space-y-3">{fields.map(([key, label, required]) => <label key={key} className="block text-sm font-medium">{label}<input required={required} value={form[key]} onChange={(e) => setForm((v) => ({ ...v, [key]: e.target.value }))} className="mt-1 w-full rounded-xl border bg-card px-3 py-3" /></label>)}<button disabled={submitting} onClick={submit} className="w-full rounded-xl bg-primary py-3 font-bold text-primary-foreground disabled:opacity-50">{submitting ? "Submitting…" : "Submit access request"}</button></div></main>;
+}
+
 export default function BuyerApp() {
   const location = useLocation();
   const data = useBuyerData();

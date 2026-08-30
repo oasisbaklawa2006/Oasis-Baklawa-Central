@@ -18,7 +18,7 @@
 
 | Surface / capability | Status | Evidence and remaining work |
 |---|---|---|
-| Authentication, splash, login, password reset | 🟨 BUILT — NEEDS HARDENING | `Splash`, `Login`, `ResetPassword`, `AuthProvider` and role routing exist. Buyer onboarding/access-request completion and customer-safe post-auth destination are not proven as a complete journey. |
+| Authentication, splash, login, password reset | 🟨 BUILT — NEEDS HARDENING | `Splash`, `Login`, `ResetPassword`, `AuthProvider` and role routing exist. Authenticated unresolved users can now submit a governed B2B access request; approval/runtime evidence remains upstream. |
 | Buyer/customer route tree and mobile shell | 🟥 BROKEN | Current `src/App.tsx` routes storefront roles to `/customer-app-redirect`; no Buyer Home/Catalogue/Product/Cart/Orders/Account route tree exists on current main. |
 | Customer/company context | 🟧 PARTIAL / UNCONNECTED | Core exposes `customer_buyer_eligible_company_id()`, `customer_company_v1()` and `customer_team_v1()`; no current Buyer screen consumes these contracts. |
 | Catalogue, categories, search and filters | 🟧 PARTIAL / UNCONNECTED | `useProducts` and `isBuyerVisibleProduct` exist, but there is no Buyer catalogue screen. Core pricing authority is `buyer_product_prices_v1()` / `customer_resolve_buyer_product_authority_v1(...)`; frontend wiring is absent. |

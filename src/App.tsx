@@ -1,6 +1,6 @@
 import { lazy, Suspense } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Outlet, Route, Routes, useLocation } from "react-router-dom";
+import { BrowserRouter, Link, Outlet, Route, Routes, useLocation } from "react-router-dom";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -26,6 +26,7 @@ import { getRoleDestination, isStaffRole, isStorefrontRole, normalizeRole } from
 // Lazy — split out of the main bundle
 const ResetPassword = lazy(() => import("./pages/ResetPassword.tsx"));
 const BuyerApp = lazy(() => import("./pages/customer/BuyerApp.tsx"));
+const BuyerAccessRequest = lazy(() => import("./pages/customer/BuyerApp.tsx").then((module) => ({ default: module.BuyerAccessRequest })));
 
 const AdminLayout = lazy(() => import("./components/AdminLayout.tsx"));
 const AdminDashboard = lazy(() => import("./pages/admin/AdminDashboard.tsx"));
@@ -223,6 +224,7 @@ const CustomerAppRedirect = () => (
       This is the Oasis Baklawa Admin Web. Customers should continue in the Oasis Baklawa mobile app to browse,
       order, and track deliveries. Staff without admin access should contact their administrator.
     </p>
+    <Link to="/buyer/access-request" className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground">Request Buyer access</Link>
   </div>
 );
 
@@ -244,6 +246,7 @@ const App = () => (
                   <Route path="/security-gate" element={<ProtectedRoute><RoleProtectedRoute allowedRoles={["GATE_SECURITY", "SECURITY_CONTROL", "SUPER_ADMIN", "ADMIN"]}><AdminSecurityGate /></RoleProtectedRoute></ProtectedRoute>} />
                   <Route path="/" element={<RootGate />} />
                   <Route path="/customer-app-redirect" element={<CustomerAppRedirect />} />
+                  <Route path="/buyer/access-request" element={<ProtectedRoute><BuyerAccessRequest /></ProtectedRoute>} />
                   <Route
                     path="/buyer/*"
                     element={

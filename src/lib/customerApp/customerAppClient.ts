@@ -121,6 +121,17 @@ export const customerAppClient = {
   orders: () => rpc<BuyerOrder[]>("customer_order_status_v1"),
   items: () => rpc<BuyerOrderItem[]>("customer_order_items_v1"),
   tickets: () => rpc<BuyerTicket[]>("customer_support_tickets_v1"),
+  submitApplication: (input: { businessName: string; contactName: string; contactEmail: string; contactPhone: string; gstNumber?: string; address?: string }) => rpc<Array<{ application_id: string; application_status: string; company_id: string | null; is_duplicate_submission: boolean }>>("submit_b2b_trade_application_v1", {
+    p_business_name: input.businessName,
+    p_contact_name: input.contactName,
+    p_contact_email: input.contactEmail,
+    p_contact_phone: input.contactPhone,
+    p_mobile_number: input.contactPhone,
+    p_gst_number: input.gstNumber || null,
+    p_registered_address: input.address || null,
+    p_trade_declaration: true,
+    p_data_consent: true,
+  }),
   submitTicket: (orderId: string, issueType: string, description: string, sku?: string, quantity?: number) => rpc<string>("submit_customer_support_ticket_v1", {
     p_order_id: orderId,
     p_issue_type: issueType,
