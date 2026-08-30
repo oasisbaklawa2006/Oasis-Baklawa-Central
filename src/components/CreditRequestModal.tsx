@@ -5,18 +5,26 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "@/hooks/use-toast";
 import { Loader2 } from "lucide-react";
+import {
+  buildCreditRequestIdentity,
+  buildCreditWalletCorrelationId,
+  buildCreditWalletIdempotencyKey,
+  requestCredit,
+} from "@/lib/order-authority/creditWalletAuthorityClient";
 
 interface Props {
   open: boolean;
   onClose: () => void;
   company: { id: string; business_name: string } | null;
+  orderId?: string | null;
+  proformaInvoiceId?: string | null;
+  commercialVersionId?: string | null;
 }
 
-const CreditRequestModal = ({ open, onClose, company }: Props) => {
+const CreditRequestModal = ({ open, onClose, company, orderId, proformaInvoiceId, commercialVersionId }: Props) => {
   const { user } = useAuth();
   const [creditType, setCreditType] = useState("short_term_so");
   const [amount, setAmount] = useState("");
@@ -28,25 +36,40 @@ const CreditRequestModal = ({ open, onClose, company }: Props) => {
       toast({ title: "Invalid input", description: "Enter a valid amount.", variant: "destructive" });
       return;
     }
+    if (!orderId || !proformaInvoiceId || !commercialVersionId || !user?.id) {
+      toast({ title: "Governed SO required", description: "Credit requests require an exact order, PI and commercial version.", variant: "destructive" });
+      return;
+    }
     setSaving(true);
-    const { error } = await supabase.from("credit_requests").insert({
-      company_id: company.id,
-      credit_type: creditType,
-      requested_amount: Number(amount),
-      notes: notes || null,
-      requested_by: user?.id ?? null,
-      status: "pending",
-    });
-    setSaving(false);
-    if (error) {
-      toast({ title: "Error", description: error.message, variant: "destructive" });
-    } else {
+    try {
+      const base = {
+        companyId: company.id,
+        orderId,
+        proformaInvoiceId,
+        commercialVersionId,
+        creditType: creditType as "short_term_so" | "long_term_limit",
+        requestedAmount: Number(amount),
+        sourceChannel: "SALES_INTERNAL",
+        sourceReference: `central:sales-credit-request:${orderId}`,
+        reason: notes.trim() || "Credit requested from Central.",
+        expiresAt: null,
+      };
+      const identity = buildCreditRequestIdentity(base);
+      await requestCredit({
+        ...base,
+        correlationId: await buildCreditWalletCorrelationId("request", identity),
+        idempotencyKey: await buildCreditWalletIdempotencyKey("request", identity),
+        actorId: user.id,
+      });
       toast({ title: "Credit request submitted", description: `₹${Number(amount).toLocaleString()} requested for ${company.business_name}` });
       setAmount("");
       setNotes("");
       setCreditType("short_term_so");
       onClose();
+    } catch (error) {
+      toast({ title: "Credit request blocked", description: error instanceof Error ? error.message : "Core credit authority unavailable.", variant: "destructive" });
     }
+    setSaving(false);
   };
 
   return (
@@ -55,6 +78,9 @@ const CreditRequestModal = ({ open, onClose, company }: Props) => {
         <DialogHeader>
           <DialogTitle className="text-lg font-semibold">Request Credit</DialogTitle>
           <DialogDescription>{company?.business_name}</DialogDescription>
+          {(!orderId || !proformaInvoiceId || !commercialVersionId) && (
+            <p className="text-xs text-amber-700">Select a governed SO before requesting credit.</p>
+          )}
         </DialogHeader>
         <div className="space-y-4">
           <div>

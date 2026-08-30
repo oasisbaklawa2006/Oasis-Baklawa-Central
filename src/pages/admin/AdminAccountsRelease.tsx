@@ -30,6 +30,14 @@ import {
   deriveFinanceReleaseState,
   getFinanceReleaseBlockers,
 } from "@/utils/financeReleaseState";
+import {
+  buildCreditWalletCorrelationId,
+  buildCreditWalletIdempotencyKey,
+  buildWalletIdentity,
+  getWalletBalance,
+  recordWalletEntry,
+  resolveCreditBinding,
+} from "@/lib/order-authority/creditWalletAuthorityClient";
 
 interface FinanceOrder {
   id: string; status: string; payment_status: string | null;
@@ -129,10 +137,20 @@ const AdminAccountsRelease = () => {
     setLoading(true);
     const { data } = await supabase
       .from("orders")
-      .select("id, status, payment_status, sales_order_value, advance_paid, advance_required, company_id, final_invoice_url, eway_bill_number, payment_cleared, company:companies(business_name, wallet_balance)")
+      .select("id, status, payment_status, sales_order_value, advance_paid, advance_required, company_id, final_invoice_url, eway_bill_number, payment_cleared, company:companies(business_name)")
       .not("status", "in", '("draft","cart")')
       .order("created_at", { ascending: false });
-    setOrders((data as unknown as FinanceOrder[]) ?? []);
+    const rows = (data as unknown as FinanceOrder[]) ?? [];
+    const enriched = await Promise.all(rows.map(async (order) => {
+      if (!order.company_id || !order.company) return order;
+      try {
+        return { ...order, company: { ...order.company, wallet_balance: await getWalletBalance(order.company_id) } };
+      } catch {
+        // PF-6B is fail-closed: do not turn an unavailable Core balance into ₹0.
+        return { ...order, company: { ...order.company, wallet_balance: null } };
+      }
+    }));
+    setOrders(enriched);
     setLoading(false);
   };
 
@@ -279,18 +297,27 @@ const AdminAccountsRelease = () => {
 
       if (walletDiff > 0 && companyId && dplValue > 0) {
         // DPL < SO → Credit client wallet
-        await supabase.from("companies").update({
-          wallet_balance: (await supabase.from("companies").select("wallet_balance").eq("id", companyId).single()).data?.wallet_balance
-            ? Number((await supabase.from("companies").select("wallet_balance").eq("id", companyId).single()).data?.wallet_balance || 0) + walletDiff
-            : walletDiff,
-        }).eq("id", companyId);
+        if (!user?.id) throw new Error("Authenticated actor required for wallet adjustment");
+        const binding = await resolveCreditBinding(orderId);
+        const identity = buildWalletIdentity({
+          companyId, direction: "credit", amount: walletDiff, currency: "INR", orderId,
+          proformaInvoiceId: binding.piId, commercialVersionId: binding.commercialVersionId,
+          sourceChannel: "CENTRAL_FINANCE", sourceReference: `dpl-variance:${orderId}`, reason: "DPL variance wallet credit",
+        });
+        const wallet = await recordWalletEntry({
+          companyId, direction: "credit", amount: walletDiff, currency: "INR", orderId,
+          proformaInvoiceId: binding.piId, commercialVersionId: binding.commercialVersionId,
+          sourceChannel: "CENTRAL_FINANCE", sourceReference: `dpl-variance:${orderId}`, reason: "DPL variance wallet credit",
+          correlationId: await buildCreditWalletCorrelationId("wallet", identity),
+          idempotencyKey: await buildCreditWalletIdempotencyKey("wallet", identity), actorId: user.id,
+        });
         await supabase.from("audit_logs").insert({
           action_type: "wallet_credit_dpl_variance",
           module_name: "Finance",
           entity_name: "order",
           entity_id: orderId,
           actor_id: user?.id,
-          new_value: { so_value: soValue, dpl_value: dplValue, credit_amount: walletDiff },
+          new_value: { so_value: soValue, dpl_value: dplValue, credit_amount: walletDiff, resulting_wallet_balance: wallet.balance },
           risk_level: "high",
         });
       } else if (walletDiff < 0 && dplValue > 0) {
@@ -434,7 +461,8 @@ const AdminAccountsRelease = () => {
     setGeneratingPi(order.id);
     try {
       const piTotal = order.sales_order_value ?? 0;
-      const walletBalance = order.company?.wallet_balance ?? 0;
+      const walletBalance = order.company?.wallet_balance;
+      if (walletBalance == null) throw new Error("Canonical Core wallet balance unavailable; PI wallet assessment is blocked.");
       const walletDiff = walletBalance - piTotal;
 
       if (isWalletPiAutoSettleEligible(walletBalance, piTotal) && order.company_id) {
@@ -624,8 +652,11 @@ const AdminAccountsRelease = () => {
                         {/* Wallet deficit alert */}
                         {(order.status === "awaiting_payment" || order.status === "awaiting_final_payment") && !order.payment_cleared && (
                           (() => {
-                            const walletBal = order.company?.wallet_balance ?? 0;
+                            const walletBal = order.company?.wallet_balance;
                             const piTotal = order.sales_order_value ?? 0;
+                            if (walletBal == null) {
+                              return <Badge variant="destructive" className="text-[10px]">Wallet unavailable — Core facts required</Badge>;
+                            }
                             const deficit = piTotal - walletBal;
                             return deficit > 0 ? (
                               <Badge variant="destructive" className="text-[10px]">

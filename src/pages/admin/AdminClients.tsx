@@ -384,6 +384,8 @@ const AdminClients = () => {
   };
 
   const executeUpdateCompany = async () => {
+    // Deferred facility-management path: PF-6B has no generic company credit-limit RPC.
+    // This value is not evidence of approval for any specific SO and must not be used as an order-credit shortcut.
     if (!selectedCompany) return;
     if (editCreditLimit < 0) {
       toast.error("Credit limit cannot be negative.");
