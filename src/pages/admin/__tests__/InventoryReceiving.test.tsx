@@ -165,9 +165,9 @@ describe("InventoryReceiving supplier discrepancy workspace", () => {
       { id: "disc-2", receipt_line_id: "line-1", discrepancy_type: "shortage", quantity: 1, status: "resolved", resolution: "Credit issued by supplier", resolved_at: "2026-08-21T00:00:00.000Z", created_at: "2026-08-20T00:00:00.000Z" },
     ];
     render(<MemoryRouter><InventoryReceiving /></MemoryRouter>);
-    const section = (await screen.findByText("Supplier discrepancies")).closest("section") as HTMLElement;
-    const openBadge = within(section).getByText("open", { selector: "div" });
-    const resolvedBadge = within(section).getByText("resolved", { selector: "div" });
+    const discrepancyPanel = (await screen.findByText("Supplier discrepancies")).closest("section") as HTMLElement;
+    const openBadge = within(discrepancyPanel).getByText("open", { selector: "div" });
+    const resolvedBadge = within(discrepancyPanel).getByText("resolved", { selector: "div" });
     expect(openBadge.className).not.toEqual(resolvedBadge.className);
     expect(screen.getByText(/Credit issued by supplier/)).toBeTruthy();
   });
@@ -209,8 +209,8 @@ describe("InventoryReceiving supplier discrepancy workspace", () => {
     fireEvent.click(screen.getByRole("button", { name: "Save" }));
 
     expect(await screen.findByText("Not authorised")).toBeTruthy();
-    const section = screen.getByText("Supplier discrepancies").closest("section") as HTMLElement;
-    expect(within(section).getByText("open")).toBeTruthy();
+    const discrepancyPanel = screen.getByText("Supplier discrepancies").closest("section") as HTMLElement;
+    expect(within(discrepancyPanel).getByText("open")).toBeTruthy();
   });
 
   it("does not render a false empty state when the discrepancy fetch itself fails", async () => {
