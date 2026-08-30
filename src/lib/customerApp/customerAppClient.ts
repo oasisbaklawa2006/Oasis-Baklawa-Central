@@ -1,5 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
-import type { Database } from "@/integrations/supabase/types";
+import type { Database, Json } from "@/integrations/supabase/types";
 
 type PublicFunctions = Database["public"]["Functions"];
 type RpcName = keyof PublicFunctions;
@@ -52,7 +52,7 @@ export type BuyerDraftLine = {
   company_id: string;
   status: string;
   readiness_status: "ready" | "not_ready";
-  readiness_issues: unknown[];
+  readiness_issues: Json;
   line_id: string | null;
   product_id: string | null;
   quantity: number | null;
@@ -108,22 +108,22 @@ export type BuyerTicket = {
 };
 
 export const customerAppClient = {
-  company: () => rpc<BuyerCompany[]>("customer_company_v1"),
-  team: () => rpc<BuyerTeamMember[]>("customer_team_v1"),
-  prices: () => rpc<BuyerPrice[]>("buyer_product_prices_v1"),
-  draft: () => rpc<BuyerDraftLine[]>("get_customer_order_draft_v1"),
+  company: () => rpc("customer_company_v1"),
+  team: () => rpc("customer_team_v1"),
+  prices: () => rpc("buyer_product_prices_v1"),
+  draft: () => rpc("get_customer_order_draft_v1"),
   addLine: (productId: string, quantity: number) => rpc("add_customer_order_draft_line_v1", { p_product_id: productId, p_quantity: quantity }),
   updateLine: (lineId: string, quantity: number) => rpc("update_customer_order_draft_line_v1", { p_line_id: lineId, p_quantity: quantity }),
   removeLine: (lineId: string) => rpc("remove_customer_order_draft_line_v1", { p_line_id: lineId }),
   clearDraft: () => rpc("clear_customer_order_draft_v1"),
-  submit: (idempotencyKey: string, requestedDispatchDate?: string) => rpc<Array<{ order_id: string; order_number: string; sales_order_value: number; advance_required: number; draft_id: string; is_duplicate_submission: boolean }>>("submit_customer_order_v1", {
+  submit: (idempotencyKey: string, requestedDispatchDate?: string) => rpc("submit_customer_order_v1", {
     p_idempotency_key: idempotencyKey,
     p_requested_dispatch_date: requestedDispatchDate || null,
   }),
-  orders: () => rpc<BuyerOrder[]>("customer_order_status_v1"),
-  items: () => rpc<BuyerOrderItem[]>("customer_order_items_v1"),
-  tickets: () => rpc<BuyerTicket[]>("customer_support_tickets_v1"),
-  submitApplication: (input: { businessName: string; contactName: string; contactEmail: string; contactPhone: string; gstNumber?: string; address?: string }) => rpc<Array<{ application_id: string; application_status: string; company_id: string | null; is_duplicate_submission: boolean }>>("submit_b2b_trade_application_v1", {
+  orders: () => rpc("customer_order_status_v1"),
+  items: () => rpc("customer_order_items_v1"),
+  tickets: () => rpc("customer_support_tickets_v1"),
+  submitApplication: (input: { businessName: string; contactName: string; contactEmail: string; contactPhone: string; gstNumber?: string; address?: string }) => rpc("submit_b2b_trade_application_v1", {
     p_business_name: input.businessName,
     p_contact_name: input.contactName,
     p_contact_email: input.contactEmail,
@@ -134,7 +134,7 @@ export const customerAppClient = {
     p_trade_declaration: true,
     p_data_consent: true,
   }),
-  submitTicket: (orderId: string, issueType: string, description: string, sku?: string, quantity?: number) => rpc<string>("submit_customer_support_ticket_v1", {
+  submitTicket: (orderId: string, issueType: string, description: string, sku?: string, quantity?: number) => rpc("submit_customer_support_ticket_v1", {
     p_order_id: orderId,
     p_issue_type: issueType,
     p_description: description,
