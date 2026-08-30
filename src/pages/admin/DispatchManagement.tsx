@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   CheckCircle2,
   Lock,
@@ -232,7 +232,9 @@ export default function DispatchManagement() {
     void fetchRows();
   }, [fetchRows]);
 
+  const workingRequestIdRef = useRef(0);
   const refreshWorkingConsignment = useCallback(async (consignmentId: string) => {
+    const requestId = ++workingRequestIdRef.current;
     if (!consignmentId) {
       setCartons([]);
       setConsignmentLines([]);
@@ -268,6 +270,11 @@ export default function DispatchManagement() {
           .eq("consignment_id", consignmentId)
           .eq("event_type", "packing_list_superseded"),
       ]);
+      if (cartonsRes.error) throw new Error(cartonsRes.error.message);
+      if (linesRes.error) throw new Error(linesRes.error.message);
+      if (dplRes.error) throw new Error(dplRes.error.message);
+      if (eventsRes.error) throw new Error(eventsRes.error.message);
+      if (requestId !== workingRequestIdRef.current) return;
       setCartons((cartonsRes.data ?? []) as CartonRow[]);
       setConsignmentLines((linesRes.data ?? []) as ConsignmentLineRow[]);
       setDplVersions((dplRes.data ?? []) as DplVersionRow[]);
@@ -277,9 +284,10 @@ export default function DispatchManagement() {
       }
       setSupersessionReasons(reasonMap);
     } catch (err) {
+      if (requestId !== workingRequestIdRef.current) return;
       toast.error(err instanceof Error ? err.message : "Failed to load consignment detail.");
     } finally {
-      setWorkingLoading(false);
+      if (requestId === workingRequestIdRef.current) setWorkingLoading(false);
     }
   }, []);
 
@@ -288,7 +296,9 @@ export default function DispatchManagement() {
     setSelectedCartonId("");
   }, [workingConsignmentId, refreshWorkingConsignment]);
 
+  const cartonRequestIdRef = useRef(0);
   const refreshCartonDetail = useCallback(async (cartonId: string) => {
+    const requestId = ++cartonRequestIdRef.current;
     if (!cartonId) {
       setCartonItems([]);
       setScanEvents([]);
@@ -308,9 +318,13 @@ export default function DispatchManagement() {
           .order("created_at", { ascending: false })
           .limit(10),
       ]);
+      if (itemsRes.error) throw new Error(itemsRes.error.message);
+      if (eventsRes.error) throw new Error(eventsRes.error.message);
+      if (requestId !== cartonRequestIdRef.current) return;
       setCartonItems((itemsRes.data ?? []) as CartonItemRow[]);
       setScanEvents((eventsRes.data ?? []) as ScanEventRow[]);
     } catch (err) {
+      if (requestId !== cartonRequestIdRef.current) return;
       toast.error(err instanceof Error ? err.message : "Failed to load carton detail.");
     }
   }, []);
@@ -419,7 +433,7 @@ export default function DispatchManagement() {
       setScanBatchLot("");
       setScanQuantity("");
       setScanCorrelationId(crypto.randomUUID());
-      await Promise.all([refreshWorkingConsignment(workingConsignmentId), refreshCartonDetail(selectedCartonId)]);
+      await Promise.all([fetchRows(), refreshWorkingConsignment(workingConsignmentId), refreshCartonDetail(selectedCartonId)]);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Scan failed.");
     } finally {
@@ -443,6 +457,7 @@ export default function DispatchManagement() {
       return;
     }
     setRecordingEvidence(true);
+    let uploadedPath: string | null = null;
     try {
       let photoRef = selectedCarton?.open_photo_ref ?? null;
       if (evidencePhoto) {
@@ -450,6 +465,7 @@ export default function DispatchManagement() {
         const path = `dispatch-carton-evidence/${selectedCartonId}/${Date.now()}-${safeName}`;
         const { error: uploadError } = await supabase.storage.from("receipts").upload(path, evidencePhoto);
         if (uploadError) throw new Error(uploadError.message ?? "Photo upload failed.");
+        uploadedPath = path;
         const { data: urlData } = supabase.storage.from("receipts").getPublicUrl(path);
         photoRef = urlData.publicUrl;
       }
@@ -466,8 +482,11 @@ export default function DispatchManagement() {
       setGrossWeight("");
       setEvidencePhoto(null);
       setEvidenceCorrelationId(crypto.randomUUID());
-      await Promise.all([refreshWorkingConsignment(workingConsignmentId), refreshCartonDetail(selectedCartonId)]);
+      await Promise.all([fetchRows(), refreshWorkingConsignment(workingConsignmentId), refreshCartonDetail(selectedCartonId)]);
     } catch (err) {
+      if (uploadedPath) {
+        await supabase.storage.from("receipts").remove([uploadedPath]);
+      }
       toast.error(err instanceof Error ? err.message : "Failed to record evidence.");
     } finally {
       setRecordingEvidence(false);
@@ -489,7 +508,7 @@ export default function DispatchManagement() {
       if (rpcError) throw new Error(rpcError.message);
       toast.success("Carton locked.");
       setLockCorrelationId(crypto.randomUUID());
-      await Promise.all([refreshWorkingConsignment(workingConsignmentId), refreshCartonDetail(selectedCarton.id)]);
+      await Promise.all([fetchRows(), refreshWorkingConsignment(workingConsignmentId), refreshCartonDetail(selectedCarton.id)]);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to lock the carton. Reload and retry if the carton changed.");
     } finally {
@@ -511,7 +530,7 @@ export default function DispatchManagement() {
       if (rpcError) throw new Error(rpcError.message);
       toast.success("Packing list generated.");
       setDplCreateCorrelationId(crypto.randomUUID());
-      await refreshWorkingConsignment(workingConsignmentId);
+      await Promise.all([fetchRows(), refreshWorkingConsignment(workingConsignmentId)]);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to generate the packing list.");
     } finally {
@@ -541,7 +560,7 @@ export default function DispatchManagement() {
       toast.success("Packing list corrected with a new version.");
       setSupersedeReason("");
       setSupersedeCorrelationId(crypto.randomUUID());
-      await refreshWorkingConsignment(workingConsignmentId);
+      await Promise.all([fetchRows(), refreshWorkingConsignment(workingConsignmentId)]);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to correct the packing list.");
     } finally {
@@ -564,7 +583,7 @@ export default function DispatchManagement() {
       if (rpcError) throw new Error(rpcError.message);
       toast.success("Packing list submitted to Finance.");
       setDplSubmitCorrelationId(crypto.randomUUID());
-      await refreshWorkingConsignment(workingConsignmentId);
+      await Promise.all([fetchRows(), refreshWorkingConsignment(workingConsignmentId)]);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to submit the packing list to Finance.");
     } finally {
