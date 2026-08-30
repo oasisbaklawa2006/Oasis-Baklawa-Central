@@ -330,11 +330,13 @@ const AdminPackingDispatch = () => {
       // Record the canonical wallet fact before any durable dispatch/packing writes.
       // Core idempotency makes a retry resumable if a later write fails.
       let resultingWalletBalance: number | null = null;
+      let varianceDescription = "";
       if (Math.abs(varianceAmount) > 0.01 && selectedOrder.company_id) {
         const txType = varianceAmount > 0 ? "credit" : "debit";
         const desc = varianceAmount > 0
           ? `Refund ₹${varianceAmount.toFixed(2)} for short-weight variance on Order ${selectedOrder.id.slice(0, 8)}`
           : `Charge ₹${Math.abs(varianceAmount).toFixed(2)} for over-weight variance on Order ${selectedOrder.id.slice(0, 8)}`;
+        varianceDescription = desc;
         if (!user?.id) throw new Error("Authenticated actor required for wallet adjustment");
         const binding = await resolveCreditBinding(selectedOrder.id);
         const identity = buildWalletIdentity({
@@ -388,7 +390,7 @@ const AdminPackingDispatch = () => {
           action_type: "weight_variance_adjustment",
           entity_id: selectedOrder.id,
           entity_name: "orders",
-          reason: desc,
+          reason: varianceDescription,
           risk_level: Math.abs(varianceAmount) > 5000 ? "high" : "normal",
           new_value: {
             finalInvoiceTotal,
