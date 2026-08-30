@@ -25,6 +25,7 @@ import { getRoleDestination, isStaffRole, isStorefrontRole, normalizeRole } from
 
 // Lazy — split out of the main bundle
 const ResetPassword = lazy(() => import("./pages/ResetPassword.tsx"));
+const BuyerApp = lazy(() => import("./pages/customer/BuyerApp.tsx"));
 
 const AdminLayout = lazy(() => import("./components/AdminLayout.tsx"));
 const AdminDashboard = lazy(() => import("./pages/admin/AdminDashboard.tsx"));
@@ -243,6 +244,16 @@ const App = () => (
                   <Route path="/security-gate" element={<ProtectedRoute><RoleProtectedRoute allowedRoles={["GATE_SECURITY", "SECURITY_CONTROL", "SUPER_ADMIN", "ADMIN"]}><AdminSecurityGate /></RoleProtectedRoute></ProtectedRoute>} />
                   <Route path="/" element={<RootGate />} />
                   <Route path="/customer-app-redirect" element={<CustomerAppRedirect />} />
+                  <Route
+                    path="/buyer/*"
+                    element={
+                      <ProtectedRoute>
+                        <RoleProtectedRoute allowedRoles={["B2B_BUYER", "SPECIAL_BUYER", "HORECA_BUYER", "WHOLESALE_BUYER", "BULK_BUYER", "BUYER", "CLIENT", "CUSTOMER_USER"]}>
+                          <BuyerApp />
+                        </RoleProtectedRoute>
+                      </ProtectedRoute>
+                    }
+                  />
                   <Route path="/login" element={<Login />} />
                   <Route path="/reset-password" element={<ResetPassword />} />
                   <Route

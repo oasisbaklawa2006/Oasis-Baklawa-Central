@@ -1,6 +1,8 @@
 import { motion, AnimatePresence } from "framer-motion";
 import { X, Upload, AlertTriangle } from "lucide-react";
 import { useState } from "react";
+import { customerAppClient } from "@/lib/customerApp/customerAppClient";
+import { toast } from "sonner";
 
 interface Props {
   open: boolean;
@@ -12,13 +14,26 @@ const issueTypes = ["Damaged Goods", "Missing Items", "Wrong Shipment"];
 
 const SupportTicketModal = ({ open, onClose, orderId }: Props) => {
   const [issueType, setIssueType] = useState("");
+  const [description, setDescription] = useState("");
+  const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
+    if (!issueType || !description.trim() || submitting) return;
+    setSubmitting(true);
+    try {
+      await customerAppClient.submitTicket(orderId, issueType, description.trim());
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Unable to submit ticket");
+      setSubmitting(false);
+      return;
+    }
+    setSubmitting(false);
     setSubmitted(true);
     setTimeout(() => {
       setSubmitted(false);
       setIssueType("");
+      setDescription("");
       onClose();
     }, 2000);
   };
@@ -66,6 +81,14 @@ const SupportTicketModal = ({ open, onClose, orderId }: Props) => {
                   </select>
                 </div>
 
+                <textarea
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                  placeholder="Describe the issue"
+                  rows={3}
+                  className="w-full rounded-xl bg-muted/50 border border-border px-4 py-3 font-body text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+                />
+
                 <button className="w-full py-3 rounded-xl bg-muted/50 border border-dashed border-border text-muted-foreground font-body text-sm flex items-center justify-center gap-2 hover:border-primary/50 transition-colors">
                   <Upload size={16} />
                   Upload Photo Evidence
@@ -73,10 +96,10 @@ const SupportTicketModal = ({ open, onClose, orderId }: Props) => {
 
                 <button
                   onClick={handleSubmit}
-                  disabled={!issueType}
+                  disabled={!issueType || !description.trim() || submitting}
                   className="w-full py-3.5 rounded-xl bg-primary text-primary-foreground font-body font-bold text-sm flex items-center justify-center gap-2 hover:bg-primary/90 transition-colors shadow-fab disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  Submit Ticket
+                  {submitting ? "Submitting…" : "Submit Ticket"}
                 </button>
               </div>
             ) : (

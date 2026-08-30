@@ -34,16 +34,12 @@ const SupportChat = ({ open, onClose }: SupportChatProps) => {
   }, [messages, streaming]);
 
   const logCallback = async (channel: "phone" | "whatsapp") => {
-    const { data: { user } } = await supabase.auth.getUser();
-    await supabase.from("audit_logs").insert({
-      action_type: "callback_request",
-      module_name: "support_chat",
-      actor_id: user?.id ?? null,
-      entity_name: channel,
-      reason: `Buyer requested ${channel} callback from support chat`,
-      risk_level: "normal",
-    });
-    toast.success(`${channel === "phone" ? "Call" : "WhatsApp"} request logged. Our team will reach out shortly.`);
+    // Callback requests are intentionally non-mutating here. A customer-facing
+    // component must not write audit or support tables directly; those writes
+    // require a dedicated Core contract. Use the approved contact channel.
+    if (channel === "phone") window.location.href = "tel:+919891162212";
+    else window.open("https://wa.me/919891162212", "_blank", "noopener,noreferrer");
+    toast.success(`${channel === "phone" ? "Call" : "WhatsApp"} channel opened.`);
   };
 
   const handleSend = async () => {
@@ -106,7 +102,9 @@ const SupportChat = ({ open, onClose }: SupportChatProps) => {
                 p.map((m) => (m.id === assistantId ? { ...m, text: acc } : m))
               );
             }
-          } catch {}
+          } catch {
+            // Ignore malformed stream fragments; the next SSE frame may be valid.
+          }
         }
       }
     } catch (e) {

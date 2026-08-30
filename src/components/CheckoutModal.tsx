@@ -2,8 +2,6 @@ import { motion, AnimatePresence } from "framer-motion";
 import { X, Wallet, Smartphone, Building, CheckCircle2, ShieldCheck, Loader2 } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
-import { supabase } from "@/integrations/supabase/client";
-import { notifyOrderPlaced } from "@/utils/notifyEvent";
 
 interface CheckoutModalProps {
   open: boolean;
@@ -25,9 +23,10 @@ const paymentMethods = [
 const CheckoutModal = ({ open, onClose, grandTotal, orderId, companyId, onOrderConfirmed }: CheckoutModalProps) => {
   const [selected, setSelected] = useState("upi");
   const [confirming, setConfirming] = useState(false);
-  // Minimum 20% deposit, rounded to nearest ₹1,000
-  const rawAdvance = grandTotal * 0.2;
-  const advance = Math.max(Math.round(rawAdvance / 1000) * 1000, 1000);
+  // Core owns the authoritative advance calculation. This legacy modal is
+  // retained only for compatibility with unrouted callers; the Buyer App uses
+  // submit_customer_order_v1 directly.
+  const advance = null;
   const isReady = !!orderId && !!companyId;
 
   const handleConfirm = async () => {
@@ -35,34 +34,8 @@ const CheckoutModal = ({ open, onClose, grandTotal, orderId, companyId, onOrderC
       toast.error("Order details are still loading. Please wait a moment.");
       return;
     }
-    setConfirming(true);
-    const { data: updatedOrders, error } = await supabase
-      .from("orders")
-      .update({
-        status: "submitted",
-        sales_order_value: grandTotal,
-        advance_required: advance,
-        payment_status: "awaiting_receipt",
-      })
-      .eq("id", orderId)
-      .eq("status", "draft")
-      .select("id");
-
     setConfirming(false);
-    if (error) {
-      console.error("[Checkout] Order confirm failed:", error);
-      toast.error(error.message || "Failed to confirm order. Please try again.");
-      return;
-    }
-    if (!updatedOrders || updatedOrders.length === 0) {
-      toast.error("This order has already moved beyond Draft and can no longer be changed from cart.");
-      return;
-    }
-    toast.success("Order confirmed! Advance payment initiated.");
-    // Fire milestone notification (buyer + sales exec + admin)
-    notifyOrderPlaced(orderId, orderId.slice(0, 8).toUpperCase(), grandTotal).catch(() => {});
-    onOrderConfirmed?.();
-    onClose();
+    toast.error("This legacy checkout surface is not an order authority. Return to the Buyer cart to submit through Core.");
   };
 
   return (
@@ -102,9 +75,9 @@ const CheckoutModal = ({ open, onClose, grandTotal, orderId, companyId, onOrderC
               <div className="bg-primary/5 rounded-2xl border border-primary/20 p-5 space-y-2">
                 <div className="flex items-center gap-2">
                   <ShieldCheck size={16} className="text-primary" />
-                  <p className="font-body font-bold text-foreground text-sm">20% Advance Required for Production</p>
+                  <p className="font-body font-bold text-foreground text-sm">Advance calculated by Core</p>
                 </div>
-                <p className="font-display text-2xl text-primary tracking-wide">{formatPrice(advance)}</p>
+                <p className="font-display text-2xl text-primary tracking-wide">Resolved at governed submission</p>
                 <p className="font-body text-[11px] text-muted-foreground leading-relaxed">
                   Production begins upon advance confirmation. Balance due before dispatch.
                 </p>
