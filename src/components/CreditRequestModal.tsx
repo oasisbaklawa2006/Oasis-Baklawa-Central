@@ -104,7 +104,7 @@ const CreditRequestModal = ({ open, onClose, company, orderId, proformaInvoiceId
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={onClose} disabled={saving}>Cancel</Button>
-          <Button onClick={handleSubmit} disabled={saving}>
+          <Button onClick={handleSubmit} disabled={saving || !company || !orderId || !proformaInvoiceId || !commercialVersionId || !user?.id}>
             {saving && <Loader2 className="animate-spin mr-2" size={14} />}
             Submit Request
           </Button>

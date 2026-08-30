@@ -32,6 +32,7 @@ type SalesInteraction = Pick<ClientInteractionRow, "id" | "company_id">;
 const SalesDashboard = () => {
   const { user, loading: authLoading } = useAuth();
   const [companies, setCompanies] = useState<SalesCompany[]>([]);
+  const [rosterLoadFailed, setRosterLoadFailed] = useState(false);
   const [dataLoading, setDataLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [creditModalOpen, setCreditModalOpen] = useState(false);
@@ -63,7 +64,10 @@ const SalesDashboard = () => {
         .eq("account_manager_id", user.id)
         .order("business_name");
       if (error) {
+        setRosterLoadFailed(true);
         toast({ title: "Connection Error", description: "Could not load client data.", variant: "destructive" });
+      } else {
+        setRosterLoadFailed(false);
       }
       const companyList: SalesCompany[] = await Promise.all((comps || []).map(async (company) => {
         try {
@@ -174,7 +178,7 @@ const SalesDashboard = () => {
     c.gst_number?.toLowerCase().includes(search.toLowerCase())
   );
 
-  const walletUnavailable = companies.some((c) => c.wallet_balance == null);
+  const walletUnavailable = rosterLoadFailed || companies.some((c) => c.wallet_balance == null);
   const totalWallet = companies.reduce((s, c) => s + (c.wallet_balance ?? 0), 0);
   const totalCredit = companies.reduce((s, c) => s + (c.credit_limit || 0), 0);
 
@@ -313,7 +317,14 @@ const SalesDashboard = () => {
         </Card>
       </div>
 
-      <CreditRequestModal open={creditModalOpen} onClose={() => setCreditModalOpen(false)} company={selectedCompany} />
+      <CreditRequestModal
+        open={creditModalOpen}
+        onClose={() => setCreditModalOpen(false)}
+        company={selectedCompany}
+        orderId={null}
+        proformaInvoiceId={null}
+        commercialVersionId={null}
+      />
 
       {/* Log Interaction Modal */}
       <Dialog open={logModalOpen} onOpenChange={setLogModalOpen}>

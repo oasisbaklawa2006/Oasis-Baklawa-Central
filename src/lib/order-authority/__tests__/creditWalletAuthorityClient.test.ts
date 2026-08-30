@@ -30,6 +30,10 @@ describe("PF-6B Central credit, wallet and exposure authority contract", () => {
     const identity = buildWalletIdentity(wallet);
     expect(await buildCreditWalletIdempotencyKey("wallet", identity)).toMatch(/^central:pf6b:wallet:[0-9a-f]{64}$/);
     expect(await buildCreditWalletCorrelationId("wallet", identity)).toHaveLength(84);
+    const longIdentity = "full-identity:" + "x".repeat(5000);
+    expect(await buildCreditWalletIdempotencyKey("wallet", longIdentity)).toMatch(/^central:pf6b:wallet:[0-9a-f]{64}$/);
+    expect(await buildCreditWalletCorrelationId("wallet", longIdentity)).toMatch(/^central:pf6b:wallet:[0-9a-f]{64}$/);
+    await expect(buildCreditWalletIdempotencyKey("wallet", "  ")).rejects.toThrow("stable PF-6B identity");
     expect(buildWalletIdentity(wallet)).toBe(identity);
     expect(() => buildWalletIdentity({ ...wallet, amount: 0 })).toThrow("positive finite amount");
     expect(() => buildCreditRequestIdentity({

@@ -347,6 +347,33 @@ const AdminFinance = () => {
       const expectedVal = scrutinyTarget.expected_value || 0;
       const lossAmount = expectedVal - settlementVal;
 
+      let resultingWalletBalance: number | null = null;
+      if (settlementVal > 0) {
+        if (!scrutinyTarget.company_id || !user?.id) throw new Error("Authenticated actor and company are required for wallet settlement");
+        const identity = buildWalletIdentity({
+          companyId: scrutinyTarget.company_id,
+          direction: "credit",
+          amount: settlementVal,
+          currency: "INR",
+          sourceChannel: "CENTRAL_FINANCE",
+          sourceReference: `inward-advice:${scrutinyTarget.id}`,
+          reason: "Inward material advice settlement",
+        });
+        const wallet = await recordWalletEntry({
+          companyId: scrutinyTarget.company_id,
+          direction: "credit",
+          amount: settlementVal,
+          currency: "INR",
+          sourceChannel: "CENTRAL_FINANCE",
+          sourceReference: `inward-advice:${scrutinyTarget.id}`,
+          reason: "Inward material advice settlement",
+          correlationId: await buildCreditWalletCorrelationId("wallet", identity),
+          idempotencyKey: await buildCreditWalletIdempotencyKey("wallet", identity),
+          actorId: user.id,
+        });
+        resultingWalletBalance = wallet.balance;
+      }
+
       // 1. Update inward_material_advice
       await supabase
         .from("inward_material_advice")
@@ -359,31 +386,6 @@ const AdminFinance = () => {
           settled_at: new Date().toISOString(),
         })
         .eq("id", scrutinyTarget.id);
-
-      // 2. Credit company wallet
-      if (scrutinyTarget.company_id && settlementVal > 0) {
-        const identity = buildWalletIdentity({
-          companyId: scrutinyTarget.company_id,
-          direction: "credit",
-          amount: settlementVal,
-          currency: "INR",
-          sourceChannel: "CENTRAL_FINANCE",
-          sourceReference: `inward-advice:${scrutinyTarget.id}`,
-          reason: "Inward material advice settlement",
-        });
-        await recordWalletEntry({
-          companyId: scrutinyTarget.company_id,
-          direction: "credit",
-          amount: settlementVal,
-          currency: "INR",
-          sourceChannel: "CENTRAL_FINANCE",
-          sourceReference: `inward-advice:${scrutinyTarget.id}`,
-          reason: "Inward material advice settlement",
-          correlationId: await buildCreditWalletCorrelationId("wallet", identity),
-          idempotencyKey: await buildCreditWalletIdempotencyKey("wallet", identity),
-          actorId: user?.id ?? "",
-        });
-      }
 
       // 3. Audit log
       await supabase.from("audit_logs").insert({
@@ -399,6 +401,7 @@ const AdminFinance = () => {
           loss: lossAmount > 0 ? lossAmount : 0,
           fault_attribution: scrutinyFault,
           fault_department: scrutinyFault === "Manufacturing Defect" ? scrutinyDept : null,
+          resulting_wallet_balance: resultingWalletBalance,
         },
       });
 
@@ -833,6 +836,31 @@ const AdminFinance = () => {
       const productValue = (ret.product?.base_price || 0) * ret.quantity_returned;
       const lossAmount = productValue - creditValue;
 
+      if (!companyId || !ret.order_id || !user?.id) {
+        throw new Error("A governed order/PI/commercial-version binding and authenticated actor are required before wallet credit.");
+      }
+      const binding = await resolveCreditBinding(ret.order_id);
+      const identity = buildWalletIdentity({
+        companyId,
+        direction: "credit",
+        amount: creditValue,
+        currency: "INR",
+        orderId: ret.order_id,
+        proformaInvoiceId: binding.piId,
+        commercialVersionId: binding.commercialVersionId,
+        sourceChannel: "CENTRAL_FINANCE",
+        sourceReference: `order-return:${ret.id}`,
+        reason: "Approved order return wallet credit",
+      });
+      const wallet = await recordWalletEntry({
+        companyId, direction: "credit", amount: creditValue, currency: "INR",
+        orderId: ret.order_id, proformaInvoiceId: binding.piId, commercialVersionId: binding.commercialVersionId,
+        sourceChannel: "CENTRAL_FINANCE", sourceReference: `order-return:${ret.id}`,
+        reason: "Approved order return wallet credit",
+        correlationId: await buildCreditWalletCorrelationId("wallet", identity),
+        idempotencyKey: await buildCreditWalletIdempotencyKey("wallet", identity), actorId: user.id,
+      });
+
       // Update the return record
       await supabase
         .from("order_returns")
@@ -844,33 +872,6 @@ const AdminFinance = () => {
           status: "settled",
         })
         .eq("id", ret.id);
-
-      // Credit company wallet
-      if (companyId && ret.order_id && user?.id) {
-        const binding = await resolveCreditBinding(ret.order_id);
-        const identity = buildWalletIdentity({
-          companyId,
-          direction: "credit",
-          amount: creditValue,
-          currency: "INR",
-          orderId: ret.order_id,
-          proformaInvoiceId: binding.piId,
-          commercialVersionId: binding.commercialVersionId,
-          sourceChannel: "CENTRAL_FINANCE",
-          sourceReference: `order-return:${ret.id}`,
-          reason: "Approved order return wallet credit",
-        });
-        await recordWalletEntry({
-          companyId, direction: "credit", amount: creditValue, currency: "INR",
-          orderId: ret.order_id, proformaInvoiceId: binding.piId, commercialVersionId: binding.commercialVersionId,
-          sourceChannel: "CENTRAL_FINANCE", sourceReference: `order-return:${ret.id}`,
-          reason: "Approved order return wallet credit",
-          correlationId: await buildCreditWalletCorrelationId("wallet", identity),
-          idempotencyKey: await buildCreditWalletIdempotencyKey("wallet", identity), actorId: user.id,
-        });
-      } else if (creditValue > 0) {
-        throw new Error("A governed order/PI/commercial-version binding is required before wallet credit.");
-      }
 
       // Audit log
       await supabase.from("audit_logs").insert({
@@ -884,6 +885,7 @@ const AdminFinance = () => {
           loss_amount: lossAmount > 0 ? lossAmount : 0,
           company_id: companyId,
           product_id: ret.product_id,
+          resulting_wallet_balance: wallet.balance,
         },
       });
 

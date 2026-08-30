@@ -327,6 +327,31 @@ const AdminPackingDispatch = () => {
         return;
       }
 
+      // Record the canonical wallet fact before any durable dispatch/packing writes.
+      // Core idempotency makes a retry resumable if a later write fails.
+      let resultingWalletBalance: number | null = null;
+      if (Math.abs(varianceAmount) > 0.01 && selectedOrder.company_id) {
+        const txType = varianceAmount > 0 ? "credit" : "debit";
+        const desc = varianceAmount > 0
+          ? `Refund ₹${varianceAmount.toFixed(2)} for short-weight variance on Order ${selectedOrder.id.slice(0, 8)}`
+          : `Charge ₹${Math.abs(varianceAmount).toFixed(2)} for over-weight variance on Order ${selectedOrder.id.slice(0, 8)}`;
+        if (!user?.id) throw new Error("Authenticated actor required for wallet adjustment");
+        const binding = await resolveCreditBinding(selectedOrder.id);
+        const identity = buildWalletIdentity({
+          companyId: selectedOrder.company_id, direction: txType, amount: Math.abs(varianceAmount), currency: "INR",
+          orderId: selectedOrder.id, proformaInvoiceId: binding.piId, commercialVersionId: binding.commercialVersionId,
+          sourceChannel: "CENTRAL_PACKING", sourceReference: `weight-variance:${selectedOrder.id}`, reason: desc,
+        });
+        const wallet = await recordWalletEntry({
+          companyId: selectedOrder.company_id, direction: txType, amount: Math.abs(varianceAmount), currency: "INR",
+          orderId: selectedOrder.id, proformaInvoiceId: binding.piId, commercialVersionId: binding.commercialVersionId,
+          sourceChannel: "CENTRAL_PACKING", sourceReference: `weight-variance:${selectedOrder.id}`, reason: desc,
+          correlationId: await buildCreditWalletCorrelationId("wallet", identity),
+          idempotencyKey: await buildCreditWalletIdempotencyKey("wallet", identity), actorId: user.id,
+        });
+        resultingWalletBalance = wallet.balance;
+      }
+
       // 1. Create dispatch record (partial legs are flagged; full closure drives order status + security gate)
       const { data: dispatch, error: dispErr } = await supabase.from("dispatches").insert({
         order_id: selectedOrder.id, company_id: selectedOrder.company_id,
@@ -355,29 +380,8 @@ const AdminPackingDispatch = () => {
 
       // Partial leg only — orders.status → dispatched is governed via Phase 4E (never here).
 
-      // 4. Wallet reconciliation if variance exists
-      if (Math.abs(varianceAmount) > 0.01 && selectedOrder.company_id) {
-        // varianceAmount > 0 means final < original → credit (refund)
-        // varianceAmount < 0 means final > original → debit (charge)
-        const txType = varianceAmount > 0 ? "credit" : "debit";
-        const desc = varianceAmount > 0
-          ? `Refund ₹${varianceAmount.toFixed(2)} for short-weight variance on Order ${selectedOrder.id.slice(0, 8)}`
-          : `Charge ₹${Math.abs(varianceAmount).toFixed(2)} for over-weight variance on Order ${selectedOrder.id.slice(0, 8)}`;
-        if (!user?.id) throw new Error("Authenticated actor required for wallet adjustment");
-        const binding = await resolveCreditBinding(selectedOrder.id);
-        const identity = buildWalletIdentity({
-          companyId: selectedOrder.company_id, direction: txType, amount: Math.abs(varianceAmount), currency: "INR",
-          orderId: selectedOrder.id, proformaInvoiceId: binding.piId, commercialVersionId: binding.commercialVersionId,
-          sourceChannel: "CENTRAL_PACKING", sourceReference: `weight-variance:${selectedOrder.id}`, reason: desc,
-        });
-        const wallet = await recordWalletEntry({
-          companyId: selectedOrder.company_id, direction: txType, amount: Math.abs(varianceAmount), currency: "INR",
-          orderId: selectedOrder.id, proformaInvoiceId: binding.piId, commercialVersionId: binding.commercialVersionId,
-          sourceChannel: "CENTRAL_PACKING", sourceReference: `weight-variance:${selectedOrder.id}`, reason: desc,
-          correlationId: await buildCreditWalletCorrelationId("wallet", identity),
-          idempotencyKey: await buildCreditWalletIdempotencyKey("wallet", identity), actorId: user.id,
-        });
-
+      // 4. Wallet reconciliation was recorded before durable dispatch writes.
+      if (resultingWalletBalance !== null) {
         // Also log to audit_logs for traceability
         await supabase.from("audit_logs").insert({
           module_name: "dispatch",
@@ -390,7 +394,7 @@ const AdminPackingDispatch = () => {
             finalInvoiceTotal,
             originalInvoiceTotal,
             varianceAmount,
-            resulting_wallet_balance: wallet.balance,
+            resulting_wallet_balance: resultingWalletBalance,
             items: modalItems.map((i) => ({
               id: i.id,
               original_weight: i.original_weight_kg,

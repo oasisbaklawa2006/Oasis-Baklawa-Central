@@ -99,6 +99,12 @@ function bounded(value: string, field: string): string {
   return normalized;
 }
 
+function stableIdentity(value: string, purpose: string): string {
+  const normalized = value.trim();
+  if (!normalized) throw new CreditWalletAuthorityError(`A stable PF-6B identity is required for ${purpose}`);
+  return normalized;
+}
+
 function actor(actorId: string): string { return bounded(actorId, "authenticated actor"); }
 
 function requiredNumber(value: unknown, field: string): number {
@@ -132,11 +138,11 @@ async function sha256Hex(value: string): Promise<string> {
 }
 
 export async function buildCreditWalletIdempotencyKey(operation: string, identity: string): Promise<string> {
-  return `central:pf6b:${bounded(operation, "operation").toLowerCase()}:${await sha256Hex(bounded(identity, "authority identity"))}`;
+  return `central:pf6b:${bounded(operation, "operation").toLowerCase()}:${await sha256Hex(stableIdentity(identity, "idempotency"))}`;
 }
 
 export async function buildCreditWalletCorrelationId(operation: string, identity: string): Promise<string> {
-  return `central:pf6b:${bounded(operation, "operation").toLowerCase()}:${await sha256Hex(`correlation:${bounded(identity, "authority identity")}`)}`;
+  return `central:pf6b:${bounded(operation, "operation").toLowerCase()}:${await sha256Hex(`correlation:${stableIdentity(identity, "correlation")}`)}`;
 }
 
 export function buildWalletIdentity(input: Omit<WalletEntryInput, "correlationId" | "idempotencyKey" | "actorId">): string {
