@@ -50,9 +50,9 @@ const DISCREPANCY_RESOLUTION_STATUSES = ["supplier_contacted", "awaiting_credit"
 // quarantine/damaged/rejected/return-to-vendor stock, and vice versa --
 // this mirrors allocate_b2b_inventory_putaway's own storage-class check
 // exactly, so the picker can never offer a bin the RPC would reject.
+const RESTRICTED_STORAGE_CLASSES = new Set(["quarantine", "damaged", "rejected", "return_to_vendor"]);
 function isEligibleBin(bin: Bin, disposition: "accepted" | "damaged" | "rejected"): boolean {
-  const restricted = new Set(["quarantine", "damaged", "rejected", "return_to_vendor"]);
-  return disposition === "accepted" ? !restricted.has(bin.storage_class) : bin.storage_class !== "ambient";
+  return disposition === "accepted" ? !RESTRICTED_STORAGE_CLASSES.has(bin.storage_class) : bin.storage_class !== "ambient";
 }
 
 const terminalStatuses = new Set(["accepted", "rejected", "cancelled"]);
@@ -91,7 +91,9 @@ export default function InventoryReceiving() {
         receiptIds.length
           ? fulfilmentDb.from("b2b_inventory_grns").select("receipt_id, grn_number, status, finalised_at").in("receipt_id", receiptIds).order("created_at", { ascending: false })
           : { data: [], error: null },
-        fulfilmentDb.from("b2b_inventory_bins").select("id, store_code, zone_code, rack_code, shelf_code, bin_code, storage_class, active").eq("active", true).order("bin_code", { ascending: true }),
+        nextReceipts.length
+          ? fulfilmentDb.from("b2b_inventory_bins").select("id, store_code, zone_code, rack_code, shelf_code, bin_code, storage_class, active").eq("active", true).in("store_code", Array.from(new Set(nextReceipts.map((receipt) => receipt.destination_store_code)))).order("bin_code", { ascending: true })
+          : { data: [], error: null },
         lineIds.length
           ? fulfilmentDb.from("b2b_supplier_discrepancies").select("id, receipt_line_id, discrepancy_type, quantity, status, resolution, resolved_at, created_at").in("receipt_line_id", lineIds).order("created_at", { ascending: false })
           : { data: [], error: null },
@@ -309,19 +311,24 @@ function SupplierDiscrepancyPanel({ lines, discrepancies, reload }: { lines: Rec
 
   const setResolutionText = (id: string, value: string) => setResolutionById((current) => new Map(current).set(id, value));
   const setResolutionStatus = (id: string, value: string) => setStatusById((current) => new Map(current).set(id, value));
+  const clearResolutionEdits = (id: string) => {
+    setResolutionById((current) => { const next = new Map(current); next.delete(id); return next; });
+    setStatusById((current) => { const next = new Map(current); next.delete(id); return next; });
+  };
+  const defaultStatusFor = (discrepancy: Discrepancy) => (DISCREPANCY_RESOLUTION_STATUSES as readonly string[]).includes(discrepancy.status) ? discrepancy.status : "resolved";
 
   const resolve = async (discrepancy: Discrepancy) => {
-    const resolution = (resolutionById.get(discrepancy.id) ?? "").trim();
+    const resolution = (resolutionById.get(discrepancy.id) ?? discrepancy.resolution ?? "").trim();
     if (!resolution) { setActionError("Enter resolution notes before submitting."); return; }
     setBusyId(discrepancy.id); setActionError(null);
     try {
       const { error } = await fulfilmentDb.rpc("resolve_b2b_supplier_discrepancy", {
         p_discrepancy_id: discrepancy.id,
         p_resolution: resolution,
-        p_status: statusById.get(discrepancy.id) ?? "resolved",
+        p_status: statusById.get(discrepancy.id) ?? defaultStatusFor(discrepancy),
       });
       if (error) setActionError(error.message);
-      else { setResolutionText(discrepancy.id, ""); await reload(); }
+      else { clearResolutionEdits(discrepancy.id); await reload(); }
     } catch (cause) {
       setActionError(cause instanceof Error ? cause.message : "Discrepancy resolution failed");
     } finally {
@@ -352,8 +359,8 @@ function SupplierDiscrepancyPanel({ lines, discrepancies, reload }: { lines: Rec
               </div>
               {discrepancy.resolution && <p className="text-xs text-muted-foreground">Resolution: {discrepancy.resolution}{discrepancy.resolved_at ? ` · ${new Date(discrepancy.resolved_at).toLocaleDateString()}` : ""}</p>}
               {open && <div className="grid gap-2 sm:grid-cols-[1fr_180px_auto]">
-                <input className="rounded border bg-background px-2 py-2 text-sm" placeholder="Resolution notes" value={resolutionById.get(discrepancy.id) ?? ""} onChange={(event) => setResolutionText(discrepancy.id, event.target.value)} aria-label={`Resolution notes for ${discrepancy.discrepancy_type}`} />
-                <select className="rounded border bg-background px-2 py-2 text-sm" value={statusById.get(discrepancy.id) ?? "resolved"} onChange={(event) => setResolutionStatus(discrepancy.id, event.target.value)} aria-label={`Resolution status for ${discrepancy.discrepancy_type}`}>
+                <input className="rounded border bg-background px-2 py-2 text-sm" placeholder="Resolution notes" value={resolutionById.get(discrepancy.id) ?? discrepancy.resolution ?? ""} onChange={(event) => setResolutionText(discrepancy.id, event.target.value)} aria-label={`Resolution notes for ${discrepancy.discrepancy_type}`} />
+                <select className="rounded border bg-background px-2 py-2 text-sm" value={statusById.get(discrepancy.id) ?? defaultStatusFor(discrepancy)} onChange={(event) => setResolutionStatus(discrepancy.id, event.target.value)} aria-label={`Resolution status for ${discrepancy.discrepancy_type}`}>
                   {DISCREPANCY_RESOLUTION_STATUSES.map((status) => <option key={status} value={status}>{status.replace(/_/g, " ")}</option>)}
                 </select>
                 <Button size="sm" disabled={busyId !== null} onClick={() => void resolve(discrepancy)}>{busyId === discrepancy.id ? "Saving…" : "Save"}</Button>

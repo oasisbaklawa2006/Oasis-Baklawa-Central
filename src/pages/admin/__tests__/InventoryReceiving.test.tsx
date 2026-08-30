@@ -180,6 +180,21 @@ describe("InventoryReceiving supplier discrepancy workspace", () => {
     expect(screen.queryByLabelText(`Resolution notes for ${discrepancyRow.discrepancy_type}`)).toBeNull();
   });
 
+  it("pre-populates the resolution form from an in-progress discrepancy's existing notes and status, so a follow-up save cannot silently discard prior history", async () => {
+    discrepancyResult = [{ ...discrepancyRow, status: "supplier_contacted", resolution: "Called supplier once, awaiting callback" }];
+    render(<MemoryRouter><InventoryReceiving /></MemoryRouter>);
+    await screen.findByText("Supplier discrepancies");
+    expect(screen.getByLabelText(`Resolution notes for ${discrepancyRow.discrepancy_type}`)).toHaveValue("Called supplier once, awaiting callback");
+    expect(screen.getByLabelText(`Resolution status for ${discrepancyRow.discrepancy_type}`)).toHaveValue("supplier_contacted");
+
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    await waitFor(() => expect(rpcMock).toHaveBeenCalledWith("resolve_b2b_supplier_discrepancy", {
+      p_discrepancy_id: "disc-1",
+      p_resolution: "Called supplier once, awaiting callback",
+      p_status: "supplier_contacted",
+    }));
+  });
+
   it("requires resolution notes before resolving, and never infers resolution from mere interaction", async () => {
     render(<MemoryRouter><InventoryReceiving /></MemoryRouter>);
     await screen.findByText("Supplier discrepancies");
