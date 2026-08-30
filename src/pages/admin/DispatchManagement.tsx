@@ -237,7 +237,7 @@ export default function DispatchManagement() {
       setCartons([]);
       setConsignmentLines([]);
       setDplVersions([]);
-      setSupersessionReasons({});
+      setSupersessionReasons(new Map());
       return;
     }
     setWorkingLoading(true);
