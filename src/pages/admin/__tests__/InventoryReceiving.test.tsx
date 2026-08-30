@@ -165,7 +165,8 @@ describe("InventoryReceiving supplier discrepancy workspace", () => {
       { id: "disc-2", receipt_line_id: "line-1", discrepancy_type: "shortage", quantity: 1, status: "resolved", resolution: "Credit issued by supplier", resolved_at: "2026-08-21T00:00:00.000Z", created_at: "2026-08-20T00:00:00.000Z" },
     ];
     render(<MemoryRouter><InventoryReceiving /></MemoryRouter>);
-    const discrepancyPanel = (await screen.findByText("Supplier discrepancies")).closest("section") as HTMLElement;
+    await screen.findByText("Supplier discrepancies");
+    const discrepancyPanel = screen.getByTestId("supplier-discrepancy-panel");
     const openBadge = within(discrepancyPanel).getByText("open", { selector: "div" });
     const resolvedBadge = within(discrepancyPanel).getByText("resolved", { selector: "div" });
     expect(openBadge.className).not.toEqual(resolvedBadge.className);
@@ -209,7 +210,7 @@ describe("InventoryReceiving supplier discrepancy workspace", () => {
     fireEvent.click(screen.getByRole("button", { name: "Save" }));
 
     expect(await screen.findByText("Not authorised")).toBeTruthy();
-    const discrepancyPanel = screen.getByText("Supplier discrepancies").closest("section") as HTMLElement;
+    const discrepancyPanel = screen.getByTestId("supplier-discrepancy-panel");
     expect(within(discrepancyPanel).getByText("open")).toBeTruthy();
   });
 

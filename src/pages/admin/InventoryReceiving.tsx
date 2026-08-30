@@ -332,7 +332,7 @@ function SupplierDiscrepancyPanel({ lines, discrepancies, reload }: { lines: Rec
   if (!discrepancies.length) return null;
 
   return (
-    <section className="space-y-3 rounded-lg border border-destructive/25 bg-destructive/[0.03] p-4">
+    <section data-testid="supplier-discrepancy-panel" className="space-y-3 rounded-lg border border-destructive/25 bg-destructive/[0.03] p-4">
       <div>
         <h2 className="flex items-center gap-2 text-sm font-semibold"><Scale className="h-4 w-4 text-destructive" />Supplier discrepancies</h2>
         <p className="text-xs text-muted-foreground">Raised automatically from received-vs-ordered variance. Status reflects only authoritative resolution.</p>
