@@ -446,7 +446,8 @@ export default function DispatchManagement() {
     try {
       let photoRef = selectedCarton?.open_photo_ref ?? null;
       if (evidencePhoto) {
-        const path = `dispatch-carton-evidence/${selectedCartonId}/${Date.now()}-${evidencePhoto.name}`;
+        const safeName = evidencePhoto.name.replace(/[^a-zA-Z0-9._-]/g, "_").replace(/^\.+/, "");
+        const path = `dispatch-carton-evidence/${selectedCartonId}/${Date.now()}-${safeName}`;
         const { error: uploadError } = await supabase.storage.from("receipts").upload(path, evidencePhoto);
         if (uploadError) throw new Error(uploadError.message ?? "Photo upload failed.");
         const { data: urlData } = supabase.storage.from("receipts").getPublicUrl(path);
