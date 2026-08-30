@@ -4,6 +4,11 @@ import type { Database, Json } from "@/integrations/supabase/types";
 type PublicFunctions = Database["public"]["Functions"];
 type RpcName = keyof PublicFunctions;
 
+/**
+ * Executes a generated customer RPC and preserves Core as the write authority.
+ * The typed name/argument/return contract prevents callers from inventing a
+ * second checkout or order-writer path.
+ */
 async function rpc<Name extends RpcName>(fn: Name, args?: PublicFunctions[Name]["Args"]): Promise<PublicFunctions[Name]["Returns"]> {
   const result = await supabase.rpc(fn, args as never);
   if (result.error) throw new Error(result.error.message);
@@ -145,6 +150,10 @@ export const customerAppClient = {
 
 let fallbackCheckoutKey: string | null = null;
 
+/**
+ * Returns the stable browser-session key used to make checkout retries
+ * idempotent when the first response is lost or a buyer double-clicks.
+ */
 export function getCheckoutIdempotencyKey(): string {
   const key = "oasis_buyer_checkout_idempotency";
   try {
@@ -161,6 +170,7 @@ export function getCheckoutIdempotencyKey(): string {
   }
 }
 
+/** Clears the checkout retry key after Core has acknowledged the submission. */
 export function clearCheckoutIdempotencyKey() {
   fallbackCheckoutKey = null;
   try { sessionStorage.removeItem("oasis_buyer_checkout_idempotency"); } catch { /* storage disabled */ }

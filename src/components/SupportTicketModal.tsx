@@ -12,12 +12,14 @@ interface Props {
 
 const issueTypes = ["Damaged Goods", "Missing Items", "Wrong Shipment"];
 
+/** Collects customer support context while delegating persistence to Core RPCs. */
 const SupportTicketModal = ({ open, onClose, orderId }: Props) => {
   const [issueType, setIssueType] = useState("");
   const [description, setDescription] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
 
+  /** Submits one governed support request and leaves the form retryable on error. */
   const handleSubmit = async () => {
     if (!issueType || !description.trim() || submitting) return;
     setSubmitting(true);

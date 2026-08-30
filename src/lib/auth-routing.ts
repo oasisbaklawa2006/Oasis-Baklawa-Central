@@ -121,11 +121,13 @@ export const BUYER_ROLES = new Set([
 const CLIENT_ROLES = BUYER_ROLES;
 
 // ─── Role type checks ─────────────────────────────────────────────────────────
+/** Reports whether a normalized role is allowed into an internal staff route. */
 export function isStaffRole(role?: string | null): boolean {
   const r = normalizeRole(role);
   return r ? STAFF_ROLES.has(r) : false;
 }
 
+/** Reports whether a normalized role is allowed into the customer storefront. */
 export function isStorefrontRole(role?: string | null): boolean {
   const r = normalizeRole(role);
   return r ? CLIENT_ROLES.has(r) : false;
@@ -140,6 +142,7 @@ export { normalizeRole };
 
 // ─── Route resolver ───────────────────────────────────────────────────────────
 // NEVER falls back to /admin for unknown roles — security risk
+/** Resolves a role to its governed landing route without an unsafe admin fallback. */
 export function getRoleDestination(role?: string | null): string {
   const r = normalizeRole(role);
 
@@ -155,12 +158,14 @@ export function getRoleDestination(role?: string | null): string {
 }
 
 // ─── Path check ───────────────────────────────────────────────────────────────
+/** Checks whether a pathname belongs to the role's governed route subtree. */
 export function normalizePathname(pathname: string): string {
   if (!pathname) return "/";
   const stripped = pathname.replace(/\/+$/, "");
   return stripped === "" ? "/" : stripped;
 }
 
+/** Confirms that the current path is valid for the supplied role destination. */
 export function isPathWithinRoleDestination(
   pathname: string,
   role?: string | null

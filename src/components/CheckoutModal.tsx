@@ -13,9 +13,14 @@ interface CheckoutModalProps {
 
 const formatPrice = (n: number) => "₹" + n.toLocaleString("en-IN");
 
+/**
+ * Presents a review hand-off only; Core calculates and commits the canonical
+ * order and advance when the buyer submits the governed cart.
+ */
 const CheckoutModal = ({ open, onClose, grandTotal }: CheckoutModalProps) => {
   const navigate = useNavigate();
 
+  /** Moves legacy callers into the canonical Buyer cart without writing orders. */
   const handleConfirm = async () => {
     onClose();
     navigate("/buyer/cart");

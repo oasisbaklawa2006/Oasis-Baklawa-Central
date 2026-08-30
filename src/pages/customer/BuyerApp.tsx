@@ -13,6 +13,7 @@ type Product = Pick<Database["public"]["Tables"]["products"]["Row"], "id" | "nam
 const money = (value: number | null | undefined) => `₹${Number(value || 0).toLocaleString("en-IN", { maximumFractionDigits: 2 })}`;
 const title = (p: Product | null | undefined) => p?.name || "Oasis product";
 
+/** Loads the customer-safe read models and refreshes them after governed actions. */
 function useBuyerData() {
   const [prices, setPrices] = useState<BuyerPrice[]>([]);
   const [products, setProducts] = useState<Product[]>([]);

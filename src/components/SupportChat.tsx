@@ -23,6 +23,7 @@ interface SupportChatProps {
   onClose: () => void;
 }
 
+/** Provides customer-safe support contact and chat without direct table writes. */
 const SupportChat = ({ open, onClose }: SupportChatProps) => {
   const [messages, setMessages] = useState<ChatMessage[]>(initialMessages);
   const [input, setInput] = useState("");
@@ -33,6 +34,7 @@ const SupportChat = ({ open, onClose }: SupportChatProps) => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
   }, [messages, streaming]);
 
+  /** Opens an approved contact channel; callback persistence belongs to Core. */
   const logCallback = async (channel: "phone" | "whatsapp") => {
     // Callback requests are intentionally non-mutating here. A customer-facing
     // component must not write audit or support tables directly; those writes
@@ -42,6 +44,7 @@ const SupportChat = ({ open, onClose }: SupportChatProps) => {
     toast.success(`${channel === "phone" ? "Call" : "WhatsApp"} channel opened.`);
   };
 
+  /** Streams an authenticated assistant response while keeping UI state local. */
   const handleSend = async () => {
     const text = input.trim();
     if (!text || streaming) return;
