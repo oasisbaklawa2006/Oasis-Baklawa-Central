@@ -8,6 +8,7 @@ import { productResolutionStateMatchesRequestKey } from "@/lib/wa-governance/pro
 import type { ProductResolutionAiInterpretation } from "@/lib/wa-governance/productResolutionTypes";
 import type { OperatorInboxProductResolutionState } from "./useOperatorInboxProductResolution";
 import { OperatorInboxAiDecisionDesk } from "./OperatorInboxAiDecisionDesk";
+import { ClarificationProductCandidateChips } from "./ClarificationProductCandidateChips";
 
 export function OperatorInboxProductResolutionPanel({ state, requestKey = null }: { state: OperatorInboxProductResolutionState; requestKey?: string | null }) {
   if (state.status === "idle") return null;
@@ -48,6 +49,7 @@ function ProductResolutionReadyBody({ state }: { state: Extract<OperatorInboxPro
   const summary = summarizeProductResolution(state.result);
   const { packetId, bestMatch, candidateProducts, band, aiInterpretation } = state.result;
   const alternatives = candidateProducts.slice(1, 4);
+  const observedOrderLine = aiInterpretation?.conclusion?.order_lines?.[0]?.product_name ?? null;
   return (
     <div className="space-y-3">
       {aiInterpretation ? <AiConclusionCard interpretation={aiInterpretation} /> : null}
@@ -55,7 +57,16 @@ function ProductResolutionReadyBody({ state }: { state: Extract<OperatorInboxPro
       <div className="flex flex-wrap items-center gap-2"><span className={productResolutionBandClassName(band)}>{productResolutionBandLabel(band)}</span>{bestMatch ? <span className="text-xs text-gray-500">Catalogue confidence {summary.confidenceLabel}</span> : null}</div>
       <div className="grid gap-2 text-sm text-gray-800 sm:grid-cols-2"><div><p className="text-xs font-medium uppercase tracking-wide text-gray-500">Catalogue-backed likely product</p><p>{summary.likelyProduct}</p></div><div><p className="text-xs font-medium uppercase tracking-wide text-gray-500">SKU</p><p>{summary.skuLabel}</p></div></div>
       {bestMatch?.reasons.length ? <div><p className="mb-1 text-xs font-medium uppercase tracking-wide text-gray-500">Why matched</p><ul className="list-inside list-disc space-y-0.5 text-xs text-gray-600">{bestMatch.reasons.map((reason) => <li key={reason}>{reason}</li>)}</ul></div> : <p className="text-sm text-gray-600">No confident catalogue match — review the AI conclusion and original evidence, then clarify before any write path is enabled.</p>}
-      {alternatives.length > 0 ? <div><p className="mb-1 text-xs font-medium uppercase tracking-wide text-gray-500">Alternative catalogue matches</p><ul className="space-y-1 text-xs text-gray-600">{alternatives.map((candidate) => <li key={candidate.productId}>{candidate.productName} · {candidate.confidence}% · {candidate.sku ?? "No SKU"}</li>)}</ul></div> : null}
+      {band === "needs_clarification" && packetId ? (
+        <ClarificationProductCandidateChips
+          packetId={packetId}
+          bestMatch={bestMatch}
+          alternatives={alternatives}
+          orderLineProductName={observedOrderLine}
+        />
+      ) : alternatives.length > 0 ? (
+        <div><p className="mb-1 text-xs font-medium uppercase tracking-wide text-gray-500">Alternative catalogue matches</p><ul className="space-y-1 text-xs text-gray-600">{alternatives.map((candidate) => <li key={candidate.productId}>{candidate.productName} · {candidate.confidence}% · {candidate.sku ?? "No SKU"}</li>)}</ul></div>
+      ) : null}
     </div>
   );
 }
