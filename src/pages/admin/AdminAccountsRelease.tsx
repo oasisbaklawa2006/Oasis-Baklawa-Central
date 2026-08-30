@@ -227,54 +227,9 @@ const AdminAccountsRelease = () => {
         packed_quantity: Number(pl.packed_quantity),
       }));
 
-      // Insert dispatch record
-      const { data: dispatchData, error: dispatchErr } = await supabase
-        .from("dispatches")
-        .insert({
-          order_id: orderId,
-          company_id: companyId,
-          transporter_name: tp,
-          tracking_number: lr,
-          driver_phone: driverPhone.trim() || null,
-          status: "dispatched",
-          dispatch_date: new Date().toISOString().split("T")[0],
-          proof_storage_path: proofPath,
-          is_partial: false,
-        })
-        .select("id")
-        .single();
-
-      if (dispatchErr) throw dispatchErr;
-      const dispatchId = dispatchData.id;
-
-      // Estimate cartons
-      const totalValue = gatePassOrder.sales_order_value ?? 0;
-      const totalBoxes = Math.max(1, Math.ceil(totalValue / 5000));
-
-      // Insert carton barcodes
-      const cartonRows = Array.from({ length: totalBoxes }, (_, i) => ({
-        order_id: orderId,
-        dispatch_id: dispatchId,
-        barcode_string: `OASIS-${orderId.slice(0, 8).toUpperCase()}-B${i + 1}`,
-        box_number: i + 1,
-        total_boxes: totalBoxes,
-        status: "labeled",
-      }));
-
-      await supabase.from("dispatch_cartons").insert(cartonRows);
-
-      // Insert freight ledger
-      await supabase.from("freight_ledger").insert({
-        order_id: orderId,
-        transporter_name: tp,
-        total_freight_amt: freightAmt,
-        advance_paid_amt: freightAdv,
-        balance_due_amt: freightAmt - freightAdv,
-        payment_status: freightAdv >= freightAmt ? "paid" : "pending",
-      });
-
-      // ═══ WALLET ENGINE: SO vs DPL reconciliation ═══
-      // Calculate actual packed value from packing list + product prices
+      // Preflight the canonical wallet fact before any new dispatch-side writes.
+      // The order + tracking number is the stable full-gate-pass leg identity used
+      // to make a lost response/retry resumable through Core idempotency.
       let dplValue = 0;
       if (packedItems.length > 0) {
         const productIds = packedItems.map((p) => p.product_id).filter(Boolean);
@@ -299,15 +254,16 @@ const AdminAccountsRelease = () => {
         // DPL < SO → Credit client wallet
         if (!user?.id) throw new Error("Authenticated actor required for wallet adjustment");
         const binding = await resolveCreditBinding(orderId);
+        const sourceReference = `dpl-variance:${orderId}:${lr}`;
         const identity = buildWalletIdentity({
           companyId, direction: "credit", amount: walletDiff, currency: "INR", orderId,
           proformaInvoiceId: binding.piId, commercialVersionId: binding.commercialVersionId,
-          sourceChannel: "CENTRAL_FINANCE", sourceReference: `dpl-variance:${orderId}`, reason: "DPL variance wallet credit",
+          sourceChannel: "CENTRAL_FINANCE", sourceReference, reason: "DPL variance wallet credit",
         });
         const wallet = await recordWalletEntry({
           companyId, direction: "credit", amount: walletDiff, currency: "INR", orderId,
           proformaInvoiceId: binding.piId, commercialVersionId: binding.commercialVersionId,
-          sourceChannel: "CENTRAL_FINANCE", sourceReference: `dpl-variance:${orderId}`, reason: "DPL variance wallet credit",
+          sourceChannel: "CENTRAL_FINANCE", sourceReference, reason: "DPL variance wallet credit",
           correlationId: await buildCreditWalletCorrelationId("wallet", identity),
           idempotencyKey: await buildCreditWalletIdempotencyKey("wallet", identity), actorId: user.id,
         });
@@ -332,6 +288,73 @@ const AdminAccountsRelease = () => {
           actor_id: user?.id,
           new_value: { so_value: soValue, dpl_value: dplValue, debit_amount: Math.abs(walletDiff) },
           risk_level: "high",
+        });
+      }
+
+      // Reuse a dispatch leg already created before a lost response/retry.
+      const { data: existingDispatch } = await supabase
+        .from("dispatches")
+        .select("id")
+        .eq("order_id", orderId)
+        .eq("tracking_number", lr)
+        .limit(1)
+        .maybeSingle();
+      let dispatchId = existingDispatch?.id ?? null;
+      if (!dispatchId) {
+        const { data: dispatchData, error: dispatchErr } = await supabase
+          .from("dispatches")
+          .insert({
+            order_id: orderId,
+            company_id: companyId,
+            transporter_name: tp,
+            tracking_number: lr,
+            driver_phone: driverPhone.trim() || null,
+            status: "dispatched",
+            dispatch_date: new Date().toISOString().split("T")[0],
+            proof_storage_path: proofPath,
+            is_partial: false,
+          })
+          .select("id")
+          .single();
+        if (dispatchErr || !dispatchData) throw dispatchErr ?? new Error("Dispatch record was not created");
+        dispatchId = dispatchData.id;
+      }
+      if (!dispatchId) throw new Error("Dispatch leg identity could not be resolved");
+
+      // Estimate cartons
+      const totalValue = gatePassOrder.sales_order_value ?? 0;
+      const totalBoxes = Math.max(1, Math.ceil(totalValue / 5000));
+
+      // Insert carton barcodes
+      const cartonRows = Array.from({ length: totalBoxes }, (_, i) => ({
+        order_id: orderId,
+        dispatch_id: dispatchId,
+        barcode_string: `OASIS-${orderId.slice(0, 8).toUpperCase()}-B${i + 1}`,
+        box_number: i + 1,
+        total_boxes: totalBoxes,
+        status: "labeled",
+      }));
+
+      const { count: cartonCount } = await supabase
+        .from("dispatch_cartons")
+        .select("id", { count: "exact", head: true })
+        .eq("dispatch_id", dispatchId);
+      if (!cartonCount) await supabase.from("dispatch_cartons").insert(cartonRows);
+
+      // Insert freight ledger
+      const { count: freightCount } = await supabase
+        .from("freight_ledger")
+        .select("id", { count: "exact", head: true })
+        .eq("order_id", orderId)
+        .eq("transporter_name", tp);
+      if (!freightCount) {
+        await supabase.from("freight_ledger").insert({
+          order_id: orderId,
+          transporter_name: tp,
+          total_freight_amt: freightAmt,
+          advance_paid_amt: freightAdv,
+          balance_due_amt: freightAmt - freightAdv,
+          payment_status: freightAdv >= freightAmt ? "paid" : "pending",
         });
       }
 
