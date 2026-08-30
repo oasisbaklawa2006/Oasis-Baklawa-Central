@@ -4,7 +4,6 @@ import { useAuth } from "@/hooks/useAuth";
 import { normalizeRole } from "@/lib/auth-routing";
 import {
   releaseOrderToInProduction,
-  updateOrderFinanceVerification,
   rejectOrderFinanceReview,
 } from "@/lib/order-authority/orderAuthorityClient";
 import {
@@ -224,34 +223,30 @@ const FinanceReleaseBoard = () => {
     else setRejectReason("");
   }, [reviewOrder]);
 
-  const runVerifyAction = async (kind: "verify" | "credit") => {
+  const runVerifyAction = async () => {
     if (!reviewOrder || !user) return;
     setActingId(reviewOrder.id);
     try {
-      if (kind === "credit") {
-        await updateOrderFinanceVerification(reviewOrder.id, "on_credit");
-      } else {
-        const paymentId = paymentIdByOrderId[reviewOrder.id];
-        if (!paymentId || !reviewOrder.payment_receipt_url) {
-          throw new Error("Canonical payment proof and governed payment facts are required before verification");
-        }
-        const binding = await resolvePaymentBinding(reviewOrder.id);
-        const facts = await getPaymentFacts(binding.piId);
-        const payment = facts.payments.find((candidate) => candidate.paymentId === paymentId && candidate.status === "uploaded");
-        if (!payment) throw new Error("Payment proof is no longer pending verification");
-        const correlationId = await buildPaymentCorrelationId("verify", paymentId);
-        await verifyPayment({
-          paymentId,
-          verifiedAmount: payment.submittedAmount,
-          verifiedReference: latestUtrByOrderId[reviewOrder.id] === "—" ? null : latestUtrByOrderId[reviewOrder.id],
-          verificationEvidenceReference: reviewOrder.payment_receipt_url,
-          reason: "Finance review",
-          correlationId,
-          idempotencyKey: await buildPaymentIdempotencyKey("verify", paymentId),
-          actorId: user.id,
-        });
+      const paymentId = paymentIdByOrderId[reviewOrder.id];
+      if (!paymentId || !reviewOrder.payment_receipt_url) {
+        throw new Error("Canonical payment proof and governed payment facts are required before verification");
       }
-      toast.success(kind === "verify" ? "Payment verified." : "Credit approved.");
+      const binding = await resolvePaymentBinding(reviewOrder.id);
+      const facts = await getPaymentFacts(binding.piId);
+      const payment = facts.payments.find((candidate) => candidate.paymentId === paymentId && candidate.status === "uploaded");
+      if (!payment) throw new Error("Payment proof is no longer pending verification");
+      const correlationId = await buildPaymentCorrelationId("verify", paymentId);
+      await verifyPayment({
+        paymentId,
+        verifiedAmount: payment.submittedAmount,
+        verifiedReference: latestUtrByOrderId[reviewOrder.id] === "—" ? null : latestUtrByOrderId[reviewOrder.id],
+        verificationEvidenceReference: reviewOrder.payment_receipt_url,
+        reason: "Finance review",
+        correlationId,
+        idempotencyKey: await buildPaymentIdempotencyKey("verify", paymentId),
+        actorId: user.id,
+      });
+      toast.success("Payment verified.");
       setReviewOrder(null);
       await loadBoard();
     } catch (e) {
@@ -752,14 +747,7 @@ const FinanceReleaseBoard = () => {
                 variant="secondary"
                 className="min-h-11 w-full touch-manipulation sm:w-auto"
                 disabled={!reviewOrder || actingId === reviewOrder?.id}
-                onClick={() => void runVerifyAction("credit")}
-              >
-                Approve Credit
-              </Button>
-              <Button
-                className="min-h-11 w-full touch-manipulation sm:w-auto"
-                disabled={!reviewOrder || actingId === reviewOrder?.id}
-                onClick={() => void runVerifyAction("verify")}
+                onClick={() => void runVerifyAction()}
               >
                 Verify
               </Button>

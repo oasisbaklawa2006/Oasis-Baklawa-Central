@@ -48,6 +48,16 @@ import {
   getShortTermCreditReleaseGuardMessages,
 } from "@/utils/financeReleaseState";
 import { FinanceReleaseChips } from "@/components/admin/FinanceReleaseChips";
+import {
+  buildCreditRequestIdentity,
+  buildCreditWalletCorrelationId,
+  buildCreditWalletIdempotencyKey,
+  buildWalletIdentity,
+  decideCreditRequest,
+  recordWalletEntry,
+  requestCredit,
+  resolveCreditBinding,
+} from "@/lib/order-authority/creditWalletAuthorityClient";
 
 interface FinanceOrder {
   id: string;
@@ -72,6 +82,9 @@ interface CreditRequest {
   status: string | null;
   created_at: string | null;
   requested_by: string | null;
+  order_id: string | null;
+  proforma_invoice_id: string | null;
+  commercial_version_id: string | null;
   company?: { business_name: string } | null;
   requester?: { full_name: string | null; email: string | null } | null;
 }
@@ -89,7 +102,7 @@ interface ReturnRecord {
   reason: string | null;
   created_at: string | null;
   product?: { name: string; base_price: number | null } | null;
-  order?: { company_id: string | null; company: { business_name: string; wallet_balance: number | null } | null } | null;
+  order?: { company_id: string | null; company: { business_name: string } | null } | null;
 }
 
 interface ScrutinyRecord {
@@ -239,19 +252,25 @@ const AdminFinance = () => {
     const { data, error } = await supabase
       .from("credit_requests")
       .select(
-        "id, company_id, credit_type, requested_amount, notes, status, created_at, requested_by, company:companies(business_name), requester:users!credit_requests_requested_by_fkey(full_name, email)",
+        "id, company_id, order_id, proforma_invoice_id, commercial_version_id, credit_type, requested_amount, notes, status, created_at, requested_by, company:companies(business_name), requester:users!credit_requests_requested_by_fkey(full_name, email)",
       )
       .eq("status", "pending")
       .order("created_at", { ascending: false });
 
-    if (!error && data) setCreditRequests(data as unknown as CreditRequest[]);
+    if (!error && data) {
+      // Historical requests without an exact SO/PI/version binding are retained
+      // in the database but cannot appear as actionable governed approvals.
+      setCreditRequests((data as unknown as CreditRequest[]).filter((request) =>
+        Boolean(request.order_id && request.proforma_invoice_id && request.commercial_version_id),
+      ));
+    }
   };
 
   const fetchReturns = async () => {
     const { data, error } = await supabase
       .from("order_returns")
       .select(
-        "id, order_id, product_id, quantity_returned, original_value, final_credit_value, loss_amount, admin_approval, status, reason, created_at, product:products(name, base_price), order:orders(company_id, company:companies(business_name, wallet_balance))"
+        "id, order_id, product_id, quantity_returned, original_value, final_credit_value, loss_amount, admin_approval, status, reason, created_at, product:products(name, base_price), order:orders(company_id, company:companies(business_name))"
       )
       .in("status", ["pending", "approved"])
       .order("created_at", { ascending: false });
@@ -334,6 +353,33 @@ const AdminFinance = () => {
       const expectedVal = scrutinyTarget.expected_value || 0;
       const lossAmount = expectedVal - settlementVal;
 
+      let resultingWalletBalance: number | null = null;
+      if (settlementVal > 0) {
+        if (!scrutinyTarget.company_id || !user?.id) throw new Error("Authenticated actor and company are required for wallet settlement");
+        const identity = buildWalletIdentity({
+          companyId: scrutinyTarget.company_id,
+          direction: "credit",
+          amount: settlementVal,
+          currency: "INR",
+          sourceChannel: "CENTRAL_FINANCE",
+          sourceReference: `inward-advice:${scrutinyTarget.id}`,
+          reason: "Inward material advice settlement",
+        });
+        const wallet = await recordWalletEntry({
+          companyId: scrutinyTarget.company_id,
+          direction: "credit",
+          amount: settlementVal,
+          currency: "INR",
+          sourceChannel: "CENTRAL_FINANCE",
+          sourceReference: `inward-advice:${scrutinyTarget.id}`,
+          reason: "Inward material advice settlement",
+          correlationId: await buildCreditWalletCorrelationId("wallet", identity),
+          idempotencyKey: await buildCreditWalletIdempotencyKey("wallet", identity),
+          actorId: user.id,
+        });
+        resultingWalletBalance = wallet.balance;
+      }
+
       // 1. Update inward_material_advice
       await supabase
         .from("inward_material_advice")
@@ -346,20 +392,6 @@ const AdminFinance = () => {
           settled_at: new Date().toISOString(),
         })
         .eq("id", scrutinyTarget.id);
-
-      // 2. Credit company wallet
-      if (scrutinyTarget.company_id && settlementVal > 0) {
-        const { data: comp } = await supabase
-          .from("companies")
-          .select("wallet_balance")
-          .eq("id", scrutinyTarget.company_id)
-          .single();
-        const currentBal = comp?.wallet_balance || 0;
-        await supabase
-          .from("companies")
-          .update({ wallet_balance: currentBal + settlementVal })
-          .eq("id", scrutinyTarget.company_id);
-      }
 
       // 3. Audit log
       await supabase.from("audit_logs").insert({
@@ -375,6 +407,7 @@ const AdminFinance = () => {
           loss: lossAmount > 0 ? lossAmount : 0,
           fault_attribution: scrutinyFault,
           fault_department: scrutinyFault === "Manufacturing Defect" ? scrutinyDept : null,
+          resulting_wallet_balance: resultingWalletBalance,
         },
       });
 
@@ -622,16 +655,6 @@ const AdminFinance = () => {
         return;
       }
 
-      // Credit lock check before release
-      if (liveOrder.company_id) {
-        const lockResult = await checkCreditLock(liveOrder.company_id, liveSOValue);
-        if (lockResult.locked) {
-          toast.error(`🔒 Credit Lock: ${lockResult.reason}`);
-          setSavingEntry(false);
-          return;
-        }
-      }
-
       if (!financialEntry.receiptUrl) {
         throw new Error("Canonical payment proof requires an uploaded receipt before verification");
       }
@@ -700,29 +723,32 @@ const AdminFinance = () => {
         setSavingShortTerm(false);
         return;
       }
-      await releaseOrderToManufacturing(shortTermTarget.id, "short_term_credit");
-      await supabase.from("credit_requests").insert({
-        company_id: shortTermTarget.company_id,
-        requested_by: user?.id,
-        requested_amount: shortTermTarget.sales_order_value ?? 0,
-        credit_type: "short_term_so",
-        notes: `Auto-release with ${days}-day deadline`,
-        status: "approved",
+      if (!shortTermTarget.company_id || !user?.id) throw new Error("Authenticated Finance actor and company are required");
+      const binding = await resolveCreditBinding(shortTermTarget.id);
+      const base = {
+        companyId: shortTermTarget.company_id,
+        orderId: shortTermTarget.id,
+        proformaInvoiceId: binding.piId,
+        commercialVersionId: binding.commercialVersionId,
+        creditType: "short_term_so" as const,
+        requestedAmount: shortTermTarget.sales_order_value ?? 0,
+        sourceChannel: "CENTRAL_FINANCE",
+        sourceReference: `central:short-term-credit:${shortTermTarget.id}`,
+        reason: `Short-term credit requested with ${days}-day deadline`,
+        expiresAt: new Date(Date.now() + days * 86_400_000).toISOString(),
+      };
+      const identity = buildCreditRequestIdentity(base);
+      const request = await requestCredit({
+        ...base,
+        correlationId: await buildCreditWalletCorrelationId("credit-request", identity),
+        idempotencyKey: await buildCreditWalletIdempotencyKey("credit-request", identity),
+        actorId: user.id,
       });
-      await supabase.from("audit_logs").insert({
-        action_type: "short_term_credit_release",
-        module_name: "Finance",
-        entity_name: "order",
-        entity_id: shortTermTarget.id,
-        actor_id: user?.id,
-        new_value: { deadline_days: days, order_value: shortTermTarget.sales_order_value },
-        risk_level: "high",
-      });
-      toast.success(`Released on ${days}-day short-term credit`);
+      toast.success(request.alreadyRequested ? "Existing governed short-term credit request restored." : `Short-term credit request submitted for Finance decision (${days}-day expiry).`);
       setShortTermTarget(null);
       setShortTermDays("");
       fetchOrders();
-    } catch { toast.error("Failed to issue credit."); }
+    } catch (error) { toast.error(error instanceof Error ? error.message : "Governed credit request failed."); }
     setSavingShortTerm(false);
   };
 
@@ -737,18 +763,6 @@ const AdminFinance = () => {
     const soVal = lineItems.reduce((s, i) => s + (i.quantity * (i.product?.price_per_kg || 0)), 0);
     const dplVal = lineItems.reduce((s, i) => s + ((i.actual_packed_qty ?? i.quantity) * (i.product?.price_per_kg || 0)), 0);
     setDplData({ soValue: soVal, dplValue: dplVal, items: lineItems });
-  };
-
-  // Credit limit hard lock check
-  const checkCreditLock = async (companyId: string, orderValue: number): Promise<{ locked: boolean; reason: string }> => {
-    const { data: company } = await supabase.from("companies").select("credit_limit, current_balance, allow_credit").eq("id", companyId).single();
-    if (!company?.allow_credit) return { locked: false, reason: "" };
-    const creditLimit = company.credit_limit ?? 0;
-    const outstanding = company.current_balance ?? 0;
-    if (outstanding + orderValue > creditLimit) {
-      return { locked: true, reason: `Outstanding (₹${outstanding.toLocaleString("en-IN")}) + Order (₹${orderValue.toLocaleString("en-IN")}) exceeds Credit Limit (₹${creditLimit.toLocaleString("en-IN")})` };
-    }
-    return { locked: false, reason: "" };
   };
 
   // Generate barcode ZPL label
@@ -771,22 +785,20 @@ const AdminFinance = () => {
   const handleCreditAction = async (req: CreditRequest, action: "approved" | "rejected") => {
     setActing(req.id);
     try {
-      // Update credit request status
-      await supabase
-        .from("credit_requests")
-        .update({ status: action })
-        .eq("id", req.id);
-
-      if (action === "approved" && req.company_id) {
-        // If long_term_limit, update the company's credit_limit
-        if (req.credit_type === "long_term_limit") {
-          await supabase
-            .from("companies")
-            .update({ credit_limit: req.requested_amount, allow_credit: true })
-            .eq("id", req.company_id);
-        }
-        // For short_term_so, just log it (no credit_limit change)
+      if (!user?.id) throw new Error("Authenticated Finance actor is required");
+      if (!req.order_id || !req.proforma_invoice_id || !req.commercial_version_id) {
+        throw new Error("This request has no exact SO/PI/commercial-version binding and is not eligible for governed decision.");
       }
+      const decisionIdentity = JSON.stringify([req.id, action, req.notes || ""]);
+      const decision = await decideCreditRequest({
+        requestId: req.id,
+        approve: action === "approved",
+        reason: req.notes?.trim() || `Finance ${action} decision`,
+        sourceChannel: "CENTRAL_FINANCE",
+        correlationId: await buildCreditWalletCorrelationId("credit-decision", decisionIdentity),
+        idempotencyKey: await buildCreditWalletIdempotencyKey("credit-decision", decisionIdentity),
+        actorId: user.id,
+      });
 
       // Audit log
       await supabase.from("audit_logs").insert({
@@ -803,14 +815,12 @@ const AdminFinance = () => {
         },
       });
 
-      toast.success(
-        action === "approved"
-          ? `Credit approved for ${req.company?.business_name}. ${req.credit_type === "long_term_limit" ? "Limit updated." : "Short-term SO logged."}`
-          : `Credit request rejected.`,
-      );
+      toast.success(decision.alreadyDecided ? `Existing governed ${decision.status} decision restored.` : action === "approved"
+        ? `Credit approved for ${req.company?.business_name}. No production release was performed.`
+        : "Credit request rejected.");
       fetchCreditRequests();
     } catch (err) {
-      toast.error("Action failed.");
+      toast.error(err instanceof Error ? err.message : "Governed credit decision failed.");
     }
     setActing(null);
   };
@@ -832,6 +842,31 @@ const AdminFinance = () => {
       const productValue = (ret.product?.base_price || 0) * ret.quantity_returned;
       const lossAmount = productValue - creditValue;
 
+      if (!companyId || !ret.order_id || !user?.id) {
+        throw new Error("A governed order/PI/commercial-version binding and authenticated actor are required before wallet credit.");
+      }
+      const binding = await resolveCreditBinding(ret.order_id);
+      const identity = buildWalletIdentity({
+        companyId,
+        direction: "credit",
+        amount: creditValue,
+        currency: "INR",
+        orderId: ret.order_id,
+        proformaInvoiceId: binding.piId,
+        commercialVersionId: binding.commercialVersionId,
+        sourceChannel: "CENTRAL_FINANCE",
+        sourceReference: `order-return:${ret.id}`,
+        reason: "Approved order return wallet credit",
+      });
+      const wallet = await recordWalletEntry({
+        companyId, direction: "credit", amount: creditValue, currency: "INR",
+        orderId: ret.order_id, proformaInvoiceId: binding.piId, commercialVersionId: binding.commercialVersionId,
+        sourceChannel: "CENTRAL_FINANCE", sourceReference: `order-return:${ret.id}`,
+        reason: "Approved order return wallet credit",
+        correlationId: await buildCreditWalletCorrelationId("wallet", identity),
+        idempotencyKey: await buildCreditWalletIdempotencyKey("wallet", identity), actorId: user.id,
+      });
+
       // Update the return record
       await supabase
         .from("order_returns")
@@ -843,15 +878,6 @@ const AdminFinance = () => {
           status: "settled",
         })
         .eq("id", ret.id);
-
-      // Credit company wallet
-      if (companyId) {
-        const currentBalance = ret.order?.company?.wallet_balance || 0;
-        await supabase
-          .from("companies")
-          .update({ wallet_balance: currentBalance + creditValue })
-          .eq("id", companyId);
-      }
 
       // Audit log
       await supabase.from("audit_logs").insert({
@@ -865,13 +891,14 @@ const AdminFinance = () => {
           loss_amount: lossAmount > 0 ? lossAmount : 0,
           company_id: companyId,
           product_id: ret.product_id,
+          resulting_wallet_balance: wallet.balance,
         },
       });
 
       toast.success(`₹${creditValue.toLocaleString("en-IN")} credited to wallet.`, { icon: "💰" });
       fetchReturns();
     } catch (err) {
-      toast.error("Failed to execute wallet credit.");
+      toast.error(err instanceof Error ? err.message : "Governed wallet credit failed.");
     }
     setActing(null);
   };
@@ -978,7 +1005,7 @@ const AdminFinance = () => {
             <p className="text-sm text-slate-400 mt-1">Approval, invoicing, and payment validation.</p>
           </div>
           <div className="text-right">
-            <p className="text-xs text-slate-400 uppercase tracking-widest font-bold">Total Exposure</p>
+            <p className="text-xs text-slate-400 uppercase tracking-widest font-bold">Total SO Value</p>
             <p className="text-2xl font-black text-[#B8860B]">{formatPrice(totalValueToday)}</p>
           </div>
         </div>
@@ -1729,26 +1756,36 @@ const AdminFinance = () => {
                         <button
                           onClick={async () => {
                             const creditAmt = (dplData.soValue - dplData.dplValue) * 1.18;
-                            if (!docOrder?.company_id) { toast.error("No company linked"); return; }
-                            const { data: co } = await supabase.from("companies").select("wallet_balance").eq("id", docOrder.company_id).single();
-                            const newBal = (co?.wallet_balance || 0) + creditAmt;
-                            await supabase.from("companies").update({ wallet_balance: newBal }).eq("id", docOrder.company_id);
-                            await supabase.from("audit_logs").insert([{
-                              action_type: "DPL_WALLET_CREDIT",
-                              module_name: "Finance",
-                              entity_name: "companies",
-                              entity_id: docOrder.company_id,
-                              actor_id: user?.id || null,
-                              new_value: {
-                                credit_amount: creditAmt,
-                                new_balance: newBal,
-                                order_id: docOrder.id,
-                                so_value: dplData.soValue,
-                                dpl_value: dplData.dplValue,
-                              },
-                              risk_level: "high",
-                            }]);
-                            toast.success(`✅ ₹${creditAmt.toLocaleString("en-IN")} credited to client wallet`);
+                            if (!docOrder?.company_id || !user?.id) { toast.error("Authenticated actor and company are required"); return; }
+                            try {
+                              const binding = await resolveCreditBinding(docOrder.id);
+                              const identity = buildWalletIdentity({
+                                companyId: docOrder.company_id, direction: "credit", amount: creditAmt, currency: "INR",
+                                orderId: docOrder.id, proformaInvoiceId: binding.piId, commercialVersionId: binding.commercialVersionId,
+                                sourceChannel: "CENTRAL_FINANCE", sourceReference: `dpl-variance:${docOrder.id}`,
+                                reason: "DPL variance wallet credit",
+                              });
+                              const wallet = await recordWalletEntry({
+                                companyId: docOrder.company_id, direction: "credit", amount: creditAmt, currency: "INR",
+                                orderId: docOrder.id, proformaInvoiceId: binding.piId, commercialVersionId: binding.commercialVersionId,
+                                sourceChannel: "CENTRAL_FINANCE", sourceReference: `dpl-variance:${docOrder.id}`,
+                                reason: "DPL variance wallet credit",
+                                correlationId: await buildCreditWalletCorrelationId("wallet", identity),
+                                idempotencyKey: await buildCreditWalletIdempotencyKey("wallet", identity), actorId: user.id,
+                              });
+                              await supabase.from("audit_logs").insert([{
+                                action_type: "DPL_WALLET_CREDIT",
+                                module_name: "Finance",
+                                entity_name: "companies",
+                                entity_id: docOrder.company_id,
+                                actor_id: user.id,
+                                new_value: { credit_amount: creditAmt, new_balance: wallet.balance, order_id: docOrder.id, so_value: dplData.soValue, dpl_value: dplData.dplValue },
+                                risk_level: "high",
+                              }]);
+                              toast.success(`✅ ₹${creditAmt.toLocaleString("en-IN")} credited to client wallet`);
+                            } catch (error) {
+                              toast.error(error instanceof Error ? error.message : "Governed wallet credit failed.");
+                            }
                           }}
                           className="w-full py-2.5 bg-emerald-600 text-white rounded-xl text-xs font-bold hover:bg-emerald-700 flex items-center justify-center gap-2"
                         >
@@ -2010,7 +2047,7 @@ const AdminFinance = () => {
                     placeholder="e.g. 15" />
                 </div>
                 <p className="text-xs text-slate-500 italic">
-                  This will release the order to production without advance payment. A credit record will be logged.
+                  This submits a governed short-term credit request for Finance decision. It does not release the order to production.
                 </p>
                 </div>
               </div>
@@ -2021,7 +2058,7 @@ const AdminFinance = () => {
                   disabled={savingShortTerm}
                   className="flex min-h-[3rem] w-full items-center justify-center gap-2 rounded-xl bg-violet-600 py-4 font-bold text-white shadow-xl shadow-violet-600/20 transition-all hover:bg-violet-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 focus-visible:ring-offset-2 active:scale-[0.99] disabled:opacity-60"
                 >
-                  {savingShortTerm ? <Loader2 size={18} className="animate-spin" /> : <><ShieldCheck size={18} /> Release on Credit</>}
+                  {savingShortTerm ? <Loader2 size={18} className="animate-spin" /> : <><ShieldCheck size={18} /> Submit Credit Request</>}
                 </button>
               </div>
             </motion.div>
