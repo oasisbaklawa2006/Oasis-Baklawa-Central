@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import type { Database } from "@/integrations/supabase/types";
 import { toast } from "sonner";
 import { Loader2, ChevronDown, Check, Lock, Truck, X, IndianRupee, FileText, Upload, ShieldCheck, AlertTriangle, CheckCircle2 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
@@ -39,14 +40,11 @@ import {
   resolveCreditBinding,
 } from "@/lib/order-authority/creditWalletAuthorityClient";
 
-interface FinanceOrder {
-  id: string; status: string; payment_status: string | null;
-  sales_order_value: number | null; advance_paid: number | null;
-  advance_required: number | null; company_id: string | null;
-  final_invoice_url?: string | null; eway_bill_number?: string | null;
-  payment_cleared?: boolean | null;
-  company?: { business_name: string; wallet_balance?: number | null } | null;
-}
+type FinanceOrder = Pick<
+  Database["public"]["Tables"]["orders"]["Row"],
+  "id" | "status" | "payment_status" | "sales_order_value" | "advance_paid" | "advance_required" |
+    "company_id" | "final_invoice_url" | "eway_bill_number" | "payment_cleared"
+> & { company?: { business_name: string; wallet_balance?: number | null } | null };
 
 type PaymentAction = "request_advance" | "request_balance" | "mark_fully_paid" | "issue_gate_pass";
 
@@ -140,7 +138,7 @@ const AdminAccountsRelease = () => {
       .select("id, status, payment_status, sales_order_value, advance_paid, advance_required, company_id, final_invoice_url, eway_bill_number, payment_cleared, company:companies(business_name)")
       .not("status", "in", '("draft","cart")')
       .order("created_at", { ascending: false });
-    const rows = (data as unknown as FinanceOrder[]) ?? [];
+    const rows: FinanceOrder[] = data ?? [];
     const enriched = await Promise.all(rows.map(async (order) => {
       if (!order.company_id || !order.company) return order;
       try {
