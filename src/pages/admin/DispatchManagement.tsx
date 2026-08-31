@@ -245,26 +245,26 @@ export default function DispatchManagement() {
     setWorkingLoading(true);
     try {
       const [cartonsRes, linesRes, dplRes, eventsRes] = await Promise.all([
-        dispatchDb
+        supabase
           .from("b2b_dispatch_cartons")
           .select(
             "id, carton_code, carton_sequence, status, net_weight, gross_weight, open_photo_ref, locked_by, locked_at, current_version",
           )
           .eq("consignment_id", consignmentId)
           .order("carton_sequence", { ascending: true }),
-        dispatchDb
+        supabase
           .from("b2b_dispatch_consignment_lines")
           .select("id, product_code, uom, accepted_ready_qty, packed_qty")
           .eq("consignment_id", consignmentId)
           .order("product_code", { ascending: true }),
-        dispatchDb
+        supabase
           .from("b2b_dispatch_packing_list_versions")
           .select(
             "id, version_number, status, submitted_to_finance_at, finance_check_state, superseded_by, generated_at, correlation_id",
           )
           .eq("consignment_id", consignmentId)
           .order("version_number", { ascending: false }),
-        dispatchDb
+        supabase
           .from("b2b_dispatch_events")
           .select("document_version_id, reason")
           .eq("consignment_id", consignmentId)
@@ -306,12 +306,12 @@ export default function DispatchManagement() {
     }
     try {
       const [itemsRes, eventsRes] = await Promise.all([
-        dispatchDb
+        supabase
           .from("b2b_dispatch_carton_items")
           .select("id, barcode_value, batch_lot, quantity, product_code, scanned_at")
           .eq("carton_id", cartonId)
           .order("scanned_at", { ascending: false }),
-        dispatchDb
+        supabase
           .from("b2b_dispatch_product_scan_events")
           .select("id, barcode_value, scan_result, reason, created_at")
           .eq("carton_id", cartonId)

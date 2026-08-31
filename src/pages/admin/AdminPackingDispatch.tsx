@@ -1,5 +1,5 @@
 import { useEffect, useState, useMemo } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Loader2, ArrowRight, Truck, PackageCheck, AlertTriangle, CheckCircle2, TrendingDown, TrendingUp, Minus, RefreshCw } from "lucide-react";
@@ -62,6 +62,7 @@ const AdminPackingDispatch = () => {
   const [tab, setTab] = useState<"packing" | "dispatch_ready" | "blocked">("packing");
   const [updating, setUpdating] = useState<string | null>(null);
   const { t } = useLanguage();
+  const navigate = useNavigate();
 
   const [selectedOrder, setSelectedOrder] = useState<DispatchOrder | null>(null);
   const [modalItems, setModalItems] = useState<ModalItem[]>([]);
@@ -264,36 +265,19 @@ const AdminPackingDispatch = () => {
 
   const handleSubmitDispatch = async () => {
     if (!selectedOrder) return;
-    const traceInput = {
-      status: selectedOrder.status,
-      payment_status: selectedOrder.payment_status,
-      advance_paid: selectedOrder.advance_paid,
-      advance_required: selectedOrder.advance_required,
-      sales_order_value: selectedOrder.sales_order_value,
-    };
-    if (!canReleaseOrderToDispatch(traceInput)) {
-      toast.error(getFinanceReleaseBlockers(traceInput).map((b) => b.message).join("; "));
-      return;
-    }
-    const tp = transporterName.trim();
-    const lr = trackingNumber.trim();
-    if (!tp) { toast.error("Transporter name is required"); return; }
-    if (!lr) { toast.error("LR / Bilty / AWB number is required"); return; }
-    if (!dispatchProofFile) { toast.error("Dispatch proof file is required"); return; }
-
     // FACT-C3: this dialog's carton/packing-list/packed-quantity capture is
     // a legacy B2B authority competing with the governed DispatchManagement
     // consignment/carton/DPL chain -- fail closed before any legacy write
     // (dispatches, packing_lists, order_items, wallet) can run, whether the
-    // leg is partial or full.
+    // leg is partial or full. This is the first check, not the last: no
+    // finance/transporter/proof validation matters when submission can
+    // never persist anything.
     const block = blockLegacyB2bCartonDplMutation("AdminPackingDispatch.handleSubmitDispatch");
     toast.error(block.message, {
       description: "Use governed Dispatch Management for carton, packing list and packed-quantity capture.",
       action: {
         label: "Open Dispatch Management",
-        onClick: () => {
-          window.location.assign(block.route);
-        },
+        onClick: () => navigate(block.route),
       },
     });
   };

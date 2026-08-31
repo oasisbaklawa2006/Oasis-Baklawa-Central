@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Loader2, ChevronDown, Check, Lock, Truck, X, IndianRupee, FileText, Upload, ShieldCheck, AlertTriangle, CheckCircle2 } from "lucide-react";
@@ -102,6 +103,7 @@ const AdminAccountsRelease = () => {
   const { user } = useAuth();
   const { t } = useLanguage();
   const { format } = useCurrency();
+  const navigate = useNavigate();
 
   // Logistics handover state
   const [gatePassOrder, setGatePassOrder] = useState<FinanceOrder | null>(null);
@@ -146,23 +148,18 @@ const AdminAccountsRelease = () => {
 
   const handleGatePassSubmit = async () => {
     if (!gatePassOrder) return;
-    const gateTrace = financeTraceInput(gatePassOrder);
-    if (!canReleaseOrderToDispatch(gateTrace)) {
-      toast.error(getFinanceReleaseBlockers(gateTrace).map((b) => b.message).join("; "));
-      return;
-    }
     // FACT-C3: gate-pass carton/dispatch/DPL creation here is a legacy B2B
     // authority competing with the governed DispatchManagement
     // consignment/carton/DPL chain -- fail closed before any legacy write
-    // (dispatches, dispatch_cartons, freight_ledger, wallet) can run.
+    // (dispatches, dispatch_cartons, freight_ledger, wallet) can run. This
+    // is the first check, not the last: no finance/transporter/freight
+    // validation matters when submission can never persist anything.
     const block = blockLegacyB2bCartonDplMutation("AdminAccountsRelease.handleGatePassSubmit");
     toast.error(block.message, {
       description: "Use governed Dispatch Management to create the consignment, cartons and packing list, then return here for Finance release.",
       action: {
         label: "Open Dispatch Management",
-        onClick: () => {
-          window.location.assign(block.route);
-        },
+        onClick: () => navigate(block.route),
       },
     });
   };

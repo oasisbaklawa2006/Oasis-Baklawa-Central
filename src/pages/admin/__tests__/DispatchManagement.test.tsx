@@ -99,6 +99,7 @@ vi.mock("@/integrations/supabase/client", () => ({
         getPublicUrl: () => ({ data: { publicUrl: "https://example.test/photo.jpg" } }),
       }),
     },
+    from: (table: string) => makeQuery(table),
   },
 }));
 
