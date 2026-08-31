@@ -80,22 +80,28 @@ pretend that path is complete.
 
 ### Tranche 3 verification evidence (current branch)
 
-- Buyer rendered/behavioral suite: **25 passed** (`BuyerApp.test.tsx` and
-  `customerPresentation.test.ts`) before the takeover hardening commit; the
-  post-takeover CI run is the authority for the final head.
-- `customerAppClient.test.ts` now locks the established support-ticket payload
-  vocabulary and fail-closed normalization for unrecognized Buyer labels.
-- Touched-file ESLint: **PASS**; TypeScript typecheck: **PASS**; production
-  build: **PASS** on the pre-takeover head; final-head CI must revalidate these.
-- Read-only local Playwright smoke at 375, 390 and 430 px: **PASS** for no
-  horizontal overflow and no console errors on the guarded Buyer entry route.
-- Full Vitest suite on the pre-takeover head: **1,687 passed / 5 historical
-  WhatsApp fixture assertions failed**. Those failures predate this tranche
-  and are outside the Buyer boundary; no WhatsApp code or fixture was changed.
-- Repository boundary script could not execute on the original Windows Codex
-  host because a Bash runtime was unavailable; the hosted repository ownership
-  workflow passed and no Core schema/migration file is introduced by this
-  tranche.
+- Final takeover head: `2930cb77d4f669d018ffc42129f52449b70c91d3`.
+- Hosted Release Quality Gate: **PASS**, including TypeScript, changed-file
+  ESLint, full unit/migration-contract tests, production build and Playwright
+  smoke.
+- Repository ownership boundary workflow: **PASS**.
+- CodeQL: **PASS** with no new alerts; JavaScript/TypeScript, Actions and Python
+  analysis jobs all completed successfully.
+- Codacy: **PASS** with zero annotations; Sourcery: **PASS** with no blocking
+  security findings; Snyk: **PASS**; CodeRabbit: **PASS**; Vercel: **PASS**.
+- GitHub Advanced Security AI review is an external-only failure: its configured
+  `claude-opus-4.6` request returns `CAPIError: 400 The requested model is not
+  supported`; ordinary CodeQL is green and this is not an application-code
+  failure.
+- Cursor Security Agent remains neutral because usage-based pricing is not
+  available for that external agent.
+- CircleCI did not emit a status context for PR #427 despite a valid repository
+  `.circleci/config.yml`; the active repository ruleset does not require a
+  CircleCI context, while the equivalent hosted Release Quality Gate fully
+  passed on the final head. CircleCI absence is tracked as integration signal,
+  not represented as a successful run.
+- All previously raised Sourcery review threads are resolved; final governance
+  still requires one human approving review after the final head push.
 
 ## Historical Tranche 2 baseline and owner-approved policy
 
@@ -228,7 +234,8 @@ wallet, advance, credit, PI, invoice or statement facts.
 - [x] Quick buy/reorder, catalogue/detail, cart/MOQ, checkout/order inward, order projections, order-linked support tickets, account context, alerts and Buyer loading/error/empty/mobile states are implemented and covered by the current branch checks.
 - [ ] General/non-order customer query inward requires a governed order-optional Core contract; do not create a Central shadow writer or SO.
 - [ ] Durable favourites, statements, customer-safe documents and richer Finance-backed commercial cards remain blocked on Core contracts and/or protected runtime proof.
-- [ ] Browser/Playwright golden-path evidence and production-runtime verification remain outstanding.
+- [ ] Authenticated production golden-path verification remains outstanding.
+- [x] Hosted Playwright PR smoke passed on the final takeover head.
 - [x] Production presence for the established Buyer RPC set is verified; full authenticated Core runtime/golden-path certification remains pending as a separate Mission Control gate.
 
 - [x] Buyer route tree and mobile shell are complete and connected to authenticated buyer context.
@@ -236,7 +243,7 @@ wallet, advance, credit, PI, invoice or statement facts.
 - [x] Submission uses only the governed Core checkout RPC with stable idempotency and retry-safe UI.
 - [x] Orders/status/items and order-linked support are customer-safe projections with correct empty/loading/error states.
 - [x] No authoritative Finance calculation or direct `orders`/`order_items`/support-table mutation remains in the Buyer path.
-- [x] Required frontend regression coverage, typecheck, lint and production build checks pass on the pre-takeover PR #427 head; final-head CI is required after takeover hardening.
+- [x] Required frontend regression coverage, typecheck, lint, production build and Playwright checks pass on final head `2930cb77d4f669d018ffc42129f52449b70c91d3`.
 - [x] Tranche 1 and Tranche 2 software implementation/merges are complete; production presence is verified for the established Buyer RPC set.
 - [ ] Any future surface that consumes a newer Core contract is held until that exact customer-safe contract is protected-deployed and verified in production.
 - [ ] Final golden paths are demonstrated: authenticated buyer order inward to canonical SO/Finance handoff, plus a governed non-order support/query path once its Core contract exists.
