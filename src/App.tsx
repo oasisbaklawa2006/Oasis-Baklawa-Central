@@ -95,7 +95,7 @@ const BarcodeExecutionPreview = lazy(() => import("./pages/admin/BarcodeExecutio
 const DispatchGovernedExecutionPreview = lazy(
   () => import("./pages/admin/DispatchGovernedExecutionPreview.tsx"),
 );
-const ThreePgsProcurementQueue = lazy(() => import("./pages/admin/ThreePgsProcurementQueue.tsx"));
+const ThreePgsProcurementQueue = lazy(() => import("./pages/admin/ThreePgsCommandCentrePage.tsx"));
 const ProductIntelligencePrototype = lazy(
   () => import("./pages/admin/ProductIntelligencePrototype.tsx"),
 );
