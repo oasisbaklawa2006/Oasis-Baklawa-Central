@@ -176,6 +176,7 @@ function ProductDetail({ data, productId }: { data: ReturnType<typeof useBuyerDa
 function Cart({ data }: { data: ReturnType<typeof useBuyerData> }) {
   const navigate = useNavigate();
   const [submitting, setSubmitting] = useState(false);
+  const [requestedDispatchDate, setRequestedDispatchDate] = useState("");
   const productById = useMemo(() => new Map(data.products.map((p) => [p.id, p])), [data.products]);
   const priceById = useMemo(() => new Map(data.prices.map((p) => [p.product_id, p])), [data.prices]);
   const lines = data.draft.filter(
@@ -183,7 +184,7 @@ function Cart({ data }: { data: ReturnType<typeof useBuyerData> }) {
   );
   const total = lines.reduce((sum, line) => sum + Number(line.quantity || 0) * Number(line.unit_price_snapshot || priceById.get(line.product_id)?.selling_price || 0), 0);
   const mutate = async (action: () => Promise<unknown>) => { try { await action(); await data.refresh(); } catch (e) { toast.error(e instanceof Error ? e.message : "Cart update failed"); } };
-  const submit = async () => { setSubmitting(true); try { const result = await customerAppClient.submit(getCheckoutIdempotencyKey()); const row = result?.[0]; if (!row) throw new Error("Checkout returned no order"); clearCheckoutIdempotencyKey(); toast.success(`Order ${row.order_number} submitted`); await data.refresh(); navigate(`/buyer/orders/${row.order_id}`); } catch (e) { toast.error(e instanceof Error ? e.message : "Order submission failed. You can safely retry."); } finally { setSubmitting(false); } };
+  const submit = async () => { setSubmitting(true); try { const result = await customerAppClient.submit(getCheckoutIdempotencyKey(), requestedDispatchDate || undefined); const row = result?.[0]; if (!row) throw new Error("Checkout returned no order"); clearCheckoutIdempotencyKey(); toast.success(`Order ${row.order_number} submitted`); await data.refresh(); navigate(`/buyer/orders/${row.order_id}`); } catch (e) { toast.error(e instanceof Error ? e.message : "Order submission failed. You can safely retry."); } finally { setSubmitting(false); } };
   return (
     <section className="space-y-5">
       <div className="flex items-center justify-between"><div><p className="text-sm text-muted-foreground">Review before submission</p><h1 className="text-2xl font-bold">Your cart</h1></div><button onClick={() => { void mutate(() => customerAppClient.clearDraft()); }} className="text-xs text-muted-foreground">Clear cart</button></div>
@@ -205,7 +206,7 @@ function Cart({ data }: { data: ReturnType<typeof useBuyerData> }) {
               );
             })}
           </div>
-          <div className="rounded-2xl border bg-card p-5"><div className="flex justify-between text-sm"><span>Authoritative preview subtotal</span><strong>{money(total)}</strong></div><p className="mt-2 text-xs text-muted-foreground">Final tax, charges and 30% upward-to-₹500 advance are resolved by Core at submission.</p><button disabled={submitting || data.draft[0]?.readiness_status !== "ready"} onClick={() => { void submit(); }} className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl bg-primary py-3 font-bold text-primary-foreground disabled:opacity-50">{submitting && <Loader2 size={16} className="animate-spin" />} {submitting ? "Submitting…" : "Submit order"}</button>{data.draft[0]?.readiness_status !== "ready" && <p className="mt-2 text-xs text-destructive">Resolve MOQ, carton or availability issues before submitting.</p>}</div>
+          <div className="rounded-2xl border bg-card p-5"><div className="flex justify-between text-sm"><span>Authoritative preview subtotal</span><strong>{money(total)}</strong></div><p className="mt-2 text-xs text-muted-foreground">Final tax, charges and 30% upward-to-₹500 advance are resolved by Core at submission.</p><label className="mt-4 block text-sm font-medium" htmlFor="buyer-requested-dispatch-date">Requested dispatch date <span className="font-normal text-muted-foreground">(optional)</span><input id="buyer-requested-dispatch-date" type="date" value={requestedDispatchDate} min={new Date().toISOString().slice(0, 10)} onChange={(event) => { setRequestedDispatchDate(event.target.value); }} className="mt-1 w-full rounded-xl border bg-background px-3 py-3 text-sm" /></label><p className="mt-2 text-xs text-muted-foreground">Core will validate and preserve this request on the governed order.</p><button disabled={submitting || data.draft[0]?.readiness_status !== "ready"} onClick={() => { void submit(); }} className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl bg-primary py-3 font-bold text-primary-foreground disabled:opacity-50">{submitting && <Loader2 size={16} className="animate-spin" />} {submitting ? "Submitting…" : "Submit order"}</button>{data.draft[0]?.readiness_status !== "ready" && <p className="mt-2 text-xs text-destructive">Resolve MOQ, carton or availability issues before submitting.</p>}</div>
         </>
       )}
     </section>
