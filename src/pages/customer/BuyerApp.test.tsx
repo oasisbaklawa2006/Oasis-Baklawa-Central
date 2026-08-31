@@ -246,7 +246,7 @@ describe("Buyer App governed commercial handoff", () => {
     expect((await screen.findAllByText("SKU SKU-1 · carton")).length).toBe(2);
     expect(screen.getAllByText(/line preview/).every((element) => element.textContent?.includes("₹12,500"))).toBe(true);
     expect(screen.getByText("Review your quantities before submitting")).toBeTruthy();
-    expect(screen.getByText("Meet the minimum order quantity shown for this product.")).toBeTruthy();
+    expect(screen.getByText("Minimum order is 1 carton.")).toBeTruthy();
     expect(screen.getByText("Review the quantity and carton requirements before submitting.")).toBeTruthy();
     expect(screen.getByRole("button", { name: "Submit order" })).toBeDisabled();
   });
