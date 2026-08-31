@@ -91,11 +91,13 @@ const rpcMock = vi.fn(async (_fn: string, _args: Record<string, unknown>) => ({
   error: null as { message: string } | null,
 }));
 
+const uploadMock = vi.fn(async (_path: string, _file: File) => ({ error: null as { message: string } | null }));
+
 vi.mock("@/integrations/supabase/client", () => ({
   supabase: {
     storage: {
       from: () => ({
-        upload: vi.fn(async () => ({ error: null })),
+        upload: (path: string, file: File) => uploadMock(path, file),
         getPublicUrl: () => ({ data: { publicUrl: "https://example.test/photo.jpg" } }),
       }),
     },
@@ -132,6 +134,8 @@ afterEach(() => {
   vi.clearAllMocks();
   rpcMock.mockReset();
   rpcMock.mockImplementation(async () => ({ data: null, error: null }));
+  uploadMock.mockReset();
+  uploadMock.mockImplementation(async () => ({ error: null }));
   resetFixtures();
 });
 
@@ -270,6 +274,24 @@ describe("DispatchManagement (FACT-C3 governed operator workflow)", () => {
         }),
       ),
     );
+  });
+
+  it("never derives the storage object key from the uploaded file's name", async () => {
+    render(<DispatchManagement />);
+    await screen.findByText("SO-2026-000001-DC-01");
+    await selectWorkingConsignment();
+    await selectCarton();
+    fireEvent.change(screen.getByLabelText("Net weight"), { target: { value: "1" } });
+    fireEvent.change(screen.getByLabelText("Gross weight"), { target: { value: "1.2" } });
+    const maliciousFile = new File(["x"], "../../outside.jpg", { type: "image/jpeg" });
+    fireEvent.change(screen.getByLabelText("Carton photo"), { target: { files: [maliciousFile] } });
+    fireEvent.click(screen.getByRole("button", { name: "Record evidence" }));
+
+    await waitFor(() => expect(uploadMock).toHaveBeenCalled());
+    const [uploadedPath] = uploadMock.mock.calls[0];
+    expect(uploadedPath).not.toContain("outside");
+    expect(uploadedPath).not.toContain("..");
+    expect(uploadedPath).toMatch(/^dispatch-carton-evidence\/carton-1\/\d+-[0-9a-f-]+\.jpg$/);
   });
 
   it("does not advance lock state when lock_b2b_dispatch_carton rejects a stale version", async () => {

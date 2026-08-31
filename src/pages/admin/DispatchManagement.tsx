@@ -460,10 +460,15 @@ export default function DispatchManagement() {
       toast.error("A carton photo is required.");
       return;
     }
+    const ALLOWED_PHOTO_TYPES: Record<string, string> = {
+      "image/jpeg": "jpg",
+      "image/png": "png",
+      "image/webp": "webp",
+      "image/heic": "heic",
+    };
     if (evidencePhoto) {
-      const ALLOWED_PHOTO_TYPES = new Set(["image/jpeg", "image/png", "image/webp", "image/heic"]);
       const MAX_PHOTO_BYTES = 10 * 1024 * 1024;
-      if (!ALLOWED_PHOTO_TYPES.has(evidencePhoto.type)) {
+      if (!(evidencePhoto.type in ALLOWED_PHOTO_TYPES)) {
         toast.error("Carton photo must be a JPEG, PNG, WEBP or HEIC image.");
         return;
       }
@@ -477,8 +482,8 @@ export default function DispatchManagement() {
     try {
       let photoRef = selectedCarton?.open_photo_ref ?? null;
       if (evidencePhoto) {
-        const safeName = evidencePhoto.name.replace(/[^a-zA-Z0-9._-]/g, "_").replace(/^\.+/, "");
-        const path = `dispatch-carton-evidence/${selectedCartonId}/${Date.now()}-${safeName}`;
+        const ext = ALLOWED_PHOTO_TYPES[evidencePhoto.type];
+        const path = `dispatch-carton-evidence/${selectedCartonId}/${Date.now()}-${crypto.randomUUID()}.${ext}`;
         const { error: uploadError } = await supabase.storage.from("receipts").upload(path, evidencePhoto);
         if (uploadError) throw new Error(uploadError.message ?? "Photo upload failed.");
         uploadedPath = path;
