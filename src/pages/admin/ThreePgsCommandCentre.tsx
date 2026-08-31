@@ -186,7 +186,7 @@ export default function ThreePgsCommandCentre() {
         <div className="flex flex-wrap gap-2">
           <Button asChild size="sm" variant="outline"><Link to="/admin/3pgs-procurement-queue">Open operator queue</Link></Button>
           <Button asChild size="sm" variant="outline"><Link to="/admin/inventory-receiving">Open receiving / GRN</Link></Button>
-          <Button size="sm" variant="outline" onClick={() => void load()} disabled={loading}>
+          <Button size="sm" variant="outline" onClick={() => { void load(); }} disabled={loading}>
             <RefreshCw className={`mr-1 h-4 w-4 ${loading ? "animate-spin" : ""}`} aria-hidden />Refresh
           </Button>
         </div>
@@ -218,7 +218,7 @@ export default function ThreePgsCommandCentre() {
         <Card>
           <CardHeader className="pb-2"><CardTitle className="text-sm">Stock position</CardTitle><CardDescription className="text-xs">No direct stock writes; buckets are read from inventory_stock_balances.</CardDescription></CardHeader>
           <CardContent>
-            <Input className="mb-3 h-8 max-w-xs text-xs" placeholder="Filter SKU" value={skuFilter} onChange={(event) => setSkuFilter(event.target.value)} />
+            <Input className="mb-3 h-8 max-w-xs text-xs" placeholder="Filter SKU" value={skuFilter} onChange={(event) => { setSkuFilter(event.target.value); }} />
             <div className="overflow-x-auto"><Table><TableHeader><TableRow><TableHead>SKU</TableHead><TableHead>Location</TableHead><TableHead className="text-right">Available</TableHead><TableHead className="text-right">Reserved</TableHead><TableHead className="text-right">Quarantine</TableHead></TableRow></TableHeader><TableBody>
               {filteredBalances.map((row) => <TableRow key={row.id}><TableCell>{row.sku}</TableCell><TableCell>{row.location_code}</TableCell><TableCell className="text-right">{fmt(row.available_qty)}</TableCell><TableCell className="text-right">{fmt(row.reserved_qty)}</TableCell><TableCell className="text-right">{fmt(row.quarantine_qty)}</TableCell></TableRow>)}
             </TableBody></Table></div>
