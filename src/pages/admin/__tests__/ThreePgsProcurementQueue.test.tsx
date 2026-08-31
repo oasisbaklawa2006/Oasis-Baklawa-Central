@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { toast } from "sonner";
-import ThreePgsProcurementQueue, { RECEIVING_CORRELATION_STORAGE_KEY } from "../ThreePgsProcurementQueue";
+import ThreePgsProcurementQueue, { RECEIVING_CORRELATION_STORAGE_KEY } from "../ThreePgsProcurementOperator";
 
 const demandRow = {
   demand_source_type: "pna" as const,
