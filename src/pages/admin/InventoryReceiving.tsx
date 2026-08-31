@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import ThreePgsInventoryExceptionPanel from "./ThreePgsInventoryExceptionPanel";
 
 // Temporary typed boundary for live Phase 2 relations pending regenerated
 // project-wide Supabase definitions.
@@ -183,6 +184,7 @@ export default function InventoryReceiving() {
               <PutawayAllocationPanel key={`allocate-${selected.id}`} receipt={selected} lines={selectedLines} tasks={selectedTasks} bins={selectedBins} reload={load} />
               <Phase4Panel key={selected.id} receipt={selected} tasks={selectedTasks} grn={selectedGrn} reload={load} />
               <SupplierDiscrepancyPanel key={`discrepancies-${selected.id}`} lines={selectedLines} discrepancies={selectedDiscrepancies} reload={load} />
+              <ThreePgsInventoryExceptionPanel key={`3pgs-exceptions-${selected.id}`} receiptId={selected.id} destinationStoreCode={selected.destination_store_code} grnFinalisedAt={selectedGrn?.finalised_at ?? null} reloadParent={load} />
               {!selectedLines.length && <Empty text="No receipt lines have been recorded." />}
             </div> : <Empty text="Select a receipt to inspect inward evidence." />}
           </CardContent>
