@@ -1,13 +1,36 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { rpcMock } = vi.hoisted(() => ({
+const {
+  rpcMock,
+  getUserMock,
+  resolvePaymentBindingMock,
+  getFinanceOperationsClearanceFactsMock,
+} = vi.hoisted(() => ({
   rpcMock: vi.fn(),
+  getUserMock: vi.fn(),
+  resolvePaymentBindingMock: vi.fn(),
+  getFinanceOperationsClearanceFactsMock: vi.fn(),
 }));
 
 vi.mock("@/integrations/supabase/client", () => ({
   supabase: {
     rpc: rpcMock,
+    auth: {
+      getUser: getUserMock,
+    },
   },
+}));
+
+vi.mock("@/lib/order-authority/paymentAuthorityClient", () => ({
+  resolvePaymentBinding: resolvePaymentBindingMock,
+}));
+
+vi.mock("@/lib/order-authority/financeClearanceAuthorityClient", () => ({
+  getFinanceOperationsClearanceFacts: getFinanceOperationsClearanceFactsMock,
+  decideFinanceOperationsClearance: vi.fn(),
+  buildFinanceOperationsDecisionIdentity: vi.fn(() => "identity"),
+  buildFinanceOperationsCorrelationId: vi.fn(async () => "correlation"),
+  buildFinanceOperationsIdempotencyKey: vi.fn(async () => "idempotency"),
 }));
 
 import {
@@ -23,6 +46,30 @@ import {
 describe("orderAuthorityClient", () => {
   beforeEach(() => {
     rpcMock.mockReset();
+    getUserMock.mockReset();
+    resolvePaymentBindingMock.mockReset();
+    getFinanceOperationsClearanceFactsMock.mockReset();
+
+    getUserMock.mockResolvedValue({ data: { user: { id: "finance-actor-1" } }, error: null });
+    resolvePaymentBindingMock.mockResolvedValue({
+      piId: "pi-1",
+      commercialVersionId: "version-1",
+    });
+    getFinanceOperationsClearanceFactsMock.mockResolvedValue({
+      orderId: "o1",
+      companyId: "company-1",
+      piId: "pi-1",
+      commercialVersionId: "version-1",
+      commercialValue: 1000,
+      requiredAdvance: 500,
+      verifiedPaymentAmount: 500,
+      walletAppliedAmount: 0,
+      approvedCreditAmount: 0,
+      coveredAmount: 500,
+      eligibleForOperationsClearance: true,
+      latestClearanceEventId: "clearance-1",
+      latestClearanceDecision: "GRANTED",
+    });
   });
 
   it("calls clear_order_for_dispatch_v1 RPC", async () => {
@@ -36,23 +83,24 @@ describe("orderAuthorityClient", () => {
     expect(result.ok).toBe(true);
   });
 
-  it("surfaces server blockers from manufacturing release", async () => {
+  it("surfaces server blockers from manufacturing release after Finance Operations Clearance", async () => {
     rpcMock.mockResolvedValue({
       data: {
         ok: false,
-        blockers: [{ code: "payment_not_cleared", message: "Payment must be verified" }],
+        blockers: [{ code: "manufacturing_blocked", message: "Manufacturing release blocked" }],
       },
       error: null,
     });
 
     await expect(
       releaseOrderToManufacturing("o1", "awaiting_receipt", 0, 1000),
-    ).rejects.toThrow("Payment must be verified");
+    ).rejects.toThrow("Manufacturing release blocked");
+
+    expect(getUserMock).toHaveBeenCalledTimes(1);
+    expect(resolvePaymentBindingMock).toHaveBeenCalledWith("o1");
+    expect(getFinanceOperationsClearanceFactsMock).toHaveBeenCalledWith("o1", "pi-1", "version-1");
     expect(rpcMock).toHaveBeenCalledWith("release_order_to_manufacturing_v1", {
       p_order_id: "o1",
-      p_payment_status: "awaiting_receipt",
-      p_advance_paid: 0,
-      p_sales_order_value: 1000,
     });
   });
 
