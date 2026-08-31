@@ -24,6 +24,41 @@ jobs:
       - run:
           name: Unit tests
           command: npm test
+      - run:
+          name: Production build
+          command: npm run build
+      - run:
+          name: Install Chromium
+          command: npx playwright install --with-deps chromium
+      - run:
+          name: Start PR build locally
+          background: true
+          command: |
+            set -euo pipefail
+            npm run preview -- --host 127.0.0.1 --port 4173 > /tmp/vite-preview.log 2>&1
+      - run:
+          name: Wait for PR build
+          command: |
+            set -euo pipefail
+            for attempt in $(seq 1 30); do
+              if curl --fail --silent http://127.0.0.1:4173 >/dev/null; then
+                exit 0
+              fi
+              sleep 1
+            done
+            cat /tmp/vite-preview.log
+            exit 1
+      - run:
+          name: Playwright PR smoke
+          environment:
+            APP_URL: http://127.0.0.1:4173
+            TEST_PREVIEW_URL: http://127.0.0.1:4173
+          command: npx playwright test tests/visual-audit.spec.ts --project=desktop-chrome-size --trace=on
+      - store_artifacts:
+          path: playwright-report
+      - store_artifacts:
+          path: test-results
+
   quality:
     docker:
       - image: cimg/node:20.19
@@ -37,19 +72,15 @@ jobs:
       VITE_SUPABASE_PUBLISHABLE_KEY: sb_publishable_UbNV2X25YHY3cupjpoLsjw_RhlDG4f_
     steps:
       - checkout
-
       - run:
           name: Install dependencies
           command: npm ci
-
       - run:
           name: Enforce repository ownership boundaries
           command: bash scripts/check-repo-boundaries.sh
-
       - run:
           name: Typecheck
           command: npm run typecheck
-
       - run:
           name: ESLint changed TypeScript files
           command: |
@@ -75,11 +106,9 @@ jobs:
               exit 0
             fi
             npx eslint "${files[@]}"
-
       - run:
           name: Unit and migration contract tests
           command: npm run test -- --maxWorkers=1
-
       - run:
           name: Production build
           command: npm run build
@@ -88,43 +117,4 @@ workflows:
   circleci-verification:
     jobs:
       - verify
-      - run:
-          name: Install Chromium
-          command: npx playwright install --with-deps chromium
-
-      - run:
-          name: Start PR build locally
-          background: true
-          command: |
-            set -euo pipefail
-            npm run preview -- --host 127.0.0.1 --port 4173 > /tmp/vite-preview.log 2>&1
-
-      - run:
-          name: Wait for PR build
-          command: |
-            set -euo pipefail
-            for attempt in $(seq 1 30); do
-              if curl --fail --silent http://127.0.0.1:4173 >/dev/null; then
-                exit 0
-              fi
-              sleep 1
-            done
-            cat /tmp/vite-preview.log
-            exit 1
-
-      - run:
-          name: Playwright PR smoke
-          environment:
-            APP_URL: http://127.0.0.1:4173
-            TEST_PREVIEW_URL: http://127.0.0.1:4173
-          command: npx playwright test tests/visual-audit.spec.ts --project=desktop-chrome-size --trace=on
-
-      - store_artifacts:
-          path: playwright-report
-      - store_artifacts:
-          path: test-results
-
-workflows:
-  validate:
-    jobs:
       - quality
