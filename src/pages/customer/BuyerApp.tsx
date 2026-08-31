@@ -5,13 +5,21 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import type { Database } from "@/integrations/supabase/database.types";
 import { useAuth } from "@/hooks/useAuth";
-import { customerAppClient, clearCheckoutIdempotencyKey, getCheckoutIdempotencyKey, type BuyerCompany, type BuyerDraftLine, type BuyerOrder, type BuyerOrderItem, type BuyerPrice, type BuyerTeamMember, type BuyerTicket } from "@/lib/customerApp/customerAppClient";
+import { customerAppClient, clearCheckoutIdempotencyKey, getCheckoutIdempotencyKey, getLocalDateInputValue, type BuyerCompany, type BuyerDraftLine, type BuyerOrder, type BuyerOrderItem, type BuyerPrice, type BuyerTeamMember, type BuyerTicket } from "@/lib/customerApp/customerAppClient";
 import SystemAlertMarquee from "@/components/buyer/SystemAlertMarquee";
 
 type Product = Pick<Database["public"]["Tables"]["products"]["Row"], "id" | "name" | "sku" | "description" | "image_url" | "category" | "is_active" | "visible_in_catalog">;
 
 const money = (value: number | null | undefined) => `₹${Number(value || 0).toLocaleString("en-IN", { maximumFractionDigits: 2 })}`;
 const title = (p: Product | null | undefined) => p?.name || "Oasis product";
+const APPROVED_SO_NUMBER_PATTERN = /^SO\d{4}\/\d{2}-\d{4}$/;
+
+/** Displays Core's SO reference verbatim and flags an unapproved legacy format without synthesising a number. */
+function BuyerSoReference({ orderNumber }: { orderNumber: string | null | undefined }) {
+  const isApprovedFormat = Boolean(orderNumber && APPROVED_SO_NUMBER_PATTERN.test(orderNumber.trim()));
+  if (!orderNumber) return <span className="text-muted-foreground">Sales order reference pending Core</span>;
+  return <span className="inline-flex flex-wrap items-center gap-2"><span>{orderNumber}</span>{!isApprovedFormat && <span className="text-[11px] font-normal text-muted-foreground">Canonical format pending Core</span>}</span>;
+}
 
 /** Loads customer-safe read models and refreshes them after governed actions. */
 function useBuyerData() {
@@ -176,6 +184,7 @@ function ProductDetail({ data, productId }: { data: ReturnType<typeof useBuyerDa
 function Cart({ data }: { data: ReturnType<typeof useBuyerData> }) {
   const navigate = useNavigate();
   const [submitting, setSubmitting] = useState(false);
+  const [requestedDispatchDate, setRequestedDispatchDate] = useState("");
   const productById = useMemo(() => new Map(data.products.map((p) => [p.id, p])), [data.products]);
   const priceById = useMemo(() => new Map(data.prices.map((p) => [p.product_id, p])), [data.prices]);
   const lines = data.draft.filter(
@@ -183,7 +192,7 @@ function Cart({ data }: { data: ReturnType<typeof useBuyerData> }) {
   );
   const total = lines.reduce((sum, line) => sum + Number(line.quantity || 0) * Number(line.unit_price_snapshot || priceById.get(line.product_id)?.selling_price || 0), 0);
   const mutate = async (action: () => Promise<unknown>) => { try { await action(); await data.refresh(); } catch (e) { toast.error(e instanceof Error ? e.message : "Cart update failed"); } };
-  const submit = async () => { setSubmitting(true); try { const result = await customerAppClient.submit(getCheckoutIdempotencyKey()); const row = result?.[0]; if (!row) throw new Error("Checkout returned no order"); clearCheckoutIdempotencyKey(); toast.success(`Order ${row.order_number} submitted`); await data.refresh(); navigate(`/buyer/orders/${row.order_id}`); } catch (e) { toast.error(e instanceof Error ? e.message : "Order submission failed. You can safely retry."); } finally { setSubmitting(false); } };
+  const submit = async () => { setSubmitting(true); try { const result = await customerAppClient.submit(getCheckoutIdempotencyKey(), requestedDispatchDate || undefined); const row = result?.[0]; if (!row) throw new Error("Checkout returned no order"); clearCheckoutIdempotencyKey(); toast.success(`Order ${row.order_number} submitted`); await data.refresh(); navigate(`/buyer/orders/${row.order_id}`); } catch (e) { toast.error(e instanceof Error ? e.message : "Order submission failed. You can safely retry."); } finally { setSubmitting(false); } };
   return (
     <section className="space-y-5">
       <div className="flex items-center justify-between"><div><p className="text-sm text-muted-foreground">Review before submission</p><h1 className="text-2xl font-bold">Your cart</h1></div><button onClick={() => { void mutate(() => customerAppClient.clearDraft()); }} className="text-xs text-muted-foreground">Clear cart</button></div>
@@ -205,7 +214,7 @@ function Cart({ data }: { data: ReturnType<typeof useBuyerData> }) {
               );
             })}
           </div>
-          <div className="rounded-2xl border bg-card p-5"><div className="flex justify-between text-sm"><span>Authoritative preview subtotal</span><strong>{money(total)}</strong></div><p className="mt-2 text-xs text-muted-foreground">Final tax, charges and 30% upward-to-₹500 advance are resolved by Core at submission.</p><button disabled={submitting || data.draft[0]?.readiness_status !== "ready"} onClick={() => { void submit(); }} className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl bg-primary py-3 font-bold text-primary-foreground disabled:opacity-50">{submitting && <Loader2 size={16} className="animate-spin" />} {submitting ? "Submitting…" : "Submit order"}</button>{data.draft[0]?.readiness_status !== "ready" && <p className="mt-2 text-xs text-destructive">Resolve MOQ, carton or availability issues before submitting.</p>}</div>
+          <div className="rounded-2xl border bg-card p-5"><div className="flex justify-between text-sm"><span>Authoritative preview subtotal</span><strong>{money(total)}</strong></div><p className="mt-2 text-xs text-muted-foreground">Final tax, charges and 30% upward-to-₹500 advance are resolved by Core at submission.</p><label className="mt-4 block text-sm font-medium" htmlFor="buyer-requested-dispatch-date">Requested dispatch date <span className="font-normal text-muted-foreground">(optional)</span><input id="buyer-requested-dispatch-date" type="date" value={requestedDispatchDate} min={getLocalDateInputValue()} onChange={(event) => { setRequestedDispatchDate(event.target.value); }} className="mt-1 w-full rounded-xl border bg-background px-3 py-3 text-sm" /></label><p className="mt-2 text-xs text-muted-foreground">Core will validate and preserve this request on the governed order.</p><button disabled={submitting || data.draft[0]?.readiness_status !== "ready"} onClick={() => { void submit(); }} className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl bg-primary py-3 font-bold text-primary-foreground disabled:opacity-50">{submitting && <Loader2 size={16} className="animate-spin" />} {submitting ? "Submitting…" : "Submit order"}</button>{data.draft[0]?.readiness_status !== "ready" && <p className="mt-2 text-xs text-destructive">Resolve MOQ, carton or availability issues before submitting.</p>}</div>
         </>
       )}
     </section>
@@ -215,7 +224,7 @@ function Cart({ data }: { data: ReturnType<typeof useBuyerData> }) {
 /** Presents customer-safe order status and links to the governed detail view. */
 function Orders({ data }: { data: ReturnType<typeof useBuyerData> }) {
   const navigate = useNavigate();
-  return <section className="space-y-5"><div><p className="text-sm text-muted-foreground">Customer-safe progress</p><h1 className="text-2xl font-bold">Your orders</h1></div>{data.orders.length === 0 ? <Empty title="No orders yet" text="Your submitted orders will appear here." action={<button onClick={() => { navigate("/buyer/catalogue"); }} className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground">Start shopping</button>} /> : <div className="space-y-3">{data.orders.map((o) => <button key={o.order_id} onClick={() => { navigate(`/buyer/orders/${o.order_id}`); }} className="w-full rounded-2xl border bg-card p-4 text-left"><div className="flex items-center justify-between"><strong>{o.order_number}</strong><span className="rounded-full bg-primary/10 px-2 py-1 text-xs font-semibold text-primary">{o.customer_stage}</span></div><div className="mt-2 flex justify-between text-sm text-muted-foreground"><span>{new Date(o.created_at).toLocaleDateString("en-IN")}</span><span>{money(o.order_value)}</span></div></button>)}</div>}</section>;
+  return <section className="space-y-5"><div><p className="text-sm text-muted-foreground">Customer-safe progress</p><h1 className="text-2xl font-bold">Your orders</h1></div>{data.orders.length === 0 ? <Empty title="No orders yet" text="Your submitted orders will appear here." action={<button onClick={() => { navigate("/buyer/catalogue"); }} className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground">Start shopping</button>} /> : <div className="space-y-3">{data.orders.map((o) => <button key={o.order_id} onClick={() => { navigate(`/buyer/orders/${o.order_id}`); }} className="w-full rounded-2xl border bg-card p-4 text-left"><div className="flex items-center justify-between gap-3"><strong><BuyerSoReference orderNumber={o.order_number} /></strong><span className="rounded-full bg-primary/10 px-2 py-1 text-xs font-semibold text-primary">{o.customer_stage}</span></div><div className="mt-2 flex justify-between text-sm text-muted-foreground"><span>{new Date(o.created_at).toLocaleDateString("en-IN")}</span><span>{money(o.order_value)}</span></div></button>)}</div>}</section>;
 }
 
 /** Shows one company-scoped order and re-adds its lines through Core draft RPCs. */
@@ -225,7 +234,7 @@ function OrderDetail({ data, orderId }: { data: ReturnType<typeof useBuyerData>;
   const [reordering, setReordering] = useState(false);
   if (!order) return <Empty title="Order not found" text="This order is not available for your company." />;
   const reorder = async () => { setReordering(true); try { for (const line of lines) await customerAppClient.addLine(line.product_id, line.quantity); await data.refresh(); toast.success("Order items added to your cart"); } catch (e) { toast.error(e instanceof Error ? e.message : "Unable to reorder these items"); } finally { setReordering(false); } };
-  return <section className="space-y-5"><Link to="/buyer/orders" className="inline-flex items-center gap-2 text-sm text-muted-foreground"><ArrowLeft size={16} /> Back to orders</Link><div className="flex items-start justify-between"><div><p className="text-sm text-muted-foreground">{order.order_number}</p><h1 className="text-2xl font-bold">Order details</h1></div><button disabled={reordering || lines.length === 0} onClick={() => { void reorder(); }} className="rounded-lg border px-3 py-2 text-xs font-semibold disabled:opacity-50">{reordering ? "Adding…" : "Reorder"}</button></div><div className="rounded-2xl border bg-card p-5"><div className="flex justify-between"><span>Status</span><strong className="text-primary">{order.customer_stage}</strong></div><div className="mt-2 flex justify-between text-sm"><span>Payment</span><span>{order.payment_stage}</span></div><div className="mt-2 flex justify-between text-sm"><span>Dispatch</span><span>{order.promised_dispatch_date || order.requested_dispatch_date || "To be confirmed"}</span></div></div><div className="space-y-2"><h2 className="font-semibold">Items</h2>{lines.map((l) => <div key={l.item_id} className="flex justify-between rounded-xl border bg-card p-3 text-sm"><span>{l.product_name || l.sku || "Product"} × {l.quantity}</span><span>{l.pack_size || ""}</span></div>)}</div></section>;
+  return <section className="space-y-5"><Link to="/buyer/orders" className="inline-flex items-center gap-2 text-sm text-muted-foreground"><ArrowLeft size={16} /> Back to orders</Link><div className="flex items-start justify-between"><div><p className="text-sm text-muted-foreground"><BuyerSoReference orderNumber={order.order_number} /></p><h1 className="text-2xl font-bold">Order details</h1></div><button disabled={reordering || lines.length === 0} onClick={() => { void reorder(); }} className="rounded-lg border px-3 py-2 text-xs font-semibold disabled:opacity-50">{reordering ? "Adding…" : "Reorder"}</button></div><div className="rounded-2xl border bg-card p-5"><div className="flex justify-between"><span>Status</span><strong className="text-primary">{order.customer_stage}</strong></div><div className="mt-2 flex justify-between text-sm"><span>Payment</span><span>{order.payment_stage}</span></div><div className="mt-2 flex justify-between text-sm"><span>SO value</span><span>{money(order.order_value)}</span></div><div className="mt-2 flex justify-between text-sm"><span>Requested dispatch</span><span>{order.requested_dispatch_date || "Not requested"}</span></div><div className="mt-2 flex justify-between text-sm"><span>Promised dispatch</span><span>{order.promised_dispatch_date || "To be confirmed"}</span></div></div><div className="space-y-2"><h2 className="font-semibold">Items</h2>{lines.map((l) => <div key={l.item_id} className="flex justify-between rounded-xl border bg-card p-3 text-sm"><span>{l.product_name || l.sku || "Product"} × {l.quantity}</span><span>{l.pack_size || ""}</span></div>)}</div></section>;
 }
 
 /** Displays company context and the approved team membership returned by Core. */
