@@ -1,5 +1,6 @@
 import ThreePgsCommandCentre from "@/pages/admin/ThreePgsCommandCentre";
 import ThreePgsProcurementOperator from "@/pages/admin/ThreePgsProcurementOperator";
+export { RECEIVING_CORRELATION_STORAGE_KEY } from "@/pages/admin/ThreePgsProcurementOperator";
 
 /**
  * Canonical R4.5 3PGS command surface.
