@@ -5,12 +5,8 @@ import { Loader2, ChevronDown, Check, Lock, Truck, X, IndianRupee, FileText, Upl
 import { useAuth } from "@/hooks/useAuth";
 import { useLanguage } from "@/hooks/useLanguage";
 import { useCurrency } from "@/hooks/useCurrency";
-import { queueNotification } from "@/utils/notificationOutbox";
 import { sendWhatsAppMessage } from "@/utils/whatsapp";
-import {
-  DISPATCH_FINALIZATION_ROUTE,
-  blockLegacyDispatchStatusMutation,
-} from "@/lib/dispatch-finalization/legacyDispatchGuard";
+import { blockLegacyB2bCartonDplMutation } from "@/lib/dispatch-finalization/legacyDispatchGuard";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -155,246 +151,20 @@ const AdminAccountsRelease = () => {
       toast.error(getFinanceReleaseBlockers(gateTrace).map((b) => b.message).join("; "));
       return;
     }
-    const tp = transporterName.trim();
-    const lr = trackingNumber.trim();
-    if (!tp) {
-      toast.error("Transporter name is required");
-      return;
-    }
-    if (!lr) {
-      toast.error("LR / Bilty / AWB number is required");
-      return;
-    }
-    if (!gatePassProofFile) {
-      toast.error("Dispatch proof file is required");
-      return;
-    }
-    const freightAmt = parseFloat(agreedFreight);
-    const freightAdv = parseFloat(freightAdvance);
-    if (isNaN(freightAmt) || isNaN(freightAdv)) {
-      toast.error("Freight amounts are required");
-      return;
-    }
-    setSubmittingGatePass(true);
-    try {
-      const orderId = gatePassOrder.id;
-      const companyId = gatePassOrder.company_id;
-
-      const ext = gatePassProofFile.name.split(".").pop() || "bin";
-      const proofPath = `dispatch-proof/${orderId}/gate-${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`;
-      const { error: proofUpErr } = await supabase.storage.from("receipts").upload(proofPath, gatePassProofFile);
-      if (proofUpErr) {
-        console.error(proofUpErr);
-        toast.error("Proof upload failed");
-        setSubmittingGatePass(false);
-        return;
-      }
-
-      const { data: dispatchRows } = await supabase.from("dispatches").select("id").eq("order_id", orderId);
-      const dispatchIds = ((dispatchRows ?? []) as { id: string }[]).map((d) => d.id).filter(Boolean);
-
-      // packing_lists.dispatch_id references dispatches.id, so resolve dispatch ids from the order first.
-      let packedData: { product_id: unknown; packed_quantity: unknown }[] = [];
-      if (dispatchIds.length > 0) {
-        const { data } = await supabase
-          .from("packing_lists")
-          .select("product_id, packed_quantity")
-          .in("dispatch_id", dispatchIds);
-        packedData = (data ?? []) as { product_id: unknown; packed_quantity: unknown }[];
-      }
-
-      // Store packed items for invoice generation
-      const packedItems = packedData.map((pl) => ({
-        product_id: String(pl.product_id ?? ""),
-        packed_quantity: Number(pl.packed_quantity),
-      }));
-
-      // Insert dispatch record
-      const { data: dispatchData, error: dispatchErr } = await supabase
-        .from("dispatches")
-        .insert({
-          order_id: orderId,
-          company_id: companyId,
-          transporter_name: tp,
-          tracking_number: lr,
-          driver_phone: driverPhone.trim() || null,
-          status: "dispatched",
-          dispatch_date: new Date().toISOString().split("T")[0],
-          proof_storage_path: proofPath,
-          is_partial: false,
-        })
-        .select("id")
-        .single();
-
-      if (dispatchErr) throw dispatchErr;
-      const dispatchId = dispatchData.id;
-
-      // Estimate cartons
-      const totalValue = gatePassOrder.sales_order_value ?? 0;
-      const totalBoxes = Math.max(1, Math.ceil(totalValue / 5000));
-
-      // Insert carton barcodes
-      const cartonRows = Array.from({ length: totalBoxes }, (_, i) => ({
-        order_id: orderId,
-        dispatch_id: dispatchId,
-        barcode_string: `OASIS-${orderId.slice(0, 8).toUpperCase()}-B${i + 1}`,
-        box_number: i + 1,
-        total_boxes: totalBoxes,
-        status: "labeled",
-      }));
-
-      await supabase.from("dispatch_cartons").insert(cartonRows);
-
-      // Insert freight ledger
-      await supabase.from("freight_ledger").insert({
-        order_id: orderId,
-        transporter_name: tp,
-        total_freight_amt: freightAmt,
-        advance_paid_amt: freightAdv,
-        balance_due_amt: freightAmt - freightAdv,
-        payment_status: freightAdv >= freightAmt ? "paid" : "pending",
-      });
-
-      // ═══ WALLET ENGINE: SO vs DPL reconciliation ═══
-      // Calculate actual packed value from packing list + product prices
-      let dplValue = 0;
-      if (packedItems.length > 0) {
-        const productIds = packedItems.map((p) => p.product_id).filter(Boolean);
-        if (productIds.length > 0) {
-          const { data: products } = await supabase
-            .from("products")
-            .select("id, price_per_kg")
-            .in("id", productIds);
-          const priceMap: Record<string, number> = {};
-          (products ?? []).forEach((p) => { priceMap[p.id] = Number(p.price_per_kg || 0); });
-          dplValue = packedItems.reduce(
-            (sum, item) => sum + (item.packed_quantity * (priceMap[item.product_id] || 0)),
-            0,
-          );
-        }
-      }
-
-      const soValue = gatePassOrder.sales_order_value ?? 0;
-      const walletDiff = soValue - dplValue;
-
-      if (walletDiff > 0 && companyId && dplValue > 0) {
-        // DPL < SO → Credit client wallet
-        await supabase.from("companies").update({
-          wallet_balance: (await supabase.from("companies").select("wallet_balance").eq("id", companyId).single()).data?.wallet_balance
-            ? Number((await supabase.from("companies").select("wallet_balance").eq("id", companyId).single()).data?.wallet_balance || 0) + walletDiff
-            : walletDiff,
-        }).eq("id", companyId);
-        await supabase.from("audit_logs").insert({
-          action_type: "wallet_credit_dpl_variance",
-          module_name: "Finance",
-          entity_name: "order",
-          entity_id: orderId,
-          actor_id: user?.id,
-          new_value: { so_value: soValue, dpl_value: dplValue, credit_amount: walletDiff },
-          risk_level: "high",
-        });
-      } else if (walletDiff < 0 && dplValue > 0) {
-        toast.warning(
-          "DPL exceeds SO value — record balance due via Finance Release Board (direct payment_status update disabled).",
-        );
-        await supabase.from("audit_logs").insert({
-          action_type: "wallet_debit_dpl_variance",
-          module_name: "Finance",
-          entity_name: "order",
-          entity_id: orderId,
-          actor_id: user?.id,
-          new_value: { so_value: soValue, dpl_value: dplValue, debit_amount: Math.abs(walletDiff) },
-          risk_level: "high",
-        });
-      }
-
-      const legacyBlock = blockLegacyDispatchStatusMutation("AdminAccountsRelease.issueGatePass");
-      toast.error(legacyBlock.message, {
-        description: "Gate pass recorded; use governed dispatch finalization to close the order.",
-        action: {
-          label: "Open finalization",
-          onClick: () => {
-            window.location.assign(DISPATCH_FINALIZATION_ROUTE);
-          },
+    // FACT-C3: gate-pass carton/dispatch/DPL creation here is a legacy B2B
+    // authority competing with the governed DispatchManagement
+    // consignment/carton/DPL chain -- fail closed before any legacy write
+    // (dispatches, dispatch_cartons, freight_ledger, wallet) can run.
+    const block = blockLegacyB2bCartonDplMutation("AdminAccountsRelease.handleGatePassSubmit");
+    toast.error(block.message, {
+      description: "Use governed Dispatch Management to create the consignment, cartons and packing list, then return here for Finance release.",
+      action: {
+        label: "Open Dispatch Management",
+        onClick: () => {
+          window.location.assign(block.route);
         },
-      });
-      await supabase.from("audit_logs").insert({
-        action_type: "finance_issue_gate_pass",
-        module_name: "Finance",
-        entity_name: "order",
-        entity_id: orderId,
-        actor_id: user?.id,
-        new_value: {
-          packed_items: packedItems,
-          packed_items_count: packedItems.length,
-          note: "Packed data passed to invoice generator for partial dispatch billing",
-        },
-      });
-
-      // Template-driven Logistics Notification
-      const triggerClientNotification = async (oid: string, trackingInfo: { lr_number: string; transporter: string }) => {
-        const { data: evt } = await supabase
-          .from("notification_events")
-          .select("is_enabled, template_body")
-          .eq("event_key", "order_dispatched")
-          .single();
-
-        let generatedMessage: string | null = null;
-        if (evt?.is_enabled) {
-          generatedMessage = (evt.template_body || "")
-            .replace(/\{\{order_id\}\}/g, oid.slice(0, 8).toUpperCase())
-            .replace(/\{\{transporter\}\}/g, trackingInfo.transporter)
-            .replace(/\{\{lr_number\}\}/g, trackingInfo.lr_number);
-        }
-
-        await supabase.from("audit_logs").insert({
-          action_type: "client_shipping_notified",
-          module_name: "Logistics",
-          entity_name: "order",
-          entity_id: oid,
-          actor_id: user?.id,
-          new_value: {
-            lr_number: trackingInfo.lr_number,
-            transporter: trackingInfo.transporter,
-            notified_at: new Date().toISOString(),
-            notification_enabled: evt?.is_enabled ?? false,
-            generated_message: generatedMessage,
-          },
-        });
-
-        // Queue to outbox for actual delivery
-        if (generatedMessage) {
-          // Try to get company contact phone
-          const order = orders.find(o => o.id === oid);
-          let recipientPhone: string | null = null;
-          if (order?.company_id) {
-            const { data: compData } = await supabase
-              .from("b2b_applications")
-              .select("contact_phone")
-              .eq("user_id", order.company_id)
-              .maybeSingle();
-            recipientPhone = compData?.contact_phone || null;
-          }
-          await queueNotification({
-            eventType: "order_dispatched",
-            messageBody: generatedMessage,
-            recipientPhone,
-            priority: "normal",
-          });
-        }
-      };
-      await triggerClientNotification(orderId, {
-        lr_number: lr,
-        transporter: tp,
-      });
-
-      toast.success(`Gate Pass issued — ${totalBoxes} carton barcode(s) pushed to Security Gate`);
-      setGatePassOrder(null);
-      fetchOrders();
-    } catch {
-      toast.error("Failed to issue gate pass");
-    }
-    setSubmittingGatePass(false);
+      },
+    });
   };
 
   const handleAction = async (order: FinanceOrder, action: PaymentAction) => {

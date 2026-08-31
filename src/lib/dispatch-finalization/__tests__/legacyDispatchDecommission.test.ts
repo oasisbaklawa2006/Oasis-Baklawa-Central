@@ -13,7 +13,7 @@ describe("Phase 4F legacy dispatch decommission", () => {
     const src = readSrc("pages/admin/AdminPackingDispatch.tsx");
     expect(src).not.toMatch(/from\(["']orders["']\)\.update\(\{[^}]*status:\s*["']dispatched["']/);
     expect(src).not.toContain("notifyOrderDispatched");
-    expect(src).toContain("blockLegacyDispatchStatusMutation");
+    expect(src).toContain("blockLegacyB2bCartonDplMutation");
     expect(src).toContain("Record partial leg");
   });
 

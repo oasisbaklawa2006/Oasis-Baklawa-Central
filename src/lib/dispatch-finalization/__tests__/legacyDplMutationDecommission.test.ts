@@ -57,15 +57,21 @@ describe("FACT-C3 legacy carton/DPL mutation decommission", () => {
     expect(src).not.toMatch(/from\(["']b2b_dispatch_packing_list_versions["']\)\.(insert|update|upsert|delete)/);
   });
 
-  it("known out-of-scope legacy writers are unchanged and not silently duplicated by this workflow (documented, not fixed here)", () => {
-    // AdminPackingDispatch's packing_lists write is a separate, entangled
-    // partial-leg-dispatch/wallet-reconciliation legacy surface explicitly
-    // out of FACT-C3's "no transporter/loading/departure" boundary -- it is
-    // deliberately left untouched and is not a second B2B DPL authority for
-    // the governed consignment/carton/DPL chain this PR wires.
-    const packing = readSrc("pages/admin/AdminPackingDispatch.tsx");
-    expect(packing).toContain('from("packing_lists").insert');
-    const dispatchManagement = readSrc("pages/admin/DispatchManagement.tsx");
-    expect(dispatchManagement).not.toMatch(/from\(["']packing_lists["']\)\.insert/);
+  it("DispatchManagement is the only routed B2B carton/DPL/packed-qty mutation authority -- no legacy writer performs these writes", () => {
+    // FACT-C3 correction: AdminPackingDispatch and AdminAccountsRelease
+    // previously created legacy dispatches/packing_lists/dispatch_cartons
+    // and updated order_items.actual_packed_qty/final_weight_kg directly --
+    // a second, competing B2B authority. Both are now fail-closed and
+    // redirect to the governed DispatchManagement flow via
+    // blockLegacyB2bCartonDplMutation instead of performing these writes.
+    for (const relative of ["pages/admin/AdminPackingDispatch.tsx", "pages/admin/AdminAccountsRelease.tsx"]) {
+      const src = readSrc(relative);
+      expect(src).not.toMatch(/from\(["']dispatches["']\)\.insert/);
+      expect(src).not.toMatch(/from\(["']packing_lists["']\)\.insert/);
+      expect(src).not.toMatch(/from\(["']dispatch_cartons["']\)\.insert/);
+      expect(src).not.toMatch(/\.update\(\{[^}]*actual_packed_qty/);
+      expect(src).not.toMatch(/\.update\(\{[^}]*final_weight_kg/);
+      expect(src).toContain("blockLegacyB2bCartonDplMutation");
+    }
   });
 });

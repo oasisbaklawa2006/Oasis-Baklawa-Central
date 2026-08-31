@@ -172,7 +172,7 @@ export const FACTORY_SOURCE_TRUTH: FactorySourceTruthEntry[] = [
     status: "AUTHORITATIVE",
     readConsumers: ["DispatchManagement"],
     writeAuthority: "create_b2b_dispatch_packing_list / supersede_b2b_dispatch_packing_list / submit_b2b_dispatch_packing_list_to_finance (oasis-supabase-core FACT-C2)",
-    evidence: "The single governed DPL-mutation authority in the app -- derived only from locked b2b_dispatch_cartons truth, never from client-composed totals. Legacy packing_lists writes elsewhere in the app (AdminPackingDispatch's partial-leg dispatch flow, entangled with transporter/wallet reconciliation) are a separate, out-of-scope legacy surface not touched by FACT-C3.",
+    evidence: "The single governed DPL-mutation authority in the app -- derived only from locked b2b_dispatch_cartons truth, never from client-composed totals. AdminPackingDispatch and AdminAccountsRelease previously wrote legacy dispatches/packing_lists/dispatch_cartons and direct order_items.actual_packed_qty/final_weight_kg mutations for the same B2B order universe; both now fail closed via blockLegacyB2bCartonDplMutation and redirect operators to this governed flow instead.",
   },
   {
     relation: "products",

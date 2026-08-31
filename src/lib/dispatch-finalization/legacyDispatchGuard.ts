@@ -27,3 +27,26 @@ export function blockLegacyDispatchStatusMutation(
 export function isDispatchedStatusMutation(targetStatus: string): boolean {
   return targetStatus.trim().toLowerCase() === "dispatched";
 }
+
+/**
+ * FACT-C3 correction — blocks legacy B2B carton/packing-list/packed-quantity
+ * mutations outside the governed DispatchManagement consignment/carton/DPL
+ * chain. Distinct from blockLegacyDispatchStatusMutation above: that guards
+ * the later orders.status -> dispatched closure (Phase 4E); this guards the
+ * earlier carton, packing list and packed-quantity capture that FACT-C3
+ * made the single governed B2B authority for.
+ */
+export const B2B_DISPATCH_MANAGEMENT_ROUTE = "/admin/dispatch-mgmt";
+
+export const LEGACY_B2B_CARTON_DPL_MUTATION_MESSAGE =
+  "B2B carton, packing list and packed-quantity capture is governed only via Dispatch Management (FACT-C3). Legacy direct writes are disabled.";
+
+export function blockLegacyB2bCartonDplMutation(
+  source: string,
+): LegacyDispatchBlockResult {
+  return {
+    blocked: true,
+    message: `${LEGACY_B2B_CARTON_DPL_MUTATION_MESSAGE} (source: ${source})`,
+    route: B2B_DISPATCH_MANAGEMENT_ROUTE,
+  };
+}
