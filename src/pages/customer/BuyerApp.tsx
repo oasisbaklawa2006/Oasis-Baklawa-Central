@@ -55,6 +55,7 @@ const money = (value: number | null | undefined) =>
     ? `₹${value.toLocaleString("en-IN", { maximumFractionDigits: 2 })}`
     : "Not available";
 const productTitle = (product: Product | null | undefined) => product?.name || "Oasis product";
+const BUYER_DATA_LOAD_ERROR = "We couldn't refresh your Buyer data. Check your connection and try again.";
 
 function formatDate(value: string | null | undefined): string {
   if (!value) return "Not available";
@@ -137,10 +138,9 @@ function useBuyerData() {
       } catch {
         setTeam([]);
       }
-    } catch (loadError) {
-      const message = loadError instanceof Error ? loadError.message : "Unable to load your account";
-      setError(message);
-      toast.error(message);
+    } catch {
+      setError(BUYER_DATA_LOAD_ERROR);
+      toast.error(BUYER_DATA_LOAD_ERROR);
     } finally {
       setLoading(false);
     }
