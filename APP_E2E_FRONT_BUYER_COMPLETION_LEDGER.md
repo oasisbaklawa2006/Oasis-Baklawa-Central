@@ -34,6 +34,19 @@ contract.
 
 The evidence below records the current-main state after Tranche 1 merged and the Tranche 2 audit. A ✅ status means the Buyer software capability is implemented and covered by automated checks; it does not by itself assert protected production deployment or authenticated runtime verification.
 
+## Tranche 2 owner-approved document/reference policy
+
+- **Customer-visible SO format:** `SOYYYY/MM-NNNN` (four-digit monthly
+  sequence, company-wide across all governed intake sources). Core owns
+  allocation and the Buyer displays only the exact reference returned by Core;
+  the frontend never predicts or constructs an SO number.
+- **Customer-visible PI format:** `PIYYYY/MM-NNN` (three-digit monthly
+  sequence, independent from SO). The Buyer displays a PI number only after
+  governed Finance issuance and only when the canonical Core contract returns
+  it. Before issuance, no PI number is shown.
+- **Policy state:** owner-approved; production Core numbering and the
+  customer-safe PI projection remain separate runtime/deployment gates.
+
 | Surface / capability | Status | Evidence and remaining work |
 |---|---|---|
 | Authentication, splash, login, password reset and access request | ✅ VERIFIED COMPLETE | `Splash`, `Login`, `ResetPassword`, `AuthProvider`, role routing and the authenticated `BuyerAccessRequest` form are wired; access requests call `submit_b2b_trade_application_v1`. Approval and protected runtime evidence remain upstream gates. |
@@ -46,8 +59,8 @@ The evidence below records the current-main state after Tranche 1 merged and the
 | Persistent cart / MOQ / carton validation | ✅ VERIFIED COMPLETE | Buyer cart uses the Core draft RPC family (`get/add/update/remove/clear_customer_order_draft_v1`) and surfaces readiness/MOQ/carton errors without direct table writes. |
 | App order submission / order inward | ✅ VERIFIED COMPLETE | Buyer checkout calls idempotent Core `submit_customer_order_v1` with a stable retry key; Core owns authoritative pricing and the 30%-round-up advance. The legacy `CheckoutModal` is explicitly non-authoritative and no longer calculates or writes order/Finance state. |
 | Order list, detail, status and tracking presentation | ✅ VERIFIED COMPLETE | Buyer Orders and Order Detail consume Core `customer_order_status_v1()` and `customer_order_items_v1()` projections and expose safe status, payment-stage and dispatch information. |
-| Buyer → Finance identity continuity | 🟧 PARTIAL / UNCONNECTED | `submit_customer_order_v1` returns one governed `order_id`/`order_number` and the Buyer follows that identity into `customer_order_status_v1`; no production customer-safe contract currently exposes the exact SO/commercial-version/PI/Finance projection needed to prove the full handoff. |
-| SO / PI / invoice / document presentation | ⛔ CORE CONTRACT REQUIRED | Current-main Buyer document screens are absent. Core main contains internal PI/final-invoice authority, but the production schema cache does not expose the required customer-safe document projection; do not read internal Finance/PI tables directly. |
+| Buyer → Finance identity continuity | 🟨 BUILT — NEEDS HARDENING | `submit_customer_order_v1` returns one governed `order_id`/`order_number` and the Buyer follows that identity into `customer_order_status_v1`; Order Detail presents the Core-returned SO reference, SO value and requested/promised dispatch facts. Exact commercial-version/PI/Finance projection needed to prove the full handoff is not deployed to production. |
+| SO / PI / invoice / document presentation | 🟧 PARTIAL / UNCONNECTED | Buyer presents the Core-returned SO reference and governed order value. Core main contains internal PI/final-invoice authority, but production does not expose a customer-safe SO snapshot/PI/invoice projection; no PI number is predicted or synthesized. |
 | Wallet / credit / payment presentation | ⛔ CORE CONTRACT REQUIRED | Finance owns authority. Core main contains Finance/payment/credit/wallet authorities, but production exposure of customer-safe Buyer facts is not evidenced; Buyer must display only a governed projection once deployed and verified. |
 | Statements | ⛔ CORE CONTRACT REQUIRED | No current Buyer statement surface or verified customer-safe statement contract found; requires a production Core authority assignment. |
 | Profile / company / team | ✅ VERIFIED COMPLETE | Buyer Account consumes Core company/team projections and provides governed sign-out. |
@@ -78,11 +91,12 @@ established Buyer RPC set: `customer_company_v1`, `customer_team_v1`,
 `customer_order_items_v1`, `customer_support_tickets_v1`,
 `submit_customer_support_ticket_v1`, and `submit_b2b_trade_application_v1`.
 
-Current Core `origin/main` `001ff26d57ff44db01590a39913d56c44798c804` also
+Current Core `origin/main` `d0bf266f20378ca6b538564600f78ca6a79fa086` also
 contains PF-5/PF-6A/PF-6B/PF-6C and Finance Exit customer/Finance authorities.
 However, unauthenticated read-only probes against production returned
 PostgREST schema-cache `404` for `get_customer_financial_360_v1` and
-`get_order_payment_facts_v1`. The newer PI/Finance facts therefore cannot be
+`get_order_payment_facts_v1`, `get_finance_operations_clearance_facts_v1` and
+the internal PI authority view. The newer PI/Finance facts therefore cannot be
 used by the Buyer App until the owning Core release is protected-deployed and
 the exact customer-safe contract is verified in production. This is a scoped
 Tranche 2 dependency, not a reason to create a Central shadow authority.
@@ -101,8 +115,9 @@ decision notes:
   amount due;
 - customer-safe Finance operations state and action-required message;
 - PI/final-invoice/statement availability, exact linked IDs and governed
-  download references (customer-visible PI numbering remains null until its
-  owner policy is resolved);
+  download references; customer-visible PI numbering is null before governed
+  Finance issuance and, after issuance, must be the exact Core-returned value
+  in the owner-approved `PIYYYY/MM-NNN` format;
 - company scope, facts-as-of timestamp and no cross-company rows.
 
 The contract must fail closed for anonymous users, reject another company,
@@ -110,6 +125,26 @@ avoid direct Buyer writes, and preserve the existing separation between payment
 verification and Finance clearance. Until that contract is protected-deployed
 and runtime-verified, the Buyer App will not calculate or display authoritative
 wallet, advance, credit, PI, invoice or statement facts.
+
+## Tranche 2 gate register
+
+| Gate | Current status | Evidence / next boundary |
+|---|---|---|
+| Requested dispatch date | ✅ VERIFIED COMPLETE | Buyer captures an optional date and forwards it as `p_requested_dispatch_date` to `submit_customer_order_v1`; Core validates and persists it. |
+| Buyer → canonical order | ✅ VERIFIED COMPLETE (software) | The governed checkout RPC returns one `order_id`/`order_number` and is retry/idempotency-safe; authenticated production golden-path execution remains a separate runtime gate. |
+| Canonical SO identity | 🟨 BUILT — NEEDS HARDENING | Buyer displays the exact Core-returned `order_number` and flags a non-approved legacy format; SO allocation and the approved `SOYYYY/MM-NNNN` sequence remain Core-owned. |
+| SO number source | CORE OWNED | Central never predicts or constructs SO numbers. |
+| SO → Finance identity | 🟧 PARTIAL / UNCONNECTED | `order_id` continuity is present through the Buyer status projection, but production lacks the customer-safe commercial-version/Finance projection needed to prove the full handoff. |
+| Payment facts | ⛔ CORE DEPLOYMENT REQUIRED | Production read-only probe: `get_order_payment_facts_v1` returns PostgREST schema-cache `404`; do not add an untyped fallback. |
+| Wallet | ⛔ CORE DEPLOYMENT REQUIRED | Core authority exists on Core main, but no deployed customer-safe Buyer projection is evidenced. |
+| Credit | ⛔ CORE DEPLOYMENT REQUIRED | Core authority exists on Core main, but no deployed customer-safe Buyer projection is evidenced. |
+| Finance clearance | ⛔ CORE CONTRACT REQUIRED | Internal Finance clearance facts are not customer-safe; Buyer requires a company-scoped action/status projection. |
+| Customer-safe PI | ⛔ CORE CONTRACT REQUIRED | Owner-approved `PIYYYY/MM-NNN` format is recorded, but production exposes no customer-safe PI state/number contract; no pre-issuance number is shown. |
+| Customer-safe invoice | ⛔ CORE CONTRACT REQUIRED | No deployed customer-safe invoice availability/ID/download projection is evidenced. |
+| Statement | ⛔ CORE CONTRACT REQUIRED | No deployed customer-safe statement contract is evidenced. |
+| Durable favourites | ⛔ CORE CONTRACT REQUIRED | No canonical Core favourite authority is present; no browser/local shadow truth is allowed. |
+| Full Buyer → SO → Finance → Buyer golden path | BLOCKED | Awaiting protected Core deployment and authenticated production verification of the exact customer-safe contract. |
+| Central owner action | NONE FOR CURRENT SLICE | Core/Mission Control must provide the deployment and runtime evidence; Central must not deploy or mutate production. |
 
 ## Exit gates
 
