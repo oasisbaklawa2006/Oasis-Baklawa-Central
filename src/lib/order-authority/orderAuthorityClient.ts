@@ -1,4 +1,12 @@
 import { supabase } from "@/integrations/supabase/client";
+import { resolvePaymentBinding } from "@/lib/order-authority/paymentAuthorityClient";
+import {
+  buildFinanceOperationsCorrelationId,
+  buildFinanceOperationsDecisionIdentity,
+  buildFinanceOperationsIdempotencyKey,
+  decideFinanceOperationsClearance,
+  getFinanceOperationsClearanceFacts,
+} from "@/lib/order-authority/financeClearanceAuthorityClient";
 
 type RpcResult = { data: unknown; error: { message: string } | null };
 
@@ -37,17 +45,59 @@ function formatBlockers(blockers: AuthorityBlocker[]): string {
   return blockers.map((b) => b.message ?? b.code ?? "Blocked").join("; ");
 }
 
+async function ensureFinanceOperationsClearance(orderId: string): Promise<void> {
+  const { data: authData, error: authError } = await supabase.auth.getUser();
+  if (authError) throw new Error(authError.message);
+  const actorId = authData.user?.id;
+  if (!actorId) throw new Error("Authenticated Finance actor is required for Operations Clearance");
+
+  const binding = await resolvePaymentBinding(orderId);
+  const facts = await getFinanceOperationsClearanceFacts(
+    orderId,
+    binding.piId,
+    binding.commercialVersionId,
+  );
+
+  if (facts.latestClearanceDecision === "GRANTED") return;
+  if (!facts.eligibleForOperationsClearance) {
+    throw new Error(
+      `Finance Operations Clearance blocked: covered ₹${facts.coveredAmount.toLocaleString("en-IN")} of required ₹${facts.requiredAdvance.toLocaleString("en-IN")}`,
+    );
+  }
+
+  const reason = "Finance review approved Operations Clearance";
+  const evidenceReference = `core-finance-facts:${facts.piId}:${facts.commercialVersionId}`;
+  const identity = buildFinanceOperationsDecisionIdentity(
+    facts,
+    "GRANTED",
+    reason,
+    evidenceReference,
+  );
+
+  await decideFinanceOperationsClearance({
+    orderId,
+    piId: facts.piId,
+    commercialVersionId: facts.commercialVersionId,
+    decision: "GRANTED",
+    reason,
+    evidenceReference,
+    sourceChannel: "CENTRAL",
+    sourceReference: `operations-release:${orderId}`,
+    correlationId: await buildFinanceOperationsCorrelationId(identity),
+    idempotencyKey: await buildFinanceOperationsIdempotencyKey(identity),
+    actorId,
+  });
+}
+
 export async function releaseOrderToManufacturing(
   orderId: string,
-  paymentStatus?: string | null,
-  advancePaid?: number | null,
-  salesOrderValue?: number | null,
+  _paymentStatus?: string | null,
+  _advancePaid?: number | null,
+  _salesOrderValue?: number | null,
 ): Promise<AuthorityRpcResult> {
+  await ensureFinanceOperationsClearance(orderId);
   const { data, error } = await authorityRpc("release_order_to_manufacturing_v1", {
     p_order_id: orderId,
-    p_payment_status: paymentStatus ?? undefined,
-    p_advance_paid: advancePaid ?? undefined,
-    p_sales_order_value: salesOrderValue ?? undefined,
   });
   if (error) throw new Error(error.message);
   const result = data as AuthorityRpcResult;
@@ -59,11 +109,11 @@ export async function releaseOrderToManufacturing(
 
 export async function releaseOrderToInProduction(
   orderId: string,
-  paymentStatus?: string | null,
+  _paymentStatus?: string | null,
 ): Promise<AuthorityRpcResult> {
+  await ensureFinanceOperationsClearance(orderId);
   const { data, error } = await authorityRpc("release_order_to_in_production_v1", {
     p_order_id: orderId,
-    p_payment_status: paymentStatus ?? undefined,
   });
   if (error) throw new Error(error.message);
   const result = data as AuthorityRpcResult;

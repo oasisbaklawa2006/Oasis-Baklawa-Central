@@ -9,9 +9,9 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Loader2, CreditCard, Search, Building2, Wallet, IndianRupee, Phone, MessageSquare, TrendingUp, Target, AlertCircle } from "lucide-react";
+import { Loader2, Search, Building2, Wallet, IndianRupee, Phone, MessageSquare, TrendingUp, Target, AlertCircle } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
-import CreditRequestModal from "@/components/CreditRequestModal";
+import { getWalletBalance } from "@/lib/order-authority/creditWalletAuthorityClient";
 import { format, startOfMonth } from "date-fns";
 import type { Database } from "@/integrations/supabase/types";
 
@@ -31,10 +31,9 @@ type SalesInteraction = Pick<ClientInteractionRow, "id" | "company_id">;
 const SalesDashboard = () => {
   const { user, loading: authLoading } = useAuth();
   const [companies, setCompanies] = useState<SalesCompany[]>([]);
+  const [rosterLoadFailed, setRosterLoadFailed] = useState(false);
   const [dataLoading, setDataLoading] = useState(true);
   const [search, setSearch] = useState("");
-  const [creditModalOpen, setCreditModalOpen] = useState(false);
-  const [selectedCompany, setSelectedCompany] = useState<{ id: string; business_name: string } | null>(null);
 
   // Live revenue data
   const [monthOrders, setMonthOrders] = useState<SalesOrder[]>([]);
@@ -57,14 +56,24 @@ const SalesDashboard = () => {
       // Fetch assigned companies
       const { data: comps, error } = await supabase
         .from("companies")
-        .select("id, business_name, gst_number, status, wallet_balance, credit_limit, current_balance, allow_credit, created_at")
+        .select("id, business_name, gst_number, status, credit_limit, current_balance, allow_credit, created_at")
         .eq("status", "approved")
         .eq("account_manager_id", user.id)
         .order("business_name");
       if (error) {
+        setRosterLoadFailed(true);
         toast({ title: "Connection Error", description: "Could not load client data.", variant: "destructive" });
+      } else {
+        setRosterLoadFailed(false);
       }
-      const companyList = comps || [];
+      const companyList: SalesCompany[] = await Promise.all((comps || []).map(async (company) => {
+        try {
+          return { ...company, wallet_balance: await getWalletBalance(company.id) } as SalesCompany;
+        } catch {
+          // PF-6B is fail-closed: an unavailable Core balance is not ₹0.
+          return { ...company, wallet_balance: null } as SalesCompany;
+        }
+      }));
       setCompanies(companyList);
 
       const companyIds = companyList.map((c) => c.id);
@@ -166,7 +175,8 @@ const SalesDashboard = () => {
     c.gst_number?.toLowerCase().includes(search.toLowerCase())
   );
 
-  const totalWallet = companies.reduce((s, c) => s + (c.wallet_balance || 0), 0);
+  const walletUnavailable = rosterLoadFailed || companies.some((c) => c.wallet_balance == null);
+  const totalWallet = companies.reduce((s, c) => s + (c.wallet_balance ?? 0), 0);
   const totalCredit = companies.reduce((s, c) => s + (c.credit_limit || 0), 0);
 
   return (
@@ -225,7 +235,7 @@ const SalesDashboard = () => {
               <div className="p-2 rounded-lg bg-primary/10"><Wallet size={18} className="text-primary" /></div>
               <div>
                 <p className="text-xs text-muted-foreground">Wallet Pool</p>
-                <p className="text-xl font-semibold text-foreground">₹{totalWallet.toLocaleString()}</p>
+                <p className="text-xl font-semibold text-foreground">{walletUnavailable ? "Unavailable" : `₹${totalWallet.toLocaleString()}`}</p>
               </div>
             </CardContent>
           </Card>
@@ -284,15 +294,12 @@ const SalesDashboard = () => {
                     <TableRow key={c.id}>
                       <TableCell className="font-medium">{c.business_name}</TableCell>
                       <TableCell className="text-muted-foreground text-xs">{c.gst_number || "—"}</TableCell>
-                      <TableCell className="text-right font-mono text-sm">₹{(c.wallet_balance || 0).toLocaleString()}</TableCell>
+                      <TableCell className="text-right font-mono text-sm">{c.wallet_balance == null ? "Unavailable" : `₹${c.wallet_balance.toLocaleString()}`}</TableCell>
                       <TableCell className="text-right font-mono text-sm">₹{(c.credit_limit || 0).toLocaleString()}</TableCell>
                       <TableCell className="text-right font-mono text-sm">₹{(c.current_balance || 0).toLocaleString()}</TableCell>
                       <TableCell>
                         <div className="flex items-center justify-center gap-2">
-                          <Button size="sm" variant="outline" className="h-8 text-xs gap-1.5"
-                            onClick={() => { setSelectedCompany({ id: c.id, business_name: c.business_name }); setCreditModalOpen(true); }}>
-                            <CreditCard size={13} /> Request Credit
-                          </Button>
+                          <span className="text-xs text-muted-foreground">Select a governed SO to request credit</span>
                         </div>
                       </TableCell>
                     </TableRow>
@@ -303,8 +310,6 @@ const SalesDashboard = () => {
           </CardContent>
         </Card>
       </div>
-
-      <CreditRequestModal open={creditModalOpen} onClose={() => setCreditModalOpen(false)} company={selectedCompany} />
 
       {/* Log Interaction Modal */}
       <Dialog open={logModalOpen} onOpenChange={setLogModalOpen}>

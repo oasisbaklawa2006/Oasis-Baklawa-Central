@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
+import type { Database } from "@/integrations/supabase/types";
 import { toast } from "sonner";
 import { Loader2, ChevronDown, Check, Lock, Truck, X, IndianRupee, FileText, Upload, ShieldCheck, AlertTriangle, CheckCircle2 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
@@ -27,15 +28,13 @@ import {
   deriveFinanceReleaseState,
   getFinanceReleaseBlockers,
 } from "@/utils/financeReleaseState";
+import { getWalletBalance } from "@/lib/order-authority/creditWalletAuthorityClient";
 
-interface FinanceOrder {
-  id: string; status: string; payment_status: string | null;
-  sales_order_value: number | null; advance_paid: number | null;
-  advance_required: number | null; company_id: string | null;
-  final_invoice_url?: string | null; eway_bill_number?: string | null;
-  payment_cleared?: boolean | null;
-  company?: { business_name: string; wallet_balance?: number | null } | null;
-}
+type FinanceOrder = Pick<
+  Database["public"]["Tables"]["orders"]["Row"],
+  "id" | "status" | "payment_status" | "sales_order_value" | "advance_paid" | "advance_required" |
+    "company_id" | "final_invoice_url" | "eway_bill_number" | "payment_cleared"
+> & { company?: { business_name: string; wallet_balance?: number | null } | null };
 
 type PaymentAction = "request_advance" | "request_balance" | "mark_fully_paid" | "issue_gate_pass";
 
@@ -127,10 +126,20 @@ const AdminAccountsRelease = () => {
     setLoading(true);
     const { data } = await supabase
       .from("orders")
-      .select("id, status, payment_status, sales_order_value, advance_paid, advance_required, company_id, final_invoice_url, eway_bill_number, payment_cleared, company:companies(business_name, wallet_balance)")
+      .select("id, status, payment_status, sales_order_value, advance_paid, advance_required, company_id, final_invoice_url, eway_bill_number, payment_cleared, company:companies(business_name)")
       .not("status", "in", '("draft","cart")')
       .order("created_at", { ascending: false });
-    setOrders((data as unknown as FinanceOrder[]) ?? []);
+    const rows: FinanceOrder[] = data ?? [];
+    const enriched = await Promise.all(rows.map(async (order) => {
+      if (!order.company_id || !order.company) return order;
+      try {
+        return { ...order, company: { ...order.company, wallet_balance: await getWalletBalance(order.company_id) } };
+      } catch {
+        // PF-6B is fail-closed: do not turn an unavailable Core balance into ₹0.
+        return { ...order, company: { ...order.company, wallet_balance: null } };
+      }
+    }));
+    setOrders(enriched);
     setLoading(false);
   };
 
@@ -201,7 +210,8 @@ const AdminAccountsRelease = () => {
     setGeneratingPi(order.id);
     try {
       const piTotal = order.sales_order_value ?? 0;
-      const walletBalance = order.company?.wallet_balance ?? 0;
+      const walletBalance = order.company?.wallet_balance;
+      if (walletBalance == null) throw new Error("Canonical Core wallet balance unavailable; PI wallet assessment is blocked.");
       const walletDiff = walletBalance - piTotal;
 
       if (isWalletPiAutoSettleEligible(walletBalance, piTotal) && order.company_id) {
@@ -391,8 +401,11 @@ const AdminAccountsRelease = () => {
                         {/* Wallet deficit alert */}
                         {(order.status === "awaiting_payment" || order.status === "awaiting_final_payment") && !order.payment_cleared && (
                           (() => {
-                            const walletBal = order.company?.wallet_balance ?? 0;
+                            const walletBal = order.company?.wallet_balance;
                             const piTotal = order.sales_order_value ?? 0;
+                            if (walletBal == null) {
+                              return <Badge variant="destructive" className="text-[10px]">Wallet unavailable — Core facts required</Badge>;
+                            }
                             const deficit = piTotal - walletBal;
                             return deficit > 0 ? (
                               <Badge variant="destructive" className="text-[10px]">
