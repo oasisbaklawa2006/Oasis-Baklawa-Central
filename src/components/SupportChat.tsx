@@ -23,6 +23,7 @@ interface SupportChatProps {
   onClose: () => void;
 }
 
+/** Provides customer-safe support contact and chat without direct table writes. */
 const SupportChat = ({ open, onClose }: SupportChatProps) => {
   const [messages, setMessages] = useState<ChatMessage[]>(initialMessages);
   const [input, setInput] = useState("");
@@ -33,19 +34,17 @@ const SupportChat = ({ open, onClose }: SupportChatProps) => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
   }, [messages, streaming]);
 
+  /** Opens an approved contact channel; callback persistence belongs to Core. */
   const logCallback = async (channel: "phone" | "whatsapp") => {
-    const { data: { user } } = await supabase.auth.getUser();
-    await supabase.from("audit_logs").insert({
-      action_type: "callback_request",
-      module_name: "support_chat",
-      actor_id: user?.id ?? null,
-      entity_name: channel,
-      reason: `Buyer requested ${channel} callback from support chat`,
-      risk_level: "normal",
-    });
-    toast.success(`${channel === "phone" ? "Call" : "WhatsApp"} request logged. Our team will reach out shortly.`);
+    // Callback requests are intentionally non-mutating here. A customer-facing
+    // component must not write audit or support tables directly; those writes
+    // require a dedicated Core contract. Use the approved contact channel.
+    if (channel === "phone") window.location.href = "tel:+919891162212";
+    else window.open("https://wa.me/919891162212", "_blank", "noopener,noreferrer");
+    toast.success(`${channel === "phone" ? "Call" : "WhatsApp"} channel opened.`);
   };
 
+  /** Streams an authenticated assistant response while keeping UI state local. */
   const handleSend = async () => {
     const text = input.trim();
     if (!text || streaming) return;
@@ -106,7 +105,9 @@ const SupportChat = ({ open, onClose }: SupportChatProps) => {
                 p.map((m) => (m.id === assistantId ? { ...m, text: acc } : m))
               );
             }
-          } catch {}
+          } catch {
+            // Ignore malformed stream fragments; the next SSE frame may be valid.
+          }
         }
       }
     } catch (e) {
