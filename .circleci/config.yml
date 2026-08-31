@@ -67,10 +67,15 @@ jobs:
 
       - run:
           name: Start PR build locally
+          background: true
           command: |
             set -euo pipefail
-            nohup npm run preview -- --host 127.0.0.1 --port 4173 > /tmp/vite-preview.log 2>&1 &
-            echo "$!" > /tmp/vite-preview.pid
+            npm run preview -- --host 127.0.0.1 --port 4173 > /tmp/vite-preview.log 2>&1
+
+      - run:
+          name: Wait for PR build
+          command: |
+            set -euo pipefail
             for attempt in $(seq 1 30); do
               if curl --fail --silent http://127.0.0.1:4173 >/dev/null; then
                 exit 0
@@ -86,14 +91,6 @@ jobs:
             APP_URL: http://127.0.0.1:4173
             TEST_PREVIEW_URL: http://127.0.0.1:4173
           command: npx playwright test tests/visual-audit.spec.ts --project=desktop-chrome-size --trace=on
-
-      - run:
-          name: Stop PR preview
-          when: always
-          command: |
-            if [ -f /tmp/vite-preview.pid ]; then
-              kill "$(cat /tmp/vite-preview.pid)" 2>/dev/null || true
-            fi
 
       - store_artifacts:
           path: playwright-report
