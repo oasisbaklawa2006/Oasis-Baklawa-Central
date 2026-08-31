@@ -1,0 +1,102 @@
+version: 2.1
+
+jobs:
+  quality:
+    docker:
+      - image: cimg/node:20.19
+    working_directory: ~/oasis-baklawa-central
+    resource_class: medium
+    environment:
+      # These are the same publishable browser-build values used by the
+      # GitHub Release Quality Gate. Never place service-role keys or other
+      # privileged credentials in CircleCI configuration.
+      VITE_SUPABASE_URL: https://tcxvcatsqqertcnycuop.supabase.co
+      VITE_SUPABASE_PUBLISHABLE_KEY: sb_publishable_UbNV2X25YHY3cupjpoLsjw_RhlDG4f_
+    steps:
+      - checkout
+
+      - run:
+          name: Install dependencies
+          command: npm ci
+
+      - run:
+          name: Enforce repository ownership boundaries
+          command: bash scripts/check-repo-boundaries.sh
+
+      - run:
+          name: Typecheck
+          command: npm run typecheck
+
+      - run:
+          name: ESLint changed TypeScript files
+          command: |
+            set -euo pipefail
+            git fetch --no-tags origin main
+            base_sha="$(git merge-base HEAD origin/main)"
+            mapfile -t files < <(
+              git diff --name-only --diff-filter=ACMR "$base_sha" HEAD \
+                | grep -E '\.(ts|tsx)$' \
+                | while IFS= read -r file; do
+                    if [ -f "$file" ]; then
+                      printf '%s\n' "$file"
+                    fi
+                  done \
+                || true
+            )
+            if [ "${#files[@]}" -eq 0 ]; then
+              echo "No changed TypeScript files to lint."
+              exit 0
+            fi
+            npx eslint "${files[@]}"
+
+      - run:
+          name: Unit and migration contract tests
+          command: npm run test
+
+      - run:
+          name: Production build
+          command: npm run build
+
+      - run:
+          name: Install Chromium
+          command: npx playwright install --with-deps chromium
+
+      - run:
+          name: Start PR build locally
+          command: |
+            set -euo pipefail
+            nohup npm run preview -- --host 127.0.0.1 --port 4173 > /tmp/vite-preview.log 2>&1 &
+            echo "$!" > /tmp/vite-preview.pid
+            for attempt in $(seq 1 30); do
+              if curl --fail --silent http://127.0.0.1:4173 >/dev/null; then
+                exit 0
+              fi
+              sleep 1
+            done
+            cat /tmp/vite-preview.log
+            exit 1
+
+      - run:
+          name: Playwright PR smoke
+          environment:
+            APP_URL: http://127.0.0.1:4173
+            TEST_PREVIEW_URL: http://127.0.0.1:4173
+          command: npx playwright test tests/visual-audit.spec.ts --project=desktop-chrome-size --trace=on
+
+      - run:
+          name: Stop PR preview
+          when: always
+          command: |
+            if [ -f /tmp/vite-preview.pid ]; then
+              kill "$(cat /tmp/vite-preview.pid)" 2>/dev/null || true
+            fi
+
+      - store_artifacts:
+          path: playwright-report
+      - store_artifacts:
+          path: test-results
+
+workflows:
+  validate:
+    jobs:
+      - quality
