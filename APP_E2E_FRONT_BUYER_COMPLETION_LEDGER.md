@@ -63,31 +63,39 @@ deployment or authenticated production verification.
 | SO / PI / invoice / document presentation | PARTIALLY DONE / CORE DEPENDENCY | SO value/reference presentation is connected; Documents intentionally shows availability only and never invents PI/invoice numbers or download links until Core exposes them. |
 | Wallet, credit, payment and statements | BLOCKED BY EXTERNAL AUTHORITY | Finance facts remain presentation-only and require the protected, customer-safe Core contract/runtime gate. |
 | Profile, company, team and sign-out | VERIFIED DONE | Account shows safe company/team information and links to governed orders, documents and support without role codes. |
-| Support tickets / customer support path | VERIFIED DONE | Buyer Support uses `submit_customer_support_ticket_v1`, requires an order and description, and states that support is separate from checkout. No second chat/order authority is introduced. |
+| Order-linked support tickets | VERIFIED DONE | Buyer Support uses the governed `submit_customer_support_ticket_v1`, requires an order and description, preserves the established support issue vocabulary at the client boundary, and remains separate from checkout. |
+| General / non-order customer query inward | BLOCKED BY EXTERNAL AUTHORITY | The established Buyer support RPC is order-linked (`p_order_id` is required). No verified order-optional/general-query Core contract exists in the current Buyer contract family, so Central does not create a shadow writer or silently convert general queries into Sales Orders. |
 | Announcements and launch sections | PARTIALLY DONE / APPROVED-SCOPE DEPENDENCY | Existing `SystemAlertMarquee` remains; no unsupported festival/bestseller data contract is fabricated. |
-| Loading, empty, error, retry and stale-submit states | VERIFIED DONE | Buyer data errors have a retry action; route surfaces have loading/empty states; checkout uses stable idempotency and preserves cart state on failure. |
+| Loading, empty, error, retry and stale-submit states | VERIFIED DONE | Buyer data errors have a retry action; customer RPC failures are normalized at the client boundary instead of exposing raw backend error text; route surfaces have loading/empty states; checkout uses stable idempotency and preserves cart state on failure. |
 | Mobile UX and accessibility | VERIFIED DONE | Five-point semantic navigation, dominant logo dashboard, support FAB, labels/aria text, touch-sized controls and responsive cards are implemented. |
 | Legacy/duplicate surfaces | DEPRECATE_LATER | `SupportChat` is unreferenced from the Buyer route and retains a legacy hard-coded Edge Function dependency; old `CheckoutModal` remains non-authoritative. Neither is reachable through the current Buyer journey. |
 | Protected Core/Finance runtime | BLOCKED BY EXTERNAL AUTHORITY | Central can consume only deployed, verified customer-safe contracts; no Core schema/RPC or production change is made in this tranche. |
 
-The current Buyer support path is the governed order-ticket page. Historical
-`SupportChat` references are retained for audit history, but the component is
-not imported by `BuyerApp` and is not a second active customer support writer.
+The active Buyer support path is the governed order-linked ticket page.
+Historical `SupportChat` references are retained for audit history, but the
+component is not imported by `BuyerApp` and is not a second active customer
+support writer. A general/non-order customer query remains a separate Core
+contract gap: the frontend must not create an SO or a Central shadow record to
+pretend that path is complete.
 
 ### Tranche 3 verification evidence (current branch)
 
 - Buyer rendered/behavioral suite: **25 passed** (`BuyerApp.test.tsx` and
-  `customerPresentation.test.ts`).
+  `customerPresentation.test.ts`) before the takeover hardening commit; the
+  post-takeover CI run is the authority for the final head.
+- `customerAppClient.test.ts` now locks the established support-ticket payload
+  vocabulary and fail-closed normalization for unrecognized Buyer labels.
 - Touched-file ESLint: **PASS**; TypeScript typecheck: **PASS**; production
-  build: **PASS**.
+  build: **PASS** on the pre-takeover head; final-head CI must revalidate these.
 - Read-only local Playwright smoke at 375, 390 and 430 px: **PASS** for no
   horizontal overflow and no console errors on the guarded Buyer entry route.
-- Full Vitest suite: **1,687 passed / 5 historical WhatsApp fixture assertions
-  failed**. Those failures predate this tranche and are outside the Buyer
-  boundary; no WhatsApp code or fixture was changed.
-- Repository boundary script could not execute on this Windows host because a
-  Bash runtime is unavailable; Central contains no `supabase/migrations`
-  directory and no Core schema files were added.
+- Full Vitest suite on the pre-takeover head: **1,687 passed / 5 historical
+  WhatsApp fixture assertions failed**. Those failures predate this tranche
+  and are outside the Buyer boundary; no WhatsApp code or fixture was changed.
+- Repository boundary script could not execute on the original Windows Codex
+  host because a Bash runtime was unavailable; the hosted repository ownership
+  workflow passed and no Core schema/migration file is introduced by this
+  tranche.
 
 ## Historical Tranche 2 baseline and owner-approved policy
 
@@ -124,7 +132,8 @@ The evidence below records the current-main state after Tranche 1 merged and the
 | Statements | ⛔ CORE CONTRACT REQUIRED | No current Buyer statement surface or verified customer-safe statement contract found; requires a production Core authority assignment. |
 | Profile / company / team | ✅ VERIFIED COMPLETE | Buyer Account consumes Core company/team projections and provides governed sign-out. |
 | Support chat / callback | ➖ DEPRECATE LATER / UNREACHABLE | The current Buyer route uses the governed Support page and `submit_customer_support_ticket_v1`. Historical `SupportChat` remains unreferenced and retains a hard-coded legacy Edge Function dependency; it is not an active Buyer writer and is not being rebuilt in this tranche. |
-| Support tickets and evidence | ✅ VERIFIED COMPLETE | Buyer Support and `SupportTicketModal` call Core `submit_customer_support_ticket_v1(...)`, require a description, and render customer-safe ticket projections. |
+| Order-linked support tickets and evidence | ✅ VERIFIED COMPLETE | Buyer Support and `SupportTicketModal` call Core `submit_customer_support_ticket_v1(...)`, require an order/description, and render customer-safe ticket projections. |
+| General/non-order customer queries | ⛔ CORE CONTRACT REQUIRED | The established support submission contract requires `p_order_id`; no verified order-optional customer query writer is available. Central must not create a shadow table or route a non-order query into checkout. |
 | Announcements / alerts / launch sections | ✅ VERIFIED COMPLETE | Buyer Home renders the existing `SystemAlertMarquee`; launch/festival/bestseller sections remain outside the approved implemented contract unless separately assigned. |
 | Loading / empty / error / stale-session states | ✅ VERIFIED COMPLETE | Buyer data loading, empty, error/toast and refresh states are implemented in the route tree; auth/session redirects remain governed by the existing auth provider. |
 | Mobile UX/accessibility | ✅ VERIFIED COMPLETE | Buyer navigation is responsive with mobile bottom navigation and touch-sized controls; automated typecheck/build and repository gates pass. Authenticated device/runtime evidence remains a separate gate. |
@@ -202,6 +211,7 @@ wallet, advance, credit, PI, invoice or statement facts.
 | Customer-safe invoice | ⛔ CORE CONTRACT REQUIRED | No deployed customer-safe invoice availability/ID/download projection is evidenced. |
 | Statement | ⛔ CORE CONTRACT REQUIRED | No deployed customer-safe statement contract is evidenced. |
 | Durable favourites | ⛔ CORE CONTRACT REQUIRED | No canonical Core favourite authority is present; no browser/local shadow truth is allowed. |
+| General/non-order customer query inward | ⛔ CORE CONTRACT REQUIRED | Current governed Buyer support submission is order-linked and cannot safely represent arbitrary non-order queries without a separate owner-assigned contract. |
 | Full Buyer → SO → Finance → Buyer golden path | BLOCKED | Awaiting protected Core deployment and authenticated production verification of the exact customer-safe contract. |
 | Central owner action | NONE FOR CURRENT SLICE | Core/Mission Control must provide the deployment and runtime evidence; Central must not deploy or mutate production. |
 
@@ -210,12 +220,13 @@ wallet, advance, credit, PI, invoice or statement facts.
 ### Implementation progress (current branch)
 
 - [x] Dedicated APP-E2E branch created from current Central main.
-- [x] Governed client wrappers added for Core buyer identity, pricing, draft/cart, checkout, order projections and support contracts.
+- [x] Governed client wrappers added for Core buyer identity, pricing, draft/cart, checkout, order projections and order-linked support contracts.
 - [x] Buyer route tree and mobile navigation shell added; buyer roles now land on `/buyer` when approved company context exists.
 - [x] Catalogue search/filter/detail and Core-backed persistent cart added.
 - [x] Checkout UI uses Core `submit_customer_order_v1` with a stable retry key; it does not calculate or write Finance state.
-- [x] Support ticket modal/page uses Core submission RPC; direct customer audit-table writes removed from callback UI.
-- [x] Quick buy/reorder, catalogue/detail, cart/MOQ, checkout/order inward, order projections, support tickets, account context, alerts and Buyer loading/error/empty/mobile states are implemented and covered by the current branch checks.
+- [x] Order-linked support ticket modal/page uses Core submission RPC; direct customer audit-table writes removed from the active Buyer path.
+- [x] Quick buy/reorder, catalogue/detail, cart/MOQ, checkout/order inward, order projections, order-linked support tickets, account context, alerts and Buyer loading/error/empty/mobile states are implemented and covered by the current branch checks.
+- [ ] General/non-order customer query inward requires a governed order-optional Core contract; do not create a Central shadow writer or SO.
 - [ ] Durable favourites, statements, customer-safe documents and richer Finance-backed commercial cards remain blocked on Core contracts and/or protected runtime proof.
 - [ ] Browser/Playwright golden-path evidence and production-runtime verification remain outstanding.
 - [x] Production presence for the established Buyer RPC set is verified; full authenticated Core runtime/golden-path certification remains pending as a separate Mission Control gate.
@@ -223,18 +234,19 @@ wallet, advance, credit, PI, invoice or statement facts.
 - [x] Buyer route tree and mobile shell are complete and connected to authenticated buyer context.
 - [x] Catalogue/detail/cart use customer-safe Core contracts; MOQ/carton errors are actionable.
 - [x] Submission uses only the governed Core checkout RPC with stable idempotency and retry-safe UI.
-- [x] Orders/status/items/support are customer-safe projections with correct empty/loading/error states.
+- [x] Orders/status/items and order-linked support are customer-safe projections with correct empty/loading/error states.
 - [x] No authoritative Finance calculation or direct `orders`/`order_items`/support-table mutation remains in the Buyer path.
-- [x] Required frontend regression coverage, typecheck, lint and production build checks pass on PR #421's current head; live authenticated/Core/Finance handoff evidence remains pending.
-- [x] Tranche 1 software implementation and merge are complete; production presence is verified for the established Buyer RPC set.
-- [ ] Any future Tranche 2 surface that consumes a newer Core contract is held until that exact customer-safe contract is protected-deployed and verified in production.
-- [ ] Final golden paths are demonstrated: authenticated buyer order inward to canonical SO/Finance handoff, and non-order support/query path.
+- [x] Required frontend regression coverage, typecheck, lint and production build checks pass on the pre-takeover PR #427 head; final-head CI is required after takeover hardening.
+- [x] Tranche 1 and Tranche 2 software implementation/merges are complete; production presence is verified for the established Buyer RPC set.
+- [ ] Any future surface that consumes a newer Core contract is held until that exact customer-safe contract is protected-deployed and verified in production.
+- [ ] Final golden paths are demonstrated: authenticated buyer order inward to canonical SO/Finance handoff, plus a governed non-order support/query path once its Core contract exists.
 
 ### Runtime / upstream gate boundary
 
 - [x] Protected production contract presence for the established Buyer RPC set is evidenced by the read-only inspection recorded above.
 - [ ] Protected Core deployment/runtime verification for the newer Finance/document projections is evidenced by Mission Control.
-- [ ] Authenticated golden-path evidence proves Buyer → governed order inward → canonical SO → Finance-visible projection/review → Buyer-safe projection. The App code is ready; this cannot be claimed from CI or a Vercel preview alone.
+- [ ] A governed order-optional customer-query contract is deployed/verified for non-order Buyer queries.
+- [ ] Authenticated golden-path evidence proves Buyer → governed order inward → canonical SO → Finance-visible projection/review → Buyer-safe projection. The App code is ready for its currently contracted surfaces; this cannot be claimed from CI or a Vercel preview alone.
 
 ## Non-blocking later-stage gaps
 
