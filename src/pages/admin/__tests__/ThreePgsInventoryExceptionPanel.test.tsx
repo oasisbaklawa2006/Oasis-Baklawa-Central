@@ -79,6 +79,21 @@ describe("ThreePgsInventoryExceptionPanel", () => {
     expect(first.p_correlation_id).toBe(second.p_correlation_id);
   });
 
+  it("treats Core success as committed even when the parent refresh fails, and does not leave the old command retryable", async () => {
+    const reloadParent = vi.fn(async () => { throw new Error("parent refresh unavailable"); });
+    render(<ThreePgsInventoryExceptionPanel receiptId="receipt-1" destinationStoreCode="3PGS" grnFinalisedAt="2026-09-01T00:00:00Z" reloadParent={reloadParent} />);
+    await screen.findByText("Available 12");
+    fireEvent.change(screen.getByLabelText(`Exception quantity for ${line.sku}`), { target: { value: "2" } });
+    fireEvent.change(screen.getByLabelText(`Exception reason for ${line.sku}`), { target: { value: "QC hold after GRN" } });
+    fireEvent.click(screen.getByRole("button", { name: "Record" }));
+
+    expect(await screen.findByText(`${line.sku} exception recorded through governed 3PGS authority.`)).toBeTruthy();
+    expect(await screen.findByText(/3PGS exception recorded, but refresh failed: parent refresh unavailable/)).toBeTruthy();
+    expect(rpcMock).toHaveBeenCalledTimes(1);
+    expect(screen.getByLabelText(`Exception quantity for ${line.sku}`)).toHaveValue(null);
+    expect(screen.getByLabelText(`Exception reason for ${line.sku}`)).toHaveValue("");
+  });
+
   it("fails locally when quantity exceeds the selected canonical bucket and never calls the RPC", async () => {
     render(<ThreePgsInventoryExceptionPanel receiptId="receipt-1" destinationStoreCode="3PGS" grnFinalisedAt="2026-09-01T00:00:00Z" reloadParent={vi.fn(async () => undefined)} />);
     await screen.findByText("Available 12");
