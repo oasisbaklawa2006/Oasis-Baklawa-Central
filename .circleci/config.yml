@@ -55,7 +55,7 @@ jobs:
 
       - run:
           name: Unit and migration contract tests
-          command: npm run test
+          command: npm run test -- --maxWorkers=1
 
       - run:
           name: Production build
