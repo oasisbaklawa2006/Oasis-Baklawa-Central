@@ -456,6 +456,18 @@ export default function DispatchManagement() {
       toast.error("A carton photo is required.");
       return;
     }
+    if (evidencePhoto) {
+      const ALLOWED_PHOTO_TYPES = new Set(["image/jpeg", "image/png", "image/webp", "image/heic"]);
+      const MAX_PHOTO_BYTES = 10 * 1024 * 1024;
+      if (!ALLOWED_PHOTO_TYPES.has(evidencePhoto.type)) {
+        toast.error("Carton photo must be a JPEG, PNG, WEBP or HEIC image.");
+        return;
+      }
+      if (evidencePhoto.size > MAX_PHOTO_BYTES) {
+        toast.error("Carton photo must be 10 MB or smaller.");
+        return;
+      }
+    }
     setRecordingEvidence(true);
     let uploadedPath: string | null = null;
     try {
