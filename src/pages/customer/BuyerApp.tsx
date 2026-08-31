@@ -321,7 +321,14 @@ function Cart({ data }: { data: ReturnType<typeof useBuyerData> }) {
   const total = hasCompletePreview ? lines.reduce((sum, line) => sum + Number(line.quantity || 0) * Number(line.unit_price_snapshot ?? priceById.get(line.product_id)?.selling_price), 0) : null;
   const readinessMessages = Array.from(new Set(data.draft
     .filter((line) => line.readiness_status !== "ready")
-    .flatMap((line) => customerReadinessMessages(line.readiness_issues as Json, undefined, undefined))));
+    .flatMap((line) => {
+      const price = line.product_id ? priceById.get(line.product_id) : undefined;
+      return customerReadinessMessages(
+        line.readiness_issues as Json,
+        price?.minimum_order_quantity ?? null,
+        price?.minimum_order_uom || price?.uom || null,
+      );
+    })));
   const canSubmit = lines.length > 0 && data.draft.every((line) => line.readiness_status === "ready");
   const mutate = async (action: () => Promise<unknown>) => {
     try {
