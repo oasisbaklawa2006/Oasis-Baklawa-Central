@@ -442,12 +442,16 @@ export default function DispatchManagement() {
   };
 
   const handleRecordEvidence = async () => {
-    const net = Number(netWeight);
-    const gross = Number(grossWeight);
     if (!selectedCartonId) {
       toast.error("Select a carton first.");
       return;
     }
+    if (!netWeight.trim() || !grossWeight.trim()) {
+      toast.error("Net and gross weight are required.");
+      return;
+    }
+    const net = Number(netWeight);
+    const gross = Number(grossWeight);
     if (!Number.isFinite(net) || net < 0 || !Number.isFinite(gross) || gross < 0) {
       toast.error("Net and gross weight are required.");
       return;
