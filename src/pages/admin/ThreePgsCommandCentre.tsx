@@ -8,9 +8,23 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
+type CommandResult = {
+  data: unknown[] | null;
+  error: { message: string } | null;
+};
+
+type CommandQuery = PromiseLike<CommandResult> & {
+  select: (columns: string) => CommandQuery;
+  eq: (column: string, value: unknown) => CommandQuery;
+  in: (column: string, values: readonly unknown[]) => CommandQuery;
+  order: (column: string, options?: { ascending?: boolean }) => CommandQuery;
+  limit: (count: number) => CommandQuery;
+};
+
 // R4.5 is a composition surface only. Core remains the mutation authority.
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const commandDb = supabase as unknown as { from: (relation: string) => any };
+// This typed read-side adapter is deliberately narrow: it exposes only the
+// query operations used here and does not create or expose any write method.
+const commandDb = supabase as unknown as { from: (relation: string) => CommandQuery };
 
 type Balance = {
   id: string;
