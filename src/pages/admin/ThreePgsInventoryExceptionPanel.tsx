@@ -73,12 +73,13 @@ export default function ThreePgsInventoryExceptionPanel({
       setLines([]);
       setBalances([]);
       setActionError(cause instanceof Error ? cause.message : "3PGS exception balances could not be loaded");
+      throw cause;
     } finally {
       setLoading(false);
     }
   }, [enabled, receiptId]);
 
-  useEffect(() => { void load(); }, [load]);
+  useEffect(() => { void load().catch(() => undefined); }, [load]);
 
   const balanceByIdentity = useMemo(() => new Map(balances.map((balance) => [`${balance.product_id}:${balance.sku}`, balance])), [balances]);
   const draftFor = (lineId: string) => drafts.get(lineId) ?? DEFAULT_DRAFT;
@@ -129,13 +130,21 @@ export default function ThreePgsInventoryExceptionPanel({
         p_evidence: [],
       });
       if (error) { setActionError(error.message); return; }
+
+      // Core success is authoritative. From this point forward, the command is
+      // committed and must never be represented as safe to retry.
       setCorrelations((current) => { const next = new Map(current); next.delete(line.id); return next; });
       setDrafts((current) => { const next = new Map(current); next.set(line.id, DEFAULT_DRAFT); return next; });
       setSuccess(`${line.sku} exception recorded through governed 3PGS authority.`);
-      await Promise.all([load(), reloadParent()]);
+
+      try {
+        await Promise.all([load(), reloadParent()]);
+      } catch (cause) {
+        setActionError(cause instanceof Error ? `3PGS exception recorded, but refresh failed: ${cause.message}` : "3PGS exception recorded, but refresh failed");
+      }
     } catch (cause) {
-      // Keep correlationId in state: a retry after an uncertain network result must
-      // replay the same Core command instead of risking a duplicate stock mutation.
+      // Keep correlationId in state: only an uncertain RPC result is retryable.
+      // A post-success refresh failure is handled above and never reaches here.
       setActionError(cause instanceof Error ? cause.message : "3PGS inventory exception failed");
     } finally {
       setBusyLineId(null);
@@ -160,7 +169,7 @@ export default function ThreePgsInventoryExceptionPanel({
           <h2 className="flex items-center gap-2 text-sm font-semibold"><ShieldAlert className="h-4 w-4 text-amber-600" />Post-GRN 3PGS exceptions</h2>
           <p className="text-xs text-muted-foreground">All stock mutation is executed by the production-certified Core authority. This screen never writes balances directly.</p>
         </div>
-        <Button size="sm" variant="outline" disabled={loading || busyLineId !== null} onClick={() => void load()}><RefreshCw className={`mr-2 h-4 w-4 ${loading ? "animate-spin" : ""}`} />Refresh balances</Button>
+        <Button size="sm" variant="outline" disabled={loading || busyLineId !== null} onClick={() => void load().catch(() => undefined)}><RefreshCw className={`mr-2 h-4 w-4 ${loading ? "animate-spin" : ""}`} />Refresh balances</Button>
       </div>
       {actionError && <p className="flex items-center gap-2 rounded border border-destructive/30 bg-destructive/5 p-2 text-xs text-destructive"><AlertTriangle className="h-4 w-4" />{actionError}</p>}
       {success && <p className="rounded border border-primary/30 bg-primary/5 p-2 text-xs text-primary">{success}</p>}
