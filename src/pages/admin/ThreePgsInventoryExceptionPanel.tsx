@@ -24,8 +24,10 @@ function sourceForAction(action: ExceptionAction, current: SourceBucket): Source
 }
 
 function newCorrelation(lineId: string): string {
-  const suffix = typeof crypto !== "undefined" && typeof crypto.randomUUID === "function" ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
-  return `3pgs-exception:${lineId}:${suffix}`;
+  if (typeof crypto === "undefined" || typeof crypto.randomUUID !== "function") {
+    throw new Error("Secure correlation IDs are unavailable in this browser.");
+  }
+  return `3pgs-exception:${lineId}:${crypto.randomUUID()}`;
 }
 
 export default function ThreePgsInventoryExceptionPanel({
@@ -93,8 +95,6 @@ export default function ThreePgsInventoryExceptionPanel({
       next.set(lineId, nextDraft);
       return next;
     });
-    // Any semantic edit represents a new intended command. Failed/uncertain retries
-    // retain their correlation key only while the draft remains unchanged.
     setCorrelations((current) => { const next = new Map(current); next.delete(lineId); return next; });
     setSuccess(null);
   };
@@ -113,7 +113,13 @@ export default function ThreePgsInventoryExceptionPanel({
     if (!balance) { setActionError("No canonical 3PGS balance exists for this SKU."); return; }
     if (quantity > sourceQuantity) { setActionError(`Quantity exceeds the ${draft.sourceBucket} balance.`); return; }
 
-    const correlationId = correlations.get(line.id) ?? newCorrelation(line.id);
+    let correlationId: string;
+    try {
+      correlationId = correlations.get(line.id) ?? newCorrelation(line.id);
+    } catch (cause) {
+      setActionError(cause instanceof Error ? cause.message : "Secure correlation ID generation failed.");
+      return;
+    }
     if (!correlations.has(line.id)) setCorrelations((current) => new Map(current).set(line.id, correlationId));
     setBusyLineId(line.id);
     setActionError(null);
@@ -130,21 +136,15 @@ export default function ThreePgsInventoryExceptionPanel({
         p_evidence: [],
       });
       if (error) { setActionError(error.message); return; }
-
-      // Core success is authoritative. From this point forward, the command is
-      // committed and must never be represented as safe to retry.
       setCorrelations((current) => { const next = new Map(current); next.delete(line.id); return next; });
       setDrafts((current) => { const next = new Map(current); next.set(line.id, DEFAULT_DRAFT); return next; });
       setSuccess(`${line.sku} exception recorded through governed 3PGS authority.`);
-
       try {
         await Promise.all([load(), reloadParent()]);
       } catch (cause) {
         setActionError(cause instanceof Error ? `3PGS exception recorded, but refresh failed: ${cause.message}` : "3PGS exception recorded, but refresh failed");
       }
     } catch (cause) {
-      // Keep correlationId in state: only an uncertain RPC result is retryable.
-      // A post-success refresh failure is handled above and never reaches here.
       setActionError(cause instanceof Error ? cause.message : "3PGS inventory exception failed");
     } finally {
       setBusyLineId(null);
@@ -152,7 +152,6 @@ export default function ThreePgsInventoryExceptionPanel({
   };
 
   if (destinationStoreCode !== "3PGS") return null;
-
   if (!grnFinalisedAt) {
     return (
       <section data-testid="3pgs-inventory-exception-panel" className="rounded-lg border border-amber-500/30 bg-amber-500/[0.04] p-4">
@@ -169,7 +168,7 @@ export default function ThreePgsInventoryExceptionPanel({
           <h2 className="flex items-center gap-2 text-sm font-semibold"><ShieldAlert className="h-4 w-4 text-amber-600" />Post-GRN 3PGS exceptions</h2>
           <p className="text-xs text-muted-foreground">All stock mutation is executed by the production-certified Core authority. This screen never writes balances directly.</p>
         </div>
-        <Button size="sm" variant="outline" disabled={loading || busyLineId !== null} onClick={() => void load().catch(() => undefined)}><RefreshCw className={`mr-2 h-4 w-4 ${loading ? "animate-spin" : ""}`} />Refresh balances</Button>
+        <Button size="sm" variant="outline" disabled={loading || busyLineId !== null} onClick={() => { void load().catch(() => undefined); }}><RefreshCw className={`mr-2 h-4 w-4 ${loading ? "animate-spin" : ""}`} />Refresh balances</Button>
       </div>
       {actionError && <p className="flex items-center gap-2 rounded border border-destructive/30 bg-destructive/5 p-2 text-xs text-destructive"><AlertTriangle className="h-4 w-4" />{actionError}</p>}
       {success && <p className="rounded border border-primary/30 bg-primary/5 p-2 text-xs text-primary">{success}</p>}
@@ -185,19 +184,15 @@ export default function ThreePgsInventoryExceptionPanel({
                 <div className="flex gap-2 text-xs"><Badge variant="outline">Available {Number(balance?.available_qty ?? 0).toLocaleString("en-IN")}</Badge><Badge variant="outline">Quarantine {Number(balance?.quarantine_qty ?? 0).toLocaleString("en-IN")}</Badge></div>
               </div>
               <div className="grid gap-2 md:grid-cols-[190px_150px_120px_1fr_auto]">
-                <select aria-label={`Exception action for ${line.sku}`} className="rounded border bg-background px-2 py-2 text-sm" value={draft.action} onChange={(event) => updateDraft(line.id, { action: event.target.value as ExceptionAction })}>
-                  <option value="quarantine">Quarantine</option>
-                  <option value="release_quarantine">Release quarantine</option>
-                  <option value="damage_writeoff">Damage write-off</option>
-                  <option value="return_to_vendor">Return to vendor</option>
+                <select aria-label={`Exception action for ${line.sku}`} className="rounded border bg-background px-2 py-2 text-sm" value={draft.action} onChange={(event) => { updateDraft(line.id, { action: event.target.value as ExceptionAction }); }}>
+                  <option value="quarantine">Quarantine</option><option value="release_quarantine">Release quarantine</option><option value="damage_writeoff">Damage write-off</option><option value="return_to_vendor">Return to vendor</option>
                 </select>
-                <select aria-label={`Source bucket for ${line.sku}`} className="rounded border bg-background px-2 py-2 text-sm disabled:opacity-60" disabled={sourceLocked} value={draft.sourceBucket} onChange={(event) => updateDraft(line.id, { sourceBucket: event.target.value as SourceBucket })}>
-                  <option value="available">Available</option>
-                  <option value="quarantine">Quarantine</option>
+                <select aria-label={`Source bucket for ${line.sku}`} className="rounded border bg-background px-2 py-2 text-sm disabled:opacity-60" disabled={sourceLocked} value={draft.sourceBucket} onChange={(event) => { updateDraft(line.id, { sourceBucket: event.target.value as SourceBucket }); }}>
+                  <option value="available">Available</option><option value="quarantine">Quarantine</option>
                 </select>
-                <input aria-label={`Exception quantity for ${line.sku}`} className="rounded border bg-background px-2 py-2 text-sm" type="number" min="0" step="any" placeholder="Qty" value={draft.quantity} onChange={(event) => updateDraft(line.id, { quantity: event.target.value })} />
-                <input aria-label={`Exception reason for ${line.sku}`} className="rounded border bg-background px-2 py-2 text-sm" placeholder="Reason / evidence note" value={draft.reason} onChange={(event) => updateDraft(line.id, { reason: event.target.value })} />
-                <Button size="sm" disabled={busyLineId !== null || !balance} onClick={() => void submit(line)}>{busyLineId === line.id ? "Recording…" : "Record"}</Button>
+                <input aria-label={`Exception quantity for ${line.sku}`} className="rounded border bg-background px-2 py-2 text-sm" type="number" min="0" step="any" placeholder="Qty" value={draft.quantity} onChange={(event) => { updateDraft(line.id, { quantity: event.target.value }); }} />
+                <input aria-label={`Exception reason for ${line.sku}`} className="rounded border bg-background px-2 py-2 text-sm" placeholder="Reason / evidence note" value={draft.reason} onChange={(event) => { updateDraft(line.id, { reason: event.target.value }); }} />
+                <Button size="sm" disabled={busyLineId !== null || !balance} onClick={() => { void submit(line); }}>{busyLineId === line.id ? "Recording…" : "Record"}</Button>
               </div>
             </div>
           );
