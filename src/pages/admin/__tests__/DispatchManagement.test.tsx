@@ -52,20 +52,20 @@ const dplVersionRow = {
   correlation_id: "corr-dpl-1",
 };
 
-type Fixtures = Record<string, unknown[]>;
+type Fixtures = Map<string, unknown[]>;
 
-let fixtures: Fixtures = {};
+let fixtures: Fixtures = new Map();
 
 function resetFixtures() {
-  fixtures = {
-    b2b_dispatch_shipment_execution_view: [consignmentRow],
-    b2b_dispatch_cartons: [cartonRow],
-    b2b_dispatch_consignment_lines: [consignmentLineRow],
-    b2b_dispatch_packing_list_versions: [],
-    b2b_dispatch_events: [],
-    b2b_dispatch_carton_items: [],
-    b2b_dispatch_product_scan_events: [],
-  };
+  fixtures = new Map([
+    ["b2b_dispatch_shipment_execution_view", [consignmentRow]],
+    ["b2b_dispatch_cartons", [cartonRow]],
+    ["b2b_dispatch_consignment_lines", [consignmentLineRow]],
+    ["b2b_dispatch_packing_list_versions", []],
+    ["b2b_dispatch_events", []],
+    ["b2b_dispatch_carton_items", []],
+    ["b2b_dispatch_product_scan_events", []],
+  ]);
 }
 resetFixtures();
 
@@ -82,7 +82,7 @@ function makeQuery(table: string) {
   builder.order = chain;
   builder.limit = chain;
   builder.then = (resolve: (result: { data: unknown; error: null }) => void) =>
-    resolve({ data: fixtures[table] ?? [], error: null });
+    resolve({ data: fixtures.get(table) ?? [], error: null });
   return builder;
 }
 
@@ -349,7 +349,7 @@ describe("DispatchManagement (FACT-C3 governed operator workflow)", () => {
   });
 
   it("requires a reason before superseding an existing DPL version", async () => {
-    fixtures.b2b_dispatch_packing_list_versions = [dplVersionRow];
+    fixtures.set("b2b_dispatch_packing_list_versions", [dplVersionRow]);
     render(<DispatchManagement />);
     await screen.findByText("SO-2026-000001-DC-01");
     await selectWorkingConsignment();
@@ -362,8 +362,8 @@ describe("DispatchManagement (FACT-C3 governed operator workflow)", () => {
   });
 
   it("supersedes a DPL version with a reason and shows superseded history with the reason", async () => {
-    fixtures.b2b_dispatch_packing_list_versions = [dplVersionRow];
-    fixtures.b2b_dispatch_events = [{ document_version_id: "dpl-1", reason: "corrected packed weight" }];
+    fixtures.set("b2b_dispatch_packing_list_versions", [dplVersionRow]);
+    fixtures.set("b2b_dispatch_events", [{ document_version_id: "dpl-1", reason: "corrected packed weight" }]);
     render(<DispatchManagement />);
     await screen.findByText("SO-2026-000001-DC-01");
     await selectWorkingConsignment();
@@ -383,11 +383,11 @@ describe("DispatchManagement (FACT-C3 governed operator workflow)", () => {
   });
 
   it("shows superseded-version history with its recorded correction reason", async () => {
-    fixtures.b2b_dispatch_packing_list_versions = [
+    fixtures.set("b2b_dispatch_packing_list_versions", [
       { ...dplVersionRow, id: "dpl-2", version_number: 2 },
       { ...dplVersionRow, status: "superseded", superseded_by: "dpl-2" },
-    ];
-    fixtures.b2b_dispatch_events = [{ document_version_id: "dpl-1", reason: "corrected packed weight" }];
+    ]);
+    fixtures.set("b2b_dispatch_events", [{ document_version_id: "dpl-1", reason: "corrected packed weight" }]);
     render(<DispatchManagement />);
     await screen.findByText("SO-2026-000001-DC-01");
     await selectWorkingConsignment();
@@ -397,7 +397,7 @@ describe("DispatchManagement (FACT-C3 governed operator workflow)", () => {
   });
 
   it("submits the current DPL version to Finance", async () => {
-    fixtures.b2b_dispatch_packing_list_versions = [dplVersionRow];
+    fixtures.set("b2b_dispatch_packing_list_versions", [dplVersionRow]);
     render(<DispatchManagement />);
     await screen.findByText("SO-2026-000001-DC-01");
     await selectWorkingConsignment();
@@ -415,7 +415,7 @@ describe("DispatchManagement (FACT-C3 governed operator workflow)", () => {
   });
 
   it("does not disable the submit button as complete when the RPC fails, so it can be retried", async () => {
-    fixtures.b2b_dispatch_packing_list_versions = [dplVersionRow];
+    fixtures.set("b2b_dispatch_packing_list_versions", [dplVersionRow]);
     rpcMock.mockImplementation(async (fn: string) => {
       if (fn === "submit_b2b_dispatch_packing_list_to_finance") {
         return { data: null, error: { message: "network timeout" } };
