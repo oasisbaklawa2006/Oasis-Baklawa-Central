@@ -16,7 +16,17 @@ export const dispatchGovernedRpc = supabase as unknown as {
  * Same escape hatch for reading the governed b2b_dispatch_* tables/views
  * directly (SELECT is already granted to internal staff by RLS; only
  * INSERT/UPDATE/DELETE are RPC-gated) -- their row shapes aren't in the
- * generated types yet either.
+ * generated types yet either. A minimal generic query-builder type keeps
+ * the chain typed by row shape while still deferring to database.types.ts
+ * once these relations are generated.
  */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export const dispatchDb = supabase as unknown as { from: (relation: string) => any };
+type DispatchQuery<Row> = PromiseLike<{ data: Row[] | null; error: { message: string } | null }> & {
+  select: (columns: string) => DispatchQuery<Row>;
+  eq: (column: string, value: unknown) => DispatchQuery<Row>;
+  order: (column: string, options?: { ascending?: boolean }) => DispatchQuery<Row>;
+  limit: (count: number) => DispatchQuery<Row>;
+};
+
+export const dispatchDb = supabase as unknown as {
+  from: <Row = Record<string, unknown>>(relation: string) => DispatchQuery<Row>;
+};

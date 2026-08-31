@@ -50,7 +50,7 @@ describe("FACT-C3 legacy carton/DPL mutation decommission", () => {
     expect(app).not.toContain("dispatch-governed-preview");
   });
 
-  it("b2b_dispatch_packing_list_versions is only ever mutated through the governed RPCs, not raw INSERT/UPDATE, anywhere in src", () => {
+  it("DispatchManagement never mutates b2b_dispatch_packing_list_versions with a raw INSERT/UPDATE", () => {
     // A grep-equivalent static check: the governed table name should never
     // appear adjacent to a raw .insert/.update/.upsert/.delete call.
     const src = readSrc("pages/admin/DispatchManagement.tsx");
