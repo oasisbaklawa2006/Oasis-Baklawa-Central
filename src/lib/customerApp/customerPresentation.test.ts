@@ -31,11 +31,13 @@ describe("customer-safe Buyer presentation", () => {
     const unknownTimeline = buildCustomerOrderTimeline({ customerStage: "unrecognised", paymentStage: "unknown", orderNumber: null });
     expect(unknownTimeline[0].label).toBe("Order received");
     expect(unknownTimeline.find((step) => step.id === "payment")?.state).toBe("current");
+    expect(unknownTimeline.filter((step) => step.state === "current").map((step) => step.id)).toEqual(["payment"]);
   });
 
   it("turns authoritative readiness details into actionable customer copy", () => {
     expect(customerReadinessMessages([{ code: "MOQ_NOT_MET" }], 12, "cartons")).toEqual(["Minimum order is 12 cartons."]);
     expect(customerReadinessMessages([{ message: "Carton increment required" }], null, null)).toEqual(["Adjust the quantity to the approved carton or order increment."]);
+    expect(customerReadinessMessages([{ code: "INVENTORY_UNAVAILABLE", detail: "Internal inventory detail" }], null, null)).toEqual(["Review the quantity and carton requirements before submitting."]);
     expect(customerReadinessMessages([], null, null)).toEqual(["Review the quantity and carton requirements before submitting."]);
   });
 });

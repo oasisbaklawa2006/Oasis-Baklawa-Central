@@ -235,13 +235,19 @@ describe("Buyer App governed commercial handoff", () => {
       ...buyerMock.draftLine,
       readiness_status: "blocked",
       readiness_issues: [{ code: "MOQ_NOT_MET" }],
+    }, {
+      ...buyerMock.draftLine,
+      line_id: "line-2",
+      readiness_status: "blocked",
+      readiness_issues: [{ code: "INVENTORY_UNAVAILABLE", detail: "Internal inventory detail" }],
     }]);
     render(<MemoryRouter initialEntries={["/buyer/cart"]}><BuyerApp /></MemoryRouter>);
 
-    expect(await screen.findByText("SKU SKU-1 · carton")).toBeTruthy();
-    expect(screen.getByText(/line preview/)).toHaveTextContent("₹12,500");
+    expect((await screen.findAllByText("SKU SKU-1 · carton")).length).toBe(2);
+    expect(screen.getAllByText(/line preview/).every((element) => element.textContent?.includes("₹12,500"))).toBe(true);
     expect(screen.getByText("Review your quantities before submitting")).toBeTruthy();
     expect(screen.getByText("Meet the minimum order quantity shown for this product.")).toBeTruthy();
+    expect(screen.getByText("Review the quantity and carton requirements before submitting.")).toBeTruthy();
     expect(screen.getByRole("button", { name: "Submit order" })).toBeDisabled();
   });
 

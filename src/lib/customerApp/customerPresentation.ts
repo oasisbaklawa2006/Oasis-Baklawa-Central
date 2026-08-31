@@ -73,7 +73,7 @@ export function buildCustomerOrderTimeline(input: {
 
   return [
     { id: "received", label: "Order received", state: "completed", caption: "Your request is safely with Oasis." },
-    { id: "sales-order", label: "Sales order confirmed", state: input.orderNumber ? "completed" : "current" },
+    { id: "sales-order", label: "Sales order confirmed", state: stateFor(1) },
     { id: "payment", label: "Payment review", state: stateFor(2), caption: payment === "awaiting_receipt" ? "Add payment details when requested." : undefined },
     { id: "preparation", label: "Preparing your order", state: stateFor(3) },
     { id: "dispatch", label: "Dispatch", state: stateFor(4) },
@@ -109,5 +109,5 @@ export function customerReadinessMessages(
   if (normalized.some((value) => value.includes("increment") || value.includes("carton"))) {
     return ["Adjust the quantity to the approved carton or order increment."];
   }
-  return values.length > 0 ? values : ["Review the quantity and carton requirements before submitting."];
+  return ["Review the quantity and carton requirements before submitting."];
 }
