@@ -95,7 +95,9 @@ export function threePgsCommandCentreMetrics(snapshot: Snapshot) {
   const openAssembly = snapshot.assembly.filter((row) => ["open", "partially_fulfilled"].includes(row.status)).length;
   const receiptsAwaitingGrn = snapshot.receipts.filter((receipt) => {
     if (["cancelled", "rejected"].includes(receipt.status)) return false;
-    return !snapshot.grns.some((grn) => grn.receipt_id === receipt.id && (grn.status === "finalised" || grn.finalised_at));
+    return !snapshot.grns.some(
+      (grn) => grn.receipt_id === receipt.id && (grn.status === "finalised" || Boolean(grn.finalised_at)),
+    );
   }).length;
   return { available, reserved, exceptions, openProcurement, openAssembly, receiptsAwaitingGrn };
 }
