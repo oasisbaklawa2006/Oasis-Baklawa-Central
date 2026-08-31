@@ -59,19 +59,19 @@ step that exercises it:
 | Property | Exercised at | Assertion |
 |---|---|---|
 | Actor/RBAC correctness | Every step | Each governed action is attempted only as a role actually authorized for it (e.g. `DISPATCH_HEAD`/`DISPATCH_MANAGER` for carton/DPL actions, `FINANCE_HEAD`/`FINANCE_EXEC` for release/submission visibility); an unauthorized-role attempt is rejected server-side, not merely hidden in the UI |
-| Custody transitions | Steps 4–5, 8–9 | Production→RGS and consignment→carton custody moves only via governed RPC, never a direct table write, and are visible in `production_rgs_transfers`/`b2b_dispatch_events` |
-| No parallel mutable authority | Step 7 (Packing) | Confirm `legacyDplMutationDecommission.test.ts` still passes and no legacy screen (`AdminPackingDispatch.tsx`, `AdminAccountsRelease.tsx`) can record packed quantity, cartons, or DPL for this order |
-| Idempotent retry | Steps 9, 11 | Same correlation id resubmitted after a simulated failure produces no duplicate scan/submission |
-| Duplicate-scan rejection | Step 9 | A second scan of an already-fully-reconciled line/barcode is rejected or is a no-op, not double-counted |
-| Wrong-order/product/carton rejection | Step 9 | A barcode not belonging to the consignment line is rejected with a reason, not accepted |
-| Quantity overflow rejection | Steps 3, 9 | RGS reservation beyond available stock, and carton scan beyond the consignment line's authoritative quantity, are both rejected |
-| Missing-evidence rejection | Step 9 (lock) | `lock_b2b_dispatch_carton` rejects a carton with no recorded evidence |
-| Stale-version/concurrency rejection | Step 9 (lock) | Locking with a stale `p_expected_version` is rejected; UI does not advance state optimistically |
-| Post-lock mutation rejection | Step 9 | No further scan/evidence RPC succeeds against an already-locked carton |
-| Unlocked-carton DPL rejection | Step 10 | `create_b2b_dispatch_packing_list` rejects while any required carton is unlocked; no DPL is fabricated |
-| DPL supersession/history preservation | Step 10 | A superseded version remains visible in history with its correction reason; the prior version's data is not lost |
-| Unauthorized DPL submit rejection | Step 11 | Submission attempted by a role without Dispatch/Finance authority is rejected |
-| Successful final `submitted_to_finance` state | Step 11 | `submitted_to_finance_at` and `finance_check_state` update on the authoritative record only after the RPC succeeds, confirmed by reload, not optimistically |
+| Custody transitions | Steps 6, 11 | Production→RGS and consignment→carton custody moves only via governed RPC, never a direct table write, and are visible in `production_rgs_transfers`/`b2b_dispatch_events` |
+| No parallel mutable authority | Step 10 (Packing) | Confirm `legacyDplMutationDecommission.test.ts` still passes and no legacy screen (`AdminPackingDispatch.tsx`, `AdminAccountsRelease.tsx`) can record packed quantity, cartons, or DPL for this order |
+| Idempotent retry | Step 12 | Same correlation id resubmitted after a simulated failure produces no duplicate scan/submission |
+| Duplicate-scan rejection | Step 12 | A second scan of an already-fully-reconciled line/barcode is rejected or is a no-op, not double-counted |
+| Wrong-order/product/carton rejection | Step 12 | A barcode not belonging to the consignment line is rejected with a reason, not accepted |
+| Quantity overflow rejection | Steps 3, 12 | RGS reservation beyond available stock, and carton scan beyond the consignment line's authoritative quantity, are both rejected |
+| Missing-evidence rejection | Steps 13, 15 (lock) | `lock_b2b_dispatch_carton` rejects a carton with no recorded evidence |
+| Stale-version/concurrency rejection | Step 15 (lock) | Locking with a stale `p_expected_version` is rejected; UI does not advance state optimistically |
+| Post-lock mutation rejection | Step 15 | No further scan/evidence RPC succeeds against an already-locked carton |
+| Unlocked-carton DPL rejection | Step 16 | `create_b2b_dispatch_packing_list` rejects while any required carton is unlocked; no DPL is fabricated |
+| DPL supersession/history preservation | Step 17 | A superseded version remains visible in history with its correction reason; the prior version's data is not lost |
+| Unauthorized DPL submit rejection | Step 18 | Submission attempted by a role without Dispatch/Finance authority is rejected |
+| Successful final `submitted_to_finance` state | Step 18 | `submitted_to_finance_at` and `finance_check_state` update on the authoritative record only after the RPC succeeds, confirmed by reload, not optimistically |
 
 ---
 
