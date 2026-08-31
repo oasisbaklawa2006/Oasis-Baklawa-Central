@@ -175,3 +175,8 @@ export function clearCheckoutIdempotencyKey() {
   fallbackCheckoutKey = null;
   try { sessionStorage.removeItem("oasis_buyer_checkout_idempotency"); } catch { /* storage disabled */ }
 }
+
+/** Formats a Date for an HTML date input using the browser's local calendar. */
+export function getLocalDateInputValue(value: Date = new Date()): string {
+  return `${value.getFullYear()}-${String(value.getMonth() + 1).padStart(2, "0")}-${String(value.getDate()).padStart(2, "0")}`;
+}
