@@ -33,16 +33,20 @@ jobs:
             set -euo pipefail
             git fetch --no-tags origin main
             base_sha="$(git merge-base HEAD origin/main)"
-            mapfile -t files < <(
-              git diff --name-only --diff-filter=ACMR "$base_sha" HEAD \
-                | grep -E '\.(ts|tsx)$' \
-                | while IFS= read -r file; do
-                    if [ -f "$file" ]; then
-                      printf '%s\n' "$file"
-                    fi
-                  done \
-                || true
-            )
+            changed_files="$(git diff --name-only --diff-filter=ACMR "$base_sha" HEAD)"
+            if printf '%s\n' "$changed_files" | grep -Eq '\.(ts|tsx)$'; then
+              mapfile -t files < <(
+                printf '%s\n' "$changed_files" \
+                  | grep -E '\.(ts|tsx)$' \
+                  | while IFS= read -r file; do
+                      if [ -f "$file" ]; then
+                        printf '%s\n' "$file"
+                      fi
+                    done
+              )
+            else
+              files=()
+            fi
             if [ "${#files[@]}" -eq 0 ]; then
               echo "No changed TypeScript files to lint."
               exit 0
