@@ -1,6 +1,6 @@
 # APP-E2E — Front / Buyer App + App Order Inward Completion Ledger
 
-**Baseline:** Central `origin/main` `6d7213f12a45c274235301113a7595e8142b3` (2026-08-31)
+**Baseline:** Central `origin/main` `6d7213f12a45c274235785301113a7595e8142b3` (2026-08-31)
 **Feature branch:** `codex/app-e2e-tranche2-commercial-visibility`
 **Boundary:** customer-facing Front/Buyer App and App-generated order inward only. Core schema/RPC authority remains in `oasis-supabase-core`; WhatsApp, Finance authority, Factory, Trace, CRM and Factory Gate are out of scope.
 
