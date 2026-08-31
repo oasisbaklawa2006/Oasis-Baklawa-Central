@@ -1,5 +1,10 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import { clearCheckoutIdempotencyKey, getCheckoutIdempotencyKey, getLocalDateInputValue } from "./customerAppClient";
+import {
+  canonicalSupportIssueType,
+  clearCheckoutIdempotencyKey,
+  getCheckoutIdempotencyKey,
+  getLocalDateInputValue,
+} from "./customerAppClient";
 
 describe("customer checkout idempotency", () => {
   beforeEach(() => {
@@ -21,5 +26,13 @@ describe("customer checkout idempotency", () => {
 
   it("uses the local calendar date for the dispatch-date minimum", () => {
     expect(getLocalDateInputValue(new Date(2026, 7, 31, 23, 45))).toBe("2026-08-31");
+  });
+
+  it("preserves the established support-ticket issue vocabulary", () => {
+    expect(canonicalSupportIssueType("Damaged goods")).toBe("Damaged Goods");
+    expect(canonicalSupportIssueType("Missing items")).toBe("Missing Items");
+    expect(canonicalSupportIssueType("Wrong shipment")).toBe("Wrong Shipment");
+    expect(canonicalSupportIssueType("Delivery question")).toBe("Other");
+    expect(canonicalSupportIssueType("future customer label")).toBe("Other");
   });
 });

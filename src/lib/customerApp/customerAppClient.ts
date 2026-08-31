@@ -4,14 +4,31 @@ import type { Database, Json } from "@/integrations/supabase/database.types";
 type PublicFunctions = Database["public"]["Functions"];
 type RpcName = keyof PublicFunctions;
 
+const CUSTOMER_SAFE_REQUEST_ERROR = "We couldn't complete that request. Please try again.";
+
+const CANONICAL_SUPPORT_ISSUE_TYPES: Record<string, string> = {
+  "damaged goods": "Damaged Goods",
+  "missing items": "Missing Items",
+  "wrong shipment": "Wrong Shipment",
+  "delivery question": "Other",
+  "other order question": "Other",
+  other: "Other",
+};
+
+/** Normalizes Buyer-facing labels to the established support-ticket payload vocabulary. */
+export function canonicalSupportIssueType(issueType: string): string {
+  return CANONICAL_SUPPORT_ISSUE_TYPES[issueType.trim().toLowerCase()] || "Other";
+}
+
 /**
  * Executes a generated customer RPC and preserves Core as the write authority.
  * The typed name/argument/return contract prevents callers from inventing a
- * second checkout or order-writer path.
+ * second checkout or order-writer path. Raw backend errors stay behind the
+ * customer boundary instead of being rendered directly in Buyer UI surfaces.
  */
 async function rpc<Name extends RpcName>(fn: Name, args?: PublicFunctions[Name]["Args"]): Promise<PublicFunctions[Name]["Returns"]> {
   const result = await supabase.rpc(fn, args as never);
-  if (result.error) throw new Error(result.error.message);
+  if (result.error) throw new Error(CUSTOMER_SAFE_REQUEST_ERROR);
   return result.data as PublicFunctions[Name]["Returns"];
 }
 
@@ -141,7 +158,7 @@ export const customerAppClient = {
   }),
   submitTicket: (orderId: string, issueType: string, description: string, sku?: string, quantity?: number) => rpc("submit_customer_support_ticket_v1", {
     p_order_id: orderId,
-    p_issue_type: issueType,
+    p_issue_type: canonicalSupportIssueType(issueType),
     p_description: description,
     p_product_sku: sku || null,
     p_quantity_affected: quantity ?? null,
