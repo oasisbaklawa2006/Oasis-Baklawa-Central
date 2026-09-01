@@ -518,7 +518,7 @@ test("FACT-E2E Gate 1B :: continuous golden order across RGS/Production/P&A/3PGS
     const unauthorizedCorrelationId = `fact-e2e-golden-${RUN_SUFFIX}-unauthorized-consignment`;
     const { error: unauthorizedError } = await unauthorizedClient.rpc("create_b2b_dispatch_consignment", {
       p_order_id: GOLDEN_ORDER_ID,
-      p_dispatch_mode: "road",
+      p_dispatch_mode: "road_transporter",
       p_lines: [{ order_item_id: GOLDEN_ORDER_ITEM_ID, selected_qty: 5 }],
       p_correlation_id: unauthorizedCorrelationId,
     });
@@ -530,7 +530,7 @@ test("FACT-E2E Gate 1B :: continuous golden order across RGS/Production/P&A/3PGS
     const createCorrelationId = `fact-e2e-golden-${RUN_SUFFIX}-consignment`;
     const { data: consignment, error: consignmentError } = await authorizedClient.rpc("create_b2b_dispatch_consignment", {
       p_order_id: GOLDEN_ORDER_ID,
-      p_dispatch_mode: "road",
+      p_dispatch_mode: "road_transporter",
       p_lines: [{ order_item_id: GOLDEN_ORDER_ITEM_ID, selected_qty: 5 }],
       p_correlation_id: createCorrelationId,
     });
