@@ -1,13 +1,14 @@
 /**
- * Local-only draft order workflow state (Approve / Reject / Edit).
- * Stored in localStorage — never writes to orders or order_items tables.
+ * Draft-order operator workflow cache. Core operator corrections are authority;
+ * localStorage remains only the immediate browser cache for responsive UI.
  */
 
 import type { DraftOrderLocalDecision, DraftOrderLocalEdits } from "@/lib/wa-governance/draftOrderExtractionTypes";
+import { enqueueOperatorWorkspaceMutation } from "./operatorInboxWorkspaceMutations";
 
 const STORAGE_KEY = "wa_operator_inbox_draft_order_local_v1";
 
-type DraftOrderLocalStore = Record<string, DraftOrderLocalEdits>;
+export type DraftOrderLocalStore = Record<string, DraftOrderLocalEdits>;
 
 function readStore(): DraftOrderLocalStore {
   if (typeof window === "undefined") return {};
@@ -30,6 +31,10 @@ function writeStore(store: DraftOrderLocalStore): void {
   }
 }
 
+export function loadDraftOrderLocalStore(): DraftOrderLocalStore {
+  return readStore();
+}
+
 export function getDraftOrderLocalEdits(packetId: string): DraftOrderLocalEdits {
   const existing = readStore()[packetId];
   return (
@@ -46,13 +51,24 @@ export function setDraftOrderLocalDecision(
   decision: DraftOrderLocalDecision,
 ): DraftOrderLocalEdits {
   const store = readStore();
+  const current = getDraftOrderLocalEdits(packetId);
   const next: DraftOrderLocalEdits = {
-    ...getDraftOrderLocalEdits(packetId),
+    ...current,
     decision,
     updatedAt: new Date().toISOString(),
   };
   store[packetId] = next;
   writeStore(store);
+  if (current.decision !== decision) {
+    enqueueOperatorWorkspaceMutation({
+      kind: "RECORD_CORRECTION",
+      packetId,
+      field: "draft_order.decision",
+      value: decision,
+      priorValue: current.decision,
+      reason: "Operator changed draft-order decision",
+    });
+  }
   return next;
 }
 
@@ -63,6 +79,7 @@ export function setDraftOrderLineQuantity(
 ): DraftOrderLocalEdits {
   const store = readStore();
   const current = getDraftOrderLocalEdits(packetId);
+  const priorValue = current.lineQuantities[lineIndex];
   const next: DraftOrderLocalEdits = {
     ...current,
     lineQuantities: { ...current.lineQuantities, [lineIndex]: quantity },
@@ -70,12 +87,29 @@ export function setDraftOrderLineQuantity(
   };
   store[packetId] = next;
   writeStore(store);
+  if (priorValue !== quantity) {
+    enqueueOperatorWorkspaceMutation({
+      kind: "RECORD_CORRECTION",
+      packetId,
+      field: `draft_order.line_quantity.${lineIndex}`,
+      value: quantity,
+      priorValue: priorValue ?? null,
+      reason: `Operator changed draft-order line ${lineIndex} quantity`,
+    });
+  }
   return next;
 }
 
 export function clearDraftOrderLocalEdits(packetId: string): void {
   const store = readStore();
   delete store[packetId];
+  writeStore(store);
+}
+
+/** Hydration path only: replace one packet cache without producing a correction. */
+export function replaceDraftOrderEditsFromServer(packetId: string, edits: DraftOrderLocalEdits): void {
+  const store = readStore();
+  store[packetId] = edits;
   writeStore(store);
 }
 

@@ -1,10 +1,11 @@
 import type { OperatorInboxBulkFilters } from "./operatorInboxBulkFilter";
 import { normalizePersistedBulkFilters } from "./operatorInboxUiPersistence";
+import { enqueueOperatorWorkspaceMutation } from "./operatorInboxWorkspaceMutations";
 
 const STORAGE_KEY = "oasis_c2b2_operator_inbox_saved_views_v1";
 const MAX_VIEWS = 32;
 
-/** Serializable slice of inbox UI for named presets (localStorage only). */
+/** Serializable slice of inbox UI for named presets. Browser storage is a cache; Core is authority. */
 export interface OperatorInboxSavedViewSnapshot {
   filterQuery: string;
   unansweredOnly: boolean;
@@ -37,8 +38,7 @@ function normalizeSnapshot(raw: unknown): OperatorInboxSavedViewSnapshot | null 
   const pinnedIds = Array.isArray(o.pinnedIds) ? o.pinnedIds.filter((x): x is string => typeof x === "string") : [];
   const bulkFilters = normalizePersistedBulkFilters(o.bulkFilters as OperatorInboxBulkFilters | undefined);
   const compactMode = typeof o.compactMode === "boolean" ? o.compactMode : false;
-  const showObservabilityStrip =
-    typeof o.showObservabilityStrip === "boolean" ? o.showObservabilityStrip : true;
+  const showObservabilityStrip = typeof o.showObservabilityStrip === "boolean" ? o.showObservabilityStrip : true;
   const showAiPreviewPanel = typeof o.showAiPreviewPanel === "boolean" ? o.showAiPreviewPanel : true;
   return {
     filterQuery,
@@ -84,6 +84,11 @@ export function persistSavedViews(views: OperatorInboxSavedView[]): void {
   }
 }
 
+/** Hydration path only: replace browser cache without producing a server mutation. */
+export function replaceSavedViewsFromServer(views: OperatorInboxSavedView[]): void {
+  persistSavedViews(views);
+}
+
 export function addSavedView(
   views: OperatorInboxSavedView[],
   name: string,
@@ -101,13 +106,25 @@ export function addSavedView(
       bulkFilters: normalizePersistedBulkFilters(snapshot.bulkFilters),
     },
   };
+  const replaced = views.find((view) => view.name.toLowerCase() === trimmed.toLowerCase());
   const next = [entry, ...views.filter((v) => v.name.toLowerCase() !== trimmed.toLowerCase())].slice(0, MAX_VIEWS);
   persistSavedViews(next);
+  if (replaced && replaced.id !== entry.id) {
+    enqueueOperatorWorkspaceMutation({ kind: "DELETE_VIEW", viewId: replaced.id });
+  }
+  enqueueOperatorWorkspaceMutation({
+    kind: "SAVE_VIEW",
+    viewId: entry.id,
+    name: entry.name,
+    snapshot: entry.snapshot as unknown as Record<string, unknown>,
+  });
   return next;
 }
 
 export function removeSavedView(views: OperatorInboxSavedView[], id: string): OperatorInboxSavedView[] {
   const next = views.filter((v) => v.id !== id);
+  if (next.length === views.length) return views;
   persistSavedViews(next);
+  enqueueOperatorWorkspaceMutation({ kind: "DELETE_VIEW", viewId: id });
   return next;
 }
