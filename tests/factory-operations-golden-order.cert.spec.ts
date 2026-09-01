@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { writeFileSync } from "node:fs";
 import { test, expect, type Page } from "@playwright/test";
 import { factoryCertificationCredentialSpec } from "../src/lib/factoryCertificationCredentialPolicy";
@@ -29,7 +30,7 @@ import {
 
 const GOLDEN_ORDER_ID = "30000000-0000-4000-8000-000000000002";
 const GOLDEN_ORDER_ITEM_ID = "30000000-0000-4000-8000-000000000003";
-const RUN_TOKEN = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+const RUN_SUFFIX = `${Date.now()}-${randomUUID().slice(0, 8)}`;
 
 type StageRecord = {
   stage: string;
@@ -104,8 +105,8 @@ test("FACT-E2E Gate 1B :: continuous golden order across RGS/Production/P&A/3PGS
   await test.step("P&A: create_assembly_job", async () => {
     await loginToFactoryCertificationTarget(page, hodAssembly);
     const { client } = await createAuthenticatedCertificationClient(page);
-    const correlationId = `fact-e2e-golden-${RUN_TOKEN}-create-job`;
-    const jobNumber = `FACT-E2E-GOLDEN-${RUN_TOKEN}`;
+    const correlationId = `fact-e2e-golden-${RUN_SUFFIX}-create-job`;
+    const jobNumber = `FACT-E2E-GOLDEN-${RUN_SUFFIX}`;
     const { data, error } = await client.rpc("create_assembly_job", {
       p_assembly_job_number: jobNumber,
       p_order_id: GOLDEN_ORDER_ID,
@@ -150,7 +151,7 @@ test("FACT-E2E Gate 1B :: continuous golden order across RGS/Production/P&A/3PGS
   // for the packaging component, per reserve_assembly_components' own logic. ----
   await test.step("P&A: reserve_assembly_components (drives RGS shortage + 3PGS requirement)", async () => {
     const { client } = await createAuthenticatedCertificationClient(page);
-    const correlationId = `fact-e2e-golden-${RUN_TOKEN}-reserve`;
+    const correlationId = `fact-e2e-golden-${RUN_SUFFIX}-reserve`;
     const { data, error } = await client.rpc("reserve_assembly_components", {
       p_assembly_job_id: assemblyJobId,
       p_priority: "normal",
@@ -205,7 +206,7 @@ test("FACT-E2E Gate 1B :: continuous golden order across RGS/Production/P&A/3PGS
   await test.step("NEGATIVE: wrong-department actor cannot accept the shortage-demand production job", async () => {
     await switchRole(page, prodChocolate);
     const { client } = await createAuthenticatedCertificationClient(page);
-    const correlationId = `fact-e2e-golden-${RUN_TOKEN}-wrong-dept`;
+    const correlationId = `fact-e2e-golden-${RUN_SUFFIX}-wrong-dept`;
     const { error } = await client.rpc("accept_production_job", {
       p_job_id: productionJobId,
       p_batch_number: "REJECT-BATCH",
@@ -220,10 +221,10 @@ test("FACT-E2E Gate 1B :: continuous golden order across RGS/Production/P&A/3PGS
     await switchRole(page, prodArabic);
     const { client } = await createAuthenticatedCertificationClient(page);
 
-    const acceptCorrelationId = `fact-e2e-golden-${RUN_TOKEN}-accept`;
+    const acceptCorrelationId = `fact-e2e-golden-${RUN_SUFFIX}-accept`;
     const { error: acceptError } = await client.rpc("accept_production_job", {
       p_job_id: productionJobId,
-      p_batch_number: `FACT-E2E-${RUN_TOKEN}`,
+      p_batch_number: `FACT-E2E-${RUN_SUFFIX}`,
       p_correlation_id: acceptCorrelationId,
     });
     expect(acceptError, acceptError?.message).toBeNull();
@@ -231,7 +232,7 @@ test("FACT-E2E Gate 1B :: continuous golden order across RGS/Production/P&A/3PGS
 
     let previousStage: string | null = null;
     for (let i = 0; i < 6; i += 1) {
-      const advanceCorrelationId = `fact-e2e-golden-${RUN_TOKEN}-advance-${i}`;
+      const advanceCorrelationId = `fact-e2e-golden-${RUN_SUFFIX}-advance-${i}`;
       const { data, error } = await client.rpc("advance_production_job_stage", {
         p_job_id: productionJobId,
         p_correlation_id: advanceCorrelationId,
@@ -242,18 +243,18 @@ test("FACT-E2E Gate 1B :: continuous golden order across RGS/Production/P&A/3PGS
     }
     record(ledger.stages, "production_advance_stage", "advance_production_job_stage", "PROD_ARABIC_SWEETS", null, "PASS", `final_stage=${previousStage}`);
 
-    const outputCorrelationId = `fact-e2e-golden-${RUN_TOKEN}-output`;
+    const outputCorrelationId = `fact-e2e-golden-${RUN_SUFFIX}-output`;
     const { error: outputError } = await client.rpc("record_production_output", {
       p_job_id: productionJobId,
       p_produced_qty: 5,
       p_wasted_qty: 0,
-      p_batch_number: `FACT-E2E-${RUN_TOKEN}`,
+      p_batch_number: `FACT-E2E-${RUN_SUFFIX}`,
       p_correlation_id: outputCorrelationId,
     });
     expect(outputError, outputError?.message).toBeNull();
     record(ledger.stages, "production_record_output", "record_production_output", "PROD_ARABIC_SWEETS", outputCorrelationId, "PASS", "produced_qty=5");
 
-    const readyCorrelationId = `fact-e2e-golden-${RUN_TOKEN}-ready`;
+    const readyCorrelationId = `fact-e2e-golden-${RUN_SUFFIX}-ready`;
     const { data: readyJob, error: readyError } = await client.rpc("declare_production_ready", {
       p_job_id: productionJobId,
       p_correlation_id: readyCorrelationId,
@@ -273,7 +274,7 @@ test("FACT-E2E Gate 1B :: continuous golden order across RGS/Production/P&A/3PGS
       .eq("location_code", "FINISHED_GOODS")
       .single();
 
-    const dispatchCorrelationId = `fact-e2e-golden-${RUN_TOKEN}-transfer`;
+    const dispatchCorrelationId = `fact-e2e-golden-${RUN_SUFFIX}-transfer`;
     const { data: transfer, error: dispatchError } = await client.rpc("dispatch_production_to_rgs", {
       p_job_id: productionJobId,
       p_dispatched_qty: 5,
@@ -283,7 +284,7 @@ test("FACT-E2E Gate 1B :: continuous golden order across RGS/Production/P&A/3PGS
     rgsTransferId = transfer?.id as string;
     record(ledger.stages, "custody_dispatch_to_rgs", "dispatch_production_to_rgs", "PROD_ARABIC_SWEETS", dispatchCorrelationId, "PASS", `transfer_id=${rgsTransferId}`);
 
-    const receiptCorrelationId = `fact-e2e-golden-${RUN_TOKEN}-receipt`;
+    const receiptCorrelationId = `fact-e2e-golden-${RUN_SUFFIX}-receipt`;
     const { error: receiptError } = await client.rpc("record_rgs_receipt", {
       p_transfer_id: rgsTransferId,
       p_received_qty: 5,
@@ -293,7 +294,7 @@ test("FACT-E2E Gate 1B :: continuous golden order across RGS/Production/P&A/3PGS
     record(ledger.stages, "custody_record_receipt", "record_rgs_receipt", "PROD_ARABIC_SWEETS", receiptCorrelationId, "PASS", "received_qty=5");
 
     // NEGATIVE: cannot accept a receipt that was never recorded.
-    const bogusAcceptCorrelationId = `fact-e2e-golden-${RUN_TOKEN}-bogus-accept`;
+    const bogusAcceptCorrelationId = `fact-e2e-golden-${RUN_SUFFIX}-bogus-accept`;
     const { error: bogusAcceptError } = await client.rpc("accept_rgs_production_receipt", {
       p_transfer_id: "00000000-0000-0000-0000-000000000000",
       p_accepted_qty: 5,
@@ -307,7 +308,7 @@ test("FACT-E2E Gate 1B :: continuous golden order across RGS/Production/P&A/3PGS
 
     await switchRole(page, storeReadyGoods);
     const { client: rgsClient } = await createAuthenticatedCertificationClient(page);
-    const acceptCorrelationId = `fact-e2e-golden-${RUN_TOKEN}-accept-receipt`;
+    const acceptCorrelationId = `fact-e2e-golden-${RUN_SUFFIX}-accept-receipt`;
     const { error: acceptError } = await rgsClient.rpc("accept_rgs_production_receipt", {
       p_transfer_id: rgsTransferId,
       p_accepted_qty: 5,
@@ -336,7 +337,7 @@ test("FACT-E2E Gate 1B :: continuous golden order across RGS/Production/P&A/3PGS
   await test.step("RGS: pick_rgs_reservation -> issue_rgs_stock -> acknowledge_rgs_issue", async () => {
     const { client } = await createAuthenticatedCertificationClient(page);
 
-    const pickCorrelationId = `fact-e2e-golden-${RUN_TOKEN}-pick`;
+    const pickCorrelationId = `fact-e2e-golden-${RUN_SUFFIX}-pick`;
     const { error: pickError } = await client.rpc("pick_rgs_reservation", {
       p_reservation_id: rgsReservationId,
       p_pick_qty: 3,
@@ -345,7 +346,7 @@ test("FACT-E2E Gate 1B :: continuous golden order across RGS/Production/P&A/3PGS
     expect(pickError, pickError?.message).toBeNull();
     record(ledger.stages, "rgs_pick_reservation", "pick_rgs_reservation", "STORE_READY_GOODS", pickCorrelationId, "PASS", "pick_qty=3");
 
-    const issueCorrelationId = `fact-e2e-golden-${RUN_TOKEN}-issue`;
+    const issueCorrelationId = `fact-e2e-golden-${RUN_SUFFIX}-issue`;
     const { data: issueEvent, error: issueError } = await client.rpc("issue_rgs_stock", {
       p_reservation_id: rgsReservationId,
       p_issue_qty: 3,
@@ -357,7 +358,7 @@ test("FACT-E2E Gate 1B :: continuous golden order across RGS/Production/P&A/3PGS
     record(ledger.stages, "rgs_issue_stock", "issue_rgs_stock", "STORE_READY_GOODS", issueCorrelationId, "PASS", `issue_event_id=${issueEvent?.id}`);
 
     // NEGATIVE: cannot issue against an unacknowledged/unpicked reservation.
-    const bogusIssueCorrelationId = `fact-e2e-golden-${RUN_TOKEN}-bogus-issue`;
+    const bogusIssueCorrelationId = `fact-e2e-golden-${RUN_SUFFIX}-bogus-issue`;
     const { error: bogusIssueError } = await client.rpc("issue_rgs_stock", {
       p_reservation_id: "00000000-0000-0000-0000-000000000000",
       p_issue_qty: 1,
@@ -368,7 +369,7 @@ test("FACT-E2E Gate 1B :: continuous golden order across RGS/Production/P&A/3PGS
     expect(bogusIssueError, "issuing against a non-existent reservation must be rejected").not.toBeNull();
     record(ledger.negative_paths, "issue_unpicked_reservation_rejected", "issue_rgs_stock", "STORE_READY_GOODS", bogusIssueCorrelationId, bogusIssueError ? "PASS" : "FAIL", bogusIssueError?.message ?? "RPC unexpectedly succeeded");
 
-    const ackCorrelationId = `fact-e2e-golden-${RUN_TOKEN}-ack`;
+    const ackCorrelationId = `fact-e2e-golden-${RUN_SUFFIX}-ack`;
     const { error: ackError } = await client.rpc("acknowledge_rgs_issue", {
       p_issue_id: issueEvent?.id,
       p_acknowledged_qty: 3,
@@ -410,7 +411,7 @@ test("FACT-E2E Gate 1B :: continuous golden order across RGS/Production/P&A/3PGS
       .single();
     const requirementNumber = requirementRow?.requirement_number as string;
 
-    const reserveCorrelationId = `fact-e2e-golden-${RUN_TOKEN}-3pgs-reserve`;
+    const reserveCorrelationId = `fact-e2e-golden-${RUN_SUFFIX}-3pgs-reserve`;
     const { data: pkgReservation, error: reserveError } = await client.rpc("reserve_3pgs_requirement_stock", {
       p_requirement_id: pkgRequirementId,
       p_priority: "normal",
@@ -419,7 +420,7 @@ test("FACT-E2E Gate 1B :: continuous golden order across RGS/Production/P&A/3PGS
     expect(reserveError, reserveError?.message).toBeNull();
     record(ledger.stages, "3pgs_reserve_requirement", "reserve_3pgs_requirement_stock", "STORE_3RD_PARTY", reserveCorrelationId, "PASS", `reservation_id=${pkgReservation?.id}`);
 
-    const issueCorrelationId = `fact-e2e-golden-${RUN_TOKEN}-3pgs-issue`;
+    const issueCorrelationId = `fact-e2e-golden-${RUN_SUFFIX}-3pgs-issue`;
     const { data: pkgIssueEvent, error: issueError } = await client.rpc("issue_rgs_stock", {
       p_reservation_id: pkgReservation?.id,
       p_issue_qty: 4,
@@ -431,7 +432,7 @@ test("FACT-E2E Gate 1B :: continuous golden order across RGS/Production/P&A/3PGS
     record(ledger.stages, "3pgs_issue_stock", "issue_rgs_stock", "STORE_3RD_PARTY", issueCorrelationId, "PASS", `issue_event_id=${pkgIssueEvent?.id}`);
 
     // NEGATIVE: the issuer cannot acknowledge their own issue (separation of duties).
-    const selfAckCorrelationId = `fact-e2e-golden-${RUN_TOKEN}-3pgs-self-ack`;
+    const selfAckCorrelationId = `fact-e2e-golden-${RUN_SUFFIX}-3pgs-self-ack`;
     const { error: selfAckError } = await client.rpc("acknowledge_3pgs_requirement_receipt", {
       p_issue_event_id: pkgIssueEvent?.id,
       p_received_qty: 4,
@@ -455,7 +456,7 @@ test("FACT-E2E Gate 1B :: continuous golden order across RGS/Production/P&A/3PGS
 
     await switchRole(page, hodAssembly);
     const { client: assemblyClient } = await createAuthenticatedCertificationClient(page);
-    const ackCorrelationId = `fact-e2e-golden-${RUN_TOKEN}-3pgs-ack`;
+    const ackCorrelationId = `fact-e2e-golden-${RUN_SUFFIX}-3pgs-ack`;
     const { error: ackError } = await assemblyClient.rpc("acknowledge_3pgs_requirement_receipt", {
       p_issue_event_id: pkgIssueEvent?.id,
       p_received_qty: 4,
@@ -471,7 +472,7 @@ test("FACT-E2E Gate 1B :: continuous golden order across RGS/Production/P&A/3PGS
     // real "assembly resumes" step. Idempotent by correlation id per
     // reserve_assembly_components' own design; a fresh correlation id here
     // deliberately re-runs the component loop against current balances.
-    const resumeCorrelationId = `fact-e2e-golden-${RUN_TOKEN}-resume-reserve`;
+    const resumeCorrelationId = `fact-e2e-golden-${RUN_SUFFIX}-resume-reserve`;
     const { data: resumedJob, error: resumeError } = await assemblyClient.rpc("reserve_assembly_components", {
       p_assembly_job_id: assemblyJobId,
       p_priority: "normal",
@@ -485,7 +486,7 @@ test("FACT-E2E Gate 1B :: continuous golden order across RGS/Production/P&A/3PGS
   await test.step("P&A: issue_assembly_components -> record_assembly_consumption -> accept_assembly_output", async () => {
     const { client } = await createAuthenticatedCertificationClient(page);
 
-    const issueCorrelationId = `fact-e2e-golden-${RUN_TOKEN}-assembly-issue`;
+    const issueCorrelationId = `fact-e2e-golden-${RUN_SUFFIX}-assembly-issue`;
     const { error: issueError } = await client.rpc("issue_assembly_components", {
       p_assembly_job_id: assemblyJobId,
       p_correlation_id: issueCorrelationId,
@@ -497,7 +498,7 @@ test("FACT-E2E Gate 1B :: continuous golden order across RGS/Production/P&A/3PGS
     }
 
     for (const componentId of [fgComponentId, pkgComponentId]) {
-      const consumeCorrelationId = `fact-e2e-golden-${RUN_TOKEN}-consume-${componentId}`;
+      const consumeCorrelationId = `fact-e2e-golden-${RUN_SUFFIX}-consume-${componentId}`;
       const { error: consumeError } = await client.rpc("record_assembly_consumption", {
         p_component_id: componentId,
         p_consumed_qty: componentId === fgComponentId ? 5 : 4,
@@ -512,7 +513,7 @@ test("FACT-E2E Gate 1B :: continuous golden order across RGS/Production/P&A/3PGS
       }
     }
 
-    const acceptOutputCorrelationId = `fact-e2e-golden-${RUN_TOKEN}-accept-output`;
+    const acceptOutputCorrelationId = `fact-e2e-golden-${RUN_SUFFIX}-accept-output`;
     const { data: outputJob, error: acceptOutputError } = await client.rpc("accept_assembly_output", {
       p_assembly_job_id: assemblyJobId,
       p_accepted_qty: 5,
@@ -534,7 +535,7 @@ test("FACT-E2E Gate 1B :: continuous golden order across RGS/Production/P&A/3PGS
     // NEGATIVE: unauthorized role cannot create a consignment.
     await switchRole(page, store3rdParty);
     const { client: unauthorizedClient } = await createAuthenticatedCertificationClient(page);
-    const unauthorizedCorrelationId = `fact-e2e-golden-${RUN_TOKEN}-unauthorized-consignment`;
+    const unauthorizedCorrelationId = `fact-e2e-golden-${RUN_SUFFIX}-unauthorized-consignment`;
     const { error: unauthorizedError } = await unauthorizedClient.rpc("create_b2b_dispatch_consignment", {
       p_order_id: GOLDEN_ORDER_ID,
       p_dispatch_mode: "road",
@@ -546,7 +547,7 @@ test("FACT-E2E Gate 1B :: continuous golden order across RGS/Production/P&A/3PGS
 
     await switchRole(page, dispatchManager);
     const { client: authorizedClient } = await createAuthenticatedCertificationClient(page);
-    const createCorrelationId = `fact-e2e-golden-${RUN_TOKEN}-consignment`;
+    const createCorrelationId = `fact-e2e-golden-${RUN_SUFFIX}-consignment`;
     const { data: consignment, error: consignmentError } = await authorizedClient.rpc("create_b2b_dispatch_consignment", {
       p_order_id: GOLDEN_ORDER_ID,
       p_dispatch_mode: "road",
@@ -559,7 +560,7 @@ test("FACT-E2E Gate 1B :: continuous golden order across RGS/Production/P&A/3PGS
 
     const { data: carton, error: cartonError } = await authorizedClient.rpc("open_b2b_dispatch_carton", {
       p_consignment_id: consignmentId,
-      p_carton_code: `FACT-E2E-${RUN_TOKEN}-C1`,
+      p_carton_code: `FACT-E2E-${RUN_SUFFIX}-C1`,
     });
     expect(cartonError, cartonError?.message).toBeNull();
     cartonId = carton?.id as string;
@@ -575,12 +576,12 @@ test("FACT-E2E Gate 1B :: continuous golden order across RGS/Production/P&A/3PGS
       .single();
     const lineId = line?.id as string;
 
-    const scanCorrelationId = `fact-e2e-golden-${RUN_TOKEN}-scan`;
+    const scanCorrelationId = `fact-e2e-golden-${RUN_SUFFIX}-scan`;
     const { data: scanResult, error: scanError } = await client.rpc("record_b2b_dispatch_carton_item_scan", {
       p_carton_id: cartonId,
       p_consignment_line_id: lineId,
-      p_barcode_value: `FACT-E2E-${RUN_TOKEN}-SKU`,
-      p_batch_lot: `BATCH-${RUN_TOKEN}`,
+      p_barcode_value: `FACT-E2E-${RUN_SUFFIX}-SKU`,
+      p_batch_lot: `BATCH-${RUN_SUFFIX}`,
       p_quantity: 5,
       p_correlation_id: scanCorrelationId,
     });
@@ -591,8 +592,8 @@ test("FACT-E2E Gate 1B :: continuous golden order across RGS/Production/P&A/3PGS
     const { data: retryResult, error: retryError } = await client.rpc("record_b2b_dispatch_carton_item_scan", {
       p_carton_id: cartonId,
       p_consignment_line_id: lineId,
-      p_barcode_value: `FACT-E2E-${RUN_TOKEN}-SKU`,
-      p_batch_lot: `BATCH-${RUN_TOKEN}`,
+      p_barcode_value: `FACT-E2E-${RUN_SUFFIX}-SKU`,
+      p_batch_lot: `BATCH-${RUN_SUFFIX}`,
       p_quantity: 5,
       p_correlation_id: scanCorrelationId,
     });
@@ -605,12 +606,12 @@ test("FACT-E2E Gate 1B :: continuous golden order across RGS/Production/P&A/3PGS
     record(ledger.negative_paths, "idempotent_scan_retry_no_duplicate", "record_b2b_dispatch_carton_item_scan", "DISPATCH_MANAGER", scanCorrelationId, scanEventCount === 1 ? "PASS" : "FAIL", `retry_result=${retryResult?.scan_result}, event_count=${scanEventCount}`);
 
     // NEGATIVE: quantity exceeding the consignment line's authoritative remaining quantity.
-    const overflowCorrelationId = `fact-e2e-golden-${RUN_TOKEN}-scan-overflow`;
+    const overflowCorrelationId = `fact-e2e-golden-${RUN_SUFFIX}-scan-overflow`;
     const { data: overflowResult, error: overflowError } = await client.rpc("record_b2b_dispatch_carton_item_scan", {
       p_carton_id: cartonId,
       p_consignment_line_id: lineId,
-      p_barcode_value: `FACT-E2E-${RUN_TOKEN}-SKU-OVERFLOW`,
-      p_batch_lot: `BATCH-${RUN_TOKEN}`,
+      p_barcode_value: `FACT-E2E-${RUN_SUFFIX}-SKU-OVERFLOW`,
+      p_batch_lot: `BATCH-${RUN_SUFFIX}`,
       p_quantity: 999,
       p_correlation_id: overflowCorrelationId,
     });
@@ -619,7 +620,7 @@ test("FACT-E2E Gate 1B :: continuous golden order across RGS/Production/P&A/3PGS
     record(ledger.negative_paths, "quantity_overflow_scan_rejected", "record_b2b_dispatch_carton_item_scan", "DISPATCH_MANAGER", overflowCorrelationId, overflowRejected ? "PASS" : "FAIL", overflowError?.message ?? `scan_result=${overflowResult?.scan_result}`);
 
     // NEGATIVE: lock rejected before evidence is recorded.
-    const earlyLockCorrelationId = `fact-e2e-golden-${RUN_TOKEN}-early-lock`;
+    const earlyLockCorrelationId = `fact-e2e-golden-${RUN_SUFFIX}-early-lock`;
     const { data: cartonRow } = await client.from("b2b_dispatch_cartons").select("current_version").eq("id", cartonId).single();
     const { error: earlyLockError } = await client.rpc("lock_b2b_dispatch_carton", {
       p_carton_id: cartonId,
@@ -629,19 +630,19 @@ test("FACT-E2E Gate 1B :: continuous golden order across RGS/Production/P&A/3PGS
     expect(earlyLockError, "locking before evidence is recorded must be rejected").not.toBeNull();
     record(ledger.negative_paths, "lock_before_evidence_rejected", "lock_b2b_dispatch_carton", "DISPATCH_MANAGER", earlyLockCorrelationId, earlyLockError ? "PASS" : "FAIL", earlyLockError?.message ?? "RPC unexpectedly succeeded");
 
-    const evidenceCorrelationId = `fact-e2e-golden-${RUN_TOKEN}-evidence`;
+    const evidenceCorrelationId = `fact-e2e-golden-${RUN_SUFFIX}-evidence`;
     const { error: evidenceError } = await client.rpc("record_b2b_dispatch_carton_evidence", {
       p_carton_id: cartonId,
       p_net_weight: 4.5,
       p_gross_weight: 5,
-      p_open_photo_ref: `factory-cert://golden-order/${RUN_TOKEN}.jpg`,
+      p_open_photo_ref: `factory-cert://golden-order/${RUN_SUFFIX}.jpg`,
       p_correlation_id: evidenceCorrelationId,
     });
     expect(evidenceError, evidenceError?.message).toBeNull();
     record(ledger.stages, "dispatch_record_evidence", "record_b2b_dispatch_carton_evidence", "DISPATCH_MANAGER", evidenceCorrelationId, "PASS", "net=4.5 gross=5");
 
     // NEGATIVE: stale expected_version rejected.
-    const staleLockCorrelationId = `fact-e2e-golden-${RUN_TOKEN}-stale-lock`;
+    const staleLockCorrelationId = `fact-e2e-golden-${RUN_SUFFIX}-stale-lock`;
     const { error: staleLockError } = await client.rpc("lock_b2b_dispatch_carton", {
       p_carton_id: cartonId,
       p_expected_version: -1,
@@ -651,7 +652,7 @@ test("FACT-E2E Gate 1B :: continuous golden order across RGS/Production/P&A/3PGS
     record(ledger.negative_paths, "stale_version_lock_rejected", "lock_b2b_dispatch_carton", "DISPATCH_MANAGER", staleLockCorrelationId, staleLockError ? "PASS" : "FAIL", staleLockError?.message ?? "RPC unexpectedly succeeded");
 
     const { data: cartonAfterEvidence } = await client.from("b2b_dispatch_cartons").select("current_version").eq("id", cartonId).single();
-    const lockCorrelationId = `fact-e2e-golden-${RUN_TOKEN}-lock`;
+    const lockCorrelationId = `fact-e2e-golden-${RUN_SUFFIX}-lock`;
     const { error: lockError } = await client.rpc("lock_b2b_dispatch_carton", {
       p_carton_id: cartonId,
       p_expected_version: cartonAfterEvidence?.current_version,
@@ -661,12 +662,12 @@ test("FACT-E2E Gate 1B :: continuous golden order across RGS/Production/P&A/3PGS
     record(ledger.stages, "dispatch_lock_carton", "lock_b2b_dispatch_carton", "DISPATCH_MANAGER", lockCorrelationId, "PASS", "locked");
 
     // NEGATIVE: post-lock mutation rejected.
-    const postLockScanCorrelationId = `fact-e2e-golden-${RUN_TOKEN}-post-lock-scan`;
+    const postLockScanCorrelationId = `fact-e2e-golden-${RUN_SUFFIX}-post-lock-scan`;
     const { error: postLockScanError } = await client.rpc("record_b2b_dispatch_carton_item_scan", {
       p_carton_id: cartonId,
       p_consignment_line_id: lineId,
-      p_barcode_value: `FACT-E2E-${RUN_TOKEN}-POST-LOCK`,
-      p_batch_lot: `BATCH-${RUN_TOKEN}`,
+      p_barcode_value: `FACT-E2E-${RUN_SUFFIX}-POST-LOCK`,
+      p_batch_lot: `BATCH-${RUN_SUFFIX}`,
       p_quantity: 1,
       p_correlation_id: postLockScanCorrelationId,
     });
@@ -677,7 +678,7 @@ test("FACT-E2E Gate 1B :: continuous golden order across RGS/Production/P&A/3PGS
   await test.step("Dispatch: DPL create -> supersede -> submit to Finance", async () => {
     const { client } = await createAuthenticatedCertificationClient(page);
 
-    const createDplCorrelationId = `fact-e2e-golden-${RUN_TOKEN}-dpl-create`;
+    const createDplCorrelationId = `fact-e2e-golden-${RUN_SUFFIX}-dpl-create`;
     const { data: dpl, error: dplError } = await client.rpc("create_b2b_dispatch_packing_list", {
       p_consignment_id: consignmentId,
       p_correlation_id: createDplCorrelationId,
@@ -688,7 +689,7 @@ test("FACT-E2E Gate 1B :: continuous golden order across RGS/Production/P&A/3PGS
 
     // NEGATIVE: supersession with a blank reason must not reach the RPC (UI-level
     // guard mirrored here by asserting the RPC itself rejects an empty reason).
-    const blankReasonCorrelationId = `fact-e2e-golden-${RUN_TOKEN}-supersede-blank`;
+    const blankReasonCorrelationId = `fact-e2e-golden-${RUN_SUFFIX}-supersede-blank`;
     const { error: blankReasonError } = await client.rpc("supersede_b2b_dispatch_packing_list", {
       p_consignment_id: consignmentId,
       p_current_version_id: dplVersionId,
@@ -698,7 +699,7 @@ test("FACT-E2E Gate 1B :: continuous golden order across RGS/Production/P&A/3PGS
     expect(blankReasonError, "supersession with a blank reason must be rejected").not.toBeNull();
     record(ledger.negative_paths, "blank_reason_supersession_rejected", "supersede_b2b_dispatch_packing_list", "DISPATCH_MANAGER", blankReasonCorrelationId, blankReasonError ? "PASS" : "FAIL", blankReasonError?.message ?? "RPC unexpectedly succeeded");
 
-    const supersedeCorrelationId = `fact-e2e-golden-${RUN_TOKEN}-supersede`;
+    const supersedeCorrelationId = `fact-e2e-golden-${RUN_SUFFIX}-supersede`;
     const { data: supersededDpl, error: supersedeError } = await client.rpc("supersede_b2b_dispatch_packing_list", {
       p_consignment_id: consignmentId,
       p_current_version_id: dplVersionId,
@@ -720,7 +721,7 @@ test("FACT-E2E Gate 1B :: continuous golden order across RGS/Production/P&A/3PGS
     // NEGATIVE: unauthorized submit rejected.
     await switchRole(page, store3rdParty);
     const { client: unauthorizedClient } = await createAuthenticatedCertificationClient(page);
-    const unauthorizedSubmitCorrelationId = `fact-e2e-golden-${RUN_TOKEN}-unauthorized-submit`;
+    const unauthorizedSubmitCorrelationId = `fact-e2e-golden-${RUN_SUFFIX}-unauthorized-submit`;
     const { error: unauthorizedSubmitError } = await unauthorizedClient.rpc("submit_b2b_dispatch_packing_list_to_finance", {
       p_consignment_id: consignmentId,
       p_version_id: newDplVersionId,
@@ -731,7 +732,7 @@ test("FACT-E2E Gate 1B :: continuous golden order across RGS/Production/P&A/3PGS
 
     await switchRole(page, dispatchManager);
     const { client: authorizedClient } = await createAuthenticatedCertificationClient(page);
-    const submitCorrelationId = `fact-e2e-golden-${RUN_TOKEN}-submit`;
+    const submitCorrelationId = `fact-e2e-golden-${RUN_SUFFIX}-submit`;
     const { error: submitError } = await authorizedClient.rpc("submit_b2b_dispatch_packing_list_to_finance", {
       p_consignment_id: consignmentId,
       p_version_id: newDplVersionId,
@@ -757,7 +758,7 @@ test("FACT-E2E Gate 1B :: continuous golden order across RGS/Production/P&A/3PGS
       status: failedStages.length === 0 && failedNegativePaths.length === 0 ? "PASS" : "FAIL",
       environment: "disposable-local-core",
       production_accessed: false,
-      run_token: RUN_TOKEN,
+      run_token: RUN_SUFFIX,
       order_id: GOLDEN_ORDER_ID,
       assembly_job_id: assemblyJobId,
       consignment_id: consignmentId,
