@@ -1,3 +1,5 @@
+import { enqueueOperatorWorkspaceMutation } from "./operatorInboxWorkspaceMutations";
+
 const STORAGE_KEY = "oasis_c2b2_operator_inbox_packet_notes_v1";
 
 export interface OperatorInboxPacketNote {
@@ -28,15 +30,43 @@ export function loadPacketNotesMap(): OperatorInboxPacketNotesMap {
   }
 }
 
-/** Drops empty notes before persist. */
+function prunedNotes(map: OperatorInboxPacketNotesMap): OperatorInboxPacketNotesMap {
+  const pruned: OperatorInboxPacketNotesMap = {};
+  for (const [packetId, note] of Object.entries(map)) {
+    if (note.text.trim()) pruned[packetId] = note;
+  }
+  return pruned;
+}
+
+/** Browser storage is a cache. Changes enqueue governed Core mutations. */
 export function persistPacketNotesMap(map: OperatorInboxPacketNotesMap): void {
   if (typeof window === "undefined") return;
   try {
-    const pruned: OperatorInboxPacketNotesMap = {};
-    for (const [k, v] of Object.entries(map)) {
-      if (v.text.trim()) pruned[k] = v;
+    const previous = loadPacketNotesMap();
+    const next = prunedNotes(map);
+    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+
+    const ids = new Set([...Object.keys(previous), ...Object.keys(next)]);
+    for (const packetId of ids) {
+      const before = previous[packetId]?.text.trim() ?? "";
+      const after = next[packetId]?.text.trim() ?? "";
+      if (before === after) continue;
+      if (after) {
+        enqueueOperatorWorkspaceMutation({ kind: "UPSERT_NOTE", packetId, text: after });
+      } else if (before) {
+        enqueueOperatorWorkspaceMutation({ kind: "DELETE_NOTE", packetId });
+      }
     }
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(pruned));
+  } catch {
+    /* quota */
+  }
+}
+
+/** Hydration path only: replace browser cache without producing a server mutation. */
+export function replacePacketNotesFromServer(map: OperatorInboxPacketNotesMap): void {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(prunedNotes(map)));
   } catch {
     /* quota */
   }
