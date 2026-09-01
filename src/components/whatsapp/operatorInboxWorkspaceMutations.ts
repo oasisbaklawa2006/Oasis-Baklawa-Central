@@ -18,7 +18,13 @@ type NewMutation = OperatorWorkspaceMutation extends infer T
 
 function newMutationId(): string {
   if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") return crypto.randomUUID();
-  return `waop_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
+  if (typeof crypto !== "undefined" && typeof crypto.getRandomValues === "function") {
+    const bytes = new Uint8Array(8);
+    crypto.getRandomValues(bytes);
+    const suffix = Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join("");
+    return `waop_${Date.now()}_${suffix}`;
+  }
+  return `waop_${Date.now()}_static`;
 }
 
 function isMutation(value: unknown): value is OperatorWorkspaceMutation {

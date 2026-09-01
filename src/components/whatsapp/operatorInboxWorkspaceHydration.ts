@@ -62,8 +62,9 @@ function reconcileSavedViews(snapshot: WorkspaceServerSnapshot, pending: Pending
 }
 
 function reconcilePacketNotes(snapshot: WorkspaceServerSnapshot, pending: PendingIndex): void {
-  const merged = new Map(Object.entries(snapshot.packetNotes));
-  for (const packetId of pending.deletedNotes) merged.delete(packetId);
+  const merged = new Map(
+    Object.entries(snapshot.packetNotes).filter(([packetId]) => !pending.deletedNotes.has(packetId)),
+  );
 
   for (const [packetId, note] of Object.entries(loadPacketNotesMap())) {
     if (pending.deletedNotes.has(packetId)) continue;
@@ -75,7 +76,6 @@ function reconcilePacketNotes(snapshot: WorkspaceServerSnapshot, pending: Pendin
     merged.set(packetId, note);
     enqueueOperatorWorkspaceMutation({ kind: "UPSERT_NOTE", packetId, text: note.text });
   }
-
   replacePacketNotesFromServer(Object.fromEntries(merged));
 }
 
@@ -93,8 +93,8 @@ function applyServerCorrection(target: DraftOrderLocalEdits, correction: Workspa
   }
   if (correction.field.startsWith("draft_order.line_quantity.")) {
     const index = Number(correction.field.slice("draft_order.line_quantity.".length));
-    if (Number.isInteger(index) && typeof correction.value === "number" && Number.isFinite(correction.value)) {
-      target.lineQuantities[index] = correction.value;
+    if (Number.isInteger(index) && index >= 0 && typeof correction.value === "number" && Number.isFinite(correction.value)) {
+      target.lineQuantities = { ...target.lineQuantities, [index]: correction.value };
     }
   }
   target.updatedAt = correction.createdAt;
@@ -131,7 +131,7 @@ function migrateLocalQuantities(
     const field = `draft_order.line_quantity.${indexText}`;
     const key = `${packetId}:${field}`;
     if (serverFields.has(key) && !pending.correctionFields.has(key)) continue;
-    merged.lineQuantities[Number(indexText)] = quantity;
+    merged.lineQuantities = { ...merged.lineQuantities, [Number(indexText)]: quantity };
     if (serverFields.has(key) || pending.correctionFields.has(key)) continue;
     enqueueOperatorWorkspaceMutation({
       kind: "RECORD_CORRECTION",

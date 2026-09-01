@@ -78,17 +78,17 @@ function parseSavedViews(value: unknown): OperatorInboxSavedView[] {
 }
 
 function parsePacketNotes(value: unknown): WorkspaceServerSnapshot["packetNotes"] {
-  const result: WorkspaceServerSnapshot["packetNotes"] = {};
+  const result = new Map<string, { text: string; updatedAt: string }>();
   for (const row of rows(value)) {
     const packetId = text(row.packet_id);
     const noteBody = text(row.note_body);
     if (!packetId || !noteBody) continue;
-    result[packetId] = {
+    result.set(packetId, {
       text: noteBody,
       updatedAt: text(row.updated_at) ?? new Date(0).toISOString(),
-    };
+    });
   }
-  return result;
+  return Object.fromEntries(result);
 }
 
 function parseCorrections(value: unknown): WorkspaceServerCorrection[] {
@@ -161,8 +161,12 @@ async function caseIdForPacket(client: SupabaseClient, packetId: string): Promis
 }
 
 async function callRpc(client: SupabaseClient, name: string, args: Record<string, unknown>): Promise<void> {
-  const result = await rpcInvoker(client)(name, args);
-  if (result.error) throw new Error(result.error.message || `${name.toUpperCase()}_FAILED`);
+  try {
+    const result = await rpcInvoker(client)(name, args);
+    if (result.error) throw new Error(result.error.message || `${name.toUpperCase()}_FAILED`);
+  } catch (caught) {
+    throw caught instanceof Error ? caught : new Error(`${name.toUpperCase()}_FAILED`);
+  }
 }
 
 export async function persistOperatorWorkspaceMutation(mutation: OperatorWorkspaceMutation): Promise<void> {
