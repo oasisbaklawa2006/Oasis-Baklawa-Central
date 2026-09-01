@@ -495,10 +495,14 @@ and production mutation is unauthorized. Therefore mobile 375/390/430 runtime
 certification and the complete authenticated Buyer → SO → Finance → PI →
 documents/statement path remain a release gate, not a software defect.
 
-**Tranche 5 status: SOFTWARE READY — AUTHENTICATED BUYER RUNTIME GATE BLOCKED.**
+**Tranche 5 status: SOFTWARE READY — DISPOSABLE BUYER GOLDEN-PATH CERTIFICATION WIRED.**
 
-Owner/Mission Control action required: provide or explicitly authorize a
-sanctioned synthetic Buyer fixture plus isolated/preview Supabase environment
-(or a read-only production Buyer fixture) and the corresponding Playwright
-environment names. No Central code or production mutation is authorized to
-manufacture that evidence.
+Authenticated runtime evidence is produced by
+`.github/workflows/buyer-golden-path-certification.yml` against a synthetic Buyer
+fixture in an isolated local Core replay. See `docs/APP_E2E_BUYER_SYNTHETIC_FIXTURE.md`.
+
+Owner/Mission Control action required only for **manual preview** runs against a
+non-loopback Vercel deployment: supply repository secrets
+`TEST_PREVIEW_URL`, `TEST_BUYER_EMAIL`, and `TEST_BUYER_PASSWORD` for a separate
+non-production tenant. Disposable CI generates credentials automatically and never
+touches production.

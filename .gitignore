@@ -28,6 +28,9 @@ playwright-report/
 .playwright-mcp/
 test-results/
 factory-certification-results.json
+buyer-golden-path-results.json
+buyer-golden-path-evidence-*.json
+buyer-certification-artifacts/
 factory-production-certification-results.json
 factory-route-health-results.json
 factory-route-health-list.txt
