@@ -259,7 +259,7 @@ export default function ThreePgsCommandCentre() {
         <CardContent className="overflow-x-auto"><Table><TableHeader><TableRow><TableHead>Receipt</TableHead><TableHead>Status</TableHead><TableHead>GRN</TableHead><TableHead>Finalised</TableHead></TableRow></TableHeader><TableBody>
           {snapshot.receipts.map((receipt) => {
             const grn = snapshot.grns.find((row) => row.receipt_id === receipt.id);
-            const finalised = Boolean(grn && (grn.status === "finalised" || grn.finalised_at));
+            const finalised = grn !== undefined && (grn.status === "finalised" || grn.finalised_at !== null);
             return <TableRow key={receipt.id}><TableCell>{receipt.receipt_number}</TableCell><TableCell><Badge variant="outline">{receipt.status.replace(/_/g, " ")}</Badge></TableCell><TableCell>{grn?.grn_number ?? "—"}</TableCell><TableCell>{finalised ? "Yes" : "No"}</TableCell></TableRow>;
           })}
         </TableBody></Table></CardContent>
