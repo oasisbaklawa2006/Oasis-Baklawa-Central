@@ -46,14 +46,17 @@ export function OperatorInboxWorkspacePersistenceGate({ children }: { children: 
     if (hydratingRef.current) return;
     hydratingRef.current = true;
     const controller = new AbortController();
-    let timeoutId: number | null = null;
+    const timeoutId = window.setTimeout(() => {
+      controller.abort();
+    }, HYDRATION_TIMEOUT_MS);
+    const timeout = new Promise<never>((_, reject) => {
+      controller.signal.addEventListener(
+        "abort",
+        () => reject(new Error("WA_OPERATOR_WORKSPACE_HYDRATION_TIMEOUT")),
+        { once: true },
+      );
+    });
     try {
-      const timeout = new Promise<never>((_, reject) => {
-        timeoutId = window.setTimeout(() => {
-          controller.abort();
-          reject(new Error("WA_OPERATOR_WORKSPACE_HYDRATION_TIMEOUT"));
-        }, HYDRATION_TIMEOUT_MS);
-      });
       const snapshot = await Promise.race([
         fetchOperatorWorkspaceServerSnapshot(controller.signal),
         timeout,
@@ -66,7 +69,7 @@ export function OperatorInboxWorkspacePersistenceGate({ children }: { children: 
       if (!mountedRef.current) return;
       setSyncError(caught instanceof Error ? caught.message : "Operator workspace hydration failed");
     } finally {
-      if (timeoutId !== null) window.clearTimeout(timeoutId);
+      window.clearTimeout(timeoutId);
       hydratingRef.current = false;
     }
   }, []);
@@ -85,8 +88,8 @@ export function OperatorInboxWorkspacePersistenceGate({ children }: { children: 
       void processQueue();
     };
     const reportQueueError = (event: Event) => {
-      const detail = (event as CustomEvent<{ message?: string }>).detail;
-      setSyncError(detail?.message ?? "Operator workspace queue requires synchronization");
+      const { message } = (event as CustomEvent<{ message?: string }>).detail;
+      setSyncError(message ?? "Operator workspace queue requires synchronization");
     };
 
     window.addEventListener(OPERATOR_WORKSPACE_MUTATION_EVENT, triggerSync);
