@@ -328,14 +328,16 @@ jobs:
           begin;
           select plan(10);
 
-          -- audit_logs.actor_id references auth.users(id), not public.users(id);
-          -- the synthetic gate-security actor must exist there too or the RPC's
-          -- own audit-log insert (via auth.uid()) fails its FK constraint.
+          -- The positive fixture deliberately establishes every authority that
+          -- current Core requires before physical exit. This test must evolve
+          -- with the Gate contract; it must never bypass Finance/DPL/E-way truth.
           insert into auth.users (id, email) values
-            ('91000000-0000-0000-0000-000000000001', 'factory-gate-cert-security@example.invalid');
+            ('91000000-0000-0000-0000-000000000001', 'factory-gate-cert-security@example.invalid'),
+            ('91000000-0000-0000-0000-000000000002', 'factory-gate-cert-finance@example.invalid');
 
           insert into public.users (id, role) values
-            ('91000000-0000-0000-0000-000000000001', 'GATE_SECURITY');
+            ('91000000-0000-0000-0000-000000000001', 'GATE_SECURITY'),
+            ('91000000-0000-0000-0000-000000000002', 'FINANCE_EXEC');
 
           insert into public.companies (id, business_name, gst_number, registered_address, status, payment_terms)
           values (
@@ -350,7 +352,7 @@ jobs:
           insert into public.orders (
             id, company_id, status, order_number, sales_order_value, advance_required,
             advance_paid, payment_status, payment_cleared, final_invoice_url,
-            order_origin, tracking_token
+            order_origin, tracking_token, commercial_current_version
           ) values (
             '93000000-0000-0000-0000-000000000001',
             '92000000-0000-0000-0000-000000000001',
@@ -359,7 +361,36 @@ jobs:
             100, 0, 100, 'paid', true,
             'https://example.invalid/factory-gate-cert-invoice',
             'MANUAL',
-            'factory-gate-cert-tracking-001'
+            'factory-gate-cert-tracking-001',
+            1
+          );
+
+          insert into public.sales_order_commercial_versions (
+            id, order_id, version_number, source_channel, commercial_snapshot,
+            snapshot_fingerprint, sales_order_value, advance_required,
+            advance_rule_version, change_reason, correlation_id, idempotency_key, created_by
+          ) values (
+            '96000000-0000-0000-0000-000000000001',
+            '93000000-0000-0000-0000-000000000001',
+            1, 'MANUAL', '{}'::jsonb, repeat('a',64), 100, 0,
+            'advance-30pct-nearest-inr-500/v2', 'Disposable gate certification',
+            'factory-gate-cert-commercial', 'factory-gate-cert-commercial',
+            '91000000-0000-0000-0000-000000000002'
+          );
+
+          insert into public.sales_order_proforma_invoices (
+            id, order_id, commercial_version_id, commercial_version_number,
+            frozen_commercial_snapshot, frozen_snapshot_fingerprint, status,
+            reason, source, correlation_id, idempotency_key, created_by, issued_by, issued_at
+          ) values (
+            '96100000-0000-0000-0000-000000000001',
+            '93000000-0000-0000-0000-000000000001',
+            '96000000-0000-0000-0000-000000000001',
+            1, '{}'::jsonb, repeat('a',64), 'ISSUED',
+            'Disposable gate certification', 'FINANCE',
+            'factory-gate-cert-pi', 'factory-gate-cert-pi',
+            '91000000-0000-0000-0000-000000000002',
+            '91000000-0000-0000-0000-000000000002', statement_timestamp()
           );
 
           insert into public.dispatch_cartons (
@@ -367,6 +398,89 @@ jobs:
           ) values
             ('94000000-0000-0000-0000-000000000001', '93000000-0000-0000-0000-000000000001', 'FACTORY-GATE-CERT-C1', 1, 2, 'labeled'),
             ('94000000-0000-0000-0000-000000000002', '93000000-0000-0000-0000-000000000001', 'FACTORY-GATE-CERT-C2', 2, 2, 'labeled');
+
+          insert into public.finance_dpl_receipts (
+            id, order_id, company_id, commercial_version_id, external_dpl_id,
+            dpl_version, dpl_fingerprint, dpl_snapshot, finalized_at, received_by,
+            received_role, source_channel, source_reference, evidence_reference,
+            correlation_id, idempotency_key
+          ) values (
+            '96200000-0000-0000-0000-000000000001',
+            '93000000-0000-0000-0000-000000000001',
+            '92000000-0000-0000-0000-000000000001',
+            '96000000-0000-0000-0000-000000000001',
+            'FACTORY-GATE-CERT-DPL', 1, repeat('b',64),
+            jsonb_build_object(
+              'order_id','93000000-0000-0000-0000-000000000001',
+              'commercial_version_id','96000000-0000-0000-0000-000000000001',
+              'external_dpl_id','FACTORY-GATE-CERT-DPL',
+              'dpl_version',1,
+              'lines',jsonb_build_array(jsonb_build_object('certification',true)),
+              'carton_ids',jsonb_build_array(
+                '94000000-0000-0000-0000-000000000001',
+                '94000000-0000-0000-0000-000000000002'
+              )
+            ),
+            statement_timestamp(), '91000000-0000-0000-0000-000000000002',
+            'FINANCE_EXEC', 'B2B_DISPATCH', 'FACT-C3-CERT',
+            'factory-gate-cert-dpl-evidence', 'factory-gate-cert-dpl',
+            'factory-gate-cert-dpl'
+          );
+
+          insert into public.final_invoices (
+            id, order_id, company_id, proforma_invoice_id, commercial_version_id,
+            finance_dpl_receipt_id, invoice_number, invoice_date, currency,
+            taxable_total, tax_total, gross_total, status, document_reference,
+            invoice_fingerprint, issued_by, issued_role, reason, correlation_id, idempotency_key
+          ) values (
+            '96300000-0000-0000-0000-000000000001',
+            '93000000-0000-0000-0000-000000000001',
+            '92000000-0000-0000-0000-000000000001',
+            '96100000-0000-0000-0000-000000000001',
+            '96000000-0000-0000-0000-000000000001',
+            '96200000-0000-0000-0000-000000000001',
+            'FACTORY-GATE-CERT-INV-001', current_date, 'INR', 100, 0, 100,
+            'ISSUED', 'factory-gate-cert-invoice', repeat('c',64),
+            '91000000-0000-0000-0000-000000000002', 'FINANCE_EXEC',
+            'Disposable gate certification', 'factory-gate-cert-invoice',
+            'factory-gate-cert-invoice'
+          );
+
+          insert into public.eway_bill_evidence (
+            id, order_id, final_invoice_id, status, policy_reason,
+            actor_id, actor_role, correlation_id, idempotency_key
+          ) values (
+            '96400000-0000-0000-0000-000000000001',
+            '93000000-0000-0000-0000-000000000001',
+            '96300000-0000-0000-0000-000000000001', 'NOT_REQUIRED',
+            'Disposable certification shipment is below governed E-way requirement',
+            '91000000-0000-0000-0000-000000000002', 'FINANCE_EXEC',
+            'factory-gate-cert-eway', 'factory-gate-cert-eway'
+          );
+
+          insert into public.finance_clearance_events (
+            id, order_id, company_id, proforma_invoice_id, commercial_version_id,
+            clearance_type, decision, commercial_value, required_advance,
+            verified_payment_amount, wallet_applied_amount, approved_credit_amount,
+            covered_amount, reason, evidence_reference, actor_id, actor_role,
+            source_channel, source_reference, correlation_id, idempotency_key, facts_snapshot
+          ) values (
+            '96500000-0000-0000-0000-000000000001',
+            '93000000-0000-0000-0000-000000000001',
+            '92000000-0000-0000-0000-000000000001',
+            '96100000-0000-0000-0000-000000000001',
+            '96000000-0000-0000-0000-000000000001',
+            'DISPATCH', 'GRANTED', 100, 0, 100, 0, 0, 100,
+            'Disposable gate certification', 'factory-gate-cert-clearance',
+            '91000000-0000-0000-0000-000000000002', 'FINANCE_EXEC',
+            'FINANCE', '96300000-0000-0000-0000-000000000001',
+            'factory-gate-cert-clearance', 'factory-gate-cert-clearance',
+            jsonb_build_object(
+              'final_invoice_id','96300000-0000-0000-0000-000000000001',
+              'eway_evidence_id','96400000-0000-0000-0000-000000000001',
+              'certification',true
+            )
+          );
 
           insert into public.operational_scan_records (
             id, scan_type, verification_type, entity_type, entity_id, order_id,

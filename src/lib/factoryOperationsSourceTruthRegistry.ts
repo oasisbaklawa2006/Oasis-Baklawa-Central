@@ -130,25 +130,49 @@ export const FACTORY_SOURCE_TRUTH: FactorySourceTruthEntry[] = [
     relation: "orders",
     subsystem: "DISPATCH",
     status: "REFERENCE",
-    readConsumers: ["DispatchManagement", "DispatchTV", "productionQueueFeed"],
-    writeAuthority: "Order lifecycle authority; legacy DispatchManagement still contains direct order-status mutation paths",
-    evidence: "DispatchManagement currently reads orders and order_items for dispatch readiness; production pipeline order counts are explicitly not production_jobs truth.",
+    readConsumers: ["DispatchTV", "productionQueueFeed"],
+    writeAuthority: "Order lifecycle authority",
+    evidence: "Production pipeline order counts are explicitly not production_jobs truth. FACT-C3: DispatchManagement no longer reads or writes orders/order_items directly -- it operates entirely on the governed b2b_dispatch_* consignment/carton/DPL chain below.",
   },
   {
     relation: "order_items",
     subsystem: "DISPATCH",
     status: "REFERENCE",
-    readConsumers: ["DispatchManagement", "DispatchTV"],
-    writeAuthority: "Order/packing lifecycle; some legacy DispatchManagement paths still update actual_packed_qty directly",
-    evidence: "Dispatch packing UI derives required/packed quantities from order_items.",
+    readConsumers: ["DispatchTV"],
+    writeAuthority: "Order/packing lifecycle",
+    evidence: "FACT-C3: the legacy DispatchManagement path that updated actual_packed_qty directly was retired in favour of record_b2b_dispatch_carton_item_scan reconciling consignment_line.packed_qty server-side.",
   },
   {
     relation: "dispatch_cartons",
     subsystem: "TRACE_GATE",
     status: "AUTHORITATIVE",
-    readConsumers: ["DispatchManagement", "CartonExplorer", "ScanTimeline"],
+    readConsumers: ["CartonExplorer", "ScanTimeline"],
     writeAuthority: "Dispatch/carton lifecycle",
-    evidence: "Carton identity/barcode records bridge packing, scan and gate/trace surfaces.",
+    evidence: "Carton identity/barcode records bridge packing, scan and gate/trace surfaces. FACT-C3: DispatchManagement no longer writes this legacy table -- see b2b_dispatch_cartons below for the governed carton chain it now uses instead.",
+  },
+  {
+    relation: "b2b_dispatch_cartons",
+    subsystem: "DISPATCH",
+    status: "AUTHORITATIVE",
+    readConsumers: ["DispatchManagement"],
+    writeAuthority: "open_b2b_dispatch_carton / record_b2b_dispatch_carton_evidence / lock_b2b_dispatch_carton (oasis-supabase-core FACT-C1)",
+    evidence: "Governed carton lifecycle: opened, scanned, evidenced and locked exclusively via these RPCs; direct INSERT/UPDATE/DELETE is revoked from authenticated.",
+  },
+  {
+    relation: "b2b_dispatch_carton_items",
+    subsystem: "DISPATCH",
+    status: "AUTHORITATIVE",
+    readConsumers: ["DispatchManagement"],
+    writeAuthority: "record_b2b_dispatch_carton_item_scan (oasis-supabase-core FACT-C1)",
+    evidence: "Scanned carton contents; barcode resolved to product server-side, never trusted from the client.",
+  },
+  {
+    relation: "b2b_dispatch_packing_list_versions",
+    subsystem: "DISPATCH",
+    status: "AUTHORITATIVE",
+    readConsumers: ["DispatchManagement"],
+    writeAuthority: "create_b2b_dispatch_packing_list / supersede_b2b_dispatch_packing_list / submit_b2b_dispatch_packing_list_to_finance (oasis-supabase-core FACT-C2)",
+    evidence: "The single governed DPL-mutation authority in the app -- derived only from locked b2b_dispatch_cartons truth, never from client-composed totals. AdminPackingDispatch and AdminAccountsRelease previously wrote legacy dispatches/packing_lists/dispatch_cartons and direct order_items.actual_packed_qty/final_weight_kg mutations for the same B2B order universe; both now fail closed via blockLegacyB2bCartonDplMutation and redirect operators to this governed flow instead.",
   },
   {
     relation: "products",
@@ -168,10 +192,12 @@ export const FACTORY_SOURCE_TRUTH: FactorySourceTruthEntry[] = [
   },
 ];
 
+/** All registry entries (authoritative and non-authoritative) for one subsystem. */
 export function factoryTruthForSubsystem(subsystem: FactoryTruthSubsystem): FactorySourceTruthEntry[] {
   return FACTORY_SOURCE_TRUTH.filter((entry) => entry.subsystem === subsystem);
 }
 
+/** Only the entries for a subsystem that hold live write authority, excluding dead/legacy projections. */
 export function authoritativeFactoryTruthForSubsystem(subsystem: FactoryTruthSubsystem): FactorySourceTruthEntry[] {
   return factoryTruthForSubsystem(subsystem).filter((entry) => entry.status === "AUTHORITATIVE");
 }

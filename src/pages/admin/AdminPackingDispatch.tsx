@@ -1,5 +1,5 @@
 import { useEffect, useState, useMemo } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Loader2, ArrowRight, Truck, PackageCheck, AlertTriangle, CheckCircle2, TrendingDown, TrendingUp, Minus, RefreshCw } from "lucide-react";
@@ -9,11 +9,10 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useLanguage } from "@/hooks/useLanguage";
-import { useAuth } from "@/hooks/useAuth";
 import { LegacyDispatchGovernanceBanner } from "@/components/admin/LegacyDispatchGovernanceBanner";
 import {
   DISPATCH_FINALIZATION_ROUTE,
-  blockLegacyDispatchStatusMutation,
+  blockLegacyB2bCartonDplMutation,
 } from "@/lib/dispatch-finalization/legacyDispatchGuard";
 import { getPackedReadyBlockers } from "@/utils/packedReadyGate";
 import { clearOrderForDispatch } from "@/lib/order-authority/orderAuthorityClient";
@@ -24,25 +23,8 @@ import {
   getPackedReadyToClearedDispatchBlockers,
 } from "@/utils/financeReleaseState";
 import { FinanceReleaseChips } from "@/components/admin/FinanceReleaseChips";
-import {
-  buildCreditWalletCorrelationId,
-  buildCreditWalletIdempotencyKey,
-  buildWalletIdentity,
-  recordWalletEntry,
-  resolveCreditBinding,
-} from "@/lib/order-authority/creditWalletAuthorityClient";
 
 const PACKS_PER_CARTON = 9;
-
-type LooseTableClient = {
-  from: (table: string) => {
-    update: (values: Record<string, unknown>) => {
-      eq: (column: string, value: string) => Promise<{ error: { message: string } | null }>;
-    };
-  };
-};
-
-const looseDb = supabase as unknown as LooseTableClient;
 
 type StoreReqRow = {
   order_id: string;
@@ -75,12 +57,12 @@ interface ModalItem extends OrderItem {
 }
 
 const AdminPackingDispatch = () => {
-  const { user } = useAuth();
   const [orders, setOrders] = useState<DispatchOrder[]>([]);
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState<"packing" | "dispatch_ready" | "blocked">("packing");
   const [updating, setUpdating] = useState<string | null>(null);
   const { t } = useLanguage();
+  const navigate = useNavigate();
 
   const [selectedOrder, setSelectedOrder] = useState<DispatchOrder | null>(null);
   const [modalItems, setModalItems] = useState<ModalItem[]>([]);
@@ -283,139 +265,21 @@ const AdminPackingDispatch = () => {
 
   const handleSubmitDispatch = async () => {
     if (!selectedOrder) return;
-    const traceInput = {
-      status: selectedOrder.status,
-      payment_status: selectedOrder.payment_status,
-      advance_paid: selectedOrder.advance_paid,
-      advance_required: selectedOrder.advance_required,
-      sales_order_value: selectedOrder.sales_order_value,
-    };
-    if (!canReleaseOrderToDispatch(traceInput)) {
-      toast.error(getFinanceReleaseBlockers(traceInput).map((b) => b.message).join("; "));
-      return;
-    }
-    const tp = transporterName.trim();
-    const lr = trackingNumber.trim();
-    if (!tp) { toast.error("Transporter name is required"); return; }
-    if (!lr) { toast.error("LR / Bilty / AWB number is required"); return; }
-    if (!dispatchProofFile) { toast.error("Dispatch proof file is required"); return; }
-
-    if (!partialDispatch) {
-      const block = blockLegacyDispatchStatusMutation("AdminPackingDispatch.handleSubmitDispatch");
-      toast.error(block.message, {
-        description: "Use governed dispatch finalization for full order closure.",
-        action: {
-          label: "Open finalization",
-          onClick: () => {
-            window.location.assign(DISPATCH_FINALIZATION_ROUTE);
-          },
-        },
-      });
-      return;
-    }
-
-    setSubmitting(true);
-
-    try {
-      const ext = dispatchProofFile.name.split(".").pop() || "bin";
-      const proofPath = `dispatch-proof/${selectedOrder.id}/${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`;
-      const { error: upErr } = await supabase.storage.from("receipts").upload(proofPath, dispatchProofFile);
-      if (upErr) {
-        console.error(upErr);
-        toast.error("Proof upload failed");
-        setSubmitting(false);
-        return;
-      }
-
-      // Record the canonical wallet fact before any durable dispatch/packing writes.
-      // Core idempotency makes a retry resumable if a later write fails.
-      let resultingWalletBalance: number | null = null;
-      let varianceDescription = "";
-      if (Math.abs(varianceAmount) > 0.01 && selectedOrder.company_id) {
-        const txType = varianceAmount > 0 ? "credit" : "debit";
-        // LR/AWB is the stable per-leg reference retained when the operator retries.
-        const walletSourceReference = `weight-variance:${selectedOrder.id}:${lr}`;
-        const desc = varianceAmount > 0
-          ? `Refund ₹${varianceAmount.toFixed(2)} for short-weight variance on Order ${selectedOrder.id.slice(0, 8)}`
-          : `Charge ₹${Math.abs(varianceAmount).toFixed(2)} for over-weight variance on Order ${selectedOrder.id.slice(0, 8)}`;
-        varianceDescription = desc;
-        if (!user?.id) throw new Error("Authenticated actor required for wallet adjustment");
-        const binding = await resolveCreditBinding(selectedOrder.id);
-        const identity = buildWalletIdentity({
-          companyId: selectedOrder.company_id, direction: txType, amount: Math.abs(varianceAmount), currency: "INR",
-          orderId: selectedOrder.id, proformaInvoiceId: binding.piId, commercialVersionId: binding.commercialVersionId,
-          sourceChannel: "CENTRAL_PACKING", sourceReference: walletSourceReference, reason: desc,
-        });
-        const wallet = await recordWalletEntry({
-          companyId: selectedOrder.company_id, direction: txType, amount: Math.abs(varianceAmount), currency: "INR",
-          orderId: selectedOrder.id, proformaInvoiceId: binding.piId, commercialVersionId: binding.commercialVersionId,
-          sourceChannel: "CENTRAL_PACKING", sourceReference: walletSourceReference, reason: desc,
-          correlationId: await buildCreditWalletCorrelationId("wallet", identity),
-          idempotencyKey: await buildCreditWalletIdempotencyKey("wallet", identity), actorId: user.id,
-        });
-        resultingWalletBalance = wallet.balance;
-      }
-
-      // 1. Create dispatch record (partial legs are flagged; full closure drives order status + security gate)
-      const { data: dispatch, error: dispErr } = await supabase.from("dispatches").insert({
-        order_id: selectedOrder.id, company_id: selectedOrder.company_id,
-        transporter_name: tp, tracking_number: lr,
-        driver_name: driverName.trim() || null, driver_phone: driverPhone.trim() || null,
-        status: "dispatched", dispatch_date: new Date().toISOString().split("T")[0],
-        proof_storage_path: proofPath,
-        is_partial: partialDispatch,
-      }).select().single();
-
-      if (dispErr || !dispatch) { toast.error("Failed to create dispatch"); setSubmitting(false); return; }
-
-      // 2. Insert packing list
-      await supabase.from("packing_lists").insert(modalItems.map(item => ({
-        dispatch_id: dispatch.id, product_id: item.product_id, order_item_id: item.id,
-        packed_quantity: item.packed_qty, pack_size: item.pack_size, carton_type: item.carton_type,
-      })));
-
-      // 3. Update order_items with final weights
-      for (const item of modalItems) {
-        await looseDb.from("order_items").update({
-          actual_packed_qty: item.packed_qty,
-          final_weight_kg: item.final_weight_kg,
-        }).eq("id", item.id);
-      }
-
-      // Partial leg only — orders.status → dispatched is governed via Phase 4E (never here).
-
-      // 4. Wallet reconciliation was recorded before durable dispatch writes.
-      if (resultingWalletBalance !== null) {
-        // Also log to audit_logs for traceability
-        await supabase.from("audit_logs").insert({
-          module_name: "dispatch",
-          action_type: "weight_variance_adjustment",
-          entity_id: selectedOrder.id,
-          entity_name: "orders",
-          reason: varianceDescription,
-          risk_level: Math.abs(varianceAmount) > 5000 ? "high" : "normal",
-          new_value: {
-            finalInvoiceTotal,
-            originalInvoiceTotal,
-            varianceAmount,
-            resulting_wallet_balance: resultingWalletBalance,
-            items: modalItems.map((i) => ({
-              id: i.id,
-              original_weight: i.original_weight_kg,
-              final_weight: i.final_weight_kg,
-            })),
-          },
-        });
-      }
-
-      setSubmitting(false);
-      setShowSuccess(true);
-      toast.success("Dispatch created with financial reconciliation");
-    } catch (err) {
-      console.error(err);
-      toast.error("Dispatch failed — check console");
-      setSubmitting(false);
-    }
+    // FACT-C3: this dialog's carton/packing-list/packed-quantity capture is
+    // a legacy B2B authority competing with the governed DispatchManagement
+    // consignment/carton/DPL chain -- fail closed before any legacy write
+    // (dispatches, packing_lists, order_items, wallet) can run, whether the
+    // leg is partial or full. This is the first check, not the last: no
+    // finance/transporter/proof validation matters when submission can
+    // never persist anything.
+    const block = blockLegacyB2bCartonDplMutation("AdminPackingDispatch.handleSubmitDispatch");
+    toast.error(block.message, {
+      description: "Use governed Dispatch Management for carton, packing list and packed-quantity capture.",
+      action: {
+        label: "Open Dispatch Management",
+        onClick: () => navigate(block.route),
+      },
+    });
   };
 
   if (loading) {
