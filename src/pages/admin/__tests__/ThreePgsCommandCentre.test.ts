@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
-import { THREE_PGS_STORE_CODE, threePgsCommandCentreMetrics } from "@/pages/admin/ThreePgsCommandCentre";
+import { THREE_PGS_STORE_CODE, threePgsCommandCentreMetrics } from "@/pages/admin/threePgsCommandCentreModel";
 
 const commandCentreSource = () =>
   readFileSync(resolve(process.cwd(), "src/pages/admin/ThreePgsCommandCentre.tsx"), "utf8");
