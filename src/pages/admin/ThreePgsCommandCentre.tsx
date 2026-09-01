@@ -21,6 +21,8 @@ type CommandQuery = PromiseLike<CommandResult> & {
   limit: (count: number) => CommandQuery;
 };
 
+export const THREE_PGS_STORE_CODE = "3PGS";
+
 // R4.5 is a composition surface only. Core remains the mutation authority.
 // This typed read-side adapter is deliberately narrow: it exposes only the
 // query operations used here and does not create or expose any write method.
@@ -129,7 +131,7 @@ export default function ThreePgsCommandCentre() {
       const [balances, demand, procurement, assembly, receipts, grns] = await Promise.all([
         commandDb.from("inventory_stock_balances")
           .select("id, sku, location_code, available_qty, reserved_qty, picked_qty, damaged_qty, expired_qty, quarantine_qty")
-          .eq("location_code", "STORE_3RD_PARTY")
+          .eq("location_code", THREE_PGS_STORE_CODE)
           .order("sku", { ascending: true })
           .limit(1000),
         commandDb.from("b2b_3pgs_pending_demand_priority")
@@ -138,7 +140,7 @@ export default function ThreePgsCommandCentre() {
           .limit(100),
         commandDb.from("b2b_procurement_requirements")
           .select("id, requirement_number, sku, destination_store_code, shortage_qty, fulfilled_qty, vendor_reference, expected_at, status")
-          .eq("destination_store_code", "STORE_3RD_PARTY")
+          .eq("destination_store_code", THREE_PGS_STORE_CODE)
           .order("created_at", { ascending: false })
           .limit(100),
         commandDb.from("b2b_assembly_3pgs_requirements")
@@ -148,7 +150,7 @@ export default function ThreePgsCommandCentre() {
           .limit(100),
         commandDb.from("b2b_inventory_receipts")
           .select("id, receipt_number, destination_store_code, status, created_at")
-          .eq("destination_store_code", "STORE_3RD_PARTY")
+          .eq("destination_store_code", THREE_PGS_STORE_CODE)
           .order("created_at", { ascending: false })
           .limit(100),
         commandDb.from("b2b_inventory_grns")
@@ -158,7 +160,7 @@ export default function ThreePgsCommandCentre() {
       ]);
 
       const firstError = [balances, demand, procurement, assembly, receipts, grns].find((result) => result.error)?.error;
-      if (firstError) throw firstError;
+      if (firstError) throw new Error(firstError.message);
 
       setSnapshot({
         balances: (balances.data ?? []) as Balance[],
@@ -257,7 +259,8 @@ export default function ThreePgsCommandCentre() {
         <CardContent className="overflow-x-auto"><Table><TableHeader><TableRow><TableHead>Receipt</TableHead><TableHead>Status</TableHead><TableHead>GRN</TableHead><TableHead>Finalised</TableHead></TableRow></TableHeader><TableBody>
           {snapshot.receipts.map((receipt) => {
             const grn = snapshot.grns.find((row) => row.receipt_id === receipt.id);
-            return <TableRow key={receipt.id}><TableCell>{receipt.receipt_number}</TableCell><TableCell><Badge variant="outline">{receipt.status.replace(/_/g, " ")}</Badge></TableCell><TableCell>{grn?.grn_number ?? "—"}</TableCell><TableCell>{grn?.finalised_at ? "Yes" : "No"}</TableCell></TableRow>;
+            const finalised = Boolean(grn && (grn.status === "finalised" || grn.finalised_at));
+            return <TableRow key={receipt.id}><TableCell>{receipt.receipt_number}</TableCell><TableCell><Badge variant="outline">{receipt.status.replace(/_/g, " ")}</Badge></TableCell><TableCell>{grn?.grn_number ?? "—"}</TableCell><TableCell>{finalised ? "Yes" : "No"}</TableCell></TableRow>;
           })}
         </TableBody></Table></CardContent>
       </Card>

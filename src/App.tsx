@@ -92,7 +92,7 @@ const LiveWorkQueues = lazy(() => import("./pages/admin/LiveWorkQueues.tsx"));
 const EntityGraphExplorer = lazy(() => import("./pages/admin/EntityGraphExplorer.tsx"));
 const QueueExecutionPreview = lazy(() => import("./pages/admin/QueueExecutionPreview.tsx"));
 const BarcodeExecutionPreview = lazy(() => import("./pages/admin/BarcodeExecutionPreview.tsx"));
-const ThreePgsProcurementQueue = lazy(() => import("./pages/admin/ThreePgsCommandCentrePage.tsx"));
+const ThreePgsProcurementQueue = lazy(() => import("./pages/admin/ThreePgsProcurementQueue.tsx"));
 const ProductIntelligencePrototype = lazy(
   () => import("./pages/admin/ProductIntelligencePrototype.tsx"),
 );
