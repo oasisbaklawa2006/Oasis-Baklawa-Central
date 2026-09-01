@@ -423,16 +423,24 @@ test("FACT-E2E Gate 1B :: continuous golden order across RGS/Production/P&A/3PGS
   // invoked internally by acknowledge_3pgs_requirement_receipt once genuine
   // acknowledged custody evidence exists. ----
   await test.step("3PGS: reserve_3pgs_requirement_stock -> issue_rgs_stock -> acknowledge_3pgs_requirement_receipt", async () => {
-    // reserve_3pgs_requirement_stock's own gate (can_manage_b2b_inventory)
-    // accepts STORE_3RD_PARTY, but it calls reserve_rgs_stock() internally,
-    // which requires is_inventory_manage_role() or is_inventory_receive_role()
-    // -- neither list includes STORE_3RD_PARTY, only HOD_ASSEMBLY (among the
-    // roles this spec holds credentials for). issue_rgs_stock only requires
-    // is_internal_staff, so it stays on the 3PGS actor; the acknowledger
-    // (HOD_ASSEMBLY) must differ from the issuer per the separation-of-duties
-    // check inside acknowledge_3pgs_requirement_receipt.
-    await switchRole(page, hodAssembly);
-    const { client: reserveClient } = await createAuthenticatedCertificationClient(page);
+    // Three different role gates are in play here, each verified by reading
+    // its function body rather than assumed:
+    //  - create/record/accept_b2b_inventory_receipt gate on
+    //    can_receive_b2b_inventory() -- STORE_3RD_PARTY qualifies,
+    //    HOD_ASSEMBLY does NOT (that list is SUPER_ADMIN/ADMIN/
+    //    OPERATIONS_MANAGER/PRODUCTION_MANAGER/STORE_INCHARGE/
+    //    STORE_READY_GOODS/RGS_ADMIN/INVENTORY_MANAGER/STORE_3RD_PARTY).
+    //  - reserve_3pgs_requirement_stock's own gate (can_manage_b2b_inventory)
+    //    accepts STORE_3RD_PARTY, but it calls reserve_rgs_stock() internally,
+    //    which requires is_inventory_manage_role() or
+    //    is_inventory_receive_role() -- neither list includes STORE_3RD_PARTY,
+    //    only HOD_ASSEMBLY (among the roles this spec holds credentials for).
+    //  - issue_rgs_stock only requires is_internal_staff, so it stays on the
+    //    3PGS actor; the acknowledger (HOD_ASSEMBLY) must differ from the
+    //    issuer per the separation-of-duties check inside
+    //    acknowledge_3pgs_requirement_receipt.
+    await switchRole(page, store3rdParty);
+    const { client: receiptClient } = await createAuthenticatedCertificationClient(page);
 
     // Top up the 3PGS store so the requirement is satisfiable. A raw
     // authenticated UPDATE against inventory_stock_balances silently affects
@@ -446,7 +454,7 @@ test("FACT-E2E Gate 1B :: continuous golden order across RGS/Production/P&A/3PGS
     const pkgProductId = "20000000-0000-4000-8000-000000000201";
     const pkgSku = "CERT-3PGS-PKG-001";
     const createReceiptCorrelationId = `fact-e2e-golden-${RUN_SUFFIX}-3pgs-receipt-create`;
-    const { data: pkgReceipt, error: createReceiptError } = await reserveClient.rpc("create_b2b_inventory_receipt", {
+    const { data: pkgReceipt, error: createReceiptError } = await receiptClient.rpc("create_b2b_inventory_receipt", {
       p_receipt_number: `FACT-E2E-${RUN_SUFFIX}-3PGS-RCPT`,
       p_receipt_source: "opening_balance",
       p_destination_store_code: "3PGS",
@@ -456,24 +464,24 @@ test("FACT-E2E Gate 1B :: continuous golden order across RGS/Production/P&A/3PGS
       p_correlation_id: createReceiptCorrelationId,
     });
     expect(createReceiptError, createReceiptError?.message).toBeNull();
-    record(ledger.stages, "3pgs_create_inventory_receipt", "create_b2b_inventory_receipt", "HOD_ASSEMBLY", createReceiptCorrelationId, "PASS", `receipt_id=${pkgReceipt?.id}`);
+    record(ledger.stages, "3pgs_create_inventory_receipt", "create_b2b_inventory_receipt", "STORE_3RD_PARTY", createReceiptCorrelationId, "PASS", `receipt_id=${pkgReceipt?.id}`);
 
-    const { data: receiptLine } = await reserveClient
+    const { data: receiptLine } = await receiptClient
       .from("b2b_inventory_receipt_lines")
       .select("id")
       .eq("receipt_id", pkgReceipt?.id)
       .single();
 
     const recordReceiptCorrelationId = `fact-e2e-golden-${RUN_SUFFIX}-3pgs-receipt-record`;
-    const { error: recordReceiptError } = await reserveClient.rpc("record_b2b_inventory_receipt", {
+    const { error: recordReceiptError } = await receiptClient.rpc("record_b2b_inventory_receipt", {
       p_receipt_id: pkgReceipt?.id,
       p_lines: [{ line_id: receiptLine?.id, received_qty: 4 }],
       p_correlation_id: recordReceiptCorrelationId,
     });
     expect(recordReceiptError, recordReceiptError?.message).toBeNull();
-    record(ledger.stages, "3pgs_record_inventory_receipt", "record_b2b_inventory_receipt", "HOD_ASSEMBLY", recordReceiptCorrelationId, "PASS", "received_qty=4");
+    record(ledger.stages, "3pgs_record_inventory_receipt", "record_b2b_inventory_receipt", "STORE_3RD_PARTY", recordReceiptCorrelationId, "PASS", "received_qty=4");
 
-    const { data: existingBalance } = await reserveClient
+    const { data: existingBalance } = await receiptClient
       .from("inventory_stock_balances")
       .select("version")
       .eq("product_id", pkgProductId)
@@ -481,7 +489,7 @@ test("FACT-E2E Gate 1B :: continuous golden order across RGS/Production/P&A/3PGS
       .maybeSingle();
 
     const acceptReceiptCorrelationId = `fact-e2e-golden-${RUN_SUFFIX}-3pgs-receipt-accept`;
-    const { error: acceptReceiptError } = await reserveClient.rpc("accept_b2b_inventory_receipt", {
+    const { error: acceptReceiptError } = await receiptClient.rpc("accept_b2b_inventory_receipt", {
       p_receipt_id: pkgReceipt?.id,
       p_lines: [
         {
@@ -495,15 +503,17 @@ test("FACT-E2E Gate 1B :: continuous golden order across RGS/Production/P&A/3PGS
       p_correlation_id: acceptReceiptCorrelationId,
     });
     expect(acceptReceiptError, acceptReceiptError?.message).toBeNull();
-    record(ledger.stages, "3pgs_accept_inventory_receipt", "accept_b2b_inventory_receipt", "HOD_ASSEMBLY", acceptReceiptCorrelationId, "PASS", "accepted_qty=4");
+    record(ledger.stages, "3pgs_accept_inventory_receipt", "accept_b2b_inventory_receipt", "STORE_3RD_PARTY", acceptReceiptCorrelationId, "PASS", "accepted_qty=4");
 
-    const { data: requirementRow } = await reserveClient
+    const { data: requirementRow } = await receiptClient
       .from("b2b_assembly_3pgs_requirements")
       .select("requirement_number")
       .eq("id", pkgRequirementId)
       .single();
     const requirementNumber = requirementRow?.requirement_number as string;
 
+    await switchRole(page, hodAssembly);
+    const { client: reserveClient } = await createAuthenticatedCertificationClient(page);
     const reserveCorrelationId = `fact-e2e-golden-${RUN_SUFFIX}-3pgs-reserve`;
     const { data: pkgReservation, error: reserveError } = await reserveClient.rpc("reserve_3pgs_requirement_stock", {
       p_requirement_id: pkgRequirementId,
