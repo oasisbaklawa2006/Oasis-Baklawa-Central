@@ -10,6 +10,10 @@ import { dispatchDb as governedReadDb } from "@/lib/dispatchGovernedRpc";
 
 export const THREE_PGS_STORE_CODE = "3PGS";
 
+const CLOSED_PROCUREMENT_STATUSES = new Set(["received", "cancelled", "closed"]);
+const OPEN_ASSEMBLY_STATUSES = new Set(["open", "partially_fulfilled"]);
+const EXCLUDED_RECEIPT_STATUSES = new Set(["cancelled", "rejected"]);
+
 type Balance = {
   id: string;
   sku: string;
@@ -82,21 +86,25 @@ type Snapshot = {
 
 const EMPTY: Snapshot = { balances: [], demand: [], procurement: [], assembly: [], receipts: [], grns: [] };
 
+function isFinalisedGrn(grn: Grn): boolean {
+  return grn.status === "finalised" || grn.finalised_at !== null;
+}
+
 export function threePgsCommandCentreMetrics(snapshot: Snapshot) {
-  const available = snapshot.balances.reduce((sum, row) => sum + Number(row.available_qty || 0), 0);
-  const reserved = snapshot.balances.reduce((sum, row) => sum + Number(row.reserved_qty || 0), 0);
+  const available = snapshot.balances.reduce((sum, row) => sum + row.available_qty, 0);
+  const reserved = snapshot.balances.reduce((sum, row) => sum + row.reserved_qty, 0);
   const exceptions = snapshot.balances.reduce(
-    (sum, row) => sum + Number(row.damaged_qty || 0) + Number(row.expired_qty || 0) + Number(row.quarantine_qty || 0),
+    (sum, row) => sum + row.damaged_qty + row.expired_qty + row.quarantine_qty,
     0,
   );
-  const openProcurement = snapshot.procurement.filter((row) => !["received", "cancelled", "closed"].includes(row.status)).length;
-  const openAssembly = snapshot.assembly.filter((row) => ["open", "partially_fulfilled"].includes(row.status)).length;
-  const receiptsAwaitingGrn = snapshot.receipts.filter((receipt) => {
-    if (["cancelled", "rejected"].includes(receipt.status)) return false;
-    return !snapshot.grns.some(
-      (grn) => grn.receipt_id === receipt.id && (grn.status === "finalised" || grn.finalised_at !== null),
-    );
-  }).length;
+  const openProcurement = snapshot.procurement.filter((row) => !CLOSED_PROCUREMENT_STATUSES.has(row.status)).length;
+  const openAssembly = snapshot.assembly.filter((row) => OPEN_ASSEMBLY_STATUSES.has(row.status)).length;
+  const receiptsAwaitingGrn = snapshot.receipts.filter(
+    (receipt) =>
+      !EXCLUDED_RECEIPT_STATUSES.has(receipt.status) &&
+      !snapshot.grns.some((grn) => grn.receipt_id === receipt.id && isFinalisedGrn(grn)),
+  ).length;
+
   return { available, reserved, exceptions, openProcurement, openAssembly, receiptsAwaitingGrn };
 }
 
@@ -109,8 +117,9 @@ export default function ThreePgsCommandCentre() {
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
+
     try {
-      const [balances, demand, procurement, assembly, receipts, grns] = await Promise.all([
+      const [balances, demand, procurement, assembly, receipts] = await Promise.all([
         governedReadDb.from<Balance>("inventory_stock_balances")
           .select("id, sku, location_code, available_qty, reserved_qty, picked_qty, damaged_qty, expired_qty, quarantine_qty")
           .eq("location_code", THREE_PGS_STORE_CODE)
@@ -127,6 +136,7 @@ export default function ThreePgsCommandCentre() {
           .limit(100),
         governedReadDb.from<AssemblyRequirement>("b2b_assembly_3pgs_requirements")
           .select("id, requirement_number, sku, source_store_code, requested_qty, fulfilled_qty, status, priority")
+          .in("status", ["open", "partially_fulfilled"])
           .order("created_at", { ascending: true })
           .limit(100),
         governedReadDb.from<Receipt>("b2b_inventory_receipts")
@@ -134,26 +144,29 @@ export default function ThreePgsCommandCentre() {
           .eq("destination_store_code", THREE_PGS_STORE_CODE)
           .order("created_at", { ascending: false })
           .limit(100),
-        governedReadDb.from<Grn>("b2b_inventory_grns")
-          .select("id, grn_number, receipt_id, status, finalised_at")
-          .order("created_at", { ascending: false })
-          .limit(100),
       ]);
 
-      const firstError = [balances, demand, procurement, assembly, receipts, grns]
+      const sourceError = [balances, demand, procurement, assembly, receipts]
         .find((result) => result.error !== null)?.error;
-      if (firstError) throw new Error(firstError.message);
+      if (sourceError) throw new Error(sourceError.message);
 
-      const openAssemblyRows = (assembly.data ?? []).filter((row) =>
-        ["open", "partially_fulfilled"].includes(row.status),
-      );
+      const receiptRows = receipts.data ?? [];
+      const receiptIds = receiptRows.map((receipt) => receipt.id);
+      const grns = receiptIds.length > 0
+        ? await governedReadDb.from<Grn>("b2b_inventory_grns")
+          .select("id, grn_number, receipt_id, status, finalised_at")
+          .in("receipt_id", receiptIds)
+          .order("created_at", { ascending: false })
+        : { data: [] as Grn[], error: null };
+
+      if (grns.error) throw new Error(grns.error.message);
 
       setSnapshot({
         balances: balances.data ?? [],
         demand: demand.data ?? [],
         procurement: procurement.data ?? [],
-        assembly: openAssemblyRows,
-        receipts: receipts.data ?? [],
+        assembly: assembly.data ?? [],
+        receipts: receiptRows,
         grns: grns.data ?? [],
       });
     } catch (err) {
@@ -164,7 +177,9 @@ export default function ThreePgsCommandCentre() {
     }
   }, []);
 
-  useEffect(() => { void load(); }, [load]);
+  useEffect(() => {
+    void load();
+  }, [load]);
 
   const metrics = useMemo(() => threePgsCommandCentreMetrics(snapshot), [snapshot]);
   const filteredBalances = useMemo(() => {
@@ -245,7 +260,7 @@ export default function ThreePgsCommandCentre() {
         <CardContent className="overflow-x-auto"><Table><TableHeader><TableRow><TableHead>Receipt</TableHead><TableHead>Status</TableHead><TableHead>GRN</TableHead><TableHead>Finalised</TableHead></TableRow></TableHeader><TableBody>
           {snapshot.receipts.map((receipt) => {
             const grn = snapshot.grns.find((row) => row.receipt_id === receipt.id);
-            const finalised = grn !== undefined && (grn.status === "finalised" || grn.finalised_at !== null);
+            const finalised = grn !== undefined && isFinalisedGrn(grn);
             return <TableRow key={receipt.id}><TableCell>{receipt.receipt_number}</TableCell><TableCell><Badge variant="outline">{receipt.status.replace(/_/g, " ")}</Badge></TableCell><TableCell>{grn?.grn_number ?? "—"}</TableCell><TableCell>{finalised ? "Yes" : "No"}</TableCell></TableRow>;
           })}
         </TableBody></Table></CardContent>
@@ -254,7 +269,9 @@ export default function ThreePgsCommandCentre() {
   );
 }
 
-function fmt(value: number) { return Number(value || 0).toLocaleString("en-IN", { maximumFractionDigits: 3 }); }
+function fmt(value: number) {
+  return value.toLocaleString("en-IN", { maximumFractionDigits: 3 });
+}
 
 function Metric({ icon, label, value }: { icon: React.ReactNode; label: string; value: number }) {
   return <Card><CardContent className="flex items-center gap-2 p-4"><span className="text-primary">{icon}</span><div><p className="text-xl font-bold">{fmt(value)}</p><p className="text-[11px] text-muted-foreground">{label}</p></div></CardContent></Card>;
