@@ -46,7 +46,7 @@ export function OperatorInboxWorkspacePersistenceGate({ children }: { children: 
     if (hydratingRef.current) return;
     hydratingRef.current = true;
     const controller = new AbortController();
-    let timeoutId: ReturnType<typeof window.setTimeout> | null = null;
+    let timeoutId: number | null = null;
     try {
       const timeout = new Promise<never>((_, reject) => {
         timeoutId = window.setTimeout(() => {
