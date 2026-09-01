@@ -24,14 +24,14 @@ The canonical 3PGS inventory/store code is `3PGS`. `STORE_3RD_PARTY` is an appli
 
 ## Existing Central surface to extend
 
-The existing route and import path remain canonical: `src/pages/admin/ThreePgsProcurementQueue.tsx` at `/admin/3pgs-procurement-queue`.
+The existing operator implementation remains canonical at `src/pages/admin/ThreePgsProcurementQueue.tsx`. R4.5 does not copy, rename, or replace that mutation surface.
 
-R4.5 keeps that path and converts it into a narrow route-level composition wrapper:
+The existing route `/admin/3pgs-procurement-queue` now lazy-loads `ThreePgsProcurementQueueComposition.tsx`, a narrow route-level composition wrapper that renders:
 
 - `ThreePgsCommandCentre.tsx` — read-only manager composition over canonical Core-backed truth;
-- `ThreePgsProcurementOperator.tsx` — the pre-R4.5 governed operator implementation, preserved byte-for-byte from current `main` and still owning procurement, reserve, issue, distinct-receiver acknowledgement and receiving actions.
+- `ThreePgsProcurementQueue.tsx` — the unchanged pre-R4.5 governed operator implementation, still owning procurement, reserve, issue, distinct-receiver acknowledgement and receiving actions through the existing Core RPC paths.
 
-This avoids adding a parallel route or mutation surface and avoids changing `src/App.tsx` merely to introduce R4.5 composition.
+This avoids a parallel route, duplicate operator implementation, or new mutation authority. The original operator regression suite remains unchanged and continues to target `ThreePgsProcurementQueue.tsx` directly.
 
 ## Required behaviour
 
@@ -49,6 +49,7 @@ This avoids adding a parallel route or mutation surface and avoids changing `src
 
 - no schema/migration unless a separately proven Core gap exists;
 - no direct stock writes;
+- no copied or parallel 3PGS operator implementation;
 - no R4.6 satellite/mobile/TV behaviour;
 - no R4.7 close/audit behaviour;
 - no R5 Dispatch behavioural work;
