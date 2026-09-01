@@ -192,17 +192,27 @@ const { error: goldenCompanyError } = await supabase.from("companies").upsert(
 );
 assertNoSupabaseError(goldenCompanyError, "Golden-order company fixture upsert failed");
 
+// Core's protect_order_authority_fields() trigger (see
+// 20260809060000_wave1b_server_authority_foundation.sql) rejects any
+// non-'postgres'-role INSERT into public.orders whose status is outside
+// draft/submitted, or whose payment_cleared/advance_paid/finance_verified_*
+// fields are already set -- those transitions are Finance-authority-only
+// and must happen via governed RPCs, never a raw insert. The certification
+// service-role client is not the postgres role, so this fixture stays at
+// the insert-permitted draft/unpaid state; none of the governed RPCs the
+// golden-order spec calls (create_b2b_dispatch_consignment onward) require
+// a later order status or payment state.
 const { error: goldenOrderError } = await supabase.from("orders").upsert(
   {
     id: GOLDEN_ORDER_ID,
     company_id: GOLDEN_ORDER_COMPANY_ID,
-    status: "cleared_for_dispatch",
+    status: "draft",
     order_number: "FACT-E2E-GOLDEN-001",
     sales_order_value: 500,
     advance_required: 0,
-    advance_paid: 500,
-    payment_status: "paid",
-    payment_cleared: true,
+    advance_paid: 0,
+    payment_status: "pending",
+    payment_cleared: false,
     order_origin: "MANUAL",
     tracking_token: "fact-e2e-golden-tracking-001",
   },
