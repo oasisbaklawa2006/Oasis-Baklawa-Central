@@ -56,8 +56,8 @@ function savedViewSnapshot(value: unknown): OperatorInboxSavedViewSnapshot {
     pinnedIds,
     bulkFilters: normalizePersistedBulkFilters(row.bulkFilters as OperatorInboxSavedViewSnapshot["bulkFilters"] | undefined),
     compactMode: row.compactMode === true,
-    showObservabilityStrip: row.showObservabilityStrip === true,
-    showAiPreviewPanel: row.showAiPreviewPanel === true,
+    showObservabilityStrip: typeof row.showObservabilityStrip === "boolean" ? row.showObservabilityStrip : true,
+    showAiPreviewPanel: typeof row.showAiPreviewPanel === "boolean" ? row.showAiPreviewPanel : true,
   };
 }
 
@@ -107,23 +107,34 @@ function parseCorrections(value: unknown): WorkspaceServerCorrection[] {
   return result;
 }
 
-export async function fetchOperatorWorkspaceServerSnapshot(): Promise<WorkspaceServerSnapshot> {
+export async function fetchOperatorWorkspaceServerSnapshot(signal?: AbortSignal): Promise<WorkspaceServerSnapshot> {
   const client = db();
   const { data: authData, error: authError } = await client.auth.getUser();
   if (authError) throw new Error(authError.message);
   const actorId = authData.user?.id;
   if (!actorId) throw new Error("WA_OPERATOR_AUTH_REQUIRED");
 
+  let viewsQuery = client.from("whatsapp_operator_saved_views")
+    .select("view_key,view_label,filter_config,created_at,updated_at")
+    .eq("owner_user_id", actorId);
+  let notesQuery = client.from("whatsapp_operator_packet_notes")
+    .select("packet_id,actor_id,note_body,updated_at")
+    .eq("actor_id", actorId);
+  let correctionsQuery = client.from("whatsapp_operator_case_corrections")
+    .select("packet_id,correction_field,corrected_value,created_at,is_active")
+    .eq("is_active", true)
+    .order("created_at", { ascending: true });
+
+  if (signal) {
+    viewsQuery = viewsQuery.abortSignal(signal);
+    notesQuery = notesQuery.abortSignal(signal);
+    correctionsQuery = correctionsQuery.abortSignal(signal);
+  }
+
   const [viewsResult, notesResult, correctionsResult] = await Promise.all([
-    client.from("whatsapp_operator_saved_views")
-      .select("view_key,view_label,filter_config,created_at,updated_at")
-      .eq("owner_user_id", actorId),
-    client.from("whatsapp_operator_packet_notes")
-      .select("packet_id,actor_id,note_body,updated_at")
-      .eq("actor_id", actorId),
-    client.from("whatsapp_operator_case_corrections")
-      .select("packet_id,correction_field,corrected_value,created_at,is_active")
-      .eq("is_active", true),
+    viewsQuery,
+    notesQuery,
+    correctionsQuery,
   ]);
 
   if (viewsResult.error) throw new Error(viewsResult.error.message);
