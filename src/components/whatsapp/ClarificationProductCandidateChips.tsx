@@ -35,6 +35,7 @@ export function ClarificationProductCandidateChips({
   const [selectedProductId, setSelectedProductId] = useState<string | null>(null);
   const [feedback, setFeedback] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const captureIdempotencyKeysRef = useRef<Map<string, string>>(new Map());
 
   const candidates = useMemo(
     () => clarificationChipCandidates(bestMatch, alternatives),
@@ -50,6 +51,7 @@ export function ClarificationProductCandidateChips({
 
   useEffect(() => {
     let cancelled = false;
+    captureIdempotencyKeysRef.current.clear();
     setError(null);
     setFeedback(null);
     setSelectedProductId(null);
@@ -88,10 +90,12 @@ export function ClarificationProductCandidateChips({
       return;
     }
 
-    const idempotencyKey = newCaseActionIdempotencyKey(
-      "learning-product-chip",
-      `${caseId}:${candidate.productId}`,
-    );
+    const captureKey = `${caseId}:${candidate.productId}`;
+    let idempotencyKey = captureIdempotencyKeysRef.current.get(captureKey);
+    if (!idempotencyKey) {
+      idempotencyKey = newCaseActionIdempotencyKey("learning-product-chip", captureKey);
+      captureIdempotencyKeysRef.current.set(captureKey, idempotencyKey);
+    }
 
     setBusyProductId(candidate.productId);
     setError(null);
