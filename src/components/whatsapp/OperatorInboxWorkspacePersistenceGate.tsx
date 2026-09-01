@@ -92,7 +92,7 @@ function isDecision(value: unknown): value is DraftOrderLocalDecision {
 async function invokeMutation(db: SupabaseClient, mutation: OperatorWorkspaceMutation): Promise<void> {
   const key = operatorWorkspaceMutationIdempotencyKey(mutation);
   const rpc = rpcInvoker(db);
-  let result: RpcResult;
+  let result: RpcResult | null = null;
 
   switch (mutation.kind) {
     case "UPSERT_NOTE":
@@ -144,6 +144,7 @@ async function invokeMutation(db: SupabaseClient, mutation: OperatorWorkspaceMut
     }
   }
 
+  if (!result) throw new Error("WA_OPERATOR_MUTATION_KIND_UNSUPPORTED");
   if (result.error) throw new Error(result.error.message || `WA_OPERATOR_${mutation.kind}_FAILED`);
 }
 
@@ -187,8 +188,14 @@ export function OperatorInboxWorkspacePersistenceGate({ children }: { children: 
         const pendingDeletedViews = new Set(
           pending.filter((item) => item.kind === "DELETE_VIEW").map((item) => item.viewId),
         );
+        const pendingSavedViews = new Set(
+          pending.filter((item) => item.kind === "SAVE_VIEW").map((item) => item.viewId),
+        );
         const pendingDeletedNotes = new Set(
           pending.filter((item) => item.kind === "DELETE_NOTE").map((item) => item.packetId),
+        );
+        const pendingUpsertNotes = new Set(
+          pending.filter((item) => item.kind === "UPSERT_NOTE").map((item) => item.packetId),
         );
         const pendingCorrectionFields = new Set(
           pending
@@ -220,6 +227,7 @@ export function OperatorInboxWorkspacePersistenceGate({ children }: { children: 
         const localOnlyViews = localViews.filter((view) => !serverViewIds.has(view.id) && !pendingDeletedViews.has(view.id));
         replaceSavedViewsFromServer([...authoritativeViews, ...localOnlyViews].slice(0, 32));
         for (const view of localOnlyViews) {
+          if (pendingSavedViews.has(view.id)) continue;
           enqueueOperatorWorkspaceMutation({
             kind: "SAVE_VIEW",
             viewId: view.id,
@@ -242,7 +250,9 @@ export function OperatorInboxWorkspacePersistenceGate({ children }: { children: 
         for (const [packetId, note] of Object.entries(localNotes)) {
           if (pendingDeletedNotes.has(packetId) || authoritativeNotes[packetId]) continue;
           authoritativeNotes[packetId] = note;
-          enqueueOperatorWorkspaceMutation({ kind: "UPSERT_NOTE", packetId, text: note.text });
+          if (!pendingUpsertNotes.has(packetId)) {
+            enqueueOperatorWorkspaceMutation({ kind: "UPSERT_NOTE", packetId, text: note.text });
+          }
         }
         replacePacketNotesFromServer(authoritativeNotes);
 
