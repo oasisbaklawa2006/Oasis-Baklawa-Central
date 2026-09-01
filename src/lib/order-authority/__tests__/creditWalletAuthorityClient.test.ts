@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { describe, expect, it } from "vitest";
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   buildCreditRequestIdentity,
   buildCreditWalletCorrelationId,
@@ -11,6 +11,14 @@ import {
 
 const source = (relativePath: string) =>
   readFileSync(resolve(process.cwd(), "src", relativePath), "utf8");
+
+const digest = vi.fn(async () => new Uint8Array(32).buffer);
+
+beforeAll(() => {
+  vi.stubGlobal("crypto", { subtle: { digest } });
+});
+afterAll(() => vi.unstubAllGlobals());
+beforeEach(() => digest.mockClear());
 
 describe("PF-6B Central credit, wallet and exposure authority contract", () => {
   const wallet = {
