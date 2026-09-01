@@ -55,6 +55,10 @@ const dplVersionRow = {
 type Fixtures = Map<string, unknown[]>;
 
 let fixtures: Fixtures = new Map();
+// When set for a table, makeQuery resolves that table's query with this
+// error instead of its fixture rows -- used to simulate an authoritative
+// reload failing after a governed mutation RPC has already succeeded.
+let fixtureErrors: Map<string, string> = new Map();
 
 function resetFixtures() {
   fixtures = new Map([
@@ -66,6 +70,7 @@ function resetFixtures() {
     ["b2b_dispatch_carton_items", []],
     ["b2b_dispatch_product_scan_events", []],
   ]);
+  fixtureErrors = new Map();
 }
 resetFixtures();
 
@@ -81,8 +86,11 @@ function makeQuery(table: string) {
   builder.eq = chain;
   builder.order = chain;
   builder.limit = chain;
-  builder.then = (resolve: (result: { data: unknown; error: null }) => void) =>
-    resolve({ data: fixtures.get(table) ?? [], error: null });
+  builder.then = (resolve: (result: { data: unknown; error: { message: string } | null }) => void) => {
+    const errorMessage = fixtureErrors.get(table);
+    if (errorMessage) return resolve({ data: null, error: { message: errorMessage } });
+    return resolve({ data: fixtures.get(table) ?? [], error: null });
+  };
   return builder;
 }
 
@@ -471,5 +479,88 @@ describe("DispatchManagement (FACT-C3 governed operator workflow)", () => {
     await waitFor(() => expect(toast.error).toHaveBeenCalledWith("network timeout"));
     expect(screen.getByText("generated")).toBeTruthy();
     expect(screen.getByRole("button", { name: "Submit to Finance" })).not.toBeDisabled();
+  });
+
+  it("preserves the scan correlation id and submitted input when the RPC succeeds but the authoritative refresh fails", async () => {
+    rpcMock.mockImplementation(async (fn: string) => {
+      if (fn === "record_b2b_dispatch_carton_item_scan") {
+        return { data: { scan_result: "verified", reason: null }, error: null };
+      }
+      return { data: null, error: null };
+    });
+    render(<DispatchManagement />);
+    await screen.findByText("SO-2026-000001-DC-01");
+    await selectWorkingConsignment();
+    await selectCarton();
+    await selectScanLine();
+    fireEvent.change(screen.getByLabelText("Barcode"), { target: { value: "BC-A" } });
+    fireEvent.change(screen.getByLabelText("Batch / lot"), { target: { value: "BATCH-1" } });
+    fireEvent.change(screen.getByLabelText("Quantity"), { target: { value: "5" } });
+
+    fixtureErrors.set("b2b_dispatch_cartons", "detail reload unavailable");
+    fireEvent.click(screen.getByRole("button", { name: "Record scan" }));
+    await waitFor(() => expect(rpcMock).toHaveBeenCalledTimes(1));
+    const firstCorrelation = rpcMock.mock.calls[0][1].p_correlation_id;
+
+    const { toast } = await import("sonner");
+    await waitFor(() =>
+      expect(toast.error).toHaveBeenCalledWith(expect.stringContaining("could not be refreshed")),
+    );
+    // Submitted input is preserved for safe retry -- the mutation succeeded
+    // server-side, only the authoritative reload failed.
+    expect((screen.getByLabelText("Barcode") as HTMLInputElement).value).toBe("BC-A");
+    expect((screen.getByLabelText("Batch / lot") as HTMLInputElement).value).toBe("BATCH-1");
+
+    fixtureErrors.delete("b2b_dispatch_cartons");
+    fireEvent.click(screen.getByRole("button", { name: "Record scan" }));
+    await waitFor(() => expect(rpcMock).toHaveBeenCalledTimes(2));
+    expect(rpcMock.mock.calls[1][1].p_correlation_id).toBe(firstCorrelation);
+  });
+
+  it("does not rotate the lock correlation id and surfaces reconciliation state when the RPC succeeds but fetchRows fails", async () => {
+    render(<DispatchManagement />);
+    await screen.findByText("SO-2026-000001-DC-01");
+    await selectWorkingConsignment();
+    await selectCarton();
+
+    fixtureErrors.set("b2b_dispatch_shipment_execution_view", "summary view unavailable");
+    fireEvent.click(screen.getByRole("button", { name: "Lock carton" }));
+
+    const { toast } = await import("sonner");
+    await waitFor(() =>
+      expect(toast.error).toHaveBeenCalledWith(expect.stringContaining("could not be refreshed")),
+    );
+    await waitFor(() => expect(rpcMock).toHaveBeenCalledTimes(1));
+    // The carton must not appear locked when the postcondition refresh failed.
+    expect(screen.getByRole("button", { name: "Lock carton" })).not.toBeDisabled();
+
+    fixtureErrors.delete("b2b_dispatch_shipment_execution_view");
+    fireEvent.click(screen.getByRole("button", { name: "Lock carton" }));
+    await waitFor(() => expect(rpcMock).toHaveBeenCalledTimes(2));
+    expect(rpcMock.mock.calls[1][1].p_correlation_id).toBe(rpcMock.mock.calls[0][1].p_correlation_id);
+  });
+
+  it("clears the previous consignment's carton/line/DPL state immediately when switching to a new consignment", async () => {
+    const secondConsignment = {
+      ...consignmentRow,
+      consignment_id: "c2",
+      consignment_number: "SO-2026-000002-DC-01",
+    };
+    fixtures.set("b2b_dispatch_shipment_execution_view", [consignmentRow, secondConsignment]);
+    render(<DispatchManagement />);
+    await screen.findByText("SO-2026-000001-DC-01");
+    await selectWorkingConsignment();
+    await selectCarton();
+    expect(screen.getByText(/Carton CTN-0001/)).toBeTruthy();
+
+    // The second consignment has no cartons yet.
+    fixtures.set("b2b_dispatch_cartons", []);
+    fireEvent.click(screen.getByLabelText("Working consignment"));
+    fireEvent.click(await screen.findByRole("option", { name: "SO-2026-000002-DC-01" }));
+
+    // The previous consignment's carton detail panel and row must not remain
+    // rendered or interactable under the newly selected consignment.
+    expect(screen.queryByText(/Carton CTN-0001 --/)).toBeNull();
+    await screen.findByText("No cartons opened yet for this consignment.");
   });
 });

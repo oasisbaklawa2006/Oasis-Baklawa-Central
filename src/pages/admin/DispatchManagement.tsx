@@ -217,6 +217,11 @@ export default function DispatchManagement() {
   const [submittingDpl, setSubmittingDpl] = useState(false);
   const [dplSubmitCorrelationId, setDplSubmitCorrelationId] = useState(() => crypto.randomUUID());
 
+  // Throws after recording the error so a mutation handler awaiting this as
+  // part of its authoritative-refresh postcondition can observe the failure
+  // and avoid claiming a fully-reconciled success. Callers that only want the
+  // side effect (initial load, manual refresh button) must swallow the
+  // rejection themselves -- see the mount effect and refresh button below.
   const fetchRows = useCallback(async () => {
     setLoading(true);
     setError(null);
@@ -230,13 +235,14 @@ export default function DispatchManagement() {
       setRows((data ?? []) as ShipmentExecutionRow[]);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load governed dispatch consignments.");
+      throw err;
     } finally {
       setLoading(false);
     }
   }, []);
 
   useEffect(() => {
-    void fetchRows();
+    fetchRows().catch(() => {});
   }, [fetchRows]);
 
   const workingRequestIdRef = useRef(0);
@@ -293,14 +299,26 @@ export default function DispatchManagement() {
     } catch (err) {
       if (requestId !== workingRequestIdRef.current) return;
       toast.error(err instanceof Error ? err.message : "Failed to load consignment detail.");
+      throw err;
     } finally {
       if (requestId === workingRequestIdRef.current) setWorkingLoading(false);
     }
   }, []);
 
   useEffect(() => {
-    void refreshWorkingConsignment(workingConsignmentId);
+    // Invalidate every piece of the previous consignment's detail immediately
+    // on selection change -- before the new consignment's data has loaded --
+    // so a stale carton/line/DPL row from the old consignment is never left
+    // rendered or selectable under the new workingConsignmentId, whether the
+    // new load succeeds, fails, or is still pending.
+    setCartons([]);
+    setConsignmentLines([]);
+    setDplVersions([]);
+    setSupersessionReasons(new Map());
     setSelectedCartonId("");
+    setCartonItems([]);
+    setScanEvents([]);
+    refreshWorkingConsignment(workingConsignmentId).catch(() => {});
   }, [workingConsignmentId, refreshWorkingConsignment]);
 
   const cartonRequestIdRef = useRef(0);
@@ -333,11 +351,12 @@ export default function DispatchManagement() {
     } catch (err) {
       if (requestId !== cartonRequestIdRef.current) return;
       toast.error(err instanceof Error ? err.message : "Failed to load carton detail.");
+      throw err;
     }
   }, []);
 
   useEffect(() => {
-    void refreshCartonDetail(selectedCartonId);
+    refreshCartonDetail(selectedCartonId).catch(() => {});
   }, [selectedCartonId, refreshCartonDetail]);
 
   const selectedCarton = cartons.find((c) => c.id === selectedCartonId) ?? null;
@@ -365,12 +384,19 @@ export default function DispatchManagement() {
         p_correlation_id: createCorrelationId,
       });
       if (rpcError) throw new Error(rpcError.message);
+      try {
+        await fetchRows();
+      } catch (refreshErr) {
+        toast.error(
+          `Consignment created, but the consignment list could not be refreshed (${refreshErr instanceof Error ? refreshErr.message : "reload failed"}). Reload and verify before retrying.`,
+        );
+        return;
+      }
       toast.success("Governed dispatch consignment created.");
       setOrderId("");
       setOrderItemId("");
       setSelectedQty("");
       setCreateCorrelationId(crypto.randomUUID());
-      await fetchRows();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to create the consignment.");
     } finally {
@@ -391,9 +417,16 @@ export default function DispatchManagement() {
         p_carton_code: trimmedCartonCode,
       });
       if (rpcError) throw new Error(rpcError.message);
+      try {
+        await Promise.all([fetchRows(), refreshWorkingConsignment(workingConsignmentId)]);
+      } catch (refreshErr) {
+        toast.error(
+          `Carton opened, but the consignment view could not be refreshed (${refreshErr instanceof Error ? refreshErr.message : "reload failed"}). Reload and verify before retrying.`,
+        );
+        return;
+      }
       toast.success("Carton opened.");
       setCartonCode("");
-      await Promise.all([fetchRows(), refreshWorkingConsignment(workingConsignmentId)]);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to open the carton.");
     } finally {
@@ -436,11 +469,18 @@ export default function DispatchManagement() {
       } else {
         toast.error(`Scan rejected (${data?.scan_result ?? "unknown"})${data?.reason ? `: ${data.reason}` : ""}`);
       }
+      try {
+        await Promise.all([fetchRows(), refreshWorkingConsignment(workingConsignmentId), refreshCartonDetail(selectedCartonId)]);
+      } catch (refreshErr) {
+        toast.error(
+          `Scan recorded, but the authoritative view could not be refreshed (${refreshErr instanceof Error ? refreshErr.message : "reload failed"}). Reload before retrying -- do not rescan.`,
+        );
+        return;
+      }
       setScanBarcode("");
       setScanBatchLot("");
       setScanQuantity("");
       setScanCorrelationId(crypto.randomUUID());
-      await Promise.all([fetchRows(), refreshWorkingConsignment(workingConsignmentId), refreshCartonDetail(selectedCartonId)]);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Scan failed.");
     } finally {
@@ -505,12 +545,23 @@ export default function DispatchManagement() {
         p_correlation_id: evidenceCorrelationId,
       });
       if (rpcError) throw new Error(rpcError.message);
+      // The evidence RPC succeeded, so any uploaded photo is now referenced
+      // by the governed record -- do not delete it even if the refresh
+      // below fails.
+      uploadedPath = null;
+      try {
+        await Promise.all([fetchRows(), refreshWorkingConsignment(workingConsignmentId), refreshCartonDetail(selectedCartonId)]);
+      } catch (refreshErr) {
+        toast.error(
+          `Evidence recorded, but the authoritative view could not be refreshed (${refreshErr instanceof Error ? refreshErr.message : "reload failed"}). Reload before retrying.`,
+        );
+        return;
+      }
       toast.success("Evidence recorded.");
       setNetWeight("");
       setGrossWeight("");
       setEvidencePhoto(null);
       setEvidenceCorrelationId(crypto.randomUUID());
-      await Promise.all([fetchRows(), refreshWorkingConsignment(workingConsignmentId), refreshCartonDetail(selectedCartonId)]);
     } catch (err) {
       if (uploadedPath) {
         await supabase.storage.from("receipts").remove([uploadedPath]);
@@ -534,9 +585,16 @@ export default function DispatchManagement() {
         p_correlation_id: lockCorrelationId,
       });
       if (rpcError) throw new Error(rpcError.message);
+      try {
+        await Promise.all([fetchRows(), refreshWorkingConsignment(workingConsignmentId), refreshCartonDetail(selectedCarton.id)]);
+      } catch (refreshErr) {
+        toast.error(
+          `Carton locked, but the authoritative view could not be refreshed (${refreshErr instanceof Error ? refreshErr.message : "reload failed"}). Reload before retrying.`,
+        );
+        return;
+      }
       toast.success("Carton locked.");
       setLockCorrelationId(crypto.randomUUID());
-      await Promise.all([fetchRows(), refreshWorkingConsignment(workingConsignmentId), refreshCartonDetail(selectedCarton.id)]);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to lock the carton. Reload and retry if the carton changed.");
     } finally {
@@ -556,9 +614,16 @@ export default function DispatchManagement() {
         p_correlation_id: dplCreateCorrelationId,
       });
       if (rpcError) throw new Error(rpcError.message);
+      try {
+        await Promise.all([fetchRows(), refreshWorkingConsignment(workingConsignmentId)]);
+      } catch (refreshErr) {
+        toast.error(
+          `Packing list generated, but the authoritative view could not be refreshed (${refreshErr instanceof Error ? refreshErr.message : "reload failed"}). Reload before retrying.`,
+        );
+        return;
+      }
       toast.success("Packing list generated.");
       setDplCreateCorrelationId(crypto.randomUUID());
-      await Promise.all([fetchRows(), refreshWorkingConsignment(workingConsignmentId)]);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to generate the packing list.");
     } finally {
@@ -585,10 +650,17 @@ export default function DispatchManagement() {
         p_correlation_id: supersedeCorrelationId,
       });
       if (rpcError) throw new Error(rpcError.message);
+      try {
+        await Promise.all([fetchRows(), refreshWorkingConsignment(workingConsignmentId)]);
+      } catch (refreshErr) {
+        toast.error(
+          `Packing list corrected, but the authoritative view could not be refreshed (${refreshErr instanceof Error ? refreshErr.message : "reload failed"}). Reload before retrying.`,
+        );
+        return;
+      }
       toast.success("Packing list corrected with a new version.");
       setSupersedeReason("");
       setSupersedeCorrelationId(crypto.randomUUID());
-      await Promise.all([fetchRows(), refreshWorkingConsignment(workingConsignmentId)]);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to correct the packing list.");
     } finally {
@@ -609,9 +681,16 @@ export default function DispatchManagement() {
         p_correlation_id: dplSubmitCorrelationId,
       });
       if (rpcError) throw new Error(rpcError.message);
+      try {
+        await Promise.all([fetchRows(), refreshWorkingConsignment(workingConsignmentId)]);
+      } catch (refreshErr) {
+        toast.error(
+          `Packing list submitted to Finance, but the authoritative view could not be refreshed (${refreshErr instanceof Error ? refreshErr.message : "reload failed"}). Reload to confirm before retrying.`,
+        );
+        return;
+      }
       toast.success("Packing list submitted to Finance.");
       setDplSubmitCorrelationId(crypto.randomUUID());
-      await Promise.all([fetchRows(), refreshWorkingConsignment(workingConsignmentId)]);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to submit the packing list to Finance.");
     } finally {
@@ -629,7 +708,7 @@ export default function DispatchManagement() {
             Governed carton &amp; DPL authority
           </Badge>
         </div>
-        <Button type="button" variant="outline" size="sm" onClick={() => void fetchRows()} disabled={loading}>
+        <Button type="button" variant="outline" size="sm" onClick={() => fetchRows().catch(() => {})} disabled={loading}>
           <RefreshCw className={`mr-1 h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`} aria-hidden />
           Refresh
         </Button>
@@ -773,7 +852,7 @@ export default function DispatchManagement() {
                     placeholder="e.g. CTN-0001"
                   />
                 </div>
-                <Button type="button" disabled={openingCarton} onClick={() => void handleOpenCarton()}>
+                <Button type="button" disabled={openingCarton || workingLoading} onClick={() => void handleOpenCarton()}>
                   {openingCarton ? "Opening…" : "Open carton"}
                 </Button>
               </div>
@@ -995,7 +1074,11 @@ export default function DispatchManagement() {
               )}
 
               <div className="flex flex-wrap gap-2">
-                <Button type="button" disabled={creatingDpl || !!currentDplVersion} onClick={() => void handleCreateDpl()}>
+                <Button
+                  type="button"
+                  disabled={creatingDpl || workingLoading || !!currentDplVersion}
+                  onClick={() => void handleCreateDpl()}
+                >
                   {creatingDpl ? "Generating…" : "Create packing list"}
                 </Button>
                 <Button
