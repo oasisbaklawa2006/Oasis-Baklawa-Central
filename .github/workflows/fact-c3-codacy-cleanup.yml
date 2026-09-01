@@ -1,0 +1,82 @@
+name: FACT-C3 Codacy cleanup
+
+on:
+  push:
+    branches: [claude/factory-e2e-completion]
+    paths:
+      - '.github/workflows/fact-c3-codacy-cleanup.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    name: Apply safe refresh-helper refactor
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout PR branch
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: claude/factory-e2e-completion
+          persist-credentials: true
+
+      - name: Replace duplicated refresh catches with one safe helper
+        shell: bash
+        run: |
+          python <<'PY'
+          from pathlib import Path
+          import re
+
+          path = Path('src/pages/admin/DispatchManagement.tsx')
+          source = path.read_text()
+
+          anchor = '''  const supersededVersions = dplVersions.filter((v) => v.status === "superseded");\n'''
+          helper = '''\n  const confirmAuthoritativeRefresh = useCallback(\n    async (refresh: () => Promise<unknown>, failureMessage: string) => {\n      try {\n        await refresh();\n        return true;\n      } catch {\n        toast.error(failureMessage);\n        return false;\n      }\n    },\n    [],\n  );\n'''
+          if source.count(anchor) != 1:
+              raise SystemExit('Expected exactly one refresh-helper insertion anchor')
+          if 'const confirmAuthoritativeRefresh = useCallback(' in source:
+              raise SystemExit('Refresh helper already exists; refusing ambiguous rewrite')
+          source = source.replace(anchor, anchor + helper)
+
+          pattern = re.compile(
+              r'''      try \{\n        await (?P<refresh>[^\n]+);\n      \} catch \(refreshErr\) \{\n        console\.error\("Authoritative refresh failed after a successful mutation:", refreshErr\);\n        toast\.error\(\n          "(?P<message>[^"]+)",\n        \);\n        return;\n      \}'''
+          )
+
+          def replacement(match: re.Match[str]) -> str:
+              refresh = match.group('refresh')
+              message = match.group('message')
+              return f'''      if (\n        !(await confirmAuthoritativeRefresh(\n          () => {refresh},\n          "{message}",\n        ))\n      ) {{\n        return;\n      }}'''
+
+          source, count = pattern.subn(replacement, source)
+          if count != 8:
+              raise SystemExit(f'Expected to replace exactly 8 refresh catch blocks; replaced {count}')
+          if 'catch (refreshErr)' in source:
+              raise SystemExit('A duplicated refresh catch remains after rewrite')
+          if 'Authoritative refresh failed after a successful mutation:' in source:
+              raise SystemExit('Raw refresh-error logging remains after rewrite')
+
+          path.write_text(source)
+          print('FACT-C3 Codacy cleanup: replaced 8 duplicated refresh catch blocks')
+          PY
+
+      - name: Validate focused source invariants
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(grep -c 'const confirmAuthoritativeRefresh = useCallback' src/pages/admin/DispatchManagement.tsx)" -eq 1
+          test "$(grep -c 'await confirmAuthoritativeRefresh' src/pages/admin/DispatchManagement.tsx)" -eq 8
+          ! grep -q 'catch (refreshErr)' src/pages/admin/DispatchManagement.tsx
+          ! grep -q 'Authoritative refresh failed after a successful mutation:' src/pages/admin/DispatchManagement.tsx
+          git diff --check
+
+      - name: Commit cleanup to PR branch
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add src/pages/admin/DispatchManagement.tsx
+          git diff --cached --quiet && { echo 'No code change produced'; exit 1; }
+          git commit -m 'refactor(fact-c3): consolidate post-mutation reconciliation'
+          git push origin HEAD:claude/factory-e2e-completion
