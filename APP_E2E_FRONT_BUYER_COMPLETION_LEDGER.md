@@ -1,7 +1,7 @@
 # APP-E2E — Front / Buyer App + App Order Inward Completion Ledger
 
-**Baseline:** Central `origin/main` `36dd63d4a9ffaf8760c1dddddbf00f81609a8f95` (2026-08-31)
-**Feature branch:** `codex/app-e2e-tranche3-buyer-ux-closure`
+**Baseline:** Central `origin/main` `9b59bcfb3cd454b9d613819ef7e7a81a24271b5c` (2026-09-01)
+**Feature branch:** `codex/app-e2e-tranche4-buyer-release-closure`
 **Boundary:** customer-facing Front/Buyer App and App-generated order inward only. Core schema/RPC authority remains in `oasis-supabase-core`; WhatsApp, Finance authority, Factory, Trace, CRM and Factory Gate are out of scope.
 
 ## Status legend
@@ -30,13 +30,24 @@ authenticated runtime run. Tranche 2 must not invent customer-safe Finance or
 document projections where production does not expose the corresponding Core
 contract.
 
-## Current-main baseline reconciled for Tranche 3
+## APP-E2E Tranche 3 — ✅ MERGED
 
-The Tranche 3 branch starts from the actual post-merge Central `main` at
+- **PR:** #427 (`codex/app-e2e-tranche3-buyer-ux-closure` → `main`)
+- **Merge SHA:** `d73db427027b542dafa436190078aee8c48078a1`
+- **Historical PR head at merge:** `bd4e4c83ea50824e3dd8a0e0b84e428e956b5ded`
+- **Software implementation/merge:** COMPLETE
+- **Tranche 4 baseline:** current Central `main` is `9b59bcfb3cd454b9d613819ef7e7a81a24271b5c` (PR #428 and the later FACT-C3 merge are above the Tranche 3 merge).
+
+The Tranche 3 branch/head is historical evidence only. Tranche 4 is a
+separate release-closure branch and does not reuse or rewrite that branch.
+
+## Historical Tranche 3 baseline reconciliation (pre-merge evidence)
+
+The Tranche 3 branch was based on the then-current Central `main` at
 `36dd63d4a9ffaf8760c1dddddbf00f81609a8f95` (PR #426). The Tranche 2
 commercial-visibility work remains historical evidence below; this section
 records only the current Buyer surface and the narrow UX closure being built
-on top of it. A ✅ status means the current branch code and rendered checks
+on top of it. A ✅ status means the then-current Tranche 3 branch code and rendered checks
 prove the software behavior; it does not assert protected Core runtime
 deployment or authenticated production verification.
 
@@ -47,7 +58,7 @@ deployment or authenticated production verification.
 - **Scope:** buyer commercial visibility, Core-owned pricing/order identity and
   dispatch-date presentation; no frontend Finance authority was introduced.
 
-### Tranche 3 current reconciliation
+### Historical Tranche 3 reconciliation
 
 | Buyer surface | Classification | Current evidence / boundary |
 |---|---|---|
@@ -78,9 +89,9 @@ support writer. A general/non-order customer query remains a separate Core
 contract gap: the frontend must not create an SO or a Central shadow record to
 pretend that path is complete.
 
-### Tranche 3 verification evidence (current branch)
+### Historical Tranche 3 verification evidence (final pre-merge branch)
 
-- Final takeover head: `2930cb77d4f669d018ffc42129f52449b70c91d3`.
+- Historical Tranche 3 takeover head: `2930cb77d4f669d018ffc42129f52449b70c91d3`.
 - Hosted Release Quality Gate: **PASS**, including TypeScript, changed-file
   ESLint, full unit/migration-contract tests, production build and Playwright
   smoke.
@@ -102,6 +113,50 @@ pretend that path is complete.
   not represented as a successful run.
 - All previously raised Sourcery review threads are resolved; final governance
   still requires one human approving review after the final head push.
+
+## APP-E2E Tranche 4 — Buyer frontend release closure
+
+- **Branch:** `codex/app-e2e-tranche4-buyer-release-closure`
+- **Baseline:** `9b59bcfb3cd454b9d613819ef7e7a81a24271b5c` (actual current Central `main` on 2026-09-01)
+- **Scope:** frontend route closure, customer-safe failure states, mobile/accessibility hardening and retirement of proven-unreachable legacy customer writers. No Core/Finance/production changes.
+- **Status:** FRONTEND COMPLETE — UPSTREAM CONTRACT BINDING REMAINS (scoped implementation and local certification complete; PR gates and independent approval pending).
+
+### Tranche 4 route inventory (current as-built)
+
+| Route surface | Classification | Evidence / remaining boundary |
+|---|---|---|
+| Splash, login, password recovery/reset, access request, approval-pending/unauthorised and stale-session paths | ✅ COMPLETE | `src/App.tsx`, `ProtectedRoute`, `RoleProtectedRoute` and the governed access-request RPC provide guarded entry; customer auth failures use bounded copy. Approval remains an internal decision. |
+| Dashboard (`/buyer`) | ✅ COMPLETE | Company identity/status, action-required order state, New Order/catalogue, reorder/cart, Track Order through Orders, Support and recent-order links are presented without fabricated Finance values. |
+| Catalogue (`/buyer/catalogue`) | ✅ COMPLETE | Active/visible products, supported search/category/subcategory filtering, neutral image fallback, safe price/MOQ/UOM states and duplicate-click protection are rendered from current catalogue fields. |
+| Product detail (`/buyer/catalogue/:id`, legacy `/buyer/product/:id`) | ✅ COMPLETE | Direct/legacy deep links resolve to the governed detail view; invalid IDs fail closed; Add/Buy use only Core draft RPCs and are disabled while pending. |
+| Cart (`/buyer/cart`) | ✅ COMPLETE | Core draft identity, quantity/MOQ/increment guidance, line-price preview, requested dispatch, retry-safe idempotent submission and safe network/read errors are preserved. |
+| Orders (`/buyer/orders`) | ✅ COMPLETE | Empty, submitted, unknown-stage, requested/promised dispatch and customer-safe payment states are rendered from Core projections. |
+| Order detail (`/buyer/orders/:id`) | ✅ COMPLETE | Invalid/company-inaccessible IDs fail closed; exact Core SO identity, items, one-current-stage timeline, tracking and governed reorder are presented. |
+| Documents (`/buyer/documents`) | ✅ COMPLETE / CORE-BLOCKED CHILD CAPABILITIES | Sales Order reference availability is linked to Orders; PI, final invoice and statement cards remain neutral until customer-safe Core contracts issue them. No numbers, files or URLs are fabricated. |
+| Account (`/buyer/account`) | ✅ COMPLETE | Company/team context, safe role labels, Orders/Documents/Support links and governed sign-out are available. |
+| Support (`/buyer/support`) | ✅ COMPLETE / GENERAL QUERY CORE-BLOCKED | The only active submit path is order-linked `submit_customer_support_ticket_v1`; no general query is converted into an order or shadow record. |
+| Unknown Buyer path | ✅ COMPLETE | Unknown paths now show a customer-safe recovery state instead of silently rendering the dashboard. |
+
+### Tranche 4 authority and retirement audit
+
+- **SupportChat:** REMOVED. Repository search proved no import, route or CTA; it contained a hard-coded legacy AI Edge Function and was superseded by governed order-linked Support.
+- **CheckoutModal:** REMOVED. Repository search proved no import, route or CTA; it was a non-authoritative preview hand-off superseded by the Core draft/cart checkout.
+- **SupportTicketModal:** RETAINED as a governed compatibility component; it has no direct table/Edge Function write and uses `customerAppClient.submitTicket`.
+- **Active Buyer writes:** no direct `insert`, `update`, `delete`, `functions.invoke`, `fetch` or hard-coded mutation endpoint. Catalogue/system-alert reads are read-only; all active cart/order/support/access-request mutations go through `customerAppClient`.
+- **Frontend fixes in this tranche:** unknown-route fail-closed recovery; legacy product deep-link redirect; malformed/missing price fail-closed controls; duplicate catalogue action suppression; bounded Buyer/auth/support error copy; safe ticket issue labels; four-category document availability cards; support-ticket accessibility labels; legacy writer retirement and regression guards.
+
+### Tranche 4 certification evidence (local)
+
+- Buyer route, presentation, client-contract and auth focused tests: **55/55 passed** (32 Buyer, 3 presentation, 4 client, 16 auth).
+- Exact-head hosted Release Quality run **33478001528** executed the repository full `npm run test` suite successfully. **No current full-suite WhatsApp failure is part of the Tranche 4 certification state.**
+- TypeScript typecheck: **PASS**. Changed-file ESLint: **PASS** (one pre-existing `Login.tsx` exhaustive-deps warning). Production build: **PASS** (only repository Browserslist/chunk-size warnings).
+- Full lint remains a repository baseline failure outside this tranche; the boundary command is environment-blocked on Windows (`Bash/Service/CreateInstance/E_ACCESSDENIED`). `git diff --check` passes.
+- Local Playwright was not run because the repository has no safe authenticated Buyer fixture and production mutation is unauthorized; rendered Buyer route coverage is included in the focused suite. Remote Release Quality/Playwright/ownership and service checks remain PR gates to observe.
+- Mobile widths **375 px, 390 px and 430 px**: responsive implementation verified; authenticated runtime certification is explicitly deferred to APP-E2E Tranche 5. No authenticated mobile runtime claim is made here.
+
+### Tranche 4 remaining upstream blockers
+
+The following are intentionally not implemented in Central: customer-safe SO commercial projection/version detail beyond currently deployed fields; issued PI projection/number; final invoice and statement projection/downloads; Finance payment/wallet/credit facts; durable favourites; and governed general/non-order customer query. These remain Core/Finance authority gates, not hidden frontend defects.
 
 ## Historical Tranche 2 baseline and owner-approved policy
 
@@ -223,7 +278,7 @@ wallet, advance, credit, PI, invoice or statement facts.
 
 ## Exit gates
 
-### Implementation progress (current branch)
+### Historical implementation progress (Tranches 1–3)
 
 - [x] Dedicated APP-E2E branch created from current Central main.
 - [x] Governed client wrappers added for Core buyer identity, pricing, draft/cart, checkout, order projections and order-linked support contracts.
@@ -231,11 +286,11 @@ wallet, advance, credit, PI, invoice or statement facts.
 - [x] Catalogue search/filter/detail and Core-backed persistent cart added.
 - [x] Checkout UI uses Core `submit_customer_order_v1` with a stable retry key; it does not calculate or write Finance state.
 - [x] Order-linked support ticket modal/page uses Core submission RPC; direct customer audit-table writes removed from the active Buyer path.
-- [x] Quick buy/reorder, catalogue/detail, cart/MOQ, checkout/order inward, order projections, order-linked support tickets, account context, alerts and Buyer loading/error/empty/mobile states are implemented and covered by the current branch checks.
+- [x] Quick buy/reorder, catalogue/detail, cart/MOQ, checkout/order inward, order projections, order-linked support tickets, account context, alerts and Buyer loading/error/empty/mobile states were implemented and covered by the then-current Tranche 3 checks.
 - [ ] General/non-order customer query inward requires a governed order-optional Core contract; do not create a Central shadow writer or SO.
 - [ ] Durable favourites, statements, customer-safe documents and richer Finance-backed commercial cards remain blocked on Core contracts and/or protected runtime proof.
 - [ ] Authenticated production golden-path verification remains outstanding.
-- [x] Hosted Playwright PR smoke passed on the final takeover head.
+- [x] Hosted Playwright PR smoke passed on the historical Tranche 3 takeover head.
 - [x] Production presence for the established Buyer RPC set is verified; full authenticated Core runtime/golden-path certification remains pending as a separate Mission Control gate.
 
 - [x] Buyer route tree and mobile shell are complete and connected to authenticated buyer context.
@@ -243,7 +298,7 @@ wallet, advance, credit, PI, invoice or statement facts.
 - [x] Submission uses only the governed Core checkout RPC with stable idempotency and retry-safe UI.
 - [x] Orders/status/items and order-linked support are customer-safe projections with correct empty/loading/error states.
 - [x] No authoritative Finance calculation or direct `orders`/`order_items`/support-table mutation remains in the Buyer path.
-- [x] Required frontend regression coverage, typecheck, lint, production build and Playwright checks pass on final head `2930cb77d4f669d018ffc42129f52449b70c91d3`.
+- [x] Required frontend regression coverage, typecheck, lint, production build and Playwright checks passed on historical Tranche 3 head `2930cb77d4f669d018ffc42129f52449b70c91d3`.
 - [x] Tranche 1 and Tranche 2 software implementation/merges are complete; production presence is verified for the established Buyer RPC set.
 - [ ] Any future surface that consumes a newer Core contract is held until that exact customer-safe contract is protected-deployed and verified in production.
 - [ ] Final golden paths are demonstrated: authenticated buyer order inward to canonical SO/Finance handoff, plus a governed non-order support/query path once its Core contract exists.

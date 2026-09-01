@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import logoImg from "@/assets/logo-open.png";
-import { createAuthStateController, completeAuthLogin, getAuthUserMessage, getPostLoginRedirectOnError, readAuthCache, type AuthStatus } from "@/lib/auth-flow";
+import { createAuthStateController, completeAuthLogin, getCustomerAuthUserMessage, getPostLoginRedirectOnError, readAuthCache, type AuthStatus } from "@/lib/auth-flow";
 import { createAuthAttemptId, logAuthEvent, type AuthAttemptMethod } from "@/lib/auth-logging";
 import { normalizeIdentifier } from "@/lib/auth-identity";
 import { signOutAndClearSession } from "@/utils/authSession";
@@ -320,7 +320,7 @@ const Login = () => {
         const identity = data.session.user.email || data.session.user.phone || data.session.user.id;
         await redirectAfterAuth(identity, "session_restore", data.session.user.id);
       } catch (err) {
-        toast.error(err instanceof Error ? err.message : "Manual auth failed");
+        toast.error(getCustomerAuthUserMessage(err));
         setLoading(false);
       }
     })();
@@ -603,7 +603,7 @@ const Login = () => {
         result: "failed",
         error: message,
       });
-      await finalizeFailure(message.includes("Invalid") ? "Invalid email or password." : getAuthUserMessage(error), "failed");
+      await finalizeFailure(message.includes("Invalid") ? "Invalid email or password." : getCustomerAuthUserMessage(error), "failed");
       return;
     }
 
@@ -619,7 +619,7 @@ const Login = () => {
       await redirectAfterAuth(trimmedEmail, method, data.user.id, attemptId);
       setLoading(false);
     } catch (error) {
-      await finalizeFailure(getAuthUserMessage(error), "failed", true);
+      await finalizeFailure(getCustomerAuthUserMessage(error), "failed", true);
     }
   };
 
@@ -634,7 +634,7 @@ const Login = () => {
       redirectTo: "https://b2b.oasisbaklawa.com/reset-password",
     });
 
-    if (error) toast.error(error.message);
+    if (error) toast.error("We couldn't send a reset email. Please check your email address and try again.");
     else toast.success("Password reset email sent.");
   };
 

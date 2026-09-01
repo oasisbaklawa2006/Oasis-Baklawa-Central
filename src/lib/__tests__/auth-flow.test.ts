@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import {
   AuthFlowError,
   createAuthStateController,
+  getCustomerAuthUserMessage,
   getAuthUserMessage,
   getPostLoginRedirectOnError,
   readAuthCache,
@@ -106,6 +107,12 @@ describe("auth-flow / errors", () => {
   it("getAuthUserMessage maps unknown errors safely", () => {
     expect(getAuthUserMessage(new Error("boom"))).toBe("boom");
     expect(getAuthUserMessage("nonsense")).toBe("Authentication failed. Please try again.");
+  });
+
+  it("keeps provider details out of customer-facing authentication errors", () => {
+    expect(getCustomerAuthUserMessage(new Error("PostgREST 500 SQLSTATE 23505"))).toBe("Authentication failed. Please try again.");
+    expect(getCustomerAuthUserMessage(new Error("Invalid login credentials"))).toBe("Invalid email or password.");
+    expect(getCustomerAuthUserMessage(new AuthFlowError("ACCOUNT_BLOCKED", "internal detail"))).toBe("Account blocked. Please contact support.");
   });
 });
 
