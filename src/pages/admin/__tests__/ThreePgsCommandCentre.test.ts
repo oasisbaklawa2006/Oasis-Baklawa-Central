@@ -1,9 +1,21 @@
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import { THREE_PGS_STORE_CODE, threePgsCommandCentreMetrics } from "@/pages/admin/ThreePgsCommandCentre";
+
+const commandCentreSource = () =>
+  readFileSync(resolve(process.cwd(), "src/pages/admin/ThreePgsCommandCentre.tsx"), "utf8");
 
 describe("threePgsCommandCentreMetrics", () => {
   it("pins the command centre to the canonical 3PGS store code", () => {
     expect(THREE_PGS_STORE_CODE).toBe("3PGS");
+  });
+
+  it("scopes GRN reads to the displayed 3PGS receipt ids", () => {
+    const source = commandCentreSource();
+
+    expect(source).toContain("const receiptIds = receiptRows.map((receipt) => receipt.id);");
+    expect(source).toContain('.in("receipt_id", receiptIds)');
   });
 
   it("composes stock, exception, procurement, P&A and GRN truth without inventing state", () => {
