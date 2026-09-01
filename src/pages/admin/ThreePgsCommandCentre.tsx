@@ -1,32 +1,14 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { AlertTriangle, Boxes, ClipboardList, PackageCheck, RefreshCw, Truck } from "lucide-react";
 import { Link } from "react-router-dom";
-import { supabase } from "@/integrations/supabase/client";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-
-type CommandResult = {
-  data: unknown[] | null;
-  error: { message: string } | null;
-};
-
-type CommandQuery = PromiseLike<CommandResult> & {
-  select: (columns: string) => CommandQuery;
-  eq: (column: string, value: unknown) => CommandQuery;
-  in: (column: string, values: readonly unknown[]) => CommandQuery;
-  order: (column: string, options?: { ascending?: boolean }) => CommandQuery;
-  limit: (count: number) => CommandQuery;
-};
+import { dispatchDb as governedReadDb } from "@/lib/dispatchGovernedRpc";
 
 export const THREE_PGS_STORE_CODE = "3PGS";
-
-// R4.5 is a composition surface only. Core remains the mutation authority.
-// This typed read-side adapter is deliberately narrow: it exposes only the
-// query operations used here and does not create or expose any write method.
-const commandDb = supabase as unknown as { from: (relation: string) => CommandQuery };
 
 type Balance = {
   id: string;
@@ -129,31 +111,30 @@ export default function ThreePgsCommandCentre() {
     setError(null);
     try {
       const [balances, demand, procurement, assembly, receipts, grns] = await Promise.all([
-        commandDb.from("inventory_stock_balances")
+        governedReadDb.from<Balance>("inventory_stock_balances")
           .select("id, sku, location_code, available_qty, reserved_qty, picked_qty, damaged_qty, expired_qty, quarantine_qty")
           .eq("location_code", THREE_PGS_STORE_CODE)
           .order("sku", { ascending: true })
           .limit(1000),
-        commandDb.from("b2b_3pgs_pending_demand_priority")
+        governedReadDb.from<PriorityDemand>("b2b_3pgs_pending_demand_priority")
           .select("demand_id, demand_reference, demand_source_type, priority_rank, sku, location_code, outstanding_qty")
           .order("priority_rank", { ascending: true })
           .limit(100),
-        commandDb.from("b2b_procurement_requirements")
+        governedReadDb.from<Procurement>("b2b_procurement_requirements")
           .select("id, requirement_number, sku, destination_store_code, shortage_qty, fulfilled_qty, vendor_reference, expected_at, status")
           .eq("destination_store_code", THREE_PGS_STORE_CODE)
           .order("created_at", { ascending: false })
           .limit(100),
-        commandDb.from("b2b_assembly_3pgs_requirements")
+        governedReadDb.from<AssemblyRequirement>("b2b_assembly_3pgs_requirements")
           .select("id, requirement_number, sku, source_store_code, requested_qty, fulfilled_qty, status, priority")
-          .in("status", ["open", "partially_fulfilled"])
           .order("created_at", { ascending: true })
           .limit(100),
-        commandDb.from("b2b_inventory_receipts")
+        governedReadDb.from<Receipt>("b2b_inventory_receipts")
           .select("id, receipt_number, destination_store_code, status, created_at")
           .eq("destination_store_code", THREE_PGS_STORE_CODE)
           .order("created_at", { ascending: false })
           .limit(100),
-        commandDb.from("b2b_inventory_grns")
+        governedReadDb.from<Grn>("b2b_inventory_grns")
           .select("id, grn_number, receipt_id, status, finalised_at")
           .order("created_at", { ascending: false })
           .limit(100),
@@ -163,13 +144,17 @@ export default function ThreePgsCommandCentre() {
         .find((result) => result.error !== null)?.error;
       if (firstError) throw new Error(firstError.message);
 
+      const openAssemblyRows = (assembly.data ?? []).filter((row) =>
+        ["open", "partially_fulfilled"].includes(row.status),
+      );
+
       setSnapshot({
-        balances: (balances.data ?? []) as Balance[],
-        demand: (demand.data ?? []) as PriorityDemand[],
-        procurement: (procurement.data ?? []) as Procurement[],
-        assembly: (assembly.data ?? []) as AssemblyRequirement[],
-        receipts: (receipts.data ?? []) as Receipt[],
-        grns: (grns.data ?? []) as Grn[],
+        balances: balances.data ?? [],
+        demand: demand.data ?? [],
+        procurement: procurement.data ?? [],
+        assembly: openAssemblyRows,
+        receipts: receipts.data ?? [],
+        grns: grns.data ?? [],
       });
     } catch (err) {
       setSnapshot(EMPTY);
