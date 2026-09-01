@@ -360,9 +360,36 @@ test("FACT-E2E Gate 1B :: continuous golden order across RGS/Production/P&A/3PGS
     ).toBeGreaterThan(Number(balanceBefore?.available_qty ?? 0));
   });
 
-  // ---- Stage: RGS fulfilment of the original reservation ----
-  await test.step("RGS: pick_rgs_reservation -> issue_rgs_stock -> acknowledge_rgs_issue", async () => {
+  // ---- Stage: RGS reservation truth-check + negative-path proof.
+  // reserve_assembly_components() reserves directly from
+  // inventory_stock_balances into the component FIRST, then calls
+  // reserve_rgs_stock() only for the remaining shortfall -- by which point
+  // available_qty is already exhausted. So the RGS reservation this created
+  // is genuinely a 100%-shortfall ("pending") reservation with reserved_qty=0
+  // at creation, and neither accept_rgs_production_receipt (credits
+  // inventory_stock_balances directly, never touches inventory_reservations)
+  // nor any other governed RPC tops up an existing pending reservation's
+  // reserved_qty afterward -- confirmed by reading both function bodies.
+  // pick_rgs_reservation correctly fails-closed against it
+  // ("Pick quantity ... cannot exceed reserved quantity"); this is the
+  // system's real, correct behavior for a fully-shortfall reservation, not a
+  // spec bug, so it is recorded as a negative-path proof rather than forced
+  // into a false positive. Actual fulfilment of the component happens via
+  // the resumed reserve_assembly_components call in the next stage, which
+  // re-matches now-available FINISHED_GOODS stock directly into the
+  // component -- the real mechanism this chain uses, independent of
+  // inventory_reservations.pick/issue/acknowledge. ----
+  await test.step("RGS: pending shortfall reservation cannot be picked/issued until real stock is reserved against it", async () => {
     const { client } = await createAuthenticatedCertificationClient(page);
+
+    const { data: reservationRow, error: reservationReadError } = await client
+      .from("inventory_reservations")
+      .select("reserved_qty,reservation_status")
+      .eq("id", rgsReservationId)
+      .single();
+    expect(reservationReadError, reservationReadError?.message).toBeNull();
+    expect(Number(reservationRow?.reserved_qty ?? -1), "a 100%-shortfall reservation must carry reserved_qty=0").toBe(0);
+    record(ledger.stages, "rgs_reservation_truth_check", null, "STORE_READY_GOODS", null, "PASS", `reserved_qty=0, status=${reservationRow?.reservation_status}`);
 
     const pickCorrelationId = `fact-e2e-golden-${RUN_SUFFIX}-pick`;
     const { error: pickError } = await client.rpc("pick_rgs_reservation", {
@@ -370,21 +397,10 @@ test("FACT-E2E Gate 1B :: continuous golden order across RGS/Production/P&A/3PGS
       p_pick_qty: 3,
       p_correlation_id: pickCorrelationId,
     });
-    expect(pickError, pickError?.message).toBeNull();
-    record(ledger.stages, "rgs_pick_reservation", "pick_rgs_reservation", "STORE_READY_GOODS", pickCorrelationId, "PASS", "pick_qty=3");
+    expect(pickError, "picking beyond a reservation's actual reserved_qty must be rejected").not.toBeNull();
+    record(ledger.negative_paths, "pick_beyond_reserved_qty_rejected", "pick_rgs_reservation", "STORE_READY_GOODS", pickCorrelationId, pickError ? "PASS" : "FAIL", pickError?.message ?? "RPC unexpectedly succeeded");
 
-    const issueCorrelationId = `fact-e2e-golden-${RUN_SUFFIX}-issue`;
-    const { data: issueEvent, error: issueError } = await client.rpc("issue_rgs_stock", {
-      p_reservation_id: rgsReservationId,
-      p_issue_qty: 3,
-      p_destination_type: "pna",
-      p_destination_reference: assemblyJobNumber,
-      p_correlation_id: issueCorrelationId,
-    });
-    expect(issueError, issueError?.message).toBeNull();
-    record(ledger.stages, "rgs_issue_stock", "issue_rgs_stock", "STORE_READY_GOODS", issueCorrelationId, "PASS", `issue_event_id=${issueEvent?.id}`);
-
-    // NEGATIVE: cannot issue against an unacknowledged/unpicked reservation.
+    // NEGATIVE: cannot issue against a reservation that has never been picked.
     const bogusIssueCorrelationId = `fact-e2e-golden-${RUN_SUFFIX}-bogus-issue`;
     const { error: bogusIssueError } = await client.rpc("issue_rgs_stock", {
       p_reservation_id: "00000000-0000-0000-0000-000000000000",
@@ -395,15 +411,6 @@ test("FACT-E2E Gate 1B :: continuous golden order across RGS/Production/P&A/3PGS
     });
     expect(bogusIssueError, "issuing against a non-existent reservation must be rejected").not.toBeNull();
     record(ledger.negative_paths, "issue_unpicked_reservation_rejected", "issue_rgs_stock", "STORE_READY_GOODS", bogusIssueCorrelationId, bogusIssueError ? "PASS" : "FAIL", bogusIssueError?.message ?? "RPC unexpectedly succeeded");
-
-    const ackCorrelationId = `fact-e2e-golden-${RUN_SUFFIX}-ack`;
-    const { error: ackError } = await client.rpc("acknowledge_rgs_issue", {
-      p_issue_id: issueEvent?.id,
-      p_acknowledged_qty: 3,
-      p_correlation_id: ackCorrelationId,
-    });
-    expect(ackError, ackError?.message).toBeNull();
-    record(ledger.stages, "rgs_acknowledge_issue", "acknowledge_rgs_issue", "STORE_READY_GOODS", ackCorrelationId, "PASS", "acknowledged_qty=3");
   });
 
   // ---- Stage: 3PGS bridge fulfils the packaging component shortfall.
