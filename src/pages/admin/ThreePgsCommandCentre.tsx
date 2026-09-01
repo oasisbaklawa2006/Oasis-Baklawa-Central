@@ -159,7 +159,8 @@ export default function ThreePgsCommandCentre() {
           .limit(100),
       ]);
 
-      const firstError = [balances, demand, procurement, assembly, receipts, grns].find((result) => result.error)?.error;
+      const firstError = [balances, demand, procurement, assembly, receipts, grns]
+        .find((result) => result.error !== null)?.error;
       if (firstError) throw new Error(firstError.message);
 
       setSnapshot({
