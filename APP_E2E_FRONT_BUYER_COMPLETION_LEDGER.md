@@ -147,11 +147,12 @@ pretend that path is complete.
 
 ### Tranche 4 certification evidence (local)
 
-- Buyer route, presentation, client-contract and auth focused tests: **54/54 passed** (31 Buyer, 3 presentation, 4 client, 16 auth).
+- Buyer route, presentation, client-contract and auth focused tests: **55/55 passed** (32 Buyer, 3 presentation, 4 client, 16 auth).
+- Exact-head hosted Release Quality run **33478001528** executed the repository full `npm run test` suite successfully. **No current full-suite WhatsApp failure is part of the Tranche 4 certification state.**
 - TypeScript typecheck: **PASS**. Changed-file ESLint: **PASS** (one pre-existing `Login.tsx` exhaustive-deps warning). Production build: **PASS** (only repository Browserslist/chunk-size warnings).
-- Full Vitest suite: **281/286 files passed; 1,726 passed and 5 failed**. The five failures are pre-existing WhatsApp source-shape/AST guards outside this Central Buyer scope; no Buyer tests failed.
 - Full lint remains a repository baseline failure outside this tranche; the boundary command is environment-blocked on Windows (`Bash/Service/CreateInstance/E_ACCESSDENIED`). `git diff --check` passes.
 - Local Playwright was not run because the repository has no safe authenticated Buyer fixture and production mutation is unauthorized; rendered Buyer route coverage is included in the focused suite. Remote Release Quality/Playwright/ownership and service checks remain PR gates to observe.
+- Mobile widths **375 px, 390 px and 430 px**: responsive implementation verified; authenticated runtime certification is explicitly deferred to APP-E2E Tranche 5. No authenticated mobile runtime claim is made here.
 
 ### Tranche 4 remaining upstream blockers
 
