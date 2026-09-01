@@ -62,16 +62,21 @@ function reconcileSavedViews(snapshot: WorkspaceServerSnapshot, pending: Pending
 }
 
 function reconcilePacketNotes(snapshot: WorkspaceServerSnapshot, pending: PendingIndex): void {
-  const merged = { ...snapshot.packetNotes };
-  for (const packetId of pending.deletedNotes) delete merged[packetId];
+  const merged = new Map(Object.entries(snapshot.packetNotes));
+  for (const packetId of pending.deletedNotes) merged.delete(packetId);
+
   for (const [packetId, note] of Object.entries(loadPacketNotesMap())) {
-    if (pending.deletedNotes.has(packetId) || merged[packetId]) continue;
-    merged[packetId] = note;
-    if (!pending.upsertNotes.has(packetId)) {
-      enqueueOperatorWorkspaceMutation({ kind: "UPSERT_NOTE", packetId, text: note.text });
+    if (pending.deletedNotes.has(packetId)) continue;
+    if (pending.upsertNotes.has(packetId)) {
+      merged.set(packetId, note);
+      continue;
     }
+    if (merged.has(packetId)) continue;
+    merged.set(packetId, note);
+    enqueueOperatorWorkspaceMutation({ kind: "UPSERT_NOTE", packetId, text: note.text });
   }
-  replacePacketNotesFromServer(merged);
+
+  replacePacketNotesFromServer(Object.fromEntries(merged));
 }
 
 function emptyDraft(updatedAt: string): DraftOrderLocalEdits {
@@ -101,7 +106,11 @@ function serverDrafts(
 ): { drafts: Map<string, DraftOrderLocalEdits>; fields: Set<string> } {
   const drafts = new Map<string, DraftOrderLocalEdits>();
   const fields = new Set<string>();
-  for (const correction of corrections) {
+  const orderedCorrections = [...corrections].sort((left, right) =>
+    left.createdAt.localeCompare(right.createdAt),
+  );
+
+  for (const correction of orderedCorrections) {
     const key = `${correction.packetId}:${correction.field}`;
     fields.add(key);
     const draft = drafts.get(correction.packetId) ?? emptyDraft(new Date(0).toISOString());
