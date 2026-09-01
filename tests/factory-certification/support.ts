@@ -223,7 +223,7 @@ function createCertificationClient(
   });
 }
 
-async function createAuthenticatedCertificationClient(
+export async function createAuthenticatedCertificationClient(
   page: Page,
 ): Promise<{ client: ReturnType<typeof createCertificationClient>; session: BrowserSessionProof }> {
   const backend = resolveFactoryCertificationBackend();

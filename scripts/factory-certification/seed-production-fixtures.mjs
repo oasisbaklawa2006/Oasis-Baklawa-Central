@@ -166,3 +166,101 @@ if (!golden || Number(golden.assigned_qty) !== 6 || Number(golden.produced_qty ?
 }
 
 console.log(`Seeded ${seeded.length} deterministic Production-TV jobs; golden short id E3ED28B0 is present.`);
+
+// Deterministic fixtures for the FACT-E2E continuous golden-order
+// certification (tests/factory-operations-golden-order.cert.spec.ts).
+// These are prerequisite catalogue/stock rows only -- no order_items,
+// production_jobs, b2b_dispatch_*, or b2b_assembly_* row here represents a
+// governed business transition; every one of those is created exclusively
+// by the spec calling the governed RPCs under test.
+const GOLDEN_ORDER_COMPANY_ID = "30000000-0000-4000-8000-000000000001";
+const GOLDEN_ORDER_ID = "30000000-0000-4000-8000-000000000002";
+const GOLDEN_ORDER_ITEM_ID = "30000000-0000-4000-8000-000000000003";
+const GOLDEN_ORDER_FG_COMPONENT_PRODUCT_ID = products[0].id; // reuse CERT-ARABIC-001 (arabic_sweets)
+const GOLDEN_ORDER_3PGS_COMPONENT_PRODUCT_ID = "20000000-0000-4000-8000-000000000201";
+
+const { error: goldenCompanyError } = await supabase.from("companies").upsert(
+  {
+    id: GOLDEN_ORDER_COMPANY_ID,
+    business_name: "Factory FACT-E2E Golden Order Co",
+    gst_number: "07AACCF0001A1Z6",
+    registered_address: "New Delhi",
+    status: "approved",
+    payment_terms: "prepaid",
+  },
+  { onConflict: "id" },
+);
+assertNoSupabaseError(goldenCompanyError, "Golden-order company fixture upsert failed");
+
+const { error: goldenOrderError } = await supabase.from("orders").upsert(
+  {
+    id: GOLDEN_ORDER_ID,
+    company_id: GOLDEN_ORDER_COMPANY_ID,
+    status: "cleared_for_dispatch",
+    order_number: "FACT-E2E-GOLDEN-001",
+    sales_order_value: 500,
+    advance_required: 0,
+    advance_paid: 500,
+    payment_status: "paid",
+    payment_cleared: true,
+    order_origin: "MANUAL",
+    tracking_token: "fact-e2e-golden-tracking-001",
+  },
+  { onConflict: "id" },
+);
+assertNoSupabaseError(goldenOrderError, "Golden-order order fixture upsert failed");
+
+const { error: goldenOrderItemError } = await supabase.from("order_items").upsert(
+  {
+    id: GOLDEN_ORDER_ITEM_ID,
+    order_id: GOLDEN_ORDER_ID,
+    product_id: GOLDEN_ORDER_FG_COMPONENT_PRODUCT_ID,
+    quantity: 5,
+    pack_size: "1kg",
+    carton_type: "CARTON",
+    notes: "FACT-E2E golden-order continuous certification fixture",
+  },
+  { onConflict: "id" },
+);
+assertNoSupabaseError(goldenOrderItemError, "Golden-order order_item fixture upsert failed");
+
+const { error: pkgProductError } = await supabase.from("products").upsert(
+  {
+    id: GOLDEN_ORDER_3PGS_COMPONENT_PRODUCT_ID,
+    name: "Factory Cert 3PGS Gift Packaging",
+    category: "packaging",
+    sku: "CERT-3PGS-PKG-001",
+    hsn_code: "4819",
+  },
+  { onConflict: "id" },
+);
+assertNoSupabaseError(pkgProductError, "Golden-order 3PGS packaging product fixture upsert failed");
+
+// Deliberate shortfalls so the golden-order spec's single reserve_assembly_components
+// call is forced down BOTH the RGS/Production shortage path (FINISHED_GOODS-sourced
+// component) and the 3PGS bridge path (3PGS-sourced component) in the same run.
+const { error: fgBalanceError } = await supabase.from("inventory_stock_balances").upsert(
+  {
+    product_id: GOLDEN_ORDER_FG_COMPONENT_PRODUCT_ID,
+    sku: "CERT-ARABIC-001",
+    location_code: "FINISHED_GOODS",
+    available_qty: 2,
+    reserved_qty: 0,
+  },
+  { onConflict: "product_id,sku,location_code" },
+);
+assertNoSupabaseError(fgBalanceError, "Golden-order FINISHED_GOODS stock-balance fixture upsert failed");
+
+const { error: pkgBalanceError } = await supabase.from("inventory_stock_balances").upsert(
+  {
+    product_id: GOLDEN_ORDER_3PGS_COMPONENT_PRODUCT_ID,
+    sku: "CERT-3PGS-PKG-001",
+    location_code: "3PGS",
+    available_qty: 0,
+    reserved_qty: 0,
+  },
+  { onConflict: "product_id,sku,location_code" },
+);
+assertNoSupabaseError(pkgBalanceError, "Golden-order 3PGS stock-balance fixture upsert failed");
+
+console.log("Seeded FACT-E2E golden-order company/order/order_item and deliberate FINISHED_GOODS/3PGS shortfalls.");

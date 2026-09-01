@@ -291,6 +291,79 @@ jobs:
             exit 1
           fi
 
+      - name: Run continuous FACT-E2E golden order
+        id: golden_order
+        continue-on-error: true
+        run: >-
+          npx playwright test
+          tests/factory-operations-golden-order.cert.spec.ts
+          -c playwright.factory-cert.config.ts
+
+      - name: Preserve FACT-E2E golden-order certification result
+        if: always()
+        shell: bash
+        run: |
+          test -f factory-certification-results.json
+          cp factory-certification-results.json factory-golden-order-certification-results.json
+
+      - name: Enforce FACT-E2E golden order executed and PASS
+        if: always()
+        shell: bash
+        run: |
+          node <<'NODE'
+          const fs = require('node:fs');
+          const resultPath = 'factory-golden-order-certification-results.json';
+          const ledgerPath = 'factory-fact-e2e-golden-order.json';
+          if (!fs.existsSync(resultPath)) {
+            throw new Error('GOLDEN_ORDER_RESULT_MISSING: Playwright JSON report was not produced');
+          }
+          const report = JSON.parse(fs.readFileSync(resultPath, 'utf8'));
+          const statuses = [];
+          const visit = (value) => {
+            if (!value || typeof value !== 'object') return;
+            if (Array.isArray(value)) {
+              for (const item of value) visit(item);
+              return;
+            }
+            if (Array.isArray(value.results)) {
+              for (const result of value.results) {
+                if (typeof result?.status === 'string') statuses.push(result.status);
+              }
+            }
+            for (const [key, child] of Object.entries(value)) {
+              if (key !== 'results') visit(child);
+            }
+          };
+          visit(report.suites ?? report);
+          const counts = statuses.reduce((acc, status) => {
+            acc[status] = (acc[status] ?? 0) + 1;
+            return acc;
+          }, {});
+          console.log('FACT-E2E golden-order certification result counts:', counts);
+          if (statuses.length !== 1) {
+            throw new Error(`GOLDEN_ORDER_COUNT_MISMATCH: expected exactly 1 continuous golden-order test, got ${statuses.length}`);
+          }
+          if ((counts.passed ?? 0) !== 1 || (counts.skipped ?? 0) !== 0 || (counts.failed ?? 0) !== 0 || (counts.timedOut ?? 0) !== 0 || (counts.interrupted ?? 0) !== 0) {
+            throw new Error(`GOLDEN_ORDER_NOT_EXECUTED_PASS: ${JSON.stringify(counts)}`);
+          }
+
+          if (!fs.existsSync(ledgerPath)) {
+            throw new Error('GOLDEN_ORDER_LEDGER_MISSING: factory-fact-e2e-golden-order.json was not produced');
+          }
+          const ledger = JSON.parse(fs.readFileSync(ledgerPath, 'utf8'));
+          if (ledger.status !== 'PASS') {
+            throw new Error(`GOLDEN_ORDER_LEDGER_NOT_PASS: ${JSON.stringify({ status: ledger.status, failed_stages: ledger.failed_stages, failed_negative_paths: ledger.failed_negative_paths })}`);
+          }
+          if (ledger.production_accessed !== false || ledger.environment !== 'disposable-local-core') {
+            throw new Error('GOLDEN_ORDER_LEDGER_ENVIRONMENT_INVALID: ledger must attest a disposable-local-core run with no production access');
+          }
+          console.log('FACT-E2E golden-order ledger:', { status: ledger.status, total_stages: ledger.total_stages, total_negative_paths: ledger.total_negative_paths });
+          NODE
+          if [[ "${{ steps.golden_order.outcome }}" != "success" ]]; then
+            echo "FACT-E2E golden-order Playwright command itself failed." >&2
+            exit 1
+          fi
+
       - name: Run canonical Core RGS, P&A, 3PGS and Gate authority contracts
         shell: bash
         working-directory: oasis-supabase-core
@@ -678,6 +751,8 @@ jobs:
             factory-production-certification-results.json
             factory-route-health-results.json
             factory-route-health-list.txt
+            factory-golden-order-certification-results.json
+            factory-fact-e2e-golden-order.json
             factory-custody-evidence/
           if-no-files-found: warn
           retention-days: 7
