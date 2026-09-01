@@ -135,7 +135,9 @@ function savedViewSnapshot(value: Json): OperatorInboxSavedViewSnapshot {
     filterQuery: typeof row.filterQuery === "string" ? row.filterQuery : "",
     unansweredOnly: row.unansweredOnly === true,
     pinnedIds,
-    bulkFilters: normalizePersistedBulkFilters(row.bulkFilters as OperatorInboxSavedViewSnapshot["bulkFilters"] | undefined),
+    bulkFilters: normalizePersistedBulkFilters(
+      row.bulkFilters as unknown as OperatorInboxSavedViewSnapshot["bulkFilters"] | undefined,
+    ),
     compactMode: row.compactMode === true,
     showObservabilityStrip: typeof row.showObservabilityStrip === "boolean" ? row.showObservabilityStrip : true,
     showAiPreviewPanel: typeof row.showAiPreviewPanel === "boolean" ? row.showAiPreviewPanel : true,
