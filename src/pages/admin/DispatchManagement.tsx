@@ -387,8 +387,9 @@ export default function DispatchManagement() {
       try {
         await fetchRows();
       } catch (refreshErr) {
+        console.error("Authoritative refresh failed after a successful mutation:", refreshErr);
         toast.error(
-          `Consignment created, but the consignment list could not be refreshed (${refreshErr instanceof Error ? refreshErr.message : "reload failed"}). Reload and verify before retrying.`,
+          "Consignment created, but the consignment list could not be refreshed. Reload and verify before retrying.",
         );
         return;
       }
@@ -420,8 +421,9 @@ export default function DispatchManagement() {
       try {
         await Promise.all([fetchRows(), refreshWorkingConsignment(workingConsignmentId)]);
       } catch (refreshErr) {
+        console.error("Authoritative refresh failed after a successful mutation:", refreshErr);
         toast.error(
-          `Carton opened, but the consignment view could not be refreshed (${refreshErr instanceof Error ? refreshErr.message : "reload failed"}). Reload and verify before retrying.`,
+          "Carton opened, but the consignment view could not be refreshed. Reload and verify before retrying.",
         );
         return;
       }
@@ -472,8 +474,9 @@ export default function DispatchManagement() {
       try {
         await Promise.all([fetchRows(), refreshWorkingConsignment(workingConsignmentId), refreshCartonDetail(selectedCartonId)]);
       } catch (refreshErr) {
+        console.error("Authoritative refresh failed after a successful mutation:", refreshErr);
         toast.error(
-          `Scan recorded, but the authoritative view could not be refreshed (${refreshErr instanceof Error ? refreshErr.message : "reload failed"}). Reload before retrying -- do not rescan.`,
+          "Scan recorded, but the authoritative view could not be refreshed. Reload before retrying -- do not rescan.",
         );
         return;
       }
@@ -552,8 +555,9 @@ export default function DispatchManagement() {
       try {
         await Promise.all([fetchRows(), refreshWorkingConsignment(workingConsignmentId), refreshCartonDetail(selectedCartonId)]);
       } catch (refreshErr) {
+        console.error("Authoritative refresh failed after a successful mutation:", refreshErr);
         toast.error(
-          `Evidence recorded, but the authoritative view could not be refreshed (${refreshErr instanceof Error ? refreshErr.message : "reload failed"}). Reload before retrying.`,
+          "Evidence recorded, but the authoritative view could not be refreshed. Reload before retrying.",
         );
         return;
       }
@@ -588,8 +592,9 @@ export default function DispatchManagement() {
       try {
         await Promise.all([fetchRows(), refreshWorkingConsignment(workingConsignmentId), refreshCartonDetail(selectedCarton.id)]);
       } catch (refreshErr) {
+        console.error("Authoritative refresh failed after a successful mutation:", refreshErr);
         toast.error(
-          `Carton locked, but the authoritative view could not be refreshed (${refreshErr instanceof Error ? refreshErr.message : "reload failed"}). Reload before retrying.`,
+          "Carton locked, but the authoritative view could not be refreshed. Reload before retrying.",
         );
         return;
       }
@@ -617,8 +622,9 @@ export default function DispatchManagement() {
       try {
         await Promise.all([fetchRows(), refreshWorkingConsignment(workingConsignmentId)]);
       } catch (refreshErr) {
+        console.error("Authoritative refresh failed after a successful mutation:", refreshErr);
         toast.error(
-          `Packing list generated, but the authoritative view could not be refreshed (${refreshErr instanceof Error ? refreshErr.message : "reload failed"}). Reload before retrying.`,
+          "Packing list generated, but the authoritative view could not be refreshed. Reload before retrying.",
         );
         return;
       }
@@ -653,8 +659,9 @@ export default function DispatchManagement() {
       try {
         await Promise.all([fetchRows(), refreshWorkingConsignment(workingConsignmentId)]);
       } catch (refreshErr) {
+        console.error("Authoritative refresh failed after a successful mutation:", refreshErr);
         toast.error(
-          `Packing list corrected, but the authoritative view could not be refreshed (${refreshErr instanceof Error ? refreshErr.message : "reload failed"}). Reload before retrying.`,
+          "Packing list corrected, but the authoritative view could not be refreshed. Reload before retrying.",
         );
         return;
       }
@@ -684,8 +691,9 @@ export default function DispatchManagement() {
       try {
         await Promise.all([fetchRows(), refreshWorkingConsignment(workingConsignmentId)]);
       } catch (refreshErr) {
+        console.error("Authoritative refresh failed after a successful mutation:", refreshErr);
         toast.error(
-          `Packing list submitted to Finance, but the authoritative view could not be refreshed (${refreshErr instanceof Error ? refreshErr.message : "reload failed"}). Reload to confirm before retrying.`,
+          "Packing list submitted to Finance, but the authoritative view could not be refreshed. Reload to confirm before retrying.",
         );
         return;
       }
