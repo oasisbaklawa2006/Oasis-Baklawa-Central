@@ -25,6 +25,10 @@ type PendingIndex = {
   correctionFields: Set<string>;
 };
 
+type ReconciliationState = {
+  queueError: string | null;
+};
+
 function pendingIndex(pending: OperatorWorkspaceMutation[]): PendingIndex {
   const result: PendingIndex = {
     deletedViews: new Set(),
@@ -43,7 +47,26 @@ function pendingIndex(pending: OperatorWorkspaceMutation[]): PendingIndex {
   return result;
 }
 
-function reconcileSavedViews(snapshot: WorkspaceServerSnapshot, pending: PendingIndex): void {
+function enqueueMigrationMutation(
+  input: Parameters<typeof enqueueOperatorWorkspaceMutation>[0],
+  state: ReconciliationState,
+): void {
+  try {
+    enqueueOperatorWorkspaceMutation(input);
+  } catch (caught) {
+    if (caught instanceof Error && caught.message.startsWith("WA_OPERATOR_WORKSPACE_QUEUE_FULL:")) {
+      state.queueError ??= caught.message;
+      return;
+    }
+    throw caught;
+  }
+}
+
+function reconcileSavedViews(
+  snapshot: WorkspaceServerSnapshot,
+  pending: PendingIndex,
+  state: ReconciliationState,
+): void {
   const server = snapshot.savedViews.filter((view) => !pending.deletedViews.has(view.id));
   const serverIds = new Set(server.map((view) => view.id));
   const localOnly = loadSavedViews().filter(
@@ -52,16 +75,20 @@ function reconcileSavedViews(snapshot: WorkspaceServerSnapshot, pending: Pending
   replaceSavedViewsFromServer([...server, ...localOnly].slice(0, 32));
   for (const view of localOnly) {
     if (pending.savedViews.has(view.id)) continue;
-    enqueueOperatorWorkspaceMutation({
+    enqueueMigrationMutation({
       kind: "SAVE_VIEW",
       viewId: view.id,
       name: view.name,
       snapshot: view.snapshot as unknown as Record<string, unknown>,
-    });
+    }, state);
   }
 }
 
-function reconcilePacketNotes(snapshot: WorkspaceServerSnapshot, pending: PendingIndex): void {
+function reconcilePacketNotes(
+  snapshot: WorkspaceServerSnapshot,
+  pending: PendingIndex,
+  state: ReconciliationState,
+): void {
   const merged = new Map(
     Object.entries(snapshot.packetNotes).filter(([packetId]) => !pending.deletedNotes.has(packetId)),
   );
@@ -74,7 +101,7 @@ function reconcilePacketNotes(snapshot: WorkspaceServerSnapshot, pending: Pendin
     }
     if (merged.has(packetId)) continue;
     merged.set(packetId, note);
-    enqueueOperatorWorkspaceMutation({ kind: "UPSERT_NOTE", packetId, text: note.text });
+    enqueueMigrationMutation({ kind: "UPSERT_NOTE", packetId, text: note.text }, state);
   }
   replacePacketNotesFromServer(Object.fromEntries(merged));
 }
@@ -126,6 +153,7 @@ function migrateLocalQuantities(
   merged: DraftOrderLocalEdits,
   serverFields: Set<string>,
   pending: PendingIndex,
+  state: ReconciliationState,
 ): void {
   for (const [indexText, quantity] of Object.entries(local.lineQuantities)) {
     const field = `draft_order.line_quantity.${indexText}`;
@@ -133,14 +161,14 @@ function migrateLocalQuantities(
     if (serverFields.has(key) && !pending.correctionFields.has(key)) continue;
     merged.lineQuantities = { ...merged.lineQuantities, [Number(indexText)]: quantity };
     if (serverFields.has(key) || pending.correctionFields.has(key)) continue;
-    enqueueOperatorWorkspaceMutation({
+    enqueueMigrationMutation({
       kind: "RECORD_CORRECTION",
       packetId,
       field,
       value: quantity,
       priorValue: null,
       reason: "Migrated browser draft quantity into governed operator workspace",
-    });
+    }, state);
   }
 }
 
@@ -150,6 +178,7 @@ function migrateLocalDecision(
   merged: DraftOrderLocalEdits,
   serverFields: Set<string>,
   pending: PendingIndex,
+  state: ReconciliationState,
 ): void {
   if (local.decision === "pending") return;
   const field = "draft_order.decision";
@@ -157,22 +186,26 @@ function migrateLocalDecision(
   if (serverFields.has(key) && !pending.correctionFields.has(key)) return;
   merged.decision = local.decision;
   if (serverFields.has(key) || pending.correctionFields.has(key)) return;
-  enqueueOperatorWorkspaceMutation({
+  enqueueMigrationMutation({
     kind: "RECORD_CORRECTION",
     packetId,
     field,
     value: local.decision,
     priorValue: "pending",
     reason: "Migrated browser draft decision into governed operator workspace",
-  });
+  }, state);
 }
 
-function reconcileDraftCorrections(snapshot: WorkspaceServerSnapshot, pending: PendingIndex): void {
+function reconcileDraftCorrections(
+  snapshot: WorkspaceServerSnapshot,
+  pending: PendingIndex,
+  state: ReconciliationState,
+): void {
   const { drafts, fields } = serverDrafts(snapshot.corrections, pending);
   for (const [packetId, local] of Object.entries(loadDraftOrderLocalStore())) {
     const merged = drafts.get(packetId) ?? emptyDraft(local.updatedAt);
-    migrateLocalQuantities(packetId, local, merged, fields, pending);
-    migrateLocalDecision(packetId, local, merged, fields, pending);
+    migrateLocalQuantities(packetId, local, merged, fields, pending, state);
+    migrateLocalDecision(packetId, local, merged, fields, pending, state);
     drafts.set(packetId, merged);
   }
   for (const [packetId, edits] of drafts) replaceDraftOrderEditsFromServer(packetId, edits);
@@ -181,9 +214,11 @@ function reconcileDraftCorrections(snapshot: WorkspaceServerSnapshot, pending: P
 export function reconcileOperatorWorkspaceCaches(
   snapshot: WorkspaceServerSnapshot,
   pendingMutations: OperatorWorkspaceMutation[],
-): void {
+): string | null {
   const pending = pendingIndex(pendingMutations);
-  reconcileSavedViews(snapshot, pending);
-  reconcilePacketNotes(snapshot, pending);
-  reconcileDraftCorrections(snapshot, pending);
+  const state: ReconciliationState = { queueError: null };
+  reconcileSavedViews(snapshot, pending, state);
+  reconcilePacketNotes(snapshot, pending, state);
+  reconcileDraftCorrections(snapshot, pending, state);
+  return state.queueError;
 }
