@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { CheckCircle2, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
@@ -47,7 +47,10 @@ export function ClarificationProductCandidateChips({
   );
   const mayCapture = authority.has("wa.intake.triage");
   const activePacketIdRef = useRef(packetId);
-  activePacketIdRef.current = packetId;
+
+  useLayoutEffect(() => {
+    activePacketIdRef.current = packetId;
+  }, [packetId]);
 
   useEffect(() => {
     let cancelled = false;
