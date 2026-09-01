@@ -423,3 +423,79 @@ wallet, advance, credit, PI, invoice or statement facts.
 ## Non-blocking later-stage gaps
 
 Historical legacy defaults, broad legacy order normalization, and any additional provenance-copy cleanup are not part of this APP-E2E implementation unless current evidence shows a direct violation of the Buyer/Core contract.
+
+## APP-E2E Tranche 5 — final Central binding evidence
+
+This section supersedes the earlier Tranche 5 readiness disposition for the
+newly deployed customer-safe Core contracts while preserving that census as
+historical evidence above.
+
+- Central base verified: `fc8509dfc4e0b0049a9b619b2550bc43000f94a0` (current
+  `origin/main`, including merged WhatsApp stabilization #432).
+- Working branch: `codex/app-e2e-tranche5-central-binding`.
+- Core PR `#163`: **MERGED**.
+- Core production SHA: `a922ff7f6f8294c09e623c07766a1357d997a9f7`.
+- Protected production release run `33549338293`: **PASS** (pending migrations,
+  post-deploy ledger, semantic parity and customer contract smoke).
+- Read-only production inspection verified the exact customer RPC signatures,
+  authenticated grants and anonymous denial for the new Buyer contracts. No
+  production rows were created or changed by this work.
+
+### Bound customer authority
+
+| Capability | Central evidence | Runtime classification |
+|---|---|---|
+| SO number | Exact Core `order_number` is rendered; no local allocator or format generation exists. | CODED + TESTED; production contract shape verified |
+| SO commercial/version facts | `customer_sales_order_commercial_facts_v1()` is typed, wrapped and merged into list/detail. | CODED + TESTED; production contract shape verified |
+| SO value | Frozen Core value is displayed; checkout preview remains explicitly non-authoritative. | CODED + TESTED; production contract shape verified |
+| Advance required | Core finance projection value is displayed without frontend percentage/rounding logic. | CODED + TESTED; production contract shape verified |
+| Payment / wallet / credit / Finance clearance | Customer-safe JSON is normalized and shown only when `customer_safe_projection` is true. | CODED + TESTED; authenticated Buyer runtime not evidenced |
+| PI state/number | PI facts are bound; customer-visible number is shown only for `ISSUED`, never predicted. | CODED + TESTED; authenticated Buyer runtime not evidenced |
+| Final invoice / customer documents | `customer_documents_v1()` availability and returned identity are rendered without files or URLs being fabricated. | CODED + TESTED; authenticated Buyer runtime not evidenced |
+| Customer statement | Customer-safe statement facts and wallet balance are normalized; internal closure metadata is dropped. | CODED + TESTED; authenticated Buyer runtime not evidenced |
+| Durable favourites | Server read/write RPCs, optimistic rollback and post-write reconciliation are bound; no LocalStorage authority. | CODED + TESTED; authenticated Buyer runtime not evidenced |
+| General/non-order query | Separate Core query RPC with stable idempotency key; path never calls order submission or creates an `order_id`. | CODED + TESTED; authenticated Buyer runtime not evidenced |
+| Order-linked support | Existing governed support-ticket path remains separate from general enquiry and checkout. | CODED + TESTED |
+| Requested/promised dispatch | Commercial projection values replace stale status values when present. | CODED + TESTED; production contract shape verified |
+| Buyer order status | List/detail/dashboard use bounded customer-safe labels and the same Finance status precedence. | CODED + TESTED |
+| Dashboard action state | Finance action labels prefer customer-safe Core status and fail closed for unknown values. | CODED + TESTED |
+
+### Verification record
+
+- Focused Buyer/client/presentation suites: **PASS — 53 tests**.
+- Changed-file ESLint: **PASS**.
+- TypeScript (`tsc -p tsconfig.app.json --noEmit`): **PASS**.
+- Production build (`npm run build`): **PASS** (existing Browserslist and chunk
+  size advisories only).
+- Pristine exact-main baseline (`8d24c99…`, clean `npm ci`): **5 known
+  out-of-scope WhatsApp governance failures; 281 files / 1,727 tests passed**.
+  This is retained as historical evidence from the prior main snapshot.
+- Pristine current-main baseline (`fc8509df…`, clean `npm ci` in a detached
+  worktree): **5 known out-of-scope WhatsApp governance failures; 1,737 tests
+  passed**. The failing files are the same five listed below.
+- Current-main-aligned Tranche 5 full suite (`fc8509df…`): **5 identical
+  out-of-scope WhatsApp governance failures; 1,751 tests passed**. No Buyer
+  failure reproduced; the five failing test files are unchanged from the
+  known WhatsApp baseline.
+- Boundary review: no Core migration, schema, WhatsApp, Finance, Factory,
+  Dispatch, Trace or CRM files were changed. Full boundary script is not
+  executable in this Windows sandbox because Bash is unavailable.
+
+### Authenticated runtime gate
+
+The Core production authority and protected deployment are closed, but an
+authenticated Buyer golden-path run is **NOT EVIDENCED**. Repository and CI
+inspection found no sanctioned Buyer storage state or documented synthetic
+fixture; `CUSTOMER_EMAIL`/`CUSTOMER_PASSWORD` secret names are not referenced
+by a Buyer certification workflow. Local Supabase CLI/Docker is unavailable,
+and production mutation is unauthorized. Therefore mobile 375/390/430 runtime
+certification and the complete authenticated Buyer → SO → Finance → PI →
+documents/statement path remain a release gate, not a software defect.
+
+**Tranche 5 status: SOFTWARE READY — AUTHENTICATED BUYER RUNTIME GATE BLOCKED.**
+
+Owner/Mission Control action required: provide or explicitly authorize a
+sanctioned synthetic Buyer fixture plus isolated/preview Supabase environment
+(or a read-only production Buyer fixture) and the corresponding Playwright
+environment names. No Central code or production mutation is authorized to
+manufacture that evidence.

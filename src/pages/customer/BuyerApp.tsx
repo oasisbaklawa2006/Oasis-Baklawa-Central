@@ -6,6 +6,7 @@ import {
   ArrowLeft,
   CheckCircle2,
   ChevronRight,
+  Heart,
   ImageOff,
   LifeBuoy,
   Loader2,
@@ -26,18 +27,30 @@ import { useAuth } from "@/hooks/useAuth";
 import {
   customerAppClient,
   clearCheckoutIdempotencyKey,
+  clearGeneralQueryIdempotencyKey,
+  GENERAL_QUERY_CATEGORIES,
   getCheckoutIdempotencyKey,
+  getGeneralQueryIdempotencyKey,
   getLocalDateInputValue,
   type BuyerCompany,
+  type BuyerCommercialFacts,
   type BuyerDraftLine,
+  type BuyerDocument,
+  type BuyerFinanceFacts,
+  type BuyerGeneralQuery,
   type BuyerOrder,
   type BuyerOrderItem,
   type BuyerPrice,
+  type BuyerProformaInvoiceFacts,
+  type BuyerStatement,
   type BuyerTeamMember,
   type BuyerTicket,
 } from "@/lib/customerApp/customerAppClient";
 import {
   buildCustomerOrderTimeline,
+  customerFinanceAction,
+  customerFinanceStatusLabel,
+  customerGeneralQueryStatusLabel,
   customerOrderAction,
   customerOrderStageLabel,
   customerPaymentStageLabel,
@@ -61,6 +74,8 @@ const BUYER_ORDER_SUBMIT_ERROR = "We couldn't submit your order. Your cart is st
 const BUYER_REORDER_ERROR = "We couldn't add these order items to your cart. Please try again.";
 const BUYER_SUPPORT_ERROR = "We couldn't submit your support request. Please try again.";
 const BUYER_ACCESS_REQUEST_ERROR = "We couldn't submit your access request. Please try again.";
+const BUYER_FAVOURITE_ERROR = "We couldn't update favourites. Please try again.";
+const BUYER_QUERY_ERROR = "We couldn't submit your enquiry. Please try again.";
 
 function positiveNumber(value: number | string | null | undefined, fallback = 1): number {
   const parsed = Number(value);
@@ -128,8 +143,23 @@ function useBuyerData() {
   const [orders, setOrders] = useState<BuyerOrder[]>([]);
   const [items, setItems] = useState<BuyerOrderItem[]>([]);
   const [tickets, setTickets] = useState<BuyerTicket[]>([]);
+  const [commercialFacts, setCommercialFacts] = useState<BuyerCommercialFacts[]>([]);
+  const [financeFacts, setFinanceFacts] = useState<Record<string, BuyerFinanceFacts>>({});
+  const [proformaInvoices, setProformaInvoices] = useState<BuyerProformaInvoiceFacts[]>([]);
+  const [documents, setDocuments] = useState<BuyerDocument[]>([]);
+  const [statement, setStatement] = useState<BuyerStatement | null>(null);
+  const [favourites, setFavourites] = useState<string[]>([]);
+  const [generalQueries, setGeneralQueries] = useState<BuyerGeneralQuery[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  const safeRead = useCallback(async <T,>(read: () => Promise<T>, fallback: T): Promise<T> => {
+    try {
+      return await read();
+    } catch {
+      return fallback;
+    }
+  }, []);
 
   const refresh = useCallback(async () => {
     setLoading(true);
@@ -145,13 +175,50 @@ function useBuyerData() {
         customerAppClient.tickets(),
       ]);
       if (productRows.error) throw productRows.error;
+      const [commercialRows, proformaRows, documentRows, statementRow, favouriteRows, queryRows] = await Promise.all([
+        safeRead(() => customerAppClient.commercialFacts(), []),
+        safeRead(() => customerAppClient.proformaInvoices(), []),
+        safeRead(() => customerAppClient.documents(), []),
+        safeRead(() => customerAppClient.statement(), null),
+        safeRead(() => customerAppClient.favourites(), []),
+        safeRead(() => customerAppClient.generalQueries(), []),
+      ]);
+      const orderRowsWithFacts = (orderRows || []).map((order) => {
+        const facts = (commercialRows || []).find((row) => row.order_id === order.order_id);
+        return facts
+          ? {
+              ...order,
+              order_number: facts.order_number,
+              order_value: facts.frozen_sales_order_value,
+              requested_dispatch_date: facts.requested_dispatch_date,
+              promised_dispatch_date: facts.promised_dispatch_date,
+              commercial_version_id: facts.commercial_version_id,
+              commercial_version_number: facts.commercial_version_number,
+              commercial_status: facts.commercial_status,
+              finance_status: facts.finance_status,
+            }
+          : order;
+      });
+      const financeRows = await Promise.all((orderRowsWithFacts || []).map(async (order) => [
+        order.order_id,
+        await safeRead(() => customerAppClient.financeFacts(order.order_id), null),
+      ] as const));
+      const financeByOrder: Record<string, BuyerFinanceFacts> = {};
+      for (const [orderId, facts] of financeRows) if (facts) financeByOrder[orderId] = facts;
       setPrices(priceRows || []);
       setProducts(productRows.data || []);
       setDraft(draftRows || []);
       setCompany(companyRows?.[0] || null);
-      setOrders(orderRows || []);
+      setOrders(orderRowsWithFacts || []);
       setItems(itemRows || []);
       setTickets(ticketRows || []);
+      setCommercialFacts(commercialRows || []);
+      setFinanceFacts(financeByOrder);
+      setProformaInvoices(proformaRows || []);
+      setDocuments(documentRows || []);
+      setStatement(statementRow);
+      setFavourites((favouriteRows || []).map((row) => row.product_id));
+      setGeneralQueries(queryRows || []);
       try {
         setTeam(await customerAppClient.team());
       } catch {
@@ -163,10 +230,52 @@ function useBuyerData() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [safeRead]);
 
   useEffect(() => { void refresh(); }, [refresh]);
-  return { prices, products, draft, company, team, orders, items, tickets, loading, error, refresh, setDraft };
+  const toggleFavourite = useCallback(async (productId: string, isFavourite: boolean) => {
+    setFavourites((current) => isFavourite
+      ? Array.from(new Set([...current, productId]))
+      : current.filter((id) => id !== productId));
+    try {
+      const result = await customerAppClient.setFavourite(productId, isFavourite);
+      const row = result?.[0];
+      if (!row || row.product_id !== productId || row.is_favourite !== isFavourite) throw new Error("Favourite update was not acknowledged");
+      try {
+        const serverRows = await customerAppClient.favourites();
+        if (Array.isArray(serverRows)) setFavourites(serverRows.map((favourite) => favourite.product_id));
+      } catch {
+        // Keep the acknowledged optimistic state when a follow-up read is unavailable.
+      }
+    } catch (cause) {
+      setFavourites((current) => isFavourite
+        ? current.filter((id) => id !== productId)
+        : Array.from(new Set([...current, productId])));
+      throw cause;
+    }
+  }, []);
+  return {
+    prices,
+    products,
+    draft,
+    company,
+    team,
+    orders,
+    items,
+    tickets,
+    commercialFacts,
+    financeFacts,
+    proformaInvoices,
+    documents,
+    statement,
+    favourites,
+    generalQueries,
+    loading,
+    error,
+    refresh,
+    setDraft,
+    toggleFavourite,
+  };
 }
 
 /** Keeps the required five-point Buyer navigation semantic and touch friendly. */
@@ -207,13 +316,14 @@ function BuyerSupportFab() {
   );
 }
 
-/** Displays one approved catalogue item and delegates cart actions to its parent. */
-function ProductCard({ product, price, onAdd, onBuy, onView }: { product: Product; price?: BuyerPrice; onAdd: (id: string, quantity: number) => Promise<unknown>; onBuy: (id: string, quantity: number) => Promise<unknown>; onView: (id: string) => void }) {
+/** Displays one approved catalogue item and delegates cart/favourite actions to its parent. */
+function ProductCard({ product, price, isFavourite, onAdd, onBuy, onToggleFavourite, onView }: { product: Product; price?: BuyerPrice; isFavourite: boolean; onAdd: (id: string, quantity: number) => Promise<unknown>; onBuy: (id: string, quantity: number) => Promise<unknown>; onToggleFavourite: (id: string, next: boolean) => Promise<unknown>; onView: (id: string) => void }) {
   const minimum = positiveNumber(price?.minimum_order_quantity);
   const increment = positiveNumber(price?.order_increment);
   const hasUsablePrice = Boolean(price && typeof price.selling_price === "number" && Number.isFinite(price.selling_price));
   const [quantity, setQuantity] = useState(minimum);
   const [busy, setBusy] = useState(false);
+  const [favouriteBusy, setFavouriteBusy] = useState(false);
   useEffect(() => { setQuantity(minimum); }, [minimum]);
   const runCartAction = (action: () => Promise<unknown>) => {
     if (busy) return;
@@ -222,6 +332,20 @@ function ProductCard({ product, price, onAdd, onBuy, onView }: { product: Produc
   };
   return (
     <article className="flex flex-col rounded-2xl border border-border/80 bg-card p-4 shadow-[var(--card-shadow)]">
+      <button
+        type="button"
+        aria-label={isFavourite ? `Remove ${productTitle(product)} from favourites` : `Add ${productTitle(product)} to favourites`}
+        aria-pressed={isFavourite}
+        disabled={favouriteBusy}
+        onClick={() => {
+          if (favouriteBusy) return;
+          setFavouriteBusy(true);
+          void onToggleFavourite(product.id, !isFavourite).catch(() => { toast.error(BUYER_FAVOURITE_ERROR); }).finally(() => { setFavouriteBusy(false); });
+        }}
+        className="ml-auto inline-flex min-h-10 min-w-10 items-center justify-center rounded-full border text-primary disabled:opacity-50"
+      >
+        <Heart size={17} fill={isFavourite ? "currentColor" : "none"} aria-hidden />
+      </button>
       <button type="button" onClick={() => { onView(product.id); }} className="block w-full text-left" aria-label={`View ${productTitle(product)}`}>
         <div className="mb-3 aspect-[4/3] overflow-hidden rounded-xl bg-muted"><BuyerProductImage src={product.image_url} alt={productTitle(product)} /></div>
         <p className="font-semibold">{productTitle(product)}</p>
@@ -286,7 +410,7 @@ function Catalogue({ data }: { data: ReturnType<typeof useBuyerData> }) {
       </div>
       <p className="text-xs text-muted-foreground" aria-live="polite">{visible.length} approved {visible.length === 1 ? "product" : "products"}</p>
       {visible.length === 0 ? <Empty title="No products found" text="Try another search or check back after catalogue updates." action={query || category !== "all" || subCategory !== "all" ? <button type="button" onClick={() => { setQuery(""); setCategory("all"); setSubCategory("all"); }} className="rounded-lg border px-4 py-2 text-sm font-semibold">Clear filters</button> : undefined} /> : (
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">{visible.map((product) => <ProductCard key={product.id} product={product} price={priceById.get(product.id)} onAdd={add} onBuy={buy} onView={(id) => { navigate(`/buyer/catalogue/${id}`); }} />)}</div>
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">{visible.map((product) => <ProductCard key={product.id} product={product} price={priceById.get(product.id)} isFavourite={data.favourites.includes(product.id)} onAdd={add} onBuy={buy} onToggleFavourite={data.toggleFavourite} onView={(id) => { navigate(`/buyer/catalogue/${id}`); }} />)}</div>
       )}
     </section>
   );
@@ -302,6 +426,7 @@ function ProductDetail({ data, productId }: { data: ReturnType<typeof useBuyerDa
   const hasUsablePrice = Boolean(price && typeof price.selling_price === "number" && Number.isFinite(price.selling_price));
   const [quantity, setQuantity] = useState(minimum);
   const [adding, setAdding] = useState(false);
+  const [favouriteBusy, setFavouriteBusy] = useState(false);
   useEffect(() => { setQuantity(minimum); }, [minimum]);
   if (!product) return <Empty title="Product unavailable" text="This product is not currently published for your account." />;
   const add = async (goToCart: boolean) => {
@@ -328,6 +453,21 @@ function ProductDetail({ data, productId }: { data: ReturnType<typeof useBuyerDa
           <h1 id="product-heading" className="font-display text-3xl font-semibold">{productTitle(product)}</h1>
           <p className="text-xs text-muted-foreground">SKU: {product.sku || "Pending"}</p>
           <p className="text-sm text-muted-foreground">{product.description || "Premium Oasis Baklawa product for approved B2B buyers."}</p>
+          <button
+            type="button"
+            aria-label={data.favourites.includes(productId) ? `Remove ${productTitle(product)} from favourites` : `Add ${productTitle(product)} to favourites`}
+            aria-pressed={data.favourites.includes(productId)}
+            disabled={favouriteBusy}
+            onClick={() => {
+              if (favouriteBusy) return;
+              setFavouriteBusy(true);
+              void data.toggleFavourite(productId, !data.favourites.includes(productId)).catch(() => { toast.error(BUYER_FAVOURITE_ERROR); }).finally(() => { setFavouriteBusy(false); });
+            }}
+            className="inline-flex min-h-10 items-center gap-2 rounded-xl border px-3 py-2 text-sm font-semibold text-primary disabled:opacity-50"
+          >
+            <Heart size={17} fill={data.favourites.includes(productId) ? "currentColor" : "none"} aria-hidden />
+            {data.favourites.includes(productId) ? "Saved to favourites" : "Add to favourites"}
+          </button>
           {hasUsablePrice && price ? (
             <>
               <p className="text-2xl font-bold text-primary">{money(price.selling_price)} <span className="text-sm font-normal text-muted-foreground">/ {price.uom || "unit"}</span></p>
@@ -418,11 +558,31 @@ function BuyerSoReference({ orderNumber }: { orderNumber: string | null | undefi
   return <span>{orderNumber || "Sales order reference pending"}</span>;
 }
 
+function BuyerFinanceSummary({ facts }: { facts: BuyerFinanceFacts | null | undefined }) {
+  if (!facts?.customer_safe_projection) return null;
+  return (
+    <div className="mt-4 rounded-2xl border bg-card p-5 shadow-[var(--card-shadow)]" aria-label="Authoritative Finance facts">
+      <div className="flex items-start justify-between gap-3"><h2 className="font-semibold">Payment and Finance</h2><span className="rounded-full bg-primary/10 px-2 py-1 text-right text-xs font-semibold text-primary">{customerFinanceStatusLabel(facts.finance_status)}</span></div>
+      <div className="mt-3 grid gap-2 text-sm sm:grid-cols-2">
+        <span>Order value</span><strong className="text-right">{money(facts.commercial_value)}</strong>
+        <span>Required advance</span><strong className="text-right">{money(facts.required_advance)}</strong>
+        <span>Verified payment</span><strong className="text-right">{money(facts.verified_payment_amount)}</strong>
+        <span>Wallet applied</span><strong className="text-right">{money(facts.wallet_applied_amount)}</strong>
+        <span>Approved credit</span><strong className="text-right">{money(facts.approved_credit_amount)}</strong>
+        <span>Covered amount</span><strong className="text-right">{money(facts.covered_amount)}</strong>
+      </div>
+      {facts.advance_covered !== null && <p className="mt-3 text-xs text-muted-foreground">Advance coverage: {facts.advance_covered ? "covered" : "not yet covered"}</p>}
+      {facts.pi_status && <p className="mt-2 text-xs text-muted-foreground">Proforma invoice: {facts.pi_status.toUpperCase() === "ISSUED" && facts.pi_number ? facts.pi_number : facts.pi_status.toUpperCase() === "READY_FOR_ISSUE" ? "Preparing" : "Not yet available"}</p>}
+      {facts.facts_as_of && <p className="mt-2 text-[11px] text-muted-foreground">Facts updated {formatDate(facts.facts_as_of)}</p>}
+    </div>
+  );
+}
+
 /** Presents customer-safe order status and links to the governed detail view. */
 function Orders({ data }: { data: ReturnType<typeof useBuyerData> }) {
   const navigate = useNavigate();
   return (
-    <section className="space-y-5" aria-labelledby="orders-heading"><div><p className="text-sm text-muted-foreground">Customer-safe progress</p><h1 id="orders-heading" className="font-display text-3xl font-semibold">Your orders</h1></div>{data.orders.length === 0 ? <Empty title="No orders yet" text="Your submitted orders will appear here." action={<button type="button" onClick={() => { navigate("/buyer/catalogue"); }} className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground">Start shopping</button>} /> : <div className="space-y-3">{data.orders.map((order) => { const action = customerOrderAction(order.payment_stage); return <button type="button" key={order.order_id} onClick={() => { navigate(`/buyer/orders/${order.order_id}`); }} className="w-full rounded-2xl border bg-card p-4 text-left shadow-[var(--card-shadow)] transition-colors hover:border-primary/60"><div className="flex items-start justify-between gap-3"><strong><BuyerSoReference orderNumber={order.order_number} /></strong><span className="rounded-full bg-primary/10 px-2 py-1 text-right text-xs font-semibold text-primary">{customerOrderStageLabel(order.customer_stage)}</span></div>{action && <p className="mt-2 inline-flex items-center gap-1 text-xs font-semibold text-amber-700"><AlertCircle size={13} aria-hidden /> {action}</p>}<div className="mt-3 grid grid-cols-2 gap-2 text-sm text-muted-foreground"><span>Placed {formatDate(order.created_at)}</span><span className="text-right">{money(order.order_value)}</span><span>Requested dispatch</span><span className="text-right">{order.requested_dispatch_date || "Not requested"}</span><span>Promised dispatch</span><span className="text-right">{order.promised_dispatch_date || "To be confirmed"}</span></div><span className="mt-3 inline-flex items-center gap-1 text-xs font-semibold text-primary">View order <ChevronRight size={14} aria-hidden /></span></button>; })}</div>}</section>
+    <section className="space-y-5" aria-labelledby="orders-heading"><div><p className="text-sm text-muted-foreground">Customer-safe progress</p><h1 id="orders-heading" className="font-display text-3xl font-semibold">Your orders</h1></div>{data.orders.length === 0 ? <Empty title="No orders yet" text="Your submitted orders will appear here." action={<button type="button" onClick={() => { navigate("/buyer/catalogue"); }} className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground">Start shopping</button>} /> : <div className="space-y-3">{data.orders.map((order) => { const finance = data.financeFacts[order.order_id]; const financeStatus = finance?.customer_safe_projection && finance.finance_status ? finance.finance_status : order.finance_status; const action = customerFinanceAction(financeStatus) || customerOrderAction(order.payment_stage); return <button type="button" key={order.order_id} onClick={() => { navigate(`/buyer/orders/${order.order_id}`); }} className="w-full rounded-2xl border bg-card p-4 text-left shadow-[var(--card-shadow)] transition-colors hover:border-primary/60"><div className="flex items-start justify-between gap-3"><strong><BuyerSoReference orderNumber={order.order_number} /></strong><span className="rounded-full bg-primary/10 px-2 py-1 text-right text-xs font-semibold text-primary">{customerOrderStageLabel(order.customer_stage)}</span></div>{action && <p className="mt-2 inline-flex items-center gap-1 text-xs font-semibold text-amber-700"><AlertCircle size={13} aria-hidden /> {action}</p>}<div className="mt-3 grid grid-cols-2 gap-2 text-sm text-muted-foreground"><span>Placed {formatDate(order.created_at)}</span><span className="text-right">{money(order.order_value)}</span><span>Requested dispatch</span><span className="text-right">{order.requested_dispatch_date || "Not requested"}</span><span>Promised dispatch</span><span className="text-right">{order.promised_dispatch_date || "To be confirmed"}</span>{financeStatus && <><span>Finance</span><span className="text-right">{customerFinanceStatusLabel(financeStatus)}</span></>}</div><span className="mt-3 inline-flex items-center gap-1 text-xs font-semibold text-primary">View order <ChevronRight size={14} aria-hidden /></span></button>; })}</div>}</section>
   );
 }
 
@@ -431,6 +591,8 @@ function OrderDetail({ data, orderId }: { data: ReturnType<typeof useBuyerData>;
   const navigate = useNavigate();
   const order = data.orders.find((item) => item.order_id === orderId);
   const lines = data.items.filter((item) => item.order_id === orderId);
+  const finance = data.financeFacts[orderId];
+  const commercial = data.commercialFacts.find((facts) => facts.order_id === orderId);
   const [reordering, setReordering] = useState(false);
   if (!order) return <Empty title="Order not found" text="This order is not available for your company." />;
   const reorder = async () => {
@@ -446,8 +608,14 @@ function OrderDetail({ data, orderId }: { data: ReturnType<typeof useBuyerData>;
       setReordering(false);
     }
   };
+  const financeStatus = finance?.customer_safe_projection && finance.finance_status ? finance.finance_status : order.finance_status || commercial?.finance_status;
+  const displayedOrderValue = finance?.customer_safe_projection
+    ? finance.commercial_value ?? commercial?.frozen_sales_order_value ?? order.order_value
+    : commercial?.frozen_sales_order_value ?? order.order_value;
+  const displayedRequestedDate = commercial?.requested_dispatch_date ?? order.requested_dispatch_date;
+  const displayedPromisedDate = commercial?.promised_dispatch_date ?? order.promised_dispatch_date;
   return (
-    <section className="space-y-5" aria-labelledby="order-detail-heading"><Link to="/buyer/orders" className="inline-flex min-h-11 items-center gap-2 text-sm text-muted-foreground"><ArrowLeft size={16} aria-hidden /> Back to orders</Link><div className="flex items-start justify-between gap-4"><div><p className="text-sm text-muted-foreground"><BuyerSoReference orderNumber={order.order_number} /></p><h1 id="order-detail-heading" className="font-display text-3xl font-semibold">Order details</h1></div><button type="button" disabled={reordering || lines.length === 0} onClick={() => { void reorder(); }} className="rounded-lg border px-3 py-2 text-xs font-semibold disabled:opacity-50">{reordering ? "Adding…" : "Reorder"}</button></div><div className="rounded-2xl border bg-card p-5 shadow-[var(--card-shadow)]"><div className="flex justify-between"><span>Status</span><strong className="text-primary">{customerOrderStageLabel(order.customer_stage)}</strong></div><div className="mt-2 flex justify-between text-sm"><span>Payment</span><span>{customerPaymentStageLabel(order.payment_stage)}</span></div><div className="mt-2 flex justify-between text-sm"><span>SO value</span><span>{money(order.order_value)}</span></div><div className="mt-2 flex justify-between text-sm"><span>Requested dispatch</span><span>{order.requested_dispatch_date || "Not requested"}</span></div><div className="mt-2 flex justify-between text-sm"><span>Promised dispatch</span><span>{order.promised_dispatch_date || "To be confirmed"}</span></div>{(order.tracking_number || order.courier_name) && <div className="mt-2 flex justify-between text-sm"><span>Tracking</span><span>{[order.courier_name, order.tracking_number].filter(Boolean).join(" · ")}</span></div>}</div><div className="rounded-2xl border bg-card p-5 shadow-[var(--card-shadow)]"><h2 className="mb-4 font-semibold">Order progress</h2><CustomerOrderTimeline steps={buildCustomerOrderTimeline({ customerStage: order.customer_stage, paymentStage: order.payment_stage, orderNumber: order.order_number })} /></div><div className="space-y-2"><h2 className="font-semibold">Items</h2>{lines.length === 0 ? <Empty title="Items not available" text="Core has not returned line details yet." /> : lines.map((line) => <div key={line.item_id} className="flex justify-between rounded-xl border bg-card p-3 text-sm"><span>{line.product_name || line.sku || "Product"} × {line.quantity}<span className="block text-xs text-muted-foreground">SKU {line.sku || "pending"} · {line.pack_size || "unit"}</span></span><span>{line.weight_kg ? `${line.weight_kg} kg` : ""}</span></div>)}</div><Link to="/buyer/support" className="inline-flex min-h-11 items-center gap-2 text-sm font-semibold text-primary">Need help with this order? <ChevronRight size={15} aria-hidden /></Link></section>
+    <section className="space-y-5" aria-labelledby="order-detail-heading"><Link to="/buyer/orders" className="inline-flex min-h-11 items-center gap-2 text-sm text-muted-foreground"><ArrowLeft size={16} aria-hidden /> Back to orders</Link><div className="flex items-start justify-between gap-4"><div><p className="text-sm text-muted-foreground"><BuyerSoReference orderNumber={order.order_number} /></p><h1 id="order-detail-heading" className="font-display text-3xl font-semibold">Order details</h1></div><button type="button" disabled={reordering || lines.length === 0} onClick={() => { void reorder(); }} className="rounded-lg border px-3 py-2 text-xs font-semibold disabled:opacity-50">{reordering ? "Adding…" : "Reorder"}</button></div><div className="rounded-2xl border bg-card p-5 shadow-[var(--card-shadow)]"><div className="flex justify-between"><span>Status</span><strong className="text-primary">{customerOrderStageLabel(order.customer_stage)}</strong></div><div className="mt-2 flex justify-between text-sm"><span>Payment</span><span>{customerPaymentStageLabel(order.payment_stage)}</span></div><div className="mt-2 flex justify-between text-sm"><span>SO value</span><span>{money(displayedOrderValue)}</span></div>{commercial?.commercial_version_number != null && <div className="mt-2 flex justify-between text-sm"><span>Commercial version</span><span>v{commercial.commercial_version_number}</span></div>}<div className="mt-2 flex justify-between text-sm"><span>Requested dispatch</span><span>{displayedRequestedDate || "Not requested"}</span></div><div className="mt-2 flex justify-between text-sm"><span>Promised dispatch</span><span>{displayedPromisedDate || "To be confirmed"}</span></div>{financeStatus && <div className="mt-2 flex justify-between text-sm"><span>Finance</span><span>{customerFinanceStatusLabel(financeStatus)}</span></div>}{(order.tracking_number || order.courier_name) && <div className="mt-2 flex justify-between text-sm"><span>Tracking</span><span>{[order.courier_name, order.tracking_number].filter(Boolean).join(" · ")}</span></div>}</div><BuyerFinanceSummary facts={finance} /><div className="rounded-2xl border bg-card p-5 shadow-[var(--card-shadow)]"><h2 className="mb-4 font-semibold">Order progress</h2><CustomerOrderTimeline steps={buildCustomerOrderTimeline({ customerStage: order.customer_stage, paymentStage: order.payment_stage, orderNumber: order.order_number })} /></div><div className="space-y-2"><h2 className="font-semibold">Items</h2>{lines.length === 0 ? <Empty title="Items not available" text="Core has not returned line details yet." /> : lines.map((line) => <div key={line.item_id} className="flex justify-between rounded-xl border bg-card p-3 text-sm"><span>{line.product_name || line.sku || "Product"} × {line.quantity}<span className="block text-xs text-muted-foreground">SKU {line.sku || "pending"} · {line.pack_size || "unit"}</span></span><span>{line.weight_kg ? `${line.weight_kg} kg` : ""}</span></div>)}</div><Link to="/buyer/support" className="inline-flex min-h-11 items-center gap-2 text-sm font-semibold text-primary">Need help with this order? <ChevronRight size={15} aria-hidden /></Link></section>
   );
 }
 
@@ -459,10 +627,11 @@ function Account({ data }: { data: ReturnType<typeof useBuyerData> }) {
   );
 }
 
-type DocumentAvailability = "available" | "not-issued" | "upstream-unavailable";
+type DocumentAvailability = "available" | "preparing" | "not-issued" | "upstream-unavailable";
 
 function documentStatusLabel(status: DocumentAvailability): string {
   if (status === "available") return "Available";
+  if (status === "preparing") return "Preparing";
   if (status === "not-issued") return "Not yet issued";
   return "Not available yet";
 }
@@ -472,10 +641,48 @@ function CustomerDocumentCard({ label, status, detail, href }: { label: string; 
   return href ? <Link to={href} className="block rounded-2xl border bg-card p-5 shadow-[var(--card-shadow)] transition-colors hover:border-primary/60">{body}</Link> : <div className="rounded-2xl border bg-card p-5 shadow-[var(--card-shadow)]">{body}</div>;
 }
 
-/** Presents document availability without inventing PI, invoice or download data. */
+function documentAvailability(value: string | null | undefined): DocumentAvailability {
+  if (value === "issued") return "available";
+  if (value === "preparing") return "preparing";
+  return "upstream-unavailable";
+}
+
+function documentDetail(document: BuyerDocument | undefined, fallback: string): string {
+  if (!document) return fallback;
+  if (document.availability_state === "issued" && document.document_number) return `Reference ${document.document_number} is available.`;
+  if (document.availability_state === "preparing") return "This document is being prepared and will appear here when issued.";
+  return "This document is not available yet.";
+}
+
+function proformaAvailability(invoice: BuyerProformaInvoiceFacts | undefined, document: BuyerDocument | undefined): DocumentAvailability {
+  if (invoice) return invoice.status?.toUpperCase() === "ISSUED" && invoice.customer_visible_pi_number ? "available" : "preparing";
+  return document ? documentAvailability(document.availability_state) : "upstream-unavailable";
+}
+
+function proformaDetail(invoice: BuyerProformaInvoiceFacts | undefined, document: BuyerDocument | undefined): string {
+  if (!invoice) return document ? documentDetail(document, "This document will appear here when it is issued.") : "This document will appear here when it is issued.";
+  if (invoice.status?.toUpperCase() === "ISSUED" && invoice.customer_visible_pi_number) return `Reference ${invoice.customer_visible_pi_number} is available.`;
+  return "This document is being prepared and will appear here when issued.";
+}
+
+function StatementFacts({ statement }: { statement: BuyerStatement | null }) {
+  if (!statement?.statement_facts_only) return null;
+  return <div className="rounded-2xl border bg-card p-5 shadow-[var(--card-shadow)]" aria-label="Statement facts"><div className="flex items-start justify-between gap-3"><h2 className="font-semibold">Statement facts</h2><span className="rounded-full bg-muted px-2 py-1 text-xs font-semibold text-muted-foreground">Available</span></div><p className="mt-2 text-sm text-muted-foreground">Customer-safe ledger facts supplied by Finance.</p>{statement.wallet_balance !== null && <div className="mt-3 flex justify-between text-sm"><span>Wallet balance</span><strong>{money(statement.wallet_balance)}</strong></div>}<div className="mt-3 space-y-2">{statement.entries.length === 0 ? <p className="text-sm text-muted-foreground">No issued statement entries yet.</p> : statement.entries.map((entry, index) => <div key={`${entry.order_id || "entry"}-${index}`} className="rounded-xl border p-3 text-sm"><div className="flex justify-between gap-3"><span>{entry.invoice_number || "Issued invoice"}</span><span>{money(entry.invoice_gross_total)}</span></div>{entry.pre_dispatch_net_due !== null && <p className="mt-1 text-xs text-muted-foreground">Amount due before dispatch: {money(entry.pre_dispatch_net_due)}</p>}</div>)}</div></div>;
+}
+
+/** Presents authoritative document, PI and statement facts without fabricating files or numbers. */
 function Documents({ data }: { data: ReturnType<typeof useBuyerData> }) {
   const hasSalesOrder = data.orders.length > 0;
-  return <section className="space-y-5" aria-labelledby="documents-heading"><div><p className="text-sm text-muted-foreground">Customer documents</p><h1 id="documents-heading" className="font-display text-3xl font-semibold">Documents</h1><p className="mt-2 text-sm text-muted-foreground">Documents appear when issued</p><p className="text-sm text-muted-foreground">We never create local numbers or files.</p></div><div className="grid gap-3 sm:grid-cols-2"><CustomerDocumentCard label="Sales Order" status={hasSalesOrder ? "available" : "not-issued"} detail={hasSalesOrder ? "Your submitted order reference is available in Orders." : "Your Sales Order reference will appear after a successful submission."} href={hasSalesOrder ? "/buyer/orders" : undefined} /><CustomerDocumentCard label="Proforma Invoice" status="upstream-unavailable" detail="This document will appear here when it is issued." /><CustomerDocumentCard label="Final Invoice" status="upstream-unavailable" detail="This document will appear here when it is issued." /><CustomerDocumentCard label="Statement" status="upstream-unavailable" detail="Statements will appear here when they are available." /></div>{!hasSalesOrder && <Link to="/buyer/catalogue" className="inline-flex min-h-11 items-center rounded-xl bg-primary px-4 py-3 text-sm font-semibold text-primary-foreground">Browse catalogue</Link>}</section>;
+  const salesOrder = data.documents.find((document) => document.document_type === "SALES_ORDER");
+  const proforma = data.proformaInvoices[0];
+  const proformaDocument = data.documents.find((document) => document.document_type === "PROFORMA_INVOICE");
+  const finalInvoice = data.documents.find((document) => document.document_type === "FINAL_INVOICE");
+  const salesOrderStatus = salesOrder ? documentAvailability(salesOrder.availability_state) : hasSalesOrder ? "available" : "not-issued";
+  const salesOrderDetail = salesOrder ? documentDetail(salesOrder, "Your submitted order reference is available in Orders.") : hasSalesOrder ? "Your submitted order reference is available in Orders." : "Your Sales Order reference will appear after a successful submission.";
+  const finalInvoiceStatus = finalInvoice ? documentAvailability(finalInvoice.availability_state) : "upstream-unavailable";
+  const finalInvoiceDetail = finalInvoice ? documentDetail(finalInvoice, "This document will appear here when it is issued.") : "This document will appear here when it is issued.";
+  const statementStatus: DocumentAvailability = data.statement?.statement_facts_only ? "available" : "upstream-unavailable";
+  return <section className="space-y-5" aria-labelledby="documents-heading"><div><p className="text-sm text-muted-foreground">Customer documents</p><h1 id="documents-heading" className="font-display text-3xl font-semibold">Documents</h1><p className="mt-2 text-sm text-muted-foreground">Documents appear when issued</p><p className="text-sm text-muted-foreground">We never create local numbers or files.</p></div><div className="grid gap-3 sm:grid-cols-2"><CustomerDocumentCard label="Sales Order" status={salesOrderStatus} detail={salesOrderDetail} href={hasSalesOrder ? "/buyer/orders" : undefined} /><CustomerDocumentCard label="Proforma Invoice" status={proformaAvailability(proforma, proformaDocument)} detail={proformaDetail(proforma, proformaDocument)} /><CustomerDocumentCard label="Final Invoice" status={finalInvoiceStatus} detail={finalInvoiceDetail} /><CustomerDocumentCard label="Statement" status={statementStatus} detail={data.statement?.statement_facts_only ? "Statement facts are available below." : "Statements will appear here when they are available."} /></div><StatementFacts statement={data.statement} />{!hasSalesOrder && <Link to="/buyer/catalogue" className="inline-flex min-h-11 items-center rounded-xl bg-primary px-4 py-3 text-sm font-semibold text-primary-foreground">Browse catalogue</Link>}</section>;
 }
 
 /** Submits support tickets through the customer-safe Core contract. */
@@ -484,6 +691,10 @@ function Support({ data }: { data: ReturnType<typeof useBuyerData> }) {
   const [issue, setIssue] = useState("Damaged goods");
   const [description, setDescription] = useState("");
   const [sending, setSending] = useState(false);
+  const [querySubject, setQuerySubject] = useState("");
+  const [queryMessage, setQueryMessage] = useState("");
+  const [queryCategory, setQueryCategory] = useState<(typeof GENERAL_QUERY_CATEGORIES)[number]>("GENERAL");
+  const [querySending, setQuerySending] = useState(false);
   const submit = async () => {
     if (!orderId || !description.trim() || sending) return;
     setSending(true);
@@ -498,16 +709,48 @@ function Support({ data }: { data: ReturnType<typeof useBuyerData> }) {
       setSending(false);
     }
   };
-  return <section className="space-y-5" aria-labelledby="support-heading"><div><p className="text-sm text-muted-foreground">We are here to help</p><h1 id="support-heading" className="font-display text-3xl font-semibold">Support</h1><p className="mt-2 max-w-xl text-sm text-muted-foreground">Choose an order so Core can route the request safely. This form is separate from checkout and does not create or change an order.</p></div><div className="space-y-3 rounded-2xl border bg-card p-5 shadow-[var(--card-shadow)]"><label htmlFor="buyer-support-order" className="block text-sm font-medium">Order</label><select id="buyer-support-order" value={orderId} onChange={(event) => { setOrderId(event.target.value); }} className="w-full rounded-xl border bg-background px-3 py-3 text-sm"><option value="">Select an order</option>{data.orders.map((order) => <option key={order.order_id} value={order.order_id}>{order.order_number || "Order reference pending"}</option>)}</select><label htmlFor="buyer-support-issue" className="block text-sm font-medium">Issue type</label><select id="buyer-support-issue" value={issue} onChange={(event) => { setIssue(event.target.value); }} className="w-full rounded-xl border bg-background px-3 py-3 text-sm"><option>Damaged goods</option><option>Missing items</option><option>Wrong shipment</option><option>Delivery question</option><option>Other order question</option></select><label htmlFor="buyer-support-description" className="block text-sm font-medium">What happened?</label><textarea id="buyer-support-description" value={description} onChange={(event) => { setDescription(event.target.value); }} placeholder="Describe the issue" rows={4} className="w-full rounded-xl border bg-background px-3 py-3 text-sm" /><button type="button" disabled={sending || !orderId || !description.trim()} onClick={() => { void submit(); }} className="min-h-12 rounded-xl bg-primary px-4 py-3 text-sm font-bold text-primary-foreground disabled:opacity-50">{sending ? "Submitting…" : "Submit ticket"}</button></div><div className="space-y-2" aria-live="polite">{data.tickets.length === 0 ? <Empty title="No support tickets" text="Your order-related support requests will appear here." /> : data.tickets.map((ticket) => <div key={ticket.ticket_id} className="rounded-xl border bg-card p-4 text-sm"><div className="flex justify-between gap-3"><strong>{ticketIssueLabel(ticket.issue_type)}</strong><span className="text-muted-foreground">{ticketStatusLabel(ticket.customer_status)}</span></div><p className="mt-1 text-xs text-muted-foreground">Order {ticket.order_number || "reference pending"}</p><p className="mt-1 text-muted-foreground">{ticket.description}</p></div>)}</div></section>;
+  const submitGeneralQuery = async () => {
+    if (querySending || querySubject.trim().length < 3 || queryMessage.trim().length < 10) return;
+    setQuerySending(true);
+    try {
+      const result = await customerAppClient.submitGeneralQuery({
+        idempotencyKey: getGeneralQueryIdempotencyKey(),
+        subject: querySubject.trim(),
+        message: queryMessage.trim(),
+        category: queryCategory,
+      });
+      if (!result?.[0]) throw new Error("Enquiry was not acknowledged");
+      clearGeneralQueryIdempotencyKey();
+      setQuerySubject("");
+      setQueryMessage("");
+      toast.success("Enquiry submitted");
+      await data.refresh();
+    } catch {
+      toast.error(BUYER_QUERY_ERROR);
+    } finally {
+      setQuerySending(false);
+    }
+  };
+  return <section className="space-y-5" aria-labelledby="support-heading"><div><p className="text-sm text-muted-foreground">We are here to help</p><h1 id="support-heading" className="font-display text-3xl font-semibold">Support</h1><p className="mt-2 max-w-xl text-sm text-muted-foreground">Order support and general enquiries are separate from checkout and use separate governed paths. A general enquiry never creates an order.</p></div><div className="space-y-3 rounded-2xl border bg-card p-5 shadow-[var(--card-shadow)]"><h2 className="font-semibold">Order support</h2><p className="text-sm text-muted-foreground">Choose an order so Core can route the request safely. This form does not create or change an order.</p><label htmlFor="buyer-support-order" className="block text-sm font-medium">Order</label><select id="buyer-support-order" value={orderId} onChange={(event) => { setOrderId(event.target.value); }} className="w-full rounded-xl border bg-background px-3 py-3 text-sm"><option value="">Select an order</option>{data.orders.map((order) => <option key={order.order_id} value={order.order_id}>{order.order_number || "Order reference pending"}</option>)}</select><label htmlFor="buyer-support-issue" className="block text-sm font-medium">Issue type</label><select id="buyer-support-issue" value={issue} onChange={(event) => { setIssue(event.target.value); }} className="w-full rounded-xl border bg-background px-3 py-3 text-sm"><option>Damaged goods</option><option>Missing items</option><option>Wrong shipment</option><option>Delivery question</option><option>Other order question</option></select><label htmlFor="buyer-support-description" className="block text-sm font-medium">What happened?</label><textarea id="buyer-support-description" value={description} onChange={(event) => { setDescription(event.target.value); }} placeholder="Describe the issue" rows={4} className="w-full rounded-xl border bg-background px-3 py-3 text-sm" /><button type="button" disabled={sending || !orderId || !description.trim()} onClick={() => { void submit(); }} className="min-h-12 rounded-xl bg-primary px-4 py-3 text-sm font-bold text-primary-foreground disabled:opacity-50">{sending ? "Submitting…" : "Submit ticket"}</button></div><div className="space-y-2" aria-live="polite">{data.tickets.length === 0 ? <Empty title="No support tickets" text="Your order-related support requests will appear here." /> : data.tickets.map((ticket) => <div key={ticket.ticket_id} className="rounded-xl border bg-card p-4 text-sm"><div className="flex justify-between gap-3"><strong>{ticketIssueLabel(ticket.issue_type)}</strong><span className="text-muted-foreground">{ticketStatusLabel(ticket.customer_status)}</span></div><p className="mt-1 text-xs text-muted-foreground">Order {ticket.order_number || "reference pending"}</p><p className="mt-1 text-muted-foreground">{ticket.description}</p></div>)}</div><div className="space-y-3 rounded-2xl border bg-card p-5 shadow-[var(--card-shadow)]"><h2 className="font-semibold">General enquiry</h2><p className="text-sm text-muted-foreground">Ask a question without attaching it to an order.</p><label htmlFor="buyer-general-query-category" className="block text-sm font-medium">Category</label><select id="buyer-general-query-category" value={queryCategory} onChange={(event) => { setQueryCategory(event.target.value as (typeof GENERAL_QUERY_CATEGORIES)[number]); }} className="w-full rounded-xl border bg-background px-3 py-3 text-sm">{GENERAL_QUERY_CATEGORIES.map((category) => <option key={category} value={category}>{category[0] + category.slice(1).toLowerCase()}</option>)}</select><label htmlFor="buyer-general-query-subject" className="block text-sm font-medium">Subject</label><input id="buyer-general-query-subject" value={querySubject} onChange={(event) => { setQuerySubject(event.target.value); }} placeholder="What can we help with?" className="w-full rounded-xl border bg-background px-3 py-3 text-sm" /><label htmlFor="buyer-general-query-message" className="block text-sm font-medium">Message</label><textarea id="buyer-general-query-message" value={queryMessage} onChange={(event) => { setQueryMessage(event.target.value); }} placeholder="Tell us more" rows={4} className="w-full rounded-xl border bg-background px-3 py-3 text-sm" /><button type="button" disabled={querySending || querySubject.trim().length < 3 || queryMessage.trim().length < 10} onClick={() => { void submitGeneralQuery(); }} className="min-h-12 rounded-xl border px-4 py-3 text-sm font-bold text-primary disabled:opacity-50">{querySending ? "Submitting…" : "Submit general enquiry"}</button></div><div className="space-y-2" aria-live="polite"><h2 className="font-semibold">Enquiry history</h2>{data.generalQueries.length === 0 ? <p className="text-sm text-muted-foreground">Your general enquiries will appear here.</p> : data.generalQueries.map((query) => <div key={query.query_id} className="rounded-xl border bg-card p-4 text-sm"><div className="flex justify-between gap-3"><strong>{query.subject}</strong><span className="text-muted-foreground">{customerGeneralQueryStatusLabel(query.status)}</span></div><p className="mt-1 text-xs text-muted-foreground">{query.category}</p><p className="mt-1 text-muted-foreground">{query.message}</p></div>)}</div></section>;
 }
 
 /** Presents the safe Buyer home summary, prioritising action and operations. */
 function Home({ data }: { data: ReturnType<typeof useBuyerData> }) {
   const navigate = useNavigate();
-  const actionOrder = data.orders.find((order) => customerOrderAction(order.payment_stage));
+  const actionOrder = data.orders.find((order) => {
+    const finance = data.financeFacts[order.order_id];
+    const financeStatus = finance?.customer_safe_projection && finance.finance_status ? finance.finance_status : order.finance_status;
+    return customerFinanceAction(financeStatus) || customerOrderAction(order.payment_stage);
+  });
   const recentOrders = [...data.orders].sort((a, b) => b.created_at.localeCompare(a.created_at)).slice(0, 3);
   const latestOrder = recentOrders[0];
-  return <section className="space-y-5" aria-labelledby="dashboard-heading"><SystemAlertMarquee /><div className="rounded-3xl bg-[#5f6848] p-6 text-white shadow-[var(--card-shadow)]"><p className="text-sm opacity-80">Welcome back</p><h1 id="dashboard-heading" className="mt-1 font-display text-3xl font-semibold">{data.company?.business_name || "Oasis buyer"}</h1><p className="mt-3 max-w-md text-sm opacity-90">Browse approved products, keep carton rules intact, and submit a governed order in a few taps.</p><p className="mt-4 text-xs font-semibold uppercase tracking-wide opacity-80">{companyStatusLabel(data.company?.status)}</p></div>{actionOrder && <Link to={`/buyer/orders/${actionOrder.order_id}`} className="flex items-center justify-between gap-3 rounded-2xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-950"><span><strong>Action needed:</strong> {customerOrderAction(actionOrder.payment_stage)} for <BuyerSoReference orderNumber={actionOrder.order_number} /></span><ChevronRight size={18} aria-hidden /></Link>}<div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3"><button type="button" onClick={() => { navigate("/buyer/catalogue"); }} className="rounded-2xl border bg-card p-4 text-left shadow-[var(--card-shadow)]"><ShoppingBag className="text-primary" aria-hidden /><p className="mt-3 font-semibold">New order</p><p className="text-xs text-muted-foreground">Browse catalogue and approved order rules</p></button>{latestOrder ? <Link to={`/buyer/orders/${latestOrder.order_id}`} className="rounded-2xl border bg-card p-4 text-left shadow-[var(--card-shadow)]"><Package className="text-primary" aria-hidden /><p className="mt-3 font-semibold">Reorder</p><p className="text-xs text-muted-foreground">Use your latest order as a starting point</p></Link> : <div className="rounded-2xl border bg-card p-4 text-left opacity-70"><Package className="text-primary" aria-hidden /><p className="mt-3 font-semibold">Reorder</p><p className="text-xs text-muted-foreground">Available after your first order</p></div>}<Link to="/buyer/orders" className="rounded-2xl border bg-card p-4 text-left shadow-[var(--card-shadow)]"><Package className="text-primary" aria-hidden /><p className="mt-3 font-semibold">Track Order</p><p className="text-xs text-muted-foreground">See status and dispatch updates</p></Link><button type="button" onClick={() => { navigate("/buyer/cart"); }} className="rounded-2xl border bg-card p-4 text-left shadow-[var(--card-shadow)]"><ShoppingBag className="text-primary" aria-hidden /><p className="mt-3 font-semibold">Open cart</p><p className="text-xs text-muted-foreground">{data.draft.filter((line) => line.line_id).length} lines in progress</p></button><button type="button" onClick={() => { navigate("/buyer/support"); }} className="rounded-2xl border bg-card p-4 text-left shadow-[var(--card-shadow)]"><LifeBuoy className="text-primary" aria-hidden /><p className="mt-3 font-semibold">Get support</p><p className="text-xs text-muted-foreground">{data.tickets.length} open requests</p></button></div><div className="grid gap-3 sm:grid-cols-3"><div className="rounded-xl border bg-card p-4"><p className="text-xs text-muted-foreground">Submitted orders</p><p className="mt-1 text-2xl font-semibold">{data.orders.length}</p></div><div className="rounded-xl border bg-card p-4"><p className="text-xs text-muted-foreground">Cart lines</p><p className="mt-1 text-2xl font-semibold">{data.draft.filter((line) => line.line_id).length}</p></div><div className="rounded-xl border bg-card p-4"><p className="text-xs text-muted-foreground">Support requests</p><p className="mt-1 text-2xl font-semibold">{data.tickets.length}</p></div></div>{recentOrders.length > 0 && <div className="rounded-2xl border bg-card p-5 shadow-[var(--card-shadow)]"><div className="flex items-center justify-between"><h2 className="font-semibold">Recent orders</h2><Link to="/buyer/orders" className="text-xs font-semibold text-primary">View all</Link></div><div className="mt-3 space-y-2">{recentOrders.map((order) => <Link key={order.order_id} to={`/buyer/orders/${order.order_id}`} className="flex items-center justify-between rounded-xl border p-3 text-sm"><span><BuyerSoReference orderNumber={order.order_number} /><span className="block text-xs text-muted-foreground">{customerOrderStageLabel(order.customer_stage)}</span></span><ChevronRight size={16} className="text-muted-foreground" aria-hidden /></Link>)}</div></div>}</section>;
+  const latestFinance = latestOrder ? data.financeFacts[latestOrder.order_id] : undefined;
+  const actionLabel = actionOrder ? (() => {
+    const finance = data.financeFacts[actionOrder.order_id];
+    const financeStatus = finance?.customer_safe_projection && finance.finance_status ? finance.finance_status : actionOrder.finance_status;
+    return customerFinanceAction(financeStatus) || customerOrderAction(actionOrder.payment_stage);
+  })() : null;
+  return <section className="space-y-5" aria-labelledby="dashboard-heading"><SystemAlertMarquee /><div className="rounded-3xl bg-[#5f6848] p-6 text-white shadow-[var(--card-shadow)]"><p className="text-sm opacity-80">Welcome back</p><h1 id="dashboard-heading" className="mt-1 font-display text-3xl font-semibold">{data.company?.business_name || "Oasis buyer"}</h1><p className="mt-3 max-w-md text-sm opacity-90">Browse approved products, keep carton rules intact, and submit a governed order in a few taps.</p><p className="mt-4 text-xs font-semibold uppercase tracking-wide opacity-80">{companyStatusLabel(data.company?.status)}</p></div>{actionOrder && actionLabel && <Link to={`/buyer/orders/${actionOrder.order_id}`} className="flex items-center justify-between gap-3 rounded-2xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-950"><span><strong>Action needed:</strong> {actionLabel} for <BuyerSoReference orderNumber={actionOrder.order_number} /></span><ChevronRight size={18} aria-hidden /></Link>}<div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3"><button type="button" onClick={() => { navigate("/buyer/catalogue"); }} className="rounded-2xl border bg-card p-4 text-left shadow-[var(--card-shadow)]"><ShoppingBag className="text-primary" aria-hidden /><p className="mt-3 font-semibold">New order</p><p className="text-xs text-muted-foreground">Browse catalogue and approved order rules</p></button>{latestOrder ? <Link to={`/buyer/orders/${latestOrder.order_id}`} className="rounded-2xl border bg-card p-4 text-left shadow-[var(--card-shadow)]"><Package className="text-primary" aria-hidden /><p className="mt-3 font-semibold">Reorder</p><p className="text-xs text-muted-foreground">Use your latest order as a starting point</p></Link> : <div className="rounded-2xl border bg-card p-4 text-left opacity-70"><Package className="text-primary" aria-hidden /><p className="mt-3 font-semibold">Reorder</p><p className="text-xs text-muted-foreground">Available after your first order</p></div>}<Link to="/buyer/orders" className="rounded-2xl border bg-card p-4 text-left shadow-[var(--card-shadow)]"><Package className="text-primary" aria-hidden /><p className="mt-3 font-semibold">Track Order</p><p className="text-xs text-muted-foreground">See status and dispatch updates</p></Link><button type="button" onClick={() => { navigate("/buyer/cart"); }} className="rounded-2xl border bg-card p-4 text-left shadow-[var(--card-shadow)]"><ShoppingBag className="text-primary" aria-hidden /><p className="mt-3 font-semibold">Open cart</p><p className="text-xs text-muted-foreground">{data.draft.filter((line) => line.line_id).length} lines in progress</p></button><button type="button" onClick={() => { navigate("/buyer/support"); }} className="rounded-2xl border bg-card p-4 text-left shadow-[var(--card-shadow)]"><LifeBuoy className="text-primary" aria-hidden /><p className="mt-3 font-semibold">Get support</p><p className="text-xs text-muted-foreground">{data.tickets.length} open requests</p></button></div><div className="grid gap-3 sm:grid-cols-3"><div className="rounded-xl border bg-card p-4"><p className="text-xs text-muted-foreground">Submitted orders</p><p className="mt-1 text-2xl font-semibold">{data.orders.length}</p></div><div className="rounded-xl border bg-card p-4"><p className="text-xs text-muted-foreground">Cart lines</p><p className="mt-1 text-2xl font-semibold">{data.draft.filter((line) => line.line_id).length}</p></div><div className="rounded-xl border bg-card p-4"><p className="text-xs text-muted-foreground">Support requests</p><p className="mt-1 text-2xl font-semibold">{data.tickets.length}</p></div></div>{latestFinance?.customer_safe_projection && <BuyerFinanceSummary facts={latestFinance} />}{recentOrders.length > 0 && <div className="rounded-2xl border bg-card p-5 shadow-[var(--card-shadow)]"><div className="flex items-center justify-between"><h2 className="font-semibold">Recent orders</h2><Link to="/buyer/orders" className="text-xs font-semibold text-primary">View all</Link></div><div className="mt-3 space-y-2">{recentOrders.map((order) => <Link key={order.order_id} to={`/buyer/orders/${order.order_id}`} className="flex items-center justify-between rounded-xl border p-3 text-sm"><span><BuyerSoReference orderNumber={order.order_number} /><span className="block text-xs text-muted-foreground">{customerOrderStageLabel(order.customer_stage)}</span></span><ChevronRight size={16} className="text-muted-foreground" aria-hidden /></Link>)}</div></div>}</section>;
 }
 
 /** Provides a consistent customer-safe empty state with an optional action. */

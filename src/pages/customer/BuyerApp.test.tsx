@@ -20,8 +20,19 @@ const buyerMock = vi.hoisted(() => ({
   orders: vi.fn(),
   items: vi.fn(),
   tickets: vi.fn(),
+  commercialFacts: vi.fn(),
+  financeFacts: vi.fn(),
+  proformaInvoices: vi.fn(),
+  documents: vi.fn(),
+  statement: vi.fn(),
+  favourites: vi.fn(),
+  setFavourite: vi.fn(),
+  generalQueries: vi.fn(),
+  submitGeneralQuery: vi.fn(),
   submitApplication: vi.fn(),
   submitTicket: vi.fn(),
+  clearGeneralQueryKey: vi.fn(),
+  getGeneralQueryKey: vi.fn(() => "general-query-key"),
   order: {
     order_id: "order-1",
     order_number: "SO2026/08-0001",
@@ -95,11 +106,23 @@ vi.mock("@/lib/customerApp/customerAppClient", () => ({
     orders: buyerMock.orders,
     items: buyerMock.items,
     tickets: buyerMock.tickets,
+    commercialFacts: buyerMock.commercialFacts,
+    financeFacts: buyerMock.financeFacts,
+    proformaInvoices: buyerMock.proformaInvoices,
+    documents: buyerMock.documents,
+    statement: buyerMock.statement,
+    favourites: buyerMock.favourites,
+    setFavourite: buyerMock.setFavourite,
+    generalQueries: buyerMock.generalQueries,
+    submitGeneralQuery: buyerMock.submitGeneralQuery,
     submitApplication: buyerMock.submitApplication,
     submitTicket: buyerMock.submitTicket,
   },
+  GENERAL_QUERY_CATEGORIES: ["GENERAL", "CATALOGUE", "ACCOUNT", "DELIVERY", "OTHER"],
   clearCheckoutIdempotencyKey: buyerMock.clearCheckoutKey,
   getCheckoutIdempotencyKey: buyerMock.getCheckoutKey,
+  clearGeneralQueryIdempotencyKey: buyerMock.clearGeneralQueryKey,
+  getGeneralQueryIdempotencyKey: buyerMock.getGeneralQueryKey,
   getLocalDateInputValue: () => "2026-08-31",
 }));
 
@@ -131,6 +154,7 @@ vi.mock("@/integrations/supabase/client", () => ({
 beforeEach(() => {
   buyerMock.submit.mockResolvedValue([buyerMock.order]);
   buyerMock.clearCheckoutKey.mockImplementation(() => undefined);
+  buyerMock.clearGeneralQueryKey.mockImplementation(() => undefined);
   buyerMock.company.mockResolvedValue([{
     company_id: "company-1",
     business_name: "Buyer Co",
@@ -158,6 +182,15 @@ beforeEach(() => {
     packed_quantity: null,
   }]);
   buyerMock.tickets.mockResolvedValue([]);
+  buyerMock.commercialFacts.mockResolvedValue([]);
+  buyerMock.financeFacts.mockResolvedValue(null);
+  buyerMock.proformaInvoices.mockResolvedValue([]);
+  buyerMock.documents.mockResolvedValue([]);
+  buyerMock.statement.mockResolvedValue(null);
+  buyerMock.favourites.mockResolvedValue([]);
+  buyerMock.setFavourite.mockResolvedValue([{ product_id: "product-1", is_favourite: true }]);
+  buyerMock.generalQueries.mockResolvedValue([]);
+  buyerMock.submitGeneralQuery.mockResolvedValue([{ query_id: "query-1", status: "SUBMITTED", is_duplicate_submission: false }]);
 });
 
 afterEach(() => {
@@ -325,6 +358,176 @@ describe("Buyer App governed commercial handoff", () => {
     expect(screen.getByText("Order progress")).toBeTruthy();
     expect(screen.getAllByText("Order received").length).toBeGreaterThanOrEqual(2);
     expect(screen.getByText("Payment details needed")).toBeTruthy();
+  });
+
+  it("merges authoritative commercial facts into list and detail without generating an SO reference", async () => {
+    buyerMock.commercialFacts.mockResolvedValue([{
+      order_id: "order-1",
+      order_number: "SO2026/09-0001",
+      commercial_version_id: "version-2",
+      commercial_version_number: 2,
+      frozen_sales_order_value: 18750,
+      requested_dispatch_date: "2026-09-14",
+      promised_dispatch_date: "2026-09-16",
+      commercial_status: "FROZEN",
+      finance_status: "pi_pending",
+      created_at: "2026-09-01T00:00:00.000Z",
+      updated_at: "2026-09-01T00:00:00.000Z",
+    }]);
+    const { unmount } = render(<MemoryRouter initialEntries={["/buyer/orders"]}><BuyerApp /></MemoryRouter>);
+    expect(await screen.findByText("SO2026/09-0001")).toBeTruthy();
+    expect(screen.getByText("₹18,750")).toBeTruthy();
+    expect(screen.getAllByText("Proforma invoice is being prepared").length).toBeGreaterThanOrEqual(1);
+    expect(screen.queryByText(/SO2026\/09-0002/)).toBeNull();
+    unmount();
+    render(<MemoryRouter initialEntries={["/buyer/orders/order-1"]}><BuyerApp /></MemoryRouter>);
+    expect(await screen.findByText("SO2026/09-0001")).toBeTruthy();
+    expect(screen.getByText("v2")).toBeTruthy();
+    expect(screen.getByText("2026-09-14")).toBeTruthy();
+    expect(screen.getByText("2026-09-16")).toBeTruthy();
+  });
+
+  it("renders customer-safe Finance facts and never calculates coverage in the browser", async () => {
+    buyerMock.financeFacts.mockResolvedValue({
+      order_id: "order-1",
+      order_number: "SO2026/09-0001",
+      commercial_version_id: "version-2",
+      commercial_version_number: 2,
+      commercial_value: 18750,
+      required_advance: 6000,
+      pi_id: "internal-pi-id",
+      pi_number: null,
+      pi_status: "READY_FOR_ISSUE",
+      verified_payment_amount: 2500,
+      wallet_applied_amount: 500,
+      approved_credit_amount: 1000,
+      covered_amount: 4000,
+      advance_covered: false,
+      finance_status: "advance_pending",
+      facts_as_of: "2026-09-01T00:00:00.000Z",
+      customer_safe_projection: true,
+    });
+    render(<MemoryRouter initialEntries={["/buyer/orders/order-1"]}><BuyerApp /></MemoryRouter>);
+
+    expect(await screen.findByRole("heading", { name: "Payment and Finance" })).toBeTruthy();
+    expect(screen.getAllByText("₹18,750").length).toBeGreaterThanOrEqual(1);
+    expect(screen.getByText("₹6,000")).toBeTruthy();
+    expect(screen.getByText("₹2,500")).toBeTruthy();
+    expect(screen.getByText("₹500")).toBeTruthy();
+    expect(screen.getByText("₹1,000")).toBeTruthy();
+    expect(screen.getByText("₹4,000")).toBeTruthy();
+    expect(screen.getAllByText("Advance payment is needed").length).toBeGreaterThanOrEqual(1);
+    expect(screen.getByText(/Proforma invoice: Preparing/)).toBeTruthy();
+    expect(screen.queryByText("internal-pi-id")).toBeNull();
+    expect(screen.queryByText(/30%|nearest|rounded|coverage calculation/i)).toBeNull();
+  });
+
+  it.each([
+    ["READY_FOR_ISSUE", null, "Preparing"],
+    ["ISSUED", "PI2026/09-0001", "Reference PI2026/09-0001 is available."],
+  ])("shows the exact PI number only after issuance (%s)", async (status, number, detail) => {
+    buyerMock.proformaInvoices.mockResolvedValue([{
+      pi_id: "pi-1",
+      customer_visible_pi_number: number,
+      order_id: "order-1",
+      order_number: "SO2026/09-0001",
+      commercial_version_id: "version-2",
+      commercial_version_number: 2,
+      status,
+      issued_at: status === "ISSUED" ? "2026-09-01T01:00:00.000Z" : null,
+      frozen_customer_total: 18750,
+      created_at: "2026-09-01T00:00:00.000Z",
+    }]);
+    render(<MemoryRouter initialEntries={["/buyer/documents"]}><BuyerApp /></MemoryRouter>);
+    const heading = await screen.findByRole("heading", { name: "Proforma Invoice" });
+    const card = heading.parentElement?.parentElement;
+    expect(card?.textContent).toContain(detail);
+    if (status === "READY_FOR_ISSUE") expect(card?.textContent).not.toContain("PI2026/");
+  });
+
+  it("maps issued, preparing and unavailable documents without fabricating files", async () => {
+    buyerMock.documents.mockResolvedValue([
+      { document_type: "SALES_ORDER", document_id: "so-doc", document_number: "SO2026/09-0001", order_id: "order-1", order_number: "SO2026/09-0001", commercial_version_id: "version-2", status: "ISSUED", issued_at: "2026-09-01T00:00:00.000Z", customer_total: 18750, availability_state: "issued" },
+      { document_type: "FINAL_INVOICE", document_id: "invoice-doc", document_number: null, order_id: "order-1", order_number: "SO2026/09-0001", commercial_version_id: "version-2", status: "PREPARING", issued_at: null, customer_total: null, availability_state: "preparing" },
+      { document_type: "PROFORMA_INVOICE", document_id: "pi-doc", document_number: null, order_id: "order-1", order_number: "SO2026/09-0001", commercial_version_id: "version-2", status: "UNAVAILABLE", issued_at: null, customer_total: null, availability_state: "unavailable" },
+    ]);
+    render(<MemoryRouter initialEntries={["/buyer/documents"]}><BuyerApp /></MemoryRouter>);
+    expect(await screen.findByText("Reference SO2026/09-0001 is available.")).toBeTruthy();
+    expect(screen.getByText("This document is being prepared and will appear here when issued.")).toBeTruthy();
+    expect(screen.getByText("This document is not available yet.")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: /download/i })).toBeNull();
+  });
+
+  it("renders customer-safe statement facts without internal closure identifiers", async () => {
+    buyerMock.statement.mockResolvedValue({
+      company_id: "company-1",
+      wallet_balance: 2500,
+      facts_as_of: "2026-09-01T00:00:00.000Z",
+      statement_facts_only: true,
+      entries: [{
+        order_id: "order-1",
+        invoice_date: "2026-09-01",
+        invoice_number: "INV-2026-0001",
+        invoice_gross_total: 18750,
+        verified_payment_total: 6000,
+        wallet_applied_total: 500,
+        approved_credit_total: 1000,
+        credit_note_total: 0,
+        debit_note_total: 0,
+        refund_total: 0,
+        pre_dispatch_net_due: 11250,
+        complaint_window_status: "OPEN",
+        complaint_deadline: "2026-09-08",
+        commercially_closed: false,
+      }],
+    });
+    render(<MemoryRouter initialEntries={["/buyer/documents"]}><BuyerApp /></MemoryRouter>);
+    expect(await screen.findByRole("heading", { name: "Statement facts" })).toBeTruthy();
+    expect(screen.getByText("₹2,500")).toBeTruthy();
+    expect(screen.getByText("INV-2026-0001")).toBeTruthy();
+    expect(screen.getByText("Amount due before dispatch: ₹11,250")).toBeTruthy();
+    expect(screen.queryByText(/closure|OPEN|complaint/i)).toBeNull();
+  });
+
+  it("uses server-backed favourites with rollback on failed mutation", async () => {
+    buyerMock.favourites.mockResolvedValueOnce([]).mockResolvedValue([{ product_id: "product-1", created_at: "2026-09-01T00:00:00Z" }]);
+    render(<MemoryRouter initialEntries={["/buyer/catalogue"]}><BuyerApp /></MemoryRouter>);
+    const addButton = await screen.findByRole("button", { name: "Add Pista Baklawa to favourites" });
+    fireEvent.click(addButton);
+    expect(await screen.findByRole("button", { name: "Remove Pista Baklawa from favourites" })).toBeTruthy();
+    expect(buyerMock.setFavourite).toHaveBeenCalledWith("product-1", true);
+
+    buyerMock.setFavourite.mockRejectedValueOnce(new Error("network failure"));
+    fireEvent.click(screen.getByRole("button", { name: "Remove Pista Baklawa from favourites" }));
+    expect(await screen.findByRole("button", { name: "Add Pista Baklawa to favourites" })).toBeTruthy();
+    expect(toastMock.error).toHaveBeenCalledWith("We couldn't update favourites. Please try again.");
+  });
+
+  it("keeps general enquiry separate from order submission and reuses the retry key", async () => {
+    buyerMock.submitGeneralQuery.mockRejectedValueOnce(new Error("lost response")).mockResolvedValueOnce([{ query_id: "query-1", status: "SUBMITTED", is_duplicate_submission: true }]);
+    render(<MemoryRouter initialEntries={["/buyer/support"]}><BuyerApp /></MemoryRouter>);
+    await screen.findByText(/separate from checkout/i);
+    fireEvent.change(screen.getByLabelText("Subject"), { target: { value: "Catalogue question" } });
+    fireEvent.change(screen.getByLabelText("Message"), { target: { value: "Can you confirm the next delivery window?" } });
+    const submitQuery = screen.getByRole("button", { name: "Submit general enquiry" });
+    fireEvent.click(submitQuery);
+    await waitFor(() => expect(buyerMock.submitGeneralQuery).toHaveBeenCalledTimes(1));
+    expect(buyerMock.clearGeneralQueryKey).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "Submit general enquiry" }));
+    await waitFor(() => expect(buyerMock.submitGeneralQuery).toHaveBeenCalledTimes(2));
+    expect(buyerMock.submitGeneralQuery).toHaveBeenNthCalledWith(1, {
+      idempotencyKey: "general-query-key",
+      subject: "Catalogue question",
+      message: "Can you confirm the next delivery window?",
+      category: "GENERAL",
+    });
+    expect(buyerMock.submitGeneralQuery).toHaveBeenNthCalledWith(2, {
+      idempotencyKey: "general-query-key",
+      subject: "Catalogue question",
+      message: "Can you confirm the next delivery window?",
+      category: "GENERAL",
+    });
+    expect(buyerMock.submit).not.toHaveBeenCalled();
   });
 
   it("shows an empty order state without leaking another company’s data", async () => {
