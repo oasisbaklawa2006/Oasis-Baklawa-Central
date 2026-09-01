@@ -230,48 +230,60 @@ function throwRpcError(name: string, error: { message?: string } | null): void {
   if (error) throw new Error(error.message || `${name.toUpperCase()}_FAILED`);
 }
 
+type RpcResult = { data: unknown; error: { message?: string } | null };
+type RpcInvoker = (name: string, args?: Record<string, unknown>) => PromiseLike<RpcResult>;
+
+function rpcInvoker(client: WorkspaceClient): RpcInvoker {
+  return client.rpc.bind(client) as unknown as RpcInvoker;
+}
+
+async function callWorkspaceRpc(
+  client: WorkspaceClient,
+  name: string,
+  args: Record<string, unknown>,
+): Promise<void> {
+  const { error } = await rpcInvoker(client)(name, args);
+  throwRpcError(name, error);
+}
+
 export async function persistOperatorWorkspaceMutation(mutation: OperatorWorkspaceMutation): Promise<void> {
   const client = workspaceClient;
   const idempotencyKey = operatorWorkspaceMutationIdempotencyKey(mutation);
 
   if (mutation.kind === "UPSERT_NOTE") {
-    const { error } = await client.rpc("upsert_whatsapp_operator_note", {
+    await callWorkspaceRpc(client, "upsert_whatsapp_operator_note", {
       p_packet_id: mutation.packetId,
       p_note_body: mutation.text,
       p_idempotency_key: idempotencyKey,
     });
-    throwRpcError("upsert_whatsapp_operator_note", error);
     return;
   }
   if (mutation.kind === "DELETE_NOTE") {
-    const { error } = await client.rpc("delete_whatsapp_operator_note", {
+    await callWorkspaceRpc(client, "delete_whatsapp_operator_note", {
       p_packet_id: mutation.packetId,
       p_idempotency_key: idempotencyKey,
     });
-    throwRpcError("delete_whatsapp_operator_note", error);
     return;
   }
   if (mutation.kind === "SAVE_VIEW") {
-    const { error } = await client.rpc("save_whatsapp_operator_view", {
+    await callWorkspaceRpc(client, "save_whatsapp_operator_view", {
       p_view_key: mutation.viewId,
       p_view_label: mutation.name,
       p_filter_config: jsonValue(mutation.snapshot),
       p_idempotency_key: idempotencyKey,
     });
-    throwRpcError("save_whatsapp_operator_view", error);
     return;
   }
   if (mutation.kind === "DELETE_VIEW") {
-    const { error } = await client.rpc("delete_whatsapp_operator_view", {
+    await callWorkspaceRpc(client, "delete_whatsapp_operator_view", {
       p_view_key: mutation.viewId,
       p_idempotency_key: idempotencyKey,
     });
-    throwRpcError("delete_whatsapp_operator_view", error);
     return;
   }
 
   const caseId = await caseIdForPacket(client, mutation.packetId);
-  const { error } = await client.rpc("record_whatsapp_operator_correction", {
+  await callWorkspaceRpc(client, "record_whatsapp_operator_correction", {
     p_case_id: caseId,
     p_packet_id: mutation.packetId,
     p_correction_field: mutation.field,
@@ -280,5 +292,4 @@ export async function persistOperatorWorkspaceMutation(mutation: OperatorWorkspa
     p_prior_value: jsonValue(mutation.priorValue),
     p_correction_reason: mutation.reason ?? null,
   });
-  throwRpcError("record_whatsapp_operator_correction", error);
 }
