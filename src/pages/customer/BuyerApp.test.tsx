@@ -1,3 +1,5 @@
+import { existsSync, readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -56,6 +58,7 @@ const buyerMock = vi.hoisted(() => ({
     description: "Premium baklawa",
     image_url: null,
     category: "Baklawa",
+    sub_category: "Classic",
     is_active: true,
     visible_in_catalog: true,
   },
@@ -75,6 +78,8 @@ const buyerMock = vi.hoisted(() => ({
     valid_until: null,
   },
 }));
+
+const toastMock = vi.hoisted(() => ({ success: vi.fn(), error: vi.fn() }));
 
 vi.mock("@/lib/customerApp/customerAppClient", () => ({
   customerAppClient: {
@@ -107,7 +112,7 @@ vi.mock("@/components/buyer/SystemAlertMarquee", () => ({
 }));
 
 vi.mock("sonner", () => ({
-  toast: { success: vi.fn(), error: vi.fn() },
+  toast: toastMock,
 }));
 
 vi.mock("@/integrations/supabase/client", () => ({
@@ -171,6 +176,8 @@ describe("Buyer App governed commercial handoff", () => {
     expect(screen.getByRole("link", { name: "Quick order and cart" })).toBeTruthy();
     expect(screen.getByRole("link", { name: "Account" })).toBeTruthy();
     expect(screen.getByRole("link", { name: "Open customer support" })).toBeTruthy();
+    expect(screen.getByRole("link", { name: /Track Order/ })).toBeTruthy();
+    expect(screen.getByRole("link", { name: /Reorder/ })).toBeTruthy();
     expect(screen.queryByText(/advance/i)).toBeNull();
   });
 
@@ -210,6 +217,16 @@ describe("Buyer App governed commercial handoff", () => {
     expect(screen.getByText("1 approved product")).toBeTruthy();
   });
 
+  it("filters the catalogue by the governed product subcategory", async () => {
+    render(<MemoryRouter initialEntries={["/buyer/catalogue"]}><BuyerApp /></MemoryRouter>);
+
+    const subcategory = await screen.findByLabelText("Filter by subcategory");
+    fireEvent.change(subcategory, { target: { value: "Classic" } });
+    expect(screen.getByText("Pista Baklawa")).toBeTruthy();
+    fireEvent.change(subcategory, { target: { value: "all" } });
+    expect(screen.getByText("1 approved product")).toBeTruthy();
+  });
+
   it("supports separate Add to cart and Buy now actions on product detail", async () => {
     buyerMock.addLine.mockResolvedValue(undefined);
     render(<MemoryRouter initialEntries={["/buyer/catalogue/product-1"]}><BuyerApp /></MemoryRouter>);
@@ -218,6 +235,25 @@ describe("Buyer App governed commercial handoff", () => {
     fireEvent.click(screen.getByRole("button", { name: "Buy now" }));
     await waitFor(() => expect(buyerMock.addLine).toHaveBeenCalledWith("product-1", 1));
     expect(await screen.findByRole("heading", { name: "Your cart" })).toBeTruthy();
+  });
+
+  it("prevents duplicate product submissions while the governed add is pending", async () => {
+    buyerMock.addLine.mockImplementation(() => new Promise((resolve) => setTimeout(resolve, 20)));
+    render(<MemoryRouter initialEntries={["/buyer/catalogue/product-1"]}><BuyerApp /></MemoryRouter>);
+
+    fireEvent.click(await screen.findByRole("button", { name: "Buy now" }));
+    fireEvent.click(screen.getByRole("button", { name: "Buy now" }));
+    expect(buyerMock.addLine).toHaveBeenCalledTimes(1);
+    await waitFor(() => expect(screen.getByRole("heading", { name: "Your cart" })).toBeTruthy());
+  });
+
+  it("fails closed when a product has no usable customer price", async () => {
+    buyerMock.prices.mockResolvedValue([{ ...buyerMock.price, selling_price: Number.NaN }]);
+    render(<MemoryRouter initialEntries={["/buyer/catalogue"]}><BuyerApp /></MemoryRouter>);
+
+    expect(await screen.findByText("Pricing unavailable for this account.")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Add" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Buy" })).toBeNull();
   });
 
   it("keeps MOQ and increment controls on the governed draft path", async () => {
@@ -362,13 +398,82 @@ describe("Buyer App governed commercial handoff", () => {
     expect(buyerMock.submit).not.toHaveBeenCalled();
   });
 
+  it("keeps raw support backend errors out of customer copy", async () => {
+    buyerMock.submitTicket.mockRejectedValueOnce(new Error("PostgREST SQLSTATE 42501 policy denied"));
+    render(<MemoryRouter initialEntries={["/buyer/support"]}><BuyerApp /></MemoryRouter>);
+
+    expect(await screen.findByText(/separate from checkout/i)).toBeTruthy();
+    fireEvent.change(screen.getByLabelText("Order"), { target: { value: "order-1" } });
+    fireEvent.change(screen.getByLabelText("What happened?"), { target: { value: "The outer carton arrived damaged." } });
+    fireEvent.click(screen.getByRole("button", { name: "Submit ticket" }));
+    await waitFor(() => expect(toastMock.error).toHaveBeenCalledWith("We couldn't submit your support request. Please try again."));
+    expect(screen.queryByText(/PostgREST|SQLSTATE|42501|policy denied/i)).toBeNull();
+  });
+
   it("keeps documents truthful when Core has not issued a customer-facing file", async () => {
     render(<MemoryRouter initialEntries={["/buyer/documents"]}><BuyerApp /></MemoryRouter>);
 
     expect(await screen.findByRole("heading", { name: "Documents" })).toBeTruthy();
     expect(screen.getByText("Documents appear when issued")).toBeTruthy();
-    expect(screen.getByText(/without creating local numbers or files/i)).toBeTruthy();
+    expect(screen.getByText("Available")).toBeTruthy();
+    expect(screen.getAllByText("Not available yet")).toHaveLength(3);
+    expect(screen.getByText(/never create local numbers or files/i)).toBeTruthy();
     expect(screen.queryByRole("button", { name: /download/i })).toBeNull();
+  });
+
+  it("distinguishes an unissued Sales Order from unavailable upstream documents", async () => {
+    buyerMock.orders.mockResolvedValue([]);
+    render(<MemoryRouter initialEntries={["/buyer/documents"]}><BuyerApp /></MemoryRouter>);
+
+    expect(await screen.findByText("Not yet issued")).toBeTruthy();
+    expect(screen.getAllByText("Not available yet")).toHaveLength(3);
+  });
+
+  it("renders safe states for invalid Buyer entities and unknown routes", async () => {
+    const cases = [
+      { path: "/buyer/catalogue/missing-product", text: "Product unavailable" },
+      { path: "/buyer/orders/missing-order", text: "Order not found" },
+      { path: "/buyer/not-a-real-page", text: "Buyer page not found" },
+    ];
+    for (const testCase of cases) {
+      const { unmount } = render(<MemoryRouter initialEntries={[testCase.path]}><BuyerApp /></MemoryRouter>);
+      expect(await screen.findByText(testCase.text)).toBeTruthy();
+      unmount();
+    }
+  });
+
+  it("redirects the historical product deep link to the governed catalogue detail", async () => {
+    render(<MemoryRouter initialEntries={["/buyer/product/product-1"]}><BuyerApp /></MemoryRouter>);
+
+    expect(await screen.findByText("SKU: SKU-1")).toBeTruthy();
+  });
+
+  it("keeps primary Buyer routes renderable on direct loads", async () => {
+    const routes = [
+      ["/buyer", "Buyer Co"],
+      ["/buyer/catalogue", "Catalogue"],
+      ["/buyer/catalogue/product-1", "Pista Baklawa"],
+      ["/buyer/cart", "Your cart"],
+      ["/buyer/orders", "Your orders"],
+      ["/buyer/orders/order-1", "Order details"],
+      ["/buyer/documents", "Documents"],
+      ["/buyer/account", "Account"],
+      ["/buyer/support", "Support"],
+    ] as const;
+    for (const [path, heading] of routes) {
+      const { unmount } = render(<MemoryRouter initialEntries={[path]}><BuyerApp /></MemoryRouter>);
+      expect(await screen.findByRole("heading", { name: heading })).toBeTruthy();
+      unmount();
+    }
+  });
+
+  it("retires the legacy customer writers and keeps active writes behind the customer client", () => {
+    expect(existsSync(resolve(process.cwd(), "src/components/SupportChat.tsx"))).toBe(false);
+    expect(existsSync(resolve(process.cwd(), "src/components/CheckoutModal.tsx"))).toBe(false);
+    const source = readFileSync(resolve(process.cwd(), "src/pages/customer/BuyerApp.tsx"), "utf8");
+    expect(source).toMatch(/customerAppClient\.submit/);
+    expect(source).not.toMatch(/\.(insert|update|delete)\s*\(/);
+    expect(source).not.toMatch(/functions\.invoke|\bfetch\s*\(/);
   });
 
   it("uses safe account and team labels rather than internal role codes", async () => {

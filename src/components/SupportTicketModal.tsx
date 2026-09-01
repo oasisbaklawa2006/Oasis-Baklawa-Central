@@ -25,8 +25,8 @@ const SupportTicketModal = ({ open, onClose, orderId }: Props) => {
     setSubmitting(true);
     try {
       await customerAppClient.submitTicket(orderId, issueType, description.trim());
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Unable to submit ticket");
+    } catch {
+      toast.error("We couldn't submit your support request. Please try again.");
       setSubmitting(false);
       return;
     }
@@ -57,7 +57,7 @@ const SupportTicketModal = ({ open, onClose, orderId }: Props) => {
             transition={{ type: "spring", damping: 25, stiffness: 300 }}
             className="relative bg-card rounded-3xl shadow-card w-full max-w-sm overflow-hidden p-6 space-y-5"
           >
-            <button onClick={onClose} className="absolute top-4 right-4 w-8 h-8 rounded-full bg-muted/80 flex items-center justify-center">
+            <button type="button" aria-label="Close support ticket" onClick={onClose} className="absolute top-4 right-4 w-8 h-8 rounded-full bg-muted/80 flex items-center justify-center">
               <X size={16} className="text-foreground" />
             </button>
 
@@ -70,8 +70,9 @@ const SupportTicketModal = ({ open, onClose, orderId }: Props) => {
             {!submitted ? (
               <div className="space-y-4">
                 <div className="space-y-2">
-                  <label className="font-body text-xs font-semibold text-foreground">Issue Type</label>
+                  <label htmlFor="support-ticket-issue" className="font-body text-xs font-semibold text-foreground">Issue Type</label>
                   <select
+                    id="support-ticket-issue"
                     value={issueType}
                     onChange={(e) => setIssueType(e.target.value)}
                     className="w-full px-4 py-3 rounded-xl bg-muted/50 border border-border font-body text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
@@ -83,7 +84,9 @@ const SupportTicketModal = ({ open, onClose, orderId }: Props) => {
                   </select>
                 </div>
 
+                <label htmlFor="support-ticket-description" className="sr-only">Describe the issue</label>
                 <textarea
+                  id="support-ticket-description"
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
                   placeholder="Describe the issue"
@@ -92,6 +95,7 @@ const SupportTicketModal = ({ open, onClose, orderId }: Props) => {
                 />
 
                 <button
+                  type="button"
                   onClick={handleSubmit}
                   disabled={!issueType || !description.trim() || submitting}
                   className="w-full py-3.5 rounded-xl bg-primary text-primary-foreground font-body font-bold text-sm flex items-center justify-center gap-2 hover:bg-primary/90 transition-colors shadow-fab disabled:opacity-50 disabled:cursor-not-allowed"

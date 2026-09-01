@@ -23,7 +23,7 @@ const ResetPassword = () => {
     setLoading(true);
     const { error } = await supabase.auth.updateUser({ password });
     if (error) {
-      toast.error(error.message);
+      toast.error("We couldn't update your password. Please try again or request a new reset link.");
     } else {
       setDone(true);
       toast.success("Password updated successfully!");
@@ -50,8 +50,9 @@ const ResetPassword = () => {
         ) : (
           <div className="space-y-4">
             <div>
-              <label className="block text-xs font-bold text-muted-foreground uppercase tracking-wider mb-1.5">New Password</label>
+              <label htmlFor="reset-new-password" className="block text-xs font-bold text-muted-foreground uppercase tracking-wider mb-1.5">New Password</label>
               <input
+                id="reset-new-password"
                 type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
@@ -60,8 +61,9 @@ const ResetPassword = () => {
               />
             </div>
             <div>
-              <label className="block text-xs font-bold text-muted-foreground uppercase tracking-wider mb-1.5">Confirm Password</label>
+              <label htmlFor="reset-confirm-password" className="block text-xs font-bold text-muted-foreground uppercase tracking-wider mb-1.5">Confirm Password</label>
               <input
+                id="reset-confirm-password"
                 type="password"
                 value={confirm}
                 onChange={(e) => setConfirm(e.target.value)}

@@ -98,6 +98,25 @@ export function getAuthUserMessage(error: unknown) {
   return "Authentication failed. Please try again.";
 }
 
+/**
+ * Returns the bounded copy that may be shown in a customer-facing auth view.
+ * Detailed provider/RPC errors remain available to the auth audit log only.
+ */
+export function getCustomerAuthUserMessage(error: unknown): string {
+  if (error instanceof AuthFlowError) {
+    return USER_MESSAGE_BY_CODE[error.code] ?? "Authentication failed. Please try again.";
+  }
+
+  const raw = error instanceof Error ? error.message.toLowerCase() : "";
+  if (raw.includes("invalid") && (raw.includes("credential") || raw.includes("password") || raw.includes("login"))) {
+    return "Invalid email or password.";
+  }
+  if (raw.includes("network") || raw.includes("timeout") || raw.includes("fetch")) {
+    return "Network error. Please check your connection and try again.";
+  }
+  return "Authentication failed. Please try again.";
+}
+
 // Unresolved-account error codes: the account exists but isn't staff-authorized
 // yet (no role, or pending approval). These are not authentication failures —
 // the correct outcome is the same customer-app gate an unresolved role hits
