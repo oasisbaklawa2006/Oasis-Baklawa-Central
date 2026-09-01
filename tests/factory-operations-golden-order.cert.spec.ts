@@ -100,6 +100,7 @@ test("FACT-E2E Gate 1B :: continuous golden order across RGS/Production/P&A/3PGS
   let consignmentId: string | null = null;
   let cartonId: string | null = null;
   let dplVersionId: string | null = null;
+  let producedQty = 0;
 
   // ---- Stage: create assembly job with a FINISHED_GOODS + a 3PGS component ----
   await test.step("P&A: create_assembly_job", async () => {
@@ -230,6 +231,26 @@ test("FACT-E2E Gate 1B :: continuous golden order across RGS/Production/P&A/3PGS
     expect(acceptError, acceptError?.message).toBeNull();
     record(ledger.stages, "production_accept_job", "accept_production_job", "PROD_ARABIC_SWEETS", acceptCorrelationId, "PASS", "accepted");
 
+    // The shortage-demand job's assigned_qty is the actual shortfall
+    // (required_qty - already-reserved_qty at the FINISHED_GOODS component,
+    // i.e. 5 - 2 = 3), not the component's full required_qty -- output must
+    // stay within assigned_qty*1.1 or declare_production_ready rejects it.
+    const { data: jobBeforeStart } = await client
+      .from("production_jobs")
+      .select("assigned_qty")
+      .eq("id", productionJobId)
+      .single();
+    producedQty = Number(jobBeforeStart?.assigned_qty ?? 0);
+    expect(producedQty, "the shortage-demand job must carry a positive assigned quantity").toBeGreaterThan(0);
+
+    const startCorrelationId = `fact-e2e-golden-${RUN_SUFFIX}-start`;
+    const { error: startError } = await client.rpc("start_production_job", {
+      p_job_id: productionJobId,
+      p_correlation_id: startCorrelationId,
+    });
+    expect(startError, startError?.message).toBeNull();
+    record(ledger.stages, "production_start_job", "start_production_job", "PROD_ARABIC_SWEETS", startCorrelationId, "PASS", "status=in_production");
+
     let previousStage: string | null = null;
     for (let i = 0; i < 6; i += 1) {
       const advanceCorrelationId = `fact-e2e-golden-${RUN_SUFFIX}-advance-${i}`;
@@ -246,13 +267,13 @@ test("FACT-E2E Gate 1B :: continuous golden order across RGS/Production/P&A/3PGS
     const outputCorrelationId = `fact-e2e-golden-${RUN_SUFFIX}-output`;
     const { error: outputError } = await client.rpc("record_production_output", {
       p_job_id: productionJobId,
-      p_produced_qty: 5,
+      p_produced_qty: producedQty,
       p_wasted_qty: 0,
       p_batch_number: `FACT-E2E-${RUN_SUFFIX}`,
       p_correlation_id: outputCorrelationId,
     });
     expect(outputError, outputError?.message).toBeNull();
-    record(ledger.stages, "production_record_output", "record_production_output", "PROD_ARABIC_SWEETS", outputCorrelationId, "PASS", "produced_qty=5");
+    record(ledger.stages, "production_record_output", "record_production_output", "PROD_ARABIC_SWEETS", outputCorrelationId, "PASS", `produced_qty=${producedQty}`);
 
     const readyCorrelationId = `fact-e2e-golden-${RUN_SUFFIX}-ready`;
     const { data: readyJob, error: readyError } = await client.rpc("declare_production_ready", {
@@ -277,7 +298,7 @@ test("FACT-E2E Gate 1B :: continuous golden order across RGS/Production/P&A/3PGS
     const dispatchCorrelationId = `fact-e2e-golden-${RUN_SUFFIX}-transfer`;
     const { data: transfer, error: dispatchError } = await client.rpc("dispatch_production_to_rgs", {
       p_job_id: productionJobId,
-      p_dispatched_qty: 5,
+      p_dispatched_qty: producedQty,
       p_correlation_id: dispatchCorrelationId,
     });
     expect(dispatchError, dispatchError?.message).toBeNull();
@@ -287,17 +308,17 @@ test("FACT-E2E Gate 1B :: continuous golden order across RGS/Production/P&A/3PGS
     const receiptCorrelationId = `fact-e2e-golden-${RUN_SUFFIX}-receipt`;
     const { error: receiptError } = await client.rpc("record_rgs_receipt", {
       p_transfer_id: rgsTransferId,
-      p_received_qty: 5,
+      p_received_qty: producedQty,
       p_correlation_id: receiptCorrelationId,
     });
     expect(receiptError, receiptError?.message).toBeNull();
-    record(ledger.stages, "custody_record_receipt", "record_rgs_receipt", "PROD_ARABIC_SWEETS", receiptCorrelationId, "PASS", "received_qty=5");
+    record(ledger.stages, "custody_record_receipt", "record_rgs_receipt", "PROD_ARABIC_SWEETS", receiptCorrelationId, "PASS", `received_qty=${producedQty}`);
 
     // NEGATIVE: cannot accept a receipt that was never recorded.
     const bogusAcceptCorrelationId = `fact-e2e-golden-${RUN_SUFFIX}-bogus-accept`;
     const { error: bogusAcceptError } = await client.rpc("accept_rgs_production_receipt", {
       p_transfer_id: "00000000-0000-0000-0000-000000000000",
-      p_accepted_qty: 5,
+      p_accepted_qty: producedQty,
       p_rejected_qty: 0,
       p_hold_qty: 0,
       p_expected_balance_version: 0,
@@ -311,7 +332,7 @@ test("FACT-E2E Gate 1B :: continuous golden order across RGS/Production/P&A/3PGS
     const acceptCorrelationId = `fact-e2e-golden-${RUN_SUFFIX}-accept-receipt`;
     const { error: acceptError } = await rgsClient.rpc("accept_rgs_production_receipt", {
       p_transfer_id: rgsTransferId,
-      p_accepted_qty: 5,
+      p_accepted_qty: producedQty,
       p_rejected_qty: 0,
       p_hold_qty: 0,
       p_expected_balance_version: balanceBefore?.version ?? 1,
