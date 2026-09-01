@@ -5,7 +5,6 @@ DO $$
 DECLARE
   v_company uuid := '30000000-0000-4000-8000-000000000001'::uuid;
   v_buyer uuid := '30000000-0000-4000-8000-000000000010'::uuid;
-  v_finance uuid := '30000000-0000-4000-8000-000000000020'::uuid;
   v_product uuid := '30000000-0000-4000-8000-000000000100'::uuid;
   v_order uuid := '30000000-0000-4000-8000-000000000200'::uuid;
   v_version uuid;
@@ -27,10 +26,6 @@ BEGIN
       status = EXCLUDED.status,
       registered_address = EXCLUDED.registered_address,
       gst_number = EXCLUDED.gst_number;
-
-  INSERT INTO public.users (id, email, full_name, role, department, designation, is_active, invite_status)
-  VALUES (v_finance, 'synthetic.finance.cert@oasis-disposable.test', 'Synthetic Finance Cert', 'FINANCE_EXEC', 'Certification', 'Disposable finance actor', true, 'active')
-  ON CONFLICT (id) DO NOTHING;
 
   INSERT INTO public.profiles (id, company_id, email, role, is_approved, status)
   VALUES (v_buyer, v_company, v_buyer_email, 'b2b_buyer', true, 'approved')
@@ -99,7 +94,7 @@ BEGIN
 
   PERFORM public.recalculate_customer_app_order_financials(v_order);
   v_version := public.create_sales_order_commercial_version_v1(
-    v_order, 'BUYER_CERT_TEST', 'buyer-cert:preseed:1', 'buyer-cert-version-1', v_finance
+    v_order, 'BUYER_CERT_TEST', 'buyer-cert:preseed:1', 'buyer-cert-version-1', NULL
   );
 
   SET LOCAL session_replication_role = replica;
