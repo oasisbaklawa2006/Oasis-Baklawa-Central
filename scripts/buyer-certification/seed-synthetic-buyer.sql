@@ -1,8 +1,6 @@
 -- Synthetic APP-E2E Buyer certification fixture.
 -- Runs only against a disposable local Core replay. Never use in production.
 
-\set ON_ERROR_STOP on
-
 DO $$
 DECLARE
   v_company uuid := '30000000-0000-4000-8000-000000000001'::uuid;

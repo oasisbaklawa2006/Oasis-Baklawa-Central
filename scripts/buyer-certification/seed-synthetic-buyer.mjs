@@ -82,7 +82,8 @@ function runSqlSeedFile() {
     .split("\n")
     .map((line) => line.trim())
     .find((line) => line.startsWith("DB_URL="))
-    ?.slice("DB_URL=".length);
+    ?.slice("DB_URL=".length)
+    .replace(/^['"]|['"]$/g, "");
   if (!dbUrl) {
     throw new Error(
       `Synthetic buyer SQL seed failed and DB_URL was unavailable:\n${query.stdout}\n${query.stderr}`,
