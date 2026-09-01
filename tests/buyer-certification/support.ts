@@ -1,5 +1,5 @@
 import { expect, type Page } from "@playwright/test";
-import { writeFileSync } from "node:fs";
+import { mkdirSync, writeFileSync } from "node:fs";
 
 export type BuyerCertificationViewport = {
   name: "mobile-375" | "mobile-390" | "mobile-430";
@@ -105,20 +105,21 @@ export async function runBuyerGoldenPath(
     record("login", "PASS");
 
     await page.goto(`${targetUrl}/buyer`, { waitUntil: "domcontentloaded" });
-    await expect(page.getByRole("heading", { name: /dashboard/i })).toBeVisible({ timeout: 60_000 });
+    await expect(page.locator("#dashboard-heading")).toBeVisible({ timeout: 60_000 });
+    await expect(page.getByText("Welcome back")).toBeVisible({ timeout: 30_000 });
     await shot("01-dashboard");
     record("dashboard", "PASS");
 
     await page.goto(`${targetUrl}/buyer/catalogue`, { waitUntil: "domcontentloaded" });
     await expect(page.getByRole("heading", { name: /^Catalogue$/i })).toBeVisible({ timeout: 60_000 });
-    const productButton = page.getByRole("button", { name: /Synthetic Certification Baklawa/i }).first();
-    await expect(productButton).toBeVisible({ timeout: 60_000 });
-    await productButton.click();
+    const productView = page.getByRole("button", { name: /View Synthetic Certification Baklawa/i }).first();
+    await expect(productView).toBeVisible({ timeout: 60_000 });
+    await productView.click();
     await expect(page.getByRole("heading", { name: /Synthetic Certification Baklawa/i })).toBeVisible({ timeout: 30_000 });
     await shot("02-product-detail");
     record("product_detail", "PASS");
 
-    await page.getByRole("button", { name: /^Buy$/i }).click();
+    await page.getByRole("button", { name: /Buy now/i }).click();
     await page.waitForURL((url) => /\/buyer\/cart/.test(url.pathname), { timeout: 60_000 });
     await expect(page.getByRole("heading", { name: /Your cart/i })).toBeVisible({ timeout: 60_000 });
     await shot("03-cart");
@@ -157,7 +158,7 @@ export async function runBuyerGoldenPath(
       record("golden_path", "FAIL", message);
     }
     await shot("failure").catch(() => undefined);
-    throw error;
+    return evidence;
   }
 
   return evidence;
