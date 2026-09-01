@@ -436,6 +436,8 @@ describe("Buyer App governed commercial handoff", () => {
     const cases = [
       { path: "/buyer/catalogue/missing-product", text: "Product unavailable" },
       { path: "/buyer/orders/missing-order", text: "Order not found" },
+      { path: "/buyer/orders//order-1", text: "Buyer page not found" },
+      { path: "/buyer/orders/order-1/extra", text: "Buyer page not found" },
       { path: "/buyer/not-a-real-page", text: "Buyer page not found" },
     ];
     for (const testCase of cases) {

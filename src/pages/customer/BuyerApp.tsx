@@ -569,7 +569,7 @@ export default function BuyerApp() {
   else if (path === "/buyer/catalogue" || path === "/buyer/catalogue/") content = <Catalogue data={data} />;
   else if (path === "/buyer/cart") content = <Cart data={data} />;
   else if (path === "/buyer/orders") content = <Orders data={data} />;
-  else if (path.startsWith("/buyer/orders/")) content = <OrderDetail data={data} orderId={path.split("/").pop() || ""} />;
+  else if (/^\/buyer\/orders\/[^/]+$/.test(path)) content = <OrderDetail data={data} orderId={path.split("/").pop() || ""} />;
   else if (path === "/buyer/account") content = <Account data={data} />;
   else if (path === "/buyer/documents") content = <Documents data={data} />;
   else if (path === "/buyer/support") content = <Support data={data} />;
