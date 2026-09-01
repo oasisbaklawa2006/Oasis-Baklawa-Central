@@ -1,7 +1,8 @@
 # APP-E2E — Front / Buyer App + App Order Inward Completion Ledger
 
-**Baseline:** Central `origin/main` `9b59bcfb3cd454b9d613819ef7e7a81a24271b5c` (2026-09-01)
-**Feature branch:** `codex/app-e2e-tranche4-buyer-release-closure`
+**Current baseline:** Central `origin/main` `8d24c99464558ccfcd9ca0cb7be538025f7f638c` (2026-09-01)
+**Current feature branch:** `codex/app-e2e-tranche5-central-binding`
+**Historical Tranche 4 baseline:** `9b59bcfb3cd454b9d613819ef7e7a81a24271b5c`
 **Boundary:** customer-facing Front/Buyer App and App-generated order inward only. Core schema/RPC authority remains in `oasis-supabase-core`; WhatsApp, Finance authority, Factory, Trace, CRM and Factory Gate are out of scope.
 
 ## Status legend
@@ -157,6 +158,115 @@ pretend that path is complete.
 ### Tranche 4 remaining upstream blockers
 
 The following are intentionally not implemented in Central: customer-safe SO commercial projection/version detail beyond currently deployed fields; issued PI projection/number; final invoice and statement projection/downloads; Finance payment/wallet/credit facts; durable favourites; and governed general/non-order customer query. These remain Core/Finance authority gates, not hidden frontend defects.
+
+## APP-E2E Tranche 5 — Central Buyer binding readiness (current census)
+
+- **Current Central `main`:** `8d24c99464558ccfcd9ca0cb7be538025f7f638c` (2026-09-01)
+- **Tranche 5 branch:** `codex/app-e2e-tranche5-central-binding`
+- **Boundary:** read-only reconciliation and binding readiness for the existing
+  Buyer frontend. No Core schema/RPC, Finance, WhatsApp, Factory, Trace, CRM
+  or production changes are permitted in this tranche.
+- **Tranche 3:** ✅ MERGED — PR #427, merge SHA
+  `d73db427027b542dafa436190078aee8c48078a1`.
+- **Tranche 4:** ✅ MERGED — PR #431, merge SHA
+  `8d24c99464558ccfcd9ca0cb7be538025f7f638c`.
+
+The baseline and branch fields at the top of this historical ledger retain
+their original Tranche 4 evidence. The current-main and Tranche 5 branch
+above are the authoritative values for this readiness census.
+
+### Central implementation status
+
+| Area | Status | Current evidence |
+|---|---|---|
+| Established Buyer route tree, mobile shell and auth guards | VERIFIED DONE | `src/App.tsx`, `BuyerApp` and the existing Buyer rendered/auth suites cover the current customer routes and fail-closed route handling. |
+| Established customer client boundary | VERIFIED DONE | `customerAppClient` exposes the deployed Buyer RPC family only; backend failures are normalized to customer-safe copy. |
+| Active customer writes | VERIFIED DONE | Current Buyer code has no direct `insert`, `update`, `delete`, `functions.invoke`, `fetch` or hard-coded mutation endpoint. Draft/cart, access-request, checkout and order-linked support mutations use the governed client wrappers. |
+| Legacy customer writers | VERIFIED DONE | `SupportChat` and `CheckoutModal` are absent from current main; repository tests guard against their return and no import, route or CTA reaches them. |
+| New Tranche 5 frontend defect | VERIFIED DONE | No independent Central defect was found that can be corrected without inventing an upstream authority. No Central implementation change was made. |
+
+### Upstream production binding status
+
+Statuses in this table are deliberately limited to `VERIFIED DONE`, `PARTIAL`,
+`CORE BLOCKED`, `FINANCE BLOCKED` and `RUNTIME CERTIFICATION BLOCKED`.
+
+| Capability | Status | Evidence / boundary |
+|---|---|---|
+| Canonical SO number | CORE BLOCKED | The established submit response returns an exact order reference, but the approved allocator/sequence authority is not present in protected production. Central never predicts or constructs a number. |
+| SO commercial/version facts | CORE BLOCKED | `customer_sales_order_commercial_facts_v1` is absent from production; the versioned customer-safe projection cannot be bound. |
+| SO value | PARTIAL | Existing status/submit contracts provide an order value; the complete immutable/versioned commercial snapshot remains Core-blocked. |
+| Advance required | PARTIAL | Existing submit response provides `advance_required`; a deployed customer-safe projection for the full frozen commercial/Finance basis is not evidenced. |
+| Payment facts | FINANCE BLOCKED | No exact customer-safe payment projection is deployed. Internal `get_order_payment_facts_v1` is not a Buyer substitute. |
+| Wallet facts | FINANCE BLOCKED | No deployed customer-safe wallet projection is evidenced. |
+| Credit facts | FINANCE BLOCKED | No deployed customer-safe credit projection is evidenced. |
+| Finance Operations Clearance | FINANCE BLOCKED | Internal clearance authority is not a customer-safe Buyer projection. |
+| PI state | CORE BLOCKED | `customer_proforma_invoice_facts_v1` is absent; the internal PI authority does not provide a Buyer-safe read contract. |
+| PI canonical number | CORE BLOCKED | The customer-safe allocator/numbering contract is absent from production; no number may be invented or predicted. |
+| Final invoice state | FINANCE BLOCKED | No exact Buyer-safe final-invoice projection is deployed. |
+| Customer documents | CORE BLOCKED | `customer_documents_v1` is absent from production. |
+| Customer statement | CORE BLOCKED | `customer_statement_v1` is absent from production. |
+| Durable favourites | CORE BLOCKED | No governed favourite RPC is present; legacy `public.user_favorites` is not an approved Buyer authority. |
+| General/non-order query | CORE BLOCKED | No order-optional customer query contract is deployed; order-linked support must not be repurposed. |
+| Existing order-linked support | VERIFIED DONE | `customer_support_tickets_v1` and `submit_customer_support_ticket_v1` are deployed and wrapped by `customerAppClient`. |
+| Requested dispatch | VERIFIED DONE | Existing checkout/status contracts carry the requested dispatch value. |
+| Promised dispatch | VERIFIED DONE | `customer_order_status_v1` carries the promised dispatch value when available. |
+| Buyer order status | VERIFIED DONE | `customer_order_status_v1` is the deployed customer-safe status projection. |
+| Dashboard action-required state | PARTIAL | Current payment-stage action labels are rendered safely; richer Finance-backed action state awaits the customer-safe Finance projection. |
+
+### Exact production/Core reconciliation
+
+The protected production Supabase project `tcxvcatsqqertcnycuop` is
+`ACTIVE_HEALTHY`, but its migration ceiling is `20260901004600`. The exact
+Tranche 5 Core migrations (`20260901005000` through `20260901005300`) are not
+deployed. Consequently the following exact customer-facing contracts are
+absent from production: `customer_sales_order_commercial_facts_v1`,
+`customer_proforma_invoice_facts_v1`, `customer_order_finance_facts_v1`,
+`customer_documents_v1`, `customer_statement_v1`, the customer favourites
+RPC family, and the customer query RPC family. Similar internal JSON or
+Finance functions are not substitutes and are not bound by Central.
+
+Core PR #163 (`c93ce0f80a85ed2da0204ff11426832a28b755cf`) contains the proposed
+authority migrations but remains open and blocked (`REVIEW_REQUIRED`) with
+six unresolved CodeRabbit threads. Core PR #168 independently uses migration
+version `20260901005000`, colliding with PR #163; this is recorded for Mission
+Control/Core reconciliation and is not changed by Central.
+
+An authenticated, non-production Buyer fixture suitable for a full golden path
+was not available. Therefore authenticated runtime certification is
+`RUNTIME CERTIFICATION BLOCKED`; no production order, ticket or other write was
+performed.
+
+### Tranche 5 local evidence
+
+- Buyer/client/presentation/auth focused suite: **55/55 PASS**.
+- TypeScript typecheck: **PASS**.
+- Scoped ESLint over Buyer/client/presentation/auth files: **PASS**.
+- Production build: **PASS** (repository Browserslist and chunk-size warnings
+  only).
+- Full `npm run test`: **FAIL — 281 test files passed, 5 failed (1,727 tests
+  passed, 5 failed; 1,732 tests total)**.
+  Every failure is in the out-of-scope WhatsApp governance surface
+  (`whatsappContextualAliasReuseAuditMigration`,
+  `whatsappAuthorizedChannelIntakeBoundaryMigration`,
+  `operatorInboxBoundedLoadGuard`,
+  `operatorInboxComposerReachabilityGuard`, and
+  `operatorInboxStage1Guard`). No WhatsApp files were modified.
+- Local Playwright authenticated certification: **RUNTIME CERTIFICATION
+  BLOCKED** because no safe authenticated Buyer fixture exists and production
+  mutation is unauthorized.
+
+This full-suite result is an explicit cross-scope dependency, not a Buyer
+frontend fix opportunity: **OUT-OF-SCOPE DEPENDENCY FOUND.**
+
+### Tranche 5 disposition
+
+**CENTRAL READY / CORE HANDOFF REQUIRED** — the established Buyer frontend is
+ready for currently deployed contracts, no safe Central binding work remains
+without the absent protected Core contracts, and no placeholder PR is created.
+Tranche 5 remains **IN PROGRESS — UPSTREAM CONTRACT BINDING REMAINS**. The next
+authorized step is protected Core reconciliation/deployment and authenticated
+runtime verification, followed by a narrowly scoped Central contract-binding
+change only after those exact contracts are verified in production.
 
 ## Historical Tranche 2 baseline and owner-approved policy
 
