@@ -434,17 +434,68 @@ test("FACT-E2E Gate 1B :: continuous golden order across RGS/Production/P&A/3PGS
     await switchRole(page, hodAssembly);
     const { client: reserveClient } = await createAuthenticatedCertificationClient(page);
 
-    // Top up the 3PGS store so the requirement is satisfiable (deterministic
-    // prerequisite stock adjustment via the same reservation-fixture pattern
-    // already used by seed-production-fixtures.mjs; not a governed business
-    // transition -- the requirement/reservation/issue/fulfilment/
-    // acknowledgement chain itself is proven exclusively through the
-    // governed RPCs below).
-    await reserveClient
+    // Top up the 3PGS store so the requirement is satisfiable. A raw
+    // authenticated UPDATE against inventory_stock_balances silently affects
+    // zero rows (RLS: no write grants outside governed RPCs, confirmed by
+    // this exact symptom on an earlier run of this spec) so the credit must
+    // go through the real governed opening-balance receipt chain:
+    // create_b2b_inventory_receipt -> record_b2b_inventory_receipt ->
+    // accept_b2b_inventory_receipt. This is itself a governed mutation (not
+    // a fixture bypass) -- it is the same path a real 3PGS opening-stock
+    // correction would use.
+    const pkgProductId = "20000000-0000-4000-8000-000000000201";
+    const pkgSku = "CERT-3PGS-PKG-001";
+    const createReceiptCorrelationId = `fact-e2e-golden-${RUN_SUFFIX}-3pgs-receipt-create`;
+    const { data: pkgReceipt, error: createReceiptError } = await reserveClient.rpc("create_b2b_inventory_receipt", {
+      p_receipt_number: `FACT-E2E-${RUN_SUFFIX}-3PGS-RCPT`,
+      p_receipt_source: "opening_balance",
+      p_destination_store_code: "3PGS",
+      p_source_document_type: "fact_e2e_golden_order",
+      p_source_document_reference: `FACT-E2E-GOLDEN-${RUN_SUFFIX}`,
+      p_lines: [{ product_id: pkgProductId, sku: pkgSku, expected_qty: 4 }],
+      p_correlation_id: createReceiptCorrelationId,
+    });
+    expect(createReceiptError, createReceiptError?.message).toBeNull();
+    record(ledger.stages, "3pgs_create_inventory_receipt", "create_b2b_inventory_receipt", "HOD_ASSEMBLY", createReceiptCorrelationId, "PASS", `receipt_id=${pkgReceipt?.id}`);
+
+    const { data: receiptLine } = await reserveClient
+      .from("b2b_inventory_receipt_lines")
+      .select("id")
+      .eq("receipt_id", pkgReceipt?.id)
+      .single();
+
+    const recordReceiptCorrelationId = `fact-e2e-golden-${RUN_SUFFIX}-3pgs-receipt-record`;
+    const { error: recordReceiptError } = await reserveClient.rpc("record_b2b_inventory_receipt", {
+      p_receipt_id: pkgReceipt?.id,
+      p_lines: [{ line_id: receiptLine?.id, received_qty: 4 }],
+      p_correlation_id: recordReceiptCorrelationId,
+    });
+    expect(recordReceiptError, recordReceiptError?.message).toBeNull();
+    record(ledger.stages, "3pgs_record_inventory_receipt", "record_b2b_inventory_receipt", "HOD_ASSEMBLY", recordReceiptCorrelationId, "PASS", "received_qty=4");
+
+    const { data: existingBalance } = await reserveClient
       .from("inventory_stock_balances")
-      .update({ available_qty: 4 })
-      .eq("product_id", "20000000-0000-4000-8000-000000000201")
-      .eq("location_code", "3PGS");
+      .select("version")
+      .eq("product_id", pkgProductId)
+      .eq("location_code", "3PGS")
+      .maybeSingle();
+
+    const acceptReceiptCorrelationId = `fact-e2e-golden-${RUN_SUFFIX}-3pgs-receipt-accept`;
+    const { error: acceptReceiptError } = await reserveClient.rpc("accept_b2b_inventory_receipt", {
+      p_receipt_id: pkgReceipt?.id,
+      p_lines: [
+        {
+          line_id: receiptLine?.id,
+          accepted_qty: 4,
+          damaged_qty: 0,
+          rejected_qty: 0,
+          expected_balance_version: existingBalance?.version ?? 0,
+        },
+      ],
+      p_correlation_id: acceptReceiptCorrelationId,
+    });
+    expect(acceptReceiptError, acceptReceiptError?.message).toBeNull();
+    record(ledger.stages, "3pgs_accept_inventory_receipt", "accept_b2b_inventory_receipt", "HOD_ASSEMBLY", acceptReceiptCorrelationId, "PASS", "accepted_qty=4");
 
     const { data: requirementRow } = await reserveClient
       .from("b2b_assembly_3pgs_requirements")
