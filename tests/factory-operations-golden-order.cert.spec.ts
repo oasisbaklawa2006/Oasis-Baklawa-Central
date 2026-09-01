@@ -305,18 +305,25 @@ test("FACT-E2E Gate 1B :: continuous golden order across RGS/Production/P&A/3PGS
     rgsTransferId = transfer?.id as string;
     record(ledger.stages, "custody_dispatch_to_rgs", "dispatch_production_to_rgs", "PROD_ARABIC_SWEETS", dispatchCorrelationId, "PASS", `transfer_id=${rgsTransferId}`);
 
+    // record_rgs_receipt requires an inventory-receive role (is_inventory_receive_role):
+    // SUPER_ADMIN/ADMIN/OPERATIONS_MANAGER/PRODUCTION_MANAGER/STORE_INCHARGE/
+    // STORE_READY_GOODS/RGS_ADMIN/INVENTORY_MANAGER -- not general internal
+    // staff, so this is the RGS receiving actor, not the production actor
+    // who dispatched.
+    await switchRole(page, storeReadyGoods);
+    const { client: rgsReceiptClient } = await createAuthenticatedCertificationClient(page);
     const receiptCorrelationId = `fact-e2e-golden-${RUN_SUFFIX}-receipt`;
-    const { error: receiptError } = await client.rpc("record_rgs_receipt", {
+    const { error: receiptError } = await rgsReceiptClient.rpc("record_rgs_receipt", {
       p_transfer_id: rgsTransferId,
       p_received_qty: producedQty,
       p_correlation_id: receiptCorrelationId,
     });
     expect(receiptError, receiptError?.message).toBeNull();
-    record(ledger.stages, "custody_record_receipt", "record_rgs_receipt", "PROD_ARABIC_SWEETS", receiptCorrelationId, "PASS", `received_qty=${producedQty}`);
+    record(ledger.stages, "custody_record_receipt", "record_rgs_receipt", "STORE_READY_GOODS", receiptCorrelationId, "PASS", `received_qty=${producedQty}`);
 
     // NEGATIVE: cannot accept a receipt that was never recorded.
     const bogusAcceptCorrelationId = `fact-e2e-golden-${RUN_SUFFIX}-bogus-accept`;
-    const { error: bogusAcceptError } = await client.rpc("accept_rgs_production_receipt", {
+    const { error: bogusAcceptError } = await rgsReceiptClient.rpc("accept_rgs_production_receipt", {
       p_transfer_id: "00000000-0000-0000-0000-000000000000",
       p_accepted_qty: producedQty,
       p_rejected_qty: 0,
@@ -325,10 +332,9 @@ test("FACT-E2E Gate 1B :: continuous golden order across RGS/Production/P&A/3PGS
       p_correlation_id: bogusAcceptCorrelationId,
     });
     expect(bogusAcceptError, "accepting a non-existent transfer must be rejected").not.toBeNull();
-    record(ledger.negative_paths, "accept_unrecorded_receipt_rejected", "accept_rgs_production_receipt", "PROD_ARABIC_SWEETS", bogusAcceptCorrelationId, bogusAcceptError ? "PASS" : "FAIL", bogusAcceptError?.message ?? "RPC unexpectedly succeeded");
+    record(ledger.negative_paths, "accept_unrecorded_receipt_rejected", "accept_rgs_production_receipt", "STORE_READY_GOODS", bogusAcceptCorrelationId, bogusAcceptError ? "PASS" : "FAIL", bogusAcceptError?.message ?? "RPC unexpectedly succeeded");
 
-    await switchRole(page, storeReadyGoods);
-    const { client: rgsClient } = await createAuthenticatedCertificationClient(page);
+    const rgsClient = rgsReceiptClient;
     const acceptCorrelationId = `fact-e2e-golden-${RUN_SUFFIX}-accept-receipt`;
     const { error: acceptError } = await rgsClient.rpc("accept_rgs_production_receipt", {
       p_transfer_id: rgsTransferId,
