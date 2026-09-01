@@ -45,19 +45,35 @@ function shellQuote(value) {
 
 const buyerPassword = password();
 
-const { data, error } = await supabase.auth.admin.createUser({
-  id: BUYER_ID,
-  email: BUYER_EMAIL,
-  password: buyerPassword,
-  email_confirm: true,
-  user_metadata: {
-    buyer_certification: true,
-    synthetic_fixture: true,
-    non_production: true,
-  },
-});
-assertNoSupabaseError(error, `Auth Admin createUser failed for ${BUYER_EMAIL}`);
-if (!data?.user?.id) throw new Error(`Auth Admin API did not return an id for ${BUYER_EMAIL}`);
+const { data: existingBuyer, error: existingBuyerError } = await supabase.auth.admin.getUserById(BUYER_ID);
+assertNoSupabaseError(existingBuyerError, `Auth Admin getUserById failed for ${BUYER_EMAIL}`);
+if (existingBuyer?.user?.id) {
+  const { error: updateError } = await supabase.auth.admin.updateUserById(BUYER_ID, {
+    email: BUYER_EMAIL,
+    password: buyerPassword,
+    email_confirm: true,
+    user_metadata: {
+      buyer_certification: true,
+      synthetic_fixture: true,
+      non_production: true,
+    },
+  });
+  assertNoSupabaseError(updateError, `Auth Admin updateUserById failed for ${BUYER_EMAIL}`);
+} else {
+  const { data, error } = await supabase.auth.admin.createUser({
+    id: BUYER_ID,
+    email: BUYER_EMAIL,
+    password: buyerPassword,
+    email_confirm: true,
+    user_metadata: {
+      buyer_certification: true,
+      synthetic_fixture: true,
+      non_production: true,
+    },
+  });
+  assertNoSupabaseError(error, `Auth Admin createUser failed for ${BUYER_EMAIL}`);
+  if (!data?.user?.id) throw new Error(`Auth Admin API did not return an id for ${BUYER_EMAIL}`);
+}
 
 const sqlPath = join(dirname(fileURLToPath(import.meta.url)), "seed-synthetic-buyer.sql");
 

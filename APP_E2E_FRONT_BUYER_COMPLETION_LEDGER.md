@@ -486,16 +486,33 @@ historical evidence above.
 
 ### Authenticated runtime gate
 
-The Core production authority and protected deployment are closed, but an
-authenticated Buyer golden-path run is **NOT EVIDENCED**. Repository and CI
-inspection found no sanctioned Buyer storage state or documented synthetic
-fixture; `CUSTOMER_EMAIL`/`CUSTOMER_PASSWORD` secret names are not referenced
-by a Buyer certification workflow. Local Supabase CLI/Docker is unavailable,
-and production mutation is unauthorized. Therefore mobile 375/390/430 runtime
-certification and the complete authenticated Buyer → SO → Finance → PI →
-documents/statement path remain a release gate, not a software defect.
+Disposable Buyer golden-path certification is **PASS** on branch head
+`9f407a6b50b437b753161807480bdf880dceefdf` via GitHub Actions run
+`33568644666` (job `100057501195`).
 
-**Tranche 5 status: SOFTWARE READY — DISPOSABLE BUYER GOLDEN-PATH CERTIFICATION WIRED.**
+| Viewport | Result | Evidence |
+|---|---|---|
+| 375 px (`mobile-375`) | **PASS** | `buyer-golden-path-evidence-mobile-375.json` |
+| 390 px (`mobile-390`) | **PASS** | `buyer-golden-path-evidence-mobile-390.json` |
+| 430 px (`mobile-430`) | **PASS** | `buyer-golden-path-evidence-mobile-430.json` |
+
+Fixture/environment:
+
+- Synthetic Buyer `synthetic.buyer.cert@oasis-disposable.test` /
+  `30000000-0000-4000-8000-000000000010`
+- Company `SYNTHETIC BUYER CERTIFICATION CO` with pre-seeded `SO-CERT-PRESEED-001`
+- Disposable local Core replay at `http://127.0.0.1:54321`
+- Central preview at `http://127.0.0.1:4173`
+- Environment id `buyer-cert-gha-33568644666-1`
+
+Golden path exercised at all three widths:
+login → dashboard → catalogue → product detail → cart → submit order → order
+detail → documents/statement → logout.
+
+Machine-readable artifacts uploaded as `buyer-golden-path-33568644666-1`.
+No production Supabase host, schema, or customer identity was mutated.
+
+**Tranche 5 status: RUNTIME GATE PASS — DISPOSABLE BUYER GOLDEN-PATH CERTIFIED.**
 
 Authenticated runtime evidence is produced by
 `.github/workflows/buyer-golden-path-certification.yml` against a synthetic Buyer
