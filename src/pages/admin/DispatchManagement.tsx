@@ -363,6 +363,19 @@ export default function DispatchManagement() {
   const currentDplVersion = dplVersions.find((v) => v.status !== "superseded") ?? null;
   const supersededVersions = dplVersions.filter((v) => v.status === "superseded");
 
+  const confirmAuthoritativeRefresh = useCallback(
+    async (refresh: () => Promise<unknown>, failureMessage: string) => {
+      try {
+        await refresh();
+        return true;
+      } catch {
+        toast.error(failureMessage);
+        return false;
+      }
+    },
+    [],
+  );
+
   const handleCreateConsignment = async () => {
     const trimmedOrderId = orderId.trim();
     const trimmedOrderItemId = orderItemId.trim();
@@ -384,13 +397,12 @@ export default function DispatchManagement() {
         p_correlation_id: createCorrelationId,
       });
       if (rpcError) throw new Error(rpcError.message);
-      try {
-        await fetchRows();
-      } catch (refreshErr) {
-        console.error("Authoritative refresh failed after a successful mutation:", refreshErr);
-        toast.error(
+      if (
+        !(await confirmAuthoritativeRefresh(
+          () => fetchRows(),
           "Consignment created, but the consignment list could not be refreshed. Reload and verify before retrying.",
-        );
+        ))
+      ) {
         return;
       }
       toast.success("Governed dispatch consignment created.");
@@ -418,13 +430,12 @@ export default function DispatchManagement() {
         p_carton_code: trimmedCartonCode,
       });
       if (rpcError) throw new Error(rpcError.message);
-      try {
-        await Promise.all([fetchRows(), refreshWorkingConsignment(workingConsignmentId)]);
-      } catch (refreshErr) {
-        console.error("Authoritative refresh failed after a successful mutation:", refreshErr);
-        toast.error(
+      if (
+        !(await confirmAuthoritativeRefresh(
+          () => Promise.all([fetchRows(), refreshWorkingConsignment(workingConsignmentId)]),
           "Carton opened, but the consignment view could not be refreshed. Reload and verify before retrying.",
-        );
+        ))
+      ) {
         return;
       }
       toast.success("Carton opened.");
@@ -471,13 +482,12 @@ export default function DispatchManagement() {
       } else {
         toast.error(`Scan rejected (${data?.scan_result ?? "unknown"})${data?.reason ? `: ${data.reason}` : ""}`);
       }
-      try {
-        await Promise.all([fetchRows(), refreshWorkingConsignment(workingConsignmentId), refreshCartonDetail(selectedCartonId)]);
-      } catch (refreshErr) {
-        console.error("Authoritative refresh failed after a successful mutation:", refreshErr);
-        toast.error(
+      if (
+        !(await confirmAuthoritativeRefresh(
+          () => Promise.all([fetchRows(), refreshWorkingConsignment(workingConsignmentId), refreshCartonDetail(selectedCartonId)]),
           "Scan recorded, but the authoritative view could not be refreshed. Reload before retrying -- do not rescan.",
-        );
+        ))
+      ) {
         return;
       }
       setScanBarcode("");
@@ -552,13 +562,12 @@ export default function DispatchManagement() {
       // by the governed record -- do not delete it even if the refresh
       // below fails.
       uploadedPath = null;
-      try {
-        await Promise.all([fetchRows(), refreshWorkingConsignment(workingConsignmentId), refreshCartonDetail(selectedCartonId)]);
-      } catch (refreshErr) {
-        console.error("Authoritative refresh failed after a successful mutation:", refreshErr);
-        toast.error(
+      if (
+        !(await confirmAuthoritativeRefresh(
+          () => Promise.all([fetchRows(), refreshWorkingConsignment(workingConsignmentId), refreshCartonDetail(selectedCartonId)]),
           "Evidence recorded, but the authoritative view could not be refreshed. Reload before retrying.",
-        );
+        ))
+      ) {
         return;
       }
       toast.success("Evidence recorded.");
@@ -589,13 +598,12 @@ export default function DispatchManagement() {
         p_correlation_id: lockCorrelationId,
       });
       if (rpcError) throw new Error(rpcError.message);
-      try {
-        await Promise.all([fetchRows(), refreshWorkingConsignment(workingConsignmentId), refreshCartonDetail(selectedCarton.id)]);
-      } catch (refreshErr) {
-        console.error("Authoritative refresh failed after a successful mutation:", refreshErr);
-        toast.error(
+      if (
+        !(await confirmAuthoritativeRefresh(
+          () => Promise.all([fetchRows(), refreshWorkingConsignment(workingConsignmentId), refreshCartonDetail(selectedCarton.id)]),
           "Carton locked, but the authoritative view could not be refreshed. Reload before retrying.",
-        );
+        ))
+      ) {
         return;
       }
       toast.success("Carton locked.");
@@ -619,13 +627,12 @@ export default function DispatchManagement() {
         p_correlation_id: dplCreateCorrelationId,
       });
       if (rpcError) throw new Error(rpcError.message);
-      try {
-        await Promise.all([fetchRows(), refreshWorkingConsignment(workingConsignmentId)]);
-      } catch (refreshErr) {
-        console.error("Authoritative refresh failed after a successful mutation:", refreshErr);
-        toast.error(
+      if (
+        !(await confirmAuthoritativeRefresh(
+          () => Promise.all([fetchRows(), refreshWorkingConsignment(workingConsignmentId)]),
           "Packing list generated, but the authoritative view could not be refreshed. Reload before retrying.",
-        );
+        ))
+      ) {
         return;
       }
       toast.success("Packing list generated.");
@@ -656,13 +663,12 @@ export default function DispatchManagement() {
         p_correlation_id: supersedeCorrelationId,
       });
       if (rpcError) throw new Error(rpcError.message);
-      try {
-        await Promise.all([fetchRows(), refreshWorkingConsignment(workingConsignmentId)]);
-      } catch (refreshErr) {
-        console.error("Authoritative refresh failed after a successful mutation:", refreshErr);
-        toast.error(
+      if (
+        !(await confirmAuthoritativeRefresh(
+          () => Promise.all([fetchRows(), refreshWorkingConsignment(workingConsignmentId)]),
           "Packing list corrected, but the authoritative view could not be refreshed. Reload before retrying.",
-        );
+        ))
+      ) {
         return;
       }
       toast.success("Packing list corrected with a new version.");
@@ -688,13 +694,12 @@ export default function DispatchManagement() {
         p_correlation_id: dplSubmitCorrelationId,
       });
       if (rpcError) throw new Error(rpcError.message);
-      try {
-        await Promise.all([fetchRows(), refreshWorkingConsignment(workingConsignmentId)]);
-      } catch (refreshErr) {
-        console.error("Authoritative refresh failed after a successful mutation:", refreshErr);
-        toast.error(
+      if (
+        !(await confirmAuthoritativeRefresh(
+          () => Promise.all([fetchRows(), refreshWorkingConsignment(workingConsignmentId)]),
           "Packing list submitted to Finance, but the authoritative view could not be refreshed. Reload to confirm before retrying.",
-        );
+        ))
+      ) {
         return;
       }
       toast.success("Packing list submitted to Finance.");
