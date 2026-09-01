@@ -247,8 +247,11 @@ describe("Buyer App governed commercial handoff", () => {
     await waitFor(() => expect(screen.getByRole("heading", { name: "Your cart" })).toBeTruthy());
   });
 
-  it("fails closed when a product has no usable customer price", async () => {
-    buyerMock.prices.mockResolvedValue([{ ...buyerMock.price, selling_price: Number.NaN }]);
+  it.each([
+    ["NaN", Number.NaN],
+    ["null", null as unknown as number],
+  ])("fails closed when a product has no usable customer price (%s)", async (_label, sellingPrice) => {
+    buyerMock.prices.mockResolvedValue([{ ...buyerMock.price, selling_price: sellingPrice }]);
     render(<MemoryRouter initialEntries={["/buyer/catalogue"]}><BuyerApp /></MemoryRouter>);
 
     expect(await screen.findByText("Pricing unavailable for this account.")).toBeTruthy();

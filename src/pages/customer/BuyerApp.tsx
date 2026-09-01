@@ -211,7 +211,7 @@ function BuyerSupportFab() {
 function ProductCard({ product, price, onAdd, onBuy, onView }: { product: Product; price?: BuyerPrice; onAdd: (id: string, quantity: number) => Promise<unknown>; onBuy: (id: string, quantity: number) => Promise<unknown>; onView: (id: string) => void }) {
   const minimum = positiveNumber(price?.minimum_order_quantity);
   const increment = positiveNumber(price?.order_increment);
-  const hasUsablePrice = Boolean(price && Number.isFinite(Number(price.selling_price)));
+  const hasUsablePrice = Boolean(price && typeof price.selling_price === "number" && Number.isFinite(price.selling_price));
   const [quantity, setQuantity] = useState(minimum);
   const [busy, setBusy] = useState(false);
   useEffect(() => { setQuantity(minimum); }, [minimum]);
@@ -299,7 +299,7 @@ function ProductDetail({ data, productId }: { data: ReturnType<typeof useBuyerDa
   const price = data.prices.find((item) => item.product_id === productId);
   const minimum = positiveNumber(price?.minimum_order_quantity);
   const increment = positiveNumber(price?.order_increment);
-  const hasUsablePrice = Boolean(price && Number.isFinite(Number(price.selling_price)));
+  const hasUsablePrice = Boolean(price && typeof price.selling_price === "number" && Number.isFinite(price.selling_price));
   const [quantity, setQuantity] = useState(minimum);
   const [adding, setAdding] = useState(false);
   useEffect(() => { setQuantity(minimum); }, [minimum]);
