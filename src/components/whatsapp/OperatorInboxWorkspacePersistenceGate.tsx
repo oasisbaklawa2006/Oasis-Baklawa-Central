@@ -58,7 +58,9 @@ export function OperatorInboxWorkspacePersistenceGate({ children }: { children: 
     const timeout = new Promise<never>((_, reject) => {
       controller.signal.addEventListener(
         "abort",
-        () => reject(new Error("WA_OPERATOR_WORKSPACE_HYDRATION_TIMEOUT")),
+        () => {
+          reject(new Error("WA_OPERATOR_WORKSPACE_HYDRATION_TIMEOUT"));
+        },
         { once: true },
       );
     });
