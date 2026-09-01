@@ -60,13 +60,46 @@ assertNoSupabaseError(error, `Auth Admin createUser failed for ${BUYER_EMAIL}`);
 if (!data?.user?.id) throw new Error(`Auth Admin API did not return an id for ${BUYER_EMAIL}`);
 
 const sqlPath = join(dirname(fileURLToPath(import.meta.url)), "seed-synthetic-buyer.sql");
-const seed = spawnSync("supabase", ["db", "execute", "--local", "-f", sqlPath], {
-  cwd: coreRepo,
-  encoding: "utf8",
-});
-if (seed.status !== 0) {
-  throw new Error(`Synthetic buyer SQL seed failed:\n${seed.stdout}\n${seed.stderr}`);
+
+function runSqlSeedFile() {
+  const query = spawnSync("supabase", ["db", "query", "--file", sqlPath], {
+    cwd: coreRepo,
+    encoding: "utf8",
+  });
+  if (query.status === 0) return;
+
+  const status = spawnSync("supabase", ["status", "-o", "env"], {
+    cwd: coreRepo,
+    encoding: "utf8",
+  });
+  if (status.status !== 0) {
+    throw new Error(
+      `Synthetic buyer SQL seed failed (supabase db query):\n${query.stdout}\n${query.stderr}`,
+    );
+  }
+
+  const dbUrl = status.stdout
+    .split("\n")
+    .map((line) => line.trim())
+    .find((line) => line.startsWith("DB_URL="))
+    ?.slice("DB_URL=".length);
+  if (!dbUrl) {
+    throw new Error(
+      `Synthetic buyer SQL seed failed and DB_URL was unavailable:\n${query.stdout}\n${query.stderr}`,
+    );
+  }
+
+  const psql = spawnSync("psql", [dbUrl, "-v", "ON_ERROR_STOP=1", "-f", sqlPath], {
+    encoding: "utf8",
+  });
+  if (psql.status !== 0) {
+    throw new Error(
+      `Synthetic buyer SQL seed failed:\n${query.stdout}\n${query.stderr}\n${psql.stdout}\n${psql.stderr}`,
+    );
+  }
 }
+
+runSqlSeedFile();
 
 const credentialLines = [
   `export TEST_BUYER_EMAIL=${shellQuote(BUYER_EMAIL)}`,
