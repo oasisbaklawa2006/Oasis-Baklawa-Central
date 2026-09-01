@@ -25,16 +25,22 @@ export function OperatorInboxWorkspacePersistenceGate({ children }: { children: 
     if (processingRef.current) return;
     processingRef.current = true;
     try {
-      for (const mutation of loadPendingOperatorWorkspaceMutations()) {
-        try {
-          await persistOperatorWorkspaceMutation(mutation);
-          removePendingOperatorWorkspaceMutation(mutation.id);
-          if (mountedRef.current) setSyncError(null);
-        } catch (caught) {
-          if (mountedRef.current) {
-            setSyncError(caught instanceof Error ? caught.message : "Operator workspace sync failed");
+      let blocked = false;
+      while (!blocked) {
+        const pending = loadPendingOperatorWorkspaceMutations();
+        if (pending.length === 0) break;
+        for (const mutation of pending) {
+          try {
+            await persistOperatorWorkspaceMutation(mutation);
+            removePendingOperatorWorkspaceMutation(mutation.id);
+            if (mountedRef.current) setSyncError(null);
+          } catch (caught) {
+            if (mountedRef.current) {
+              setSyncError(caught instanceof Error ? caught.message : "Operator workspace sync failed");
+            }
+            blocked = true;
+            break;
           }
-          break;
         }
       }
     } finally {
@@ -62,9 +68,12 @@ export function OperatorInboxWorkspacePersistenceGate({ children }: { children: 
         timeout,
       ]);
       if (!mountedRef.current) return;
-      reconcileOperatorWorkspaceCaches(snapshot, loadPendingOperatorWorkspaceMutations());
+      const reconciliationError = reconcileOperatorWorkspaceCaches(
+        snapshot,
+        loadPendingOperatorWorkspaceMutations(),
+      );
       setReady(true);
-      setSyncError(null);
+      setSyncError(reconciliationError);
     } catch (caught) {
       if (!mountedRef.current) return;
       setSyncError(caught instanceof Error ? caught.message : "Operator workspace hydration failed");
@@ -87,17 +96,20 @@ export function OperatorInboxWorkspacePersistenceGate({ children }: { children: 
       void hydrateWorkspace();
       void processQueue();
     };
+    const flushQueue = () => {
+      void processQueue();
+    };
     const reportQueueError = (event: Event) => {
       const { message } = (event as CustomEvent<{ message?: string }>).detail;
       setSyncError(message ?? "Operator workspace queue requires synchronization");
     };
 
-    window.addEventListener(OPERATOR_WORKSPACE_MUTATION_EVENT, triggerSync);
+    window.addEventListener(OPERATOR_WORKSPACE_MUTATION_EVENT, flushQueue);
     window.addEventListener(OPERATOR_WORKSPACE_SYNC_ERROR_EVENT, reportQueueError);
     window.addEventListener("online", triggerSync);
     const timer = window.setInterval(triggerSync, RETRY_MS);
     return () => {
-      window.removeEventListener(OPERATOR_WORKSPACE_MUTATION_EVENT, triggerSync);
+      window.removeEventListener(OPERATOR_WORKSPACE_MUTATION_EVENT, flushQueue);
       window.removeEventListener(OPERATOR_WORKSPACE_SYNC_ERROR_EVENT, reportQueueError);
       window.removeEventListener("online", triggerSync);
       window.clearInterval(timer);
