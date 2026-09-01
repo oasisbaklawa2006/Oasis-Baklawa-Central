@@ -46,7 +46,12 @@ function shellQuote(value) {
 const buyerPassword = password();
 
 const { data: existingBuyer, error: existingBuyerError } = await supabase.auth.admin.getUserById(BUYER_ID);
-assertNoSupabaseError(existingBuyerError, `Auth Admin getUserById failed for ${BUYER_EMAIL}`);
+if (existingBuyerError) {
+  const message = String(existingBuyerError.message || existingBuyerError);
+  if (!/not found/i.test(message)) {
+    assertNoSupabaseError(existingBuyerError, `Auth Admin getUserById failed for ${BUYER_EMAIL}`);
+  }
+}
 if (existingBuyer?.user?.id) {
   const { error: updateError } = await supabase.auth.admin.updateUserById(BUYER_ID, {
     email: BUYER_EMAIL,
