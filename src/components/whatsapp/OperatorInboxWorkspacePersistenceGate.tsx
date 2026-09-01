@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import { supabase } from "@/integrations/supabase/client";
+import { bindOperatorWorkspaceStorageToActor } from "./operatorInboxWorkspaceActorScope";
 import { reconcileOperatorWorkspaceCaches } from "./operatorInboxWorkspaceHydration";
 import {
   fetchOperatorWorkspaceServerSnapshot,
@@ -19,10 +21,11 @@ export function OperatorInboxWorkspacePersistenceGate({ children }: { children: 
   const [syncError, setSyncError] = useState<string | null>(null);
   const processingRef = useRef(false);
   const hydratingRef = useRef(false);
+  const actorBoundRef = useRef(false);
   const mountedRef = useRef(true);
 
   const processQueue = useCallback(async () => {
-    if (processingRef.current) return;
+    if (!actorBoundRef.current || processingRef.current) return;
     processingRef.current = true;
     try {
       let blocked = false;
@@ -49,7 +52,7 @@ export function OperatorInboxWorkspacePersistenceGate({ children }: { children: 
   }, []);
 
   const hydrateWorkspace = useCallback(async () => {
-    if (hydratingRef.current) return;
+    if (!actorBoundRef.current || hydratingRef.current) return;
     hydratingRef.current = true;
     const controller = new AbortController();
     const timeoutId = window.setTimeout(() => {
@@ -87,8 +90,26 @@ export function OperatorInboxWorkspacePersistenceGate({ children }: { children: 
 
   useEffect(() => {
     mountedRef.current = true;
-    void hydrateWorkspace().then(() => processQueue());
+    let cancelled = false;
+
+    void supabase.auth.getUser().then(({ data, error }) => {
+      if (cancelled || !mountedRef.current) return;
+      if (error || !data.user) {
+        setSyncError(error?.message ?? "WA_OPERATOR_WORKSPACE_AUTH_REQUIRED");
+        return;
+      }
+      try {
+        bindOperatorWorkspaceStorageToActor(data.user.id);
+        actorBoundRef.current = true;
+        void hydrateWorkspace().then(() => processQueue());
+      } catch (caught) {
+        setSyncError(caught instanceof Error ? caught.message : "WA_OPERATOR_WORKSPACE_ACTOR_BIND_FAILED");
+      }
+    });
+
     return () => {
+      cancelled = true;
+      actorBoundRef.current = false;
       mountedRef.current = false;
     };
   }, [hydrateWorkspace, processQueue]);
