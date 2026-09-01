@@ -423,8 +423,16 @@ test("FACT-E2E Gate 1B :: continuous golden order across RGS/Production/P&A/3PGS
   // invoked internally by acknowledge_3pgs_requirement_receipt once genuine
   // acknowledged custody evidence exists. ----
   await test.step("3PGS: reserve_3pgs_requirement_stock -> issue_rgs_stock -> acknowledge_3pgs_requirement_receipt", async () => {
-    await switchRole(page, store3rdParty);
-    const { client } = await createAuthenticatedCertificationClient(page);
+    // reserve_3pgs_requirement_stock's own gate (can_manage_b2b_inventory)
+    // accepts STORE_3RD_PARTY, but it calls reserve_rgs_stock() internally,
+    // which requires is_inventory_manage_role() or is_inventory_receive_role()
+    // -- neither list includes STORE_3RD_PARTY, only HOD_ASSEMBLY (among the
+    // roles this spec holds credentials for). issue_rgs_stock only requires
+    // is_internal_staff, so it stays on the 3PGS actor; the acknowledger
+    // (HOD_ASSEMBLY) must differ from the issuer per the separation-of-duties
+    // check inside acknowledge_3pgs_requirement_receipt.
+    await switchRole(page, hodAssembly);
+    const { client: reserveClient } = await createAuthenticatedCertificationClient(page);
 
     // Top up the 3PGS store so the requirement is satisfiable (deterministic
     // prerequisite stock adjustment via the same reservation-fixture pattern
@@ -432,13 +440,13 @@ test("FACT-E2E Gate 1B :: continuous golden order across RGS/Production/P&A/3PGS
     // transition -- the requirement/reservation/issue/fulfilment/
     // acknowledgement chain itself is proven exclusively through the
     // governed RPCs below).
-    await client
+    await reserveClient
       .from("inventory_stock_balances")
       .update({ available_qty: 4 })
       .eq("product_id", "20000000-0000-4000-8000-000000000201")
       .eq("location_code", "3PGS");
 
-    const { data: requirementRow } = await client
+    const { data: requirementRow } = await reserveClient
       .from("b2b_assembly_3pgs_requirements")
       .select("requirement_number")
       .eq("id", pkgRequirementId)
@@ -446,14 +454,16 @@ test("FACT-E2E Gate 1B :: continuous golden order across RGS/Production/P&A/3PGS
     const requirementNumber = requirementRow?.requirement_number as string;
 
     const reserveCorrelationId = `fact-e2e-golden-${RUN_SUFFIX}-3pgs-reserve`;
-    const { data: pkgReservation, error: reserveError } = await client.rpc("reserve_3pgs_requirement_stock", {
+    const { data: pkgReservation, error: reserveError } = await reserveClient.rpc("reserve_3pgs_requirement_stock", {
       p_requirement_id: pkgRequirementId,
       p_priority: "normal",
       p_correlation_id: reserveCorrelationId,
     });
     expect(reserveError, reserveError?.message).toBeNull();
-    record(ledger.stages, "3pgs_reserve_requirement", "reserve_3pgs_requirement_stock", "STORE_3RD_PARTY", reserveCorrelationId, "PASS", `reservation_id=${pkgReservation?.id}`);
+    record(ledger.stages, "3pgs_reserve_requirement", "reserve_3pgs_requirement_stock", "HOD_ASSEMBLY", reserveCorrelationId, "PASS", `reservation_id=${pkgReservation?.id}`);
 
+    await switchRole(page, store3rdParty);
+    const { client } = await createAuthenticatedCertificationClient(page);
     const issueCorrelationId = `fact-e2e-golden-${RUN_SUFFIX}-3pgs-issue`;
     const { data: pkgIssueEvent, error: issueError } = await client.rpc("issue_rgs_stock", {
       p_reservation_id: pkgReservation?.id,
