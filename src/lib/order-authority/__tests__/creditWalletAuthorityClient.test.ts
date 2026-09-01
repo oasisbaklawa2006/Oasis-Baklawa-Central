@@ -94,8 +94,10 @@ describe("PF-6B Central credit, wallet and exposure authority contract", () => {
     expect(salesDashboard).toContain("getWalletBalance");
     expect(salesDashboard).toContain('wallet_balance: null');
     expect(salesDashboard).not.toContain("wallet_balance || 0");
-    expect(accounts).toContain("getWalletBalance");
-    expect(accounts).toContain("Canonical Core wallet balance unavailable");
+
+    expect(accounts).toContain("getFinanceExitFacts");
+    expect(accounts).toContain("facts?.settlement");
+    expect(accounts).not.toContain("getWalletBalance");
     expect(accounts).not.toContain("wallet_balance ?? 0");
   });
 
