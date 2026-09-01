@@ -128,6 +128,7 @@ const LOCKED_CARTON_STATUSES = new Set([
   "handed_over",
 ]);
 
+/** Dropdown of governed consignments; selecting one drives all downstream carton/DPL panels below. */
 function ConsignmentSelect({
   id,
   rows,
@@ -155,6 +156,12 @@ function ConsignmentSelect({
   );
 }
 
+/**
+ * Canonical governed operator surface for the FACT-C1/FACT-C2 Dispatch RPC chain: consignment
+ * and carton creation, barcode/batch scanning, weight/photo evidence, carton locking, DPL
+ * generation and supersession, and Finance submission. This is the sole screen authorized to
+ * mutate B2B carton, packing-list, and packed-quantity state (see `blockLegacyB2bCartonDplMutation`).
+ */
 export default function DispatchManagement() {
   const [rows, setRows] = useState<ShipmentExecutionRow[]>([]);
   const [loading, setLoading] = useState(true);

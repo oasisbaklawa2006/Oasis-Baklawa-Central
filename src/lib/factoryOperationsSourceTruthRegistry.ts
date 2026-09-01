@@ -192,10 +192,12 @@ export const FACTORY_SOURCE_TRUTH: FactorySourceTruthEntry[] = [
   },
 ];
 
+/** All registry entries (authoritative and non-authoritative) for one subsystem. */
 export function factoryTruthForSubsystem(subsystem: FactoryTruthSubsystem): FactorySourceTruthEntry[] {
   return FACTORY_SOURCE_TRUTH.filter((entry) => entry.subsystem === subsystem);
 }
 
+/** Only the entries for a subsystem that hold live write authority, excluding dead/legacy projections. */
 export function authoritativeFactoryTruthForSubsystem(subsystem: FactoryTruthSubsystem): FactorySourceTruthEntry[] {
   return factoryTruthForSubsystem(subsystem).filter((entry) => entry.status === "AUTHORITATIVE");
 }

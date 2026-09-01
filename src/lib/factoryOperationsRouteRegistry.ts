@@ -652,6 +652,7 @@ export const FACTORY_OPERATIONS_ROUTES: FactoryRouteEntry[] = [
 /** Routes actually in scope for Factory Operations certification. */
 export const CERTIFIABLE_STATUSES: FactoryRouteStatus[] = ["FACTORY_CURRENT"];
 
+/** Routes eligible for Factory Operations certification (excludes legacy/preview/out-of-scope entries). */
 export const getFactoryRoutesCurrentOnly = () =>
   FACTORY_OPERATIONS_ROUTES.filter(r => CERTIFIABLE_STATUSES.includes(r.status));
 
@@ -663,6 +664,7 @@ export const FACTORY_ROUTES_LEGACY_COUNT = FACTORY_OPERATIONS_ROUTES.filter(r =>
 export const FACTORY_ROUTES_PREVIEW_COUNT = FACTORY_OPERATIONS_ROUTES.filter(r => r.status === "FACTORY_PREVIEW").length;
 export const FACTORY_ROUTES_OUT_OF_SCOPE_COUNT = FACTORY_OPERATIONS_ROUTES.filter(r => r.status === "FACTORY_RELATED_BUT_OUT_OF_SCOPE").length;
 
+/** Certifiable current-scope routes for one Factory subsystem. */
 export const getFactoryRoutesBySubsystem = (subsystem: FactorySubsystem) =>
   FACTORY_OPERATIONS_ROUTES.filter(r => r.subsystem === subsystem && CERTIFIABLE_STATUSES.includes(r.status));
 

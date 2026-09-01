@@ -252,6 +252,23 @@ describe("DispatchManagement (FACT-C3 governed operator workflow)", () => {
     expect(rpcMock).not.toHaveBeenCalled();
   });
 
+  it("rejects blank net/gross weight before any RPC call or upload, surfacing the required-weight error", async () => {
+    render(<DispatchManagement />);
+    await screen.findByText("SO-2026-000001-DC-01");
+    await selectWorkingConsignment();
+    await selectCarton();
+    const file = new File(["x"], "photo.jpg", { type: "image/jpeg" });
+    fireEvent.change(screen.getByLabelText("Carton photo"), { target: { files: [file] } });
+    fireEvent.change(screen.getByLabelText("Net weight"), { target: { value: "" } });
+    fireEvent.change(screen.getByLabelText("Gross weight"), { target: { value: "1.2" } });
+    fireEvent.click(screen.getByRole("button", { name: "Record evidence" }));
+
+    const { toast } = await import("sonner");
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith("Net and gross weight are required."));
+    expect(rpcMock).not.toHaveBeenCalledWith("record_b2b_dispatch_carton_evidence", expect.anything());
+    expect(uploadMock).not.toHaveBeenCalled();
+  });
+
   it("uploads a photo and records evidence via the governed RPC", async () => {
     render(<DispatchManagement />);
     await screen.findByText("SO-2026-000001-DC-01");

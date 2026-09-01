@@ -79,6 +79,7 @@ const ADMIN_ROUTE_MODULES: Array<{ prefix: string; moduleKey: AppVerseModuleKey 
   { prefix: "/admin", moduleKey: "dashboard" },
 ];
 
+/** The AppVerse module an admin route belongs to, chosen by the longest matching prefix; null outside /admin. */
 export function getRequiredModuleForAdminPath(pathname: string): AppVerseModuleKey | null {
   if (!pathname.startsWith("/admin")) return null;
   const matches = ADMIN_ROUTE_MODULES.filter(({ prefix }) =>

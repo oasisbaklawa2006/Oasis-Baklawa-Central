@@ -24,6 +24,7 @@ export function blockLegacyDispatchStatusMutation(
   };
 }
 
+/** True when a proposed status transition targets the governed `dispatched` state. */
 export function isDispatchedStatusMutation(targetStatus: string): boolean {
   return targetStatus.trim().toLowerCase() === "dispatched";
 }
@@ -41,6 +42,13 @@ export const B2B_DISPATCH_MANAGEMENT_ROUTE = "/admin/dispatch-mgmt";
 export const LEGACY_B2B_CARTON_DPL_MUTATION_MESSAGE =
   "B2B carton, packing list and packed-quantity capture is governed only via Dispatch Management (FACT-C3). Legacy direct writes are disabled.";
 
+/**
+ * Returns block metadata when a legacy screen attempts to mutate B2B carton,
+ * packing-list, or packed-quantity state directly, bypassing the governed
+ * DispatchManagement RPC chain. Callers must invoke this as the first
+ * statement of the mutation handler, before any other validation, so the
+ * legacy path never reaches its old writes.
+ */
 export function blockLegacyB2bCartonDplMutation(
   source: string,
 ): LegacyDispatchBlockResult {
