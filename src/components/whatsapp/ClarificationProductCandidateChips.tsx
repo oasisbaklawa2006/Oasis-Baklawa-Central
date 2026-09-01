@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { CheckCircle2, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
@@ -45,6 +45,8 @@ export function ClarificationProductCandidateChips({
     [orderLineProductName, stitchedText],
   );
   const mayCapture = authority.has("wa.intake.triage");
+  const activePacketIdRef = useRef(packetId);
+  activePacketIdRef.current = packetId;
 
   useEffect(() => {
     let cancelled = false;
@@ -72,6 +74,7 @@ export function ClarificationProductCandidateChips({
   }, [packetId]);
 
   const captureCandidate = async (candidate: ProductResolutionCandidate) => {
+    const requestPacketId = packetId;
     if (!caseId) {
       setError("Governed communication case is not available yet — wait for case materialization or use Decision Desk section 9.");
       return;
@@ -85,6 +88,11 @@ export function ClarificationProductCandidateChips({
       return;
     }
 
+    const idempotencyKey = newCaseActionIdempotencyKey(
+      "learning-product-chip",
+      `${caseId}:${candidate.productId}`,
+    );
+
     setBusyProductId(candidate.productId);
     setError(null);
     setFeedback(null);
@@ -93,18 +101,22 @@ export function ClarificationProductCandidateChips({
         supabase,
         buildProductAliasLearningCapture({
           caseId,
-          packetId,
+          packetId: requestPacketId,
           candidate,
           observedValue,
-          idempotencyKey: newCaseActionIdempotencyKey("learning-product-chip", `${caseId}:${candidate.productId}`),
+          idempotencyKey,
         }),
       );
+      if (activePacketIdRef.current !== requestPacketId) return;
       setSelectedProductId(candidate.productId);
       setFeedback(`Recorded governed PRODUCT_ALIAS candidate for ${candidate.productName}. Human review is still required before any master-data change.`);
     } catch (caught) {
+      if (activePacketIdRef.current !== requestPacketId) return;
       setError(caught instanceof Error ? caught.message : "Could not capture learning candidate");
     } finally {
-      setBusyProductId(null);
+      if (activePacketIdRef.current === requestPacketId) {
+        setBusyProductId(null);
+      }
     }
   };
 

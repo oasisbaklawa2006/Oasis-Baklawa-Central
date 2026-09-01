@@ -159,4 +159,38 @@ describe("ClarificationProductCandidateChips", () => {
     expect(screen.getByRole("button", { name: /Kaju Pyramid/i })).toBeDisabled();
     expect(captureMock).not.toHaveBeenCalled();
   });
+
+  it("ignores in-flight capture completion after packet switch", async () => {
+    let resolveCapture: (() => void) | undefined;
+    captureMock.mockImplementation(
+      () => new Promise<void>((resolve) => {
+        resolveCapture = resolve;
+      }),
+    );
+    fetchSnapshotMock.mockResolvedValue({ communicationCase: { id: "case-1" } });
+
+    const { ClarificationProductCandidateChips } = await import("@/components/whatsapp/ClarificationProductCandidateChips");
+    const { rerender } = render(createElement(ClarificationProductCandidateChips, {
+      packetId: "packet-a",
+      bestMatch: candidate("p1", "Kaju Pyramid"),
+      alternatives: [],
+      stitchedText: "customer phrase",
+      orderLineProductName: null,
+    }));
+
+    await waitFor(() => expect(screen.getByRole("button", { name: /Kaju Pyramid/i })).not.toBeDisabled());
+    screen.getByRole("button", { name: /Kaju Pyramid/i }).click();
+
+    rerender(createElement(ClarificationProductCandidateChips, {
+      packetId: "packet-b",
+      bestMatch: candidate("p1", "Kaju Pyramid"),
+      alternatives: [],
+      stitchedText: "customer phrase",
+      orderLineProductName: null,
+    }));
+
+    resolveCapture?.();
+    await waitFor(() => expect(captureMock).toHaveBeenCalledTimes(1));
+    expect(screen.queryByText(/Recorded governed PRODUCT_ALIAS candidate/i)).not.toBeInTheDocument();
+  });
 });
