@@ -566,6 +566,18 @@ test("FACT-E2E Gate 1B :: continuous golden order across RGS/Production/P&A/3PGS
       p_correlation_id: scanCorrelationId,
     });
     expect(scanError, scanError?.message).toBeNull();
+    // record_b2b_dispatch_carton_item_scan rejects (scan_result != 'verified')
+    // rather than raising an exception when packing would exceed the
+    // consignment line's accepted_ready_qty -- fail here with the RPC's own
+    // diagnostic rather than letting a silent no-op surface confusingly at
+    // the later lock step.
+    if (scanResult?.scan_result !== "verified") {
+      record(ledger.stages, "dispatch_scan_item", "record_b2b_dispatch_carton_item_scan", "DISPATCH_MANAGER", scanCorrelationId, "FAIL", `scan_result=${scanResult?.scan_result}, reason=${scanResult?.reason ?? "none"}`);
+    }
+    expect(
+      scanResult?.scan_result,
+      `Scan rejected: ${scanResult?.reason ?? "unknown"}. If this is 'blocked_excess' with accepted-ready quantity 0, it evidences a genuine Core-side gap: b2b_dispatch_consignment_lines.accepted_ready_qty defaults to 0 and no governed RPC in the currently merged migration set (grepped exhaustively) ever raises it above 0 for a freshly created consignment line -- create_b2b_dispatch_consignment's own INSERT omits it. This blocks scan/evidence/lock/DPL/Finance-submission for any newly created consignment, not just this fixture, and is outside Central's fixable/allowed scope (Core migration change required).`,
+    ).toBe("verified");
     record(ledger.stages, "dispatch_scan_item", "record_b2b_dispatch_carton_item_scan", "DISPATCH_MANAGER", scanCorrelationId, "PASS", `scan_result=${scanResult?.scan_result}`);
 
     // NEGATIVE: idempotent retry with the same correlation id -- no duplicate.
