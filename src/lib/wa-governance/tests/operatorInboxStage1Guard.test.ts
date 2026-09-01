@@ -96,7 +96,8 @@ describe("operator inbox Stage-1 guardrails", () => {
     expect(panel).not.toMatch(/from\("orders"\)/);
     expect(panel).toMatch(/does not create Sales Orders/);
     const localState = readRepoFile("src/components/whatsapp/operatorInboxDraftOrderLocalState.ts");
-    expect(localState).toMatch(/never writes to orders/);
+    expect(localState).not.toMatch(/from\("orders"\)/);
+    expect(scanRepoFileForForbiddenPostgrestWrites(REPO_ROOT, "src/components/whatsapp/operatorInboxDraftOrderLocalState.ts")).toEqual([]);
   });
 
   it("sales order draft section persists to sales_order_drafts only", () => {
