@@ -472,14 +472,16 @@ test("FACT-E2E Gate 1B :: continuous golden order across RGS/Production/P&A/3PGS
       .eq("receipt_id", pkgReceipt?.id)
       .single();
 
-    const recordReceiptCorrelationId = `fact-e2e-golden-${RUN_SUFFIX}-3pgs-receipt-record`;
+    // record_b2b_inventory_receipt verifies p_correlation_id against the
+    // receipt's own correlation_id set at creation (a confirmation token,
+    // not a fresh per-call id) -- reuse createReceiptCorrelationId.
     const { error: recordReceiptError } = await receiptClient.rpc("record_b2b_inventory_receipt", {
       p_receipt_id: pkgReceipt?.id,
       p_lines: [{ line_id: receiptLine?.id, received_qty: 4 }],
-      p_correlation_id: recordReceiptCorrelationId,
+      p_correlation_id: createReceiptCorrelationId,
     });
     expect(recordReceiptError, recordReceiptError?.message).toBeNull();
-    record(ledger.stages, "3pgs_record_inventory_receipt", "record_b2b_inventory_receipt", "STORE_3RD_PARTY", recordReceiptCorrelationId, "PASS", "received_qty=4");
+    record(ledger.stages, "3pgs_record_inventory_receipt", "record_b2b_inventory_receipt", "STORE_3RD_PARTY", createReceiptCorrelationId, "PASS", "received_qty=4");
 
     const { data: existingBalance } = await receiptClient
       .from("inventory_stock_balances")
