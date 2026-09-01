@@ -1,4 +1,5 @@
 export const OPERATOR_WORKSPACE_MUTATION_EVENT = "oasis:wa-operator-workspace-mutation";
+export const OPERATOR_WORKSPACE_SYNC_ERROR_EVENT = "oasis:wa-operator-workspace-sync-error";
 const QUEUE_KEY = "oasis_wa_operator_workspace_pending_mutations_v1";
 const MAX_PENDING = 256;
 
@@ -26,11 +27,34 @@ function isMutation(value: unknown): value is OperatorWorkspaceMutation {
   return typeof row.id === "string" && typeof row.kind === "string" && typeof row.createdAt === "string";
 }
 
+function supersessionKey(mutation: OperatorWorkspaceMutation): string | null {
+  if (mutation.kind === "UPSERT_NOTE" || mutation.kind === "DELETE_NOTE") return `note:${mutation.packetId}`;
+  if (mutation.kind === "SAVE_VIEW" || mutation.kind === "DELETE_VIEW") return `view:${mutation.viewId}`;
+  return null;
+}
+
+function compactSupersededMutations(queue: OperatorWorkspaceMutation[]): OperatorWorkspaceMutation[] {
+  const lastIndexByKey = new Map<string, number>();
+  queue.forEach((mutation, index) => {
+    const key = supersessionKey(mutation);
+    if (key) lastIndexByKey.set(key, index);
+  });
+  return queue.filter((mutation, index) => {
+    const key = supersessionKey(mutation);
+    return !key || lastIndexByKey.get(key) === index;
+  });
+}
+
+function dispatchQueueError(message: string): void {
+  if (typeof window === "undefined") return;
+  window.dispatchEvent(new CustomEvent(OPERATOR_WORKSPACE_SYNC_ERROR_EVENT, { detail: { message } }));
+}
+
 export function loadPendingOperatorWorkspaceMutations(): OperatorWorkspaceMutation[] {
   if (typeof window === "undefined") return [];
   try {
     const parsed = JSON.parse(window.localStorage.getItem(QUEUE_KEY) ?? "[]") as unknown;
-    return Array.isArray(parsed) ? parsed.filter(isMutation).slice(-MAX_PENDING) : [];
+    return Array.isArray(parsed) ? parsed.filter(isMutation) : [];
   } catch {
     return [];
   }
@@ -38,7 +62,13 @@ export function loadPendingOperatorWorkspaceMutations(): OperatorWorkspaceMutati
 
 function persistQueue(queue: OperatorWorkspaceMutation[]): void {
   if (typeof window === "undefined") return;
-  window.localStorage.setItem(QUEUE_KEY, JSON.stringify(queue.slice(-MAX_PENDING)));
+  try {
+    window.localStorage.setItem(QUEUE_KEY, JSON.stringify(queue));
+  } catch (caught) {
+    const message = caught instanceof Error ? caught.message : "WA_OPERATOR_WORKSPACE_QUEUE_STORAGE_FAILED";
+    dispatchQueueError(message);
+    throw caught;
+  }
 }
 
 export function enqueueOperatorWorkspaceMutation(input: NewMutation): OperatorWorkspaceMutation {
@@ -48,8 +78,14 @@ export function enqueueOperatorWorkspaceMutation(input: NewMutation): OperatorWo
     createdAt: input.createdAt ?? new Date().toISOString(),
   } as OperatorWorkspaceMutation;
   if (typeof window === "undefined") return mutation;
-  const queue = loadPendingOperatorWorkspaceMutations();
-  queue.push(mutation);
+
+  const queue = compactSupersededMutations([...loadPendingOperatorWorkspaceMutations(), mutation]);
+  if (queue.length > MAX_PENDING) {
+    const message = "WA_OPERATOR_WORKSPACE_QUEUE_FULL: synchronize queued changes before creating more operator workspace mutations.";
+    dispatchQueueError(message);
+    throw new Error(message);
+  }
+
   persistQueue(queue);
   window.dispatchEvent(new CustomEvent(OPERATOR_WORKSPACE_MUTATION_EVENT, { detail: mutation }));
   return mutation;
