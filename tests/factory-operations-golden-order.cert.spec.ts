@@ -560,7 +560,7 @@ test("FACT-E2E Gate 1B :: continuous golden order across RGS/Production/P&A/3PGS
     const { data: scanResult, error: scanError } = await client.rpc("record_b2b_dispatch_carton_item_scan", {
       p_carton_id: cartonId,
       p_consignment_line_id: lineId,
-      p_barcode_value: `FACT-E2E-${RUN_SUFFIX}-SKU`,
+      p_barcode_value: "CERT-ARABIC-001",
       p_batch_lot: `BATCH-${RUN_SUFFIX}`,
       p_quantity: 5,
       p_correlation_id: scanCorrelationId,
@@ -572,7 +572,7 @@ test("FACT-E2E Gate 1B :: continuous golden order across RGS/Production/P&A/3PGS
     const { data: retryResult, error: retryError } = await client.rpc("record_b2b_dispatch_carton_item_scan", {
       p_carton_id: cartonId,
       p_consignment_line_id: lineId,
-      p_barcode_value: `FACT-E2E-${RUN_SUFFIX}-SKU`,
+      p_barcode_value: "CERT-ARABIC-001",
       p_batch_lot: `BATCH-${RUN_SUFFIX}`,
       p_quantity: 5,
       p_correlation_id: scanCorrelationId,
@@ -590,7 +590,7 @@ test("FACT-E2E Gate 1B :: continuous golden order across RGS/Production/P&A/3PGS
     const { data: overflowResult, error: overflowError } = await client.rpc("record_b2b_dispatch_carton_item_scan", {
       p_carton_id: cartonId,
       p_consignment_line_id: lineId,
-      p_barcode_value: `FACT-E2E-${RUN_SUFFIX}-SKU-OVERFLOW`,
+      p_barcode_value: "CERT-ARABIC-001",
       p_batch_lot: `BATCH-${RUN_SUFFIX}`,
       p_quantity: 999,
       p_correlation_id: overflowCorrelationId,
