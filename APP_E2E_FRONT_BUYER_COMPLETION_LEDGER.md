@@ -487,8 +487,8 @@ historical evidence above.
 ### Authenticated runtime gate
 
 Disposable Buyer golden-path certification is **PASS** on branch head
-`9f407a6b50b437b753161807480bdf880dceefdf` via GitHub Actions run
-`33568644666` (job `100057501195`).
+`527bbc88bf0a79cfea8fb7d34581b46432747892` via GitHub Actions run
+`33569414439` (job `100059873817`).
 
 | Viewport | Result | Evidence |
 |---|---|---|
@@ -503,13 +503,13 @@ Fixture/environment:
 - Company `SYNTHETIC BUYER CERTIFICATION CO` with pre-seeded `SO-CERT-PRESEED-001`
 - Disposable local Core replay at `http://127.0.0.1:54321`
 - Central preview at `http://127.0.0.1:4173`
-- Environment id `buyer-cert-gha-33568644666-1`
+- Environment id `buyer-cert-gha-33569414439-1`
 
 Golden path exercised at all three widths:
 login → dashboard → catalogue → product detail → cart → submit order → order
 detail → documents/statement → logout.
 
-Machine-readable artifacts uploaded as `buyer-golden-path-33568644666-1`.
+Machine-readable artifacts uploaded as `buyer-golden-path-33569414439-1`.
 No production Supabase host, schema, or customer identity was mutated.
 
 **Tranche 5 status: RUNTIME GATE PASS — DISPOSABLE BUYER GOLDEN-PATH CERTIFIED.**

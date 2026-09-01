@@ -9,6 +9,9 @@ pushd "${CORE_REPO}" >/dev/null
 supabase stop --no-backup
 popd >/dev/null
 
-rm -f "${CREDENTIAL_FILE}"
+if [[ -f "${CREDENTIAL_FILE}" ]]; then
+  rm -f "${CREDENTIAL_FILE}"
+  echo "Removed disposable Buyer credential export at ${CREDENTIAL_FILE}."
+fi
 
 echo "Disposable Buyer certification Core database destroyed without backup."
