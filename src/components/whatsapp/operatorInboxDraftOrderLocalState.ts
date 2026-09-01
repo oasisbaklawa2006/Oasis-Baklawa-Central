@@ -8,7 +8,7 @@ import { enqueueOperatorWorkspaceMutation } from "./operatorInboxWorkspaceMutati
 
 const STORAGE_KEY = "wa_operator_inbox_draft_order_local_v1";
 
-type DraftOrderLocalStore = Record<string, DraftOrderLocalEdits>;
+export type DraftOrderLocalStore = Record<string, DraftOrderLocalEdits>;
 
 function readStore(): DraftOrderLocalStore {
   if (typeof window === "undefined") return {};
@@ -29,6 +29,10 @@ function writeStore(store: DraftOrderLocalStore): void {
   } catch {
     /* quota / private mode — ignore */
   }
+}
+
+export function loadDraftOrderLocalStore(): DraftOrderLocalStore {
+  return readStore();
 }
 
 export function getDraftOrderLocalEdits(packetId: string): DraftOrderLocalEdits {
