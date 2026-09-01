@@ -2,7 +2,7 @@
 
 Controlling issues: #407 and #368.
 
-Base: `d8d5fbca4042164eafe1056080ab588918446fea` (R4.4 merged).
+Current-main reconciliation: R4.5 is synchronized through Central `main` `8d24c99464558ccfcd9ca0cb7be538025f7f638c`, which includes merged FACT-C3 #423 and Buyer #431.
 
 ## Purpose
 
@@ -20,11 +20,18 @@ Compose existing governed 3PGS source truth into one manager-facing operational 
 - R4.3 governed put-away / GRN path
 - R4.4 governed post-GRN exception path
 
+The canonical 3PGS inventory/store code is `3PGS`. `STORE_3RD_PARTY` is an application role identifier and must not be used as `location_code` or `destination_store_code` in this command-centre read path.
+
 ## Existing Central surface to extend
 
-`src/pages/admin/ThreePgsProcurementQueue.tsx` already composes the governed priority view, procurement requirements, P&A requirements, reservations, issue events and receipt creation/disposition. R4.5 must extend this existing surface rather than introduce a parallel queue.
+The existing route and import path remain canonical: `src/pages/admin/ThreePgsProcurementQueue.tsx` at `/admin/3pgs-procurement-queue`.
 
-The verified missing composition is the manager stock-position and receipt/GRN visibility needed to understand demand coverage and inbound state without leaving the 3PGS command surface.
+R4.5 keeps that path and converts it into a narrow route-level composition wrapper:
+
+- `ThreePgsCommandCentre.tsx` — read-only manager composition over canonical Core-backed truth;
+- `ThreePgsProcurementOperator.tsx` — the pre-R4.5 governed operator implementation, preserved byte-for-byte from current `main` and still owning procurement, reserve, issue, distinct-receiver acknowledgement and receiving actions.
+
+This avoids adding a parallel route or mutation surface and avoids changing `src/App.tsx` merely to introduce R4.5 composition.
 
 ## Required behaviour
 
@@ -36,15 +43,17 @@ The verified missing composition is the manager stock-position and receipt/GRN v
 6. Deep-link/reuse existing R4.3 receiving/put-away/GRN and R4.4 post-GRN exception surfaces rather than duplicating them.
 7. Explicit loading, empty and failure states.
 8. Focused tests must prove source-truth composition and absence of direct stock mutation.
+9. Query failures must surface as real `Error` instances rather than throwing raw provider objects.
 
 ## Non-goals
 
 - no schema/migration unless a separately proven Core gap exists;
 - no direct stock writes;
 - no R4.6 satellite/mobile/TV behaviour;
+- no R4.7 close/audit behaviour;
 - no R5 Dispatch behavioural work;
 - no resurrection of legacy `operational_queue_items` or `order_items` as 3PGS stock authority.
 
 ## Exit
 
-R4.5 exits only after exact-head CI/review is clean. R4.6 follows. Dispatch remains held until #407 reaches launch-ready closure after R4.7; physical UAT #408 may continue independently.
+R4.5 exits only after exact-head CI, Codacy, security and fresh review are clean on the synchronized branch, then the PR is approved and merged. R4.6 follows only after that merge. Dispatch remains held until #407 reaches launch-ready closure after R4.7; physical UAT #408 may continue independently.
