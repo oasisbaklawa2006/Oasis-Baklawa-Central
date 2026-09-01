@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import { Link, Navigate, NavLink, useLocation, useNavigate } from "react-router-dom";
 import {
@@ -133,6 +133,10 @@ function BuyerProductImage({ src, alt, compact = false }: { src: string | null; 
   return <img src={src} alt={alt} onError={() => { setFailed(true); }} className="h-full w-full object-contain" />;
 }
 
+type SafeReadResult<T> =
+  | { ok: true; value: T }
+  | { ok: false; value: undefined };
+
 /** Loads customer-safe read models and refreshes them after governed actions. */
 function useBuyerData() {
   const [prices, setPrices] = useState<BuyerPrice[]>([]);
@@ -152,16 +156,28 @@ function useBuyerData() {
   const [generalQueries, setGeneralQueries] = useState<BuyerGeneralQuery[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const refreshGeneration = useRef(0);
+  const projectionState = useRef({
+    commercialFacts: [] as BuyerCommercialFacts[],
+    financeFacts: {} as Record<string, BuyerFinanceFacts>,
+    proformaInvoices: [] as BuyerProformaInvoiceFacts[],
+    documents: [] as BuyerDocument[],
+    statement: null as BuyerStatement | null,
+    favourites: [] as string[],
+    generalQueries: [] as BuyerGeneralQuery[],
+  });
 
-  const safeRead = useCallback(async <T,>(read: () => Promise<T>, fallback: T): Promise<T> => {
+  const safeRead = useCallback(async <T,>(read: () => Promise<T>): Promise<SafeReadResult<T>> => {
     try {
-      return await read();
+      return { ok: true, value: await read() };
     } catch {
-      return fallback;
+      return { ok: false, value: undefined };
     }
   }, []);
 
   const refresh = useCallback(async () => {
+    const generation = ++refreshGeneration.current;
+    const isCurrentRefresh = () => generation === refreshGeneration.current;
     setLoading(true);
     setError(null);
     try {
@@ -175,14 +191,21 @@ function useBuyerData() {
         customerAppClient.tickets(),
       ]);
       if (productRows.error) throw productRows.error;
-      const [commercialRows, proformaRows, documentRows, statementRow, favouriteRows, queryRows] = await Promise.all([
-        safeRead(() => customerAppClient.commercialFacts(), []),
-        safeRead(() => customerAppClient.proformaInvoices(), []),
-        safeRead(() => customerAppClient.documents(), []),
-        safeRead(() => customerAppClient.statement(), null),
-        safeRead(() => customerAppClient.favourites(), []),
-        safeRead(() => customerAppClient.generalQueries(), []),
+      const [commercialResult, proformaResult, documentResult, statementResult, favouriteResult, queryResult] = await Promise.all([
+        safeRead(() => customerAppClient.commercialFacts()),
+        safeRead(() => customerAppClient.proformaInvoices()),
+        safeRead(() => customerAppClient.documents()),
+        safeRead(() => customerAppClient.statement()),
+        safeRead(() => customerAppClient.favourites()),
+        safeRead(() => customerAppClient.generalQueries()),
       ]);
+      if (!isCurrentRefresh()) return;
+      const commercialRows = commercialResult.ok && Array.isArray(commercialResult.value) ? commercialResult.value : projectionState.current.commercialFacts;
+      const proformaRows = proformaResult.ok && Array.isArray(proformaResult.value) ? proformaResult.value : projectionState.current.proformaInvoices;
+      const documentRows = documentResult.ok && Array.isArray(documentResult.value) ? documentResult.value : projectionState.current.documents;
+      const statementRow = statementResult.ok && statementResult.value ? statementResult.value : projectionState.current.statement;
+      const favouriteRows = favouriteResult.ok && Array.isArray(favouriteResult.value) ? favouriteResult.value : projectionState.current.favourites.map((product_id) => ({ product_id }));
+      const queryRows = queryResult.ok && Array.isArray(queryResult.value) ? queryResult.value : projectionState.current.generalQueries;
       const orderRowsWithFacts = (orderRows || []).map((order) => {
         const facts = (commercialRows || []).find((row) => row.order_id === order.order_id);
         return facts
@@ -199,12 +222,11 @@ function useBuyerData() {
             }
           : order;
       });
-      const financeRows = await Promise.all((orderRowsWithFacts || []).map(async (order) => [
+      const financeRowsPromise = Promise.all((orderRowsWithFacts || []).map(async (order) => [
         order.order_id,
-        await safeRead(() => customerAppClient.financeFacts(order.order_id), null),
+        await safeRead(() => customerAppClient.financeFacts(order.order_id)),
       ] as const));
-      const financeByOrder: Record<string, BuyerFinanceFacts> = {};
-      for (const [orderId, facts] of financeRows) if (facts) financeByOrder[orderId] = facts;
+      const teamPromise = safeRead(() => customerAppClient.team());
       setPrices(priceRows || []);
       setProducts(productRows.data || []);
       setDraft(draftRows || []);
@@ -213,44 +235,71 @@ function useBuyerData() {
       setItems(itemRows || []);
       setTickets(ticketRows || []);
       setCommercialFacts(commercialRows || []);
-      setFinanceFacts(financeByOrder);
       setProformaInvoices(proformaRows || []);
       setDocuments(documentRows || []);
       setStatement(statementRow);
       setFavourites((favouriteRows || []).map((row) => row.product_id));
       setGeneralQueries(queryRows || []);
-      try {
-        setTeam(await customerAppClient.team());
-      } catch {
-        setTeam([]);
-      }
+      projectionState.current.commercialFacts = commercialRows || [];
+      projectionState.current.proformaInvoices = proformaRows || [];
+      projectionState.current.documents = documentRows || [];
+      projectionState.current.statement = statementRow;
+      projectionState.current.favourites = (favouriteRows || []).map((row) => row.product_id);
+      projectionState.current.generalQueries = queryRows || [];
+      // The core Buyer surface is usable as soon as its base projections land;
+      // the per-order Finance fan-out continues without holding the page behind
+      // a loading state.
+      setLoading(false);
+      void teamPromise.then((teamResult) => {
+        if (isCurrentRefresh() && teamResult.ok) setTeam(teamResult.value || []);
+      }).catch(() => undefined);
+      void financeRowsPromise.then((financeRows) => {
+        if (!isCurrentRefresh()) return;
+        const previousFinanceFacts = projectionState.current.financeFacts;
+        const financeByOrder: Record<string, BuyerFinanceFacts> = {};
+        for (const [orderId, result] of financeRows) {
+          if (result.ok && result.value) financeByOrder[orderId] = result.value;
+          else if (!result.ok && previousFinanceFacts[orderId]) financeByOrder[orderId] = previousFinanceFacts[orderId];
+        }
+        projectionState.current.financeFacts = financeByOrder;
+        setFinanceFacts(financeByOrder);
+      }).catch(() => undefined);
     } catch {
+      if (!isCurrentRefresh()) return;
       setError(BUYER_DATA_LOAD_ERROR);
       toast.error(BUYER_DATA_LOAD_ERROR);
     } finally {
-      setLoading(false);
+      if (isCurrentRefresh()) setLoading(false);
     }
   }, [safeRead]);
 
   useEffect(() => { void refresh(); }, [refresh]);
   const toggleFavourite = useCallback(async (productId: string, isFavourite: boolean) => {
-    setFavourites((current) => isFavourite
-      ? Array.from(new Set([...current, productId]))
-      : current.filter((id) => id !== productId));
+    const optimisticFavourites = isFavourite
+      ? Array.from(new Set([...projectionState.current.favourites, productId]))
+      : projectionState.current.favourites.filter((id) => id !== productId);
+    projectionState.current.favourites = optimisticFavourites;
+    setFavourites(optimisticFavourites);
     try {
       const result = await customerAppClient.setFavourite(productId, isFavourite);
       const row = result?.[0];
       if (!row || row.product_id !== productId || row.is_favourite !== isFavourite) throw new Error("Favourite update was not acknowledged");
       try {
         const serverRows = await customerAppClient.favourites();
-        if (Array.isArray(serverRows)) setFavourites(serverRows.map((favourite) => favourite.product_id));
+        if (Array.isArray(serverRows)) {
+          const serverFavourites = serverRows.map((favourite) => favourite.product_id);
+          projectionState.current.favourites = serverFavourites;
+          setFavourites(serverFavourites);
+        }
       } catch {
         // Keep the acknowledged optimistic state when a follow-up read is unavailable.
       }
     } catch (cause) {
-      setFavourites((current) => isFavourite
-        ? current.filter((id) => id !== productId)
-        : Array.from(new Set([...current, productId])));
+      const rollbackFavourites = isFavourite
+        ? projectionState.current.favourites.filter((id) => id !== productId)
+        : Array.from(new Set([...projectionState.current.favourites, productId]));
+      projectionState.current.favourites = rollbackFavourites;
+      setFavourites(rollbackFavourites);
       throw cause;
     }
   }, []);
@@ -670,19 +719,25 @@ function StatementFacts({ statement }: { statement: BuyerStatement | null }) {
   return <div className="rounded-2xl border bg-card p-5 shadow-[var(--card-shadow)]" aria-label="Statement facts"><div className="flex items-start justify-between gap-3"><h2 className="font-semibold">Statement facts</h2><span className="rounded-full bg-muted px-2 py-1 text-xs font-semibold text-muted-foreground">Available</span></div><p className="mt-2 text-sm text-muted-foreground">Customer-safe ledger facts supplied by Finance.</p>{statement.wallet_balance !== null && <div className="mt-3 flex justify-between text-sm"><span>Wallet balance</span><strong>{money(statement.wallet_balance)}</strong></div>}<div className="mt-3 space-y-2">{statement.entries.length === 0 ? <p className="text-sm text-muted-foreground">No issued statement entries yet.</p> : statement.entries.map((entry, index) => <div key={`${entry.order_id || "entry"}-${index}`} className="rounded-xl border p-3 text-sm"><div className="flex justify-between gap-3"><span>{entry.invoice_number || "Issued invoice"}</span><span>{money(entry.invoice_gross_total)}</span></div>{entry.pre_dispatch_net_due !== null && <p className="mt-1 text-xs text-muted-foreground">Amount due before dispatch: {money(entry.pre_dispatch_net_due)}</p>}</div>)}</div></div>;
 }
 
-/** Presents authoritative document, PI and statement facts without fabricating files or numbers. */
-function Documents({ data }: { data: ReturnType<typeof useBuyerData> }) {
-  const hasSalesOrder = data.orders.length > 0;
-  const salesOrder = data.documents.find((document) => document.document_type === "SALES_ORDER");
-  const proforma = data.proformaInvoices[0];
-  const proformaDocument = data.documents.find((document) => document.document_type === "PROFORMA_INVOICE");
-  const finalInvoice = data.documents.find((document) => document.document_type === "FINAL_INVOICE");
-  const salesOrderStatus = salesOrder ? documentAvailability(salesOrder.availability_state) : hasSalesOrder ? "available" : "not-issued";
-  const salesOrderDetail = salesOrder ? documentDetail(salesOrder, "Your submitted order reference is available in Orders.") : hasSalesOrder ? "Your submitted order reference is available in Orders." : "Your Sales Order reference will appear after a successful submission.";
+function BuyerOrderDocuments({ order, data }: { order: BuyerOrder; data: ReturnType<typeof useBuyerData> }) {
+  const orderDocuments = data.documents.filter((document) => document.order_id === order.order_id);
+  const salesOrder = orderDocuments.find((document) => document.document_type === "SALES_ORDER");
+  const proforma = data.proformaInvoices.find((invoice) => invoice.order_id === order.order_id);
+  const proformaDocument = orderDocuments.find((document) => document.document_type === "PROFORMA_INVOICE");
+  const finalInvoice = orderDocuments.find((document) => document.document_type === "FINAL_INVOICE");
+  const salesOrderDetail = salesOrder
+    ? documentDetail(salesOrder, "Your submitted order reference is available in Orders.")
+    : "Your submitted order reference is available in Orders.";
   const finalInvoiceStatus = finalInvoice ? documentAvailability(finalInvoice.availability_state) : "upstream-unavailable";
   const finalInvoiceDetail = finalInvoice ? documentDetail(finalInvoice, "This document will appear here when it is issued.") : "This document will appear here when it is issued.";
+  return <div className="space-y-3" aria-labelledby={`documents-order-${order.order_id}`}><div><h2 id={`documents-order-${order.order_id}`} className="font-semibold">{order.order_number || "Sales order reference pending"}</h2><p className="text-xs text-muted-foreground">Documents for this order</p></div><div className="grid gap-3 sm:grid-cols-2"><CustomerDocumentCard label="Sales Order" status={salesOrder ? documentAvailability(salesOrder.availability_state) : "available"} detail={salesOrderDetail} href="/buyer/orders" /><CustomerDocumentCard label="Proforma Invoice" status={proformaAvailability(proforma, proformaDocument)} detail={proformaDetail(proforma, proformaDocument)} /><CustomerDocumentCard label="Final Invoice" status={finalInvoiceStatus} detail={finalInvoiceDetail} /></div></div>;
+}
+
+/** Presents authoritative document, PI and statement facts without fabricating files or numbers. */
+function Documents({ data }: { data: ReturnType<typeof useBuyerData> }) {
+  const hasOrders = data.orders.length > 0;
   const statementStatus: DocumentAvailability = data.statement?.statement_facts_only ? "available" : "upstream-unavailable";
-  return <section className="space-y-5" aria-labelledby="documents-heading"><div><p className="text-sm text-muted-foreground">Customer documents</p><h1 id="documents-heading" className="font-display text-3xl font-semibold">Documents</h1><p className="mt-2 text-sm text-muted-foreground">Documents appear when issued</p><p className="text-sm text-muted-foreground">We never create local numbers or files.</p></div><div className="grid gap-3 sm:grid-cols-2"><CustomerDocumentCard label="Sales Order" status={salesOrderStatus} detail={salesOrderDetail} href={hasSalesOrder ? "/buyer/orders" : undefined} /><CustomerDocumentCard label="Proforma Invoice" status={proformaAvailability(proforma, proformaDocument)} detail={proformaDetail(proforma, proformaDocument)} /><CustomerDocumentCard label="Final Invoice" status={finalInvoiceStatus} detail={finalInvoiceDetail} /><CustomerDocumentCard label="Statement" status={statementStatus} detail={data.statement?.statement_facts_only ? "Statement facts are available below." : "Statements will appear here when they are available."} /></div><StatementFacts statement={data.statement} />{!hasSalesOrder && <Link to="/buyer/catalogue" className="inline-flex min-h-11 items-center rounded-xl bg-primary px-4 py-3 text-sm font-semibold text-primary-foreground">Browse catalogue</Link>}</section>;
+  return <section className="space-y-5" aria-labelledby="documents-heading"><div><p className="text-sm text-muted-foreground">Customer documents</p><h1 id="documents-heading" className="font-display text-3xl font-semibold">Documents</h1><p className="mt-2 text-sm text-muted-foreground">Documents appear when issued</p><p className="text-sm text-muted-foreground">We never create local numbers or files.</p></div>{hasOrders ? <div className="space-y-6">{data.orders.map((order) => <BuyerOrderDocuments key={order.order_id} order={order} data={data} />)}</div> : <div className="grid gap-3 sm:grid-cols-2"><CustomerDocumentCard label="Sales Order" status="not-issued" detail="Your Sales Order reference will appear after a successful submission." /><CustomerDocumentCard label="Proforma Invoice" status="upstream-unavailable" detail="This document will appear when your order is ready." /><CustomerDocumentCard label="Final Invoice" status="upstream-unavailable" detail="This document will appear here when it is issued." /></div>}<div className="grid gap-3 sm:grid-cols-2"><CustomerDocumentCard label="Statement" status={statementStatus} detail={data.statement?.statement_facts_only ? "Statement facts are available below." : "Statements will appear here when they are available."} /></div><StatementFacts statement={data.statement} />{!hasOrders && <Link to="/buyer/catalogue" className="inline-flex min-h-11 items-center rounded-xl bg-primary px-4 py-3 text-sm font-semibold text-primary-foreground">Browse catalogue</Link>}</section>;
 }
 
 /** Submits support tickets through the customer-safe Core contract. */

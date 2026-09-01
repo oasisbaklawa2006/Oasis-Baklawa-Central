@@ -462,7 +462,10 @@ historical evidence above.
 
 ### Verification record
 
-- Focused Buyer/client/presentation suites: **PASS — 53 tests**.
+- Focused Buyer/client/presentation suites: **PASS — 55 tests** (including
+  current-head review remediation for order-scoped document/PI identities,
+  last-known optional projections with refresh-generation protection, and
+  non-blocking Finance/team fan-out).
 - Changed-file ESLint: **PASS**.
 - TypeScript (`tsc -p tsconfig.app.json --noEmit`): **PASS**.
 - Production build (`npm run build`): **PASS** (existing Browserslist and chunk
@@ -474,7 +477,7 @@ historical evidence above.
   worktree): **5 known out-of-scope WhatsApp governance failures; 1,737 tests
   passed**. The failing files are the same five listed below.
 - Current-main-aligned Tranche 5 full suite (`fc8509df…`): **5 identical
-  out-of-scope WhatsApp governance failures; 1,751 tests passed**. No Buyer
+  out-of-scope WhatsApp governance failures; 1,753 tests passed**. No Buyer
   failure reproduced; the five failing test files are unchanged from the
   known WhatsApp baseline.
 - Boundary review: no Core migration, schema, WhatsApp, Finance, Factory,

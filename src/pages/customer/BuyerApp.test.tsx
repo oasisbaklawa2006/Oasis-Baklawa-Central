@@ -458,6 +458,30 @@ describe("Buyer App governed commercial handoff", () => {
     expect(screen.queryByRole("button", { name: /download/i })).toBeNull();
   });
 
+  it("keeps document and PI identities scoped to their order", async () => {
+    const firstOrderData = { ...buyerMock.order, order_number: "SO2026/09-0001" };
+    const secondOrderData = { ...buyerMock.order, order_id: "order-2", order_number: "SO2026/09-0002" };
+    buyerMock.orders.mockResolvedValue([firstOrderData, secondOrderData]);
+    buyerMock.proformaInvoices.mockResolvedValue([
+      { pi_id: "pi-1", customer_visible_pi_number: "PI2026/09-0001", order_id: "order-1", order_number: "SO2026/09-0001", commercial_version_id: "version-1", commercial_version_number: 1, status: "ISSUED", issued_at: "2026-09-01T00:00:00.000Z", frozen_customer_total: 12500, created_at: "2026-09-01T00:00:00.000Z" },
+      { pi_id: "pi-2", customer_visible_pi_number: "PI2026/09-0002", order_id: "order-2", order_number: "SO2026/09-0002", commercial_version_id: "version-1", commercial_version_number: 1, status: "ISSUED", issued_at: "2026-09-01T00:00:00.000Z", frozen_customer_total: 25000, created_at: "2026-09-01T00:00:00.000Z" },
+    ]);
+    buyerMock.documents.mockResolvedValue([
+      { document_type: "SALES_ORDER", document_id: "so-doc-1", document_number: "SO2026/09-0001", order_id: "order-1", order_number: "SO2026/09-0001", commercial_version_id: "version-1", status: "ISSUED", issued_at: "2026-09-01T00:00:00.000Z", customer_total: 12500, availability_state: "issued" },
+      { document_type: "SALES_ORDER", document_id: "so-doc-2", document_number: "SO2026/09-0002", order_id: "order-2", order_number: "SO2026/09-0002", commercial_version_id: "version-1", status: "ISSUED", issued_at: "2026-09-01T00:00:00.000Z", customer_total: 25000, availability_state: "issued" },
+    ]);
+    render(<MemoryRouter initialEntries={["/buyer/documents"]}><BuyerApp /></MemoryRouter>);
+
+    const firstOrder = await screen.findByRole("heading", { name: "SO2026/09-0001" });
+    const firstOrderSection = firstOrder.closest("[aria-labelledby]");
+    const secondOrderHeading = screen.getByRole("heading", { name: "SO2026/09-0002" });
+    const secondOrderSection = secondOrderHeading.closest("[aria-labelledby]");
+    expect(firstOrderSection?.textContent).toContain("PI2026/09-0001");
+    expect(firstOrderSection?.textContent).not.toContain("PI2026/09-0002");
+    expect(secondOrderSection?.textContent).toContain("PI2026/09-0002");
+    expect(secondOrderSection?.textContent).not.toContain("PI2026/09-0001");
+  });
+
   it("renders customer-safe statement facts without internal closure identifiers", async () => {
     buyerMock.statement.mockResolvedValue({
       company_id: "company-1",
@@ -501,6 +525,17 @@ describe("Buyer App governed commercial handoff", () => {
     fireEvent.click(screen.getByRole("button", { name: "Remove Pista Baklawa from favourites" }));
     expect(await screen.findByRole("button", { name: "Add Pista Baklawa to favourites" })).toBeTruthy();
     expect(toastMock.error).toHaveBeenCalledWith("We couldn't update favourites. Please try again.");
+  });
+
+  it("preserves the last known favourite projection when a refresh read is transiently unavailable", async () => {
+    buyerMock.favourites.mockResolvedValue([{ product_id: "product-1", created_at: "2026-09-01T00:00:00Z" }]);
+    render(<MemoryRouter initialEntries={["/buyer/catalogue"]}><BuyerApp /></MemoryRouter>);
+    expect(await screen.findByRole("button", { name: "Remove Pista Baklawa from favourites" })).toBeTruthy();
+
+    buyerMock.favourites.mockRejectedValueOnce(new Error("temporary read failure"));
+    fireEvent.click(screen.getByRole("button", { name: "Refresh" }));
+    await waitFor(() => expect(buyerMock.favourites).toHaveBeenCalledTimes(2));
+    expect(await screen.findByRole("button", { name: "Remove Pista Baklawa from favourites" })).toBeTruthy();
   });
 
   it("keeps general enquiry separate from order submission and reuses the retry key", async () => {
