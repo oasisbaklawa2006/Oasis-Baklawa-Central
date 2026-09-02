@@ -536,7 +536,11 @@ test("FACT-E2E Gate 1B :: continuous golden order across RGS/Production/P&A/3PGS
       .eq("receipt_id", pkgReceipt?.id)
       .single();
 
-    const recordReceiptCorrelationId = `fact-e2e-golden-${RUN_SUFFIX}-3pgs-receipt-record`;
+    // record/accept_b2b_inventory_receipt both require the EXACT correlation
+    // id the receipt was created with ("Receipt correlation id mismatch"
+    // otherwise) -- reuse createReceiptCorrelationId throughout this receipt's
+    // lifecycle rather than minting a fresh one per call.
+    const recordReceiptCorrelationId = createReceiptCorrelationId;
     const { error: recordReceiptError } = await pgsClient.rpc("record_b2b_inventory_receipt", {
       p_receipt_id: pkgReceipt?.id,
       p_lines: [{ line_id: receiptLine?.id, received_qty: shortageQty }],
@@ -552,7 +556,7 @@ test("FACT-E2E Gate 1B :: continuous golden order across RGS/Production/P&A/3PGS
       .eq("location_code", "3PGS")
       .maybeSingle();
 
-    const acceptReceiptCorrelationId = `fact-e2e-golden-${RUN_SUFFIX}-3pgs-receipt-accept`;
+    const acceptReceiptCorrelationId = createReceiptCorrelationId;
     const { error: acceptReceiptError } = await pgsClient.rpc("accept_b2b_inventory_receipt", {
       p_receipt_id: pkgReceipt?.id,
       p_lines: [{
@@ -815,7 +819,10 @@ test("FACT-E2E Gate 1B :: continuous golden order across RGS/Production/P&A/3PGS
       .eq("receipt_id", handoverReceipt?.id)
       .single();
 
-    const recordHandoverReceiptCorrelationId = `fact-e2e-golden-${RUN_SUFFIX}-handover-receipt-record`;
+    // record/accept_b2b_inventory_receipt both require the EXACT correlation
+    // id the receipt was created with -- reuse createHandoverReceiptCorrelationId
+    // throughout this receipt's lifecycle rather than minting a fresh one.
+    const recordHandoverReceiptCorrelationId = createHandoverReceiptCorrelationId;
     const { error: recordHandoverReceiptError } = await rgsClient.rpc("record_b2b_inventory_receipt", {
       p_receipt_id: handoverReceipt?.id,
       p_lines: [{ line_id: handoverReceiptLine?.id, received_qty: 5 }],
@@ -831,7 +838,7 @@ test("FACT-E2E Gate 1B :: continuous golden order across RGS/Production/P&A/3PGS
       .eq("location_code", "FINISHED_GOODS")
       .maybeSingle();
 
-    const acceptHandoverReceiptCorrelationId = `fact-e2e-golden-${RUN_SUFFIX}-handover-receipt-accept`;
+    const acceptHandoverReceiptCorrelationId = createHandoverReceiptCorrelationId;
     const { error: acceptHandoverReceiptError } = await rgsClient.rpc("accept_b2b_inventory_receipt", {
       p_receipt_id: handoverReceipt?.id,
       p_lines: [{
