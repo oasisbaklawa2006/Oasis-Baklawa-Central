@@ -4,7 +4,7 @@ import type { Database as GeneratedDatabase, Json } from "./database.types";
  * Backwards-compatible Supabase contract.
  *
  * `database.types.ts` remains the canonical generated snapshot. The operational
- * scan table and Finance/Exit RPCs below are already deployed Core authority but
+ * scan table and Finance/Exit RPCs below are deployed/ordered Core authority but
  * are newer than that snapshot, so they are added here without weakening the
  * client to untyped string/table casts. Remove these supplements after the next
  * canonical generated-type refresh includes them verbatim.
@@ -93,6 +93,44 @@ type FinanceExitFunctions = {
     Args: {
       p_order_id: string;
       p_evidence_reference: string;
+      p_correlation_id: string;
+      p_idempotency_key: string;
+      p_actor_id: string;
+    };
+    Returns: Json;
+  };
+  issue_sales_order_pi_final_payment_request_v1: {
+    Args: {
+      p_order_id: string;
+      p_pi_id: string;
+      p_commercial_version_id: string;
+      p_finance_dpl_receipt_id: string;
+      p_document_reference: string;
+      p_payment_action: "PAY_NOW" | "BANK_TRANSFER" | "CONTACT_FINANCE";
+      p_payment_link: string | null;
+      p_payment_instructions: string;
+      p_reason: string;
+      p_source_channel: string;
+      p_source_reference: string | null;
+      p_correlation_id: string;
+      p_idempotency_key: string;
+      p_actor_id: string;
+    };
+    Returns: Json;
+  };
+  get_sales_order_pi_final_payment_request_v1: {
+    Args: { p_order_id: string };
+    Returns: Json;
+  };
+  record_sales_order_pi_final_payment_delivery_v1: {
+    Args: {
+      p_final_payment_request_id: string;
+      p_channel: "WHATSAPP" | "IN_APP" | "EMAIL" | "SMS" | "OTHER";
+      p_destination_reference: string;
+      p_provider_message_id: string | null;
+      p_delivery_status: "QUEUED" | "SENT" | "DELIVERED" | "FAILED";
+      p_evidence_reference: string;
+      p_delivered_at: string | null;
       p_correlation_id: string;
       p_idempotency_key: string;
       p_actor_id: string;
