@@ -743,6 +743,15 @@ jobs:
           from public.finance_dpl_receipts receipt
           where receipt.id = '96200000-0000-0000-0000-000000000001';
 
+          -- enforce_final_invoice_latest_final_payment_request_v1()'s coverage check
+          -- calls get_order_payment_facts_v1(), which requires auth.uid() to be a
+          -- real authenticated actor (raises ORDER_PAYMENT_AUTHENTICATION_REQUIRED
+          -- otherwise) -- this raw psql session has no Supabase JWT context by
+          -- default, so bind one explicitly to the Finance actor already used for
+          -- this fixture's other Finance-authored rows above.
+          set local request.jwt.claim.sub = '91000000-0000-0000-0000-000000000002';
+          set local request.jwt.claim.role = 'authenticated';
+
           insert into public.final_invoices (
             id, order_id, company_id, proforma_invoice_id, commercial_version_id,
             finance_dpl_receipt_id, invoice_number, invoice_date, currency,
